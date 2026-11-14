@@ -9,6 +9,7 @@ description: "WHAT: How to optimise: measure first, then the Rust-first design r
 
 - **Measure, change one thing, measure again, keep the numbers** in the PR (hardware, workload, before and after, provisional when on a shared host or emulator).
 - **Where a number can be asserted** (requests per call, bytes, an allocation bound), assert it in a test.
+- **Allocation is budgeted:** pooled fixed-size buffers and arenas on request paths; reserve from the node memory budget first (ADR 0004).
 - **Stream, do not materialise:** bounded chunks, never a whole bulk, segment or result set in memory when a stream will do.
 - **Fewer copies:** borrow, parse in place, reuse buffers, size collections up front. A copy on a hot path needs a reason.
 - **Monomorphise per-document loops;** `dyn` only at coarse boundaries.

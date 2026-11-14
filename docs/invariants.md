@@ -18,3 +18,6 @@ The properties the system must never lose, each linked to the check or test that
 | I-12 | Each role is compiled in only when its build switch is on | `roles_follow_the_build_switches` |
 | I-13 | Every in-scope REST endpoint matches OpenSearch's recorded responses, or its difference is documented | NOT-YET: the compatibility suite arrives with the first endpoint |
 | I-14 | Every Rust source file is traceable to the Java it ports, or marked new with a reason | `scripts/check-port-map.py` |
+| I-15 | No request path reads a whole body or blob into memory, or uses an unbounded queue; every request-path allocation states its bound | `clippy.toml`, `scripts/check-alloc.py` |
+| I-16 | A request that would exceed a memory pool is refused (429) or held back, never allowed to exhaust memory | NOT-YET: the memory budget arrives in stage 1 |
+| I-17 | Peak memory under sustained load stays under the node's configured budget | NOT-YET: the counting allocator and load test arrive in stage 1 |

@@ -1,0 +1,11 @@
+# Bounded memory and streaming (docs/adr/0004-bounded-memory-and-streaming.md).
+# These read a whole body or blob into memory, or create an unbounded queue.
+# Stream in bounded chunks from a pooled buffer, or use a bounded channel. A
+# test may `#[allow(clippy::disallowed_methods)]` locally.
+disallowed-methods = [
+    { path = "std::io::Read::read_to_end", reason = "reads without bound; stream in chunks from a pooled buffer" },
+    { path = "std::io::Read::read_to_string", reason = "reads without bound; stream in chunks from a pooled buffer" },
+    { path = "std::fs::read", reason = "reads a whole file; stream it" },
+    { path = "std::fs::read_to_string", reason = "reads a whole file; stream it" },
+    { path = "std::sync::mpsc::channel", reason = "unbounded queue; use std::sync::mpsc::sync_channel with a capacity" },
+]

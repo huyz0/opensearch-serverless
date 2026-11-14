@@ -10,6 +10,8 @@ Every check, what it enforces, the planted violation that proves it can fail, an
 | `check-crate-layout.py` | README with Owns / Depends on / Entry points, AGENTS.md, `src/lib.rs`, workspace lints | README without Entry points; no AGENTS.md; lints opted out | a section that is wrong |
 | `check-module-size.py` | 1,000-line limit; over 500 only on the shrinking `scripts/size-baseline.txt` | 1,001 lines; 501 lines unlisted; baselined file grew | a short file mixing concerns |
 | `check-unsafe.py` | nothing relaxes `unsafe_code` | `#![allow(unsafe_code)]`; `unsafe_code = "warn"` | unsafe code in dependencies |
+| `clippy.toml` disallowed methods | no whole-buffer reads (`read_to_end`, `read_to_string`, `fs::read`), no unbounded `mpsc::channel` | `read_to_end` in reader (run by hand) | the same done by a dependency |
+| `check-alloc.py` | every allocation in blob, reader, writer, coordinator carries `// ALLOC:`; no unbounded channels | bare `Vec::new()`; `mpsc::channel()` with a comment | allocation inside called functions; false bounds (peak-memory tests do) |
 | `check-s3-access.py` | S3 clients only in `oss-blob`; every LIST has `// LIST:` | `aws-sdk-s3` in reader; bare `list_objects_v2(` | LISTs under other names; transitive clients |
 | `check-test-endpoints.py` | no real AWS endpoints in code or config | an `amazonaws.com` URL | endpoints from the environment |
 | `check-arith-allows.py` | every arithmetic allow carries `// ARITH:` | a bare allow | a wrong proof |

@@ -23,6 +23,18 @@ The rules below carry over from the Java serverless shell (huyz0/OpenSearch, bra
 - **One immutable blob per segment.** Files are packed into one object with an offset header; a blob is never rewritten, so its name is its version and caches never go stale.
 - **Fencing by conditional create, not locks.** A paused or replaced writer cannot overwrite its successor. No lease or leader election for correctness.
 
+## Memory: bounded, streaming
+
+Decision and detail: [ADR 0004](adr/0004-bounded-memory-and-streaming.md).
+
+- **Every node has a memory budget** split into pools; a component reserves before it allocates. Over budget means 429 or backpressure, never out-of-memory.
+- **Fixed-size pooled buffers and per-request arenas.** Steady-state request paths do not call the global allocator.
+- **Stream end to end:** REST bodies in and out, node-to-node transport, object-store reads and writes. Nothing reads a whole body, blob or result set into memory; bulk bodies go through a streaming parser.
+- **Bounded channels and queues only.** A full queue pushes back.
+- **No unbounded `Vec`, `String` or map growth on a request path.** Every allocation there states its bound.
+
+*Check:* `clippy.toml` disallowed methods (whole-buffer reads, unbounded channels); `scripts/check-alloc.py` (every allocation in the request-path crates carries `// ALLOC:`); peak-memory tests under load (invariant I-17).
+
 ## Switches and defaults
 
 - **Build behind switches.** A new behaviour lands behind a setting or a Cargo feature.

@@ -12,6 +12,7 @@ The implementing agent self-reviews, then runs `/quality-review` for an independ
 - **Gate green:** `scripts/gate.sh` ran and passed, and you saw it pass.
 - **S3 cost:** request counts per operation stated and asserted in a test; no new LIST without `// LIST:`; no new PUT that an existing upload could carry; nothing per index on a timer (`s3-cost` skill).
 - **Switches:** new behaviour sits behind a setting or feature unless measured with no downside; tests cover both values; a proven switch is removed.
+- **Memory:** request paths stream in bounded chunks from pooled buffers, reserve from the node budget, use bounded channels, and mark each remaining allocation `// ALLOC: <bound>` (ADR 0004). A peak-memory assertion covers new load paths.
 - **Bounds:** every buffer, queue, cache, batch, fan-out and retry loop has a bound checked before allocation, a stated failure mode (refuse, spill, back-pressure), and a test at the limit and one past it.
 - **Structure:** layering intact, one concern per module, nothing public that need not be (`architecture` skill).
 - **Arithmetic** on lengths, counts or offsets from storage is checked; an allow carries an `// ARITH:` proof.
