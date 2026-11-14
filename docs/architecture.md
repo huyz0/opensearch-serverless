@@ -25,7 +25,7 @@ graph TD
 ```
 <!-- crate-map:end -->
 
-External engine and runtime crates (lucene-rust, hsearch, pstore pieces) come in below layer 2 once [ADR 0002](adr/0002-runtime-dependencies.md) is decided.
+lucene-rust, the engine and only external code dependency, comes in below layer 2 as pinned git crates ([ADR 0002](adr/0002-runtime-dependencies.md)).
 
 | Crate | Owns | README |
 |---|---|---|

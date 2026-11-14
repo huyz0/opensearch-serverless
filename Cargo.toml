@@ -30,10 +30,9 @@ oss-coordinator = { path = "crates/coordinator" }
 # Test-only.
 proptest = { version = "=1.6.0", default-features = false, features = ["std"] }
 
-# The runtime and engine (hsearch, lucene-rust, pstore's cost and catalog
-# pieces) are not wired in yet: whether they come in as pinned git
-# dependencies or as workspace members is an open decision (docs/roadmap.md).
-# When they do, pin an exact `rev`, the way hsearch pins lucene-rust.
+# lucene-rust, the engine, is the only external code dependency
+# (docs/adr/0002-runtime-dependencies.md). It comes in as git crates pinned at
+# an exact `rev` when the reader first needs it.
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

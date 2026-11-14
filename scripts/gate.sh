@@ -46,6 +46,9 @@ py scripts/check-arith-allows.py
 step "check-dev-notes (no milestone, phase or task references in code)"
 py scripts/check-dev-notes.py
 
+step "check-port-map (every Rust file traces to its Java source or says why not)"
+py scripts/check-port-map.py
+
 step "check-invariants (every invariant names evidence that exists)"
 py scripts/check-invariants.py
 

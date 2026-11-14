@@ -4,7 +4,7 @@ Orientation for AI agents and for people joining. A router plus invariants: it d
 
 ## What this is
 
-A Rust serverless OpenSearch: stateless reader, writer and coordinator nodes over object storage, built as a strangler beside the Java serverless shell (huyz0/OpenSearch, `feature/serverlessshell`) and sharing its blob formats. Engine: lucene-rust. Runtime: hsearch. Plan: [docs/roadmap.md](docs/roadmap.md). Map: [docs/architecture.md](docs/architecture.md). Rules: [docs/principles.md](docs/principles.md).
+A Rust serverless OpenSearch: stateless reader, writer and coordinator nodes over object storage, built as a strangler beside the Java serverless shell (huyz0/OpenSearch, `feature/serverlessshell`) and sharing its blob formats. Mission: OpenSearch-compatible for the serverless capability, ported from the Java code ([docs/porting.md](docs/porting.md)), and a cross-reference for hsearch and pstore (ideas only; lucene-rust is the only code dependency). Plan: [docs/roadmap.md](docs/roadmap.md). Map: [docs/architecture.md](docs/architecture.md). Rules: [docs/principles.md](docs/principles.md).
 
 ## Invariants (don't break)
 
@@ -46,6 +46,8 @@ The gate is defined once, in [scripts/gate.sh](scripts/gate.sh); `.githooks/pre-
 | Task | Read |
 |---|---|
 | Where code belongs, adding a crate | `architecture` skill, [docs/how-to/add-a-crate.md](docs/how-to/add-a-crate.md) |
+| Porting a piece from Java | [docs/porting.md](docs/porting.md); add its row to [docs/port-map.tsv](docs/port-map.tsv) |
+| REST behaviour and compatibility | [docs/compatibility.md](docs/compatibility.md) |
 | Anything touching S3 | `s3-cost` skill, [docs/how-to/add-an-s3-call.md](docs/how-to/add-an-s3-call.md) |
 | A setting or a feature switch | [docs/how-to/add-a-setting.md](docs/how-to/add-a-setting.md) |
 | REST, extensions | [docs/how-to/](docs/how-to/README.md) |

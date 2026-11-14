@@ -1,5 +1,5 @@
-# Pin the exact toolchain the gate is defined against, the same one hsearch
-# and lucene-rust pin, so the three build together as git dependencies.
+# Pin the exact toolchain the gate is defined against, the same one
+# lucene-rust pins, so it builds here as a git dependency.
 #
 # An exact patch version, not "stable": different machines resolving "stable"
 # differently once let new clippy lints into lucene-rust unnoticed. A pinned

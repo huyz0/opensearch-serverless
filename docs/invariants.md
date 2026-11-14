@@ -16,3 +16,5 @@ The properties the system must never lose, each linked to the check or test that
 | I-10 | No Rust file over 1,000 lines; over 500 only on the shrinking baseline | `scripts/check-module-size.py` |
 | I-11 | Tests never reach real AWS | `scripts/check-test-endpoints.py` |
 | I-12 | Each role is compiled in only when its build switch is on | `roles_follow_the_build_switches` |
+| I-13 | Every in-scope REST endpoint matches OpenSearch's recorded responses, or its difference is documented | NOT-YET: the compatibility suite arrives with the first endpoint |
+| I-14 | Every Rust source file is traceable to the Java it ports, or marked new with a reason | `scripts/check-port-map.py` |
