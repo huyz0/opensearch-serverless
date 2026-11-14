@@ -6,7 +6,11 @@ The OpenSearch compatibility suite ([docs/compatibility.md](../../docs/compatibi
 The OpenSearch compatibility suite: fixtures, normaliser, runner.
 
 ## Depends on
-Nothing yet. It drives `oss-node` once REST exists, which is why it sits above every other crate.
+`serde_json` for the fixture format. It drives `oss-node` once REST exists, which is why it sits above every other crate.
 
 ## Entry points
-`src/lib.rs`. The fixture format, normaliser and runner land in stage 1; fixtures live in `fixtures/compat/`.
+- `load_dir` / `load_file` (`src/load.rs`): read fixtures with a bounded size.
+- `Fixture` (`src/fixture.rs`): the format, documented for people in [fixtures/compat/README.md](../../fixtures/compat/README.md).
+- `Target` (`src/target.rs`) and `run_suite` (`src/runner.rs`): replay fixtures and report per step.
+- `normalise` (`src/normalise.rs`) and `compare` (`src/compare.rs`): what a step's pass or failure is made of.
+- `tests/recorded.rs`: the checks on the recorded fixtures themselves.

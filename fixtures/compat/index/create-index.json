@@ -1,0 +1,108 @@
+{
+  "name": "create an index, then create it again",
+  "description": "Index lifecycle: a create with explicit settings and mappings is acknowledged; a second create of the same name is refused with resource_already_exists_exception.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0-SNAPSHOT",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-create-index",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "create",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-create-index",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "title": {
+                "type": "text"
+              },
+              "year": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-create-index"
+        }
+      }
+    },
+    {
+      "name": "create again",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-create-index",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/index_uuid",
+          "reason": "the existing index's uuid is generated at creation"
+        },
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "the existing index's uuid is generated at creation"
+        },
+        {
+          "pointer": "/body/error/reason",
+          "reason": "the message embeds the existing index's generated uuid"
+        },
+        {
+          "pointer": "/body/error/root_cause/*/reason",
+          "reason": "the message embeds the existing index's generated uuid"
+        }
+      ],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "resource_already_exists_exception",
+                "reason": "index [compat-create-index/oIemTVv4R3qQQhoAU-q9_g] already exists",
+                "index": "compat-create-index",
+                "index_uuid": "oIemTVv4R3qQQhoAU-q9_g"
+              }
+            ],
+            "type": "resource_already_exists_exception",
+            "reason": "index [compat-create-index/oIemTVv4R3qQQhoAU-q9_g] already exists",
+            "index": "compat-create-index",
+            "index_uuid": "oIemTVv4R3qQQhoAU-q9_g"
+          },
+          "status": 400
+        }
+      }
+    }
+  ]
+}

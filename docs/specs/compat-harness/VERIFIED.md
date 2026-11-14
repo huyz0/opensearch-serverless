@@ -1,0 +1,9 @@
+# Compatibility harness: verified
+
+- AC-1: `a_complete_fixture_parses`, `a_rule_without_a_reason_is_refused`, `an_unknown_method_is_refused`, `a_request_with_two_bodies_is_refused`, `an_unknown_key_is_refused_so_a_typo_cannot_drop_rules`, `shapes_and_types_are_checked`.
+- AC-2: `a_file_of_exactly_the_limit_loads_and_one_byte_more_is_refused`, `small_limits_hold_across_chunk_boundaries`; clippy.toml disallows fs::read and read_to_end, and `scripts/gate.sh` runs clippy with -D warnings.
+- AC-3: `a_wildcard_covers_every_array_element_and_object_member`, `a_normalised_field_no_longer_differs`, `a_rule_that_matches_nothing_in_the_recording_is_stale`, `a_field_missing_from_the_target_is_still_missing`.
+- AC-4: `a_changed_value_names_its_pointer_and_both_values`, `missing_and_unexpected_members_are_reported`, `status_and_selected_headers_are_compared_and_others_ignored`, `listing_stops_at_the_cap_and_counts_the_rest`.
+- AC-5: `a_difference_only_in_a_normalised_field_passes`, `a_real_body_difference_fails_and_names_its_pointer`, `a_target_error_is_reported_and_the_suite_goes_on`.
+- AC-6: `recorded_fixtures_are_well_formed`, `recorded_fixtures_replay_cleanly`. Also run on 2026-11-14 with `COMPAT_REPLAY_FROM` set to a second recording of the same fixtures (passed), and with the two error-reason rules removed (failed, printing both uuid-bearing messages).
+- AC-7: fixtures/compat/record.py, run by hand on 2026-11-14 against a `localDistro` build of upstream's `3.10` branch at b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea (version 3.10.0-SNAPSHOT), the version the Java shell builds on. Its output was then checked by `cargo test -p oss-compat --test recorded` with COMPAT_REPLAY_FROM pointing at a second recording. The first run refused to write `create-index.json` while two of its rules matched nothing.

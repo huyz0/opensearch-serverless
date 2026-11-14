@@ -1,2 +1,12 @@
 rust_path	kind	java_source	note
 src/lib.rs	new		crate root
+src/fixture.rs	new		the golden-fixture format; OpenSearch's REST YAML tests describe requests differently and have no recorded responses
+src/fixture_tests.rs	new		tests for the fixture format
+src/load.rs	new		bounded fixture file loading
+src/load_tests.rs	new		tests for the loader
+src/pointer.rs	new		JSON pointers with a wildcard segment, for normalisation rules
+src/normalise.rs	new		normalisation of fields that vary between runs
+src/compare.rs	new		structural JSON comparison with pointer-addressed differences
+src/target.rs	new		the system-under-test trait
+src/runner.rs	new		replays fixtures and reports per step
+src/runner_tests.rs	new		runner self-tests against a fake target
