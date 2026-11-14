@@ -10,8 +10,10 @@ Built as a strangler beside the Java serverless shell, sharing its blob formats,
 
 ## 1. Test harness and blob store
 
-- An **in-process S3 emulator** with injectable latency, failures and request counting, so every test runs without Docker. RustFS as a plain binary stays optional for wire-level runs.
-- The store trait in `oss-blob` and an S3 implementation, every call metered, tested against the emulator and RustFS.
+- **Memory foundation** ([ADR 0004](adr/0004-bounded-memory-and-streaming.md)): a node memory budget with named pools and reservations, a fixed-size buffer pool, and a test harness with a counting allocator that reports peak memory.
+
+- An **in-process S3 emulator** with injectable latency, failures and request counting, streaming bodies through pooled buffers, so every test runs without Docker. RustFS as a plain binary stays optional for wire-level runs.
+- The store trait in `oss-blob` and an S3 implementation, every call metered, reads and writes streamed in bounded chunks from the buffer pool (no whole-blob `Vec<u8>`), tested against the emulator and RustFS, with a peak-memory assertion.
 - Request-count and round-trip-depth assertions as tests from the start (an idea from pstore).
 - The store ports the shell's `MeteredBlobStore` and its blob-container use.
 - The compatibility harness: fixture format, normaliser and runner, ready for the first endpoint.
@@ -21,6 +23,7 @@ Built as a strangler beside the Java serverless shell, sharing its blob formats,
 - Read the Java shell's published commits and segment blobs (one blob per segment, node packs) through lucene-rust's `CachedBlobDirectory` and page cache.
 - Accept pushed tail records and search them through lucene-rust's realtime search.
 - Answer `_search` for a declared DSL subset, porting OpenSearch's DSL parsing and query phase for it; the Java coordinator routes supported requests here and the rest to Java readers.
+- A streaming REST body path for search requests and responses; tail records pushed over bounded channels.
 - **Gate:** the compatibility suite passes for the subset (golden fixtures from OpenSearch), and the same answers as a Java reader on the shell's REST suites; idle index makes zero periodic requests (a test); heap per held shard measured.
 
 ## 3. Writer node

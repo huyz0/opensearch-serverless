@@ -97,7 +97,7 @@ jobs:
         run: |
           set -e
           for s in selftest-checks check-layering check-crate-layout check-module-size check-unsafe \
-                   check-s3-access check-test-endpoints check-arith-allows check-dev-notes \
+                   check-s3-access check-alloc check-test-endpoints check-arith-allows check-dev-notes \
                    check-port-map check-invariants check-verified check-links; do
             python3 "scripts/$s.py"
           done

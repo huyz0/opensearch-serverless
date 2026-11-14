@@ -34,6 +34,9 @@ py scripts/check-module-size.py
 step "check-unsafe (unsafe_code stays forbidden)"
 py scripts/check-unsafe.py
 
+step "check-alloc (every request-path allocation states its bound; no unbounded channels)"
+py scripts/check-alloc.py
+
 step "check-s3-access (S3 clients only in oss-blob; every LIST justified)"
 py scripts/check-s3-access.py
 
