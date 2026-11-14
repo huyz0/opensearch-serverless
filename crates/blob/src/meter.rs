@@ -1,5 +1,10 @@
 //! Request counters for every S3 call a node makes.
 //!
+//! Ported from the serverless shell's `MeteredBlobStore`
+//! (`serverless/shell/src/main/java/org/opensearch/serverless/store/MeteredBlobStore.java`),
+//! split by S3 request kind so price classes can be totalled. Its byte and
+//! error counters are not ported yet.
+//!
 //! A store implementation calls [`Meter::record`] once per attempt, retries
 //! included, before it returns. Tests assert on the counts ("this write issued
 //! exactly one PUT"), so a change that adds a request fails a test instead of

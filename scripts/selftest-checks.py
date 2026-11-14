@@ -30,6 +30,7 @@ CLEAN = {
     "docs/specs/ids/VERIFIED.md": "- AC-1: `ids_are_distinct`\n",
     "scripts/risk-paths.txt": "crates/blob/src/**  S3 request pattern\n",
     "scripts/size-baseline.txt": "",
+    "docs/port-map.tsv": "rust_path\tkind\tjava_source\tnote\ncrates/types/src/lib.rs\tnew\t\tcrate root\ncrates/reader/src/lib.rs\tport\tserverless/Reader.java\tquery phase\n",
     "body.md": "## Intent\nx\n## Alternatives rejected\nx\n## Invariants\nx\n## Evidence\nx\n## Risk tier\nlow\n## Where to look\nx\n",
     "changed.txt": "crates/reader/src/lib.rs\n",
     "added.txt": "",
@@ -71,6 +72,9 @@ CASES = [
     (["check-verified.py"], "criterion without evidence",
      {"docs/specs/ids/SPEC.md": "# Ids\n\n## Acceptance criteria\n\n- AC-1: ids differ\n- AC-2: ids sort\n"}),
     (["check-verified.py"], "evidence naming a missing test", {"docs/specs/ids/VERIFIED.md": "- AC-1: `no_such_test`\n"}),
+    (["check-port-map.py"], "Rust file without a row", {"crates/types/src/ids.rs": "//! x\n"}),
+    (["check-port-map.py"], "port row without its Java source",
+     {"docs/port-map.tsv": "rust_path\tkind\tjava_source\tnote\ncrates/types/src/lib.rs\tnew\t\tcrate root\ncrates/reader/src/lib.rs\tport\t\tquery phase\n"}),
     (PR, "PR body missing a section", {"body.md": "## Intent\nx\n"}),
     (PR, "high-risk path without label or ADR", {"changed.txt": "crates/blob/src/store.rs\n"}),
 ]

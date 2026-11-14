@@ -21,9 +21,13 @@ A review of each project's engineering practices and AI harness (agent instructi
 | Skills: brevity, code-review, git-workflow, manage-skills, rust-performance, test-coverage, architecture | Adopted, rewritten for this repo | The port-specific parts (Java fixtures, parity ledger) do not apply |
 | `quality-reviewer` subagent and `/quality-review` command | Adopted, rubric rewritten | Judgement the gates cannot make: cost per operation, switch discipline, layering intent |
 | Capped Docker container for every build (`docker-test.sh`), preflight disk checks | Rejected | Cloud sandboxes have no Docker; this workspace is small |
-| Port → benchmark → optimise, Java differential fixtures, parity ledger, port inventory | Rejected | This repo is not a port of a Java codebase class by class; the blob-format contract with the Java shell is tested end to end instead |
+| Port from Java, traceable to its source (lucene-rust's inventory idea) | Adopted after the mission was set | `docs/port-map.tsv`, `scripts/check-port-map.py`, [porting.md](porting.md) |
+| Port, benchmark, optimise; differential tests against Java-written bytes | Adopted | Blob fixtures from the Java shell, REST fixtures from OpenSearch ([compatibility.md](compatibility.md)) |
+| lucene-rust's parity ledger and per-class inventory gate | Rejected | One port-map row per Rust file is enough at this size |
 | `ffi-safety` skill | Deferred | No FFI yet; arrives with the extension loader |
 | "Work directly on main" | Rejected | The Java shell's rule wins: a PR per change, reviewed and merged by its thread |
+
+Since [ADR 0002](adr/0002-runtime-dependencies.md), hsearch and pstore are references only: ideas below are re-implemented here, never imported.
 
 ## From hsearch (proposed)
 
@@ -33,7 +37,7 @@ A review of each project's engineering practices and AI harness (agent instructi
 | Committed / applied / searchable / archived as distinct coordinates in every receipt | Adopt | Makes freshness explicit in responses; cheap to design in now |
 | Resource standard: every buffer, queue, cache and retry loop bounded before allocation, with a limit-and-one test | Adopt | Fits the scale target; goes into the code-review skill |
 | Requests scale with nodes and bytes, never documents, indices or time | Already adopted | Same as the Java principle |
-| Extension ABI v1 (C and WASM) | Adopt when wired in | The assessment's recommendation |
+| Extension ABI v1 (C and WASM) | Adapt | Design this repo's ABI from it; no dependency |
 | Review cap: at most two planned rounds, three hard, then split | Adopted | In the code-review skill |
 | `tasks.json` ledger, `plan.py next`, task packets, review packets with JSON schemas, worktree and resource-lease registry | Reject | Heavy process built for many parallel agents on one machine; Claude project threads and PRs already give one branch per task. hsearch itself has frozen this harness and caps harness work at 20% |
 | "Harness frozen; add a check only for a defect that has shipped" | Reject as stated | Conflicts with lucene-rust's practice and the owner's ask for automated checks of the principles. Keep its spirit: no gate without a named defect class |

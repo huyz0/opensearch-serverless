@@ -9,5 +9,5 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | ADR | Title | Status |
 |---|---|---|
 | [0001](0001-strangler-and-crate-layout.md) | Strangler beside the Java shell, layered crates | Accepted |
-| [0002](0002-runtime-dependencies.md) | How hsearch, lucene-rust and pstore are consumed | Proposed |
+| [0002](0002-runtime-dependencies.md) | lucene-rust is the only code dependency; hsearch and pstore are references | Accepted |
 | [0003](0003-apache-2-licence.md) | Apache License 2.0 | Accepted |

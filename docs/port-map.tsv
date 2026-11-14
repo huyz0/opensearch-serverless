@@ -1,0 +1,10 @@
+rust_path	kind	java_source	note
+crates/types/src/lib.rs	new		crate root; ids are added as roles need them
+crates/blob/src/lib.rs	new		crate root
+crates/blob/src/op.rs	new		S3 request kinds and price classes; the shell's MeteredBlobStore counts requests but has no price model
+crates/blob/src/meter.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/MeteredBlobStore.java@bf347adb	request counting, split by S3 request kind; the Java's byte and error counters are not ported yet
+crates/reader/src/lib.rs	new		crate root
+crates/writer/src/lib.rs	new		crate root
+crates/coordinator/src/lib.rs	new		crate root
+crates/node/src/lib.rs	new		role selection by Cargo feature; the shell selects roles by node settings
+crates/node/src/main.rs	new		process entry point

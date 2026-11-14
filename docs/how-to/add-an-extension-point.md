@@ -1,6 +1,6 @@
 # Add an extension point
 
-Extensions use hsearch's extension ABI v1 (C modules and WASM modules) once it is wired in ([ADR 0002](../adr/0002-runtime-dependencies.md)). Points planned by the assessment: analyzer, query, ingest, scoring, aggregation, filter, rest, job, auth.
+Extensions are C modules and WASM modules on an ABI this repository defines, informed by hsearch's extension ABI v1 but not depending on it ([ADR 0002](../adr/0002-runtime-dependencies.md)). Points planned by the assessment: analyzer, query, ingest, scoring, aggregation, filter, rest, job, auth.
 
 Rules for a new point:
 

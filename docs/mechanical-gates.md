@@ -14,6 +14,7 @@ Every check, what it enforces, the planted violation that proves it can fail, an
 | `check-test-endpoints.py` | no real AWS endpoints in code or config | an `amazonaws.com` URL | endpoints from the environment |
 | `check-arith-allows.py` | every arithmetic allow carries `// ARITH:` | a bare allow | a wrong proof |
 | `check-dev-notes.py` | no milestone, phase or task ids in comments | `// added in M3` | process notes in plain words |
+| `check-port-map.py` | every Rust source file has a port-map row; `port` rows name Java, `new` rows a reason | a file without a row; a port row without Java | a Java path that does not exist at its commit |
 | `check-invariants.py` | every invariant in `docs/invariants.md` names an existing test or check, or says `NOT-YET:` | a missing test name; no evidence | evidence that does not test the invariant |
 | `check-verified.py` | every criterion of a finished spec has resolvable evidence | a criterion without a line; a missing test name | whether the evidence is true |
 | `gen-crate-map.py --check` | the architecture crate graph matches `cargo metadata`; architecture.md under 1,500 words | (run by hand: edit the graph) | stale prose elsewhere in the doc |
