@@ -1,0 +1,71 @@
+# The gate defined in scripts/gate.sh, on plain Linux runners, no containers.
+# `ci-ok` is the one check to require: it passes only when every job passed.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+  CARGO_PROFILE_TEST_DEBUG: line-tables-only
+
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      # rustup reads rust-toolchain.toml and installs the pinned toolchain and
+      # its components on first use.
+      - run: rustup show
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+      - run: scripts/gate.sh
+
+  # c_char signedness and other target-dependent lints differ on arm64; a
+  # check-only build needs no cross linker.
+  clippy-aarch64:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show && rustup target add aarch64-unknown-linux-gnu
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy --workspace --all-targets --all-features --target aarch64-unknown-linux-gnu -- -D warnings
+
+  # Mutation testing on the lines a pull request changed.
+  mutants:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: rustup show
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-mutants
+      - run: MUTANTS_BASE=origin/${{ github.base_ref }} scripts/mutants.sh
+
+  ci-ok:
+    if: always()
+    needs: [gate, clippy-aarch64, mutants]
+    runs-on: ubuntu-24.04
+    steps:
+      - run: |
+          if [ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" = "true" ]; then
+            echo "a required job failed"; exit 1
+          fi

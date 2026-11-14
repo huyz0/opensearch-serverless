@@ -1,0 +1,80 @@
+# Pull-request rules that need the PR itself: the description's sections, risk
+# routing and labelling, and commit messages.
+# `pr-ok` is the check to require alongside ci's `ci-ok`.
+name: pr
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  description:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: risk routing and sections
+        env:
+          BODY: ${{ github.event.pull_request.body }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          printf '%s' "$BODY" > "$RUNNER_TEMP/body.md"
+          git diff --name-only "$BASE...$HEAD" > "$RUNNER_TEMP/changed.txt"
+          git diff --name-only --diff-filter=A "$BASE...$HEAD" > "$RUNNER_TEMP/added.txt"
+          python3 scripts/check-pr.py --body "$RUNNER_TEMP/body.md" --labels "$LABELS" \
+            --changed "$RUNNER_TEMP/changed.txt" --added "$RUNNER_TEMP/added.txt"
+      - name: commit messages
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          for c in $(git rev-list "$BASE..$HEAD"); do
+            git log -1 --format=%B "$c" > "$RUNNER_TEMP/msg.txt"
+            echo "commit $c"
+            scripts/check-commit-msg.sh "$RUNNER_TEMP/msg.txt"
+          done
+
+  # High-risk PRs get the needs-huy label: a flag for the owner's review
+  # after merge, not a merge block.
+  flag-high-risk:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          BODY: ${{ github.event.pull_request.body }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          git diff --name-only "$BASE...$HEAD" > "$RUNNER_TEMP/changed.txt"
+          printf '%s' "$BODY" > "$RUNNER_TEMP/body.md"
+          # The description job reports failures; here only the high-risk
+          # verdict matters, so the exit status is ignored.
+          out=$(python3 scripts/check-pr.py --body "$RUNNER_TEMP/body.md" --changed "$RUNNER_TEMP/changed.txt" || true)
+          if printf '%s\n' "$out" | grep -q '^high-risk'; then
+            gh label create needs-huy --color B60205 --description "High-risk: owner reviews after merge" 2>/dev/null || true
+            gh pr edit "$PR" --add-label needs-huy
+          fi
+
+  pr-ok:
+    if: always()
+    needs: [description]
+    runs-on: ubuntu-24.04
+    steps:
+      - run: |
+          if [ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" = "true" ]; then
+            echo "a required job failed"; exit 1
+          fi

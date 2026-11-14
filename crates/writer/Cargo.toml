@@ -1,0 +1,15 @@
+[package]
+name = "oss-writer"
+description = "opensearch-serverless: writer"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+oss-types = { workspace = true }
+oss-blob = { workspace = true }
+
+[lints]
+workspace = true

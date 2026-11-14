@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# The tree must be green before a commit lands. Runs the same gate as CI.
+set -euo pipefail
+exec scripts/gate.sh

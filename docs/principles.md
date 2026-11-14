@@ -1,0 +1,65 @@
+# Principles
+
+These carry over from the Java serverless shell (huyz0/OpenSearch, branch `feature/serverlessshell`) and from lucene-rust. They bind every change. Where a rule has a mechanical check, the check is named; where it has none, that is said, and review enforces it.
+
+## Cost: S3 requests are the bill
+
+- **Minimise S3 calls.** Count requests per operation, retries included. Requests scale with nodes and bytes, never with documents, indices or elapsed time per index.
+- **LIST is priced like a PUT** (and returns at most 1,000 keys). Prefer a key derived from data already held, then a GET, then a LIST. Every LIST call site carries a `// LIST:` justification. *Check:* `scripts/check-s3-access.py`.
+- **No extra PUTs.** Carry information inside uploads that already happen (a commit's metadata rides in the segment or log upload). Never add PUTs to save the same number of LISTs or fewer.
+- **Every S3 call is metered.** Only `oss-blob` may depend on an S3 client, and its store records each attempt in a `Meter`. Tests assert request counts ("this write issues exactly one PUT"). *Check:* `scripts/check-s3-access.py`; the count assertions are tests.
+- **Idle indices make zero periodic requests.** No timer, poll or backstop per index. At 100M indices, one GET per index every 5 minutes is about $350K a month. *Check:* a test, once the reader exists (docs/roadmap.md).
+- **No data-dependent chain of fetches on a user-facing path.** Fan-out within a round is free; depth is not.
+
+## Write path
+
+- **One write log per node, never per shard.** Writes from every shard a node holds share its log, so request count scales with nodes.
+- **One immutable blob per segment.** Files are packed into one object with an offset header; a blob is never rewritten, so its name is its version and caches never go stale.
+- **Fencing by conditional create, not locks.** A paused or replaced writer cannot overwrite its successor. No lease or leader election for correctness.
+
+## Switches and defaults
+
+- **Build behind switches.** A new behaviour lands behind a setting or a Cargo feature.
+- **On by default only when measured with no downside:** write p99 within 5%, no extra S3 requests, no search regression, crash and correctness tests passing.
+- **No downside, no switch.** A change that wins everywhere ships without one. Remove a switch once its default is proven.
+- Existing tests keep pinning the old behaviour while the switch exists; new tests cover the new one; both run.
+
+*Check:* none mechanical; review.
+
+## Code shape
+
+- **Small modules:** under 500 lines ideally, 1,000 at most. *Check:* `scripts/check-module-size.py`.
+- **One concern per module.** No `util`, `misc` or `common` dumping grounds.
+- **Layered crates, no cycles, siblings independent.** *Check:* `scripts/check-layering.py`.
+- **Private by default.** `pub` only for what another crate needs; every public item has a doc comment. *Check:* `missing_docs = "deny"` in the workspace lints.
+- **`unsafe` is forbidden** in every crate. A future crate that needs it (an extension loader) gets a written exception here first. *Check:* `unsafe_code = "forbid"`.
+- **Arithmetic on values read from storage is checked.** *Check:* `clippy::arithmetic_side_effects`, and `scripts/check-arith-allows.py` for every allow.
+- **Names and comments describe what the code does,** with no milestone, phase or task references. *Check:* `scripts/check-dev-notes.py`.
+
+## Settings
+
+- Settings are owned by the module that reads them and registered through a provider, not collected in one central list.
+- Precedence: **index settings win over cluster settings, which win over node settings.**
+
+*Check:* none yet; the settings provider is built with the first setting ([how-to](how-to/add-a-setting.md)).
+
+## Scale target
+
+- About 10M tenants with about 10 indices each, on hundreds of nodes.
+- Adaptive and fixed shard modes; small indices are auto-bucketed into shared shards.
+- Anything that is O(total indices) on a hot path, a timer, or a subscription is a bug.
+
+## Testing
+
+- **Emulators only.** Tests run against an in-process S3 emulator or RustFS, never real AWS. No Docker is required to build or test. *Check:* `scripts/check-test-endpoints.py`.
+- **≥95% line coverage**, measured over every feature. *Check:* `scripts/coverage.sh --fail-under-lines 95` in the gate.
+- **A gate nobody has seen fail is not trusted.** A new check is shown failing on the defect it targets before it lands, and its blind spots are written in its docstring and in [mechanical-gates.md](mechanical-gates.md).
+- **Never weaken a threshold or delete a test to make a check pass.**
+- **Never claim a test passed or a number was measured without having run it.** Numbers from emulators or shared hosts are labelled provisional.
+
+## Pull requests
+
+- The thread that writes a change reviews and merges its own PR once the gate and CI are green, after at most two review rounds.
+- High-risk changes (formats, durability or fencing, the S3 request pattern, crate dependencies, public API, defaults, security) need an ADR. They merge like any other, carry the `needs-huy` label, and are flagged to the owner for review after merging. *Check:* `scripts/check-pr.py`.
+- If a PR fails only on a known flaky test, merge it and fix the flake in a separate PR.
+- No AI attribution in commits or PR descriptions.

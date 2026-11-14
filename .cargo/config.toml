@@ -1,0 +1,7 @@
+# Build for x86-64-v3 (AVX2, BMI1/2, FMA, LZCNT, POPCNT) on Linux x86_64, the
+# deployment target. A generic 2003-baseline build turns `count_ones` into a
+# bit-twiddling sequence and caps auto-vectorization at SSE2; lucene-rust
+# measured bitset kernels at 0.62x of Lucene's that way. aarch64 needs nothing:
+# NEON is in its baseline.
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "target-cpu=x86-64-v3"]

@@ -1,0 +1,51 @@
+[workspace]
+resolver = "2"
+# Downward-only: types <- blob <- {reader, writer} <- coordinator <- node.
+# reader and writer are siblings and never depend on each other.
+# `scripts/check-layering.py` enforces this order.
+members = [
+    "crates/types",
+    "crates/blob",
+    "crates/reader",
+    "crates/writer",
+    "crates/coordinator",
+    "crates/node",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+publish = false
+repository = "https://github.com/huyz0/opensearch-serverless"
+
+[workspace.dependencies]
+oss-types = { path = "crates/types" }
+oss-blob = { path = "crates/blob" }
+oss-reader = { path = "crates/reader" }
+oss-writer = { path = "crates/writer" }
+oss-coordinator = { path = "crates/coordinator" }
+
+# Test-only.
+proptest = { version = "=1.6.0", default-features = false, features = ["std"] }
+
+# The runtime and engine (hsearch, lucene-rust, pstore's cost and catalog
+# pieces) are not wired in yet: whether they come in as pinned git
+# dependencies or as workspace members is an open decision (docs/roadmap.md).
+# When they do, pin an exact `rev`, the way hsearch pins lucene-rust.
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "deny"
+
+# Lengths, counts and offsets read out of a blob, a manifest or a log record
+# must never reach `+`/`-`/`*`/`<<` unbounded: a debug build panics, a release
+# build wraps silently. Starting with an empty tree, the lint is on everywhere;
+# every `#[allow]` of it carries an `// ARITH:` proof
+# (`scripts/check-arith-allows.py`).
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+arithmetic_side_effects = "deny"
+
+[profile.release]
+overflow-checks = true

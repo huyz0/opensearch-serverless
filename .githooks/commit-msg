@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Validates the commit message. The rules live in scripts/check-commit-msg.sh,
+# which CI also runs on every commit of a pull request.
+set -euo pipefail
+exec "$(git rev-parse --show-toplevel)/scripts/check-commit-msg.sh" "$1"

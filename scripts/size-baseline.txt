@@ -1,0 +1,2 @@
+# Rust files allowed past 500 lines, with their maximum length. Only shrinks.
+# Format: <path> <max lines>

@@ -1,0 +1,24 @@
+[package]
+name = "oss-node"
+description = "opensearch-serverless: the node binary, with each role behind a build switch"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[features]
+# Each role is a build switch. The reader is the first role built
+# (docs/roadmap.md), so it is the only one on by default.
+default = ["reader"]
+reader = ["dep:oss-reader"]
+writer = ["dep:oss-writer"]
+coordinator = ["dep:oss-coordinator"]
+
+[dependencies]
+oss-reader = { workspace = true, optional = true }
+oss-writer = { workspace = true, optional = true }
+oss-coordinator = { workspace = true, optional = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,14 @@
+# Pin the exact toolchain the gate is defined against, the same one hsearch
+# and lucene-rust pin, so the three build together as git dependencies.
+#
+# An exact patch version, not "stable": different machines resolving "stable"
+# differently once let new clippy lints into lucene-rust unnoticed. A pinned
+# version makes a compiler bump a one-line diff that CI evaluates.
+#
+# To bump: change `channel`, run scripts/gate.sh, fix what fires, land it as
+# one commit.
+
+[toolchain]
+channel = "1.97.1"
+profile = "minimal"
+components = ["rustfmt", "clippy", "llvm-tools"]
