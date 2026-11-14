@@ -4,21 +4,24 @@ A stateless search service on object storage. Nodes hold caches, never durable s
 
 ## Crate map
 
-Dependencies point downward only (`scripts/check-layering.py`): `oss-types` (layer 0) ← `oss-blob` (1) ← `oss-reader`, `oss-writer` (2, siblings that never depend on each other) ← `oss-coordinator` (3) ← `oss-node` (4). The graph below is generated from `cargo metadata` by `scripts/gen-crate-map.py`; dashed edges are optional (a role behind its Cargo feature). CI fails when it is stale.
+Dependencies point downward only (`scripts/check-layering.py`): `oss-types`, `oss-mem`, `oss-testkit` (layer 0) ← `oss-blob` (1) ← `oss-reader`, `oss-writer` (2, siblings that never depend on each other) ← `oss-coordinator` (3) ← `oss-node` (4) ← `oss-compat` (5). The graph below is generated from `cargo metadata` by `scripts/gen-crate-map.py`; dashed edges are optional (a role behind its Cargo feature). CI fails when it is stale.
 
 <!-- crate-map:start -->
 ```mermaid
 graph TD
     oss-blob --> oss-types
+    oss-compat
     oss-coordinator --> oss-blob
     oss-coordinator --> oss-reader
     oss-coordinator --> oss-types
     oss-coordinator --> oss-writer
+    oss-mem
     oss-node -.-> oss-coordinator
     oss-node -.-> oss-reader
     oss-node -.-> oss-writer
     oss-reader --> oss-blob
     oss-reader --> oss-types
+    oss-testkit
     oss-types
     oss-writer --> oss-blob
     oss-writer --> oss-types
@@ -30,11 +33,14 @@ lucene-rust, the engine and only external code dependency, comes in below layer 
 | Crate | Owns | README |
 |---|---|---|
 | `oss-types` | identifiers, value types | [crates/types](../crates/types/README.md) |
+| `oss-mem` | memory budget, pools, buffer pool | [crates/mem](../crates/mem/README.md) |
+| `oss-testkit` | test-only: counting allocator, peak-memory assertions | [crates/testkit](../crates/testkit/README.md) |
 | `oss-blob` | S3 request kinds, the meter, the store | [crates/blob](../crates/blob/README.md) |
 | `oss-reader` | published-commit reads, page cache, query phase | [crates/reader](../crates/reader/README.md) |
 | `oss-writer` | node write log, segment build and upload, publish | [crates/writer](../crates/writer/README.md) |
 | `oss-coordinator` | REST, routing, fan-out, reduce | [crates/coordinator](../crates/coordinator/README.md) |
 | `oss-node` | process wiring, role selection | [crates/node](../crates/node/README.md) |
+| `oss-compat` | OpenSearch compatibility suite | [crates/compat](../crates/compat/README.md) |
 
 ## Folder layout
 
@@ -43,6 +49,7 @@ crates/<name>/            one crate per concern
   Cargo.toml              [lints] workspace = true
   README.md               Owns / Depends on / Entry points
   AGENTS.md               the crate's local rules for agents
+  port-map.tsv            each source file's Java origin, or why it is new
   src/lib.rs              crate doc, module list, re-exports only
   src/<concern>.rs        one concern per file, < 500 lines
   tests/                  integration tests against the in-process emulator

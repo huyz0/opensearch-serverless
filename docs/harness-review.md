@@ -21,7 +21,7 @@ A review of each project's engineering practices and AI harness (agent instructi
 | Skills: brevity, code-review, git-workflow, manage-skills, rust-performance, test-coverage, architecture | Adopted, rewritten for this repo | The port-specific parts (Java fixtures, parity ledger) do not apply |
 | `quality-reviewer` subagent and `/quality-review` command | Adopted, rubric rewritten | Judgement the gates cannot make: cost per operation, switch discipline, layering intent |
 | Capped Docker container for every build (`docker-test.sh`), preflight disk checks | Rejected | Cloud sandboxes have no Docker; this workspace is small |
-| Port from Java, traceable to its source (lucene-rust's inventory idea) | Adopted after the mission was set | `docs/port-map.tsv`, `scripts/check-port-map.py`, [porting.md](porting.md) |
+| Port from Java, traceable to its source (lucene-rust's inventory idea) | Adopted after the mission was set | `crates/*/port-map.tsv`, `scripts/check-port-map.py`, [porting.md](porting.md) |
 | Port, benchmark, optimise; differential tests against Java-written bytes | Adopted | Blob fixtures from the Java shell, REST fixtures from OpenSearch ([compatibility.md](compatibility.md)) |
 | lucene-rust's parity ledger and per-class inventory gate | Rejected | One port-map row per Rust file is enough at this size |
 | `ffi-safety` skill | Deferred | No FFI yet; arrives with the extension loader |

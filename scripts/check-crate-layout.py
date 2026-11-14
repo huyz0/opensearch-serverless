@@ -22,7 +22,7 @@ def main():
     hits = []
     for crate in sorted(p for p in ROOT.glob("crates/*") if p.is_dir()):
         rel = crate.relative_to(ROOT).as_posix()
-        for needed in ["Cargo.toml", "src/lib.rs", "README.md", "AGENTS.md"]:
+        for needed in ["Cargo.toml", "src/lib.rs", "README.md", "AGENTS.md", "port-map.tsv"]:
             if not (crate / needed).is_file():
                 hits.append(f"{rel}: missing {needed}")
         manifest = crate / "Cargo.toml"
