@@ -1,6 +1,8 @@
 //! PUTs, conditional creates and the capacity bound.
 
-use std::sync::{Arc, Barrier};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::{Duration, Instant};
 
 use crate::{MIB, emulator, get_all, put};
 use oss_blob::*;
@@ -17,9 +19,11 @@ fn a_conditional_create_never_overwrites() {
 }
 
 /// A body whose first fill waits until every racer has started streaming,
-/// so all of them are past any check made before the body is read.
+/// so all of them are past any check made before the body is read. The wait
+/// gives up after two seconds, so a racer that never arrives fails the test
+/// instead of hanging it.
 struct GatedSource {
-    gate: Arc<Barrier>,
+    gate: Arc<AtomicUsize>,
     inner: SliceSource<'static>,
     opened: bool,
 }
@@ -32,7 +36,11 @@ impl ChunkSource for GatedSource {
     fn fill(&mut self, buf: &mut [u8]) -> BlobResult<usize> {
         if !self.opened {
             self.opened = true;
-            self.gate.wait();
+            self.gate.fetch_add(1, Ordering::SeqCst);
+            let start = Instant::now();
+            while self.gate.load(Ordering::SeqCst) < 8 && start.elapsed() < Duration::from_secs(2) {
+                std::thread::yield_now();
+            }
         }
         self.inner.fill(buf)
     }
@@ -49,7 +57,7 @@ fn of_racing_creates_exactly_one_wins() {
     ];
     for round in 0..20 {
         let e = Arc::new(Emulator::new(MIB, round));
-        let gate = Arc::new(Barrier::new(BODIES.len()));
+        let gate = Arc::new(AtomicUsize::new(0));
         let threads: Vec<_> = BODIES
             .iter()
             .map(|body| {
@@ -194,6 +202,7 @@ fn a_put_with_a_bad_body_leaves_the_old_object() {
 #[test]
 fn the_emulator_refuses_writes_past_its_capacity() {
     let e = Emulator::new(100, 1);
+    assert_eq!(e.object_count(), 0);
     put(&e, "a", &[0; 60]);
     let r = e.put("b", &mut SliceSource::new(&[0; 41]), &mut [0; 16]);
     assert_eq!(r, Err(BlobError::CapacityExceeded));
@@ -216,4 +225,43 @@ fn the_emulator_refuses_writes_past_its_capacity() {
     );
     assert_eq!(e.meter().count(S3Op::Put), 7);
     assert_eq!(e.meter().errors(), 3);
+}
+
+#[test]
+fn a_failed_put_gives_its_reservation_back() {
+    let e = Emulator::new(100, 1);
+    e.fail_next(S3Op::Put, 1);
+    assert_eq!(
+        e.put("a", &mut SliceSource::new(&[0; 100]), &mut [0; 16]),
+        Err(BlobError::Unavailable)
+    );
+    let mut short = SliceSource::new(&[0; 10]);
+    let mut lying = Declared {
+        inner: &mut short,
+        len: 100,
+    };
+    assert!(e.put("a", &mut lying, &mut [0; 16]).is_err());
+    put(&e, "a", &[0; 50]);
+    put(&e, "b", &[0; 50]);
+    assert_eq!((e.stored_bytes(), e.object_count()), (100, 2));
+}
+
+/// Declares a length its inner source does not have.
+struct Declared<'a> {
+    inner: &'a mut SliceSource<'static>,
+    len: u64,
+}
+
+impl ChunkSource for Declared<'_> {
+    fn len(&self) -> u64 {
+        self.len
+    }
+
+    fn fill(&mut self, buf: &mut [u8]) -> BlobResult<usize> {
+        self.inner.fill(buf)
+    }
+
+    fn rewind(&mut self) -> BlobResult<()> {
+        self.inner.rewind()
+    }
 }

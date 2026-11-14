@@ -206,6 +206,8 @@ mod tests {
         assert!(check_list("", None, 0).is_err());
         assert!(check_list(&"p".repeat(MAX_KEY_BYTES + 1), None, 1).is_err());
         assert!(check_list("", Some(&"c".repeat(MAX_KEY_BYTES + 1)), 1).is_err());
+        let longest = "k".repeat(MAX_KEY_BYTES);
+        assert_eq!(check_list(&longest, Some(&longest), 1), Ok(1));
     }
 
     #[test]

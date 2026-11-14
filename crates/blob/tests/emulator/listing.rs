@@ -24,6 +24,7 @@ fn listing_pages_through_every_key_once() {
             })
             .unwrap();
         pages += 1;
+        assert!(pages <= 3, "the cursor must move forward");
         assert!(page.keys <= MAX_LIST_KEYS);
         if !page.truncated {
             break;

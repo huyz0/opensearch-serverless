@@ -148,9 +148,11 @@ impl Emulator {
         result
     }
 
-    /// Streams `body` into a new allocation after reserving its length
-    /// against the capacity, then commits it under the lock. With
-    /// `if_absent`, a key taken by then refuses the commit.
+    /// Reserves the body's length against the capacity, streams it into a
+    /// new allocation, then commits it under the lock. With `if_absent`, a
+    /// key taken before the reservation or by the commit refuses the write.
+    /// The reservation is given back in one place, under the commit's lock,
+    /// whether the body streamed or not.
     fn write(
         &self,
         key: &str,
@@ -159,34 +161,13 @@ impl Emulator {
         if_absent: bool,
     ) -> BlobResult<CreateOutcome> {
         let len = body.len();
-        let Some(reservation) = Reservation::take(self, key, len, if_absent)? else {
+        if !self.reserve(key, len, if_absent)? {
             return Ok(CreateOutcome::AlreadyExists);
-        };
-        let cap = usize::try_from(len).map_err(|_| BlobError::CapacityExceeded)?;
-        // ALLOC: one object body, at most the emulator's capacity, reserved above.
-        let mut data = Vec::with_capacity(cap);
-        loop {
-            let n = body.fill(buf)?;
-            if n == 0 {
-                break;
-            }
-            let chunk = buf
-                .get(..n)
-                .ok_or(BlobError::Stream("source filled past the buffer"))?;
-            if data.len().saturating_add(n) > cap {
-                return Err(BlobError::InvalidArgument(
-                    "body longer than its declared length",
-                ));
-            }
-            data.extend_from_slice(chunk);
         }
-        if data.len() != cap {
-            return Err(BlobError::InvalidArgument(
-                "body shorter than its declared length",
-            ));
-        }
+        let streamed = stream(body, buf, len);
         let mut objects = lock(&self.objects);
-        reservation.release(&mut objects);
+        objects.reserved = objects.reserved.saturating_sub(len);
+        let data = streamed?;
         if if_absent && objects.map.contains_key(key) {
             return Ok(CreateOutcome::AlreadyExists);
         }
@@ -198,60 +179,57 @@ impl Emulator {
         self.meter.add_bytes_written(len);
         Ok(CreateOutcome::Created)
     }
-}
 
-/// Bytes a PUT in flight holds against the capacity, given back when it
-/// commits or fails.
-struct Reservation<'a> {
-    emulator: &'a Emulator,
-    len: u64,
-    held: bool,
-}
-
-impl<'a> Reservation<'a> {
     /// Reserves `len` bytes, counting what is stored and what other PUTs
     /// hold; the object being replaced still counts until the commit. With
-    /// `if_absent`, a key already taken answers `None` before capacity is
+    /// `if_absent`, a key already taken answers `false` before capacity is
     /// considered, as S3 answers 412 whatever the body; the commit checks
     /// again for a create that raced this one.
-    fn take(
-        emulator: &'a Emulator,
-        key: &str,
-        len: u64,
-        if_absent: bool,
-    ) -> BlobResult<Option<Self>> {
-        let mut objects = lock(&emulator.objects);
+    fn reserve(&self, key: &str, len: u64, if_absent: bool) -> BlobResult<bool> {
+        let mut objects = lock(&self.objects);
         if if_absent && objects.map.contains_key(key) {
-            return Ok(None);
+            return Ok(false);
         }
         let used = objects.stored.saturating_add(objects.reserved);
         match used.checked_add(len) {
-            Some(total) if total <= emulator.capacity => {
+            Some(total) if total <= self.capacity => {
                 objects.reserved = objects.reserved.saturating_add(len);
-                Ok(Some(Self {
-                    emulator,
-                    len,
-                    held: true,
-                }))
+                Ok(true)
             }
             _ => Err(BlobError::CapacityExceeded),
         }
     }
-
-    /// Gives the bytes back inside a lock the caller already holds.
-    fn release(mut self, objects: &mut Objects) {
-        objects.reserved = objects.reserved.saturating_sub(self.len);
-        self.held = false;
-    }
 }
 
-impl Drop for Reservation<'_> {
-    fn drop(&mut self) {
-        if self.held {
-            let mut objects = lock(&self.emulator.objects);
-            objects.reserved = objects.reserved.saturating_sub(self.len);
+/// Reads exactly `len` bytes of `body` through `buf` into a new allocation;
+/// a body that ends early or runs past `len` is refused.
+fn stream(body: &mut dyn ChunkSource, buf: &mut [u8], len: u64) -> BlobResult<Vec<u8>> {
+    let cap = usize::try_from(len).map_err(|_| BlobError::CapacityExceeded)?;
+    // ALLOC: one object body, at most the emulator's capacity, reserved by the caller.
+    let mut data = Vec::with_capacity(cap);
+    while data.len() < cap {
+        let n = body.fill(buf)?;
+        if n == 0 {
+            return Err(BlobError::InvalidArgument(
+                "body shorter than its declared length",
+            ));
         }
+        if data.len().saturating_add(n) > cap {
+            return Err(BlobError::InvalidArgument(
+                "body longer than its declared length",
+            ));
+        }
+        let chunk = buf
+            .get(..n)
+            .ok_or(BlobError::Stream("source filled past the buffer"))?;
+        data.extend_from_slice(chunk);
     }
+    if body.fill(buf)? != 0 {
+        return Err(BlobError::InvalidArgument(
+            "body longer than its declared length",
+        ));
+    }
+    Ok(data)
 }
 
 /// The half-open byte span `range` selects in an object of `len` bytes.

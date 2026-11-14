@@ -84,14 +84,8 @@ impl OpControl {
         } else if self.throttle_next > 0 {
             self.throttle_next = self.throttle_next.saturating_sub(1);
             Some(BlobError::Throttled)
-        } else if roll < u64::from(self.faults.fail_ppm) {
-            Some(BlobError::Unavailable)
-        } else if roll
-            < u64::from(self.faults.fail_ppm).saturating_add(u64::from(self.faults.throttle_ppm))
-        {
-            Some(BlobError::Throttled)
         } else {
-            None
+            classify(roll, self.faults)
         };
         let lose_response = fault.is_none() && self.lose_next > 0;
         if lose_response {
@@ -102,6 +96,19 @@ impl OpControl {
             fault,
             lose_response,
         }
+    }
+}
+
+/// The random fault a roll in `0..PPM` falls on: the first `fail_ppm`
+/// values fail, the next `throttle_ppm` throttle, the rest pass.
+fn classify(roll: u64, faults: Faults) -> Option<BlobError> {
+    let fail = u64::from(faults.fail_ppm);
+    if roll < fail {
+        Some(BlobError::Unavailable)
+    } else if roll < fail.saturating_add(u64::from(faults.throttle_ppm)) {
+        Some(BlobError::Throttled)
+    } else {
+        None
     }
 }
 
@@ -145,6 +152,37 @@ mod tests {
             assert_eq!(a.next(), b.next());
         }
         assert_ne!(SplitMix64::new(1).next(), SplitMix64::new(2).next());
+    }
+
+    #[test]
+    fn splitmix64_matches_the_reference_sequence() {
+        let mut g = SplitMix64::new(0);
+        assert_eq!(g.next(), 0xE220_A839_7B1D_CDAF);
+        assert_eq!(g.next(), 0x6E78_9E6A_A1B9_65F4);
+        assert_eq!(g.next(), 0x06C4_5D18_8009_454F);
+    }
+
+    #[test]
+    fn rolls_split_into_failures_then_throttles_then_passes() {
+        let f = Faults {
+            fail_ppm: 2,
+            throttle_ppm: 3,
+        };
+        assert_eq!(classify(0, f), Some(BlobError::Unavailable));
+        assert_eq!(classify(1, f), Some(BlobError::Unavailable));
+        assert_eq!(classify(2, f), Some(BlobError::Throttled));
+        assert_eq!(classify(4, f), Some(BlobError::Throttled));
+        assert_eq!(classify(5, f), None);
+        assert_eq!(classify(0, Faults::default()), None);
+    }
+
+    #[test]
+    fn jitter_is_the_roll_modulo_its_bound() {
+        assert_eq!(jitter(Duration::from_nanos(10), 7), Duration::from_nanos(7));
+        assert_eq!(
+            jitter(Duration::from_nanos(10), 27),
+            Duration::from_nanos(7)
+        );
     }
 
     #[test]
