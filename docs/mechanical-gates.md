@@ -20,7 +20,8 @@ Every check, what it enforces, the planted violation that proves it can fail, an
 | `gen-crate-map.py --check` | the architecture crate graph matches `cargo metadata`; architecture.md under 1,500 words | (run by hand: edit the graph) | stale prose elsewhere in the doc |
 | `check-links.py` | relative Markdown links resolve | a link to a missing file | anchors, external URLs |
 | `cargo doc -D warnings` | rustdoc links resolve | | links in plain backticks |
-| `coverage.sh --fail-under-lines 95` | line coverage over all features, `main.rs` excluded | | tests that assert nothing (mutants does) |
-| `mutants.sh` (CI, pull requests) | no surviving mutant in changed lines | | changes to tests alone |
-| `check-commit-msg.sh` (hook and `pr` workflow) | subject format; `Spec:` on feat, fix, perf | | a Spec that does not match the change |
-| `check-pr.py` (`pr` workflow) | template sections; high-risk paths need an ADR and a `high` tier | missing section; risky path without an ADR | public API changes outside risky paths |
+| `coverage.sh --fail-under-lines 95` (local gate, nightly) | line coverage over all features, `main.rs` excluded | | tests that assert nothing (mutants does) |
+| `mutants.sh` (CI on pull requests: changed lines; nightly: all) | no surviving mutant | | changes to tests alone |
+| `check-commit-msg.sh` (hook and `ci` workflow) | subject format; `Spec:` on feat, fix, perf | | a Spec that does not match the change |
+| `check-pr.py` (`ci` workflow) | template sections; high-risk paths need an ADR and a `high` tier | missing section; risky path without an ADR | public API changes outside risky paths |
+| `ci-changes.py --self-test` (CI tree checks) | path classification: docs-only skips Rust, crates pull in dependents, root files run all | | a crate reading a file outside its directory |

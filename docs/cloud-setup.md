@@ -24,4 +24,4 @@ The network policy must allow `static.rust-lang.org`, `sh.rustup.rs`, `crates.io
 
 ## CI
 
-GitHub Actions on plain `ubuntu-24.04` runners, no containers: the gate, and clippy for `aarch64`. See `.github/workflows/ci.yml`.
+GitHub Actions on plain `ubuntu-24.04` runners, no containers: one path-aware job per PR, and a nightly run for coverage, mutants and arm64. See [ci.md](ci.md).

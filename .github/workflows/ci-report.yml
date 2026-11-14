@@ -1,0 +1,23 @@
+# Weekly: queue wait, minutes per run and the slowest jobs over the last
+# seven days, written to the run's summary. See docs/ci.md.
+name: ci-report
+
+on:
+  schedule:
+    - cron: "41 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: python3 scripts/ci-report.py "$REPO" >> "$GITHUB_STEP_SUMMARY"

@@ -58,6 +58,9 @@ py scripts/check-verified.py
 step "gen-crate-map --check (architecture crate map current, doc under 1,500 words)"
 py scripts/gen-crate-map.py --check
 
+step "ci-changes --self-test (CI path classification)"
+py scripts/ci-changes.py --self-test
+
 step "check-links (relative markdown links resolve)"
 py scripts/check-links.py
 
