@@ -25,3 +25,7 @@ No Docker needed, on Linux, macOS, Windows (Git Bash) or a Claude cloud sandbox.
 - [docs/how-to/](docs/how-to/README.md): add a crate, an S3 call, a setting, a REST endpoint, an extension point
 - [docs/adr/](docs/adr/README.md): decisions
 - [AGENTS.md](AGENTS.md): orientation for AI agents (and a fast start for people)
+
+## Licence
+
+Apache License 2.0. See [LICENSE](LICENSE).

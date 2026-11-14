@@ -6,7 +6,7 @@ Built as a strangler beside the Java serverless shell, sharing its blob formats,
 
 - Workspace, crate layout, gates, hooks, CI on plain Linux runners, agent instructions and skills.
 - `oss-blob`: S3 request kinds, price classes, the meter.
-- **Open decisions:** how hsearch, lucene-rust and pstore are consumed ([ADR 0002](adr/0002-runtime-dependencies.md)); the licence.
+- **Open decisions:** how hsearch, lucene-rust and pstore are consumed ([ADR 0002](adr/0002-runtime-dependencies.md)). The licence is Apache-2.0 ([ADR 0003](adr/0003-apache-2-licence.md)).
 
 ## 1. Test harness and blob store
 
