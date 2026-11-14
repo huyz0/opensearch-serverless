@@ -1,0 +1,65 @@
+# The expensive checks, once a night on main, so pull requests stay fast.
+# A red job opens (or comments on) an issue titled "nightly: <job>".
+# See docs/ci.md.
+name: nightly
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+  CARGO_PROFILE_TEST_DEBUG: "0"
+
+jobs:
+  nightly:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        job: [coverage, mutants, slow-tests, clippy-aarch64]
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.job }}
+      - uses: taiki-e/install-action@v2
+        if: matrix.job == 'coverage' || matrix.job == 'mutants'
+        with:
+          tool: ${{ matrix.job == 'coverage' && 'cargo-llvm-cov' || 'cargo-mutants' }}
+      - name: run
+        env:
+          JOB: ${{ matrix.job }}
+        run: |
+          case "$JOB" in
+            coverage)       scripts/coverage.sh --locked --fail-under-lines 95 ;;
+            mutants)        scripts/mutants.sh --all ;;
+            slow-tests)     cargo test --locked --workspace --all-features -- --ignored ;;
+            clippy-aarch64) rustup target add aarch64-unknown-linux-gnu &&
+                            cargo clippy --locked --workspace --all-targets --all-features --target aarch64-unknown-linux-gnu -- -D warnings ;;
+          esac
+      - name: report failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB: ${{ matrix.job }}
+          URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="nightly: $JOB"
+          n=$(gh issue list --state open --search "\"$title\" in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$n" ]; then gh issue comment "$n" --body "Failed again: $URL"
+          else gh issue create --title "$title" --body "The nightly $JOB job failed: $URL"; fi

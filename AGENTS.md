@@ -30,14 +30,14 @@ cargo test -p oss-blob            # one crate
 cargo run -p oss-node --features writer,coordinator
 ```
 
-The gate is defined once, in [scripts/gate.sh](scripts/gate.sh); `.githooks/pre-commit` and CI run it. Install hooks with `scripts/setup-hooks.sh` (bootstrap does it).
+The gate is defined once, in [scripts/gate.sh](scripts/gate.sh); the pre-push hook runs it, and it is the real CI: GitHub's free shared runners only confirm it ([docs/ci.md](docs/ci.md)). The pre-commit hook runs the fast checks. Install hooks with `scripts/setup-hooks.sh` (bootstrap does it).
 
 ## How work flows
 
 1. **Spec first** for a feature: `docs/specs/<feature>/SPEC.md` with checkable `AC-<n>` criteria ([docs/specs/](docs/specs/README.md)). `VERIFIED.md` names the evidence when done.
 2. **One branch and PR per change.** Commit subject `type(scope): lowercase description` (`feat|fix|docs|test|chore|refactor|perf|build|ci`); feat, fix and perf commits carry `Spec: docs/specs/<feature>/SPEC.md` or `Spec: none (<reason>)`. **No AI or Claude attribution** anywhere: no Co-Authored-By, session links or "generated with" footers in commits or PR bodies.
 3. **PR body follows the template:** Intent, Alternatives rejected, Invariants, Evidence, Risk tier, Where to look.
-4. **The thread that wrote a PR merges it** (squash) once `ci-ok` and `pr-ok` are green, after at most two review rounds (`/quality-review`).
+4. **The thread that wrote a PR merges it** (squash) once the `ci` check is green, after at most two review rounds (`/quality-review`).
 5. **High-risk** (formats, durability or fencing, S3 request pattern, crate dependencies, public API, defaults, security; paths in [scripts/risk-paths.txt](scripts/risk-paths.txt)): link or add an ADR; CI labels it `needs-huy`. Merge it too, then keep the thread open and flag the change to the owner for review. Only the owner accepts ADRs. A PR failing only on a known flaky test merges; the flake gets its own PR.
 6. Keep harness work (scripts, CI, gates) to about 20% of changes; ship product.
 
@@ -60,4 +60,5 @@ The gate is defined once, in [scripts/gate.sh](scripts/gate.sh); `.githooks/pre-
 | Working inside one crate | that crate's `AGENTS.md` and `README.md` |
 | Editing skills or this file | `manage-skills` skill |
 | Replies and reports | `brevity` skill |
+| CI, its cost, and what runs where | [docs/ci.md](docs/ci.md) |
 | Why a practice is or is not here | [docs/harness-review.md](docs/harness-review.md) |

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# The whole gate before anything reaches GitHub: the local gate is the real
+# CI, and the shared free runners only confirm it. See docs/ci.md.
+set -euo pipefail
+exec "$(git rev-parse --show-toplevel)/scripts/gate.sh"

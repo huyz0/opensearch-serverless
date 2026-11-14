@@ -1,71 +1,140 @@
-# The gate defined in scripts/gate.sh, on plain Linux runners, no containers.
-# `ci-ok` is the one check to require: it passes only when every job passed.
+# One job per pull-request push, the only required check (`ci`). The local
+# gate (scripts/gate.sh, run by the pre-push hook) is the real CI; this
+# confirms it within the free runner budget. See docs/ci.md.
+#
+# Inside the job, steps skip by what changed (scripts/ci-changes.py):
+# docs and scripts run only the tree checks; Rust changes build and test the
+# changed crates and their dependents; Cargo.lock, the toolchain, the root
+# manifest or CI files run everything. Coverage, the full mutation sweep and
+# arm64 run nightly (nightly.yml), not here.
 name: ci
 
 on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, edited, labeled, unlabeled]
   push:
     branches: [main]
-  pull_request:
   workflow_dispatch:
 
+# A newer push to the same PR replaces the run in flight; main runs never
+# cancel each other.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+  pull-requests: write
 
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: "0"
-  CARGO_PROFILE_DEV_DEBUG: line-tables-only
-  CARGO_PROFILE_TEST_DEBUG: line-tables-only
+  CARGO_PROFILE_DEV_DEBUG: "0"
+  CARGO_PROFILE_TEST_DEBUG: "0"
+  RUST_BACKTRACE: "1"
 
 jobs:
-  gate:
+  ci:
+    # Drafts cost nothing until they are marked ready.
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      # rustup reads rust-toolchain.toml and installs the pinned toolchain and
-      # its components on first use.
-      - run: rustup show
-      - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-llvm-cov
-      - run: scripts/gate.sh
-
-  # c_char signedness and other target-dependent lints differ on arm64; a
-  # check-only build needs no cross linker.
-  clippy-aarch64:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - run: rustup show && rustup target add aarch64-unknown-linux-gnu
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo clippy --workspace --all-targets --all-features --target aarch64-unknown-linux-gnu -- -D warnings
-
-  # Mutation testing on the lines a pull request changed.
-  mutants:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - run: rustup show
+
+      - name: what changed
+        id: changes
+        env:
+          EVENT: ${{ github.event_name }}
+          ACTION: ${{ github.event.action }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$EVENT" = "pull_request" ]; then
+            git diff --name-only "$BASE...$HEAD" > "$RUNNER_TEMP/changed.txt"
+            git diff --name-only --diff-filter=A "$BASE...$HEAD" > "$RUNNER_TEMP/added.txt"
+          else
+            echo Cargo.lock > "$RUNNER_TEMP/changed.txt"; : > "$RUNNER_TEMP/added.txt"
+          fi
+          python3 scripts/ci-changes.py "$RUNNER_TEMP/changed.txt" | tee -a "$GITHUB_OUTPUT"
+          # A description or label edit changes no code: check the PR text only.
+          case "$ACTION" in edited|labeled|unlabeled) echo "text_only=true" >> "$GITHUB_OUTPUT";; *) echo "text_only=false" >> "$GITHUB_OUTPUT";; esac
+
+      - name: pull request description and risk
+        if: github.event_name == 'pull_request'
+        env:
+          BODY: ${{ github.event.pull_request.body }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          printf '%s' "$BODY" > "$RUNNER_TEMP/body.md"
+          out=$(python3 scripts/check-pr.py --body "$RUNNER_TEMP/body.md" --labels "$LABELS" \
+                --changed "$RUNNER_TEMP/changed.txt" --added "$RUNNER_TEMP/added.txt") && rc=0 || rc=$?
+          printf '%s\n' "$out"
+          # High-risk PRs get needs-huy: a flag for the owner's review after merge.
+          if printf '%s\n' "$out" | grep -q '^high-risk' && ! printf '%s' "$LABELS" | grep -q needs-huy; then
+            gh label create needs-huy --color B60205 --description "High-risk: owner reviews after merge" 2>/dev/null || true
+            gh pr edit "$PR" --add-label needs-huy
+          fi
+          exit $rc
+
+      - name: commit messages
+        if: github.event_name == 'pull_request' && steps.changes.outputs.text_only == 'false'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          for c in $(git rev-list "$BASE..$HEAD"); do
+            git log -1 --format=%B "$c" > "$RUNNER_TEMP/msg.txt"
+            scripts/check-commit-msg.sh "$RUNNER_TEMP/msg.txt" || { echo "commit $c"; exit 1; }
+          done
+
+      - name: tree checks (no build)
+        if: steps.changes.outputs.text_only == 'false'
+        run: |
+          set -e
+          for s in selftest-checks check-layering check-crate-layout check-module-size check-unsafe \
+                   check-s3-access check-test-endpoints check-arith-allows check-dev-notes \
+                   check-port-map check-invariants check-verified check-links; do
+            python3 "scripts/$s.py"
+          done
+          python3 scripts/ci-changes.py --self-test
+
+      - name: toolchain
+        if: steps.changes.outputs.rust == 'true' && steps.changes.outputs.text_only == 'false'
+        run: rustup show
+
+      # Only main writes the cache, so PR branches cannot fill the 10 GB.
       - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@v2
+        if: steps.changes.outputs.rust == 'true' && steps.changes.outputs.text_only == 'false'
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: fmt, clippy, docs
+        if: steps.changes.outputs.rust == 'true' && steps.changes.outputs.text_only == 'false'
+        run: |
+          cargo fmt --all --check
+          cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
+          python3 scripts/gen-crate-map.py --check
+          RUSTDOCFLAGS="-D warnings" cargo doc --locked --workspace --all-features --no-deps --document-private-items
+
+      - name: tests (affected crates)
+        if: steps.changes.outputs.rust == 'true' && steps.changes.outputs.text_only == 'false'
+        env:
+          FULL: ${{ steps.changes.outputs.full }}
+          PACKAGES: ${{ steps.changes.outputs.packages }}
+        run: |
+          if [ "$FULL" = "true" ]; then sel="--workspace"; else sel="$PACKAGES"; fi
+          # shellcheck disable=SC2086
+          cargo test --locked --all-features $sel
+
+      - name: mutants (changed lines)
+        if: github.event_name == 'pull_request' && steps.changes.outputs.rust == 'true' && steps.changes.outputs.text_only == 'false'
+        uses: taiki-e/install-action@v2
         with:
           tool: cargo-mutants
-      - run: MUTANTS_BASE=origin/${{ github.base_ref }} scripts/mutants.sh
-
-  ci-ok:
-    if: always()
-    needs: [gate, clippy-aarch64, mutants]
-    runs-on: ubuntu-24.04
-    steps:
-      - run: |
-          if [ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" = "true" ]; then
-            echo "a required job failed"; exit 1
-          fi
+      - if: github.event_name == 'pull_request' && steps.changes.outputs.rust == 'true' && steps.changes.outputs.text_only == 'false'
+        run: MUTANTS_BASE=origin/${{ github.base_ref }} timeout 8m scripts/mutants.sh
