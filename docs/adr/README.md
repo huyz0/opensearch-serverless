@@ -10,3 +10,4 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 |---|---|---|
 | [0001](0001-strangler-and-crate-layout.md) | Strangler beside the Java shell, layered crates | Accepted |
 | [0002](0002-runtime-dependencies.md) | How hsearch, lucene-rust and pstore are consumed | Proposed |
+| [0003](0003-apache-2-licence.md) | Apache License 2.0 | Accepted |
