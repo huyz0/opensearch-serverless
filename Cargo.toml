@@ -1,15 +1,18 @@
 [workspace]
 resolver = "2"
-# Downward-only: types <- blob <- {reader, writer} <- coordinator <- node.
+# Downward-only: {types, mem, testkit} <- blob <- {reader, writer} <- coordinator <- node <- compat.
 # reader and writer are siblings and never depend on each other.
 # `scripts/check-layering.py` enforces this order.
 members = [
     "crates/types",
+    "crates/mem",
+    "crates/testkit",
     "crates/blob",
     "crates/reader",
     "crates/writer",
     "crates/coordinator",
     "crates/node",
+    "crates/compat",
 ]
 
 [workspace.package]
@@ -22,6 +25,8 @@ repository = "https://github.com/huyz0/opensearch-serverless"
 
 [workspace.dependencies]
 oss-types = { path = "crates/types" }
+oss-mem = { path = "crates/mem" }
+oss-testkit = { path = "crates/testkit" }
 oss-blob = { path = "crates/blob" }
 oss-reader = { path = "crates/reader" }
 oss-writer = { path = "crates/writer" }

@@ -1,0 +1,2 @@
+rust_path	kind	java_source	note
+src/lib.rs	new		crate root

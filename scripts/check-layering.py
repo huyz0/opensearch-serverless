@@ -4,6 +4,7 @@
 Each workspace crate has a layer; a crate may depend only on crates in a lower
 layer, so crates in the same layer (reader and writer) never depend on each
 other. A crate missing from LAYERS fails, so a new crate is placed on purpose.
+Crates in DEV_ONLY (test helpers) may appear only under [dev-dependencies].
 
 Cannot catch: a dependency through a non-workspace crate, or one under a
 `[target.*.dependencies]` table (none exist; extend the parser if one is added).
@@ -15,12 +16,16 @@ from checklib import ROOT, report
 
 LAYERS = {
     "oss-types": 0,
+    "oss-mem": 0,
+    "oss-testkit": 0,
     "oss-blob": 1,
     "oss-reader": 2,
     "oss-writer": 2,
     "oss-coordinator": 3,
     "oss-node": 4,
+    "oss-compat": 5,
 }
+DEV_ONLY = {"oss-testkit"}
 SECTION = re.compile(r"^\[(dependencies|dev-dependencies|build-dependencies)\]\s*$")
 DEP = re.compile(r"^(oss-[a-z0-9-]+)\s*=")
 
@@ -33,15 +38,19 @@ def main():
         if name not in LAYERS:
             hits.append(f"{manifest.relative_to(ROOT).as_posix()}: crate {name} has no layer in check-layering.py")
             continue
-        in_deps = False
+        in_deps, section = False, ""
         for line in text.splitlines():
             if line.startswith("["):
-                in_deps = bool(SECTION.match(line))
+                m_sec = SECTION.match(line)
+                in_deps, section = bool(m_sec), (m_sec.group(1) if m_sec else "")
                 continue
             m = DEP.match(line.strip()) if in_deps else None
             if not m:
                 continue
             dep = m.group(1)
+            if dep in DEV_ONLY and section != "dev-dependencies":
+                hits.append(f"{name}: {dep} is test-only; name it under [dev-dependencies]")
+                continue
             if dep not in LAYERS:
                 hits.append(f"{name}: depends on {dep}, which has no layer")
             elif LAYERS[dep] >= LAYERS[name]:

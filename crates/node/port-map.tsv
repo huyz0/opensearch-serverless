@@ -1,0 +1,3 @@
+rust_path	kind	java_source	note
+src/lib.rs	new		role selection by Cargo feature; the shell selects roles by node settings
+src/main.rs	new		process entry point

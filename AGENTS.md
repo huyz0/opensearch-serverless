@@ -47,7 +47,7 @@ The gate is defined once, in [scripts/gate.sh](scripts/gate.sh); the pre-push ho
 | Task | Read |
 |---|---|
 | Where code belongs, adding a crate | `architecture` skill, [docs/how-to/add-a-crate.md](docs/how-to/add-a-crate.md) |
-| Porting a piece from Java | [docs/porting.md](docs/porting.md); add its row to [docs/port-map.tsv](docs/port-map.tsv) |
+| Porting a piece from Java | [docs/porting.md](docs/porting.md); add its row to the crate's `port-map.tsv` |
 | REST behaviour and compatibility | [docs/compatibility.md](docs/compatibility.md) |
 | Anything touching S3 | `s3-cost` skill, [docs/how-to/add-an-s3-call.md](docs/how-to/add-an-s3-call.md) |
 | A setting or a feature switch | [docs/how-to/add-a-setting.md](docs/how-to/add-a-setting.md) |

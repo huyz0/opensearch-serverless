@@ -1,0 +1,4 @@
+rust_path	kind	java_source	note
+src/lib.rs	new		crate root
+src/op.rs	new		S3 request kinds and price classes; the shell's MeteredBlobStore counts requests but has no price model
+src/meter.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/MeteredBlobStore.java@bf347adb	request counting, split by S3 request kind; the Java's byte and error counters are not ported yet

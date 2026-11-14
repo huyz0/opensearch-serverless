@@ -61,6 +61,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "oss-compat"
+version = "0.1.0"
+
+[[package]]
 name = "oss-coordinator"
 version = "0.1.0"
 dependencies = [
@@ -69,6 +73,10 @@ dependencies = [
  "oss-types",
  "oss-writer",
 ]
+
+[[package]]
+name = "oss-mem"
+version = "0.1.0"
 
 [[package]]
 name = "oss-node"
@@ -86,6 +94,10 @@ dependencies = [
  "oss-blob",
  "oss-types",
 ]
+
+[[package]]
+name = "oss-testkit"
+version = "0.1.0"
 
 [[package]]
 name = "oss-types"

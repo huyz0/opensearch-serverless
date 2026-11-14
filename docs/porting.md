@@ -12,7 +12,7 @@ Most of what this repository does already exists in Java: OpenSearch itself, and
 
 ## How to port a piece
 
-1. **Find the Java source** and record it in [port-map.tsv](port-map.tsv) before writing code: the Rust path, `port`, the Java path at its pinned commit, and a note.
+1. **Find the Java source** and record it in the crate's `port-map.tsv` (for example [crates/blob/port-map.tsv](../crates/blob/port-map.tsv)) before writing code: the Rust path relative to the crate, `port`, the Java path at its pinned commit, and a note.
 2. **Port by behaviour and format, not class hierarchy.** The blob formats and the REST contract are the compatibility surface; the in-memory design is Rust's. Keep the Java's algorithm and constants unless there is a measured reason not to, and say so in the module doc.
 3. **Cite the Java in the module doc**: `Ported from serverless/shell/src/main/java/org/opensearch/serverless/store/SegmentBlobs.java`. Names stay recognisable so a reader can open both side by side.
 4. **Test against the Java's behaviour**: blob fixtures written by the Java shell, and REST compatibility fixtures recorded from OpenSearch ([compatibility.md](compatibility.md)).
@@ -22,4 +22,4 @@ Code with no Java counterpart is marked `new` in the port map with a reason.
 
 ## Enforced by
 
-`scripts/check-port-map.py`: every Rust source file under `crates/*/src` has a row; every row names a file that exists; a `port` row names its Java source; a `new` row says why. It cannot check that the Java path exists at the pinned commit (the Java tree is not in this repository).
+`scripts/check-port-map.py`: every crate has a `port-map.tsv`, one per crate so parallel work never edits the same file; every Rust source file under `crates/<name>/src` has a row there; every row names a file that exists; a `port` row names its Java source; a `new` row says why. It cannot check that the Java path exists at the pinned commit (the Java tree is not in this repository).

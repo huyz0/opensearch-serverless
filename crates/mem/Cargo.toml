@@ -1,0 +1,14 @@
+[package]
+name = "oss-mem"
+description = "opensearch-serverless: the node memory budget, pools, reservations and fixed-size buffer pool"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true
