@@ -1,4 +1,9 @@
 rust_path	kind	java_source	note
 src/lib.rs	new		crate root
 src/op.rs	new		S3 request kinds and price classes; the shell's MeteredBlobStore counts requests but has no price model
-src/meter.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/MeteredBlobStore.java@bf347adb	request counting, split by S3 request kind; the Java's byte and error counters are not ported yet
+src/meter.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/MeteredBlobStore.java@bf347adb	request counting split by S3 request kind, with the Java's byte and error counters (bytes written counted on commit, not per attempt); its per-thread attribution (ObjectStores.ATTRIBUTION) is not ported yet
+src/store.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/MeteredBlobStore.java@bf347adb	the BlobContainer operations MeteredBlobStore counts: readBlob whole/ranged, writeBlob, writeBlob failIfAlreadyExists, blobExists, deleteBlobsIgnoringIfNotExists (one key per call; batch DeleteObjects not ported yet), bounded listBlobsByPrefix; blocking, caller buffers (ADR 0004, 0005)
+src/chunk.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/MeteredBlobStore.java@bf347adb	the InputStream bodies readBlob returns and writeBlob takes, as a sink and a source over caller buffers
+src/error.rs	new		S3 failure kinds as one enum; the Java throws IOException subclasses
+src/emulator/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/MeteredBlobStore.java@bf347adb	in-process stand-in for the shell test kit's metered stores (FsBlobStore under MeteredBlobStore), with S3 semantics
+src/emulator/faults.rs	new		seeded latency, failure and throttle injection; the Java test kit does this through system properties (tests.serverless.meter.latency)

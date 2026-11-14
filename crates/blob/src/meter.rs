@@ -2,8 +2,9 @@
 //!
 //! Ported from the serverless shell's `MeteredBlobStore`
 //! (`serverless/shell/src/main/java/org/opensearch/serverless/store/MeteredBlobStore.java`),
-//! split by S3 request kind so price classes can be totalled. Its byte and
-//! error counters are not ported yet.
+//! split by S3 request kind so price classes can be totalled, with its byte
+//! and error counters. The Java's per-thread request attribution is not
+//! ported yet.
 //!
 //! A store implementation calls [`Meter::record`] once per attempt, retries
 //! included, before it returns. Tests assert on the counts ("this write issued
@@ -14,10 +15,13 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::op::{PriceClass, S3Op};
 
-/// Lock-free per-request-kind counters.
+/// Lock-free per-request-kind counters, plus bytes moved and failures.
 #[derive(Debug, Default)]
 pub struct Meter {
     counts: [AtomicU64; S3Op::ALL.len()],
+    bytes_read: AtomicU64,
+    bytes_written: AtomicU64,
+    errors: AtomicU64,
 }
 
 impl Meter {
@@ -29,6 +33,48 @@ impl Meter {
     /// Counts one attempt of `op`.
     pub fn record(&self, op: S3Op) {
         self.counts[op.index()].fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Counts one attempt that failed: the store refused it, the caller's
+    /// stream failed, or a conditional create found the key taken. Every
+    /// failed attempt was also counted by [`Meter::record`].
+    pub fn record_error(&self) {
+        self.errors.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Counts `n` body bytes delivered to a GET's sink. For a ranged GET
+    /// that is the range, which says whether reads are lazy.
+    pub fn add_bytes_read(&self, n: u64) {
+        self.bytes_read.fetch_add(n, Ordering::Relaxed);
+    }
+
+    /// Counts `n` body bytes a PUT committed. Unlike the Java, which adds
+    /// the declared size before every attempt, failed and refused attempts
+    /// add nothing, so this is bytes stored rather than bytes sent.
+    pub fn add_bytes_written(&self, n: u64) {
+        self.bytes_written.fetch_add(n, Ordering::Relaxed);
+    }
+
+    /// Failed attempts recorded so far.
+    pub fn errors(&self) -> u64 {
+        self.errors.load(Ordering::Relaxed)
+    }
+
+    /// Body bytes delivered to GET sinks so far.
+    pub fn bytes_read(&self) -> u64 {
+        self.bytes_read.load(Ordering::Relaxed)
+    }
+
+    /// Body bytes accepted by PUTs so far.
+    pub fn bytes_written(&self) -> u64 {
+        self.bytes_written.load(Ordering::Relaxed)
+    }
+
+    /// Attempts recorded so far across every kind.
+    pub fn total(&self) -> u64 {
+        S3Op::ALL
+            .iter()
+            .fold(0u64, |sum, op| sum.saturating_add(self.count(*op)))
     }
 
     /// Attempts of `op` recorded so far.
@@ -90,6 +136,20 @@ mod tests {
                 proptest::prop_assert_eq!(meter.count(op), expected);
             }
         }
+    }
+
+    #[test]
+    fn counts_bytes_and_errors_apart_from_requests() {
+        let meter = Meter::new();
+        meter.record(S3Op::Get);
+        meter.add_bytes_read(10);
+        meter.add_bytes_read(5);
+        meter.add_bytes_written(7);
+        meter.record_error();
+        assert_eq!(meter.bytes_read(), 15);
+        assert_eq!(meter.bytes_written(), 7);
+        assert_eq!(meter.errors(), 1);
+        assert_eq!(meter.total(), 1);
     }
 
     #[test]

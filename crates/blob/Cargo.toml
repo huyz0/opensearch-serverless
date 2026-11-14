@@ -11,8 +11,16 @@ repository.workspace = true
 [dependencies]
 oss-types = { workspace = true }
 
+[features]
+# The in-process S3 emulator, for tests in this crate and the crates above.
+emulator = []
+
 [dev-dependencies]
 proptest = { workspace = true }
+
+[[test]]
+name = "emulator"
+required-features = ["emulator"]
 
 [lints]
 workspace = true
