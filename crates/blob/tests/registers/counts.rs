@@ -74,6 +74,19 @@ fn each_operation_sends_what_the_spec_budgets() {
         let (deleted, n) = counted(m, || s.delete_register("c/k", 77).unwrap());
         assert!(!deleted);
         assert_eq!(n, [(GetRange, 1)], "{:?} delete, absent", b.kind);
+        // A conditional DELETE refused by the store is a failed attempt,
+        // as S3's 412, though not an error to the caller.
+        if !fs {
+            let g = applied(s.create_register("c/k", b"v").unwrap());
+            plant(s, "c/k", g, b"replaced");
+            let errors = m.errors();
+            assert_eq!(s.delete_register("c/k", g), Ok(false), "{:?}", b.kind);
+            assert_eq!(m.errors() - errors, 1, "{:?} refused delete", b.kind);
+            let errors = m.errors();
+            s.read_register("c/k", &mut [0u8; 64]).unwrap();
+            assert_eq!(s.delete_register("c/k", g), Ok(true), "{:?}", b.kind);
+            assert_eq!(m.errors(), errors, "{:?} applied delete", b.kind);
+        }
     }
 }
 

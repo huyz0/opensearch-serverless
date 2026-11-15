@@ -114,6 +114,12 @@ impl KnownVersions {
     pub(crate) fn len(&self) -> usize {
         self.lock().map.len()
     }
+
+    /// How many positions the eviction queue holds.
+    #[cfg(test)]
+    fn queued(&self) -> usize {
+        self.lock().order.len()
+    }
 }
 
 #[cfg(test)]
@@ -159,5 +165,18 @@ mod tests {
         assert!(k.get("b").is_some());
         assert_eq!(k.get("c"), None);
         assert_eq!(k.len(), 3);
+    }
+
+    #[test]
+    fn forgotten_positions_are_compacted_past_twice_the_cap() {
+        let k = KnownVersions::with_cap(2);
+        for n in 1..=4 {
+            k.remember("a", n, "t");
+            k.forget("a");
+            assert_eq!(k.queued(), n as usize);
+        }
+        k.remember("a", 5, "t");
+        assert_eq!(k.queued(), 1, "the fifth position compacts the queue");
+        assert_eq!(k.get("a").map(|v| v.generation), Some(5));
     }
 }

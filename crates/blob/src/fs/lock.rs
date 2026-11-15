@@ -104,21 +104,20 @@ pub(crate) fn lock(dir: &Path, name: &str) -> BlobResult<Held> {
     })
 }
 
-/// Waits for an exclusive whole-file POSIX record lock.
-#[cfg(unix)]
+/// Waits for an exclusive lock on the whole file: a POSIX record lock on
+/// Unix, `LockFileEx` elsewhere.
 pub(crate) fn exclusive(file: &File) -> io::Result<()> {
-    use rustix::fs::{FlockOperation, fcntl_lock};
-    loop {
-        match fcntl_lock(file, FlockOperation::LockExclusive) {
-            Err(rustix::io::Errno::INTR) => continue,
-            other => return other.map_err(io::Error::from),
+    #[cfg(unix)]
+    {
+        use rustix::fs::{FlockOperation, fcntl_lock};
+        loop {
+            match fcntl_lock(file, FlockOperation::LockExclusive) {
+                Err(rustix::io::Errno::INTR) => continue,
+                other => return other.map_err(io::Error::from),
+            }
         }
     }
-}
-
-/// Waits for an exclusive lock on the whole file (`LockFileEx`).
-#[cfg(not(unix))]
-pub(crate) fn exclusive(file: &File) -> io::Result<()> {
+    #[cfg(not(unix))]
     file.lock()
 }
 
