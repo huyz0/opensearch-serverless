@@ -8,4 +8,3 @@ Local rules:
 - No LIST on any path here except an explicit listing, and every one carries `// LIST:`. A name's key is derived (`oss_format::descriptor_key`).
 - Records are `oss-format`'s to read and write; this crate never builds JSON by hand.
 - Validate a name before it becomes a key: a name is a path segment on the filesystem store.
-- Changes here are high-risk (fencing, formats, the S3 request pattern): ADR link and the needs-huy label.

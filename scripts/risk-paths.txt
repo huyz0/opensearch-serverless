@@ -7,6 +7,8 @@ rust-toolchain.toml        toolchain
 crates/blob/src/**         S3 request pattern
 crates/writer/src/**       durability, fencing and blob formats
 crates/format/src/**       blob formats shared with the Java shell
+crates/meta/src/**         fencing and the S3 request pattern of names
+crates/mem/src/**          memory bounds and their defaults
 **/format/**               blob formats
 **/*format*.rs             blob formats
 **/settings*.rs            defaults

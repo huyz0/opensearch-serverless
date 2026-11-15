@@ -90,4 +90,5 @@ normal, complete prose at natural length:
 
 Nothing mechanical. Output style is not checkable by `cargo` or clippy —
 self-review against the rules above. This skill states that explicitly rather
-than naming a gate that does not exist (`manage-skills` rule 3).
+than naming a gate that does not exist (the `manage-skills` skill's "bind to an
+enforcer" rule).

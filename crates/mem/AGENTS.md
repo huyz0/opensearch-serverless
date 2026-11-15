@@ -6,4 +6,3 @@ Local rules:
 
 - A reservation is taken before memory is used and released on drop; nothing allocates first and checks later.
 - Exhaustion is a typed error the caller turns into 429 or backpressure, never a panic or an abort.
-- Changes here are high-risk (defaults, memory bounds): ADR link.
