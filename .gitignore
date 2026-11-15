@@ -9,3 +9,5 @@ junit.xml
 .vscode/
 __pycache__/
 *.pyc
+mutants.out/
+mutants.out.old/

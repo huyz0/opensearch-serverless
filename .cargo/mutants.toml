@@ -1,0 +1,9 @@
+# cargo-mutants configuration (https://mutants.rs/).
+#
+# Mutants listed here are equivalent: no test can tell them apart from the
+# original, so they would only ever be reported as missed. Each names why.
+exclude_re = [
+    # `Instant::now() < deadline` against `<=`: they differ for one instant of
+    # a clock with nanosecond resolution.
+    "crates/rest/src/conn.rs:.*replace < with <= in linger",
+]

@@ -107,26 +107,33 @@ const LINGER_IDLE: std::time::Duration = std::time::Duration::from_millis(100);
 /// turn the close into a reset.
 pub(crate) fn serve(w: &mut Worker, stream: &TcpStream, shared: &Shared) {
     serve_requests(w, stream, shared);
-    linger(stream);
+    let _ = linger(stream);
 }
 
-/// The graceful close described on [`serve`]. Uses a stack buffer, so it
-/// allocates nothing.
-fn linger(stream: &TcpStream) {
+/// The graceful close described on [`serve`], returning how many bytes it
+/// discarded. Uses a stack buffer, so it allocates nothing.
+fn linger(stream: &TcpStream) -> u64 {
     if stream.shutdown(std::net::Shutdown::Write).is_err() {
-        return;
+        return 0;
     }
     let _ = stream.set_read_timeout(Some(LINGER_IDLE));
     let deadline = Instant::now().checked_add(LINGER_TIME);
     let mut sink = [0u8; 4096];
-    let mut left = LINGER_LIMIT;
+    let mut discarded = 0u64;
     let mut reader = stream;
-    while left > 0 && deadline.is_some_and(|d| Instant::now() < d) {
-        match reader.read(&mut sink) {
+    while deadline.is_some_and(|d| Instant::now() < d) {
+        let room = usize::try_from(LINGER_LIMIT.saturating_sub(discarded))
+            .unwrap_or(usize::MAX)
+            .min(sink.len());
+        if room == 0 {
+            break;
+        }
+        match reader.read(&mut sink[..room]) {
             Ok(0) | Err(_) => break,
-            Ok(n) => left = left.saturating_sub(u64::try_from(n).unwrap_or(u64::MAX)),
+            Ok(n) => discarded = discarded.saturating_add(u64::try_from(n).unwrap_or(u64::MAX)),
         }
     }
+    discarded
 }
 
 /// The request loop [`serve`] runs before it closes.
@@ -411,4 +418,50 @@ fn stream_write(stream: &Timed<'_>, bytes: &[u8]) -> io::Result<()> {
     let mut s = stream;
     s.write_all(bytes)?;
     s.flush()
+}
+
+#[cfg(test)]
+mod linger_tests {
+    use std::io::Write;
+    use std::net::{TcpListener, TcpStream};
+    use std::thread;
+
+    use super::{LINGER_LIMIT, linger};
+
+    fn pair() -> (TcpStream, TcpStream) {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+        let client = TcpStream::connect(listener.local_addr().expect("addr")).expect("connect");
+        let (server, _) = listener.accept().expect("accept");
+        (server, client)
+    }
+
+    #[test]
+    fn linger_discards_at_most_its_limit() {
+        let (server, mut client) = pair();
+        let writer = thread::spawn(move || {
+            let chunk = [7u8; 4096];
+            // Four times the limit; the server stops reading at the limit.
+            for _ in 0..(LINGER_LIMIT * 4 / 4096) {
+                if client.write_all(&chunk).is_err() {
+                    break;
+                }
+            }
+        });
+        assert_eq!(linger(&server), LINGER_LIMIT);
+        drop(server);
+        let _ = writer.join();
+    }
+
+    #[test]
+    fn linger_reads_what_is_in_flight_then_stops_when_the_client_is_quiet() {
+        let (server, mut client) = pair();
+        client.write_all(&[1u8; 10_000]).expect("send");
+        let started = std::time::Instant::now();
+        assert_eq!(linger(&server), 10_000);
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(1),
+            "waited past the idle limit"
+        );
+        drop(client);
+    }
 }
