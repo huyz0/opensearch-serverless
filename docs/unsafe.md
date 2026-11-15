@@ -1,5 +1,7 @@
 # Unsafe code
 
+Decision: [ADR 0009](adr/0009-unsafe-when-guaranteed-safe.md).
+
 Any crate may use `unsafe`, but only through the patterns below, each one small, private, documented and tested harder than safe code. The aim is speed on measured hot paths (SIMD parsing, unchecked inner loops) without giving up the guarantee that safe Rust gives: no undefined behaviour, whatever the input.
 
 `unsafe` is never the first version. Write the safe version, measure it ([rust-performance](../.agents/skills/rust-performance/SKILL.md)), and add an unsafe path only where a profile shows it pays. The safe version stays, as the fallback and as the oracle the unsafe one is tested against.

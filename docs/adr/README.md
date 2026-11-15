@@ -16,3 +16,4 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0006](0006-http-stack.md) | A small blocking HTTP/1.1 server of our own, on a bounded worker pool | Accepted |
 | [0007](0007-registers.md) | Registers by compare-and-swap, the Java's wire format and file lock | Accepted |
 | [0008](0008-metadata-crate.md) | A metadata crate between the stores and the roles | Proposed |
+| [0009](0009-unsafe-when-guaranteed-safe.md) | `unsafe` in any crate, only when guaranteed safe | Accepted |
