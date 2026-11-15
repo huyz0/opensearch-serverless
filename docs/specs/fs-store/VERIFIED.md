@@ -9,7 +9,7 @@ Run with `cargo test -p oss-blob --test fs --test fs_streaming_peak` and the who
 - AC-5: `a_conditional_create_never_overwrites`, `of_racing_creates_exactly_one_wins_and_its_body_is_stored`
 - AC-6: `no_reader_sees_a_key_part_written`
 - AC-7: `head_and_delete_follow_s3`, `a_directory_is_no_object`
-- AC-8: `a_page_is_the_next_keys_in_whole_key_byte_order`, `a_page_starts_after_the_cursor`, `listing_pages_through_2500_keys_in_3_lists`, `the_reserved_directory_is_never_listed`, `staged_files_are_never_listed`, `the_walk_stops_at_the_deepest_key`, `entries_that_are_not_objects_are_skipped`
+- AC-8: `a_page_is_the_next_keys_in_whole_key_byte_order`, `a_page_starts_after_the_cursor`, `listing_pages_through_2500_keys_in_3_lists`, `the_reserved_directory_is_never_listed`, `staged_files_are_never_listed`, `the_walk_stops_at_the_deepest_key`, `a_page_never_walks_a_directory_that_cannot_enter_it`, `a_page_of_exactly_the_remaining_keys_is_not_truncated`, `entries_that_are_not_objects_are_skipped`
 - AC-9: `invalid_arguments_fail_before_any_attempt`, `components_are_checked`
 - AC-10: `fs_is_the_default_and_needs_a_path`, `s3_needs_a_bucket_and_defaults_the_rest`, `another_type_is_refused`
 - AC-11: `a_16_mib_object_streams_through_one_pooled_buffer`

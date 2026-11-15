@@ -302,14 +302,20 @@ fn a_filesystem_failure_is_a_failed_attempt() {
     // LIST: the operation under test.
     let listed = s.list_prefix("loop/", None, 10, &mut |_, _| {});
     assert_eq!(listed, Err(BlobError::Unavailable));
+    // A loop inside a listed directory fails the page too.
+    std::fs::create_dir(s.root().join("x")).unwrap();
+    std::os::unix::fs::symlink("loop", s.root().join("x").join("loop")).unwrap();
+    // LIST: the operation under test.
+    let listed = s.list_prefix("x/", None, 10, &mut |_, _| {});
+    assert_eq!(listed, Err(BlobError::Unavailable));
     assert_counts(
         s.meter(),
         &[
             (S3Op::Get, 1),
             (S3Op::Head, 1),
             (S3Op::Delete, 1),
-            (S3Op::List, 1),
+            (S3Op::List, 2),
         ],
     );
-    assert_eq!(s.meter().errors(), 4);
+    assert_eq!(s.meter().errors(), 5);
 }

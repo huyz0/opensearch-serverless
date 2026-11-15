@@ -141,3 +141,59 @@ fn entries_that_are_not_objects_are_skipped() {
         .collect();
     assert_eq!(keys, ["o/k", "o/link"]);
 }
+
+/// A link to itself in `dir`, which fails a LIST that walks `dir`.
+#[cfg(unix)]
+fn trap(dir: &std::path::Path) {
+    std::fs::create_dir_all(dir).unwrap();
+    std::os::unix::fs::symlink("loop", dir.join("loop")).unwrap();
+}
+
+/// Lists one page and returns its keys and whether it was truncated.
+fn one_page(
+    s: &dyn BlobStore,
+    prefix: &str,
+    after: Option<&str>,
+    max: usize,
+) -> (Vec<String>, bool) {
+    let mut seen = Vec::new();
+    // LIST: the operation under test.
+    let page = s
+        .list_prefix(prefix, after, max, &mut |k, _| seen.push(k.to_owned()))
+        .unwrap();
+    (seen, page.truncated)
+}
+
+/// A page never walks a directory none of whose keys could enter it: one
+/// before the cursor, or one too long to hold a key. Skipping a directory
+/// past a full page depends on the order the directory is read in, so no
+/// test can pin it; it saves work, never changes a page.
+#[cfg(unix)]
+#[test]
+fn a_page_never_walks_a_directory_that_cannot_enter_it() {
+    let (s, _dir) = store("fs-prune");
+    for k in ["m/1", "m/2", "m/3"] {
+        put(&s, k, b"v");
+    }
+    trap(&s.root().join("a"));
+    let mut long = s.root().join("l");
+    for _ in 0..5 {
+        long.push("d".repeat(255));
+    }
+    trap(&long);
+    let two = vec!["m/1".to_owned(), "m/2".to_owned()];
+    assert_eq!(one_page(&s, "m", None, 2), (two.clone(), true));
+    assert_eq!(one_page(&s, "", Some("b"), 2), (two, true));
+    assert_eq!(one_page(&s, "l", None, 1000), (Vec::new(), false));
+}
+
+#[test]
+fn a_page_of_exactly_the_remaining_keys_is_not_truncated() {
+    let (s, _dir) = store("fs-exact");
+    for k in ["e/1", "e/2"] {
+        put(&s, k, b"v");
+    }
+    // LIST: the operation under test.
+    let page = s.list_prefix("e/", None, 2, &mut |_, _| {}).unwrap();
+    assert_eq!((page.keys, page.truncated), (2, false));
+}
