@@ -200,3 +200,84 @@ pub(crate) fn delete(store: &dyn Tagged, key: &str, expected: u64) -> BlobResult
     store.known().forget(key);
     deleted
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Mutex;
+
+    use super::*;
+
+    /// One object whose ETag is always "x", on a store that answers a PUT
+    /// with no ETag, as an S3-compatible store may.
+    #[derive(Default)]
+    struct Untagged {
+        object: Mutex<Option<Vec<u8>>>,
+        known: KnownVersions,
+    }
+
+    impl Tagged for Untagged {
+        fn get_tagged(
+            &self,
+            _key: &str,
+            range: ByteRange,
+            _buf: &mut [u8],
+            sink: &mut dyn ChunkSink,
+        ) -> BlobResult<Option<String>> {
+            let object = self.object.lock().unwrap();
+            let Some(body) = object.as_ref() else {
+                return Ok(None);
+            };
+            let end = match range {
+                ByteRange::Full => body.len(),
+                ByteRange::From { len, .. } => body.len().min(len as usize),
+            };
+            sink.accept(&body[..end])?;
+            Ok(Some("x".to_owned()))
+        }
+
+        fn put_tagged(
+            &self,
+            _key: &str,
+            body: &mut dyn ChunkSource,
+            pre: Precondition<'_>,
+        ) -> BlobResult<Option<String>> {
+            let mut object = self.object.lock().unwrap();
+            let holds = match pre {
+                Precondition::Absent => object.is_none(),
+                Precondition::Matches(tag) => object.is_some() && tag == "x",
+            };
+            if !holds {
+                return Ok(None);
+            }
+            let mut buf = vec![0u8; body.len() as usize];
+            let n = body.fill(&mut buf)?;
+            buf.truncate(n);
+            *object = Some(buf);
+            Ok(Some(String::new()))
+        }
+
+        fn delete_tagged(&self, _key: &str, _etag: &str) -> BlobResult<bool> {
+            Ok(self.object.lock().unwrap().take().is_some())
+        }
+
+        fn known(&self) -> &KnownVersions {
+            &self.known
+        }
+    }
+
+    #[test]
+    fn a_write_answered_without_an_etag_applies_and_is_not_remembered() {
+        let store = Untagged::default();
+        let SwapOutcome::Applied(g) = create(&store, "k", b"v").unwrap() else {
+            panic!("create refused");
+        };
+        assert_eq!(store.known().get("k"), None);
+        // Not remembered, so the swap reads the ETag and matches it.
+        assert_eq!(swap(&store, "k", g, b"w"), Ok(SwapOutcome::Applied(g + 1)));
+        let mut buf = [0u8; 8];
+        assert_eq!(
+            read(&store, "k", &mut buf).unwrap().map(|r| r.generation),
+            Some(g + 1)
+        );
+    }
+}

@@ -442,6 +442,24 @@ fn conditional_writes_answer_as_s3_does() {
     assert_eq!(status(&exchange(&e, failing.as_bytes())), "500");
     let wrong = signed(&e, "DELETE", &target, &[("if-match", "\"other\"")]);
     assert_eq!(status(&exchange(&e, wrong.as_bytes())), "412");
+    let stale = signed(
+        &e,
+        "PUT",
+        &target,
+        &[("content-length", "0"), ("if-match", "\"other\"")],
+    );
+    assert_eq!(status(&exchange(&e, stale.as_bytes())), "412");
+    // `If-Match` on a key with no object is S3's 404.
+    let missing = format!("/{BUCKET}/none");
+    let put = signed(
+        &e,
+        "PUT",
+        &missing,
+        &[("content-length", "0"), ("if-match", &tag)],
+    );
+    assert_eq!(status(&exchange(&e, put.as_bytes())), "404");
+    let del = signed(&e, "DELETE", &missing, &[("if-match", &tag)]);
+    assert_eq!(status(&exchange(&e, del.as_bytes())), "404");
     f.server.store().fail_next(S3Op::Delete, 1);
     let right = signed(&e, "DELETE", &target, &[("if-match", &tag)]);
     assert_eq!(status(&exchange(&e, right.as_bytes())), "500");
