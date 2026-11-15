@@ -6,7 +6,7 @@ The plan's metadata-writes milestone, first part: an index's descriptor is creat
 
 ## Change
 
-Decision record: [ADR 0008](../../adr/0008-metadata-crate.md) (Proposed), for the new crate and its layer.
+Decision record: [ADR 0008](../../adr/0008-metadata-crate.md) (Accepted), for the new crate and its layer.
 
 Ported from huyz0/OpenSearch `serverless/shell/src/main/java/org/opensearch/serverless/` at `3920dc36`: `metadata/DescriptorStore.java`, `metadata/Tombstones.java`, `metadata/Names.java`, `metadata/RegisterMap.java` and `cluster/IndexDescriptor.java` (`toBytes`, `fromStream`).
 
@@ -17,7 +17,7 @@ Ported from huyz0/OpenSearch `serverless/shell/src/main/java/org/opensearch/serv
 - A new crate, `oss-meta` (layer 2, between the stores and the roles):
   - `Names`: the Java's index-or-alias name rules, with its messages.
   - `DescriptorStore`: `create`, `get`, `resolve`, `generation_of`, `update`, `delete` and `delete_if_unchanged`, over any `BlobStore`. Create is one conditional create for a new name. Only a taken name is read: a tombstone is swapped over, unless a sweep claimed it under a minute ago; anything else is a name already taken. Delete-if-unchanged is a conditional delete where the store honours one, otherwise a marker under `tombstones/<hour>/<name>` and then a swap to a tombstone, so a recreated name keeps counting generations up. The caller says which (the Java probes; the probe comes later).
-- Not in this change: listing, the tombstone sweep, change stripes, the conditional-delete probe, alias records beyond telling one apart, and wiring into a role.
+- Not in this change: listing, the tombstone sweep and the conditional-delete probe (both in [tombstone-sweep](../tombstone-sweep/SPEC.md)), change stripes, alias records beyond telling one apart, and wiring into a role.
 
 ## Acceptance criteria
 

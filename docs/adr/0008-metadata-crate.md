@@ -1,6 +1,6 @@
 # 0008: A metadata crate between the stores and the roles
 
-**Status:** Proposed, 2026-11-15.
+**Status:** Accepted, 2026-11-15.
 
 ## Context
 

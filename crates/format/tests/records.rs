@@ -8,7 +8,7 @@ use std::borrow::Cow;
 use common::*;
 use oss_format::{
     EMPTY_SETTINGS, FormatError, IndexRecord, MAX_TOMBSTONE_BYTES, NameRecord, Register, Tombstone,
-    descriptor_key, tombstone_bucket, tombstone_marker_key,
+    descriptor_key, tombstone_bucket, tombstone_bucket_start, tombstone_marker_key,
 };
 
 fn written(record: &IndexRecord<'_>) -> Vec<u8> {
@@ -429,4 +429,52 @@ fn a_delete_files_under_its_utc_hour() {
             "{base} {bucket} {name}"
         );
     }
+}
+
+#[test]
+fn a_bucket_name_gives_back_its_hour() {
+    let hour = 3_600_000i64;
+    for start in [
+        0i64,
+        949_363_200_000,
+        4_105_123_200_000,
+        253_397_030_400_000,
+    ] {
+        // Sixty days from each: through a leap day, a non-leap century's February, and 9999's end.
+        for h in 0..(24 * 60) {
+            let millis = start + h * hour;
+            let name = tombstone_bucket(millis).unwrap();
+            let name = std::str::from_utf8(&name).unwrap();
+            assert_eq!(tombstone_bucket_start(name), Some(millis), "{name}");
+        }
+    }
+    assert_eq!(
+        tombstone_bucket_start("9999123123"),
+        Some(253_402_297_200_000)
+    );
+    for bad in [
+        "",
+        "197001010",
+        "19700101000",
+        "1970010100x",
+        "19700101 0",
+        "1969123123",
+        "1970130100",
+        "1970000100",
+        "1970010000",
+        "1970043100",
+        "1970022900",
+        "1900022900",
+        "2100022900",
+        "2023022900",
+        "1970010124",
+        "１９７００１０１００",
+    ] {
+        assert_eq!(tombstone_bucket_start(bad), None, "{bad}");
+    }
+    assert_eq!(tombstone_bucket_start("2000022900"), Some(951_782_400_000));
+    assert_eq!(
+        tombstone_bucket_start("2024022923"),
+        Some(1_709_247_600_000)
+    );
 }
