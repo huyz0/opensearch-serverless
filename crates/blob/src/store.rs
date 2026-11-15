@@ -67,12 +67,13 @@ pub struct GetOutcome {
 pub enum CreateOutcome {
     /// The object did not exist and now holds the body.
     Created,
-    /// The key was taken (S3 412 `PreconditionFailed`); this call changed
-    /// nothing. This is how a fenced-out writer learns it lost, with one
-    /// ambiguity: when an earlier attempt of the same call committed and
-    /// its response was lost, the retry finds that object and answers
-    /// `AlreadyExists` too. A caller that must tell the two apart reads the
-    /// object back and compares it with what it wrote.
+    /// The key was taken by another writer (S3 412 `PreconditionFailed`);
+    /// this call changed nothing. This is how a fenced-out writer learns it
+    /// lost. A store that retries a create makes sure of it: when a retry
+    /// is refused after an attempt whose outcome is unknown, it reads which
+    /// writer the object came from, and answers [`CreateOutcome::Created`]
+    /// if it was this call. A caller that repeats a failed call itself
+    /// makes a new call, which cannot see the old one's object as its own.
     AlreadyExists,
 }
 
@@ -125,9 +126,8 @@ pub trait BlobStore: Send + Sync {
     /// Writes `body` to `key` only if no object is there
     /// (`If-None-Match: *`): the fencing primitive. Of racing creates,
     /// exactly one body is stored, and at most one call gets
-    /// [`CreateOutcome::Created`]: none, when the winner's response was
-    /// lost and its retry found its own object (see
-    /// [`CreateOutcome::AlreadyExists`]).
+    /// [`CreateOutcome::Created`], the one whose body it is. A call that
+    /// fails (an error, not an outcome) may still have stored its body.
     fn create_if_absent(
         &self,
         key: &str,

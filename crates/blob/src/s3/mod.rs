@@ -20,6 +20,7 @@ pub mod retry;
 pub mod sigv4;
 mod xml;
 
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, SystemTime};
 
 use crate::chunk::{ChunkSink, ChunkSource};
@@ -96,8 +97,13 @@ pub struct S3Store {
     credentials: Credentials,
     retry: RetryPolicy,
     jitter: Jitter,
+    /// The random half of this store's writer tokens.
+    writer_base: u64,
     meter: Meter,
 }
+
+/// Writer tokens issued in this process, the counting half of each.
+static WRITERS: AtomicU64 = AtomicU64::new(0);
 
 /// Whether `bucket` is a name S3 accepts: 3 to 63 lowercase letters,
 /// digits, dots and hyphens.
@@ -154,11 +160,17 @@ impl S3Store {
                 .output_buffer_size(config.connection_buffer)
                 .build(),
         );
-        let seed = config.jitter_seed.unwrap_or_else(|| {
-            SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .map_or(0, |d| u64::try_from(d.as_nanos()).unwrap_or(u64::MAX))
-        });
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .map_or(0, |d| u64::try_from(d.as_nanos()).unwrap_or(u64::MAX));
+        let seed = config.jitter_seed.unwrap_or(now);
+        // Never from the jitter seed: two stores seeded alike must still
+        // issue different tokens, in one process or in two.
+        let writer_base = Jitter::new(
+            now ^ u64::from(std::process::id()).rotate_left(32)
+                ^ WRITERS.fetch_add(1, Ordering::Relaxed).rotate_left(16),
+        )
+        .roll();
         Ok(Self {
             agent,
             // The scheme's default port is left out, as HTTP clients write
@@ -171,6 +183,7 @@ impl S3Store {
             credentials: config.credentials,
             retry: config.retry,
             jitter: Jitter::new(seed),
+            writer_base,
             meter: Meter::new(),
         })
     }
@@ -210,7 +223,8 @@ impl S3Store {
         key: &str,
         body: &mut dyn ChunkSource,
         buf: &mut [u8],
-        if_absent: bool,
+        create: Option<&str>,
+        last_attempt: &mut u32,
     ) -> BlobResult<CreateOutcome> {
         check_key(key)?;
         check_buf(buf)?;
@@ -225,8 +239,17 @@ impl S3Store {
             if attempt > 0 && body.rewind().is_err() {
                 return None;
             }
-            Some(self.put_once(key, body, buf, if_absent))
+            *last_attempt = attempt;
+            Some(self.put_once(key, body, buf, create))
         })
+    }
+
+    /// A token no other create carries: this store's random half and the
+    /// process's count of tokens issued.
+    fn writer_token(&self) -> String {
+        let n = WRITERS.fetch_add(1, Ordering::Relaxed);
+        // ALLOC: one 32-byte token per conditional create.
+        format!("{:016x}{n:016x}", self.writer_base)
     }
 }
 
@@ -251,7 +274,7 @@ impl BlobStore for S3Store {
     }
 
     fn put(&self, key: &str, body: &mut dyn ChunkSource, buf: &mut [u8]) -> BlobResult<()> {
-        self.write(key, body, buf, false).map(|_| ())
+        self.write(key, body, buf, None, &mut 0).map(|_| ())
     }
 
     fn create_if_absent(
@@ -260,17 +283,35 @@ impl BlobStore for S3Store {
         body: &mut dyn ChunkSource,
         buf: &mut [u8],
     ) -> BlobResult<CreateOutcome> {
-        let outcome = self.write(key, body, buf, true)?;
-        if outcome == CreateOutcome::AlreadyExists {
-            // S3 answered 412: a failed attempt, though not an error to the caller.
-            self.meter.record_error();
+        let token = self.writer_token();
+        let mut last = 0;
+        let outcome = self.write(key, body, buf, Some(&token), &mut last)?;
+        if outcome == CreateOutcome::Created {
+            return Ok(outcome);
         }
-        Ok(outcome)
+        // S3 answered 412: a failed attempt, though not an error to the caller.
+        self.meter.record_error();
+        if last == 0 {
+            return Ok(outcome);
+        }
+        // A retry found the key taken, and an earlier attempt's outcome is
+        // unknown: it may have stored this very body. One HEAD reads the
+        // object's writer token to tell.
+        let mine = self.run(|_| Some((self.head_once(key, &token), true)))?;
+        Ok(match mine {
+            Some((_, true)) => CreateOutcome::Created,
+            _ => CreateOutcome::AlreadyExists,
+        })
     }
 
     fn head(&self, key: &str) -> BlobResult<Option<ObjectMeta>> {
         check_key(key)?;
-        self.run(|_| Some((self.head_once(key), true)))
+        self.run(|_| {
+            Some((
+                self.head_once(key, "").map(|h| h.map(|(meta, _)| meta)),
+                true,
+            ))
+        })
     }
 
     fn delete(&self, key: &str) -> BlobResult<()> {
@@ -297,6 +338,19 @@ mod tests {
 
     fn config(endpoint: &str, bucket: &str) -> S3Config {
         S3Config::new(endpoint, bucket, "us-east-1", Credentials::new("a", "s"))
+    }
+
+    #[test]
+    fn stores_seeded_alike_issue_different_writer_tokens() {
+        let mut c = config("http://h:1", "bucket");
+        c.jitter_seed = Some(1);
+        let a = S3Store::new(c.clone()).unwrap();
+        let b = S3Store::new(c).unwrap();
+        assert_ne!(a.writer_base, b.writer_base);
+        let (t1, t2) = (a.writer_token(), a.writer_token());
+        assert_eq!(t1.len(), 32);
+        assert_ne!(t1, t2);
+        assert_eq!(t1[..16], t2[..16]);
     }
 
     #[test]

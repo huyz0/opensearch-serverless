@@ -216,18 +216,81 @@ fn of_racing_creates_over_http_exactly_one_wins() {
 #[test]
 fn a_lost_response_to_a_create_is_retried_and_finds_its_own_object() {
     let f = fixture();
+    // The store commits the first attempt, then the response is lost.
     f.server.store().lose_response_next(S3Op::Put, 1);
     assert_eq!(
         f.client
             .create_if_absent("log/7", &mut SliceSource::new(b"mine"), &mut [0u8; 8]),
-        Ok(CreateOutcome::AlreadyExists)
+        Ok(CreateOutcome::Created)
     );
     assert_eq!(
         get_all(&f.client, "log/7", ByteRange::Full).unwrap(),
         b"mine"
     );
-    assert_counts(f.client.meter(), &[(S3Op::Put, 2), (S3Op::Get, 1)]);
+    // The lost attempt and the 412 are failed attempts; one HEAD tells
+    // whose object the 412 found.
+    assert_counts(
+        f.client.meter(),
+        &[(S3Op::Put, 2), (S3Op::Head, 1), (S3Op::Get, 1)],
+    );
     assert_eq!(f.client.meter().errors(), 2);
+}
+
+// AC-10
+#[test]
+fn a_retried_create_that_finds_another_writers_object_lost() {
+    let f = fixture();
+    // Another store with the same configuration, jitter seed included.
+    let other = S3Store::new(config(&f.server.endpoint(), credentials())).unwrap();
+    let mut buf = [0u8; 8];
+    assert_eq!(
+        other.create_if_absent("log/8", &mut SliceSource::new(b"theirs"), &mut buf),
+        Ok(CreateOutcome::Created)
+    );
+    // This create's first attempt fails, so its 412 is checked.
+    f.server.answer_next(503, "SlowDown", 1);
+    assert_eq!(
+        f.client
+            .create_if_absent("log/8", &mut SliceSource::new(b"mine"), &mut buf),
+        Ok(CreateOutcome::AlreadyExists)
+    );
+    assert_counts(f.client.meter(), &[(S3Op::Put, 2), (S3Op::Head, 1)]);
+    // An object written without a token is never taken as this call's.
+    put(f.server.store(), "log/9", b"x");
+    f.server.answer_next(500, "InternalError", 1);
+    assert_eq!(
+        f.client
+            .create_if_absent("log/9", &mut SliceSource::new(b"mine"), &mut buf),
+        Ok(CreateOutcome::AlreadyExists)
+    );
+    assert_eq!(f.client.meter().count(S3Op::Head), 2);
+}
+
+// AC-10
+#[test]
+fn a_create_refused_on_its_first_attempt_needs_no_head() {
+    let f = fixture();
+    put(f.server.store(), "log/1", b"x");
+    assert_eq!(
+        f.client
+            .create_if_absent("log/1", &mut SliceSource::new(b"y"), &mut [0u8; 8]),
+        Ok(CreateOutcome::AlreadyExists)
+    );
+    assert_counts(f.client.meter(), &[(S3Op::Put, 1)]);
+}
+
+// AC-10
+#[test]
+fn a_failing_check_after_a_lost_response_reports_the_failure() {
+    let f = fixture();
+    f.server.store().lose_response_next(S3Op::Put, 1);
+    f.server.store().fail_next(S3Op::Head, 4);
+    assert_eq!(
+        f.client
+            .create_if_absent("log/2", &mut SliceSource::new(b"z"), &mut [0u8; 8]),
+        Err(BlobError::Unavailable)
+    );
+    assert_counts(f.client.meter(), &[(S3Op::Put, 2), (S3Op::Head, 4)]);
 }
 
 // AC-9

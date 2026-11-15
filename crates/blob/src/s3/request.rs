@@ -21,6 +21,9 @@ use crate::error::{BlobError, BlobResult};
 use crate::op::S3Op;
 use crate::store::{ByteRange, CreateOutcome, GetOutcome, ListPage, ObjectMeta};
 
+/// The user-metadata header a conditional create stores its writer token
+/// in; S3 returns it on HEAD.
+const WRITER: &str = "x-amz-meta-writer";
 /// Bytes of an error body read for its `<Code>`; S3's are a few hundred.
 const ERROR_BODY: usize = 1024;
 
@@ -306,14 +309,19 @@ impl S3Store {
         key: &str,
         source: &mut dyn ChunkSource,
         buf: &mut [u8],
-        if_absent: bool,
+        create: Option<&str>,
     ) -> (BlobResult<CreateOutcome>, bool) {
+        let if_absent = create.is_some();
         let len = source.len();
         // ALLOC: one number.
         let length = len.to_string();
-        let mut extra = [("content-length", length.as_str()), ("if-none-match", "*")];
+        let mut extra = [
+            ("content-length", length.as_str()),
+            ("if-none-match", "*"),
+            (WRITER, create.unwrap_or_default()),
+        ];
         let extra = extra
-            .get_mut(..if if_absent { 2 } else { 1 })
+            .get_mut(..if if_absent { 3 } else { 1 })
             .unwrap_or_default();
         let mut body = Body {
             source,
@@ -353,12 +361,20 @@ impl S3Store {
         }
     }
 
-    pub(super) fn head_once(&self, key: &str) -> BlobResult<Option<ObjectMeta>> {
+    /// One HEAD; with the object, whether its writer token is `writer`.
+    pub(super) fn head_once(
+        &self,
+        key: &str,
+        writer: &str,
+    ) -> BlobResult<Option<(ObjectMeta, bool)>> {
         let mut response = self.send(S3Op::Head, http::Method::HEAD, Some(key), &[], &[], None)?;
         match response.status().as_u16() {
-            200 => Ok(Some(ObjectMeta {
-                len: content_length(&response)?,
-            })),
+            200 => Ok(Some((
+                ObjectMeta {
+                    len: content_length(&response)?,
+                },
+                header(&response, WRITER) == Some(writer),
+            ))),
             404 => Ok(None),
             _ => Err(failure(&mut response)),
         }
