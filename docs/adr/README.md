@@ -17,3 +17,4 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0007](0007-registers.md) | Registers by compare-and-swap, the Java's wire format and file lock | Accepted |
 | [0008](0008-metadata-crate.md) | A metadata crate between the stores and the roles | Accepted |
 | [0009](0009-unsafe-when-guaranteed-safe.md) | `unsafe` in any crate, only when guaranteed safe | Accepted |
+| [0010](0010-one-home-per-rule.md) | One home per rule, and a harness that checks itself | Proposed |
