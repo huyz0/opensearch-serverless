@@ -1,0 +1,9 @@
+rust_path	kind	java_source	note
+src/lib.rs	new		crate root; a standalone JSON library, no Java counterpart (Jackson is the Java side and is not ported)
+src/config.rs	new		framing and limits of a standalone tokenizer
+src/error.rs	new		typed errors with absolute offsets
+src/event.rs	new		pull events; Jackson's JsonToken plays this role but is not ported
+src/number.rs	new		the RFC 8259 number grammar as a resumable state machine
+src/string.rs	new		string lexing with fragments borrowed from the input
+src/tokenizer.rs	new		sans-IO tokenizer state machine
+src/read.rs	new		blocking Read adapter over a caller buffer

@@ -1,0 +1,22 @@
+[package]
+name = "chunkjson-bench"
+version = "0.0.0"
+publish = false
+edition = "2024"
+description = "Throughput and peak heap of chunkjson against serde_json, sonic-rs and simd-json"
+
+# Outside the parent workspace, so its dependencies never enter the gate.
+[workspace]
+
+[dependencies]
+chunkjson = { path = ".." }
+serde = "=1.0.229"
+serde_json = "=1.0.145"
+sonic-rs = "=0.5.11"
+simd-json = "=0.19.0"
+cap = { version = "=0.1.2", features = ["stats"] }
+
+[profile.release]
+debug = 1
+codegen-units = 1
+lto = "thin"
