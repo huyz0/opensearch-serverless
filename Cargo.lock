@@ -101,6 +101,7 @@ dependencies = [
 name = "oss-format"
 version = "0.1.0"
 dependencies = [
+ "oss-testkit",
  "oss-types",
 ]
 

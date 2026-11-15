@@ -9,4 +9,4 @@ The Java shell's blob formats: segment blobs, node packs, commit descriptors.
 `oss-types`.
 
 ## Entry points
-`src/lib.rs`. Readers land in stage 2, tested against blobs the Java shell wrote (`fixtures/shell-blobs/`).
+`src/lib.rs` describes the read path: `DescriptorRecord::parse` on the descriptor register, `CommitManifest::parse` on the commit register, then `ShardRef::resolve` for every file's blob key and range. `SegmentBlobHeader` and `NodePackHeader` read the blobs' own headers. Tested against blobs the Java shell wrote (`fixtures/shell-blobs/`). Spec: [docs/specs/blob-formats](../../docs/specs/blob-formats/SPEC.md).
