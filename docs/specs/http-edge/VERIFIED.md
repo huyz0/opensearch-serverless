@@ -17,7 +17,8 @@
 - AC-15: `bodies_need_a_supported_content_type`
 - AC-16: `an_idle_kept_alive_connection_yields_its_worker_to_a_waiting_one`
 - AC-17: `scripts/check-alloc.py`
-- AC-18: `a_body_sent_after_a_pause_longer_than_the_idle_poll_is_read`, `a_trickled_head_is_closed_at_the_request_timeout`, `a_trickled_body_is_closed_at_the_request_timeout`, `a_client_that_does_not_read_its_response_is_cut_off`, `blocked_time_past_the_grace_fails_and_bytes_earn_more`
+- AC-18: `a_body_sent_after_a_pause_longer_than_the_idle_poll_is_read`, `a_trickled_head_is_closed_at_the_request_timeout`, `a_trickled_body_is_closed_at_the_request_timeout`, `a_client_that_does_not_read_its_response_is_cut_off`, `blocked_time_past_the_grace_fails_and_bytes_earn_more`, `a_peer_at_the_floor_keeps_its_connection_and_one_below_loses_it`, `the_default_is_valid_and_matches_opensearch_sizes`
 - AC-19: `a_panicking_handler_answers_500_and_keeps_its_worker`
 - AC-20: `a_bad_content_type_wins_over_an_unknown_parameter`, `a_uri_java_cannot_parse_is_not_echoed`
 - AC-21: `an_http_10_client_gets_a_streamed_body_unframed_then_a_close`, `an_echoed_id_too_long_for_the_write_buffer_is_dropped_not_the_reply`, `the_acceptor_is_woken_on_loopback_for_an_unspecified_address`, `a_server_on_an_unspecified_address_shuts_down`
+- AC-22: `a_big_bulk_read_slowly_by_the_server_is_not_cut_off` (fails when blocked time is replaced by wall-clock time since the request started)

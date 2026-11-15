@@ -103,6 +103,7 @@ fn a_panicking_handler_answers_500_and_keeps_its_worker() {
 fn timed() -> ServerConfig {
     ServerConfig {
         request_timeout: Duration::from_millis(300),
+        slow_grace: Duration::from_millis(300),
         min_transfer_rate: 64 << 20,
         ..small()
     }
@@ -153,6 +154,54 @@ fn a_trickled_body_is_closed_at_the_request_timeout() {
     let open = trickle(&mut s, &[b' '; 64], Duration::from_millis(50));
     assert!(open >= Duration::from_millis(250), "{open:?}");
     assert!(open < Duration::from_millis(2000), "{open:?}");
+    server.shutdown();
+}
+
+#[test]
+fn a_big_bulk_read_slowly_by_the_server_is_not_cut_off() {
+    // The handler stands for a busy write path: it waits before reading and
+    // between chunks, so the upload takes many times the grace. The client
+    // keeps up all along; only this side is slow, and it is not charged.
+    let router = Router::new()
+        .route(
+            Method::Post,
+            "/_bulk",
+            &[],
+            |req: &mut Request<'_>, resp: &mut Response<'_>| -> Result<(), RestError> {
+                thread::sleep(Duration::from_millis(500));
+                let mut bytes = 0usize;
+                while let Some(c) = req.body().next_chunk()? {
+                    bytes = bytes.saturating_add(c.len());
+                    thread::sleep(Duration::from_millis(10));
+                }
+                resp.send(200, JSON, json!({"bytes": bytes}).to_string().as_bytes())
+            },
+        )
+        .expect("routes");
+    let server = start(timed(), router);
+    let body = b"{\"index\":{}}\n{\"a\":1}\n".repeat(24 << 10);
+    let started = Instant::now();
+    let mut c = Client::connect(server.local_addr());
+    let head = format!(
+        "POST /_bulk HTTP/1.1\r\ncontent-type: application/x-ndjson\r\ncontent-length: {}\r\n\r\n",
+        body.len()
+    );
+    c.send(head.as_bytes()).expect("sends");
+    let writer = c.writer().try_clone().expect("clones");
+    let upload = thread::spawn(move || {
+        let mut w = writer;
+        w.write_all(&body)
+    });
+    let r = c.reply().expect("a reply");
+    upload.join().expect("joins").expect("uploads");
+    assert_eq!(
+        (r.status, r.json()),
+        (200, json!({"bytes": 21 * (24 << 10)}))
+    );
+    assert!(
+        started.elapsed() > Duration::from_secs(1),
+        "slower than the grace"
+    );
     server.shutdown();
 }
 

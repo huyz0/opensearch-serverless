@@ -34,10 +34,11 @@ Differences from OpenSearch, each deliberate: a connection past `max_connections
 - AC-15: a body without `Content-Type` gets 406 `Content-Type header is missing`, one of an unsupported type 406 `Content-Type header [..] is not supported`.
 - AC-16: a kept-alive idle connection is closed within a few idle polls when another connection waits for its worker, and the waiting one is served.
 - AC-17: every allocation in `crates/rest/src` outside tests carries an `// ALLOC:` bound (`scripts/check-alloc.py`).
-- AC-18: a body that arrives after a pause longer than `idle_poll`, after the head or after `100 Continue`, is read; a head trickled in is closed once it has taken `request_timeout`; a body read or a response write blocked longer than `request_timeout` plus `1 / min_transfer_rate` seconds per byte moved fails and the connection closes.
+- AC-18: a body that arrives after a pause longer than `idle_poll`, after the head or after `100 Continue`, is read; a head trickled in is closed once it has taken `request_timeout`; a body read or a response write that falls `slow_grace` (10 s) of blocked time behind `min_transfer_rate` (8 KiB/s) fails and the connection closes, and a peer at the floor is never cut off.
 - AC-19: a handler that panics is answered 500 with `connection: close`; the worker serves the next connection and the open count returns to zero.
 - AC-20: the content-type 406 comes before the unknown-parameter 400, as in `RestController#dispatchRequest`; two `Content-Type` headers are 400 `only one Content-Type header should be provided`; a path `java.net.URI` cannot parse is 400 `invalid uri has been requested`, not echoed.
 - AC-21: an HTTP/1.0 client gets a streamed body unframed, then a close; an echoed id longer than a quarter of the write buffer is left out and the response is still sent; a server bound to an unspecified address shuts down.
+- AC-22: a big bulk that this side reads slowly (a pause before reading and between chunks, many times `slow_grace` in all) completes: time the server is not reading is never charged to the client.
 
 ## Test plan
 
@@ -57,7 +58,7 @@ None: a new crate with no default behaviour change; no node serves through it ye
 ## Risks
 
 - Thread per served connection: many idle clients cost threads. Bounded by `max_connections` and the idle yield (AC-16); ADR 0006 names the event-loop fallback.
-- A peer slower than `min_transfer_rate` (64 KiB/s by default) is cut off (AC-18). OpenSearch has no such bound because a slow socket costs Netty no thread; a client that slow behind the ingress is not expected.
+- A peer that falls 10 s behind 8 KiB/s is cut off (AC-18). OpenSearch has no such bound because a slow socket costs Netty no thread. The recommended deployment is behind a buffering load balancer (ALB, NGINX), which absorbs slow clients, so the limit is a safety net.
 - A path with a percent-escape that is not UTF-8 is answered `invalid uri has been requested`; Java decodes it with replacement characters and echoes it.
 - Head and chunk parsing are ours. The limits and malformed inputs are tested; `httparse` is the fallback if a parsing bug appears.
 - Error messages for Netty's head limits come from Netty's source, not from a recording; a recorded fixture would confirm them.
