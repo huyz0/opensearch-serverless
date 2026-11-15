@@ -293,8 +293,10 @@ impl S3Store {
             self.meter.add_bytes_read(n);
             bytes = bytes.saturating_add(n);
         }
+        // ureq fails a read that ends before Content-Length, so this is a
+        // guard against a transport that does not; it is never retried.
         if bytes != expected {
-            return (Err(BlobError::Unavailable), bytes == 0);
+            return (Err(BlobError::Unavailable), false);
         }
         (Ok(GetOutcome { object_len, bytes }), true)
     }
@@ -420,8 +422,9 @@ impl S3Store {
             keys: parser.keys(),
             truncated,
         });
-        let repeatable = parser.keys() == 0;
-        (result, repeatable)
+        // A page that ended cleanly fails only as a `Protocol` error, which
+        // is never retried.
+        (result, false)
     }
 }
 

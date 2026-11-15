@@ -353,11 +353,15 @@ mod tests {
 
     #[test]
     fn an_empty_entry_is_refused_and_a_stray_close_ignored() {
-        let empty = b"<ListBucketResult><Contents/></ListBucketResult>";
-        assert_eq!(
-            parse(empty, 2, 64),
-            Err(BlobError::Protocol("LIST entry without a Key or a Size"))
-        );
+        for empty in [
+            &b"<ListBucketResult><Contents/></ListBucketResult>"[..],
+            b"<ListBucketResult><Contents /></ListBucketResult>",
+        ] {
+            assert_eq!(
+                parse(empty, 2, 64),
+                Err(BlobError::Protocol("LIST entry without a Key or a Size"))
+            );
+        }
         let stray = b"<ListBucketResult><Contents><Key>a</Key><Size>1</Size></Contents></Contents></ListBucketResult>";
         assert_eq!(parse(stray, 2, 64).unwrap().0, [("a".to_owned(), 1)]);
     }
