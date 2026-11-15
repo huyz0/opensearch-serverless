@@ -9,11 +9,22 @@
 //! - [`DescriptorStore`]: create, read, update and delete an index's
 //!   descriptor register, with tombstones keeping a deleted name's
 //!   generations moving.
+//! - [`DeleteMode::probe`]: whether a store's conditional delete can be
+//!   trusted, asked of the store itself.
+//! - [`DescriptorStore::sweep_tombstones`]: removing tombstones once their
+//!   quarantine has passed, found from their hourly markers.
 
 mod descriptors;
 mod error;
 mod names;
+mod probe;
+mod sweep;
 
-pub use descriptors::{DeleteMode, DescriptorStore, REAP_HANDOFF_MILLIS, Resolution, Target};
+pub use descriptors::{
+    BUCKET_MILLIS, DEFAULT_QUARANTINE_MILLIS, DeleteMode, DescriptorStore, REAP_DEADLINE_MILLIS,
+    REAP_HANDOFF_MILLIS, Resolution, Target,
+};
 pub use error::MetaError;
 pub use names::{MAX_NAME_BYTES, NameError, NameRule, validate_index_or_alias};
+pub use probe::PROBE_PREFIX;
+pub use sweep::{MARKERS_PREFIX, Sweep, Swept};

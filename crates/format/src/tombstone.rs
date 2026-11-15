@@ -142,3 +142,63 @@ fn civil(days: i64) -> (i64, i64, i64) {
     let year = yoe + era * 400 + i64::from(month <= 2);
     (year, month, day)
 }
+
+/// When the bucket named `name` starts, epoch milliseconds: the inverse of
+/// [`tombstone_bucket`] (`Tombstones.tombstoneBucketStart`). `None` for a
+/// name that is not ten digits naming a real UTC hour from 1970 on, which
+/// the Java answers -1 and its sweep skips.
+pub fn tombstone_bucket_start(name: &str) -> Option<i64> {
+    let digits = name.as_bytes();
+    if digits.len() != 10 || !digits.iter().all(u8::is_ascii_digit) {
+        return None;
+    }
+    let field = |from: usize, to: usize| -> i64 {
+        digits.get(from..to).map_or(0, |part| {
+            part.iter().fold(0i64, |n, d| {
+                n.saturating_mul(10)
+                    .saturating_add(i64::from(d.saturating_sub(b'0')))
+            })
+        })
+    };
+    let (year, month, day, hour) = (field(0, 4), field(4, 6), field(6, 8), field(8, 10));
+    if year < 1970 || !(1..=12).contains(&month) || hour > 23 {
+        return None;
+    }
+    if day < 1 || day > days_in_month(year, month) {
+        return None;
+    }
+    Some(hour_start(days_from_civil(year, month, day), hour))
+}
+
+/// Milliseconds at `hour` of day `days` from the epoch.
+// ARITH: days is under 2,932,897 and hour under 24, so the product is far
+// inside an i64.
+#[allow(clippy::arithmetic_side_effects)]
+fn hour_start(days: i64, hour: i64) -> i64 {
+    (days * 24 + hour) * 3_600_000
+}
+
+/// Days in a month of the proleptic Gregorian calendar.
+fn days_in_month(year: i64, month: i64) -> i64 {
+    match month {
+        2 if year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) => 29,
+        2 => 28,
+        4 | 6 | 9 | 11 => 30,
+        _ => 31,
+    }
+}
+
+/// Days from 1970-01-01 to a civil date from 1970 to 9999 (Howard
+/// Hinnant's `days_from_civil`).
+// ARITH: the year is 1970 to 9999 and month and day valid, so every
+// intermediate is a small non-negative number.
+#[allow(clippy::arithmetic_side_effects)]
+fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
+    let y = if month <= 2 { year - 1 } else { year };
+    let era = y / 400;
+    let yoe = y - era * 400;
+    let mp = if month > 2 { month - 3 } else { month + 9 };
+    let doy = (153 * mp + 2) / 5 + day - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    era * 146_097 + doe - 719_468
+}

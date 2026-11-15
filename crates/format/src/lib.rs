@@ -47,7 +47,7 @@ pub use manifest::{CommitManifest, ManifestFile};
 pub use node_pack::{Block, NodePackHeader};
 pub use register::{GENERATION_BYTES, Register};
 pub use segment_blob::{SegmentBlobHeader, SegmentFile};
-pub use tombstone::{MAX_TOMBSTONE_BYTES, Tombstone, tombstone_bucket};
+pub use tombstone::{MAX_TOMBSTONE_BYTES, Tombstone, tombstone_bucket, tombstone_bucket_start};
 
 /// Node pack format constants and the header-length probe.
 pub mod node_pack_format {
