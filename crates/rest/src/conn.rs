@@ -86,8 +86,51 @@ impl Worker {
     }
 }
 
-/// Serves `stream` until it closes, times out or must yield.
+/// Request bytes a closing connection still reads and discards after its
+/// last response, so the client receives that response before the socket
+/// closes. Closing with unread input makes the TCP stack send a reset, and
+/// on Windows a reset discards a response the client has not read yet.
+const LINGER_LIMIT: u64 = 256 << 10;
+
+/// How long a closing connection keeps discarding input in all.
+const LINGER_TIME: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// How long a closing connection waits for more input before it closes. A
+/// client that sends nothing more costs the worker this long, not
+/// [`LINGER_TIME`].
+const LINGER_IDLE: std::time::Duration = std::time::Duration::from_millis(100);
+
+/// Serves `stream` until it closes, times out or must yield, then closes it
+/// gracefully: our side shuts for writing, and input already in flight is
+/// read and discarded (at most [`LINGER_LIMIT`] bytes, for at most
+/// [`LINGER_TIME`], stopping after [`LINGER_IDLE`] of quiet) so it cannot
+/// turn the close into a reset.
 pub(crate) fn serve(w: &mut Worker, stream: &TcpStream, shared: &Shared) {
+    serve_requests(w, stream, shared);
+    linger(stream);
+}
+
+/// The graceful close described on [`serve`]. Uses a stack buffer, so it
+/// allocates nothing.
+fn linger(stream: &TcpStream) {
+    if stream.shutdown(std::net::Shutdown::Write).is_err() {
+        return;
+    }
+    let _ = stream.set_read_timeout(Some(LINGER_IDLE));
+    let deadline = Instant::now().checked_add(LINGER_TIME);
+    let mut sink = [0u8; 4096];
+    let mut left = LINGER_LIMIT;
+    let mut reader = stream;
+    while left > 0 && deadline.is_some_and(|d| Instant::now() < d) {
+        match reader.read(&mut sink) {
+            Ok(0) | Err(_) => break,
+            Ok(n) => left = left.saturating_sub(u64::try_from(n).unwrap_or(u64::MAX)),
+        }
+    }
+}
+
+/// The request loop [`serve`] runs before it closes.
+fn serve_requests(w: &mut Worker, stream: &TcpStream, shared: &Shared) {
     let _ = stream.set_nodelay(true);
     let c = &shared.config;
     let timed = Timed::new(stream, c.request_timeout, c.min_transfer_rate);
