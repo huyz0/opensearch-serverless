@@ -12,7 +12,7 @@ A Rust serverless OpenSearch: stateless reader, writer and coordinator nodes ove
 2. **One write log per node, never per shard. One immutable blob per segment.**
 3. **Downward-only crate dependencies;** reader and writer never depend on each other.
 4. **Small modules:** under 500 lines ideally, 1,000 at most; one concern each; private by default; every public item documented.
-5. **No `unsafe`** anywhere (`unsafe_code = "forbid"`).
+5. **`unsafe` only the guaranteed-safe way:** safe first; then only the patterns in [docs/unsafe.md](docs/unsafe.md), each block with a local allow and a `// SAFETY:` comment (`unsafe-code` skill).
 5a. **Bounded memory, streaming everywhere:** reserve from the node budget before allocating, pooled fixed-size buffers, bounded channels, no whole-body or whole-blob reads; every request-path allocation carries `// ALLOC: <bound>` ([ADR 0004](docs/adr/0004-bounded-memory-and-streaming.md)).
 6. **Build behind switches;** on by default only when measured with no downside (write p99 within 5%, no extra S3 requests, no search regression, crash tests green). No downside, no switch.
 7. **Tests use emulators only:** the in-process S3 emulator or RustFS. Nothing needs Docker.
@@ -54,6 +54,7 @@ The gate is defined once, in [scripts/gate.sh](scripts/gate.sh); the pre-push ho
 | REST, extensions | [docs/how-to/](docs/how-to/README.md) |
 | Writing tests | `test-coverage` skill |
 | Optimising | `rust-performance` skill |
+| `unsafe`, SIMD, unchecked indexing | `unsafe-code` skill |
 | Finishing a change | `code-review` skill, then `/quality-review` |
 | Committing | `git-workflow` skill |
 | A decision with trade-offs | add an ADR in [docs/adr/](docs/adr/README.md) |

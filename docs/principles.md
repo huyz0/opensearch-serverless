@@ -50,7 +50,7 @@ Decision and detail: [ADR 0004](adr/0004-bounded-memory-and-streaming.md).
 - **One concern per module.** No `util`, `misc` or `common` dumping grounds.
 - **Layered crates, no cycles, siblings independent.** *Check:* `scripts/check-layering.py`.
 - **Private by default.** `pub` only for what another crate needs; every public item has a doc comment. *Check:* `missing_docs = "deny"` in the workspace lints.
-- **`unsafe` is forbidden** in every crate. A future crate that needs it (an extension loader) gets a written exception here first. *Check:* `unsafe_code = "forbid"`.
+- **`unsafe` only when guaranteed safe:** any crate, only the patterns in [unsafe.md](unsafe.md), each block private behind a safe API with a `// SAFETY:` comment; safe first, `unsafe` only where a profile shows it pays. *Check:* `unsafe_code = "deny"` plus clippy's unsafe lints and `scripts/check-unsafe.py`; the patterns and their tests by review.
 - **Arithmetic on values read from storage is checked.** *Check:* `clippy::arithmetic_side_effects`, and `scripts/check-arith-allows.py` for every allow.
 - **Names and comments describe what the code does,** with no milestone, phase or task references. *Check:* `scripts/check-dev-notes.py`.
 

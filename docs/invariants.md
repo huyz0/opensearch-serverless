@@ -12,7 +12,7 @@ The properties the system must never lose, each linked to the check or test that
 | I-6 | A segment is uploaded as one immutable blob and never rewritten | NOT-YET: needs the writer |
 | I-7 | A fenced-out writer cannot overwrite its successor's log slot | NOT-YET: needs the writer |
 | I-8 | Crate dependencies point downward; reader and writer are independent | `scripts/check-layering.py` |
-| I-9 | No `unsafe` in any crate | `scripts/check-unsafe.py` |
+| I-9 | `unsafe` appears only item by item, with a SAFETY comment, never module- or crate-wide; `unsafe impl Send/Sync`, `transmute` and FFI only with the owner's OK ([unsafe.md](unsafe.md)) | `scripts/check-unsafe.py` |
 | I-10 | No Rust file over 1,000 lines; over 500 only on the shrinking baseline | `scripts/check-module-size.py` |
 | I-11 | Tests never reach real AWS | `scripts/check-test-endpoints.py` |
 | I-12 | Each role is compiled in only when its build switch is on | `roles_follow_the_build_switches` |

@@ -14,7 +14,7 @@ description: "WHAT: How to optimise: measure first, then the Rust-first design r
 - **Fewer copies:** borrow, parse in place, reuse buffers, size collections up front. A copy on a hot path needs a reason.
 - **Monomorphise per-document loops;** `dyn` only at coarse boundaries.
 - **Ownership over locks:** immutable shared readers (`Arc`), one owner for mutable state, `Mutex` only on control-plane state.
-- **SIMD only where a profile shows it pays,** with a scalar version tested against it on x86-64 and ARM64.
+- **SIMD only where a profile shows it pays,** with a scalar version tested against it on x86-64 and ARM64. Any `unsafe` (intrinsics, unchecked indexing) follows the `unsafe-code` skill.
 - **Keep the simple version** unless the measured gain justifies the complexity.
 
 ## Enforced by
