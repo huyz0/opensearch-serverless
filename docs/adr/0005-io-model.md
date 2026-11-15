@@ -33,5 +33,6 @@ Forces, with the numbers that exist:
 - The reader plugs `oss-blob` into lucene-rust's synchronous `BlobStore` with no runtime bridge.
 - Request counts are exact by construction: the code that sends a request is the code that records it.
 - We own SigV4, retries, and the XML of `ListObjectsV2` and error bodies; a test suite against AWS's signing vectors and the emulator covers them.
+- The request and result types (`ByteRange`, `GetOutcome`, `CreateOutcome`, `ObjectMeta`, `ListPage`, `BlobError`, `Meter`) carry no runtime assumption, so an async store trait, with async counterparts of `ChunkSink` and `ChunkSource`, can sit beside `BlobStore` and share them without changing existing callers. This ADR stays Proposed while whether lucene-rust gains async support is assessed.
 - If a measured workload needs more than about 1,000 requests in flight on one node, or the I/O pool's queue wait shows up in search p99, this is revisited; the trait's shape (caller buffers, sinks and sources) carries over to an async version.
 - The REST server's I/O model is a separate decision; this one covers the object store only.
