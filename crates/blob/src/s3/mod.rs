@@ -15,6 +15,8 @@
 //! `PreconditionFailed`) against a retryable 409 is ported in
 //! `request.rs`.
 
+mod body;
+mod register;
 mod request;
 pub mod retry;
 pub mod sigv4;
@@ -26,10 +28,13 @@ use std::time::{Duration, SystemTime};
 use crate::chunk::{ChunkSink, ChunkSource};
 use crate::error::{BlobError, BlobResult};
 use crate::meter::Meter;
+use crate::register::known::KnownVersions;
+use crate::register::{RegisterRead, SwapOutcome};
 use crate::store::{
     BlobStore, ByteRange, CreateOutcome, GetOutcome, ListPage, ObjectMeta, check_buf, check_key,
     check_list,
 };
+use request::{Condition, PutAnswer};
 use retry::{Jitter, RetryPolicy, retryable};
 use sigv4::Credentials;
 
@@ -100,6 +105,8 @@ pub struct S3Store {
     /// The random half of this store's writer tokens.
     writer_base: u64,
     meter: Meter,
+    /// The register versions this store last read or wrote.
+    known: KnownVersions,
 }
 
 /// Writer tokens issued in this process, the counting half of each.
@@ -185,6 +192,7 @@ impl S3Store {
             jitter: Jitter::new(seed),
             writer_base,
             meter: Meter::new(),
+            known: KnownVersions::default(),
         })
     }
 
@@ -223,9 +231,9 @@ impl S3Store {
         key: &str,
         body: &mut dyn ChunkSource,
         buf: &mut [u8],
-        create: Option<&str>,
+        cond: Option<Condition<'_>>,
         last_attempt: &mut u32,
-    ) -> BlobResult<CreateOutcome> {
+    ) -> BlobResult<PutAnswer> {
         check_key(key)?;
         check_buf(buf)?;
         // An empty body sends no bytes, so its source is checked here: one
@@ -240,15 +248,15 @@ impl S3Store {
                 return None;
             }
             *last_attempt = attempt;
-            Some(self.put_once(key, body, buf, create))
+            Some(self.put_once(key, body, buf, cond))
         })
     }
 
-    /// A token no other create carries: this store's random half and the
+    /// A token no other conditional write carries: this store's random half and the
     /// process's count of tokens issued.
     fn writer_token(&self) -> String {
         let n = WRITERS.fetch_add(1, Ordering::Relaxed);
-        // ALLOC: one 32-byte token per conditional create.
+        // ALLOC: one 32-byte token per conditional write.
         format!("{:016x}{n:016x}", self.writer_base)
     }
 }
@@ -271,10 +279,27 @@ impl BlobStore for S3Store {
             return Err(BlobError::InvalidArgument("range of 0 bytes"));
         }
         self.run(|_| Some(self.get_once(key, range, buf, sink)))
+            .map(|(outcome, _)| outcome)
     }
 
     fn put(&self, key: &str, body: &mut dyn ChunkSource, buf: &mut [u8]) -> BlobResult<()> {
         self.write(key, body, buf, None, &mut 0).map(|_| ())
+    }
+
+    fn read_register(&self, key: &str, buf: &mut [u8]) -> BlobResult<Option<RegisterRead>> {
+        crate::register::tagged::read(self, key, buf)
+    }
+
+    fn swap_register(&self, key: &str, expected: u64, value: &[u8]) -> BlobResult<SwapOutcome> {
+        crate::register::tagged::swap(self, key, expected, value)
+    }
+
+    fn create_register(&self, key: &str, value: &[u8]) -> BlobResult<SwapOutcome> {
+        crate::register::tagged::create(self, key, value)
+    }
+
+    fn delete_register(&self, key: &str, expected: u64) -> BlobResult<bool> {
+        crate::register::tagged::delete(self, key, expected)
     }
 
     fn create_if_absent(
@@ -283,24 +308,10 @@ impl BlobStore for S3Store {
         body: &mut dyn ChunkSource,
         buf: &mut [u8],
     ) -> BlobResult<CreateOutcome> {
-        let token = self.writer_token();
-        let mut last = 0;
-        let outcome = self.write(key, body, buf, Some(&token), &mut last)?;
-        if outcome == CreateOutcome::Created {
-            return Ok(outcome);
-        }
-        // S3 answered 412: a failed attempt, though not an error to the caller.
-        self.meter.record_error();
-        if last == 0 {
-            return Ok(outcome);
-        }
-        // A retry found the key taken, and an earlier attempt's outcome is
-        // unknown: it may have stored this very body. One HEAD reads the
-        // object's writer token to tell.
-        let mine = self.run(|_| Some((self.head_once(key, &token), true)))?;
-        Ok(match mine {
-            Some((_, true)) => CreateOutcome::Created,
-            _ => CreateOutcome::AlreadyExists,
+        let pre = crate::register::tagged::Precondition::Absent;
+        Ok(match self.put_if(key, body, buf, pre)? {
+            Some(_) => CreateOutcome::Created,
+            None => CreateOutcome::AlreadyExists,
         })
     }
 
@@ -308,7 +319,7 @@ impl BlobStore for S3Store {
         check_key(key)?;
         self.run(|_| {
             Some((
-                self.head_once(key, "").map(|h| h.map(|(meta, _)| meta)),
+                self.head_once(key, "").map(|h| h.map(|(meta, _, _)| meta)),
                 true,
             ))
         })
@@ -316,7 +327,7 @@ impl BlobStore for S3Store {
 
     fn delete(&self, key: &str) -> BlobResult<()> {
         check_key(key)?;
-        self.run(|_| Some((self.delete_once(key), true)))
+        self.run(|_| Some((self.delete_once(key, None).map(|_| ()), true)))
     }
 
     // LIST: the client's implementation of the trait's one bounded page.

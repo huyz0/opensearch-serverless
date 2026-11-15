@@ -6,19 +6,16 @@ use std::io::Write;
 
 use super::Shared;
 use super::wire::{Chunked, Head, SocketBody, percent_decode, write_error, write_head, xml_escape};
+use super::writes;
 use crate::chunk::ChunkSink;
-use crate::emulator::Span;
+use crate::emulator::{Span, etag};
 use crate::error::BlobError;
 use crate::error::BlobResult;
 use crate::s3::sigv4::{self, Scope};
-use crate::store::{BlobStore, ByteRange, CreateOutcome, MAX_LIST_KEYS};
-
-/// The user-metadata header S3 stores with an object and returns on HEAD,
-/// which the client uses for its writer token.
-const WRITER: &str = "x-amz-meta-writer";
+use crate::store::{BlobStore, ByteRange, MAX_LIST_KEYS};
 
 /// Bytes the front end streams a body through, each way.
-const BODY_BUF: usize = 16_384;
+pub(super) const BODY_BUF: usize = 16_384;
 
 /// What is left to send once the handler has run and the request body has
 /// been read to its end.
@@ -28,6 +25,8 @@ pub(crate) enum Reply {
     Done,
     /// A response with no body.
     Empty(u16),
+    /// A 200 with no body for a stored object, carrying its ETag.
+    Stored(String),
     /// An S3 error document.
     Error(u16, &'static str),
     /// The response was cut part-way; the connection must close.
@@ -35,7 +34,7 @@ pub(crate) enum Reply {
 }
 
 /// The status and S3 error code for a store failure.
-fn status_of(err: &BlobError) -> Reply {
+pub(super) fn status_of(err: &BlobError) -> Reply {
     let (status, code) = match err {
         BlobError::NotFound => (404, "NoSuchKey"),
         BlobError::InvalidRange => (416, "InvalidRange"),
@@ -173,31 +172,9 @@ pub(crate) fn respond(
     };
     match (head.method.as_str(), key) {
         ("GET", Some(key)) => get(shared, head, key, out),
-        ("HEAD", Some(key)) => match shared.store.head_with_writer(key) {
-            Ok(Some((meta, writer))) => {
-                // ALLOC: one number.
-                let len = meta.len.to_string();
-                let mut headers = [("content-length", len.as_str()), (WRITER, "")];
-                let headers = match &writer {
-                    Some(w) => {
-                        headers[1].1 = w;
-                        &headers[..]
-                    }
-                    None => &headers[..1],
-                };
-                match write_head(out, 200, headers) {
-                    Ok(()) => Reply::Done,
-                    Err(_) => Reply::Close,
-                }
-            }
-            Ok(None) => Reply::Error(404, "NoSuchKey"),
-            Err(err) => status_of(&err),
-        },
-        ("PUT", Some(key)) => put(shared, head, key, body),
-        ("DELETE", Some(key)) => match shared.store.delete(key) {
-            Ok(()) => Reply::Empty(204),
-            Err(err) => status_of(&err),
-        },
+        ("HEAD", Some(key)) => writes::head(shared, key, out),
+        ("PUT", Some(key)) => writes::put(shared, head, key, body),
+        ("DELETE", Some(key)) => writes::delete(shared, head, key),
         ("GET", None) => list(shared, &request.query, out),
         _ => Reply::Error(405, "MethodNotAllowed"),
     }
@@ -232,11 +209,16 @@ impl GetReply<'_> {
             .max(span.first);
         // ALLOC: one header value of three numbers.
         let range = format!("bytes {}-{last}/{}", span.first, span.object_len);
-        let mut headers = [("content-length", len.as_str()), ("content-range", &range)];
+        let tag = etag(span.tag);
+        let mut headers = [
+            ("content-length", len.as_str()),
+            ("etag", tag.as_str()),
+            ("content-range", &range),
+        ];
         let (status, headers) = if self.ranged {
             (206, &mut headers[..])
         } else {
-            (200, headers.get_mut(..1).unwrap_or_default())
+            (200, headers.get_mut(..2).unwrap_or_default())
         };
         write_head(self.out, status, headers).map_err(|_| BlobError::Stream("client went away"))
     }
@@ -296,27 +278,6 @@ fn get(shared: &Shared, head: &Head, key: &str, out: &mut dyn Write) -> Reply {
         },
         // Once the head is out, the only failures are the sink's own,
         // `Stream` errors, which close the connection.
-        Err(err) => status_of(&err),
-    }
-}
-
-fn put(shared: &Shared, head: &Head, key: &str, body: &mut SocketBody<'_>) -> Reply {
-    if head.header("content-length").is_none() {
-        return Reply::Error(411, "MissingContentLength");
-    }
-    let mut buf = [0u8; BODY_BUF];
-    let writer = head.header(WRITER);
-    let result = if head.header("if-none-match") == Some("*") {
-        shared.store.create_as(key, body, &mut buf, writer)
-    } else {
-        shared
-            .store
-            .put_as(key, body, &mut buf, writer)
-            .map(|()| CreateOutcome::Created)
-    };
-    match result {
-        Ok(CreateOutcome::Created) => Reply::Empty(200),
-        Ok(CreateOutcome::AlreadyExists) => Reply::Error(412, "PreconditionFailed"),
         Err(err) => status_of(&err),
     }
 }
@@ -422,6 +383,14 @@ pub(crate) fn finish(
                 headers.push(("connection", "close"));
             }
             write_head(out, *status, &headers)
+        }
+        Reply::Stored(tag) => {
+            // ALLOC: three headers.
+            let mut headers = vec![("content-length", "0"), ("etag", tag.as_str())];
+            if close {
+                headers.push(("connection", "close"));
+            }
+            write_head(out, 200, &headers)
         }
         Reply::Error(status, code) => write_error(out, *status, code, close, head_only),
     }

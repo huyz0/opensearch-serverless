@@ -16,6 +16,14 @@ oss-mem = { workspace = true }
 hmac = "=0.13.0"
 sha2 = "=0.11.1"
 ureq = { version = "=3.5.2", default-features = false, features = ["rustls"] }
+# A register's first generation is random from the OS's secure source, as
+# the Java's SecureRandom (docs/specs/registers/SPEC.md).
+getrandom = "=0.4.3"
+
+# The filesystem store's register lock is the POSIX record lock Java's
+# FileChannel.lock takes; std's File::lock is flock, which does not exclude it.
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "=1.1.2", default-features = false, features = ["fs", "std"] }
 
 [features]
 # The in-process S3 emulator, for tests in this crate and the crates above.
@@ -25,6 +33,10 @@ emulator = []
 proptest = { workspace = true }
 oss-testkit = { workspace = true }
 
+# The register tests hold the lock Java takes, from a child process.
+[target.'cfg(unix)'.dev-dependencies]
+rustix = { version = "=1.1.2", default-features = false, features = ["fs", "std"] }
+
 [[test]]
 name = "emulator"
 required-features = ["emulator"]
@@ -32,6 +44,10 @@ required-features = ["emulator"]
 # Its own binary: the counting allocator is process-wide.
 [[test]]
 name = "fs_streaming_peak"
+
+[[test]]
+name = "registers"
+required-features = ["emulator"]
 
 [[test]]
 name = "s3"

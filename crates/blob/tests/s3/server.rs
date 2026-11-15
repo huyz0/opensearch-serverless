@@ -398,3 +398,53 @@ fn a_body_cut_short_closes_the_connection_after_the_answer() {
     let r = read_to_close(&mut s);
     assert_eq!(status(&r), "404", "{r}");
 }
+
+#[test]
+fn conditional_writes_answer_as_s3_does() {
+    let f = fixture();
+    let e = f.server.endpoint();
+    let target = format!("/{BUCKET}/c");
+    // Both conditions on one PUT is a pair S3 does not implement.
+    let both = signed(
+        &e,
+        "PUT",
+        &target,
+        &[
+            ("content-length", "0"),
+            ("if-match", "\"x\""),
+            ("if-none-match", "*"),
+        ],
+    );
+    assert_eq!(status(&exchange(&e, both.as_bytes())), "501");
+    // A stored object's ETag comes back on PUT, HEAD and GET alike.
+    let created = exchange(
+        &e,
+        signed(&e, "PUT", &target, &[("content-length", "0")]).as_bytes(),
+    );
+    assert_eq!(status(&created), "200");
+    let tag = created
+        .lines()
+        .find_map(|l| l.strip_prefix("etag: "))
+        .unwrap()
+        .to_owned();
+    for method in ["HEAD", "GET"] {
+        let r = exchange(&e, signed(&e, method, &target, &[]).as_bytes());
+        assert!(r.contains(&format!("etag: {tag}")), "{method}: {r}");
+    }
+    // A failed conditional PUT, and DELETEs refused or applied by If-Match.
+    f.server.store().fail_next(S3Op::Put, 1);
+    let failing = signed(
+        &e,
+        "PUT",
+        &target,
+        &[("content-length", "0"), ("if-match", &tag)],
+    );
+    assert_eq!(status(&exchange(&e, failing.as_bytes())), "500");
+    let wrong = signed(&e, "DELETE", &target, &[("if-match", "\"other\"")]);
+    assert_eq!(status(&exchange(&e, wrong.as_bytes())), "412");
+    f.server.store().fail_next(S3Op::Delete, 1);
+    let right = signed(&e, "DELETE", &target, &[("if-match", &tag)]);
+    assert_eq!(status(&exchange(&e, right.as_bytes())), "500");
+    assert_eq!(status(&exchange(&e, right.as_bytes())), "204");
+    assert_eq!(f.server.store().object_count(), 0);
+}
