@@ -1,6 +1,6 @@
 # 0006: A small blocking HTTP/1.1 server of our own, on a bounded worker pool
 
-**Status:** Proposed, 2026-11-15.
+**Status:** Accepted by the owner, 2026-11-15.
 
 ## Context
 
