@@ -4,7 +4,7 @@ A stateless search service on object storage. Nodes hold caches, never durable s
 
 ## Crate map
 
-Dependencies point downward only (`scripts/check-layering.py`): `oss-types`, `oss-mem`, `oss-testkit` (layer 0) ← `oss-blob`, `oss-format`, `oss-rest` (1, siblings) ← `oss-reader`, `oss-writer` (2, siblings that never depend on each other) ← `oss-coordinator` (3) ← `oss-node` (4) ← `oss-compat` (5). The graph below is generated from `cargo metadata` by `scripts/gen-crate-map.py`; dashed edges are optional (a role behind its Cargo feature). CI fails when it is stale.
+Dependencies point downward only (`scripts/check-layering.py`): `oss-types`, `oss-mem`, `oss-testkit` (layer 0) ← `oss-blob`, `oss-format`, `oss-rest` (1, siblings) ← `oss-meta` (2) ← `oss-reader`, `oss-writer` (3, siblings that never depend on each other) ← `oss-coordinator` (4) ← `oss-node` (5) ← `oss-compat` (6). The graph below is generated from `cargo metadata` by `scripts/gen-crate-map.py`; dashed edges are optional (a role behind its Cargo feature). CI fails when it is stale.
 
 <!-- crate-map:start -->
 ```mermaid
@@ -18,6 +18,8 @@ graph TD
     oss-coordinator --> oss-writer
     oss-format --> oss-types
     oss-mem
+    oss-meta --> oss-blob
+    oss-meta --> oss-format
     oss-node -.-> oss-blob
     oss-node -.-> oss-coordinator
     oss-node -.-> oss-mem
@@ -36,7 +38,7 @@ graph TD
 ```
 <!-- crate-map:end -->
 
-lucene-rust, the engine and only external code dependency, comes in below layer 2 as pinned git crates ([ADR 0002](adr/0002-runtime-dependencies.md)).
+lucene-rust, the engine and only external code dependency, comes in below the role crates as pinned git crates ([ADR 0002](adr/0002-runtime-dependencies.md)).
 
 | Crate | Owns | README |
 |---|---|---|
@@ -46,6 +48,7 @@ lucene-rust, the engine and only external code dependency, comes in below layer 
 | `oss-blob` | S3 request kinds, the meter, the store | [crates/blob](../crates/blob/README.md) |
 | `oss-format` | the Java shell's blob formats (segment blobs, node packs, commit descriptors) | [crates/format](../crates/format/README.md) |
 | `oss-rest` | HTTP server, streaming bodies, routing | [crates/rest](../crates/rest/README.md) |
+| `oss-meta` | names, index descriptors and tombstones on registers | [crates/meta](../crates/meta/README.md) |
 | `oss-reader` | published-commit reads, page cache, query phase | [crates/reader](../crates/reader/README.md) |
 | `oss-writer` | node write log, segment build and upload, publish | [crates/writer](../crates/writer/README.md) |
 | `oss-coordinator` | REST, routing, fan-out, reduce | [crates/coordinator](../crates/coordinator/README.md) |

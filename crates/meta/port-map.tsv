@@ -1,0 +1,5 @@
+rust_path	kind	java_source	note
+src/lib.rs	new		crate root
+src/error.rs	new		one error enum for the store; the Java throws IndexAlreadyExistsException, NameBeingReclaimedException, IllegalArgumentException and IOException
+src/names.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/metadata/Names.java@3920dc36	validateIndexOrAlias with its messages; an unpaired surrogate cannot occur in a Rust string
+src/descriptors.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/metadata/DescriptorStore.java@3920dc36	create, get, resolveRaw, generationOf, update, delete, deleteIfUnchanged; listing, sweep, change stripes, the probe and onChanged come later

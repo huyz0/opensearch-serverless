@@ -1,6 +1,6 @@
 # 0007: Registers by compare-and-swap, the Java's wire format and file lock
 
-**Status:** Proposed, 2026-11-15.
+**Status:** Accepted, 2026-11-15.
 
 ## Context
 

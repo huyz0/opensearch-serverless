@@ -1,0 +1,20 @@
+[package]
+name = "oss-meta"
+description = "opensearch-serverless: metadata on registers: index descriptors, names, tombstones"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+oss-blob = { workspace = true }
+oss-format = { workspace = true }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+oss-blob = { workspace = true, features = ["emulator"] }
+oss-testkit = { workspace = true }

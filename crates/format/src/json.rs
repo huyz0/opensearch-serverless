@@ -12,6 +12,7 @@ use std::borrow::Cow;
 
 use crate::error::FormatError;
 
+pub(crate) mod out;
 mod strings;
 
 /// The deepest nesting [`Reader::skip_after`] follows. The shell's records
@@ -346,6 +347,17 @@ impl<'a> Reader<'a> {
         // The closing quote is the byte before the reader's position.
         let end = self.at.saturating_sub(1);
         Ok(self.bytes.get(start..end))
+    }
+
+    /// Skips the next value, which must be an object, and returns its bytes
+    /// from `{` to `}`: nothing is decoded or copied.
+    pub(crate) fn raw_object(&mut self, reason: &'static str) -> Result<&'a [u8], FormatError> {
+        if self.peek() != Some(b'{') {
+            return Err(self.corrupt(reason));
+        }
+        let start = self.at;
+        self.skip_value()?;
+        Ok(self.bytes.get(start..self.at).unwrap_or_default())
     }
 
     /// Skips the value whose first token was `first`: nothing more for a

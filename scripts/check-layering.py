@@ -23,11 +23,12 @@ LAYERS = {
     "oss-blob": 1,
     "oss-format": 1,
     "oss-rest": 1,
-    "oss-reader": 2,
-    "oss-writer": 2,
-    "oss-coordinator": 3,
-    "oss-node": 4,
-    "oss-compat": 5,
+    "oss-meta": 2,
+    "oss-reader": 3,
+    "oss-writer": 3,
+    "oss-coordinator": 4,
+    "oss-node": 5,
+    "oss-compat": 6,
 }
 DEV_ONLY = {"oss-testkit"}
 SECTION = re.compile(r"^\[(dependencies|dev-dependencies|build-dependencies)\]\s*$")

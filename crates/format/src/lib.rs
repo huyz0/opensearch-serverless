@@ -16,11 +16,16 @@
 //! ([`NodePackHeader`]) describe the same ranges again, for checking a blob or
 //! opening one without its manifest. Pure parsing over byte slices: no I/O,
 //! and nothing borrowed from the input is copied unless it holds an escape.
+//! Metadata writers write what they read: [`IndexRecord`] and [`Tombstone`]
+//! are a name register's whole value, written back byte for byte as the
+//! shell's Jackson writes it, into the caller's buffer.
+//!
 //! Bucketed indices, whose commits are in a bucket's manifest, are not read
 //! yet ([`FormatError::NotFollowable`]).
 
 mod descriptor;
 mod error;
+mod index_record;
 mod json;
 mod keys;
 mod location;
@@ -29,15 +34,20 @@ mod mutf8;
 mod node_pack;
 mod register;
 mod segment_blob;
+mod tombstone;
 
 pub use descriptor::{DescriptorRecord, IndexDescriptor, TOMBSTONE_PREFIX};
 pub use error::FormatError;
-pub use keys::{FileExtent, MANIFEST, ShardRef, descriptor_key, node_pack_key};
+pub use index_record::{EMPTY_SETTINGS, IndexRecord, MAX_SHARDS, NameRecord};
+pub use keys::{
+    FileExtent, MANIFEST, ShardRef, descriptor_key, node_pack_key, tombstone_marker_key,
+};
 pub use location::{FileLocation, NODE_PACK_PREFIX};
 pub use manifest::{CommitManifest, ManifestFile};
 pub use node_pack::{Block, NodePackHeader};
 pub use register::{GENERATION_BYTES, Register};
 pub use segment_blob::{SegmentBlobHeader, SegmentFile};
+pub use tombstone::{MAX_TOMBSTONE_BYTES, Tombstone, tombstone_bucket};
 
 /// Node pack format constants and the header-length probe.
 pub mod node_pack_format {

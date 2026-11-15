@@ -9,6 +9,7 @@
 //! | key | what |
 //! |---|---|
 //! | `indices/<index>` | the index's descriptor register |
+//! | `tombstones/<hour>/<index>` | a deleted index's marker, empty |
 //! | `segments/<index>#<uuid>#<shard>/manifest` | the shard's commit register |
 //! | `segments/<index>#<uuid>#<shard>/t=<term>/<blob>` | a blob in a term container |
 //! | `packs/<node>/e=<epoch:020>/<ordinal:020>` | a node pack |
@@ -62,6 +63,21 @@ pub fn descriptor_key(base: &str, index: &str) -> Result<String, FormatError> {
     check_segment(index)?;
     // ALLOC: one key, the length of its parts.
     Ok([base, "indices/", index].concat())
+}
+
+/// The key of the marker a delete files under its hour's bucket
+/// (`tombstones/<bucket>/<index>`, `RegisterMap.tombstones`), from which a
+/// sweep finds the tombstones to remove without listing every index.
+///
+/// # Errors
+///
+/// As [`descriptor_key`], and for a bucket that is empty or holds `/`.
+pub fn tombstone_marker_key(base: &str, bucket: &str, index: &str) -> Result<String, FormatError> {
+    check_base(base)?;
+    check_segment(bucket)?;
+    check_segment(index)?;
+    // ALLOC: one key, the length of its parts.
+    Ok([base, "tombstones/", bucket, "/", index].concat())
 }
 
 impl ShardRef<'_> {

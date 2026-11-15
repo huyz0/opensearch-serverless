@@ -6,7 +6,7 @@ The plan's storage-backend milestone (the filesystem-store task's generation-che
 
 ## Change
 
-Decision record: [ADR 0007](../../adr/0007-registers.md) (Proposed).
+Decision record: [ADR 0007](../../adr/0007-registers.md) (Accepted).
 
 
 - `BlobStore` gains the four register operations of the Java's `ConditionalBlobContainer` (huyz0/OpenSearch `server/src/main/java/org/opensearch/common/blobstore/ConditionalBlobContainer.java@3920dc36`): `read_register`, `swap_register` (compare-and-swap on a generation), `create_register` (swap from absent in one request) and `delete_register` (delete only if unchanged).
