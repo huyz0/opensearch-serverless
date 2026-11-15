@@ -37,14 +37,18 @@ pub struct ServerConfig {
     pub write_buffer_size: usize,
     /// How long an open connection may sit between requests.
     pub idle_timeout: Duration,
-    /// How long a request's head may take to arrive, and how long a body
-    /// read or a response write may stay blocked beyond what
-    /// `min_transfer_rate` earns.
+    /// How long a request's head may take to arrive once it has started.
     pub request_timeout: Duration,
     /// The slowest transfer, in bytes a second, a peer may hold a worker
-    /// with: each byte read or written earns `1 / min_transfer_rate` seconds
-    /// of blocked I/O on top of `request_timeout`.
+    /// with once a body or response is under way. Only time spent blocked
+    /// in a socket read or write counts, so time this side spends
+    /// processing, waiting for a buffer or applying backpressure never does;
+    /// each byte moved earns `1 / min_transfer_rate` seconds of it.
     pub min_transfer_rate: u64,
+    /// How far behind `min_transfer_rate` a peer may fall, in blocked time,
+    /// before it is disconnected: a stalled peer gets this long, one at half
+    /// the floor twice this long.
+    pub slow_grace: Duration,
     /// How often an idle worker checks whether a waiting connection should
     /// take its place.
     pub idle_poll: Duration,
@@ -66,7 +70,8 @@ impl Default for ServerConfig {
             write_buffer_size: 16 << 10,
             idle_timeout: Duration::from_secs(60),
             request_timeout: Duration::from_secs(30),
-            min_transfer_rate: 64 << 10,
+            min_transfer_rate: 8 << 10,
+            slow_grace: Duration::from_secs(10),
             idle_poll: Duration::from_millis(50),
         }
     }
@@ -101,7 +106,7 @@ impl ServerConfig {
         if let Some((name, _)) = positive.iter().find(|(_, v)| *v == 0) {
             return Err(ConfigError::Zero(name));
         }
-        if self.idle_poll.is_zero() || self.request_timeout.is_zero() {
+        if self.idle_poll.is_zero() || self.request_timeout.is_zero() || self.slow_grace.is_zero() {
             return Err(ConfigError::Zero("timeouts"));
         }
         if self.min_transfer_rate == 0 {
@@ -138,6 +143,11 @@ mod tests {
             (4096, 16384, 104_857_600)
         );
         assert_eq!(c.head_buffer_size(), 4096 + 16384 + 4);
+        // A gentle slow-peer cutoff: a safety net behind a buffering proxy.
+        assert_eq!(
+            (c.min_transfer_rate, c.slow_grace, c.request_timeout),
+            (8 << 10, Duration::from_secs(10), Duration::from_secs(30))
+        );
     }
 
     #[test]
@@ -154,6 +164,11 @@ mod tests {
         assert_eq!(c.validate(), Err(ConfigError::Zero("body_buffers")));
         let c = ServerConfig {
             idle_poll: Duration::ZERO,
+            ..ServerConfig::default()
+        };
+        assert_eq!(c.validate(), Err(ConfigError::Zero("timeouts")));
+        let c = ServerConfig {
+            slow_grace: Duration::ZERO,
             ..ServerConfig::default()
         };
         assert_eq!(c.validate(), Err(ConfigError::Zero("timeouts")));

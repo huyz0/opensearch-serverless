@@ -140,7 +140,7 @@ fn linger(stream: &TcpStream) -> u64 {
 fn serve_requests(w: &mut Worker, stream: &TcpStream, shared: &Shared) {
     let _ = stream.set_nodelay(true);
     let c = &shared.config;
-    let timed = Timed::new(stream, c.request_timeout, c.min_transfer_rate);
+    let timed = Timed::new(stream, c.slow_grace, c.min_transfer_rate);
     let Worker {
         head_buf,
         read_buf,

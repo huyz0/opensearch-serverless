@@ -4,9 +4,14 @@
 //! slowly holds a thread. A per-read socket timeout does not bound that: one
 //! byte just inside each timeout keeps it alive forever. Here the time spent
 //! blocked in reads and writes since [`Timed::restart`] is summed, and a
-//! request may block for `request_timeout` plus `1 / min_transfer_rate`
-//! seconds per byte moved; past that every read and write fails with
-//! `TimedOut`. Time the handler spends computing is not counted.
+//! request may block for `slow_grace` plus `1 / min_transfer_rate` seconds
+//! per byte moved; past that every read and write fails with `TimedOut`.
+//!
+//! Only a peer that is not keeping up is charged. Time this side spends
+//! between socket calls (a handler parsing or appending, a wait for a body
+//! buffer, backpressure from the write log) is never counted: while the
+//! server is not reading, the peer's bytes queue in the socket and the next
+//! read returns at once.
 
 use std::cell::Cell;
 use std::io::{self, Read, Write};
@@ -129,5 +134,34 @@ mod tests {
         assert_eq!(t.remaining().ok(), Some(Duration::from_millis(40)));
         assert_eq!((&t).write(b"x").ok(), Some(1));
         assert!((&t).flush().is_ok());
+    }
+
+    #[test]
+    fn a_peer_at_the_floor_keeps_its_connection_and_one_below_loses_it() {
+        let (_peer, server) = pair();
+        // The defaults: 8 KiB a second, 10 seconds of grace.
+        let t = Timed::new(&server, Duration::from_secs(10), 8 << 10);
+        // 60 s blocked while moving 60 s worth of bytes at the floor: still
+        // the whole grace left.
+        t.moved.set(60 * (8 << 10));
+        t.blocked.set(Duration::from_secs(60));
+        assert_eq!(t.remaining().ok(), Some(Duration::from_secs(10)));
+        // At half the floor the peer falls behind by half a second each
+        // second: after 19.99 s it is still on, at 20 s it is cut off.
+        t.restart();
+        t.moved.set(20 * (4 << 10));
+        t.blocked.set(Duration::from_millis(19_990));
+        assert!(t.remaining().is_ok());
+        t.blocked.set(Duration::from_secs(20));
+        assert_eq!(
+            t.remaining().map_err(|e| e.kind()),
+            Err(io::ErrorKind::TimedOut)
+        );
+        // Stalled outright, it is cut off after the grace and not before.
+        t.restart();
+        t.blocked.set(Duration::from_millis(9_999));
+        assert!(t.remaining().is_ok());
+        t.blocked.set(Duration::from_secs(10));
+        assert!(t.remaining().is_err());
     }
 }
