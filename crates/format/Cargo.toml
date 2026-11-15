@@ -1,0 +1,15 @@
+[package]
+name = "oss-format"
+description = "opensearch-serverless: the Java shell's blob formats: segment blobs, node packs, commit descriptors"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+oss-types = { workspace = true }
+
+[lints]
+workspace = true

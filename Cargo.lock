@@ -98,6 +98,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "oss-format"
+version = "0.1.0"
+dependencies = [
+ "oss-types",
+]
+
+[[package]]
 name = "oss-mem"
 version = "0.1.0"
 dependencies = [
@@ -119,6 +126,13 @@ version = "0.1.0"
 dependencies = [
  "oss-blob",
  "oss-types",
+]
+
+[[package]]
+name = "oss-rest"
+version = "0.1.0"
+dependencies = [
+ "oss-mem",
 ]
 
 [[package]]

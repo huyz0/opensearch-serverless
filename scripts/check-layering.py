@@ -21,6 +21,8 @@ LAYERS = {
     "oss-mem": 0,
     "oss-testkit": 0,
     "oss-blob": 1,
+    "oss-format": 1,
+    "oss-rest": 1,
     "oss-reader": 2,
     "oss-writer": 2,
     "oss-coordinator": 3,

@@ -17,7 +17,10 @@ import sys
 
 from checklib import read, report, tracked, window_has
 
-REQUEST_PATH = ("crates/blob/src/", "crates/reader/src/", "crates/writer/src/", "crates/coordinator/src/")
+REQUEST_PATH = (
+    "crates/blob/src/", "crates/format/src/", "crates/rest/src/",
+    "crates/reader/src/", "crates/writer/src/", "crates/coordinator/src/",
+)
 ALLOC = re.compile(
     r"\bVec::new\s*\(|\bvec!\s*\[|\bString::new\s*\(|\bformat!\s*\(|\.to_vec\s*\(|\.to_string\s*\(|"
     r"\.to_owned\s*\(|\.collect\s*(::<[^>]*>)?\s*\(|\bBox::new\s*\(|::with_capacity\s*\(|\bHashMap::new\s*\(|"
