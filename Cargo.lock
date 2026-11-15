@@ -134,6 +134,9 @@ name = "oss-rest"
 version = "0.1.0"
 dependencies = [
  "oss-mem",
+ "oss-testkit",
+ "proptest",
+ "serde_json",
 ]
 
 [[package]]

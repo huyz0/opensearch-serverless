@@ -1,0 +1,23 @@
+# HTTP edge: verified
+
+- AC-1: `the_server_charges_every_buffer_at_start_and_refuses_a_pool_one_byte_short`
+- AC-2: `the_connection_limit_holds_at_max_and_refuses_one_more_with_503`
+- AC-3: `the_body_buffer_limit_holds_at_max_and_refuses_one_more_with_429`, `checkout_takes_count_buffers_and_refuses_one_more`, `a_waiting_checkout_gets_the_next_buffer_returned`, `circuit_breaking_matches_the_in_flight_breaker_message`
+- AC-4: `the_content_length_limit_holds_at_max_and_refuses_one_more`, `the_chunked_limit_holds_at_max_and_refuses_one_more`
+- AC-5: `the_initial_line_and_header_limits_hold_at_max_and_refuse_one_more`, `the_initial_line_limit_holds_at_max_and_refuses_one_more`, `the_header_limit_holds_at_max_and_refuses_one_more`, `the_header_count_limit_holds_at_max_and_refuses_one_more`, `the_parameter_limit_holds_at_max_and_refuses_one_more`
+- AC-6: `a_length_body_streams_in_body_buffer_chunks`, `a_chunked_body_and_expect_continue_stream_too`, `a_length_body_streams_in_buffer_sized_chunks`, `reservations_grow_to_the_pool_and_refuse_one_more_byte`
+- AC-7: `sixteen_concurrent_large_bodies_stay_within_the_charged_buffers` (debug build: peak 1,138,135 bytes against 983,104 charged and a 1,509,696-byte bound, for 64 MiB of bodies; with the handler buffering the whole body it read 45,127,127 and failed)
+- AC-8: `any_document_fed_in_any_chunks_matches_serde_json`, `utf8_split_across_feeds_and_pieces_stays_whole`
+- AC-9: `the_depth_limit_holds_at_max_and_refuses_one_more`, `the_key_limit_holds_at_max_and_refuses_one_more`, `the_number_limit_holds_at_max_and_refuses_one_more`, `the_string_limit_holds_at_max_and_refuses_one_more`, `comments_are_whitespace_as_jackson_allows`, `malformed_documents_are_refused_with_positions`
+- AC-10: `lines_split_at_newlines_in_any_feed_size`, `a_carriage_return_before_a_chunk_end_is_kept_when_no_newline_follows`, `an_unterminated_last_line_is_refused_with_javas_message`
+- AC-11: `a_chunked_body_is_sent_one_buffer_per_chunk`, `a_streamed_response_is_chunked_in_write_buffer_pieces`, `a_known_length_is_enforced_both_ways`, `head_responses_keep_the_length_and_drop_the_body`, `head_requests_get_the_length_without_the_body`, `pipelined_requests_are_answered_in_order_and_ids_are_echoed`
+- AC-12: `explicit_segments_beat_patterns`, `a_known_path_with_another_method_is_405_with_allow`, `an_unknown_path_is_400_no_handler_found`
+- AC-13: `an_exception_body_matches_the_recorded_opensearch_fixture`
+- AC-14: `unknown_query_parameters_are_refused_as_opensearch_refuses_them`, `one_unknown_parameter_with_one_suggestion`, `several_unknown_parameters_sorted_with_ranked_suggestions`, `ties_are_broken_by_name`, `malformed_escapes_are_refused_with_java_messages`
+- AC-15: `bodies_need_a_supported_content_type`
+- AC-16: `an_idle_kept_alive_connection_yields_its_worker_to_a_waiting_one`
+- AC-17: `scripts/check-alloc.py`
+- AC-18: `a_body_sent_after_a_pause_longer_than_the_idle_poll_is_read`, `a_trickled_head_is_closed_at_the_request_timeout`, `a_trickled_body_is_closed_at_the_request_timeout`, `a_client_that_does_not_read_its_response_is_cut_off`, `blocked_time_past_the_grace_fails_and_bytes_earn_more`
+- AC-19: `a_panicking_handler_answers_500_and_keeps_its_worker`
+- AC-20: `a_bad_content_type_wins_over_an_unknown_parameter`, `a_uri_java_cannot_parse_is_not_echoed`
+- AC-21: `an_http_10_client_gets_a_streamed_body_unframed_then_a_close`, `an_echoed_id_too_long_for_the_write_buffer_is_dropped_not_the_reply`, `the_acceptor_is_woken_on_loopback_for_an_unspecified_address`, `a_server_on_an_unspecified_address_shuts_down`

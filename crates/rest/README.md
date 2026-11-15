@@ -9,4 +9,4 @@ The HTTP edge: server, streaming request and response bodies, routing.
 `oss-mem` for request-body reservations and buffers.
 
 ## Entry points
-`src/lib.rs`. The server, body parser and router land in stage 2.
+`src/lib.rs`. `Server::start` serves a `Router` (`src/router.rs`) of `Handler`s, each given a `Request` with a streaming `Body` (`src/body.rs`) and a `Response` (`src/response.rs`). `json::Tokenizer` and `ndjson::Splitter` parse bodies chunk by chunk. `RestError` builds OpenSearch's error bodies. Design: [ADR 0006](../../docs/adr/0006-http-stack.md); spec: [docs/specs/http-edge](../../docs/specs/http-edge/SPEC.md).

@@ -11,5 +11,16 @@ repository.workspace = true
 [dependencies]
 oss-mem = { workspace = true }
 
+[dev-dependencies]
+oss-testkit = { workspace = true }
+proptest = { workspace = true }
+# Test-only: the reference JSON parser the tokenizer is checked against, and
+# the fixture reader. Exact pin, as in oss-compat.
+serde_json = "=1.0.145"
+
+# Its own binary: the counting allocator is process-wide.
+[[test]]
+name = "peak_memory"
+
 [lints]
 workspace = true
