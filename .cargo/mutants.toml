@@ -6,4 +6,15 @@ exclude_re = [
     # `Instant::now() < deadline` against `<=`: they differ for one instant of
     # a clock with nanosecond resolution.
     "crates/rest/src/conn.rs:.*replace < with <= in linger",
+    # The filesystem store syncs each directory a write created; stopping
+    # early only loses durability on power failure, which no test can cause.
+    "crates/blob/src/fs/mod.rs:.*replace == with != in create_dirs",
+    # A LIST walk's pruning only saves work: a key or directory it lets
+    # through is still capped by the page's heap, so the page is the same.
+    # Keys are unique, so `<` against the largest kept key equals `<=`; a
+    # directory key is at least as long as any key under it, so `>` and `>=`
+    # against MAX_KEY_BYTES, or against a cursor it is no prefix of, agree.
+    "crates/blob/src/fs/list.rs:.*replace Smallest<'_>::full -> bool with false",
+    "crates/blob/src/fs/list.rs:.*replace < with <= in Smallest<'_>::admits",
+    "crates/blob/src/fs/list.rs:.*replace > with >= in Smallest<'_>::admits_dir",
 ]

@@ -1,6 +1,6 @@
 # Add a setting
 
-The settings provider does not exist yet; the first setting builds it to this shape.
+The settings provider does not exist yet; it will be built to this shape. Until then, settings a node reads once at start-up, such as `serverless.store.*` (`crates/blob/src/settings.rs`), are parsed by their module from a lookup function, with the Java's keys, defaults and messages.
 
 - A setting is declared in the module that reads it, next to the code, not in a central list. The module registers its settings through a provider the node collects at start-up.
 - Each setting has a key, a type, a default, a scope (node, cluster, index) and a doc comment.
