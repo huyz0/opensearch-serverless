@@ -148,43 +148,60 @@ fn visit(
         if name == RESERVED_DIR || !name.starts_with(name_prefix) {
             continue;
         }
+        // A link is followed, as the Java's `Files.readAttributes` does;
+        // anything else is classified from the directory entry, with no
+        // `stat` until a file is known to enter the page.
+        let kind = entry.file_type().map_err(|e| io_error(&e))?;
+        let followed = if kind.is_symlink() {
+            match stat(&entry.path(), |p| fs::metadata(p))? {
+                Some(meta) => Some(meta),
+                // A link to nothing.
+                None => continue,
+            }
+        } else {
+            None
+        };
+        let (is_file, is_dir) = followed
+            .as_ref()
+            .map_or((kind.is_file(), kind.is_dir()), |m| {
+                (m.is_file(), m.is_dir())
+            });
         // ALLOC: one key per entry, at most MAX_KEY_BYTES past the filters below.
         let mut key =
             String::with_capacity(base.len().saturating_add(name.len()).saturating_add(1));
         key.push_str(base);
         key.push_str(name);
-        let kind = entry.file_type().map_err(|e| io_error(&e))?;
-        let file_could_enter = key.len() <= MAX_KEY_BYTES && smallest.admits(&key);
-        // ALLOC: the entry's key as a directory prefix, at most MAX_KEY_BYTES plus one.
-        let mut dir_key = key.clone();
-        dir_key.push('/');
-        let dir_could_enter = smallest.admits_dir(&dir_key, depth.saturating_add(1));
-        if kind.is_file() && !file_could_enter || kind.is_dir() && !dir_could_enter {
-            continue;
-        }
-        if !kind.is_symlink() && !kind.is_file() && !kind.is_dir() {
-            continue;
-        }
-        // A link is followed, as the Java's `Files.readAttributes` does.
-        let meta = match fs::metadata(entry.path()) {
-            Ok(meta) => meta,
-            // Deleted since the directory was read.
-            Err(e) if e.kind() == io::ErrorKind::NotFound => continue,
-            Err(e) => return Err(io_error(&e)),
-        };
-        if meta.is_file() {
-            if file_could_enter {
-                smallest.push(key, meta.len());
+        if is_file {
+            if key.len() > MAX_KEY_BYTES || !smallest.admits(&key) {
+                continue;
             }
-        } else if meta.is_dir() && dir_could_enter {
-            visit(
-                &entry.path(),
-                &dir_key,
-                depth.saturating_add(1),
-                "",
-                smallest,
-            )?;
+            let len = match followed {
+                Some(meta) => meta.len(),
+                None => match stat(&entry.path(), |p| fs::symlink_metadata(p))? {
+                    Some(meta) => meta.len(),
+                    // Deleted since the directory was read.
+                    None => continue,
+                },
+            };
+            smallest.push(key, len);
+        } else if is_dir {
+            key.push('/');
+            if smallest.admits_dir(&key, depth.saturating_add(1)) {
+                visit(&entry.path(), &key, depth.saturating_add(1), "", smallest)?;
+            }
         }
     }
     Ok(())
+}
+
+/// `stat_fn(path)`, or `None` when nothing is there.
+fn stat(
+    path: &Path,
+    stat_fn: fn(&Path) -> io::Result<fs::Metadata>,
+) -> BlobResult<Option<fs::Metadata>> {
+    match stat_fn(path) {
+        Ok(meta) => Ok(Some(meta)),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(io_error(&e)),
+    }
 }

@@ -197,3 +197,24 @@ fn a_page_of_exactly_the_remaining_keys_is_not_truncated() {
     let page = s.list_prefix("e/", None, 2, &mut |_, _| {}).unwrap();
     assert_eq!((page.keys, page.truncated), (2, false));
 }
+
+/// A file whose whole key passes 1,024 bytes is no key, though its
+/// directory's prefix is short enough to walk; one of exactly 1,024 is.
+#[test]
+fn a_file_with_a_key_over_1024_bytes_is_not_listed() {
+    let (s, _dir) = store("fs-long-key");
+    let mut dir = s.root().to_path_buf();
+    let mut prefix = String::new();
+    for len in [250, 250, 250, 240] {
+        let part = "p".repeat(len);
+        dir.push(&part);
+        prefix.push_str(&part);
+        prefix.push('/');
+    }
+    assert_eq!(prefix.len(), 994);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("f".repeat(30)), b"v").unwrap();
+    std::fs::write(dir.join("g".repeat(31)), b"v").unwrap();
+    let keys: Vec<String> = list_all(&s, "", 1000).into_iter().map(|(k, _)| k).collect();
+    assert_eq!(keys, [format!("{prefix}{}", "f".repeat(30))]);
+}

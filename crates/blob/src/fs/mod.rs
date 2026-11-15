@@ -248,7 +248,6 @@ impl BlobStore for FsStore {
                 let n = match file.read(out) {
                     Ok(0) => return Err(BlobError::Unavailable),
                     Ok(n) => n,
-                    Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
                     Err(e) => return Err(io_error(&e)),
                 };
                 let chunk = out
@@ -301,12 +300,12 @@ impl BlobStore for FsStore {
             let staged = self.stage(&target, body, buf)?;
             let linked = fs::hard_link(&staged, &target);
             discard(&staged);
-            match linked {
-                Ok(()) => {}
-                Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
+            if let Err(e) = linked {
+                // The name was taken since the check above: another create won.
+                if fs::symlink_metadata(&target).is_ok() {
                     return Ok(CreateOutcome::AlreadyExists);
                 }
-                Err(e) => return Err(io_error(&e)),
+                return Err(io_error(&e));
             }
             sync_dir(target.parent().unwrap_or(&self.root))?;
             self.meter.add_bytes_written(body.len());
