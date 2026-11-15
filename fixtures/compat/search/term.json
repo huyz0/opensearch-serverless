@@ -1,0 +1,650 @@
+{
+  "name": "term queries",
+  "description": "term on keyword, text and integer fields, short and long forms.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0-SNAPSHOT",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-term",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "create",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-term",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "title": {
+                "type": "text"
+              },
+              "tag": {
+                "type": "keyword"
+              },
+              "year": {
+                "type": "integer"
+              },
+              "published": {
+                "type": "date"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-term"
+        }
+      }
+    },
+    {
+      "name": "bulk index",
+      "request": {
+        "method": "POST",
+        "path": "/_bulk",
+        "query": {
+          "refresh": "true"
+        },
+        "ndjson": [
+          {
+            "index": {
+              "_index": "compat-term",
+              "_id": "1"
+            }
+          },
+          {
+            "title": "The quick brown fox",
+            "tag": "animal",
+            "year": 2001,
+            "published": "2001-03-04"
+          },
+          {
+            "index": {
+              "_index": "compat-term",
+              "_id": "2"
+            }
+          },
+          {
+            "title": "Lazy dogs sleep all day",
+            "tag": "animal",
+            "year": 2002,
+            "published": "2002-07-01T10:15:30Z"
+          },
+          {
+            "index": {
+              "_index": "compat-term",
+              "_id": "3"
+            }
+          },
+          {
+            "title": "Quick start guide",
+            "tag": "manual",
+            "year": 2010,
+            "published": "2010-01-01"
+          },
+          {
+            "index": {
+              "_index": "compat-term",
+              "_id": "4"
+            }
+          },
+          {
+            "title": "Brown sugar and brown bread",
+            "tag": "food",
+            "year": 2002,
+            "published": "2002-12-31T23:59:59.999Z"
+          },
+          {
+            "index": {
+              "_index": "compat-term",
+              "_id": "5"
+            }
+          },
+          {
+            "title": "A fox in the snow",
+            "tag": "animal",
+            "year": 1999,
+            "published": "1999-12-31"
+          }
+        ]
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 124,
+          "errors": false,
+          "items": [
+            {
+              "index": {
+                "_index": "compat-term",
+                "_id": "1",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 0,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-term",
+                "_id": "2",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 1,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-term",
+                "_id": "3",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 2,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-term",
+                "_id": "4",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 3,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-term",
+                "_id": "5",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 4,
+                "_primary_term": 1,
+                "status": 201
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "term on a keyword",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "term": {
+              "tag": "animal"
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 67,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-term",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                }
+              },
+              {
+                "_index": "compat-term",
+                "_id": "2",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Lazy dogs sleep all day",
+                  "tag": "animal",
+                  "year": 2002,
+                  "published": "2002-07-01T10:15:30Z"
+                }
+              },
+              {
+                "_index": "compat-term",
+                "_id": "5",
+                "_score": 1.0,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "published": "1999-12-31"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "term on a text field matches an analysed token",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "term": {
+              "title": "brown"
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 6,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 0.52695787,
+            "hits": [
+              {
+                "_index": "compat-term",
+                "_id": "4",
+                "_score": 0.52695787,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                }
+              },
+              {
+                "_index": "compat-term",
+                "_id": "1",
+                "_score": 0.41331142,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "term on a text field is not analysed",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "term": {
+              "title": "Brown"
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 0,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          }
+        }
+      }
+    },
+    {
+      "name": "term on an integer",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "term": {
+              "year": 2002
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 14,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-term",
+                "_id": "2",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Lazy dogs sleep all day",
+                  "tag": "animal",
+                  "year": 2002,
+                  "published": "2002-07-01T10:15:30Z"
+                }
+              },
+              {
+                "_index": "compat-term",
+                "_id": "4",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "term on an integer given as a string",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "term": {
+              "year": "2010"
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 1,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-term",
+                "_id": "3",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Quick start guide",
+                  "tag": "manual",
+                  "year": 2010,
+                  "published": "2010-01-01"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "term long form with a boost",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "term": {
+              "tag": {
+                "value": "manual",
+                "boost": 2.0
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 1,
+              "relation": "eq"
+            },
+            "max_score": 2.0,
+            "hits": [
+              {
+                "_index": "compat-term",
+                "_id": "3",
+                "_score": 2.0,
+                "_source": {
+                  "title": "Quick start guide",
+                  "tag": "manual",
+                  "year": 2010,
+                  "published": "2010-01-01"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "term on an unmapped field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "term": {
+              "nope": "x"
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 4,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 0,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          }
+        }
+      }
+    }
+  ]
+}

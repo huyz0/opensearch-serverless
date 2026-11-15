@@ -9,7 +9,7 @@
 use std::io::{self, Write};
 
 /// Writes `s` as a quoted, escaped JSON string.
-pub(crate) fn write_str(out: &mut dyn Write, s: &str) -> io::Result<()> {
+pub fn write_str(out: &mut dyn Write, s: &str) -> io::Result<()> {
     out.write_all(b"\"")?;
     let bytes = s.as_bytes();
     let mut start = 0;

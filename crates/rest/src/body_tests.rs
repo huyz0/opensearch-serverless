@@ -58,6 +58,24 @@ fn bytes_past_the_length_are_left_for_the_next_request() {
 }
 
 #[test]
+fn a_chunk_is_never_larger_than_the_buffer_says() {
+    let b = budget(1 << 16);
+    let bufs = Arc::new(BodyBuffers::new(&b, 8, 1).expect("fits"));
+    let mut inb = Inbound::new(&b"0123456789abcdef"[..], [0u8; 64]);
+    let buffer = bufs.checkout(Duration::ZERO).ok();
+    let mut body = Body::new(&mut inb, Framing::Length(16), buffer, 100, 64, &b);
+    assert_eq!(body.max_chunk(), 8);
+    while let Some(chunk) = body.next_chunk().expect("reads") {
+        assert!(chunk.len() <= 8);
+    }
+    let mut none = Inbound::new(&b""[..], [0u8; 64]);
+    assert_eq!(
+        Body::new(&mut none, Framing::Empty, None, 0, 64, &b).max_chunk(),
+        0
+    );
+}
+
+#[test]
 fn a_short_body_is_an_error_that_closes() {
     let e = run(b"abc", Framing::Length(5), 100).expect_err("short");
     assert!(e.closes_connection());

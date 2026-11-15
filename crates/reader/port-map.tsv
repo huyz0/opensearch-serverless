@@ -3,3 +3,22 @@ src/lib.rs	new		crate root
 src/shard_files.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/SegmentPublisher.java@49f238ed	readManifest (the commit register) and ObjectStoreIndexInput's file locations; the descriptor read is DescriptorStore.get; files map to blob ranges instead of being downloaded
 src/engine_store.rs	new		lucene-rust's BlobStore over oss-blob; the Java reads through its BlockCacheDirectory instead
 src/error.rs	new		reader failures as one enum; the Java throws IOException subclasses
+src/date.rs	port	server/src/main/java/org/opensearch/common/time/DateFormatters.java@3.10.0	STRICT_DATE_OPTIONAL_TIME, EpochTime's millisecond parser, JavaDateMathParser's round-up and DateFieldMapper.DateFieldType's range bounds; date math is refused
+src/dsl/mod.rs	new		module root: the DSL subset's types and parse_chunks
+src/dsl/tokens.rs	port	libs/x-content/src/main/java/org/opensearch/core/xcontent/XContentParser.java@3.10.0	a pull parser over recorded tokens with Jackson's token names and locations; no JSON tree
+src/dsl/error.rs	port	libs/core/src/main/java/org/opensearch/core/common/ParsingException.java@3.10.0	ParsingException and XContentParseException messages and locations, as Failures
+src/dsl/values.rs	port	libs/core/src/main/java/org/opensearch/core/xcontent/AbstractXContentParser.java@3.10.0	intValue/floatValue/booleanValue coercions; SuggestingErrorOnUnknown's suggestions with Lucene's LevenshteinDistance
+src/dsl/query.rs	port	server/src/main/java/org/opensearch/index/query/AbstractQueryBuilder.java@3.10.0	parseInnerQueryBuilder, with MatchAllQueryBuilder, TermQueryBuilder, MatchQueryBuilder and RangeQueryBuilder fromXContent
+src/dsl/query_tests.rs	new		tests of query.rs, against messages recorded from OpenSearch
+src/dsl/registered.rs	port	server/src/main/java/org/opensearch/search/SearchModule.java@3.10.0	the registered query names, the suggestion candidates
+src/dsl/bool_query.rs	port	server/src/main/java/org/opensearch/index/query/BoolQueryBuilder.java@3.10.0	BoolQueryBuilder.PARSER and the parts of ObjectParser.parse it uses
+src/dsl/sort.rs	port	server/src/main/java/org/opensearch/search/sort/SortBuilder.java@3.10.0	fromXContent, parseCompoundSortField and fieldOrScoreSort; FieldSortBuilder and ScoreSortBuilder read for order only
+src/dsl/source.rs	port	server/src/main/java/org/opensearch/search/builder/SearchSourceBuilder.java@3.10.0	parseXContent for query, size, from and sort; RestSearchAction.parseSearchSource's size and from parameters
+src/dsl/source_tests.rs	new		tests of source.rs
+src/failure.rs	port	libs/core/src/main/java/org/opensearch/OpenSearchException.java@3.10.0	generateFailureXContent, guessRootCauses and generateThrowableXContent; SearchPhaseExecutionException's shard-failure body
+src/lucene_query.rs	port	server/src/main/java/org/opensearch/index/search/MatchQuery.java@3.10.0	each builder's doToQuery, AbstractQueryBuilder.toQuery's boost, Queries.calculateMinShouldMatch, applyMinimumShouldMatch and fixNegativeQueryIfNeeded, and the field types' termQuery and rangeQuery
+src/lucene_query_tests.rs	new		tests of lucene_query.rs
+src/mapping.rs	port	server/src/main/java/org/opensearch/index/mapper/MapperService.java@3.10.0	field types and dotted names from the descriptor's mapping, for the subset's types only; the Java builds full mappers
+src/numbers.rs	port	server/src/main/java/org/opensearch/index/mapper/NumberFieldMapper.java@3.10.0	INTEGER and LONG parse, termQuery and rangeQuery bounds, objectToDouble, hasDecimalPart and signum; Numbers.toLong
+src/response.rs	port	server/src/main/java/org/opensearch/search/SearchHit.java@3.10.0	SearchResponse, SearchHits and SearchHit toXContent with FetchPhase's _id and _source; Uid.decodeId; Float.toString
+src/search.rs	port	server/src/main/java/org/opensearch/search/query/QueryPhase.java@3.10.0	the query phase over lucene-rust with TopDocsCollectorContext's counting, DefaultSearchContext's result window, and SortBuilder.buildSort / FieldSortBuilder.build

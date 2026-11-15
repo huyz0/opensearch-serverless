@@ -31,6 +31,11 @@ fn descriptor_names_the_uuid_and_shards() {
     assert_eq!(descriptor.number_of_shards, 1);
     assert_eq!(descriptor.bucket, None);
     assert!(!descriptor.has_unit_layout);
+    assert_eq!(
+        descriptor.mapping_escaped,
+        Some(&br#"{\"properties\":{\"msg\":{\"type\":\"text\"},\"n\":{\"type\":\"long\"}}}"#[..]),
+        "the mapping string as written, escapes left in"
+    );
 }
 
 #[test]

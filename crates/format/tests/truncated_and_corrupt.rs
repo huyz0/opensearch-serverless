@@ -382,6 +382,12 @@ fn descriptor_records_are_told_apart() {
         (d.bucket.as_deref(), d.has_unit_layout, d.number_of_shards),
         (Some("k1"), true, 2)
     );
+    assert_eq!(d.mapping_escaped, None, "a descriptor without a mapping");
+    let mapped = br#"{"name":"m","uuid":"u","number_of_shards":1,"mapping":null}"#;
+    let DescriptorRecord::Index(d) = DescriptorRecord::parse(mapped).unwrap() else {
+        panic!()
+    };
+    assert_eq!(d.mapping_escaped, None, "a null mapping");
     for bad in [
         &br#"{"uuid":"u","number_of_shards":1}"#[..],
         br#"{"name":"n","number_of_shards":1}"#,
@@ -390,6 +396,7 @@ fn descriptor_records_are_told_apart() {
         br#"{"name":"n","uuid":"u","number_of_shards":2147483648}"#,
         br#"{"name":1,"uuid":"u","number_of_shards":1}"#,
         br#"{"name":"n","uuid":"u","number_of_shards":"1"}"#,
+        br#"{"name":"n","uuid":"u","number_of_shards":1,"mapping":{}}"#,
         br#""x""#,
         b"",
         b"{\"name\":\"\xff\",\"uuid\":\"u\",\"number_of_shards\":1}",

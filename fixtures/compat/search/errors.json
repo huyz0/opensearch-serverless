@@ -1,0 +1,490 @@
+{
+  "name": "search errors",
+  "description": "OpenSearch's error bodies for queries and parameters the subset refuses.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0-SNAPSHOT",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-errors",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "create",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-errors",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "title": {
+                "type": "text"
+              },
+              "tag": {
+                "type": "keyword"
+              },
+              "year": {
+                "type": "integer"
+              },
+              "published": {
+                "type": "date"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-errors"
+        }
+      }
+    },
+    {
+      "name": "bulk index",
+      "request": {
+        "method": "POST",
+        "path": "/_bulk",
+        "query": {
+          "refresh": "true"
+        },
+        "ndjson": [
+          {
+            "index": {
+              "_index": "compat-errors",
+              "_id": "1"
+            }
+          },
+          {
+            "title": "The quick brown fox",
+            "tag": "animal",
+            "year": 2001,
+            "published": "2001-03-04"
+          },
+          {
+            "index": {
+              "_index": "compat-errors",
+              "_id": "2"
+            }
+          },
+          {
+            "title": "Lazy dogs sleep all day",
+            "tag": "animal",
+            "year": 2002,
+            "published": "2002-07-01T10:15:30Z"
+          }
+        ]
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 11,
+          "errors": false,
+          "items": [
+            {
+              "index": {
+                "_index": "compat-errors",
+                "_id": "1",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 0,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-errors",
+                "_id": "2",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 1,
+                "_primary_term": 1,
+                "status": 201
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "unknown query",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "query": {
+            "no_such_query": {}
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parsing_exception",
+                "reason": "unknown query [no_such_query]",
+                "line": 1,
+                "col": 27
+              }
+            ],
+            "type": "parsing_exception",
+            "reason": "unknown query [no_such_query]",
+            "line": 1,
+            "col": 27,
+            "caused_by": {
+              "type": "named_object_not_found_exception",
+              "reason": "[1:27] unknown field [no_such_query]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "unknown top-level key",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "query": {
+            "match_all": {}
+          },
+          "nope": {}
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parsing_exception",
+                "reason": "Unknown key for a START_OBJECT in [nope].",
+                "line": 1,
+                "col": 34
+              }
+            ],
+            "type": "parsing_exception",
+            "reason": "Unknown key for a START_OBJECT in [nope].",
+            "line": 1,
+            "col": 34
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "unknown term parameter",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "query": {
+            "term": {
+              "tag": {
+                "value": "x",
+                "nope": 1
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parsing_exception",
+                "reason": "[term] query does not support [nope]",
+                "line": 1,
+                "col": 45
+              }
+            ],
+            "type": "parsing_exception",
+            "reason": "[term] query does not support [nope]",
+            "line": 1,
+            "col": 45
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "unknown bool clause",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "query": {
+            "bool": {
+              "nope": []
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "x_content_parse_exception",
+                "reason": "[1:19] [bool] unknown field [nope]"
+              }
+            ],
+            "type": "x_content_parse_exception",
+            "reason": "[1:19] [bool] unknown field [nope]"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "empty query clause",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "query": {}
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "query malformed, empty clause found at [1:11]"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "query malformed, empty clause found at [1:11]"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "unknown parameter",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "query": {
+          "nope": "1"
+        },
+        "body": {
+          "query": {
+            "match_all": {}
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "request [/compat-errors/_search] contains unrecognized parameter: [nope]"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "request [/compat-errors/_search] contains unrecognized parameter: [nope]"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "result window too large",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "query": {
+            "match_all": {}
+          },
+          "from": 9999,
+          "size": 2
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Result window is too large, from + size must be less than or equal to: [10000] but was [10001]. See the scroll api for a more efficient way to request large data sets. This limit can be set by changing the [index.max_result_window] index level setting."
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-errors",
+                "node": "c8s9-RmITm-aV4KDlW4Z8Q",
+                "reason": {
+                  "type": "illegal_argument_exception",
+                  "reason": "Result window is too large, from + size must be less than or equal to: [10000] but was [10001]. See the scroll api for a more efficient way to request large data sets. This limit can be set by changing the [index.max_result_window] index level setting."
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Result window is too large, from + size must be less than or equal to: [10000] but was [10001]. See the scroll api for a more efficient way to request large data sets. This limit can be set by changing the [index.max_result_window] index level setting.",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Result window is too large, from + size must be less than or equal to: [10000] but was [10001]. See the scroll api for a more efficient way to request large data sets. This limit can be set by changing the [index.max_result_window] index level setting."
+              }
+            }
+          },
+          "status": 400
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "node id, random per node"
+        }
+      ]
+    },
+    {
+      "name": "negative size",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "query": {
+            "match_all": {}
+          },
+          "size": -1
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "[size] parameter cannot be negative, found [-1]"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "[size] parameter cannot be negative, found [-1]"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "missing index",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors-missing/_search",
+        "body": {
+          "query": {
+            "match_all": {}
+          }
+        }
+      },
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "index_not_found_exception",
+                "reason": "no such index [compat-errors-missing]",
+                "index": "compat-errors-missing",
+                "resource.id": "compat-errors-missing",
+                "resource.type": "index_or_alias",
+                "index_uuid": "_na_"
+              }
+            ],
+            "type": "index_not_found_exception",
+            "reason": "no such index [compat-errors-missing]",
+            "index": "compat-errors-missing",
+            "resource.id": "compat-errors-missing",
+            "resource.type": "index_or_alias",
+            "index_uuid": "_na_"
+          },
+          "status": 404
+        }
+      }
+    }
+  ]
+}

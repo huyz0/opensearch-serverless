@@ -87,3 +87,11 @@ Neither the gate nor CI runs `record.py`; checking fixtures needs nothing but th
 |---|---|
 | [index/create-index.json](index/create-index.json) | `PUT /<index>` with settings and mappings; the second create's `resource_already_exists_exception` |
 | [search/match-all.json](search/match-all.json) | `_bulk` with explicit ids and `refresh=true`; `_search` with `match_all` |
+| [search/term.json](search/term.json) | `term` on keyword, text and integer fields, short and long forms |
+| [search/match.json](search/match.json) | `match` with the standard analyzer: `or`, `and`, `minimum_should_match`, numbers |
+| [search/bool.json](search/bool.json) | `bool` with `must`, `should`, `filter`, `must_not` and `minimum_should_match`, nested |
+| [search/range.json](search/range.json) | `range` on integer and date fields, inclusive and exclusive, with rounding |
+| [search/paging-sort.json](search/paging-sort.json) | `size` and `from` in the body and as parameters; `sort` by fields and by score |
+| [search/errors.json](search/errors.json) | OpenSearch's error bodies for queries, keys and parameters the subset refuses, and the result window |
+
+The search fixtures' indices are also written through the Java shell into [fixtures/compat-blobs/](../compat-blobs/README.md), so a reader node replays their `_search` steps.

@@ -330,6 +330,24 @@ impl<'a> Reader<'a> {
         skipped
     }
 
+    /// Skips the next value, which must be a string or null, and returns
+    /// the string's bytes between its quotes, escapes left in: nothing is
+    /// decoded or copied. `None` for null.
+    pub(crate) fn raw_string(&mut self) -> Result<Option<&'a [u8]>, FormatError> {
+        let start = match self.peek() {
+            Some(b'"') => self.at.saturating_add(1),
+            Some(b'n') => {
+                self.skip_value()?;
+                return Ok(None);
+            }
+            _ => return Err(self.corrupt("expected a string")),
+        };
+        self.skip_value()?;
+        // The closing quote is the byte before the reader's position.
+        let end = self.at.saturating_sub(1);
+        Ok(self.bytes.get(start..end))
+    }
+
     /// Skips the value whose first token was `first`: nothing more for a
     /// scalar, everything up to the matching close for a container.
     pub(crate) fn skip_after(&mut self, first: &Token<'a>) -> Result<(), FormatError> {

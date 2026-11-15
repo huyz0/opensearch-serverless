@@ -61,6 +61,24 @@ pub trait TokenSink {
 
     /// Takes one token.
     fn token(&mut self, token: Token<'_>) -> Result<(), Self::Error>;
+
+    /// Takes one token with where it starts: the opening quote of a key or
+    /// string, the first byte of a number or literal, the bracket of a
+    /// start or end. The tokenizer calls this; by default it drops the
+    /// location and calls [`TokenSink::token`].
+    fn token_at(&mut self, token: Token<'_>, at: Location) -> Result<(), Self::Error> {
+        let _ = at;
+        self.token(token)
+    }
+}
+
+/// Where a token starts, as Jackson's `JsonLocation` reports it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Location {
+    /// The 1-based line.
+    pub line: u64,
+    /// The 1-based column, in bytes.
+    pub column: u64,
 }
 
 /// The tokenizer's bounds.

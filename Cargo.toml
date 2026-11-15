@@ -46,6 +46,8 @@ proptest = { version = "=1.6.0", default-features = false, features = ["std"] }
 lucene-store = { git = "https://github.com/huyz0/lucene-rust", rev = "3b4e3a3e6c1df64f9177d123a204b5f05fa16a21" }
 lucene-index = { git = "https://github.com/huyz0/lucene-rust", rev = "3b4e3a3e6c1df64f9177d123a204b5f05fa16a21" }
 lucene-search = { git = "https://github.com/huyz0/lucene-rust", rev = "3b4e3a3e6c1df64f9177d123a204b5f05fa16a21" }
+lucene-codecs = { git = "https://github.com/huyz0/lucene-rust", rev = "3b4e3a3e6c1df64f9177d123a204b5f05fa16a21" }
+lucene-analysis = { git = "https://github.com/huyz0/lucene-rust", rev = "3b4e3a3e6c1df64f9177d123a204b5f05fa16a21" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
@@ -68,3 +70,5 @@ overflow-checks = true
 # lucene-store = { path = "../lucene-rust/crates/lucene-store" }
 # lucene-index = { path = "../lucene-rust/crates/lucene-index" }
 # lucene-search = { path = "../lucene-rust/crates/lucene-search" }
+# lucene-codecs = { path = "../lucene-rust/crates/lucene-codecs" }
+# lucene-analysis = { path = "../lucene-rust/crates/lucene-analysis" }

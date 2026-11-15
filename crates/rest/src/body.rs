@@ -183,6 +183,15 @@ impl<'a> Body<'a> {
         self.framing == Framing::Empty
     }
 
+    /// The most bytes one [`Self::next_chunk`] returns: the body buffer's
+    /// size, or 0 for a body without one.
+    pub fn max_chunk(&self) -> usize {
+        self.buffer
+            .as_ref()
+            .and_then(|b| b.buf.as_deref())
+            .map_or(0, <[u8]>::len)
+    }
+
     /// Bytes of body read so far.
     pub fn bytes_read(&self) -> u64 {
         self.read

@@ -1,3 +1,4 @@
 rust_path	kind	java_source	note
 src/lib.rs	new		role selection by Cargo feature; the shell selects roles by node settings
 src/main.rs	new		process entry point
+src/search.rs	port	server/src/main/java/org/opensearch/rest/action/search/RestSearchAction.java@3.10.0	prepareRequest's size and from parameters and the index lookup's IndexNotFoundException; open shards are kept, never polled

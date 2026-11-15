@@ -10,3 +10,5 @@ Every role crate, each optional behind its feature: `reader` (default), `writer`
 
 ## Entry points
 `cargo run -p oss-node`, or `cargo run -p oss-node --features writer,coordinator`.
+
+With `reader`, `search::start_reader` serves `GET|POST /{index}/_search` over the indexes under a deployment base, through `search::SearchService`, which opens an index on its first search and keeps it open. Contract: [docs/specs/reader-search/SPEC.md](../../docs/specs/reader-search/SPEC.md).

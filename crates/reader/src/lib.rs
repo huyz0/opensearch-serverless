@@ -7,8 +7,16 @@
 //! records pushed by the writer and the search endpoint come next
 //! (docs/roadmap.md).
 
+pub mod date;
+pub mod dsl;
 pub mod engine_store;
 pub mod error;
+pub mod failure;
+pub mod lucene_query;
+pub mod mapping;
+pub mod numbers;
+pub mod response;
+pub mod search;
 pub mod shard_files;
 
 use std::sync::Arc;
@@ -20,7 +28,7 @@ use oss_blob::{BlobStore, PooledStore};
 
 pub use engine_store::EngineStore;
 pub use error::ReaderError;
-pub use shard_files::{FileRange, MAX_REGISTER_BYTES, ShardFiles};
+pub use shard_files::{FileRange, IndexMeta, MAX_REGISTER_BYTES, ShardFiles};
 
 /// One shard's latest published commit, open for search.
 pub struct OpenShard<S: BlobStore + 'static> {
@@ -28,6 +36,8 @@ pub struct OpenShard<S: BlobStore + 'static> {
     pub directory: CachedBlobDirectory<EngineStore<S>>,
     /// The engine's reader over the commit's segments.
     pub reader: DirectoryReader,
+    /// The index's uuid, shard count and fields.
+    pub meta: IndexMeta,
 }
 
 impl<S: BlobStore + 'static> std::fmt::Debug for OpenShard<S> {
@@ -48,10 +58,14 @@ pub fn open_shard<S: BlobStore + 'static>(
     index: &str,
     shard: u32,
 ) -> Result<OpenShard<S>, ReaderError> {
-    let files = ShardFiles::open(&store, base, index, shard)?;
+    let (files, meta) = ShardFiles::open_with_meta(&store, base, index, shard)?;
     // ALLOC: one namespace per open shard.
     let namespace = format!("{base}/{index}/{shard}/t={}", files.term);
     let directory = CachedBlobDirectory::new(EngineStore::new(store, files), cache, &namespace);
     let reader = DirectoryReader::open(&directory)?;
-    Ok(OpenShard { directory, reader })
+    Ok(OpenShard {
+        directory,
+        reader,
+        meta,
+    })
 }
