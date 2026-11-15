@@ -9,6 +9,7 @@ Dependencies point downward only (`scripts/check-layering.py`): `oss-types`, `os
 <!-- crate-map:start -->
 ```mermaid
 graph TD
+    oss-blob --> oss-mem
     oss-blob --> oss-types
     oss-compat
     oss-coordinator --> oss-blob
