@@ -14,6 +14,7 @@ fn check_peak_at_the_bound_and_one_byte_over() {
     // Warm the vector's size class so the window reads only the vector.
     drop(black_box(vec![1u8; 10_000]));
     let w = PeakWindow::start(&ALLOC);
+    assert!(w.baseline() > 0, "the test harness already holds heap");
     let v = black_box(vec![1u8; 10_000]);
     assert_eq!(w.live_bytes(), 10_000);
     drop(v);
