@@ -13,9 +13,13 @@
 //!   trusted, asked of the store itself.
 //! - [`DescriptorStore::sweep_tombstones`]: removing tombstones once their
 //!   quarantine has passed, found from their hourly markers.
+//! - [`DescriptorStore::list_page`] and [`DescriptorStore::names_with_prefix`]:
+//!   the one enumeration of names, a bounded page at a time, and what an
+//!   index pattern matches, at a cost set by its cap.
 
 mod descriptors;
 mod error;
+mod listing;
 mod names;
 mod probe;
 mod sweep;
@@ -25,6 +29,6 @@ pub use descriptors::{
     REAP_HANDOFF_MILLIS, Resolution, Target,
 };
 pub use error::MetaError;
-pub use names::{MAX_NAME_BYTES, NameError, NameRule, validate_index_or_alias};
+pub use names::{MAX_NAME_BYTES, NameError, NameRule, validate_index_or_alias, validate_prefix};
 pub use probe::PROBE_PREFIX;
 pub use sweep::{MARKERS_PREFIX, Sweep, Swept};

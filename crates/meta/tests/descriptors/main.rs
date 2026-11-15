@@ -8,6 +8,7 @@
 
 mod counts;
 mod lifecycle;
+mod listing;
 mod probe;
 mod sweep;
 

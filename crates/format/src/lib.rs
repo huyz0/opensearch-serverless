@@ -40,7 +40,8 @@ pub use descriptor::{DescriptorRecord, IndexDescriptor, TOMBSTONE_PREFIX};
 pub use error::FormatError;
 pub use index_record::{EMPTY_SETTINGS, IndexRecord, MAX_SHARDS, NameRecord};
 pub use keys::{
-    FileExtent, MANIFEST, ShardRef, descriptor_key, node_pack_key, tombstone_marker_key,
+    DESCRIPTORS_PREFIX, FileExtent, MANIFEST, MARKERS_PREFIX, ShardRef, descriptor_key,
+    node_pack_key, tombstone_marker_key,
 };
 pub use location::{FileLocation, NODE_PACK_PREFIX};
 pub use manifest::{CommitManifest, ManifestFile};
