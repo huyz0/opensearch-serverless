@@ -106,6 +106,11 @@ def budgets(hits):
             hits.append(f"{rel}: {size} bytes, over {CRATE_BUDGET}")
 
 
+def strip_comments(text):
+    """Shell and YAML text without its `#` comment lines, so a name in a comment does not count as run."""
+    return "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
+
+
 def gates(hits):
     listed = set()
     if (ROOT / "scripts/tree-checks.sh").is_file():
@@ -114,8 +119,8 @@ def gates(hits):
     for script in sorted(listed):
         if script != "selftest-checks.py" and f"`{script}" not in table:
             hits.append(f"docs/mechanical-gates.md: no row for {script}, which tree-checks.sh runs")
-    runners = "".join(
-        read(p) for p in tracked()
+    runners = "\n".join(
+        strip_comments(read(p)) for p in tracked()
         if p in ("scripts/tree-checks.sh", "scripts/gate.sh") or p.startswith((".githooks/", ".github/workflows/"))
     )
     for path in sorted((ROOT / "scripts").glob("check-*")):

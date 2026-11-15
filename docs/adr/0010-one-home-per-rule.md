@@ -11,7 +11,7 @@ The same rules were written in AGENTS.md, docs/principles.md, a skill and a how-
 - **Layers:** AGENTS.md (read every session) is one line per invariant, each pointing to the rule's home; skill descriptions say when to load the skill; a skill body is a procedure that links to the rule; `docs/` holds the rule in full. Rules are cited by name, never by number.
 - **One home per rule:** engineering rules in `docs/principles.md`, process rules in the `git-workflow` skill, harness rules in the `manage-skills` skill.
 - **A rule that can be a predicate over files is a check:** `scripts/check-harness.py` (skills load and are well formed, named skills and scripts exist, AGENTS.md byte budgets, every check documented and run), the crate `CLAUDE.md` adapter in `check-crate-layout.py`, and attribution refused by `check-commit-msg.sh` and `check-pr.py`. `scripts/tree-checks.sh` is the one list of no-build checks.
-- Third-party dependency changes leave the high-risk list, by the owner's decision of 2026-11-15; `crates/meta` and `crates/mem` join it.
+- `crates/meta` and `crates/mem` join the high-risk list, as their crate notes already claimed.
 
 ## Consequences
 

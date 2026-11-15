@@ -2,7 +2,7 @@
 
 One file per decision: `NNNN-short-title.md`, numbered in order, never renumbered or deleted. A decision that is overturned stays, with its status changed to `Superseded by NNNN`.
 
-**When one is required:** a PR that touches blob formats, durability or fencing, the workspace's crates or lints, public API, the S3 request pattern, or a default links an ADR or adds one (`scripts/check-pr.py`). A third-party dependency change alone does not need one. A new ADR starts as **Proposed**; only the owner moves it to Accepted.
+**When one is required:** a PR that touches blob formats, durability or fencing, crate dependencies, public API, the S3 request pattern, a default, or security links an ADR or adds one (`scripts/check-pr.py`). A new ADR starts as **Proposed**; only the owner moves it to Accepted.
 
 Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the forces, with numbers where they exist), **Decision**, **Consequences** (what gets easier, what gets harder, what it rules out).
 

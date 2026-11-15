@@ -8,6 +8,7 @@ Run by scripts/gate.sh; add a case whenever a check is added.
 """
 import os
 import pathlib
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -116,12 +117,19 @@ CASES = [
     (["check-harness.py"], "AGENTS.md over its budget", {"AGENTS.md": "x" * 6000}),
     (["check-harness.py"], "tree check with no mechanical-gates row", {"docs/mechanical-gates.md": ""}),
     (["check-harness.py"], "check script nothing runs", {"scripts/check-orphan.py": ""}),
+    (["check-harness.py"], "check script named only in a comment",
+     {"scripts/check-orphan.py": "", "scripts/gate.sh": "# check-orphan.py is run elsewhere\n"}),
     (MSG, "Co-Authored-By naming Claude",
      {"msg.txt": "docs(x): explain a thing\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n"}),
     (MSG, "Claude-Session trailer", {"msg.txt": "docs(x): explain a thing\n\nClaude-Session: https://claude.ai/code/session_1\n"}),
+    (MSG, "Revert commit carrying Co-Authored-By: Claude",
+     {"msg.txt": "Revert \"docs(x): explain\"\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n"}),
+    (MSG, "Generated-with footer", {"msg.txt": "docs(x): explain a thing\n\nGenerated with [Claude Code](https://claude.com/claude-code)\n"}),
     (MSG, "subject not in type(scope) form", {"msg.txt": "Explain a thing\n"}),
     (PR, "PR body with an attribution footer",
      {"body.md": CLEAN_BODY + "\nGenerated with [Claude Code](https://claude.com/claude-code)\n"}),
+    (PR, "PR body with a session link", {"body.md": CLEAN_BODY + "\nhttps://claude.ai/code/session_01abc\n"}),
+    (PR, "PR body with an attribution header", {"body.md": "<!-- claude-projects-attribution: {} -->\n" + CLEAN_BODY}),
     (PR, "PR body with a Requested-by line", {"body.md": "_Requested by **Huy**_\n" + CLEAN_BODY}),
     (PR, "PR body missing a section", {"body.md": "## Intent\nx\n"}),
     (PR, "high-risk path without label or ADR", {"changed.txt": "crates/blob/src/store.rs\n"}),
@@ -142,7 +150,8 @@ def build(tmp, overrides):
 
 def run(tmp, argv):
     env = dict(os.environ, CHECK_ROOT=str(tmp))
-    runner = ["bash"] if argv[0].endswith(".sh") else [sys.executable]
+    # shutil.which searches PATH, so Windows finds Git Bash, not the WSL launcher.
+    runner = [shutil.which("bash") or "bash"] if argv[0].endswith(".sh") else [sys.executable]
     args = runner + [str(HERE / argv[0])] + [str(tmp / a) if a.endswith((".md", ".txt")) else a for a in argv[1:]]
     return subprocess.run(args, cwd=tmp, env=env, capture_output=True, text=True).returncode
 

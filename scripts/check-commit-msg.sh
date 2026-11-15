@@ -16,6 +16,11 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 msg_file="$1"
 subject="$(head -n1 "$msg_file")"
 
+if grep -qiE '^Co-Authored-By:.*(claude|anthropic)|^Claude-Session:|Generated with \[?Claude' "$msg_file"; then
+  echo "commit-msg: no AI attribution (Co-Authored-By: Claude, Claude-Session, 'Generated with Claude')" >&2
+  exit 1
+fi
+
 if printf '%s' "$subject" | grep -qE '^(Merge|Revert) '; then
   exit 0
 fi
@@ -38,9 +43,4 @@ if printf '%s' "$subject" | grep -qE '^(feat|fix|perf)'; then
     echo "commit-msg: Spec: '$spec' is not an existing file or 'none (<reason>)'" >&2
     exit 1
   fi
-fi
-
-if grep -qiE '^Co-Authored-By:.*(claude|anthropic)|^Claude-Session:|Generated with \[?Claude' "$msg_file"; then
-  echo "commit-msg: no AI attribution (Co-Authored-By: Claude, Claude-Session, 'Generated with Claude')" >&2
-  exit 1
 fi

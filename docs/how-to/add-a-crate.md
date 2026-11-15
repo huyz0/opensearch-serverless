@@ -5,7 +5,7 @@
 3. Add it to `members` and `[workspace.dependencies]` in the root `Cargo.toml`.
 4. Add it to `LAYERS` in `scripts/check-layering.py`.
 5. Add a row to the crate table in [architecture.md](../architecture.md) and run `scripts/gen-crate-map.py` to regenerate the graph.
-6. A new crate changes the workspace's layout (root `Cargo.toml`), so the PR is high-risk: ADR and `needs-huy`.
+6. A new crate changes crate dependencies, so the PR is high-risk: ADR and `needs-huy`.
 7. Add `crates/<name>/CLAUDE.md` containing only `@AGENTS.md`, so Claude Code reads the crate's rules.
 
 **Checks:** `scripts/check-crate-layout.py` (including the `CLAUDE.md` adapter), `scripts/check-layering.py`, `missing_docs`.

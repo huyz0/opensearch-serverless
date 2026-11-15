@@ -16,7 +16,7 @@ This skill is the one home of the process rules; AGENTS.md points here.
 - **PR body:** the sections of `.github/pull_request_template.md`, filled in. Evidence names what you ran and what it printed.
 - **Gate before done:** `scripts/gate.sh` passes locally (the pre-push hook runs it) and you saw it pass.
 - **Merge:** the writing thread squash-merges once the `ci` check is green, after at most two review rounds (`code-review` skill). A PR failing only on a known flaky test merges; the flake gets its own PR.
-- **High-risk PRs** (a path in `scripts/risk-paths.txt`, or declared `high`): link or add an ADR; CI adds the `needs-huy` label, which flags and does not block. Merge, then keep the thread open and flag the change to the owner. Only the owner accepts an ADR. A third-party dependency change alone is not high-risk (`architecture` skill).
+- **High-risk PRs** (a path in `scripts/risk-paths.txt`, or a change of a kind listed in [docs/adr/README.md](../../../docs/adr/README.md), declared `high`): link or add an ADR; CI adds the `needs-huy` label, which flags and does not block. Merge, then keep the thread open and flag the change to the owner. Only the owner accepts an ADR.
 - **Docs and skills change in the same PR** as the code they describe.
 
 ## Enforced by

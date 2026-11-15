@@ -69,7 +69,7 @@ Decision and detail: [ADR 0004](adr/0004-bounded-memory-and-streaming.md).
 
 ## Testing
 
-- **Emulators only.** Tests run against an in-process S3 emulator or RustFS, never real AWS. No Docker is required to build or test. *Check:* `scripts/check-test-endpoints.py`.
+- **Emulators only.** Tests run against the in-process S3 emulator, RustFS or the filesystem store, never real AWS. No Docker is required to build or test. *Check:* `scripts/check-test-endpoints.py`.
 - **≥95% line coverage**, measured over every feature. *Check:* `scripts/coverage.sh --fail-under-lines 95` in the gate.
 - **A gate nobody has seen fail is not trusted.** A new check is shown failing on the defect it targets before it lands, and its blind spots are written in its docstring and in [mechanical-gates.md](mechanical-gates.md).
 - **Never weaken a threshold or delete a test to make a check pass.**
