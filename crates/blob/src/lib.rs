@@ -5,8 +5,9 @@
 //! (`scripts/check-s3-access.py`). The [`BlobStore`] trait is the interface;
 //! calls block and bodies stream through caller-provided buffers
 //! (docs/adr/0005-io-model.md, docs/adr/0004-bounded-memory-and-streaming.md).
-//! The in-process [`emulator`] implements it behind the `emulator` feature;
-//! the S3 client follows in its own change. [`PooledStore`] streams bodies
+//! [`S3Store`] implements it over S3's REST API, and the in-process
+//! [`emulator`] behind the `emulator` feature, with an S3 HTTP front end for
+//! testing the client. [`PooledStore`] streams bodies
 //! through the node's buffer pool and answers [`BlobError::Busy`] when it is
 //! empty.
 
@@ -17,6 +18,7 @@ pub mod error;
 pub mod meter;
 pub mod op;
 pub mod pooled;
+pub mod s3;
 pub mod store;
 
 pub use chunk::{ChunkSink, ChunkSource, SliceSource};
@@ -26,6 +28,9 @@ pub use error::{BlobError, BlobResult};
 pub use meter::Meter;
 pub use op::{PriceClass, S3Op};
 pub use pooled::PooledStore;
+pub use s3::retry::RetryPolicy;
+pub use s3::sigv4::Credentials;
+pub use s3::{S3Config, S3Store};
 pub use store::{
     BlobStore, ByteRange, CreateOutcome, GetOutcome, ListPage, MAX_KEY_BYTES, MAX_LIST_KEYS,
     ObjectMeta,

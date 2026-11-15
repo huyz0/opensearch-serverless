@@ -12,6 +12,7 @@
 //! kind from a seed ([`faults`]).
 
 pub mod faults;
+pub mod http;
 
 use std::collections::BTreeMap;
 use std::ops::Bound;
@@ -26,6 +27,17 @@ use crate::store::{
     check_list,
 };
 use faults::{Decision, Faults, Latency, OpControl, SplitMix64};
+
+/// The bytes a GET is about to send.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Span {
+    /// The offset of the first byte.
+    pub(crate) first: u64,
+    /// How many bytes.
+    pub(crate) len: u64,
+    /// The whole object's length.
+    pub(crate) object_len: u64,
+}
 
 /// The stored objects and the bytes they, and PUTs in flight, hold.
 #[derive(Debug, Default)]
@@ -117,6 +129,53 @@ impl Emulator {
     /// Objects stored now.
     pub fn object_count(&self) -> usize {
         lock(&self.objects).map.len()
+    }
+
+    /// [`BlobStore::get`], telling `start` the span it will send before the
+    /// first chunk: the S3 front end writes its status line and headers
+    /// there.
+    pub(crate) fn get_framed(
+        &self,
+        key: &str,
+        range: ByteRange,
+        buf: &mut [u8],
+        start: &mut dyn FnMut(Span) -> BlobResult<()>,
+        sink: &mut dyn ChunkSink,
+    ) -> BlobResult<GetOutcome> {
+        check_key(key)?;
+        check_buf(buf)?;
+        if let ByteRange::From { len: 0, .. } = range {
+            return Err(BlobError::InvalidArgument("range of 0 bytes"));
+        }
+        self.attempt(range.op(), || {
+            let data = lock(&self.objects)
+                .map
+                .get(key)
+                .cloned()
+                .ok_or(BlobError::NotFound)?;
+            let (first, end) = span(range, data.len())?;
+            let body = data.get(first..end).ok_or(BlobError::InvalidRange)?;
+            start(Span {
+                first: u64::try_from(first).unwrap_or(u64::MAX),
+                len: u64::try_from(body.len()).unwrap_or(u64::MAX),
+                object_len: u64::try_from(data.len()).unwrap_or(u64::MAX),
+            })?;
+            let mut sent = 0u64;
+            for piece in body.chunks(buf.len()) {
+                let out = buf
+                    .get_mut(..piece.len())
+                    .ok_or(BlobError::Stream("chunk past the buffer"))?;
+                out.copy_from_slice(piece);
+                sink.accept(out)?;
+                let n = u64::try_from(piece.len()).unwrap_or(u64::MAX);
+                self.meter.add_bytes_read(n);
+                sent = sent.saturating_add(n);
+            }
+            Ok(GetOutcome {
+                object_len: u64::try_from(data.len()).unwrap_or(u64::MAX),
+                bytes: sent,
+            })
+        })
     }
 
     /// Serves one attempt of `op`: records it, waits its latency, injects
@@ -259,35 +318,7 @@ impl BlobStore for Emulator {
         buf: &mut [u8],
         sink: &mut dyn ChunkSink,
     ) -> BlobResult<GetOutcome> {
-        check_key(key)?;
-        check_buf(buf)?;
-        if let ByteRange::From { len: 0, .. } = range {
-            return Err(BlobError::InvalidArgument("range of 0 bytes"));
-        }
-        self.attempt(range.op(), || {
-            let data = lock(&self.objects)
-                .map
-                .get(key)
-                .cloned()
-                .ok_or(BlobError::NotFound)?;
-            let (start, end) = span(range, data.len())?;
-            let body = data.get(start..end).ok_or(BlobError::InvalidRange)?;
-            let mut sent = 0u64;
-            for piece in body.chunks(buf.len()) {
-                let out = buf
-                    .get_mut(..piece.len())
-                    .ok_or(BlobError::Stream("chunk past the buffer"))?;
-                out.copy_from_slice(piece);
-                sink.accept(out)?;
-                let n = u64::try_from(piece.len()).unwrap_or(u64::MAX);
-                self.meter.add_bytes_read(n);
-                sent = sent.saturating_add(n);
-            }
-            Ok(GetOutcome {
-                object_len: u64::try_from(data.len()).unwrap_or(u64::MAX),
-                bytes: sent,
-            })
-        })
+        self.get_framed(key, range, buf, &mut |_| Ok(()), sink)
     }
 
     fn put(&self, key: &str, body: &mut dyn ChunkSource, buf: &mut [u8]) -> BlobResult<()> {

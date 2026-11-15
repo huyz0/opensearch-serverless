@@ -35,6 +35,16 @@ pub enum BlobError {
     /// No I/O buffer was free in the node's buffer pool; nothing was sent.
     /// The caller answers 429 or backs off (ADR 0004).
     Busy,
+    /// The store refused the credentials or the signature (S3 401, 403).
+    /// Retrying the same request cannot succeed.
+    Denied,
+    /// The store answered with a status the request does not expect, such
+    /// as a 400; retrying the same request cannot succeed.
+    Unexpected(u16),
+    /// The store's response could not be read as S3's protocol: a missing
+    /// header, an unparsable LIST document, an element longer than its
+    /// bound.
+    Protocol(&'static str),
 }
 
 impl fmt::Display for BlobError {
@@ -49,6 +59,9 @@ impl fmt::Display for BlobError {
             BlobError::InvalidArgument(why) => write!(f, "invalid argument: {why}"),
             BlobError::Stream(why) => write!(f, "body stream failed: {why}"),
             BlobError::Busy => f.write_str("no I/O buffer free"),
+            BlobError::Denied => f.write_str("access denied by the store"),
+            BlobError::Unexpected(status) => write!(f, "unexpected status {status} from the store"),
+            BlobError::Protocol(why) => write!(f, "unreadable response: {why}"),
         }
     }
 }
@@ -86,6 +99,15 @@ mod tests {
                 "body stream failed: sink closed",
             ),
             (BlobError::Busy, "no I/O buffer free"),
+            (BlobError::Denied, "access denied by the store"),
+            (
+                BlobError::Unexpected(400),
+                "unexpected status 400 from the store",
+            ),
+            (
+                BlobError::Protocol("no Content-Length"),
+                "unreadable response: no Content-Length",
+            ),
         ];
         for (err, text) in cases {
             assert_eq!(err.to_string(), text);
