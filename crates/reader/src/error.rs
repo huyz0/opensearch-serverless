@@ -1,0 +1,97 @@
+//! Why the reader could not open or read a shard.
+
+use std::fmt;
+
+use oss_blob::BlobError;
+use oss_format::FormatError;
+
+/// A reader failure.
+#[derive(Debug)]
+pub enum ReaderError {
+    /// The object store failed, or answered busy.
+    Blob(BlobError),
+    /// A blob did not decode as the shell's format.
+    Format(FormatError),
+    /// The engine could not open or read the commit.
+    Engine(lucene_store::Error),
+    /// The index is a tombstone: it was deleted.
+    Deleted,
+    /// The name is an alias, not an index.
+    Alias,
+    /// The engine could not open the commit's segments.
+    Open(lucene_search::directory_reader::Error),
+    /// A register blob is larger than [`crate::MAX_REGISTER_BYTES`].
+    RegisterTooLarge,
+    /// The manifest names a file without its length, which a reader needs
+    /// to open it without a request per file.
+    UnknownLength(String),
+}
+
+impl fmt::Display for ReaderError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ReaderError::Blob(e) => write!(f, "object store: {e}"),
+            ReaderError::Format(e) => write!(f, "blob format: {e}"),
+            ReaderError::Engine(e) => write!(f, "engine: {e}"),
+            ReaderError::Deleted => f.write_str("the index was deleted"),
+            ReaderError::Alias => f.write_str("the name is an alias, not an index"),
+            ReaderError::Open(e) => write!(f, "engine: {e}"),
+            ReaderError::RegisterTooLarge => f.write_str("register blob larger than its limit"),
+            ReaderError::UnknownLength(name) => write!(f, "manifest gives no length for {name}"),
+        }
+    }
+}
+
+impl std::error::Error for ReaderError {}
+
+impl From<BlobError> for ReaderError {
+    fn from(e: BlobError) -> Self {
+        ReaderError::Blob(e)
+    }
+}
+
+impl From<FormatError> for ReaderError {
+    fn from(e: FormatError) -> Self {
+        ReaderError::Format(e)
+    }
+}
+
+impl From<lucene_search::directory_reader::Error> for ReaderError {
+    fn from(e: lucene_search::directory_reader::Error) -> Self {
+        ReaderError::Open(e)
+    }
+}
+
+impl From<lucene_store::Error> for ReaderError {
+    fn from(e: lucene_store::Error) -> Self {
+        ReaderError::Engine(e)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_kind_names_its_cause() {
+        let cases: [(ReaderError, &str); 5] = [
+            (
+                ReaderError::Blob(BlobError::Busy),
+                "object store: no I/O buffer free",
+            ),
+            (ReaderError::Deleted, "the index was deleted"),
+            (ReaderError::Alias, "the name is an alias, not an index"),
+            (
+                ReaderError::RegisterTooLarge,
+                "register blob larger than its limit",
+            ),
+            (
+                ReaderError::UnknownLength("_0.si".into()),
+                "manifest gives no length for _0.si",
+            ),
+        ];
+        for (e, text) in cases {
+            assert_eq!(e.to_string(), text);
+        }
+    }
+}

@@ -3,6 +3,21 @@
 version = 4
 
 [[package]]
+name = "adler2"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
+
+[[package]]
+name = "aho-corasick"
+version = "1.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c982642fa9e8606056828ee9a8505737230110bb1099153c79efe865c59d12ba"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -48,6 +63,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "33ef9e3e8154a45c7a95cff4c1299702106ad94062d7bb85fdc5d3a5afd91d45"
 dependencies = [
  "find-msvc-tools",
+ "jobserver",
+ "libc",
  "shlex",
 ]
 
@@ -77,6 +94,40 @@ checksum = "5ca28b0ae3115b884660db4118d803791fd6756b6e88f39c0f3f7859060d7566"
 dependencies = [
  "libc",
 ]
+
+[[package]]
+name = "crc32fast"
+version = "1.5.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2b929dd2a135771f40afabd1073f85eed59c800b7c61901e5c254270497dad64"
+dependencies = [
+ "cfg-if",
+]
+
+[[package]]
+name = "crossbeam-deque"
+version = "0.8.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "622f3fc73690be383c7214310406f28a90e6edeadc3cea882f9d71e495b9711a"
+dependencies = [
+ "crossbeam-epoch",
+ "crossbeam-utils",
+]
+
+[[package]]
+name = "crossbeam-epoch"
+version = "0.9.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dc74980687109a3b14c72fd458107bf0baa1da1a1a805e178d15501ba9b86d9d"
+dependencies = [
+ "crossbeam-utils",
+]
+
+[[package]]
+name = "crossbeam-utils"
+version = "0.8.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a31eee39dddec8330830986fcd7625edb5a24ec90ea038215273bbc3adb08ac6"
 
 [[package]]
 name = "crypto-common"
@@ -109,6 +160,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "either"
+version = "1.19.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0e9c71c2167ca323c882b99918929403426e2373ea17242ff5653e0d5e1058be"
+
+[[package]]
 name = "find-msvc-tools"
 version = "0.1.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -123,6 +180,17 @@ dependencies = [
  "cfg-if",
  "libc",
  "wasi",
+]
+
+[[package]]
+name = "getrandom"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "300e883d756b2e4ec94e02791f39b04b522276138852cfc41d9fb7e904106099"
+dependencies = [
+ "cfg-if",
+ "libc",
+ "r-efi",
 ]
 
 [[package]]
@@ -166,6 +234,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3bd1574e617a9a6c1f8f8181bd7e841e1f20e4277607ef28945765188d6284d4"
 
 [[package]]
+name = "jobserver"
+version = "0.1.35"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1c00acbd29eabad4a2392fa0e921c874934dbbf4194312ad20f04a0ed67a3cb3"
+dependencies = [
+ "getrandom 0.4.3",
+ "libc",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -184,10 +262,172 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5d15f86d12da44cd8d4ec3c73984537eb7f4cadcb9776a575a0a8a05ca11005c"
 
 [[package]]
+name = "lucene-analysis"
+version = "0.1.0"
+source = "git+https://github.com/huyz0/lucene-rust?rev=3b4e3a3e6c1df64f9177d123a204b5f05fa16a21#3b4e3a3e6c1df64f9177d123a204b5f05fa16a21"
+dependencies = [
+ "lucene-util",
+ "miniz_oxide",
+ "regex",
+ "regex-syntax",
+ "thiserror",
+]
+
+[[package]]
+name = "lucene-codecs"
+version = "0.1.0"
+source = "git+https://github.com/huyz0/lucene-rust?rev=3b4e3a3e6c1df64f9177d123a204b5f05fa16a21#3b4e3a3e6c1df64f9177d123a204b5f05fa16a21"
+dependencies = [
+ "crc32fast",
+ "lucene-store",
+ "lucene-util",
+ "lucene-zstd",
+ "memchr",
+ "thiserror",
+]
+
+[[package]]
+name = "lucene-disk-hnsw"
+version = "0.1.0"
+source = "git+https://github.com/huyz0/lucene-rust?rev=3b4e3a3e6c1df64f9177d123a204b5f05fa16a21#3b4e3a3e6c1df64f9177d123a204b5f05fa16a21"
+dependencies = [
+ "lucene-codecs",
+ "lucene-ivf",
+ "lucene-store",
+ "lucene-util",
+ "lucene-vector-quant",
+ "rayon",
+ "thiserror",
+]
+
+[[package]]
+name = "lucene-index"
+version = "0.1.0"
+source = "git+https://github.com/huyz0/lucene-rust?rev=3b4e3a3e6c1df64f9177d123a204b5f05fa16a21#3b4e3a3e6c1df64f9177d123a204b5f05fa16a21"
+dependencies = [
+ "lucene-analysis",
+ "lucene-codecs",
+ "lucene-disk-hnsw",
+ "lucene-ivf",
+ "lucene-spatial3d",
+ "lucene-store",
+ "lucene-util",
+ "lucene-vector-quant",
+ "rayon",
+ "thiserror",
+]
+
+[[package]]
+name = "lucene-ivf"
+version = "0.1.0"
+source = "git+https://github.com/huyz0/lucene-rust?rev=3b4e3a3e6c1df64f9177d123a204b5f05fa16a21#3b4e3a3e6c1df64f9177d123a204b5f05fa16a21"
+dependencies = [
+ "lucene-store",
+ "lucene-util",
+ "lucene-vector-quant",
+ "rayon",
+ "thiserror",
+]
+
+[[package]]
+name = "lucene-search"
+version = "0.1.0"
+source = "git+https://github.com/huyz0/lucene-rust?rev=3b4e3a3e6c1df64f9177d123a204b5f05fa16a21#3b4e3a3e6c1df64f9177d123a204b5f05fa16a21"
+dependencies = [
+ "lucene-analysis",
+ "lucene-codecs",
+ "lucene-disk-hnsw",
+ "lucene-index",
+ "lucene-ivf",
+ "lucene-spatial3d",
+ "lucene-spatial4j",
+ "lucene-store",
+ "lucene-util",
+ "miniz_oxide",
+ "rayon",
+ "thiserror",
+]
+
+[[package]]
+name = "lucene-spatial3d"
+version = "0.1.0"
+source = "git+https://github.com/huyz0/lucene-rust?rev=3b4e3a3e6c1df64f9177d123a204b5f05fa16a21#3b4e3a3e6c1df64f9177d123a204b5f05fa16a21"
+dependencies = [
+ "lucene-util",
+ "thiserror",
+]
+
+[[package]]
+name = "lucene-spatial4j"
+version = "0.1.0"
+source = "git+https://github.com/huyz0/lucene-rust?rev=3b4e3a3e6c1df64f9177d123a204b5f05fa16a21#3b4e3a3e6c1df64f9177d123a204b5f05fa16a21"
+dependencies = [
+ "lucene-spatial3d",
+ "lucene-util",
+ "thiserror",
+]
+
+[[package]]
+name = "lucene-store"
+version = "0.1.0"
+source = "git+https://github.com/huyz0/lucene-rust?rev=3b4e3a3e6c1df64f9177d123a204b5f05fa16a21#3b4e3a3e6c1df64f9177d123a204b5f05fa16a21"
+dependencies = [
+ "crc32fast",
+ "libc",
+ "lucene-util",
+ "memmap2",
+ "thiserror",
+]
+
+[[package]]
+name = "lucene-util"
+version = "0.1.0"
+source = "git+https://github.com/huyz0/lucene-rust?rev=3b4e3a3e6c1df64f9177d123a204b5f05fa16a21#3b4e3a3e6c1df64f9177d123a204b5f05fa16a21"
+dependencies = [
+ "thiserror",
+]
+
+[[package]]
+name = "lucene-vector-quant"
+version = "0.1.0"
+source = "git+https://github.com/huyz0/lucene-rust?rev=3b4e3a3e6c1df64f9177d123a204b5f05fa16a21#3b4e3a3e6c1df64f9177d123a204b5f05fa16a21"
+dependencies = [
+ "lucene-util",
+ "thiserror",
+]
+
+[[package]]
+name = "lucene-zstd"
+version = "0.1.0"
+source = "git+https://github.com/huyz0/lucene-rust?rev=3b4e3a3e6c1df64f9177d123a204b5f05fa16a21#3b4e3a3e6c1df64f9177d123a204b5f05fa16a21"
+dependencies = [
+ "thiserror",
+ "zstd-safe",
+]
+
+[[package]]
 name = "memchr"
 version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
+
+[[package]]
+name = "memmap2"
+version = "0.9.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6b0ca1155a9ecc25aa12e8313a119f32edf0255fea2f44839c4ac0a12b2ac157"
+dependencies = [
+ "libc",
+]
+
+[[package]]
+name = "miniz_oxide"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b63fbc4a50860e98e7b2aa7804ded1db5cbc3aff9193adaff57a6931bf7c4b4c"
+dependencies = [
+ "adler2",
+]
 
 [[package]]
 name = "num-traits"
@@ -262,7 +502,12 @@ dependencies = [
 name = "oss-reader"
 version = "0.1.0"
 dependencies = [
+ "lucene-index",
+ "lucene-search",
+ "lucene-store",
  "oss-blob",
+ "oss-format",
+ "oss-mem",
  "oss-types",
 ]
 
@@ -300,6 +545,12 @@ name = "percent-encoding"
 version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
+
+[[package]]
+name = "pkg-config"
+version = "0.3.34"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
 
 [[package]]
 name = "ppv-lite86"
@@ -345,6 +596,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "r-efi"
+version = "6.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
+
+[[package]]
 name = "rand"
 version = "0.8.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -371,7 +628,7 @@ version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
 dependencies = [
- "getrandom",
+ "getrandom 0.2.17",
 ]
 
 [[package]]
@@ -381,6 +638,49 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d25bf25ec5ae4a3f1b92f929810509a2f53d7dca2f50b794ff57e3face536c8f"
 dependencies = [
  "rand_core",
+]
+
+[[package]]
+name = "rayon"
+version = "1.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fb39b166781f92d482534ef4b4b1b2568f42613b53e5b6c160e24cfbfa30926d"
+dependencies = [
+ "either",
+ "rayon-core",
+]
+
+[[package]]
+name = "rayon-core"
+version = "1.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "22e18b0f0062d30d4230b2e85ff77fdfe4326feb054b9783a3460d8435c8ab91"
+dependencies = [
+ "crossbeam-deque",
+ "crossbeam-utils",
+]
+
+[[package]]
+name = "regex"
+version = "1.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f020237b6c8eed93db2e2cb53c00c60a8e1bc73da7d073199a1180401450218d"
+dependencies = [
+ "aho-corasick",
+ "memchr",
+ "regex-automata",
+ "regex-syntax",
+]
+
+[[package]]
+name = "regex-automata"
+version = "0.4.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ad8553b9b26413251cbf30e620595c7a41b3887f03da04579c0e6b0d6a06b4b2"
+dependencies = [
+ "aho-corasick",
+ "memchr",
+ "regex-syntax",
 ]
 
 [[package]]
@@ -397,7 +697,7 @@ checksum = "a4689e6c2294d81e88dc6261c768b63bc4fcdb852be6d1352498b114f61383b7"
 dependencies = [
  "cc",
  "cfg-if",
- "getrandom",
+ "getrandom 0.2.17",
  "libc",
  "untrusted",
  "windows-sys",
@@ -529,6 +829,26 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "thiserror"
+version = "1.0.69"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6aaf5339b578ea85b50e080feb250a3e8ae8cfcdff9a461c9ec2904bc923f52"
+dependencies = [
+ "thiserror-impl",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "1.0.69"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
 ]
 
 [[package]]
@@ -702,3 +1022,22 @@ name = "zeroize"
 version = "1.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e13084392c5e4bc371903e2935a5eaeed24905a7511356b883835e18a78f6879"
+
+[[package]]
+name = "zstd-safe"
+version = "7.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "498d94ad68720c89b4fbe41b9090850651e68cb2dd9210ce7ffbff3a94653819"
+dependencies = [
+ "zstd-sys",
+]
+
+[[package]]
+name = "zstd-sys"
+version = "2.1.3+zstd.1.5.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f729a06d0257428fd9d997ac8db7e1407bd0262ab016b085b36bc52957c0052d"
+dependencies = [
+ "cc",
+ "pkg-config",
+]
