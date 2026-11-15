@@ -5,11 +5,11 @@ Every check, what it enforces, the planted violation that proves it can fail, an
 | Check | Enforces | Planted violation | Cannot catch |
 |---|---|---|---|
 | `cargo fmt --check` | formatting | | |
-| `cargo clippy -D warnings` (all features, then default) | the lint set, `unsafe_code = "forbid"`, `missing_docs = "deny"`, `arithmetic_side_effects` | an undocumented `pub fn` (run by hand) | a doc comment that says nothing |
+| `cargo clippy -D warnings` (all features, then default) | the lint set, `unsafe_code = "deny"`, `undocumented_unsafe_blocks`, `multiple_unsafe_ops_per_block`, `missing_docs = "deny"`, `arithmetic_side_effects` | an undocumented `pub fn` (run by hand) | a doc comment that says nothing |
 | `check-layering.py` | downward-only crate dependencies (so no cycles), siblings independent, every crate placed | reader depending on writer; an unplaced crate | dependencies through non-workspace crates |
 | `check-crate-layout.py` | README with Owns / Depends on / Entry points, AGENTS.md, `src/lib.rs`, workspace lints | README without Entry points; no AGENTS.md; lints opted out | a section that is wrong |
 | `check-module-size.py` | 1,000-line limit; over 500 only on the shrinking `scripts/size-baseline.txt` | 1,001 lines; 501 lines unlisted; baselined file grew | a short file mixing concerns |
-| `check-unsafe.py` | nothing relaxes `unsafe_code` | `#![allow(unsafe_code)]`; `unsafe_code = "warn"` | unsafe code in dependencies |
+| `check-unsafe.py` | `unsafe` only item by item; no `unsafe impl Send/Sync`, `transmute` or `extern` block off the approved list ([unsafe.md](unsafe.md)) | `#![allow(unsafe_code)]`; `unsafe_code = "warn"`; `unsafe impl Send`; `transmute`; an `extern "C"` block | whether a use follows one of the five patterns, a false SAFETY comment, unsafe code in dependencies, a renamed `transmute` import |
 | `clippy.toml` disallowed methods | no whole-buffer reads (`read_to_end`, `read_to_string`, `fs::read`), no unbounded `mpsc::channel` | `read_to_end` in reader (run by hand) | the same done by a dependency |
 | `check-alloc.py` | every allocation in blob, reader, writer, coordinator carries `// ALLOC:`; no unbounded channels | bare `Vec::new()`; `mpsc::channel()` with a comment | allocation inside called functions; false bounds (peak-memory tests do) |
 | `check-s3-access.py` | S3 clients only in `oss-blob`; every LIST has `// LIST:` | `aws-sdk-s3` in reader; bare `list_objects_v2(` | LISTs under other names; transitive clients |

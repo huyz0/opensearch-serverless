@@ -23,5 +23,5 @@ Layers, lowest first: `oss-types` (0) ← `oss-blob` (1) ← `oss-reader`, `oss-
 - `scripts/check-layering.py` (layers, siblings, unplaced crates).
 - `scripts/check-crate-layout.py` (README sections, `src/lib.rs`, workspace lints).
 - `scripts/check-module-size.py`; `scripts/check-s3-access.py`.
-- `missing_docs = "deny"` and `unsafe_code = "forbid"` in the workspace lints.
+- `missing_docs = "deny"` and `unsafe_code = "deny"` (local allows per [unsafe.md](../../../docs/unsafe.md)) in the workspace lints.
 - Not mechanical: "one concern per module" and "no dumping-ground modules". Review.

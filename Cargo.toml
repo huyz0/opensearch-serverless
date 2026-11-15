@@ -51,8 +51,13 @@ lucene-search = { git = "https://github.com/huyz0/lucene-rust", rev = "3b4e3a3e6
 lucene-codecs = { git = "https://github.com/huyz0/lucene-rust", rev = "3b4e3a3e6c1df64f9177d123a204b5f05fa16a21" }
 lucene-analysis = { git = "https://github.com/huyz0/lucene-rust", rev = "3b4e3a3e6c1df64f9177d123a204b5f05fa16a21" }
 
+# Any crate may use `unsafe`, item by item, in the five patterns of
+# docs/unsafe.md: each use takes a local `#[allow(unsafe_code)]`, a
+# `// SAFETY:` comment per block, and `# Safety` docs on each `unsafe fn`
+# (`scripts/check-unsafe.py` and the clippy lints below).
 [workspace.lints.rust]
-unsafe_code = "forbid"
+unsafe_code = "deny"
+unsafe_op_in_unsafe_fn = "deny"
 missing_docs = "deny"
 
 # Lengths, counts and offsets read out of a blob, a manifest or a log record
@@ -63,6 +68,8 @@ missing_docs = "deny"
 [workspace.lints.clippy]
 all = { level = "deny", priority = -1 }
 arithmetic_side_effects = "deny"
+undocumented_unsafe_blocks = "deny"
+multiple_unsafe_ops_per_block = "deny"
 
 [profile.release]
 overflow-checks = true
