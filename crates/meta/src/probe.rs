@@ -50,9 +50,7 @@ fn honoured(store: &dyn BlobStore, key: &str) -> Result<bool, oss_blob::BlobErro
     // Read back, so a store that remembers versions knows this one's tag
     // even when its create's response carried none.
     let mut buf = [0u8; 64];
-    if store.read_register(key, &mut buf)?.map(|r| r.generation) != Some(created) {
-        return Ok(false);
-    }
+    let seen = store.read_register(key, &mut buf)?.map(|r| r.generation);
     // Another writer moves the register on, with a plain PUT this store does
     // not take for its own swap: it still remembers the version it created.
     let moved = created.saturating_add(1);
@@ -61,12 +59,13 @@ fn honoured(store: &dyn BlobStore, key: &str) -> Result<bool, oss_blob::BlobErro
     generation.copy_from_slice(&moved.to_be_bytes());
     value.copy_from_slice(b"moved");
     store.put(key, &mut SliceSource::new(&body), &mut [0u8; 64])?;
-    if store.delete_register(key, created)? {
-        // The store deleted a register at a generation it no longer held.
-        return Ok(false);
-    }
-    if store.read_register(key, &mut buf)?.map(|r| r.generation) != Some(moved) {
-        return Ok(false);
-    }
-    Ok(store.delete_register(key, moved)? && store.read_register(key, &mut buf)?.is_none())
+    // A store that deletes a register at a generation it no longer holds
+    // fails here.
+    let stale_refused = !store.delete_register(key, created)?;
+    let survived = store.read_register(key, &mut buf)?.map(|r| r.generation);
+    Ok(seen == Some(created)
+        && stale_refused
+        && survived == Some(moved)
+        && store.delete_register(key, moved)?
+        && store.read_register(key, &mut buf)?.is_none())
 }
