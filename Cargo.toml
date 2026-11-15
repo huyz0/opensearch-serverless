@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-# Downward-only: {types, mem, testkit} <- blob <- {reader, writer} <- coordinator <- node <- compat.
+# Downward-only: {types, mem, testkit} <- {blob, format, rest} <- {reader, writer} <- coordinator <- node <- compat.
 # reader and writer are siblings and never depend on each other.
 # `scripts/check-layering.py` enforces this order.
 members = [
@@ -8,6 +8,8 @@ members = [
     "crates/mem",
     "crates/testkit",
     "crates/blob",
+    "crates/format",
+    "crates/rest",
     "crates/reader",
     "crates/writer",
     "crates/coordinator",
@@ -28,6 +30,8 @@ oss-types = { path = "crates/types" }
 oss-mem = { path = "crates/mem" }
 oss-testkit = { path = "crates/testkit" }
 oss-blob = { path = "crates/blob" }
+oss-format = { path = "crates/format" }
+oss-rest = { path = "crates/rest" }
 oss-reader = { path = "crates/reader" }
 oss-writer = { path = "crates/writer" }
 oss-coordinator = { path = "crates/coordinator" }
