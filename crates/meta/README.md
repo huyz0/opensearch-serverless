@@ -3,7 +3,7 @@
 The metadata plane on registers: what names exist and what they hold, kept in the object store and changed only by compare-and-swap, as the Java shell's `metadata` package does, so Rust and Java nodes on one bucket agree.
 
 ## Owns
-Index and alias name rules, the descriptor store (create, read, update and delete an index's descriptor register), and deleted names' tombstones and markers. Later: listing, the tombstone sweep, change stripes, cluster config.
+Index and alias name rules, the descriptor store (create, read, update and delete an index's descriptor register), deleted names' tombstones and markers, the conditional-delete probe and the tombstone sweep. Later: listing, change stripes, cluster config.
 
 ## Depends on
 `oss-blob` (registers), `oss-format` (the records' bytes). Never a role crate.

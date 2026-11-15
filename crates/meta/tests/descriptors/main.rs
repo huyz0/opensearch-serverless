@@ -2,8 +2,14 @@
 //! over the emulator, the S3 client on loopback and the filesystem store,
 //! with exact request counts per backend.
 
+// ARITH: generations, times and counts here are test constants and small
+// sums; an overflow panics the test in a debug build, which fails it.
+#![allow(clippy::arithmetic_side_effects)]
+
 mod counts;
 mod lifecycle;
+mod probe;
+mod sweep;
 
 use std::sync::Arc;
 use std::time::Duration;

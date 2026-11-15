@@ -31,6 +31,19 @@ use crate::names::validate_index_or_alias;
 /// index's data.
 pub const REAP_HANDOFF_MILLIS: i64 = 60_000;
 
+/// How long a sweep's claim licenses its delete
+/// (`TOMBSTONE_REAP_DEADLINE_MILLIS`): well inside the handoff, so a create
+/// cannot have taken the name over in between.
+pub const REAP_DEADLINE_MILLIS: i64 = 10_000;
+
+/// How long a tombstone stands before a sweep may remove it
+/// (`DEFAULT_TOMBSTONE_QUARANTINE_MILLIS`): no operation carrying a generation
+/// from before the delete is in flight that long.
+pub const DEFAULT_QUARANTINE_MILLIS: i64 = 6 * 60 * 60 * 1000;
+
+/// A marker bucket's span (`TOMBSTONE_BUCKET_MILLIS`): one UTC hour.
+pub const BUCKET_MILLIS: i64 = 60 * 60 * 1000;
+
 /// How a delete keeps a recreated name from meeting an old generation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeleteMode {
@@ -67,9 +80,9 @@ pub enum Target<'b> {
 
 /// Index descriptors in one deployment's registers.
 pub struct DescriptorStore {
-    store: Arc<dyn BlobStore>,
-    base: String,
-    deletes: DeleteMode,
+    pub(crate) store: Arc<dyn BlobStore>,
+    pub(crate) base: String,
+    pub(crate) deletes: DeleteMode,
 }
 
 impl DescriptorStore {
@@ -106,7 +119,7 @@ impl DescriptorStore {
     /// refuses can still be changed and removed. It is still a single key
     /// segment (`descriptor_key` refuses `/` and dot segments).
     // ALLOC: one key a call, at most the base and the name.
-    fn existing_key(&self, name: &str) -> Result<String, MetaError> {
+    pub(crate) fn existing_key(&self, name: &str) -> Result<String, MetaError> {
         Ok(descriptor_key(&self.base, name)?)
     }
 
