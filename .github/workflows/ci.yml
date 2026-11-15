@@ -71,7 +71,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
         run: |
-          printf '%s' "$BODY" > "$RUNNER_TEMP/body.md"
+          # The event's body is the one at push time; read the current one, so a
+          # description fixed after the push is what this run checks.
+          gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json body --jq .body > "$RUNNER_TEMP/body.md" 2>/dev/null \
+            || printf '%s' "$BODY" > "$RUNNER_TEMP/body.md"
           out=$(python3 scripts/check-pr.py --body "$RUNNER_TEMP/body.md" --labels "$LABELS" \
                 --changed "$RUNNER_TEMP/changed.txt" --added "$RUNNER_TEMP/added.txt") && rc=0 || rc=$?
           printf '%s\n' "$out"
