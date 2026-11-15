@@ -11,6 +11,11 @@ repository.workspace = true
 [dependencies]
 oss-types = { workspace = true }
 oss-mem = { workspace = true }
+# The S3 client (docs/adr/0005-io-model.md): HTTP over ureq with rustls,
+# SigV4 written here over RustCrypto's SHA-256 and HMAC.
+hmac = "=0.13.0"
+sha2 = "=0.11.1"
+ureq = { version = "=3.5.2", default-features = false, features = ["rustls"] }
 
 [features]
 # The in-process S3 emulator, for tests in this crate and the crates above.
@@ -24,9 +29,18 @@ oss-testkit = { workspace = true }
 name = "emulator"
 required-features = ["emulator"]
 
+[[test]]
+name = "s3"
+required-features = ["emulator"]
+
 # Its own binary: the counting allocator is process-wide.
 [[test]]
 name = "streaming_peak"
+required-features = ["emulator"]
+
+# Its own binary, for the same reason.
+[[test]]
+name = "s3_streaming_peak"
 required-features = ["emulator"]
 
 [lints]
