@@ -11,6 +11,18 @@ repository.workspace = true
 [dependencies]
 oss-types = { workspace = true }
 oss-blob = { workspace = true }
+oss-format = { workspace = true }
+lucene-store = { workspace = true }
+lucene-index = { workspace = true }
+lucene-search = { workspace = true }
+
+[dev-dependencies]
+oss-blob = { workspace = true, features = ["emulator"] }
+oss-mem = { workspace = true }
 
 [lints]
 workspace = true
+
+[[test]]
+name = "it"
+path = "tests/it/main.rs"

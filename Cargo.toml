@@ -40,8 +40,12 @@ oss-coordinator = { path = "crates/coordinator" }
 proptest = { version = "=1.6.0", default-features = false, features = ["std"] }
 
 # lucene-rust, the engine, is the only external code dependency
-# (docs/adr/0002-runtime-dependencies.md). It comes in as git crates pinned at
-# an exact `rev` when the reader first needs it.
+# (docs/adr/0002-runtime-dependencies.md): git crates pinned at one exact
+# `rev`. Bump all of them together. For local cross-repo work, uncomment the
+# [patch] block at the end of this file.
+lucene-store = { git = "https://github.com/huyz0/lucene-rust", rev = "3b4e3a3e6c1df64f9177d123a204b5f05fa16a21" }
+lucene-index = { git = "https://github.com/huyz0/lucene-rust", rev = "3b4e3a3e6c1df64f9177d123a204b5f05fa16a21" }
+lucene-search = { git = "https://github.com/huyz0/lucene-rust", rev = "3b4e3a3e6c1df64f9177d123a204b5f05fa16a21" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
@@ -58,3 +62,9 @@ arithmetic_side_effects = "deny"
 
 [profile.release]
 overflow-checks = true
+
+# Local lucene-rust checkout, for changes that span both repositories:
+# [patch."https://github.com/huyz0/lucene-rust"]
+# lucene-store = { path = "../lucene-rust/crates/lucene-store" }
+# lucene-index = { path = "../lucene-rust/crates/lucene-index" }
+# lucene-search = { path = "../lucene-rust/crates/lucene-search" }
