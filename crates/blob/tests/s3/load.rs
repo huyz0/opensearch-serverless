@@ -1,12 +1,14 @@
-//! Blocking fetches under injected latency: one thread per request in
-//! flight, up to the node's cap, and a request that does not wait behind
-//! them. Timings are against the emulator and provisional.
+//! Blocking fetches at the node's cap: one thread per request in flight,
+//! every one of them reaching the store at once, none beyond, and a
+//! request that does not wait behind them. Asserted from counts the gate
+//! proxy observes, never from elapsed time, so a slow or instrumented
+//! runner cannot fail it.
 
-use std::sync::{Arc, Barrier};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use crate::gate::Gate;
 use crate::{config, credentials, fixture, get_all, pattern, put};
-use oss_blob::emulator::faults::Latency;
 use oss_blob::*;
 
 /// Fetches in flight at once: the 256-thread cap ADR 0005 sizes a node
@@ -14,81 +16,74 @@ use oss_blob::*;
 /// front end's own limit of 256.
 const IN_FLIGHT: usize = 192;
 
-/// The latency injected on every GET, about one S3 round trip.
-const GET_LATENCY: Duration = Duration::from_millis(50);
-
 /// GETs each fetching thread issues, back to back.
 const ROUNDS: usize = 4;
+
+/// Fetching threads started at once.
+const BATCH: usize = 32;
+const _: () = assert!(IN_FLIGHT.is_multiple_of(BATCH), "every thread starts");
+
+/// How long the test waits, in all, for every fetch to arrive and the HEAD
+/// to be answered before calling the client broken. Only a broken client
+/// gets near it.
+const ARRIVAL_LIMIT: Duration = Duration::from_secs(30);
 
 #[test]
 fn fetches_up_to_the_cap_run_in_parallel_and_starve_nothing() {
     let f = fixture();
     let body = pattern(4096);
     put(&f.client, "seg", &body);
+    let gate = Gate::start(&f.server.endpoint());
     // A client that keeps a connection per fetching thread, as a node's
-    // pool sized to its cap does, so the run measures requests rather
-    // than the loopback accept backlog.
-    let mut c = config(&f.server.endpoint(), credentials());
+    // pool sized to its cap does. Held GETs wait on the gate, not on the
+    // network, so its I/O timeout must outlast the whole arrival limit.
+    let mut c = config(&gate.endpoint(), credentials());
     c.max_idle_connections = IN_FLIGHT + 1;
+    c.io_timeout = ARRIVAL_LIMIT.saturating_mul(2);
     let client = Arc::new(S3Store::new(c).unwrap());
-    f.server
-        .store()
-        .set_latency(S3Op::Get, Latency::fixed(GET_LATENCY));
-    let ready = Arc::new(Barrier::new(IN_FLIGHT + 1));
-    let start = Arc::new(Barrier::new(IN_FLIGHT + 1));
-    let fetchers: Vec<_> = (0..IN_FLIGHT)
-        .map(|_| {
+    gate.hold();
+    let deadline = Instant::now().checked_add(ARRIVAL_LIMIT).unwrap();
+    // Threads start a batch at a time, each batch once the last is held:
+    // a held GET keeps its connection, so every thread opens its own, and
+    // a burst of IN_FLIGHT connects at once would overflow the listeners'
+    // accept backlog of 128 and stall a second on a SYN retransmit.
+    let mut fetchers = Vec::with_capacity(IN_FLIGHT);
+    for n in (BATCH..=IN_FLIGHT).step_by(BATCH) {
+        while fetchers.len() < n {
             let client = Arc::clone(&client);
-            let ready = Arc::clone(&ready);
-            let start = Arc::clone(&start);
             let body = body.clone();
-            std::thread::spawn(move || {
-                // Opens this thread's connection before the run starts.
-                client.head("seg").unwrap();
-                ready.wait();
-                start.wait();
+            fetchers.push(std::thread::spawn(move || {
                 for _ in 0..ROUNDS {
                     assert_eq!(get_all(&*client, "seg", ByteRange::Full).unwrap(), body);
                 }
-            })
-        })
-        .collect();
-    ready.wait();
-    start.wait();
-    let began = Instant::now();
-    // HEADs carry no injected latency: each one should take a loopback
-    // round trip, not a GET's 50 ms queued behind the fetches.
-    let mut probes = Vec::new();
-    while began.elapsed() < GET_LATENCY.saturating_mul(2) {
-        let t = Instant::now();
-        assert_eq!(client.head("seg").unwrap().map(|m| m.len), Some(4096));
-        probes.push(t.elapsed());
+            }));
+        }
+        // Every thread started so far has its first GET at the store, none
+        // answered: the client sends them in parallel, not one at a time.
+        assert_eq!(gate.wait_held(n, deadline), n, "GETs in flight at once");
     }
+    // With all of them in flight, a HEAD is still answered: it does not
+    // queue behind the fetches.
+    // It runs on its own thread so a HEAD that does queue fails the test
+    // rather than hanging it on the GETs it waits for.
+    let (answered, answer) = std::sync::mpsc::sync_channel(1);
+    let prober = Arc::clone(&client);
+    std::thread::spawn(move || answered.send(prober.head("seg").map(|m| m.map(|m| m.len))));
+    let head = answer
+        .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+        .expect("a HEAD queued behind the GETs in flight");
+    assert_eq!(head.unwrap(), Some(4096));
+    assert_eq!(gate.heads(), 1);
+    gate.release();
     for t in fetchers {
         t.join().unwrap();
     }
-    let wall = began.elapsed();
+    // Never more in flight than threads fetching, over every round.
+    assert_eq!(gate.peak(), IN_FLIGHT, "peak GETs in flight");
+    // Every GET the client meters is one the server was sent, no more.
     let gets = u64::try_from(IN_FLIGHT.saturating_mul(ROUNDS)).unwrap();
+    assert_eq!(u64::try_from(gate.gets()).unwrap(), gets, "GETs sent");
     assert_eq!(client.meter().count(S3Op::Get), gets);
+    assert_eq!(client.meter().count(S3Op::Head), 1);
     assert_eq!(client.meter().errors(), 0);
-    // In parallel the GETs take about ROUNDS * 50 ms, 200 ms; serially
-    // IN_FLIGHT * ROUNDS * 50 ms, 38 s. Four times the parallel time
-    // leaves room for a busy runner and none for queueing.
-    let parallel = GET_LATENCY.saturating_mul(u32::try_from(ROUNDS).unwrap());
-    assert!(
-        wall < parallel.saturating_mul(4),
-        "{IN_FLIGHT} x {ROUNDS} GETs took {wall:?}"
-    );
-    probes.sort();
-    let median = probes[probes.len() / 2];
-    assert!(
-        median < GET_LATENCY / 2,
-        "median HEAD {median:?} over {} probes",
-        probes.len()
-    );
-    eprintln!(
-        "provisional: {gets} GETs at {GET_LATENCY:?} in {wall:?}; {} HEADs, median {median:?}, max {:?}",
-        probes.len(),
-        probes.last().unwrap()
-    );
 }
