@@ -1,6 +1,6 @@
 # 0005: Blocking object-store I/O, and a small S3 client of our own
 
-**Status:** Proposed, 2026-11-14. Decision 3 implemented in `oss-blob` (`src/s3/`), 2026-11-15.
+**Status:** Accepted, 2026-11-15 (proposed 2026-11-14). Decision 3 implemented in `oss-blob` (`src/s3/`), 2026-11-15.
 
 ## Context
 

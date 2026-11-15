@@ -118,6 +118,20 @@ mod tests {
     }
 
     #[test]
+    fn rolls_follow_the_splitmix64_reference_sequence() {
+        let j = Jitter::new(0);
+        let rolls = [j.roll(), j.roll(), j.roll()];
+        assert_eq!(
+            rolls,
+            [
+                0xE220_A839_7B1D_CDAF,
+                0x6E78_9E6A_A1B9_65F4,
+                0x06C4_5D18_8009_454F
+            ]
+        );
+    }
+
+    #[test]
     fn rolls_spread_pauses_across_the_bound() {
         let p = RetryPolicy::default();
         let j = Jitter::new(7);

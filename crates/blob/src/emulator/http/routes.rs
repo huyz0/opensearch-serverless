@@ -14,7 +14,7 @@ use crate::s3::sigv4::{self, Scope};
 use crate::store::{BlobStore, ByteRange, CreateOutcome, MAX_LIST_KEYS};
 
 /// Bytes the front end streams a body through, each way.
-const BODY_BUF: usize = 16 * 1024;
+const BODY_BUF: usize = 16_384;
 
 /// What is left to send once the handler has run and the request body has
 /// been read to its end.
@@ -202,7 +202,11 @@ struct GetReply<'a> {
 }
 
 impl GetReply<'_> {
+    /// Writes the head, once; later calls do nothing.
     fn head(&mut self) -> BlobResult<()> {
+        if self.head_written {
+            return Ok(());
+        }
         let Some(span) = self.span.get() else {
             return Err(BlobError::Stream("no span before the body"));
         };
@@ -228,9 +232,7 @@ impl GetReply<'_> {
 
 impl ChunkSink for GetReply<'_> {
     fn accept(&mut self, chunk: &[u8]) -> BlobResult<()> {
-        if !self.head_written {
-            self.head()?;
-        }
+        self.head()?;
         let chunk = match self.cut {
             Some(left) => {
                 let n = usize::try_from(left).unwrap_or(usize::MAX).min(chunk.len());
@@ -275,12 +277,13 @@ fn get(shared: &Shared, head: &Head, key: &str, out: &mut dyn Write) -> Reply {
         .store
         .get_framed(key, range, &mut buf, &mut start, &mut reply)
     {
-        Ok(_) if reply.head_written => Reply::Done,
+        // An empty body has no chunk to write the head before.
         Ok(_) => match reply.head() {
             Ok(()) => Reply::Done,
             Err(_) => Reply::Close,
         },
-        Err(_) if reply.head_written => Reply::Close,
+        // Once the head is out, the only failures are the sink's own,
+        // `Stream` errors, which close the connection.
         Err(err) => status_of(&err),
     }
 }

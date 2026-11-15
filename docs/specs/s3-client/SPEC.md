@@ -30,6 +30,7 @@ Roadmap stage 1 ("the S3 client"), invariants I-1 to I-3 and I-15, ADR [0005](..
 - AC-13: a 16 MiB object is written and read over HTTP through one 64 KiB pooled buffer: the PUT's peak heap stays under one copy of the object (the emulator's) plus a fixed overhead, and the GET's under the fixed overhead.
 - AC-14: with `RUSTFS_BIN` set, the round-trip, conditional create, ranged GET, HEAD, DELETE and LIST scenario passes against a RustFS binary on loopback; without it the test says it skipped.
 - AC-15: no test or script names a real AWS endpoint (`scripts/check-test-endpoints.py`), every request-path allocation states its bound (`scripts/check-alloc.py`), and the one LIST call site carries `// LIST:` (`scripts/check-s3-access.py`).
+- AC-16: with 50 ms injected on every GET, 192 threads each fetching in turn (the ADR's 256-thread cap less the front end's headroom) finish 4 rounds within 4 times the parallel time of 200 ms, and a HEAD issued meanwhile takes a median under 25 ms: blocking fetches up to the cap neither queue nor starve other requests.
 
 ## Test plan
 
@@ -38,6 +39,7 @@ Roadmap stage 1 ("the S3 client"), invariants I-1 to I-3 and I-15, ADR [0005](..
 - AC-8, AC-9: scripted statuses and cut bodies (`S3Server::answer_next`, `cut_body_next`), the emulator's `fail_next`, and a closed port for connection failures; a pure test of the backoff bound.
 - AC-13: `tests/s3_streaming_peak.rs`, its own binary because the counting allocator is process-wide.
 - AC-14: `tests/rustfs.rs`, with `RUSTFS_BIN` set to a RustFS binary.
+- AC-16: `tests/s3/load.rs`, the emulator's `set_latency` on GET, the client's pool sized to the threads.
 
 ## S3 request budget
 

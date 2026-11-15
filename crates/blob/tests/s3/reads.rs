@@ -2,6 +2,7 @@
 
 use crate::{assert_counts, fixture, get_all, pattern, put};
 use oss_blob::*;
+use std::time::{Duration, Instant};
 
 // AC-2
 #[test]
@@ -119,6 +120,7 @@ fn a_body_cut_part_way_is_unavailable_and_not_retried() {
     put(&f.client, "big", &body);
     f.server.cut_body_next(20_000);
     let mut seen = Vec::new();
+    let began = Instant::now();
     let err = f
         .client
         .get(
@@ -132,6 +134,13 @@ fn a_body_cut_part_way_is_unavailable_and_not_retried() {
         )
         .unwrap_err();
     assert_eq!(err, BlobError::Unavailable);
+    // The server closes the cut connection, so the client is not left
+    // waiting out its read timeout.
+    assert!(
+        began.elapsed() < Duration::from_secs(5),
+        "{:?}",
+        began.elapsed()
+    );
     assert_eq!(seen, &body[..20_000]);
     assert_counts(f.client.meter(), &[(S3Op::Put, 1), (S3Op::Get, 1)]);
     assert_eq!(f.client.meter().errors(), 1);

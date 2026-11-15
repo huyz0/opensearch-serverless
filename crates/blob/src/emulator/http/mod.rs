@@ -218,12 +218,17 @@ fn accept_loop(listener: &TcpListener, shared: &Arc<Shared>) {
             .name("s3-emulator-conn".to_owned())
             .spawn(move || {
                 serve(&serving, stream);
-                lock(&serving.connections).retain(|(i, _)| *i != id);
+                forget(&serving, id);
             });
         if spawned.is_err() {
-            lock(&shared.connections).retain(|(i, _)| *i != id);
+            forget(shared, id);
         }
     }
+}
+
+/// Drops connection `id` from the set a dropped server shuts down.
+fn forget(shared: &Shared, id: u64) {
+    lock(&shared.connections).retain(|(i, _)| *i != id);
 }
 
 /// Serves requests on one connection until it closes or a reply needs it

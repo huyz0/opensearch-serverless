@@ -17,3 +17,4 @@ Run with `cargo test -p oss-blob --all-features` and the whole gate, `scripts/ga
 - AC-13: `a_16_mib_object_streams_over_http_through_one_pooled_buffer` (measured: PUT 16,857,521 bytes above baseline, 80,305 over the one stored copy; GET 5,880 bytes)
 - AC-14: NOT-RUN: no RustFS binary could be run in this sandbox (starting the RustFS image, or a binary taken from it, was refused); `the_client_round_trips_against_rustfs` skips without `RUSTFS_BIN` and was run that way
 - AC-15: `scripts/check-test-endpoints.py`, `scripts/check-alloc.py`, `scripts/check-s3-access.py`
+- AC-16: `fetches_up_to_the_cap_run_in_parallel_and_starve_nothing` (provisional, three runs: 768 GETs in 233 to 248 ms against 200 ms ideal and 38 s serial; HEAD median 0.29 to 0.33 ms, max 8 to 29 ms)

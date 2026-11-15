@@ -4,6 +4,7 @@
 //! client's meter and on the server.
 
 mod listing;
+mod load;
 mod protocol;
 mod reads;
 mod retries;
@@ -37,6 +38,8 @@ pub(crate) fn config(endpoint: &str, credentials: Credentials) -> S3Config {
         cap: Duration::from_millis(4),
     };
     c.jitter_seed = Some(1);
+    // A response the server never finishes fails a test in seconds.
+    c.io_timeout = Duration::from_secs(5);
     c
 }
 

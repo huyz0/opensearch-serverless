@@ -2,7 +2,7 @@
 
 use std::collections::BTreeSet;
 
-use crate::{assert_counts, fixture, put};
+use crate::{assert_counts, fixture, get_all, put};
 use oss_blob::*;
 
 // AC-7
@@ -97,4 +97,21 @@ fn a_list_failing_before_any_key_is_retried() {
     assert_eq!(n, 1);
     assert_counts(f.client.meter(), &[(S3Op::List, 3)]);
     assert_eq!(f.client.meter().errors(), 2);
+}
+
+// AC-7
+#[test]
+fn the_longest_key_survives_escaping_both_ways() {
+    // 1,024 bytes that the path carries as 3,072 and the LIST body as
+    // 5,120: the largest request line and element text there are.
+    let f = fixture();
+    let key = "&".repeat(1024);
+    put(&f.client, &key, b"abc");
+    assert_eq!(get_all(&f.client, &key, ByteRange::Full).unwrap(), b"abc");
+    let mut seen = Vec::new();
+    f.client
+        // LIST: a test of the LIST page itself.
+        .list_prefix("&", None, 10, &mut |k, n| seen.push((k.to_owned(), n)))
+        .unwrap();
+    assert_eq!(seen, [(key, 3)]);
 }

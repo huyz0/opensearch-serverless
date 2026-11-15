@@ -12,4 +12,4 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0002](0002-runtime-dependencies.md) | lucene-rust is the only code dependency; hsearch and pstore are references | Accepted |
 | [0003](0003-apache-2-licence.md) | Apache License 2.0 | Accepted |
 | [0004](0004-bounded-memory-and-streaming.md) | Bounded memory and streaming on every path | Accepted |
-| [0005](0005-io-model.md) | Blocking object-store I/O, and a small S3 client of our own | Proposed |
+| [0005](0005-io-model.md) | Blocking object-store I/O, and a small S3 client of our own | Accepted |

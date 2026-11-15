@@ -362,6 +362,19 @@ mod tests {
         // A leap day, and the end of a century that is a leap year.
         assert_eq!(amz_date(951_782_400), "20000229T000000Z");
         assert_eq!(amz_date(4_102_444_799), "20991231T235959Z");
+        // Past a century without a leap day, and the last day of an era.
+        assert_eq!(amz_date(4_107_456_000), "21000228T000000Z");
+        assert_eq!(amz_date(4_107_542_400), "21000301T000000Z");
+        assert_eq!(amz_date(13_569_379_200), "23991231T000000Z");
+        assert_eq!(amz_date(13_574_563_200), "24000229T000000Z");
+    }
+
+    #[test]
+    fn debug_output_hides_the_secret() {
+        let c = Credentials::new("AKIDEXAMPLE", "very-secret");
+        let shown = format!("{c:?}");
+        assert_eq!(shown, "Credentials { .. }");
+        assert!(!shown.contains("very-secret"));
     }
 
     #[test]

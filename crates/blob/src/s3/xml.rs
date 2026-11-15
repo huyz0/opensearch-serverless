@@ -28,8 +28,6 @@ enum State {
     Name { closing: bool },
     /// Past a tag's name, up to its `>`.
     Rest { closing: bool },
-    /// Inside `<?...>` or `<!...>`.
-    Skip,
 }
 
 /// Which element's text is being kept.
@@ -129,7 +127,8 @@ impl ListParser {
                 self.slash = false;
                 self.state = match b {
                     b'/' => State::Name { closing: true },
-                    b'?' | b'!' => State::Skip,
+                    // `<?xml ...?>` and `<!...>` read as elements whose
+                    // names match nothing, so they are ignored.
                     _ => {
                         self.push_name(b);
                         State::Name { closing: false }
@@ -150,8 +149,6 @@ impl ListParser {
                 b'/' => self.slash = true,
                 _ => self.slash = false,
             },
-            State::Skip if b == b'>' => self.state = State::Text,
-            State::Skip => {}
         }
         Ok(())
     }
@@ -198,9 +195,10 @@ impl ListParser {
                 self.size = None;
                 Field::None
             }
-            b"Key" if self.in_contents => Field::Key,
-            b"Size" if self.in_contents => Field::Size,
-            b"IsTruncated" if !self.in_contents => Field::Truncated,
+            // Opening `Contents` clears any key or size seen outside it.
+            b"Key" => Field::Key,
+            b"Size" => Field::Size,
+            b"IsTruncated" => Field::Truncated,
             _ => Field::None,
         };
         if field != Field::None {
@@ -344,6 +342,33 @@ mod tests {
             );
             assert!(truncated);
         }
+    }
+
+    #[test]
+    fn the_parser_counts_the_keys_it_visited() {
+        let mut p = ListParser::new(2);
+        p.feed(PAGE, &mut |_, _| ()).unwrap();
+        assert_eq!(p.keys(), 2);
+    }
+
+    #[test]
+    fn an_empty_entry_is_refused_and_a_stray_close_ignored() {
+        let empty = b"<ListBucketResult><Contents/></ListBucketResult>";
+        assert_eq!(
+            parse(empty, 2, 64),
+            Err(BlobError::Protocol("LIST entry without a Key or a Size"))
+        );
+        let stray = b"<ListBucketResult><Contents><Key>a</Key><Size>1</Size></Contents></Contents></ListBucketResult>";
+        assert_eq!(parse(stray, 2, 64).unwrap().0, [("a".to_owned(), 1)]);
+    }
+
+    #[test]
+    fn declarations_and_comments_are_ignored() {
+        let doc = b"<?xml version=\"1.0\"?><!-- note --><!DOCTYPE x><ListBucketResult><?pi x?><Contents><Key>a</Key><Size>1</Size></Contents><IsTruncated>false</IsTruncated></ListBucketResult>";
+        assert_eq!(
+            parse(doc, 2, 3).unwrap(),
+            (vec![("a".to_owned(), 1)], false)
+        );
     }
 
     #[test]

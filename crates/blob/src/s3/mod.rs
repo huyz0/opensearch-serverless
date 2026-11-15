@@ -185,10 +185,7 @@ impl S3Store {
         let mut last = BlobError::Unavailable;
         for attempt in 0..self.retry.max_attempts {
             if let Some(retry) = attempt.checked_sub(1) {
-                let pause = self.retry.pause(retry, self.jitter.roll());
-                if !pause.is_zero() {
-                    std::thread::sleep(pause);
-                }
+                std::thread::sleep(self.retry.pause(retry, self.jitter.roll()));
             }
             let Some((result, repeatable)) = once(attempt) else {
                 break;

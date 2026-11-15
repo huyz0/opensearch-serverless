@@ -74,6 +74,19 @@ fn signed(endpoint: &str, method: &str, target: &str, extra: &[(&str, &str)]) ->
     req
 }
 
+/// Reads until the server closes, failing if the 5 s timeout comes first.
+fn read_to_close(s: &mut TcpStream) -> String {
+    let mut out = Vec::new();
+    let mut buf = [0u8; 4096];
+    loop {
+        let n = s.read(&mut buf).unwrap();
+        if n == 0 {
+            return String::from_utf8_lossy(&out).into_owned();
+        }
+        out.extend_from_slice(&buf[..n]);
+    }
+}
+
 fn status(response: &str) -> &str {
     response.split(' ').nth(1).unwrap_or("")
 }
@@ -235,7 +248,10 @@ fn a_client_asking_to_close_gets_its_answer_then_eof() {
         &format!("/{BUCKET}/k"),
         &[("connection", "close")],
     );
-    let r = exchange(&ep, raw.as_bytes());
+    let mut s = connect(&ep);
+    s.write_all(raw.as_bytes()).unwrap();
+    // The read ends at the server's close, well inside the 5 s timeout.
+    let r = read_to_close(&mut s);
     assert_eq!(status(&r), "204");
     assert!(r.contains("connection: close"));
     assert_eq!(f.server.store().object_count(), 0);
@@ -282,4 +298,103 @@ fn connections_past_the_limit_are_closed_on_arrival() {
         std::thread::sleep(Duration::from_millis(20));
     }
     assert!(served);
+}
+
+#[test]
+fn answering_zero_requests_clears_the_script() {
+    let f = fixture();
+    f.server.answer_next(503, "SlowDown", 3);
+    f.server.answer_next(503, "SlowDown", 0);
+    assert_eq!(f.client.head("k"), Ok(None));
+    assert_eq!(f.server.requests(), 1);
+}
+
+#[test]
+fn a_dropped_server_stops_listening() {
+    let f = fixture();
+    let addr = f.server.endpoint().trim_start_matches("http://").to_owned();
+    assert!(TcpStream::connect(&addr).is_ok());
+    drop(f);
+    assert!(TcpStream::connect(&addr).is_err());
+}
+
+#[test]
+fn a_dropped_server_closes_its_idle_connections() {
+    let f = fixture();
+    let ep = f.server.endpoint();
+    // An idle connection, kept open after one answered request.
+    let mut held = connect(&ep);
+    held.write_all(signed(&ep, "HEAD", &format!("/{BUCKET}/k"), &[]).as_bytes())
+        .unwrap();
+    let mut head = Vec::new();
+    let mut byte = [0u8; 1];
+    while !head.ends_with(b"\r\n\r\n") {
+        assert_eq!(held.read(&mut byte).unwrap(), 1);
+        head.push(byte[0]);
+    }
+    // Another connection comes and goes; the idle one must stay tracked.
+    let mut other = connect(&ep);
+    let close = signed(
+        &ep,
+        "HEAD",
+        &format!("/{BUCKET}/k"),
+        &[("connection", "close")],
+    );
+    other.write_all(close.as_bytes()).unwrap();
+    read_to_close(&mut other);
+    drop(f);
+    match held.read(&mut byte) {
+        Ok(n) => assert_eq!(n, 0),
+        Err(e) => assert_eq!(e.kind(), std::io::ErrorKind::ConnectionReset, "{e}"),
+    }
+}
+
+#[test]
+fn a_line_of_exactly_the_bound_is_read() {
+    let f = fixture();
+    let ep = f.server.endpoint();
+    // `GET /` + padding + ` HTTP/1.1\r\n` is MAX_LINE bytes in all.
+    let pad = 8 * 1024 - "GET / HTTP/1.1\r\n".len();
+    let raw = format!("GET /{} HTTP/1.1\r\n\r\n", "a".repeat(pad));
+    // Read, then refused for want of a signature rather than as malformed.
+    assert_eq!(status(&exchange(&ep, raw.as_bytes())), "403");
+}
+
+#[test]
+fn a_body_the_handler_left_is_drained_and_the_connection_kept() {
+    let f = fixture();
+    let ep = f.server.endpoint();
+    let mut s = connect(&ep);
+    // A PUT to another bucket is refused before its body is read.
+    let refused = signed(&ep, "PUT", "/other-bucket/k", &[("content-length", "5")]);
+    s.write_all(refused.as_bytes()).unwrap();
+    s.write_all(b"hello").unwrap();
+    let close = signed(
+        &ep,
+        "HEAD",
+        &format!("/{BUCKET}/k"),
+        &[("connection", "close")],
+    );
+    s.write_all(close.as_bytes()).unwrap();
+    let r = read_to_close(&mut s);
+    let statuses: Vec<&str> = r
+        .split("HTTP/1.1 ")
+        .skip(1)
+        .map(|p| p.get(..3).unwrap_or(""))
+        .collect();
+    assert_eq!(statuses, ["404", "404"], "{r}");
+}
+
+#[test]
+fn a_body_cut_short_closes_the_connection_after_the_answer() {
+    let f = fixture();
+    let ep = f.server.endpoint();
+    let mut s = connect(&ep);
+    let refused = signed(&ep, "PUT", "/other-bucket/k", &[("content-length", "100")]);
+    s.write_all(refused.as_bytes()).unwrap();
+    s.write_all(b"hello").unwrap();
+    s.shutdown(Shutdown::Write).unwrap();
+    // The server cannot drain what never comes: it answers and closes.
+    let r = read_to_close(&mut s);
+    assert_eq!(status(&r), "404", "{r}");
 }

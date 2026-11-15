@@ -148,3 +148,44 @@ fn a_list_cut_after_its_first_key_is_not_retried() {
     assert!(s3.list_prefix("", None, 10, &mut |_, _| ()).is_ok());
     t.join().unwrap();
 }
+
+// AC-9
+#[test]
+fn a_body_ending_before_its_first_byte_is_retried_and_after_it_is_not() {
+    let (s3, t) = canned_with(
+        2,
+        vec![
+            b"HTTP/1.1 200 OK\r\ncontent-length: 3\r\n\r\n",
+            b"HTTP/1.1 200 OK\r\ncontent-length: 3\r\n\r\nabc",
+            b"HTTP/1.1 200 OK\r\ncontent-length: 3\r\n\r\nab",
+            b"HTTP/1.1 200 OK\r\ncontent-length: 3\r\n\r\nabc",
+        ],
+    );
+    assert_eq!(get_all(&s3, "k", ByteRange::Full).unwrap(), b"abc");
+    assert_eq!(s3.meter().count(S3Op::Get), 2);
+    assert_eq!(
+        get_all(&s3, "k", ByteRange::Full),
+        Err(BlobError::Unavailable)
+    );
+    assert_eq!(s3.meter().count(S3Op::Get), 3);
+    // The last canned answer is still there; take it so the server ends.
+    assert_eq!(get_all(&s3, "k", ByteRange::Full).unwrap(), b"abc");
+    t.join().unwrap();
+}
+
+// AC-9
+#[test]
+fn a_list_cut_before_its_first_key_is_retried() {
+    let (s3, t) = canned_with(
+        2,
+        vec![
+            b"HTTP/1.1 200 OK\r\ncontent-length: 500\r\n\r\n<ListBucketResult><Cont",
+            b"HTTP/1.1 200 OK\r\ncontent-length: 18\r\n\r\n<ListBucketResult>",
+        ],
+    );
+    // LIST: a test of the LIST page itself.
+    let page = s3.list_prefix("", None, 10, &mut |_, _| ()).unwrap();
+    assert_eq!(page.keys, 0);
+    assert_eq!(s3.meter().count(S3Op::List), 2);
+    t.join().unwrap();
+}
