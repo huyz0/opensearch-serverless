@@ -7,3 +7,4 @@ src/chunk.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store
 src/error.rs	new		S3 failure kinds as one enum; the Java throws IOException subclasses
 src/emulator/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/MeteredBlobStore.java@bf347adb	in-process stand-in for the shell test kit's metered stores (FsBlobStore under MeteredBlobStore), with S3 semantics
 src/emulator/faults.rs	new		seeded latency, failure and throttle injection; the Java test kit does this through system properties (tests.serverless.meter.latency)
+src/pooled.rs	new		bodies through the node buffer pool, Busy when it is empty; the Java shell streams through Netty's pooled allocator with no per-node bound

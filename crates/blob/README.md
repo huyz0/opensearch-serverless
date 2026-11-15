@@ -9,4 +9,4 @@ The S3 request kinds and their price classes (`src/op.rs`), the per-request mete
 `oss-types`.
 
 ## Entry points
-`BlobStore` (get, put, create_if_absent, head, delete, list_prefix), `Emulator::new(capacity, seed)`, `Meter::record` (once per attempt, retries included), `S3Op::price_class`. Contract and criteria: [docs/specs/blob-store/SPEC.md](../../docs/specs/blob-store/SPEC.md). Adding a new kind of S3 call: [docs/how-to/add-an-s3-call.md](../../docs/how-to/add-an-s3-call.md).
+`PooledStore` streams bodies through the node's buffer pool and answers `BlobError::Busy` when it is empty; request paths use it rather than passing their own buffers. `BlobStore` (get, put, create_if_absent, head, delete, list_prefix), `Emulator::new(capacity, seed)`, `Meter::record` (once per attempt, retries included), `S3Op::price_class`. Contract and criteria: [docs/specs/blob-store/SPEC.md](../../docs/specs/blob-store/SPEC.md). Adding a new kind of S3 call: [docs/how-to/add-an-s3-call.md](../../docs/how-to/add-an-s3-call.md).

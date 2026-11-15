@@ -32,6 +32,9 @@ pub enum BlobError {
     InvalidArgument(&'static str),
     /// The caller's source or sink failed while the body streamed.
     Stream(&'static str),
+    /// No I/O buffer was free in the node's buffer pool; nothing was sent.
+    /// The caller answers 429 or backs off (ADR 0004).
+    Busy,
 }
 
 impl fmt::Display for BlobError {
@@ -45,6 +48,7 @@ impl fmt::Display for BlobError {
             BlobError::CapacityExceeded => f.write_str("emulator capacity exceeded"),
             BlobError::InvalidArgument(why) => write!(f, "invalid argument: {why}"),
             BlobError::Stream(why) => write!(f, "body stream failed: {why}"),
+            BlobError::Busy => f.write_str("no I/O buffer free"),
         }
     }
 }
@@ -81,6 +85,7 @@ mod tests {
                 BlobError::Stream("sink closed"),
                 "body stream failed: sink closed",
             ),
+            (BlobError::Busy, "no I/O buffer free"),
         ];
         for (err, text) in cases {
             assert_eq!(err.to_string(), text);

@@ -6,7 +6,9 @@
 //! calls block and bodies stream through caller-provided buffers
 //! (docs/adr/0005-io-model.md, docs/adr/0004-bounded-memory-and-streaming.md).
 //! The in-process [`emulator`] implements it behind the `emulator` feature;
-//! the S3 client follows in its own change.
+//! the S3 client follows in its own change. [`PooledStore`] streams bodies
+//! through the node's buffer pool and answers [`BlobError::Busy`] when it is
+//! empty.
 
 pub mod chunk;
 #[cfg(feature = "emulator")]
@@ -14,6 +16,7 @@ pub mod emulator;
 pub mod error;
 pub mod meter;
 pub mod op;
+pub mod pooled;
 pub mod store;
 
 pub use chunk::{ChunkSink, ChunkSource, SliceSource};
@@ -22,6 +25,7 @@ pub use emulator::Emulator;
 pub use error::{BlobError, BlobResult};
 pub use meter::Meter;
 pub use op::{PriceClass, S3Op};
+pub use pooled::PooledStore;
 pub use store::{
     BlobStore, ByteRange, CreateOutcome, GetOutcome, ListPage, MAX_KEY_BYTES, MAX_LIST_KEYS,
     ObjectMeta,
