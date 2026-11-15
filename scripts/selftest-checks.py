@@ -49,6 +49,8 @@ CASES = [
       "crates/testkit/Cargo.toml": '[package]\nname = "oss-testkit"\n'}),
     (["check-layering.py"], "same-layer crate that is not test-only, as a dev-dependency",
      {"crates/types/Cargo.toml": '[package]\nname = "oss-types"\n\n[dev-dependencies]\noss-mem = { workspace = true }\n\n[lints]\nworkspace = true\n'}),
+    (["check-layering.py"], "standalone crate's bench names a workspace crate",
+     {"crates/chunkjson/bench/Cargo.toml": '[package]\nname = "b"\n\n[dependencies]\nx = { path = "../../rest" }\n'}),
     (["check-layering.py"], "crate with no layer",
      {"crates/extra/Cargo.toml": '[package]\nname = "oss-extra"\n'}),
     (["check-crate-layout.py"], "README without Entry points",

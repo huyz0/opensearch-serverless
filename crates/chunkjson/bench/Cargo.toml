@@ -15,8 +15,6 @@ serde_json = "=1.0.145"
 sonic-rs = "=0.5.11"
 simd-json = "=0.19.0"
 cap = { version = "=0.1.2", features = ["stats"] }
-# The tokenizer this crate may replace; optional so the bench moves with the crate.
-oss-rest = { path = "../../rest", optional = true }
 
 [profile.release]
 debug = 1

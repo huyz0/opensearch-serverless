@@ -117,3 +117,61 @@ fn numbers_outside_f64_range_pass_through_as_text() {
     assert_eq!(event, chunkjson::Event::Number("1e400"));
     assert_eq!(used, 5);
 }
+
+/// serde_json's stream of whitespace-separated values, or None if it refuses.
+fn serde_stream(bytes: &[u8]) -> Option<Vec<Value>> {
+    serde_json::Deserializer::from_slice(bytes)
+        .into_iter::<Value>()
+        .collect::<Result<_, _>>()
+        .ok()
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(1_000))]
+
+    #[test]
+    fn concatenated_framing_agrees_with_serde_json_streams(
+        vs in prop::collection::vec(prop_oneof![leaf(), value()], 0..5),
+        seps in prop::collection::vec(prop::sample::select(&[" ", "\n", "", "\t\r\n"][..]), 4),
+        edits in prop::option::of(edits()),
+        sizes in sizes(),
+    ) {
+        let mut bytes = Vec::new();
+        for (v, sep) in vs.iter().zip(seps.iter().cycle()) {
+            bytes.extend(serde_json::to_vec(v).unwrap());
+            bytes.extend(sep.as_bytes());
+        }
+        let bytes = match &edits { Some(e) => apply(bytes, e), None => bytes };
+        let oracle = serde_stream(&bytes);
+        let probe = serde_json::Deserializer::from_slice(&bytes).into_iter::<Value>().find_map(Result::err);
+        prop_assume!(!probe.is_some_and(|e| e.to_string().contains("number out of range") || e.to_string().contains("recursion")));
+        let ours = common::parse_chunked(&bytes, &sizes, chunkjson::Config::with_framing(chunkjson::Framing::Concatenated));
+        prop_assert_eq!(ours.as_ref().ok().map(|b| b.docs.clone()), oracle, "input {:?}", String::from_utf8_lossy(&bytes));
+    }
+}
+
+#[test]
+fn adjacent_scalars_are_one_bad_document_not_two() {
+    for bad in [&b"1true"[..], b"1-2", b"truefalse", b"null1"] {
+        assert!(serde_stream(bad).is_none());
+        let err = common::parse_chunked(
+            bad,
+            &[1],
+            chunkjson::Config::with_framing(chunkjson::Framing::Concatenated),
+        )
+        .unwrap_err();
+        assert_eq!(
+            err.kind(),
+            chunkjson::ErrorKind::TrailingData,
+            "{:?}",
+            String::from_utf8_lossy(bad)
+        );
+    }
+    let ok = common::parse_chunked(
+        b"1\"a\"[]{}",
+        &[1],
+        chunkjson::Config::with_framing(chunkjson::Framing::Concatenated),
+    )
+    .unwrap();
+    assert_eq!(ok.docs.len(), 4);
+}

@@ -1,4 +1,4 @@
-//! `cargo run --release [--features oss-rest] [-- <case> [<contender>]]`
+//! `cargo run --release [-- <case> [<contender>]]`
 //!
 //! With no arguments, runs every (case, contender) pair, each in its own
 //! child process so the peak-heap reading belongs to that pair alone.

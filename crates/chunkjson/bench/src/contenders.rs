@@ -8,7 +8,7 @@ use serde::de::IgnoredAny;
 const CHUNK: usize = 64 << 10;
 
 pub fn names() -> Vec<&'static str> {
-    let mut v = vec![
+    vec![
         "chunkjson/64k",
         "chunkjson/whole",
         "serde_json/ignored",
@@ -17,11 +17,7 @@ pub fn names() -> Vec<&'static str> {
         "sonic_rs/value",
         "simd_json/tape",
         "simd_json/borrowed",
-    ];
-    if cfg!(feature = "oss-rest") {
-        v.push("oss_rest/64k");
-    }
-    v
+    ]
 }
 
 pub fn run(contender: &str, case: &str, input: &[u8]) -> u64 {
@@ -53,8 +49,6 @@ pub fn run(contender: &str, case: &str, input: &[u8]) -> u64 {
             let v = simd_json::to_borrowed_value(&mut copy).unwrap();
             u64::from(v.is_object()) + u64::from(v.is_array())
         }),
-        #[cfg(feature = "oss-rest")]
-        "oss_rest/64k" => oss_rest::run(input, CHUNK, ndjson),
         _ => panic!("unknown contender {contender}"),
     }
 }
@@ -90,61 +84,4 @@ fn chunkjson(input: &[u8], chunk: usize, ndjson: bool) -> u64 {
         }
     }
     sum
-}
-
-#[cfg(feature = "oss-rest")]
-mod oss_rest {
-    use oss_rest::RestError;
-    use oss_rest::json::{Limits, Token, TokenSink, Tokenizer};
-    use oss_rest::ndjson::{LineSink, Splitter};
-
-    struct Count(u64);
-
-    impl TokenSink for Count {
-        type Error = RestError;
-        fn token(&mut self, token: Token<'_>) -> Result<(), RestError> {
-            self.0 += match token {
-                Token::Key(t) | Token::Str { text: t, .. } | Token::Number(t) => t.len() as u64,
-                _ => 1,
-            };
-            Ok(())
-        }
-    }
-
-    struct Lines {
-        tok: Tokenizer,
-        count: Count,
-    }
-
-    impl LineSink for Lines {
-        type Error = RestError;
-        fn part(&mut self, bytes: &[u8]) -> Result<(), RestError> {
-            self.tok.feed(bytes, &mut self.count)
-        }
-        fn end_line(&mut self, _: u64) -> Result<(), RestError> {
-            self.tok.finish(&mut self.count)?;
-            self.tok.reset();
-            Ok(())
-        }
-    }
-
-    pub fn run(input: &[u8], chunk: usize, ndjson: bool) -> u64 {
-        let limits = Limits { max_string_bytes: u64::MAX, ..Limits::default() };
-        if ndjson {
-            let mut lines = Lines { tok: Tokenizer::new(limits), count: Count(0) };
-            let mut split = Splitter::new();
-            for c in input.chunks(chunk) {
-                split.feed(c, &mut lines).unwrap();
-            }
-            split.finish().unwrap();
-            return lines.count.0;
-        }
-        let mut tok = Tokenizer::new(limits);
-        let mut count = Count(0);
-        for c in input.chunks(chunk) {
-            tok.feed(c, &mut count).unwrap();
-        }
-        tok.finish(&mut count).unwrap();
-        count.0
-    }
 }

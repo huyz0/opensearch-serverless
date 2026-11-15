@@ -19,13 +19,14 @@ Not in this change: the SIMD structural scan, the serializer, an `AsyncRead` ada
 
 - AC-1: for any JSON value, serialised compact or pretty and fed in chunks of any sizes (including 1 byte), the events rebuild a value equal to `serde_json::from_slice` of the same bytes (property test).
 - AC-2: for byte strings mutated from valid JSON, the tokenizer accepts exactly when serde_json accepts, except numbers outside f64's range, which the tokenizer passes through as text and serde_json refuses (property test).
+- AC-2a: in concatenated framing, the documents equal serde_json's `StreamDeserializer` output for the same mutated, randomly chunked bytes, and adjacent scalars such as `1true` are refused with `TrailingData` (property test).
 - AC-3: lone and misordered UTF-16 surrogate escapes, invalid UTF-8 (including a multi-byte character split across chunks and then broken), raw control characters in strings, bad escapes, bad numbers and trailing data are refused with a typed error and the absolute byte offset of the fault.
 - AC-4: nesting of `max_depth` (default 128; serde_json stops at 127) is accepted and one more is refused with `DepthExceeded`; a number longer than `max_number_len` is refused with `NumberTooLong`.
 - AC-5: a 64 MiB string value fed in 64 KiB chunks is tokenized with no fragment longer than the chunk and no heap growth above 64 KiB beyond the tokenizer's construction, asserted by a counting allocator.
 - AC-6: in NDJSON mode, documents separated by `\n` (with `\r\n` and blank lines allowed) each end with their byte offsets, a newline inside a document is refused with `NewlineInDocument`, and two documents on one line are refused with `TrailingData`.
 - AC-7: the `Read` adapter gives the same events as the slice API for every chunk size, and passes through I/O errors.
 - AC-8: after an error, every later call returns the same error.
-- AC-9: no `chunkjson` manifest names a workspace crate (`scripts/check-layering.py`).
+- AC-9: no manifest under `crates/chunkjson`, including `bench/` and `fuzz/`, names a workspace crate or a path outside it, in any section (`scripts/check-layering.py`).
 
 ## Test plan
 

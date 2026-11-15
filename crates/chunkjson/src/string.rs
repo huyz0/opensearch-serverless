@@ -244,7 +244,7 @@ impl Tokenizer {
                     if st.key {
                         self.after_key();
                     } else {
-                        self.after_value(j + 1);
+                        self.after_value(j + 1, false);
                     }
                     let out = Out::Text {
                         key: st.key,

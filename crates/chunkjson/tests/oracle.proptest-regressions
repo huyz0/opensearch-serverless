@@ -6,3 +6,4 @@
 # everyone who runs the test benefits from these saved cases.
 cc 80d3736fd874414611f00a6ddcc4ff787023cbf7ee7daf2fe7d52b3aa16f06fa # shrinks to v = Array [Number(6.036248282934273e303), String("Aఎ   ")], edits = [Delete(7982808194306321016)], sizes = [1]
 cc 5930ecdb8dd98b55074f15d4d5d2ee7751db81213b012f7f6c9ce6e468698d0f # shrinks to v = Array [Object {"®🉀࡞Σ Aa𐎟": Null}], pretty = false, sizes = [1]
+cc fc391f796fb0ef50fac0e591439e23cd69e23bb8042903edeace3e918f947af1 # shrinks to vs = [Null, Null], seps = [" ", " ", " ", " "], edits = None, sizes = [1]

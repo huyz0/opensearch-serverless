@@ -82,6 +82,8 @@ pub struct Tokenizer {
     in_doc: bool,
     /// NDJSON: a document ended on the current line.
     line_open: bool,
+    /// The last document was a number or literal.
+    after_scalar: bool,
     doc_start: u64,
     doc_end: u64,
     /// Bytes consumed by every previous call.
@@ -115,6 +117,7 @@ impl Tokenizer {
             pending_end: false,
             in_doc: false,
             line_open: false,
+            after_scalar: false,
             doc_start: 0,
             doc_end: 0,
             offset: 0,
@@ -248,8 +251,12 @@ impl Tokenizer {
                 return self.at_end(i, eof);
             };
             match b {
-                b' ' | b'\t' | b'\r' => i += 1,
+                b' ' | b'\t' | b'\r' => {
+                    self.after_scalar = false;
+                    i += 1;
+                }
                 b'\n' => {
+                    self.after_scalar = false;
                     if self.in_doc && self.config.framing == Framing::Ndjson {
                         return Err(self.err(ErrorKind::NewlineInDocument, i));
                     }
@@ -289,14 +296,19 @@ impl Tokenizer {
                 if self.expect == Expect::ValueOrEnd && b == b']' {
                     self.stack.pop();
                     *i += 1;
-                    self.after_value(*i);
+                    self.after_value(*i, false);
                     return Ok(Some(Out::Simple(Event::EndArray)));
                 }
                 if self.expect == Expect::AfterDoc {
                     let refused = match self.config.framing {
                         Framing::Single => true,
                         Framing::Ndjson => self.line_open,
-                        Framing::Concatenated => false,
+                        // As serde_json: `1true` or `1-2` is one bad
+                        // document, not two good ones.
+                        Framing::Concatenated => {
+                            self.after_scalar
+                                && !matches!(b, b'[' | b'{' | b'"' | b']' | b'}' | b',' | b':')
+                        }
                     };
                     if refused {
                         return Err(self.err(ErrorKind::TrailingData, *i));
@@ -317,7 +329,7 @@ impl Tokenizer {
                 b'}' if self.expect == Expect::KeyOrEnd => {
                     self.stack.pop();
                     *i += 1;
-                    self.after_value(*i);
+                    self.after_value(*i, false);
                     Ok(Some(Out::Simple(Event::EndObject)))
                 }
                 _ => unexpected(self),
@@ -335,7 +347,7 @@ impl Tokenizer {
                     (b'}', true) | (b']', false) => {
                         self.stack.pop();
                         *i += 1;
-                        self.after_value(*i);
+                        self.after_value(*i, false);
                         let event = if in_object {
                             Event::EndObject
                         } else {
@@ -393,9 +405,11 @@ impl Tokenizer {
         Ok(None)
     }
 
-    /// A value ended at index `i` of the current input.
-    pub(crate) fn after_value(&mut self, i: usize) {
+    /// A value ended at index `i` of the current input; `scalar` for a
+    /// number or literal, whose end only a delimiter can mark.
+    pub(crate) fn after_value(&mut self, i: usize, scalar: bool) {
         if self.stack.is_empty() {
+            self.after_scalar = scalar;
             self.expect = Expect::AfterDoc;
             self.pending_end = true;
             self.line_open = true;
@@ -443,7 +457,7 @@ impl Tokenizer {
             b"false" => Event::Bool(false),
             _ => Event::Null,
         };
-        self.after_value(j);
+        self.after_value(j, true);
         Ok((Out::Simple(event), j))
     }
 }

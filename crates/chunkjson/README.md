@@ -31,11 +31,13 @@ Nothing in the workspace. `simdutf8` (pinned) validates string UTF-8.
 | MB/s (peak heap MB) | bulk 21 MB NDJSON | records 10 MB | numbers 15 MB | big_text 135 MB, one doc |
 |---|---|---|---|---|
 | chunkjson, 64 KiB chunks | 696 (0) | 309 (0) | 236 (0) | 1,420 (0) |
-| oss-rest tokenizer, 64 KiB | 366 (0.05) | 330 (0.05) | 259 (0.05) | 405 (0.05) |
+| oss-rest tokenizer, 64 KiB ¹ | 366 (0.05) | 330 (0.05) | 259 (0.05) | 405 (0.05) |
 | serde_json `IgnoredAny` | 1,042 | 1,166 | 549 | 2,358 |
 | serde_json `Value` | 320 | 104 (68) | 231 (81) | 426 (349) |
 | sonic-rs `IgnoredAny` | 983 | 1,220 | 853 | 2,410 |
 | sonic-rs `Value` | 846 | 619 (126) | 355 (172) | 1,045 (1,215) |
 | simd-json tape | 684 | 341 (97) | 256 (137) | 489 (498) |
+
+¹ Measured once in the same run with a contender since removed, because this crate's bench may not depend on the workspace. That comparison belongs in `oss-rest`.
 
 The validate-only parsers need the whole document in memory and hand back nothing; the DOM parsers need several times the document. chunkjson streams with no growth and is fastest of the DOM-free streaming options on text, but loses 2 to 4 times to the validate-only parsers on structure- and number-heavy input: per-token overhead, which a SIMD structural scan is meant to remove.

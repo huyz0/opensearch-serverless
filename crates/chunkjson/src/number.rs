@@ -124,7 +124,7 @@ impl Tokenizer {
             return Err(self.err(ErrorKind::InvalidNumber, j));
         }
         self.lex = Lex::None;
-        self.after_value(j);
+        self.after_value(j, true);
         Ok((Out::Number(src), j))
     }
 }
