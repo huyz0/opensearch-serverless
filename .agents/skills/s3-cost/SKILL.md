@@ -1,27 +1,21 @@
 ---
 name: s3-cost
-description: "WHAT: The S3 request-cost rules and how to prove a change keeps them. USE WHEN: touching crates/blob, adding or changing any object-store read, write or list, adding a timer or background job, or designing a write or read path."
+description: "WHAT: How to prove a change keeps the S3 request-cost rules. USE WHEN: touching crates/blob, adding or changing any object-store read, write or list, adding a timer or background job, or designing a write or read path."
 ---
 
 # S3 cost
 
-The bill is S3 requests. Rationale and numbers: [docs/principles.md](../../../docs/principles.md#cost-s3-requests-are-the-bill).
+The bill is S3 requests. The rules, once: [principles.md, Cost](../../../docs/principles.md#cost-s3-requests-are-the-bill). The steps for a new call: [how-to/add-an-s3-call.md](../../../docs/how-to/add-an-s3-call.md).
 
-## Rules
+## Procedure
 
-- **Count requests per operation, retries included,** and state them in the PR. Requests scale with nodes and bytes, never documents, indices or elapsed time per index.
-- **Cheapest first:** a key derived from data already held (free), then a GET or ranged GET, then a LIST (priced like a PUT, ≤1,000 keys). Every LIST carries `// LIST:` with the reason nothing cheaper works.
-- **No extra PUTs.** Carry metadata in an upload that already happens. Never trade PUTs for an equal or smaller number of LISTs.
-- **Metered:** every attempt calls `Meter::record` in `oss-blob`.
-- **Idle is free:** nothing per index on a timer. A background job's cost scales with work done, not with indices held.
-- **Depth:** no data-dependent chain of fetches on a user path; fan out within a round.
-
-## Proving it
-
-Write a test against the in-process emulator that asserts exact counts per request kind (`meter.count(S3Op::Put) == 1`, `meter.count(S3Op::List) == 0`). A request-count assertion is never loosened to make a change pass.
+1. Before writing the call, answer in order: can the key be derived from data already held? Can the information ride in an upload that already happens? Only then a GET, and only then a LIST with a `// LIST:` reason.
+2. Count the operation's requests per kind, retries included, and say what they scale with. Nodes and bytes pass; documents, indices or time per index fail.
+3. Write a test against the in-process emulator asserting the exact counts (`meter.count(S3Op::Put) == 1`, `meter.count(S3Op::List) == 0`). A count assertion is never loosened to make a change pass.
+4. State the counts per operation in the PR's Evidence.
 
 ## Enforced by
 
 - `scripts/check-s3-access.py` (client crates only in `oss-blob`; `// LIST:` on every LIST call).
-- Count assertions in tests.
+- The count assertions in tests.
 - Not mechanical: whether a request scales with the wrong thing. Review (`/quality-review`).

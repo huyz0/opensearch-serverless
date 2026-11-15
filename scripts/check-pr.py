@@ -12,6 +12,10 @@
   not block the merge: it flags the change for the owner's review after it
   lands.
 
+- The body carries no AI attribution: no "Generated with Claude Code"
+  footer, no session link, no `claude-projects-attribution` header and no
+  "Requested by" line (the owner's rule for every repository).
+
 Cannot catch: a public API change in a path not listed as risky; declare
 those `high` by hand.
 """
@@ -23,6 +27,9 @@ import sys
 from checklib import ROOT, report
 
 SECTIONS = ["Intent", "Alternatives rejected", "Invariants", "Evidence", "Risk tier", "Where to look"]
+ATTRIBUTION = re.compile(
+    r"Generated with \[?Claude|claude\.ai/code/session|claude-projects-attribution|^_?Requested by \*\*",
+    re.I | re.M)
 LABEL = "needs-huy"  # a review flag, not a merge block
 
 
@@ -85,6 +92,8 @@ def main():
             hits.append(f"PR body: missing section '## {sec}'")
         elif not found[sec]:
             hits.append(f"PR body: section '## {sec}' is empty")
+    if ATTRIBUTION.search(body):
+        hits.append("PR body: remove the AI attribution (footer, session link, header or 'Requested by' line)")
     tier = found.get("Risk tier", "").lower()
     reasons = risky(changed)
     high = bool(reasons) or re.search(r"\bhigh\b", tier)

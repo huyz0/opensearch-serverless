@@ -2,7 +2,9 @@
 """Every crate has the same shape, so a reader knows where to look.
 
 crates/<name>/ holds Cargo.toml, src/lib.rs, an AGENTS.md with the crate's
-local rules, and a README.md with non-empty
+local rules, a CLAUDE.md that is exactly `@AGENTS.md` (Claude Code loads a
+directory's CLAUDE.md, never its AGENTS.md, so without it the local rules are
+missed), and a README.md with non-empty
 sections `## Owns`, `## Depends on` and `## Entry points`. The manifest opts
 into the workspace lints (`[lints]` then `workspace = true`), which is what
 makes a missing doc comment or an `unsafe` block a compile error.
@@ -28,6 +30,9 @@ def main():
         manifest = crate / "Cargo.toml"
         if manifest.is_file() and not LINTS.search(manifest.read_text(encoding="utf-8")):
             hits.append(f"{rel}/Cargo.toml: needs '[lints]' followed by 'workspace = true'")
+        adapter = crate / "CLAUDE.md"
+        if not adapter.is_file() or adapter.read_text(encoding="utf-8").strip() != "@AGENTS.md":
+            hits.append(f"{rel}/CLAUDE.md: must exist and contain only '@AGENTS.md'")
         readme = crate / "README.md"
         if not readme.is_file():
             continue

@@ -3,11 +3,6 @@
 # push (.githooks/pre-push). See docs/ci.md.
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
-. scripts/lib/py.sh
 cargo fmt --all --check
-for s in check-layering check-crate-layout check-module-size check-unsafe check-s3-access \
-         check-test-endpoints check-alloc check-arith-allows check-dev-notes check-port-map \
-         check-invariants check-verified check-links; do
-  py "scripts/$s.py" >/dev/null || { py "scripts/$s.py"; exit 1; }
-done
+scripts/tree-checks.sh --quiet
 echo "pre-commit: fast checks ok (the full gate runs on push)"

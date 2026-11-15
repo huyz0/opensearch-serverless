@@ -95,15 +95,7 @@ jobs:
 
       - name: tree checks (no build)
         if: steps.changes.outputs.text_only == 'false'
-        run: |
-          set -e
-          for s in selftest-checks check-layering check-crate-layout check-module-size check-unsafe \
-                   check-s3-access check-alloc check-test-endpoints check-arith-allows check-dev-notes \
-                   check-port-map check-invariants check-verified check-links; do
-            python3 "scripts/$s.py"
-          done
-          python3 scripts/ci-changes.py --self-test
-          python3 scripts/mutants-plan.py --self-test
+        run: scripts/tree-checks.sh
 
       - name: toolchain
         if: steps.changes.outputs.rust == 'true' && steps.changes.outputs.text_only == 'false'

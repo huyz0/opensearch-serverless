@@ -6,7 +6,7 @@
 - **Port, don't reinvent.** Port from OpenSearch and the Java serverless shell, keeping each Rust module traceable to its Java source. *Check:* `scripts/check-port-map.py` ([porting.md](porting.md)).
 - **Cross-reference for hsearch and pstore.** Take ideas, not code; offer lessons back. lucene-rust is the only code dependency ([ADR 0002](adr/0002-runtime-dependencies.md)).
 
-The rules below carry over from the Java serverless shell (huyz0/OpenSearch, branch `feature/serverlessshell`) and from lucene-rust. They bind every change. Where a rule has a mechanical check, the check is named; where it has none, that is said, and review enforces it.
+The rules below carry over from the Java serverless shell (huyz0/OpenSearch, branch `feature/serverlessshell`) and from lucene-rust. They bind every change, and this file is their one home: AGENTS.md and the skills point here instead of restating them. Where a rule has a mechanical check, the check is named; where it has none, that is said, and review enforces it.
 
 ## Cost: S3 requests are the bill
 
@@ -14,7 +14,7 @@ The rules below carry over from the Java serverless shell (huyz0/OpenSearch, bra
 - **LIST is priced like a PUT** (and returns at most 1,000 keys). Prefer a key derived from data already held, then a GET, then a LIST. Every LIST call site carries a `// LIST:` justification. *Check:* `scripts/check-s3-access.py`.
 - **No extra PUTs.** Carry information inside uploads that already happen (a commit's metadata rides in the segment or log upload). Never add PUTs to save the same number of LISTs or fewer.
 - **Every S3 call is metered.** Only `oss-blob` may depend on an S3 client, and its store records each attempt in a `Meter`. Tests assert request counts ("this write issues exactly one PUT"). *Check:* `scripts/check-s3-access.py`; the count assertions are tests.
-- **Idle indices make zero periodic requests.** No timer, poll or backstop per index. At 100M indices, one GET per index every 5 minutes is about $350K a month. *Check:* a test, once the reader exists (docs/roadmap.md).
+- **Idle indices make zero periodic requests.** No timer, poll or backstop per index. At 100M indices, one GET per index every 5 minutes is about $350K a month. *Check:* `an_idle_index_makes_no_requests` (invariant I-4).
 - **No data-dependent chain of fetches on a user-facing path.** Fan-out within a round is free; depth is not.
 
 ## Write path
@@ -77,7 +77,4 @@ Decision and detail: [ADR 0004](adr/0004-bounded-memory-and-streaming.md).
 
 ## Pull requests
 
-- The thread that writes a change reviews and merges its own PR once the gate and CI are green, after at most two review rounds.
-- High-risk changes (formats, durability or fencing, the S3 request pattern, crate dependencies, public API, defaults, security) need an ADR. They merge like any other, carry the `needs-huy` label, and are flagged to the owner for review after merging. *Check:* `scripts/check-pr.py`.
-- If a PR fails only on a known flaky test, merge it and fix the flake in a separate PR.
-- No AI attribution in commits or PR descriptions.
+The process rules (one PR per change, self-merge after at most two review rounds, high-risk routing to an ADR and the owner, flaky-test merges, no AI attribution) have one home, the [`git-workflow` skill](../.agents/skills/git-workflow/SKILL.md). *Check:* `scripts/check-commit-msg.sh`, `scripts/check-pr.py`.

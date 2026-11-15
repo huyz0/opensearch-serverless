@@ -6,4 +6,3 @@ Local rules:
 
 - One write log per node, never per shard. One immutable blob per segment.
 - Commit metadata rides in uploads already made; no extra PUTs.
-- Changes here are high-risk (durability, fencing, formats): ADR link and the needs-huy label.

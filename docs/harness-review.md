@@ -69,7 +69,7 @@ Since [ADR 0002](adr/0002-runtime-dependencies.md), hsearch and pstore are refer
 - **Adding gates:** lucene-rust and pstore add a gate per defect class; hsearch froze its harness. This repo adds checks for its stated principles and requires each to be seen failing.
 - **Coverage:** 95% (lucene-rust, pstore) vs 90% (hsearch). This repo uses 95%.
 - **Docker:** lucene-rust runs everything in a capped container; this repo must run without Docker.
-- **Unsafe:** lucene-rust allows it in three crates, pstore in one, hsearch in one; this repo forbids it everywhere until an extension loader needs an exception.
+- **Unsafe:** lucene-rust allows it in three crates, pstore in one, hsearch in one; this repo allows it in any crate, only by the patterns in [unsafe.md](unsafe.md) (the owner's rule, 2026-11-15).
 
 ## Approved 2026-11-14: keeping AI-built code understandable (applied)
 
@@ -87,3 +87,21 @@ Since [ADR 0002](adr/0002-runtime-dependencies.md), hsearch and pstore are refer
 | Short root AGENTS.md plus one per crate; reviews bounded at two rounds; harness work kept near 20% | `AGENTS.md`, `crates/*/AGENTS.md` |
 
 Later: code tours, simulation and fuzz tests, Kani on CAS and fencing, a monthly docs-only agent quiz, newcomer metrics.
+
+## Review of the rules and harness, 2026-11-15
+
+Asked by the owner: every rule token-efficient and hard to miss, by progressive disclosure (pstore's layering as the reference). Found, and what changed:
+
+| Finding | Change |
+|---|---|
+| No `.claude/skills` link, although `manage-skills` described one: Claude Code listed none of this repo's skills, so every "`architecture` skill" pointer led nowhere (or to lucene-rust's skill of the same name in a multi-repo session) | The symlink, and `scripts/check-harness.py` fails without it |
+| Crate `AGENTS.md` files are never loaded by Claude Code, which reads only `CLAUDE.md` | `crates/*/CLAUDE.md` is `@AGENTS.md`, required by `check-crate-layout.py` |
+| The no-build check list was copied three times (gate, pre-commit, CI) and had already drifted (pre-commit lacked the self-test) | `scripts/tree-checks.sh`, the one list all three run |
+| "No AI attribution" was prose only, and tools default to adding it | `check-commit-msg.sh` and `check-pr.py` refuse it, with planted violations |
+| The same rules stated in AGENTS.md, principles.md, a skill and a how-to (S3 cost four times, the PR process three) | One home per rule (`manage-skills`); skills are procedures that link to it; AGENTS.md is one line per invariant, without numbers |
+| AGENTS.md said "never add a PUT to save LISTs"; the owner's rule allows one PUT that saves many LISTs | Reworded to "no PUT that saves only as many LISTs or fewer", as principles.md has it |
+| Crate dependencies listed as high-risk, after the owner left them to the writing thread; `mem` and `meta` claimed high-risk in their AGENTS.md while `risk-paths.txt` did not list them | Third-party dependencies dropped (checklist in the `architecture` skill); `crates/meta` and `crates/mem` added to `risk-paths.txt`; the crate files no longer restate it |
+| Stale: `git-workflow` said pre-commit runs the gate (it runs the fast checks); `test-coverage` called mutation testing planned (it runs on every PR); principles.md said the idle-index test waited for the reader (it exists); a numbered cross-reference in `brevity` | Corrected |
+| Nothing bounded the always-loaded text or checked that a named skill or script exists | `check-harness.py`: AGENTS.md byte budgets (5,500 root, 1,200 crate), skill frontmatter and `Enforced by`, every named skill and script exists, every tree check documented and run |
+
+Still review-only: a rule restated in other words, and whether a skill's description triggers at the right moment.

@@ -6,6 +6,9 @@
 #   - feat, fix and perf commits carry a `Spec:` trailer naming an existing
 #     docs/specs/<feature>/SPEC.md, or `Spec: none (<reason>)` for a change
 #     too small to need one.
+#   - No AI attribution: no Co-Authored-By naming Claude or Anthropic, no
+#     Claude-Session trailer, no "Generated with Claude" footer (the owner's
+#     rule for every repository in the project).
 #
 # Portable: Linux, macOS (bash 3.2) and Windows Git Bash.
 set -euo pipefail
@@ -35,4 +38,9 @@ if printf '%s' "$subject" | grep -qE '^(feat|fix|perf)'; then
     echo "commit-msg: Spec: '$spec' is not an existing file or 'none (<reason>)'" >&2
     exit 1
   fi
+fi
+
+if grep -qiE '^Co-Authored-By:.*(claude|anthropic)|^Claude-Session:|Generated with \[?Claude' "$msg_file"; then
+  echo "commit-msg: no AI attribution (Co-Authored-By: Claude, Claude-Session, 'Generated with Claude')" >&2
+  exit 1
 fi

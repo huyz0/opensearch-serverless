@@ -1,12 +1,16 @@
 # Paths whose change makes a PR high-risk: it then needs an ADR link, and the
 # pr workflow labels it needs-huy so the owner reviews it after it merges.
 # Format: <glob> <reason>. `**` matches across directories.
-Cargo.toml                 crate dependencies
-crates/*/Cargo.toml        crate dependencies
+# A third-party dependency change alone is not listed: the owner left those to
+# the writing thread (2026-11-15; the architecture skill has the checklist).
+# The root manifest stays, for workspace members and the workspace lints.
+Cargo.toml                 workspace members and lints
 rust-toolchain.toml        toolchain
 crates/blob/src/**         S3 request pattern
 crates/writer/src/**       durability, fencing and blob formats
 crates/format/src/**       blob formats shared with the Java shell
+crates/meta/src/**         fencing and the S3 request pattern of names
+crates/mem/src/**          memory bounds and their defaults
 **/format/**               blob formats
 **/*format*.rs             blob formats
 **/settings*.rs            defaults

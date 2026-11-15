@@ -16,7 +16,7 @@
 
 ## Risk tier
 
-<!-- low | high. High when it touches formats, durability or fencing, the S3 request pattern, crate dependencies, public API, defaults, or security. High needs an ADR link; CI adds the needs-huy label so the owner reviews it after merge. -->
+<!-- low | high. High when it touches formats, durability or fencing, the S3 request pattern, workspace crates or lints, public API, defaults, or security. High needs an ADR link; CI adds the needs-huy label so the owner reviews it after merge. -->
 
 ## Where to look
 

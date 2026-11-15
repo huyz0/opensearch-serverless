@@ -14,15 +14,26 @@ import tempfile
 
 HERE = pathlib.Path(__file__).resolve().parent
 
+CLEAN_BODY = "## Intent\nx\n## Alternatives rejected\nx\n## Invariants\nx\n## Evidence\nx\n## Risk tier\nlow\n## Where to look\nx\n"
+
 CLEAN = {
     "Cargo.toml": '[workspace]\nmembers = ["crates/types"]\n\n[workspace.lints.rust]\nunsafe_code = "deny"\n',
     "crates/types/Cargo.toml": '[package]\nname = "oss-types"\n\n[dependencies]\n\n[dev-dependencies]\noss-testkit = { workspace = true }\n\n[lints]\nworkspace = true\n',
     "crates/types/README.md": "# oss-types\n\n## Owns\nIds.\n\n## Depends on\nNothing.\n\n## Entry points\n`src/lib.rs`.\n",
     "crates/types/AGENTS.md": "# notes\n",
+    "crates/types/CLAUDE.md": "@AGENTS.md\n",
     "crates/types/src/lib.rs": "//! Ids.\n\n#[test]\nfn ids_are_distinct() {}\n\n#[allow(unsafe_code)]\nfn first(b: &[u8]) -> u8 {\n    // SAFETY: the caller checked b is not empty.\n    unsafe { *b.get_unchecked(0) }\n}\n",
     "crates/reader/Cargo.toml": '[package]\nname = "oss-reader"\n\n[dependencies]\noss-types = { workspace = true }\n\n[lints]\nworkspace = true\n',
     "crates/reader/README.md": "# oss-reader\n\n## Owns\nSearch.\n\n## Depends on\noss-types.\n\n## Entry points\n`src/lib.rs`.\n",
     "crates/reader/AGENTS.md": "# notes\n",
+    "crates/reader/CLAUDE.md": "@AGENTS.md\n",
+    "AGENTS.md": "Read the `demo` skill.\n",
+    ".agents/skills/demo/SKILL.md": "---\nname: demo\ndescription: \"WHAT: A demo. USE WHEN: testing the checks.\"\n---\n\n# Demo\n\n## Enforced by\n\n- `scripts/check-demo.py`.\n",
+    ".claude/skills": "../.agents/skills\n",
+    "docs/mechanical-gates.md": "| `check-demo.py` | demo |\n",
+    "scripts/tree-checks.sh": "check-demo.py\n",
+    "scripts/check-demo.py": "",
+    "msg.txt": "docs(x): explain a thing\n",
     "crates/reader/src/lib.rs": "//! Search.\n",
     "README.md": "See [types](crates/types/README.md).\n",
     "docs/invariants.md": "| Id | Invariant | Evidence |\n|---|---|---|\n| I-1 | ids differ | `ids_are_distinct` |\n| I-2 | later | NOT-YET: no code |\n",
@@ -32,11 +43,12 @@ CLEAN = {
     "scripts/size-baseline.txt": "",
     "crates/types/port-map.tsv": "rust_path\tkind\tjava_source\tnote\nsrc/lib.rs\tnew\t\tcrate root\n",
     "crates/reader/port-map.tsv": "rust_path\tkind\tjava_source\tnote\nsrc/lib.rs\tport\tserverless/Reader.java@abc\tquery phase\n",
-    "body.md": "## Intent\nx\n## Alternatives rejected\nx\n## Invariants\nx\n## Evidence\nx\n## Risk tier\nlow\n## Where to look\nx\n",
+    "body.md": CLEAN_BODY,
     "changed.txt": "crates/reader/src/lib.rs\n",
     "added.txt": "",
 }
 
+MSG = ["check-commit-msg.sh", "msg.txt"]
 PR = ["check-pr.py", "--body", "body.md", "--changed", "changed.txt", "--added", "added.txt"]
 
 # (check argv, description, files to overwrite or add; None deletes)
@@ -89,6 +101,28 @@ CASES = [
     (["check-port-map.py"], "Rust file without a row", {"crates/types/src/ids.rs": "//! x\n"}),
     (["check-port-map.py"], "port row without its Java source",
      {"crates/reader/port-map.tsv": "rust_path\tkind\tjava_source\tnote\nsrc/lib.rs\tport\t\tquery phase\n"}),
+    (["check-crate-layout.py"], "crate without its CLAUDE.md adapter", {"crates/types/CLAUDE.md": None}),
+    (["check-harness.py"], "no .claude/skills link", {".claude/skills": None}),
+    (["check-harness.py"], "skill name differs from its directory",
+     {".agents/skills/demo/SKILL.md": "---\nname: other\ndescription: \"WHAT: A demo. USE WHEN: testing.\"\n---\n\n## Enforced by\n\n- x\n"}),
+    (["check-harness.py"], "skill description without USE WHEN",
+     {".agents/skills/demo/SKILL.md": "---\nname: demo\ndescription: A demo skill\n---\n\n## Enforced by\n\n- x\n"}),
+    (["check-harness.py"], "skill without Enforced by",
+     {".agents/skills/demo/SKILL.md": "---\nname: demo\ndescription: \"WHAT: A demo. USE WHEN: testing.\"\n---\n\n# Demo\n"}),
+    (["check-harness.py"], "skill over 100 lines",
+     {".agents/skills/demo/SKILL.md": "---\nname: demo\ndescription: \"WHAT: A demo. USE WHEN: testing.\"\n---\n\n## Enforced by\n\n- x\n" + "line\n" * 100}),
+    (["check-harness.py"], "reference to a missing skill", {"AGENTS.md": "Read the `gone` skill.\n"}),
+    (["check-harness.py"], "reference to a missing script", {"AGENTS.md": "Run `scripts/gone.sh`.\n"}),
+    (["check-harness.py"], "AGENTS.md over its budget", {"AGENTS.md": "x" * 6000}),
+    (["check-harness.py"], "tree check with no mechanical-gates row", {"docs/mechanical-gates.md": ""}),
+    (["check-harness.py"], "check script nothing runs", {"scripts/check-orphan.py": ""}),
+    (MSG, "Co-Authored-By naming Claude",
+     {"msg.txt": "docs(x): explain a thing\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n"}),
+    (MSG, "Claude-Session trailer", {"msg.txt": "docs(x): explain a thing\n\nClaude-Session: https://claude.ai/code/session_1\n"}),
+    (MSG, "subject not in type(scope) form", {"msg.txt": "Explain a thing\n"}),
+    (PR, "PR body with an attribution footer",
+     {"body.md": CLEAN_BODY + "\nGenerated with [Claude Code](https://claude.com/claude-code)\n"}),
+    (PR, "PR body with a Requested-by line", {"body.md": "_Requested by **Huy**_\n" + CLEAN_BODY}),
     (PR, "PR body missing a section", {"body.md": "## Intent\nx\n"}),
     (PR, "high-risk path without label or ADR", {"changed.txt": "crates/blob/src/store.rs\n"}),
 ]
@@ -108,7 +142,8 @@ def build(tmp, overrides):
 
 def run(tmp, argv):
     env = dict(os.environ, CHECK_ROOT=str(tmp))
-    args = [sys.executable, str(HERE / argv[0])] + [str(tmp / a) if a.endswith((".md", ".txt")) else a for a in argv[1:]]
+    runner = ["bash"] if argv[0].endswith(".sh") else [sys.executable]
+    args = runner + [str(HERE / argv[0])] + [str(tmp / a) if a.endswith((".md", ".txt")) else a for a in argv[1:]]
     return subprocess.run(args, cwd=tmp, env=env, capture_output=True, text=True).returncode
 
 
@@ -119,7 +154,7 @@ def main():
         tmp = pathlib.Path(d)
         build(tmp, {})
         for check in checks:
-            argv = PR if check == "check-pr.py" else [check]
+            argv = {"check-pr.py": PR, "check-commit-msg.sh": MSG}.get(check, [check])
             if run(tmp, argv) != 0:
                 failures.append(f"{check}: fails on the clean tree")
     for argv, desc, overrides in CASES:

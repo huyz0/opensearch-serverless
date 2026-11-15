@@ -1,13 +1,14 @@
 # Mechanical gates
 
-Every check, what it enforces, the planted violation that proves it can fail, and what it cannot catch. A check nobody has seen fail is not trusted: `scripts/selftest-checks.py` (first step after clippy in `scripts/gate.sh`) builds a clean tree and a tree with each planted violation, and fails if any check passes on its violation. Add a case there when you add a check. The self-test earned its place on day one: it caught `check-unsafe.py` failing on the clean `unsafe_code = "forbid"` line (a regex that backtracked).
+Every check, what it enforces, the planted violation that proves it can fail, and what it cannot catch. A check nobody has seen fail is not trusted: `scripts/selftest-checks.py` (first of `scripts/tree-checks.sh`, the one list of no-build checks that the pre-commit hook, `scripts/gate.sh` and CI all run) builds a clean tree and a tree with each planted violation, and fails if any check passes on its violation. Add a case there when you add a check. The self-test earned its place on day one: it caught `check-unsafe.py` failing on the clean `unsafe_code = "forbid"` line (a regex that backtracked).
 
 | Check | Enforces | Planted violation | Cannot catch |
 |---|---|---|---|
 | `cargo fmt --check` | formatting | | |
 | `cargo clippy -D warnings` (all features, then default) | the lint set, `unsafe_code = "deny"`, `undocumented_unsafe_blocks`, `multiple_unsafe_ops_per_block`, `missing_docs = "deny"`, `arithmetic_side_effects` | an undocumented `pub fn` (run by hand) | a doc comment that says nothing |
 | `check-layering.py` | downward-only crate dependencies (so no cycles), siblings independent, every crate placed | reader depending on writer; an unplaced crate | dependencies through non-workspace crates |
-| `check-crate-layout.py` | README with Owns / Depends on / Entry points, AGENTS.md, `src/lib.rs`, workspace lints | README without Entry points; no AGENTS.md; lints opted out | a section that is wrong |
+| `check-crate-layout.py` | README with Owns / Depends on / Entry points, AGENTS.md and its `CLAUDE.md` adapter (`@AGENTS.md`), `src/lib.rs`, workspace lints | README without Entry points; no AGENTS.md; no CLAUDE.md; lints opted out | a section that is wrong |
+| `check-harness.py` | `.claude/skills` links to `.agents/skills`; skill frontmatter (`name` = directory, `WHAT: ... USE WHEN: ...`), `## Enforced by`, at most 100 lines; every skill and `scripts/...` path a doc names exists; AGENTS.md byte budgets (root 5,500, crate 1,200); every tree check has a row here; every check script is run by something | no link; wrong name; no USE WHEN; no Enforced by; 101 lines; missing skill; missing script; 6,000-byte AGENTS.md; a check without a row; an orphan check | a rule restated in other words; a description that triggers at the wrong moment |
 | `check-module-size.py` | 1,000-line limit; over 500 only on the shrinking `scripts/size-baseline.txt` | 1,001 lines; 501 lines unlisted; baselined file grew | a short file mixing concerns |
 | `check-unsafe.py` | `unsafe` only item by item; no `unsafe impl Send/Sync`, `transmute` or `extern` block off the approved list ([unsafe.md](unsafe.md)) | `#![allow(unsafe_code)]`; `unsafe_code = "warn"`; `unsafe impl Send`; `transmute`; an `extern "C"` block | whether a use follows one of the five patterns, a false SAFETY comment, unsafe code in dependencies, a renamed `transmute` import |
 | `clippy.toml` disallowed methods | no whole-buffer reads (`read_to_end`, `read_to_string`, `fs::read`), no unbounded `mpsc::channel` | `read_to_end` in reader (run by hand) | the same done by a dependency |
@@ -24,6 +25,6 @@ Every check, what it enforces, the planted violation that proves it can fail, an
 | `cargo doc -D warnings` | rustdoc links resolve | | links in plain backticks |
 | `coverage.sh --fail-under-lines 95` (local gate, nightly) | line coverage over all features, `main.rs` excluded | | tests that assert nothing (mutants does) |
 | `mutants.sh` (PR: a budgeted shard of the diff, `mutants-plan.py`; local: the whole diff; nightly: all) | no surviving mutant | | changes to tests alone |
-| `check-commit-msg.sh` (hook and `ci` workflow) | subject format; `Spec:` on feat, fix, perf | | a Spec that does not match the change |
-| `check-pr.py` (`ci` workflow) | template sections; high-risk paths need an ADR and a `high` tier | missing section; risky path without an ADR | public API changes outside risky paths |
+| `check-commit-msg.sh` (hook and `ci` workflow) | subject format; `Spec:` on feat, fix, perf; no AI attribution trailers | bad subject; `Co-Authored-By: Claude`; `Claude-Session:` | a Spec that does not match the change |
+| `check-pr.py` (`ci` workflow) | template sections; high-risk paths need an ADR and a `high` tier; no AI attribution in the body | missing section; risky path without an ADR; attribution footer; "Requested by" line | public API changes outside risky paths |
 | `ci-changes.py --self-test` (CI tree checks) | path classification: docs-only skips Rust, crates pull in dependents, root files run all | | a crate reading a file outside its directory |
