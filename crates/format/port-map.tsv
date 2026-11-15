@@ -1,2 +1,13 @@
 rust_path	kind	java_source	note
-src/lib.rs	new		crate root
+src/lib.rs	new		crate root: the read path from descriptor to file ranges
+src/error.rs	new		decode failures as one enum with static messages; the Java throws IOException with built messages
+src/json.rs	new		a bounded JSON pull reader over a byte slice, standing in for the Jackson-backed XContentParser the shell reads its records with
+src/register.rs	port	server/src/main/java/org/opensearch/common/blobstore/fs/FsBlobRegisters.java@49f238ed	a register body is a big-endian generation then the value (S3BlobContainer frames it the same)
+src/location.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/FileLocation.java@49f238ed	parse of the three recorded location forms, with the Java's node-pack re-encode check
+src/manifest.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/CommitManifest.java@49f238ed	fromStream; stricter on duplicate names and length disagreement; the digest is skipped
+src/segment_blob.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/SegmentBlobs.java@49f238ed	the SEG1 header; the Java only writes it, this reads it
+src/node_pack.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/NodePackBlob.java@49f238ed	headerEnd and decode, versions 1 and 2; stricter on overlapping blocks and leftover bytes
+src/mutf8.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/NodePackBlob.java@49f238ed	DataInputStream.readUTF's modified UTF-8, which NodePackBlob's strings use
+src/descriptor.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/cluster/IndexDescriptor.java@49f238ed	fromStream for name, uuid, shards, bucket; alias test from metadata/DescriptorStore.java (isAlias), tombstone from metadata/Tombstones.java
+src/keys.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/metadata/RegisterMap.java@49f238ed	indices/shardData keys, plus SegmentPublisher.MANIFEST, NodePackStore.epochDir/name and FileLocation.containerPath
+src/json/strings.rs	new		JSON string scanning and escapes for the pull reader in json.rs

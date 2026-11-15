@@ -1,2 +1,26 @@
 rust_path	kind	java_source	note
 src/lib.rs	new		crate root
+src/config.rs	port	server/src/main/java/org/opensearch/http/HttpTransportSettings.java@49f238ed	http.max_content_length, http.max_header_size and http.max_initial_line_length with their defaults; worker, connection and buffer counts are new (Netty's event loops have none)
+src/method.rs	port	server/src/main/java/org/opensearch/rest/RestRequest.java@49f238ed	the Method enum; method sets are bit masks listed in declaration order, where Java iterates a HashSet
+src/head.rs	new		request line and header parsing in place; Netty's HttpObjectDecoder does this in Java, and its TooLongHttpLineException and TooLongHttpHeaderException messages are kept
+src/inbound.rs	new		a connection's fixed read buffer; Netty's ByteBuf pipeline in Java
+src/query.rs	port	server/src/main/java/org/opensearch/rest/RestUtils.java@49f238ed	decodeQueryString and decodeComponent with their messages and quirks; parameters kept as ranges and decoded on read
+src/params.rs	port	server/src/main/java/org/opensearch/rest/BaseRestHandler.java@49f238ed	unconsumed-parameter check and unrecognizedStrings, with Lucene's LevenshteinDistance for suggestions; candidates are declared parameters instead of consumed ones
+src/router.rs	port	server/src/main/java/org/opensearch/common/path/PathTrie.java@49f238ed	path splitting and explicit-before-wildcard matching from PathTrie, with the dispatch order of RestController#tryAllHandlers; a scanned list instead of a trie
+src/conn.rs	port	server/src/main/java/org/opensearch/rest/RestController.java@49f238ed	dispatch order and responses of tryAllHandlers, handleNoHandlerFound, handleOptionsRequest, handleUnsupportedHttpMethod, handleBadRequest and the content-type check of dispatchRequest; framing checks follow Netty's aggregator
+src/error.rs	port	server/src/main/java/org/opensearch/rest/BytesRestResponse.java@49f238ed	error bodies of build and createSimpleErrorResponse, OpenSearchException#generateFailureXContent and innerToXContent (libs/core), and ChildMemoryCircuitBreaker#circuitBreak's message for 429
+src/json_out.rs	port	libs/core/src/main/java/org/opensearch/core/common/unit/ByteSizeValue.java@49f238ed	toString with Strings#format1Decimals for breaker messages; JSON string escaping as Jackson's generator escapes
+src/body.rs	new		streamed request bodies from a node-wide buffer pool with a bounded wait; Java aggregates the body (HttpObjectAggregator) and charges the in_flight_requests breaker
+src/body_tests.rs	new		tests for body.rs
+src/request.rs	port	server/src/main/java/org/opensearch/rest/RestRequest.java@49f238ed	param, header and path parameter access; parameters borrow the head buffer
+src/response.rs	port	server/src/main/java/org/opensearch/http/DefaultRestChannel.java@49f238ed	sendResponse's headers (X-Opaque-Id, X-Request-Id echo, HEAD keeps the length and drops the body); bodies stream chunked or with a length instead of being built whole
+src/response_tests.rs	new		tests for response.rs
+src/server.rs	new		accept thread and bounded blocking worker pool (ADR 0006); Java runs on Netty event loops
+src/json/mod.rs	port	libs/x-content/src/main/java/org/opensearch/common/xcontent/json/JsonXContent.java@49f238ed	the JSON language and limits OpenSearch's Jackson factory accepts (comments, XContentConstraints defaults); the tokenizer is a push-based streaming one, not Jackson's pull parser
+src/json/lexer.rs	new		the tokenizer's state machine; Jackson's UTF8StreamJsonParser is not ported, only its accepted language
+src/json/strings.rs	new		string escapes, surrogate pairs and pieces of long values
+src/json/number.rs	new		the RFC 8259 number grammar
+src/json/tests.rs	new		tests for the tokenizer, checked against serde_json
+src/ndjson.rs	port	server/src/main/java/org/opensearch/action/bulk/BulkRequestParser.java@49f238ed	findNextMarker and sliceTrimmingCarriageReturn: lines at \n, a \r before it dropped, the unterminated-body message; streamed in parts instead of slicing a whole body
+src/timed.rs	new		the blocked-time budget for slow peers; Netty needs none, a slow socket costs it no thread
+src/checks.rs	port	server/src/main/java/org/opensearch/rest/RestController.java@49f238ed	dispatchRequest content-type checks and handleBadRequest URI parsing, RestRequest#parseContentType, BaseRestHandler unrecognized parameters; framing refusals from Netty HttpObjectDecoder
