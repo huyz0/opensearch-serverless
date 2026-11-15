@@ -4,7 +4,9 @@
 Each workspace crate has a layer; a crate may depend only on crates in a lower
 layer, so crates in the same layer (reader and writer) never depend on each
 other. A crate missing from LAYERS fails, so a new crate is placed on purpose.
-Crates in DEV_ONLY (test helpers) may appear only under [dev-dependencies].
+Crates in DEV_ONLY (test helpers) may appear only under [dev-dependencies],
+and there any crate may name them, whatever its layer: a test helper is never
+compiled into a shipped build, so it cannot make a shipped cycle.
 
 Cannot catch: a dependency through a non-workspace crate, or one under a
 `[target.*.dependencies]` table (none exist; extend the parser if one is added).
@@ -50,6 +52,8 @@ def main():
             dep = m.group(1)
             if dep in DEV_ONLY and section != "dev-dependencies":
                 hits.append(f"{name}: {dep} is test-only; name it under [dev-dependencies]")
+                continue
+            if dep in DEV_ONLY:
                 continue
             if dep not in LAYERS:
                 hits.append(f"{name}: depends on {dep}, which has no layer")

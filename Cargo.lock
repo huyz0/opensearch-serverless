@@ -15,6 +15,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ded4057c258ba199e2d26386d3af3780957ecaee6c4ef4041c6b4b8b97c0b06"
 
 [[package]]
+name = "cap"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6f125eb85b84a24c36b02ed1d22c9dd8632f53b3cde6e4d23512f94021030003"
+
+[[package]]
 name = "cfg-if"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -92,6 +98,9 @@ dependencies = [
 [[package]]
 name = "oss-mem"
 version = "0.1.0"
+dependencies = [
+ "oss-testkit",
+]
 
 [[package]]
 name = "oss-node"
@@ -113,6 +122,9 @@ dependencies = [
 [[package]]
 name = "oss-testkit"
 version = "0.1.0"
+dependencies = [
+ "cap",
+]
 
 [[package]]
 name = "oss-types"
