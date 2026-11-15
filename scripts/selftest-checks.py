@@ -132,6 +132,8 @@ CASES = [
     (PR, "PR body with an attribution header", {"body.md": "<!-- claude-projects-attribution: {} -->\n" + CLEAN_BODY}),
     (PR, "PR body with a Requested-by line", {"body.md": "_Requested by **Huy**_\n" + CLEAN_BODY}),
     (PR, "PR body missing a section", {"body.md": "## Intent\nx\n"}),
+    (PR, "new workspace crate without an ADR",
+     {"changed.txt": "crates/extra/Cargo.toml\n", "added.txt": "crates/extra/Cargo.toml\n"}),
     (PR, "high-risk path without label or ADR", {"changed.txt": "crates/blob/src/store.rs\n"}),
 ]
 

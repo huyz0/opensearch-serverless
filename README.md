@@ -6,7 +6,7 @@ A Rust serverless OpenSearch: stateless reader, writer and coordinator nodes ove
 
 1. **Truly compatible with OpenSearch** (REST API, query DSL, mappings, responses), scoped to the serverless capability. See [docs/compatibility.md](docs/compatibility.md).
 2. **Ported clearly from existing code** (OpenSearch and the Java serverless shell in huyz0/OpenSearch, branch `feature/serverlessshell`) rather than written from scratch, with every Rust module traceable to the Java it ports. See [docs/porting.md](docs/porting.md).
-3. **A cross-reference for [hsearch](https://github.com/huyz0/hsearch) and [pstore](https://github.com/huyz0/pstore)**, with lessons flowing both ways. Their code is not used here; [lucene-rust](https://github.com/huyz0/lucene-rust) is the engine and the only code dependency.
+3. **A cross-reference for [hsearch](https://github.com/huyz0/hsearch) and [pstore](https://github.com/huyz0/pstore)**, with lessons flowing both ways. Their code is not used here; [lucene-rust](https://github.com/huyz0/lucene-rust) is the engine and the only one of them used as code.
 
 It shares the Java shell's blob formats, so the two can run against the same bucket while roles move to Rust one at a time: reader first, then writer, then coordinator.
 

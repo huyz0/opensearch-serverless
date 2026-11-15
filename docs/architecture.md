@@ -38,7 +38,7 @@ graph TD
 ```
 <!-- crate-map:end -->
 
-lucene-rust, the engine and only external code dependency, comes in below the role crates as pinned git crates ([ADR 0002](adr/0002-runtime-dependencies.md)).
+lucene-rust, the engine and the only sibling project used as code, comes in below the role crates as pinned git crates ([ADR 0002](adr/0002-runtime-dependencies.md)).
 
 | Crate | Owns | README |
 |---|---|---|

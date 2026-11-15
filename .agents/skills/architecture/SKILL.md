@@ -12,7 +12,7 @@ The layers and the crate graph: [docs/architecture.md](../../../docs/architectur
 - **Placing code:** pick the lowest crate that owns the concern. Code both reader and writer need moves down into `oss-blob`, `oss-types` or a new lower crate, never sideways.
 - **`lib.rs`** holds the crate doc, the module list and re-exports, not logic. **`main.rs`** is wiring only; logic lives in the library, where tests reach it.
 - **New crate:** follow [docs/how-to/add-a-crate.md](../../../docs/how-to/add-a-crate.md), including its `LAYERS` entry.
-- **New dependency:** [ADR 0002](../../../docs/adr/0002-runtime-dependencies.md) says which are allowed. One that is allowed must also be pinned (exact lock or git rev), maintained, minimal (diff `Cargo.lock` for what it pulls in) and Apache-2.0 compatible; say so in the PR.
+- **New third-party dependency:** decide it yourself, without an ADR ([ADR 0002](../../../docs/adr/0002-runtime-dependencies.md), as amended by the owner). It must be pinned (exact lock or git rev), maintained, minimal (diff `Cargo.lock` for what it pulls in) and Apache-2.0 compatible; say so in the PR. hsearch and pstore code is never a dependency.
 - **A decision with trade-offs** gets an ADR in `docs/adr/`.
 
 ## Enforced by
