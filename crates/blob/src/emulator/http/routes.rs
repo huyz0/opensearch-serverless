@@ -13,6 +13,10 @@ use crate::error::BlobResult;
 use crate::s3::sigv4::{self, Scope};
 use crate::store::{BlobStore, ByteRange, CreateOutcome, MAX_LIST_KEYS};
 
+/// The user-metadata header S3 stores with an object and returns on HEAD,
+/// which the client uses for its writer token.
+const WRITER: &str = "x-amz-meta-writer";
+
 /// Bytes the front end streams a body through, each way.
 const BODY_BUF: usize = 16_384;
 
@@ -169,11 +173,19 @@ pub(crate) fn respond(
     };
     match (head.method.as_str(), key) {
         ("GET", Some(key)) => get(shared, head, key, out),
-        ("HEAD", Some(key)) => match shared.store.head(key) {
-            Ok(Some(meta)) => {
+        ("HEAD", Some(key)) => match shared.store.head_with_writer(key) {
+            Ok(Some((meta, writer))) => {
                 // ALLOC: one number.
                 let len = meta.len.to_string();
-                match write_head(out, 200, &[("content-length", &len)]) {
+                let mut headers = [("content-length", len.as_str()), (WRITER, "")];
+                let headers = match &writer {
+                    Some(w) => {
+                        headers[1].1 = w;
+                        &headers[..]
+                    }
+                    None => &headers[..1],
+                };
+                match write_head(out, 200, headers) {
                     Ok(()) => Reply::Done,
                     Err(_) => Reply::Close,
                 }
@@ -293,12 +305,13 @@ fn put(shared: &Shared, head: &Head, key: &str, body: &mut SocketBody<'_>) -> Re
         return Reply::Error(411, "MissingContentLength");
     }
     let mut buf = [0u8; BODY_BUF];
+    let writer = head.header(WRITER);
     let result = if head.header("if-none-match") == Some("*") {
-        shared.store.create_if_absent(key, body, &mut buf)
+        shared.store.create_as(key, body, &mut buf, writer)
     } else {
         shared
             .store
-            .put(key, body, &mut buf)
+            .put_as(key, body, &mut buf, writer)
             .map(|()| CreateOutcome::Created)
     };
     match result {

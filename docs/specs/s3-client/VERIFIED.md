@@ -11,7 +11,7 @@ Run with `cargo test -p oss-blob --all-features` and the whole gate, `scripts/ga
 - AC-7: `listing_2500_keys_takes_three_pages_and_visits_each_once`, `a_page_is_the_next_keys_after_the_cursor_with_their_sizes`, `keys_with_xml_specials_decode`, `a_malformed_or_cut_list_page_is_refused`, `element_text_is_bounded`
 - AC-8: `transient_statuses_are_retried_until_attempts_run_out`, `refusals_are_not_retried`, `injected_store_faults_are_retried_and_each_attempt_counted`, `a_connection_that_never_opens_is_retried_and_counted`, `every_pause_lies_within_its_bound`
 - AC-9: `a_body_cut_part_way_is_unavailable_and_not_retried`, `a_body_cut_before_its_first_byte_is_retried`, `a_put_is_retried_only_when_its_body_rewinds`, `a_list_cut_after_its_first_key_is_not_retried`
-- AC-10: `a_lost_response_to_a_create_is_retried_and_finds_its_own_object`
+- AC-10: `a_lost_response_to_a_create_is_retried_and_finds_its_own_object`, `a_retried_create_that_finds_another_writers_object_lost`, `a_create_refused_on_its_first_attempt_needs_no_head`, `a_failing_check_after_a_lost_response_reports_the_failure`, `stores_seeded_alike_issue_different_writer_tokens` (planted: no HEAD check, any object taken as ours, the token drawn from the jitter seed; each seen failing)
 - AC-11: `a_request_signed_with_the_wrong_secret_is_denied_once`
 - AC-12: `invalid_arguments_fail_before_any_request`
 - AC-13: `a_16_mib_object_streams_over_http_through_one_pooled_buffer` (measured: PUT 16,857,521 bytes above baseline, 80,305 over the one stored copy; GET 5,880 bytes)

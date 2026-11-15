@@ -43,6 +43,10 @@ pub(crate) struct Span {
 #[derive(Debug, Default)]
 struct Objects {
     map: BTreeMap<String, Arc<Vec<u8>>>,
+    /// The writer token stored with an object, as S3 keeps the
+    /// `x-amz-meta-writer` header a PUT carried; only the HTTP front end
+    /// writes one.
+    writers: BTreeMap<String, String>,
     stored: u64,
     reserved: u64,
 }
@@ -134,6 +138,58 @@ impl Emulator {
     /// [`BlobStore::get`], telling `start` the span it will send before the
     /// first chunk: the S3 front end writes its status line and headers
     /// there.
+    /// [`BlobStore::put`], storing `writer` as the object's token.
+    pub(crate) fn put_as(
+        &self,
+        key: &str,
+        body: &mut dyn ChunkSource,
+        buf: &mut [u8],
+        writer: Option<&str>,
+    ) -> BlobResult<()> {
+        check_key(key)?;
+        check_buf(buf)?;
+        self.attempt(S3Op::Put, || {
+            self.write(key, body, buf, false, writer).map(|_| ())
+        })
+    }
+
+    /// [`BlobStore::create_if_absent`], storing `writer` as the object's
+    /// token when it creates one.
+    pub(crate) fn create_as(
+        &self,
+        key: &str,
+        body: &mut dyn ChunkSource,
+        buf: &mut [u8],
+        writer: Option<&str>,
+    ) -> BlobResult<CreateOutcome> {
+        check_key(key)?;
+        check_buf(buf)?;
+        let outcome = self.attempt(S3Op::Put, || self.write(key, body, buf, true, writer))?;
+        if outcome == CreateOutcome::AlreadyExists {
+            // S3 answers 412: a failed attempt, though not an error to the caller.
+            self.meter.record_error();
+        }
+        Ok(outcome)
+    }
+
+    /// [`BlobStore::head`], with the object's writer token if it has one.
+    pub(crate) fn head_with_writer(
+        &self,
+        key: &str,
+    ) -> BlobResult<Option<(ObjectMeta, Option<String>)>> {
+        check_key(key)?;
+        self.attempt(S3Op::Head, || {
+            let objects = lock(&self.objects);
+            Ok(objects.map.get(key).map(|o| {
+                let meta = ObjectMeta {
+                    len: u64::try_from(o.len()).unwrap_or(u64::MAX),
+                };
+                // ALLOC: one token, bounded by the header line it came in.
+                (meta, objects.writers.get(key).cloned())
+            }))
+        })
+    }
+
     pub(crate) fn get_framed(
         &self,
         key: &str,
@@ -218,6 +274,7 @@ impl Emulator {
         body: &mut dyn ChunkSource,
         buf: &mut [u8],
         if_absent: bool,
+        writer: Option<&str>,
     ) -> BlobResult<CreateOutcome> {
         let len = body.len();
         if !self.reserve(key, len, if_absent)? {
@@ -234,6 +291,12 @@ impl Emulator {
         let old = objects.map.insert(key.to_owned(), Arc::new(data));
         let old_len = old.map_or(0, |o| u64::try_from(o.len()).unwrap_or(u64::MAX));
         objects.stored = objects.stored.saturating_sub(old_len).saturating_add(len);
+        match writer {
+            // ALLOC: one key and one token per object, the token bounded by
+            // the front end's header line.
+            Some(w) => objects.writers.insert(key.to_owned(), w.to_owned()),
+            None => objects.writers.remove(key),
+        };
         drop(objects);
         self.meter.add_bytes_written(len);
         Ok(CreateOutcome::Created)
@@ -324,7 +387,7 @@ impl BlobStore for Emulator {
     fn put(&self, key: &str, body: &mut dyn ChunkSource, buf: &mut [u8]) -> BlobResult<()> {
         check_key(key)?;
         check_buf(buf)?;
-        self.attempt(S3Op::Put, || self.write(key, body, buf, false).map(|_| ()))
+        self.put_as(key, body, buf, None)
     }
 
     fn create_if_absent(
@@ -333,29 +396,18 @@ impl BlobStore for Emulator {
         body: &mut dyn ChunkSource,
         buf: &mut [u8],
     ) -> BlobResult<CreateOutcome> {
-        check_key(key)?;
-        check_buf(buf)?;
-        let outcome = self.attempt(S3Op::Put, || self.write(key, body, buf, true))?;
-        if outcome == CreateOutcome::AlreadyExists {
-            // S3 answers 412: a failed attempt, though not an error to the caller.
-            self.meter.record_error();
-        }
-        Ok(outcome)
+        self.create_as(key, body, buf, None)
     }
 
     fn head(&self, key: &str) -> BlobResult<Option<ObjectMeta>> {
-        check_key(key)?;
-        self.attempt(S3Op::Head, || {
-            Ok(lock(&self.objects).map.get(key).map(|o| ObjectMeta {
-                len: u64::try_from(o.len()).unwrap_or(u64::MAX),
-            }))
-        })
+        Ok(self.head_with_writer(key)?.map(|(meta, _)| meta))
     }
 
     fn delete(&self, key: &str) -> BlobResult<()> {
         check_key(key)?;
         self.attempt(S3Op::Delete, || {
             let mut objects = lock(&self.objects);
+            objects.writers.remove(key);
             if let Some(old) = objects.map.remove(key) {
                 let n = u64::try_from(old.len()).unwrap_or(u64::MAX);
                 objects.stored = objects.stored.saturating_sub(n);
