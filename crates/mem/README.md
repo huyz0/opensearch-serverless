@@ -9,4 +9,7 @@ The node memory budget, pools, reservations and fixed-size buffer pool.
 Nothing in the workspace.
 
 ## Entry points
-`src/lib.rs`. The budget, reservation and buffer-pool types land in stage 1.
+`src/lib.rs` re-exports them:
+
+- `MemoryBudget::new(&BudgetConfig)`, then `try_reserve(Pool, bytes)` returning a `Reservation` (released on drop; `try_grow`, `shrink`) or `Exhausted` (map to `Exhausted::HTTP_STATUS`, 429, or back off).
+- `BufferPool::new(&budget, pool, size, count)` preallocates and charges `size * count`; `try_checkout()` returns a `PooledBuffer` that goes back on drop. `SMALL_BUFFER` is 64 KiB, `LARGE_BUFFER` 1 MiB.

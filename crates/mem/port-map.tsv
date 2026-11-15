@@ -1,2 +1,7 @@
 rust_path	kind	java_source	note
 src/lib.rs	new		crate root
+src/pool.rs	new		named pools of the node budget; Java bounds memory with heap circuit breakers instead
+src/error.rs	new		typed exhaustion and config errors; Java throws CircuitBreakingException
+src/reservation.rs	new		RAII reservation released on drop; Java breakers are charged and released by hand
+src/budget.rs	new		node budget split into pools; Java bounds memory with heap circuit breakers instead
+src/buffer.rs	new		preallocated fixed-size buffer pool; Java relies on Netty's pooled allocator

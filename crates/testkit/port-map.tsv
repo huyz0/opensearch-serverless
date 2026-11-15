@@ -1,2 +1,3 @@
 rust_path	kind	java_source	note
 src/lib.rs	new		crate root
+src/peak.rs	new		test-only counting allocator and peak assertions; the Java shell measures heap with JMX instead
