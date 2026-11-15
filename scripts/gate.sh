@@ -64,6 +64,9 @@ py scripts/gen-crate-map.py --check
 step "ci-changes --self-test (CI path classification)"
 py scripts/ci-changes.py --self-test
 
+step "mutants-plan --self-test (PR mutant budget)"
+py scripts/mutants-plan.py --self-test
+
 step "check-links (relative markdown links resolve)"
 py scripts/check-links.py
 
