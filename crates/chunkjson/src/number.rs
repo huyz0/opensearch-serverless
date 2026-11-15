@@ -41,6 +41,7 @@ pub(crate) enum Step {
 
 impl NumState {
     /// Offers byte `b`.
+    #[inline]
     pub(crate) fn advance(self, b: u8) -> Step {
         use NumState::*;
         let digit = b.is_ascii_digit();
@@ -73,6 +74,7 @@ impl NumState {
 impl Tokenizer {
     // ARITH: `j` only advances past a byte read with `input.get(j)`.
     #[allow(clippy::arithmetic_side_effects)]
+    #[inline]
     pub(crate) fn lex_number(
         &mut self,
         input: &[u8],

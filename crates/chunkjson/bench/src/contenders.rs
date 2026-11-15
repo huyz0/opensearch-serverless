@@ -11,6 +11,7 @@ pub fn names() -> Vec<&'static str> {
     vec![
         "chunkjson/64k",
         "chunkjson/whole",
+        "chunkjson/feed-64k",
         "serde_json/ignored",
         "serde_json/value",
         "sonic_rs/ignored",
@@ -25,6 +26,7 @@ pub fn run(contender: &str, case: &str, input: &[u8]) -> u64 {
     match contender {
         "chunkjson/64k" => chunkjson(input, CHUNK, ndjson),
         "chunkjson/whole" => chunkjson(input, usize::MAX, ndjson),
+        "chunkjson/feed-64k" => chunkjson_feed(input, CHUNK, ndjson),
         "serde_json/ignored" => per_doc(input, ndjson, |d| {
             serde_json::from_slice::<IgnoredAny>(d).unwrap();
             1
@@ -84,4 +86,29 @@ fn chunkjson(input: &[u8], chunk: usize, ndjson: bool) -> u64 {
         }
     }
     sum
+}
+
+struct Sum(u64);
+
+impl chunkjson::Sink for Sum {
+    type Error = chunkjson::Error;
+    fn event(&mut self, event: Event<'_>) -> Result<(), chunkjson::Error> {
+        self.0 += match event {
+            Event::Key(t) | Event::String(t) => t.fragment.len() as u64,
+            Event::Number(n) => n.len() as u64,
+            _ => 1,
+        };
+        Ok(())
+    }
+}
+
+fn chunkjson_feed(input: &[u8], chunk: usize, ndjson: bool) -> u64 {
+    let framing = if ndjson { Framing::Ndjson } else { Framing::Single };
+    let mut tok = Tokenizer::new(Config::with_framing(framing));
+    let mut sum = Sum(0);
+    let mut chunks = input.chunks(chunk).peekable();
+    while let Some(c) = chunks.next() {
+        tok.feed(c, chunks.peek().is_none(), &mut sum).unwrap();
+    }
+    sum.0
 }

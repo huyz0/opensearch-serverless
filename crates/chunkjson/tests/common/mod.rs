@@ -122,3 +122,39 @@ pub fn parse_one(bytes: &[u8], sizes: &[usize]) -> Result<Value, Error> {
 pub fn config(framing: Framing) -> Config {
     Config::with_framing(framing)
 }
+
+/// As [`parse_chunked`], through the push API.
+pub fn feed_chunked(bytes: &[u8], sizes: &[usize], config: Config) -> Result<Builder, Error> {
+    struct Into<'b>(&'b mut Builder);
+    impl chunkjson::Sink for Into<'_> {
+        type Error = Error;
+        fn event(&mut self, event: Event<'_>) -> Result<(), Error> {
+            self.0.apply(event);
+            Ok(())
+        }
+    }
+    let mut tok = Tokenizer::new(config);
+    let mut b = Builder::default();
+    let mut pos: usize = 0;
+    let mut k = 0;
+    loop {
+        let size = sizes
+            .get(k % sizes.len().max(1))
+            .copied()
+            .unwrap_or(usize::MAX)
+            .max(1);
+        let end = pos.saturating_add(size).min(bytes.len());
+        let eof = end == bytes.len();
+        if tok.feed(&bytes[pos..end], eof, &mut Into(&mut b))? {
+            assert_eq!(
+                tok.offset(),
+                bytes.len() as u64,
+                "complete only after every byte"
+            );
+            return Ok(b);
+        }
+        assert!(!eof, "eof completes or fails");
+        pos = end;
+        k += 1;
+    }
+}

@@ -7,3 +7,5 @@ src/number.rs	new		the RFC 8259 number grammar as a resumable state machine
 src/string.rs	new		string lexing with fragments borrowed from the input
 src/tokenizer.rs	new		sans-IO tokenizer state machine
 src/read.rs	new		blocking Read adapter over a caller buffer
+src/feed.rs	new		push API over a whole chunk, validating its UTF-8 once
+src/resolve.rs	new		borrowing event text, and the one-pass UTF-8 check

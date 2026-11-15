@@ -4,12 +4,13 @@
 use std::cell::Cell;
 
 use crate::number::NumState;
+pub(crate) use crate::resolve::Checked;
 use crate::string::StrState;
-use crate::{Config, Error, ErrorKind, Event, Framing, Text};
+use crate::{Config, Error, ErrorKind, Event, Framing};
 
 /// What the grammar allows next, outside any token.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Expect {
+pub(crate) enum Expect {
     /// Before the first document.
     DocStart,
     /// A value (after `:` or `,` in an array).
@@ -73,11 +74,11 @@ pub(crate) enum Out {
 pub struct Tokenizer {
     pub(crate) config: Config,
     /// One entry per open container: `true` for an object.
-    stack: Vec<bool>,
-    expect: Expect,
+    pub(crate) stack: Vec<bool>,
+    pub(crate) expect: Expect,
     pub(crate) lex: Lex,
     /// A top-level value just completed; `EndDocument` is emitted next.
-    pending_end: bool,
+    pub(crate) pending_end: bool,
     /// Inside a top-level document (for NDJSON's line rule).
     in_doc: bool,
     /// NDJSON: a document ended on the current line.
@@ -87,7 +88,7 @@ pub struct Tokenizer {
     doc_start: u64,
     doc_end: u64,
     /// Bytes consumed by every previous call.
-    offset: u64,
+    pub(crate) offset: u64,
     /// `offset` when the current call began: errors add their index to it.
     pub(crate) base: u64,
     pub(crate) numbuf: Vec<u8>,
@@ -100,7 +101,7 @@ pub struct Tokenizer {
     /// The UTF-8 encoding of the last decoded escape or split character.
     pub(crate) char_buf: [u8; 4],
     pub(crate) char_len: usize,
-    failed: Cell<Option<Error>>,
+    pub(crate) failed: Cell<Option<Error>>,
 }
 
 impl Tokenizer {
@@ -156,12 +157,14 @@ impl Tokenizer {
     /// fails with `UnexpectedEof`. An event may consume zero bytes.
     ///
     /// After an error, every later call returns the same error.
+    #[inline]
     pub fn next<'a>(&'a mut self, input: &'a [u8], eof: bool) -> Result<(Event<'a>, usize), Error> {
         let (out, used) = self.step(input, eof)?;
-        Ok((self.resolve(out, input)?, used))
+        Ok((self.resolve(out, input, 0, None)?, used))
     }
 
     /// The lifetime-free half of [`Tokenizer::next`].
+    #[inline]
     pub(crate) fn step(&mut self, input: &[u8], eof: bool) -> Result<(Out, usize), Error> {
         if let Some(e) = self.failed.get() {
             return Err(e);
@@ -179,48 +182,6 @@ impl Tokenizer {
         }
     }
 
-    /// Borrows the text of an event produced by [`Tokenizer::step`] over the same `input`.
-    pub(crate) fn resolve<'a>(&'a self, out: Out, input: &'a [u8]) -> Result<Event<'a>, Error> {
-        match out {
-            Out::Simple(event) => Ok(event),
-            Out::Number(src) => Ok(Event::Number(self.text(src, input)?)),
-            Out::Text {
-                key,
-                src,
-                first,
-                last,
-            } => {
-                let text = Text {
-                    fragment: self.text(src, input)?,
-                    first,
-                    last,
-                };
-                Ok(if key {
-                    Event::Key(text)
-                } else {
-                    Event::String(text)
-                })
-            }
-        }
-    }
-
-    fn text<'a>(&'a self, src: Src, input: &'a [u8]) -> Result<&'a str, Error> {
-        let (bytes, at) = match src {
-            Src::Input(start, end) => (input.get(start..end).unwrap_or_default(), start),
-            Src::Char => (self.char_buf.get(..self.char_len).unwrap_or_default(), 0),
-            Src::NumBuf => (self.numbuf.as_slice(), 0),
-        };
-        if let Ok(text) = simdutf8::basic::from_utf8(bytes) {
-            return Ok(text);
-        }
-        // The slow path, only to locate the fault.
-        std::str::from_utf8(bytes).map_err(|e| {
-            let err = self.err(ErrorKind::InvalidUtf8, at.saturating_add(e.valid_up_to()));
-            self.failed.set(Some(err));
-            err
-        })
-    }
-
     /// An error at index `i` of the current call's input.
     pub(crate) fn err(&self, kind: ErrorKind, i: usize) -> Error {
         Error::new(kind, self.base.saturating_add(i as u64))
@@ -229,6 +190,7 @@ impl Tokenizer {
     // ARITH: `i` only advances past a byte read with `input.get(i)`, so it
     // stays at most `input.len()` and `i + 1` cannot overflow.
     #[allow(clippy::arithmetic_side_effects)]
+    #[inline]
     fn step_inner(&mut self, input: &[u8], eof: bool) -> Result<(Out, usize), Error> {
         if self.pending_end {
             self.pending_end = false;
@@ -289,6 +251,7 @@ impl Tokenizer {
     /// `None` when a token began and lexing continues in the same call.
     // ARITH: `*i` indexes the byte `b` just read, so `*i + 1 <= input.len()`.
     #[allow(clippy::arithmetic_side_effects)]
+    #[inline]
     fn structural(&mut self, b: u8, i: &mut usize) -> Result<Option<Out>, Error> {
         let unexpected = |t: &Self| Err(t.err(ErrorKind::UnexpectedByte(b), *i));
         match self.expect {
@@ -366,6 +329,7 @@ impl Tokenizer {
 
     // ARITH: as in `structural`.
     #[allow(clippy::arithmetic_side_effects)]
+    #[inline]
     fn begin_value(&mut self, b: u8, i: &mut usize) -> Result<Option<Out>, Error> {
         match b {
             b'{' | b'[' => {
@@ -407,6 +371,7 @@ impl Tokenizer {
 
     /// A value ended at index `i` of the current input; `scalar` for a
     /// number or literal, whose end only a delimiter can mark.
+    #[inline]
     pub(crate) fn after_value(&mut self, i: usize, scalar: bool) {
         if self.stack.is_empty() {
             self.after_scalar = scalar;
@@ -420,6 +385,7 @@ impl Tokenizer {
     }
 
     /// A key ended: a `:` comes next.
+    #[inline]
     pub(crate) fn after_key(&mut self) {
         self.expect = Expect::Colon;
     }
@@ -427,6 +393,7 @@ impl Tokenizer {
     // ARITH: `j` only advances past a byte read with `input.get(j)`, and
     // `matched` stays below `word.len()` (at most 5) before each increment.
     #[allow(clippy::arithmetic_side_effects)]
+    #[inline]
     fn lex_literal(
         &mut self,
         input: &[u8],

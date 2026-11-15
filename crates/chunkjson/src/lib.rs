@@ -35,13 +35,16 @@
 mod config;
 mod error;
 mod event;
+mod feed;
 mod number;
 mod read;
+mod resolve;
 mod string;
 mod tokenizer;
 
 pub use config::{Config, Framing};
 pub use error::{Error, ErrorKind};
 pub use event::{Event, Text};
+pub use feed::Sink;
 pub use read::{Buffer, JsonReader, ReadError};
 pub use tokenizer::Tokenizer;

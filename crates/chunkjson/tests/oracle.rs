@@ -84,6 +84,27 @@ proptest! {
     }
 
     #[test]
+    fn push_api_rebuilds_what_serde_json_parses(v in value(), pretty in any::<bool>(), sizes in sizes()) {
+        let text = if pretty { serde_json::to_vec_pretty(&v) } else { serde_json::to_vec(&v) }.unwrap();
+        let expected: Value = serde_json::from_slice(&text).unwrap();
+        let built = common::feed_chunked(&text, &sizes, chunkjson::Config::default()).unwrap();
+        prop_assert_eq!(built.docs, vec![expected]);
+    }
+
+    #[test]
+    fn push_api_accepts_exactly_what_serde_json_accepts(v in value(), edits in edits(), sizes in sizes()) {
+        let bytes = apply(serde_json::to_vec(&v).unwrap(), &edits);
+        let oracle = serde_json::from_slice::<Value>(&bytes);
+        if let Err(e) = &oracle {
+            prop_assume!(!e.to_string().contains("number out of range"));
+        }
+        let pulled = common::parse_chunked(&bytes, &sizes, chunkjson::Config::default());
+        let pushed = common::feed_chunked(&bytes, &sizes, chunkjson::Config::default());
+        prop_assert_eq!(pushed.as_ref().ok().map(|b| b.docs.clone()), oracle.ok().map(|v| vec![v]));
+        prop_assert_eq!(pushed.err(), pulled.err());
+    }
+
+    #[test]
     fn accepts_exactly_what_serde_json_accepts(v in value(), edits in edits(), sizes in sizes()) {
         let bytes = apply(serde_json::to_vec(&v).unwrap(), &edits);
         let oracle = serde_json::from_slice::<Value>(&bytes);
