@@ -108,11 +108,12 @@ impl Tokenizer {
                     self.stack.pop();
                     pos += 1;
                     self.after_value(pos, false);
-                    sink.event(if object {
+                    let event = if object {
                         Event::EndObject
                     } else {
                         Event::EndArray
-                    })?;
+                    };
+                    self.emit_at(pos, event, sink)?;
                     if self.pending_end {
                         break pos;
                     }
@@ -121,11 +122,12 @@ impl Tokenizer {
                     Plain::Whole(text, end) => {
                         self.after_key();
                         pos = end;
-                        sink.event(Event::Key(Text {
+                        let key = Event::Key(Text {
                             fragment: text,
                             first: true,
                             last: true,
-                        }))?;
+                        });
+                        self.emit_at(pos, key, sink)?;
                     }
                     Plain::Open(text, end) => break self.open_string(true, text, end, sink)?,
                     Plain::Other => break pos,
@@ -171,11 +173,12 @@ impl Tokenizer {
                 } else {
                     Expect::ValueOrEnd
                 };
-                sink.event(if object {
+                let event = if object {
                     Event::BeginObject
                 } else {
                     Event::BeginArray
-                })?;
+                };
+                self.emit_at(pos + 1, event, sink)?;
                 return Ok(Some(pos + 1));
             }
             b'"' => match plain_string(chunk, pos, checked) {
@@ -213,7 +216,7 @@ impl Tokenizer {
             _ => return Ok(None),
         };
         self.after_value(end, scalar);
-        sink.event(event)?;
+        self.emit_at(end, event, sink)?;
         Ok(Some(end))
     }
 }
@@ -270,13 +273,28 @@ impl Tokenizer {
                 first: true,
                 last: false,
             };
-            sink.event(if key {
+            let event = if key {
                 Event::Key(fragment)
             } else {
                 Event::String(fragment)
-            })?;
+            };
+            self.emit_at(end, event, sink)?;
         }
         Ok(end)
+    }
+
+    /// Hands `event` to the sink, first recording that the chunk is consumed
+    /// up to index `at`, so a sink error leaves `offset()` just past the
+    /// event it refused.
+    #[inline]
+    fn emit_at<S: Sink>(
+        &mut self,
+        at: usize,
+        event: Event<'_>,
+        sink: &mut S,
+    ) -> Result<(), S::Error> {
+        self.offset = self.base.saturating_add(at as u64);
+        sink.event(event)
     }
 }
 

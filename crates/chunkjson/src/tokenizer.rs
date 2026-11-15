@@ -138,7 +138,9 @@ impl Tokenizer {
         &self.config
     }
 
-    /// Bytes consumed so far, over every call.
+    /// Bytes consumed so far, over every call. After an error from the
+    /// tokenizer it may include whitespace before the fault; after a sink
+    /// error in [`Tokenizer::feed`] it is just past the refused event.
     pub fn offset(&self) -> u64 {
         self.offset
     }

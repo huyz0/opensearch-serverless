@@ -17,7 +17,8 @@ Not in this change: SIMD structural classification, the serializer, an async ada
 - AC-1: for any JSON value and any chunking, `feed` rebuilds the value serde_json parses (property test).
 - AC-2: for mutated JSON and arbitrary byte strings at any chunking, `feed` gives the same events and the same error (kind and offset) as `next`, and accepts exactly what serde_json accepts (property tests).
 - AC-3: invalid UTF-8 in a chunk, including a character split across chunks, is reported where `next` reports it.
-- AC-4: a sink error stops the feed and is returned.
+- AC-2a: the same holds, offsets after every chunk included, under every framing with `max_depth` 1 to 6 and `max_number_len` 1 to 24, and both limits are refused through the fast loop at one past the limit (property and unit tests).
+- AC-4: a sink error stops the feed and is returned, and `offset()` is then just past the refused event, so the caller can resume from there.
 - AC-5: on the bench host, `feed` in 64 KiB chunks is faster than `next` on every bench case (`bench/`, provisional).
 
 ## Test plan
