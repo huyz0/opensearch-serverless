@@ -15,7 +15,7 @@ Roadmap stage 1 ("the S3 client"), invariants I-1 to I-3 and I-15, ADR [0005](..
 
 ## Acceptance criteria
 
-- AC-1: the signer reproduces the canonical request, string to sign and `Authorization` header of every vector from AWS's published SigV4 test suite kept under `crates/blob/tests/sigv4/`.
+- AC-1: the signer reproduces the canonical request, string to sign and `Authorization` header of every vector from AWS's published SigV4 test suite kept under `crates/blob/tests/sigv4/`, and the `Authorization` header of AWS's published S3 example (GET Object with `Range: bytes=0-9`).
 - AC-2: on success each call records exactly one attempt of its kind on the client's meter and the server serves exactly one request: GET `Get`, ranged GET `GetRange`, PUT and conditional create `Put`, HEAD `Head`, DELETE `Delete`, LIST page `List`.
 - AC-3: a ranged GET sends `Range: bytes=a-b` and returns exactly those bytes, truncated at the object's end; a range at or past the end is `InvalidRange`, a missing key `NotFound`, each in one attempt.
 - AC-4: a PUT always sends `Content-Length` and never chunked encoding (the test server answers 411 otherwise); a source that yields more or fewer bytes than it declared fails the call and the previous object is unchanged.
@@ -24,7 +24,7 @@ Roadmap stage 1 ("the S3 client"), invariants I-1 to I-3 and I-15, ADR [0005](..
 - AC-7: a LIST page visits at most `min(max_keys, 1000)` keys in byte order after `start_after`, with sizes, decodes XML-escaped keys, reports truncation, and 2,500 keys are listed in exactly 3 LIST requests; a malformed or over-long element is `Protocol`.
 - AC-8: 500, 502, 503, 504, 429 and connection failures are retried up to `max_attempts`, every attempt recorded once and every failed one once as an error; 401, 403, 404, 412, 416 and other 4xx are not retried; each pause lies in `[0, min(cap, base * 2^retry)]`.
 - AC-9: a GET is retried only before its first chunk reaches the sink: a body cut part-way is `Unavailable` after one attempt and the sink saw each byte at most once. A PUT is retried only after `rewind` succeeds; a source that cannot rewind gets one attempt.
-- AC-10: a lost response to a conditional create (committed, then 500) is retried and answers `AlreadyExists`, two attempts recorded.
+- AC-10: a lost response to a conditional create (committed, then 500) is retried and answers `AlreadyExists`, two attempts recorded; the trait documents that `AlreadyExists` after a retry may be the caller's own write, as the emulator already behaves.
 - AC-11: a request signed with the wrong secret is `Denied` in one attempt.
 - AC-12: an empty key, a key over 1,024 bytes, an empty buffer, a zero-length range or `max_keys` of 0 fails with `InvalidArgument` before any request.
 - AC-13: a 16 MiB object is written and read over HTTP through one 64 KiB pooled buffer: the PUT's peak heap stays under one copy of the object (the emulator's) plus a fixed overhead, and the GET's under the fixed overhead.
@@ -57,6 +57,7 @@ None: a new store implementation nothing uses yet; no running node's behaviour c
 
 ## Risks
 
+- A fenced writer that treats every `AlreadyExists` as "I lost" misreads a create whose first response was lost. The trait now says so; a distinct outcome would change the fencing contract and is the owner's call.
 - A signer that matches the vectors but not S3's path or query canonicalisation: the test server re-derives the canonical request from the bytes on the wire, and the RustFS run checks a real verifier.
 - RustFS never answers 409 (seen by the shell's RustFS run), so the 409 paths are tested only against the scripted server.
 - `UNSIGNED-PAYLOAD` relies on TLS for body integrity; a plain-`http` endpoint is for loopback tests only.

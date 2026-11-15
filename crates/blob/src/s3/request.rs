@@ -214,7 +214,8 @@ impl S3Store {
             format!("{}{path}?{query}", self.origin)
         };
         let mut builder = Request::builder().method(method).uri(url);
-        for (name, value) in signed.iter().skip(1) {
+        // Every signed header is sent as signed, Host included.
+        for (name, value) in &signed {
             builder = builder.header(*name, *value);
         }
         builder = builder.header("authorization", authorization);

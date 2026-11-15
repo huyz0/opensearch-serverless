@@ -9,8 +9,14 @@ use crate::{config, credentials, get_all};
 use oss_blob::*;
 
 /// A server that answers each connection with the next canned response
-/// and closes it.
+/// and closes it; the client keeps no idle connections, so each request
+/// opens a new one.
 fn canned(responses: Vec<&'static [u8]>) -> (S3Store, JoinHandle<()>) {
+    canned_with(1, responses)
+}
+
+/// [`canned`], with `attempts` attempts per call.
+fn canned_with(attempts: u32, responses: Vec<&'static [u8]>) -> (S3Store, JoinHandle<()>) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let endpoint = format!("http://{}", listener.local_addr().unwrap());
     let thread = std::thread::spawn(move || {
@@ -25,7 +31,9 @@ fn canned(responses: Vec<&'static [u8]>) -> (S3Store, JoinHandle<()>) {
         }
     });
     let mut c = config(&endpoint, credentials());
-    c.retry.max_attempts = 1;
+    c.retry.max_attempts = attempts;
+    // The server closes every connection, so none may be kept for reuse.
+    c.max_idle_connections = 0;
     (S3Store::new(c).unwrap(), thread)
 }
 
@@ -116,5 +124,27 @@ fn a_malformed_or_cut_list_page_is_refused() {
 fn a_head_without_a_length_is_a_protocol_error() {
     let (s3, t) = canned(vec![b"HTTP/1.1 200 OK\r\nconnection: close\r\n\r\n"]);
     assert_eq!(s3.head("k"), Err(BlobError::Protocol("no Content-Length")));
+    t.join().unwrap();
+}
+
+// AC-9
+#[test]
+fn a_list_cut_after_its_first_key_is_not_retried() {
+    let (s3, t) = canned_with(
+        2,
+        vec![
+            b"HTTP/1.1 200 OK\r\ncontent-length: 500\r\n\r\n<ListBucketResult><Contents><Key>a</Key><Size>1</Size></Contents>",
+            b"HTTP/1.1 200 OK\r\ncontent-length: 18\r\n\r\n<ListBucketResult>",
+        ],
+    );
+    let mut keys = Vec::new();
+    // LIST: a test of the LIST page itself.
+    let first = s3.list_prefix("", None, 10, &mut |k, _| keys.push(k.to_owned()));
+    assert_eq!(first, Err(BlobError::Unavailable));
+    assert_eq!(keys, ["a"]);
+    assert_eq!(s3.meter().count(S3Op::List), 1);
+    // The second canned page is still there, so a retry would have taken it.
+    // LIST: a test of the LIST page itself.
+    assert!(s3.list_prefix("", None, 10, &mut |_, _| ()).is_ok());
     t.join().unwrap();
 }

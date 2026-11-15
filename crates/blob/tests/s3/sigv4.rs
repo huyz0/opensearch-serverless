@@ -44,10 +44,17 @@ fn decode(s: &str) -> String {
 
 #[test]
 fn every_published_vector_signs_exactly() {
-    let creds = Credentials::new("AKIDEXAMPLE", "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY");
     let all = vectors();
-    assert_eq!(all.len(), 20, "vectors under tests/sigv4");
+    assert_eq!(all.len(), 21, "vectors under tests/sigv4");
     for dir in all {
+        // The generic suite signs with its example key for service
+        // `service`; the S3 example names its own key, region and service.
+        #[allow(clippy::disallowed_methods)]
+        let scope_file = std::fs::read_to_string(dir.join("scope.txt")).unwrap_or_else(|_| {
+            "AKIDEXAMPLE\nwJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY\nus-east-1\nservice\n".into()
+        });
+        let s: Vec<&str> = scope_file.lines().collect();
+        let creds = Credentials::new(s[0], s[1]);
         let req = file(&dir, "req");
         let (head, body) = req.split_once("\n\n").unwrap_or((&req, ""));
         let mut lines = head.lines();
@@ -79,11 +86,20 @@ fn every_published_vector_signs_exactly() {
             &sigv4::sha256_hex(body.as_bytes()),
         );
         let name = dir.display();
-        assert_eq!(
-            canonical.request,
-            file(&dir, "creq"),
-            "{name}: canonical request"
-        );
+        let published = |ext: &str| {
+            dir.join(format!(
+                "{}.{ext}",
+                dir.file_name().unwrap().to_str().unwrap()
+            ))
+            .is_file()
+        };
+        if published("creq") {
+            assert_eq!(
+                canonical.request,
+                file(&dir, "creq"),
+                "{name}: canonical request"
+            );
+        }
         let date = headers
             .iter()
             .find(|(n, _)| n.eq_ignore_ascii_case("x-amz-date"))
@@ -91,14 +107,16 @@ fn every_published_vector_signs_exactly() {
             .1;
         let scope = Scope {
             date: &date[..8],
-            region: "us-east-1",
-            service: "service",
+            region: s[2],
+            service: s[3],
         };
-        assert_eq!(
-            sigv4::string_to_sign(date, &scope, &canonical.request),
-            file(&dir, "sts"),
-            "{name}: string to sign"
-        );
+        if published("sts") {
+            assert_eq!(
+                sigv4::string_to_sign(date, &scope, &canonical.request),
+                file(&dir, "sts"),
+                "{name}: string to sign"
+            );
+        }
         assert_eq!(
             sigv4::authorization(&creds, &scope, date, &canonical),
             file(&dir, "authz"),

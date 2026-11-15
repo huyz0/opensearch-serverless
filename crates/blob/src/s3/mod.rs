@@ -114,13 +114,18 @@ impl S3Store {
     /// `http(s)://authority`, the bucket is not a valid name, or the policy
     /// allows no attempt. Sends nothing.
     pub fn new(config: S3Config) -> BlobResult<Self> {
-        let host = config
-            .endpoint
-            .strip_prefix("https://")
-            .or_else(|| config.endpoint.strip_prefix("http://"))
-            .ok_or(BlobError::InvalidArgument(
-                "endpoint is not http:// or https://",
-            ))?;
+        let (host, default_port) = match config.endpoint.strip_prefix("https://") {
+            Some(host) => (host, ":443"),
+            None => (
+                config
+                    .endpoint
+                    .strip_prefix("http://")
+                    .ok_or(BlobError::InvalidArgument(
+                        "endpoint is not http:// or https://",
+                    ))?,
+                ":80",
+            ),
+        };
         if host.is_empty() || host.contains(['/', '?', '#', '@']) {
             return Err(BlobError::InvalidArgument(
                 "endpoint has no host or has a path",
@@ -156,8 +161,10 @@ impl S3Store {
         });
         Ok(Self {
             agent,
+            // The scheme's default port is left out, as HTTP clients write
+            // the Host header; the signed value and the sent one must match.
             // ALLOC: once per store, at construction.
-            host: host.to_owned(),
+            host: host.strip_suffix(default_port).unwrap_or(host).to_owned(),
             origin: config.endpoint.clone(),
             bucket: config.bucket,
             region: config.region,
@@ -318,6 +325,14 @@ mod tests {
         );
         let store = S3Store::new(config("https://h:9000", "my.bucket-1")).unwrap();
         assert_eq!(store.host, "h:9000");
+        for (endpoint, host) in [
+            ("https://h:443", "h"),
+            ("http://h:80", "h"),
+            ("http://h:443", "h:443"),
+            ("https://h:80", "h:80"),
+        ] {
+            assert_eq!(S3Store::new(config(endpoint, "bucket")).unwrap().host, host);
+        }
         assert_eq!(store.meter().total(), 0);
     }
 }
