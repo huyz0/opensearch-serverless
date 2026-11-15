@@ -397,3 +397,63 @@ fn a_sink_error_stops_the_feed() {
     let mut t = Tokenizer::new(Limits::default());
     assert_eq!(t.feed(b"[1]", &mut Stop), Err("stop".to_owned()));
 }
+
+/// Collects each token's kind and where it starts.
+struct Located(Vec<(String, u64, u64)>);
+
+impl TokenSink for Located {
+    type Error = JsonError;
+
+    fn token(&mut self, _: Token<'_>) -> Result<(), JsonError> {
+        unreachable!("the tokenizer always gives a location")
+    }
+
+    fn token_at(&mut self, token: Token<'_>, at: super::Location) -> Result<(), JsonError> {
+        let name = match token {
+            Token::StartObject => "{".to_owned(),
+            Token::EndObject => "}".to_owned(),
+            Token::StartArray => "[".to_owned(),
+            Token::EndArray => "]".to_owned(),
+            Token::Key(k) => format!("key {k}"),
+            Token::Str { text, .. } => format!("str {text}"),
+            Token::Number(n) => format!("num {n}"),
+            Token::Bool(b) => format!("bool {b}"),
+            Token::Null => "null".to_owned(),
+        };
+        self.0.push((name, at.line, at.column));
+        Ok(())
+    }
+}
+
+#[test]
+fn every_token_starts_where_jackson_locates_it() {
+    let doc =
+        "{\"query\":{\"term\":{\"tag\":{\"value\":\"x\",\"nope\":1}}},\n  \"a\": [true, null]}";
+    // One byte at a time, so a position never depends on a chunk boundary.
+    let mut t = Tokenizer::new(limits(4));
+    let mut sink = Located(Vec::new());
+    for b in doc.as_bytes() {
+        t.feed(std::slice::from_ref(b), &mut sink).expect("feeds");
+    }
+    t.finish(&mut sink).expect("finishes");
+    let at = |name: &str| {
+        sink.0
+            .iter()
+            .find(|(n, _, _)| n == name)
+            .map(|(_, l, c)| (*l, *c))
+    };
+    assert_eq!(at("{"), Some((1, 1)));
+    assert_eq!(at("key query"), Some((1, 2)));
+    assert_eq!(at("key nope"), Some((1, 38)));
+    assert_eq!(at("num 1"), Some((1, 45)));
+    assert_eq!(at("str x"), Some((1, 34)));
+    assert_eq!(at("key a"), Some((2, 3)));
+    assert_eq!(at("["), Some((2, 8)));
+    assert_eq!(at("bool true"), Some((2, 9)));
+    assert_eq!(at("null"), Some((2, 15)));
+    assert_eq!(at("]"), Some((2, 19)));
+    assert_eq!(
+        sink.0.last().map(|(n, l, c)| (n.as_str(), *l, *c)),
+        Some(("}", 2, 20))
+    );
+}

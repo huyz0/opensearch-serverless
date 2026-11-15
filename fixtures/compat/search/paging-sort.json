@@ -1,0 +1,1131 @@
+{
+  "name": "size, from and sort",
+  "description": "size and from in the body and as parameters, sort by fields and by score.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0-SNAPSHOT",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-paging-sort",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "create",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-paging-sort",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "title": {
+                "type": "text"
+              },
+              "tag": {
+                "type": "keyword"
+              },
+              "year": {
+                "type": "integer"
+              },
+              "published": {
+                "type": "date"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-paging-sort"
+        }
+      }
+    },
+    {
+      "name": "bulk index",
+      "request": {
+        "method": "POST",
+        "path": "/_bulk",
+        "query": {
+          "refresh": "true"
+        },
+        "ndjson": [
+          {
+            "index": {
+              "_index": "compat-paging-sort",
+              "_id": "1"
+            }
+          },
+          {
+            "title": "The quick brown fox",
+            "tag": "animal",
+            "year": 2001,
+            "published": "2001-03-04"
+          },
+          {
+            "index": {
+              "_index": "compat-paging-sort",
+              "_id": "2"
+            }
+          },
+          {
+            "title": "Lazy dogs sleep all day",
+            "tag": "animal",
+            "year": 2002,
+            "published": "2002-07-01T10:15:30Z"
+          },
+          {
+            "index": {
+              "_index": "compat-paging-sort",
+              "_id": "3"
+            }
+          },
+          {
+            "title": "Quick start guide",
+            "tag": "manual",
+            "year": 2010,
+            "published": "2010-01-01"
+          },
+          {
+            "index": {
+              "_index": "compat-paging-sort",
+              "_id": "4"
+            }
+          },
+          {
+            "title": "Brown sugar and brown bread",
+            "tag": "food",
+            "year": 2002,
+            "published": "2002-12-31T23:59:59.999Z"
+          },
+          {
+            "index": {
+              "_index": "compat-paging-sort",
+              "_id": "5"
+            }
+          },
+          {
+            "title": "A fox in the snow",
+            "tag": "animal",
+            "year": 1999,
+            "published": "1999-12-31"
+          }
+        ]
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 17,
+          "errors": false,
+          "items": [
+            {
+              "index": {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 0,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-paging-sort",
+                "_id": "2",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 1,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-paging-sort",
+                "_id": "3",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 2,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-paging-sort",
+                "_id": "4",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 3,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-paging-sort",
+                "_id": "5",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 4,
+                "_primary_term": 1,
+                "status": 201
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "size",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "query": {
+            "match_all": {}
+          },
+          "size": 2
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                }
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "2",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Lazy dogs sleep all day",
+                  "tag": "animal",
+                  "year": 2002,
+                  "published": "2002-07-01T10:15:30Z"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "from and size",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "query": {
+            "match_all": {}
+          },
+          "from": 2,
+          "size": 2
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "3",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Quick start guide",
+                  "tag": "manual",
+                  "year": 2010,
+                  "published": "2010-01-01"
+                }
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "4",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "from past the hits",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "query": {
+            "match_all": {}
+          },
+          "from": 10
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": []
+          }
+        }
+      }
+    },
+    {
+      "name": "size zero",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "query": {
+            "match": {
+              "title": "brown"
+            }
+          },
+          "size": 0
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 7,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          }
+        }
+      }
+    },
+    {
+      "name": "size and from as parameters",
+      "request": {
+        "method": "GET",
+        "path": "/compat-paging-sort/_search",
+        "query": {
+          "size": "1",
+          "from": "1"
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "2",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Lazy dogs sleep all day",
+                  "tag": "animal",
+                  "year": 2002,
+                  "published": "2002-07-01T10:15:30Z"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "sort by an integer descending",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "query": {
+            "match_all": {}
+          },
+          "sort": [
+            {
+              "year": {
+                "order": "desc"
+              }
+            }
+          ]
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 15,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "3",
+                "_score": null,
+                "_source": {
+                  "title": "Quick start guide",
+                  "tag": "manual",
+                  "year": 2010,
+                  "published": "2010-01-01"
+                },
+                "sort": [
+                  2010
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "2",
+                "_score": null,
+                "_source": {
+                  "title": "Lazy dogs sleep all day",
+                  "tag": "animal",
+                  "year": 2002,
+                  "published": "2002-07-01T10:15:30Z"
+                },
+                "sort": [
+                  2002
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "4",
+                "_score": null,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                },
+                "sort": [
+                  2002
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_score": null,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "sort": [
+                  2001
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "5",
+                "_score": null,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "published": "1999-12-31"
+                },
+                "sort": [
+                  1999
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "sort by a date ascending",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "query": {
+            "match_all": {}
+          },
+          "sort": [
+            {
+              "published": "asc"
+            }
+          ]
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "5",
+                "_score": null,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "published": "1999-12-31"
+                },
+                "sort": [
+                  946598400000
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_score": null,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "sort": [
+                  983664000000
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "2",
+                "_score": null,
+                "_source": {
+                  "title": "Lazy dogs sleep all day",
+                  "tag": "animal",
+                  "year": 2002,
+                  "published": "2002-07-01T10:15:30Z"
+                },
+                "sort": [
+                  1025518530000
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "4",
+                "_score": null,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                },
+                "sort": [
+                  1041379199999
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "3",
+                "_score": null,
+                "_source": {
+                  "title": "Quick start guide",
+                  "tag": "manual",
+                  "year": 2010,
+                  "published": "2010-01-01"
+                },
+                "sort": [
+                  1262304000000
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "sort by a field name",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "query": {
+            "match_all": {}
+          },
+          "sort": "year"
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "5",
+                "_score": null,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "published": "1999-12-31"
+                },
+                "sort": [
+                  1999
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_score": null,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "sort": [
+                  2001
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "2",
+                "_score": null,
+                "_source": {
+                  "title": "Lazy dogs sleep all day",
+                  "tag": "animal",
+                  "year": 2002,
+                  "published": "2002-07-01T10:15:30Z"
+                },
+                "sort": [
+                  2002
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "4",
+                "_score": null,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                },
+                "sort": [
+                  2002
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "3",
+                "_score": null,
+                "_source": {
+                  "title": "Quick start guide",
+                  "tag": "manual",
+                  "year": 2010,
+                  "published": "2010-01-01"
+                },
+                "sort": [
+                  2010
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "sort by a keyword then score",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "query": {
+            "match": {
+              "title": "brown fox"
+            }
+          },
+          "sort": [
+            {
+              "tag": "asc"
+            },
+            "_score"
+          ]
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 14,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_score": 0.82662284,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "sort": [
+                  "animal",
+                  0.82662284
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "5",
+                "_score": 0.37691408,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "published": "1999-12-31"
+                },
+                "sort": [
+                  "animal",
+                  0.37691408
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "4",
+                "_score": 0.52695787,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                },
+                "sort": [
+                  "food",
+                  0.52695787
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "sort by score",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "query": {
+            "match": {
+              "title": "brown fox"
+            }
+          },
+          "sort": [
+            "_score"
+          ]
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 0.82662284,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_score": 0.82662284,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                }
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "4",
+                "_score": 0.52695787,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                }
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "5",
+                "_score": 0.37691408,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "published": "1999-12-31"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "no body",
+      "request": {
+        "method": "GET",
+        "path": "/compat-paging-sort/_search"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                }
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "2",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Lazy dogs sleep all day",
+                  "tag": "animal",
+                  "year": 2002,
+                  "published": "2002-07-01T10:15:30Z"
+                }
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "3",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Quick start guide",
+                  "tag": "manual",
+                  "year": 2010,
+                  "published": "2010-01-01"
+                }
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "4",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                }
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "5",
+                "_score": 1.0,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "published": "1999-12-31"
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

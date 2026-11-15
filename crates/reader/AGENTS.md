@@ -6,3 +6,4 @@ Local rules:
 
 - Never writes to the object store. Never depends on `oss-writer`.
 - Learns of commits by push from the writer; never polls per index.
+- A search body is never parsed whole: it streams through `dsl::Recorder`, whose growth is reserved before each chunk. Every ported rule cites its Java at 3.10.0 in `port-map.tsv`.

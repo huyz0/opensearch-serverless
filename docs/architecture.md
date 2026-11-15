@@ -18,11 +18,15 @@ graph TD
     oss-coordinator --> oss-writer
     oss-format --> oss-types
     oss-mem
+    oss-node -.-> oss-blob
     oss-node -.-> oss-coordinator
+    oss-node -.-> oss-mem
     oss-node -.-> oss-reader
+    oss-node -.-> oss-rest
     oss-node -.-> oss-writer
     oss-reader --> oss-blob
     oss-reader --> oss-format
+    oss-reader --> oss-rest
     oss-reader --> oss-types
     oss-rest --> oss-mem
     oss-testkit

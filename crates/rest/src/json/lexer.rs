@@ -1,7 +1,7 @@
 //! The tokenizer's state machine.
 
 use super::number;
-use super::{Completion, ErrorKind, JsonError, Limits, Token, TokenSink};
+use super::{Completion, ErrorKind, JsonError, Limits, Location, Token, TokenSink};
 
 /// What the grammar expects next.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -50,6 +50,7 @@ pub struct Tokenizer {
     pub(super) literal_pos: usize,
     pub(super) root_seen: bool,
     pub(super) failed: Option<JsonError>,
+    pub(super) token_start: Location,
 }
 
 impl Tokenizer {
@@ -80,6 +81,7 @@ impl Tokenizer {
             literal_pos: 0,
             root_seen: false,
             failed,
+            token_start: Location { line: 1, column: 1 },
         }
     }
 
@@ -101,6 +103,7 @@ impl Tokenizer {
         self.literal_pos = 0;
         self.root_seen = false;
         self.failed = bad_limits(&self.limits);
+        self.token_start = Location { line: 1, column: 1 };
     }
 
     /// Bytes fed so far.
@@ -146,6 +149,14 @@ impl Tokenizer {
             line: self.line,
             column: at.saturating_sub(self.line_start).saturating_add(1),
         }
+    }
+
+    /// Records `at` as where the token being read starts.
+    fn mark(&mut self, at: u64) {
+        self.token_start = Location {
+            line: self.line,
+            column: at.saturating_sub(self.line_start).saturating_add(1),
+        };
     }
 
     pub(super) fn fail(&mut self, kind: ErrorKind, at: u64) -> JsonError {
@@ -233,7 +244,7 @@ impl Tokenizer {
                             b"false" => Token::Bool(false),
                             _ => Token::Null,
                         };
-                        sink.token(token)?;
+                        sink.token_at(token, self.token_start)?;
                         self.lex = Lex::Between;
                         self.value_done();
                     }
@@ -292,10 +303,11 @@ impl Tokenizer {
                 Ok(())
             }
             (Expect::Key | Expect::KeyOrEnd, b'"') => {
+                self.mark(at);
                 self.start_string(true);
                 Ok(())
             }
-            (Expect::KeyOrEnd, b'}') | (Expect::ValueOrEnd, b']') => self.close(sink),
+            (Expect::KeyOrEnd, b'}') | (Expect::ValueOrEnd, b']') => self.close(at, sink),
             (Expect::CommaOrEnd, b',') => {
                 self.expect = if object_top {
                     Expect::Key
@@ -304,14 +316,15 @@ impl Tokenizer {
                 };
                 Ok(())
             }
-            (Expect::CommaOrEnd, b'}') if object_top => self.close(sink),
-            (Expect::CommaOrEnd, b']') if !object_top => self.close(sink),
+            (Expect::CommaOrEnd, b'}') if object_top => self.close(at, sink),
+            (Expect::CommaOrEnd, b']') if !object_top => self.close(at, sink),
             (Expect::Value | Expect::ValueOrEnd, _) => self.start_value(b, at, sink),
             _ => Err(self.fail(ErrorKind::Unexpected(b), at).into()),
         }
     }
 
     fn start_value<S: TokenSink>(&mut self, b: u8, at: u64, sink: &mut S) -> Result<(), S::Error> {
+        self.mark(at);
         match b {
             b'{' | b'[' => {
                 if self.stack.len() >= self.limits.max_depth {
@@ -321,10 +334,10 @@ impl Tokenizer {
                 self.stack.push(object);
                 if object {
                     self.expect = Expect::KeyOrEnd;
-                    sink.token(Token::StartObject)
+                    sink.token_at(Token::StartObject, self.token_start)
                 } else {
                     self.expect = Expect::ValueOrEnd;
-                    sink.token(Token::StartArray)
+                    sink.token_at(Token::StartArray, self.token_start)
                 }
             }
             b'"' => {
@@ -351,13 +364,15 @@ impl Tokenizer {
         }
     }
 
-    fn close<S: TokenSink>(&mut self, sink: &mut S) -> Result<(), S::Error> {
+    fn close<S: TokenSink>(&mut self, at: u64, sink: &mut S) -> Result<(), S::Error> {
+        self.mark(at);
         let object = self.stack.pop() == Some(true);
-        sink.token(if object {
+        let token = if object {
             Token::EndObject
         } else {
             Token::EndArray
-        })?;
+        };
+        sink.token_at(token, self.token_start)?;
         self.value_done();
         Ok(())
     }
@@ -376,7 +391,7 @@ impl Tokenizer {
             return Err(self.fail(ErrorKind::BadNumber, at).into());
         }
         let text = std::str::from_utf8(&self.scratch).unwrap_or_default();
-        sink.token(Token::Number(text))?;
+        sink.token_at(Token::Number(text), self.token_start)?;
         self.scratch.clear();
         self.lex = Lex::Between;
         self.value_done();

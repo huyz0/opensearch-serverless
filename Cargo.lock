@@ -461,6 +461,10 @@ dependencies = [
 name = "oss-compat"
 version = "0.1.0"
 dependencies = [
+ "oss-blob",
+ "oss-mem",
+ "oss-node",
+ "oss-rest",
  "serde_json",
 ]
 
@@ -493,8 +497,14 @@ dependencies = [
 name = "oss-node"
 version = "0.1.0"
 dependencies = [
+ "lucene-analysis",
+ "lucene-store",
+ "oss-blob",
  "oss-coordinator",
+ "oss-mem",
  "oss-reader",
+ "oss-rest",
+ "oss-testkit",
  "oss-writer",
 ]
 
@@ -502,12 +512,15 @@ dependencies = [
 name = "oss-reader"
 version = "0.1.0"
 dependencies = [
+ "lucene-analysis",
+ "lucene-codecs",
  "lucene-index",
  "lucene-search",
  "lucene-store",
  "oss-blob",
  "oss-format",
  "oss-mem",
+ "oss-rest",
  "oss-types",
 ]
 

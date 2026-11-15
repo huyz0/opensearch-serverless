@@ -7,10 +7,11 @@
 //! an alias (a root field `alias`) or a tombstone (a value starting
 //! `{"tombstone":true`), which `DescriptorStore.get` reads as no index.
 //!
-//! Only what locates an index's storage is read: `name`, `uuid`,
-//! `number_of_shards`, `bucket`, and whether a `unit_layout` is present. The
-//! mapping (a JSON string, always escaped) and the settings are skipped
-//! without being decoded or copied.
+//! What locates an index's storage is read: `name`, `uuid`,
+//! `number_of_shards`, `bucket`, and whether a `unit_layout` is present; and
+//! the mapping's span (a JSON string, always escaped), which a reader
+//! decodes when it builds queries. Neither it nor the settings are decoded
+//! or copied here.
 
 use std::borrow::Cow;
 
@@ -48,6 +49,10 @@ pub struct IndexDescriptor<'a> {
     pub bucket: Option<Cow<'a, str>>,
     /// Whether it was created with a shard mode's unit layout.
     pub has_unit_layout: bool,
+    /// The mapping's JSON source (`{"properties":{..}}`) as it is written in
+    /// the descriptor: the bytes between the string's quotes, escapes left
+    /// in. `None` when the descriptor has none.
+    pub mapping_escaped: Option<&'a [u8]>,
 }
 
 impl<'a> DescriptorRecord<'a> {
@@ -69,6 +74,7 @@ impl<'a> DescriptorRecord<'a> {
         let mut shards = None;
         let mut bucket = None;
         let mut has_unit_layout = false;
+        let mut mapping = None;
         while let Some(field) = json.next_field()? {
             match field.as_ref() {
                 "alias" => {
@@ -79,6 +85,7 @@ impl<'a> DescriptorRecord<'a> {
                     has_unit_layout = json.next_is_object();
                     json.skip_value()?;
                 }
+                "mapping" => mapping = json.raw_string()?,
                 "name" | "uuid" | "bucket" | "number_of_shards" => {
                     match (field.as_ref(), json.expect_token()?) {
                         ("name", Token::Str(text)) => name = Some(text),
@@ -102,7 +109,7 @@ impl<'a> DescriptorRecord<'a> {
                         }
                     }
                 }
-                // The mapping, settings and anything newer: skipped, never decoded.
+                // The settings and anything newer: skipped, never decoded.
                 _ => json.skip_value()?,
             }
         }
@@ -117,6 +124,7 @@ impl<'a> DescriptorRecord<'a> {
                 number_of_shards,
                 bucket,
                 has_unit_layout,
+                mapping_escaped: mapping,
             })),
             _ => Err(corrupt(WHAT, "missing a required field")),
         }

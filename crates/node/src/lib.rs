@@ -4,6 +4,9 @@
 //! on, so a reader-only build carries no writer code. [`enabled_roles`] reports
 //! what this binary was built with.
 
+#[cfg(feature = "reader")]
+pub mod search;
+
 /// A role a node can serve.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Role {

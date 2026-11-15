@@ -1,0 +1,1 @@
+þúýtBÿs{"name":"compat-term","uuid":"compat-term-uuid","number_of_shards":1,"mapping":"{\"properties\":{\"title\":{\"type\":\"text\"},\"tag\":{\"type\":\"keyword\"},\"year\":{\"type\":\"integer\"},\"published\":{\"type\":\"date\"}}}","settings":{}}

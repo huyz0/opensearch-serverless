@@ -25,6 +25,8 @@ pub enum ReaderError {
     /// The manifest names a file without its length, which a reader needs
     /// to open it without a request per file.
     UnknownLength(String),
+    /// The descriptor's mapping could not be read.
+    Mapping(crate::mapping::MappingError),
 }
 
 impl fmt::Display for ReaderError {
@@ -38,6 +40,7 @@ impl fmt::Display for ReaderError {
             ReaderError::Open(e) => write!(f, "engine: {e}"),
             ReaderError::RegisterTooLarge => f.write_str("register blob larger than its limit"),
             ReaderError::UnknownLength(name) => write!(f, "manifest gives no length for {name}"),
+            ReaderError::Mapping(e) => write!(f, "{e}"),
         }
     }
 }
@@ -62,6 +65,12 @@ impl From<lucene_search::directory_reader::Error> for ReaderError {
     }
 }
 
+impl From<crate::mapping::MappingError> for ReaderError {
+    fn from(e: crate::mapping::MappingError) -> Self {
+        ReaderError::Mapping(e)
+    }
+}
+
 impl From<lucene_store::Error> for ReaderError {
     fn from(e: lucene_store::Error) -> Self {
         ReaderError::Engine(e)
@@ -74,7 +83,11 @@ mod tests {
 
     #[test]
     fn every_kind_names_its_cause() {
-        let cases: [(ReaderError, &str); 5] = [
+        let cases: [(ReaderError, &str); 6] = [
+            (
+                ReaderError::Mapping(crate::mapping::MappingError("bad".into())),
+                "mapping: bad",
+            ),
             (
                 ReaderError::Blob(BlobError::Busy),
                 "object store: no I/O buffer free",
@@ -93,5 +106,32 @@ mod tests {
         for (e, text) in cases {
             assert_eq!(e.to_string(), text);
         }
+    }
+
+    #[test]
+    fn each_cause_converts_into_its_kind() {
+        let blob: ReaderError = BlobError::NotFound.into();
+        assert!(matches!(blob, ReaderError::Blob(BlobError::NotFound)));
+        let format: ReaderError = FormatError::Truncated {
+            what: "header",
+            needed: 4,
+            have: 1,
+        }
+        .into();
+        assert!(format.to_string().starts_with("blob format: "), "{format}");
+        let engine: ReaderError = lucene_store::Error::MalformedVarint.into();
+        assert_eq!(
+            engine.to_string(),
+            "engine: malformed vint/vlong: too many bytes"
+        );
+        let mapping: ReaderError = crate::mapping::MappingError("bad".into()).into();
+        assert!(matches!(mapping, ReaderError::Mapping(_)));
+        let open: ReaderError =
+            lucene_search::directory_reader::Error::Store(lucene_store::Error::MalformedVarint)
+                .into();
+        assert_eq!(
+            open.to_string(),
+            "engine: malformed vint/vlong: too many bytes"
+        );
     }
 }

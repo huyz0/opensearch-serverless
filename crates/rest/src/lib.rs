@@ -33,6 +33,7 @@ pub use body::Body;
 pub use config::{ConfigError, ServerConfig};
 pub use error::{Exception, Meta, RestError};
 pub use head::Version;
+pub use json_out::write_str as write_json_str;
 pub use method::{Method, MethodSet};
 pub use query::decode_component;
 pub use request::Request;

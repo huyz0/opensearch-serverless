@@ -1,0 +1,1 @@
+(K½H©5{"name":"compat-errors","uuid":"compat-errors-uuid","number_of_shards":1,"mapping":"{\"properties\":{\"title\":{\"type\":\"text\"},\"tag\":{\"type\":\"keyword\"},\"year\":{\"type\":\"integer\"},\"published\":{\"type\":\"date\"}}}","settings":{}}

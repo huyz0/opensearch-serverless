@@ -58,7 +58,7 @@ impl Tokenizer {
         };
         if valid > 0 {
             let text = std::str::from_utf8(&self.scratch[..valid]).unwrap_or_default();
-            sink.token(Token::Str { text, last: false })?;
+            sink.token_at(Token::Str { text, last: false }, self.token_start)?;
         }
         let len = self.scratch.len();
         self.scratch.copy_within(valid..len, 0);
@@ -76,10 +76,10 @@ impl Tokenizer {
         };
         self.lex = Lex::Between;
         if self.in_key {
-            sink.token(Token::Key(text))?;
+            sink.token_at(Token::Key(text), self.token_start)?;
             self.expect = Expect::Colon;
         } else {
-            sink.token(Token::Str { text, last: true })?;
+            sink.token_at(Token::Str { text, last: true }, self.token_start)?;
             self.value_done();
         }
         self.scratch.clear();

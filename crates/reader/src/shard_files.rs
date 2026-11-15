@@ -16,6 +16,7 @@ use oss_blob::{BlobStore, ByteRange, PooledStore};
 use oss_format::{CommitManifest, DescriptorRecord, Register, descriptor_key};
 
 use crate::error::ReaderError;
+use crate::mapping::Mapping;
 
 /// The largest register blob (descriptor or commit manifest) the reader
 /// reads. The shell's manifests list at most 16,384 files of about 100
@@ -31,6 +32,17 @@ pub struct FileRange {
     pub offset: u64,
     /// The file's length.
     pub length: u64,
+}
+
+/// What a search needs to know of the index, read from its descriptor.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct IndexMeta {
+    /// The index's uuid, which shard failures name.
+    pub uuid: String,
+    /// How many shards the index has.
+    pub number_of_shards: u32,
+    /// The index's fields; empty when the descriptor holds no mapping.
+    pub mapping: Mapping,
 }
 
 /// Every file of one shard's latest published commit, by Lucene file name.
@@ -50,12 +62,33 @@ impl ShardFiles {
         index: &str,
         shard: u32,
     ) -> Result<Self, ReaderError> {
+        Self::open_with_meta(store, base, index, shard).map(|(files, _)| files)
+    }
+
+    /// [`Self::open`], with the index's metadata from the same descriptor
+    /// read.
+    pub fn open_with_meta<S: BlobStore>(
+        store: &PooledStore<S>,
+        base: &str,
+        index: &str,
+        shard: u32,
+    ) -> Result<(Self, IndexMeta), ReaderError> {
         let descriptor_bytes =
             read_register(store, &descriptor_key(base, index)?, MAX_REGISTER_BYTES)?;
         let descriptor = match DescriptorRecord::parse(Register::parse(&descriptor_bytes)?.value)? {
             DescriptorRecord::Index(d) => d,
             DescriptorRecord::Tombstone => return Err(ReaderError::Deleted),
             DescriptorRecord::Alias => return Err(ReaderError::Alias),
+        };
+        let mapping = match descriptor.mapping_escaped {
+            Some(escaped) => Mapping::from_escaped(escaped)?,
+            None => Mapping::default(),
+        };
+        let meta = IndexMeta {
+            // ALLOC: one uuid an open index.
+            uuid: descriptor.uuid.to_string(),
+            number_of_shards: descriptor.number_of_shards,
+            mapping,
         };
         let shard_ref = descriptor.shard(shard)?;
         let manifest_bytes =
@@ -79,10 +112,13 @@ impl ShardFiles {
                 },
             );
         }
-        Ok(Self {
-            term: manifest.term,
-            files,
-        })
+        Ok((
+            Self {
+                term: manifest.term,
+                files,
+            },
+            meta,
+        ))
     }
 
     /// The commit's files, in name order.

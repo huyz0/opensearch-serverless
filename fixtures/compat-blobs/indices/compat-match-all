@@ -1,0 +1,1 @@
+ m%úÑ»{"name":"compat-match-all","uuid":"compat-match-all-uuid","number_of_shards":1,"mapping":"{\"properties\":{\"title\":{\"type\":\"text\"},\"year\":{\"type\":\"integer\"}}}","settings":{}}
