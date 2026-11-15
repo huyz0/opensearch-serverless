@@ -1,7 +1,7 @@
 //! Test-only helpers shared across the workspace.
 //!
-//! Holds the counting allocator used to assert peak memory under load. Used
-//! only as a dev-dependency.
+//! Holds the counting allocator used to assert peak memory under load, and
+//! [`TempDir`], a directory a test owns. Used only as a dev-dependency.
 //!
 //! The allocator is the pinned `cap` crate's `Cap<System>` with its `stats`
 //! feature, so this repository holds no `unsafe` of its own. Install it in a
@@ -22,7 +22,9 @@
 //! ```
 
 mod peak;
+mod temp;
 
 pub use peak::{
     CountingAllocator, PeakExceeded, PeakWindow, assert_peak_below, counting_allocator,
 };
+pub use temp::TempDir;

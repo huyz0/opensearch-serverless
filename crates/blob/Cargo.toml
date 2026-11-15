@@ -29,6 +29,10 @@ oss-testkit = { workspace = true }
 name = "emulator"
 required-features = ["emulator"]
 
+# Its own binary: the counting allocator is process-wide.
+[[test]]
+name = "fs_streaming_peak"
+
 [[test]]
 name = "s3"
 required-features = ["emulator"]

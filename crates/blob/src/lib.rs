@@ -7,7 +7,8 @@
 //! (docs/adr/0005-io-model.md, docs/adr/0004-bounded-memory-and-streaming.md).
 //! [`S3Store`] implements it over S3's REST API, and the in-process
 //! [`emulator`] behind the `emulator` feature, with an S3 HTTP front end for
-//! testing the client. [`PooledStore`] streams bodies
+//! testing the client. [`FsStore`] implements it over a directory, for single-host nodes and
+//! tests (`serverless.store.type = fs`, [`settings`]). [`PooledStore`] streams bodies
 //! through the node's buffer pool and answers [`BlobError::Busy`] when it is
 //! empty.
 
@@ -15,22 +16,26 @@ pub mod chunk;
 #[cfg(feature = "emulator")]
 pub mod emulator;
 pub mod error;
+pub mod fs;
 pub mod meter;
 pub mod op;
 pub mod pooled;
 pub mod s3;
+pub mod settings;
 pub mod store;
 
 pub use chunk::{ChunkSink, ChunkSource, SliceSource};
 #[cfg(feature = "emulator")]
 pub use emulator::Emulator;
 pub use error::{BlobError, BlobResult};
+pub use fs::FsStore;
 pub use meter::Meter;
 pub use op::{PriceClass, S3Op};
 pub use pooled::PooledStore;
 pub use s3::retry::RetryPolicy;
 pub use s3::sigv4::Credentials;
 pub use s3::{S3Config, S3Store};
+pub use settings::StoreSettings;
 pub use store::{
     BlobStore, ByteRange, CreateOutcome, GetOutcome, ListPage, MAX_KEY_BYTES, MAX_LIST_KEYS,
     ObjectMeta,

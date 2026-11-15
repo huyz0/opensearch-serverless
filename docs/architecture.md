@@ -1,6 +1,6 @@
 # Architecture
 
-A stateless search service on object storage. Nodes hold caches, never durable state: the object store (S3, RustFS in tests) is the only durable tier, for data and metadata. The blob formats are shared with the Java serverless shell so both can run against the same bucket during the migration.
+A stateless search service on object storage. Nodes hold caches, never durable state: the object store (S3, RustFS in tests, or a directory for a single-host node) is the only durable tier, for data and metadata. The blob formats are shared with the Java serverless shell so both can run against the same bucket during the migration.
 
 ## Crate map
 
