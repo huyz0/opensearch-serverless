@@ -47,6 +47,10 @@ fn the_engine_opens_both_segments_with_ranged_reads_only() {
     // Three documents in the node pack's segment, two in the segment blob's.
     assert_eq!(shard.reader.max_doc(), 5);
     assert_eq!(shard.reader.num_docs(), 5);
+    assert_eq!(
+        format!("{shard:?}"),
+        "OpenShard { max_doc: 5, num_docs: 5 }"
+    );
     let made = since(&store, before);
     let count = |op: S3Op| made.iter().find(|(o, _)| *o == op).map_or(0, |(_, n)| *n);
     assert_eq!(

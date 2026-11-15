@@ -138,3 +138,24 @@ impl<S: BlobStore> lucene_store::BlobStore for EngineStore<S> {
         Err(read_only(name))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn kind(e: BlobError) -> ErrorKind {
+        match engine_error(e) {
+            Error::Io(io) => io.kind(),
+            other => panic!("an io error: {other}"),
+        }
+    }
+
+    #[test]
+    fn store_failures_keep_a_kind_the_engine_can_act_on() {
+        assert_eq!(kind(BlobError::NotFound), ErrorKind::NotFound);
+        assert!(engine_error(BlobError::NotFound).is_no_such_file());
+        assert_eq!(kind(BlobError::Busy), ErrorKind::WouldBlock);
+        assert_eq!(kind(BlobError::Throttled), ErrorKind::WouldBlock);
+        assert_eq!(kind(BlobError::Unavailable), ErrorKind::Other);
+    }
+}

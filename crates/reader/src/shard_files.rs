@@ -50,14 +50,16 @@ impl ShardFiles {
         index: &str,
         shard: u32,
     ) -> Result<Self, ReaderError> {
-        let descriptor_bytes = read_register(store, &descriptor_key(base, index)?)?;
+        let descriptor_bytes =
+            read_register(store, &descriptor_key(base, index)?, MAX_REGISTER_BYTES)?;
         let descriptor = match DescriptorRecord::parse(Register::parse(&descriptor_bytes)?.value)? {
             DescriptorRecord::Index(d) => d,
             DescriptorRecord::Tombstone => return Err(ReaderError::Deleted),
             DescriptorRecord::Alias => return Err(ReaderError::Alias),
         };
         let shard_ref = descriptor.shard(shard)?;
-        let manifest_bytes = read_register(store, &shard_ref.manifest_key(base)?)?;
+        let manifest_bytes =
+            read_register(store, &shard_ref.manifest_key(base)?, MAX_REGISTER_BYTES)?;
         let manifest = CommitManifest::parse(Register::parse(&manifest_bytes)?.value)?;
         let extents = shard_ref.resolve(base, &manifest)?;
         // ALLOC: one entry a commit file, at most the manifest's file limit.
@@ -104,14 +106,18 @@ impl ShardFiles {
     }
 }
 
-/// Reads a whole register blob, refusing one over [`MAX_REGISTER_BYTES`].
-fn read_register<S: BlobStore>(store: &PooledStore<S>, key: &str) -> Result<Vec<u8>, ReaderError> {
-    // ALLOC: one register, at most MAX_REGISTER_BYTES, checked as it fills.
+/// Reads a whole register blob, refusing one over `max` bytes.
+fn read_register<S: BlobStore>(
+    store: &PooledStore<S>,
+    key: &str,
+    max: usize,
+) -> Result<Vec<u8>, ReaderError> {
+    // ALLOC: one register, at most `max` bytes, checked as it fills.
     let mut out = Vec::new();
     let mut too_large = false;
     store
         .get(key, ByteRange::Full, &mut |chunk: &[u8]| {
-            if out.len().saturating_add(chunk.len()) > MAX_REGISTER_BYTES {
+            if out.len().saturating_add(chunk.len()) > max {
                 too_large = true;
                 return Err(oss_blob::BlobError::Stream("register too large"));
             }
@@ -126,4 +132,62 @@ fn read_register<S: BlobStore>(store: &PooledStore<S>, key: &str) -> Result<Vec<
             }
         })?;
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use oss_blob::{Emulator, SliceSource};
+    use oss_mem::{BudgetConfig, BufferPool, MemoryBudget, Pool};
+
+    use super::*;
+
+    fn store_with(key: &str, len: usize) -> PooledStore<Emulator> {
+        let config = BudgetConfig::new(1 << 20)
+            .with_pool(Pool::Transport, 1 << 20)
+            .expect("fits");
+        let budget = MemoryBudget::new(&config);
+        let buffers = BufferPool::new(&budget, Pool::Transport, 16, 1).expect("fits");
+        let store = PooledStore::new(Emulator::new(1 << 20, 1), buffers);
+        store
+            .put(key, &mut SliceSource::new(&vec![7u8; len]))
+            .expect("put");
+        store
+    }
+
+    #[test]
+    fn a_register_at_its_limit_is_read_and_one_byte_more_is_refused() {
+        let store = store_with("r", 100);
+        assert_eq!(
+            read_register(&store, "r", 100).expect("at the limit").len(),
+            100
+        );
+        assert!(matches!(
+            read_register(&store, "r", 99),
+            Err(ReaderError::RegisterTooLarge)
+        ));
+        assert!(matches!(
+            read_register(&store, "missing", 100),
+            Err(ReaderError::Blob(oss_blob::BlobError::NotFound))
+        ));
+    }
+
+    #[test]
+    fn an_empty_commit_is_empty() {
+        let files = ShardFiles {
+            term: 1,
+            files: BTreeMap::new(),
+        };
+        assert!(files.is_empty());
+        assert_eq!(files.len(), 0);
+        let mut one = files.clone();
+        one.files.insert(
+            "segments_1".into(),
+            FileRange {
+                key: "k".into(),
+                offset: 0,
+                length: 1,
+            },
+        );
+        assert!(!one.is_empty());
+    }
 }
