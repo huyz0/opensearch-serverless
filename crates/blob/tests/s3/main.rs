@@ -3,6 +3,7 @@
 //! end on loopback. Every test asserts exact request counts, on the
 //! client's meter and on the server.
 
+mod gate;
 mod listing;
 mod load;
 mod protocol;
