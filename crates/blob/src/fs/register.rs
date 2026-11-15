@@ -94,7 +94,8 @@ impl FsStore {
         check_fs_key(key)?;
         let target = resolve(&self.root, key);
         let (dir, name) = split(&target)?;
-        if !dir.is_dir() {
+        // As the Java: no register file, no lock.
+        if fs::symlink_metadata(&target).is_err() {
             self.meter.record(S3Op::GetRange);
             return Ok(false);
         }

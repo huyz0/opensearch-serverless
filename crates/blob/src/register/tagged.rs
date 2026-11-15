@@ -41,7 +41,8 @@ pub(crate) trait Tagged {
     ) -> BlobResult<Option<String>>;
 
     /// Writes `body` to `key` if `pre` holds and returns the new object's
-    /// ETag, or `None` when the store refused it because `pre` did not.
+    /// ETag (empty when the store sent none), or `None` when the store
+    /// refused it because `pre` did not.
     fn put_tagged(
         &self,
         key: &str,
@@ -128,6 +129,11 @@ fn write(
     check_value(value)?;
     let mut body = RegisterSource::new(generation, value);
     match store.put_tagged(key, &mut body, pre) {
+        // Applied with no ETag to remember: the next swap reads first.
+        Ok(Some(etag)) if etag.is_empty() => {
+            store.known().forget(key);
+            Ok(SwapOutcome::Applied(generation))
+        }
         Ok(Some(etag)) => {
             store.known().remember(key, generation, &etag);
             Ok(SwapOutcome::Applied(generation))

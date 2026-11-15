@@ -155,6 +155,12 @@ impl Emulator {
         lock(&self.objects).map.len()
     }
 
+    /// Whether `key` holds an object, unmetered: how the front end tells
+    /// S3's 404 to a refused `If-Match` apart from its 412.
+    pub(crate) fn contains(&self, key: &str) -> bool {
+        lock(&self.objects).map.contains_key(key)
+    }
+
     /// [`BlobStore::get`], telling `start` the span it will send before the
     /// first chunk: the S3 front end writes its status line and headers
     /// there.

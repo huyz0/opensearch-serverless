@@ -6,6 +6,9 @@ The plan's storage-backend milestone (the filesystem-store task's generation-che
 
 ## Change
 
+Decision record: [ADR 0007](../../adr/0007-registers.md) (Proposed).
+
+
 - `BlobStore` gains the four register operations of the Java's `ConditionalBlobContainer` (huyz0/OpenSearch `server/src/main/java/org/opensearch/common/blobstore/ConditionalBlobContainer.java@3920dc36`): `read_register`, `swap_register` (compare-and-swap on a generation), `create_register` (swap from absent in one request) and `delete_register` (delete only if unchanged).
 - One wire format on every backend, the Java's: an 8-byte big-endian generation, then the value. A register starts at a random generation in `[2^32, 2^62)` with bit 32 set (`BlobRegister.initialGeneration`), drawn from the OS's secure source, and each swap adds one. A refused swap reports the generation it saw, or none when the store could not tell it atomically.
 - Emulator and S3 (`S3BlobContainer`'s register methods, `plugins/repository-s3/src/main/java/org/opensearch/repositories/s3/S3BlobContainer.java@3920dc36`): every object gets an ETag; PUT takes `If-Match` as well as `If-None-Match: *`, DELETE takes `If-Match`, and GET, HEAD and PUT return the ETag. A swap reads the generation and ETag with one 8-byte ranged GET and writes with one conditional PUT; when the store remembers the ETag of the very generation expected (the last one it read or wrote, at most 10,000 registers remembered, oldest forgotten first), it skips the GET. A conditional PUT carries the writer token, so a retry refused after a lost response is told apart from another writer's object by one HEAD, as `create_if_absent` already does.
@@ -48,6 +51,9 @@ The same as the Java's, which reads the whole register where this reads 8 bytes.
 None: new operations nothing calls yet.
 
 ## Risks
+
+- A conditional PUT whose response is lost, then overtaken by another writer before the retry, answers `Conflict(None)` although it applied: the retry's HEAD finds the other writer's token. Fail-safe, as the Java; callers read before deciding again.
+- The S3 version memory (up to about 11 MiB per store) is not reserved from the node budget, and registers bypass `PooledStore`; the first caller wires both.
 
 - An empty object reads as no register on every backend (the Java's filesystem rule), but only fs can swap from it: on S3 there is no generation to compare and an 8-byte ranged GET of it is refused, so the swap fails with `Protocol`. Nothing writes empty registers.
 

@@ -54,6 +54,17 @@ fn precondition(head: &Head) -> Result<Option<Precondition<'_>>, Reply> {
     }
 }
 
+/// A refused conditional write as S3 answers it: 404 to `If-Match` when
+/// there is no object, 412 otherwise.
+fn refused(shared: &Shared, key: &str, pre: Option<Precondition<'_>>) -> Reply {
+    match pre {
+        Some(Precondition::Matches(_)) if !shared.store.contains(key) => {
+            Reply::Error(404, "NoSuchKey")
+        }
+        _ => Reply::Error(412, "PreconditionFailed"),
+    }
+}
+
 /// Stores the body, if the precondition holds.
 pub(super) fn put(shared: &Shared, head: &Head, key: &str, body: &mut SocketBody<'_>) -> Reply {
     if head.header("content-length").is_none() {
@@ -67,7 +78,7 @@ pub(super) fn put(shared: &Shared, head: &Head, key: &str, body: &mut SocketBody
     let writer = head.header(WRITER);
     match shared.store.put_if(key, body, &mut buf, pre, writer) {
         Ok(Some(tag)) => Reply::Stored(etag(tag)),
-        Ok(None) => Reply::Error(412, "PreconditionFailed"),
+        Ok(None) => refused(shared, key, pre),
         Err(err) => status_of(&err),
     }
 }
@@ -77,7 +88,7 @@ pub(super) fn delete(shared: &Shared, head: &Head, key: &str) -> Reply {
     match head.header("if-match") {
         Some(tag) => match shared.store.delete_if(key, tag) {
             Ok(true) => Reply::Empty(204),
-            Ok(false) => Reply::Error(412, "PreconditionFailed"),
+            Ok(false) => refused(shared, key, Some(Precondition::Matches(tag))),
             Err(err) => status_of(&err),
         },
         None => match shared.store.delete(key) {

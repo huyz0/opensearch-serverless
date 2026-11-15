@@ -75,10 +75,7 @@ impl Tagged for S3Store {
         pre: Precondition<'_>,
     ) -> BlobResult<Option<String>> {
         let mut buf = [0u8; PUT_BUF];
-        match self.put_if(key, body, &mut buf, pre)? {
-            Some(tag) if tag.is_empty() => Err(BlobError::Protocol("no ETag")),
-            other => Ok(other),
-        }
+        self.put_if(key, body, &mut buf, pre)
     }
 
     fn delete_tagged(&self, key: &str, etag: &str) -> BlobResult<bool> {

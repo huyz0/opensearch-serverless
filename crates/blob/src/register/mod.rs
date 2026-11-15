@@ -43,10 +43,13 @@ pub struct RegisterRead {
 pub enum SwapOutcome {
     /// The write applied; the register now has this generation.
     Applied(u64),
-    /// The register did not hold the generation expected. The generation
-    /// seen instead ([`ABSENT_GENERATION`] for none), or `None` when the
-    /// store refused the write without saying what it held. Either way a
-    /// later read may see another: read before deciding again.
+    /// The write did not apply as the register's next version. The
+    /// generation seen instead ([`ABSENT_GENERATION`] for none), or `None`
+    /// when the store refused the write without saying what it held. With
+    /// `None` after a lost response, this write may have applied and been
+    /// replaced by another writer's before the retry was refused, as in the
+    /// Java. Either way a later read may see another: read before deciding
+    /// again.
     Conflict(Option<u64>),
 }
 

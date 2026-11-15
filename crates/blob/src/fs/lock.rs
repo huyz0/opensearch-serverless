@@ -30,9 +30,21 @@ pub(crate) const STRIPES: usize = 64;
 static MUTEXES: [Mutex<()>; STRIPES] = [const { Mutex::new(()) }; STRIPES];
 
 /// A held register lock: released, file lock then mutex, when dropped.
+/// The order is load-bearing: released the other way round, another
+/// thread could take the mutex and lock the file again (a POSIX lock this
+/// process already holds is granted at once), and this close would then
+/// release that thread's lock too, letting another process in.
 pub(crate) struct Held {
-    _file: File,
+    file: Option<File>,
     _mutex: MutexGuard<'static, ()>,
+}
+
+impl Drop for Held {
+    fn drop(&mut self) {
+        // Closes the file, releasing its lock, before the guard is dropped
+        // with the struct's fields.
+        drop(self.file.take());
+    }
 }
 
 /// The stripe of a register whose canonical path is `path`: the Java's
@@ -87,7 +99,7 @@ pub(crate) fn lock(dir: &Path, name: &str) -> BlobResult<Held> {
         .map_err(|e| io_error(&e))?;
     exclusive(&file).map_err(|e| io_error(&e))?;
     Ok(Held {
-        _file: file,
+        file: Some(file),
         _mutex: mutex,
     })
 }

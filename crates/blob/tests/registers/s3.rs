@@ -85,10 +85,14 @@ fn a_swap_of_a_deleted_register_is_a_conflict() {
     let SwapOutcome::Applied(g) = s.create_register("gone/k", b"v").unwrap() else {
         panic!("create refused");
     };
-    server(&b).answer_next(404, "NoSuchKey", 1);
+    // Deleted by another client: the remembered ETag's PUT gets S3's 404.
+    let other = client(&server(&b).endpoint());
+    other.delete("gone/k").unwrap();
     let (outcome, n) = counted(s.meter(), || s.swap_register("gone/k", g, b"w").unwrap());
     assert_eq!(outcome, SwapOutcome::Conflict(None));
     assert_eq!(n, [(Put, 1)]);
+    assert_eq!(read(s, "gone/k"), None);
+    assert_eq!(other.delete_register("gone/k", g), Ok(false));
     // A 404 to an unconditional PUT stays an error.
     server(&b).answer_next(404, "NoSuchKey", 1);
     assert_eq!(

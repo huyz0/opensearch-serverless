@@ -10,7 +10,7 @@
 //! GET it would have saved.
 
 use std::collections::{HashMap, VecDeque};
-use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 /// The most registers remembered, as the Java's.
 pub(crate) const MAX_KNOWN: usize = 10_000;
@@ -25,11 +25,11 @@ pub(crate) struct Known {
 #[derive(Debug, Default)]
 struct Inner {
     /// Each key's version and the sequence number it was added under.
-    map: HashMap<String, (Known, u64)>,
+    map: HashMap<Arc<str>, (Known, u64)>,
     /// Keys with the sequence number they were added under, oldest first;
     /// the oldest is forgotten first. A position whose number no longer
     /// matches the map's (the key was forgotten since) is skipped.
-    order: VecDeque<(u64, String)>,
+    order: VecDeque<(u64, Arc<str>)>,
     next: u64,
 }
 
@@ -82,10 +82,12 @@ impl KnownVersions {
         }
         let seq = inner.next;
         inner.next = seq.wrapping_add(1);
-        // ALLOC: one key, at most MAX_KEY_BYTES, for each of at most MAX_KNOWN registers.
-        inner.map.insert(key.to_owned(), (known, seq));
-        // ALLOC: as above; the queue holds at most twice MAX_KNOWN keys, see below.
-        inner.order.push_back((seq, key.to_owned()));
+        // ALLOC: one key, at most MAX_KEY_BYTES, for each of at most MAX_KNOWN
+        // registers (about 11 MiB at worst), shared by the map and the queue.
+        let key: Arc<str> = Arc::from(key);
+        inner.map.insert(Arc::clone(&key), (known, seq));
+        // ALLOC: the queue holds at most twice MAX_KNOWN handles, see below.
+        inner.order.push_back((seq, key));
         while inner.map.len() > self.cap {
             let Some((seq, oldest)) = inner.order.pop_front() else {
                 break;

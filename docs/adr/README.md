@@ -14,3 +14,4 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0004](0004-bounded-memory-and-streaming.md) | Bounded memory and streaming on every path | Accepted |
 | [0005](0005-io-model.md) | Blocking object-store I/O, and a small S3 client of our own | Accepted |
 | [0006](0006-http-stack.md) | A small blocking HTTP/1.1 server of our own, on a bounded worker pool | Accepted |
+| [0007](0007-registers.md) | Registers by compare-and-swap, the Java's wire format and file lock | Proposed |
