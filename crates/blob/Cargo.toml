@@ -10,6 +10,7 @@ repository.workspace = true
 
 [dependencies]
 oss-types = { workspace = true }
+oss-mem = { workspace = true }
 
 [features]
 # The in-process S3 emulator, for tests in this crate and the crates above.
@@ -17,9 +18,15 @@ emulator = []
 
 [dev-dependencies]
 proptest = { workspace = true }
+oss-testkit = { workspace = true }
 
 [[test]]
 name = "emulator"
+required-features = ["emulator"]
+
+# Its own binary: the counting allocator is process-wide.
+[[test]]
+name = "streaming_peak"
 required-features = ["emulator"]
 
 [lints]

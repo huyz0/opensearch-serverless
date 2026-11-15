@@ -8,7 +8,7 @@ Built as a strangler beside the Java serverless shell, sharing its blob formats,
 - `oss-blob`: S3 request kinds, price classes, the meter.
 - Decided: lucene-rust is the only code dependency, as pinned git crates; hsearch and pstore are references ([ADR 0002](adr/0002-runtime-dependencies.md)). Licence Apache-2.0 ([ADR 0003](adr/0003-apache-2-licence.md)).
 
-## 1. Test harness and blob store
+## 1. Test harness and blob store (done 2026-11-15)
 
 - **Memory foundation** ([ADR 0004](adr/0004-bounded-memory-and-streaming.md)): a node memory budget with named pools and reservations, a fixed-size buffer pool, and a test harness with a counting allocator that reports peak memory.
 
@@ -17,6 +17,10 @@ Built as a strangler beside the Java serverless shell, sharing its blob formats,
 - Request-count and round-trip-depth assertions as tests from the start (an idea from pstore).
 - The store ports the shell's `MeteredBlobStore` and its blob-container use.
 - The compatibility harness: fixture format, normaliser and runner, ready for the first endpoint.
+
+Delivered: the memory budget, reservations and buffer pool (`oss-mem`); the counting allocator (`oss-testkit`); the blocking, metered, streaming store trait and in-process emulator (`oss-blob`, [ADR 0005](adr/0005-io-model.md), Proposed); `PooledStore`, which streams bodies through the node buffer pool and answers `Busy` when it is empty, with a test showing a 16 MiB object moves through one 64 KiB buffer (no extra heap on GET); and the compatibility harness with its first recorded fixtures (`oss-compat`).
+
+Carried into stage 2: the real S3 client over SigV4 (ADR 0005), tested against the emulator and an optional RustFS binary; the bounded I/O pool, shared with lucene-rust's fetch executor.
 
 ## 2. Reader node
 

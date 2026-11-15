@@ -74,6 +74,8 @@ dependencies = [
 name = "oss-blob"
 version = "0.1.0"
 dependencies = [
+ "oss-mem",
+ "oss-testkit",
  "oss-types",
  "proptest",
 ]
