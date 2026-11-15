@@ -12,7 +12,7 @@
 
 ## Evidence
 
-<!-- What you ran and what it printed: scripts/gate.sh, tests, request counts, benchmark numbers. Never claim a run you did not do. -->
+<!-- What you ran and what it printed: scripts/gate.sh, tests, request counts, benchmark numbers, and for a large Rust change the local `scripts/mutants.sh` result. Never claim a run you did not do. -->
 
 ## Risk tier
 

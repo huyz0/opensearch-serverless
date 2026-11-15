@@ -17,9 +17,10 @@ on:
   workflow_dispatch:
 
 # A newer push to the same PR replaces the run in flight; main runs never
-# cancel each other.
+# cancel each other. Description and label edits run in a group of their own,
+# so editing a PR never cancels the run that checks its code.
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}-${{ contains(fromJSON('["edited","labeled","unlabeled"]'), github.event.action) && 'text' || 'code' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -102,6 +103,7 @@ jobs:
             python3 "scripts/$s.py"
           done
           python3 scripts/ci-changes.py --self-test
+          python3 scripts/mutants-plan.py --self-test
 
       - name: toolchain
         if: steps.changes.outputs.rust == 'true' && steps.changes.outputs.text_only == 'false'
@@ -137,4 +139,4 @@ jobs:
         with:
           tool: cargo-mutants
       - if: github.event_name == 'pull_request' && steps.changes.outputs.rust == 'true' && steps.changes.outputs.text_only == 'false'
-        run: MUTANTS_BASE=origin/${{ github.base_ref }} timeout 8m scripts/mutants.sh
+        run: MUTANTS_BASE=origin/${{ github.base_ref }} scripts/mutants.sh --pr
