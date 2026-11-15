@@ -9,4 +9,4 @@ Test-only helpers: a counting allocator for peak-memory assertions.
 Nothing in the workspace.
 
 ## Entry points
-`src/lib.rs`. The counting allocator and peak assertions land in stage 1.
+`src/lib.rs` re-exports them: `counting_allocator()` for a `#[global_allocator]` static (the pinned `cap` crate, so no `unsafe` here), `PeakWindow` for peak, live and allocated bytes since a start point, and `assert_peak_below`. Put each peak test in its own integration-test binary: the counters are process-wide.

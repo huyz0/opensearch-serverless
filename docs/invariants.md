@@ -6,7 +6,7 @@ The properties the system must never lose, each linked to the check or test that
 |---|---|---|
 | I-1 | Every S3 call goes through `oss-blob`; no other crate depends on an S3 client | `scripts/check-s3-access.py` |
 | I-2 | LIST is billed in the PUT class, and every LIST call site is justified | `list_is_priced_like_put`, `list_counts_toward_the_put_class`, `scripts/check-s3-access.py` |
-| I-3 | Every S3 attempt is counted by the meter, per request kind | `records_each_kind_separately`, `class_total_saturates` |
+| I-3 | Every S3 attempt, failed ones included, is counted by the meter as one attempt of its kind | `records_each_kind_separately`, `class_total_saturates`, `each_operation_records_exactly_one_attempt_of_its_kind`, `a_failed_attempt_is_still_one_attempt_and_one_error`, `no_free_buffer_is_busy_and_sends_nothing` |
 | I-4 | An idle index makes zero periodic S3 requests | NOT-YET: needs the reader and the in-process emulator |
 | I-5 | A write is acknowledged after exactly one PUT to its node's write log, whatever the number of shards it touches | NOT-YET: needs the writer |
 | I-6 | A segment is uploaded as one immutable blob and never rewritten | NOT-YET: needs the writer |
@@ -18,6 +18,6 @@ The properties the system must never lose, each linked to the check or test that
 | I-12 | Each role is compiled in only when its build switch is on | `roles_follow_the_build_switches` |
 | I-13 | Every in-scope REST endpoint matches OpenSearch's recorded responses, or its difference is documented | NOT-YET: the harness and recorded fixtures exist and check themselves (`recorded_fixtures_replay_cleanly`); the suite runs against `oss-node` once it serves its first endpoint |
 | I-14 | Every Rust source file is traceable to the Java it ports, or marked new with a reason | `scripts/check-port-map.py` |
-| I-15 | No request path reads a whole body or blob into memory, or uses an unbounded queue; every request-path allocation states its bound | `clippy.toml`, `scripts/check-alloc.py` |
-| I-16 | A request that would exceed a memory pool is refused (429) or held back, never allowed to exhaust memory | NOT-YET: the memory budget arrives in stage 1 |
-| I-17 | Peak memory under sustained load stays under the node's configured budget | NOT-YET: the counting allocator and load test arrive in stage 1 |
+| I-15 | No request path reads a whole body or blob into memory, or uses an unbounded queue; every request-path allocation states its bound | `clippy.toml`, `scripts/check-alloc.py`, `a_16_mib_object_streams_through_one_pooled_buffer` |
+| I-16 | A request that would exceed a memory pool is refused (429) or held back, never allowed to exhaust memory | `no_free_buffer_is_busy_and_sends_nothing`, `take_up_to_the_limit_then_refuse_one_more_byte`, `reserve_exactly_free_bytes_then_refuse_one_more`, `count_checkouts_succeed_and_one_more_is_refused`, `sixteen_threads_never_exceed_the_buffer_count_or_pool_limits` |
+| I-17 | Peak memory under sustained load stays under the node's configured budget | `peak_heap_under_sustained_load_stays_within_the_budget`, `ten_thousand_checkouts_and_reservations_allocate_nothing` |

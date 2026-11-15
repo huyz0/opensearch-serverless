@@ -16,7 +16,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 
 CLEAN = {
     "Cargo.toml": '[workspace]\nmembers = ["crates/types"]\n\n[workspace.lints.rust]\nunsafe_code = "forbid"\n',
-    "crates/types/Cargo.toml": '[package]\nname = "oss-types"\n\n[dependencies]\n\n[lints]\nworkspace = true\n',
+    "crates/types/Cargo.toml": '[package]\nname = "oss-types"\n\n[dependencies]\n\n[dev-dependencies]\noss-testkit = { workspace = true }\n\n[lints]\nworkspace = true\n',
     "crates/types/README.md": "# oss-types\n\n## Owns\nIds.\n\n## Depends on\nNothing.\n\n## Entry points\n`src/lib.rs`.\n",
     "crates/types/AGENTS.md": "# notes\n",
     "crates/types/src/lib.rs": "//! Ids.\n\n#[test]\nfn ids_are_distinct() {}\n",
@@ -47,6 +47,8 @@ CASES = [
     (["check-layering.py"], "test-only crate as a normal dependency",
      {"crates/reader/Cargo.toml": '[package]\nname = "oss-reader"\n\n[dependencies]\noss-testkit = { workspace = true }\n\n[lints]\nworkspace = true\n',
       "crates/testkit/Cargo.toml": '[package]\nname = "oss-testkit"\n'}),
+    (["check-layering.py"], "same-layer crate that is not test-only, as a dev-dependency",
+     {"crates/types/Cargo.toml": '[package]\nname = "oss-types"\n\n[dev-dependencies]\noss-mem = { workspace = true }\n\n[lints]\nworkspace = true\n'}),
     (["check-layering.py"], "crate with no layer",
      {"crates/extra/Cargo.toml": '[package]\nname = "oss-extra"\n'}),
     (["check-crate-layout.py"], "README without Entry points",

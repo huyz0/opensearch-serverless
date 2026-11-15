@@ -18,7 +18,7 @@ A node holds thousands of shards for many tenants on a fixed amount of memory. O
 
 - `clippy.toml` disallows whole-buffer reads (`read_to_end`, `read_to_string`, `std::fs::read`) and unbounded channels; a test may allow them locally.
 - `scripts/check-alloc.py`: in request-path crates (`blob`, `reader`, `writer`, `coordinator`), every allocation site (`Vec::new`, `vec!`, `String::new`, `format!`, `to_vec`, `to_string`, `collect`, `Box::new`, `with_capacity`) carries an `// ALLOC:` comment naming its bound, or it does not compile into a request path. Test modules are exempt.
-- Tests assert peak memory under load: a counting allocator in the test harness records the high-water mark, and a load test asserts it stays under the configured budget.
+- Tests assert peak memory under load: a counting allocator in the test harness records the high-water mark, and a load test asserts it stays under the configured budget. The allocator is the pinned `cap` crate (test-only), so the repository holds no `unsafe` of its own. Its running maximum cannot be reset, so a reading is the maximum minus the bytes in use at the start: it can read high, never low. Each peak test is its own test binary, since the counters are process-wide.
 - Invariants I-15 to I-17 in [invariants.md](../invariants.md).
 
 ## Consequences
