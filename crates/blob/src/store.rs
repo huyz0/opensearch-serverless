@@ -21,6 +21,7 @@ use crate::chunk::{ChunkSink, ChunkSource};
 use crate::error::{BlobError, BlobResult};
 use crate::meter::Meter;
 use crate::op::S3Op;
+use crate::register::{RegisterRead, SwapOutcome};
 
 /// The most keys one LIST page returns, as S3's `ListObjectsV2` caps it.
 pub const MAX_LIST_KEYS: usize = 1000;
@@ -153,6 +154,26 @@ pub trait BlobStore: Send + Sync {
         max_keys: usize,
         visit: &mut dyn FnMut(&str, u64),
     ) -> BlobResult<ListPage>;
+
+    /// Reads the register at `key` into the front of `buf`: its generation
+    /// and value length, or `None` when there is no register. A register
+    /// that does not fit `buf` is [`BlobError::InvalidArgument`]; an object
+    /// shorter than a generation is [`BlobError::Protocol`].
+    fn read_register(&self, key: &str, buf: &mut [u8]) -> BlobResult<Option<RegisterRead>>;
+
+    /// Replaces the register's value with `value` if it holds generation
+    /// `expected` ([`crate::register::ABSENT_GENERATION`] for none), and
+    /// moves it to the next generation. Of racing swaps from one
+    /// generation, at most one applies.
+    fn swap_register(&self, key: &str, expected: u64, value: &[u8]) -> BlobResult<SwapOutcome>;
+
+    /// Creates the register with `value` at a new random generation if
+    /// there is none: one request.
+    fn create_register(&self, key: &str, value: &[u8]) -> BlobResult<SwapOutcome>;
+
+    /// Deletes the register if it holds generation `expected`; `false` when
+    /// it held another or none.
+    fn delete_register(&self, key: &str, expected: u64) -> BlobResult<bool>;
 }
 
 /// Checks a key as S3 would: non-empty and at most [`MAX_KEY_BYTES`].

@@ -18,11 +18,16 @@
 //! measured here means what it means on S3. Nothing is retried: a local
 //! filesystem has no transient failure a retry would cure.
 //!
+//! Registers follow the Java's `FsBlobRegisters` protocol, file locks
+//! included (`register.rs`), so they are shared safely with a Java process.
+//!
 //! Single host only. A shared filesystem gives no atomic link or rename
 //! across hosts, and the Java documents the same limit.
 
 mod list;
+mod lock;
 mod path;
+mod register;
 
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
@@ -32,6 +37,7 @@ use crate::chunk::{ChunkSink, ChunkSource};
 use crate::error::{BlobError, BlobResult};
 use crate::meter::Meter;
 use crate::op::S3Op;
+use crate::register::{RegisterRead, SwapOutcome};
 use crate::store::{
     BlobStore, ByteRange, CreateOutcome, GetOutcome, ListPage, ObjectMeta, check_buf, check_list,
 };
@@ -361,5 +367,21 @@ impl BlobStore for FsStore {
                 truncated: page.truncated,
             })
         })
+    }
+
+    fn read_register(&self, key: &str, buf: &mut [u8]) -> BlobResult<Option<RegisterRead>> {
+        self.register_read(key, buf)
+    }
+
+    fn swap_register(&self, key: &str, expected: u64, value: &[u8]) -> BlobResult<SwapOutcome> {
+        self.register_swap(key, expected, value, false)
+    }
+
+    fn create_register(&self, key: &str, value: &[u8]) -> BlobResult<SwapOutcome> {
+        self.register_swap(key, crate::register::ABSENT_GENERATION, value, true)
+    }
+
+    fn delete_register(&self, key: &str, expected: u64) -> BlobResult<bool> {
+        self.register_delete(key, expected)
     }
 }

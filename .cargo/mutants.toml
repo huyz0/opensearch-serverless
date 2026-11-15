@@ -17,4 +17,13 @@ exclude_re = [
     "crates/blob/src/fs/list.rs:.*replace Smallest<'_>::full -> bool with false",
     "crates/blob/src/fs/list.rs:.*replace < with <= in Smallest<'_>::admits",
     "crates/blob/src/fs/list.rs:.*replace > with >= in Smallest<'_>::admits_dir",
+    # A register decoder with all 8 generation bytes seen copies none more:
+    # `seen <= 8` only adds a split of zero bytes.
+    "crates/blob/src/register/mod.rs:.*replace < with <= in Decoder<'a>::feed",
+    # A register file that cannot be opened for a reason other than absence
+    # (permissions) cannot be made in a test run as root.
+    "crates/blob/src/fs/register.rs:.*replace match guard is_missing\\(&e\\) with true in open",
+    # The register lock's explicit drop closes the file before the mutex,
+    # which the fields' declaration order already does; it guards a reorder.
+    "crates/blob/src/fs/lock.rs:.*replace <impl Drop for Held>::drop with \\(\\)",
 ]

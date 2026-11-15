@@ -17,6 +17,7 @@
 
 mod routes;
 mod wire;
+mod writes;
 
 use std::collections::VecDeque;
 use std::io::{BufReader, BufWriter, Write};

@@ -14,14 +14,16 @@ use ureq::SendBody;
 use ureq::http::{self, Request, Response};
 
 use super::S3Store;
+use super::body::Body;
 use super::sigv4::{self, Scope, UNSIGNED_PAYLOAD};
 use super::xml::{ListParser, error_code};
 use crate::chunk::{ChunkSink, ChunkSource};
 use crate::error::{BlobError, BlobResult};
 use crate::op::S3Op;
-use crate::store::{ByteRange, CreateOutcome, GetOutcome, ListPage, ObjectMeta};
+use crate::register::tagged::Precondition;
+use crate::store::{ByteRange, GetOutcome, ListPage, ObjectMeta};
 
-/// The user-metadata header a conditional create stores its writer token
+/// The user-metadata header a conditional write stores its writer token
 /// in; S3 returns it on HEAD.
 const WRITER: &str = "x-amz-meta-writer";
 /// Bytes of an error body read for its `<Code>`; S3's are a few hundred.
@@ -29,6 +31,30 @@ const ERROR_BODY: usize = 1024;
 
 /// Bytes read at a time from a LIST response.
 const LIST_CHUNK: usize = 4096;
+
+/// What a PUT attempt ended with.
+#[derive(Debug, PartialEq, Eq)]
+pub(super) enum PutAnswer {
+    /// Stored, with the new object's ETag if the response carried one.
+    Stored(Option<String>),
+    /// A conditional PUT whose precondition did not hold.
+    Refused,
+}
+
+/// A conditional write: what it requires, and the writer token it stores.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct Condition<'a> {
+    /// What the object at the key must be.
+    pub(super) pre: Precondition<'a>,
+    /// The token a retry looks for to recognise its own write.
+    pub(super) writer: &'a str,
+}
+
+/// The response's ETag, if it has one.
+fn etag(response: &Response<ureq::Body>) -> Option<String> {
+    // ALLOC: one ETag, bounded by the connection's header buffer.
+    header(response, "etag").map(str::to_owned)
+}
 
 /// What a non-success status means for the request that got it.
 #[derive(Debug, PartialEq, Eq)]
@@ -98,68 +124,6 @@ fn range_total(response: &Response<ureq::Body>) -> BlobResult<u64> {
         .and_then(|v| v.rsplit_once('/'))
         .and_then(|(_, total)| total.trim().parse().ok())
         .ok_or(BlobError::Protocol("no Content-Range total"))
-}
-
-/// A PUT body as `ureq` reads it: filled from the source into the caller's
-/// buffer, and checked against its declared length before its last byte
-/// goes out, so a body that is too long or too short never completes and
-/// the store commits nothing.
-struct Body<'a> {
-    source: &'a mut dyn ChunkSource,
-    buf: &'a mut [u8],
-    filled: usize,
-    pos: usize,
-    sent: u64,
-    len: u64,
-    /// The source's failure, kept so the caller gets it rather than the
-    /// I/O error `ureq` wraps it in.
-    failure: Option<BlobError>,
-}
-
-impl Body<'_> {
-    fn refill(&mut self) -> BlobResult<()> {
-        let n = self.source.fill(self.buf)?;
-        let n64 = u64::try_from(n).unwrap_or(u64::MAX);
-        let sent = self.sent.saturating_add(n64);
-        if n == 0 {
-            return Err(BlobError::InvalidArgument(
-                "body shorter than its declared length",
-            ));
-        }
-        if n > self.buf.len() {
-            return Err(BlobError::Stream("source filled past the buffer"));
-        }
-        if sent > self.len || (sent == self.len && self.source.fill(&mut [0u8; 1])? != 0) {
-            return Err(BlobError::InvalidArgument(
-                "body longer than its declared length",
-            ));
-        }
-        self.sent = sent;
-        self.filled = n;
-        self.pos = 0;
-        Ok(())
-    }
-}
-
-impl Read for Body<'_> {
-    fn read(&mut self, out: &mut [u8]) -> std::io::Result<usize> {
-        if self.pos >= self.filled {
-            if self.sent >= self.len {
-                return Ok(0);
-            }
-            if let Err(err) = self.refill() {
-                self.failure = Some(err);
-                return Err(std::io::Error::other("PUT body failed"));
-            }
-        }
-        let ready = self.buf.get(self.pos..self.filled).unwrap_or_default();
-        let n = ready.len().min(out.len());
-        if let (Some(dst), Some(src)) = (out.get_mut(..n), ready.get(..n)) {
-            dst.copy_from_slice(src);
-        }
-        self.pos = self.pos.saturating_add(n);
-        Ok(n)
-    }
 }
 
 impl S3Store {
@@ -246,7 +210,7 @@ impl S3Store {
         range: ByteRange,
         buf: &mut [u8],
         sink: &mut dyn ChunkSink,
-    ) -> (BlobResult<GetOutcome>, bool) {
+    ) -> (BlobResult<(GetOutcome, Option<String>)>, bool) {
         let header = match range {
             ByteRange::Full => None,
             ByteRange::From { start, len } => {
@@ -278,6 +242,7 @@ impl S3Store {
             (Ok(total), Ok(body)) => (total, body),
             (Err(err), _) | (_, Err(err)) => return (Err(err), true),
         };
+        let tag = etag(&response);
         let mut reader = response.body_mut().as_reader();
         let mut bytes = 0u64;
         loop {
@@ -301,7 +266,7 @@ impl S3Store {
         if bytes != expected {
             return (Err(BlobError::Unavailable), false);
         }
-        (Ok(GetOutcome { object_len, bytes }), true)
+        (Ok((GetOutcome { object_len, bytes }, tag)), true)
     }
 
     pub(super) fn put_once(
@@ -309,20 +274,27 @@ impl S3Store {
         key: &str,
         source: &mut dyn ChunkSource,
         buf: &mut [u8],
-        create: Option<&str>,
-    ) -> (BlobResult<CreateOutcome>, bool) {
-        let if_absent = create.is_some();
+        cond: Option<Condition<'_>>,
+    ) -> (BlobResult<PutAnswer>, bool) {
         let len = source.len();
         // ALLOC: one number.
         let length = len.to_string();
         let mut extra = [
             ("content-length", length.as_str()),
             ("if-none-match", "*"),
-            (WRITER, create.unwrap_or_default()),
+            (WRITER, ""),
         ];
-        let extra = extra
-            .get_mut(..if if_absent { 3 } else { 1 })
-            .unwrap_or_default();
+        let used = match cond {
+            None => 1,
+            Some(Condition { pre, writer }) => {
+                if let Precondition::Matches(tag) = pre {
+                    extra[1] = ("if-match", tag);
+                }
+                extra[2].1 = writer;
+                3
+            }
+        };
+        let extra = extra.get_mut(..used).unwrap_or_default();
         let mut body = Body {
             source,
             buf,
@@ -351,22 +323,28 @@ impl S3Store {
         match response.status().as_u16() {
             200 | 201 | 204 => {
                 self.meter.add_bytes_written(len);
-                (Ok(CreateOutcome::Created), true)
+                (Ok(PutAnswer::Stored(etag(&response))), true)
+            }
+            // `If-Match` on a key with no object: the version it names is
+            // gone, which is the precondition failing (`isConditionFailure`).
+            404 if cond.is_some_and(|c| matches!(c.pre, Precondition::Matches(_))) => {
+                (Ok(PutAnswer::Refused), true)
             }
             _ => match refusal(&mut response) {
-                Refusal::Taken if if_absent => (Ok(CreateOutcome::AlreadyExists), true),
+                Refusal::Taken if cond.is_some() => (Ok(PutAnswer::Refused), true),
                 Refusal::Taken => (Err(BlobError::Unexpected(response.status().as_u16())), true),
                 Refusal::Failed(err) => (Err(err), true),
             },
         }
     }
 
-    /// One HEAD; with the object, whether its writer token is `writer`.
+    /// One HEAD; with the object, whether its writer token is `writer`,
+    /// and its ETag.
     pub(super) fn head_once(
         &self,
         key: &str,
         writer: &str,
-    ) -> BlobResult<Option<(ObjectMeta, bool)>> {
+    ) -> BlobResult<Option<(ObjectMeta, bool, Option<String>)>> {
         let mut response = self.send(S3Op::Head, http::Method::HEAD, Some(key), &[], &[], None)?;
         match response.status().as_u16() {
             200 => Ok(Some((
@@ -374,24 +352,36 @@ impl S3Store {
                     len: content_length(&response)?,
                 },
                 header(&response, WRITER) == Some(writer),
+                etag(&response),
             ))),
             404 => Ok(None),
             _ => Err(failure(&mut response)),
         }
     }
 
-    pub(super) fn delete_once(&self, key: &str) -> BlobResult<()> {
+    /// One DELETE, with `If-Match: if_match` when given: `false` when the
+    /// object was not that version, or (conditional only) not there.
+    pub(super) fn delete_once(&self, key: &str, if_match: Option<&str>) -> BlobResult<bool> {
+        let extra = [("if-match", if_match.unwrap_or_default())];
+        let extra = extra
+            .get(..usize::from(if_match.is_some()))
+            .unwrap_or_default();
         let mut response = self.send(
             S3Op::Delete,
             http::Method::DELETE,
             Some(key),
             &[],
-            &[],
+            extra,
             None,
         )?;
-        match response.status().as_u16() {
-            200 | 204 => Ok(()),
-            _ => Err(failure(&mut response)),
+        match (response.status().as_u16(), if_match) {
+            (200 | 204, _) => Ok(true),
+            (404, Some(_)) => Ok(false),
+            (_, None) => Err(failure(&mut response)),
+            (_, Some(_)) => match refusal(&mut response) {
+                Refusal::Taken => Ok(false),
+                Refusal::Failed(err) => Err(err),
+            },
         }
     }
 
