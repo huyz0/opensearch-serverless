@@ -10,8 +10,9 @@ The goal is real compatibility with OpenSearch, scoped to the serverless capabil
 
 ## How compatibility is tested
 
-- **Golden fixtures** recorded from stock OpenSearch at the version the Java shell builds on: a request, the response, and normalisation rules for fields that legitimately vary (took, ids, shard counts). They live in `fixtures/compat/<suite>/`.
-- The **compatibility suite** runs every fixture against `oss-node` on the in-process S3 emulator and compares the normalised responses. It is a core check: part of the gate once the first REST endpoint exists, and a stage gate in the [roadmap](roadmap.md).
+- **Golden fixtures** recorded from stock OpenSearch at the version the Java shell builds on (3.10.0, built from upstream's `3.10` branch until it is released): requests, the recorded responses, and normalisation rules for fields that legitimately vary (took, generated ids and uuids). They live in `fixtures/compat/<suite>/`; the format and the recording procedure are in [fixtures/compat/README.md](../fixtures/compat/README.md).
+- The harness is `oss-compat`: a bounded loader, the normaliser, a comparator that reports each difference with its JSON pointer and both values, and a runner that replays fixtures against anything implementing its `Target` trait.
+- The **compatibility suite** runs every fixture against `oss-node` on the in-process S3 emulator and compares the normalised responses. It is a core check: part of the gate once the first REST endpoint exists, and a stage gate in the [roadmap](roadmap.md). Until then the fixtures check themselves: they load, every rule matches its recording, and they replay cleanly against their own recordings with every normalised field changed.
 - OpenSearch's own REST YAML suites for in-scope APIs are run the same way, with skips listed and justified.
 - Recording fixtures needs a running OpenSearch, so it is a separate, occasional step. Checking them needs nothing but this repository.
 

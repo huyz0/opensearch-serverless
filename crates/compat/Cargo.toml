@@ -9,6 +9,9 @@ publish.workspace = true
 repository.workspace = true
 
 [dependencies]
+# The fixture format is JSON. Exact pin: the compatibility suite is a test
+# harness, never part of a shipped node build.
+serde_json = "=1.0.145"
 
 [lints]
 workspace = true
