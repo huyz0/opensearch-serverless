@@ -1,0 +1,23 @@
+[package]
+name = "chunkjson-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+# Outside the parent workspace: it needs nightly and libFuzzer.
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "=0.4.10"
+serde_json = "=1.0.145"
+chunkjson = { path = ".." }
+
+[[bin]]
+name = "oracle"
+path = "fuzz_targets/oracle.rs"
+test = false
+doc = false
+bench = false

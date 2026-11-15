@@ -29,6 +29,7 @@ LAYERS = {
     "oss-coordinator": 4,
     "oss-node": 5,
     "oss-compat": 6,
+    "chunkjson": 0,
 }
 DEV_ONLY = {"oss-testkit"}
 SECTION = re.compile(r"^\[(dependencies|dev-dependencies|build-dependencies)\]\s*$")

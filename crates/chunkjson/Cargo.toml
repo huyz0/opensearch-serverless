@@ -1,0 +1,25 @@
+[package]
+name = "chunkjson"
+description = "A sans-IO streaming JSON tokenizer: feed byte chunks, get events; long strings stream as fragments; NDJSON framing in the same scan"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+license = "Apache-2.0"
+publish = false
+repository = "https://github.com/huyz0/opensearch-serverless"
+keywords = ["json", "ndjson", "streaming", "parser", "sans-io"]
+
+# No dependency on any other crate of this workspace, so the crate can move to
+# its own repository unchanged. Every external dependency is pinned exactly.
+[dependencies]
+# SIMD UTF-8 validation (runtime CPU detection, scalar fallback); string
+# validation is the tokenizer's largest cost without it.
+simdutf8 = "=0.1.5"
+
+[dev-dependencies]
+serde_json = "=1.0.145"
+proptest = { version = "=1.6.0", default-features = false, features = ["std"] }
+cap = { version = "=0.1.2", features = ["stats"] }
+
+[lints]
+workspace = true
