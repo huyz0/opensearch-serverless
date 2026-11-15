@@ -512,6 +512,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "oss-meta"
+version = "0.1.0"
+dependencies = [
+ "oss-blob",
+ "oss-format",
+ "oss-testkit",
+]
+
+[[package]]
 name = "oss-node"
 version = "0.1.0"
 dependencies = [
