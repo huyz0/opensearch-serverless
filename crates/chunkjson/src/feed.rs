@@ -9,7 +9,7 @@
 use crate::number::number_end;
 use crate::string::{StrState, scan_plain, split_tail};
 use crate::tokenizer::{Checked, Expect, Lex, Out};
-use crate::{Error, Event, Text, Tokenizer};
+use crate::{Error, Event, Position, Text, Tokenizer};
 
 /// Receives the events of [`Tokenizer::feed`]. Returning an error stops the
 /// feed and is passed back from it.
@@ -19,6 +19,16 @@ pub trait Sink {
 
     /// Takes one event (never `NeedMore` or `Eof`).
     fn event(&mut self, event: Event<'_>) -> Result<(), Self::Error>;
+
+    /// Takes one event with where its token starts (see
+    /// [`Tokenizer::event_start`]). The tokenizer calls this; by default it
+    /// drops the position and calls [`Sink::event`], which a sink must still
+    /// implement even when it overrides this.
+    #[inline]
+    fn event_at(&mut self, event: Event<'_>, start: Position) -> Result<(), Self::Error> {
+        let _ = start;
+        self.event(event)
+    }
 }
 
 impl Tokenizer {
@@ -50,7 +60,10 @@ impl Tokenizer {
             match out {
                 Out::Simple(Event::NeedMore) => return Ok(false),
                 Out::Simple(Event::Eof) => return Ok(true),
-                _ => sink.event(self.resolve(out, chunk, shift, checked)?)?,
+                _ => {
+                    let start = self.position();
+                    sink.event_at(self.resolve(out, chunk, shift, checked)?, start)?;
+                }
             }
         }
     }
@@ -88,7 +101,10 @@ impl Tokenizer {
                 };
                 match (self.expect, b) {
                     (_, b' ' | b'\t' | b'\r') => pos += 1,
-                    (_, b'\n') if !newline_ends => pos += 1,
+                    (_, b'\n') if !newline_ends => {
+                        pos += 1;
+                        self.newline(pos);
+                    }
                     (Expect::Colon, b':') => {
                         self.expect = Expect::Value;
                         pos += 1;
@@ -103,6 +119,7 @@ impl Tokenizer {
                         pos += 1;
                     }
                     (Expect::CommaOrEnd | Expect::ValueOrEnd | Expect::KeyOrEnd, b'}' | b']') => {
+                        self.start = start + pos as u64;
                         let object = b == b'}';
                         // `ValueOrEnd` and `KeyOrEnd` follow a push, so the top
                         // of the stack already says which closer fits.
@@ -123,6 +140,7 @@ impl Tokenizer {
                         }
                     }
                     (Expect::Key | Expect::KeyOrEnd, b'"') => {
+                        self.start = start + pos as u64;
                         match plain_string(chunk, pos, checked) {
                             Plain::Whole(text, end) => {
                                 self.after_key();
@@ -146,6 +164,7 @@ impl Tokenizer {
                         }
                     }
                     (Expect::Value | Expect::ValueOrEnd, _) => {
+                        self.start = start + pos as u64;
                         let Some(end) = self.fast_value(chunk, pos, checked, sink)? else {
                             break 'scan pos;
                         };
@@ -309,7 +328,7 @@ impl Tokenizer {
         sink: &mut S,
     ) -> Result<(), S::Error> {
         self.offset = self.base.saturating_add(at as u64);
-        sink.event(event)
+        sink.event_at(event, self.position())
     }
 }
 

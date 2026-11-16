@@ -151,7 +151,7 @@ impl Tokenizer {
                         return self.string_need_more(st, j, eof);
                     };
                     if b & 0xC0 != 0x80 {
-                        return Err(Error::new(ErrorKind::InvalidUtf8, self.utf8_at));
+                        return Err(self.err_abs(ErrorKind::InvalidUtf8, self.utf8_at));
                     }
                     self.utf8[self.utf8_len] = b;
                     self.utf8_len += 1;
@@ -162,7 +162,7 @@ impl Tokenizer {
                     .ok()
                     .and_then(|s| s.chars().next())
                 else {
-                    return Err(Error::new(ErrorKind::InvalidUtf8, self.utf8_at));
+                    return Err(self.err_abs(ErrorKind::InvalidUtf8, self.utf8_at));
                 };
                 self.utf8_len = 0;
                 return Ok(self.emit_char(st, c, j));

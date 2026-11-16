@@ -47,3 +47,16 @@ pub enum Event<'a> {
     /// The input is finished and complete. Every later call returns `Eof` again.
     Eof,
 }
+
+/// Where an event's token starts: the opening quote of a key or string (for
+/// every fragment of it), the first byte of a number or literal, or the
+/// bracket. A document's `EndDocument` starts where the document does.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Position {
+    /// Absolute byte offset from the first byte ever fed.
+    pub offset: u64,
+    /// The 1-based line.
+    pub line: u64,
+    /// The 1-based column, in bytes.
+    pub column: u64,
+}

@@ -35,11 +35,35 @@ pub enum ErrorKind {
 pub struct Error {
     kind: ErrorKind,
     offset: u64,
+    line: u64,
+    column: u64,
 }
 
 impl Error {
+    /// An error with no line or column (both 0), for tests.
+    #[cfg(test)]
     pub(crate) fn new(kind: ErrorKind, offset: u64) -> Self {
-        Self { kind, offset }
+        Self::at(kind, offset, 0, 0)
+    }
+
+    /// An error at `offset`, on `line` at `column`.
+    pub(crate) fn at(kind: ErrorKind, offset: u64, line: u64, column: u64) -> Self {
+        Self {
+            kind,
+            offset,
+            line,
+            column,
+        }
+    }
+
+    /// The 1-based line of the byte at fault.
+    pub fn line(&self) -> u64 {
+        self.line
+    }
+
+    /// The 1-based column, in bytes, of the byte at fault.
+    pub fn column(&self) -> u64 {
+        self.column
     }
 
     /// What went wrong.

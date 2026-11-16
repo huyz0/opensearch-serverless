@@ -93,6 +93,7 @@ fn config() -> impl Strategy<Value = Config> {
             framing,
             max_depth,
             max_number_len,
+            ..Config::default()
         })
 }
 

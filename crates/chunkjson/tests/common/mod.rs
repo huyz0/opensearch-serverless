@@ -96,6 +96,7 @@ pub fn parse_chunked(bytes: &[u8], sizes: &[usize], config: Config) -> Result<Bu
             let (event, used) = tok.next(chunk, eof)?;
             chunk = &chunk[used..];
             if event == Event::NeedMore {
+                assert!(!eof, "never NeedMore once eof is set");
                 break;
             }
             if !b.apply(event) {
