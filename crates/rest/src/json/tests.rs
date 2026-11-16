@@ -321,6 +321,42 @@ fn the_string_limit_holds_at_max_and_refuses_one_more() {
 }
 
 #[test]
+fn pieces_fill_across_feeds() {
+    let s = "aé😀".repeat(400);
+    let doc = format!("\"{s}\"");
+    for (feed, piece) in [(1, 4), (7, 16), (100, 64), (5000, 1000)] {
+        let mut t = Tokenizer::new(limits(piece));
+        let mut sizes = Pieces(Vec::new());
+        for chunk in doc.as_bytes().chunks(feed) {
+            t.feed(chunk, &mut sizes).expect("feeds");
+        }
+        t.finish(&mut sizes).expect("ends");
+        let (last, full) = sizes.0.split_last().expect("pieces");
+        assert!(last.1, "the last piece says so");
+        // a piece ends on a character boundary, at most 3 bytes short
+        assert!(
+            full.iter()
+                .all(|(t, l)| !l && t.len() <= piece && t.len() + 3 >= piece),
+            "{feed} {piece}"
+        );
+        assert_eq!(sizes.0.iter().map(|p| p.0.as_str()).collect::<String>(), s);
+    }
+}
+
+/// Each string piece and its `last`.
+struct Pieces(Vec<(String, bool)>);
+
+impl TokenSink for Pieces {
+    type Error = JsonError;
+    fn token(&mut self, t: Token<'_>) -> Result<(), JsonError> {
+        if let Token::Str { text, last } = t {
+            self.0.push((text.to_owned(), last));
+        }
+        Ok(())
+    }
+}
+
+#[test]
 fn a_piece_too_small_for_a_character_is_refused() {
     let mut t = Tokenizer::new(limits(3));
     let mut b = Build::default();

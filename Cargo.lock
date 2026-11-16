@@ -565,6 +565,7 @@ dependencies = [
 name = "oss-rest"
 version = "0.1.0"
 dependencies = [
+ "chunkjson",
  "oss-mem",
  "oss-testkit",
  "proptest",

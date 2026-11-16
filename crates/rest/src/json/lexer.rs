@@ -1,109 +1,214 @@
-//! The tokenizer's state machine.
+//! The tokenizer: `chunkjson`'s push tokenizer, with this module's limits on
+//! keys and strings, its pieces, and its errors.
 
-use super::number;
 use super::{Completion, ErrorKind, JsonError, Limits, Location, Token, TokenSink};
-
-/// What the grammar expects next.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Expect {
-    Value,
-    ValueOrEnd,
-    KeyOrEnd,
-    Key,
-    Colon,
-    CommaOrEnd,
-    Done,
-}
-
-/// Which token, if any, the lexer is inside.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Lex {
-    Between,
-    Str,
-    Escape,
-    Unicode,
-    Number,
-    Literal,
-    Slash,
-    LineComment,
-    BlockComment,
-    BlockStar,
-}
+use chunkjson::{Config, Event, Framing, Position, Sink};
 
 /// A streaming JSON tokenizer for one document; see the module docs.
 #[derive(Debug)]
 pub struct Tokenizer {
-    pub(super) limits: Limits,
-    pub(super) stack: Vec<bool>,
-    pub(super) scratch: Vec<u8>,
-    pub(super) expect: Expect,
-    pub(super) lex: Lex,
-    pub(super) offset: u64,
-    pub(super) line: u64,
-    pub(super) line_start: u64,
-    pub(super) in_key: bool,
-    pub(super) string_len: u64,
-    pub(super) unicode: u32,
-    pub(super) unicode_digits: u8,
-    pub(super) high: Option<u32>,
-    pub(super) literal: &'static [u8],
-    pub(super) literal_pos: usize,
-    pub(super) root_seen: bool,
-    pub(super) failed: Option<JsonError>,
-    pub(super) token_start: Location,
+    limits: Limits,
+    inner: chunkjson::Tokenizer,
+    /// The key being read, whole keys being handed on.
+    key: String,
+    /// Where the key being read starts.
+    key_at: Location,
+    /// A string piece gathered across fragments.
+    piece: String,
+    /// Bytes of the string value being read so far.
+    string_len: u64,
+    /// Bytes fed since `new` or `reset`.
+    offset: u64,
+    /// A complete root value was read.
+    root_seen: bool,
+    failed: Option<JsonError>,
+}
+
+/// Why a feed stopped: the tokenizer's error, a limit of this module, or the
+/// sink's own error.
+enum Stop<E> {
+    Inner(chunkjson::Error),
+    Limit(JsonError),
+    Sink(E),
+}
+
+impl<E> From<chunkjson::Error> for Stop<E> {
+    fn from(e: chunkjson::Error) -> Self {
+        Self::Inner(e)
+    }
+}
+
+/// Hands `chunkjson`'s events on to a [`TokenSink`] as tokens.
+struct Adapter<'t, 's, S> {
+    limits: Limits,
+    key: &'t mut String,
+    key_at: &'t mut Location,
+    piece: &'t mut String,
+    string_len: &'t mut u64,
+    root_seen: &'t mut bool,
+    sink: &'s mut S,
+}
+
+impl<S: TokenSink> Adapter<'_, '_, S> {
+    fn hand(&mut self, token: Token<'_>, at: Location) -> Result<(), Stop<S::Error>> {
+        self.sink.token_at(token, at).map_err(Stop::Sink)
+    }
+
+    /// A string fragment, handed on in pieces of `string_chunk` bytes (the
+    /// last one shorter), each ending on a character boundary. A piece that
+    /// spans fragments is gathered in `piece`; one inside a fragment is
+    /// handed on as it lies.
+    fn string(
+        &mut self,
+        mut text: &str,
+        last: bool,
+        at: Location,
+        start: Position,
+    ) -> Result<(), Stop<S::Error>> {
+        let len = u64::try_from(text.len()).unwrap_or(u64::MAX);
+        *self.string_len = self.string_len.saturating_add(len);
+        if *self.string_len > self.limits.max_string_bytes {
+            return Err(Stop::Limit(limit(ErrorKind::StringTooLong, start)));
+        }
+        let size = self.limits.string_chunk;
+        // each pass hands on a piece or gathers the rest, so it is bounded
+        for _ in 0..=text.len() {
+            let room = size.saturating_sub(self.piece.len());
+            if text.len() < room {
+                // ALLOC: none; `piece` holds `string_chunk` from `new`.
+                self.piece.push_str(text);
+                break;
+            }
+            let (head, rest) = text.split_at(text.floor_char_boundary(room));
+            text = rest;
+            let piece_last = last && text.is_empty();
+            if self.piece.is_empty() {
+                self.hand(
+                    Token::Str {
+                        text: head,
+                        last: piece_last,
+                    },
+                    at,
+                )?;
+            } else {
+                self.piece.push_str(head);
+                let token = Token::Str {
+                    text: self.piece,
+                    last: piece_last,
+                };
+                self.sink.token_at(token, at).map_err(Stop::Sink)?;
+                self.piece.clear();
+            }
+            if piece_last {
+                return Ok(());
+            }
+        }
+        if last {
+            let token = Token::Str {
+                text: self.piece,
+                last: true,
+            };
+            self.sink.token_at(token, at).map_err(Stop::Sink)?;
+            self.piece.clear();
+        }
+        Ok(())
+    }
+}
+
+impl<S: TokenSink> Sink for Adapter<'_, '_, S> {
+    type Error = Stop<S::Error>;
+
+    /// Only reached if the tokenizer ever drops a position: tokens then
+    /// read as starting at line 0.
+    fn event(&mut self, event: Event<'_>) -> Result<(), Self::Error> {
+        self.event_at(event, Position::default())
+    }
+
+    fn event_at(&mut self, event: Event<'_>, start: Position) -> Result<(), Self::Error> {
+        let at = Location {
+            line: start.line,
+            column: start.column,
+        };
+        match event {
+            Event::BeginObject => self.hand(Token::StartObject, at),
+            Event::EndObject => self.hand(Token::EndObject, at),
+            Event::BeginArray => self.hand(Token::StartArray, at),
+            Event::EndArray => self.hand(Token::EndArray, at),
+            Event::Key(t) => {
+                if t.first {
+                    self.key.clear();
+                    *self.key_at = at;
+                }
+                if self.key.len().saturating_add(t.fragment.len()) > self.limits.max_key_bytes {
+                    return Err(Stop::Limit(limit(ErrorKind::KeyTooLong, start)));
+                }
+                // ALLOC: none; `key` holds `max_key_bytes` from `new`.
+                self.key.push_str(t.fragment);
+                if !t.last {
+                    return Ok(());
+                }
+                let key_at = *self.key_at;
+                self.sink
+                    .token_at(Token::Key(self.key), key_at)
+                    .map_err(Stop::Sink)
+            }
+            Event::String(t) => {
+                if t.first {
+                    *self.string_len = 0;
+                    self.piece.clear();
+                }
+                self.string(t.fragment, t.last, at, start)
+            }
+            Event::Number(n) => self.hand(Token::Number(n), at),
+            Event::Bool(b) => self.hand(Token::Bool(b), at),
+            Event::Null => self.hand(Token::Null, at),
+            Event::EndDocument { .. } => {
+                *self.root_seen = true;
+                Ok(())
+            }
+            Event::NeedMore | Event::Eof => Ok(()),
+        }
+    }
+}
+
+/// A limit error at the start of the token that broke it.
+fn limit(kind: ErrorKind, start: Position) -> JsonError {
+    JsonError {
+        kind,
+        offset: start.offset,
+        line: start.line,
+        column: start.column,
+    }
 }
 
 impl Tokenizer {
-    /// A tokenizer with `limits`, allocating its stack and scratch once.
+    /// A tokenizer with `limits`, allocating its buffers once.
     pub fn new(limits: Limits) -> Self {
-        let cap = limits
-            .max_key_bytes
-            .max(limits.max_number_bytes)
-            .max(limits.string_chunk);
-        let failed = bad_limits(&limits);
         Self {
             limits,
-            // ALLOC: once per tokenizer; `max_depth` entries.
-            stack: Vec::with_capacity(limits.max_depth),
-            // ALLOC: once per tokenizer; the largest key, number or string piece.
-            scratch: Vec::with_capacity(cap),
-            expect: Expect::Value,
-            lex: Lex::Between,
-            offset: 0,
-            line: 1,
-            line_start: 0,
-            in_key: false,
+            inner: chunkjson::Tokenizer::new(config(&limits)),
+            // ALLOC: once per tokenizer; the longest key.
+            key: String::with_capacity(limits.max_key_bytes),
+            key_at: Location::default(),
+            // ALLOC: once per tokenizer; one string piece.
+            piece: String::with_capacity(limits.string_chunk),
             string_len: 0,
-            unicode: 0,
-            unicode_digits: 0,
-            high: None,
-            literal: b"",
-            literal_pos: 0,
+            offset: 0,
             root_seen: false,
-            failed,
-            token_start: Location { line: 1, column: 1 },
+            failed: bad_limits(&limits),
         }
     }
 
     /// Readies the tokenizer for a new document, keeping its allocations.
     pub fn reset(&mut self) {
-        self.stack.clear();
-        self.scratch.clear();
-        self.expect = Expect::Value;
-        self.lex = Lex::Between;
-        self.offset = 0;
-        self.line = 1;
-        self.line_start = 0;
-        self.in_key = false;
+        self.inner.reset();
+        self.key.clear();
+        self.key_at = Location::default();
+        self.piece.clear();
         self.string_len = 0;
-        self.unicode = 0;
-        self.unicode_digits = 0;
-        self.high = None;
-        self.literal = b"";
-        self.literal_pos = 0;
+        self.offset = 0;
         self.root_seen = false;
         self.failed = bad_limits(&self.limits);
-        self.token_start = Location { line: 1, column: 1 };
     }
 
     /// Bytes fed so far.
@@ -111,12 +216,11 @@ impl Tokenizer {
         self.offset
     }
 
-    /// Feeds the next chunk, handing complete tokens to `sink`.
+    /// Feeds the next chunk, handing complete tokens to `sink`. After an
+    /// error from `sink` the rest of the chunk is dropped, so the tokenizer
+    /// must be [`reset`](Self::reset) before it is fed again.
     pub fn feed<S: TokenSink>(&mut self, chunk: &[u8], sink: &mut S) -> Result<(), S::Error> {
-        if let Some(e) = self.failed {
-            return Err(e.into());
-        }
-        let result = self.run(chunk, sink);
+        let result = self.run(chunk, false, sink);
         self.offset = self
             .offset
             .saturating_add(u64::try_from(chunk.len()).unwrap_or(u64::MAX));
@@ -126,276 +230,82 @@ impl Tokenizer {
     /// Ends the document: `Empty` for whitespace and comments only, `Value`
     /// for one complete value, an error for anything unfinished.
     pub fn finish<S: TokenSink>(&mut self, sink: &mut S) -> Result<Completion, S::Error> {
+        self.run(&[], true, sink)?;
+        Ok(if self.root_seen {
+            Completion::Value
+        } else {
+            Completion::Empty
+        })
+    }
+
+    fn run<S: TokenSink>(&mut self, chunk: &[u8], eof: bool, sink: &mut S) -> Result<(), S::Error> {
         if let Some(e) = self.failed {
             return Err(e.into());
         }
-        match self.lex {
-            Lex::Number => self.end_number(self.offset, sink)?,
-            Lex::Between | Lex::LineComment => {}
-            _ => return Err(self.fail(ErrorKind::UnexpectedEnd, self.offset).into()),
-        }
-        self.lex = Lex::Between;
-        match self.expect {
-            Expect::Done => Ok(Completion::Value),
-            Expect::Value if !self.root_seen && self.stack.is_empty() => Ok(Completion::Empty),
-            _ => Err(self.fail(ErrorKind::UnexpectedEnd, self.offset).into()),
-        }
+        let mut adapter = Adapter {
+            limits: self.limits,
+            key: &mut self.key,
+            key_at: &mut self.key_at,
+            piece: &mut self.piece,
+            string_len: &mut self.string_len,
+            root_seen: &mut self.root_seen,
+            sink,
+        };
+        let stop = match self.inner.feed(chunk, eof, &mut adapter) {
+            Ok(_) => return Ok(()),
+            Err(stop) => stop,
+        };
+        let e = match stop {
+            Stop::Sink(e) => return Err(e),
+            Stop::Limit(e) => e,
+            Stop::Inner(e) => self.convert(e, chunk),
+        };
+        self.failed = Some(e);
+        Err(e.into())
     }
 
-    fn at_kind(&self, kind: ErrorKind, at: u64) -> JsonError {
+    /// `chunkjson`'s error as this module's, naming the offending byte where
+    /// the kind carries one; the byte is in `chunk`, which the tokenizer was
+    /// reading when it failed.
+    fn convert(&self, e: chunkjson::Error, chunk: &[u8]) -> JsonError {
+        let byte = || {
+            let i = e.offset().checked_sub(self.offset)?;
+            chunk.get(usize::try_from(i).ok()?).copied()
+        };
+        use chunkjson::ErrorKind as K;
+        let kind = match e.kind() {
+            K::UnexpectedByte(b) => ErrorKind::Unexpected(b),
+            K::InvalidNumber => ErrorKind::BadNumber,
+            K::NumberTooLong => ErrorKind::NumberTooLong,
+            K::InvalidEscape => ErrorKind::BadEscape,
+            K::LoneSurrogate => ErrorKind::LoneSurrogate,
+            K::InvalidUtf8 => ErrorKind::InvalidUtf8,
+            K::ControlCharacter => ErrorKind::ControlInString(byte().unwrap_or(0)),
+            K::DepthExceeded => ErrorKind::TooDeep,
+            K::TrailingData => ErrorKind::Trailing(byte().unwrap_or(0)),
+            K::UnexpectedEof => ErrorKind::UnexpectedEnd,
+            // single framing never refuses a line break, so only a kind
+            // added later reaches here: the byte it stopped at
+            _ => ErrorKind::Unexpected(byte().unwrap_or(0)),
+        };
         JsonError {
             kind,
-            offset: at,
-            line: self.line,
-            column: at.saturating_sub(self.line_start).saturating_add(1),
+            offset: e.offset(),
+            line: e.line(),
+            column: e.column(),
         }
     }
+}
 
-    /// Records `at` as where the token being read starts.
-    fn mark(&mut self, at: u64) {
-        self.token_start = Location {
-            line: self.line,
-            column: at.saturating_sub(self.line_start).saturating_add(1),
-        };
-    }
-
-    pub(super) fn fail(&mut self, kind: ErrorKind, at: u64) -> JsonError {
-        let e = self.at_kind(kind, at);
-        self.failed = Some(e);
-        e
-    }
-
-    fn run<S: TokenSink>(&mut self, chunk: &[u8], sink: &mut S) -> Result<(), S::Error> {
-        let mut i = 0;
-        while let Some(&b) = chunk.get(i) {
-            let at = self
-                .offset
-                .saturating_add(u64::try_from(i).unwrap_or(u64::MAX));
-            match self.lex {
-                Lex::Between => {
-                    match b {
-                        b' ' | b'\t' | b'\r' => {}
-                        b'\n' => self.newline(at),
-                        b'/' => self.lex = Lex::Slash,
-                        _ => self.structural(b, at, sink)?,
-                    }
-                    i = i.saturating_add(1);
-                }
-                Lex::Str => {
-                    let rest = &chunk[i..];
-                    let run = rest
-                        .iter()
-                        .position(|&c| c == b'"' || c == b'\\' || c < 0x20)
-                        .unwrap_or(rest.len());
-                    if run > 0 && self.high.is_some() {
-                        return Err(self.fail(ErrorKind::LoneSurrogate, at).into());
-                    }
-                    self.push_str(&rest[..run], at, sink)?;
-                    i = i.saturating_add(run);
-                    let Some(&c) = chunk.get(i) else { break };
-                    let at = self
-                        .offset
-                        .saturating_add(u64::try_from(i).unwrap_or(u64::MAX));
-                    match c {
-                        b'"' if self.high.is_some() => {
-                            return Err(self.fail(ErrorKind::LoneSurrogate, at).into());
-                        }
-                        b'"' => self.end_string(at, sink)?,
-                        b'\\' => self.lex = Lex::Escape,
-                        _ => return Err(self.fail(ErrorKind::ControlInString(c), at).into()),
-                    }
-                    i = i.saturating_add(1);
-                }
-                Lex::Escape => {
-                    self.escape(b, at, sink)?;
-                    i = i.saturating_add(1);
-                }
-                Lex::Unicode => {
-                    self.unicode_digit(b, at, sink)?;
-                    i = i.saturating_add(1);
-                }
-                Lex::Number => {
-                    let rest = &chunk[i..];
-                    let run = rest
-                        .iter()
-                        .position(|&c| !number::continues(c))
-                        .unwrap_or(rest.len());
-                    if self.scratch.len().saturating_add(run) > self.limits.max_number_bytes {
-                        return Err(self.fail(ErrorKind::NumberTooLong, at).into());
-                    }
-                    self.scratch.extend_from_slice(&rest[..run]);
-                    i = i.saturating_add(run);
-                    if i < chunk.len() {
-                        let at = self
-                            .offset
-                            .saturating_add(u64::try_from(i).unwrap_or(u64::MAX));
-                        // The delimiter is read again in `Between`.
-                        self.end_number(at, sink)?;
-                    }
-                }
-                Lex::Literal => {
-                    if self.literal.get(self.literal_pos) != Some(&b) {
-                        return Err(self.fail(ErrorKind::Unexpected(b), at).into());
-                    }
-                    self.literal_pos = self.literal_pos.saturating_add(1);
-                    if self.literal_pos == self.literal.len() {
-                        let token = match self.literal {
-                            b"true" => Token::Bool(true),
-                            b"false" => Token::Bool(false),
-                            _ => Token::Null,
-                        };
-                        sink.token_at(token, self.token_start)?;
-                        self.lex = Lex::Between;
-                        self.value_done();
-                    }
-                    i = i.saturating_add(1);
-                }
-                Lex::Slash => {
-                    self.lex = match b {
-                        b'/' => Lex::LineComment,
-                        b'*' => Lex::BlockComment,
-                        _ => {
-                            return Err(self
-                                .fail(ErrorKind::Unexpected(b'/'), at.saturating_sub(1))
-                                .into());
-                        }
-                    };
-                    i = i.saturating_add(1);
-                }
-                Lex::LineComment => {
-                    let rest = &chunk[i..];
-                    match rest.iter().position(|&c| c == b'\n') {
-                        Some(nl) => {
-                            // The newline itself is counted in `Between`.
-                            i = i.saturating_add(nl);
-                            self.lex = Lex::Between;
-                        }
-                        None => i = chunk.len(),
-                    }
-                }
-                Lex::BlockComment | Lex::BlockStar => {
-                    if b == b'\n' {
-                        self.newline(at);
-                    }
-                    self.lex = match (self.lex, b) {
-                        (Lex::BlockStar, b'/') => Lex::Between,
-                        (_, b'*') => Lex::BlockStar,
-                        _ => Lex::BlockComment,
-                    };
-                    i = i.saturating_add(1);
-                }
-            }
-        }
-        Ok(())
-    }
-
-    fn newline(&mut self, at: u64) {
-        self.line = self.line.saturating_add(1);
-        self.line_start = at.saturating_add(1);
-    }
-
-    fn structural<S: TokenSink>(&mut self, b: u8, at: u64, sink: &mut S) -> Result<(), S::Error> {
-        let object_top = self.stack.last() == Some(&true);
-        match (self.expect, b) {
-            (Expect::Done, _) => Err(self.fail(ErrorKind::Trailing(b), at).into()),
-            (Expect::Colon, b':') => {
-                self.expect = Expect::Value;
-                Ok(())
-            }
-            (Expect::Key | Expect::KeyOrEnd, b'"') => {
-                self.mark(at);
-                self.start_string(true);
-                Ok(())
-            }
-            (Expect::KeyOrEnd, b'}') | (Expect::ValueOrEnd, b']') => self.close(at, sink),
-            (Expect::CommaOrEnd, b',') => {
-                self.expect = if object_top {
-                    Expect::Key
-                } else {
-                    Expect::Value
-                };
-                Ok(())
-            }
-            (Expect::CommaOrEnd, b'}') if object_top => self.close(at, sink),
-            (Expect::CommaOrEnd, b']') if !object_top => self.close(at, sink),
-            (Expect::Value | Expect::ValueOrEnd, _) => self.start_value(b, at, sink),
-            _ => Err(self.fail(ErrorKind::Unexpected(b), at).into()),
-        }
-    }
-
-    fn start_value<S: TokenSink>(&mut self, b: u8, at: u64, sink: &mut S) -> Result<(), S::Error> {
-        self.mark(at);
-        match b {
-            b'{' | b'[' => {
-                if self.stack.len() >= self.limits.max_depth {
-                    return Err(self.fail(ErrorKind::TooDeep, at).into());
-                }
-                let object = b == b'{';
-                self.stack.push(object);
-                if object {
-                    self.expect = Expect::KeyOrEnd;
-                    sink.token_at(Token::StartObject, self.token_start)
-                } else {
-                    self.expect = Expect::ValueOrEnd;
-                    sink.token_at(Token::StartArray, self.token_start)
-                }
-            }
-            b'"' => {
-                self.start_string(false);
-                Ok(())
-            }
-            b'-' | b'0'..=b'9' => {
-                self.scratch.clear();
-                self.scratch.push(b);
-                self.lex = Lex::Number;
-                Ok(())
-            }
-            b't' | b'f' | b'n' => {
-                self.literal = match b {
-                    b't' => b"true",
-                    b'f' => b"false",
-                    _ => b"null",
-                };
-                self.literal_pos = 1;
-                self.lex = Lex::Literal;
-                Ok(())
-            }
-            _ => Err(self.fail(ErrorKind::Unexpected(b), at).into()),
-        }
-    }
-
-    fn close<S: TokenSink>(&mut self, at: u64, sink: &mut S) -> Result<(), S::Error> {
-        self.mark(at);
-        let object = self.stack.pop() == Some(true);
-        let token = if object {
-            Token::EndObject
-        } else {
-            Token::EndArray
-        };
-        sink.token_at(token, self.token_start)?;
-        self.value_done();
-        Ok(())
-    }
-
-    pub(super) fn value_done(&mut self) {
-        self.root_seen = true;
-        self.expect = if self.stack.is_empty() {
-            Expect::Done
-        } else {
-            Expect::CommaOrEnd
-        };
-    }
-
-    fn end_number<S: TokenSink>(&mut self, at: u64, sink: &mut S) -> Result<(), S::Error> {
-        if !number::is_valid(&self.scratch) {
-            return Err(self.fail(ErrorKind::BadNumber, at).into());
-        }
-        let text = std::str::from_utf8(&self.scratch).unwrap_or_default();
-        sink.token_at(Token::Number(text), self.token_start)?;
-        self.scratch.clear();
-        self.lex = Lex::Between;
-        self.value_done();
-        Ok(())
+/// The `chunkjson` configuration for `limits`: one document, comments and
+/// empty input allowed, as Jackson's factory allows them.
+fn config(limits: &Limits) -> Config {
+    Config {
+        max_depth: limits.max_depth,
+        max_number_len: limits.max_number_bytes,
+        comments: true,
+        allow_empty: true,
+        ..Config::with_framing(Framing::Single)
     }
 }
 
@@ -407,4 +317,163 @@ fn bad_limits(limits: &Limits) -> Option<JsonError> {
         line: 1,
         column: 1,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::tests_sink::Seen;
+    use super::*;
+
+    fn limits(string_chunk: usize) -> Limits {
+        Limits {
+            string_chunk,
+            ..Limits::default()
+        }
+    }
+
+    #[test]
+    fn a_full_piece_goes_out_in_the_feed_that_completes_it() {
+        let mut t = Tokenizer::new(limits(4));
+        let mut seen = Seen::default();
+        t.feed(b"\"ab", &mut seen).expect("feeds");
+        assert!(seen.0.is_empty(), "half a piece waits");
+        t.feed(b"cd", &mut seen).expect("feeds");
+        assert_eq!(seen.0, ["Str { text: \"abcd\", last: false }"]);
+        t.feed(b"efgh", &mut seen).expect("feeds");
+        assert_eq!(seen.0.len(), 2, "a piece within one feed is not held");
+    }
+
+    #[test]
+    fn a_refused_byte_from_an_earlier_feed_is_still_named() {
+        let mut t = Tokenizer::new(Limits::default());
+        let mut seen = Seen::default();
+        t.feed(b"{} /", &mut seen).expect("feeds");
+        let e = t.feed(b"x", &mut seen).expect_err("not a comment");
+        assert_eq!((e.kind, e.offset), (ErrorKind::Unexpected(b'/'), 3));
+    }
+
+    #[test]
+    fn an_event_without_a_position_still_reaches_the_sink() {
+        let (mut key, mut piece) = (String::new(), String::new());
+        let (mut key_at, mut string_len, mut root_seen) = (Location::default(), 0, false);
+        let mut seen = Seen::default();
+        let mut adapter = Adapter {
+            limits: Limits::default(),
+            key: &mut key,
+            key_at: &mut key_at,
+            piece: &mut piece,
+            string_len: &mut string_len,
+            root_seen: &mut root_seen,
+            sink: &mut seen,
+        };
+        assert!(adapter.event(Event::Null).is_ok());
+        assert_eq!(seen.0, ["Null"]);
+    }
+}
+
+/// Where this tokenizer differs from the hand-written one it replaced,
+/// pinned: chunkjson ends a number where its grammar ends, as Jackson does,
+/// and places limit and UTF-8 errors without regard to chunking.
+#[cfg(test)]
+mod pinned {
+    use super::*;
+
+    fn run(doc: &[u8], lim: Limits) -> (Vec<String>, Result<Completion, JsonError>) {
+        let mut t = Tokenizer::new(lim);
+        let mut seen = tests_sink::Seen::default();
+        let r = t.feed(doc, &mut seen).and_then(|()| t.finish(&mut seen));
+        (seen.0, r)
+    }
+
+    fn err(doc: &[u8], lim: Limits) -> (ErrorKind, u64, u64) {
+        let e = run(doc, lim).1.expect_err("refused");
+        (e.kind, e.offset, e.column)
+    }
+
+    #[test]
+    fn a_number_ends_where_its_grammar_ends() {
+        let d = Limits::default();
+        let (tokens, r) = run(b"[1-2]", d);
+        assert_eq!(tokens, ["StartArray", "Number(\"1\")"]);
+        assert_eq!(
+            r.map_err(|e| (e.kind, e.offset)),
+            Err((ErrorKind::Unexpected(b'-'), 2))
+        );
+        assert_eq!(err(b"[1.5.3]", d), (ErrorKind::Unexpected(b'.'), 4, 5));
+        assert_eq!(
+            err(b"{\"a\":1e1.5}", d),
+            (ErrorKind::Unexpected(b'.'), 8, 9)
+        );
+        assert_eq!(err(b"[01]", d), (ErrorKind::BadNumber, 2, 3));
+        assert_eq!(err(b"01", d), (ErrorKind::BadNumber, 1, 2));
+    }
+
+    #[test]
+    fn limits_and_bad_utf8_are_placed_whatever_the_chunks() {
+        let key = Limits {
+            max_key_bytes: 3,
+            ..Limits::default()
+        };
+        assert_eq!(
+            err("{\"é😀\":1}".as_bytes(), key),
+            (ErrorKind::KeyTooLong, 1, 2)
+        );
+        let string = Limits {
+            max_string_bytes: 2,
+            ..Limits::default()
+        };
+        assert_eq!(err(b"[\"abc\"]", string), (ErrorKind::StringTooLong, 1, 2));
+        let number = Limits {
+            max_number_bytes: 6,
+            ..Limits::default()
+        };
+        assert_eq!(err(b"12345678", number), (ErrorKind::NumberTooLong, 6, 7));
+        assert_eq!(
+            err(b"\"abc\xff\"", Limits::default()),
+            (ErrorKind::InvalidUtf8, 4, 5)
+        );
+        // bad UTF-8 is refused as it is fed, before the missing end
+        let mut t = Tokenizer::new(Limits::default());
+        let e = t
+            .feed(b"\"a\xff", &mut tests_sink::Seen::default())
+            .expect_err("bad");
+        assert_eq!(e.kind, ErrorKind::InvalidUtf8);
+    }
+
+    #[test]
+    fn a_string_ending_on_a_piece_boundary_ends_with_that_piece() {
+        let (tokens, _) = run(
+            b"\"abcd\"",
+            Limits {
+                string_chunk: 4,
+                ..Limits::default()
+            },
+        );
+        assert_eq!(tokens, ["Str { text: \"abcd\", last: true }"]);
+    }
+
+    #[test]
+    fn a_failed_feed_still_counts_its_bytes() {
+        let mut t = Tokenizer::new(Limits::default());
+        assert!(t.feed(b"]null", &mut tests_sink::Seen::default()).is_err());
+        assert_eq!(t.offset(), 5);
+    }
+}
+
+/// A sink both test modules share.
+#[cfg(test)]
+mod tests_sink {
+    use super::*;
+
+    /// Each token, as text.
+    #[derive(Default)]
+    pub(super) struct Seen(pub(super) Vec<String>);
+
+    impl TokenSink for Seen {
+        type Error = JsonError;
+        fn token(&mut self, t: Token<'_>) -> Result<(), JsonError> {
+            self.0.push(format!("{t:?}"));
+            Ok(())
+        }
+    }
 }

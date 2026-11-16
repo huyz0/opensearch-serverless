@@ -10,6 +10,7 @@ repository.workspace = true
 
 [dependencies]
 oss-mem = { workspace = true }
+chunkjson = { workspace = true }
 
 [dev-dependencies]
 oss-testkit = { workspace = true }

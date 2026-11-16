@@ -31,6 +31,7 @@ graph TD
     oss-reader --> oss-format
     oss-reader --> oss-rest
     oss-reader --> oss-types
+    oss-rest --> chunkjson
     oss-rest --> oss-mem
     oss-testkit
     oss-types
