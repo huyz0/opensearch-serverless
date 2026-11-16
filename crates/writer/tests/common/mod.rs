@@ -2,6 +2,8 @@
 
 #![allow(dead_code)]
 
+pub mod committer;
+
 use std::sync::Arc;
 
 use oss_blob::register::{RegisterRead, SwapOutcome};

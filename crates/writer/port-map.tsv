@@ -4,3 +4,12 @@ src/log/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/nod
 src/log/store.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/nodelog/NodeLogStore.java@429b4cbc	append, firstFree, readEntry, lastHeaderBelow, readSlice, readBody, parseSlice, deleteRange; one DELETE a slot (unbilled, serial), no batch delete in the store yet; readBody still materialises the body, bounded by with_max_read
 src/log/fence.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/nodelog/NodeLogStore.java@429b4cbc	fence, fillBelow, tryFence
 src/log/hedge.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/nodelog/NodeLogStore.java@429b4cbc	appendHedged and its read-back; Spawn in place of an Executor
+src/log/committer/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/nodelog/NodeLogCommitter.java@429b4cbc	commit, enqueue, flushQueued, awaitLanded; records encoded once on the caller's thread
+src/log/committer/write.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/nodelog/NodeLogCommitter.java@429b4cbc	write and openEpoch; admissions one after another (NodeLogAdmissions' concurrency is a later piece)
+src/log/committer/track.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/nodelog/NodeLogCommitter.java@429b4cbc	onPublished (without pins), lastPosition, unpublishedRuns, forget, positions, takeComplete, trimPoint
+src/log/window.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/nodelog/NodeLogWindow.java@429b4cbc	the window, with its landed latch as a mutex and condvar
+src/log/epochs.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/nodelog/NodeLogEpochState.java@429b4cbc	without the pins' retained runs
+src/log/hedge_delay.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/nodelog/NodeLogHedgeDelay.java@429b4cbc	
+src/log/settings.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/nodelog/NodeLogSettings.java@429b4cbc	window, max bytes and records, hedge delay, idle flush; admission concurrency comes with concurrent admissions
+src/log/committer/join.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/nodelog/NodeLogCommitter.java@429b4cbc	joinAll and join
+src/log/committer/types.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/nodelog/NodeLogCommitter.java@429b4cbc	EpochLease, ShardAdmission, Position; the errors as one enum
