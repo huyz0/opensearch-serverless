@@ -616,6 +616,8 @@ name = "oss-writer"
 version = "0.1.0"
 dependencies = [
  "oss-blob",
+ "oss-format",
+ "oss-testkit",
  "oss-types",
 ]
 

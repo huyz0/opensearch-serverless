@@ -75,4 +75,7 @@ exclude_re = [
     # writeUTF's lead and continuation bytes join a fixed prefix with value
     # bits below it: disjoint bits, where `|` and `^` give the same byte.
     "crates/format/src/mutf8.rs:.*replace \\| with \\^ in write",
+    # The node log's I/O buffer size: a GET or PUT streams through any
+    # non-empty buffer to the same bytes; only the chunk count differs.
+    "crates/writer/src/log/store.rs:21:43: replace \\* with \\+",
 ]

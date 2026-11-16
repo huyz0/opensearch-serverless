@@ -42,6 +42,7 @@ graph TD
     oss-transport --> oss-mem
     oss-types
     oss-writer --> oss-blob
+    oss-writer --> oss-format
     oss-writer --> oss-types
 ```
 <!-- crate-map:end -->

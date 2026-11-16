@@ -5,3 +5,5 @@
 //! cannot overwrite a successor. It builds segments, uploads each as one
 //! immutable blob, and carries commit metadata inside uploads it already
 //! makes rather than in extra PUTs.
+
+pub mod log;
