@@ -15,10 +15,13 @@
 //! - [`placement`]: the owner of a shard's writes, the readers of its
 //!   searches and the winner of a takeover, computed alike by every node
 //!   from the leases, with the Java's hashes.
+//! - [`EarlyRevoke`]: revoking a refused peer's lease before it expires,
+//!   off by default (`serverless.lease.early_revoke`).
 //! - [`transport_secret`]: the keys of the transport's request MAC, read
 //!   from their register and cached for one lease TTL.
 
 pub mod lease;
+pub use lease::early_revoke;
 pub mod placement;
 pub mod routing;
 pub mod transport_secret;
@@ -27,5 +30,6 @@ mod error;
 
 pub use error::ClusterError;
 pub use lease::{
-    LeaseClock, LeaseConfig, LivenessOracle, Membership, MembershipDelta, Refreshed, SystemClock,
+    ConnectProbe, EarlyRevoke, LeaseClock, LeaseConfig, LivenessOracle, Membership,
+    MembershipDelta, Refreshed, SystemClock, TcpProbe, Verdict,
 };
