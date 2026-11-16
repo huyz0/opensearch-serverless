@@ -22,6 +22,12 @@ pub(crate) enum Quirk {
     FailRequest(u32),
     /// Refuses every register create.
     RefuseCreates,
+    /// Each LIST also visits a key under its prefix that does not exist, as
+    /// a name deleted between its listing and its read.
+    PhantomKey,
+    /// From the n-th LIST on (counting from 1), answers an empty page that
+    /// claims more follows.
+    EmptyTruncatedFrom(u32),
 }
 
 /// A store that misbehaves as its quirk says, over an emulator.
@@ -29,6 +35,7 @@ pub(crate) struct Quirky {
     pub(crate) inner: Arc<dyn BlobStore>,
     quirk: Quirk,
     requests: AtomicU32,
+    lists: AtomicU32,
 }
 
 impl Quirky {
@@ -37,6 +44,7 @@ impl Quirky {
             inner: Arc::new(Emulator::new(16 << 20, 1)),
             quirk,
             requests: AtomicU32::new(0),
+            lists: AtomicU32::new(0),
         }
     }
 
@@ -93,6 +101,16 @@ impl BlobStore for Quirky {
         visit: &mut dyn FnMut(&str, u64),
     ) -> BlobResult<ListPage> {
         self.request()?;
+        let n = self.lists.fetch_add(1, Ordering::SeqCst) + 1;
+        if matches!(self.quirk, Quirk::EmptyTruncatedFrom(from) if n >= from) {
+            return Ok(ListPage {
+                keys: 0,
+                truncated: true,
+            });
+        }
+        if self.quirk == Quirk::PhantomKey {
+            visit(&format!("{prefix}~gone"), 0);
+        }
         // LIST: passed through.
         self.inner.list_prefix(prefix, start_after, max_keys, visit)
     }

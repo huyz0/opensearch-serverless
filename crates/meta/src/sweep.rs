@@ -21,7 +21,7 @@ use crate::descriptors::{
 use crate::error::MetaError;
 
 /// Where under a deployment's base markers are filed (`RegisterMap.tombstones`).
-pub const MARKERS_PREFIX: &str = "tombstones/";
+pub use oss_format::MARKERS_PREFIX;
 
 /// What one sweep is to do.
 pub struct Sweep<'a> {

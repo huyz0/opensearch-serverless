@@ -52,6 +52,14 @@ pub struct FileExtent<'a> {
     pub length: Option<u64>,
 }
 
+/// Where under a deployment's base the name registers are
+/// (`RegisterMap.indices`): one key a name, below which nothing is stored.
+pub const DESCRIPTORS_PREFIX: &str = "indices/";
+
+/// Where under a deployment's base deletes file their markers
+/// (`RegisterMap.tombstones`), one directory an hour.
+pub const MARKERS_PREFIX: &str = "tombstones/";
+
 /// The key of an index's descriptor register.
 ///
 /// # Errors
@@ -62,7 +70,7 @@ pub fn descriptor_key(base: &str, index: &str) -> Result<String, FormatError> {
     check_base(base)?;
     check_segment(index)?;
     // ALLOC: one key, the length of its parts.
-    Ok([base, "indices/", index].concat())
+    Ok([base, DESCRIPTORS_PREFIX, index].concat())
 }
 
 /// The key of the marker a delete files under its hour's bucket
@@ -77,7 +85,7 @@ pub fn tombstone_marker_key(base: &str, bucket: &str, index: &str) -> Result<Str
     check_segment(bucket)?;
     check_segment(index)?;
     // ALLOC: one key, the length of its parts.
-    Ok([base, "tombstones/", bucket, "/", index].concat())
+    Ok([base, MARKERS_PREFIX, bucket, "/", index].concat())
 }
 
 impl ShardRef<'_> {

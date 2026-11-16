@@ -26,6 +26,18 @@ pub enum MetaError {
     Format(FormatError),
     /// The store failed.
     Blob(BlobError),
+    /// More live names than the cap begin with the prefix (the Java's
+    /// `TooManyMatchesException`): the first `cap` would be a partial answer
+    /// that looks complete.
+    TooManyMatches {
+        /// The prefix that matched too much.
+        prefix: String,
+        /// The cap it passed.
+        cap: usize,
+    },
+    /// A bound the caller passed cannot be met, such as a page of no names;
+    /// nothing was sent.
+    InvalidArgument(&'static str),
 }
 
 impl fmt::Display for MetaError {
@@ -36,6 +48,13 @@ impl fmt::Display for MetaError {
             Self::BeingReclaimed => f.write_str("the name is being reclaimed from a deleted index"),
             Self::Format(e) => e.fmt(f),
             Self::Blob(e) => e.fmt(f),
+            Self::TooManyMatches { prefix, cap } => write!(
+                f,
+                "more than {cap} indices begin with [{prefix}]. Narrowing the pattern or \
+                 naming the indices is the answer; returning the first {cap} would be a \
+                 partial result that looks complete."
+            ),
+            Self::InvalidArgument(why) => f.write_str(why),
         }
     }
 }
@@ -46,7 +65,10 @@ impl std::error::Error for MetaError {
             Self::InvalidName(e) => Some(e),
             Self::Format(e) => Some(e),
             Self::Blob(e) => Some(e),
-            Self::AlreadyExists | Self::BeingReclaimed => None,
+            Self::AlreadyExists
+            | Self::BeingReclaimed
+            | Self::TooManyMatches { .. }
+            | Self::InvalidArgument(_) => None,
         }
     }
 }
@@ -102,6 +124,21 @@ mod tests {
                 true,
             ),
             (MetaError::from(blob), "invalid argument: too long", true),
+            (
+                MetaError::TooManyMatches {
+                    prefix: "l".to_owned(),
+                    cap: 3,
+                },
+                "more than 3 indices begin with [l]. Narrowing the pattern or naming the \
+                 indices is the answer; returning the first 3 would be a partial result that \
+                 looks complete.",
+                false,
+            ),
+            (
+                MetaError::InvalidArgument("a limit of 0"),
+                "a limit of 0",
+                false,
+            ),
         ] {
             assert_eq!(error.to_string(), text);
             assert_eq!(error.source().is_some(), has_source, "{error}");

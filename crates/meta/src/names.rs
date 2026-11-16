@@ -36,6 +36,10 @@ pub enum NameRule {
     Dots,
     /// The name is not lowercase.
     Uppercase,
+    /// An index pattern's prefix is longer than [`MAX_NAME_BYTES`].
+    PatternTooLong,
+    /// An index pattern's prefix holds this character.
+    PatternChar(char),
 }
 
 /// A name refused, and why.
@@ -77,6 +81,10 @@ impl fmt::Display for NameError {
             ),
             NameRule::Dots => write!(f, "Invalid index name [{name}], must not be '.' or '..'"),
             NameRule::Uppercase => write!(f, "Invalid index name [{name}], must be lowercase"),
+            NameRule::PatternTooLong => write!(f, "Invalid index pattern [{name}*], too long"),
+            NameRule::PatternChar(c) => {
+                write!(f, "Invalid index pattern [{name}*], must not contain '{c}'")
+            }
         }
     }
 }
@@ -94,6 +102,36 @@ pub fn validate_index_or_alias(name: &str) -> Result<(), NameError> {
         Err(NameError {
             // ALLOC: one copy of a refused name, for its message.
             name: name.to_owned(),
+            rule,
+        })
+    })
+}
+
+/// Refuses the prefix of an index pattern (`logs-` of `logs-*`) that no
+/// name could start with, as the Java's `Names.validatePrefix`: the empty
+/// prefix is every name.
+///
+/// # Errors
+///
+/// [`NameError`] with [`NameRule::PatternTooLong`] or
+/// [`NameRule::PatternChar`].
+pub fn validate_prefix(prefix: &str) -> Result<(), NameError> {
+    let rule = if prefix.len() > MAX_NAME_BYTES {
+        Some(NameRule::PatternTooLong)
+    } else {
+        prefix
+            .chars()
+            .find(|c| {
+                INVALID_FILENAME_CHARS.contains(c)
+                    || matches!(c, '#' | ':' | '[' | ']' | '{' | '}')
+                    || c.is_control()
+            })
+            .map(NameRule::PatternChar)
+    };
+    rule.map_or(Ok(()), |rule| {
+        Err(NameError {
+            // ALLOC: one copy of a refused prefix, for its message.
+            name: prefix.to_owned(),
             rule,
         })
     })
@@ -231,6 +269,45 @@ mod tests {
             &"é".repeat(127),
         ] {
             assert_eq!(validate_index_or_alias(name), Ok(()), "{name}");
+        }
+    }
+
+    #[test]
+    fn a_prefix_is_refused_with_the_javas_message() {
+        let long = "a".repeat(256);
+        assert_eq!(
+            validate_prefix(&long).unwrap_err().to_string(),
+            format!("Invalid index pattern [{long}*], too long")
+        );
+        assert_eq!(
+            validate_prefix("logs-[").unwrap_err().to_string(),
+            "Invalid index pattern [logs-[*], must not contain '['"
+        );
+        for c in [
+            '\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',', '#', ':', '[', ']', '{', '}',
+            '\u{0}', '\u{9f}',
+        ] {
+            assert_eq!(
+                validate_prefix(&format!("a{c}")).map_err(|e| e.rule),
+                Err(NameRule::PatternChar(c)),
+                "{c:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_valid_prefix_passes() {
+        // A prefix need not be a name: empty, uppercase, a leading `_`.
+        for prefix in [
+            "",
+            "logs-",
+            "Logs",
+            "_a",
+            ".",
+            &"a".repeat(255),
+            &"é".repeat(127),
+        ] {
+            assert_eq!(validate_prefix(prefix), Ok(()), "{prefix}");
         }
     }
 }
