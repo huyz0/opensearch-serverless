@@ -1,7 +1,8 @@
 //! Test-only helpers shared across the workspace.
 //!
-//! Holds the counting allocator used to assert peak memory under load, and
-//! [`TempDir`], a directory a test owns. Used only as a dev-dependency.
+//! Holds the counting allocator used to assert peak memory under load,
+//! [`TempDir`], a directory a test owns, and [`budget`], the object-store
+//! request budgets a gate checks a measurement against. Used only as a dev-dependency.
 //!
 //! The allocator is the pinned `cap` crate's `Cap<System>` with its `stats`
 //! feature, so this repository holds no `unsafe` of its own. Install it in a
@@ -21,6 +22,7 @@
 //! drop(v);
 //! ```
 
+pub mod budget;
 mod peak;
 mod temp;
 

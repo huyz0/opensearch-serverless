@@ -9,6 +9,7 @@
 mod alias_mutations;
 mod alias_races;
 mod aliases;
+mod budgets;
 mod changes;
 mod cluster_config;
 mod counts;

@@ -8,6 +8,7 @@ Every S3 request costs money and goes through `oss-blob`.
 4. A LIST call site carries a `// LIST:` comment saying why nothing cheaper works.
 5. Write a test against the in-process emulator (`oss-blob` with the `emulator` feature, as a dev-dependency) asserting the exact request counts of the operation that uses it (for example, "a refresh issues one PUT and no LIST").
    Use `Emulator::fail_next`, `throttle_next`, `lose_response_next`, `set_faults` and `set_latency` to test the failure and slow paths; with one seed the n-th request of each kind gets the same fault, though which thread's request is n-th depends on scheduling.
-6. State the request cost per operation in the PR description.
+6. If the call is on a path [docs/request-budgets.md](../request-budgets.md) pins, its gate fails: raise that row in the same change and say why. A new user-facing path gets a row, enforced by a gate that measures it through `oss_blob::Rounds` and checks it with `oss_testkit::budget::check`.
+7. State the request cost per operation in the PR description.
 
-**Checks:** `scripts/check-s3-access.py`; the count assertions in your tests.
+**Checks:** `scripts/check-s3-access.py`; `scripts/check-budgets.py`; the count assertions in your tests and the budget gates.
