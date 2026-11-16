@@ -40,7 +40,9 @@ impl Tokenizer {
         let mut pos = 0;
         loop {
             if let Some(c) = checked {
-                pos = self.fast(chunk, pos, start, c, sink)?;
+                let next = self.fast(chunk, pos, start, c, sink)?;
+                debug_assert!(next >= pos, "the fast loop never moves back");
+                pos = next;
             }
             let (out, used) = self.step(chunk.get(pos..).unwrap_or_default(), eof)?;
             let shift = pos;
@@ -77,69 +79,80 @@ impl Tokenizer {
         // `after_value` places a document's end relative to `base`.
         self.base = start;
         let newline_ends = self.config().framing == crate::Framing::Ndjson;
-        let done = loop {
-            let Some(&b) = chunk.get(pos) else { break pos };
-            match (self.expect, b) {
-                (_, b' ' | b'\t' | b'\r') => pos += 1,
-                (_, b'\n') if !newline_ends => pos += 1,
-                (Expect::Colon, b':') => {
-                    self.expect = Expect::Value;
-                    pos += 1;
-                }
-                (Expect::CommaOrEnd, b',') => {
-                    let in_object = self.stack.last().copied().unwrap_or(false);
-                    self.expect = if in_object {
-                        Expect::Key
-                    } else {
-                        Expect::Value
-                    };
-                    pos += 1;
-                }
-                (Expect::CommaOrEnd | Expect::ValueOrEnd | Expect::KeyOrEnd, b'}' | b']') => {
-                    let object = b == b'}';
-                    // `ValueOrEnd` and `KeyOrEnd` follow a push, so the top
-                    // of the stack already says which closer fits.
-                    if self.stack.last().copied() != Some(object) {
-                        break pos;
+        // Every pass that does not stop advances `pos`, so the loop is
+        // bounded by the chunk length.
+        let done = 'scan: {
+            for _ in 0..chunk.len() {
+                let Some(&b) = chunk.get(pos) else {
+                    break 'scan pos;
+                };
+                match (self.expect, b) {
+                    (_, b' ' | b'\t' | b'\r') => pos += 1,
+                    (_, b'\n') if !newline_ends => pos += 1,
+                    (Expect::Colon, b':') => {
+                        self.expect = Expect::Value;
+                        pos += 1;
                     }
-                    self.stack.pop();
-                    pos += 1;
-                    self.after_value(pos, false);
-                    let event = if object {
-                        Event::EndObject
-                    } else {
-                        Event::EndArray
-                    };
-                    self.emit_at(pos, event, sink)?;
-                    if self.pending_end {
-                        break pos;
+                    (Expect::CommaOrEnd, b',') => {
+                        let in_object = self.stack.last().copied().unwrap_or(false);
+                        self.expect = if in_object {
+                            Expect::Key
+                        } else {
+                            Expect::Value
+                        };
+                        pos += 1;
                     }
-                }
-                (Expect::Key | Expect::KeyOrEnd, b'"') => match plain_string(chunk, pos, checked) {
-                    Plain::Whole(text, end) => {
-                        self.after_key();
+                    (Expect::CommaOrEnd | Expect::ValueOrEnd | Expect::KeyOrEnd, b'}' | b']') => {
+                        let object = b == b'}';
+                        // `ValueOrEnd` and `KeyOrEnd` follow a push, so the top
+                        // of the stack already says which closer fits.
+                        if self.stack.last().copied() != Some(object) {
+                            break 'scan pos;
+                        }
+                        self.stack.pop();
+                        pos += 1;
+                        self.after_value(pos, false);
+                        let event = if object {
+                            Event::EndObject
+                        } else {
+                            Event::EndArray
+                        };
+                        self.emit_at(pos, event, sink)?;
+                        if self.pending_end {
+                            break 'scan pos;
+                        }
+                    }
+                    (Expect::Key | Expect::KeyOrEnd, b'"') => {
+                        match plain_string(chunk, pos, checked) {
+                            Plain::Whole(text, end) => {
+                                self.after_key();
+                                pos = end;
+                                let key = Event::Key(Text {
+                                    fragment: text,
+                                    first: true,
+                                    last: true,
+                                });
+                                self.emit_at(pos, key, sink)?;
+                            }
+                            Plain::Open(text, end) => {
+                                break 'scan self.open_string(true, text, end, sink)?;
+                            }
+                            Plain::Other => break 'scan pos,
+                        }
+                    }
+                    (Expect::Value | Expect::ValueOrEnd, _) => {
+                        let Some(end) = self.fast_value(chunk, pos, checked, sink)? else {
+                            break 'scan pos;
+                        };
                         pos = end;
-                        let key = Event::Key(Text {
-                            fragment: text,
-                            first: true,
-                            last: true,
-                        });
-                        self.emit_at(pos, key, sink)?;
+                        if !matches!(self.lex, Lex::None) {
+                            break 'scan pos;
+                        }
                     }
-                    Plain::Open(text, end) => break self.open_string(true, text, end, sink)?,
-                    Plain::Other => break pos,
-                },
-                (Expect::Value | Expect::ValueOrEnd, _) => {
-                    let Some(end) = self.fast_value(chunk, pos, checked, sink)? else {
-                        break pos;
-                    };
-                    pos = end;
-                    if !matches!(self.lex, Lex::None) {
-                        break pos;
-                    }
+                    _ => break 'scan pos,
                 }
-                _ => break pos,
             }
+            pos
         };
         self.offset = start.saturating_add(done as u64);
         Ok(done)
@@ -297,16 +310,11 @@ impl Tokenizer {
 
 /// The end of a complete, valid number starting at `chunk[pos]`, if a byte
 /// that cannot continue it follows inside the chunk.
-// ARITH: `j` only advances past a byte read with `get`.
-#[allow(clippy::arithmetic_side_effects)]
 #[inline]
 fn number_end(chunk: &[u8], pos: usize) -> Option<usize> {
     let mut state = NumState::Start;
-    let mut j = pos;
-    loop {
-        let &b = chunk.get(j)?;
+    for (j, &b) in chunk.iter().enumerate().skip(pos) {
         if b.is_ascii_digit() && matches!(state, NumState::Int | NumState::Frac | NumState::Exp) {
-            j += 1;
             continue;
         }
         match state.advance(b) {
@@ -314,8 +322,8 @@ fn number_end(chunk: &[u8], pos: usize) -> Option<usize> {
             Step::End => return state.is_final().then_some(j),
             Step::Invalid => return None,
         }
-        j += 1;
     }
+    None
 }
 
 #[cfg(test)]
@@ -329,8 +337,9 @@ mod tests {
 
     impl Sink for Count {
         type Error = Error;
-        fn event(&mut self, _: Event<'_>) -> Result<(), Error> {
-            self.0 = self.0.saturating_add(1);
+        fn event(&mut self, event: Event<'_>) -> Result<(), Error> {
+            assert!(!matches!(event, Event::NeedMore | Event::Eof));
+            self.0 += 1;
             Ok(())
         }
     }

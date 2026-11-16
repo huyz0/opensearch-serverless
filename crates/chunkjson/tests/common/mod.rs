@@ -129,6 +129,10 @@ pub fn feed_chunked(bytes: &[u8], sizes: &[usize], config: Config) -> Result<Bui
     impl chunkjson::Sink for Into<'_> {
         type Error = Error;
         fn event(&mut self, event: Event<'_>) -> Result<(), Error> {
+            assert!(
+                !matches!(event, Event::NeedMore | Event::Eof),
+                "a sink never sees {event:?}"
+            );
             self.0.apply(event);
             Ok(())
         }
