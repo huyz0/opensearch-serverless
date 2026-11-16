@@ -20,10 +20,11 @@ reader = [
     "dep:lucene-analysis",
     "dep:oss-mem",
 ]
-writer = ["dep:oss-writer"]
-coordinator = ["dep:oss-coordinator"]
+writer = ["dep:oss-writer", "dep:oss-blob"]
+coordinator = ["dep:oss-coordinator", "dep:oss-blob"]
 
 [dependencies]
+oss-types = { workspace = true }
 oss-reader = { workspace = true, optional = true }
 oss-writer = { workspace = true, optional = true }
 oss-coordinator = { workspace = true, optional = true }

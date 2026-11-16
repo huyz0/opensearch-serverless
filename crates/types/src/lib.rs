@@ -4,3 +4,9 @@
 //! (tenant, index, shard, node) are distinct types, so passing one where
 //! another belongs does not compile. They are added here as the reader, writer
 //! and coordinator need them.
+//!
+//! [`settings`] defines settings: each module declares its own, with the
+//! Java shell's keys, types, defaults and messages, and the node collects
+//! them into one registry.
+
+pub mod settings;

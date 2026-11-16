@@ -59,7 +59,7 @@ Decision and detail: [ADR 0004](adr/0004-bounded-memory-and-streaming.md).
 - Settings are owned by the module that reads them and registered through a provider, not collected in one central list.
 - Precedence: **index settings win over cluster settings, which win over node settings.**
 
-*Check:* none yet; the settings provider is built with the first setting ([how-to](how-to/add-a-setting.md)).
+*Check:* `Registry::new` refuses a duplicate key, a key outside its scope's prefix, an empty doc or a default it would refuse, and `the_nodes_settings_form_a_valid_registry` holds the node's whole registry to it ([how-to](how-to/add-a-setting.md)).
 
 ## Scale target
 

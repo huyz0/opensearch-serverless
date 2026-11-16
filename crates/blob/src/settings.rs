@@ -8,19 +8,62 @@
 
 use std::path::PathBuf;
 
+use oss_types::settings::{BoolSetting, ChoiceSetting, Scope, Setting, Source, StrSetting};
+
 /// `serverless.store.type`: `fs` (the default) or `s3`.
-pub const TYPE: &str = "serverless.store.type";
+pub const TYPE: ChoiceSetting = ChoiceSetting::new(
+    "serverless.store.type",
+    "fs",
+    &["fs", "s3"],
+    Scope::Node,
+    "The object store the node runs on: `fs`, a directory, or `s3`, a bucket.",
+);
 /// `serverless.store.path`: the directory of an `fs` store. Required for it.
-pub const PATH: &str = "serverless.store.path";
+pub const PATH: StrSetting = StrSetting::new(
+    "serverless.store.path",
+    "",
+    Scope::Node,
+    "The directory of an `fs` store; required for one.",
+);
 /// `serverless.store.bucket`: the bucket of an `s3` store. Required for it.
-pub const BUCKET: &str = "serverless.store.bucket";
+pub const BUCKET: StrSetting = StrSetting::new(
+    "serverless.store.bucket",
+    "",
+    Scope::Node,
+    "The bucket of an `s3` store; required for one.",
+);
 /// `serverless.store.region`: the bucket's region, default `us-east-1`.
-pub const REGION: &str = "serverless.store.region";
+pub const REGION: StrSetting = StrSetting::new(
+    "serverless.store.region",
+    "us-east-1",
+    Scope::Node,
+    "The region of an `s3` store's bucket.",
+);
 /// `serverless.store.endpoint`: an S3-compatible endpoint; AWS's when absent.
-pub const ENDPOINT: &str = "serverless.store.endpoint";
+pub const ENDPOINT: StrSetting = StrSetting::new(
+    "serverless.store.endpoint",
+    "",
+    Scope::Node,
+    "An S3-compatible endpoint for an `s3` store; AWS's when unset.",
+);
 /// `serverless.store.path_style_access`: address the bucket by path, as
 /// most S3-compatible services need. Default `false`.
-pub const PATH_STYLE_ACCESS: &str = "serverless.store.path_style_access";
+pub const PATH_STYLE_ACCESS: BoolSetting = BoolSetting::new(
+    "serverless.store.path_style_access",
+    false,
+    Scope::Node,
+    "Address an `s3` store's bucket by path, as most S3-compatible services need.",
+);
+
+/// Every setting this crate defines, for the node's registry.
+pub static SETTINGS: &[&Setting] = &[
+    TYPE.setting(),
+    PATH.setting(),
+    BUCKET.setting(),
+    REGION.setting(),
+    ENDPOINT.setting(),
+    PATH_STYLE_ACCESS.setting(),
+];
 
 /// The store a node's settings select.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -44,47 +87,43 @@ pub enum StoreSettings {
 }
 
 impl StoreSettings {
-    /// Reads the store settings through `get`, which answers a setting's
-    /// value or `None` when it is unset. The error is the Java's message.
-    pub fn parse<'a>(get: impl Fn(&str) -> Option<&'a str>) -> Result<Self, String> {
+    /// Reads the store settings from `source`. The error is the Java's
+    /// message.
+    pub fn parse(source: &dyn Source) -> Result<Self, String> {
         // ALLOC: each String below is one setting value or one error message,
         // once per node start; never on a request path.
-        let present = |key: &str| get(key).filter(|v| !v.trim().is_empty());
-        match get(TYPE).unwrap_or("fs") {
+        let present = |s: &StrSetting| source.value(s.key()).filter(|v| !v.trim().is_empty());
+        // The Java's own message, not the choice's: the type is read as text.
+        match source.value(TYPE.key()).unwrap_or(TYPE.default()) {
             "fs" => {
-                let path = present(PATH)
+                let path = present(&PATH)
                     // ALLOC: one setting value or message, once per node start.
-                    .ok_or_else(|| format!("{PATH} is required for a filesystem store"))?;
+                    .ok_or_else(|| format!("{} is required for a filesystem store", PATH.key()))?;
                 Ok(StoreSettings::Fs {
                     path: PathBuf::from(path),
                 })
             }
             "s3" => {
-                let bucket =
+                let bucket = present(&BUCKET)
                     // ALLOC: one setting value or message, once per node start.
-                    present(BUCKET).ok_or_else(|| format!("{BUCKET} is required for an s3 store"))?;
-                let path_style_access = match get(PATH_STYLE_ACCESS) {
-                    None | Some("false") => false,
-                    Some("true") => true,
-                    Some(other) => {
-                        // ALLOC: one setting value or message, once per node start.
-                        return Err(format!(
-                            "Failed to parse value [{other}] as only [true] or [false] are allowed."
-                        ));
-                    }
-                };
+                    .ok_or_else(|| format!("{} is required for an s3 store", BUCKET.key()))?;
+                let path_style_access = PATH_STYLE_ACCESS.get(source).map_err(|e| e.message)?;
+                let endpoint = source.value(ENDPOINT.key());
                 Ok(StoreSettings::S3 {
                     // ALLOC: one setting value or message, once per node start.
                     bucket: bucket.to_owned(),
                     // ALLOC: one setting value or message, once per node start.
-                    region: get(REGION).unwrap_or("us-east-1").to_owned(),
+                    region: REGION.get(source).to_owned(),
                     // ALLOC: one setting value or message, once per node start.
-                    endpoint: get(ENDPOINT).map(str::to_owned),
+                    endpoint: endpoint.map(str::to_owned),
                     path_style_access,
                 })
             }
             // ALLOC: one setting value or message, once per node start.
-            other => Err(format!("unknown {TYPE}: {other}; expected fs or s3")),
+            other => Err(format!(
+                "unknown {}: {other}; expected fs or s3",
+                TYPE.key()
+            )),
         }
     }
 }
@@ -94,33 +133,32 @@ mod tests {
     use super::*;
 
     fn parse(pairs: &[(&str, &'static str)]) -> Result<StoreSettings, String> {
-        let pairs = pairs.to_vec();
-        StoreSettings::parse(|k| pairs.iter().find(|(key, _)| *key == k).map(|(_, v)| *v))
+        StoreSettings::parse(&pairs)
     }
 
     #[test]
     fn fs_is_the_default_and_needs_a_path() {
         assert_eq!(
-            parse(&[(PATH, "/data/store")]),
+            parse(&[(PATH.key(), "/data/store")]),
             Ok(StoreSettings::Fs {
                 path: PathBuf::from("/data/store")
             })
         );
         assert_eq!(
-            parse(&[(TYPE, "fs"), (PATH, "d")]),
+            parse(&[(TYPE.key(), "fs"), (PATH.key(), "d")]),
             Ok(StoreSettings::Fs {
                 path: PathBuf::from("d")
             })
         );
         let missing = Err("serverless.store.path is required for a filesystem store".to_owned());
         assert_eq!(parse(&[]), missing);
-        assert_eq!(parse(&[(TYPE, "fs"), (PATH, "  ")]), missing);
+        assert_eq!(parse(&[(TYPE.key(), "fs"), (PATH.key(), "  ")]), missing);
     }
 
     #[test]
     fn s3_needs_a_bucket_and_defaults_the_rest() {
         assert_eq!(
-            parse(&[(TYPE, "s3"), (BUCKET, "b")]),
+            parse(&[(TYPE.key(), "s3"), (BUCKET.key(), "b")]),
             Ok(StoreSettings::S3 {
                 bucket: "b".to_owned(),
                 region: "us-east-1".to_owned(),
@@ -130,11 +168,11 @@ mod tests {
         );
         assert_eq!(
             parse(&[
-                (TYPE, "s3"),
-                (BUCKET, "b"),
-                (REGION, "eu-west-1"),
-                (ENDPOINT, "http://127.0.0.1:9000"),
-                (PATH_STYLE_ACCESS, "true"),
+                (TYPE.key(), "s3"),
+                (BUCKET.key(), "b"),
+                (REGION.key(), "eu-west-1"),
+                (ENDPOINT.key(), "http://127.0.0.1:9000"),
+                (PATH_STYLE_ACCESS.key(), "true"),
             ]),
             Ok(StoreSettings::S3 {
                 bucket: "b".to_owned(),
@@ -144,11 +182,15 @@ mod tests {
             })
         );
         assert_eq!(
-            parse(&[(TYPE, "s3")]),
+            parse(&[(TYPE.key(), "s3")]),
             Err("serverless.store.bucket is required for an s3 store".to_owned())
         );
         assert_eq!(
-            parse(&[(TYPE, "s3"), (BUCKET, "b"), (PATH_STYLE_ACCESS, "yes")]),
+            parse(&[
+                (TYPE.key(), "s3"),
+                (BUCKET.key(), "b"),
+                (PATH_STYLE_ACCESS.key(), "yes")
+            ]),
             Err("Failed to parse value [yes] as only [true] or [false] are allowed.".to_owned())
         );
     }
@@ -156,7 +198,7 @@ mod tests {
     #[test]
     fn another_type_is_refused() {
         assert_eq!(
-            parse(&[(TYPE, "gcs")]),
+            parse(&[(TYPE.key(), "gcs")]),
             Err("unknown serverless.store.type: gcs; expected fs or s3".to_owned())
         );
     }
