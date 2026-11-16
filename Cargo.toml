@@ -13,6 +13,7 @@ members = [
     "crates/reader",
     "crates/writer",
     "crates/meta",
+    "crates/cluster",
     "crates/coordinator",
     "crates/node",
     "crates/compat",
@@ -34,6 +35,7 @@ oss-testkit = { path = "crates/testkit" }
 oss-blob = { path = "crates/blob" }
 oss-format = { path = "crates/format" }
 oss-meta = { path = "crates/meta" }
+oss-cluster = { path = "crates/cluster" }
 oss-rest = { path = "crates/rest" }
 chunkjson = { path = "crates/chunkjson" }
 oss-reader = { path = "crates/reader" }

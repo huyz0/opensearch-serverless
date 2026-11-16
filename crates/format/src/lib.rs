@@ -22,7 +22,9 @@
 //! [`AliasRecord`]. A delete's [`ReclaimIntent`] is written as the Java
 //! writes it and read as leniently. [`ClusterSettings`]
 //! reads the cluster config register as the Java's `Settings` reads it, and
-//! writes the flat form that reads back the same.
+//! writes the flat form that reads back the same. A node's [`NodeLease`],
+//! the members index and the [`LeaseDigest`] are read and written byte for
+//! byte as the shell's `NodeLease` and `LeaseDigest` (`members`).
 //!
 //! Bucketed indices, whose commits are in a bucket's manifest, are not read
 //! yet ([`FormatError::NotFollowable`]).
@@ -37,7 +39,9 @@ mod json;
 mod keys;
 mod location;
 mod manifest;
+mod members;
 mod mutf8;
+mod node_lease;
 mod node_pack;
 mod reclaim_intent;
 mod register;
@@ -60,6 +64,11 @@ pub use keys::{
 };
 pub use location::{FileLocation, NODE_PACK_PREFIX};
 pub use manifest::{CommitManifest, ManifestFile};
+pub use members::{
+    LEASE_PREFIX, LeaseDigest, MAX_NODE_ID_BYTES, MEMBERS_PREFIX, check_node_id, decode_digest,
+    decode_members, encode_digest, encode_members, lease_digest_key, lease_key, members_index_key,
+};
+pub use node_lease::{MAX_LEASE_BYTES, NodeLease, NodeLogEpoch, java_order};
 pub use node_pack::{Block, NodePackHeader};
 pub use reclaim_intent::{
     MAX_RECLAIM_INTENT_BYTES, ReclaimIntent, reclaim_bucket, reclaim_bucket_start,

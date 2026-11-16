@@ -26,4 +26,10 @@ exclude_re = [
     # The register lock's explicit drop closes the file before the mutex,
     # which the fields' declaration order already does; it guards a reorder.
     "crates/blob/src/fs/lock.rs:.*replace <impl Drop for Held>::drop with \\(\\)",
+    # A membership probe's `elapsed() < interval` against `<=`: they differ
+    # for one instant of a nanosecond clock, as in linger above.
+    "crates/cluster/src/lease/refresh.rs:.*replace < with <= in Membership::refresh_if_older_than",
+    # A digest copy with the same expiry as the one held is the same renewal
+    # (a renewal always moves the expiry), so taking it changes nothing.
+    "crates/cluster/src/lease/refresh.rs:.*replace > with >= in Membership::merge_digest",
 ]

@@ -1,0 +1,13 @@
+{"node_id":"n1","ephemeral_id":"e1","address":"a","roles":["x"],"expires_at_millis":"5"}
+{"node_id":"n1","ephemeral_id":"e1","address":"a","roles":["x"],"expires_at_millis":5.5}
+{"node_id":"n1","ephemeral_id":"e1","address":"a","roles":[1],"expires_at_millis":5}
+{"node_id":1,"ephemeral_id":"e1","address":"a","roles":["x"],"expires_at_millis":5}
+{"node_id":"n1","ephemeral_id":"e1","address":"a","roles":["x"],"expires_at_millis":5,"revoked":"true"}
+{"node_id":"n1","ephemeral_id":"e1","address":"a","roles":["x"],"expires_at_millis":5,"held":"3"}
+{"node_id":"n1","node_id":"n2","ephemeral_id":"e1","address":"a","roles":["x"],"expires_at_millis":5}
+{"node_id":"n1","ephemeral_id":"e1","address":"a","roles":"x","expires_at_millis":5}
+{"node_id":"n1","ephemeral_id":"e1","address":"a","roles":["x"],"expires_at_millis":5,"node_log":{"epoch":1}}
+{"node_id":"n1","ephemeral_id":"e1","address":"a","roles":["x"],"expires_at_millis":5,"node_log":[{"epoch":1},2]}
+{"node_id":"n1","ephemeral_id":"e1","address":"a","roles":["x"],"expires_at_millis":5,"held":2147483648}
+{"node_id":"n1","ephemeral_id":"e1","address":"a","roles":["x"],"expires_at_millis":5,"name":null}
+{"node_id":"n1","ephemeral_id":"e1","address":"a","roles":["x"],"expires_at_millis":5} {}
