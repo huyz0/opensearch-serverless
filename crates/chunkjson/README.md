@@ -23,30 +23,39 @@ Nothing in the workspace. `simdutf8` (pinned) validates string UTF-8.
 
 ## Behaviour
 
-- **Grammar:** RFC 8259, the same language serde_json accepts, checked by property tests and a fuzz target against it. Differences: a number outside f64's range is passed through as text (serde_json refuses it); nesting defaults to 128 (serde_json stops at 127). No comments unless `Config::comments` (the fuzz target runs with it off), no trailing commas.
+- **Grammar:** RFC 8259, the same language serde_json accepts, checked against it by property tests and two fuzz targets, and by JSONTestSuite's 318 cases (`tests/jsontestsuite.rs`). Differences: a number outside f64's range is passed through as text (serde_json refuses it); nesting defaults to 128 (serde_json stops at 127). No comments unless `Config::comments`, no trailing commas.
 - **Memory:** the nesting stack and the number buffer are allocated once, by `Config`. A 64 MiB string fed in 64 KiB chunks grows the heap by nothing (`tests/memory.rs`).
 - **NDJSON:** documents end at `\n`; `\r\n` and blank lines are allowed; a line break inside a document is `NewlineInDocument` and a second document on a line is `TrailingData`. Framing happens in the same scan as tokenizing.
 - **Writing:** compact output; strings escaped as Jackson's default generator does (`"`, `\`, `\b \f \n \r \t`, other control characters as `\u00XX` in upper case; `/` and non-ASCII as is). In NDJSON and concatenated framing a newline follows each top-level value. The writer never writes invalid JSON: it refuses the call instead. Its only allocation is the nesting stack, so a 128 MiB string written in fragments grows the heap by nothing (`tests/writer_memory.rs`). Not yet: pretty printing, float formatting.
 
 ## Speed (provisional)
 
-`bench/` (outside the workspace) runs each contender in its own process; MB/s is input bytes over the median run, peak heap is growth during the parse. Measured 2026-11-16 on a shared 4-core cloud Xeon (AVX-512), so relative only, and noisy by 10 to 20% between runs. `ignored` contenders validate without building anything (serde's `IgnoredAny`), and serde_json's does not check strings' UTF-8; chunkjson always does. `value`/`tape` build a document in memory.
+`bench/` (outside the workspace) runs each contender in its own process on the same input, already in memory. MB/s is input bytes over the median of 11 runs (5 for big_text), the best of five runs of the harness made by hand, alternating contenders; peak heap is the allocator's growth during the run, with the input itself excluded for every contender. Measured 2026-11-16 on a shared 4-core cloud Xeon (AVX-512): relative only, and single runs vary by 10 to 30%.
+
+Read the comparisons with these caveats:
+
+- **Validate-only is not like for like.** serde's `IgnoredAny` (serde_json and sonic-rs) skips string content: serde_json's does not check its UTF-8, and neither decodes escapes. chunkjson checks UTF-8 and decodes escapes on every string.
+- **NDJSON is split for the others.** The harness splits bulk bodies into lines and parses each line separately for every contender except chunkjson, which reads the framing itself. Part of chunkjson's lead on bulk is that split.
+- **Building a tree is a different job.** `Value` and tape contenders build a document in memory; chunkjson only hands out events. Against them chunkjson wins by not building anything, not by parsing faster.
 
 | MB/s (peak heap MB) | bulk 21 MB NDJSON | records 10 MB | numbers 15 MB | big_text 135 MB, one doc |
 |---|---|---|---|---|
-| chunkjson `feed`, 64 KiB chunks ² | 1,440 (0) | 910 (0) | 615 (0) | 1,830 (0) |
-| chunkjson `next`, 64 KiB chunks | 734 (0) | 345 (0) | 271 (0) | 1,334 (0) |
-| oss-rest tokenizer, 64 KiB ¹ | 366 (0.05) | 330 (0.05) | 259 (0.05) | 405 (0.05) |
-| serde_json `IgnoredAny` | 918 | 1,142 | 625 | 2,137 |
-| serde_json `Value` | 305 | 93 (68) | 194 (81) | 400 (349) |
-| sonic-rs `IgnoredAny` | 891 | 877 | 761 | 2,307 |
-| sonic-rs `Value` | 745 | 445 (126) | 307 (172) | 831 (1,215) |
-| simd-json tape | 641 | 242 (97) | 218 (137) | 444 (498) |
+| chunkjson `feed`, 64 KiB chunks | 1,534 (0) | 945 (0) | 633 (0) | 2,115 (0) |
+| chunkjson `next`, 64 KiB chunks | 739 (0) | 305 (0) | 235 (0) | 1,553 (0) |
+| serde_json `IgnoredAny` | 1,241 | 1,186 | 640 | 2,886 |
+| sonic-rs `IgnoredAny` | 1,262 | 1,230 | 858 | 2,956 |
+| serde_json `Value` | 315 | 133 (68) | 225 (81) | 461 (349) |
+| sonic-rs `Value` | 964 | 772 (126) | 350 (172) | 1,103 (1,215) |
+| simd-json tape | 778 | 437 (97) | 284 (137) | 510 (498) |
 
-¹ Measured 2026-11-15 with a contender since removed, because this crate's bench may not depend on the workspace. That comparison belongs in `oss-rest`.
+Against the validate-only parsers, `feed` leads on bulk (with the split caveat), is level with serde_json on numbers, and trails on records and on one huge string. A profile puts that gap in per-token work rather than the byte scan. Its lasting advantage is memory: it never holds the document, so a body of any size streams through in 64 KiB.
 
-² Re-measured 2026-11-16 after the fast loop's number scan and string inlining, midpoint of two runs; serde_json `IgnoredAny` measured alongside: 1,016, 1,125, 669, 2,199.
+Rewriting, tokenize and write back with the output drained every 64 KiB, against serde_json streaming the same tokens through `serde_transcode` (no tree, same drained output) and against parsing to a `Value` and writing it:
 
-Writing, tokenize and write back in 64 KiB chunks against serde_json parsing to a `Value` and writing it, MB/s (peak heap MB), 2026-11-16: bulk 618-664 (0.13) against 257; records 349-351 (0.13) against 79-81 (79); numbers 212 (0.13) against 122-126 (96); big_text 1,182-1,242 (0.13) against 302-307 (349).
+| MB/s (peak heap MB) | bulk | records | numbers | big_text |
+|---|---|---|---|---|
+| chunkjson `feed` into `Writer` | 743 (0.13) | 397 (0.13) | 328 (0.13) | 1,245 (0.13) |
+| serde_json `serde_transcode` | 382 (0.13) | 314 (0.13) | 225 (0.13) | 462 (215) |
+| serde_json `Value`, then write | 263 | 120 (79) | 136 (96) | 329 (349) |
 
-`feed` beats every parser on NDJSON bulk bodies and every document-building parser everywhere, with no heap growth, and is level with serde_json's validate-only mode on numbers. It still trails the validate-only parsers on key-dense records and on one huge string. A profile puts that gap in per-token work rather than the byte scan, so SIMD classification alone would not close it.
+`serde_transcode` is the fair streaming comparison: chunkjson leads by 1.3x on records to 2.7x on big_text. On big_text serde_json still copies the whole string, hence its 215 MB.
