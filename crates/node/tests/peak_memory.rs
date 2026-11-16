@@ -50,6 +50,7 @@ fn concurrent_large_bodies_and_windows_stay_within_the_pool() {
     let budget = MemoryBudget::new(
         &BudgetConfig::new(64 << 20)
             .with_pool(Pool::RequestBodies, POOL)
+            .and_then(|c| c.with_pool(Pool::OpenIndexes, 8 << 20))
             .expect("fits"),
     );
     let node = start_with(store(), &budget);

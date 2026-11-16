@@ -13,4 +13,4 @@ Every role crate, each optional behind its feature: `reader` (default), `writer`
 
 `settings::registry()` collects the settings of every crate the binary is built with and checks them ([docs/specs/settings-registry/SPEC.md](../../docs/specs/settings-registry/SPEC.md)).
 
-With `reader`, `search::start_reader` serves `GET|POST /{index}/_search` over the indexes under a deployment base, through `search::SearchService`, which opens an index on its first search and keeps it open. Contract: [docs/specs/reader-search/SPEC.md](../../docs/specs/reader-search/SPEC.md).
+With `reader`, `search::start_reader` serves `GET|POST /{index}/_search` over the indexes under a deployment base, through `search::SearchService`, which opens an index on its first search and keeps it open, charged to the `open_indexes` pool, closing the least recently searched when the pool is full (`open_indexes`, [reader-budgets](../../docs/specs/reader-budgets/SPEC.md)). Contract: [docs/specs/reader-search/SPEC.md](../../docs/specs/reader-search/SPEC.md).

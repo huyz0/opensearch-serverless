@@ -121,6 +121,12 @@ impl ShardFiles {
         ))
     }
 
+    /// A commit of `files`, for tests.
+    #[cfg(test)]
+    pub(crate) fn of(term: u64, files: BTreeMap<String, FileRange>) -> Self {
+        Self { term, files }
+    }
+
     /// The commit's files, in name order.
     pub fn names(&self) -> impl Iterator<Item = &str> {
         self.files.keys().map(String::as_str)

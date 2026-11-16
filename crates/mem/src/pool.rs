@@ -18,16 +18,19 @@ pub enum Pool {
     PageCache,
     /// Node-to-node transport buffers.
     Transport,
+    /// What open indexes keep in the heap between searches.
+    OpenIndexes,
 }
 
 impl Pool {
     /// Every pool, in a fixed order.
-    pub const ALL: [Pool; 5] = [
+    pub const ALL: [Pool; 6] = [
         Pool::RequestBodies,
         Pool::QueryExecution,
         Pool::WriteBuffers,
         Pool::PageCache,
         Pool::Transport,
+        Pool::OpenIndexes,
     ];
 
     /// The pool's position in [`Pool::ALL`].
@@ -38,6 +41,7 @@ impl Pool {
             Pool::WriteBuffers => 2,
             Pool::PageCache => 3,
             Pool::Transport => 4,
+            Pool::OpenIndexes => 5,
         }
     }
 
@@ -49,6 +53,7 @@ impl Pool {
             Pool::WriteBuffers => "write_buffers",
             Pool::PageCache => "page_cache",
             Pool::Transport => "transport",
+            Pool::OpenIndexes => "open_indexes",
         }
     }
 }

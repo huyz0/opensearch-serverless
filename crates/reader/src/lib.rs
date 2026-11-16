@@ -15,6 +15,7 @@ pub mod failure;
 pub mod lucene_query;
 pub mod mapping;
 pub mod numbers;
+pub mod open_cost;
 pub mod response;
 pub mod search;
 pub mod shard_files;
@@ -59,6 +60,22 @@ pub fn open_shard<S: BlobStore + 'static>(
     shard: u32,
 ) -> Result<OpenShard<S>, ReaderError> {
     let (files, meta) = ShardFiles::open_with_meta(&store, base, index, shard)?;
+    open_located(store, cache, base, index, shard, files, meta)
+}
+
+/// Opens the commit [`ShardFiles::open_with_meta`] found for shard `shard`
+/// of `index` under `base`, with the engine's ranged reads through `cache`.
+/// What it keeps in the heap is at most [`open_cost::open_bytes`] of the
+/// same files.
+pub fn open_located<S: BlobStore + 'static>(
+    store: Arc<PooledStore<S>>,
+    cache: Arc<PageCache>,
+    base: &str,
+    index: &str,
+    shard: u32,
+    files: ShardFiles,
+    meta: IndexMeta,
+) -> Result<OpenShard<S>, ReaderError> {
     // ALLOC: one namespace per open shard.
     let namespace = format!("{base}/{index}/{shard}/t={}", files.term);
     let directory = CachedBlobDirectory::new(EngineStore::new(store, files), cache, &namespace);

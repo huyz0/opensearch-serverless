@@ -9,28 +9,37 @@
 //! a chunk at a time, charged to the request-body pool as it grows. An
 //! index is opened on its first search, with two GETs, and kept open: this
 //! node never polls the object store for an index, so it sees a newer
-//! commit only once it is told of one.
+//! commit only once it is told of one. What an open index keeps in the heap
+//! is charged to the `open_indexes` pool before it is opened; when the pool
+//! is full the least recently searched index is closed
+//! ([ADR 0014](../../../docs/adr/0014-open-indexes-pool.md)).
 
-use std::collections::HashMap;
 use std::io::Write;
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
+use crate::open_indexes::{Found, Lead, OpenSet, lock};
 use lucene_analysis::Analyzer;
 use lucene_store::page_cache::PageCache;
 use oss_blob::{BlobError, BlobStore, PooledStore};
+use oss_mem::{MemoryBudget, Pool, Reservation};
 use oss_reader::dsl::{DslError, MAX_RECORDED_BYTES, Recorder, SearchSource, source};
 use oss_reader::failure::{Failure, Meta, SearchError, ShardFailure};
+use oss_reader::open_cost::open_bytes;
 use oss_reader::response::write_response;
 use oss_reader::search::{hits_bytes, search};
-use oss_reader::{OpenShard, ReaderError, open_shard};
+use oss_reader::{OpenShard, ReaderError, ShardFiles, open_located};
 use oss_rest::{JSON, Length, Method, Request, Response, RestError, RouteError, Router};
-
-/// The most indexes a node keeps open; opening one more closes another.
-pub const MAX_OPEN_INDEXES: usize = 1024;
 
 /// The query parameters `_search` takes.
 pub const SEARCH_PARAMS: &[&str] = &["size", "from"];
+
+/// An open index and its charge to the `open_indexes` pool, released when
+/// the last search holding it finishes.
+struct Held<S: BlobStore + 'static> {
+    shard: OpenShard<S>,
+    charge: Reservation,
+}
 
 /// Serves searches of the indexes under one deployment base.
 pub struct SearchService<S: BlobStore + 'static> {
@@ -38,18 +47,20 @@ pub struct SearchService<S: BlobStore + 'static> {
     cache: Arc<PageCache>,
     base: String,
     node_id: String,
-    max_open: usize,
-    open: Mutex<HashMap<String, Arc<OpenShard<S>>>>,
+    budget: MemoryBudget,
+    open: Mutex<OpenSet<Held<S>>>,
 }
 
 impl<S: BlobStore + 'static> SearchService<S> {
     /// A service reading `store` under `base`, through `cache`, reporting
-    /// shard failures as node `node_id`.
+    /// shard failures as node `node_id`, charging open indexes to
+    /// `budget`'s `open_indexes` pool.
     pub fn new(
         store: Arc<PooledStore<S>>,
         cache: Arc<PageCache>,
         base: &str,
         node_id: &str,
+        budget: &MemoryBudget,
     ) -> Self {
         Self {
             store,
@@ -58,86 +69,99 @@ impl<S: BlobStore + 'static> SearchService<S> {
             base: base.to_owned(),
             // ALLOC: startup only.
             node_id: node_id.to_owned(),
-            max_open: MAX_OPEN_INDEXES,
-            // ALLOC: one entry an open index, at most MAX_OPEN_INDEXES.
-            open: Mutex::new(HashMap::new()),
+            budget: budget.clone(),
+            open: Mutex::default(),
         }
-    }
-
-    /// Keeps at most `max` indexes open (at least one) instead of
-    /// [`MAX_OPEN_INDEXES`].
-    pub fn with_max_open(mut self, max: usize) -> Self {
-        self.max_open = max.max(1);
-        self
     }
 
     /// How many indexes are open.
     pub fn open_indexes(&self) -> usize {
-        self.open
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .len()
+        self.lock().len()
+    }
+
+    fn lock(&self) -> std::sync::MutexGuard<'_, OpenSet<Held<S>>> {
+        lock(&self.open)
+    }
+
+    /// Reserves `bytes` from `open_indexes`, closing the least recently
+    /// searched indexes no search holds until it fits; refused when none is
+    /// left to close.
+    fn charge(&self, bytes: usize) -> Result<Reservation, oss_mem::Exhausted> {
+        loop {
+            match self.budget.try_reserve(Pool::OpenIndexes, bytes) {
+                Ok(charge) => return Ok(charge),
+                Err(e) => {
+                    let closed = {
+                        let mut set = self.lock();
+                        // Closing what cannot make room would only cost
+                        // those indexes a cold open; an index larger than
+                        // the whole pool never fits.
+                        if !closing_makes_room(&e, set.idle_bytes(|held| held.charge.bytes())) {
+                            return Err(e);
+                        }
+                        set.close_oldest()
+                    };
+                    // A closed index is held by no search: its engine state
+                    // and charge go here, with the set's lock released.
+                    if closed.is_none() {
+                        return Err(e);
+                    }
+                }
+            }
+        }
     }
 
     /// The open shard of `index`, opened now if it is not yet.
-    fn shard(&self, index: &str) -> Result<Arc<OpenShard<S>>, Box<SearchError>> {
-        if let Some(shard) = self
-            .open
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .get(index)
-        {
-            return Ok(Arc::clone(shard));
+    fn shard(&self, index: &str) -> Result<Arc<Held<S>>, Answer> {
+        loop {
+            // The lock is released before waiting.
+            let found = self.lock().find(index);
+            match found {
+                Found::Open(held) => return Ok(held),
+                Found::Wait(opening) => opening.wait(),
+                Found::Lead => break,
+            }
         }
-        let shard = match open_shard(
-            Arc::clone(&self.store),
-            Arc::clone(&self.cache),
-            &self.base,
-            index,
-            0,
-        ) {
-            Ok(shard) => shard,
-            Err(ReaderError::Blob(BlobError::NotFound) | ReaderError::Deleted) => {
-                return Err(Box::new(index_not_found(index)));
-            }
-            Err(e) => {
-                // ALLOC: error path; one message.
-                let failure = Failure::opensearch("exception", e.to_string());
-                // ALLOC: error path; one box.
-                return Err(Box::new(SearchError::request(500, failure)));
-            }
+        let lead = Lead::new(&self.open, index);
+        let (files, meta) = match ShardFiles::open_with_meta(&self.store, &self.base, index, 0) {
+            Ok(found) => found,
+            Err(e) => return Err(open_failure(index, e)),
         };
-        if shard.meta.number_of_shards != 1 {
+        if meta.number_of_shards != 1 {
             // ALLOC: error path; one box.
-            return Err(Box::new(SearchError::request(
+            return Err(Answer::Search(Box::new(SearchError::request(
                 400,
                 Failure::plain(
                     "illegal_argument_exception",
                     // ALLOC: error path; one message.
                     format!(
                         "searching an index of [{}] shards is not supported by this node yet",
-                        shard.meta.number_of_shards
+                        meta.number_of_shards
                     ),
                 ),
-            )));
+            ))));
         }
-        // ALLOC: one open shard an index, at most MAX_OPEN_INDEXES.
-        let shard = Arc::new(shard);
-        let mut open = self.open.lock().unwrap_or_else(PoisonError::into_inner);
-        // A search that opened the same index meanwhile wins; this one's
-        // copy is dropped and nothing is evicted for it.
-        if let Some(first) = open.get(index) {
-            return Ok(Arc::clone(first));
-        }
-        if open.len() >= self.max_open {
-            let evicted = open.keys().next().cloned();
-            if let Some(key) = evicted {
-                open.remove(&key);
-            }
-        }
-        // ALLOC: the index name, once an open index.
-        open.insert(index.to_owned(), Arc::clone(&shard));
-        Ok(shard)
+        let bytes = open_bytes(&files, &meta, &self.cache);
+        let charge = self.charge(bytes).map_err(|e| {
+            Answer::Rest(RestError::breaker(
+                &e,
+                "open_indexes",
+                "<open_index>",
+                never_fits(&e),
+            ))
+        })?;
+        let shard = open_located(
+            Arc::clone(&self.store),
+            Arc::clone(&self.cache),
+            &self.base,
+            index,
+            0,
+            files,
+            meta,
+        )
+        .map_err(|e| open_failure(index, e))?;
+        // ALLOC: one open shard an index; the pool bounds them.
+        Ok(lead.opened(Arc::new(Held { shard, charge })))
     }
 
     /// Handles one `_search`.
@@ -151,13 +175,15 @@ impl<S: BlobStore + 'static> SearchService<S> {
             Err(Answer::Rest(e)) => return Err(e),
             Err(Answer::Search(e)) => return send(resp, &e),
         };
-        let shard = match self.shard(&index) {
-            Ok(shard) => shard,
-            Err(e) => return send(resp, &e),
+        let held = match self.shard(&index) {
+            Ok(held) => held,
+            Err(Answer::Rest(e)) => return Err(e),
+            Err(Answer::Search(e)) => return send(resp, &e),
         };
-        req.body().reserve(hits_bytes(&source, &shard))?;
+        let shard = &held.shard;
+        req.body().reserve(hits_bytes(&source, shard))?;
         let analyzer = Analyzer::standard(None);
-        let hits = match search(&shard, &index, &source, &analyzer) {
+        let hits = match search(shard, &index, &source, &analyzer) {
             Ok(hits) => hits,
             Err(e) => {
                 let shard_failure = ShardFailure {
@@ -181,7 +207,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
                 // ALLOC: error path; one box.
                 .map_err(|_| std::io::Error::other("the request-body pool is full"))
         };
-        write_response(&mut body, &shard, &index, &hits, took, &mut reserve)?;
+        write_response(&mut body, shard, &index, &hits, took, &mut reserve)?;
         body.flush()?;
         body.finish()
     }
@@ -232,6 +258,33 @@ fn read_source(req: &mut Request<'_>) -> Result<SearchSource, Answer> {
     Ok(source)
 }
 
+/// Whether closing indexes that free `idle` bytes would let the refused
+/// reservation `e` fit.
+fn closing_makes_room(e: &oss_mem::Exhausted, idle: usize) -> bool {
+    !never_fits(e) && idle >= e.in_use.saturating_add(e.requested).saturating_sub(e.limit)
+}
+
+/// Whether `e` asked for more than the whole pool: no retry admits it.
+fn never_fits(e: &oss_mem::Exhausted) -> bool {
+    e.requested > e.limit
+}
+
+/// What a failed locate or open answers.
+fn open_failure(index: &str, e: ReaderError) -> Answer {
+    match e {
+        ReaderError::Blob(BlobError::NotFound) | ReaderError::Deleted => {
+            // ALLOC: error path; one box.
+            Answer::Search(Box::new(index_not_found(index)))
+        }
+        e => {
+            // ALLOC: error path; one message.
+            let failure = Failure::opensearch("exception", e.to_string());
+            // ALLOC: error path; one box.
+            Answer::Search(Box::new(SearchError::request(500, failure)))
+        }
+    }
+}
+
 /// `IndexNotFoundException` for an index no descriptor names.
 fn index_not_found(index: &str) -> SearchError {
     SearchError::request(
@@ -274,11 +327,18 @@ pub fn routes<S: BlobStore + 'static>(
         )
 }
 
+#[cfg(test)]
+#[path = "search_tests.rs"]
+mod tests;
+
 /// Why a reader node did not start.
 #[derive(Debug)]
 pub enum StartError {
     /// The page cache could not be set up.
     Cache(String),
+    /// The budget gives the `open_indexes` pool nothing, so no index could
+    /// ever open.
+    NoOpenIndexes,
     /// A route could not be registered.
     Route(RouteError),
     /// The HTTP server did not start.
@@ -289,6 +349,7 @@ impl std::fmt::Display for StartError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             StartError::Cache(e) => write!(f, "page cache: {e}"),
+            StartError::NoOpenIndexes => f.write_str("the open_indexes pool is empty"),
             StartError::Route(e) => write!(f, "route: {e:?}"),
             StartError::Server(e) => write!(f, "server: {e:?}"),
         }
@@ -298,7 +359,8 @@ impl std::fmt::Display for StartError {
 impl std::error::Error for StartError {}
 
 /// Starts a reader node: `_search` over the indexes under `base` in
-/// `store`, served on `listener`, every server buffer charged to `budget`.
+/// `store`, served on `listener`, every server buffer and open index charged
+/// to `budget`.
 pub fn start_reader<S: BlobStore + 'static>(
     listener: std::net::TcpListener,
     config: oss_rest::ServerConfig,
@@ -307,10 +369,19 @@ pub fn start_reader<S: BlobStore + 'static>(
     node_id: &str,
     budget: &oss_mem::MemoryBudget,
 ) -> Result<(oss_rest::Server, Arc<SearchService<S>>), StartError> {
+    if budget.limit(Pool::OpenIndexes) == 0 {
+        return Err(StartError::NoOpenIndexes);
+    }
     let cache = PageCache::new(lucene_store::page_cache::PageCacheConfig::default())
         .map_err(|e| StartError::Cache(e.to_string()))?;
     // ALLOC: startup only.
-    let service = Arc::new(SearchService::new(store, Arc::new(cache), base, node_id));
+    let service = Arc::new(SearchService::new(
+        store,
+        Arc::new(cache),
+        base,
+        node_id,
+        budget,
+    ));
     let router = routes(Router::new(), Arc::clone(&service)).map_err(StartError::Route)?;
     let server =
         oss_rest::Server::start(listener, config, router, budget).map_err(StartError::Server)?;

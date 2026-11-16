@@ -66,6 +66,15 @@ pub fn loaded<S: BlobStore>(inner: S) -> Arc<PooledStore<S>> {
     Arc::new(store)
 }
 
+/// Puts the blobs of the index `spec` describes, built by the engine.
+pub fn put_built(store: &PooledStore<Emulator>, spec: &oss_testkit::index::Spec) {
+    for (key, bytes) in oss_testkit::index::blobs("", spec) {
+        store
+            .put(&key, &mut SliceSource::new(&bytes))
+            .expect("put built blob");
+    }
+}
+
 /// Every request kind's count so far.
 pub fn counts(store: &PooledStore<Emulator>) -> [u64; 7] {
     S3Op::ALL.map(|op| store.store().meter().count(op))
@@ -102,6 +111,7 @@ pub fn start() -> Node {
 pub fn budget_config() -> BudgetConfig {
     BudgetConfig::new(64 << 20)
         .with_pool(Pool::RequestBodies, 16 << 20)
+        .and_then(|c| c.with_pool(Pool::OpenIndexes, 16 << 20))
         .expect("fits")
 }
 
@@ -123,18 +133,21 @@ pub fn start_with(store: Arc<PooledStore<Emulator>>, budget: &MemoryBudget) -> N
     }
 }
 
-/// Starts a node around a service built by `build`.
-pub fn start_service(
-    store: Arc<PooledStore<Emulator>>,
-    build: impl FnOnce(SearchService<Emulator>) -> SearchService<Emulator>,
-) -> Node {
+/// Starts a node whose `open_indexes` pool holds `open_pool` bytes.
+pub fn start_service(store: Arc<PooledStore<Emulator>>, open_pool: usize) -> Node {
     let cache = Arc::new(PageCache::new(PageCacheConfig::default()).expect("page cache"));
-    let service = Arc::new(build(SearchService::new(
+    let open = MemoryBudget::new(
+        &BudgetConfig::new(open_pool)
+            .with_pool(Pool::OpenIndexes, open_pool)
+            .expect("fits"),
+    );
+    let service = Arc::new(SearchService::new(
         Arc::clone(&store),
         cache,
         "",
         NODE,
-    )));
+        &open,
+    ));
     let router = routes(Router::new(), Arc::clone(&service)).expect("routes");
     let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
     let budget = MemoryBudget::new(&budget_config());

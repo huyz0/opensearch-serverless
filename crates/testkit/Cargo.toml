@@ -1,6 +1,6 @@
 [package]
 name = "oss-testkit"
-description = "opensearch-serverless: test-only helpers: a counting allocator for peak-memory assertions"
+description = "opensearch-serverless: test-only helpers: a counting allocator for peak-memory assertions, and test indexes"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,8 +8,15 @@ license.workspace = true
 publish.workspace = true
 repository.workspace = true
 
+[features]
+# `index`: build a shard index with the engine, laid out as the shell's blobs.
+index = ["dep:lucene-index", "dep:lucene-codecs", "dep:lucene-store"]
+
 [dependencies]
 cap = { version = "=0.1.2", features = ["stats"] }
+lucene-index = { workspace = true, optional = true }
+lucene-codecs = { workspace = true, optional = true }
+lucene-store = { workspace = true, optional = true }
 
 [lints]
 workspace = true

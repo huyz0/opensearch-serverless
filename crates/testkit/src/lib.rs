@@ -23,6 +23,8 @@
 //! ```
 
 pub mod budget;
+#[cfg(feature = "index")]
+pub mod index;
 mod peak;
 mod temp;
 
