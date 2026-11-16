@@ -158,7 +158,12 @@ fn first_error(answer: &mut dyn Read) -> BlobResult<Option<BlobError>> {
             }
             // What arrives of it is read; a break after `<Error>` leaves the
             // code unknown, which is retried.
-            while let Some(rest) = error.get_mut(len..).filter(|r| !r.is_empty()) {
+            // Each read takes a byte at least, so the loop is bounded by the
+            // buffer however the reads go.
+            for _ in 0..ERROR_BODY {
+                let Some(rest) = error.get_mut(len..).filter(|r| !r.is_empty()) else {
+                    break;
+                };
                 let m = answer.read(rest).unwrap_or(0);
                 if m == 0 {
                     break;

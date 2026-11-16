@@ -220,3 +220,57 @@ fn an_error_listed_in_the_answer_fails_the_batch_and_only_a_transient_one_is_ret
     ));
     assert_counts(f.client.meter(), &[(S3Op::Delete, 1)]);
 }
+
+// AC-9
+#[test]
+fn the_front_end_reads_raw_line_breaks_as_an_xml_parser_does() {
+    let f = fixture();
+    let ep = f.server.endpoint();
+    for k in ["a\r\nb", "a\nb", "c\rd", "c\nd"] {
+        put(f.server.store(), k, b"x");
+    }
+    let body =
+        "<Delete><Object><Key>a\r\nb</Key></Object><Object><Key>c\rd</Key></Object></Delete>";
+    let r = raw_batch(&ep, Some("pZAJYOHvfeSv1Npwk97iKw=="), body);
+    assert_eq!(status(&r), "200", "{r}");
+    let store = f.server.store();
+    assert!(store.head("a\r\nb").unwrap().is_some());
+    assert!(store.head("c\rd").unwrap().is_some());
+    assert_eq!(store.head("a\nb").unwrap(), None);
+    assert_eq!(store.head("c\nd").unwrap(), None);
+}
+
+// AC-4
+#[test]
+fn the_front_end_serves_only_a_post_that_asks_to_delete_and_takes_exactly_its_bound() {
+    let f = fixture();
+    let ep = f.server.endpoint();
+    let head = signed(
+        &ep,
+        "POST",
+        &format!("/{BUCKET}"),
+        &[("content-length", "0"), ("content-md5", "x")],
+    );
+    let r = exchange(&ep, head.as_bytes());
+    assert_eq!(status(&r), "405", "{r}");
+    // A body of exactly 8 MiB is taken (and here never arrives); one byte
+    // more is refused unread.
+    for (length, code) in [("8388608", "IncompleteBody"), ("8388609", "MalformedXML")] {
+        let head = signed(
+            &ep,
+            "POST",
+            &format!("/{BUCKET}?delete="),
+            &[("content-length", length), ("content-md5", "x")],
+        );
+        let mut s = connect(&ep);
+        s.write_all(head.as_bytes()).unwrap();
+        s.shutdown(std::net::Shutdown::Write).unwrap();
+        let r = read_to_close(&mut s);
+        assert!(r.contains(code), "{length}: {r}");
+    }
+    // Scripting no error lists none.
+    put(f.server.store(), "a", b"x");
+    f.server.list_delete_error_next("AccessDenied", 0);
+    f.client.delete_many(&["a"]).unwrap();
+    assert_eq!(f.server.store().object_count(), 0);
+}

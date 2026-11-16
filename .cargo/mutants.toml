@@ -3,6 +3,9 @@
 # Mutants listed here are equivalent: no test can tell them apart from the
 # original, so they would only ever be reported as missed. Each names why.
 exclude_re = [
+    # Base64 packs three bytes into disjoint bits of one number, where `|`
+    # and `^` give the same number.
+    "crates/blob/src/s3/delete.rs:.*replace \\| with \\^ in base64",
     # A writer whose window another drives waits on the window's latch
     # without the lock; one that gives up at once takes the lock and waits
     # for the same window in the committer's own loop instead, and is told
