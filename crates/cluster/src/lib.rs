@@ -12,8 +12,12 @@
 //!   two however large the fleet.
 //! - [`LivenessOracle`]: whether a node is live, by a fresh read of its
 //!   lease, and revocation of a dead one shared among concurrent takeovers.
+//! - [`placement`]: the owner of a shard's writes, the readers of its
+//!   searches and the winner of a takeover, computed alike by every node
+//!   from the leases, with the Java's hashes.
 
 pub mod lease;
+pub mod placement;
 
 mod error;
 

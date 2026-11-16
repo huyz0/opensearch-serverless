@@ -1,0 +1,12 @@
+{"node_id":"n01","ephemeral_id":"en01","address":"10.0.0.0:9300","roles":["ingest","search"],"expires_at_millis":1700000030000,"held":3,"cap":100,"in_use":0,"refused":2,"zone":"az-a"}
+{"node_id":"n02","ephemeral_id":"en02","address":"10.0.0.1:9300","roles":["search"],"expires_at_millis":1700000030000,"held":13,"cap":100,"in_use":5,"zone":"az-b"}
+{"node_id":"n03","ephemeral_id":"en03","address":"10.0.0.2:9300","roles":["ingest"],"expires_at_millis":1700000030000,"held":23,"cap":100,"in_use":10,"zone":"az-c"}
+{"node_id":"n04","ephemeral_id":"en04","address":"10.0.0.3:9300","roles":["ingest","search"],"expires_at_millis":1700000030000,"held":33,"cap":0,"in_use":15}
+{"node_id":"n05","ephemeral_id":"en05","address":"10.0.0.4:9300","roles":["search"],"expires_at_millis":1699999999999,"held":43,"cap":100,"in_use":20,"refused":2,"zone":"az-a"}
+{"node_id":"n06","ephemeral_id":"en06","address":"10.0.0.5:9300","roles":["ingest"],"expires_at_millis":1700000030000,"held":53,"cap":100,"in_use":25,"zone":"az-b"}
+{"node_id":"n07","ephemeral_id":"en07","address":"10.0.0.6:9300","roles":["ingest","search"],"expires_at_millis":1700000030000,"zone":"az-c"}
+{"node_id":"n08","ephemeral_id":"en08","address":"10.0.0.7:9300","roles":["search"],"expires_at_millis":1700000030000,"held":73,"cap":100,"in_use":35}
+{"node_id":"n09","ephemeral_id":"en09","address":"10.0.0.8:9300","roles":["ingest"],"expires_at_millis":1699999940000,"held":83,"cap":100,"in_use":40,"refused":2,"zone":"az-a"}
+{"node_id":"n10","ephemeral_id":"en10","address":"10.0.0.9:9300","roles":["ingest","search"],"expires_at_millis":1700000030000,"held":93,"cap":100,"zone":"az-b"}
+{"node_id":"N3","ephemeral_id":"eN3","address":"10.0.0.10:9300","roles":["search"],"expires_at_millis":1700000030000,"revoked":true,"held":103,"cap":100,"in_use":50,"zone":"az-c"}
+{"node_id":"z-9","ephemeral_id":"ez-9","address":"10.0.0.11:9300","roles":["ingest"],"expires_at_millis":1700000030000,"held":113,"cap":100,"in_use":55}
