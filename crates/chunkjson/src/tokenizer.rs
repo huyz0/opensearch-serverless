@@ -3,10 +3,11 @@
 
 use std::cell::Cell;
 
+use crate::comment::Comment;
 use crate::number::NumState;
 pub(crate) use crate::resolve::Checked;
 use crate::string::StrState;
-use crate::{Config, Error, ErrorKind, Event, Framing};
+use crate::{Config, Error, ErrorKind, Event, Framing, Position};
 
 /// What the grammar allows next, outside any token.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -36,6 +37,7 @@ pub(crate) enum Lex {
     Str(StrState),
     Num(NumState),
     Lit { word: &'static [u8], matched: usize },
+    Comment(Comment),
 }
 
 /// Where an event's text lives: in the caller's slice, or in the tokenizer.
@@ -80,7 +82,7 @@ pub struct Tokenizer {
     /// A top-level value just completed; `EndDocument` is emitted next.
     pub(crate) pending_end: bool,
     /// Inside a top-level document (for NDJSON's line rule).
-    in_doc: bool,
+    pub(crate) in_doc: bool,
     /// NDJSON: a document ended on the current line.
     line_open: bool,
     /// The last document was a number or literal.
@@ -102,16 +104,48 @@ pub struct Tokenizer {
     pub(crate) char_buf: [u8; 4],
     pub(crate) char_len: usize,
     pub(crate) failed: Cell<Option<Error>>,
+    /// The current 1-based line, counted at line breaks between tokens.
+    pub(crate) line: u64,
+    /// Absolute offset of the current line's first byte.
+    pub(crate) line_start: u64,
+    /// Absolute offset where the current token started.
+    pub(crate) start: u64,
+    /// Where the current document started.
+    pub(crate) doc_pos: Position,
+    /// The last event was `EndDocument`, whose start is `doc_pos`.
+    pub(crate) doc_ended: bool,
+    /// Absolute offset of the `/` that opened the current comment.
+    pub(crate) comment_at: u64,
 }
 
 impl Tokenizer {
     /// A tokenizer with these limits and framing.
     pub fn new(config: Config) -> Self {
-        Self {
+        Self::with_buffers(
+            config,
             // ALLOC: once per tokenizer, at most `max_depth` entries.
-            stack: Vec::with_capacity(config.max_depth),
+            Vec::with_capacity(config.max_depth),
             // ALLOC: once per tokenizer, at most `max_number_len` bytes.
-            numbuf: Vec::with_capacity(config.max_number_len),
+            Vec::with_capacity(config.max_number_len),
+        )
+    }
+
+    /// Returns to the state after [`Tokenizer::new`], keeping the
+    /// allocations, so a caller can tokenize one document after another
+    /// without allocating.
+    pub fn reset(&mut self) {
+        let mut stack = std::mem::take(&mut self.stack);
+        stack.clear();
+        let mut numbuf = std::mem::take(&mut self.numbuf);
+        numbuf.clear();
+        *self = Self::with_buffers(self.config, stack, numbuf);
+    }
+
+    /// The one place every field gets its starting value.
+    fn with_buffers(config: Config, stack: Vec<bool>, numbuf: Vec<u8>) -> Self {
+        Self {
+            stack,
+            numbuf,
             config,
             expect: Expect::DocStart,
             lex: Lex::None,
@@ -130,6 +164,16 @@ impl Tokenizer {
             char_buf: [0; 4],
             char_len: 0,
             failed: Cell::new(None),
+            line: 1,
+            line_start: 0,
+            start: 0,
+            doc_pos: Position {
+                offset: 0,
+                line: 1,
+                column: 1,
+            },
+            doc_ended: false,
+            comment_at: 0,
         }
     }
 
@@ -165,6 +209,19 @@ impl Tokenizer {
         Ok((self.resolve(out, input, 0, None)?, used))
     }
 
+    /// As [`Tokenizer::next`], with where the event's token starts (see
+    /// [`Tokenizer::event_start`]), since the event borrows the tokenizer.
+    #[inline]
+    pub fn next_at<'a>(
+        &'a mut self,
+        input: &'a [u8],
+        eof: bool,
+    ) -> Result<(Event<'a>, usize, Position), Error> {
+        let (out, used) = self.step(input, eof)?;
+        let start = self.position();
+        Ok((self.resolve(out, input, 0, None)?, used, start))
+    }
+
     /// The lifetime-free half of [`Tokenizer::next`].
     #[inline]
     pub(crate) fn step(&mut self, input: &[u8], eof: bool) -> Result<(Out, usize), Error> {
@@ -186,7 +243,7 @@ impl Tokenizer {
 
     /// An error at index `i` of the current call's input.
     pub(crate) fn err(&self, kind: ErrorKind, i: usize) -> Error {
-        Error::new(kind, self.base.saturating_add(i as u64))
+        self.err_abs(kind, self.base.saturating_add(i as u64))
     }
 
     // ARITH: `i` only advances past a byte read with `input.get(i)`, so it
@@ -197,6 +254,7 @@ impl Tokenizer {
         if self.pending_end {
             self.pending_end = false;
             self.in_doc = false;
+            self.doc_ended = true;
             let end = Event::EndDocument {
                 start: self.doc_start,
                 end: self.doc_end,
@@ -204,11 +262,28 @@ impl Tokenizer {
             return Ok((Out::Simple(end), 0));
         }
         let mut i = 0;
+        // Every pass consumes a byte, starts or ends a token, or returns.
+        // Debug builds catch a pass that leaves both the index and the lexer
+        // state as the pass before left them; a longer cycle is not caught.
+        #[cfg(debug_assertions)]
+        let mut last = None;
         loop {
+            #[cfg(debug_assertions)]
+            {
+                let now = Some((i, std::mem::discriminant(&self.lex)));
+                debug_assert!(now != last, "the tokenizer made no progress");
+                last = now;
+            }
             match self.lex {
                 Lex::Str(_) => return self.lex_string(input, i, eof),
                 Lex::Num(_) => return self.lex_number(input, i, eof),
                 Lex::Lit { .. } => return self.lex_literal(input, i, eof),
+                Lex::Comment(state) => {
+                    if let Some(out) = self.lex_comment(state, input, &mut i, eof)? {
+                        return Ok(out);
+                    }
+                    continue;
+                }
                 Lex::None => {}
             }
             let Some(&b) = input.get(i) else {
@@ -226,8 +301,17 @@ impl Tokenizer {
                     }
                     self.line_open = false;
                     i += 1;
+                    self.newline(i);
+                }
+                b'/' if self.config.comments => {
+                    self.after_scalar = false;
+                    self.lex = Lex::Comment(Comment::Slash);
+                    self.comment_at = self.base.saturating_add(i as u64);
+                    i += 1;
                 }
                 _ => {
+                    self.start = self.base.saturating_add(i as u64);
+                    self.doc_ended = false;
                     if let Some(out) = self.structural(b, &mut i)? {
                         return Ok((out, i));
                     }
@@ -241,7 +325,9 @@ impl Tokenizer {
             return Ok((Out::Simple(Event::NeedMore), i));
         }
         match self.expect {
-            Expect::DocStart if self.config.framing == Framing::Single => {
+            Expect::DocStart
+                if self.config.framing == Framing::Single && !self.config.allow_empty =>
+            {
                 Err(self.err(ErrorKind::UnexpectedEof, i))
             }
             Expect::DocStart | Expect::AfterDoc => Ok((Out::Simple(Event::Eof), i)),
@@ -282,6 +368,7 @@ impl Tokenizer {
                 if matches!(self.expect, Expect::DocStart | Expect::AfterDoc) {
                     self.in_doc = true;
                     self.doc_start = self.base.saturating_add(*i as u64);
+                    self.doc_pos = self.position();
                 }
                 self.begin_value(b, i)
             }
@@ -390,43 +477,5 @@ impl Tokenizer {
     #[inline]
     pub(crate) fn after_key(&mut self) {
         self.expect = Expect::Colon;
-    }
-
-    // ARITH: `j` only advances past a byte read with `input.get(j)`, and
-    // `matched` stays below `word.len()` (at most 5) before each increment.
-    #[allow(clippy::arithmetic_side_effects)]
-    #[inline]
-    fn lex_literal(
-        &mut self,
-        input: &[u8],
-        start: usize,
-        eof: bool,
-    ) -> Result<(Out, usize), Error> {
-        let Lex::Lit { word, mut matched } = self.lex else {
-            return Err(self.err(ErrorKind::UnexpectedEof, start));
-        };
-        let mut j = start;
-        while let Some(&want) = word.get(matched) {
-            let Some(&b) = input.get(j) else {
-                if eof {
-                    return Err(self.err(ErrorKind::UnexpectedEof, j));
-                }
-                self.lex = Lex::Lit { word, matched };
-                return Ok((Out::Simple(Event::NeedMore), j));
-            };
-            if b != want {
-                return Err(self.err(ErrorKind::UnexpectedByte(b), j));
-            }
-            matched += 1;
-            j += 1;
-        }
-        self.lex = Lex::None;
-        let event = match word {
-            b"true" => Event::Bool(true),
-            b"false" => Event::Bool(false),
-            _ => Event::Null,
-        };
-        self.after_value(j, true);
-        Ok((Out::Simple(event), j))
     }
 }

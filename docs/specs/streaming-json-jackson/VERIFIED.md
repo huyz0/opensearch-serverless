@@ -1,0 +1,8 @@
+# Streaming JSON tokenizer: what OpenSearch's Jackson parser also does: verified
+
+- AC-1: `cargo test -p chunkjson`: the existing tests pass, with one mechanical change: the config strategy in `tests/feed.rs` builds `Config` with `..Config::default()` for the two new fields. Errors now carry a line and column, and the push-against-pull properties compare them too.
+- AC-2: `comments_anywhere_between_tokens_change_no_event`, `comment_faults_are_typed_and_placed`, `a_line_comment_in_ndjson_ends_at_the_newline` (with comment recognition planted off, five tests failed; the bad opener names the slash at its offset, and three NDJSON texts with a line break in a block comment are refused)
+- AC-3: `every_event_starts_where_its_token_starts`, `an_error_is_placed_at_its_line_and_column`, `an_error_after_line_breaks_names_its_line`, `a_document_ends_where_it_started_its_first_line`; the property runs on one to three documents with comments, and `EndDocument` is compared with its first token in full (planting no line count in block comments failed it; planting no line counting failed five; not recording a closer's start in the fast loop failed one; not recording a document's start failed one)
+- AC-4: `empty_input_is_allowed_only_when_asked` (fails with the setting ignored)
+- AC-5: `reset_gives_a_fresh_tokenizer` (fails if reset keeps the stack), `a_line_per_document_with_reset_allocates_nothing`
+- AC-6: `valgrind --tool=callgrind` on the `crates/chunkjson/bench` binary, contender chunkjson/feed-64k, instructions per byte, main against this change: records 16.79 and 17.10 (+1.8%), bulk 9.95 and 9.91, numbers 19.10 and 19.43 (+1.7%).

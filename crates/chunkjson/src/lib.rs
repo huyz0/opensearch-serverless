@@ -32,11 +32,13 @@
 //! assert_eq!(text, "a long \"page\"");
 //! ```
 
+mod comment;
 mod config;
 mod error;
 mod escape;
 mod event;
 mod feed;
+mod literal;
 mod number;
 mod read;
 mod resolve;
@@ -46,7 +48,7 @@ mod writer;
 
 pub use config::{Config, Framing};
 pub use error::{Error, ErrorKind};
-pub use event::{Event, Text};
+pub use event::{Event, Position, Text};
 pub use feed::Sink;
 pub use read::{Buffer, JsonReader, ReadError};
 pub use tokenizer::Tokenizer;

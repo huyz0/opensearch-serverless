@@ -11,3 +11,5 @@ src/feed.rs	new		push API over a whole chunk, validating its UTF-8 once
 src/resolve.rs	new		borrowing event text, and the one-pass UTF-8 check
 src/writer.rs	new		sans-IO writer of compact JSON from tokenizer events; Jackson's JsonGenerator plays this role but is not ported
 src/escape.rs	new		Jackson-compatible string escaping and integer digits for the writer
+src/comment.rs	new		Jackson-style comments, line counting and event start positions
+src/literal.rs	new		lexing true, false and null across slices

@@ -14,7 +14,8 @@ pub enum Framing {
     Ndjson,
 }
 
-/// Limits and framing. Every limit bounds memory the tokenizer holds.
+/// Limits, framing and the accepted language. Every limit bounds memory the
+/// tokenizer holds.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Config {
     /// How documents are framed.
@@ -24,6 +25,12 @@ pub struct Config {
     /// Longest number accepted, in bytes. Numbers are the only token buffered
     /// whole; strings stream. Default 1,024.
     pub max_number_len: usize,
+    /// Accept `//` line comments and `/* */` block comments wherever
+    /// whitespace may appear, as OpenSearch's Jackson parser does. Default off.
+    pub comments: bool,
+    /// In single framing, let input with no document (only whitespace and
+    /// comments) end with `Eof` instead of `UnexpectedEof`. Default off.
+    pub allow_empty: bool,
 }
 
 impl Default for Config {
@@ -32,6 +39,8 @@ impl Default for Config {
             framing: Framing::Single,
             max_depth: 128,
             max_number_len: 1024,
+            comments: false,
+            allow_empty: false,
         }
     }
 }
