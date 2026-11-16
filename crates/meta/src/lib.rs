@@ -24,6 +24,9 @@
 //! - [`DescriptorStore::list_page`] and [`DescriptorStore::names_with_prefix`]:
 //!   the one enumeration of names, a bounded page at a time, and what an
 //!   index pattern matches, at a cost set by its cap.
+//! - [`RoutingCache`]: what routing may answer from a read up to a second
+//!   old, forgotten on this node's own changes through
+//!   [`DescriptorStore::on_changed`].
 //! - [`ClusterConfig`]: an operator's persistent settings, one register a
 //!   deployment, read and updated as the Java's `ClusterConfig`.
 
@@ -35,14 +38,15 @@ mod error;
 mod listing;
 mod names;
 mod probe;
+mod routing;
 mod sweep;
 
 pub use alias_mutations::{AliasAt, AliasClock, AliasMutations};
 pub use changes::{ChangeStripes, Snapshot};
 pub use cluster_config::{ClusterConfig, ConfigValue};
 pub use descriptors::{
-    BUCKET_MILLIS, DEFAULT_QUARANTINE_MILLIS, DeleteMode, DescriptorStore, REAP_DEADLINE_MILLIS,
-    REAP_HANDOFF_MILLIS, Resolution, Target,
+    BUCKET_MILLIS, DEFAULT_QUARANTINE_MILLIS, DeleteMode, DescriptorStore, Listener,
+    REAP_DEADLINE_MILLIS, REAP_HANDOFF_MILLIS, Resolution, Target,
 };
 pub use error::MetaError;
 pub use names::{MAX_NAME_BYTES, NameError, NameRule, validate_index_or_alias, validate_prefix};
@@ -51,4 +55,8 @@ pub use oss_format::{
     Setting, SettingsRefused,
 };
 pub use probe::PROBE_PREFIX;
+pub use routing::{
+    DEFAULT_ROUTING_CACHE_BYTES, DEFAULT_ROUTING_CACHE_MILLIS, DEFAULT_ROUTING_CACHE_PRUNE_ABOVE,
+    RoutingCache,
+};
 pub use sweep::{MARKERS_PREFIX, Sweep, Swept};

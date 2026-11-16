@@ -85,7 +85,11 @@ pub struct DescriptorStore {
     pub(crate) base: String,
     pub(crate) deletes: DeleteMode,
     stripes: Option<ChangeStripes>,
+    on_changed: Option<Listener>,
 }
+
+/// What a store tells of each applied change: the name changed.
+pub type Listener = Arc<dyn Fn(&str) + Send + Sync>;
 
 impl DescriptorStore {
     /// The descriptors under `base` (empty, or ending in `/`) of `store`,
@@ -107,6 +111,7 @@ impl DescriptorStore {
             base: base.to_owned(),
             deletes,
             stripes: None,
+            on_changed: None,
         })
     }
 
@@ -118,6 +123,23 @@ impl DescriptorStore {
     pub fn record_changes_in(mut self, stripes: ChangeStripes) -> Self {
         self.stripes = Some(stripes);
         self
+    }
+
+    /// Tells `listener` the name of each record this store creates, updates
+    /// or deletes, once the change applied, as the Java's `onChanged`: a
+    /// node's routing cache forgets the name, so its next request reads
+    /// the change. One listener a store: a later call replaces it, and a
+    /// cache only sees the changes of the store wired to it.
+    #[must_use]
+    pub fn on_changed(mut self, listener: Listener) -> Self {
+        self.on_changed = Some(listener);
+        self
+    }
+
+    fn applied(&self, name: &str) {
+        if let Some(listener) = &self.on_changed {
+            listener(name);
+        }
     }
 
     /// Records an applied change. A failure leaves writers' mappings a
@@ -179,7 +201,9 @@ impl DescriptorStore {
     ) -> Result<u64, MetaError> {
         let key = self.key(&record.name)?;
         let len = record.write(buf)?;
-        self.create_value(&key, prefix(buf, len), now_millis)
+        let generation = self.create_value(&key, prefix(buf, len), now_millis)?;
+        self.applied(&record.name);
+        Ok(generation)
     }
 
     /// Creates the alias `record` names, as an index is created: the same
@@ -199,7 +223,9 @@ impl DescriptorStore {
     ) -> Result<u64, MetaError> {
         let key = self.key(&record.name)?;
         let len = record.write(buf)?;
-        self.create_value(&key, prefix(buf, len), now_millis)
+        let generation = self.create_value(&key, prefix(buf, len), now_millis)?;
+        self.applied(&record.name);
+        Ok(generation)
     }
 
     /// Replaces the alias `record` names if its register still holds
@@ -220,7 +246,10 @@ impl DescriptorStore {
         let len = record.write(buf)?;
         Ok(
             match self.store.swap_register(&key, expected, prefix(buf, len))? {
-                SwapOutcome::Applied(generation) => Some(generation),
+                SwapOutcome::Applied(generation) => {
+                    self.applied(&record.name);
+                    Some(generation)
+                }
                 SwapOutcome::Conflict(_) => None,
             },
         )
@@ -285,11 +314,7 @@ impl DescriptorStore {
     ///
     /// As [`DescriptorStore::get`].
     pub fn resolve<'b>(&self, name: &str, buf: &'b mut [u8]) -> Result<Resolution<'b>, MetaError> {
-        let mut resolved = self.resolve_raw(name, buf)?;
-        if matches!(&resolved.target, Target::Alias(alias) if alias.creation_pending()) {
-            resolved.target = Target::Absent;
-        }
-        Ok(resolved)
+        Ok(published(self.resolve_raw(name, buf)?))
     }
 
     /// What `name`'s register holds and the generation to swap from, an
@@ -310,15 +335,21 @@ impl DescriptorStore {
                 target: Target::Absent,
             });
         };
-        let target = match NameRecord::parse(prefix(buf, read.len))? {
-            NameRecord::Index(record) => Target::Index(record),
-            NameRecord::Alias(alias) => Target::Alias(alias),
-            NameRecord::Tombstone(_) => Target::Absent,
-        };
-        Ok(Resolution {
-            generation: read.generation,
-            target,
-        })
+        resolution(read.generation, prefix(buf, read.len))
+    }
+
+    /// `name`'s register as it is stored: its generation and how much of
+    /// `buf` it filled, or `None` for no register.
+    pub(crate) fn read_value(
+        &self,
+        name: &str,
+        buf: &mut [u8],
+    ) -> Result<Option<(u64, usize)>, MetaError> {
+        let key = self.key(name)?;
+        Ok(self
+            .store
+            .read_register(&key, buf)?
+            .map(|read| (read.generation, read.len)))
     }
 
     /// The generation of `name`'s register, or
@@ -352,6 +383,7 @@ impl DescriptorStore {
         Ok(
             match self.store.swap_register(&key, expected, prefix(buf, len))? {
                 SwapOutcome::Applied(generation) => {
+                    self.applied(&record.name);
                     self.changed(&record.name, ChangeKind::Changed);
                     Some(generation)
                 }
@@ -371,7 +403,9 @@ impl DescriptorStore {
         let deleted = self.store.delete(&key);
         // Applied or failed, the attempt is over.
         self.changed(name, ChangeKind::Deleted);
-        Ok(deleted?)
+        deleted?;
+        self.applied(name);
+        Ok(())
     }
 
     /// Deletes the index named `name` if its register still holds
@@ -395,6 +429,9 @@ impl DescriptorStore {
         // Applied, refused or failed, the attempt is over; a crash before
         // this leaves the pending entry, which is safe.
         self.changed(name, ChangeKind::Deleted);
+        if matches!(deleted, Ok(true)) {
+            self.applied(name);
+        }
         deleted
     }
 
@@ -425,6 +462,25 @@ impl DescriptorStore {
             SwapOutcome::Applied(_)
         ))
     }
+}
+
+/// What a register at `generation` holding `value` resolves to, an alias
+/// still being created included.
+pub(crate) fn resolution(generation: u64, value: &[u8]) -> Result<Resolution<'_>, MetaError> {
+    let target = match NameRecord::parse(value)? {
+        NameRecord::Index(record) => Target::Index(record),
+        NameRecord::Alias(alias) => Target::Alias(alias),
+        NameRecord::Tombstone(_) => Target::Absent,
+    };
+    Ok(Resolution { generation, target })
+}
+
+/// Hides an alias still being created, as the Java's `resolve`.
+pub(crate) fn published(mut resolved: Resolution<'_>) -> Resolution<'_> {
+    if matches!(&resolved.target, Target::Alias(alias) if alias.creation_pending()) {
+        resolved.target = Target::Absent;
+    }
+    resolved
 }
 
 /// The first `len` bytes of `buf`, which a write or read just filled.
