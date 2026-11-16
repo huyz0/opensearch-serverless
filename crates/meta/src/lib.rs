@@ -12,6 +12,9 @@
 //! - [`DescriptorStore::create_alias`], [`DescriptorStore::update_alias`]
 //!   and [`DescriptorStore::resolve`]: aliases in the same namespace, so a
 //!   name is an index or an alias and resolving it is one read.
+//! - [`AliasMutations`]: creating, changing and deleting an alias so every
+//!   member's `aliased_by` hint names it before it is published, and a
+//!   crashed writer's half-done change is recovered.
 //! - [`DeleteMode::probe`]: whether a store's conditional delete can be
 //!   trusted, asked of the store itself.
 //! - [`DescriptorStore::sweep_tombstones`]: removing tombstones once their
@@ -24,6 +27,7 @@
 //! - [`ClusterConfig`]: an operator's persistent settings, one register a
 //!   deployment, read and updated as the Java's `ClusterConfig`.
 
+mod alias_mutations;
 mod changes;
 mod cluster_config;
 mod descriptors;
@@ -33,6 +37,7 @@ mod names;
 mod probe;
 mod sweep;
 
+pub use alias_mutations::{AliasAt, AliasClock, AliasMutations};
 pub use changes::{ChangeStripes, Snapshot};
 pub use cluster_config::{ClusterConfig, ConfigValue};
 pub use descriptors::{

@@ -201,3 +201,52 @@ fn a_listing_reads_only_index_records() {
     }
     assert!(NameRecord::index_only(br#"{"name":"a"}"#).is_err());
 }
+
+#[test]
+fn a_mutation_is_reserved_and_released_as_the_javas() {
+    let alias = AliasRecord {
+        write_member: Some(Cow::Borrowed("b")),
+        ..AliasRecord::new("al", &["a", "b"])
+    };
+    assert_eq!(
+        (alias.mutation_until(), alias.pending_additions()),
+        (0, &[][..])
+    );
+    let pending = alias
+        .preparing(vec![Cow::Borrowed("c")], 9, false)
+        .expect("a published record can be reserved");
+    assert_eq!(pending.mutation_until(), 9);
+    assert_eq!(pending.pending_additions(), ["c"]);
+    assert_eq!(pending.indices, alias.indices);
+    assert_eq!(pending.write_member.as_deref(), Some("b"));
+    // A deadline not above zero, or a second reservation, is refused.
+    assert_eq!(alias.preparing(Vec::new(), 0, false), None);
+    assert_eq!(pending.preparing(Vec::new(), 10, false), None);
+    assert_eq!(pending.published(), alias);
+    // New members drop the mutation, and a write member no longer among them.
+    let moved = pending.with_members(vec![Cow::Borrowed("a"), Cow::Borrowed("c")]);
+    assert_eq!(moved, AliasRecord::new("al", &["a", "c"]));
+    let kept = pending.with_members(vec![Cow::Borrowed("b")]);
+    assert_eq!(kept.write_member.as_deref(), Some("b"));
+    assert!(!kept.mutation_pending());
+}
+
+#[test]
+fn an_owned_record_outlives_its_bytes() {
+    let owned = {
+        let bytes = br#"{"alias":"ds","indices":["ds-1"],"data_stream":true,"generation":2,"timestamp_field":"t","mutation":{"until":5,"creating":false,"additions":["ds-2"]}}"#.to_vec();
+        let parsed = AliasRecord::parse(&bytes).unwrap();
+        let owned = parsed.clone().into_owned();
+        assert_eq!(owned, parsed);
+        assert!(matches!(owned.indices[0], Cow::Owned(_)));
+        owned
+    };
+    assert_eq!(owned.pending_additions(), ["ds-2"]);
+    assert_eq!(owned.timestamp_field.as_deref(), Some("t"));
+    let plain = AliasRecord {
+        write_member: Some(Cow::Borrowed("x")),
+        ..AliasRecord::new("al", &["x"])
+    }
+    .into_owned();
+    assert_eq!(plain.write_member.as_deref(), Some("x"));
+}
