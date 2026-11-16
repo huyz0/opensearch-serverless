@@ -52,7 +52,7 @@ The local gate is the real CI; GitHub's free runners only confirm it ([docs/ci.m
 | A setting, endpoint, extension point | [docs/how-to/](docs/how-to/README.md) |
 | Tests; optimising; `unsafe` and SIMD | `test-coverage`, `rust-performance`, `unsafe-code` skills |
 | Committing, PRs, merging | `git-workflow` skill |
-| A decision with trade-offs | an ADR in [docs/adr/](docs/adr/README.md); only the owner accepts one |
+| A decision with trade-offs | an ADR in [docs/adr/](docs/adr/README.md), accepted after an independent review |
 | What must never break, and its tests | [docs/invariants.md](docs/invariants.md) |
 | Inside one crate | its `AGENTS.md` and `README.md` |
 | Skills, this file, any new rule | `manage-skills` skill |
