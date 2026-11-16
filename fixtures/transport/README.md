@@ -12,6 +12,22 @@ java -cp "$CP:out" org.opensearch.transport.WireRecordings fixtures/transport
 |---|---|
 | `stream.txt` | kind, value, bytes: 15 ints as `int` and `vint`, 9 `vlong`s, 12 `zlong`s and `long`s, booleans, 4 versions (wire id), 309 strings (UTF-8 hex: NUL, two- and three-byte chars, surrogate pairs, 300 characters, seeded random), optional strings, string arrays and a string map (comma-separated, UTF-8 hex), two task ids |
 | `nodes.txt` | `with_attributes` or `plain`, then a node (name, id and ephemeral id as UTF-8 hex, host name, host address, IP, port, stream address IP or `-`, attributes `k=v;...`, roles `name:abbreviation:data,...`, wire version id), then its bytes |
+| `exceptions.txt` | kind, description, bytes. `bare`: a failure a node answers (`security:message:status`, `rejected:message`, `not_found:action`, `status:message:status`), wrapped as `RemoteTransportException` from `w1` at 10.0.0.7:9300 for `internal:serverless/document/write`, without stack traces. `read`: chains as a Java node writes them, with stack traces, metadata and causes (`status`, `jdk:<key>`, `wrapped:<name>` for `NotSerializableExceptionWrapper`, `unknown:<id>`, `none`). `frame`: an error response frame for request id 42 |
 | `frames.txt` | kind, request id, compressed, headers (`q:` request, `r:` response, `;`-separated, response values `|`-separated), features, action, message description (the node for a transport handshake response; `parent=` and `string=` for a generic message), then the frame |
 
-The recordings come from 3.3.0's classes, not a build of the shell's 3.10 fork: every encoding here is the same across 3.x once the version gates are passed (a node's stream address from 3.2.0), and a version id is only a number on the wire. A running-node interop test comes with the client and server.
+The recordings come from 3.3.0's classes, not a build of the shell's 3.10 fork: every encoding here is the same across 3.x once the version gates are passed (a node's stream address from 3.2.0), and a version id is only a number on the wire. 
+## Live interop
+
+`TransportInterop.java` runs a real `Netty4Transport` and `TransportService` at the shell's version id against `crates/transport/examples/interop.rs`, both ways: echo plain and compressed, `ActionNotFound` and status failures read as each side's own types, and a node under another ephemeral id refused. Beside the jars above it needs `transport-netty4-client`, Netty 4.1.125, the Lucene 10.3.1 modules, `opensearch-{cli,geo,secure-sm,telemetry,task-commons}`, joda-time, t-digest, HdrHistogram, spatial4j, jts-core and log4j-core, from Maven Central. Leave out `opensearch-compress`: its zstd provider needs a native library.
+
+```bash
+CP="$(ls jars/*.jar | grep -v opensearch-compress | tr '\n' ':')"
+javac -proc:none -cp "$CP" -d out fixtures/transport/TransportInterop.java
+cargo build -p oss-transport --example interop
+coproc RS { target/debug/examples/interop serve; }; read -r PORT EPH <&"${RS[0]}"
+java -cp "$CP:out" org.opensearch.transport.TransportInterop call "$PORT" "$EPH"; kill "$RS_PID"
+coproc JV { java -cp "$CP:out" org.opensearch.transport.TransportInterop serve; }; read -r PORT EPH <&"${JV[0]}"
+target/debug/examples/interop call "$PORT" "$EPH"; kill "$JV_PID"
+```
+
+Every line prints `ok`; a mismatch fails the run.

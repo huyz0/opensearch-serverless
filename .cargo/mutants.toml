@@ -13,6 +13,15 @@ exclude_re = [
     "crates/transport/src/version.rs:.*replace \\^ with \\| in WireVersion::wire_id",
     # The inflate chunk's size only sets how often the loop turns.
     "crates/transport/src/frame/compress.rs:.*replace \\* with \\+",
+    # As the inflate chunk: the discard buffer's size only sets how often
+    # the loop turns.
+    "crates/transport/src/channel.rs:.*replace \\* with \\+",
+    # A read interrupted by a signal is retried; no test can deliver EINTR to
+    # a blocking read on demand.
+    "crates/transport/src/channel.rs:.*replace match guard e.kind\\(\\) == io::ErrorKind::Interrupted with false in read_or_eof",
+    # A channel's idle timeout is set after its first frame; setting the
+    # same timeout again after every frame changes nothing observable.
+    "crates/transport/src/server/mod.rs:.*delete ! in serve_channel",
     # `Instant::now() < deadline` against `<=`: they differ for one instant of
     # a clock with nanosecond resolution.
     "crates/rest/src/conn.rs:.*replace < with <= in linger",

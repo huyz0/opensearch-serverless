@@ -7,9 +7,15 @@
 // panics the test in a debug build, which fails it.
 #![allow(clippy::arithmetic_side_effects)]
 
+mod exceptions;
+mod fake_peer;
 mod frames;
+mod loopback;
 mod nodes;
+mod raw;
+mod reader;
 mod stream;
+mod support;
 
 use std::net::IpAddr;
 use std::path::PathBuf;

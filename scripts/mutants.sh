@@ -23,7 +23,10 @@ if ! cargo mutants --version >/dev/null 2>&1; then
   echo "mutants: cargo-mutants is not installed: cargo install cargo-mutants --locked" >&2
   exit 1
 fi
-common=(--workspace --all-features --exclude 'crates/*/src/main.rs' --timeout-multiplier 3)
+# A test timeout auto-set from a cached baseline can be a few seconds, which a
+# suite of socket tests with 5 s call deadlines outlasts when a mutant makes
+# every call wait for its deadline: such a mutant is caught, not hung.
+common=(--workspace --all-features --exclude 'crates/*/src/main.rs' --timeout-multiplier 3 --minimum-test-timeout 60)
 if [ "${1:-}" = "--all" ]; then
   shift
   exec cargo mutants "${common[@]}" "$@"
