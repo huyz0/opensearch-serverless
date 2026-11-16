@@ -29,9 +29,14 @@ pub(crate) struct StrState {
 
 impl StrState {
     pub(crate) fn new(key: bool) -> Self {
+        Self::resume(key, true)
+    }
+
+    /// A string already under way; `first` if no fragment was emitted yet.
+    pub(crate) fn resume(key: bool, first: bool) -> Self {
         Self {
             key,
-            first: true,
+            first,
             esc: Esc::None,
         }
     }
@@ -92,7 +97,7 @@ fn utf8_width(b: u8) -> usize {
 /// partial character and the character's full width.
 // ARITH: `k` runs from 1 to at most 3 and is at most `run.len()`.
 #[allow(clippy::arithmetic_side_effects)]
-fn split_tail(run: &[u8]) -> Option<(usize, usize)> {
+pub(crate) fn split_tail(run: &[u8]) -> Option<(usize, usize)> {
     for k in 1..=run.len().min(3) {
         let b = run[run.len() - k];
         if b & 0xC0 == 0x80 {
@@ -129,6 +134,7 @@ impl Tokenizer {
     // ARITH: so no index overflows, and `val << 4 | d` after three digits is
     // below 0x1000, so the shift keeps it in a u16.
     #[allow(clippy::arithmetic_side_effects)]
+    #[inline]
     pub(crate) fn lex_string(
         &mut self,
         input: &[u8],
@@ -279,12 +285,14 @@ impl Tokenizer {
         Ok((Out::Simple(Event::NeedMore), j))
     }
 
+    #[inline]
     fn emit_char(&mut self, st: StrState, c: char, used: usize) -> (Out, usize) {
         self.char_len = c.encode_utf8(&mut self.char_buf).len();
         self.emit(st, Src::Char, false, used)
     }
 
     /// Emits a non-final fragment and saves the string state for the next call.
+    #[inline]
     fn emit(&mut self, mut st: StrState, src: Src, last: bool, used: usize) -> (Out, usize) {
         let out = Out::Text {
             key: st.key,

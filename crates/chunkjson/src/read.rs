@@ -129,7 +129,7 @@ impl<R: Read, B: Buffer> JsonReader<R, B> {
                 continue;
             }
             let window = self.buf.bytes().get(from..self.end).unwrap_or_default();
-            return Ok(self.tokenizer.resolve(out, window)?);
+            return Ok(self.tokenizer.resolve(out, window, 0, None)?);
         }
     }
 

@@ -1,0 +1,11 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 2b06d45d16ab8b1a68b3d4cbc0d727a9f3c81763a50feba46c30138e68e58593 # shrinks to s = "€a", size = 7
+cc 0bcf7e62d79c6f72d53080a42693b2f69c83cf573e6063d09b390ecc912acbe5 # shrinks to bytes = [49, 48, 48, 123], size = 4, ndjson = false
+cc 100d4406767234c7ab20b4890b5d7cf137a2533adcd2f3eea63d8a4ca0df0ece # shrinks to v = [Array [Array []]], size = 1, cfg = Config { framing: Single, max_depth: 1, max_number_len: 1 }
+cc 36cc7de62d522d92e3b22e0a470b0ae2ba563af49fae446026947a112e87bbb1 # shrinks to bytes = [91, 123], size = 1, cfg = Config { framing: Single, max_depth: 1, max_number_len: 1 }
+cc 8a7fc20deb5f7e4221257cc0884a1a53468ee2f01d7847ad22a9d0c49edb71f1 # shrinks to v = [Array [Number(100000000000)]], size = 14, cfg = Config { framing: Single, max_depth: 1, max_number_len: 1 }
