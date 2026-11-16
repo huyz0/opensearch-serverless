@@ -143,6 +143,16 @@ fn invalid_arguments_fail_before_any_request() {
         e.list_prefix("", None, 0, &mut |_, _| {}),
         Err(bad("max_keys of 0"))
     );
+    // S3's rule only: a component longer than a filesystem's is a key.
+    assert!(matches!(
+        e.validate_key(&long),
+        Err(BlobError::InvalidArgument(_))
+    ));
+    assert!(matches!(
+        e.validate_key(""),
+        Err(BlobError::InvalidArgument(_))
+    ));
+    e.validate_key(&format!("a/{}", "c".repeat(256))).unwrap();
     assert_eq!(e.meter().total(), 0);
     assert_eq!(e.meter().errors(), 0);
 }

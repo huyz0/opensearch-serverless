@@ -20,6 +20,7 @@ check-unsafe.py
 check-alloc.py
 check-s3-access.py
 check-test-endpoints.py
+check-unwired-deletes.py
 check-arith-allows.py
 check-dev-notes.py
 check-port-map.py

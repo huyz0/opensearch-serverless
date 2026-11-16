@@ -1,7 +1,7 @@
 //! Blob keys, derived from names and records already held, never listed.
 //!
 //! Ported from `serverless/shell/src/main/java/org/opensearch/serverless/metadata/RegisterMap.java`
-//! (`indices`, `descriptorBlob`, `shardData`), `store/SegmentPublisher.java`
+//! (`indices`, `descriptorBlob`, `shardData`, `reclaim`), `store/SegmentPublisher.java`
 //! (`MANIFEST`, the `t=<term>` container), `store/NodePackStore.java` (`ROOT`,
 //! `epochDir`, `name`) and `store/FileLocation.java` (`containerPath`). Every
 //! key is relative to the deployment's base, which is empty or ends in `/`:
@@ -11,6 +11,7 @@
 //! | `indices/<index>` | the index's descriptor register |
 //! | `tombstones/<hour>/<index>` | a deleted index's marker, empty |
 //! | `index-changes/stripe-<nn>` | a change stripe's register |
+//! | `reclaim/<minute>/<index>#<uuid>` | a deleted index's reclaim intent |
 //! | `segments/<index>#<uuid>#<shard>/manifest` | the shard's commit register |
 //! | `segments/<index>#<uuid>#<shard>/t=<term>/<blob>` | a blob in a term container |
 //! | `packs/<node>/e=<epoch:020>/<ordinal:020>` | a node pack |
@@ -124,6 +125,36 @@ pub fn tombstone_marker_key(base: &str, bucket: &str, index: &str) -> Result<Str
     check_segment(index)?;
     // ALLOC: one key, the length of its parts.
     Ok([base, MARKERS_PREFIX, bucket, "/", index].concat())
+}
+
+/// Where under a deployment's base deletes file their reclaim intents
+/// (`RegisterMap.reclaim`), one directory a minute they fall due in.
+pub const RECLAIM_PREFIX: &str = "reclaim/";
+
+/// The key of the reclaim intent the delete of incarnation `uuid` of
+/// `index` files under the minute `bucket` (`reclaim/<bucket>/<index>#<uuid>`,
+/// the Java's `ReclaimQueue.enqueue`).
+///
+/// # Errors
+///
+/// As [`descriptor_key`], for a bucket that is empty or holds `/`, and for
+/// an index name or uuid holding `#`, which would make two intents collide.
+pub fn reclaim_intent_key(
+    base: &str,
+    bucket: &str,
+    index: &str,
+    uuid: &str,
+) -> Result<String, FormatError> {
+    check_base(base)?;
+    check_segment(bucket)?;
+    for part in [index, uuid] {
+        check_segment(part)?;
+        if part.contains('#') {
+            return Err(corrupt(WHAT, "an index name or uuid holds '#'"));
+        }
+    }
+    // ALLOC: one key, the length of its parts.
+    Ok([base, RECLAIM_PREFIX, bucket, "/", index, "#", uuid].concat())
 }
 
 impl ShardRef<'_> {

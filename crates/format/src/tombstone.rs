@@ -130,7 +130,7 @@ fn bucket_name(year: i64, month: i64, day: i64, hour: i64) -> [u8; 10] {
 // ARITH: days is in [0, 2,932,897), so every intermediate is a small
 // non-negative number far inside an i64.
 #[allow(clippy::arithmetic_side_effects)]
-fn civil(days: i64) -> (i64, i64, i64) {
+pub(crate) fn civil(days: i64) -> (i64, i64, i64) {
     let z = days + 719_468;
     let era = z / 146_097;
     let doe = z - era * 146_097;
@@ -179,7 +179,7 @@ fn hour_start(days: i64, hour: i64) -> i64 {
 }
 
 /// Days in a month of the proleptic Gregorian calendar.
-fn days_in_month(year: i64, month: i64) -> i64 {
+pub(crate) fn days_in_month(year: i64, month: i64) -> i64 {
     match month {
         2 if year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) => 29,
         2 => 28,
@@ -193,7 +193,7 @@ fn days_in_month(year: i64, month: i64) -> i64 {
 // ARITH: the year is 1970 to 9999 and month and day valid, so every
 // intermediate is a small non-negative number.
 #[allow(clippy::arithmetic_side_effects)]
-fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
+pub(crate) fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
     let y = if month <= 2 { year - 1 } else { year };
     let era = y / 400;
     let yoe = y - era * 400;

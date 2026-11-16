@@ -19,7 +19,8 @@
 //! Metadata writers write what they read: [`IndexRecord`] and [`Tombstone`]
 //! are a name register's whole value, written back byte for byte as the
 //! shell's Jackson writes it, into the caller's buffer; so is an
-//! [`AliasRecord`]. [`ClusterSettings`]
+//! [`AliasRecord`]. A delete's [`ReclaimIntent`] is written as the Java
+//! writes it and read as leniently. [`ClusterSettings`]
 //! reads the cluster config register as the Java's `Settings` reads it, and
 //! writes the flat form that reads back the same.
 //!
@@ -38,6 +39,7 @@ mod location;
 mod manifest;
 mod mutf8;
 mod node_pack;
+mod reclaim_intent;
 mod register;
 mod segment_blob;
 mod tombstone;
@@ -53,12 +55,15 @@ pub use error::FormatError;
 pub use index_record::{EMPTY_SETTINGS, IndexRecord, MAX_SHARDS, NameRecord};
 pub use keys::{
     CHANGES_PREFIX, CLUSTER_CONFIG_KEY, DESCRIPTORS_PREFIX, FileExtent, MANIFEST, MARKERS_PREFIX,
-    ShardRef, change_stripe_key, cluster_config_key, descriptor_key, node_pack_key,
-    tombstone_marker_key,
+    RECLAIM_PREFIX, ShardRef, change_stripe_key, cluster_config_key, descriptor_key, node_pack_key,
+    reclaim_intent_key, tombstone_marker_key,
 };
 pub use location::{FileLocation, NODE_PACK_PREFIX};
 pub use manifest::{CommitManifest, ManifestFile};
 pub use node_pack::{Block, NodePackHeader};
+pub use reclaim_intent::{
+    MAX_RECLAIM_INTENT_BYTES, ReclaimIntent, reclaim_bucket, reclaim_bucket_start,
+};
 pub use register::{GENERATION_BYTES, Register};
 pub use segment_blob::{SegmentBlobHeader, SegmentFile};
 pub use tombstone::{MAX_TOMBSTONE_BYTES, Tombstone, tombstone_bucket, tombstone_bucket_start};

@@ -261,7 +261,9 @@ fn invalid_arguments_fail_before_any_attempt() {
         );
         assert!(invalid(s.head(key).map(|_| ())), "head {key:?}");
         assert!(invalid(s.delete(key)), "delete {key:?}");
+        assert!(invalid(s.validate_key(key)), "validate {key:?}");
     }
+    s.validate_key(&format!("a/{}", "c".repeat(255))).unwrap();
     let invalid = |r: Result<(), BlobError>| matches!(r, Err(BlobError::InvalidArgument(_)));
     assert!(invalid(s.put("k", &mut SliceSource::new(b"x"), &mut [])));
     assert!(invalid(

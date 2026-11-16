@@ -217,6 +217,10 @@ impl BlobStore for FsStore {
         &self.meter
     }
 
+    fn validate_key(&self, key: &str) -> BlobResult<()> {
+        check_fs_key(key)
+    }
+
     fn get(
         &self,
         key: &str,
