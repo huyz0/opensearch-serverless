@@ -1,0 +1,24 @@
+{"node_id":"n1","ephemeral_id":"e1","address":"10.0.0.1:9300","roles":["data","search"],"expires_at_millis":1700000030000}
+{"node_id":"n2","ephemeral_id":"e2","address":"10.0.0.2:9300","roles":["search","data","ingest"],"expires_at_millis":1700000030000,"name":"node-two","version":"3.3.0","held":4,"cap":100,"in_use":2,"refused":0,"zone":"us-east-1a","node_log":[{"epoch":3,"trim":120,"landed":118},{"epoch":4,"trim":0,"landed":0}]}
+{"node_id":"n3","ephemeral_id":"e3","address":"a","roles":[],"expires_at_millis":0,"revoked":true}
+{"node_id":"n4","ephemeral_id":"e4","address":"a","roles":["x"],"expires_at_millis":5,"revoked":false}
+{"node_id":"n5","ephemeral_id":"e5","address":"a","expires_at_millis":5}
+{"node_id":"n6","ephemeral_id":"e6","address":"a","roles":["x"],"expires_at_millis":5,"zone":"  "}
+{"node_id":"n7","ephemeral_id":"e7","address":"a","roles":["x"],"expires_at_millis":5,"name":"","version":""}
+{"node_id":"n8","ephemeral_id":"e8","address":"a","roles":["x"],"expires_at_millis":5,"future":{"a":[1,{"b":2}]},"later":[1,2],"flag":true,"none":null}
+{  "node_id" : "n9" , "ephemeral_id":"e9","address":"a","roles":["b","a","b"],"expires_at_millis":-7}
+{"node_id":"n10","ephemeral_id":"e10","address":"a","roles":["x"],"expires_at_millis":5,"held":-1,"cap":-3}
+{"node_id":"n11","ephemeral_id":"e11","address":"a","roles":["x"],"expires_at_millis":5,"node_log":[{"epoch":0}]}
+{"node_id":"n12","ephemeral_id":"e12","address":"a","roles":["x"],"expires_at_millis":5,"node_log":[{"epoch":1,"trim":2,"landed":3,"extra":{"x":1}}]}
+{"node_id":"n13","ephemeral_id":"e13","address":"a","roles":["x"],"expires_at_millis":5,"node_log":[]}
+{"node_id":"n\u00e9\"\\","ephemeral_id":"e14","address":"a","roles":["r\n"],"expires_at_millis":5}
+{"ephemeral_id":"e15","address":"a","roles":["x"],"expires_at_millis":5}
+{"node_id":"n16","address":"a","roles":["x"],"expires_at_millis":5}
+{"node_id":"n17","ephemeral_id":"e17","roles":["x"],"expires_at_millis":5}
+{"node_id":"n18","ephemeral_id":"e18","address":"a","roles":["x"],"expires_at_millis":5,"node_log":[{"trim":1}]}
+{"node_id":"n19","ephemeral_id":"e19","address":"a","roles":["x"],"expires_at_millis":5,"node_log":[{"epoch":-1}]}
+{"node_id":"n20","ephemeral_id":"e20","address":"a","roles":["x"],"expires_at_millis":5,"node_log":[{"epoch":1,"trim":-1}]}
+["n21"]
+{"node_id":"n22","ephemeral_id":"e22","address":"a"
+not json
+{"node_id":"n24","ephemeral_id":"e24","address":"a","roles":["x"],"expires_at_millis":9223372036854775807,"held":2147483647}

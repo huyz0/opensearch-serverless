@@ -1,0 +1,14 @@
+rust_path	kind	java_source	note
+src/lib.rs	new		crate root
+src/error.rs	new		one error enum for membership; the Java throws LeaseRevokedException and IOException
+src/lease/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/membership/BlobLeaseMembership.java@3920dc36	the constants (SKEW_MARGIN_DIVISOR, DEAD_LEASE_PRUNE_TTLS, REVOKE_ATTEMPTS, GENERATION_PROBE_INTERVAL_MILLIS), MembershipDelta and the Member comparison; the lease clock is new, for tests
+src/lease/membership.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/membership/BlobLeaseMembership.java@3920dc36	renew, revokedUnderneath, enrol, release, enrolledIds, selfLeaseValidAt, selfLeaseLapsedAt, current; a first write is a create; a missing index is created naming the node instead of from a LIST
+src/lease/peers.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/membership/BlobLeaseMembership.java@3920dc36	revoke, revokeOnce, read, forgetNodeLog
+src/lease/refresh.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/membership/BlobLeaseMembership.java@3920dc36	refresh with its pruning, refreshIfOlderThan with the generation probe, writesDigest, mergeDigest, writeDigest; deltas are returned, not delivered to listeners
+src/lease/oracle.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/metadata/LeaseLivenessOracle.java@3920dc36	isLive and revoke with its sharing of a revocation among concurrent takeovers
+tests/leases/main.rs	new		test support: a simulated clock and a store that races a node's swaps
+tests/leases/renew.rs	new		renewal, enrolment, release and self-validity tests
+tests/leases/revoke.rs	new		revocation and liveness oracle tests
+tests/leases/refresh.rs	new		refresh, digest and pruning tests
+tests/leases/budget.rs	new		request budgets
+tests/leases/java.rs	new		a Java lease on the filesystem store

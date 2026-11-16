@@ -28,6 +28,7 @@ LAYERS = {
     "oss-format": 1,
     "oss-rest": 1,
     "oss-meta": 2,
+    "oss-cluster": 2,
     "oss-reader": 3,
     "oss-writer": 3,
     "oss-coordinator": 4,

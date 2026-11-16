@@ -486,6 +486,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "oss-cluster"
+version = "0.1.0"
+dependencies = [
+ "oss-blob",
+ "oss-format",
+ "oss-testkit",
+]
+
+[[package]]
 name = "oss-compat"
 version = "0.1.0"
 dependencies = [
