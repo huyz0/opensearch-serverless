@@ -1,2 +1,7 @@
 rust_path	kind	java_source	note
 src/lib.rs	new		crate root; ids are added as roles need them
+src/settings/mod.rs	port	server/src/main/java/org/opensearch/common/settings/Setting.java@3920dc36	a definition is its key, kind, scope, dynamic flag and doc; settings are read from any Source
+src/settings/typed.rs	port	server/src/main/java/org/opensearch/common/settings/Setting.java@3920dc36	boolSetting, intSetting, longSetting, simpleString and the Java parsers and messages; a choice is one message for every such setting
+src/settings/layers.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/settings/LayeredSetting.java@3920dc36	index over cluster over node over default; an index or cluster value that does not parse is skipped; a bad node value is refused, as the Java refuses it at start-up
+src/settings/registry.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/settings/ServerlessSettings.java@3920dc36	the definitions collected once and checked; check_update as AbstractScopedSettings.validate for the serverless. and index.serverless. keys, with its messages but no did-you-mean suggestion
+src/settings/live.rs	new		the node's current register settings, swapped whole when a newer generation is read

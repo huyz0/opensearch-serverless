@@ -74,6 +74,17 @@ pub enum SettingsRefused {
     },
 }
 
+/// The register as a settings source: a scalar reads as its text, and a
+/// list reads as unset, as no typed setting is a list yet.
+impl oss_types::settings::Source for ClusterSettings {
+    fn value(&self, key: &str) -> Option<&str> {
+        match self.settings.get(key) {
+            Some(Setting::Value(v)) => Some(v),
+            Some(Setting::List(_)) | None => None,
+        }
+    }
+}
+
 impl fmt::Display for SettingsRefused {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

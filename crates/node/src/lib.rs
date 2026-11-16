@@ -6,6 +6,7 @@
 
 #[cfg(feature = "reader")]
 pub mod search;
+pub mod settings;
 
 /// A role a node can serve.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

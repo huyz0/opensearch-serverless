@@ -269,3 +269,16 @@ fn the_key_is_the_javas() {
     );
     assert!(cluster_config_key("dep").is_err());
 }
+
+#[test]
+fn cluster_settings_are_a_source() {
+    use oss_types::settings::{IntSetting, Scope, Source};
+    let s = read(r#"{"serverless":{"t":{"count":"5","list":["1","2"]}},"other":"x"}"#);
+    assert_eq!(s.value("serverless.t.count"), Some("5"));
+    assert_eq!(s.value("other"), Some("x"));
+    // A list has no one value, so it reads as unset.
+    assert_eq!(s.value("serverless.t.list"), None);
+    assert_eq!(s.value("serverless.t.missing"), None);
+    let count = IntSetting::new("serverless.t.count", 1, 1, 9, Scope::Node, "d");
+    assert_eq!(count.get(&s), Ok(5));
+}

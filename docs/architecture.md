@@ -26,6 +26,7 @@ graph TD
     oss-node -.-> oss-mem
     oss-node -.-> oss-reader
     oss-node -.-> oss-rest
+    oss-node --> oss-types
     oss-node -.-> oss-writer
     oss-reader --> oss-blob
     oss-reader --> oss-format
