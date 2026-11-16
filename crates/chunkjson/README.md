@@ -31,7 +31,7 @@ Nothing in the workspace. `simdutf8` (pinned) validates string UTF-8.
 
 | MB/s (peak heap MB) | bulk 21 MB NDJSON | records 10 MB | numbers 15 MB | big_text 135 MB, one doc |
 |---|---|---|---|---|
-| chunkjson `feed`, 64 KiB chunks | 1,289 (0) | 724 (0) | 415 (0) | 1,735 (0) |
+| chunkjson `feed`, 64 KiB chunks ² | 1,440 (0) | 910 (0) | 615 (0) | 1,830 (0) |
 | chunkjson `next`, 64 KiB chunks | 734 (0) | 345 (0) | 271 (0) | 1,334 (0) |
 | oss-rest tokenizer, 64 KiB ¹ | 366 (0.05) | 330 (0.05) | 259 (0.05) | 405 (0.05) |
 | serde_json `IgnoredAny` | 918 | 1,142 | 625 | 2,137 |
@@ -42,4 +42,6 @@ Nothing in the workspace. `simdutf8` (pinned) validates string UTF-8.
 
 ¹ Measured 2026-11-15 with a contender since removed, because this crate's bench may not depend on the workspace. That comparison belongs in `oss-rest`.
 
-`feed` beats every parser on NDJSON bulk bodies and every document-building parser everywhere, with no heap growth. It still trails the validate-only parsers on key- and number-dense input and on one huge string; a SIMD structural scan is the next step there.
+² Re-measured 2026-11-16 after the fast loop's number scan and string inlining, midpoint of two runs; serde_json `IgnoredAny` measured alongside: 1,016, 1,125, 669, 2,199.
+
+`feed` beats every parser on NDJSON bulk bodies and every document-building parser everywhere, with no heap growth, and is level with serde_json's validate-only mode on numbers. It still trails the validate-only parsers on key-dense records and on one huge string. A profile puts that gap in per-token work rather than the byte scan, so SIMD classification alone would not close it.
