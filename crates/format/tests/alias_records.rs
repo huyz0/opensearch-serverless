@@ -184,3 +184,20 @@ fn a_name_register_holding_an_alias_reads_as_one() {
         Err(FormatError::Corrupt { .. })
     ));
 }
+
+#[test]
+fn a_listing_reads_only_index_records() {
+    let index = NameRecord::index_only(br#"{"name":"a","uuid":"u","number_of_shards":2}"#)
+        .unwrap()
+        .expect("an index record");
+    assert_eq!((index.name.as_ref(), index.number_of_shards), ("a", 2));
+    for skipped in [
+        &br#"{"tombstone":true,"deleted_at":5}"#[..],
+        br#"{"alias":"logs","indices":["a"]}"#,
+        // A malformed alias is recognised, not decoded.
+        br#"{"alias":7,"indices":[]}"#,
+    ] {
+        assert_eq!(NameRecord::index_only(skipped).unwrap(), None);
+    }
+    assert!(NameRecord::index_only(br#"{"name":"a"}"#).is_err());
+}

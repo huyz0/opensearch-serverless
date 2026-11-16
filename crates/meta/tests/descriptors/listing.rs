@@ -62,6 +62,8 @@ fn walk(d: &DescriptorStore, prefix: &str, limit: usize) -> Vec<String> {
         let (names, next) = page(d, prefix, after.as_deref(), limit);
         assert!(names.len() <= limit);
         all.extend(names);
+        // A cursor that does not move would walk forever.
+        assert!(next.is_none() || next > after, "{next:?} after {after:?}");
         match next {
             Some(n) => after = Some(n),
             None => return all,
