@@ -81,12 +81,15 @@ fn windows_close_when_full_and_spill_in_order() {
         max_records: 2,
         ..CommitterConfig::default()
     });
-    let started = Instant::now();
-    r.committer
-        .commit(&shard(1), 1, &[rec("x", 1), rec("y", 2)])
-        .expect("lands");
+    let (tx, rx) = std::sync::mpsc::sync_channel(1);
+    let c = Arc::clone(&r.committer);
+    std::thread::spawn(move || {
+        let _ = tx.send(c.commit(&shard(1), 1, &[rec("x", 1), rec("y", 2)]));
+    });
+    // Waited for at most 5 s, so a window that waits out its 30 s fails here
+    // rather than holding the suite.
     assert!(
-        started.elapsed() < Duration::from_secs(5),
+        matches!(rx.recv_timeout(Duration::from_secs(5)), Ok(Ok(Some(_)))),
         "a full window does not wait out its time"
     );
 
@@ -136,6 +139,7 @@ fn windows_close_when_full_and_spill_in_order() {
         max_bytes: 100,
         ..CommitterConfig::default()
     });
+    let started = Instant::now();
     let small = {
         let c = Arc::clone(&r.committer);
         std::thread::spawn(move || c.commit(&shard(1), 1, &[rec("s", 1)]))
@@ -148,6 +152,10 @@ fn windows_close_when_full_and_spill_in_order() {
         .expect("lands")
         .expect("some");
     let at_small = small.join().expect("ends").expect("lands").expect("some");
+    assert!(
+        started.elapsed() < Duration::from_millis(250),
+        "the window the big one closed is written at once, not after its 300 ms"
+    );
     assert_eq!(
         (at_small.ordinal, at_big.ordinal),
         (0, 1),

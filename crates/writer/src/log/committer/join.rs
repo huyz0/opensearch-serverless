@@ -25,11 +25,18 @@ impl NodeLogCommitter {
         // ALLOC: one entry a window joined, usually one.
         let mut joined: Vec<Arc<Latch>> = Vec::with_capacity(1);
         let mut rest = records.into_iter().peekable();
+        // Set when the open window took none of what is left, so the next
+        // pass opens a window of its own and every pass takes a record.
+        let mut fresh = false;
         while rest.peek().is_some() {
-            let mut last = inner
-                .windows
-                .back_mut()
-                .filter(|w| !w.full(max_bytes, max_records));
+            let mut last = if fresh {
+                None
+            } else {
+                inner
+                    .windows
+                    .back_mut()
+                    .filter(|w| !w.full(max_bytes, max_records))
+            };
             let (room_bytes, room_records) = last.as_ref().map_or((max_bytes, max_records), |w| {
                 (
                     max_bytes.saturating_sub(w.bytes),
@@ -39,20 +46,17 @@ impl NodeLogCommitter {
             // ALLOC: the records joining one window, moved in, bounded by its record limit.
             let (mut bytes, mut taken) = (0u64, Vec::new());
             while let Some(next) = rest.peek() {
-                if u64::try_from(taken.len()).unwrap_or(u64::MAX) >= room_records {
-                    break;
-                }
-                if !taken.is_empty() && bytes.saturating_add(next.content) > room_bytes {
-                    break;
-                }
-                if taken.is_empty()
-                    && next.content > room_bytes
-                    && let Some(w) = last.as_deref_mut()
+                if taken.is_empty() {
+                    if let Some(w) = last.as_deref_mut().filter(|_| next.content > room_bytes) {
+                        // Does not fit what is left of a window others
+                        // joined (an open window always holds records): it
+                        // starts the next one.
+                        w.close_early = true;
+                        break;
+                    }
+                } else if u64::try_from(taken.len()).unwrap_or(u64::MAX) >= room_records
+                    || bytes.saturating_add(next.content) > room_bytes
                 {
-                    // Does not fit what is left of a window others joined
-                    // (an open window always holds records): it starts the
-                    // next one.
-                    w.close_early = true;
                     break;
                 }
                 bytes = bytes.saturating_add(next.content);
@@ -63,12 +67,14 @@ impl NodeLogCommitter {
             }
             if taken.is_empty() {
                 // The open window was closed for it; the next pass opens one.
+                fresh = true;
                 self.changed.notify_all();
                 continue;
             }
-            let Some(window) = self.join(inner, shard, term, taken) else {
+            let Some(window) = self.join(inner, shard, term, taken, fresh) else {
                 break;
             };
+            fresh = false;
             if rest.peek().is_some() {
                 // More of this shard's records follow: this window is as
                 // full as it gets.
@@ -83,19 +89,22 @@ impl NodeLogCommitter {
         joined
     }
 
-    /// Adds to the youngest window that takes them, or opens one.
+    /// Adds to the youngest window that takes them, or opens one; `fresh`
+    /// always opens one.
     fn join<'i>(
         &self,
         inner: &'i mut Inner,
         shard: &ShardKey,
         term: i64,
         records: Vec<Counted>,
+        fresh: bool,
     ) -> Option<&'i mut Window> {
         let (max_bytes, max_records) = (self.config.max_bytes, self.config.max_records);
-        if inner
-            .windows
-            .back()
-            .is_none_or(|w| w.full(max_bytes, max_records))
+        if fresh
+            || inner
+                .windows
+                .back()
+                .is_none_or(|w| w.full(max_bytes, max_records))
         {
             let now = Instant::now();
             let mut closes_at = now.checked_add(self.config.window).unwrap_or(now);

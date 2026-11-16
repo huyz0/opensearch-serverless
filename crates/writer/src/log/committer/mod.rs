@@ -316,8 +316,13 @@ impl NodeLogCommitter {
                 // Not in flight and not waiting: nothing can land it.
                 break;
             };
-            let left = head.closes_at.saturating_duration_since(Instant::now());
-            if !head.full(self.config.max_bytes, self.config.max_records) && !left.is_zero() {
+            // Due once full or out of time; else it lingers for the rest.
+            let full = head.full(self.config.max_bytes, self.config.max_records);
+            let left = head
+                .closes_at
+                .checked_duration_since(Instant::now())
+                .filter(|left| !left.is_zero());
+            if let (false, Some(left)) = (full, left) {
                 inner = self
                     .changed
                     .wait_timeout(inner, left)
