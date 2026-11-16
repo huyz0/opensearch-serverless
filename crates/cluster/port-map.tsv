@@ -22,3 +22,10 @@ tests/placement/main.rs	new		test support: the recorded fleet
 tests/placement/java.rs	new		hashes, owners, reader ranks and zone choice against the Java
 tests/placement/fleet.rs	new		fleet decisions against the Java
 tests/placement/spread.rs	new		hot-shard spread properties
+src/routing/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/routing/ShardMode.java@429b4cbc	ShardMode re-exported from oss-format; the errors the Java throws as IllegalArgument and IllegalState
+src/routing/hash.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/routing/RoutingHash.java@429b4cbc	of, declaredShard, firstHashOf, lastHashOf; with server/src/main/java/org/opensearch/common/hash/MurmurHash3.java@3.3.0 hash128 h1 at seed 0
+src/routing/layout.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/routing/UnitLayout.java@429b4cbc	the constructor's checks, initial, unitFor, unitsOf, needsFilter, planSplit, withPending, withoutPending, apply, merge, unit; within_shard_limit is IndexDescriptor.MAX_SHARDS on the slots
+src/routing/document.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/ops/DocumentRouting.java@429b4cbc	shardFor, shardsForSearch, normalize, searchRoutings, with server/src/main/java/org/opensearch/cluster/routing/OperationRouting.java@3.3.0 generateShardId (partition offset; routing shards equal to shards, as the shell renders them); the mapping's _routing.required check stays with the caller that has the mapping; virtual shards are not routed
+tests/routing/main.rs	new		test support: fixture rows
+tests/routing/hashes.rs	new		hashes, bounds, legacy shards and unit routing of 10,000 ids against the Java
+tests/routing/layouts.rs	new		layout format, lookups, splits, merges and refusals against the Java

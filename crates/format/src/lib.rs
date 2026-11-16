@@ -47,6 +47,7 @@ mod reclaim_intent;
 mod register;
 mod segment_blob;
 mod tombstone;
+mod unit_layout;
 
 pub use alias_record::{ALIAS_DISCRIMINATOR, AliasMutation, AliasRecord};
 pub use change_stripe::{
@@ -93,3 +94,4 @@ pub mod segment_blob_format {
 pub mod manifest_format {
     pub use crate::manifest::MAX_FILES;
 }
+pub use unit_layout::{MAX_UNIT_LAYOUT_BYTES, ShardMode, UnitLayoutRecord, UnitRecord};
