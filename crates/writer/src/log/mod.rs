@@ -8,15 +8,23 @@
 //! nothing here lists. Appends are create-if-absent, so a fence in a slot
 //! stops the writer there.
 
+mod committer;
+mod epochs;
 mod fence;
 mod hedge;
+mod hedge_delay;
+pub mod settings;
 mod store;
+mod window;
 
 use std::fmt;
 
 use oss_blob::BlobError;
 use oss_format::FormatError;
 
+pub use committer::{
+    CommitError, CommitterConfig, EpochLease, NodeLogCommitter, Position, Refusal, ShardAdmission,
+};
 pub use hedge::{HedgeOutcome, Spawn, ThreadPerPut};
 pub use store::{HEADER_PROBE_BYTES, MAX_READ_BYTES, NodeLogStore};
 

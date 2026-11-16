@@ -3,6 +3,11 @@
 # Mutants listed here are equivalent: no test can tell them apart from the
 # original, so they would only ever be reported as missed. Each names why.
 exclude_re = [
+    # A writer whose window another drives waits on the window's latch
+    # without the lock; one that gives up at once takes the lock and waits
+    # for the same window in the committer's own loop instead, and is told
+    # the same result.
+    "crates/writer/src/log/window.rs:.*replace Latch::wait -> .* with None",
     # The transport wire packs fields into disjoint bits (a status byte's
     # flags, a varint's continuation bit over seven value bits, a char's
     # UTF-8-style lead and continuation bits, a version id below the mask
