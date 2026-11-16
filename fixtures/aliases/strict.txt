@@ -1,0 +1,10 @@
+{"alias":5,"indices":["a"]}
+{"alias":"x","indices":[1,null,true]}
+{"alias":"x","indices":[["a"],{"b":1}]}
+{"alias":"x","indices":["a"],"data_stream":"true"}
+{"alias":"x","indices":["a"],"data_stream":1}
+{"alias":"x","indices":["a"],"generation":3.9}
+{"alias":"x","indices":["a"],"generation":9223372036854775808}
+{"alias":"x","indices":["a"],"timestamp_field":5}
+{"alias":"x","indices":["a","b"],"write_index":1}
+{"alias":"x","indices":["a"]} trailing

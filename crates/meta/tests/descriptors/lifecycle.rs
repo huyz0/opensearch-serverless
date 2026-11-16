@@ -5,7 +5,7 @@ use std::borrow::Cow;
 use oss_blob::SwapOutcome;
 use oss_blob::register::ABSENT_GENERATION;
 use oss_format::{FormatError, IndexRecord, Tombstone};
-use oss_meta::{DeleteMode, MetaError, NameRule, REAP_HANDOFF_MILLIS, Target};
+use oss_meta::{AliasRecord, DeleteMode, MetaError, NameRule, REAP_HANDOFF_MILLIS, Target};
 
 use crate::{BASE, all, counted};
 
@@ -195,7 +195,7 @@ fn a_name_a_sweep_claimed_under_a_minute_ago_is_refused() {
 fn an_alias_is_not_an_index_and_holds_its_name() {
     for b in all() {
         let d = b.descriptors(DeleteMode::Tombstone);
-        let alias = br#"{"name":"al","alias":{"indices":["logs"]}}"#;
+        let alias = br#"{"alias":"al","indices":["logs"]}"#;
         let g = match b
             .store
             .create_register(&format!("{BASE}indices/al"), alias)
@@ -208,7 +208,10 @@ fn an_alias_is_not_an_index_and_holds_its_name() {
         assert_eq!(d.get("al", &mut buf).unwrap(), None, "{:?}", b.kind);
         let resolved = d.resolve_raw("al", &mut buf).unwrap();
         assert_eq!(resolved.generation, g);
-        assert_eq!(resolved.target, Target::Alias(alias));
+        assert_eq!(
+            resolved.target,
+            Target::Alias(AliasRecord::new("al", &["logs"]))
+        );
         assert!(matches!(
             d.create(&record("al", "u"), NOW, &mut buf),
             Err(MetaError::AlreadyExists)

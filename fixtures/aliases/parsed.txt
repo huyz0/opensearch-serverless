@@ -1,0 +1,76 @@
+{"alias":"logs","indices":["a","b"]}
+-	-	false	false	true
+{"alias":"logs","indices":["only"]}
+-	only	false	false	false
+{"alias":"x","indices":["a","a"]}
+-	-	false	false	false
+{"alias":"","indices":[""]}
+-		false	false	false
+{"alias":"later-name-first","indices":["a"]}
+-	a	false	false	false
+{"alias":"x","indices":["a","b"],"write_index":"b"}
+b	b	false	false	true
+{"alias":"x","indices":["a","b"]}
+-	-	false	false	true
+{"alias":"x","indices":["a"],"write_index":"a"}
+a	a	false	false	false
+{"alias":"ds","indices":["ds-1","ds-2"],"data_stream":true,"generation":3,"timestamp_field":"@timestamp"}
+ds-2	ds-2	false	false	false
+{"alias":"ds","indices":["ds-1"],"data_stream":true,"generation":0,"timestamp_field":null}
+ds-1	ds-1	false	false	false
+{"alias":"ds","indices":["ds-1","ds-2"],"data_stream":true,"generation":2,"timestamp_field":null}
+ds-2	ds-2	false	false	false
+{"alias":"ds","indices":["ds-1"]}
+-	ds-1	false	false	false
+{"alias":"ds","indices":["ds-1"],"data_stream":true,"generation":-9223372036854775808,"timestamp_field":"t"}
+ds-1	ds-1	false	false	false
+{"alias":"x","indices":["a"],"mutation":{"until":5,"creating":true,"additions":["b"]}}
+-	a	true	true	true
+{"alias":"x","indices":["a"],"mutation":{"until":1763164800123,"creating":false,"additions":[]}}
+-	a	false	true	false
+{"alias":"x","indices":["a"],"mutation":{"until":9223372036854775807,"creating":false,"additions":["b","c"]}}
+-	a	false	true	true
+{"alias":"x","indices":["a","b"],"write_index":"a","mutation":{"until":5,"creating":false,"additions":["b"]}}
+a	a	false	true	true
+{"alias":"x","indices":["a"]}
+-	a	false	false	false
+{"alias":"esc\u0001/\"\\ été 日本","indices":["i/1","\u001F"]}
+-	-	false	false	false
+refused
+-
+refused
+-
+refused
+-
+refused
+-
+refused
+-
+refused
+-
+refused
+-
+refused
+-
+refused
+-
+refused
+-
+refused
+-
+refused
+-
+refused
+-
+refused
+-
+refused
+-
+refused
+-
+refused
+-
+refused
+-
+refused
+-

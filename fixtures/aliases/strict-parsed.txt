@@ -1,0 +1,20 @@
+{"alias":"5","indices":["a"]}
+-	a	false	false	false
+{"alias":"x","indices":["1","null","true"]}
+-	-	false	false	false
+{"alias":"x","indices":["[a]","{b=1}"]}
+-	-	false	false	false
+{"alias":"x","indices":["a"]}
+-	a	false	false	false
+{"alias":"x","indices":["a"]}
+-	a	false	false	false
+{"alias":"x","indices":["a"]}
+-	a	false	false	false
+{"alias":"x","indices":["a"]}
+-	a	false	false	false
+{"alias":"x","indices":["a"]}
+-	a	false	false	false
+{"alias":"x","indices":["a","b"]}
+-	-	false	false	true
+{"alias":"x","indices":["a"]}
+-	a	false	false	false
