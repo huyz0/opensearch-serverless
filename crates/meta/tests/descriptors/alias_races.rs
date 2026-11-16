@@ -3,13 +3,18 @@
 
 use std::sync::{Arc, Mutex};
 
-use oss_blob::BlobStore;
+use oss_blob::S3Op::Get;
+use oss_blob::{BlobStore, SwapOutcome};
 use oss_format::descriptor_key;
-use oss_meta::{AliasClock, AliasMutations, AliasRecord, DeleteMode, DescriptorStore, MetaError};
+use oss_meta::{
+    AliasClock, AliasMutations, AliasRecord, DeleteMode, DescriptorStore, MetaError, Target,
+};
 
-use crate::alias_mutations::{NOW, TTL, at_now, crashed, hints, index, mutations, no_pause, raw};
+use crate::alias_mutations::{
+    NOW, TTL, at_now, crashed, hints, index, mutations, names, no_pause, raw,
+};
 use crate::probe::{Quirk, Quirky};
-use crate::{BASE, all};
+use crate::{BASE, all, counted};
 
 /// A descriptor store over a store that runs `hook` once armed.
 fn hooked(hook: impl Fn(&dyn BlobStore) + Send + Sync + 'static) -> (DescriptorStore, Arc<Quirky>) {
@@ -62,7 +67,10 @@ fn a_reservation_taken_over_mid_preparation_is_superseded() {
     quirky.arm(3);
     let got = m.update_alias(&before, &AliasRecord::new("al", &["a", "b"]), g);
     assert!(matches!(got, Err(MetaError::Superseded)), "{got:?}");
-    assert!(hints(&d, "b").is_empty());
+    // The abort's restore lost to the takeover, which stands.
+    let now = raw(&d, "al").unwrap();
+    assert!(now.alias.mutation_pending());
+    assert_ne!(now.generation, g);
 }
 
 #[test]
@@ -167,12 +175,68 @@ fn a_hint_is_kept_while_the_alias_names_its_index_again() {
     let mut m = mutations(&d, &at_now);
     let before = AliasRecord::new("al", &["a", "b"]);
     let g = m.create_alias(&before).unwrap();
-    // The reservation, `b`'s two reads, the publishing swap, the read of
-    // `a`, then the alias's read before `a`'s hint is removed.
-    quirky.arm(6);
+    // The reservation, the publishing swap, the read of `a`, then the
+    // alias's read before `a`'s hint is removed.
+    quirky.arm(4);
     m.update_alias(&before, &AliasRecord::new("al", &["b"]), g)
         .unwrap()
         .unwrap();
     assert_eq!(raw(&d, "al").unwrap().alias.indices, ["a", "b"]);
     assert_eq!(hints(&d, "a"), ["al"], "a member keeps its hint");
+}
+
+#[test]
+fn an_alias_that_keeps_changing_is_counted_as_left() {
+    let quirky = Arc::new(Quirky::new(Quirk::ConflictSwaps(u32::MAX)));
+    let d = DescriptorStore::new(quirky.clone(), BASE, DeleteMode::Tombstone).unwrap();
+    let alias = AliasRecord::new("al", &["a", "b"]);
+    let mut buf = [0u8; 4096];
+    let len = alias.write(&mut buf).unwrap();
+    let key = descriptor_key(BASE, "al").unwrap();
+    assert!(matches!(
+        quirky.inner.create_register(&key, &buf[..len]).unwrap(),
+        SwapOutcome::Applied(_)
+    ));
+    let mut m = mutations(&d, &at_now);
+    let (left, sent) = counted(quirky.meter(), || {
+        m.detach_from_aliases("a", &names(&["al"])).unwrap()
+    });
+    assert_eq!(left, 1);
+    assert_eq!(
+        sent,
+        [(Get, 4)],
+        "four reads, each swap refused, then given up"
+    );
+}
+
+#[test]
+fn a_hinted_addition_is_swapped_again_to_fence_a_removal() {
+    let b = &all()[0];
+    let d = b.descriptors(DeleteMode::Tombstone);
+    index(&d, "a");
+    index(&d, "b");
+    let mut m = mutations(&d, &at_now);
+    let before = AliasRecord::new("al", &["a"]);
+    let g = m.create_alias(&before).unwrap();
+    // `b` keeps a hint from an earlier membership that a removal, having
+    // read `b`, is about to drop.
+    let mut buf = [0u8; 4096];
+    let mut read = [0u8; 4096];
+    let current = d.resolve_raw("b", &mut read).unwrap();
+    let Target::Index(mut record) = current.target else {
+        panic!("b is an index");
+    };
+    record.aliased_by.push("al".into());
+    let stale = d
+        .update(&record, current.generation, &mut buf)
+        .unwrap()
+        .unwrap();
+    m.update_alias(&before, &AliasRecord::new("al", &["a", "b"]), g)
+        .unwrap()
+        .unwrap();
+    // The preparation swapped `b` though its hint was there, so the
+    // removal's swap from what it read loses.
+    record.aliased_by.clear();
+    assert_eq!(d.update(&record, stale, &mut buf).unwrap(), None);
+    assert_eq!(hints(&d, "b"), ["al"]);
 }

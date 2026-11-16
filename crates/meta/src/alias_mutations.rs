@@ -7,9 +7,11 @@
 //!
 //! 1. **Reserve:** the alias register is written with a pending mutation
 //!    that names the members it adds and a deadline.
-//! 2. **Prepare:** every member's descriptor gains the alias in its
-//!    `aliased_by` hint, each swap checking that the reservation still
-//!    holds.
+//! 2. **Prepare:** every member it adds gains the alias in its
+//!    descriptor's `aliased_by` hint, each swap checking that the
+//!    reservation still holds. Members already in the alias keep theirs,
+//!    so a change costs requests per member it adds or removes, never per
+//!    member it keeps; the Java reads every member.
 //! 3. **Publish:** the alias register is swapped to the new membership.
 //!    Hints of members it dropped are then removed.
 //!
@@ -79,7 +81,9 @@ pub struct AliasMutations<'a> {
 
 impl<'a> AliasMutations<'a> {
     /// Mutations over `descriptors`, a reservation lasting
-    /// `lease_ttl_millis`, through registers of at most `register_bytes`.
+    /// `lease_ttl_millis`, through registers of at most `register_bytes`:
+    /// a longer register is refused as too large. Keep one a writer; its
+    /// buffers are taken once.
     pub fn new(
         descriptors: &'a DescriptorStore,
         clock: AliasClock<'a>,
@@ -150,15 +154,22 @@ impl<'a> AliasMutations<'a> {
     ///
     /// # Errors
     ///
-    /// [`MetaError::MissingMember`] for an added member that is no index,
-    /// after which the reservation is undone; [`MetaError::Superseded`]
-    /// when the reservation was recovered while hints were prepared.
+    /// [`MetaError::InvalidArgument`] when `before` and `alias` name
+    /// different aliases, before any request; [`MetaError::MissingMember`]
+    /// for an added member that is no index, after which the reservation is
+    /// undone; [`MetaError::Superseded`] when the reservation was recovered
+    /// while hints were prepared.
     pub fn update_alias(
         &mut self,
         before: &AliasRecord<'_>,
         alias: &AliasRecord<'_>,
         expected: u64,
     ) -> Result<Option<u64>, MetaError> {
+        if before.name != alias.name {
+            return Err(MetaError::InvalidArgument(
+                "an alias update keeps the alias's name",
+            ));
+        }
         if before.mutation_pending() {
             self.recover(&alias.name)?;
             return Ok(None);
@@ -377,7 +388,10 @@ impl<'a> AliasMutations<'a> {
         target: &AliasRecord<'static>,
         reserved: u64,
     ) -> Result<Option<u64>, MetaError> {
-        for index in &target.indices {
+        // Only the members the mutation adds: one already a member keeps its
+        // hint, because every removal first reads the alias, and the
+        // reservation still names it. The Java reads every member.
+        for index in pending.pending_additions() {
             self.prepare_hint(index, pending, reserved)?;
         }
         self.descriptors
@@ -400,26 +414,21 @@ impl<'a> AliasMutations<'a> {
         Ok(())
     }
 
-    /// Adds `pending`'s alias to `index`'s hint, each swap after checking
-    /// the reservation still holds. A hint already there is swapped again
-    /// for a member the mutation adds, so a removal that read the index
-    /// before it loses.
+    /// Adds `pending`'s alias to the hint of `index`, a member it adds, each
+    /// swap after checking the reservation still holds. A hint already
+    /// there is swapped again, so a removal that read the index before it
+    /// loses.
     fn prepare_hint(
         &mut self,
         index: &str,
         pending: &AliasRecord<'static>,
         reserved: u64,
     ) -> Result<(), MetaError> {
-        let adds = pending.pending_additions().iter().any(|a| a == index);
         for _ in 0..ATTEMPTS {
             let current = self.descriptors.resolve_raw(index, &mut self.index_buf)?;
             let Target::Index(mut record) = current.target else {
-                if adds {
-                    // ALLOC: the missing member's name, once, for the error.
-                    return Err(MetaError::MissingMember(index.to_owned()));
-                }
-                // An alias may keep naming a deleted index, to say it is gone.
-                return Ok(());
+                // ALLOC: the missing member's name, once, for the error.
+                return Err(MetaError::MissingMember(index.to_owned()));
             };
             let owner = self
                 .descriptors
@@ -429,9 +438,9 @@ impl<'a> AliasMutations<'a> {
                 return Err(MetaError::Superseded);
             }
             if !record.aliased_by.contains(&pending.name) {
+                // ALLOC: one name; a hint that outgrows the register fails
+                // the write below, which aborts the mutation.
                 record.aliased_by.push(Cow::Borrowed(&pending.name));
-            } else if !adds {
-                return Ok(());
             }
             if self
                 .descriptors

@@ -4,19 +4,16 @@
 
 use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
-use std::sync::Arc;
 use std::time::Duration;
 
 use oss_blob::S3Op::{Get, GetRange, Put};
-use oss_blob::{BlobStore, SwapOutcome};
-use oss_format::{AliasMutation, IndexRecord, descriptor_key};
+use oss_format::{AliasMutation, IndexRecord};
 use oss_meta::{
     AliasAt, AliasClock, AliasMutations, AliasRecord, DeleteMode, DescriptorStore, MetaError,
     Target,
 };
 
-use crate::probe::{Quirk, Quirky};
-use crate::{BASE, all, counted};
+use crate::{all, counted};
 
 pub(crate) const NOW: i64 = 1_763_164_800_000;
 pub(crate) const TTL: i64 = 30_000;
@@ -185,12 +182,12 @@ fn an_update_hints_added_members_and_unhints_removed_ones() {
         let after = AliasRecord::new("al", &["b", "c"]);
         let (moved, sent) = counted(b.meter(), || m.update_alias(&before, &after, g).unwrap());
         let moved = moved.unwrap();
-        // The reservation's swap; `b`, already hinted, read with the
-        // reservation and left; `c` read, checked and swapped; the
-        // publishing swap; `a` read, the alias read, and `a` swapped.
+        // The reservation's swap; `c` read, the reservation read, and `c`
+        // swapped; the publishing swap; `a` read, the alias read, and `a`
+        // swapped. `b`, kept, costs nothing.
         assert_eq!(
             sent,
-            b.budget(&[(Get, 6), (Put, 4)], &[(Get, 6), (GetRange, 4), (Put, 4)]),
+            b.budget(&[(Get, 4), (Put, 4)], &[(Get, 4), (GetRange, 4), (Put, 4)]),
             "{:?}",
             b.kind
         );
@@ -211,6 +208,19 @@ fn an_update_hints_added_members_and_unhints_removed_ones() {
         assert_eq!(sent, [(GetRange, 1)], "{:?}", b.kind);
         assert_eq!(hints(&d, "b"), ["al"]);
     }
+}
+
+#[test]
+fn an_update_cannot_rename_an_alias() {
+    let b = &all()[0];
+    let d = b.descriptors(DeleteMode::Tombstone);
+    let mut m = mutations(&d, &at_now);
+    let before = AliasRecord::new("al", &["a"]);
+    let (got, sent) = counted(b.meter(), || {
+        m.update_alias(&before, &AliasRecord::new("other", &["a"]), 1)
+    });
+    assert!(matches!(got, Err(MetaError::InvalidArgument(_))), "{got:?}");
+    assert!(sent.is_empty());
 }
 
 #[test]
@@ -249,7 +259,16 @@ fn an_expired_reservation_is_recovered_by_the_next_writer() {
         // A deadline of now has passed: the Java recovers once it is not after now.
         crashed(&d, &alias, g, &["b"], false, NOW);
         assert_eq!(hints(&d, "b"), ["al"]);
-        let read = m.resolve_for_mutation("al").unwrap().unwrap();
+        let (read, sent) = counted(b.meter(), || m.resolve_for_mutation("al").unwrap());
+        // The read; the published record restored; `b` read, the alias read,
+        // `b` swapped; the read of what is left.
+        assert_eq!(
+            sent,
+            b.budget(&[(Get, 4), (Put, 2)], &[(Get, 4), (GetRange, 2), (Put, 2)]),
+            "{:?}",
+            b.kind
+        );
+        let read = read.unwrap();
         assert_eq!(read.alias, alias, "{:?}", b.kind);
         assert!(hints(&d, "b").is_empty());
         assert_eq!(hints(&d, "a"), ["al"]);
@@ -281,7 +300,16 @@ fn an_abandoned_creation_is_deleted_by_the_next_writer() {
             ..alias.clone()
         };
         d.create_alias(&pending, NOW, &mut [0u8; 4096]).unwrap();
-        assert_eq!(m.resolve_for_mutation("al").unwrap(), None);
+        let (got, sent) = counted(b.meter(), || m.resolve_for_mutation("al").unwrap());
+        // The read; the creation deleted, marker then tombstone; `a` read,
+        // the alias read, `a` swapped as a fence; the read of what is left.
+        assert_eq!(
+            sent,
+            b.budget(&[(Get, 4), (Put, 3)], &[(Get, 4), (GetRange, 2), (Put, 3)]),
+            "{:?}",
+            b.kind
+        );
+        assert_eq!(got, None);
         assert_eq!(raw(&d, "al"), None, "{:?}", b.kind);
         m.create_alias(&alias).unwrap();
         assert_eq!(hints(&d, "a"), ["al"]);
@@ -377,9 +405,20 @@ fn deleting_an_alias_unhints_its_members() {
         let mut m = mutations(&d, &at_now);
         let alias = AliasRecord::new("al", &["a"]);
         let g = m.create_alias(&alias).unwrap();
-        assert!(!m.delete_alias(&alias, g + 1).unwrap());
+        let (got, sent) = counted(b.meter(), || m.delete_alias(&alias, g + 1).unwrap());
+        // The marker, then the refused swap.
+        assert_eq!(sent, [(GetRange, 1), (Put, 1)], "{:?}", b.kind);
+        assert!(!got);
         assert_eq!(hints(&d, "a"), ["al"]);
-        assert!(m.delete_alias(&alias, g).unwrap());
+        let (got, sent) = counted(b.meter(), || m.delete_alias(&alias, g).unwrap());
+        // The marker and the tombstone; `a` read, the alias read, `a` swapped.
+        assert_eq!(
+            sent,
+            b.budget(&[(Get, 2), (Put, 3)], &[(Get, 2), (GetRange, 2), (Put, 3)]),
+            "{:?}",
+            b.kind
+        );
+        assert!(got);
         assert_eq!(raw(&d, "al"), None, "{:?}", b.kind);
         assert!(hints(&d, "a").is_empty());
     }
@@ -413,7 +452,17 @@ fn a_deleted_index_leaves_its_aliases_but_the_last_keeps_naming_it() {
         });
         assert_eq!((left, sent), (0, vec![(Get, 1)]), "{:?}", b.kind);
         let hinted = names(&["both", "only", "busy", "gone"]);
-        assert_eq!(m.detach_from_aliases("a", &hinted).unwrap(), 0);
+        let (left, sent) = counted(b.meter(), || m.detach_from_aliases("a", &hinted).unwrap());
+        // `both` read and swapped; `only` read; `busy` read, its mutation
+        // aborted (a swap, then `c` read, `busy` read, `c` swapped) and read
+        // again; `gone` read.
+        assert_eq!(
+            sent,
+            b.budget(&[(Get, 7), (Put, 3)], &[(Get, 7), (GetRange, 3), (Put, 3)]),
+            "{:?}",
+            b.kind
+        );
+        assert_eq!(left, 0);
         assert_eq!(
             raw(&d, "both").unwrap().alias.indices,
             ["b"],
@@ -426,30 +475,6 @@ fn a_deleted_index_leaves_its_aliases_but_the_last_keeps_naming_it() {
         assert_eq!(busy.indices, ["a"]);
         assert!(hints(&d, "c").is_empty());
     }
-}
-
-#[test]
-fn an_alias_that_keeps_changing_is_counted_as_left() {
-    let quirky = Arc::new(Quirky::new(Quirk::ConflictSwaps(u32::MAX)));
-    let d = DescriptorStore::new(quirky.clone(), BASE, DeleteMode::Tombstone).unwrap();
-    let alias = AliasRecord::new("al", &["a", "b"]);
-    let mut buf = [0u8; 4096];
-    let len = alias.write(&mut buf).unwrap();
-    let key = descriptor_key(BASE, "al").unwrap();
-    assert!(matches!(
-        quirky.inner.create_register(&key, &buf[..len]).unwrap(),
-        SwapOutcome::Applied(_)
-    ));
-    let mut m = mutations(&d, &at_now);
-    let (left, sent) = counted(quirky.meter(), || {
-        m.detach_from_aliases("a", &names(&["al"])).unwrap()
-    });
-    assert_eq!(left, 1);
-    assert_eq!(
-        sent,
-        [(Get, 4)],
-        "four reads, each swap refused, then given up"
-    );
 }
 
 #[test]
