@@ -5,7 +5,7 @@
 mod common;
 
 use chunkjson::{Config, Error, ErrorKind, Event, Framing, Position, Sink, Tokenizer};
-use common::{feed_chunked, parse_chunked};
+use common::{feed_chunked, parse_chunked, position_of};
 use proptest::prelude::*;
 use serde_json::{Map, Number, Value};
 
@@ -243,17 +243,6 @@ fn push_starts(text: &[u8], sizes: &[usize], config: Config) -> Vec<Position> {
         k += 1;
     }
     sink.0
-}
-
-/// Where `offset` is in `text`, counted from scratch.
-fn position_of(text: &[u8], offset: u64) -> (u64, u64) {
-    let before = &text[..offset as usize];
-    let line = 1 + before.iter().filter(|&&b| b == b'\n').count() as u64;
-    let line_start = before
-        .iter()
-        .rposition(|&b| b == b'\n')
-        .map_or(0, |i| i + 1);
-    (line, offset - line_start as u64 + 1)
 }
 
 proptest! {

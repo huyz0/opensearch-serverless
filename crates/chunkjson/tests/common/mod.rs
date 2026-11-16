@@ -17,6 +17,24 @@ pub struct Builder {
     pub longest_fragment: usize,
 }
 
+/// Where `offset` is in `text`, counted from scratch.
+pub fn position_of(text: &[u8], offset: u64) -> (u64, u64) {
+    let before = &text[..offset as usize];
+    let line = 1 + before.iter().filter(|&&b| b == b'\n').count() as u64;
+    let line_start = before
+        .iter()
+        .rposition(|&b| b == b'\n')
+        .map_or(0, |i| i + 1);
+    (line, offset - line_start as u64 + 1)
+}
+
+/// The value of a number's text. Text past f64 range, which the tokenizer
+/// accepts and serde_json refuses, becomes a string naming it, so it never
+/// equals a value serde_json built.
+fn number(n: &str) -> Value {
+    serde_json::from_str(n).unwrap_or_else(|_| Value::String(format!("<number {n}>")))
+}
+
 impl Builder {
     fn put(&mut self, v: Value) {
         match self.stack.last_mut() {
@@ -60,7 +78,7 @@ impl Builder {
                     self.put(Value::String(s));
                 }
             }
-            Event::Number(n) => self.put(serde_json::from_str(n).expect("number text parses")),
+            Event::Number(n) => self.put(number(n)),
             Event::Bool(b) => self.put(Value::Bool(b)),
             Event::Null => self.put(Value::Null),
             Event::EndDocument { start, end } => self.ranges.push((start, end)),
