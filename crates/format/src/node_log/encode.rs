@@ -2,6 +2,7 @@
 //! or a fence.
 
 use std::borrow::Cow;
+use std::collections::HashMap;
 
 use super::{
     EncodedNodeLog, FENCE_MAGIC, MAX_HEADER_BYTES, MAX_SLICE_BYTES, MIN_INDEX_BYTES, NodeLogHeader,
@@ -33,7 +34,7 @@ pub fn encode(
     ordinal: u64,
     trim_point: u64,
     batches: &[ShardBatch<'_>],
-    prior: &[(ShardKey<'_>, Vec<OrdinalRange>)],
+    prior: &[(ShardKey, Vec<OrdinalRange>)],
 ) -> Result<EncodedNodeLog, FormatError> {
     if trim_point > ordinal {
         return Err(corrupt(WHAT, "the trim point is past the blob's ordinal"));
@@ -44,12 +45,12 @@ pub fn encode(
         (as_i64(epoch)?, as_i64(ordinal)?, as_i64(trim_point)?);
 
     // The running index: prior runs trimmed, then this ordinal for each shard written.
-    // ALLOC: one entry a shard with unpublished records; the node's own state, already held.
-    let mut index: Vec<(ShardKey<'static>, Vec<OrdinalRange>)> = Vec::with_capacity(prior.len());
+    // ALLOC: one entry a shard with unpublished records; keys share the caller's strings.
+    let mut index: Vec<(ShardKey, Vec<OrdinalRange>)> = Vec::with_capacity(prior.len());
     for (shard, runs) in prior {
         let kept = trim_below(runs, trim_point);
         if !kept.is_empty() {
-            index.push((shard.clone().into_owned(), kept));
+            index.push((shard.clone(), kept));
         }
     }
     index.sort_by(|a, b| a.0.cmp(&b.0));
@@ -60,7 +61,7 @@ pub fn encode(
         return Err(corrupt(WHAT, "a shard is in the prior index twice"));
     }
     // ALLOC: one entry a non-empty batch of the window.
-    let mut slices: Vec<Slice<'static>> = Vec::with_capacity(batches.len());
+    let mut slices: Vec<Slice> = Vec::with_capacity(batches.len());
     let mut body_len = 0u64;
     for batch in batches.iter().filter(|b| !b.records.is_empty()) {
         if batch.shard.shard > i32::MAX as u32 {
@@ -74,14 +75,8 @@ pub fn encode(
         }
         // One newline between records.
         length = length.saturating_add(len64(batch.records.len()).saturating_sub(1));
-        if length > MAX_SLICE_BYTES {
-            return Err(FormatError::TooLarge {
-                what: WHAT,
-                limit: MAX_SLICE_BYTES,
-                actual: length,
-            });
-        }
-        let shard = batch.shard.clone().into_owned();
+        within(length, MAX_SLICE_BYTES)?;
+        let shard = batch.shard.clone();
         match index.binary_search_by(|(k, _)| k.cmp(&shard)) {
             Ok(at) => {
                 let runs = index
@@ -118,26 +113,31 @@ pub fn encode(
     // ALLOC: one entry an index named, at most one a slice or index entry.
     let mut names: Vec<(&str, Option<&str>)> =
         Vec::with_capacity(slices.len().saturating_add(index.len()));
+    // ALLOC: as above: each uuid's position in `names`.
+    let mut positions: HashMap<&str, usize> = HashMap::with_capacity(names.capacity());
     for shard in slices
         .iter()
         .map(|s| &s.shard)
         .chain(index.iter().map(|(k, _)| k))
     {
-        match names.iter_mut().find(|(uuid, _)| *uuid == shard.index_uuid) {
+        let uuid: &str = &shard.index_uuid;
+        match positions.get(uuid).and_then(|&p| names.get_mut(p)) {
             Some(entry) => {
                 if let Some(name) = shard.index_name.as_deref() {
                     entry.1 = Some(name);
                 }
             }
-            None => names.push((&shard.index_uuid, shard.index_name.as_deref())),
+            None => {
+                positions.insert(uuid, names.len());
+                names.push((uuid, shard.index_name.as_deref()));
+            }
         }
     }
-    let position = |shard: &ShardKey<'_>| -> i32 {
-        names
-            .iter()
-            .position(|(uuid, _)| *uuid == shard.index_uuid)
-            .and_then(|p| i32::try_from(p).ok())
-            .unwrap_or(-1)
+    let position = |shard: &ShardKey| -> Result<i32, FormatError> {
+        positions
+            .get(&*shard.index_uuid)
+            .and_then(|&p| i32::try_from(p).ok())
+            .ok_or(corrupt(WHAT, "a shard's index is not named"))
     };
 
     let mut header_len = 2usize
@@ -155,13 +155,7 @@ pub fn encode(
             .saturating_add(MIN_INDEX_BYTES)
             .saturating_add(runs.len().saturating_mul(RUN_BYTES));
     }
-    if len64(header_len) > u64::from(MAX_HEADER_BYTES) {
-        return Err(FormatError::TooLarge {
-            what: WHAT,
-            limit: MAX_HEADER_BYTES.into(),
-            actual: len64(header_len),
-        });
-    }
+    within(len64(header_len), MAX_HEADER_BYTES.into())?;
     let total = usize::try_from(body_len)
         .ok()
         .and_then(|b| b.checked_add(header_len))
@@ -189,7 +183,7 @@ pub fn encode(
     }
     out.extend_from_slice(&count(slices.len()).to_be_bytes());
     for slice in &slices {
-        out.extend_from_slice(&position(&slice.shard).to_be_bytes());
+        out.extend_from_slice(&position(&slice.shard)?.to_be_bytes());
         out.extend_from_slice(&count(slice.shard.shard as usize).to_be_bytes());
         out.extend_from_slice(&slice.term.to_be_bytes());
         out.extend_from_slice(&as_i64(slice.offset)?.to_be_bytes());
@@ -202,7 +196,7 @@ pub fn encode(
         if shard.shard > i32::MAX as u32 {
             return Err(corrupt(WHAT, "a shard past an int"));
         }
-        out.extend_from_slice(&position(shard).to_be_bytes());
+        out.extend_from_slice(&position(shard)?.to_be_bytes());
         out.extend_from_slice(&count(shard.shard as usize).to_be_bytes());
         out.extend_from_slice(&count(runs.len()).to_be_bytes());
         for run in runs {
@@ -222,7 +216,7 @@ pub fn encode(
             out.extend_from_slice(record.bytes());
         }
     }
-    // ALLOC: the header's names, owned: a few bytes a shard written.
+    // ALLOC: the node id, for the returned header; shard keys share their strings.
     let node_id: Cow<'static, str> = Cow::Owned(node_id.to_owned());
     Ok(EncodedNodeLog {
         bytes: out,
@@ -236,6 +230,18 @@ pub fn encode(
             index,
         },
     })
+}
+
+/// `TooLarge` when `actual` is past `limit`.
+fn within(actual: u64, limit: u64) -> Result<(), FormatError> {
+    if actual > limit {
+        return Err(FormatError::TooLarge {
+            what: WHAT,
+            limit,
+            actual,
+        });
+    }
+    Ok(())
 }
 
 /// An `int` field of a count already bounded to fit one.
@@ -259,4 +265,23 @@ pub fn encode_fence(fenced_by: &str, term: i64) -> Result<Vec<u8>, FormatError> 
     ))?;
     out.extend_from_slice(&term.to_be_bytes());
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_length_at_its_limit_passes_and_one_past_is_too_large() {
+        assert_eq!(within(MAX_SLICE_BYTES, MAX_SLICE_BYTES), Ok(()));
+        assert_eq!(within(0, 0), Ok(()));
+        assert_eq!(
+            within(MAX_SLICE_BYTES + 1, MAX_SLICE_BYTES),
+            Err(FormatError::TooLarge {
+                what: WHAT,
+                limit: MAX_SLICE_BYTES,
+                actual: MAX_SLICE_BYTES + 1
+            })
+        );
+    }
 }

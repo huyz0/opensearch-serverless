@@ -185,6 +185,27 @@ fn a_header_breaking_a_rule_is_refused() {
 }
 
 #[test]
+fn an_index_named_twice_is_refused() {
+    let mut bytes = raw(&[], &[], &[]);
+    // Name the same uuid twice: count 2, then `u`/`x` again.
+    let names = PREFIX_BYTES + 3 + 24;
+    bytes[names..names + 4].copy_from_slice(&2i32.to_be_bytes());
+    bytes.splice(names + 10..names + 10, [0, 1, b'u', 0, 0]);
+    let length = (bytes.len() - PREFIX_BYTES) as i32;
+    bytes[5..9].copy_from_slice(&length.to_be_bytes());
+    assert_eq!(
+        refused(&bytes),
+        FormatError::Corrupt {
+            what: "node-log blob",
+            reason: "an index is named twice"
+        }
+    );
+    // A second, different uuid is fine.
+    bytes[names + 12] = b'v';
+    assert!(decode(&bytes).is_ok());
+}
+
+#[test]
 fn a_trim_point_past_the_ordinal_or_a_negative_epoch_is_refused() {
     let mut bytes = raw(&[], &[], &[]);
     // Node id is 3 bytes from the header's start; epoch, ordinal, trim follow.
@@ -223,11 +244,8 @@ fn a_prefix_of_another_kind_or_version_or_length_is_refused() {
         Err(FormatError::Corrupt { .. })
     ));
     let mut huge = good.clone();
-    huge[5..9].copy_from_slice(&(MAX_HEADER_BYTES as i32 + 1).to_be_bytes());
-    assert!(matches!(
-        header_end(&huge),
-        Err(FormatError::TooLarge { .. })
-    ));
+    // The longest length the Java can write is read: a long header is the
+    // caller's to fetch, by a ranged read sized from it.
     huge[5..9].copy_from_slice(&(MAX_HEADER_BYTES as i32).to_be_bytes());
     assert_eq!(
         header_end(&huge).unwrap(),

@@ -397,6 +397,19 @@ mod tests {
     }
 
     #[test]
+    fn every_repeated_field_is_refused_not_only_the_first() {
+        for field in FIELDS {
+            let value = match field {
+                "deleted" => "true",
+                "seq_no" | "primary_term" | "version" => "1",
+                _ => "\"x\"",
+            };
+            let json = format!(r#"{{"id":"1","source":"","{field}":{value},"{field}":{value}}}"#);
+            assert!(WalRecord::parse(json.as_bytes()).is_err(), "{json}");
+        }
+    }
+
+    #[test]
     fn a_short_buffer_reports_the_length_needed() {
         let record = WalRecord::index_unsequenced("1", "{}");
         let mut buf = [0u8; 4];

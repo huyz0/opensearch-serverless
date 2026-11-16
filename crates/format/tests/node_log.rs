@@ -125,7 +125,7 @@ fn accepted() -> HashMap<usize, EncodedWalRecord> {
         .collect()
 }
 
-fn key(uuid: &str, name: &str, shard: &str) -> ShardKey<'static> {
+fn key(uuid: &str, name: &str, shard: &str) -> ShardKey {
     ShardKey::new(
         uuid.to_owned(),
         shard.parse().unwrap(),
@@ -133,7 +133,7 @@ fn key(uuid: &str, name: &str, shard: &str) -> ShardKey<'static> {
     )
 }
 
-fn name_of(key: &ShardKey<'_>) -> String {
+fn name_of(key: &ShardKey) -> String {
     key.index_name.as_deref().unwrap_or("-").to_owned()
 }
 
@@ -191,8 +191,8 @@ fn dump(entry: &NodeLogEntry<'_>) -> String {
 
 struct Case {
     blob: Vec<String>,
-    prior: Vec<(ShardKey<'static>, Vec<OrdinalRange>)>,
-    batches: Vec<(ShardKey<'static>, i64, Vec<usize>)>,
+    prior: Vec<(ShardKey, Vec<OrdinalRange>)>,
+    batches: Vec<(ShardKey, i64, Vec<usize>)>,
 }
 
 enum Built {
@@ -332,7 +332,7 @@ fn every_java_blob_decodes_to_what_the_java_read() {
         );
         assert_eq!(h.body_offset + h.body_length(), bytes.len() as u64);
         // Every slice reads back to the records its batch held.
-        let written: Vec<&(ShardKey<'static>, i64, Vec<usize>)> =
+        let written: Vec<&(ShardKey, i64, Vec<usize>)> =
             case.batches.iter().filter(|b| !b.2.is_empty()).collect();
         assert_eq!(h.slices.len(), written.len());
         for (slice, (shard, term, lines)) in h.slices.iter().zip(written) {

@@ -26,10 +26,15 @@
 //! ordinal, trim point, shard, slice length or record count; a trim point
 //! past the blob's ordinal; slices that overlap or go back; runs that are
 //! empty, overlap or go back; a shard listed twice in the index; and bytes
-//! left over in the header.
+//! left over in the header. A header's length is bounded only by the Java's
+//! `int`, as the Java reads it: a node with many unpublished shards writes a
+//! long one, and a successor must read it. Decoding takes time linear in the
+//! header and allocates once a name in its table, shared by every entry
+//! naming that index.
 
 use std::borrow::Cow;
 use std::cmp::Ordering;
+use std::sync::Arc;
 
 use crate::error::{FormatError, corrupt};
 use crate::node_lease::java_order;
@@ -51,37 +56,38 @@ pub const FENCE_MAGIC: u32 = 0x4E4C_4746;
 pub const VERSION: u8 = 2;
 /// Magic, version and header length.
 pub const PREFIX_BYTES: usize = 4 + 1 + 4;
-/// The longest header accepted. At about 70 bytes a shard (its name once,
-/// a slice and an index entry) this is some 240,000 shards in one blob; a
-/// node holds a few thousand.
-pub const MAX_HEADER_BYTES: u32 = 16 * 1024 * 1024;
+/// The longest header: the Java's `int` length, the only bound it has.
+/// A caller reads a header with a ranged read sized by [`header_end`].
+pub const MAX_HEADER_BYTES: u32 = i32::MAX as u32;
 /// The longest slice: the Java's `int` length.
 pub const MAX_SLICE_BYTES: u64 = i32::MAX as u64;
 
-pub(super) const MIN_NAME_BYTES: usize = 2 + 2;
+/// Two empty strings: their `u16` lengths alone.
+pub(super) const MIN_NAME_BYTES: usize = 4;
 pub(super) const SLICE_BYTES: usize = 4 + 4 + 8 + 8 + 4 + 4 + 8;
 pub(super) const MIN_INDEX_BYTES: usize = 4 + 4 + 4;
 pub(super) const RUN_BYTES: usize = 8 + 8;
 
-/// One shard of one index incarnation. Equal, ordered and hashed by uuid
-/// and shard alone, as the Java's `ShardKey`: the name travels with it so a
-/// successor holding only a dead node's log can find the shard's head.
+/// One shard of one index incarnation. Equal and ordered by uuid and shard
+/// alone, as the Java's `ShardKey`: the name travels with it so a successor
+/// holding only a dead node's log can find the shard's head. Its strings are
+/// shared, so a decoded header's entries for one index share one copy.
 #[derive(Debug, Clone)]
-pub struct ShardKey<'a> {
+pub struct ShardKey {
     /// The index's uuid.
-    pub index_uuid: Cow<'a, str>,
+    pub index_uuid: Arc<str>,
     /// The shard number, at most `i32::MAX`.
     pub shard: u32,
     /// The index's name, `None` where not known.
-    pub index_name: Option<Cow<'a, str>>,
+    pub index_name: Option<Arc<str>>,
 }
 
-impl<'a> ShardKey<'a> {
+impl ShardKey {
     /// A key.
     pub fn new(
-        index_uuid: impl Into<Cow<'a, str>>,
+        index_uuid: impl Into<Arc<str>>,
         shard: u32,
-        index_name: Option<impl Into<Cow<'a, str>>>,
+        index_name: Option<impl Into<Arc<str>>>,
     ) -> Self {
         Self {
             index_uuid: index_uuid.into(),
@@ -89,39 +95,23 @@ impl<'a> ShardKey<'a> {
             index_name: index_name.map(Into::into),
         }
     }
-
-    /// The key with every string owned.
-    pub fn into_owned(self) -> ShardKey<'static> {
-        ShardKey {
-            index_uuid: Cow::Owned(self.index_uuid.into_owned()),
-            shard: self.shard,
-            index_name: self.index_name.map(|n| Cow::Owned(n.into_owned())),
-        }
-    }
 }
 
-impl PartialEq for ShardKey<'_> {
+impl PartialEq for ShardKey {
     fn eq(&self, other: &Self) -> bool {
         self.index_uuid == other.index_uuid && self.shard == other.shard
     }
 }
 
-impl Eq for ShardKey<'_> {}
+impl Eq for ShardKey {}
 
-impl std::hash::Hash for ShardKey<'_> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.index_uuid.hash(state);
-        self.shard.hash(state);
-    }
-}
-
-impl PartialOrd for ShardKey<'_> {
+impl PartialOrd for ShardKey {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Ord for ShardKey<'_> {
+impl Ord for ShardKey {
     /// The Java's order: the uuid as `String.compareTo` (UTF-16 units), then
     /// the shard.
     fn cmp(&self, other: &Self) -> Ordering {
@@ -140,9 +130,9 @@ pub struct OrdinalRange {
 
 /// Where one shard's records are in a blob.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Slice<'a> {
+pub struct Slice {
     /// The shard.
-    pub shard: ShardKey<'a>,
+    pub shard: ShardKey,
     /// The writer's term for the shard.
     pub term: i64,
     /// Where the slice starts, from the body's first byte.
@@ -169,15 +159,15 @@ pub struct NodeLogHeader<'a> {
     /// Where the body starts, from the blob's first byte.
     pub body_offset: u64,
     /// The slices, in body order.
-    pub slices: Vec<Slice<'a>>,
+    pub slices: Vec<Slice>,
     /// For every shard with unpublished records, the runs of slots of this
     /// epoch holding them, this blob's included, in the Java's shard order.
-    pub index: Vec<(ShardKey<'a>, Vec<OrdinalRange>)>,
+    pub index: Vec<(ShardKey, Vec<OrdinalRange>)>,
 }
 
 impl NodeLogHeader<'_> {
     /// This blob's slices of one shard, in body order.
-    pub fn slices_of<'s>(&'s self, shard: &'s ShardKey<'_>) -> impl Iterator<Item = &'s Slice<'s>> {
+    pub fn slices_of<'s>(&'s self, shard: &'s ShardKey) -> impl Iterator<Item = &'s Slice> {
         self.slices
             .iter()
             .filter(move |s| s.shard.index_uuid == shard.index_uuid && s.shard.shard == shard.shard)
@@ -185,7 +175,7 @@ impl NodeLogHeader<'_> {
 
     /// The runs of slots holding a shard's unpublished records; empty when
     /// it has none.
-    pub fn ordinals_of(&self, shard: &ShardKey<'_>) -> &[OrdinalRange] {
+    pub fn ordinals_of(&self, shard: &ShardKey) -> &[OrdinalRange] {
         self.index
             .iter()
             .find(|(k, _)| k.index_uuid == shard.index_uuid && k.shard == shard.shard)
@@ -224,7 +214,7 @@ pub enum NodeLogEntry<'a> {
 #[derive(Debug, Clone, Copy)]
 pub struct ShardBatch<'b> {
     /// The shard.
-    pub shard: &'b ShardKey<'b>,
+    pub shard: &'b ShardKey,
     /// The writer's term for the shard.
     pub term: i64,
     /// The records, in replay order.
@@ -348,6 +338,40 @@ mod tests {
         assert_eq!(trim_below(&runs, 5), [run(5, 5), run(7, 7)]);
         assert_eq!(trim_below(&runs, 4), [run(4, 5), run(7, 7)]);
         assert_eq!(trim_below(&runs, 8), []);
+    }
+
+    #[test]
+    fn the_limits_are_the_javas_int() {
+        assert_eq!(MAX_HEADER_BYTES, 2_147_483_647);
+        assert_eq!(MAX_SLICE_BYTES, 2_147_483_647);
+    }
+
+    #[test]
+    fn ordinals_of_matches_both_uuid_and_shard() {
+        let header = NodeLogHeader {
+            node_id: Cow::Borrowed("n"),
+            epoch: 0,
+            ordinal: 3,
+            trim_point: 0,
+            body_offset: 0,
+            slices: Vec::new(),
+            index: vec![
+                (
+                    ShardKey::new("u", 1, None::<&str>),
+                    vec![OrdinalRange { from: 1, to: 1 }],
+                ),
+                (
+                    ShardKey::new("v", 2, None::<&str>),
+                    vec![OrdinalRange { from: 2, to: 2 }],
+                ),
+            ],
+        };
+        assert_eq!(header.ordinals_of(&ShardKey::new("u", 2, None::<&str>)), []);
+        assert_eq!(header.ordinals_of(&ShardKey::new("v", 1, None::<&str>)), []);
+        assert_eq!(
+            header.ordinals_of(&ShardKey::new("v", 2, None::<&str>)),
+            [OrdinalRange { from: 2, to: 2 }]
+        );
     }
 
     #[test]

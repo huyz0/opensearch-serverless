@@ -2,11 +2,13 @@
 //! header or fence.
 
 use std::borrow::Cow;
+use std::collections::HashSet;
+use std::sync::Arc;
 
 use super::{
-    FENCE_MAGIC, MAX_HEADER_BYTES, MIN_INDEX_BYTES, MIN_NAME_BYTES, NodeLogEntry, NodeLogFence,
-    NodeLogHeader, OrdinalRange, PREFIX_BYTES, RECORDS_MAGIC, RUN_BYTES, SLICE_BYTES, ShardKey,
-    Slice, VERSION, WHAT,
+    FENCE_MAGIC, MIN_INDEX_BYTES, MIN_NAME_BYTES, NodeLogEntry, NodeLogFence, NodeLogHeader,
+    OrdinalRange, PREFIX_BYTES, RECORDS_MAGIC, RUN_BYTES, SLICE_BYTES, ShardKey, Slice, VERSION,
+    WHAT,
 };
 use crate::error::{FormatError, corrupt, len64};
 use crate::mutf8;
@@ -18,7 +20,7 @@ use crate::mutf8;
 /// # Errors
 ///
 /// [`FormatError::Corrupt`] for a magic of neither kind or a negative header
-/// length, [`FormatError::TooLarge`] past [`MAX_HEADER_BYTES`].
+/// length: a length is at most [`MAX_HEADER_BYTES`](super::MAX_HEADER_BYTES), the Java's `int`.
 pub fn header_end(leading: &[u8]) -> Result<Option<usize>, FormatError> {
     let magic = leading.first_chunk::<4>().map(|m| u32::from_be_bytes(*m));
     if magic == Some(FENCE_MAGIC) {
@@ -33,13 +35,6 @@ pub fn header_end(leading: &[u8]) -> Result<Option<usize>, FormatError> {
     let [.., a, b, c, d] = *prefix;
     let length = u32::try_from(i32::from_be_bytes([a, b, c, d]))
         .map_err(|_| corrupt(WHAT, "negative header length"))?;
-    if length > MAX_HEADER_BYTES {
-        return Err(FormatError::TooLarge {
-            what: WHAT,
-            limit: MAX_HEADER_BYTES.into(),
-            actual: length.into(),
-        });
-    }
     usize::try_from(length)
         .ok()
         .and_then(|l| l.checked_add(PREFIX_BYTES))
@@ -107,18 +102,27 @@ pub fn decode(leading: &[u8]) -> Result<NodeLogEntry<'_>, FormatError> {
     }
     let names = at.count(MIN_NAME_BYTES)?;
     // ALLOC: one entry an index named, at most header length / MIN_NAME_BYTES (checked by count).
-    let mut named = Vec::with_capacity(names);
+    let mut named: Vec<(Arc<str>, Option<Arc<str>>)> = Vec::with_capacity(names);
+    // ALLOC: one entry an index named, as above.
+    let mut uuids = HashSet::with_capacity(names);
     for _ in 0..names {
         let uuid = at.utf()?;
         let name = at.utf()?;
-        named.push((uuid, (!name.is_empty()).then_some(name)));
+        if !uuids.insert(uuid.clone()) {
+            return Err(corrupt(WHAT, "an index is named twice"));
+        }
+        // ALLOC: each name once, shared by every entry naming its index; bounded by the header.
+        named.push((
+            Arc::from(uuid.as_ref()),
+            (!name.is_empty()).then(|| Arc::from(name.as_ref())),
+        ));
     }
     let slice_count = at.count(SLICE_BYTES)?;
     // ALLOC: one entry a slice, at most header length / SLICE_BYTES (checked by count).
     let mut slices = Vec::with_capacity(slice_count);
     let mut next_free = 0u64;
     for _ in 0..slice_count {
-        let shard = at.shard(&named)?;
+        let (_, shard) = at.shard(&named)?;
         let term = at.i64()?;
         let offset = at.non_negative()?;
         let length = at.non_negative_i32()?;
@@ -141,10 +145,13 @@ pub fn decode(leading: &[u8]) -> Result<NodeLogEntry<'_>, FormatError> {
     }
     let index_count = at.count(MIN_INDEX_BYTES)?;
     // ALLOC: one entry a shard indexed, at most header length / MIN_INDEX_BYTES (checked by count).
-    let mut index: Vec<(ShardKey<'_>, Vec<OrdinalRange>)> = Vec::with_capacity(index_count);
+    let mut index: Vec<(ShardKey, Vec<OrdinalRange>)> = Vec::with_capacity(index_count);
+    // ALLOC: one entry a shard indexed, as above.
+    let mut indexed = HashSet::with_capacity(index_count);
     for _ in 0..index_count {
-        let shard = at.shard(&named)?;
-        if index.iter().any(|(k, _)| *k == shard) {
+        let (position, shard) = at.shard(&named)?;
+        // Names are unique, so a name position and shard number are a shard.
+        if !indexed.insert((position, shard.shard)) {
             return Err(corrupt(WHAT, "a shard is indexed twice"));
         }
         let run_count = at.count(RUN_BYTES)?;
@@ -250,21 +257,25 @@ impl<'a> Cursor<'a> {
         Ok(n)
     }
 
+    /// A shard: its name position, then its number. Returns the position
+    /// with the key, whose strings are the name table's, shared.
     fn shard(
         &mut self,
-        named: &[(Cow<'a, str>, Option<Cow<'a, str>>)],
-    ) -> Result<ShardKey<'a>, FormatError> {
-        let position = self.i32()?;
-        let (uuid, name) = usize::try_from(position)
-            .ok()
-            .and_then(|p| named.get(p))
+        named: &[(Arc<str>, Option<Arc<str>>)],
+    ) -> Result<(usize, ShardKey), FormatError> {
+        let position = usize::try_from(self.i32()?).unwrap_or(usize::MAX);
+        let (uuid, name) = named
+            .get(position)
             .ok_or(corrupt(WHAT, "a shard names an index past the names"))?;
         let shard = self.non_negative_i32()?;
-        Ok(ShardKey {
-            index_uuid: uuid.clone(),
-            shard,
-            index_name: name.clone(),
-        })
+        Ok((
+            position,
+            ShardKey {
+                index_uuid: Arc::clone(uuid),
+                shard,
+                index_name: name.clone(),
+            },
+        ))
     }
 
     fn utf(&mut self) -> Result<Cow<'a, str>, FormatError> {
