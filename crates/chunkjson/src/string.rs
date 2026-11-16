@@ -267,7 +267,14 @@ impl Tokenizer {
                     st.esc = Esc::Backslash { high: None };
                     j += 1;
                 }
-                Some(_) => return Err(self.err(ErrorKind::ControlCharacter, j)),
+                Some(_) => {
+                    // a fault earlier in the run comes first, as it does
+                    // when the run is split across chunks
+                    if let Err(e) = std::str::from_utf8(&input[start..j]) {
+                        return Err(self.err(ErrorKind::InvalidUtf8, start + e.valid_up_to()));
+                    }
+                    return Err(self.err(ErrorKind::ControlCharacter, j));
+                }
             }
         }
     }
