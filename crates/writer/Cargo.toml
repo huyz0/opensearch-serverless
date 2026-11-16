@@ -11,6 +11,11 @@ repository.workspace = true
 [dependencies]
 oss-types = { workspace = true }
 oss-blob = { workspace = true }
+oss-format = { workspace = true }
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+oss-blob = { workspace = true, features = ["emulator"] }
+oss-testkit = { workspace = true }

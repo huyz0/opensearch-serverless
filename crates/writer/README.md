@@ -6,7 +6,7 @@ The indexing role. Appends to the node's one write log, builds segments, uploads
 The per-node write log and its fencing, segment build and upload, commit publish, and pushing tail records to readers.
 
 ## Depends on
-`oss-types`, `oss-blob`. Never `oss-reader`.
+`oss-types`, `oss-blob`, `oss-format`. Never `oss-reader`.
 
 ## Entry points
-`src/lib.rs`. Built second; see [docs/roadmap.md](../../docs/roadmap.md).
+`src/lib.rs`; `log::NodeLogStore`, one node's write log by name: appends (hedged or not), fences, header and slice reads, deletes. Built second; see [docs/roadmap.md](../../docs/roadmap.md).

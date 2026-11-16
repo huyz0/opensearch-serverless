@@ -1,2 +1,6 @@
 rust_path	kind	java_source	note
 src/lib.rs	new		crate root
+src/log/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/nodelog/NodeLogStore.java@429b4cbc	the log error type and fence constants
+src/log/store.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/nodelog/NodeLogStore.java@429b4cbc	append, firstFree, readEntry, lastHeaderBelow, readSlice, readBody, parseSlice, deleteRange; one DELETE a slot (unbilled), no batch delete in the store yet
+src/log/fence.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/nodelog/NodeLogStore.java@429b4cbc	fence, fillBelow, tryFence
+src/log/hedge.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/nodelog/NodeLogStore.java@429b4cbc	appendHedged and its read-back; Spawn in place of an Executor
