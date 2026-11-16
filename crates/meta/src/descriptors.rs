@@ -20,8 +20,8 @@ use std::sync::Arc;
 use oss_blob::{BlobError, BlobStore, SliceSource, SwapOutcome};
 use oss_format::ChangeKind;
 use oss_format::{
-    IndexRecord, MAX_TOMBSTONE_BYTES, NameRecord, TOMBSTONE_PREFIX, Tombstone, descriptor_key,
-    tombstone_bucket, tombstone_marker_key,
+    AliasRecord, IndexRecord, MAX_TOMBSTONE_BYTES, NameRecord, TOMBSTONE_PREFIX, Tombstone,
+    descriptor_key, tombstone_bucket, tombstone_marker_key,
 };
 
 use crate::changes::ChangeStripes;
@@ -73,9 +73,8 @@ pub struct Resolution<'b> {
 pub enum Target<'b> {
     /// An index.
     Index(IndexRecord<'b>),
-    /// An alias, as its record's bytes. One still being created is returned
-    /// as it is: telling needs the alias record decoded.
-    Alias(&'b [u8]),
+    /// An alias or a data stream.
+    Alias(AliasRecord<'b>),
     /// No register, or a tombstone.
     Absent,
 }
@@ -180,16 +179,64 @@ impl DescriptorStore {
     ) -> Result<u64, MetaError> {
         let key = self.key(&record.name)?;
         let len = record.write(buf)?;
-        if let SwapOutcome::Applied(generation) =
-            self.store.create_register(&key, prefix(buf, len))?
-        {
+        self.create_value(&key, prefix(buf, len), now_millis)
+    }
+
+    /// Creates the alias `record` names, as an index is created: the same
+    /// put-if-absent against the same key, so an alias and an index cannot
+    /// share a name, and a tombstone is taken over as for an index. The
+    /// register step only, as the Java's: publishing an alias goes through
+    /// the alias mutation protocol, which prepares members' hints first.
+    ///
+    /// # Errors
+    ///
+    /// As [`DescriptorStore::create`].
+    pub fn create_alias(
+        &self,
+        record: &AliasRecord<'_>,
+        now_millis: i64,
+        buf: &mut [u8],
+    ) -> Result<u64, MetaError> {
+        let key = self.key(&record.name)?;
+        let len = record.write(buf)?;
+        self.create_value(&key, prefix(buf, len), now_millis)
+    }
+
+    /// Replaces the alias `record` names if its register still holds
+    /// `expected`; the new generation, or `None` when it moved. One swap,
+    /// so moving an alias between indexes is atomic. Change stripes are not
+    /// bumped, as in the Java: they confirm indexes, not aliases.
+    ///
+    /// # Errors
+    ///
+    /// [`MetaError::Format`] when the record does not fit `buf`.
+    pub fn update_alias(
+        &self,
+        record: &AliasRecord<'_>,
+        expected: u64,
+        buf: &mut [u8],
+    ) -> Result<Option<u64>, MetaError> {
+        let key = self.existing_key(&record.name)?;
+        let len = record.write(buf)?;
+        Ok(
+            match self.store.swap_register(&key, expected, prefix(buf, len))? {
+                SwapOutcome::Applied(generation) => Some(generation),
+                SwapOutcome::Conflict(_) => None,
+            },
+        )
+    }
+
+    /// The Java's `createRegister`: a put-if-absent, and only for a taken
+    /// name a read, to swap over a tombstone.
+    fn create_value(&self, key: &str, value: &[u8], now_millis: i64) -> Result<u64, MetaError> {
+        if let SwapOutcome::Applied(generation) = self.store.create_register(key, value)? {
             return Ok(generation);
         }
         // A tombstone is short: read into a buffer of its size, so a live
         // record of any length is never fetched whole just to be refused,
         // and one longer than the buffer is, like any non-tombstone, taken.
         let mut taken = [0u8; MAX_TOMBSTONE_BYTES];
-        let current = match self.store.read_register(&key, &mut taken) {
+        let current = match self.store.read_register(key, &mut taken) {
             Ok(Some(current)) => current,
             // Taken a moment ago and gone again: still not this create's.
             Ok(None) => return Err(MetaError::AlreadyExists),
@@ -198,18 +245,15 @@ impl DescriptorStore {
             Err(BlobError::InvalidArgument(_)) => return Err(MetaError::AlreadyExists),
             Err(e) => return Err(e.into()),
         };
-        let value = prefix(&taken, current.len);
-        if !value.starts_with(TOMBSTONE_PREFIX) {
+        let held = prefix(&taken, current.len);
+        if !held.starts_with(TOMBSTONE_PREFIX) {
             return Err(MetaError::AlreadyExists);
         }
-        let reaping_at = Tombstone::parse(value)?.reaping_at;
+        let reaping_at = Tombstone::parse(held)?.reaping_at;
         if reaping_at != 0 && now_millis < reaping_at.saturating_add(REAP_HANDOFF_MILLIS) {
             return Err(MetaError::BeingReclaimed);
         }
-        match self
-            .store
-            .swap_register(&key, current.generation, prefix(buf, len))?
-        {
+        match self.store.swap_register(key, current.generation, value)? {
             SwapOutcome::Applied(generation) => Ok(generation),
             SwapOutcome::Conflict(_) => Err(MetaError::AlreadyExists),
         }
@@ -233,7 +277,23 @@ impl DescriptorStore {
         })
     }
 
-    /// What `name` resolves to and the generation to swap from: one read.
+    /// What `name` stands for and the generation to swap from: one read.
+    /// An alias still being created resolves as absent, as in the Java, with
+    /// its register's generation.
+    ///
+    /// # Errors
+    ///
+    /// As [`DescriptorStore::get`].
+    pub fn resolve<'b>(&self, name: &str, buf: &'b mut [u8]) -> Result<Resolution<'b>, MetaError> {
+        let mut resolved = self.resolve_raw(name, buf)?;
+        if matches!(&resolved.target, Target::Alias(alias) if alias.creation_pending()) {
+            resolved.target = Target::Absent;
+        }
+        Ok(resolved)
+    }
+
+    /// What `name`'s register holds and the generation to swap from, an
+    /// alias still being created included: one read.
     ///
     /// # Errors
     ///
@@ -252,7 +312,7 @@ impl DescriptorStore {
         };
         let target = match NameRecord::parse(prefix(buf, read.len))? {
             NameRecord::Index(record) => Target::Index(record),
-            NameRecord::Alias(bytes) => Target::Alias(bytes),
+            NameRecord::Alias(alias) => Target::Alias(alias),
             NameRecord::Tombstone(_) => Target::Absent,
         };
         Ok(Resolution {

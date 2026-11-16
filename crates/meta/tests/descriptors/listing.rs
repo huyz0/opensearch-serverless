@@ -28,7 +28,7 @@ fn tombstone(d: &DescriptorStore, name: &str) {
 }
 
 fn alias(b: &Backend, name: &str) {
-    let value = format!(r#"{{"name":"{name}","alias":{{"indices":["a"]}}}}"#);
+    let value = format!(r#"{{"alias":"{name}","indices":["a"]}}"#);
     assert!(matches!(
         b.store
             .create_register(&format!("{BASE}indices/{name}"), value.as_bytes())
@@ -94,6 +94,24 @@ fn every_index_is_walked_once_in_name_order() {
                 b.kind
             );
         }
+    }
+}
+
+#[test]
+fn an_alias_is_skipped_without_being_decoded() {
+    for b in all() {
+        let d = mixed(&b);
+        // An alias record no reader accepts, as the Java's listing skips it
+        // by its discriminator alone.
+        b.store
+            .create_register(
+                &format!("{BASE}indices/c2"),
+                br#"{"alias":{"indices":["a"]}}"#,
+            )
+            .unwrap();
+        assert_eq!(walk(&d, "", 3), ["b", "d", "f", "g"], "{:?}", b.kind);
+        let mut buf = vec![0u8; 4096];
+        assert!(d.resolve("c2", &mut buf).is_err());
     }
 }
 

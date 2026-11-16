@@ -76,3 +76,13 @@ pub fn settings_fixture(name: &str) -> Vec<String> {
         .unwrap_or_else(|e| panic!("fixture {}: {e}", path.display()));
     text.lines().map(str::to_owned).collect()
 }
+
+/// The lines of an alias recording (`fixtures/aliases`).
+pub fn alias_fixture(name: &str) -> Vec<String> {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/aliases")
+        .join(name);
+    let text = std::fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("fixture {}: {e}", path.display()));
+    text.lines().map(str::to_owned).collect()
+}

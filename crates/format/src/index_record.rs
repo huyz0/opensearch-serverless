@@ -14,6 +14,7 @@
 
 use std::borrow::Cow;
 
+use crate::alias_record::{ALIAS_DISCRIMINATOR, AliasRecord};
 use crate::descriptor::TOMBSTONE_PREFIX;
 use crate::error::{FormatError, corrupt};
 use crate::json::out::Out;
@@ -30,16 +31,13 @@ pub const MAX_SHARDS: u32 = 4096;
 /// The settings of a record that has none: an empty object.
 pub const EMPTY_SETTINGS: &[u8] = b"{}";
 
-/// The root field that makes a record an alias (`AliasRecord.DISCRIMINATOR`).
-const ALIAS_DISCRIMINATOR: &str = "alias";
-
 /// What the register under a name holds, read whole.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NameRecord<'a> {
     /// An index.
     Index(IndexRecord<'a>),
-    /// An alias, as its record's bytes; alias records are not decoded yet.
-    Alias(&'a [u8]),
+    /// An alias or a data stream.
+    Alias(AliasRecord<'a>),
     /// A deleted index's tombstone.
     Tombstone(Tombstone),
 }
@@ -200,9 +198,25 @@ impl<'a> NameRecord<'a> {
             return Tombstone::parse(value).map(Self::Tombstone);
         }
         if is_alias(value)? {
-            return Ok(Self::Alias(value));
+            return AliasRecord::parse(value).map(Self::Alias);
         }
         parse_index(value).map(Self::Index)
+    }
+}
+
+impl NameRecord<'_> {
+    /// The index a name register holds, or `None` for a tombstone or an
+    /// alias, which are recognised and not decoded, as the Java's listing
+    /// does: a malformed alias does not stop a walk over indexes.
+    ///
+    /// # Errors
+    ///
+    /// As [`NameRecord::parse`], for an index record.
+    pub fn index_only(value: &[u8]) -> Result<Option<IndexRecord<'_>>, FormatError> {
+        if value.starts_with(TOMBSTONE_PREFIX) || is_alias(value)? {
+            return Ok(None);
+        }
+        parse_index(value).map(Some)
     }
 }
 

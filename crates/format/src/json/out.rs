@@ -109,6 +109,26 @@ impl<'o> Out<'o> {
         self.int(n);
     }
 
+    /// A boolean field.
+    pub(crate) fn bool_field(&mut self, name: &str, value: bool) {
+        self.field(name);
+        self.separate();
+        self.raw(if value { b"true" } else { b"false" });
+    }
+
+    /// A field whose value is `null`.
+    pub(crate) fn null_field(&mut self, name: &str) {
+        self.field(name);
+        self.separate();
+        self.raw(b"null");
+    }
+
+    /// Opens an object under a field name.
+    pub(crate) fn start_object_field(&mut self, name: &str) {
+        self.field(name);
+        self.start_object();
+    }
+
     /// An integer, in decimal, with no separator: for a text record.
     pub(crate) fn int(&mut self, n: i64) {
         // ALLOC: none; at most 20 digits and a sign, on the stack.

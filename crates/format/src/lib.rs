@@ -18,13 +18,15 @@
 //! and nothing borrowed from the input is copied unless it holds an escape.
 //! Metadata writers write what they read: [`IndexRecord`] and [`Tombstone`]
 //! are a name register's whole value, written back byte for byte as the
-//! shell's Jackson writes it, into the caller's buffer. [`ClusterSettings`]
+//! shell's Jackson writes it, into the caller's buffer; so is an
+//! [`AliasRecord`]. [`ClusterSettings`]
 //! reads the cluster config register as the Java's `Settings` reads it, and
 //! writes the flat form that reads back the same.
 //!
 //! Bucketed indices, whose commits are in a bucket's manifest, are not read
 //! yet ([`FormatError::NotFollowable`]).
 
+mod alias_record;
 mod change_stripe;
 mod cluster_settings;
 mod descriptor;
@@ -40,6 +42,7 @@ mod register;
 mod segment_blob;
 mod tombstone;
 
+pub use alias_record::{ALIAS_DISCRIMINATOR, AliasMutation, AliasRecord};
 pub use change_stripe::{
     ChangeKind, ChangeStripe, KEPT, KEPT_PENDING, MAX_CHANGE_STRIPE_BYTES, MAX_ENTRY_NAME_BYTES,
     STRIPES, StripeEntry, stripe_of,

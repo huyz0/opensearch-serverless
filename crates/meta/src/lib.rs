@@ -9,6 +9,9 @@
 //! - [`DescriptorStore`]: create, read, update and delete an index's
 //!   descriptor register, with tombstones keeping a deleted name's
 //!   generations moving.
+//! - [`DescriptorStore::create_alias`], [`DescriptorStore::update_alias`]
+//!   and [`DescriptorStore::resolve`]: aliases in the same namespace, so a
+//!   name is an index or an alias and resolving it is one read.
 //! - [`DeleteMode::probe`]: whether a store's conditional delete can be
 //!   trusted, asked of the store itself.
 //! - [`DescriptorStore::sweep_tombstones`]: removing tombstones once their
@@ -39,7 +42,8 @@ pub use descriptors::{
 pub use error::MetaError;
 pub use names::{MAX_NAME_BYTES, NameError, NameRule, validate_index_or_alias, validate_prefix};
 pub use oss_format::{
-    ChangeKind, ClusterSettings, MAX_CLUSTER_SETTINGS_BYTES, STRIPES, Setting, SettingsRefused,
+    AliasMutation, AliasRecord, ChangeKind, ClusterSettings, MAX_CLUSTER_SETTINGS_BYTES, STRIPES,
+    Setting, SettingsRefused,
 };
 pub use probe::PROBE_PREFIX;
 pub use sweep::{MARKERS_PREFIX, Sweep, Swept};

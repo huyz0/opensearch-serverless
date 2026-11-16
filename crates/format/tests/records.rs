@@ -7,8 +7,9 @@ use std::borrow::Cow;
 
 use common::*;
 use oss_format::{
-    EMPTY_SETTINGS, FormatError, IndexRecord, MAX_TOMBSTONE_BYTES, NameRecord, Register, Tombstone,
-    descriptor_key, tombstone_bucket, tombstone_bucket_start, tombstone_marker_key,
+    AliasRecord, EMPTY_SETTINGS, FormatError, IndexRecord, MAX_TOMBSTONE_BYTES, NameRecord,
+    Register, Tombstone, descriptor_key, tombstone_bucket, tombstone_bucket_start,
+    tombstone_marker_key,
 };
 
 fn written(record: &IndexRecord<'_>) -> Vec<u8> {
@@ -210,8 +211,16 @@ fn unknown_fields_are_skipped() {
 
 #[test]
 fn an_alias_or_a_tombstone_is_told_apart() {
-    let alias = br#"{"name":"al","alias":{"indices":["a"]}}"#;
-    assert_eq!(NameRecord::parse(alias).unwrap(), NameRecord::Alias(alias));
+    let alias = br#"{"alias":"al","indices":["a"]}"#;
+    assert_eq!(
+        NameRecord::parse(alias).unwrap(),
+        NameRecord::Alias(AliasRecord::new("al", &["a"]))
+    );
+    // The discriminator decides, and the record must then be an alias.
+    assert!(matches!(
+        NameRecord::parse(br#"{"name":"al","alias":{"indices":["a"]}}"#),
+        Err(FormatError::Corrupt { .. })
+    ));
     // A root field decides, not one inside an object.
     let nested = br#"{"name":"a","uuid":"u","number_of_shards":1,"settings":{"alias":1}}"#;
     assert!(matches!(

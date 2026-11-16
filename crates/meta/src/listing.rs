@@ -81,7 +81,8 @@ impl DescriptorStore {
                     // Deleted: recognised, not parsed, as the Java's.
                     continue;
                 }
-                if let NameRecord::Index(record) = NameRecord::parse(value)? {
+                // An alias is recognised, not decoded, as the Java's.
+                if let Some(record) = NameRecord::index_only(value)? {
                     visit(&record);
                     taken = taken.saturating_add(1);
                 }
