@@ -20,6 +20,9 @@ enum Writer {
     Burst,
     /// Takes the target alone: no writer does, but it keeps a fence losing.
     TakesTarget,
+    /// As `Burst`, and once the fence lands a barrier above it, takes every
+    /// slot up to the barrier too.
+    BurstToBarrier,
 }
 
 /// A log whose writer beats the first `wins` fence PUTs.
@@ -41,7 +44,7 @@ fn racing(wins: u32, writer: Writer) -> (Arc<Emulator>, NodeLogStore, Arc<Mutex<
             let target: u64 = slot.parse().expect("a slot");
             let mut next = landed.lock().expect("unpoisoned");
             let from = match writer {
-                Writer::Burst => *next,
+                Writer::Burst | Writer::BurstToBarrier => *next,
                 Writer::TakesTarget => target,
             };
             for ordinal in from..=target {
@@ -54,7 +57,22 @@ fn racing(wins: u32, writer: Writer) -> (Arc<Emulator>, NodeLogStore, Arc<Mutex<
             }
             *next = target.saturating_add(1);
         }
-        inner.create_if_absent(key, body, buf)
+        let outcome = inner.create_if_absent(key, body, buf)?;
+        if fence && matches!(writer, Writer::BurstToBarrier) {
+            let (dir, slot) = key.split_at(key.len().saturating_sub(20));
+            let target: u64 = slot.parse().expect("a slot");
+            let mut next = landed.lock().expect("unpoisoned");
+            for ordinal in *next..target {
+                let bytes = blob(ordinal);
+                inner.create_if_absent(
+                    &format!("{dir}{ordinal:020}"),
+                    &mut SliceSource::new(&bytes),
+                    buf,
+                )?;
+            }
+            *next = target.max(*next);
+        }
+        Ok(outcome)
     });
     let log = NodeLogStore::new(store, "", "node-1").expect("valid");
     (inner, log, next)
@@ -67,6 +85,11 @@ fn a_fence_that_loses_twice_aims_ahead_and_fills_the_gap_from_the_bottom() {
     // fence aimed at 2; the fence aims at 5, lands, and fills 3.
     let fence = log.fence(0, 0, "node-2", 4).expect("fences");
     assert_eq!(fence, 3, "where the writer stopped");
+    assert_eq!(
+        _inner.meter().count(S3Op::GetRange),
+        4,
+        "a GET after each lost PUT and of each slot below a try; none after a fence lands"
+    );
     assert_eq!(
         *landed.lock().expect("unpoisoned"),
         fence,
@@ -94,6 +117,10 @@ fn a_writer_that_reaches_the_barrier_stops_there() {
     let (_inner, log, landed) = racing(3, Writer::Burst);
     let fence = log.fence(0, 0, "node-2", 4).expect("fences");
     assert_eq!(fence, 6);
+    assert!(
+        matches!(log.read_entry(0, 10), Ok(Some(NodeLogEntry::Fence(_)))),
+        "the gap doubled: the barrier is at 6 + 4"
+    );
     assert_eq!(*landed.lock().expect("unpoisoned"), fence);
     for slot in 0..fence {
         assert!(matches!(
@@ -179,4 +206,44 @@ fn errors_say_what_failed_and_the_store_says_whose_log_it_is() {
     ]) {
         assert!(message.contains(part), "{message:?} names {part:?}");
     }
+}
+
+#[test]
+fn a_writer_that_fills_the_gap_is_stopped_at_the_barrier() {
+    // The writer takes 0, then 1 and 2; the barrier lands at 5, and the
+    // writer takes 3 and 4 before the fence fills: every gap slot is the
+    // writer's, so the barrier is where it stopped.
+    let (_inner, log, landed) = racing(2, Writer::BurstToBarrier);
+    assert_eq!(log.fence(0, 0, "node-2", 4), Ok(5));
+    assert_eq!(*landed.lock().expect("unpoisoned"), 5);
+    for slot in 0..5 {
+        assert!(
+            matches!(log.read_entry(0, slot), Ok(Some(NodeLogEntry::Records(_)))),
+            "slot {slot}"
+        );
+    }
+    assert!(matches!(
+        log.read_entry(0, 5),
+        Ok(Some(NodeLogEntry::Fence(_)))
+    ));
+    let below = log
+        .last_header_below(0, 5, 0)
+        .expect("reads")
+        .expect("a header");
+    assert_eq!(below.ordinal, 4);
+}
+
+#[test]
+fn a_fence_another_successor_put_below_the_first_free_slot_is_shared() {
+    let inner = Arc::new(Emulator::new(1 << 20, 5));
+    let other =
+        NodeLogStore::new(Arc::clone(&inner) as Arc<dyn BlobStore>, "", "node-1").expect("valid");
+    for slot in 0..3 {
+        other.append(0, slot, &blob(slot)).expect("lands");
+    }
+    assert_eq!(other.fence(0, 3, "node-3", 5), Ok(3));
+    let mine =
+        NodeLogStore::new(Arc::clone(&inner) as Arc<dyn BlobStore>, "", "node-1").expect("valid");
+    assert_eq!(mine.fence(0, 0, "node-2", 4), Ok(3), "shared, not added to");
+    assert_eq!(mine.read_entry(0, 4), Ok(None));
 }

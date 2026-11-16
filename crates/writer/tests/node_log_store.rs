@@ -151,18 +151,21 @@ fn a_fence_stops_the_writer_and_every_blob_it_landed_is_below_it() {
     for ordinal in 0..37 {
         log.append(1, ordinal, &blob(ordinal)).expect("lands");
     }
-    let (puts, lists) = (count(&store, S3Op::Put), count(&store, S3Op::List));
+    let ops = [S3Op::Put, S3Op::List, S3Op::Head, S3Op::GetRange];
+    let before = ops.map(|op| count(&store, op));
     let fence = log.fence(1, 5, "node-2", 9).expect("fences");
+    let spent: Vec<u64> = ops
+        .iter()
+        .zip(before)
+        .map(|(op, was)| count(&store, *op).saturating_sub(was))
+        .collect();
     assert_eq!(fence, 37, "the fence takes the first free slot");
+    // From the hint at 5: HEADs at 5, 6, 8, 12, 20, 36 and 68 double to a
+    // free slot, then 52, 44, 40, 38 and 37 halve back to the first.
     assert_eq!(
-        count(&store, S3Op::List),
-        lists,
-        "found by name, not by listing"
-    );
-    assert_eq!(
-        count(&store, S3Op::Put),
-        puts.saturating_add(1),
-        "and one PUT"
+        spent,
+        [1, 0, 12, 1],
+        "one PUT, no LIST, twelve HEADs, one ranged GET of the slot below"
     );
     assert!(matches!(
         log.read_entry(1, fence),
@@ -382,4 +385,115 @@ fn a_window_without_records_has_an_empty_body_read_without_a_request() {
     let gets = count(&store, S3Op::GetRange);
     assert_eq!(log.read_body(3, &encoded.header), Ok(Vec::new()));
     assert_eq!(count(&store, S3Op::GetRange), gets);
+}
+
+#[test]
+fn a_read_longer_than_the_bound_is_refused_before_it_is_fetched() {
+    let (store, log) = emulated();
+    let a0 = key("uuid-a", 0);
+    let ra = [record("a", 1), record("b", 2)];
+    let encoded = window(
+        0,
+        &[ShardBatch {
+            shard: &a0,
+            term: 1,
+            records: &ra,
+        }],
+    );
+    log.append(3, 0, &encoded.bytes).expect("lands");
+    let slice = encoded.header.slices[0].clone();
+    let at_limit = log.clone().with_max_read(slice.length.into());
+    assert_eq!(
+        ids(&at_limit
+            .read_slice(3, &encoded.header, &slice)
+            .expect("at the bound")),
+        ["a", "b"]
+    );
+    let below = log
+        .clone()
+        .with_max_read(u64::from(slice.length).saturating_sub(1));
+    let gets = count(&store, S3Op::GetRange);
+    assert_eq!(
+        below.read_slice(3, &encoded.header, &slice),
+        Err(LogError::OutOfRange("read longer than the store's bound"))
+    );
+    assert!(matches!(
+        below.read_body(3, &encoded.header),
+        Err(LogError::OutOfRange(_))
+    ));
+    assert_eq!(
+        count(&store, S3Op::GetRange),
+        gets,
+        "refused before any request"
+    );
+
+    // A header longer than the probe and the bound: one probe, no second read.
+    let keys: Vec<ShardKey> = (0..3000u32).map(|s| key(&format!("uuid-{s}"), 0)).collect();
+    let records: Vec<_> = (0..3000i64)
+        .map(|s| [record(&format!("id{s}"), s)])
+        .collect();
+    let batches: Vec<ShardBatch<'_>> = keys
+        .iter()
+        .zip(&records)
+        .map(|(shard, records)| ShardBatch {
+            shard,
+            term: 1,
+            records,
+        })
+        .collect();
+    let long =
+        oss_format::node_log_format::encode("node-1", 0, 0, 0, &batches, &[]).expect("encodes");
+    log.append(0, 0, &long.bytes).expect("lands");
+    let gets = count(&store, S3Op::GetRange);
+    let bounded = log
+        .clone()
+        .with_max_read(long.header.body_offset.saturating_sub(1));
+    assert!(matches!(
+        bounded.read_entry(0, 0),
+        Err(LogError::OutOfRange(_))
+    ));
+    assert_eq!(count(&store, S3Op::GetRange), gets.saturating_add(1));
+    let exact = log.clone().with_max_read(long.header.body_offset);
+    assert_eq!(
+        header(exact.read_entry(0, 0).expect("at the bound")),
+        long.header
+    );
+    assert_eq!(
+        format!("{:?}", log.with_max_read(u64::MAX)),
+        format!(
+            "{:?}",
+            NodeLogStore::new(store, "", "node-1").expect("valid")
+        ),
+        "the bound is at most the Java's int"
+    );
+}
+
+#[test]
+fn a_header_within_the_probe_is_one_read() {
+    let (store, log) = emulated();
+    // About 40 KiB of header: past a probe of a kilobyte, within 64 KiB.
+    let keys: Vec<ShardKey> = (0..500u32).map(|s| key(&format!("uuid-{s}"), 0)).collect();
+    let records: Vec<_> = (0..500i64)
+        .map(|s| [record(&format!("id{s}"), s)])
+        .collect();
+    let batches: Vec<ShardBatch<'_>> = keys
+        .iter()
+        .zip(&records)
+        .map(|(shard, records)| ShardBatch {
+            shard,
+            term: 1,
+            records,
+        })
+        .collect();
+    let encoded =
+        oss_format::node_log_format::encode("node-1", 0, 0, 0, &batches, &[]).expect("encodes");
+    assert!(
+        (16 * 1024..64 * 1024).contains(&encoded.header.body_offset),
+        "{}",
+        encoded.header.body_offset
+    );
+    log.append(0, 0, &encoded.bytes).expect("lands");
+    let gets = count(&store, S3Op::GetRange);
+    assert_eq!(header(log.read_entry(0, 0).expect("reads")), encoded.header);
+    assert_eq!(count(&store, S3Op::GetRange), gets.saturating_add(1));
 }

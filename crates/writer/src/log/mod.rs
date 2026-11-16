@@ -18,7 +18,7 @@ use oss_blob::BlobError;
 use oss_format::FormatError;
 
 pub use hedge::{HedgeOutcome, Spawn, ThreadPerPut};
-pub use store::{DELETE_BATCH, HEADER_PROBE_BYTES, NodeLogStore};
+pub use store::{HEADER_PROBE_BYTES, MAX_READ_BYTES, NodeLogStore};
 
 /// The most slots a fence tries before giving up on a writer that keeps
 /// taking the next one (the Java's `FENCE_ATTEMPTS`).

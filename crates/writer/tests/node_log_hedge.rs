@@ -284,3 +284,23 @@ fn a_read_back_that_fails_or_finds_nothing_is_not_this_blob() {
     assert_eq!(hedged(&log), Err(LogError::Taken));
     assert_eq!(inner.meter().count(S3Op::Get), 1);
 }
+
+#[test]
+fn a_slot_holding_a_prefix_of_this_blob_is_not_this_blob() {
+    let (inner, log) = scripted(&[Put::SlowBefore]);
+    let other =
+        NodeLogStore::new(Arc::clone(&inner) as Arc<dyn BlobStore>, "", "node-1").expect("valid");
+    other.append(1, 0, &BLOB[..8]).expect("lands");
+    assert_eq!(hedged(&log), Err(LogError::Taken));
+}
+
+#[test]
+fn a_slot_holding_this_blob_and_more_is_not_this_blob() {
+    let (inner, log) = scripted(&[Put::SlowBefore]);
+    let other =
+        NodeLogStore::new(Arc::clone(&inner) as Arc<dyn BlobStore>, "", "node-1").expect("valid");
+    other
+        .append(1, 0, b"a window's blob, and more")
+        .expect("lands");
+    assert_eq!(hedged(&log), Err(LogError::Taken));
+}

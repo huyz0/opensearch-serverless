@@ -164,13 +164,18 @@ fn holds(store: &dyn BlobStore, key: &str, blob: &[u8]) -> Result<bool, LogError
         &mut [0u8; IO_BUF_BYTES],
         &mut |chunk: &[u8]| {
             let end = at.saturating_add(chunk.len());
-            same = same && blob.get(at..end) == Some(chunk);
+            if blob.get(at..end) != Some(chunk) {
+                // Not this blob: stop the download here.
+                same = false;
+                return Err(BlobError::Stream("the slot holds another blob"));
+            }
             at = end;
             Ok(())
         },
     );
     match read {
-        Ok(_) => Ok(same && at == blob.len()),
+        Ok(_) => Ok(at == blob.len()),
+        Err(_) if !same => Ok(false),
         Err(BlobError::NotFound) => Ok(false),
         Err(e) => Err(e.into()),
     }

@@ -13,10 +13,9 @@ use super::LogError;
 /// costs a second read.
 pub const HEADER_PROBE_BYTES: u64 = 64 * 1024;
 
-/// The most names the Java's one delete request carries. Kept for the
-/// committer's trim batching; this store deletes one name a request, which
-/// S3 does not bill.
-pub const DELETE_BATCH: usize = 1000;
+/// The default and largest [`NodeLogStore::with_max_read`]: the Java's
+/// `int`, the most its reader takes in one read.
+pub const MAX_READ_BYTES: u64 = 0x7FFF_FFFF;
 
 /// The buffer a PUT or GET streams through, on the stack.
 pub(super) const IO_BUF_BYTES: usize = 16 * 1024;
@@ -31,6 +30,7 @@ pub struct NodeLogStore {
     pub(super) store: Arc<dyn BlobStore>,
     base: String,
     node_id: String,
+    max_read: u64,
 }
 
 impl std::fmt::Debug for NodeLogStore {
@@ -38,6 +38,7 @@ impl std::fmt::Debug for NodeLogStore {
         f.debug_struct("NodeLogStore")
             .field("base", &self.base)
             .field("node_id", &self.node_id)
+            .field("max_read", &self.max_read)
             .finish_non_exhaustive()
     }
 }
@@ -58,9 +59,19 @@ impl NodeLogStore {
             store,
             base: base.into(),
             node_id: node_id.into(),
+            max_read: MAX_READ_BYTES,
         };
         log.key(0, 0)?;
         Ok(log)
+    }
+
+    /// Bounds every read at `max_read` bytes, at most [`MAX_READ_BYTES`]: a
+    /// header, slice or body the blob says is longer is refused before it
+    /// is fetched, so what a blob claims never sizes an allocation past it.
+    #[must_use]
+    pub fn with_max_read(mut self, max_read: u64) -> Self {
+        self.max_read = max_read.min(MAX_READ_BYTES);
+        self
     }
 
     /// The node whose log this is.
@@ -158,6 +169,7 @@ impl NodeLogStore {
         if len64(end) <= len64(leading.len()) {
             return Ok(Some(owned(decode(&leading)?)));
         }
+        self.check_read(len64(end))?;
         let header = self.read_range(&key, 0, len64(end))?;
         if header.len() != end {
             return Err(LogError::Short {
@@ -263,6 +275,7 @@ impl NodeLogStore {
         start: u64,
         len: u64,
     ) -> Result<Vec<u8>, LogError> {
+        self.check_read(len)?;
         if len == 0 {
             // ALLOC: none: an empty vector does not allocate.
             return Ok(Vec::new());
@@ -277,12 +290,19 @@ impl NodeLogStore {
         Ok(bytes)
     }
 
+    fn check_read(&self, len: u64) -> Result<(), LogError> {
+        if len > self.max_read {
+            return Err(LogError::OutOfRange("read longer than the store's bound"));
+        }
+        Ok(())
+    }
+
     /// Up to `len` bytes of `key` from `start`, fewer where it ends.
     fn read_range(&self, key: &str, start: u64, len: u64) -> Result<Vec<u8>, LogError> {
         let cap = usize::try_from(len).map_err(|_| LogError::OutOfRange("read"))?;
-        // ALLOC: one read's bytes: a 64 KiB probe, a header or slice as long
-        // as the writer that wrote it held in memory to encode it, read one
-        // at a time; capacity grows with what arrives, never past `len`.
+        // ALLOC: one read's bytes: a 64 KiB probe, or a header, slice or body
+        // checked against `max_read` first (`check_read`); capacity grows
+        // with what arrives, never past `len`.
         let mut out = Vec::with_capacity(cap.min(IO_BUF_BYTES));
         self.store.get(
             key,
