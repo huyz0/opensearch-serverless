@@ -3,7 +3,7 @@
 use std::borrow::Cow;
 use std::sync::Arc;
 
-use oss_blob::{BlobError, BlobStore, ByteRange, CreateOutcome, SliceSource};
+use oss_blob::{BlobError, BlobStore, ByteRange, CreateOutcome, MAX_DELETE_KEYS, SliceSource};
 use oss_format::node_log_format::{PREFIX_BYTES, decode, header_end};
 use oss_format::{NodeLogEntry, NodeLogFence, NodeLogHeader, Slice, node_log_key};
 
@@ -256,16 +256,28 @@ impl NodeLogStore {
     }
 
     /// Deletes the blobs in `[from, to)`, fences included; empty slots are
-    /// skipped by the store. One unbilled DELETE a slot, no LIST.
+    /// skipped by the store. One unbilled batch delete a thousand slots,
+    /// sent one after another, no LIST.
     ///
     /// # Errors
     ///
-    /// [`LogError::Blob`] if a delete fails; the slots before it are gone.
+    /// [`LogError::Blob`] if a delete fails; the batches before it are gone.
     pub fn delete_range(&self, epoch: u64, from: u64, to: u64) -> Result<(), LogError> {
-        for ordinal in from..to {
-            self.store.delete(&self.key(epoch, ordinal)?)?;
+        let mut ordinals = from..to;
+        loop {
+            let keys = ordinals
+                .by_ref()
+                .take(MAX_DELETE_KEYS)
+                .map(|ordinal| self.key(epoch, ordinal))
+                // ALLOC: one batch's keys, at most MAX_DELETE_KEYS.
+                .collect::<Result<Vec<String>, LogError>>()?;
+            if keys.is_empty() {
+                return Ok(());
+            }
+            // ALLOC: as above, borrowed.
+            let named: Vec<&str> = keys.iter().map(String::as_str).collect();
+            self.store.delete_many(&named)?;
         }
-        Ok(())
     }
 
     fn read_exact(

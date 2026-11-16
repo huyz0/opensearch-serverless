@@ -275,19 +275,8 @@ impl Chunked<'_> {
     }
 }
 
-/// Appends `text` to `out` with XML's five special characters escaped.
-pub(crate) fn xml_escape(text: &str, out: &mut String) {
-    for c in text.chars() {
-        match c {
-            '&' => out.push_str("&amp;"),
-            '<' => out.push_str("&lt;"),
-            '>' => out.push_str("&gt;"),
-            '"' => out.push_str("&quot;"),
-            '\'' => out.push_str("&apos;"),
-            _ => out.push(c),
-        }
-    }
-}
+/// Escapes the five XML specials, the client's own escape.
+pub(crate) use crate::s3::delete::escape as xml_escape;
 
 fn reason(status: u16) -> &'static str {
     match status {

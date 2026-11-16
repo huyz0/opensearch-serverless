@@ -285,8 +285,8 @@ fn deletes_go_by_name() {
         .expect("an empty range deletes nothing");
     assert_eq!(
         count(&store, S3Op::Delete),
-        1200,
-        "one unbilled DELETE a slot"
+        2,
+        "one unbilled batch delete a thousand slots"
     );
     assert_eq!(count(&store, S3Op::List), lists, "and no listing");
     assert_eq!(log.read_entry(4, 1199), Ok(None));

@@ -1,6 +1,7 @@
 //! The blob-store contract, checked against the in-process emulator
 //! (docs/specs/blob-store/SPEC.md). Every test asserts exact request counts.
 
+mod deletes;
 mod faults;
 mod listing;
 mod reads;

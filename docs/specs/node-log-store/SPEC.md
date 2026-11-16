@@ -16,7 +16,7 @@ Parity plan R5.2, part 1: the store half of the log committer (roadmap stage 3, 
 - AC-1: a window of three shards is one PUT; its header is one ranged GET; one shard's slice is one ranged GET and parses to the records its batch held (`one_blob_holds_every_shard_and_each_slice_reads_alone`).
 - AC-2: after 37 appends, `fence` from a stale hint lands at slot 37 with one PUT, twelve HEADs, one ranged GET and no LIST; an append to slot 37 is `Taken`; `last_header_below` the fence is slot 36; a second successor's fence from slot 0 shares slot 37 (`a_fence_stops_the_writer_and_every_blob_it_landed_is_below_it`).
 - AC-3: a fence racing a writer, paused 1 ms between appends or back to back, stops it with `Taken`, and the writer's last landed slot is the one just below the fence, over 20 rounds each (`a_fence_racing_the_writer_*`); and, placed deterministically by a store whose writer beats the fence's first one, two or three PUTs, the fence fills its gap from the bottom and lands just above the writer's last slot; a writer that always wins ends the fence with `FenceExhausted`.
-- AC-4: `delete_range` of 1,200 slots removes exactly those, sends no LIST, and leaves slot 1,200 (`deletes_go_by_name`).
+- AC-4: `delete_range` of 1,200 slots removes exactly those, sends no LIST, and leaves slot 1,200 (`deletes_go_by_name`). Since the [batch delete](../blob-batch-delete/SPEC.md), that is 2 requests.
 - AC-5: a header longer than the 64 KiB probe takes exactly two ranged GETs and decodes to 3,000 slices; one of 40 KiB takes one; a header, slice or body longer than `with_max_read` is refused before it is fetched, and one exactly at it reads (`a_header_longer_than_the_first_read_takes_a_second`, `a_header_within_the_probe_is_one_read`, `a_read_longer_than_the_bound_is_refused_before_it_is_fetched`).
 - AC-6: hedged appends, on a store whose PUTs follow a script: a fast PUT sends no hedge (one PUT); a slow PUT is overtaken by its hedge (`Won`, sooner than the slow PUT); a PUT that landed but answers slowly is `Sent`, not a fence; a PUT that landed and then failed is `Sent` after exactly one read-back GET; a fenced slot fails both PUTs as `Taken` and still holds the fence; a fence that beats both slow PUTs is `Taken`; no delay means no hedge (`crates/writer/tests/node_log_hedge.rs`).
 
@@ -30,7 +30,7 @@ Parity plan R5.2, part 1: the store half of the log committer (roadmap stage 3, 
 - Append: 1 PUT, 1 round. Hedged: at most 2 PUTs in 1 round, plus 1 GET only when one PUT found the slot taken and the other did not land (a hedge raced itself or a fence). The committer (part 2) keeps the Java's cap on how often a hedge is sent.
 - Fence: HEADs doubling then halving from the lease's landed hint (a handful for a hint seconds old), 1 PUT, and a ranged GET of the slot below; more only while racing a live writer.
 - Read a header: 1 ranged GET, 2 when the header passes 64 KiB. A slice: 1 ranged GET. A body: 1 ranged GET.
-- Delete a range: 1 DELETE a slot, unbilled. No LIST anywhere.
+- Delete a range: 1 batch delete a thousand slots, unbilled (1 DELETE a slot before the [batch delete](../blob-batch-delete/SPEC.md)). No LIST anywhere.
 
 ## Switch
 

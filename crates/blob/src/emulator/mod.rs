@@ -12,6 +12,7 @@
 //! kind from a seed ([`faults`]).
 
 mod body;
+mod delete;
 pub mod faults;
 pub mod http;
 mod register;
@@ -214,24 +215,6 @@ impl Emulator {
         Ok(written)
     }
 
-    /// A DELETE that removes `key` only if its ETag is `etag`: `false`, a
-    /// failed attempt as S3's 412, when it is not or there is no object.
-    pub(crate) fn delete_if(&self, key: &str, etag_wanted: &str) -> BlobResult<bool> {
-        check_key(key)?;
-        let deleted = self.attempt(S3Op::Delete, || {
-            let mut objects = lock(&self.objects);
-            if !holds(&objects, key, Precondition::Matches(etag_wanted)) {
-                return Ok(false);
-            }
-            remove(&mut objects, key);
-            Ok(true)
-        })?;
-        if !deleted {
-            self.meter.record_error();
-        }
-        Ok(deleted)
-    }
-
     /// [`BlobStore::head`], with the object's version and its writer token
     /// if it has one.
     pub(crate) fn head_with_writer(
@@ -402,15 +385,6 @@ fn holds(objects: &Objects, key: &str, pre: Precondition<'_>) -> bool {
 }
 
 /// Removes the object at `key` and what is stored with it.
-fn remove(objects: &mut Objects, key: &str) {
-    objects.writers.remove(key);
-    objects.tags.remove(key);
-    if let Some(old) = objects.map.remove(key) {
-        let n = u64::try_from(old.len()).unwrap_or(u64::MAX);
-        objects.stored = objects.stored.saturating_sub(n);
-    }
-}
-
 impl BlobStore for Emulator {
     fn meter(&self) -> &Meter {
         &self.meter
@@ -444,11 +418,11 @@ impl BlobStore for Emulator {
     }
 
     fn delete(&self, key: &str) -> BlobResult<()> {
-        check_key(key)?;
-        self.attempt(S3Op::Delete, || {
-            remove(&mut lock(&self.objects), key);
-            Ok(())
-        })
+        self.delete_one(key)
+    }
+
+    fn delete_many(&self, keys: &[&str]) -> BlobResult<()> {
+        self.delete_batch(keys)
     }
 
     // LIST: the emulator's implementation of the trait's one bounded page.

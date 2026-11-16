@@ -27,7 +27,7 @@ use crate::store::{ByteRange, GetOutcome, ListPage, ObjectMeta};
 /// in; S3 returns it on HEAD.
 const WRITER: &str = "x-amz-meta-writer";
 /// Bytes of an error body read for its `<Code>`; S3's are a few hundred.
-const ERROR_BODY: usize = 1024;
+pub(super) const ERROR_BODY: usize = 1024;
 
 /// Bytes read at a time from a LIST response.
 const LIST_CHUNK: usize = 4096;
@@ -101,7 +101,7 @@ fn refusal(response: &mut Response<ureq::Body>) -> Refusal {
 
 /// The refusal of a request that has no precondition: a 412 there is a
 /// status it did not expect.
-fn failure(response: &mut Response<ureq::Body>) -> BlobError {
+pub(super) fn failure(response: &mut Response<ureq::Body>) -> BlobError {
     match refusal(response) {
         Refusal::Taken => BlobError::Unexpected(response.status().as_u16()),
         Refusal::Failed(err) => err,
@@ -131,7 +131,7 @@ impl S3Store {
     /// `key` is the object, or `None` for the bucket; `query` pairs are
     /// decoded. A connection that fails, or a body that fails to stream,
     /// is an error here; any status is a response.
-    fn send(
+    pub(super) fn send(
         &self,
         op: S3Op,
         method: http::Method,

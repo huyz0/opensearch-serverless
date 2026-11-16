@@ -128,6 +128,9 @@ impl BlobStore for Hooked {
     fn delete(&self, key: &str) -> BlobResult<()> {
         self.inner.delete(key)
     }
+    fn delete_many(&self, keys: &[&str]) -> BlobResult<()> {
+        self.inner.delete_many(keys)
+    }
     // LIST: the trait's listing, delegated; the log never calls it.
     fn list_prefix(
         &self,

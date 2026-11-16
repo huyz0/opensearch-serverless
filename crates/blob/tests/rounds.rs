@@ -113,3 +113,24 @@ fn the_log_names_each_call_and_its_key() {
         "{detail}"
     );
 }
+
+#[test]
+fn a_batch_delete_is_a_round_a_thousand_keys() {
+    let s = store();
+    let keys: Vec<String> = (0..2_001).map(|i| format!("d/{i}")).collect();
+    let named: Vec<&str> = keys.iter().map(String::as_str).collect();
+    s.delete_many(&named).unwrap();
+    assert_eq!(s.depth(), 3, "{}", s.detail());
+    assert_eq!(
+        s.calls(),
+        [
+            ("delete_many", "d/0".to_owned()),
+            ("delete_many", "d/1000".to_owned()),
+            ("delete_many", "d/2000".to_owned()),
+        ]
+    );
+    assert_eq!(s.meter().total(), 3);
+    s.reset(Duration::ZERO);
+    s.delete_many(&[]).unwrap();
+    assert_eq!(s.depth(), 0, "nothing named, nothing sent");
+}

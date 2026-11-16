@@ -24,7 +24,9 @@ use crate::chunk::{ChunkSink, ChunkSource};
 use crate::error::BlobResult;
 use crate::meter::Meter;
 use crate::register::{RegisterRead, SwapOutcome};
-use crate::store::{BlobStore, ByteRange, CreateOutcome, GetOutcome, ListPage, ObjectMeta};
+use crate::store::{
+    BlobStore, ByteRange, CreateOutcome, GetOutcome, ListPage, MAX_DELETE_KEYS, ObjectMeta,
+};
 
 /// Wraps a store and measures the round-trip depth of the calls made
 /// through it, logging each call's kind and key.
@@ -164,6 +166,19 @@ impl<S: BlobStore> BlobStore for Rounds<S> {
 
     fn delete(&self, key: &str) -> BlobResult<()> {
         self.round("delete", key, |s| s.delete(key))
+    }
+
+    /// One round a batch of [`MAX_DELETE_KEYS`], logged by its first key:
+    /// the batches go one after another.
+    fn delete_many(&self, keys: &[&str]) -> BlobResult<()> {
+        for key in keys {
+            self.inner.validate_key(key)?;
+        }
+        for batch in keys.chunks(MAX_DELETE_KEYS) {
+            let first = batch.first().copied().unwrap_or_default();
+            self.round("delete_many", first, |s| s.delete_many(batch))?;
+        }
+        Ok(())
     }
 
     // LIST: passes the caller's one bounded page through; the caller carries

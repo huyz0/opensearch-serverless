@@ -5,10 +5,14 @@ use std::io::Write;
 
 use super::Shared;
 use super::routes::{BODY_BUF, Reply, status_of};
-use super::wire::{Head, SocketBody, write_head};
+use super::wire::{Head, SocketBody, write_full, write_head};
+use crate::chunk::ChunkSource;
 use crate::emulator::etag;
 use crate::register::tagged::Precondition;
+use crate::s3::delete::base64;
+use crate::s3::xml::decode;
 use crate::store::BlobStore;
+use crate::store::MAX_DELETE_KEYS;
 
 /// The user-metadata header S3 stores with an object and returns on HEAD,
 /// which the client uses for its writer token.
@@ -96,4 +100,71 @@ pub(super) fn delete(shared: &Shared, head: &Head, key: &str) -> Reply {
             Err(err) => status_of(&err),
         },
     }
+}
+
+/// The largest batch-delete body taken: a thousand keys of 1,024 bytes,
+/// each escaped as six-byte entities, with room for the markup.
+const MAX_BATCH_BODY: u64 = 8 << 20;
+
+/// A batch delete (`POST /bucket?delete`): checks the body's
+/// `Content-MD5` as S3 does, deletes every key it names in one attempt, and
+/// answers an empty quiet result.
+pub(super) fn delete_batch(
+    shared: &Shared,
+    head: &Head,
+    body: &mut SocketBody<'_>,
+    out: &mut dyn Write,
+) -> Reply {
+    let Some(md5) = head.header("content-md5") else {
+        return Reply::Error(400, "InvalidRequest");
+    };
+    if body.len() > MAX_BATCH_BODY {
+        return Reply::Error(400, "MalformedXML");
+    }
+    // ALLOC: one batch-delete body, at most MAX_BATCH_BODY.
+    let mut xml = vec![0u8; usize::try_from(body.len()).unwrap_or(0)];
+    let mut filled = 0usize;
+    while let Some(rest) = xml.get_mut(filled..).filter(|r| !r.is_empty()) {
+        match body.fill(rest) {
+            Ok(n) if n > 0 => filled = filled.saturating_add(n),
+            _ => return Reply::Error(400, "IncompleteBody"),
+        }
+    }
+    if base64(&<md5::Md5 as md5::Digest>::digest(&xml)) != md5 {
+        return Reply::Error(400, "BadDigest");
+    }
+    let Some(keys) = batch_keys(&xml) else {
+        return Reply::Error(400, "MalformedXML");
+    };
+    // ALLOC: as above, borrowed.
+    let named: Vec<&str> = keys.iter().map(String::as_str).collect();
+    if let Err(err) = shared.store.delete_batch(&named) {
+        return status_of(&err);
+    }
+    let result = b"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<DeleteResult></DeleteResult>";
+    match write_full(out, 200, &[("content-type", "application/xml")], result) {
+        Ok(()) => Reply::Done,
+        Err(_) => Reply::Close,
+    }
+}
+
+/// The keys a batch-delete body names, decoded; `None` for none, more
+/// than [`MAX_DELETE_KEYS`], or a key that does not decode.
+fn batch_keys(xml: &[u8]) -> Option<Vec<String>> {
+    const OPEN: &[u8] = b"<Key>";
+    const CLOSE: &[u8] = b"</Key>";
+    // ALLOC: the keys of one batch, at most MAX_DELETE_KEYS.
+    let mut keys = Vec::new();
+    // ALLOC: one decoded key, at most MAX_KEY_BYTES.
+    let mut decoded = Vec::new();
+    let mut rest = xml;
+    while let Some(at) = rest.windows(OPEN.len()).position(|w| w == OPEN) {
+        let text = rest.get(at.saturating_add(OPEN.len())..)?;
+        let end = text.windows(CLOSE.len()).position(|w| w == CLOSE)?;
+        decode(text.get(..end)?, &mut decoded).ok()?;
+        // ALLOC: as above, one a key.
+        keys.push(String::from_utf8(decoded.clone()).ok()?);
+        rest = text.get(end.saturating_add(CLOSE.len())..)?;
+    }
+    (!keys.is_empty() && keys.len() <= MAX_DELETE_KEYS).then_some(keys)
 }

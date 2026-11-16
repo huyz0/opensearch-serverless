@@ -26,6 +26,9 @@ use crate::register::{RegisterRead, SwapOutcome};
 /// The most keys one LIST page returns, as S3's `ListObjectsV2` caps it.
 pub const MAX_LIST_KEYS: usize = 1000;
 
+/// The most keys one batch delete (`DeleteObjects`) names, as on S3.
+pub const MAX_DELETE_KEYS: usize = 1000;
+
 /// The longest key S3 accepts, in bytes.
 pub const MAX_KEY_BYTES: usize = 1024;
 
@@ -141,6 +144,24 @@ pub trait BlobStore: Send + Sync {
 
     /// Deletes `key`. Deleting a missing key succeeds, as on S3.
     fn delete(&self, key: &str) -> BlobResult<()>;
+
+    /// Deletes every key in `keys`, missing ones included, checking them all
+    /// before sending anything. On S3 and the emulator this is one batch
+    /// delete for each [`MAX_DELETE_KEYS`] keys, sent one after another,
+    /// each recorded as one [`S3Op::Delete`]; a store without a batch delete
+    /// sends one delete a key. A failure leaves the keys before it deleted
+    /// and the rest perhaps not: deleting again is safe.
+    ///
+    /// [`S3Op::Delete`]: crate::S3Op::Delete
+    fn delete_many(&self, keys: &[&str]) -> BlobResult<()> {
+        for key in keys {
+            self.validate_key(key)?;
+        }
+        for key in keys {
+            self.delete(key)?;
+        }
+        Ok(())
+    }
 
     /// Visits up to `min(max_keys, MAX_LIST_KEYS)` keys starting with
     /// `prefix`, in byte order, after `start_after` if given, with each

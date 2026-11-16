@@ -15,6 +15,9 @@ oss-mem = { workspace = true }
 # SigV4 written here over RustCrypto's SHA-256 and HMAC.
 hmac = "=0.13.0"
 sha2 = "=0.11.1"
+# A batch delete must carry its body's Content-MD5, which S3 and every
+# S3-compatible store check (docs/specs/blob-batch-delete/SPEC.md).
+md-5 = "=0.11.0"
 ureq = { version = "=3.5.2", default-features = false, features = ["rustls"] }
 # A register's first generation is random from the OS's secure source, as
 # the Java's SecureRandom (docs/specs/registers/SPEC.md).
