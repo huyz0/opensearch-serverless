@@ -15,6 +15,7 @@ mod counts;
 mod lifecycle;
 mod listing;
 mod probe;
+mod routing;
 mod sweep;
 
 use std::sync::Arc;
