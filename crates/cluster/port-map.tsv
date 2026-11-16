@@ -33,3 +33,4 @@ src/transport_secret.rs	port	serverless/shell/src/main/java/org/opensearch/serve
 tests/leases/secret.rs	new		the secret register on the emulator: generation, mint, lost mint, cache timing and two nodes verifying each other
 src/lease/early_revoke.rs	new		early revocation of a refused peer's lease (ADR 0016 point 7); the Java has none, and uses BlobLeaseMembership.revokeOnce's swap to a revoked copy
 tests/leases/early.rs	new		every decline, the revocation and its requests, the negative cache and the single flight
+tests/leases/early_bounds.rs	new		early revocation's single flight, memory bound and TCP probe

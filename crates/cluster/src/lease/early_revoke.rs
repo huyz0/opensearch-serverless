@@ -24,8 +24,12 @@
 //! Java shell has no early revocation; Java nodes treat the revoked lease as
 //! dead and take part in the takeover unchanged.
 //!
-//! Costs one lease read and one swap a detecting node, and nothing while
-//! the fleet is healthy.
+//! Costs one lease read and one swap a detecting node (one more read when
+//! the swap loses), and nothing while the fleet is healthy: what was
+//! decided for a process is remembered for a lifetime (a store failure for
+//! a second), so refusals at the forward rate cost no more. Last-renewed is
+//! taken as expiry less this node's lifetime, so the fleet must run one
+//! lifetime before the setting is turned on.
 
 use std::collections::{HashMap, HashSet};
 use std::io;
@@ -114,10 +118,11 @@ pub enum Verdict {
 pub enum Declined {
     /// A revocation of this process is running on this node.
     InFlight,
-    /// One was declined for this process within the last lifetime.
+    /// One was declined for this process within the last lifetime, or the
+    /// store failed for it within the last second.
     RecentlyDeclined,
-    /// The negative cache holds `max_members` processes declined within
-    /// the last lifetime: refusing is the safe answer.
+    /// The cache of processes judged holds `max_members`, counting those
+    /// being judged now: refusing is the safe answer.
     Crowded,
     /// The lease names this process at another address.
     AnotherAddress,
@@ -125,17 +130,29 @@ pub enum Declined {
     RenewedRecently,
     /// The confirming connect was not refused.
     Answered,
-    /// The lease changed between the read and the swap: renewed.
+    /// The lease changed between the read and the swap, and is not
+    /// revoked: renewed.
     Renewed,
     /// The store failed, or the lease did not parse or fit.
     Store,
 }
 
+/// How long a store failure keeps a process from being tried again.
+const STORE_RETRY_MILLIS: i64 = 1_000;
+
 #[derive(Default)]
 struct State {
     running: HashSet<String>,
-    // Process key to when the decline stops counting, epoch millis.
-    declined: HashMap<String, i64>,
+    // Process key to what was decided for it and when that stops counting,
+    // epoch millis. A process never returns under the same ephemeral id,
+    // so `Gone` and `Revoked` hold for good; a lifetime is enough.
+    judged: HashMap<String, (Judged, i64)>,
+}
+
+#[derive(Clone, Copy)]
+enum Judged {
+    Gone,
+    Declined,
 }
 
 /// Early revocation over one node's membership.
@@ -177,8 +194,8 @@ impl EarlyRevoke {
 
     /// Called when a connect to `node_id`'s process `ephemeral_id` at
     /// `address` was refused at `first_refused_at_millis` (this node's
-    /// clock). Blocks until 500 ms after that refusal for the confirming
-    /// connect, then up to [`CONFIRM_TIMEOUT`] for it.
+    /// clock). Blocks until 500 ms after that refusal (at most 500 ms) for
+    /// the confirming connect, then up to [`CONFIRM_TIMEOUT`] for it.
     pub fn on_refused(
         &self,
         node_id: &str,
@@ -193,41 +210,44 @@ impl EarlyRevoke {
         let key = format!("{node_id}#{ephemeral_id}");
         let _claim = match self.claim(&key) {
             Ok(claim) => claim,
-            Err(declined) => return Verdict::Declined(declined),
+            Err(remembered) => return remembered,
         };
         let verdict = self.decide(node_id, ephemeral_id, address, first_refused_at_millis);
-        if let Verdict::Declined(
-            Declined::AnotherAddress
-            | Declined::RenewedRecently
-            | Declined::Answered
-            | Declined::Renewed,
-        ) = verdict
-        {
-            let until = self
-                .membership
-                .clock
-                .now_millis()
-                .saturating_add(self.membership.config.ttl_millis);
-            // ALLOC: one entry a declined process, at most max_members (claim).
-            lock(&self.state).declined.insert(key.clone(), until);
-        }
+        let ttl = self.membership.config.ttl_millis;
+        let (judged, lasts) = match verdict {
+            Verdict::Revoked | Verdict::Gone => (Judged::Gone, ttl),
+            Verdict::Declined(Declined::Store) => (Judged::Declined, STORE_RETRY_MILLIS),
+            _ => (Judged::Declined, ttl),
+        };
+        let until = self.membership.clock.now_millis().saturating_add(lasts);
+        // ALLOC: one entry a process judged, at most max_members (claim).
+        lock(&self.state)
+            .judged
+            .insert(key.clone(), (judged, until));
         verdict
     }
 
-    /// Takes the single-flight claim on `key`, unless one is running, one
-    /// was declined within a lifetime, or the negative cache is full.
-    fn claim<'a>(&'a self, key: &'a str) -> Result<Claim<'a>, Declined> {
+    /// Takes the single-flight claim on `key`, unless one is running, the
+    /// process was judged recently (answered from memory, no request), or
+    /// the cache is full.
+    fn claim<'a>(&'a self, key: &'a str) -> Result<Claim<'a>, Verdict> {
         let now = self.membership.clock.now_millis();
         let mut state = lock(&self.state);
         if state.running.contains(key) {
-            return Err(Declined::InFlight);
+            return Err(Verdict::Declined(Declined::InFlight));
         }
-        if state.declined.get(key).is_some_and(|until| now < *until) {
-            return Err(Declined::RecentlyDeclined);
+        match state.judged.get(key) {
+            Some((Judged::Gone, until)) if now < *until => return Err(Verdict::Gone),
+            Some((Judged::Declined, until)) if now < *until => {
+                return Err(Verdict::Declined(Declined::RecentlyDeclined));
+            }
+            _ => {}
         }
-        state.declined.retain(|_, until| now < *until);
-        if state.declined.len() >= self.membership.config.max_members {
-            return Err(Declined::Crowded);
+        state.judged.retain(|_, (_, until)| now < *until);
+        if state.judged.len().saturating_add(state.running.len())
+            >= self.membership.config.max_members
+        {
+            return Err(Verdict::Declined(Declined::Crowded));
         }
         // ALLOC: one key a revocation running, at most the peers refused at once.
         state.running.insert(key.to_owned());
@@ -269,9 +289,11 @@ impl EarlyRevoke {
         if now.saturating_sub(renewed_at) < settle {
             return Verdict::Declined(Declined::RenewedRecently);
         }
+        // At most 500 ms, whatever clock the caller's timestamp came from.
         let wait = first_refused_at_millis
             .saturating_add(CONFIRM_AFTER_MILLIS)
-            .saturating_sub(now);
+            .saturating_sub(now)
+            .min(CONFIRM_AFTER_MILLIS);
         if wait > 0 {
             membership
                 .clock
@@ -291,7 +313,14 @@ impl EarlyRevoke {
             write.get(..len).unwrap_or_default(),
         ) {
             Ok(SwapOutcome::Applied(_)) => Verdict::Revoked,
-            Ok(SwapOutcome::Conflict(_)) => Verdict::Declined(Declined::Renewed),
+            // Renewed, or revoked by another node: one read tells which.
+            Ok(SwapOutcome::Conflict(_)) => match membership.read_lease(&lease_key, &mut read) {
+                Ok(Some((_, now_held))) if !now_held.revoked => {
+                    Verdict::Declined(Declined::Renewed)
+                }
+                Ok(_) => Verdict::Gone,
+                Err(_) => Verdict::Declined(Declined::Store),
+            },
             Err(_) => Verdict::Declined(Declined::Store),
         }
     }
