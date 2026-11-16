@@ -147,6 +147,7 @@ pub(crate) fn echo(
 ) -> Result<Vec<u8>, CallError> {
     client
         .call(peer, call("test:echo", compress, 5_000), |o| {
+            TaskId::EMPTY.write(o)?;
             o.bytes(payload)
         })
         .map(|a| a.message().to_vec())

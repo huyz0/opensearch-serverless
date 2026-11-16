@@ -205,8 +205,9 @@ impl Client {
         self.sockets.load(Ordering::Acquire)
     }
 
-    /// Sends `call` to `peer` with the message `write_message` writes after
-    /// the request's parent task id, and waits for the answer.
+    /// Sends `call` to `peer` with the message `write_message` writes (the
+    /// whole request as its `writeTo` writes it, parent task id first), and
+    /// waits for the answer.
     ///
     /// # Errors
     ///
@@ -241,10 +242,7 @@ impl Client {
             self.config.max_frame_bytes,
             meta,
             &variable,
-            |o| {
-                TaskId::EMPTY.write(o)?;
-                write_message(o)
-            },
+            write_message,
         )
         .map_err(|e| match e {
             WireError::TooLarge { .. } => CallError::TooLarge,

@@ -15,10 +15,13 @@
 //! - [`placement`]: the owner of a shard's writes, the readers of its
 //!   searches and the winner of a takeover, computed alike by every node
 //!   from the leases, with the Java's hashes.
+//! - [`transport_secret`]: the keys of the transport's request MAC, read
+//!   from their register and cached for one lease TTL.
 
 pub mod lease;
 pub mod placement;
 pub mod routing;
+pub mod transport_secret;
 
 mod error;
 

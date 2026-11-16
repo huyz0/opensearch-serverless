@@ -16,6 +16,17 @@ java -cp "$CP:out" org.opensearch.transport.WireRecordings fixtures/transport
 | `frames.txt` | kind, request id, compressed, headers (`q:` request, `r:` response, `;`-separated, response values `|`-separated), features, action, message description (the node for a transport handshake response; `parent=` and `string=` for a generic message), then the frame |
 
 The recordings come from 3.3.0's classes, not a build of the shell's 3.10 fork: every encoding here is the same across 3.x once the version gates are passed (a node's stream address from 3.2.0), and a version id is only a number on the wire. 
+## Forwarded writes and the request MAC
+
+`ForwardingRecordings.java` records what the shell's own classes (huyz0/OpenSearch `serverless/shell` at `429b4cbc`) write: `forwarding.txt` holds forwarded index and bulk requests and responses, each round-tripped through the class's `StreamInput` constructor and `writeTo`; `macs.txt` holds headers `TransportAuthenticator` signed (mac, key, action, recipient, other headers as `k=v` hex, the request's bytes, the header), each checked by the Java's own `verify`. Strings are UTF-8 hex, `~` is null and `-` empty. It compiles against the shell's sources beside the jars above: copy `forwarding/Forwarded{Index,Bulk}{Request,Response}.java`, `write/{BulkOperation,BulkOutcome,WriteHold,WriteOutcome}.java`, `nodelog/WalRecord.java`, `transport/TransportAuthenticator.java` and `metadata/TransportSecrets.java` into `src/` under their packages, with a stub `routing/ShardRouter.java` holding only `TOKEN_HEADER`.
+
+```bash
+javac -proc:none -nowarn -cp "$CP" -sourcepath src -d out fixtures/transport/ForwardingRecordings.java
+java -cp "$CP:out" org.opensearch.serverless.transport.ForwardingRecordings fixtures/transport
+```
+
+`crates/transport/tests/wire/{forwarding,macs,mac_rotation}.rs` check every row.
+
 ## Live interop
 
 `TransportInterop.java` runs a real `Netty4Transport` and `TransportService` at the shell's version id against `crates/transport/examples/interop.rs`, both ways: echo plain and compressed, `ActionNotFound` and status failures read as each side's own types, and a node under another ephemeral id refused. Beside the jars above it needs `transport-netty4-client`, Netty 4.1.125, the Lucene 10.3.1 modules, `opensearch-{cli,geo,secure-sm,telemetry,task-commons}`, joda-time, t-digest, HdrHistogram, spatial4j, jts-core and log4j-core, from Maven Central. Leave out `opensearch-compress`: its zstd provider needs a native library.

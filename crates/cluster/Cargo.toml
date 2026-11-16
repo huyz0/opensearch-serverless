@@ -11,6 +11,8 @@ repository.workspace = true
 [dependencies]
 oss-blob = { workspace = true }
 oss-format = { workspace = true }
+oss-transport = { workspace = true }
+getrandom = "=0.4.3"
 
 [lints]
 workspace = true

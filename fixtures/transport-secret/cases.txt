@@ -1,0 +1,27 @@
+0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+   a1b2c3   
+{"generation":4,"current":"aa11","previous":"bb22","rotated_at":1700000000123}
+{"generation":1,"current":"aa11","previous":null,"rotated_at":0}
+{"current":"aa11"}
+  {"current":"aa11","previous":"bb22"}  
+{"current":"aa11","generation":"7","rotated_at":true}
+{"current":"aa11","generation":2.9,"rotated_at":-1.5}
+{"current":"aa11","generation":1e3,"rotated_at":9223372036854775807}
+{"current":"aa11","extra":{"nested":[1,2,{"x":null}]},"more":"x"}
+{"current":"a\u0062\"c"}
+{"current":"aa11","previous":"  "}
+{"current":"   "}
+{"current":null}
+{"previous":"bb22"}
+{"current":7}
+{"current":"aa11","previous":7}
+{"current":"aa11","current":"bb22"}
+{"current":"aa11"} trailing
+{"current":"aa11"
+[]
+{
+{}
+{"current":"\u00a0"}
+{"current":"\u0085"}
+{"current":"\u2003\u3000\u001f"}
+{"current":"aa11","previous":"\u202f"}

@@ -14,6 +14,7 @@ graph TD
     oss-blob --> oss-types
     oss-cluster --> oss-blob
     oss-cluster --> oss-format
+    oss-cluster --> oss-transport
     oss-compat
     oss-coordinator --> oss-blob
     oss-coordinator --> oss-reader

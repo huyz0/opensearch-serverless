@@ -115,7 +115,10 @@ fn call(port: u16, ephemeral_id: &str) {
             compress,
             deadline: Instant::now() + Duration::from_secs(10),
         };
-        client.call(&peer, call, |o| o.bytes_reference(text.as_bytes()))
+        client.call(&peer, call, |o| {
+            TaskId::EMPTY.write(o)?;
+            o.bytes_reference(text.as_bytes())
+        })
     };
     for compress in [false, true] {
         let answer = request("interop:echo", compress, "hello from rust").expect("echo");
@@ -154,7 +157,10 @@ fn call(port: u16, ephemeral_id: &str) {
             compress: false,
             deadline: Instant::now() + Duration::from_secs(10),
         },
-        |o| o.bytes_reference(b"x"),
+        |o| {
+            TaskId::EMPTY.write(o)?;
+            o.bytes_reference(b"x")
+        },
     );
     check(
         matches!(refused, Err(CallError::WrongPeer(_))),

@@ -7,6 +7,8 @@
 //! the Java's own classes wrote. The client, server and forwarded actions
 //! build on them.
 
+pub mod actions;
+pub mod auth;
 pub mod channel;
 pub mod client;
 pub mod error;

@@ -47,6 +47,7 @@ mod reclaim_intent;
 mod register;
 mod segment_blob;
 mod tombstone;
+mod transport_secret;
 mod unit_layout;
 
 pub use alias_record::{ALIAS_DISCRIMINATOR, AliasMutation, AliasRecord};
@@ -60,8 +61,8 @@ pub use error::FormatError;
 pub use index_record::{EMPTY_SETTINGS, IndexRecord, MAX_SHARDS, NameRecord};
 pub use keys::{
     CHANGES_PREFIX, CLUSTER_CONFIG_KEY, DESCRIPTORS_PREFIX, FileExtent, MANIFEST, MARKERS_PREFIX,
-    RECLAIM_PREFIX, ShardRef, change_stripe_key, cluster_config_key, descriptor_key, node_pack_key,
-    reclaim_intent_key, tombstone_marker_key,
+    RECLAIM_PREFIX, ShardRef, TRANSPORT_SECRET_KEY, change_stripe_key, cluster_config_key,
+    descriptor_key, node_pack_key, reclaim_intent_key, tombstone_marker_key, transport_secret_key,
 };
 pub use location::{FileLocation, NODE_PACK_PREFIX};
 pub use manifest::{CommitManifest, ManifestFile};
@@ -94,4 +95,5 @@ pub mod segment_blob_format {
 pub mod manifest_format {
     pub use crate::manifest::MAX_FILES;
 }
+pub use transport_secret::{MAX_TRANSPORT_SECRET_BYTES, TransportSecret};
 pub use unit_layout::{MAX_UNIT_LAYOUT_BYTES, ShardMode, UnitLayoutRecord, UnitRecord};
