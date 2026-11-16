@@ -147,7 +147,10 @@ fn a_bump_is_a_read_and_a_swap() {
 fn a_bump_retries_while_others_move_the_stripe() {
     let store = Arc::new(Quirky::new(Quirk::ConflictSwaps(3)));
     let s = ChangeStripes::new(Arc::clone(&store) as Arc<dyn BlobStore>, BASE).unwrap();
+    let started = std::time::Instant::now();
     let (_, sent) = counted(store.meter(), || s.bump("alpha", Changed).unwrap());
+    // Backing off 1, 2 and 4 ms after the lost ones.
+    assert!(started.elapsed() >= std::time::Duration::from_millis(7));
     // Three lost attempts and the one that lands: each a read and a swap,
     // the lost ones refused before they reach the store.
     assert_eq!(sent, [(Get, 4), (Put, 1)]);
@@ -155,8 +158,11 @@ fn a_bump_retries_while_others_move_the_stripe() {
 
     let store = Arc::new(Quirky::new(Quirk::ConflictSwaps(u32::MAX)));
     let s = ChangeStripes::new(Arc::clone(&store) as Arc<dyn BlobStore>, BASE).unwrap();
+    let started = std::time::Instant::now();
     let (got, sent) = counted(store.meter(), || s.bump("alpha", Changed));
     assert!(matches!(got, Err(MetaError::Contended)), "{got:?}");
+    // 1 + 2 + 4 + 8 + 16 ms, then 32 ms after each of the other 59.
+    assert!(started.elapsed() >= std::time::Duration::from_millis(1_919));
     assert_eq!(sent, [(Get, 64)]);
 }
 

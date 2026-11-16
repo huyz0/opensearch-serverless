@@ -50,6 +50,26 @@ fn bumps_write_the_javas_bytes() {
 }
 
 #[test]
+fn a_delete_finishes_only_its_own_pending_entry() {
+    let stripe = replay(&[("x", PendingDelete), ("y", PendingDelete), ("x", Deleted)]);
+    assert_eq!(
+        stripe.entries,
+        [
+            StripeEntry {
+                generation: 2,
+                pending: true,
+                name: "y"
+            },
+            StripeEntry {
+                generation: 3,
+                pending: false,
+                name: "x"
+            },
+        ]
+    );
+}
+
+#[test]
 fn only_the_newest_applied_changes_are_kept_with_every_pending_delete() {
     let names: Vec<String> = (0..300).map(|i| format!("n-{i}")).collect();
     let mut stripe = ChangeStripe::default();
