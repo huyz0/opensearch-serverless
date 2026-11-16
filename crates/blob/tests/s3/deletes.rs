@@ -103,6 +103,12 @@ fn the_front_end_refuses_a_batch_as_s3_does() {
             "MalformedXML",
         ),
         (
+            Some("zGBGQooJp5BdcDFUQUsH8Q=="),
+            "<Delete><Object><Key>a\u{1}b</Key></Object></Delete>",
+            "400",
+            "MalformedXML",
+        ),
+        (
             Some("qH4RsE4XBX79uAjxcaE8IQ=="),
             thousand_and_one.as_str(),
             "400",
@@ -145,4 +151,72 @@ fn the_front_end_refuses_a_batch_as_s3_does() {
     let r = read_to_close(&mut s);
     assert_eq!(status(&r), "400", "{r}");
     assert!(r.contains("IncompleteBody"), "{r}");
+}
+
+// AC-9
+#[test]
+fn a_key_with_line_breaks_is_the_key_deleted_not_one_an_xml_parser_reads() {
+    let f = fixture();
+    for k in ["a\r\nb", "a\nb", "c\rd", "c\nd", "t\tu"] {
+        put(f.server.store(), k, b"x");
+    }
+    f.client.delete_many(&["a\r\nb", "c\rd", "t\tu"]).unwrap();
+    for (k, kept) in [
+        ("a\r\nb", false),
+        ("a\nb", true),
+        ("c\rd", false),
+        ("c\nd", true),
+        ("t\tu", false),
+    ] {
+        assert_eq!(f.server.store().head(k).unwrap().is_some(), kept, "{k:?}");
+    }
+}
+
+// AC-9
+#[test]
+fn a_key_xml_cannot_carry_is_refused_before_any_request() {
+    let f = fixture();
+    for bad in ["ok\u{1}", "nul\u{0}", "esc\u{1b}", "nonchar\u{fffe}"] {
+        assert!(
+            matches!(
+                f.client.delete_many(&["fine", bad]),
+                Err(BlobError::InvalidArgument(_))
+            ),
+            "{bad:?}"
+        );
+    }
+    assert_eq!(f.server.requests(), 0);
+    assert_eq!(f.client.meter().total(), 0);
+}
+
+// AC-10
+#[test]
+fn an_error_listed_in_the_answer_fails_the_batch_and_only_a_transient_one_is_retried() {
+    let f = fixture();
+    put(f.server.store(), "a", b"x");
+    f.server.list_delete_error_next("AccessDenied", 1);
+    assert_eq!(f.client.delete_many(&["a"]), Err(BlobError::Denied));
+    assert_counts(f.client.meter(), &[(S3Op::Delete, 1)]);
+    assert_eq!(
+        f.server.store().object_count(),
+        1,
+        "a key listed failed stays"
+    );
+
+    let f = fixture();
+    put(f.server.store(), "a", b"x");
+    f.server.list_delete_error_next("InternalError", 2);
+    f.client.delete_many(&["a"]).unwrap();
+    assert_counts(f.client.meter(), &[(S3Op::Delete, 3)]);
+    assert_eq!(f.client.meter().errors(), 2);
+    assert_eq!(f.server.store().object_count(), 0);
+
+    let f = fixture();
+    put(f.server.store(), "a", b"x");
+    f.server.list_delete_error_next("InvalidObjectState", 1);
+    assert!(matches!(
+        f.client.delete_many(&["a"]),
+        Err(BlobError::Protocol(_))
+    ));
+    assert_counts(f.client.meter(), &[(S3Op::Delete, 1)]);
 }

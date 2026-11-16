@@ -27,7 +27,7 @@ use crate::store::{MAX_DELETE_KEYS, check_key};
 /// Bytes read from the answer at a time.
 const ANSWER_CHUNK: usize = 4096;
 /// The body's buffer as `ureq` reads it.
-const BODY_CHUNK: usize = 16 * 1024;
+const BODY_CHUNK: usize = 16_384;
 
 impl S3Store {
     /// One batch delete for each [`MAX_DELETE_KEYS`] keys, in order, after
@@ -36,6 +36,11 @@ impl S3Store {
     pub(super) fn delete_batches(&self, keys: &[&str]) -> BlobResult<()> {
         for key in keys {
             check_key(key)?;
+            if !key.chars().all(xml_char) {
+                return Err(BlobError::InvalidArgument(
+                    "a key XML 1.0 cannot carry in a batch delete",
+                ));
+            }
         }
         for batch in keys.chunks(MAX_DELETE_KEYS) {
             let body = request_body(batch);
@@ -108,34 +113,57 @@ fn request_body(keys: &[&str]) -> Vec<u8> {
 }
 
 /// The failure of the first key the answer lists as `<Error>`, reading it
-/// as it streams; `None` when it lists none.
+/// as it streams; `None` when it lists none and ends as a whole result
+/// does, and [`BlobError::Unavailable`] when it breaks off before.
 fn first_error(answer: &mut dyn Read) -> BlobResult<Option<BlobError>> {
-    const OPEN: &[u8] = b"<Error>";
-    // The bytes of the last chunk an `<Error>` split across chunks may
-    // start in, kept ahead of the next.
-    let keep = OPEN.len().saturating_sub(1);
-    let mut scan = [0u8; ANSWER_CHUNK + OPEN.len()];
+    const ERROR: &[u8] = b"<Error>";
+    const OPEN: &[u8] = b"<DeleteResult";
+    const CLOSE: &[u8] = b"</DeleteResult>";
+    // The bytes of the last chunk a marker split across chunks may start
+    // in, kept ahead of the next.
+    let keep = CLOSE.len().saturating_sub(1);
+    let mut scan = [0u8; ANSWER_CHUNK];
     let mut carried = 0usize;
+    let (mut opened, mut closed) = (false, false);
+    // The last two bytes that were not white space: `/>` ends a result
+    // written as one empty element.
+    let mut tail = [0u8; 2];
     loop {
         let room = scan.get_mut(carried..).unwrap_or_default();
         let n = answer.read(room).map_err(|_| BlobError::Unavailable)?;
         if n == 0 {
-            return Ok(None);
+            let empty_element = opened && tail == *b"/>";
+            return if closed || empty_element {
+                Ok(None)
+            } else {
+                Err(BlobError::Unavailable)
+            };
         }
         let filled = carried.saturating_add(n);
         let window = scan.get(..filled).unwrap_or_default();
-        if let Some(at) = window.windows(OPEN.len()).position(|w| w == OPEN) {
-            let mut error = [0u8; ERROR_BODY];
+        let has = |marker: &[u8]| window.windows(marker.len()).any(|w| w == marker);
+        opened = opened || has(OPEN);
+        closed = closed || has(CLOSE);
+        for b in window.get(carried..).unwrap_or_default() {
+            if !b.is_ascii_whitespace() {
+                tail = [tail[1], *b];
+            }
+        }
+        if let Some(at) = window.windows(ERROR.len()).position(|w| w == ERROR) {
             let found = window.get(at..).unwrap_or_default();
+            let mut error = [0u8; ERROR_BODY];
             let mut len = found.len().min(ERROR_BODY);
             if let (Some(dst), Some(src)) = (error.get_mut(..len), found.get(..len)) {
                 dst.copy_from_slice(src);
             }
+            // What arrives of it is read; a break after `<Error>` leaves the
+            // code unknown, which is retried.
             while let Some(rest) = error.get_mut(len..).filter(|r| !r.is_empty()) {
-                match answer.read(rest) {
-                    Ok(m) if m > 0 => len = len.saturating_add(m),
-                    _ => break,
+                let m = answer.read(rest).unwrap_or(0);
+                if m == 0 {
+                    break;
                 }
+                len = len.saturating_add(m);
             }
             let code = error_code(error.get(..len).unwrap_or_default());
             return Ok(Some(key_failure(code)));
@@ -145,16 +173,25 @@ fn first_error(answer: &mut dyn Read) -> BlobResult<Option<BlobError>> {
     }
 }
 
-/// What a key's error code means: retried unless it is a refusal.
+/// What a key's error code means: a refusal, a transient failure that is
+/// retried, or a failure that would only repeat.
 fn key_failure(code: Option<&str>) -> BlobError {
     match code {
         Some("AccessDenied") => BlobError::Denied,
         Some("SlowDown") => BlobError::Throttled,
-        _ => BlobError::Unavailable,
+        Some("InternalError" | "ServiceUnavailable") | None => BlobError::Unavailable,
+        Some(_) => BlobError::Protocol("a key the batch delete could not delete"),
     }
 }
 
-/// Appends `text` with the five XML specials escaped.
+/// Whether XML 1.0 allows `c` in a document.
+pub(crate) fn xml_char(c: char) -> bool {
+    matches!(c, '\t' | '\n' | '\r' | ' '..='\u{d7ff}' | '\u{e000}'..='\u{fffd}' | '\u{10000}'..)
+}
+
+/// Appends `text` with the five XML specials escaped, and tab and line
+/// breaks as character references, so a parser hands them on as sent
+/// rather than turning `\r\n` into `\n`.
 pub(crate) fn escape(text: &str, out: &mut String) {
     for c in text.chars() {
         match c {
@@ -163,6 +200,9 @@ pub(crate) fn escape(text: &str, out: &mut String) {
             '>' => out.push_str("&gt;"),
             '"' => out.push_str("&quot;"),
             '\'' => out.push_str("&apos;"),
+            '\t' => out.push_str("&#9;"),
+            '\n' => out.push_str("&#10;"),
+            '\r' => out.push_str("&#13;"),
             _ => out.push(c),
         }
     }
@@ -225,6 +265,85 @@ mod tests {
             )
         );
         assert!(body.ends_with("</Delete>"));
+    }
+
+    #[test]
+    fn line_breaks_and_tabs_go_as_references_and_the_digest_is_md5_in_base64() {
+        let body = String::from_utf8(request_body(&["a\r\nb\tc"])).unwrap();
+        assert!(body.contains("<Key>a&#13;&#10;b&#9;c</Key>"), "{body}");
+        // Computed outside this crate, so a wrong base64 or MD5 fails here.
+        assert_eq!(
+            base64(&Md5::digest(request_body(&["a"]))),
+            "POGEkvbWZkE1nBPxAHEo4A=="
+        );
+    }
+
+    #[test]
+    fn an_answer_that_breaks_off_before_its_end_is_unavailable() {
+        for cut in [
+            &b""[..],
+            b"<DeleteResult>",
+            b"<DeleteResult><Deleted><Key>a</Key></Deleted>",
+            b"<DeleteResult></DeleteRes",
+            b"<Other/>",
+        ] {
+            assert_eq!(
+                scan(cut, 3),
+                Err(BlobError::Unavailable),
+                "{}",
+                String::from_utf8_lossy(cut)
+            );
+        }
+        for whole in [
+            &b"<DeleteResult></DeleteResult>"[..],
+            b"<DeleteResult xmlns=\"x\"/>\r\n",
+            b"<?xml version=\"1.0\"?>\n<DeleteResult/>",
+        ] {
+            for piece in [1, 2, 4096] {
+                assert_eq!(
+                    scan(whole, piece),
+                    Ok(None),
+                    "{}",
+                    String::from_utf8_lossy(whole)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_code_that_would_only_repeat_is_not_retried() {
+        assert_eq!(key_failure(Some("InternalError")), BlobError::Unavailable);
+        assert_eq!(
+            key_failure(Some("ServiceUnavailable")),
+            BlobError::Unavailable
+        );
+        assert_eq!(key_failure(None), BlobError::Unavailable);
+        for code in ["InvalidObjectState", "InvalidArgument", "NoSuchBucket"] {
+            assert!(
+                matches!(key_failure(Some(code)), BlobError::Protocol(_)),
+                "{code}"
+            );
+        }
+    }
+
+    #[test]
+    fn xml_carries_every_character_but_controls_and_nonchars() {
+        for c in [
+            '\t',
+            '\n',
+            '\r',
+            ' ',
+            'a',
+            '\u{d7ff}',
+            '\u{e000}',
+            '\u{fffd}',
+            '\u{10000}',
+        ] {
+            assert!(xml_char(c), "{c:?}");
+        }
+        for c in ['\u{0}', '\u{8}', '\u{b}', '\u{1f}', '\u{fffe}', '\u{ffff}'] {
+            assert!(!xml_char(c), "{c:?}");
+        }
     }
 
     fn scan(answer: &[u8], piece: usize) -> BlobResult<Option<BlobError>> {

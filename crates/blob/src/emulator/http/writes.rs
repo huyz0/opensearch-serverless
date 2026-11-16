@@ -5,11 +5,11 @@ use std::io::Write;
 
 use super::Shared;
 use super::routes::{BODY_BUF, Reply, status_of};
-use super::wire::{Head, SocketBody, write_full, write_head};
+use super::wire::{Head, SocketBody, write_full, write_head, xml_escape};
 use crate::chunk::ChunkSource;
 use crate::emulator::etag;
 use crate::register::tagged::Precondition;
-use crate::s3::delete::base64;
+use crate::s3::delete::{base64, xml_char};
 use crate::s3::xml::decode;
 use crate::store::BlobStore;
 use crate::store::MAX_DELETE_KEYS;
@@ -136,13 +136,28 @@ pub(super) fn delete_batch(
     let Some(keys) = batch_keys(&xml) else {
         return Reply::Error(400, "MalformedXML");
     };
-    // ALLOC: as above, borrowed.
-    let named: Vec<&str> = keys.iter().map(String::as_str).collect();
-    if let Err(err) = shared.store.delete_batch(&named) {
-        return status_of(&err);
+    // ALLOC: one answer, an empty result or one key's error.
+    let mut result = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<DeleteResult>");
+    if let Some(code) = shared.scripted_delete_error() {
+        result.push_str("<Error><Key>");
+        xml_escape(keys.first().map_or("", String::as_str), &mut result);
+        result.push_str("</Key><Code>");
+        result.push_str(code);
+        result.push_str("</Code><Message>scripted</Message></Error>");
+    } else {
+        // ALLOC: as above, borrowed.
+        let named: Vec<&str> = keys.iter().map(String::as_str).collect();
+        if let Err(err) = shared.store.delete_batch(&named) {
+            return status_of(&err);
+        }
     }
-    let result = b"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<DeleteResult></DeleteResult>";
-    match write_full(out, 200, &[("content-type", "application/xml")], result) {
+    result.push_str("</DeleteResult>");
+    match write_full(
+        out,
+        200,
+        &[("content-type", "application/xml")],
+        result.as_bytes(),
+    ) {
         Ok(()) => Reply::Done,
         Err(_) => Reply::Close,
     }
@@ -161,10 +176,35 @@ fn batch_keys(xml: &[u8]) -> Option<Vec<String>> {
     while let Some(at) = rest.windows(OPEN.len()).position(|w| w == OPEN) {
         let text = rest.get(at.saturating_add(OPEN.len())..)?;
         let end = text.windows(CLOSE.len()).position(|w| w == CLOSE)?;
-        decode(text.get(..end)?, &mut decoded).ok()?;
+        decode(&normalized(text.get(..end)?)?, &mut decoded).ok()?;
+        let key = String::from_utf8(decoded.clone()).ok()?;
+        if key.chars().any(|c| !xml_char(c)) {
+            return None;
+        }
         // ALLOC: as above, one a key.
-        keys.push(String::from_utf8(decoded.clone()).ok()?);
+        keys.push(key);
         rest = text.get(end.saturating_add(CLOSE.len())..)?;
     }
     (!keys.is_empty() && keys.len() <= MAX_DELETE_KEYS).then_some(keys)
+}
+
+/// Element text as an XML parser hands it on: raw line breaks (`\r\n` or a
+/// lone `\r`) become `\n`, and a raw character XML 1.0 does not allow is
+/// refused. Escaped breaks (`&#13;`) are decoded afterwards and kept.
+fn normalized(raw: &[u8]) -> Option<Vec<u8>> {
+    // ALLOC: one key's text, at most its raw length.
+    let mut out = Vec::with_capacity(raw.len());
+    let mut bytes = raw.iter().copied().peekable();
+    while let Some(b) = bytes.next() {
+        match b {
+            b'\r' => {
+                bytes.next_if_eq(&b'\n');
+                out.push(b'\n');
+            }
+            b'\t' | b'\n' => out.push(b),
+            0..0x20 => return None,
+            _ => out.push(b),
+        }
+    }
+    Some(out)
 }

@@ -8,3 +8,5 @@
 - AC-6: `the_client_round_trips_against_rustfs` (blob, `tests/rustfs.rs`). It skips without `RUSTFS_BIN`, and it has not run here because this environment cannot download the RustFS binary.
 - AC-7: `a_batch_delete_is_a_round_a_thousand_keys` (blob, `tests/rounds.rs`).
 - AC-8: `deletes_go_by_name` (writer, `tests/node_log_store.rs`).
+- AC-9: `a_key_with_line_breaks_is_the_key_deleted_not_one_an_xml_parser_reads`, `a_key_xml_cannot_carry_is_refused_before_any_request`, `the_front_end_refuses_a_batch_as_s3_does` (blob, `tests/s3/deletes.rs`); `line_breaks_and_tabs_go_as_references_and_the_digest_is_md5_in_base64`, `xml_carries_every_character_but_controls_and_nonchars` (unit, `s3/delete.rs`).
+- AC-10: `an_error_listed_in_the_answer_fails_the_batch_and_only_a_transient_one_is_retried` (blob, `tests/s3/deletes.rs`); `an_answer_that_breaks_off_before_its_end_is_unavailable`, `a_code_that_would_only_repeat_is_not_retried`, `line_breaks_and_tabs_go_as_references_and_the_digest_is_md5_in_base64` (unit, `s3/delete.rs`).

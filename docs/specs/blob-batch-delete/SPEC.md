@@ -10,8 +10,9 @@ Invariant I-1 (every request through `oss-blob`, metered). It is the follow-up t
 - `S3Store` sends S3's `DeleteObjects`, `POST /bucket?delete`, for each 1,000 keys, one after another:
   - the body is built whole, with each key XML-escaped, in quiet mode;
   - the request carries `Content-MD5`, which S3 requires for this call. `md-5` is pinned `=0.11.0`, RustCrypto, the same family as `sha2`;
-  - the answer is scanned as it streams. The first `<Error>` fails the call: `AccessDenied` is `Denied`, `SlowDown` is `Throttled`, and anything else is `Unavailable`. Deleting is idempotent, so a failed batch is retried whole under the client's policy.
-- The emulator deletes each 1,000 keys in one attempt. Its S3 front end serves `POST ?delete`. It refuses a missing `Content-MD5` (400 `InvalidRequest`) and a wrong one (400 `BadDigest`), as S3 does. It also refuses a body naming no key, over 1,000 keys, or over 8 MiB (400 `MalformedXML`).
+  - tab and line breaks go as character references (`&#9;`, `&#10;`, `&#13;`), so an XML parser does not turn a key's `\r\n` into `\n` and delete another key. A key holding a character XML 1.0 cannot carry (another control character, U+FFFE, U+FFFF) is refused with `InvalidArgument` before anything is sent;
+  - the answer is scanned as it streams. The first `<Error>` fails the call: `AccessDenied` is `Denied`, `SlowDown` is `Throttled`, `InternalError` and `ServiceUnavailable` (or no code) are `Unavailable`, and any other code is `Protocol`, which is not retried. An answer that ends before `</DeleteResult>` (or an empty `<DeleteResult/>`) is `Unavailable`. Deleting is idempotent, so a transient failure is retried whole under the client's policy.
+- The emulator deletes each 1,000 keys in one attempt. Its S3 front end serves `POST ?delete`. It refuses a missing `Content-MD5` (400 `InvalidRequest`) and a wrong one (400 `BadDigest`), as S3 does. It also refuses a body naming no key, over 1,000 keys, over 8 MiB, or holding a raw control character in a key (400 `MalformedXML`). It reads raw line breaks as an XML parser does (`\r\n` and `\r` become `\n`), and it can be scripted to list a key as failed (`S3Server::list_delete_error_next`).
 - `Rounds` counts each batch as one round.
 - `NodeLogStore::delete_range` deletes 1,000 slots a request. Before this change it sent one DELETE a slot.
 - Not in this change: callers other than the node log. The tombstone sweep and the index purge still delete one key a call, and each moves when its own change wants it.
@@ -26,11 +27,14 @@ Invariant I-1 (every request through `oss-blob`, metered). It is the follow-up t
 - AC-6: with `RUSTFS_BIN` set, the RustFS scenario also batch-deletes a stored key and a missing one.
 - AC-7: `Rounds` logs a 2,001-key batch delete as 3 sequential rounds, one a batch, each named by its first key.
 - AC-8: the node log's `delete_range` of 1,200 slots costs 2 `Delete` requests and no LIST.
+- AC-9: over HTTP, deleting `a\r\nb`, `c\rd` and `t\tu` deletes those keys and keeps `a\nb` and `c\nd`. A key holding U+0000, U+0001, U+001B or U+FFFE is refused with `InvalidArgument` before any request. The front end refuses a raw control character in a key.
+- AC-10: a 200 answer listing a key's `<Error>` fails the batch: `AccessDenied` is `Denied` in one attempt and the key stays; `InternalError` is retried, with each attempt counted; `InvalidObjectState` is `Protocol` in one attempt. An answer that breaks off before its end is `Unavailable`, and one written as an empty `<DeleteResult/>` element is success. The digest of a body the client builds matches one computed outside the crate.
 
 ## Test plan
 
 - AC-1 to AC-3: `tests/emulator/deletes.rs` and `tests/s3/deletes.rs`. Each was seen failing against the trait's one-key-a-call default: 2,502 `Delete` requests instead of 3.
 - AC-4: `tests/s3/deletes.rs`, seen failing against a client that sent the wrong digest and against one that did not escape keys. Unit tests in `s3/delete.rs` cover the scanner, base64 and the body.
+- AC-9, AC-10: `tests/s3/deletes.rs` and unit tests in `s3/delete.rs`. AC-9 was seen failing with a client that did not escape `\r` and with one that sent keys XML cannot carry. AC-10 was seen failing with a client that retried every listed code.
 - AC-5: `tests/fs/writes.rs`. AC-6: `tests/rustfs.rs`. AC-7: `tests/rounds.rs`. AC-8: `deletes_go_by_name` in `crates/writer/tests/node_log_store.rs`, seen failing at 1,200 requests.
 
 ## S3 request budget
