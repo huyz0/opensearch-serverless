@@ -100,9 +100,14 @@ pub const MAX_TERM_BYTES: usize = 32_766;
 
 /// The most bytes a search of `source` on `shard` holds for its hits: the
 /// engine's collected hits and this module's, each with its sort values,
+/// and the engine's collector queue and value slots, which live beside its
+/// collected hits while they are built (counted as one more engine hit),
 /// for no more hits than the window or the shard's documents. A keyword
-/// sort value is counted at [`MAX_TERM_BYTES`] twice, as the engine's copy
-/// and this module's. What the caller reserves before searching.
+/// sort value is counted at [`MAX_TERM_BYTES`] twice: two copies of a term
+/// are alive at once, the engine's slot and hit, then its hit and this
+/// module's. What the caller reserves before searching. A full window of
+/// 10,000 hits sorted by a long was measured at 157 bytes a hit beyond a
+/// one-hit search; this counts 192.
 pub fn hits_bytes<S: BlobStore + 'static>(source: &SearchSource, shard: &OpenShard<S>) -> usize {
     let docs = usize::try_from(shard.reader.max_doc()).unwrap_or(0);
     let window = source
@@ -123,12 +128,24 @@ pub fn hits_bytes<S: BlobStore + 'static>(source: &SearchSource, shard: &OpenSha
         })
         .count();
     let per_hit = std::mem::size_of::<Hit>()
-        .saturating_add(std::mem::size_of::<FieldDoc>())
+        .saturating_add(std::mem::size_of::<FieldDoc>().saturating_mul(2))
         .saturating_add(source.sort.len().saturating_mul(
             std::mem::size_of::<SortValue>().saturating_add(std::mem::size_of::<[i64; 2]>()),
         ))
         .saturating_add(terms.saturating_mul(MAX_TERM_BYTES.saturating_mul(2)));
     window.saturating_mul(per_hit)
+}
+
+/// The total a search reports, as `SearchPhaseController.TopDocsStats.getTotalHits`
+/// gives it for the default `track_total_hits`: a count past
+/// [`TRACK_TOTAL_HITS`] is reported as that many, at least. The engine may
+/// count further when it has to visit every match anyway, as for a sort.
+pub fn reported(counted: u64, relation: TotalHitsRelation) -> (u64, bool) {
+    if counted > TRACK_TOTAL_HITS {
+        (TRACK_TOTAL_HITS, false)
+    } else {
+        (counted, relation == TotalHitsRelation::EqualTo)
+    }
 }
 
 /// How a key orders, and how its values read back.
@@ -207,9 +224,10 @@ pub fn search<S: BlobStore + 'static>(
                 .map(|h| sorted_hit(h, &kinds, score_at))
                 // ALLOC: one hit a result, at most MAX_RESULT_WINDOW.
                 .collect();
+            let (total, exact) = reported(top.total.value, top.total.relation);
             Ok(Hits {
-                total: top.total.value,
-                exact: top.total.relation == TotalHitsRelation::EqualTo,
+                total,
+                exact,
                 max_score: None,
                 hits,
             })
@@ -222,10 +240,11 @@ pub fn search<S: BlobStore + 'static>(
                 .search_collector(&query, &mut collector)
                 .map_err(ShardError::engine)?;
             let top = collector.top_docs();
-            let total = collector.total_hits();
+            let counted = collector.total_hits();
+            let (total, exact) = reported(counted.value, counted.relation);
             Ok(Hits {
-                total: total.value,
-                exact: total.relation == TotalHitsRelation::EqualTo,
+                total,
+                exact,
                 max_score: top.first().map(|h| h.score),
                 hits: top
                     .iter()
@@ -409,4 +428,26 @@ fn field_sort<S: BlobStore + 'static>(
     let mut f = SortField::numeric(name, ty, reverse);
     f.missing = if reverse { min } else { max };
     Ok((f, KeyKind::Numeric))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_count_past_the_tracking_limit_is_reported_at_the_limit() {
+        let exact = TotalHitsRelation::EqualTo;
+        let at_least = TotalHitsRelation::GreaterThanOrEqualTo;
+        assert_eq!(reported(0, exact), (0, true));
+        assert_eq!(reported(TRACK_TOTAL_HITS, exact), (TRACK_TOTAL_HITS, true));
+        assert_eq!(
+            reported(TRACK_TOTAL_HITS, at_least),
+            (TRACK_TOTAL_HITS, false)
+        );
+        assert_eq!(
+            reported(TRACK_TOTAL_HITS + 1, exact),
+            (TRACK_TOTAL_HITS, false)
+        );
+        assert_eq!(reported(12_000, at_least), (TRACK_TOTAL_HITS, false));
+    }
 }

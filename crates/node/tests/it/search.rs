@@ -272,20 +272,11 @@ fn fields_the_reader_does_not_search_or_sort_yet_are_refused() {
     );
 }
 
-#[test]
-fn opening_more_indexes_than_the_limit_closes_one() {
-    let node = crate::support::start_service(crate::support::store(), |s| s.with_max_open(2));
-    for index in ["compat-term", "compat-match", "compat-range"] {
-        let r = request(node.addr(), "GET", &format!("/{index}/_search"), None);
-        assert_eq!(r.status, 200);
-    }
-    assert_eq!(node.service.open_indexes(), 2);
-}
-
 fn small_pool(bytes: usize) -> oss_mem::MemoryBudget {
     oss_mem::MemoryBudget::new(
         &oss_mem::BudgetConfig::new(64 << 20)
             .with_pool(oss_mem::Pool::RequestBodies, bytes)
+            .and_then(|c| c.with_pool(oss_mem::Pool::OpenIndexes, 16 << 20))
             .expect("fits"),
     )
 }
@@ -340,6 +331,28 @@ fn a_search_the_request_body_pool_cannot_hold_is_refused_with_429() {
 }
 
 #[test]
+fn a_node_with_no_open_index_pool_does_not_start() {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("binds");
+    let budget = oss_mem::MemoryBudget::new(
+        &oss_mem::BudgetConfig::new(64 << 20)
+            .with_pool(oss_mem::Pool::RequestBodies, 16 << 20)
+            .expect("fits"),
+    );
+    let started = oss_node::search::start_reader(
+        listener,
+        crate::support::server_config(),
+        crate::support::store(),
+        "",
+        crate::support::NODE,
+        &budget,
+    );
+    let Err(e) = started else {
+        panic!("started");
+    };
+    assert_eq!(e.to_string(), "the open_indexes pool is empty");
+}
+
+#[test]
 fn a_node_whose_pool_cannot_hold_the_server_buffers_does_not_start() {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("binds");
     let started = oss_node::search::start_reader(
@@ -354,31 +367,4 @@ fn a_node_whose_pool_cannot_hold_the_server_buffers_does_not_start() {
         panic!("started");
     };
     assert!(e.to_string().starts_with("server: Memory"), "{e}");
-}
-
-#[test]
-fn concurrent_first_searches_of_one_index_evict_nothing_else() {
-    let node = crate::support::start_service(crate::support::store(), |s| s.with_max_open(2));
-    let addr = node.addr();
-    assert_eq!(
-        request(addr, "GET", "/compat-term/_search", None).status,
-        200
-    );
-    let clients: Vec<_> = (0..8)
-        .map(|_| thread::spawn(move || request(addr, "GET", "/compat-match/_search", None).status))
-        .collect();
-    for c in clients {
-        assert_eq!(c.join().expect("client"), 200);
-    }
-    assert_eq!(node.service.open_indexes(), 2);
-    let warm = counts(&node.store);
-    assert_eq!(
-        request(addr, "GET", "/compat-term/_search", None).status,
-        200
-    );
-    assert_eq!(
-        since(warm, counts(&node.store)),
-        [],
-        "the first index is still open"
-    );
 }

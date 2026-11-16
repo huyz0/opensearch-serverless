@@ -23,3 +23,4 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0011](0011-cluster-config-flat-form.md) | The cluster config register written in the flat settings form | Accepted |
 | [0012](0012-index-deletes-and-reclaim.md) | Index deletes finish through a reclaim queue, and purge a shard by listing it | Accepted |
 | [0013](0013-settings-registry.md) | Settings as typed definitions, collected into one registry at build time | Accepted |
+| [0014](0014-open-indexes-pool.md) | Open indexes charged to a pool of their own, least recently used closed first | Accepted |

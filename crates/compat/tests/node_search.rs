@@ -207,6 +207,7 @@ fn the_reader_node_answers_every_search_fixture_as_opensearch_did() {
     let budget = MemoryBudget::new(
         &BudgetConfig::new(64 << 20)
             .with_pool(Pool::RequestBodies, 16 << 20)
+            .and_then(|c| c.with_pool(Pool::OpenIndexes, 16 << 20))
             .expect("fits"),
     );
     let config = ServerConfig {

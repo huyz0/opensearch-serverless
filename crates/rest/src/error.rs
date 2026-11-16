@@ -151,6 +151,15 @@ impl RestError {
     /// reports a request it cannot admit: `bytes_wanted` is the pool's use if
     /// the request were admitted.
     pub fn circuit_breaking(e: &Exhausted, label: &str) -> Self {
+        Self::breaker(e, "in_flight_requests", label, false)
+    }
+
+    /// 429 `circuit_breaking_exception` from the breaker named `breaker`,
+    /// as `ChildMemoryCircuitBreaker#circuitBreak` words it. `permanent`
+    /// marks a request no retry can admit (durability `PERMANENT`, which
+    /// OpenSearch gives a request larger than a breaker's whole limit),
+    /// else `TRANSIENT`.
+    pub fn breaker(e: &Exhausted, breaker: &str, label: &str, permanent: bool) -> Self {
         let wanted = u64::try_from(e.in_use.saturating_add(e.requested)).unwrap_or(u64::MAX);
         let limit = u64::try_from(e.limit).unwrap_or(u64::MAX);
         // ALLOC: error path; a fixed message plus two sizes and the label.
@@ -158,7 +167,7 @@ impl RestError {
         // Writes into a Vec cannot fail.
         let _ = write!(
             reason,
-            "[in_flight_requests] Data too large, data for [{label}] would be [{wanted}/"
+            "[{breaker}] Data too large, data for [{label}] would be [{wanted}/"
         );
         let _ = write_byte_size(&mut reason, wanted);
         let _ = write!(reason, "], which is larger than the limit of [{limit}/");
@@ -168,7 +177,10 @@ impl RestError {
         let ex = Exception::new("circuit_breaking_exception", reason)
             .with_meta("bytes_wanted", Meta::Int(wanted))
             .with_meta("bytes_limit", Meta::Int(limit))
-            .with_meta("durability", Meta::Str("TRANSIENT".into()));
+            .with_meta(
+                "durability",
+                Meta::Str(if permanent { "PERMANENT" } else { "TRANSIENT" }.into()),
+            );
         Self::exception(Exhausted::HTTP_STATUS, ex)
     }
 
@@ -405,6 +417,27 @@ mod tests {
             "status": 429
         });
         assert_eq!(body(&e), want);
+    }
+
+    #[test]
+    fn a_named_breaker_names_itself_and_its_durability() {
+        let mut ex = Exhausted {
+            pool: Pool::OpenIndexes,
+            requested: 2048,
+            in_use: 0,
+            limit: 1024,
+        };
+        let e = RestError::breaker(&ex, "open_indexes", "<open_index>", true);
+        let reason = "[open_indexes] Data too large, data for [<open_index>] would be [2048/2kb]";
+        assert!(
+            body(&e)["error"]["reason"]
+                .as_str()
+                .is_some_and(|r| r.starts_with(reason))
+        );
+        assert_eq!(body(&e)["error"]["durability"], "PERMANENT");
+        ex.requested = 1;
+        let e = RestError::breaker(&ex, "open_indexes", "<open_index>", false);
+        assert_eq!(body(&e)["error"]["durability"], "TRANSIENT");
     }
 
     #[test]

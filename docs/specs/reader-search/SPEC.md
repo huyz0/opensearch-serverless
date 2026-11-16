@@ -21,7 +21,7 @@ Not in this change: other queries and search keys (refused as OpenSearch refuses
 - AC-7: `from + size` above 10,000 is refused with OpenSearch's "Result window is too large" error; the hits a search keeps (no more than the window or the shard's documents, a keyword sort value counted at Lucene's longest term) are reserved from the request-body pool before it runs, and each hit's `_id` and `_source` buffers grow only by what the pool grants.
 - AC-8: the response is streamed (chunked), one hit's stored fields held at a time.
 - AC-9: under eight concurrent clients, four sending an 8 MiB body and four asking for the whole window, the heap peak stays within four recordings at their limit, doubled, plus 2 MiB, under the request-body pool, and under half the bytes sent.
-- AC-10: an index that cannot be served (more than one shard, a corrupt descriptor) is refused (400, 500) and not kept; opening past the open-index limit closes one, and concurrent first searches of one index close no other.
+- AC-10: an index that cannot be served (more than one shard, a corrupt descriptor) is refused (400, 500) and not kept; opening past the open-index limit closes one, and concurrent first searches of one index close no other (the limit is a pool since [reader-budgets](../reader-budgets/SPEC.md)).
 - AC-11: an index's first search makes exactly the ranged GETs its files need once each (4 for the `match_all` fixture), and none after.
 
 ## Test plan
@@ -38,4 +38,4 @@ The `reader` cargo feature of `oss-node`; no runtime setting, since there was no
 
 ## Risks
 
-A key order or float format that differs from Jackson's would fail the replay. A recording limit that is too small refuses large legitimate bodies (a term value over the limit is a 400, as the peak test shows). An index never told of a newer commit serves stale hits. A keyword-sorted window is reserved at 32 KiB a value, so a large one on a large index gets a 429 well before it would use that memory. Open indexes are capped by count, not charged to the budget, and the index closed at the limit is arbitrary, not the least recently used.
+A key order or float format that differs from Jackson's would fail the replay. A recording limit that is too small refuses large legitimate bodies (a term value over the limit is a 400, as the peak test shows). An index never told of a newer commit serves stale hits. A keyword-sorted window is reserved at 32 KiB a value, so a large one on a large index gets a 429 well before it would use that memory. Open indexes were capped by count and closed arbitrarily; [reader-budgets](../reader-budgets/SPEC.md) charges them to a pool and closes the least recently searched.

@@ -38,7 +38,7 @@ oss-mem = { workspace = true, optional = true }
 lucene-store = { workspace = true }
 oss-blob = { workspace = true, features = ["emulator"] }
 oss-mem = { workspace = true }
-oss-testkit = { workspace = true }
+oss-testkit = { workspace = true, features = ["index"] }
 
 [lints]
 workspace = true

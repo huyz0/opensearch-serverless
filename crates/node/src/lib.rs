@@ -5,6 +5,8 @@
 //! what this binary was built with.
 
 #[cfg(feature = "reader")]
+pub mod open_indexes;
+#[cfg(feature = "reader")]
 pub mod search;
 pub mod settings;
 

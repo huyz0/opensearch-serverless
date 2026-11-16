@@ -6,7 +6,7 @@ Test-only support shared by every crate's tests: a counting global allocator tha
 Test-only helpers: a counting allocator for peak-memory assertions, temporary directories, and the request-budget table's checker.
 
 ## Depends on
-Nothing in the workspace.
+Nothing in the workspace; lucene-rust behind the `index` feature.
 
 ## Entry points
-`src/lib.rs` re-exports them: `counting_allocator()` for a `#[global_allocator]` static (the pinned `cap` crate, so no `unsafe` here), `PeakWindow` for peak, live and allocated bytes since a start point, and `assert_peak_below`. Put each peak test in its own integration-test binary: the counters are process-wide. `TempDir::new(label)` is a fresh directory removed on drop. `budget::check(key, measured, detail)` holds a measurement to its row of [docs/request-budgets.md](../../docs/request-budgets.md), which is compiled in; `OSS_REQUEST_BUDGETS_RECORD=1` prints instead of checking ([spec](../../docs/specs/request-budgets/SPEC.md)).
+`src/lib.rs` re-exports them: `counting_allocator()` for a `#[global_allocator]` static (the pinned `cap` crate, so no `unsafe` here), `PeakWindow` for peak, live and allocated bytes since a start point, and `assert_peak_below`. Put each peak test in its own integration-test binary: the counters are process-wide. `TempDir::new(label)` is a fresh directory removed on drop. With the `index` feature, `index::blobs(base, &Spec)` builds a one-shard index with lucene-rust and lays it out as the shell's blobs, for tests that need more documents, segments or fields than a recorded fixture. `budget::check(key, measured, detail)` holds a measurement to its row of [docs/request-budgets.md](../../docs/request-budgets.md), which is compiled in; `OSS_REQUEST_BUDGETS_RECORD=1` prints instead of checking ([spec](../../docs/specs/request-budgets/SPEC.md)).

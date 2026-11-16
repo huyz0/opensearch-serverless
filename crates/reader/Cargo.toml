@@ -22,6 +22,7 @@ lucene-codecs = { workspace = true }
 [dev-dependencies]
 oss-blob = { workspace = true, features = ["emulator"] }
 oss-mem = { workspace = true }
+oss-testkit = { workspace = true, features = ["index"] }
 
 [lints]
 workspace = true
