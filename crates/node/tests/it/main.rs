@@ -7,4 +7,5 @@
 #[path = "../support/mod.rs"]
 mod support;
 
+mod budgets;
 mod search;

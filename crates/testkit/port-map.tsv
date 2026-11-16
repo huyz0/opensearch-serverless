@@ -2,3 +2,4 @@ rust_path	kind	java_source	note
 src/lib.rs	new		crate root
 src/peak.rs	new		test-only counting allocator and peak assertions; the Java shell measures heap with JMX instead
 src/temp.rs	new		test-only temporary directories; the Java tests use LuceneTestCase.createTempDir
+src/budget.rs	port	serverless/testkit/src/test/java/org/opensearch/serverless/testkit/RequestBudgets.java@3920dc36	the table compiled into the test binary rather than read from the classpath; record mode by environment variable rather than system property

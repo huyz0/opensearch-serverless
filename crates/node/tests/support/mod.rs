@@ -43,12 +43,17 @@ fn walk(root: &Path, dir: &Path, out: &mut Vec<(String, Vec<u8>)>) {
 
 /// An emulator holding every compat blob at its key.
 pub fn store() -> Arc<PooledStore<Emulator>> {
+    loaded(Emulator::new(64 << 20, 1))
+}
+
+/// `inner` holding every compat blob at its key, behind a buffer pool.
+pub fn loaded<S: BlobStore>(inner: S) -> Arc<PooledStore<S>> {
     let config = BudgetConfig::new(8 << 20)
         .with_pool(Pool::Transport, 8 << 20)
         .expect("fits");
     let budget = MemoryBudget::new(&config);
     let buffers = BufferPool::new(&budget, Pool::Transport, SMALL_BUFFER, 16).expect("fits");
-    let store = PooledStore::new(Emulator::new(64 << 20, 1), buffers);
+    let store = PooledStore::new(inner, buffers);
     let mut blobs = Vec::new();
     let root = blobs_root();
     walk(&root, &root, &mut blobs);

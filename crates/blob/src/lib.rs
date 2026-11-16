@@ -10,7 +10,8 @@
 //! testing the client. [`FsStore`] implements it over a directory, for single-host nodes and
 //! tests (`serverless.store.type = fs`, [`settings`]). [`PooledStore`] streams bodies
 //! through the node's buffer pool and answers [`BlobError::Busy`] when it is
-//! empty.
+//! empty. [`Rounds`], behind the `emulator` feature, wraps a store to measure
+//! a path's round-trip depth for the request-budget gates.
 
 pub mod chunk;
 #[cfg(feature = "emulator")]
@@ -21,6 +22,8 @@ pub mod meter;
 pub mod op;
 pub mod pooled;
 pub mod register;
+#[cfg(feature = "emulator")]
+mod rounds;
 pub mod s3;
 pub mod settings;
 pub mod store;
@@ -34,6 +37,8 @@ pub use meter::Meter;
 pub use op::{PriceClass, S3Op};
 pub use pooled::PooledStore;
 pub use register::{RegisterRead, SwapOutcome};
+#[cfg(feature = "emulator")]
+pub use rounds::Rounds;
 pub use s3::retry::RetryPolicy;
 pub use s3::sigv4::Credentials;
 pub use s3::{S3Config, S3Store};

@@ -11,11 +11,11 @@ The bill is S3 requests. The rules, once: [principles.md, Cost](../../../docs/pr
 
 1. Before writing the call, answer in order: can the key be derived from data already held? Can the information ride in an upload that already happens? Only then a GET, and only then a LIST with a `// LIST:` reason.
 2. Count the operation's requests per kind, retries included, and say what they scale with. Nodes and bytes pass; documents, indices or time per index fail.
-3. Write a test against the in-process emulator asserting the exact counts (`meter.count(S3Op::Put) == 1`, `meter.count(S3Op::List) == 0`). A count assertion is never loosened to make a change pass.
+3. Write a test against the in-process emulator asserting the exact counts (`meter.count(S3Op::Put) == 1`, `meter.count(S3Op::List) == 0`). A count assertion is never loosened to make a change pass. A path [docs/request-budgets.md](../../../docs/request-budgets.md) pins fails its gate: raise the row in the same change, with the reason.
 4. State the counts per operation in the PR's Evidence.
 
 ## Enforced by
 
 - `scripts/check-s3-access.py` (client crates only in `oss-blob`; `// LIST:` on every LIST call).
-- The count assertions in tests.
+- The count assertions in tests, and the request-budget gates with `scripts/check-budgets.py` (every row enforced or blocked).
 - Not mechanical: whether a request scales with the wrong thing. Review (`/quality-review`).
