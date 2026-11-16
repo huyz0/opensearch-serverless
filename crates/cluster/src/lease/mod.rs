@@ -22,6 +22,7 @@
 //! missing index is created naming the enrolling node, and every Java node
 //! at the ported revision writes the index when it joins.
 
+pub mod early_revoke;
 mod membership;
 mod oracle;
 mod peers;
@@ -32,6 +33,7 @@ use std::time::Duration;
 
 use oss_format::NodeLease;
 
+pub use early_revoke::{ConnectProbe, EarlyRevoke, TcpProbe, Verdict};
 pub use membership::Membership;
 pub use oracle::LivenessOracle;
 pub use refresh::Refreshed;

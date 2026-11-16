@@ -7,6 +7,7 @@
 #![allow(clippy::arithmetic_side_effects)]
 
 mod budget;
+mod early;
 mod java;
 mod refresh;
 mod renew;
@@ -35,6 +36,8 @@ pub(crate) const T0: i64 = 1_700_000_000_000;
 pub(crate) struct TestClock {
     now: AtomicI64,
     pub(crate) pauses: AtomicU32,
+    /// The pauses' total.
+    pub(crate) paused_for: std::sync::Mutex<Duration>,
 }
 
 impl TestClock {
@@ -58,8 +61,9 @@ impl LeaseClock for TestClock {
         self.now()
     }
 
-    fn pause(&self, _pause: Duration) {
+    fn pause(&self, pause: Duration) {
         self.pauses.fetch_add(1, Ordering::SeqCst);
+        *self.paused_for.lock().unwrap() += pause;
     }
 }
 

@@ -494,6 +494,7 @@ dependencies = [
  "oss-format",
  "oss-testkit",
  "oss-transport",
+ "oss-types",
 ]
 
 [[package]]
