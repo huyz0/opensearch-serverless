@@ -31,7 +31,13 @@ pub(crate) enum Quirk {
     /// The first n register swaps and creates answer a conflict, as if
     /// another writer moved the register each time.
     ConflictSwaps(u32),
+    /// None: the store behaves, and only a hook runs.
+    Plain,
 }
+
+/// Another writer's step, run on the inner store just before an armed
+/// request reaches it.
+pub(crate) type Hook = Box<dyn Fn(&dyn BlobStore) + Send + Sync>;
 
 /// A store that misbehaves as its quirk says, over an emulator.
 pub(crate) struct Quirky {
@@ -40,6 +46,8 @@ pub(crate) struct Quirky {
     requests: AtomicU32,
     lists: AtomicU32,
     swaps: AtomicU32,
+    hook: Option<Hook>,
+    hook_at: AtomicU32,
 }
 
 impl Quirky {
@@ -50,7 +58,23 @@ impl Quirky {
             requests: AtomicU32::new(0),
             lists: AtomicU32::new(0),
             swaps: AtomicU32::new(0),
+            hook: None,
+            hook_at: AtomicU32::new(0),
         }
+    }
+
+    /// A store that behaves, but runs `hook` once armed.
+    pub(crate) fn hooked(hook: impl Fn(&dyn BlobStore) + Send + Sync + 'static) -> Self {
+        Self {
+            hook: Some(Box::new(hook)),
+            ..Self::new(Quirk::Plain)
+        }
+    }
+
+    /// Runs the hook before the `n`-th request from now (counting from 1).
+    pub(crate) fn arm(&self, n: u32) {
+        let at = self.requests.load(Ordering::SeqCst) + n;
+        self.hook_at.store(at, Ordering::SeqCst);
     }
 
     /// Whether this register swap or create is one the quirk refuses.
@@ -61,6 +85,11 @@ impl Quirky {
 
     fn request(&self) -> BlobResult<()> {
         let n = self.requests.fetch_add(1, Ordering::SeqCst) + 1;
+        if let Some(hook) = &self.hook
+            && self.hook_at.load(Ordering::SeqCst) == n
+        {
+            hook(&*self.inner);
+        }
         if self.quirk == Quirk::FailRequest(n) {
             return Err(BlobError::Protocol("planted failure"));
         }

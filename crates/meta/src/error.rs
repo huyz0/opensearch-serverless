@@ -45,6 +45,12 @@ pub enum MetaError {
     /// leaves a list entry `p.0` beside a setting `p`, or grows past
     /// [`oss_format::MAX_CLUSTER_SETTINGS_BYTES`]; nothing was written.
     SettingsRefused(SettingsRefused),
+    /// An alias mutation adds a member that is no index (the Java's
+    /// "alias member does not exist"); the reservation was undone.
+    MissingMember(String),
+    /// Another writer recovered this alias mutation's reservation while it
+    /// prepared hints (the Java's "alias preparation was superseded").
+    Superseded,
 }
 
 impl fmt::Display for MetaError {
@@ -64,6 +70,8 @@ impl fmt::Display for MetaError {
             Self::Contended => f.write_str("the register moved under every attempt"),
             Self::InvalidArgument(why) => f.write_str(why),
             Self::SettingsRefused(e) => e.fmt(f),
+            Self::MissingMember(index) => write!(f, "alias member does not exist: {index}"),
+            Self::Superseded => f.write_str("the alias mutation was superseded"),
         }
     }
 }
@@ -79,7 +87,9 @@ impl std::error::Error for MetaError {
             | Self::BeingReclaimed
             | Self::TooManyMatches { .. }
             | Self::Contended
-            | Self::InvalidArgument(_) => None,
+            | Self::InvalidArgument(_)
+            | Self::MissingMember(_)
+            | Self::Superseded => None,
         }
     }
 }
@@ -168,6 +178,16 @@ mod tests {
                 }),
                 "settings can't contain values for [x] and [x.0]",
                 true,
+            ),
+            (
+                MetaError::MissingMember("logs-1".to_owned()),
+                "alias member does not exist: logs-1",
+                false,
+            ),
+            (
+                MetaError::Superseded,
+                "the alias mutation was superseded",
+                false,
             ),
         ] {
             assert_eq!(error.to_string(), text);

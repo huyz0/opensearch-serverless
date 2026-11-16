@@ -128,6 +128,91 @@ impl<'a> AliasRecord<'a> {
                 .is_some_and(|m| m.additions.iter().any(|a| a == index))
     }
 
+    /// The pending mutation's recovery deadline, or 0 for a published
+    /// record (`mutationUntil`).
+    pub fn mutation_until(&self) -> i64 {
+        self.mutation.as_ref().map_or(0, |m| m.until)
+    }
+
+    /// The members whose hints the pending mutation is preparing
+    /// (`pendingAdditions`): none for a published record.
+    pub fn pending_additions(&self) -> &[Cow<'a, str>] {
+        self.mutation
+            .as_ref()
+            .map_or(&[], |m| m.additions.as_slice())
+    }
+
+    /// The record reserving a mutation that prepares `additions`' hints
+    /// until `until`, its published fields kept (`preparing`); `None` for a
+    /// deadline not above zero or a record already reserved, which the Java
+    /// refuses.
+    pub fn preparing(
+        &self,
+        additions: Vec<Cow<'a, str>>,
+        until: i64,
+        creating: bool,
+    ) -> Option<Self> {
+        if until <= 0 || self.mutation_pending() {
+            return None;
+        }
+        Some(Self {
+            mutation: Some(AliasMutation {
+                until,
+                creating,
+                additions,
+            }),
+            ..self.clone()
+        })
+    }
+
+    /// The last published fields, without a mutation's reservation
+    /// (`published`).
+    pub fn published(&self) -> Self {
+        Self {
+            mutation: None,
+            ..self.clone()
+        }
+    }
+
+    /// The same record naming `members`, a data stream's fields and the
+    /// write member kept while it is still a member (`withMembers`).
+    pub fn with_members(&self, members: Vec<Cow<'a, str>>) -> Self {
+        let mut record = Self {
+            indices: members,
+            mutation: None,
+            ..self.clone()
+        };
+        if record.kept_write_member().is_none() {
+            record.write_member = None;
+        }
+        record
+    }
+
+    /// The record owning its strings, so it outlives the buffer it was read
+    /// from.
+    pub fn into_owned(self) -> AliasRecord<'static> {
+        let own = |names: Vec<Cow<'a, str>>| -> Vec<Cow<'static, str>> {
+            names
+                .into_iter()
+                .map(|n| Cow::Owned(n.into_owned()))
+                // ALLOC: one copy of each name, bounded by the register's length.
+                .collect()
+        };
+        AliasRecord {
+            name: Cow::Owned(self.name.into_owned()),
+            indices: own(self.indices),
+            data_stream: self.data_stream,
+            generation: self.generation,
+            timestamp_field: self.timestamp_field.map(|t| Cow::Owned(t.into_owned())),
+            write_member: self.write_member.map(|w| Cow::Owned(w.into_owned())),
+            mutation: self.mutation.map(|m| AliasMutation {
+                until: m.until,
+                creating: m.creating,
+                additions: own(m.additions),
+            }),
+        }
+    }
+
     /// Writes the record as the Java's `toBytes`, into the front of `buf`,
     /// and returns its length.
     ///
