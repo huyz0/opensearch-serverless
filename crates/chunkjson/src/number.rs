@@ -72,15 +72,39 @@ impl NumState {
 }
 
 /// `s` is exactly one JSON number.
+// ARITH: `i` plus a count of bytes after it is at most `b.len()`.
+#[allow(clippy::arithmetic_side_effects)]
 pub(crate) fn is_number(s: &str) -> bool {
-    let mut state = NumState::Start;
-    for &b in s.as_bytes() {
-        match state.advance(b) {
-            Step::Next(next) => state = next,
-            Step::End | Step::Invalid => return false,
+    let b = s.as_bytes();
+    let digits_from = |i: usize| {
+        let run = b.get(i..).unwrap_or_default();
+        i + run.iter().take_while(|c| c.is_ascii_digit()).count()
+    };
+    let mut i = usize::from(b.first() == Some(&b'-'));
+    i = match b.get(i) {
+        Some(b'0') => i + 1,
+        Some(b'1'..=b'9') => digits_from(i),
+        _ => return false,
+    };
+    if b.get(i) == Some(&b'.') {
+        let end = digits_from(i + 1);
+        if end == i + 1 {
+            return false;
         }
+        i = end;
     }
-    state.is_final()
+    if matches!(b.get(i), Some(b'e' | b'E')) {
+        i += 1;
+        if matches!(b.get(i), Some(b'+' | b'-')) {
+            i += 1;
+        }
+        let end = digits_from(i);
+        if end == i {
+            return false;
+        }
+        i = end;
+    }
+    i == b.len()
 }
 
 impl Tokenizer {
@@ -247,15 +271,18 @@ mod tests {
             "123456789012345678901234567890",
         ] {
             assert_eq!(lex(ok), Some(true), "{ok}");
+            assert!(is_number(ok), "{ok}");
         }
     }
 
     #[test]
     fn refuses_what_json_refuses() {
         for bad in [
-            "01", "-01", "-a", "1.e3", "1.", ".1", "1e", "1e+", "--1", "+1",
+            "01", "-01", "-a", "1.e3", "1.", ".1", "1e", "1e+", "--1", "+1", "", "-", "1 ", "1x",
+            "1.5.3", "1e5e", "0x1",
         ] {
             assert_ne!(lex(bad), Some(true), "{bad}");
+            assert!(!is_number(bad), "{bad}");
         }
         assert_eq!(lex("1x"), Some(false), "an unknown byte ends the number");
         assert_eq!(lex("1.x"), None);
