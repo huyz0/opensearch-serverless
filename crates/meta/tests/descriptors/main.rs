@@ -12,9 +12,11 @@ mod aliases;
 mod changes;
 mod cluster_config;
 mod counts;
+mod index_lifecycle;
 mod lifecycle;
 mod listing;
 mod probe;
+mod reclaim;
 mod routing;
 mod sweep;
 

@@ -101,6 +101,9 @@ impl BlobStore for Quirky {
     fn meter(&self) -> &Meter {
         self.inner.meter()
     }
+    fn validate_key(&self, key: &str) -> BlobResult<()> {
+        self.inner.validate_key(key)
+    }
     fn get(
         &self,
         key: &str,

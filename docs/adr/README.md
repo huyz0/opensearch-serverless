@@ -21,3 +21,4 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0009](0009-unsafe-when-guaranteed-safe.md) | `unsafe` in any crate, only when guaranteed safe | Accepted |
 | [0010](0010-one-home-per-rule.md) | One home per rule, and a harness that checks itself | Accepted |
 | [0011](0011-cluster-config-flat-form.md) | The cluster config register written in the flat settings form | Accepted |
+| [0012](0012-index-deletes-and-reclaim.md) | Index deletes finish through a reclaim queue, and purge a shard by listing it | Accepted |

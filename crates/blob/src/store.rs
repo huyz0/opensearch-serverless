@@ -174,6 +174,14 @@ pub trait BlobStore: Send + Sync {
     /// Deletes the register if it holds generation `expected`; `false` when
     /// it held another or none.
     fn delete_register(&self, key: &str, expected: u64) -> BlobResult<bool>;
+
+    /// Checks that `key` is one this store can hold, sending nothing and
+    /// recording nothing (the Java's `BlobStore.validateKey`): so a key a
+    /// layout will need later is refused before anything names it. S3's
+    /// rule by default; a store with a stricter one says so.
+    fn validate_key(&self, key: &str) -> BlobResult<()> {
+        check_key(key)
+    }
 }
 
 /// Checks a key as S3 would: non-empty and at most [`MAX_KEY_BYTES`].

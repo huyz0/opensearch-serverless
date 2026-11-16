@@ -78,6 +78,8 @@ CASES = [
     (["check-s3-access.py"], "S3 client outside oss-blob",
      {"crates/reader/Cargo.toml": '[package]\nname = "oss-reader"\n\n[dependencies]\naws-sdk-s3 = "1"\n\n[lints]\nworkspace = true\n'}),
     (["check-s3-access.py"], "unjustified LIST", {"crates/reader/src/lib.rs": "//! Search.\nfn f(c: &C) { c.list_objects_v2(); }\n"}),
+    (["check-unwired-deletes.py"], "an index delete wired outside oss-meta",
+     {"crates/reader/src/lib.rs": "//! Search.\nuse oss_meta::IndexLifecycle;\n"}),
     (["check-test-endpoints.py"], "real AWS endpoint", {"crates/reader/src/lib.rs": '//! S.\nconst E: &str = "https://s3.us-east-1.amazonaws.com";\n'}),
     (["check-alloc.py"], "request-path Vec::new without a bound",
      {"crates/reader/src/lib.rs": "//! S.\nfn f() -> Vec<u8> { Vec::new() }\n"}),

@@ -29,12 +29,16 @@
 //!   [`DescriptorStore::on_changed`].
 //! - [`ClusterConfig`]: an operator's persistent settings, one register a
 //!   deployment, read and updated as the Java's `ClusterConfig`.
+//! - [`IndexLifecycle`]: creating and deleting an index, idempotent on a
+//!   retried create, and finishing a delete from the [`ReclaimQueue`] once a
+//!   writer that missed it has stopped.
 
 mod alias_mutations;
 mod changes;
 mod cluster_config;
 mod descriptors;
 mod error;
+mod lifecycle;
 mod listing;
 mod names;
 mod probe;
@@ -49,10 +53,14 @@ pub use descriptors::{
     REAP_DEADLINE_MILLIS, REAP_HANDOFF_MILLIS, Resolution, Target,
 };
 pub use error::MetaError;
+pub use lifecycle::{
+    DEFAULT_RECLAIM_DELAY_MILLIS, Deleted, HeadAt, IndexLifecycle, Purged, ReclaimQueue,
+    ShardHeads, ShardPins,
+};
 pub use names::{MAX_NAME_BYTES, NameError, NameRule, validate_index_or_alias, validate_prefix};
 pub use oss_format::{
-    AliasMutation, AliasRecord, ChangeKind, ClusterSettings, MAX_CLUSTER_SETTINGS_BYTES, STRIPES,
-    Setting, SettingsRefused,
+    AliasMutation, AliasRecord, ChangeKind, ClusterSettings, MAX_CLUSTER_SETTINGS_BYTES,
+    ReclaimIntent, STRIPES, Setting, SettingsRefused,
 };
 pub use probe::PROBE_PREFIX;
 pub use routing::{
