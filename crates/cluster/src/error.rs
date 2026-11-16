@@ -33,6 +33,8 @@ pub enum ClusterError {
     },
     /// The register moved again under the retry after a conflict.
     Contended,
+    /// The transport secret could not be minted or read back.
+    TransportSecret(&'static str),
 }
 
 impl fmt::Display for ClusterError {
@@ -53,6 +55,7 @@ impl fmt::Display for ClusterError {
                  {other_address}) holds this node's lease; this node will not renew"
             ),
             Self::Contended => f.write_str("the lease register moved under every attempt"),
+            Self::TransportSecret(why) => f.write_str(why),
         }
     }
 }

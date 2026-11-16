@@ -11,6 +11,7 @@ mod java;
 mod refresh;
 mod renew;
 mod revoke;
+mod secret;
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicI64, AtomicU32, Ordering};
@@ -150,6 +151,9 @@ pub(crate) struct Racing {
     pub(crate) inner: Arc<Emulator>,
     #[allow(clippy::type_complexity)]
     pub(crate) hook: std::sync::Mutex<Option<Box<dyn FnMut(&str) + Send>>>,
+    /// Runs before each register read, outside any lock.
+    #[allow(clippy::type_complexity)]
+    pub(crate) read_hook: std::sync::Mutex<Option<Arc<dyn Fn(&str) + Send + Sync>>>,
 }
 
 impl Racing {
@@ -157,6 +161,7 @@ impl Racing {
         Arc::new(Self {
             inner,
             hook: std::sync::Mutex::new(None),
+            read_hook: std::sync::Mutex::new(None),
         })
     }
 
@@ -228,6 +233,10 @@ impl BlobStore for Racing {
         key: &str,
         buf: &mut [u8],
     ) -> oss_blob::BlobResult<Option<oss_blob::RegisterRead>> {
+        let hook = self.read_hook.lock().unwrap().clone();
+        if let Some(hook) = hook {
+            hook(key);
+        }
         self.inner.read_register(key, buf)
     }
     fn swap_register(

@@ -10,6 +10,9 @@ repository.workspace = true
 
 [dependencies]
 oss-mem = { workspace = true }
+getrandom = "=0.4.3"
+hmac = "=0.13.0"
+sha2 = "=0.11.1"
 miniz_oxide = { version = "=0.9.1", default-features = false, features = ["with-alloc"] }
 
 [lints]

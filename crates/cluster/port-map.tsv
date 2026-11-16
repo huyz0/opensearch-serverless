@@ -29,3 +29,5 @@ src/routing/document.rs	port	serverless/shell/src/main/java/org/opensearch/serve
 tests/routing/main.rs	new		test support: fixture rows
 tests/routing/hashes.rs	new		hashes, bounds, legacy shards and unit routing of 10,000 ids against the Java
 tests/routing/layouts.rs	new		layout format, lookups, splits, merges and refusals against the Java
+src/transport_secret.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/metadata/TransportSecretStore.java@429b4cbc	transportSecrets (read, mint, read after a lost mint) with node/TransportSecretCache.java's one read a lease TTL; keeps the held secrets and retries once a second when a read fails, where the Java fails the call; rotation not ported
+tests/leases/secret.rs	new		the secret register on the emulator: generation, mint, lost mint, cache timing and two nodes verifying each other

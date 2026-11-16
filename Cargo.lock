@@ -489,9 +489,11 @@ dependencies = [
 name = "oss-cluster"
 version = "0.1.0"
 dependencies = [
+ "getrandom 0.4.3",
  "oss-blob",
  "oss-format",
  "oss-testkit",
+ "oss-transport",
 ]
 
 [[package]]
@@ -597,8 +599,11 @@ dependencies = [
 name = "oss-transport"
 version = "0.1.0"
 dependencies = [
+ "getrandom 0.4.3",
+ "hmac",
  "miniz_oxide",
  "oss-mem",
+ "sha2",
 ]
 
 [[package]]

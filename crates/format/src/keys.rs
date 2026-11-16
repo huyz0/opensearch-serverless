@@ -275,6 +275,23 @@ pub fn node_pack_key(
     Ok(key)
 }
 
+/// The transport secret register's key under a base: the Java's
+/// `RegisterMap.clusterConfig` container and its `transport-secret` blob.
+pub const TRANSPORT_SECRET_KEY: &str = "cluster/config/transport-secret";
+
+/// The key of the transport secret register
+/// (`cluster/config/transport-secret`).
+///
+/// # Errors
+///
+/// [`FormatError::Corrupt`] for a base that is not empty and does not end in
+/// `/`.
+pub fn transport_secret_key(base: &str) -> Result<String, FormatError> {
+    check_base(base)?;
+    // ALLOC: one key, the length of its parts.
+    Ok([base, TRANSPORT_SECRET_KEY].concat())
+}
+
 fn check_base(base: &str) -> Result<(), FormatError> {
     if base.is_empty() || base.ends_with('/') {
         Ok(())

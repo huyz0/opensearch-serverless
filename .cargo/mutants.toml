@@ -16,6 +16,11 @@ exclude_re = [
     # As the inflate chunk: the discard buffer's size only sets how often
     # the loop turns.
     "crates/transport/src/channel.rs:.*replace \\* with \\+",
+    # A hex pair joins a high nibble shifted past a low one: disjoint bits.
+    "crates/transport/src/auth.rs:.*replace \\| with \\^ in unhex",
+    # `Instant` deltas against the probe interval: `<` and `<=` differ for
+    # one nanosecond, which no test can land on.
+    "crates/transport/src/auth.rs:.*replace < with <= in Authenticator::begin_probe",
     # A read interrupted by a signal is retried; no test can deliver EINTR to
     # a blocking read on demand.
     "crates/transport/src/channel.rs:.*replace match guard e.kind\\(\\) == io::ErrorKind::Interrupted with false in read_or_eof",
