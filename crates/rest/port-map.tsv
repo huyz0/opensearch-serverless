@@ -17,9 +17,7 @@ src/response.rs	port	server/src/main/java/org/opensearch/http/DefaultRestChannel
 src/response_tests.rs	new		tests for response.rs
 src/server.rs	new		accept thread and bounded blocking worker pool (ADR 0006); Java runs on Netty event loops
 src/json/mod.rs	port	libs/x-content/src/main/java/org/opensearch/common/xcontent/json/JsonXContent.java@49f238ed	the JSON language and limits OpenSearch's Jackson factory accepts (comments, XContentConstraints defaults); the tokenizer is a push-based streaming one, not Jackson's pull parser
-src/json/lexer.rs	new		the tokenizer's state machine; Jackson's UTF8StreamJsonParser is not ported, only its accepted language
-src/json/strings.rs	new		string escapes, surrogate pairs and pieces of long values
-src/json/number.rs	new		the RFC 8259 number grammar
+src/json/lexer.rs	new		the tokenizer as a wrapper over chunkjson (comments, positions, empty input), adding this module's key and string limits, string pieces and error kinds; Jackson's UTF8StreamJsonParser is not ported, only its accepted language
 src/json/tests.rs	new		tests for the tokenizer, checked against serde_json
 src/ndjson.rs	port	server/src/main/java/org/opensearch/action/bulk/BulkRequestParser.java@49f238ed	findNextMarker and sliceTrimmingCarriageReturn: lines at \n, a \r before it dropped, the unterminated-body message; streamed in parts instead of slicing a whole body
 src/timed.rs	new		the blocked-time budget for slow peers; Netty needs none, a slow socket costs it no thread

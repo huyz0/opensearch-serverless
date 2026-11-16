@@ -1,9 +1,10 @@
 //! A streaming JSON tokenizer.
 //!
 //! Bytes are fed in chunks as they arrive, and tokens come out through a
-//! [`TokenSink`] as soon as they are complete. The tokenizer holds one fixed
-//! scratch buffer and a container stack, both sized from [`Limits`] when it is
-//! built, and never grows either: a key or number past its limit, or nesting
+//! [`TokenSink`] as soon as they are complete. It is `chunkjson`'s push
+//! tokenizer with this module's limits and pieces on top. It holds a key
+//! buffer, a string-piece buffer, a container stack and a number buffer, all
+//! sized from [`Limits`] when it is built, and never grows any: a key or number past its limit, or nesting
 //! past the depth, is an error, and a string value of any length comes out in
 //! pieces of at most [`Limits::string_chunk`] bytes. Nothing holds the whole
 //! document, so a body is never parsed with `serde_json::from_slice`.
@@ -18,8 +19,6 @@
 //! `\u` escape is refused, since the text must be valid UTF-8.
 
 mod lexer;
-mod number;
-mod strings;
 
 use std::fmt;
 
