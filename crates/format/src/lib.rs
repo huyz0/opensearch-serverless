@@ -26,6 +26,11 @@
 //! the members index and the [`LeaseDigest`] are read and written byte for
 //! byte as the shell's `NodeLease` and `LeaseDigest` (`members`).
 //!
+//! A node's write log is read and written as the shell's `NodeLogBlob`
+//! and `WalRecord` write it: [`node_log_format::encode`] lays a window's
+//! [`WalRecord`]s out as one blob, [`node_log_format::decode`] reads a
+//! slot's header or fence, and [`slice_records`] reads one shard's records.
+//!
 //! Bucketed indices, whose commits are in a bucket's manifest, are not read
 //! yet ([`FormatError::NotFollowable`]).
 
@@ -42,6 +47,7 @@ mod manifest;
 mod members;
 mod mutf8;
 mod node_lease;
+mod node_log;
 mod node_pack;
 mod reclaim_intent;
 mod register;
@@ -49,6 +55,7 @@ mod segment_blob;
 mod tombstone;
 mod transport_secret;
 mod unit_layout;
+mod wal_record;
 
 pub use alias_record::{ALIAS_DISCRIMINATOR, AliasMutation, AliasRecord};
 pub use change_stripe::{
@@ -61,8 +68,9 @@ pub use error::FormatError;
 pub use index_record::{EMPTY_SETTINGS, IndexRecord, MAX_SHARDS, NameRecord};
 pub use keys::{
     CHANGES_PREFIX, CLUSTER_CONFIG_KEY, DESCRIPTORS_PREFIX, FileExtent, MANIFEST, MARKERS_PREFIX,
-    RECLAIM_PREFIX, ShardRef, TRANSPORT_SECRET_KEY, change_stripe_key, cluster_config_key,
-    descriptor_key, node_pack_key, reclaim_intent_key, tombstone_marker_key, transport_secret_key,
+    NODE_LOG_PREFIX, RECLAIM_PREFIX, ShardRef, TRANSPORT_SECRET_KEY, change_stripe_key,
+    cluster_config_key, descriptor_key, node_log_key, node_pack_key, reclaim_intent_key,
+    tombstone_marker_key, transport_secret_key,
 };
 pub use location::{FileLocation, NODE_PACK_PREFIX};
 pub use manifest::{CommitManifest, ManifestFile};
@@ -71,6 +79,10 @@ pub use members::{
     decode_members, encode_digest, encode_members, lease_digest_key, lease_key, members_index_key,
 };
 pub use node_lease::{MAX_LEASE_BYTES, NodeLease, NodeLogEpoch, java_order};
+pub use node_log::{
+    EncodedNodeLog, NodeLogEntry, NodeLogFence, NodeLogHeader, OrdinalRange, ShardBatch, ShardKey,
+    Slice, SliceRecords, slice_records, trim_below, with_ordinal,
+};
 pub use node_pack::{Block, NodePackHeader};
 pub use reclaim_intent::{
     MAX_RECLAIM_INTENT_BYTES, ReclaimIntent, reclaim_bucket, reclaim_bucket_start,
@@ -86,6 +98,15 @@ pub mod node_pack_format {
     };
 }
 
+/// Node write-log blob format constants, the header-length probe, and the
+/// encoders and decoder.
+pub mod node_log_format {
+    pub use crate::node_log::{
+        FENCE_MAGIC, MAX_HEADER_BYTES, MAX_SLICE_BYTES, PREFIX_BYTES, RECORDS_MAGIC, VERSION,
+        decode, encode, encode_fence, header_end,
+    };
+}
+
 /// Segment blob format constants and the header-length probe.
 pub mod segment_blob_format {
     pub use crate::segment_blob::{MAGIC, MAX_FILES, MAX_HEADER_BYTES, PREFIX_BYTES, header_end};
@@ -97,3 +118,6 @@ pub mod manifest_format {
 }
 pub use transport_secret::{MAX_TRANSPORT_SECRET_BYTES, TransportSecret};
 pub use unit_layout::{MAX_UNIT_LAYOUT_BYTES, ShardMode, UnitLayoutRecord, UnitRecord};
+pub use wal_record::{
+    EncodedWalRecord, MATCH_ANY, UNASSIGNED_PRIMARY_TERM, UNASSIGNED_SEQ_NO, WalRecord,
+};

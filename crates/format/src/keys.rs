@@ -275,6 +275,32 @@ pub fn node_pack_key(
     Ok(key)
 }
 
+/// The prefix of every node's write log, under the cluster's base.
+pub const NODE_LOG_PREFIX: &str = "nodelog/";
+
+/// The key of one slot of a node's log: `NodeLogStore.epochPath` and `name`.
+///
+/// # Errors
+///
+/// [`FormatError::Corrupt`] for a base that is neither empty nor ends in
+/// `/`, or a node id that is empty, holds `/` or is `.` or `..`.
+pub fn node_log_key(
+    base: &str,
+    node: &str,
+    epoch: u64,
+    ordinal: u64,
+) -> Result<String, FormatError> {
+    check_base(base)?;
+    check_segment(node)?;
+    // ALLOC: one key, the length of its parts plus forty digits.
+    let mut key = String::with_capacity(base.len().saturating_add(node.len()).saturating_add(54));
+    let _ = write!(
+        key,
+        "{base}{NODE_LOG_PREFIX}{node}/e={epoch:020}/{ordinal:020}"
+    );
+    Ok(key)
+}
+
 /// The transport secret register's key under a base: the Java's
 /// `RegisterMap.clusterConfig` container and its `transport-secret` blob.
 pub const TRANSPORT_SECRET_KEY: &str = "cluster/config/transport-secret";

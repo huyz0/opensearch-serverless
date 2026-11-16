@@ -1,0 +1,69 @@
+# One case a block, ended by `end`. Records are line numbers of records.txt.
+# blob <node> <epoch> <ordinal> <trim>
+# prior <uuid> <name or -> <shard> <from>-<to>[,<from>-<to>...]
+# batch <uuid> <name or -> <shard> <term> <line>[,<line>...] or `none` for an empty batch
+# fence <node> <term>
+blob n1 0 0 0
+end
+blob n1 0 0 0
+batch uA logs 0 1 1
+end
+blob node-7 3 5 2
+prior uA logs 0 2-3
+prior uB - 1 0-1,3-4
+prior uC metrics 2 0-0
+batch uA logs 0 4 1,2,3,4
+batch uB other 1 9 5,6
+batch uD - 0 1 none
+batch uE e 3 2 15
+end
+blob n2 12 40 38
+prior uA logs 0 30-39
+prior uB b 4 36-36
+prior uB b 5 38-39
+batch uB b 4 2 7,8,9,10,11,12,13,14
+batch uA - 0 2 16,17
+end
+blob n3 1 9 9
+prior uZ z 0 1-3
+batch uA a 0 1 1
+end
+blob n3 1 9 4
+prior uZ z 0 1-3,5-8
+prior uY y 2 4-4
+batch uY y 2 1 1
+end
+blob n4 2 10 0
+batch x😀 emoji😀 1 1 1
+batch x� replacement 1 1 2
+batch xé café 0 1 3
+end
+blob n5 0 7 3
+prior u1 named 0 1-2
+batch u1 - 0 1 1
+batch u1 - 1 1 2
+batch u2 one 0 1 1
+batch u2 two 1 1 2
+end
+blob n1 0 3 4
+batch uA a 0 1 1
+end
+blob n1 0 3 0
+batch uA a 0 1 1
+batch uA a 0 2 2
+end
+blob n1 0 3 0
+prior uA a 0 3-3
+batch uA a 0 1 1
+end
+blob n1 0 3 0
+prior uA a 0 0-1
+batch uA a 0 1 1
+end
+blob n1 9223372036854775807 9223372036854775807 9223372036854775807
+batch uA a 2147483647 -9223372036854775808 1
+end
+fence n2 7
+fence node-ü 0
+fence n3 -1
+fence n4 9223372036854775807

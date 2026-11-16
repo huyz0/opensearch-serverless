@@ -1,0 +1,17 @@
+{"id":1,"source":"{}"}
+{"id":"s2","source":5}
+{"id":"s3","source":"{}","seq_no":"5","primary_term":1,"version":1}
+{"id":"s4","source":"{}","seq_no":1.0,"primary_term":1,"version":1}
+{"id":"s5","source":"{}","deleted":"true"}
+{"id":"s6","source":"{}","deleted":1}
+{"id":"s7","source":"{}","routing":7}
+{"id":null,"source":"{}"}
+{"id":"s9","source":null}
+{"id":"s10","source":"{}","routing":null}
+{"id":{"a":1},"source":"{}"}
+{"id":"s12","source":["x"]}
+{"id":"s13","source":"{}","seq_no":true}
+{"id":"s14","source":"{}","seq_no":99999999999999999999,"primary_term":1,"version":1}
+{"id":"s15","source":"{}","deleted":null}
+{"id":"s16","source":"{}","version":"7","seq_no":1,"primary_term":1}
+{"id":"s17","source":"{}"} {}

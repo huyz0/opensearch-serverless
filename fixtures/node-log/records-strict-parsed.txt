@@ -1,0 +1,17 @@
+{"id":"1","source":"{}"}
+{"id":"s2","source":"5"}
+{"id":"s3","source":"{}","seq_no":5,"primary_term":1,"version":1}
+{"id":"s4","source":"{}","seq_no":1,"primary_term":1,"version":1}
+{"id":"s5","source":"{}","deleted":true}
+refused
+{"id":"s7","source":"{}","routing":"7"}
+refused
+refused
+{"id":"s10","source":"{}"}
+refused
+refused
+refused
+refused
+{"id":"s15","source":"{}"}
+{"id":"s16","source":"{}","seq_no":1,"primary_term":1,"version":7}
+{"id":"s17","source":"{}"}
