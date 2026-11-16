@@ -1,0 +1,17 @@
+records node=n1 epoch=0 ordinal=0 trim=0 body=49 slices=[] index=[]
+records node=n1 epoch=0 ordinal=0 trim=0 body=127 slices=[uA/logs/0/1/0/31/1/-2] index=[uA/logs/0=0-0]
+records node=node-7 epoch=3 ordinal=5 trim=2 body=301 slices=[uA/logs/0/4/0/251/4/7,uB/other/1/9/251/133/2/12,uE/e/3/2/384/90/1/-2] index=[uA/logs/0=2-3;5-5,uB/other/1=3-5,uE/e/3=5-5]
+records node=n2 epoch=12 ordinal=40 trim=38 body=230 slices=[uB/b/4/2/0/342/8/9223372036854775807,uA/logs/0/2/342/47/2/-2] index=[uA/logs/0=38-40,uB/b/4=40-40,uB/b/5=38-39]
+records node=n3 epoch=1 ordinal=9 trim=9 body=124 slices=[uA/a/0/1/0/31/1/-2] index=[uA/a/0=9-9]
+records node=n3 epoch=1 ordinal=9 trim=4 body=175 slices=[uY/y/2/1/0/31/1/-2] index=[uY/y/2=4-4;9-9,uZ/z/0=5-8]
+records node=n4 epoch=2 ordinal=10 trim=0 body=306 slices=[x😀/emoji😀/1/1/0/31/1/-2,x�/replacement/1/1/31/103/1/0,xé/café/0/1/134/77/1/7] index=[xé/café/0=10-10,x😀/emoji😀/1=10-10,x�/replacement/1=10-10]
+records node=n5 epoch=0 ordinal=7 trim=3 body=336 slices=[u1/-/0/1/0/31/1/-2,u1/-/1/1/31/103/1/0,u2/two/0/1/134/31/1/-2,u2/two/1/1/165/103/1/0] index=[u1/-/0=7-7,u1/-/1=7-7,u2/two/0=7-7,u2/two/1=7-7]
+refused
+refused
+refused
+records node=n1 epoch=0 ordinal=3 trim=0 body=140 slices=[uA/a/0/1/0/31/1/-2] index=[uA/a/0=0-1;3-3]
+records node=n1 epoch=9223372036854775807 ordinal=9223372036854775807 trim=9223372036854775807 body=124 slices=[uA/a/2147483647/-9223372036854775808/0/31/1/-2] index=[uA/a/2147483647=9223372036854775807-9223372036854775807]
+fence by=n2 term=7
+fence by=node-ü term=0
+fence by=n3 term=-1
+fence by=n4 term=9223372036854775807

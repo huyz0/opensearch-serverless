@@ -1,0 +1,24 @@
+{"id":"1","source":"{\"a\":1}"}
+{"id":"2","source":"{\"title\":\"hello\\nworld\",\"n\":[1,2]}","seq_no":0,"primary_term":1,"version":1}
+{"id":"3","source":"","deleted":true,"seq_no":7,"primary_term":2,"version":4}
+{"id":"4","source":"","deleted":true}
+{"id":"5","source":"{}","routing":"user-9"}
+{"id":"6","source":"{\"x\":true}","seq_no":12,"primary_term":3,"version":2,"routing":"r"}
+{"id":"7","source":"{}"}
+{"id":"8","source":"{}"}
+{"id":"9","source":"{}"}
+{"id":"10","source":"{}"}
+{"id":"11","source":"{}"}
+{"id":"12","source":"{}"}
+{"id":"13","source":"{}","seq_no":-1,"primary_term":-5,"version":-3}
+{"id":"14","source":"{}","seq_no":9223372036854775807,"primary_term":9223372036854775807,"version":-9223372036854775808}
+{"id":"café 😀 \u0000\u001F/","source":"été \"quoted\" back\\slash \t tab  del  "}
+{"id":"","source":""}
+{"id":"16","source":"{}"}
+refused
+refused
+refused
+refused
+refused
+refused
+refused

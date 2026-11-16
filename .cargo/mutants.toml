@@ -72,4 +72,7 @@ exclude_re = [
     # Java's `held < 0` check, ported as it is, decides nothing alone.
     "crates/cluster/src/placement/fleet.rs:206:62: replace < with (==|<=) in FleetView<'a>::writer_for",
     "crates/cluster/src/placement/fleet.rs:285:23: replace < with (==|<=) in FleetView<'a>::has_takeover_room",
+    # writeUTF's lead and continuation bytes join a fixed prefix with value
+    # bits below it: disjoint bits, where `|` and `^` give the same byte.
+    "crates/format/src/mutf8.rs:.*replace \\| with \\^ in write",
 ]

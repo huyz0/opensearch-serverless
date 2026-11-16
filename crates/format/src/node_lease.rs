@@ -77,6 +77,10 @@ pub struct NodeLease {
 /// The Java's `String.compareTo`: by UTF-16 code unit, which differs from
 /// byte order only between characters above U+FFFF and those from U+E000.
 pub fn java_order(a: &str, b: &str) -> Ordering {
+    // Equal strings, the common case for keys of one index, compare as bytes.
+    if a == b {
+        return Ordering::Equal;
+    }
     a.encode_utf16().cmp(b.encode_utf16())
 }
 

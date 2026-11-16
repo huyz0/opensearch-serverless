@@ -1,0 +1,24 @@
+{"id":"1","source":"{\"a\":1}"}
+{"id":"2","source":"{\"title\":\"hello\\nworld\",\"n\":[1,2]}","seq_no":0,"primary_term":1,"version":1}
+{"id":"3","source":"","deleted":true,"seq_no":7,"primary_term":2,"version":4}
+{"id":"4","source":"","deleted":true}
+{"id":"5","source":"{}","routing":"user-9"}
+{"id":"6","source":"{\"x\":true}","seq_no":12,"primary_term":3,"version":2,"routing":"r"}
+{"source":"{}","id":"7"}
+{"id":"8","source":"{}","unknown":{"nested":[1,{"a":"b"}]},"other":[1,2,3],"more":"text","num":1.5,"flag":false,"nothing":null}
+{"id":"9","source":"{}","deleted":false}
+{"id":"10","source":"{}","seq_no":5}
+{"id":"11","source":"{}","seq_no":5,"primary_term":0,"version":9}
+{"id":"12","source":"{}","seq_no":-2,"primary_term":4,"version":9}
+{"id":"13","source":"{}","seq_no":-1,"primary_term":-5,"version":-3}
+{"id":"14","source":"{}","seq_no":9223372036854775807,"primary_term":9223372036854775807,"version":-9223372036854775808}
+{"id":"café 😀 \u0000\u001f\/","source":"été \"quoted\" back\\slash \t tab \u007f del  "}
+{"id":"","source":""}
+ { "id" : "16" , "source" : "{}" } 
+{"id":"17"}
+{"source":"{}"}
+{"id":"18","source":"{}","routing":""}
+[]
+{"id":"19","source":"{}"
+"text"
+{"id":"21","source":"{}","id":"21b"}

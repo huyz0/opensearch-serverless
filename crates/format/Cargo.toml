@@ -20,3 +20,6 @@ oss-testkit = { workspace = true }
 # Its own binary: the counting allocator is process-wide.
 [[test]]
 name = "skip_copies_nothing"
+
+[[test]]
+name = "node_log_alloc"
