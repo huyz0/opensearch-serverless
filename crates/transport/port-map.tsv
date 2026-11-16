@@ -1,0 +1,12 @@
+rust_path	kind	java_source	note
+src/lib.rs	new		crate root
+src/error.rs	new		one error enum for the wire; the Java throws IOException and IllegalStateException with built messages
+src/stream/mod.rs	port	libs/core/src/main/java/org/opensearch/core/tasks/TaskId.java@429b4cbc	writeTo and readFromStream; the module re-exports the stream reader and writer
+src/stream/output.rs	port	libs/core/src/main/java/org/opensearch/core/common/io/stream/StreamOutput.java@429b4cbc	writeByte, writeBoolean, writeInt, writeLong, writeVInt, writeVLong, writeZLong, writeString, writeOptionalString, writeStringArray, writeMap of strings, writeBytesReference, into a bounded buffer
+src/stream/input.rs	port	libs/core/src/main/java/org/opensearch/core/common/io/stream/StreamInput.java@429b4cbc	the matching reads; a count is checked against the bytes left, and a lone surrogate (which a Rust string cannot hold) is refused
+src/version.rs	port	libs/core/src/main/java/org/opensearch/Version.java@429b4cbc	the wire mask, writeVersion and readVersion, 3.10.0 and its minimum compatible version; only recorded versions are accepted (ADR 0016)
+src/node.rs	port	server/src/main/java/org/opensearch/cluster/node/DiscoveryNode.java@429b4cbc	the stream constructor, writeTo and writeToWithAttribute at 3.x, with TransportAddress and DiscoveryNodeRole's wire fields
+src/frame/mod.rs	port	server/src/main/java/org/opensearch/transport/nativeprotocol/NativeOutboundMessage.java@429b4cbc	serialize, Request and Response; decode reads a whole frame as InboundDecoder and InboundAggregator do
+src/frame/header.rs	port	server/src/main/java/org/opensearch/transport/TcpHeader.java@429b4cbc	with Header.java and TransportStatus.java: the fixed header, status bits, the variable header and pings
+src/frame/compress.rs	port	server/src/main/java/org/opensearch/common/compress/DeflateCompressor.java@429b4cbc	the DFL marker and raw deflate at level 3; inflation is bounded
+src/handshake.rs	port	server/src/main/java/org/opensearch/transport/TransportHandshaker.java@429b4cbc	with TransportService.HandshakeRequest and HandshakeResponse

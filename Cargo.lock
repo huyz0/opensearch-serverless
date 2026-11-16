@@ -594,6 +594,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "oss-transport"
+version = "0.1.0"
+dependencies = [
+ "miniz_oxide",
+]
+
+[[package]]
 name = "oss-types"
 version = "0.1.0"
 
