@@ -97,12 +97,9 @@ impl Tokenizer {
                 }
                 (Expect::CommaOrEnd | Expect::ValueOrEnd | Expect::KeyOrEnd, b'}' | b']') => {
                     let object = b == b'}';
-                    let fits = match self.expect {
-                        Expect::ValueOrEnd => !object,
-                        Expect::KeyOrEnd => object,
-                        _ => self.stack.last().copied() == Some(object),
-                    };
-                    if !fits {
+                    // `ValueOrEnd` and `KeyOrEnd` follow a push, so the top
+                    // of the stack already says which closer fits.
+                    if self.stack.last().copied() != Some(object) {
                         break pos;
                     }
                     self.stack.pop();
@@ -318,5 +315,157 @@ fn number_end(chunk: &[u8], pos: usize) -> Option<usize> {
             Step::Invalid => return None,
         }
         j += 1;
+    }
+}
+
+#[cfg(test)]
+// ARITH: test arithmetic on small literal offsets and counts.
+#[allow(clippy::arithmetic_side_effects)]
+mod tests {
+    use super::*;
+    use crate::Config;
+
+    struct Count(usize);
+
+    impl Sink for Count {
+        type Error = Error;
+        fn event(&mut self, _: Event<'_>) -> Result<(), Error> {
+            self.0 = self.0.saturating_add(1);
+            Ok(())
+        }
+    }
+
+    /// The fast loop is a speed path: falling back to the general machine
+    /// gives the same events, so these tests check that it is taken.
+    #[test]
+    fn the_fast_loop_takes_simple_tokens_to_the_chunk_end() {
+        let mut tok = Tokenizer::new(Config::default());
+        let mut sink = Count(0);
+        assert!(!tok.feed(b"[", false, &mut sink).unwrap());
+        let chunk = br#"1, -2.5e3 ,"a",true,false,null,{"k":"v","n":[]},"#;
+        let checked = tok.validate(chunk).expect("valid UTF-8");
+        let start = tok.offset();
+        let end = tok.fast(chunk, 0, start, checked, &mut sink).unwrap();
+        assert_eq!(end, chunk.len());
+        assert_eq!(tok.offset(), start + chunk.len() as u64);
+        assert_eq!(
+            sink.0,
+            1 + 6 + 7,
+            "BeginArray, six scalars, then the object's seven events"
+        );
+    }
+
+    #[test]
+    fn a_number_cut_by_the_chunk_end_is_left_to_the_general_machine() {
+        assert_eq!(number_end(b"12.5,", 0), Some(4));
+        assert_eq!(number_end(b"-0e+7]", 0), Some(5));
+        assert_eq!(number_end(b"12", 0), None, "may continue in the next chunk");
+        assert_eq!(number_end(b"1.x", 0), None);
+        assert_eq!(number_end(b"[7,", 1), Some(2));
+    }
+
+    #[test]
+    fn a_string_cut_by_the_chunk_end_keeps_its_complete_characters() {
+        let chunk = b"\"ab\xc3";
+        let checked = Tokenizer::new(Config::default()).validate(chunk).unwrap();
+        match plain_string(chunk, 0, checked) {
+            Plain::Open(text, end) => assert_eq!((text, end), ("ab", 3)),
+            _ => panic!("expected an open string"),
+        }
+        let chunk = b"\"x\\n\"";
+        let checked = Tokenizer::new(Config::default()).validate(chunk).unwrap();
+        assert!(matches!(
+            plain_string(chunk, 0, checked),
+            Plain::Open("x", 2)
+        ));
+        assert!(matches!(
+            plain_string(b"\"ok\"", 0, checked_of(b"\"ok\"")),
+            Plain::Whole("ok", 4)
+        ));
+    }
+
+    struct Refuse;
+
+    impl Sink for Refuse {
+        type Error = Error;
+        fn event(&mut self, _: Event<'_>) -> Result<(), Error> {
+            Err(Error::new(crate::ErrorKind::UnexpectedEof, 0))
+        }
+    }
+
+    /// Runs the fast loop on `chunk` after `prefix` was fed; returns where it
+    /// stopped.
+    fn fast_after(config: Config, prefix: &[u8], chunk: &[u8]) -> usize {
+        let mut tok = Tokenizer::new(config);
+        let mut sink = Count(0);
+        let _ = tok.feed(prefix, false, &mut sink);
+        let checked = tok.validate(chunk).expect("valid UTF-8");
+        let start = tok.offset();
+        tok.fast(chunk, 0, start, checked, &mut sink).unwrap()
+    }
+
+    #[test]
+    fn newlines_inside_a_document_stay_in_the_fast_loop_unless_they_frame() {
+        let chunk = b"1,\n2,";
+        assert_eq!(fast_after(Config::default(), b"[", chunk), chunk.len());
+        let ndjson = Config::with_framing(crate::Framing::Ndjson);
+        assert_eq!(
+            fast_after(ndjson, b"[", chunk),
+            2,
+            "NDJSON stops at the newline"
+        );
+    }
+
+    #[test]
+    fn a_number_at_the_length_limit_stays_in_the_fast_loop() {
+        let config = Config {
+            max_number_len: 3,
+            ..Config::default()
+        };
+        assert_eq!(fast_after(config, b"[", b" 123,"), 5);
+        assert_eq!(
+            fast_after(config, b"[", b" 1234,"),
+            1,
+            "too long: general machine"
+        );
+    }
+
+    #[test]
+    fn a_failed_tokenizer_skips_the_fast_loop() {
+        assert_eq!(fast_after(Config::default(), b"[1}", b", 2,"), 0);
+    }
+
+    #[test]
+    fn a_refused_open_bracket_leaves_the_offset_after_it() {
+        let mut tok = Tokenizer::new(Config::default());
+        assert!(!tok.feed(b"[", false, &mut Count(0)).unwrap());
+        let chunk = b"  [";
+        let checked = tok.validate(chunk).unwrap();
+        let start = tok.offset();
+        assert!(tok.fast(chunk, 0, start, checked, &mut Refuse).is_err());
+        assert_eq!(tok.offset(), start + 3);
+    }
+
+    fn checked_of(chunk: &[u8]) -> Checked<'_> {
+        Tokenizer::new(Config::default()).validate(chunk).unwrap()
+    }
+
+    #[test]
+    fn validation_skips_only_the_bytes_completing_a_split_character() {
+        let mut tok = Tokenizer::new(Config::default());
+        let mut sink = Count(0);
+        assert!(!tok.feed(b"[\"\xc3", false, &mut sink).unwrap());
+        let next = b"\xa9b\"";
+        let checked = tok.validate(next).expect("rest is UTF-8");
+        assert_eq!(checked.get(1, 2), Some("b"));
+        assert_eq!(
+            checked.get(0, 2),
+            None,
+            "the continuation byte is the lexer's"
+        );
+        // once the split character is complete, nothing is skipped
+        assert!(!tok.feed(next, false, &mut sink).unwrap());
+        let checked = tok.validate(b"abc").unwrap();
+        assert_eq!(checked.get(0, 3), Some("abc"));
     }
 }
