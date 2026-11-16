@@ -1,6 +1,6 @@
 # 0010: One home per rule, and a harness that checks itself
 
-**Status:** Proposed, 2026-11-15. The owner asked for every repo rule to be "token efficient and hard to miss in the same time, using progressive disclosure".
+**Status:** Accepted after independent review, 2026-11-16 (a separate reviewer found no core requirement traded away and the claims below true). The owner asked for every repo rule to be "token efficient and hard to miss in the same time, using progressive disclosure".
 
 ## Context
 
@@ -15,6 +15,6 @@ The same rules were written in AGENTS.md, docs/principles.md, a skill and a how-
 
 ## Consequences
 
-- Always-loaded text is bounded (AGENTS.md 5,500 bytes, a crate's 1,200) and shrank from 5,777 to about 4,900 bytes while gaining the attribution and fencing rules.
+- Always-loaded text is bounded (AGENTS.md 5,500 bytes, a crate's 1,200) and shrank from 5,777 to about 4,900 bytes while gaining the fencing rule and promoting attribution to an invariant enforced by checks.
 - Reading a skill sometimes costs one more hop to the rule's home; in exchange a rule changes in one place.
 - Still not mechanical: a rule restated in other words, and whether a description triggers at the right moment. Review catches those.
