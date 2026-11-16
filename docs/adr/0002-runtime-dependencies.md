@@ -1,6 +1,6 @@
 # 0002: lucene-rust is the only code dependency; hsearch and pstore are references
 
-**Status:** Accepted by the owner, 2026-11-14.
+**Status:** Accepted by the owner, 2026-11-14. Amended 2026-11-15 by the owner ("You decide on crates deps dont ask me"): the decision limits only the sibling projects; other crates are the writing thread's choice.
 
 ## Context
 
@@ -17,6 +17,8 @@ For lucene-rust, two ways to consume it were weighed:
 
 - **lucene-rust** is consumed as pinned git dependencies at an exact revision, with a commented `[patch]` block for local cross-repo work. Only the crates a role needs are named.
 - **hsearch and pstore** are not dependencies, and their code is not copied. Ideas taken from them are re-implemented here and noted in [harness-review.md](../harness-review.md); lessons found here are offered back.
+
+- **Other crates** (crates.io or git) are chosen by the thread writing the change, without an ADR or the owner's review. Each must be pinned (exact version in `Cargo.lock`, or a git `rev`), maintained, minimal (what it pulls into `Cargo.lock` is checked) and Apache-2.0 compatible, and the PR says so.
 
 ## Consequences
 

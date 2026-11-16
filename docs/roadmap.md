@@ -6,7 +6,7 @@ Built as a strangler beside the Java serverless shell, sharing its blob formats,
 
 - Workspace, crate layout, gates, hooks, CI on plain Linux runners, agent instructions and skills.
 - `oss-blob`: S3 request kinds, price classes, the meter.
-- Decided: lucene-rust is the only code dependency, as pinned git crates; hsearch and pstore are references ([ADR 0002](adr/0002-runtime-dependencies.md)). Licence Apache-2.0 ([ADR 0003](adr/0003-apache-2-licence.md)).
+- Decided: lucene-rust is the only sibling project used as code, as pinned git crates (other crates are the writing thread's choice); hsearch and pstore are references ([ADR 0002](adr/0002-runtime-dependencies.md)). Licence Apache-2.0 ([ADR 0003](adr/0003-apache-2-licence.md)).
 
 ## 1. Test harness and blob store (done 2026-11-15)
 

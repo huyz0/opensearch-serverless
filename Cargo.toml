@@ -42,7 +42,7 @@ oss-coordinator = { path = "crates/coordinator" }
 # Test-only.
 proptest = { version = "=1.6.0", default-features = false, features = ["std"] }
 
-# lucene-rust, the engine, is the only external code dependency
+# lucene-rust, the engine, is the only sibling project used as code
 # (docs/adr/0002-runtime-dependencies.md): git crates pinned at one exact
 # `rev`. Bump all of them together. For local cross-repo work, uncomment the
 # [patch] block at the end of this file.

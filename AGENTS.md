@@ -4,7 +4,7 @@ Layer 0, read in every session: one line per invariant, each pointing to the one
 
 ## What this is
 
-A Rust serverless OpenSearch: stateless reader, writer and coordinator nodes over object storage, a strangler beside the Java serverless shell (huyz0/OpenSearch, `feature/serverlessshell`) sharing its blob formats. OpenSearch-compatible for the serverless scope, ported from the Java ([docs/porting.md](docs/porting.md)); hsearch and pstore are references, lucene-rust the only code dependency. Plan: [roadmap](docs/roadmap.md). Map: [architecture](docs/architecture.md). Rules: [principles](docs/principles.md).
+A Rust serverless OpenSearch: stateless reader, writer and coordinator nodes over object storage, a strangler beside the Java serverless shell (huyz0/OpenSearch, `feature/serverlessshell`) sharing its blob formats. OpenSearch-compatible for the serverless scope, ported from the Java ([docs/porting.md](docs/porting.md)); hsearch and pstore are references, lucene-rust the only one used as code. Plan: [roadmap](docs/roadmap.md). Map: [architecture](docs/architecture.md). Rules: [principles](docs/principles.md).
 
 ## Invariants
 

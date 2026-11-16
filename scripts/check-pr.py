@@ -5,7 +5,8 @@
 
 - The body has every section of .github/pull_request_template.md, each with
   text beyond the template's comments.
-- A PR is high-risk when a changed path matches scripts/risk-paths.txt, or
+- A PR is high-risk when a changed path matches scripts/risk-paths.txt, it
+  adds a crate (a new crates/*/Cargo.toml), or
   its Risk tier section says `high`. A high-risk PR must link an ADR
   (`docs/adr/NNNN-...`) in its body or add one, must say `high` in Risk tier,
   and gets the `needs-huy` label (the pr workflow adds it). The label does
@@ -96,6 +97,7 @@ def main():
         hits.append("PR body: remove the AI attribution (footer, session link, header or 'Requested by' line)")
     tier = found.get("Risk tier", "").lower()
     reasons = risky(changed)
+    reasons += [f"{p} (new workspace crate)" for p in added if re.fullmatch(r"crates/[^/]+/Cargo\.toml", p)]
     high = bool(reasons) or re.search(r"\bhigh\b", tier)
     if high:
         if reasons:

@@ -4,7 +4,7 @@
 
 - **Compatible with OpenSearch, scoped to serverless.** Same REST API, query DSL, mappings and responses for everything in scope; a difference is documented, an unknown parameter fails explicitly. *Check:* the compatibility suite ([compatibility.md](compatibility.md)), invariant I-13.
 - **Port, don't reinvent.** Port from OpenSearch and the Java serverless shell, keeping each Rust module traceable to its Java source. *Check:* `scripts/check-port-map.py` ([porting.md](porting.md)).
-- **Cross-reference for hsearch and pstore.** Take ideas, not code; offer lessons back. lucene-rust is the only code dependency ([ADR 0002](adr/0002-runtime-dependencies.md)).
+- **Cross-reference for hsearch and pstore.** Take ideas, not code; offer lessons back. lucene-rust is the only one used as code; other crates are the writing thread's choice, pinned, maintained, minimal and licence-compatible ([ADR 0002](adr/0002-runtime-dependencies.md)).
 
 The rules below carry over from the Java serverless shell (huyz0/OpenSearch, branch `feature/serverlessshell`) and from lucene-rust. They bind every change, and this file is their one home: AGENTS.md and the skills point here instead of restating them. Where a rule has a mechanical check, the check is named; where it has none, that is said, and review enforces it.
 
