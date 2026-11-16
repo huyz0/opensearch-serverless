@@ -192,6 +192,36 @@ impl Output for Broken {
     }
 }
 
+/// Records each call an output gets.
+#[derive(Default)]
+struct Calls(Vec<String>);
+
+impl Output for Calls {
+    type Error = std::convert::Infallible;
+    fn write(&mut self, bytes: &[u8]) -> Result<(), Self::Error> {
+        self.0.push(String::from_utf8_lossy(bytes).into_owned());
+        Ok(())
+    }
+    fn write_byte(&mut self, byte: u8) -> Result<(), Self::Error> {
+        self.0.push(format!("byte {}", char::from(byte)));
+        Ok(())
+    }
+}
+
+#[test]
+fn single_bytes_go_through_write_byte_and_nothing_empty_is_written() {
+    let mut w = Writer::new(Config::default());
+    let mut o = Calls::default();
+    w.begin_array(&mut o).unwrap();
+    w.string("ab", &mut o).unwrap();
+    w.i64(-5, &mut o).unwrap();
+    w.end_array(&mut o).unwrap();
+    let want = [
+        "byte [", "byte \"", "ab", "byte \"", "byte ,", "byte -", "byte 5", "byte ]",
+    ];
+    assert_eq!(o.0, want);
+}
+
 #[test]
 fn an_output_error_is_returned_and_the_writer_then_refuses() {
     let mut w = Writer::new(Config::default());

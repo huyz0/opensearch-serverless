@@ -11,6 +11,7 @@ use std::{fmt, io};
 
 use crate::escape::{decimal, escaped};
 use crate::number::is_number;
+use crate::string::scan_plain;
 use crate::{Config, Event, Framing, Text};
 
 /// Where a [`Writer`] puts its bytes.
@@ -19,6 +20,14 @@ pub trait Output {
     type Error;
     /// Writes all of `bytes`.
     fn write(&mut self, bytes: &[u8]) -> Result<(), Self::Error>;
+
+    /// Writes one byte: a comma, quote or bracket. By default a one-byte
+    /// [`Output::write`]; an output can make it cheaper, but must behave as
+    /// `write(&[byte])` would.
+    #[inline]
+    fn write_byte(&mut self, byte: u8) -> Result<(), Self::Error> {
+        self.write(&[byte])
+    }
 }
 
 impl Output for Vec<u8> {
@@ -27,6 +36,13 @@ impl Output for Vec<u8> {
         // ALLOC: the caller's buffer; it grows by what is written, and an
         // async caller drains it between calls.
         self.extend_from_slice(bytes);
+        Ok(())
+    }
+
+    #[inline]
+    fn write_byte(&mut self, byte: u8) -> Result<(), Infallible> {
+        // ALLOC: as for `write`.
+        self.push(byte);
         Ok(())
     }
 }
@@ -253,7 +269,7 @@ impl Writer {
             return Err(WriteError::Misuse(Misuse::TooDeep));
         }
         let open: &[u8] = if object { b"{" } else { b"[" };
-        self.write_all(out, &[if comma { b"," } else { b"" }, open])?;
+        self.put(out, comma, open, b"", false)?;
         self.stack.push(object);
         self.need_comma = false;
         self.after_key = false;
@@ -273,7 +289,7 @@ impl Writer {
         let close: &[u8] = if object { b"}" } else { b"]" };
         // the container's end is the end of a value in its parent
         let line = self.stack.len() == 1 && self.framing != Framing::Single;
-        self.write_all(out, &[close, if line { b"\n" } else { b"" }])?;
+        self.put(out, false, close, b"", line)?;
         self.stack.pop();
         self.value_done();
         Ok(())
@@ -283,6 +299,19 @@ impl Writer {
     fn text<O: Output>(&mut self, key: bool, t: Text<'_>, out: &mut O) -> Done<O> {
         if self.failed {
             return Err(WriteError::Misuse(Misuse::Failed));
+        }
+        let bytes = t.fragment.as_bytes();
+        // A whole fragment that needs no escape, the common case, writes
+        // its text in one piece; anything else takes the general path.
+        let plain = t.first && t.last && self.open.is_none();
+        if plain && scan_plain(bytes, 0) == bytes.len() {
+            let comma = if key {
+                self.key_slot()
+            } else {
+                self.value_slot()
+            }?;
+            self.put(out, comma, b"\"", bytes, false)?;
+            return self.close_text(key, out);
         }
         match self.open {
             Some(open_key) if open_key == key && !t.first => {}
@@ -294,7 +323,7 @@ impl Writer {
                 } else {
                     self.value_slot()
                 }?;
-                self.write_all(out, &[if comma { b"," } else { b"" }, b"\""])?;
+                self.put(out, comma, b"\"", b"", false)?;
                 self.open = Some(key);
             }
         }
@@ -303,20 +332,21 @@ impl Writer {
             return Err(WriteError::Output(e));
         }
         if t.last {
-            let close: &[u8] = if key {
-                b"\":"
-            } else if self.stack.is_empty() && self.framing != Framing::Single {
-                b"\"\n"
-            } else {
-                b"\""
-            };
-            self.write_all(out, &[close])?;
-            self.open = None;
-            if key {
-                self.after_key = true;
-            } else {
-                self.value_done();
-            }
+            return self.close_text(key, out);
+        }
+        Ok(())
+    }
+
+    /// Ends the open key or string value.
+    fn close_text<O: Output>(&mut self, key: bool, out: &mut O) -> Done<O> {
+        let line = !key && self.stack.is_empty() && self.framing != Framing::Single;
+        let close: &[u8] = if key { b"\":" } else { b"\"" };
+        self.put(out, false, close, b"", line)?;
+        self.open = None;
+        if key {
+            self.after_key = true;
+        } else {
+            self.value_done();
         }
         Ok(())
     }
@@ -330,15 +360,7 @@ impl Writer {
         out: &mut O,
     ) -> Done<O> {
         let line = self.stack.is_empty() && self.framing != Framing::Single;
-        self.write_all(
-            out,
-            &[
-                if comma { b"," } else { b"" },
-                sign,
-                bytes,
-                if line { b"\n" } else { b"" },
-            ],
-        )?;
+        self.put(out, comma, sign, bytes, line)?;
         self.value_done();
         Ok(())
     }
@@ -352,15 +374,35 @@ impl Writer {
         self.after_key = false;
     }
 
-    /// Writes each non-empty part; a failed write marks the writer failed.
-    fn write_all<O: Output>(&mut self, out: &mut O, parts: &[&[u8]]) -> Done<O> {
-        for part in parts.iter().filter(|p| !p.is_empty()) {
-            if let Err(e) = out.write(part) {
-                self.failed = true;
-                return Err(WriteError::Output(e));
-            }
-        }
-        Ok(())
+    /// Writes a comma if `comma`, then `head` and `body`, then a line break
+    /// if `line`; a failed write marks the writer failed.
+    #[inline]
+    fn put<O: Output>(
+        &mut self,
+        out: &mut O,
+        comma: bool,
+        head: &[u8],
+        body: &[u8],
+        line: bool,
+    ) -> Done<O> {
+        let written = (if comma { out.write_byte(b',') } else { Ok(()) })
+            .and_then(|()| piece(out, head))
+            .and_then(|()| piece(out, body))
+            .and_then(|()| if line { out.write_byte(b'\n') } else { Ok(()) });
+        written.map_err(|e| {
+            self.failed = true;
+            WriteError::Output(e)
+        })
+    }
+}
+
+/// Writes `bytes`: nothing if empty, one byte as a byte.
+#[inline]
+fn piece<O: Output>(out: &mut O, bytes: &[u8]) -> Result<(), O::Error> {
+    match bytes {
+        [] => Ok(()),
+        [byte] => out.write_byte(*byte),
+        _ => out.write(bytes),
     }
 }
 
