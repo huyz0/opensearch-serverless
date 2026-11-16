@@ -3,6 +3,16 @@
 # Mutants listed here are equivalent: no test can tell them apart from the
 # original, so they would only ever be reported as missed. Each names why.
 exclude_re = [
+    # The transport wire packs fields into disjoint bits (a status byte's
+    # flags, a varint's continuation bit over seven value bits, a char's
+    # UTF-8-style lead and continuation bits, a version id below the mask
+    # bit), where `|` and `^` give the same byte.
+    "crates/transport/src/frame/header.rs:.*replace \\| with \\^ in Status::",
+    "crates/transport/src/stream/output.rs:.*replace \\| with \\^ in Output<'a>::(varint|string)",
+    "crates/transport/src/stream/input.rs:.*replace \\| with \\^ in Input<'a>::string",
+    "crates/transport/src/version.rs:.*replace \\^ with \\| in WireVersion::wire_id",
+    # The inflate chunk's size only sets how often the loop turns.
+    "crates/transport/src/frame/compress.rs:.*replace \\* with \\+",
     # `Instant::now() < deadline` against `<=`: they differ for one instant of
     # a clock with nanosecond resolution.
     "crates/rest/src/conn.rs:.*replace < with <= in linger",

@@ -4,7 +4,7 @@ A stateless search service on object storage. Nodes hold caches, never durable s
 
 ## Crate map
 
-Dependencies point downward only (`scripts/check-layering.py`): `oss-types`, `oss-mem`, `oss-testkit` (layer 0) ← `oss-blob`, `oss-format`, `oss-rest` (1, siblings) ← `oss-meta`, `oss-cluster` (2, siblings) ← `oss-reader`, `oss-writer` (3, siblings that never depend on each other) ← `oss-coordinator` (4) ← `oss-node` (5) ← `oss-compat` (6). The graph below is generated from `cargo metadata` by `scripts/gen-crate-map.py`; dashed edges are optional (a role behind its Cargo feature). CI fails when it is stale.
+Dependencies point downward only (`scripts/check-layering.py`): `oss-types`, `oss-mem`, `oss-testkit` (layer 0) ← `oss-blob`, `oss-format`, `oss-rest`, `oss-transport` (1, siblings) ← `oss-meta`, `oss-cluster` (2, siblings) ← `oss-reader`, `oss-writer` (3, siblings that never depend on each other) ← `oss-coordinator` (4) ← `oss-node` (5) ← `oss-compat` (6). The graph below is generated from `cargo metadata` by `scripts/gen-crate-map.py`; dashed edges are optional (a role behind its Cargo feature). CI fails when it is stale.
 
 <!-- crate-map:start -->
 ```mermaid
@@ -37,6 +37,7 @@ graph TD
     oss-rest --> chunkjson
     oss-rest --> oss-mem
     oss-testkit
+    oss-transport
     oss-types
     oss-writer --> oss-blob
     oss-writer --> oss-types
@@ -54,6 +55,7 @@ lucene-rust, the engine and the only sibling project used as code, comes in belo
 | `oss-format` | the Java shell's blob formats (segment blobs, node packs, commit descriptors) | [crates/format](../crates/format/README.md) |
 | `oss-rest` | HTTP server, streaming bodies, routing | [crates/rest](../crates/rest/README.md) |
 | `oss-meta` | names, index descriptors and tombstones on registers | [crates/meta](../crates/meta/README.md) |
+| `oss-transport` | OpenSearch's native transport wire, spoken with Java nodes | [crates/transport](../crates/transport/README.md) |
 | `oss-cluster` | fleet membership by node leases, placement computed from them, and document routing | [crates/cluster](../crates/cluster/README.md) |
 | `oss-reader` | published-commit reads, page cache, query phase | [crates/reader](../crates/reader/README.md) |
 | `oss-writer` | node write log, segment build and upload, publish | [crates/writer](../crates/writer/README.md) |
