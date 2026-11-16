@@ -12,7 +12,7 @@ use oss_meta::{
     MetaError, RoutingCache, Target,
 };
 
-use crate::probe::Quirky;
+use crate::probe::{Quirk, Quirky};
 use crate::{BASE, all, counted};
 
 const NOW: i64 = 1_763_164_800_000;
@@ -401,4 +401,52 @@ fn a_name_found_gone_is_forgotten() {
     let later = NOW + DEFAULT_ROUTING_CACHE_MILLIS + 1;
     assert_eq!(uuid(&cache, &here, "logs", later), None);
     assert_eq!(cache.size(), (0, 0));
+}
+
+#[test]
+fn a_clock_stepped_back_reads_through() {
+    let b = &all()[0];
+    let cache = RoutingCache::new();
+    let d = b.descriptors(DeleteMode::Tombstone);
+    d.create(&IndexRecord::new("logs", "u1", 1), NOW, &mut [0u8; 4096])
+        .unwrap();
+    uuid(&cache, &d, "logs", NOW);
+    let (_, sent) = counted(b.meter(), || uuid(&cache, &d, "logs", NOW - 1));
+    assert_eq!(sent, [(Get, 1)]);
+}
+
+#[test]
+fn a_conditional_delete_is_told_only_when_it_applies() {
+    let b = &all()[0];
+    let told = Arc::new(Mutex::new(Vec::new()));
+    let into = Arc::clone(&told);
+    let d = b
+        .descriptors(DeleteMode::Conditional)
+        .on_changed(Arc::new(move |name: &str| {
+            into.lock().unwrap().push(name.to_owned())
+        }));
+    let mut buf = [0u8; 4096];
+    let g = d
+        .create(&IndexRecord::new("a", "u", 1), NOW, &mut buf)
+        .unwrap();
+    assert!(!d.delete_if_unchanged("a", g + 1, NOW).unwrap());
+    assert!(d.delete_if_unchanged("a", g, NOW).unwrap());
+    assert_eq!(*told.lock().unwrap(), ["a", "a"]);
+}
+
+#[test]
+fn a_failed_delete_is_not_told() {
+    let told = Arc::new(Mutex::new(Vec::new()));
+    let into = Arc::clone(&told);
+    // Request 1 creates `a`; request 2, the delete, fails.
+    let quirky = Arc::new(Quirky::new(Quirk::FailRequest(2)));
+    let d = DescriptorStore::new(quirky, BASE, DeleteMode::Conditional)
+        .unwrap()
+        .on_changed(Arc::new(move |name: &str| {
+            into.lock().unwrap().push(name.to_owned())
+        }));
+    d.create(&IndexRecord::new("a", "u", 1), NOW, &mut [0u8; 4096])
+        .unwrap();
+    assert!(d.delete("a").is_err());
+    assert_eq!(*told.lock().unwrap(), ["a"]);
 }

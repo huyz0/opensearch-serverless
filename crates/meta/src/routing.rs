@@ -15,8 +15,11 @@
 //!   [`DescriptorStore::on_changed`], so this node reads its own writes.
 //! - Another node's change shows within the window.
 //!
-//! The landing shard checks the index's uuid again, which is what keeps a
-//! stale answer from acknowledging into a deleted index.
+//! The landing shard checks the index's uuid again, which catches a stale
+//! answer only when the landing node no longer holds the old incarnation's
+//! shard. When it still does, both uuids are the old one: what closes that
+//! is the landing node's incarnation fence, which is not ported yet. Until
+//! it is, writes must not route through this cache.
 //!
 //! The cache keeps each register's bytes, so its memory is the bytes it
 //! holds, under a byte budget. A hit copies them into the caller's buffer
@@ -66,6 +69,11 @@ struct Inner {
     // not put back what the change made stale.
     epoch: u64,
     pruned_at: Option<i64>,
+    // No entry was read before this, so a walk before it is a window old
+    // finds nothing to drop. It may be older than the oldest entry left.
+    oldest: Option<i64>,
+    // Walks over the whole map, for the test that pins how often they run.
+    walks: u64,
     window_millis: i64,
     budget_bytes: usize,
     prune_above: usize,
@@ -81,15 +89,31 @@ impl Inner {
     /// Drops every entry past the window.
     fn drop_expired(&mut self, now_millis: i64) {
         let window = self.window_millis;
+        if self
+            .oldest
+            .is_none_or(|oldest| now_millis.saturating_sub(oldest) <= window)
+        {
+            return;
+        }
+        self.walks = self.walks.saturating_add(1);
+        let mut oldest = None::<i64>;
         let mut freed = 0usize;
         self.entries.retain(|name, entry| {
             let keep = now_millis.saturating_sub(entry.at_millis) <= window;
-            if !keep {
+            if keep {
+                oldest = Some(oldest.map_or(entry.at_millis, |o| o.min(entry.at_millis)));
+            } else {
                 freed = freed.saturating_add(entry.weight(name));
             }
             keep
         });
         self.bytes = self.bytes.saturating_sub(freed);
+        self.oldest = oldest;
+        // A table sized for a past peak would hold memory the budget does
+        // not count.
+        if self.entries.len() < self.entries.capacity() / 4 {
+            self.entries.shrink_to(self.entries.len().saturating_mul(2));
+        }
     }
 
     /// Past the entry threshold, drops expired entries, at most once a
@@ -130,6 +154,8 @@ impl RoutingCache {
                 bytes: 0,
                 epoch: 0,
                 pruned_at: None,
+                oldest: None,
+                walks: 0,
                 window_millis: DEFAULT_ROUTING_CACHE_MILLIS,
                 budget_bytes: DEFAULT_ROUTING_CACHE_BYTES,
                 prune_above: DEFAULT_ROUTING_CACHE_PRUNE_ABOVE,
@@ -152,12 +178,14 @@ impl RoutingCache {
     }
 
     /// Sets the bytes the cache may hold; a register longer than that is
-    /// not kept. Entries already held over it are dropped.
+    /// not kept. A budget below what the cache holds empties it.
     pub fn set_budget_bytes(&self, bytes: usize) {
         let mut inner = self.lock();
         inner.budget_bytes = bytes;
         if inner.bytes > bytes {
-            inner.entries.clear();
+            // ALLOC: none: an empty map, giving back the old table.
+            inner.entries = HashMap::new();
+            inner.oldest = None;
             inner.bytes = 0;
         }
     }
@@ -206,7 +234,7 @@ impl RoutingCache {
                 return descriptors.resolve(name, buf);
             }
             if let Some(entry) = inner.entries.get(name)
-                && now_millis.saturating_sub(entry.at_millis) <= inner.window_millis
+                && (0..=inner.window_millis).contains(&now_millis.saturating_sub(entry.at_millis))
                 && let Some(room) = buf.get_mut(..entry.value.len())
             {
                 room.copy_from_slice(&entry.value);
@@ -268,9 +296,95 @@ impl RoutingCache {
         // mapping must not evict every small resolution.
         if inner.bytes.saturating_add(weight) <= inner.budget_bytes {
             inner.bytes = inner.bytes.saturating_add(weight);
+            inner.oldest = Some(inner.oldest.map_or(now_millis, |o| o.min(now_millis)));
             // ALLOC: one name a cached register, within the byte budget.
             inner.entries.insert(name.to_owned(), entry);
         }
         inner.prune(now_millis);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn entry(at_millis: i64) -> Entry {
+        Entry {
+            generation: 1,
+            value: Box::new([0u8; 16]),
+            at_millis,
+        }
+    }
+
+    #[test]
+    fn a_full_cache_of_fresh_entries_is_not_walked() {
+        let cache = RoutingCache::new();
+        let mut inner = cache.lock();
+        for (i, at) in [0, 10].into_iter().enumerate() {
+            let e = entry(at);
+            inner.bytes += e.weight("n");
+            inner.entries.insert(format!("n{i}"), e);
+        }
+        inner.oldest = Some(0);
+        // Nothing can have expired within a window of the oldest read.
+        inner.drop_expired(DEFAULT_ROUTING_CACHE_MILLIS);
+        assert_eq!((inner.walks, inner.entries.len()), (0, 2));
+        // Past it, one walk drops the expired entry, and the next oldest
+        // is remembered.
+        inner.drop_expired(DEFAULT_ROUTING_CACHE_MILLIS + 1);
+        assert_eq!((inner.walks, inner.entries.len()), (1, 1));
+        assert_eq!(inner.oldest, Some(10));
+        inner.drop_expired(DEFAULT_ROUTING_CACHE_MILLIS + 10);
+        assert_eq!(inner.walks, 1);
+        // An empty cache has nothing to walk.
+        inner.drop_expired(i64::MAX);
+        assert_eq!(
+            (inner.walks, inner.entries.len(), inner.oldest),
+            (2, 0, None)
+        );
+        inner.drop_expired(i64::MAX);
+        assert_eq!(inner.walks, 2);
+    }
+
+    #[test]
+    fn a_walk_gives_back_a_table_sized_for_a_past_peak() {
+        let cache = RoutingCache::new();
+        let mut inner = cache.lock();
+        for i in 0..64 {
+            inner.entries.insert(format!("n{i}"), entry(0));
+        }
+        inner.entries.insert("fresh".to_owned(), entry(5_000));
+        inner.oldest = Some(0);
+        let peak = inner.entries.capacity();
+        inner.drop_expired(5_000);
+        assert_eq!(inner.entries.len(), 1);
+        assert!(
+            inner.entries.capacity() < peak / 4,
+            "{}",
+            inner.entries.capacity()
+        );
+    }
+
+    #[test]
+    fn a_table_a_quarter_full_is_kept() {
+        let cache = RoutingCache::new();
+        let mut inner = cache.lock();
+        for i in 0..64 {
+            inner.entries.insert(format!("n{i}"), entry(0));
+        }
+        let capacity = inner.entries.capacity();
+        // Exactly a quarter of the table stays fresh.
+        for i in 0..capacity / 4 {
+            inner.entries.insert(format!("n{i}"), entry(5_000));
+        }
+        inner.oldest = Some(0);
+        inner.drop_expired(5_000);
+        assert_eq!(inner.entries.len(), capacity / 4);
+        // Not shrunk, which would halve it; removals may cost a few slots.
+        assert!(
+            inner.entries.capacity() > capacity / 2,
+            "{}",
+            inner.entries.capacity()
+        );
     }
 }

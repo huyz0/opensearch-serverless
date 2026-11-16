@@ -128,7 +128,8 @@ impl DescriptorStore {
     /// Tells `listener` the name of each record this store creates, updates
     /// or deletes, once the change applied, as the Java's `onChanged`: a
     /// node's routing cache forgets the name, so its next request reads
-    /// the change.
+    /// the change. One listener a store: a later call replaces it, and a
+    /// cache only sees the changes of the store wired to it.
     #[must_use]
     pub fn on_changed(mut self, listener: Listener) -> Self {
         self.on_changed = Some(listener);
