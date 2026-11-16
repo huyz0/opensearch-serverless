@@ -5,7 +5,7 @@
 mod common;
 
 use chunkjson::{Config, ErrorKind, Event, Framing, Tokenizer};
-use common::{config, parse_chunked};
+use common::{config, feed_chunked, parse_chunked, position_of};
 
 /// The error for `bytes`, which must be the same whole and byte by byte.
 fn fails(bytes: &[u8], cfg: Config) -> (ErrorKind, u64) {
@@ -244,4 +244,30 @@ fn eof_is_repeated_and_offsets_and_depth_are_reported() {
     );
     assert_eq!(tok.next(b"", true).unwrap().0, Event::Eof);
     assert_eq!(tok.next(b"", true).unwrap().0, Event::Eof);
+}
+
+/// A mutation can turn a number's text into one past f64 range, which the
+/// tokenizer accepts as text; the shrunk case proptest found, with the comma
+/// at every position.
+#[test]
+fn a_number_mutated_past_f64_range_is_still_placed() {
+    let v = serde_json::json!([1.6279903139249872e295, null, 100000000000000000u64]);
+    let pretty = serde_json::to_string_pretty(&v).unwrap().into_bytes();
+    for i in 0..pretty.len() {
+        let mut text = pretty.clone();
+        text[i] = b',';
+        for e in [
+            parse_chunked(&text, &[1], Config::default()).err(),
+            feed_chunked(&text, &[1], Config::default()).err(),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            assert_eq!(
+                (e.line(), e.column()),
+                position_of(&text, e.offset()),
+                "{e}"
+            );
+        }
+    }
 }
