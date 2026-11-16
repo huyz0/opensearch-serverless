@@ -54,7 +54,7 @@ lucene-rust, the engine and the only sibling project used as code, comes in belo
 | `oss-format` | the Java shell's blob formats (segment blobs, node packs, commit descriptors) | [crates/format](../crates/format/README.md) |
 | `oss-rest` | HTTP server, streaming bodies, routing | [crates/rest](../crates/rest/README.md) |
 | `oss-meta` | names, index descriptors and tombstones on registers | [crates/meta](../crates/meta/README.md) |
-| `oss-cluster` | fleet membership by node leases, and placement computed from them; routing next | [crates/cluster](../crates/cluster/README.md) |
+| `oss-cluster` | fleet membership by node leases, placement computed from them, and document routing | [crates/cluster](../crates/cluster/README.md) |
 | `oss-reader` | published-commit reads, page cache, query phase | [crates/reader](../crates/reader/README.md) |
 | `oss-writer` | node write log, segment build and upload, publish | [crates/writer](../crates/writer/README.md) |
 | `oss-coordinator` | REST, routing, fan-out, reduce | [crates/coordinator](../crates/coordinator/README.md) |

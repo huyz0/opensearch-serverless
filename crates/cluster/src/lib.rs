@@ -18,6 +18,7 @@
 
 pub mod lease;
 pub mod placement;
+pub mod routing;
 
 mod error;
 
