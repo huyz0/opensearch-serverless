@@ -7,10 +7,14 @@
 //! the Java's own classes wrote. The client, server and forwarded actions
 //! build on them.
 
+pub mod channel;
+pub mod client;
 pub mod error;
+pub mod exception;
 pub mod frame;
 pub mod handshake;
 pub mod node;
+pub mod server;
 pub mod stream;
 pub mod version;
 

@@ -37,7 +37,7 @@ graph TD
     oss-rest --> chunkjson
     oss-rest --> oss-mem
     oss-testkit
-    oss-transport
+    oss-transport --> oss-mem
     oss-types
     oss-writer --> oss-blob
     oss-writer --> oss-types

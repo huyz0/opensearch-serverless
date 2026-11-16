@@ -598,6 +598,7 @@ name = "oss-transport"
 version = "0.1.0"
 dependencies = [
  "miniz_oxide",
+ "oss-mem",
 ]
 
 [[package]]

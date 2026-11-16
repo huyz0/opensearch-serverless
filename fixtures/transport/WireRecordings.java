@@ -73,6 +73,83 @@ public final class WireRecordings {
         stream(dir.resolve("stream.txt"));
         nodes(dir.resolve("nodes.txt"));
         frames(dir.resolve("frames.txt"));
+        org.opensearch.OpenSearchServerException.registerExceptions();
+        exceptions(dir.resolve("exceptions.txt"));
+    }
+
+    // ---- exceptions ----
+
+    static <T extends Throwable> T bare(T t) {
+        t.setStackTrace(new StackTraceElement[0]);
+        return t;
+    }
+
+    static Exception remote(Throwable cause) throws IOException {
+        final TransportAddress address = new TransportAddress(InetAddress.getByName("10.0.0.7"), 9300);
+        return bare(new RemoteTransportException("w1", address, "internal:serverless/document/write", cause));
+    }
+
+    static void exceptions(Path file) throws Exception {
+        try (PrintWriter out = new PrintWriter(Files.newBufferedWriter(file))) {
+            // kind, description, bytes of writeException; "bare" rows have no stack traces, so Rust writes them byte for byte.
+            final Map<String, Exception> bare = new LinkedHashMap<>();
+            bare.put("security:forwarded request without a valid transport token:FORBIDDEN", remote(bare(
+                new org.opensearch.OpenSearchSecurityException("forwarded request without a valid transport token", org.opensearch.core.rest.RestStatus.FORBIDDEN))));
+            bare.put("rejected:transport secret refresh is pending or rate limited; retry after one second", remote(bare(
+                new org.opensearch.core.concurrency.OpenSearchRejectedExecutionException("transport secret refresh is pending or rate limited; retry after one second"))));
+            bare.put("not_found:internal:serverless/search/shard", remote(bare(
+                new ActionNotFoundTransportException("internal:serverless/search/shard"))));
+            bare.put("status:shard [logs][3] is not owned here:SERVICE_UNAVAILABLE", remote(bare(
+                new org.opensearch.OpenSearchStatusException("shard [logs][3] is not owned here", org.opensearch.core.rest.RestStatus.SERVICE_UNAVAILABLE))));
+            for (Map.Entry<String, Exception> e : bare.entrySet()) {
+                out.println("bare\t" + e.getKey() + "\t" + bytes(o -> o.writeException(e.getValue())));
+            }
+            // Read-only rows: stack traces, suppressed exceptions, causes of every JDK kind, headers and metadata.
+            final IllegalArgumentException iae = new IllegalArgumentException("bad argument", new java.io.IOException("disk", new IllegalStateException("state")));
+            iae.addSuppressed(new NullPointerException("npe"));
+            final org.opensearch.OpenSearchStatusException withMeta = new org.opensearch.OpenSearchStatusException("with metadata", org.opensearch.core.rest.RestStatus.CONFLICT, iae);
+            withMeta.addMetadata("opensearch.index", "logs");
+            withMeta.addHeader("h", "1", "2");
+            out.println("read\tstatus:with metadata:CONFLICT\t" + bytes(o -> o.writeException(remote(withMeta))));
+            out.println("read\tjdk:6:bad argument\t" + bytes(o -> o.writeException(remote(iae))));
+            out.println("read\tnone\t" + bytes(o -> o.writeException(null)));
+            final Exception unknown = new org.opensearch.transport.ConnectTransportException(null, "no route");
+            out.println("read\tunknown:12\t" + bytes(o -> o.writeException(remote(unknown))));
+            // A throwable with no registry id or JDK key travels as NotSerializableExceptionWrapper.
+            final Exception unregistered = new java.util.ConcurrentModificationException("changed underneath");
+            out.println("read\twrapped:concurrent_modification_exception\t" + bytes(o -> o.writeException(remote(unregistered))));
+            for (int key : new int[] { 1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18 }) {
+                out.println("read\tjdk:" + key + "\t" + bytes(o -> o.writeException(remote(jdk(key)))));
+            }
+            // An error response frame, as the Java's outbound handler sends one.
+            final Object response = response(context(Map.of(), Map.of()), Set.of(), (Writeable) remote(bare(
+                new org.opensearch.OpenSearchSecurityException("forwarded request without a valid transport token", org.opensearch.core.rest.RestStatus.FORBIDDEN))),
+                SHELL, 42, false, false);
+            out.println("frame\tsecurity:forwarded request without a valid transport token:FORBIDDEN\t" + serialize(response));
+        }
+    }
+
+    static Exception jdk(int key) {
+        return switch (key) {
+            case 1 -> new org.apache.lucene.index.CorruptIndexException("corrupt", "resource");
+            case 2 -> new org.apache.lucene.index.IndexFormatTooNewException("res", 9, 1, 8);
+            case 3 -> new org.apache.lucene.index.IndexFormatTooOldException("res", 1, 2, 8);
+            case 4 -> new NullPointerException("npe");
+            case 5 -> new NumberFormatException("nfe");
+            case 7 -> new org.apache.lucene.store.AlreadyClosedException("closed");
+            case 8 -> new java.io.EOFException("eof");
+            case 9 -> new SecurityException("sec");
+            case 10 -> new StringIndexOutOfBoundsException("sioobe");
+            case 11 -> new ArrayIndexOutOfBoundsException("aioobe");
+            case 12 -> new java.io.FileNotFoundException("fnf");
+            case 13 -> new java.nio.file.AccessDeniedException("/a", "/b", "why");
+            case 14 -> new IllegalStateException("ise");
+            case 15 -> new org.apache.lucene.store.LockObtainFailedException("lock");
+            case 16 -> new InterruptedException("int");
+            case 17 -> new java.io.IOException("io");
+            case 18 -> new org.opensearch.core.concurrency.OpenSearchRejectedExecutionException("rejected", true);
+            default -> throw new IllegalArgumentException("key " + key);
+        };
     }
 
     // ---- stream primitives ----
