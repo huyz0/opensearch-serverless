@@ -106,6 +106,11 @@ impl<'o> Out<'o> {
     pub(crate) fn int_field(&mut self, name: &str, n: i64) {
         self.field(name);
         self.separate();
+        self.int(n);
+    }
+
+    /// An integer, in decimal, with no separator: for a text record.
+    pub(crate) fn int(&mut self, n: i64) {
         // ALLOC: none; at most 20 digits and a sign, on the stack.
         let mut digits = [0u8; 20];
         let mut at = digits.len();

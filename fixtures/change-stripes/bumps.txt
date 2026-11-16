@@ -1,0 +1,6 @@
+v1 0 6
+1 D alpha
+3 D beta
+4 D gamma été 日本
+5 P alpha
+6 D beta

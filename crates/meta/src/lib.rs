@@ -13,10 +13,13 @@
 //!   trusted, asked of the store itself.
 //! - [`DescriptorStore::sweep_tombstones`]: removing tombstones once their
 //!   quarantine has passed, found from their hourly markers.
+//! - [`ChangeStripes`]: a few registers every descriptor update and delete
+//!   bumps, so a writer confirms many indexes unchanged with one read.
 //! - [`DescriptorStore::list_page`] and [`DescriptorStore::names_with_prefix`]:
 //!   the one enumeration of names, a bounded page at a time, and what an
 //!   index pattern matches, at a cost set by its cap.
 
+mod changes;
 mod descriptors;
 mod error;
 mod listing;
@@ -24,11 +27,13 @@ mod names;
 mod probe;
 mod sweep;
 
+pub use changes::{ChangeStripes, Snapshot};
 pub use descriptors::{
     BUCKET_MILLIS, DEFAULT_QUARANTINE_MILLIS, DeleteMode, DescriptorStore, REAP_DEADLINE_MILLIS,
     REAP_HANDOFF_MILLIS, Resolution, Target,
 };
 pub use error::MetaError;
 pub use names::{MAX_NAME_BYTES, NameError, NameRule, validate_index_or_alias, validate_prefix};
+pub use oss_format::{ChangeKind, STRIPES};
 pub use probe::PROBE_PREFIX;
 pub use sweep::{MARKERS_PREFIX, Sweep, Swept};

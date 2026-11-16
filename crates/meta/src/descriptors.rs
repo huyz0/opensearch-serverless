@@ -18,11 +18,13 @@
 use std::sync::Arc;
 
 use oss_blob::{BlobError, BlobStore, SliceSource, SwapOutcome};
+use oss_format::ChangeKind;
 use oss_format::{
     IndexRecord, MAX_TOMBSTONE_BYTES, NameRecord, TOMBSTONE_PREFIX, Tombstone, descriptor_key,
     tombstone_bucket, tombstone_marker_key,
 };
 
+use crate::changes::ChangeStripes;
 use crate::error::MetaError;
 use crate::names::validate_index_or_alias;
 
@@ -83,6 +85,7 @@ pub struct DescriptorStore {
     pub(crate) store: Arc<dyn BlobStore>,
     pub(crate) base: String,
     pub(crate) deletes: DeleteMode,
+    stripes: Option<ChangeStripes>,
 }
 
 impl DescriptorStore {
@@ -104,7 +107,42 @@ impl DescriptorStore {
             // ALLOC: once a store, the deployment's base.
             base: base.to_owned(),
             deletes,
+            stripes: None,
         })
+    }
+
+    /// Records every update and delete of a descriptor in its change
+    /// stripe, as the Java's `recordChangesIn`. Every node of a deployment
+    /// must record them for any writer to confirm an index by its stripe.
+    /// An update then costs a stripe read and swap more, a delete two.
+    #[must_use]
+    pub fn record_changes_in(mut self, stripes: ChangeStripes) -> Self {
+        self.stripes = Some(stripes);
+        self
+    }
+
+    /// Records an applied change. A failure leaves writers' mappings a
+    /// little staler, and is not the caller's: the change applied.
+    fn changed(&self, name: &str, kind: ChangeKind) {
+        if let Some(stripes) = &self.stripes {
+            // After a delete its pending entry stays, and the stripe never
+            // confirms the name again: safe, and slower.
+            let _ = stripes.bump(name, kind);
+        }
+    }
+
+    /// Records a delete about to be applied. A failure refuses the delete:
+    /// a writer could otherwise go on confirming the index by its stripe.
+    /// A name a stripe cannot hold (longer than any name the rules allow,
+    /// or holding a newline) is not recorded: no writer confirms it by its
+    /// stripe, and its delete stays idempotent.
+    fn about_to_delete(&self, name: &str) -> Result<(), MetaError> {
+        match &self.stripes {
+            Some(stripes) if ChangeStripes::holds(name) => {
+                stripes.bump(name, ChangeKind::PendingDelete)
+            }
+            _ => Ok(()),
+        }
     }
 
     /// The name's register key, once the name is checked.
@@ -253,7 +291,10 @@ impl DescriptorStore {
         let len = record.write(buf)?;
         Ok(
             match self.store.swap_register(&key, expected, prefix(buf, len))? {
-                SwapOutcome::Applied(generation) => Some(generation),
+                SwapOutcome::Applied(generation) => {
+                    self.changed(&record.name, ChangeKind::Changed);
+                    Some(generation)
+                }
                 SwapOutcome::Conflict(_) => None,
             },
         )
@@ -266,7 +307,11 @@ impl DescriptorStore {
     /// [`MetaError::Blob`] when the store fails.
     pub fn delete(&self, name: &str) -> Result<(), MetaError> {
         let key = self.existing_key(name)?;
-        Ok(self.store.delete(&key)?)
+        self.about_to_delete(name)?;
+        let deleted = self.store.delete(&key);
+        // Applied or failed, the attempt is over.
+        self.changed(name, ChangeKind::Deleted);
+        Ok(deleted?)
     }
 
     /// Deletes the index named `name` if its register still holds
@@ -285,8 +330,23 @@ impl DescriptorStore {
         now_millis: i64,
     ) -> Result<bool, MetaError> {
         let key = self.existing_key(name)?;
+        self.about_to_delete(name)?;
+        let deleted = self.delete_recorded(&key, name, expected, now_millis);
+        // Applied, refused or failed, the attempt is over; a crash before
+        // this leaves the pending entry, which is safe.
+        self.changed(name, ChangeKind::Deleted);
+        deleted
+    }
+
+    fn delete_recorded(
+        &self,
+        key: &str,
+        name: &str,
+        expected: u64,
+        now_millis: i64,
+    ) -> Result<bool, MetaError> {
         if self.deletes == DeleteMode::Conditional {
-            return Ok(self.store.delete_register(&key, expected)?);
+            return Ok(self.store.delete_register(key, expected)?);
         }
         let bucket = tombstone_bucket(now_millis)?;
         let bucket = std::str::from_utf8(&bucket).unwrap_or_default();
@@ -301,7 +361,7 @@ impl DescriptorStore {
         .write(&mut tombstone)?;
         Ok(matches!(
             self.store
-                .swap_register(&key, expected, prefix(&tombstone, len))?,
+                .swap_register(key, expected, prefix(&tombstone, len))?,
             SwapOutcome::Applied(_)
         ))
     }

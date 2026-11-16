@@ -35,6 +35,9 @@ pub enum MetaError {
         /// The cap it passed.
         cap: usize,
     },
+    /// A register moved under every attempt to swap it: too many writers
+    /// at once.
+    Contended,
     /// A bound the caller passed cannot be met, such as a page of no names;
     /// nothing was sent.
     InvalidArgument(&'static str),
@@ -54,6 +57,7 @@ impl fmt::Display for MetaError {
                  naming the indices is the answer; returning the first {cap} would be a \
                  partial result that looks complete."
             ),
+            Self::Contended => f.write_str("the register moved under every attempt"),
             Self::InvalidArgument(why) => f.write_str(why),
         }
     }
@@ -68,6 +72,7 @@ impl std::error::Error for MetaError {
             Self::AlreadyExists
             | Self::BeingReclaimed
             | Self::TooManyMatches { .. }
+            | Self::Contended
             | Self::InvalidArgument(_) => None,
         }
     }
@@ -137,6 +142,11 @@ mod tests {
             (
                 MetaError::InvalidArgument("a limit of 0"),
                 "a limit of 0",
+                false,
+            ),
+            (
+                MetaError::Contended,
+                "the register moved under every attempt",
                 false,
             ),
         ] {
