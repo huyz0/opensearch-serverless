@@ -82,6 +82,22 @@ pub fn change_stripe_key(base: &str, stripe: usize) -> Result<String, FormatErro
     Ok(key)
 }
 
+/// The cluster config register's key under a base: the Java's
+/// `RegisterMap.clusterConfig` container and its `settings` blob.
+pub const CLUSTER_CONFIG_KEY: &str = "cluster/config/settings";
+
+/// The key of the cluster config register (`cluster/config/settings`).
+///
+/// # Errors
+///
+/// [`FormatError::Corrupt`] for a base that is not empty and does not end in
+/// `/`.
+pub fn cluster_config_key(base: &str) -> Result<String, FormatError> {
+    check_base(base)?;
+    // ALLOC: one key, the length of its parts.
+    Ok([base, CLUSTER_CONFIG_KEY].concat())
+}
+
 /// The key of an index's descriptor register.
 ///
 /// # Errors

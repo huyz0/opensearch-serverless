@@ -75,6 +75,8 @@ pub(crate) struct Reader<'a> {
     // False while a value is being skipped: an escaped string is then checked
     // but not decoded, so skipping copies nothing.
     decode: bool,
+    // Where the last number read starts and ends, for its text.
+    number: (usize, usize),
 }
 
 impl<'a> Reader<'a> {
@@ -88,6 +90,7 @@ impl<'a> Reader<'a> {
             depth: 0,
             expect: Expect::Value,
             decode: true,
+            number: (0, 0),
         }
     }
 
@@ -303,6 +306,7 @@ impl<'a> Reader<'a> {
                 return Err(self.corrupt("a number's exponent has no digits"));
             }
         }
+        self.number = (start, self.at);
         if self.at != integer_end {
             return Ok(Token::OtherNumber);
         }
@@ -313,6 +317,16 @@ impl<'a> Reader<'a> {
         Ok(text
             .and_then(|t| t.parse::<i64>().ok())
             .map_or(Token::OtherNumber, Token::Int))
+    }
+
+    /// The text of the last number read, as it is in the document: what
+    /// Jackson's `getText` answers for a number.
+    pub(crate) fn number_text(&self) -> &'a str {
+        let (start, end) = self.number;
+        self.bytes
+            .get(start..end)
+            .and_then(|t| std::str::from_utf8(t).ok())
+            .unwrap_or_default()
     }
 
     /// Whether the next value opens an object, without reading it.
