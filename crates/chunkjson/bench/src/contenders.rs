@@ -2,7 +2,7 @@
 //! optimised away. Streaming contenders see 64 KiB chunks; the DOM parsers
 //! need the whole document (or, for NDJSON, the whole line) in memory.
 
-use chunkjson::{Config, Event, Framing, Tokenizer};
+use chunkjson::{Config, Event, Framing, Tokenizer, Writer};
 use serde::de::IgnoredAny;
 
 const CHUNK: usize = 64 << 10;
@@ -12,6 +12,8 @@ pub fn names() -> Vec<&'static str> {
         "chunkjson/64k",
         "chunkjson/whole",
         "chunkjson/feed-64k",
+        "chunkjson/rewrite-64k",
+        "serde_json/value-rewrite",
         "serde_json/ignored",
         "serde_json/value",
         "sonic_rs/ignored",
@@ -27,6 +29,13 @@ pub fn run(contender: &str, case: &str, input: &[u8]) -> u64 {
         "chunkjson/64k" => chunkjson(input, CHUNK, ndjson),
         "chunkjson/whole" => chunkjson(input, usize::MAX, ndjson),
         "chunkjson/feed-64k" => chunkjson_feed(input, CHUNK, ndjson),
+        "chunkjson/rewrite-64k" => chunkjson_rewrite(input, CHUNK, ndjson),
+        "serde_json/value-rewrite" => per_doc(input, ndjson, |d| {
+            let v: serde_json::Value = serde_json::from_slice(d).unwrap();
+            let mut out = Vec::with_capacity(d.len() + 1);
+            serde_json::to_writer(&mut out, &v).unwrap();
+            out.len() as u64
+        }),
         "serde_json/ignored" => per_doc(input, ndjson, |d| {
             serde_json::from_slice::<IgnoredAny>(d).unwrap();
             1
@@ -111,4 +120,35 @@ fn chunkjson_feed(input: &[u8], chunk: usize, ndjson: bool) -> u64 {
         tok.feed(c, chunks.peek().is_none(), &mut sum).unwrap();
     }
     sum.0
+}
+
+/// Tokenizes and writes the events back, into an output drained after each
+/// chunk, as a streaming response would be.
+fn chunkjson_rewrite(input: &[u8], chunk: usize, ndjson: bool) -> u64 {
+    struct Pipe<'a> {
+        writer: &'a mut Writer,
+        out: &'a mut Vec<u8>,
+    }
+    impl chunkjson::Sink for Pipe<'_> {
+        type Error = chunkjson::Error;
+        fn event(&mut self, event: Event<'_>) -> Result<(), chunkjson::Error> {
+            self.writer.event(event, self.out).unwrap();
+            Ok(())
+        }
+    }
+    let framing = if ndjson { Framing::Ndjson } else { Framing::Single };
+    let config = Config::with_framing(framing);
+    let mut tok = Tokenizer::new(config);
+    let mut writer = Writer::new(config);
+    let mut out = Vec::with_capacity(2 * chunk);
+    let mut written = 0u64;
+    let mut chunks = input.chunks(chunk).peekable();
+    while let Some(c) = chunks.next() {
+        let mut pipe = Pipe { writer: &mut writer, out: &mut out };
+        tok.feed(c, chunks.peek().is_none(), &mut pipe).unwrap();
+        written += out.len() as u64;
+        out.clear();
+    }
+    writer.check_complete().unwrap();
+    written
 }
