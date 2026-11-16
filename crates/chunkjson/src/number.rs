@@ -71,6 +71,18 @@ impl NumState {
     }
 }
 
+/// `s` is exactly one JSON number.
+pub(crate) fn is_number(s: &str) -> bool {
+    let mut state = NumState::Start;
+    for &b in s.as_bytes() {
+        match state.advance(b) {
+            Step::Next(next) => state = next,
+            Step::End | Step::Invalid => return false,
+        }
+    }
+    state.is_final()
+}
+
 impl Tokenizer {
     // ARITH: `j` only advances past a byte read with `input.get(j)`.
     #[allow(clippy::arithmetic_side_effects)]
