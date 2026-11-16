@@ -6,7 +6,7 @@
 //! cut by the chunk's end, a document's start or end, anything malformed)
 //! goes to the general state machine, which gives the exact event or error.
 
-use crate::number::{NumState, Step};
+use crate::number::number_end;
 use crate::string::{StrState, scan_plain, split_tail};
 use crate::tokenizer::{Checked, Expect, Lex, Out};
 use crate::{Error, Event, Text, Tokenizer};
@@ -133,6 +133,11 @@ impl Tokenizer {
                                     last: true,
                                 });
                                 self.emit_at(pos, key, sink)?;
+                                // a colon right after a key is the common case
+                                if chunk.get(pos) == Some(&b':') {
+                                    self.expect = Expect::Value;
+                                    pos += 1;
+                                }
                             }
                             Plain::Open(text, end) => {
                                 break 'scan self.open_string(true, text, end, sink)?;
@@ -245,7 +250,7 @@ enum Plain<'a> {
 // ARITH: `pos + 1` and `j + 1` are indexes of bytes known to exist, and the
 // split tail is at most the run's length.
 #[allow(clippy::arithmetic_side_effects)]
-#[inline]
+#[inline(always)]
 fn plain_string<'a>(chunk: &[u8], pos: usize, checked: Checked<'a>) -> Plain<'a> {
     let from = pos + 1;
     let j = scan_plain(chunk, from);
@@ -308,24 +313,6 @@ impl Tokenizer {
     }
 }
 
-/// The end of a complete, valid number starting at `chunk[pos]`, if a byte
-/// that cannot continue it follows inside the chunk.
-#[inline]
-fn number_end(chunk: &[u8], pos: usize) -> Option<usize> {
-    let mut state = NumState::Start;
-    for (j, &b) in chunk.iter().enumerate().skip(pos) {
-        if b.is_ascii_digit() && matches!(state, NumState::Int | NumState::Frac | NumState::Exp) {
-            continue;
-        }
-        match state.advance(b) {
-            Step::Next(next) => state = next,
-            Step::End => return state.is_final().then_some(j),
-            Step::Invalid => return None,
-        }
-    }
-    None
-}
-
 #[cfg(test)]
 // ARITH: test arithmetic on small literal offsets and counts.
 #[allow(clippy::arithmetic_side_effects)]
@@ -362,15 +349,6 @@ mod tests {
             1 + 6 + 7,
             "BeginArray, six scalars, then the object's seven events"
         );
-    }
-
-    #[test]
-    fn a_number_cut_by_the_chunk_end_is_left_to_the_general_machine() {
-        assert_eq!(number_end(b"12.5,", 0), Some(4));
-        assert_eq!(number_end(b"-0e+7]", 0), Some(5));
-        assert_eq!(number_end(b"12", 0), None, "may continue in the next chunk");
-        assert_eq!(number_end(b"1.x", 0), None);
-        assert_eq!(number_end(b"[7,", 1), Some(2));
     }
 
     #[test]
