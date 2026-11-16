@@ -15,7 +15,7 @@ AI writes code faster than a shared, free CI can build it, so CI is designed aro
 3. **Path-aware.** `scripts/ci-changes.py` decides: docs, scripts and skills run only the tree checks (seconds, no build); a Rust change builds and tests the changed crates and their dependents; `Cargo.lock`, the toolchain, the root manifest, `.cargo/` or CI files run everything. An unrecognised path runs everything.
 4. **Cancel superseded PR runs; skip drafts.** Never cancel runs on main or the nightly. Description and label edits run in their own concurrency group and check only the PR text, so an edit never cancels the run checking the code.
 5. **The PR job stays under 10 minutes.** Mutation testing on a PR is budgeted: at most 40 of the diff's mutants, one shard chosen from the head commit (`scripts/mutants-plan.py`), within 7 minutes. A missed mutant fails; running out of time only warns. A large change runs `scripts/mutants.sh` (every mutant in the diff) locally and names the result in the PR's Evidence; the nightly sweep tests everything. A test that takes over a second goes to the slow tier: mark it `#[ignore = "slow"]` and it runs nightly.
-6. **Nightly on main, at most 4 parallel jobs:** coverage at 95%, the full mutation sweep, the slow tier, arm64 clippy. Later: fuzzing and the Java differential suites. A red job opens or updates an issue titled `nightly: <job>`.
+6. **Nightly on main, at most 4 parallel jobs:** coverage at 95%, the full mutation sweep, the slow tier, arm64 clippy, and 10 minutes per chunkjson fuzz target. Later: the Java differential suites. A red job opens or updates an issue titled `nightly: <job>`.
 7. **Cache written only by main and nightly** (`save-if` on main), so PR branches cannot evict it. `Cargo.lock` is committed and every build uses `--locked`; lucene-rust is pinned by commit.
 8. **Lean builds:** `CARGO_INCREMENTAL=0`, no debug info in tests, `--locked`, only the features a step needs, and one integration-test binary per crate (`tests/it/main.rs` with modules), because each extra binary is a separate link.
 9. **Every job has `timeout-minutes`;** nextest kills a hung test after 10 minutes.
@@ -29,7 +29,7 @@ AI writes code faster than a shared, free CI can build it, so CI is designed aro
 | pre-commit hook | every commit | fmt, the tree checks, commit message (seconds) |
 | pre-push hook | every push | the whole gate: clippy, tests, coverage, docs |
 | `ci.yml` | each PR push, main | PR text and risk, commit messages, tree checks; for Rust changes fmt, clippy, docs, tests of affected crates, mutants on changed lines |
-| `nightly.yml` | 03:17 UTC | coverage, full mutants, slow tests, arm64 clippy |
+| `nightly.yml` | 03:17 UTC | coverage, full mutants, slow tests, arm64 clippy, chunkjson fuzzing |
 | `ci-report.yml` | Mondays | cost and queue report |
 
 ## Enforced by

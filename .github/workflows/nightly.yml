@@ -29,7 +29,7 @@ jobs:
       fail-fast: false
       max-parallel: 4
       matrix:
-        job: [coverage, mutants, slow-tests, clippy-aarch64]
+        job: [coverage, mutants, slow-tests, clippy-aarch64, fuzz]
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -38,9 +38,9 @@ jobs:
         with:
           key: ${{ matrix.job }}
       - uses: taiki-e/install-action@v2
-        if: matrix.job == 'coverage' || matrix.job == 'mutants'
+        if: matrix.job == 'coverage' || matrix.job == 'mutants' || matrix.job == 'fuzz'
         with:
-          tool: ${{ matrix.job == 'coverage' && 'cargo-llvm-cov' || 'cargo-mutants' }}
+          tool: ${{ matrix.job == 'coverage' && 'cargo-llvm-cov' || matrix.job == 'mutants' && 'cargo-mutants' || 'cargo-fuzz' }}
       - name: run
         env:
           JOB: ${{ matrix.job }}
@@ -49,9 +49,21 @@ jobs:
             coverage)       scripts/coverage.sh --locked --fail-under-lines 95 ;;
             mutants)        scripts/mutants.sh --all ;;
             slow-tests)     cargo test --locked --workspace --all-features -- --ignored ;;
+            fuzz)           rustup toolchain install nightly-2026-11-13 --profile minimal &&
+                            cd crates/chunkjson/fuzz &&
+                            for t in oracle feed; do
+                              cargo +nightly-2026-11-13 fuzz run "$t" -- -max_total_time=600 || exit 1
+                            done ;;
             clippy-aarch64) rustup target add aarch64-unknown-linux-gnu &&
                             cargo clippy --locked --workspace --all-targets --all-features --target aarch64-unknown-linux-gnu -- -D warnings ;;
           esac
+      - name: keep the fuzz reproducer
+        if: failure() && matrix.job == 'fuzz'
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-artifacts
+          path: crates/chunkjson/fuzz/artifacts
+          if-no-files-found: ignore
       - name: report failure
         if: failure()
         env:

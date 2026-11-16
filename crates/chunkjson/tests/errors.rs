@@ -53,6 +53,43 @@ fn invalid_utf8_is_refused_where_it_breaks() {
     );
 }
 
+/// The kinds of invalid UTF-8 JSONTestSuite's `i_string_*` cases name, with
+/// their raw bytes, which the vendored copy lost (`tests/data/JSONTestSuite.md`):
+/// refused at the same byte under every chunking, pull and push.
+#[test]
+fn every_kind_of_invalid_utf8_is_refused_under_every_chunking() {
+    let cases: [(&[u8], u64); 9] = [
+        (b"[\"\xc0\xaf\"]", 2),                 // overlong 2-byte
+        (b"[\"\xe0\x80\xaf\"]", 2),             // overlong 3-byte
+        (b"[\"\xfc\x83\xbf\xbf\xbf\xbf\"]", 2), // 6-byte form
+        (b"[\"\xf8\x88\x80\x80\x80\"]", 2),     // 5-byte form
+        (b"[\"\xed\xa0\x80\"]", 2),             // encoded surrogate U+D800
+        (b"[\"\xf4\xbf\xbf\xbf\"]", 2),         // beyond U+10FFFF
+        (b"[\"a\xe2\x82\"]", 3),                // truncated
+        (b"[\"a\x81b\"]", 3),                   // lone continuation byte
+        (b"[\"ab\xe9\"]", 4),                   // lead byte cut off by the quote
+    ];
+    for (bytes, at) in cases {
+        let want = (ErrorKind::InvalidUtf8, at);
+        let label = String::from_utf8_lossy(bytes);
+        for size in (1..=bytes.len()).chain([usize::MAX]) {
+            let pulled = parse_chunked(bytes, &[size], Config::default()).expect_err("refused");
+            assert_eq!(
+                (pulled.kind(), pulled.offset()),
+                want,
+                "pull {label} at {size}"
+            );
+            let pushed =
+                common::feed_chunked(bytes, &[size], Config::default()).expect_err("refused");
+            assert_eq!(
+                (pushed.kind(), pushed.offset()),
+                want,
+                "push {label} at {size}"
+            );
+        }
+    }
+}
+
 #[test]
 fn split_character_broken_after_the_slice_names_the_breaking_byte() {
     let err = parse_chunked(b"\"\xe2\x82a\"", &[3, 9], Config::default()).unwrap_err();
@@ -71,6 +108,22 @@ fn control_characters_and_bad_escapes_are_refused() {
     assert_eq!(single(br#""\x""#), (ErrorKind::InvalidEscape, 2));
     assert_eq!(single(br#""\u12g4""#), (ErrorKind::InvalidEscape, 5));
     assert_eq!(single(br#""\'""#), (ErrorKind::InvalidEscape, 2));
+}
+
+/// Found by the `feed` fuzz target: the pull API named the control byte,
+/// the push API the earlier broken character.
+#[test]
+fn a_broken_character_before_a_control_byte_comes_first() {
+    let bytes = b"\"$\xe0\x00\x00";
+    assert_eq!(single(bytes), (ErrorKind::InvalidUtf8, 2));
+    for size in [1, 2, usize::MAX] {
+        let e = common::feed_chunked(bytes, &[size], Config::default()).expect_err("refused");
+        assert_eq!(
+            (e.kind(), e.offset()),
+            (ErrorKind::InvalidUtf8, 2),
+            "push at {size}"
+        );
+    }
 }
 
 #[test]

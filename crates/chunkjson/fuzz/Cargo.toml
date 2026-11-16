@@ -21,3 +21,10 @@ path = "fuzz_targets/oracle.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "feed"
+path = "fuzz_targets/feed.rs"
+test = false
+doc = false
+bench = false

@@ -1,6 +1,14 @@
 //! Each contender consumes the input and returns a checksum, so no work is
 //! optimised away. Streaming contenders see 64 KiB chunks; the DOM parsers
 //! need the whole document (or, for NDJSON, the whole line) in memory.
+//!
+//! Not every row does the same job. `chunkjson/*` and `*/ignored` validate
+//! and tokenize without building anything; `*/value` builds a tree, which is
+//! more work, so the gap between them is not a like-for-like speed-up. The
+//! fair rewrite comparison is `chunkjson/rewrite-64k` against
+//! `serde_json/transcode`, which also streams tokens into a writer. On NDJSON
+//! the DOM parsers get a plain split on `\n` bytes and parse each line whole,
+//! which needs every line in memory; chunkjson finds the framing itself.
 
 use chunkjson::{Config, Event, Framing, Tokenizer, Writer};
 use serde::de::IgnoredAny;
@@ -14,6 +22,7 @@ pub fn names() -> Vec<&'static str> {
         "chunkjson/feed-64k",
         "chunkjson/rewrite-64k",
         "serde_json/value-rewrite",
+        "serde_json/transcode",
         "serde_json/ignored",
         "serde_json/value",
         "sonic_rs/ignored",
@@ -36,6 +45,19 @@ pub fn run(contender: &str, case: &str, input: &[u8]) -> u64 {
             serde_json::to_writer(&mut out, &v).unwrap();
             out.len() as u64
         }),
+        "serde_json/transcode" => {
+            // Streams tokens from the parser to the serializer with no
+            // tree, into one output drained every 64 KiB as chunkjson's is.
+            let mut out = Drained { buf: Vec::with_capacity(2 * CHUNK), written: 0 };
+            per_doc(input, ndjson, |d| {
+                let mut de = serde_json::Deserializer::from_slice(d);
+                let mut ser = serde_json::Serializer::new(&mut out);
+                serde_transcode::transcode(&mut de, &mut ser).unwrap();
+                de.end().unwrap();
+                0
+            });
+            out.written + out.buf.len() as u64
+        }
         "serde_json/ignored" => per_doc(input, ndjson, |d| {
             serde_json::from_slice::<IgnoredAny>(d).unwrap();
             1
@@ -151,4 +173,24 @@ fn chunkjson_rewrite(input: &[u8], chunk: usize, ndjson: bool) -> u64 {
     }
     writer.check_complete().unwrap();
     written
+}
+
+/// An output that keeps at most about 64 KiB, counting what it drops.
+struct Drained {
+    buf: Vec<u8>,
+    written: u64,
+}
+
+impl std::io::Write for Drained {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.buf.extend_from_slice(bytes);
+        if self.buf.len() >= CHUNK {
+            self.written += self.buf.len() as u64;
+            self.buf.clear();
+        }
+        Ok(bytes.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
 }
