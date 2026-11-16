@@ -7,6 +7,7 @@
 #![allow(clippy::arithmetic_side_effects)]
 
 mod changes;
+mod cluster_config;
 mod counts;
 mod lifecycle;
 mod listing;

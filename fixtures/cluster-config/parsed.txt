@@ -1,0 +1,32 @@
+{}
+{"cluster.routing.allocation.enable":"all","search.max_buckets":"10000"}
+{"a":"1","a.b":"2","f":"false","l":["u","1","false"],"n":"5","t":"true","z":null}
+{"big":"123456789012345678901234567890","exp":"1e3","exp2":"-2.5E-3","frac":"1.50","neg":"-0"}
+{"a.b":"2"}
+{"a.b":"1"}
+{}
+{"a":[]}
+{"a.b.c.d":"deep","a.b.c.e":"flat"}
+{"x":["a","b"]}
+{"x":["a","true","3"]}
+{"x":["a"],"x.2":"c"}
+{"x.1":"b"}
+{"x.10":"a"}
+{"x":["a"],"x.0.y":"b"}
+refused
+{"x":["a","b"],"x.1":["c"]}
+{"x":["a","[b, c]"]}
+{"x":["a","[]"]}
+refused
+{"x":["p"],"x.1":"q"}
+{"":["a"]}
+{"x.":["a"]}
+{"u":"été \"quoted\" back\\slash tab\t","ü":"key"}
+refused
+refused
+{"x":["b"]}
+refused
+refused
+refused
+refused
+refused

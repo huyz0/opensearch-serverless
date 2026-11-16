@@ -66,3 +66,13 @@ pub fn assert_lucene_file(bytes: &[u8], name: &str) {
         "{name} ends with a footer"
     );
 }
+
+/// The lines of a cluster-config recording (`fixtures/cluster-config`).
+pub fn settings_fixture(name: &str) -> Vec<String> {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/cluster-config")
+        .join(name);
+    let text = std::fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("fixture {}: {e}", path.display()));
+    text.lines().map(str::to_owned).collect()
+}

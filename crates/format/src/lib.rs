@@ -18,12 +18,15 @@
 //! and nothing borrowed from the input is copied unless it holds an escape.
 //! Metadata writers write what they read: [`IndexRecord`] and [`Tombstone`]
 //! are a name register's whole value, written back byte for byte as the
-//! shell's Jackson writes it, into the caller's buffer.
+//! shell's Jackson writes it, into the caller's buffer. [`ClusterSettings`]
+//! reads the cluster config register as the Java's `Settings` reads it, and
+//! writes the flat form that reads back the same.
 //!
 //! Bucketed indices, whose commits are in a bucket's manifest, are not read
 //! yet ([`FormatError::NotFollowable`]).
 
 mod change_stripe;
+mod cluster_settings;
 mod descriptor;
 mod error;
 mod index_record;
@@ -41,12 +44,14 @@ pub use change_stripe::{
     ChangeKind, ChangeStripe, KEPT, KEPT_PENDING, MAX_CHANGE_STRIPE_BYTES, MAX_ENTRY_NAME_BYTES,
     STRIPES, StripeEntry, stripe_of,
 };
+pub use cluster_settings::{ClusterSettings, MAX_CLUSTER_SETTINGS_BYTES, Setting, SettingsRefused};
 pub use descriptor::{DescriptorRecord, IndexDescriptor, TOMBSTONE_PREFIX};
 pub use error::FormatError;
 pub use index_record::{EMPTY_SETTINGS, IndexRecord, MAX_SHARDS, NameRecord};
 pub use keys::{
-    CHANGES_PREFIX, DESCRIPTORS_PREFIX, FileExtent, MANIFEST, MARKERS_PREFIX, ShardRef,
-    change_stripe_key, descriptor_key, node_pack_key, tombstone_marker_key,
+    CHANGES_PREFIX, CLUSTER_CONFIG_KEY, DESCRIPTORS_PREFIX, FileExtent, MANIFEST, MARKERS_PREFIX,
+    ShardRef, change_stripe_key, cluster_config_key, descriptor_key, node_pack_key,
+    tombstone_marker_key,
 };
 pub use location::{FileLocation, NODE_PACK_PREFIX};
 pub use manifest::{CommitManifest, ManifestFile};

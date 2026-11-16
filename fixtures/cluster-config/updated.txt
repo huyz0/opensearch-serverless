@@ -1,0 +1,10 @@
+{"cluster":{"routing":{"allocation":{"enable":"none"}}},"search":{"max_buckets":"20000"}}
+{"cluster.routing.allocation.enable":"none","search.max_buckets":"20000"}
+{"cluster":{"routing":{"allocation":{"enable":"all"}}},"indices":{"recovery":{"max_bytes_per_sec":"50mb"}},"search":{"max_buckets":"20000"}}
+{"cluster.routing.allocation.enable":"all","indices.recovery.max_bytes_per_sec":"50mb","search.max_buckets":"20000"}
+{"cluster":{"routing":{"allocation":{"enable":"all"}}},"indices":{"recovery":{"max_bytes_per_sec":"50mb"}}}
+{"cluster.routing.allocation.enable":"all","indices.recovery.max_bytes_per_sec":"50mb"}
+{"a":"1","cluster":{"routing":{"allocation":{"enable":"all"}}},"indices":{"recovery":{"max_bytes_per_sec":"50mb"}},"a.b":"2"}
+{"a":"1","a.b":"2","cluster.routing.allocation.enable":"all","indices.recovery.max_bytes_per_sec":"50mb"}
+{"a":{"b":"2"},"cluster":{"routing":{"allocation":{"enable":"all"}}},"é":"v","indices":{"recovery":{"max_bytes_per_sec":"50mb"}}}
+{"a.b":"2","cluster.routing.allocation.enable":"all","indices.recovery.max_bytes_per_sec":"50mb","é":"v"}

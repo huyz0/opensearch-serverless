@@ -18,8 +18,11 @@
 //! - [`DescriptorStore::list_page`] and [`DescriptorStore::names_with_prefix`]:
 //!   the one enumeration of names, a bounded page at a time, and what an
 //!   index pattern matches, at a cost set by its cap.
+//! - [`ClusterConfig`]: an operator's persistent settings, one register a
+//!   deployment, read and updated as the Java's `ClusterConfig`.
 
 mod changes;
+mod cluster_config;
 mod descriptors;
 mod error;
 mod listing;
@@ -28,12 +31,15 @@ mod probe;
 mod sweep;
 
 pub use changes::{ChangeStripes, Snapshot};
+pub use cluster_config::{ClusterConfig, ConfigValue};
 pub use descriptors::{
     BUCKET_MILLIS, DEFAULT_QUARANTINE_MILLIS, DeleteMode, DescriptorStore, REAP_DEADLINE_MILLIS,
     REAP_HANDOFF_MILLIS, Resolution, Target,
 };
 pub use error::MetaError;
 pub use names::{MAX_NAME_BYTES, NameError, NameRule, validate_index_or_alias, validate_prefix};
-pub use oss_format::{ChangeKind, STRIPES};
+pub use oss_format::{
+    ChangeKind, ClusterSettings, MAX_CLUSTER_SETTINGS_BYTES, STRIPES, Setting, SettingsRefused,
+};
 pub use probe::PROBE_PREFIX;
 pub use sweep::{MARKERS_PREFIX, Sweep, Swept};
