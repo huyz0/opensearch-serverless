@@ -1,0 +1,180 @@
+logs	0	search	0	
+logs	0	search	1	n10
+logs	0	search	2	n10,n08
+logs	0	search	4	n10,n08,n04,n02
+logs	0	search	50	n10,n08,n04,n02,n05,n07,N3,n01
+logs	0	ingest	0	
+logs	0	ingest	1	n10
+logs	0	ingest	2	n10,z-9
+logs	0	ingest	4	n10,z-9,n04,n03
+logs	0	ingest	50	n10,z-9,n04,n03,n09,n06,n07,n01
+logs	0	none	0	
+logs	0	none	1	
+logs	0	none	2	
+logs	0	none	4	
+logs	0	none	50	
+logs	3	search	0	
+logs	3	search	1	n10
+logs	3	search	2	n10,n05
+logs	3	search	4	n10,n05,n01,n04
+logs	3	search	50	n10,n05,n01,n04,n02,n08,n07,N3
+logs	3	ingest	0	
+logs	3	ingest	1	n10
+logs	3	ingest	2	n10,n01
+logs	3	ingest	4	n10,n01,z-9,n06
+logs	3	ingest	50	n10,n01,z-9,n06,n03,n04,n07,n09
+logs	3	none	0	
+logs	3	none	1	
+logs	3	none	2	
+logs	3	none	4	
+logs	3	none	50	
+logs	41	search	0	
+logs	41	search	1	n02
+logs	41	search	2	n02,n07
+logs	41	search	4	n02,n07,n10,n01
+logs	41	search	50	n02,n07,n10,n01,n05,N3,n04,n08
+logs	41	ingest	0	
+logs	41	ingest	1	n07
+logs	41	ingest	2	n07,n03
+logs	41	ingest	4	n07,n03,n10,n09
+logs	41	ingest	50	n07,n03,n10,n09,n01,n06,z-9,n04
+logs	41	none	0	
+logs	41	none	1	
+logs	41	none	2	
+logs	41	none	4	
+logs	41	none	50	
+metrics-2026.11.16	0	search	0	
+metrics-2026.11.16	0	search	1	n01
+metrics-2026.11.16	0	search	2	n01,N3
+metrics-2026.11.16	0	search	4	n01,N3,n02,n08
+metrics-2026.11.16	0	search	50	n01,N3,n02,n08,n07,n05,n10,n04
+metrics-2026.11.16	0	ingest	0	
+metrics-2026.11.16	0	ingest	1	n01
+metrics-2026.11.16	0	ingest	2	n01,n09
+metrics-2026.11.16	0	ingest	4	n01,n09,n07,z-9
+metrics-2026.11.16	0	ingest	50	n01,n09,n07,z-9,n06,n03,n10,n04
+metrics-2026.11.16	0	none	0	
+metrics-2026.11.16	0	none	1	
+metrics-2026.11.16	0	none	2	
+metrics-2026.11.16	0	none	4	
+metrics-2026.11.16	0	none	50	
+metrics-2026.11.16	3	search	0	
+metrics-2026.11.16	3	search	1	n02
+metrics-2026.11.16	3	search	2	n02,n10
+metrics-2026.11.16	3	search	4	n02,n10,n08,N3
+metrics-2026.11.16	3	search	50	n02,n10,n08,N3,n01,n04,n07,n05
+metrics-2026.11.16	3	ingest	0	
+metrics-2026.11.16	3	ingest	1	n09
+metrics-2026.11.16	3	ingest	2	n09,n10
+metrics-2026.11.16	3	ingest	4	n09,n10,n03,z-9
+metrics-2026.11.16	3	ingest	50	n09,n10,n03,z-9,n01,n04,n06,n07
+metrics-2026.11.16	3	none	0	
+metrics-2026.11.16	3	none	1	
+metrics-2026.11.16	3	none	2	
+metrics-2026.11.16	3	none	4	
+metrics-2026.11.16	3	none	50	
+metrics-2026.11.16	41	search	0	
+metrics-2026.11.16	41	search	1	n02
+metrics-2026.11.16	41	search	2	n02,n10
+metrics-2026.11.16	41	search	4	n02,n10,N3,n01
+metrics-2026.11.16	41	search	50	n02,n10,N3,n01,n05,n04,n08,n07
+metrics-2026.11.16	41	ingest	0	
+metrics-2026.11.16	41	ingest	1	n06
+metrics-2026.11.16	41	ingest	2	n06,n10
+metrics-2026.11.16	41	ingest	4	n06,n10,n01,n03
+metrics-2026.11.16	41	ingest	50	n06,n10,n01,n03,n04,z-9,n07,n09
+metrics-2026.11.16	41	none	0	
+metrics-2026.11.16	41	none	1	
+metrics-2026.11.16	41	none	2	
+metrics-2026.11.16	41	none	4	
+metrics-2026.11.16	41	none	50	
+événements	0	search	0	
+événements	0	search	1	n04
+événements	0	search	2	n04,n10
+événements	0	search	4	n04,n10,n01,n07
+événements	0	search	50	n04,n10,n01,n07,n08,N3,n05,n02
+événements	0	ingest	0	
+événements	0	ingest	1	n03
+événements	0	ingest	2	n03,n04
+événements	0	ingest	4	n03,n04,n10,n01
+événements	0	ingest	50	n03,n04,n10,n01,n07,z-9,n09,n06
+événements	0	none	0	
+événements	0	none	1	
+événements	0	none	2	
+événements	0	none	4	
+événements	0	none	50	
+événements	3	search	0	
+événements	3	search	1	n07
+événements	3	search	2	n07,n04
+événements	3	search	4	n07,n04,n01,N3
+événements	3	search	50	n07,n04,n01,N3,n08,n10,n05,n02
+événements	3	ingest	0	
+événements	3	ingest	1	n07
+événements	3	ingest	2	n07,n04
+événements	3	ingest	4	n07,n04,n06,n01
+événements	3	ingest	50	n07,n04,n06,n01,n09,n03,z-9,n10
+événements	3	none	0	
+événements	3	none	1	
+événements	3	none	2	
+événements	3	none	4	
+événements	3	none	50	
+événements	41	search	0	
+événements	41	search	1	N3
+événements	41	search	2	N3,n10
+événements	41	search	4	N3,n10,n05,n08
+événements	41	search	50	N3,n10,n05,n08,n02,n04,n07,n01
+événements	41	ingest	0	
+événements	41	ingest	1	n10
+événements	41	ingest	2	n10,n06
+événements	41	ingest	4	n10,n06,n04,z-9
+événements	41	ingest	50	n10,n06,n04,z-9,n07,n09,n01,n03
+événements	41	none	0	
+événements	41	none	1	
+événements	41	none	2	
+événements	41	none	4	
+événements	41	none	50	
+a	0	search	0	
+a	0	search	1	n04
+a	0	search	2	n04,n10
+a	0	search	4	n04,n10,n02,N3
+a	0	search	50	n04,n10,n02,N3,n07,n05,n08,n01
+a	0	ingest	0	
+a	0	ingest	1	n09
+a	0	ingest	2	n09,z-9
+a	0	ingest	4	n09,z-9,n04,n10
+a	0	ingest	50	n09,z-9,n04,n10,n07,n06,n01,n03
+a	0	none	0	
+a	0	none	1	
+a	0	none	2	
+a	0	none	4	
+a	0	none	50	
+a	3	search	0	
+a	3	search	1	n08
+a	3	search	2	n08,n05
+a	3	search	4	n08,n05,N3,n04
+a	3	search	50	n08,n05,N3,n04,n02,n07,n10,n01
+a	3	ingest	0	
+a	3	ingest	1	n09
+a	3	ingest	2	n09,n06
+a	3	ingest	4	n09,n06,z-9,n03
+a	3	ingest	50	n09,n06,z-9,n03,n04,n07,n10,n01
+a	3	none	0	
+a	3	none	1	
+a	3	none	2	
+a	3	none	4	
+a	3	none	50	
+a	41	search	0	
+a	41	search	1	n04
+a	41	search	2	n04,n05
+a	41	search	4	n04,n05,n07,n01
+a	41	search	50	n04,n05,n07,n01,n08,n02,n10,N3
+a	41	ingest	0	
+a	41	ingest	1	n04
+a	41	ingest	2	n04,n06
+a	41	ingest	4	n04,n06,n07,n01
+a	41	ingest	50	n04,n06,n07,n01,n03,z-9,n10,n09
+a	41	none	0	
+a	41	none	1	
+a	41	none	2	
+a	41	none	4	
+a	41	none	50	

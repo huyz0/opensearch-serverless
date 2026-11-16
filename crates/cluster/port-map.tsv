@@ -12,3 +12,13 @@ tests/leases/revoke.rs	new		revocation and liveness oracle tests
 tests/leases/refresh.rs	new		refresh, digest and pruning tests
 tests/leases/budget.rs	new		request budgets
 tests/leases/java.rs	new		a Java lease on the filesystem store
+src/placement/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/cluster/ShardAssignment.java@1455ff58	ShardAssignment, and the role names from node/NodeCore.java
+src/placement/hash.rs	port	server/src/main/java/org/opensearch/cluster/routing/Murmur3HashFunction.java@3.3.0	hash(String) over each UTF-16 unit, and String.hashCode, both taking a key in parts
+src/placement/rendezvous.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/cluster/Rendezvous.java@1455ff58	owner, and ReaderPlacement.candidatesFor as readers_for
+src/placement/spread.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/cluster/HotShardSpread.java@1455ff58	the rate, width and two-choice pick; settings are a constructor argument until a node wires them
+src/placement/zone.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/cluster/ZonePreference.java@1455ff58	ZonePreference.order and Zones.same, crosses, zoneOf, normalise; the attribute and local zone come from settings with the node wiring
+src/placement/fleet.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/FleetPlacement.java@1455ff58	fleetSize, nearlyFull, memberWithRoom, takeoverWinner, fleetMeanHeld, aboveFleetShare, memberBelowMean, handOffTarget, writerFor over a view; takeoverBelongsElsewhere waits for shard heads
+tests/placement/main.rs	new		test support: the recorded fleet
+tests/placement/java.rs	new		hashes, owners, reader ranks and zone choice against the Java
+tests/placement/fleet.rs	new		fleet decisions against the Java
+tests/placement/spread.rs	new		hot-shard spread properties

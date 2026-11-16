@@ -32,4 +32,20 @@ exclude_re = [
     # A digest copy with the same expiry as the one held is the same renewal
     # (a renewal always moves the expiry), so taking it changes nothing.
     "crates/cluster/src/lease/refresh.rs:.*replace > with >= in Membership::merge_digest",
+    # Murmur3's tail mixes the partial block when bytes are left; with none
+    # left the block is 0, and mixing 0 gives 0, so `>=` changes nothing.
+    "crates/cluster/src/placement/hash.rs:.*replace > with >= in Murmur3::finish",
+    # Of two random picks with equal searches running, which is chosen is
+    # itself random: `<=` only swaps which random pick wins a tie.
+    "crates/cluster/src/placement/spread.rs:.*replace < with <= in HotShardSpread::pick",
+    # A rate decayed at the instant it was last touched decays by e^0 = 1.
+    "crates/cluster/src/placement/spread.rs:.*replace > with >= in Rate::decay",
+    # `mean > 0.0` against `>=`: a mean of 0 means this node holds nothing (or less, when it reports
+    # none), so `held > mean * 1.5` or `held >= cap / 4` already fails.
+    "crates/cluster/src/placement/fleet.rs:161:21: replace > with >= in FleetView<'a>::above_fleet_share",
+    # A held count below 0 (not reported) is room only where the cap is
+    # positive, and there any held below 0, or of 0, is below the cap: the
+    # Java's `held < 0` check, ported as it is, decides nothing alone.
+    "crates/cluster/src/placement/fleet.rs:206:62: replace < with (==|<=) in FleetView<'a>::writer_for",
+    "crates/cluster/src/placement/fleet.rs:285:23: replace < with (==|<=) in FleetView<'a>::has_takeover_room",
 ]

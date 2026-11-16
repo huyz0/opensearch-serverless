@@ -51,5 +51,5 @@ None: membership is new behaviour with nothing to compare against, and costs onl
 ## Risks
 
 - A lease is the only place a successor finds a node's unpublished write-log epochs; pruning one that names an epoch would lose records. AC-8 covers it.
-- Clock skew beyond the margin loses acknowledged writes once shards are owned (the Java's documented assumption); this ports the same margin, and revocation is what makes a skewed holder find out.
+- Clock skew beyond the margin lets a holder and a taker overlap; the margin is for liveness only, revocation makes a skewed holder find out, and the write log's and shard heads' conditional writes fence its late writes (ADR 0015).
 - The members index is a register every joining node swaps; a co-started fleet contends on it, which the jittered retry and the per-renewal re-attempt bound, as in the Java.

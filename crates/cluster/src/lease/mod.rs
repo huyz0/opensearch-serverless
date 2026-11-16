@@ -139,7 +139,7 @@ fn same_member(a: &NodeLease, b: &NodeLease) -> bool {
 
 /// Locks `mutex`, taking it over if a thread panicked holding it: every
 /// change under these locks is one whole step.
-fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+pub(crate) fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 

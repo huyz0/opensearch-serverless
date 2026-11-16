@@ -1,0 +1,1017 @@
+size	n01	0	4,2,92
+room	n01	0	n03
+mean	n01	0	52.5
+below	n01	0	n03
+handoff	n01	0	-
+writer	n01	0	logs	0	n03
+takeover	n01	0	0.0	logs	0	n02	n06
+takeover	n01	0	0.5	logs	0	n02	n06
+takeover	n01	0	0.0	logs	0	n07	n03
+takeover	n01	0	0.5	logs	0	n07	n03
+takeover	n01	0	0.0	logs	0	gone-a	n01
+takeover	n01	0	0.5	logs	0	gone-a	n01
+takeover	n01	0	0.0	logs	0	gone-x	n01
+takeover	n01	0	0.5	logs	0	gone-x	n01
+writer	n01	0	logs	3	n04
+takeover	n01	0	0.0	logs	3	n02	n10
+takeover	n01	0	0.5	logs	3	n02	n10
+takeover	n01	0	0.0	logs	3	n07	n03
+takeover	n01	0	0.5	logs	3	n07	n03
+takeover	n01	0	0.0	logs	3	gone-a	n01
+takeover	n01	0	0.5	logs	3	gone-a	n01
+takeover	n01	0	0.0	logs	3	gone-x	n06
+takeover	n01	0	0.5	logs	3	gone-x	n06
+writer	n01	0	logs	41	n10
+takeover	n01	0	0.0	logs	41	n02	n10
+takeover	n01	0	0.5	logs	41	n02	n10
+takeover	n01	0	0.0	logs	41	n07	n03
+takeover	n01	0	0.5	logs	41	n07	n03
+takeover	n01	0	0.0	logs	41	gone-a	n01
+takeover	n01	0	0.5	logs	41	gone-a	n01
+takeover	n01	0	0.0	logs	41	gone-x	n04
+takeover	n01	0	0.5	logs	41	gone-x	n04
+writer	n01	0	metrics-2026.11.16	0	n03
+takeover	n01	0	0.0	metrics-2026.11.16	0	n02	n06
+takeover	n01	0	0.5	metrics-2026.11.16	0	n02	n06
+takeover	n01	0	0.0	metrics-2026.11.16	0	n07	n03
+takeover	n01	0	0.5	metrics-2026.11.16	0	n07	n03
+takeover	n01	0	0.0	metrics-2026.11.16	0	gone-a	n01
+takeover	n01	0	0.5	metrics-2026.11.16	0	gone-a	n01
+takeover	n01	0	0.0	metrics-2026.11.16	0	gone-x	n06
+takeover	n01	0	0.5	metrics-2026.11.16	0	gone-x	n06
+writer	n01	0	metrics-2026.11.16	3	n04
+takeover	n01	0	0.0	metrics-2026.11.16	3	n02	n10
+takeover	n01	0	0.5	metrics-2026.11.16	3	n02	n10
+takeover	n01	0	0.0	metrics-2026.11.16	3	n07	n03
+takeover	n01	0	0.5	metrics-2026.11.16	3	n07	n03
+takeover	n01	0	0.0	metrics-2026.11.16	3	gone-a	n01
+takeover	n01	0	0.5	metrics-2026.11.16	3	gone-a	n01
+takeover	n01	0	0.0	metrics-2026.11.16	3	gone-x	n01
+takeover	n01	0	0.5	metrics-2026.11.16	3	gone-x	z-9
+writer	n01	0	metrics-2026.11.16	41	n07
+takeover	n01	0	0.0	metrics-2026.11.16	41	n02	n10
+takeover	n01	0	0.5	metrics-2026.11.16	41	n02	n10
+takeover	n01	0	0.0	metrics-2026.11.16	41	n07	n03
+takeover	n01	0	0.5	metrics-2026.11.16	41	n07	n03
+takeover	n01	0	0.0	metrics-2026.11.16	41	gone-a	n01
+takeover	n01	0	0.5	metrics-2026.11.16	41	gone-a	n01
+takeover	n01	0	0.0	metrics-2026.11.16	41	gone-x	n03
+takeover	n01	0	0.5	metrics-2026.11.16	41	gone-x	n03
+writer	n01	0	événements	0	n06
+takeover	n01	0	0.0	événements	0	n02	n10
+takeover	n01	0	0.5	événements	0	n02	n10
+takeover	n01	0	0.0	événements	0	n07	n03
+takeover	n01	0	0.5	événements	0	n07	n03
+takeover	n01	0	0.0	événements	0	gone-a	n01
+takeover	n01	0	0.5	événements	0	gone-a	n01
+takeover	n01	0	0.0	événements	0	gone-x	n10
+takeover	n01	0	0.5	événements	0	gone-x	n10
+writer	n01	0	événements	3	n04
+takeover	n01	0	0.0	événements	3	n02	n06
+takeover	n01	0	0.5	événements	3	n02	n06
+takeover	n01	0	0.0	événements	3	n07	n03
+takeover	n01	0	0.5	événements	3	n07	n03
+takeover	n01	0	0.0	événements	3	gone-a	n01
+takeover	n01	0	0.5	événements	3	gone-a	n01
+takeover	n01	0	0.0	événements	3	gone-x	n03
+takeover	n01	0	0.5	événements	3	gone-x	n03
+writer	n01	0	événements	41	n03
+takeover	n01	0	0.0	événements	41	n02	n06
+takeover	n01	0	0.5	événements	41	n02	n06
+takeover	n01	0	0.0	événements	41	n07	n03
+takeover	n01	0	0.5	événements	41	n07	n03
+takeover	n01	0	0.0	événements	41	gone-a	n01
+takeover	n01	0	0.5	événements	41	gone-a	n01
+takeover	n01	0	0.0	événements	41	gone-x	n03
+takeover	n01	0	0.5	événements	41	gone-x	n03
+writer	n01	0	a	0	n03
+takeover	n01	0	0.0	a	0	n02	n06
+takeover	n01	0	0.5	a	0	n02	n06
+takeover	n01	0	0.0	a	0	n07	n03
+takeover	n01	0	0.5	a	0	n07	n03
+takeover	n01	0	0.0	a	0	gone-a	n01
+takeover	n01	0	0.5	a	0	gone-a	n01
+takeover	n01	0	0.0	a	0	gone-x	n07
+takeover	n01	0	0.5	a	0	gone-x	n07
+writer	n01	0	a	3	n10
+takeover	n01	0	0.0	a	3	n02	n10
+takeover	n01	0	0.5	a	3	n02	n10
+takeover	n01	0	0.0	a	3	n07	n03
+takeover	n01	0	0.5	a	3	n07	n03
+takeover	n01	0	0.0	a	3	gone-a	n01
+takeover	n01	0	0.5	a	3	gone-a	n01
+takeover	n01	0	0.0	a	3	gone-x	n01
+takeover	n01	0	0.5	a	3	gone-x	n01
+writer	n01	0	a	41	n10
+takeover	n01	0	0.0	a	41	n02	n10
+takeover	n01	0	0.5	a	41	n02	n10
+takeover	n01	0	0.0	a	41	n07	n03
+takeover	n01	0	0.5	a	41	n07	n03
+takeover	n01	0	0.0	a	41	gone-a	n01
+takeover	n01	0	0.5	a	41	gone-a	n01
+takeover	n01	0	0.0	a	41	gone-x	n06
+takeover	n01	0	0.5	a	41	gone-x	n06
+size	n01	50	4,2,92
+room	n01	50	n03
+mean	n01	50	60.833333333333336
+below	n01	50	n03
+handoff	n01	50	-
+writer	n01	50	logs	0	n03
+takeover	n01	50	0.0	logs	0	n02	n06
+takeover	n01	50	0.5	logs	0	n02	n06
+takeover	n01	50	0.0	logs	0	n07	n03
+takeover	n01	50	0.5	logs	0	n07	n03
+takeover	n01	50	0.0	logs	0	gone-a	n01
+takeover	n01	50	0.5	logs	0	gone-a	n01
+takeover	n01	50	0.0	logs	0	gone-x	n01
+takeover	n01	50	0.5	logs	0	gone-x	n01
+writer	n01	50	logs	3	n04
+takeover	n01	50	0.0	logs	3	n02	n10
+takeover	n01	50	0.5	logs	3	n02	n10
+takeover	n01	50	0.0	logs	3	n07	n03
+takeover	n01	50	0.5	logs	3	n07	n03
+takeover	n01	50	0.0	logs	3	gone-a	n01
+takeover	n01	50	0.5	logs	3	gone-a	n01
+takeover	n01	50	0.0	logs	3	gone-x	n06
+takeover	n01	50	0.5	logs	3	gone-x	n06
+writer	n01	50	logs	41	n10
+takeover	n01	50	0.0	logs	41	n02	n10
+takeover	n01	50	0.5	logs	41	n02	n10
+takeover	n01	50	0.0	logs	41	n07	n03
+takeover	n01	50	0.5	logs	41	n07	n03
+takeover	n01	50	0.0	logs	41	gone-a	n01
+takeover	n01	50	0.5	logs	41	gone-a	n01
+takeover	n01	50	0.0	logs	41	gone-x	n04
+takeover	n01	50	0.5	logs	41	gone-x	n04
+writer	n01	50	metrics-2026.11.16	0	n03
+takeover	n01	50	0.0	metrics-2026.11.16	0	n02	n06
+takeover	n01	50	0.5	metrics-2026.11.16	0	n02	n06
+takeover	n01	50	0.0	metrics-2026.11.16	0	n07	n03
+takeover	n01	50	0.5	metrics-2026.11.16	0	n07	n03
+takeover	n01	50	0.0	metrics-2026.11.16	0	gone-a	n01
+takeover	n01	50	0.5	metrics-2026.11.16	0	gone-a	n01
+takeover	n01	50	0.0	metrics-2026.11.16	0	gone-x	n06
+takeover	n01	50	0.5	metrics-2026.11.16	0	gone-x	n06
+writer	n01	50	metrics-2026.11.16	3	n04
+takeover	n01	50	0.0	metrics-2026.11.16	3	n02	n10
+takeover	n01	50	0.5	metrics-2026.11.16	3	n02	n10
+takeover	n01	50	0.0	metrics-2026.11.16	3	n07	n03
+takeover	n01	50	0.5	metrics-2026.11.16	3	n07	n03
+takeover	n01	50	0.0	metrics-2026.11.16	3	gone-a	n01
+takeover	n01	50	0.5	metrics-2026.11.16	3	gone-a	n01
+takeover	n01	50	0.0	metrics-2026.11.16	3	gone-x	n01
+takeover	n01	50	0.5	metrics-2026.11.16	3	gone-x	z-9
+writer	n01	50	metrics-2026.11.16	41	n07
+takeover	n01	50	0.0	metrics-2026.11.16	41	n02	n10
+takeover	n01	50	0.5	metrics-2026.11.16	41	n02	n10
+takeover	n01	50	0.0	metrics-2026.11.16	41	n07	n03
+takeover	n01	50	0.5	metrics-2026.11.16	41	n07	n03
+takeover	n01	50	0.0	metrics-2026.11.16	41	gone-a	n01
+takeover	n01	50	0.5	metrics-2026.11.16	41	gone-a	n01
+takeover	n01	50	0.0	metrics-2026.11.16	41	gone-x	n03
+takeover	n01	50	0.5	metrics-2026.11.16	41	gone-x	n03
+writer	n01	50	événements	0	n06
+takeover	n01	50	0.0	événements	0	n02	n10
+takeover	n01	50	0.5	événements	0	n02	n10
+takeover	n01	50	0.0	événements	0	n07	n03
+takeover	n01	50	0.5	événements	0	n07	n03
+takeover	n01	50	0.0	événements	0	gone-a	n01
+takeover	n01	50	0.5	événements	0	gone-a	n01
+takeover	n01	50	0.0	événements	0	gone-x	n10
+takeover	n01	50	0.5	événements	0	gone-x	n10
+writer	n01	50	événements	3	n04
+takeover	n01	50	0.0	événements	3	n02	n06
+takeover	n01	50	0.5	événements	3	n02	n06
+takeover	n01	50	0.0	événements	3	n07	n03
+takeover	n01	50	0.5	événements	3	n07	n03
+takeover	n01	50	0.0	événements	3	gone-a	n01
+takeover	n01	50	0.5	événements	3	gone-a	n01
+takeover	n01	50	0.0	événements	3	gone-x	n03
+takeover	n01	50	0.5	événements	3	gone-x	n03
+writer	n01	50	événements	41	n03
+takeover	n01	50	0.0	événements	41	n02	n06
+takeover	n01	50	0.5	événements	41	n02	n06
+takeover	n01	50	0.0	événements	41	n07	n03
+takeover	n01	50	0.5	événements	41	n07	n03
+takeover	n01	50	0.0	événements	41	gone-a	n01
+takeover	n01	50	0.5	événements	41	gone-a	n01
+takeover	n01	50	0.0	événements	41	gone-x	n03
+takeover	n01	50	0.5	événements	41	gone-x	n03
+writer	n01	50	a	0	n03
+takeover	n01	50	0.0	a	0	n02	n06
+takeover	n01	50	0.5	a	0	n02	n06
+takeover	n01	50	0.0	a	0	n07	n03
+takeover	n01	50	0.5	a	0	n07	n03
+takeover	n01	50	0.0	a	0	gone-a	n01
+takeover	n01	50	0.5	a	0	gone-a	n01
+takeover	n01	50	0.0	a	0	gone-x	n07
+takeover	n01	50	0.5	a	0	gone-x	n07
+writer	n01	50	a	3	n10
+takeover	n01	50	0.0	a	3	n02	n10
+takeover	n01	50	0.5	a	3	n02	n10
+takeover	n01	50	0.0	a	3	n07	n03
+takeover	n01	50	0.5	a	3	n07	n03
+takeover	n01	50	0.0	a	3	gone-a	n01
+takeover	n01	50	0.5	a	3	gone-a	n01
+takeover	n01	50	0.0	a	3	gone-x	n01
+takeover	n01	50	0.5	a	3	gone-x	n01
+writer	n01	50	a	41	n10
+takeover	n01	50	0.0	a	41	n02	n10
+takeover	n01	50	0.5	a	41	n02	n10
+takeover	n01	50	0.0	a	41	n07	n03
+takeover	n01	50	0.5	a	41	n07	n03
+takeover	n01	50	0.0	a	41	gone-a	n01
+takeover	n01	50	0.5	a	41	gone-a	n01
+takeover	n01	50	0.0	a	41	gone-x	n06
+takeover	n01	50	0.5	a	41	gone-x	n06
+size	n01	95	4,2,92
+room	n01	95	n03
+mean	n01	95	68.33333333333333
+below	n01	95	n03
+handoff	n01	95	n03
+writer	n01	95	logs	0	n03
+takeover	n01	95	0.0	logs	0	n02	n06
+takeover	n01	95	0.5	logs	0	n02	n06
+takeover	n01	95	0.0	logs	0	n07	n03
+takeover	n01	95	0.5	logs	0	n07	n03
+takeover	n01	95	0.0	logs	0	gone-a	n01
+takeover	n01	95	0.5	logs	0	gone-a	n01
+takeover	n01	95	0.0	logs	0	gone-x	n01
+takeover	n01	95	0.5	logs	0	gone-x	n01
+writer	n01	95	logs	3	n04
+takeover	n01	95	0.0	logs	3	n02	n10
+takeover	n01	95	0.5	logs	3	n02	n10
+takeover	n01	95	0.0	logs	3	n07	n03
+takeover	n01	95	0.5	logs	3	n07	n03
+takeover	n01	95	0.0	logs	3	gone-a	n01
+takeover	n01	95	0.5	logs	3	gone-a	n01
+takeover	n01	95	0.0	logs	3	gone-x	n06
+takeover	n01	95	0.5	logs	3	gone-x	n06
+writer	n01	95	logs	41	n10
+takeover	n01	95	0.0	logs	41	n02	n10
+takeover	n01	95	0.5	logs	41	n02	n10
+takeover	n01	95	0.0	logs	41	n07	n03
+takeover	n01	95	0.5	logs	41	n07	n03
+takeover	n01	95	0.0	logs	41	gone-a	n01
+takeover	n01	95	0.5	logs	41	gone-a	n01
+takeover	n01	95	0.0	logs	41	gone-x	n04
+takeover	n01	95	0.5	logs	41	gone-x	n04
+writer	n01	95	metrics-2026.11.16	0	n03
+takeover	n01	95	0.0	metrics-2026.11.16	0	n02	n06
+takeover	n01	95	0.5	metrics-2026.11.16	0	n02	n06
+takeover	n01	95	0.0	metrics-2026.11.16	0	n07	n03
+takeover	n01	95	0.5	metrics-2026.11.16	0	n07	n03
+takeover	n01	95	0.0	metrics-2026.11.16	0	gone-a	n01
+takeover	n01	95	0.5	metrics-2026.11.16	0	gone-a	n01
+takeover	n01	95	0.0	metrics-2026.11.16	0	gone-x	n06
+takeover	n01	95	0.5	metrics-2026.11.16	0	gone-x	n06
+writer	n01	95	metrics-2026.11.16	3	n04
+takeover	n01	95	0.0	metrics-2026.11.16	3	n02	n10
+takeover	n01	95	0.5	metrics-2026.11.16	3	n02	n10
+takeover	n01	95	0.0	metrics-2026.11.16	3	n07	n03
+takeover	n01	95	0.5	metrics-2026.11.16	3	n07	n03
+takeover	n01	95	0.0	metrics-2026.11.16	3	gone-a	n01
+takeover	n01	95	0.5	metrics-2026.11.16	3	gone-a	n01
+takeover	n01	95	0.0	metrics-2026.11.16	3	gone-x	n01
+takeover	n01	95	0.5	metrics-2026.11.16	3	gone-x	z-9
+writer	n01	95	metrics-2026.11.16	41	n07
+takeover	n01	95	0.0	metrics-2026.11.16	41	n02	n10
+takeover	n01	95	0.5	metrics-2026.11.16	41	n02	n10
+takeover	n01	95	0.0	metrics-2026.11.16	41	n07	n03
+takeover	n01	95	0.5	metrics-2026.11.16	41	n07	n03
+takeover	n01	95	0.0	metrics-2026.11.16	41	gone-a	n01
+takeover	n01	95	0.5	metrics-2026.11.16	41	gone-a	n01
+takeover	n01	95	0.0	metrics-2026.11.16	41	gone-x	n03
+takeover	n01	95	0.5	metrics-2026.11.16	41	gone-x	n03
+writer	n01	95	événements	0	n06
+takeover	n01	95	0.0	événements	0	n02	n10
+takeover	n01	95	0.5	événements	0	n02	n10
+takeover	n01	95	0.0	événements	0	n07	n03
+takeover	n01	95	0.5	événements	0	n07	n03
+takeover	n01	95	0.0	événements	0	gone-a	n01
+takeover	n01	95	0.5	événements	0	gone-a	n01
+takeover	n01	95	0.0	événements	0	gone-x	n10
+takeover	n01	95	0.5	événements	0	gone-x	n10
+writer	n01	95	événements	3	n04
+takeover	n01	95	0.0	événements	3	n02	n06
+takeover	n01	95	0.5	événements	3	n02	n06
+takeover	n01	95	0.0	événements	3	n07	n03
+takeover	n01	95	0.5	événements	3	n07	n03
+takeover	n01	95	0.0	événements	3	gone-a	n01
+takeover	n01	95	0.5	événements	3	gone-a	n01
+takeover	n01	95	0.0	événements	3	gone-x	n03
+takeover	n01	95	0.5	événements	3	gone-x	n03
+writer	n01	95	événements	41	n03
+takeover	n01	95	0.0	événements	41	n02	n06
+takeover	n01	95	0.5	événements	41	n02	n06
+takeover	n01	95	0.0	événements	41	n07	n03
+takeover	n01	95	0.5	événements	41	n07	n03
+takeover	n01	95	0.0	événements	41	gone-a	n01
+takeover	n01	95	0.5	événements	41	gone-a	n01
+takeover	n01	95	0.0	événements	41	gone-x	n03
+takeover	n01	95	0.5	événements	41	gone-x	n03
+writer	n01	95	a	0	n03
+takeover	n01	95	0.0	a	0	n02	n06
+takeover	n01	95	0.5	a	0	n02	n06
+takeover	n01	95	0.0	a	0	n07	n03
+takeover	n01	95	0.5	a	0	n07	n03
+takeover	n01	95	0.0	a	0	gone-a	n01
+takeover	n01	95	0.5	a	0	gone-a	n01
+takeover	n01	95	0.0	a	0	gone-x	n07
+takeover	n01	95	0.5	a	0	gone-x	n07
+writer	n01	95	a	3	n10
+takeover	n01	95	0.0	a	3	n02	n10
+takeover	n01	95	0.5	a	3	n02	n10
+takeover	n01	95	0.0	a	3	n07	n03
+takeover	n01	95	0.5	a	3	n07	n03
+takeover	n01	95	0.0	a	3	gone-a	n01
+takeover	n01	95	0.5	a	3	gone-a	n01
+takeover	n01	95	0.0	a	3	gone-x	n01
+takeover	n01	95	0.5	a	3	gone-x	n01
+writer	n01	95	a	41	n10
+takeover	n01	95	0.0	a	41	n02	n10
+takeover	n01	95	0.5	a	41	n02	n10
+takeover	n01	95	0.0	a	41	n07	n03
+takeover	n01	95	0.5	a	41	n07	n03
+takeover	n01	95	0.0	a	41	gone-a	n01
+takeover	n01	95	0.5	a	41	gone-a	n01
+takeover	n01	95	0.0	a	41	gone-x	n06
+takeover	n01	95	0.5	a	41	gone-x	n06
+size	n05	0	4,2,92
+room	n05	0	n01
+mean	n05	0	45.42857142857143
+below	n05	0	n01
+handoff	n05	0	-
+writer	n05	0	logs	0	n01
+takeover	n05	0	0.0	logs	0	n02	n06
+takeover	n05	0	0.5	logs	0	n02	n06
+takeover	n05	0	0.0	logs	0	n07	n03
+takeover	n05	0	0.5	logs	0	n07	n03
+takeover	n05	0	0.0	logs	0	gone-a	n01
+takeover	n05	0	0.5	logs	0	gone-a	n01
+takeover	n05	0	0.0	logs	0	gone-x	n01
+takeover	n05	0	0.5	logs	0	gone-x	n01
+writer	n05	0	logs	3	n04
+takeover	n05	0	0.0	logs	3	n02	n10
+takeover	n05	0	0.5	logs	3	n02	n10
+takeover	n05	0	0.0	logs	3	n07	n03
+takeover	n05	0	0.5	logs	3	n07	n03
+takeover	n05	0	0.0	logs	3	gone-a	n01
+takeover	n05	0	0.5	logs	3	gone-a	n01
+takeover	n05	0	0.0	logs	3	gone-x	n06
+takeover	n05	0	0.5	logs	3	gone-x	n06
+writer	n05	0	logs	41	n10
+takeover	n05	0	0.0	logs	41	n02	n10
+takeover	n05	0	0.5	logs	41	n02	n10
+takeover	n05	0	0.0	logs	41	n07	n03
+takeover	n05	0	0.5	logs	41	n07	n03
+takeover	n05	0	0.0	logs	41	gone-a	n01
+takeover	n05	0	0.5	logs	41	gone-a	n01
+takeover	n05	0	0.0	logs	41	gone-x	n04
+takeover	n05	0	0.5	logs	41	gone-x	n04
+writer	n05	0	metrics-2026.11.16	0	n03
+takeover	n05	0	0.0	metrics-2026.11.16	0	n02	n06
+takeover	n05	0	0.5	metrics-2026.11.16	0	n02	n06
+takeover	n05	0	0.0	metrics-2026.11.16	0	n07	n03
+takeover	n05	0	0.5	metrics-2026.11.16	0	n07	n03
+takeover	n05	0	0.0	metrics-2026.11.16	0	gone-a	n01
+takeover	n05	0	0.5	metrics-2026.11.16	0	gone-a	n01
+takeover	n05	0	0.0	metrics-2026.11.16	0	gone-x	n06
+takeover	n05	0	0.5	metrics-2026.11.16	0	gone-x	n06
+writer	n05	0	metrics-2026.11.16	3	n04
+takeover	n05	0	0.0	metrics-2026.11.16	3	n02	n10
+takeover	n05	0	0.5	metrics-2026.11.16	3	n02	n10
+takeover	n05	0	0.0	metrics-2026.11.16	3	n07	n03
+takeover	n05	0	0.5	metrics-2026.11.16	3	n07	n03
+takeover	n05	0	0.0	metrics-2026.11.16	3	gone-a	n01
+takeover	n05	0	0.5	metrics-2026.11.16	3	gone-a	n01
+takeover	n05	0	0.0	metrics-2026.11.16	3	gone-x	n01
+takeover	n05	0	0.5	metrics-2026.11.16	3	gone-x	z-9
+writer	n05	0	metrics-2026.11.16	41	n07
+takeover	n05	0	0.0	metrics-2026.11.16	41	n02	n10
+takeover	n05	0	0.5	metrics-2026.11.16	41	n02	n10
+takeover	n05	0	0.0	metrics-2026.11.16	41	n07	n03
+takeover	n05	0	0.5	metrics-2026.11.16	41	n07	n03
+takeover	n05	0	0.0	metrics-2026.11.16	41	gone-a	n01
+takeover	n05	0	0.5	metrics-2026.11.16	41	gone-a	n01
+takeover	n05	0	0.0	metrics-2026.11.16	41	gone-x	n03
+takeover	n05	0	0.5	metrics-2026.11.16	41	gone-x	n03
+writer	n05	0	événements	0	n06
+takeover	n05	0	0.0	événements	0	n02	n10
+takeover	n05	0	0.5	événements	0	n02	n10
+takeover	n05	0	0.0	événements	0	n07	n03
+takeover	n05	0	0.5	événements	0	n07	n03
+takeover	n05	0	0.0	événements	0	gone-a	n01
+takeover	n05	0	0.5	événements	0	gone-a	n01
+takeover	n05	0	0.0	événements	0	gone-x	n10
+takeover	n05	0	0.5	événements	0	gone-x	n10
+writer	n05	0	événements	3	n04
+takeover	n05	0	0.0	événements	3	n02	n06
+takeover	n05	0	0.5	événements	3	n02	n06
+takeover	n05	0	0.0	événements	3	n07	n03
+takeover	n05	0	0.5	événements	3	n07	n03
+takeover	n05	0	0.0	événements	3	gone-a	n01
+takeover	n05	0	0.5	événements	3	gone-a	n01
+takeover	n05	0	0.0	événements	3	gone-x	n03
+takeover	n05	0	0.5	événements	3	gone-x	n03
+writer	n05	0	événements	41	n03
+takeover	n05	0	0.0	événements	41	n02	n06
+takeover	n05	0	0.5	événements	41	n02	n06
+takeover	n05	0	0.0	événements	41	n07	n03
+takeover	n05	0	0.5	événements	41	n07	n03
+takeover	n05	0	0.0	événements	41	gone-a	n01
+takeover	n05	0	0.5	événements	41	gone-a	n01
+takeover	n05	0	0.0	événements	41	gone-x	n03
+takeover	n05	0	0.5	événements	41	gone-x	n03
+writer	n05	0	a	0	n03
+takeover	n05	0	0.0	a	0	n02	n06
+takeover	n05	0	0.5	a	0	n02	n06
+takeover	n05	0	0.0	a	0	n07	n03
+takeover	n05	0	0.5	a	0	n07	n03
+takeover	n05	0	0.0	a	0	gone-a	n01
+takeover	n05	0	0.5	a	0	gone-a	n01
+takeover	n05	0	0.0	a	0	gone-x	n07
+takeover	n05	0	0.5	a	0	gone-x	n07
+writer	n05	0	a	3	n10
+takeover	n05	0	0.0	a	3	n02	n10
+takeover	n05	0	0.5	a	3	n02	n10
+takeover	n05	0	0.0	a	3	n07	n03
+takeover	n05	0	0.5	a	3	n07	n03
+takeover	n05	0	0.0	a	3	gone-a	n01
+takeover	n05	0	0.5	a	3	gone-a	n01
+takeover	n05	0	0.0	a	3	gone-x	n01
+takeover	n05	0	0.5	a	3	gone-x	n01
+writer	n05	0	a	41	n10
+takeover	n05	0	0.0	a	41	n02	n10
+takeover	n05	0	0.5	a	41	n02	n10
+takeover	n05	0	0.0	a	41	n07	n03
+takeover	n05	0	0.5	a	41	n07	n03
+takeover	n05	0	0.0	a	41	gone-a	n01
+takeover	n05	0	0.5	a	41	gone-a	n01
+takeover	n05	0	0.0	a	41	gone-x	n06
+takeover	n05	0	0.5	a	41	gone-x	n06
+size	n05	50	4,2,92
+room	n05	50	n01
+mean	n05	50	52.57142857142857
+below	n05	50	n01
+handoff	n05	50	-
+writer	n05	50	logs	0	n01
+takeover	n05	50	0.0	logs	0	n02	n06
+takeover	n05	50	0.5	logs	0	n02	n06
+takeover	n05	50	0.0	logs	0	n07	n03
+takeover	n05	50	0.5	logs	0	n07	n03
+takeover	n05	50	0.0	logs	0	gone-a	n01
+takeover	n05	50	0.5	logs	0	gone-a	n01
+takeover	n05	50	0.0	logs	0	gone-x	n01
+takeover	n05	50	0.5	logs	0	gone-x	n01
+writer	n05	50	logs	3	n04
+takeover	n05	50	0.0	logs	3	n02	n10
+takeover	n05	50	0.5	logs	3	n02	n10
+takeover	n05	50	0.0	logs	3	n07	n03
+takeover	n05	50	0.5	logs	3	n07	n03
+takeover	n05	50	0.0	logs	3	gone-a	n01
+takeover	n05	50	0.5	logs	3	gone-a	n01
+takeover	n05	50	0.0	logs	3	gone-x	n06
+takeover	n05	50	0.5	logs	3	gone-x	n06
+writer	n05	50	logs	41	n10
+takeover	n05	50	0.0	logs	41	n02	n10
+takeover	n05	50	0.5	logs	41	n02	n10
+takeover	n05	50	0.0	logs	41	n07	n03
+takeover	n05	50	0.5	logs	41	n07	n03
+takeover	n05	50	0.0	logs	41	gone-a	n01
+takeover	n05	50	0.5	logs	41	gone-a	n01
+takeover	n05	50	0.0	logs	41	gone-x	n04
+takeover	n05	50	0.5	logs	41	gone-x	n04
+writer	n05	50	metrics-2026.11.16	0	n03
+takeover	n05	50	0.0	metrics-2026.11.16	0	n02	n06
+takeover	n05	50	0.5	metrics-2026.11.16	0	n02	n06
+takeover	n05	50	0.0	metrics-2026.11.16	0	n07	n03
+takeover	n05	50	0.5	metrics-2026.11.16	0	n07	n03
+takeover	n05	50	0.0	metrics-2026.11.16	0	gone-a	n01
+takeover	n05	50	0.5	metrics-2026.11.16	0	gone-a	n01
+takeover	n05	50	0.0	metrics-2026.11.16	0	gone-x	n06
+takeover	n05	50	0.5	metrics-2026.11.16	0	gone-x	n06
+writer	n05	50	metrics-2026.11.16	3	n04
+takeover	n05	50	0.0	metrics-2026.11.16	3	n02	n10
+takeover	n05	50	0.5	metrics-2026.11.16	3	n02	n10
+takeover	n05	50	0.0	metrics-2026.11.16	3	n07	n03
+takeover	n05	50	0.5	metrics-2026.11.16	3	n07	n03
+takeover	n05	50	0.0	metrics-2026.11.16	3	gone-a	n01
+takeover	n05	50	0.5	metrics-2026.11.16	3	gone-a	n01
+takeover	n05	50	0.0	metrics-2026.11.16	3	gone-x	n01
+takeover	n05	50	0.5	metrics-2026.11.16	3	gone-x	z-9
+writer	n05	50	metrics-2026.11.16	41	n07
+takeover	n05	50	0.0	metrics-2026.11.16	41	n02	n10
+takeover	n05	50	0.5	metrics-2026.11.16	41	n02	n10
+takeover	n05	50	0.0	metrics-2026.11.16	41	n07	n03
+takeover	n05	50	0.5	metrics-2026.11.16	41	n07	n03
+takeover	n05	50	0.0	metrics-2026.11.16	41	gone-a	n01
+takeover	n05	50	0.5	metrics-2026.11.16	41	gone-a	n01
+takeover	n05	50	0.0	metrics-2026.11.16	41	gone-x	n03
+takeover	n05	50	0.5	metrics-2026.11.16	41	gone-x	n03
+writer	n05	50	événements	0	n06
+takeover	n05	50	0.0	événements	0	n02	n10
+takeover	n05	50	0.5	événements	0	n02	n10
+takeover	n05	50	0.0	événements	0	n07	n03
+takeover	n05	50	0.5	événements	0	n07	n03
+takeover	n05	50	0.0	événements	0	gone-a	n01
+takeover	n05	50	0.5	événements	0	gone-a	n01
+takeover	n05	50	0.0	événements	0	gone-x	n10
+takeover	n05	50	0.5	événements	0	gone-x	n10
+writer	n05	50	événements	3	n04
+takeover	n05	50	0.0	événements	3	n02	n06
+takeover	n05	50	0.5	événements	3	n02	n06
+takeover	n05	50	0.0	événements	3	n07	n03
+takeover	n05	50	0.5	événements	3	n07	n03
+takeover	n05	50	0.0	événements	3	gone-a	n01
+takeover	n05	50	0.5	événements	3	gone-a	n01
+takeover	n05	50	0.0	événements	3	gone-x	n03
+takeover	n05	50	0.5	événements	3	gone-x	n03
+writer	n05	50	événements	41	n03
+takeover	n05	50	0.0	événements	41	n02	n06
+takeover	n05	50	0.5	événements	41	n02	n06
+takeover	n05	50	0.0	événements	41	n07	n03
+takeover	n05	50	0.5	événements	41	n07	n03
+takeover	n05	50	0.0	événements	41	gone-a	n01
+takeover	n05	50	0.5	événements	41	gone-a	n01
+takeover	n05	50	0.0	événements	41	gone-x	n03
+takeover	n05	50	0.5	événements	41	gone-x	n03
+writer	n05	50	a	0	n03
+takeover	n05	50	0.0	a	0	n02	n06
+takeover	n05	50	0.5	a	0	n02	n06
+takeover	n05	50	0.0	a	0	n07	n03
+takeover	n05	50	0.5	a	0	n07	n03
+takeover	n05	50	0.0	a	0	gone-a	n01
+takeover	n05	50	0.5	a	0	gone-a	n01
+takeover	n05	50	0.0	a	0	gone-x	n07
+takeover	n05	50	0.5	a	0	gone-x	n07
+writer	n05	50	a	3	n10
+takeover	n05	50	0.0	a	3	n02	n10
+takeover	n05	50	0.5	a	3	n02	n10
+takeover	n05	50	0.0	a	3	n07	n03
+takeover	n05	50	0.5	a	3	n07	n03
+takeover	n05	50	0.0	a	3	gone-a	n01
+takeover	n05	50	0.5	a	3	gone-a	n01
+takeover	n05	50	0.0	a	3	gone-x	n01
+takeover	n05	50	0.5	a	3	gone-x	n01
+writer	n05	50	a	41	n10
+takeover	n05	50	0.0	a	41	n02	n10
+takeover	n05	50	0.5	a	41	n02	n10
+takeover	n05	50	0.0	a	41	n07	n03
+takeover	n05	50	0.5	a	41	n07	n03
+takeover	n05	50	0.0	a	41	gone-a	n01
+takeover	n05	50	0.5	a	41	gone-a	n01
+takeover	n05	50	0.0	a	41	gone-x	n06
+takeover	n05	50	0.5	a	41	gone-x	n06
+size	n05	95	4,2,92
+room	n05	95	n01
+mean	n05	95	59.0
+below	n05	95	n01
+handoff	n05	95	n01
+writer	n05	95	logs	0	n01
+takeover	n05	95	0.0	logs	0	n02	n06
+takeover	n05	95	0.5	logs	0	n02	n06
+takeover	n05	95	0.0	logs	0	n07	n03
+takeover	n05	95	0.5	logs	0	n07	n03
+takeover	n05	95	0.0	logs	0	gone-a	n01
+takeover	n05	95	0.5	logs	0	gone-a	n01
+takeover	n05	95	0.0	logs	0	gone-x	n01
+takeover	n05	95	0.5	logs	0	gone-x	n01
+writer	n05	95	logs	3	n04
+takeover	n05	95	0.0	logs	3	n02	n10
+takeover	n05	95	0.5	logs	3	n02	n10
+takeover	n05	95	0.0	logs	3	n07	n03
+takeover	n05	95	0.5	logs	3	n07	n03
+takeover	n05	95	0.0	logs	3	gone-a	n01
+takeover	n05	95	0.5	logs	3	gone-a	n01
+takeover	n05	95	0.0	logs	3	gone-x	n06
+takeover	n05	95	0.5	logs	3	gone-x	n06
+writer	n05	95	logs	41	n10
+takeover	n05	95	0.0	logs	41	n02	n10
+takeover	n05	95	0.5	logs	41	n02	n10
+takeover	n05	95	0.0	logs	41	n07	n03
+takeover	n05	95	0.5	logs	41	n07	n03
+takeover	n05	95	0.0	logs	41	gone-a	n01
+takeover	n05	95	0.5	logs	41	gone-a	n01
+takeover	n05	95	0.0	logs	41	gone-x	n04
+takeover	n05	95	0.5	logs	41	gone-x	n04
+writer	n05	95	metrics-2026.11.16	0	n03
+takeover	n05	95	0.0	metrics-2026.11.16	0	n02	n06
+takeover	n05	95	0.5	metrics-2026.11.16	0	n02	n06
+takeover	n05	95	0.0	metrics-2026.11.16	0	n07	n03
+takeover	n05	95	0.5	metrics-2026.11.16	0	n07	n03
+takeover	n05	95	0.0	metrics-2026.11.16	0	gone-a	n01
+takeover	n05	95	0.5	metrics-2026.11.16	0	gone-a	n01
+takeover	n05	95	0.0	metrics-2026.11.16	0	gone-x	n06
+takeover	n05	95	0.5	metrics-2026.11.16	0	gone-x	n06
+writer	n05	95	metrics-2026.11.16	3	n04
+takeover	n05	95	0.0	metrics-2026.11.16	3	n02	n10
+takeover	n05	95	0.5	metrics-2026.11.16	3	n02	n10
+takeover	n05	95	0.0	metrics-2026.11.16	3	n07	n03
+takeover	n05	95	0.5	metrics-2026.11.16	3	n07	n03
+takeover	n05	95	0.0	metrics-2026.11.16	3	gone-a	n01
+takeover	n05	95	0.5	metrics-2026.11.16	3	gone-a	n01
+takeover	n05	95	0.0	metrics-2026.11.16	3	gone-x	n01
+takeover	n05	95	0.5	metrics-2026.11.16	3	gone-x	z-9
+writer	n05	95	metrics-2026.11.16	41	n07
+takeover	n05	95	0.0	metrics-2026.11.16	41	n02	n10
+takeover	n05	95	0.5	metrics-2026.11.16	41	n02	n10
+takeover	n05	95	0.0	metrics-2026.11.16	41	n07	n03
+takeover	n05	95	0.5	metrics-2026.11.16	41	n07	n03
+takeover	n05	95	0.0	metrics-2026.11.16	41	gone-a	n01
+takeover	n05	95	0.5	metrics-2026.11.16	41	gone-a	n01
+takeover	n05	95	0.0	metrics-2026.11.16	41	gone-x	n03
+takeover	n05	95	0.5	metrics-2026.11.16	41	gone-x	n03
+writer	n05	95	événements	0	n06
+takeover	n05	95	0.0	événements	0	n02	n10
+takeover	n05	95	0.5	événements	0	n02	n10
+takeover	n05	95	0.0	événements	0	n07	n03
+takeover	n05	95	0.5	événements	0	n07	n03
+takeover	n05	95	0.0	événements	0	gone-a	n01
+takeover	n05	95	0.5	événements	0	gone-a	n01
+takeover	n05	95	0.0	événements	0	gone-x	n10
+takeover	n05	95	0.5	événements	0	gone-x	n10
+writer	n05	95	événements	3	n04
+takeover	n05	95	0.0	événements	3	n02	n06
+takeover	n05	95	0.5	événements	3	n02	n06
+takeover	n05	95	0.0	événements	3	n07	n03
+takeover	n05	95	0.5	événements	3	n07	n03
+takeover	n05	95	0.0	événements	3	gone-a	n01
+takeover	n05	95	0.5	événements	3	gone-a	n01
+takeover	n05	95	0.0	événements	3	gone-x	n03
+takeover	n05	95	0.5	événements	3	gone-x	n03
+writer	n05	95	événements	41	n03
+takeover	n05	95	0.0	événements	41	n02	n06
+takeover	n05	95	0.5	événements	41	n02	n06
+takeover	n05	95	0.0	événements	41	n07	n03
+takeover	n05	95	0.5	événements	41	n07	n03
+takeover	n05	95	0.0	événements	41	gone-a	n01
+takeover	n05	95	0.5	événements	41	gone-a	n01
+takeover	n05	95	0.0	événements	41	gone-x	n03
+takeover	n05	95	0.5	événements	41	gone-x	n03
+writer	n05	95	a	0	n03
+takeover	n05	95	0.0	a	0	n02	n06
+takeover	n05	95	0.5	a	0	n02	n06
+takeover	n05	95	0.0	a	0	n07	n03
+takeover	n05	95	0.5	a	0	n07	n03
+takeover	n05	95	0.0	a	0	gone-a	n01
+takeover	n05	95	0.5	a	0	gone-a	n01
+takeover	n05	95	0.0	a	0	gone-x	n07
+takeover	n05	95	0.5	a	0	gone-x	n07
+writer	n05	95	a	3	n10
+takeover	n05	95	0.0	a	3	n02	n10
+takeover	n05	95	0.5	a	3	n02	n10
+takeover	n05	95	0.0	a	3	n07	n03
+takeover	n05	95	0.5	a	3	n07	n03
+takeover	n05	95	0.0	a	3	gone-a	n01
+takeover	n05	95	0.5	a	3	gone-a	n01
+takeover	n05	95	0.0	a	3	gone-x	n01
+takeover	n05	95	0.5	a	3	gone-x	n01
+writer	n05	95	a	41	n10
+takeover	n05	95	0.0	a	41	n02	n10
+takeover	n05	95	0.5	a	41	n02	n10
+takeover	n05	95	0.0	a	41	n07	n03
+takeover	n05	95	0.5	a	41	n07	n03
+takeover	n05	95	0.0	a	41	gone-a	n01
+takeover	n05	95	0.5	a	41	gone-a	n01
+takeover	n05	95	0.0	a	41	gone-x	n06
+takeover	n05	95	0.5	a	41	gone-x	n06
+size	N3	0	4,2,92
+room	N3	0	n01
+mean	N3	0	45.42857142857143
+below	N3	0	n01
+handoff	N3	0	-
+writer	N3	0	logs	0	n01
+takeover	N3	0	0.0	logs	0	n02	n06
+takeover	N3	0	0.5	logs	0	n02	n06
+takeover	N3	0	0.0	logs	0	n07	n03
+takeover	N3	0	0.5	logs	0	n07	n03
+takeover	N3	0	0.0	logs	0	gone-a	n01
+takeover	N3	0	0.5	logs	0	gone-a	n01
+takeover	N3	0	0.0	logs	0	gone-x	n01
+takeover	N3	0	0.5	logs	0	gone-x	n01
+writer	N3	0	logs	3	n04
+takeover	N3	0	0.0	logs	3	n02	n10
+takeover	N3	0	0.5	logs	3	n02	n10
+takeover	N3	0	0.0	logs	3	n07	n03
+takeover	N3	0	0.5	logs	3	n07	n03
+takeover	N3	0	0.0	logs	3	gone-a	n01
+takeover	N3	0	0.5	logs	3	gone-a	n01
+takeover	N3	0	0.0	logs	3	gone-x	n06
+takeover	N3	0	0.5	logs	3	gone-x	n06
+writer	N3	0	logs	41	n10
+takeover	N3	0	0.0	logs	41	n02	n10
+takeover	N3	0	0.5	logs	41	n02	n10
+takeover	N3	0	0.0	logs	41	n07	n03
+takeover	N3	0	0.5	logs	41	n07	n03
+takeover	N3	0	0.0	logs	41	gone-a	n01
+takeover	N3	0	0.5	logs	41	gone-a	n01
+takeover	N3	0	0.0	logs	41	gone-x	n04
+takeover	N3	0	0.5	logs	41	gone-x	n04
+writer	N3	0	metrics-2026.11.16	0	n03
+takeover	N3	0	0.0	metrics-2026.11.16	0	n02	n06
+takeover	N3	0	0.5	metrics-2026.11.16	0	n02	n06
+takeover	N3	0	0.0	metrics-2026.11.16	0	n07	n03
+takeover	N3	0	0.5	metrics-2026.11.16	0	n07	n03
+takeover	N3	0	0.0	metrics-2026.11.16	0	gone-a	n01
+takeover	N3	0	0.5	metrics-2026.11.16	0	gone-a	n01
+takeover	N3	0	0.0	metrics-2026.11.16	0	gone-x	n06
+takeover	N3	0	0.5	metrics-2026.11.16	0	gone-x	n06
+writer	N3	0	metrics-2026.11.16	3	n04
+takeover	N3	0	0.0	metrics-2026.11.16	3	n02	n10
+takeover	N3	0	0.5	metrics-2026.11.16	3	n02	n10
+takeover	N3	0	0.0	metrics-2026.11.16	3	n07	n03
+takeover	N3	0	0.5	metrics-2026.11.16	3	n07	n03
+takeover	N3	0	0.0	metrics-2026.11.16	3	gone-a	n01
+takeover	N3	0	0.5	metrics-2026.11.16	3	gone-a	n01
+takeover	N3	0	0.0	metrics-2026.11.16	3	gone-x	n01
+takeover	N3	0	0.5	metrics-2026.11.16	3	gone-x	z-9
+writer	N3	0	metrics-2026.11.16	41	n07
+takeover	N3	0	0.0	metrics-2026.11.16	41	n02	n10
+takeover	N3	0	0.5	metrics-2026.11.16	41	n02	n10
+takeover	N3	0	0.0	metrics-2026.11.16	41	n07	n03
+takeover	N3	0	0.5	metrics-2026.11.16	41	n07	n03
+takeover	N3	0	0.0	metrics-2026.11.16	41	gone-a	n01
+takeover	N3	0	0.5	metrics-2026.11.16	41	gone-a	n01
+takeover	N3	0	0.0	metrics-2026.11.16	41	gone-x	n03
+takeover	N3	0	0.5	metrics-2026.11.16	41	gone-x	n03
+writer	N3	0	événements	0	n06
+takeover	N3	0	0.0	événements	0	n02	n10
+takeover	N3	0	0.5	événements	0	n02	n10
+takeover	N3	0	0.0	événements	0	n07	n03
+takeover	N3	0	0.5	événements	0	n07	n03
+takeover	N3	0	0.0	événements	0	gone-a	n01
+takeover	N3	0	0.5	événements	0	gone-a	n01
+takeover	N3	0	0.0	événements	0	gone-x	n10
+takeover	N3	0	0.5	événements	0	gone-x	n10
+writer	N3	0	événements	3	n04
+takeover	N3	0	0.0	événements	3	n02	n06
+takeover	N3	0	0.5	événements	3	n02	n06
+takeover	N3	0	0.0	événements	3	n07	n03
+takeover	N3	0	0.5	événements	3	n07	n03
+takeover	N3	0	0.0	événements	3	gone-a	n01
+takeover	N3	0	0.5	événements	3	gone-a	n01
+takeover	N3	0	0.0	événements	3	gone-x	n03
+takeover	N3	0	0.5	événements	3	gone-x	n03
+writer	N3	0	événements	41	n03
+takeover	N3	0	0.0	événements	41	n02	n06
+takeover	N3	0	0.5	événements	41	n02	n06
+takeover	N3	0	0.0	événements	41	n07	n03
+takeover	N3	0	0.5	événements	41	n07	n03
+takeover	N3	0	0.0	événements	41	gone-a	n01
+takeover	N3	0	0.5	événements	41	gone-a	n01
+takeover	N3	0	0.0	événements	41	gone-x	n03
+takeover	N3	0	0.5	événements	41	gone-x	n03
+writer	N3	0	a	0	n03
+takeover	N3	0	0.0	a	0	n02	n06
+takeover	N3	0	0.5	a	0	n02	n06
+takeover	N3	0	0.0	a	0	n07	n03
+takeover	N3	0	0.5	a	0	n07	n03
+takeover	N3	0	0.0	a	0	gone-a	n01
+takeover	N3	0	0.5	a	0	gone-a	n01
+takeover	N3	0	0.0	a	0	gone-x	n07
+takeover	N3	0	0.5	a	0	gone-x	n07
+writer	N3	0	a	3	n10
+takeover	N3	0	0.0	a	3	n02	n10
+takeover	N3	0	0.5	a	3	n02	n10
+takeover	N3	0	0.0	a	3	n07	n03
+takeover	N3	0	0.5	a	3	n07	n03
+takeover	N3	0	0.0	a	3	gone-a	n01
+takeover	N3	0	0.5	a	3	gone-a	n01
+takeover	N3	0	0.0	a	3	gone-x	n01
+takeover	N3	0	0.5	a	3	gone-x	n01
+writer	N3	0	a	41	n10
+takeover	N3	0	0.0	a	41	n02	n10
+takeover	N3	0	0.5	a	41	n02	n10
+takeover	N3	0	0.0	a	41	n07	n03
+takeover	N3	0	0.5	a	41	n07	n03
+takeover	N3	0	0.0	a	41	gone-a	n01
+takeover	N3	0	0.5	a	41	gone-a	n01
+takeover	N3	0	0.0	a	41	gone-x	n06
+takeover	N3	0	0.5	a	41	gone-x	n06
+size	N3	50	4,2,92
+room	N3	50	n01
+mean	N3	50	52.57142857142857
+below	N3	50	n01
+handoff	N3	50	-
+writer	N3	50	logs	0	n01
+takeover	N3	50	0.0	logs	0	n02	n06
+takeover	N3	50	0.5	logs	0	n02	n06
+takeover	N3	50	0.0	logs	0	n07	n03
+takeover	N3	50	0.5	logs	0	n07	n03
+takeover	N3	50	0.0	logs	0	gone-a	n01
+takeover	N3	50	0.5	logs	0	gone-a	n01
+takeover	N3	50	0.0	logs	0	gone-x	n01
+takeover	N3	50	0.5	logs	0	gone-x	n01
+writer	N3	50	logs	3	n04
+takeover	N3	50	0.0	logs	3	n02	n10
+takeover	N3	50	0.5	logs	3	n02	n10
+takeover	N3	50	0.0	logs	3	n07	n03
+takeover	N3	50	0.5	logs	3	n07	n03
+takeover	N3	50	0.0	logs	3	gone-a	n01
+takeover	N3	50	0.5	logs	3	gone-a	n01
+takeover	N3	50	0.0	logs	3	gone-x	n06
+takeover	N3	50	0.5	logs	3	gone-x	n06
+writer	N3	50	logs	41	n10
+takeover	N3	50	0.0	logs	41	n02	n10
+takeover	N3	50	0.5	logs	41	n02	n10
+takeover	N3	50	0.0	logs	41	n07	n03
+takeover	N3	50	0.5	logs	41	n07	n03
+takeover	N3	50	0.0	logs	41	gone-a	n01
+takeover	N3	50	0.5	logs	41	gone-a	n01
+takeover	N3	50	0.0	logs	41	gone-x	n04
+takeover	N3	50	0.5	logs	41	gone-x	n04
+writer	N3	50	metrics-2026.11.16	0	n03
+takeover	N3	50	0.0	metrics-2026.11.16	0	n02	n06
+takeover	N3	50	0.5	metrics-2026.11.16	0	n02	n06
+takeover	N3	50	0.0	metrics-2026.11.16	0	n07	n03
+takeover	N3	50	0.5	metrics-2026.11.16	0	n07	n03
+takeover	N3	50	0.0	metrics-2026.11.16	0	gone-a	n01
+takeover	N3	50	0.5	metrics-2026.11.16	0	gone-a	n01
+takeover	N3	50	0.0	metrics-2026.11.16	0	gone-x	n06
+takeover	N3	50	0.5	metrics-2026.11.16	0	gone-x	n06
+writer	N3	50	metrics-2026.11.16	3	n04
+takeover	N3	50	0.0	metrics-2026.11.16	3	n02	n10
+takeover	N3	50	0.5	metrics-2026.11.16	3	n02	n10
+takeover	N3	50	0.0	metrics-2026.11.16	3	n07	n03
+takeover	N3	50	0.5	metrics-2026.11.16	3	n07	n03
+takeover	N3	50	0.0	metrics-2026.11.16	3	gone-a	n01
+takeover	N3	50	0.5	metrics-2026.11.16	3	gone-a	n01
+takeover	N3	50	0.0	metrics-2026.11.16	3	gone-x	n01
+takeover	N3	50	0.5	metrics-2026.11.16	3	gone-x	z-9
+writer	N3	50	metrics-2026.11.16	41	n07
+takeover	N3	50	0.0	metrics-2026.11.16	41	n02	n10
+takeover	N3	50	0.5	metrics-2026.11.16	41	n02	n10
+takeover	N3	50	0.0	metrics-2026.11.16	41	n07	n03
+takeover	N3	50	0.5	metrics-2026.11.16	41	n07	n03
+takeover	N3	50	0.0	metrics-2026.11.16	41	gone-a	n01
+takeover	N3	50	0.5	metrics-2026.11.16	41	gone-a	n01
+takeover	N3	50	0.0	metrics-2026.11.16	41	gone-x	n03
+takeover	N3	50	0.5	metrics-2026.11.16	41	gone-x	n03
+writer	N3	50	événements	0	n06
+takeover	N3	50	0.0	événements	0	n02	n10
+takeover	N3	50	0.5	événements	0	n02	n10
+takeover	N3	50	0.0	événements	0	n07	n03
+takeover	N3	50	0.5	événements	0	n07	n03
+takeover	N3	50	0.0	événements	0	gone-a	n01
+takeover	N3	50	0.5	événements	0	gone-a	n01
+takeover	N3	50	0.0	événements	0	gone-x	n10
+takeover	N3	50	0.5	événements	0	gone-x	n10
+writer	N3	50	événements	3	n04
+takeover	N3	50	0.0	événements	3	n02	n06
+takeover	N3	50	0.5	événements	3	n02	n06
+takeover	N3	50	0.0	événements	3	n07	n03
+takeover	N3	50	0.5	événements	3	n07	n03
+takeover	N3	50	0.0	événements	3	gone-a	n01
+takeover	N3	50	0.5	événements	3	gone-a	n01
+takeover	N3	50	0.0	événements	3	gone-x	n03
+takeover	N3	50	0.5	événements	3	gone-x	n03
+writer	N3	50	événements	41	n03
+takeover	N3	50	0.0	événements	41	n02	n06
+takeover	N3	50	0.5	événements	41	n02	n06
+takeover	N3	50	0.0	événements	41	n07	n03
+takeover	N3	50	0.5	événements	41	n07	n03
+takeover	N3	50	0.0	événements	41	gone-a	n01
+takeover	N3	50	0.5	événements	41	gone-a	n01
+takeover	N3	50	0.0	événements	41	gone-x	n03
+takeover	N3	50	0.5	événements	41	gone-x	n03
+writer	N3	50	a	0	n03
+takeover	N3	50	0.0	a	0	n02	n06
+takeover	N3	50	0.5	a	0	n02	n06
+takeover	N3	50	0.0	a	0	n07	n03
+takeover	N3	50	0.5	a	0	n07	n03
+takeover	N3	50	0.0	a	0	gone-a	n01
+takeover	N3	50	0.5	a	0	gone-a	n01
+takeover	N3	50	0.0	a	0	gone-x	n07
+takeover	N3	50	0.5	a	0	gone-x	n07
+writer	N3	50	a	3	n10
+takeover	N3	50	0.0	a	3	n02	n10
+takeover	N3	50	0.5	a	3	n02	n10
+takeover	N3	50	0.0	a	3	n07	n03
+takeover	N3	50	0.5	a	3	n07	n03
+takeover	N3	50	0.0	a	3	gone-a	n01
+takeover	N3	50	0.5	a	3	gone-a	n01
+takeover	N3	50	0.0	a	3	gone-x	n01
+takeover	N3	50	0.5	a	3	gone-x	n01
+writer	N3	50	a	41	n10
+takeover	N3	50	0.0	a	41	n02	n10
+takeover	N3	50	0.5	a	41	n02	n10
+takeover	N3	50	0.0	a	41	n07	n03
+takeover	N3	50	0.5	a	41	n07	n03
+takeover	N3	50	0.0	a	41	gone-a	n01
+takeover	N3	50	0.5	a	41	gone-a	n01
+takeover	N3	50	0.0	a	41	gone-x	n06
+takeover	N3	50	0.5	a	41	gone-x	n06
+size	N3	95	4,2,92
+room	N3	95	n01
+mean	N3	95	59.0
+below	N3	95	n01
+handoff	N3	95	n01
+writer	N3	95	logs	0	n01
+takeover	N3	95	0.0	logs	0	n02	n06
+takeover	N3	95	0.5	logs	0	n02	n06
+takeover	N3	95	0.0	logs	0	n07	n03
+takeover	N3	95	0.5	logs	0	n07	n03
+takeover	N3	95	0.0	logs	0	gone-a	n01
+takeover	N3	95	0.5	logs	0	gone-a	n01
+takeover	N3	95	0.0	logs	0	gone-x	n01
+takeover	N3	95	0.5	logs	0	gone-x	n01
+writer	N3	95	logs	3	n04
+takeover	N3	95	0.0	logs	3	n02	n10
+takeover	N3	95	0.5	logs	3	n02	n10
+takeover	N3	95	0.0	logs	3	n07	n03
+takeover	N3	95	0.5	logs	3	n07	n03
+takeover	N3	95	0.0	logs	3	gone-a	n01
+takeover	N3	95	0.5	logs	3	gone-a	n01
+takeover	N3	95	0.0	logs	3	gone-x	n06
+takeover	N3	95	0.5	logs	3	gone-x	n06
+writer	N3	95	logs	41	n10
+takeover	N3	95	0.0	logs	41	n02	n10
+takeover	N3	95	0.5	logs	41	n02	n10
+takeover	N3	95	0.0	logs	41	n07	n03
+takeover	N3	95	0.5	logs	41	n07	n03
+takeover	N3	95	0.0	logs	41	gone-a	n01
+takeover	N3	95	0.5	logs	41	gone-a	n01
+takeover	N3	95	0.0	logs	41	gone-x	n04
+takeover	N3	95	0.5	logs	41	gone-x	n04
+writer	N3	95	metrics-2026.11.16	0	n03
+takeover	N3	95	0.0	metrics-2026.11.16	0	n02	n06
+takeover	N3	95	0.5	metrics-2026.11.16	0	n02	n06
+takeover	N3	95	0.0	metrics-2026.11.16	0	n07	n03
+takeover	N3	95	0.5	metrics-2026.11.16	0	n07	n03
+takeover	N3	95	0.0	metrics-2026.11.16	0	gone-a	n01
+takeover	N3	95	0.5	metrics-2026.11.16	0	gone-a	n01
+takeover	N3	95	0.0	metrics-2026.11.16	0	gone-x	n06
+takeover	N3	95	0.5	metrics-2026.11.16	0	gone-x	n06
+writer	N3	95	metrics-2026.11.16	3	n04
+takeover	N3	95	0.0	metrics-2026.11.16	3	n02	n10
+takeover	N3	95	0.5	metrics-2026.11.16	3	n02	n10
+takeover	N3	95	0.0	metrics-2026.11.16	3	n07	n03
+takeover	N3	95	0.5	metrics-2026.11.16	3	n07	n03
+takeover	N3	95	0.0	metrics-2026.11.16	3	gone-a	n01
+takeover	N3	95	0.5	metrics-2026.11.16	3	gone-a	n01
+takeover	N3	95	0.0	metrics-2026.11.16	3	gone-x	n01
+takeover	N3	95	0.5	metrics-2026.11.16	3	gone-x	z-9
+writer	N3	95	metrics-2026.11.16	41	n07
+takeover	N3	95	0.0	metrics-2026.11.16	41	n02	n10
+takeover	N3	95	0.5	metrics-2026.11.16	41	n02	n10
+takeover	N3	95	0.0	metrics-2026.11.16	41	n07	n03
+takeover	N3	95	0.5	metrics-2026.11.16	41	n07	n03
+takeover	N3	95	0.0	metrics-2026.11.16	41	gone-a	n01
+takeover	N3	95	0.5	metrics-2026.11.16	41	gone-a	n01
+takeover	N3	95	0.0	metrics-2026.11.16	41	gone-x	n03
+takeover	N3	95	0.5	metrics-2026.11.16	41	gone-x	n03
+writer	N3	95	événements	0	n06
+takeover	N3	95	0.0	événements	0	n02	n10
+takeover	N3	95	0.5	événements	0	n02	n10
+takeover	N3	95	0.0	événements	0	n07	n03
+takeover	N3	95	0.5	événements	0	n07	n03
+takeover	N3	95	0.0	événements	0	gone-a	n01
+takeover	N3	95	0.5	événements	0	gone-a	n01
+takeover	N3	95	0.0	événements	0	gone-x	n10
+takeover	N3	95	0.5	événements	0	gone-x	n10
+writer	N3	95	événements	3	n04
+takeover	N3	95	0.0	événements	3	n02	n06
+takeover	N3	95	0.5	événements	3	n02	n06
+takeover	N3	95	0.0	événements	3	n07	n03
+takeover	N3	95	0.5	événements	3	n07	n03
+takeover	N3	95	0.0	événements	3	gone-a	n01
+takeover	N3	95	0.5	événements	3	gone-a	n01
+takeover	N3	95	0.0	événements	3	gone-x	n03
+takeover	N3	95	0.5	événements	3	gone-x	n03
+writer	N3	95	événements	41	n03
+takeover	N3	95	0.0	événements	41	n02	n06
+takeover	N3	95	0.5	événements	41	n02	n06
+takeover	N3	95	0.0	événements	41	n07	n03
+takeover	N3	95	0.5	événements	41	n07	n03
+takeover	N3	95	0.0	événements	41	gone-a	n01
+takeover	N3	95	0.5	événements	41	gone-a	n01
+takeover	N3	95	0.0	événements	41	gone-x	n03
+takeover	N3	95	0.5	événements	41	gone-x	n03
+writer	N3	95	a	0	n03
+takeover	N3	95	0.0	a	0	n02	n06
+takeover	N3	95	0.5	a	0	n02	n06
+takeover	N3	95	0.0	a	0	n07	n03
+takeover	N3	95	0.5	a	0	n07	n03
+takeover	N3	95	0.0	a	0	gone-a	n01
+takeover	N3	95	0.5	a	0	gone-a	n01
+takeover	N3	95	0.0	a	0	gone-x	n07
+takeover	N3	95	0.5	a	0	gone-x	n07
+writer	N3	95	a	3	n10
+takeover	N3	95	0.0	a	3	n02	n10
+takeover	N3	95	0.5	a	3	n02	n10
+takeover	N3	95	0.0	a	3	n07	n03
+takeover	N3	95	0.5	a	3	n07	n03
+takeover	N3	95	0.0	a	3	gone-a	n01
+takeover	N3	95	0.5	a	3	gone-a	n01
+takeover	N3	95	0.0	a	3	gone-x	n01
+takeover	N3	95	0.5	a	3	gone-x	n01
+writer	N3	95	a	41	n10
+takeover	N3	95	0.0	a	41	n02	n10
+takeover	N3	95	0.5	a	41	n02	n10
+takeover	N3	95	0.0	a	41	n07	n03
+takeover	N3	95	0.5	a	41	n07	n03
+takeover	N3	95	0.0	a	41	gone-a	n01
+takeover	N3	95	0.5	a	41	gone-a	n01
+takeover	N3	95	0.0	a	41	gone-x	n06
+takeover	N3	95	0.5	a	41	gone-x	n06
