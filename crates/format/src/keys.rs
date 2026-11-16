@@ -10,6 +10,7 @@
 //! |---|---|
 //! | `indices/<index>` | the index's descriptor register |
 //! | `tombstones/<hour>/<index>` | a deleted index's marker, empty |
+//! | `index-changes/stripe-<nn>` | a change stripe's register |
 //! | `segments/<index>#<uuid>#<shard>/manifest` | the shard's commit register |
 //! | `segments/<index>#<uuid>#<shard>/t=<term>/<blob>` | a blob in a term container |
 //! | `packs/<node>/e=<epoch:020>/<ordinal:020>` | a node pack |
@@ -59,6 +60,27 @@ pub const DESCRIPTORS_PREFIX: &str = "indices/";
 /// Where under a deployment's base deletes file their markers
 /// (`RegisterMap.tombstones`), one directory an hour.
 pub const MARKERS_PREFIX: &str = "tombstones/";
+
+/// Where under a deployment's base the change stripes are
+/// (`MetadataPlane`'s `index-changes`).
+pub const CHANGES_PREFIX: &str = "index-changes/";
+
+/// The key of change stripe `stripe` (`index-changes/stripe-<nn>`).
+///
+/// # Errors
+///
+/// [`FormatError::Corrupt`] for a base that is not empty and does not end in
+/// `/`, or a stripe of [`crate::STRIPES`] or more.
+pub fn change_stripe_key(base: &str, stripe: usize) -> Result<String, FormatError> {
+    check_base(base)?;
+    if stripe >= crate::STRIPES {
+        return Err(corrupt(WHAT, "no such change stripe"));
+    }
+    // ALLOC: one key, the length of its parts.
+    let mut key = [base, CHANGES_PREFIX].concat();
+    let _ = write!(key, "stripe-{stripe:02}");
+    Ok(key)
+}
 
 /// The key of an index's descriptor register.
 ///

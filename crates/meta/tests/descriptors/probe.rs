@@ -28,6 +28,9 @@ pub(crate) enum Quirk {
     /// From the n-th LIST on (counting from 1), answers an empty page that
     /// claims more follows.
     EmptyTruncatedFrom(u32),
+    /// The first n register swaps and creates answer a conflict, as if
+    /// another writer moved the register each time.
+    ConflictSwaps(u32),
 }
 
 /// A store that misbehaves as its quirk says, over an emulator.
@@ -36,6 +39,7 @@ pub(crate) struct Quirky {
     quirk: Quirk,
     requests: AtomicU32,
     lists: AtomicU32,
+    swaps: AtomicU32,
 }
 
 impl Quirky {
@@ -45,7 +49,14 @@ impl Quirky {
             quirk,
             requests: AtomicU32::new(0),
             lists: AtomicU32::new(0),
+            swaps: AtomicU32::new(0),
         }
+    }
+
+    /// Whether this register swap or create is one the quirk refuses.
+    fn conflicts(&self) -> bool {
+        let n = self.swaps.fetch_add(1, Ordering::SeqCst) + 1;
+        matches!(self.quirk, Quirk::ConflictSwaps(first) if n <= first)
     }
 
     fn request(&self) -> BlobResult<()> {
@@ -120,11 +131,14 @@ impl BlobStore for Quirky {
     }
     fn swap_register(&self, key: &str, expected: u64, value: &[u8]) -> BlobResult<SwapOutcome> {
         self.request()?;
+        if self.conflicts() {
+            return Ok(SwapOutcome::Conflict(None));
+        }
         self.inner.swap_register(key, expected, value)
     }
     fn create_register(&self, key: &str, value: &[u8]) -> BlobResult<SwapOutcome> {
         self.request()?;
-        if self.quirk == Quirk::RefuseCreates {
+        if self.quirk == Quirk::RefuseCreates || self.conflicts() {
             return Ok(SwapOutcome::Conflict(None));
         }
         self.inner.create_register(key, value)

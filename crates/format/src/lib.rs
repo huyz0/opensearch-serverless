@@ -23,6 +23,7 @@
 //! Bucketed indices, whose commits are in a bucket's manifest, are not read
 //! yet ([`FormatError::NotFollowable`]).
 
+mod change_stripe;
 mod descriptor;
 mod error;
 mod index_record;
@@ -36,12 +37,16 @@ mod register;
 mod segment_blob;
 mod tombstone;
 
+pub use change_stripe::{
+    ChangeKind, ChangeStripe, KEPT, KEPT_PENDING, MAX_CHANGE_STRIPE_BYTES, MAX_ENTRY_NAME_BYTES,
+    STRIPES, StripeEntry, stripe_of,
+};
 pub use descriptor::{DescriptorRecord, IndexDescriptor, TOMBSTONE_PREFIX};
 pub use error::FormatError;
 pub use index_record::{EMPTY_SETTINGS, IndexRecord, MAX_SHARDS, NameRecord};
 pub use keys::{
-    DESCRIPTORS_PREFIX, FileExtent, MANIFEST, MARKERS_PREFIX, ShardRef, descriptor_key,
-    node_pack_key, tombstone_marker_key,
+    CHANGES_PREFIX, DESCRIPTORS_PREFIX, FileExtent, MANIFEST, MARKERS_PREFIX, ShardRef,
+    change_stripe_key, descriptor_key, node_pack_key, tombstone_marker_key,
 };
 pub use location::{FileLocation, NODE_PACK_PREFIX};
 pub use manifest::{CommitManifest, ManifestFile};

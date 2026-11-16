@@ -31,6 +31,14 @@ pub fn jackson(name: &str) -> Vec<u8> {
     std::fs::read(&path).unwrap_or_else(|e| panic!("fixture {}: {e}", path.display()))
 }
 
+/// The bytes of a change-stripe recording (`fixtures/change-stripes`).
+pub fn stripe_fixture(name: &str) -> Vec<u8> {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/change-stripes")
+        .join(name);
+    std::fs::read(&path).unwrap_or_else(|e| panic!("fixture {}: {e}", path.display()))
+}
+
 pub fn manifest_key() -> String {
     format!("segments/{INDEX}#{UUID}#0/manifest")
 }
