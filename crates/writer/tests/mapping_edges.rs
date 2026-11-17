@@ -297,3 +297,13 @@ fn depth_limit_names_the_first_object_past_it() {
         format!("Limit of mapping depth [20] has been exceeded due to object field [{path}]")
     );
 }
+
+#[test]
+fn multi_fields_must_be_an_object_or_empty() {
+    assert!(parse(r#"{"properties":{"k":{"type":"keyword","fields":[]}}}"#).is_ok());
+    let e = cause(r#"{"properties":{"k":{"type":"keyword","fields":["x"]}}}"#);
+    assert!(
+        e.starts_with("expected map for property [fields] on field [[x]]"),
+        "{e}"
+    );
+}

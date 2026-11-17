@@ -133,10 +133,11 @@ pub(super) fn offset(s: &mut &[u8]) -> Option<i64> {
     } else {
         0
     };
-    if hours > 18 || minutes > 59 {
+    // `ZoneOffset` holds at most 18 hours either way.
+    if minutes > 59 || hours.saturating_mul(60).saturating_add(minutes) > 18 * 60 {
         return None;
     }
-    // ARITH: hours <= 18 and minutes <= 59, so the result is within 1,139 either way.
+    // ARITH: hours * 60 + minutes is at most 1,080, so the result is too either way.
     #[allow(clippy::arithmetic_side_effects)]
     Some(sign * (hours * 60 + minutes))
 }

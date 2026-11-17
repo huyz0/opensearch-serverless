@@ -393,3 +393,28 @@ fn leap_days_follow_the_gregorian_rules() {
         vec![kv("dt", FieldValue::Date(951_782_400_000))]
     );
 }
+
+#[test]
+fn date_edges_as_java_time_reads_them() {
+    let m = mapping(
+        r#"{"properties":{"dt":{"type":"date"},"em":{"type":"date","format":"epoch_millis"},
+        "es":{"type":"date","format":"epoch_second"},"sl":{"type":"date","format":"yyyy/MM/dd HH:mm:ss"},
+        "do":{"type":"date","format":"date_optional_time"},"dc":{"type":"date","format":"dateOptionalTime"}}}"#,
+    );
+    for (doc, ok) in [
+        (r#"{"dt":"2020-01-01T00:00:00+18:00"}"#, true),
+        (r#"{"dt":"2020-01-01T00:00:00+18:30"}"#, false),
+        (r#"{"dt":"2020-01-01T00:00:00+19:00"}"#, false),
+        (r#"{"dt":"2020-01-01T00:00:00+05:59"}"#, true),
+        (r#"{"dt":"2020-01-01T00:00:00+05:60"}"#, false),
+        (r#"{"em":"1.123456"}"#, true),
+        (r#"{"em":"1.1234567"}"#, false),
+        (r#"{"es":"1.123456789"}"#, true),
+        (r#"{"es":"1.1234567891"}"#, false),
+        (r#"{"sl":"2020/01/01 23:59:59"}"#, true),
+        (r#"{"sl":"2020/01/01 24:00:00"}"#, false),
+        (r#"{"do":"2020-01-01","dc":"2020-01-01"}"#, true),
+    ] {
+        assert_eq!(parse(&m, doc).is_ok(), ok, "{doc}");
+    }
+}
