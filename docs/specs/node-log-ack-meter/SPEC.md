@@ -19,6 +19,7 @@ Parity plan R5.5 (roadmap stage 3, [roadmap](../../roadmap.md)): the roadmap's w
 - AC-2: 30 callers in one window: 30 callers, 1 PUT, 30 admission checks.
 - AC-3: a caller joining while a 200 ms PUT is in flight counts at least 100 ms behind it.
 - AC-4: a reset zeroes every sum; the line names callers, blobs, admission checks, hedges and epochs in the Java's format.
+- AC-5: an open-load meter, off unless `OSS_ACK_SECONDS` is set, offers writes at random times at 100 a second over 200 shards, with a 250 ms window and a 20 ms PUT, as the shell's `WriteAckMeterTests` open mode does. It prints ack p50, p90 and p99 and the meter's line. Over 30 s in a release build its p50 is no more than 5% above the shell's 158 ms (166 ms). Provisional: emulator, one machine.
 
 ## Test plan
 
