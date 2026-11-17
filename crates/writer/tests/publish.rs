@@ -61,7 +61,11 @@ fn a_new_segment_is_one_blob_and_one_swap_with_no_reads_after_the_first() {
     let mut p = publisher(&st);
     let files = commit(&mut s, "a");
     let first = p.publish(&dir, &files, 3, "node-1", 0, 1).expect("first");
-    assert_eq!(first.blobs.len(), 1);
+    assert_eq!(
+        first.blobs,
+        ["_0.seg"],
+        "a new segment takes its plain name"
+    );
     let puts = count(&st, S3Op::Put);
     let reads = count(&st, S3Op::Get) + count(&st, S3Op::GetRange) + count(&st, S3Op::Head);
     let files = commit(&mut s, "b");
