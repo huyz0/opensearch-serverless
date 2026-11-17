@@ -231,7 +231,7 @@ fn the_response_carries_the_aggregations_after_the_hits() {
     let source = source(r#"{"size":1,"sort":[{"n":"asc"}],"aggs":{"lo":{"min":{"field":"n"}}}}"#);
     let hits = search(&shard, "idx", &source, &Analyzer::standard(None)).expect("searches");
     let mut out = Vec::new();
-    crate::response::write_response(&mut out, &shard, "idx", &hits, 3, &mut |_| Ok(()))
+    crate::response::write_response(&mut out, &shard, "idx", "node", &hits, 3, &mut |_| Ok(()))
         .expect("writes");
     let text = String::from_utf8(out).expect("utf-8");
     assert!(

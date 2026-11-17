@@ -47,7 +47,7 @@ fn respond(shard: &OpenShard<Emulator>, body: &str) -> (String, Vec<usize>) {
     let hits = search(shard, "idx", &source, &Analyzer::standard(None)).expect("searches");
     let mut out = Vec::new();
     let mut grants = Vec::new();
-    write_response(&mut out, shard, "idx", &hits, 0, &mut |n| {
+    write_response(&mut out, shard, "idx", "node", &hits, 0, &mut |n| {
         grants.push(n);
         Ok(())
     })

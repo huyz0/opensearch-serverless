@@ -9,6 +9,8 @@ src/dsl/tokens.rs	port	libs/x-content/src/main/java/org/opensearch/core/xcontent
 src/dsl/error.rs	port	libs/core/src/main/java/org/opensearch/core/common/ParsingException.java@3.10.0	ParsingException and XContentParseException messages and locations, as Failures
 src/dsl/values.rs	port	libs/core/src/main/java/org/opensearch/core/xcontent/AbstractXContentParser.java@3.10.0	intValue/floatValue/booleanValue coercions; SuggestingErrorOnUnknown's suggestions with Lucene's LevenshteinDistance
 src/fetch/mod.rs	new		the fetch phase's per-hit features
+src/fetch/explain.rs	port	server/src/main/java/org/opensearch/search/fetch/subphase/ExplainPhase.java@3.10.0	ExplainPhase.getProcessor's explanation of each hit and SearchHit.toInnerXContent's _explanation
+src/fetch/explain_tests.rs	new		tests of explain.rs
 src/fetch/docvalue_fields.rs	port	server/src/main/java/org/opensearch/search/fetch/subphase/DocValueFieldsFetchSubPhase.java@3.10.0	FieldAndFormat.fromXContent, SearchService.parseSource's docvalue_fields limit, getProcessor's resolution and process's values
 src/fetch/docvalue_fields_tests.rs	new		tests of docvalue_fields.rs
 src/fetch/source_filter.rs	port	server/src/main/java/org/opensearch/search/fetch/subphase/FetchSourceContext.java@3.10.0	fromXContent and validateAmbiguousFields; XContentMapValues.filter (set-based and automaton filters); the source map's HashMap order and Jackson's number and string writing
@@ -43,7 +45,9 @@ src/numbers.rs	port	server/src/main/java/org/opensearch/index/mapper/NumberField
 src/response.rs	port	server/src/main/java/org/opensearch/search/SearchHit.java@3.10.0	SearchResponse, SearchHits and SearchHit toXContent with FetchPhase's _id and _source; Uid.decodeId; Float.toString
 src/response_hits_tests.rs	new		tests of response.rs's hits over a real index
 src/search_tests.rs	new		tests of search.rs
-src/search.rs	port	server/src/main/java/org/opensearch/search/query/QueryPhase.java@3.10.0	the query phase over lucene-rust with TopDocsCollectorContext's counting, DefaultSearchContext's result window, and SortBuilder.buildSort / FieldSortBuilder.build; the reported total is SearchPhaseController.TopDocsStats.getTotalHits
+src/search_sort_tests.rs	new		tests of search_sort.rs
+src/search_sort.rs	port	server/src/main/java/org/opensearch/search/sort/SortBuilder.java@3.10.0	buildSort and FieldSortBuilder.build: the body's sort keys as the engine's sort fields
+src/search.rs	port	server/src/main/java/org/opensearch/search/query/QueryPhase.java@3.10.0	the query phase over lucene-rust with TopDocsCollectorContext's counting and DefaultSearchContext's result window; the reported total is SearchPhaseController.TopDocsStats.getTotalHits
 src/open_cost.rs	new		what an open shard keeps in the heap, estimated before opening (ADR 0014); the Java's ShardReaders keeps readers unbounded
 src/aggs/mod.rs	new		module root: aggregations on one shard
 src/aggs/metric/mod.rs	new		module root: the served metrics and the state each holds

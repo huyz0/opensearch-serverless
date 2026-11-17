@@ -207,7 +207,15 @@ impl<S: BlobStore + 'static> SearchService<S> {
                 // ALLOC: error path; one box.
                 .map_err(|_| std::io::Error::other("the request-body pool is full"))
         };
-        write_response(&mut body, shard, &index, &hits, took, &mut reserve)?;
+        write_response(
+            &mut body,
+            shard,
+            &index,
+            &self.node_id,
+            &hits,
+            took,
+            &mut reserve,
+        )?;
         body.flush()?;
         body.finish()
     }

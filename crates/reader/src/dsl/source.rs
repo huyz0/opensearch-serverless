@@ -28,7 +28,6 @@ const VALUE_KEYS: &[&str] = &[
     "min_score",
     "version",
     "seq_no_primary_term",
-    "explain",
     "track_scores",
     "include_named_queries_score",
     "track_total_hits",
@@ -93,6 +92,8 @@ pub struct SearchSource {
     pub search_after: Vec<AfterValue>,
     /// `docvalue_fields`: the fields whose doc values each hit carries.
     pub docvalue_fields: Vec<DocValueField>,
+    /// `explain`: whether each hit carries the explanation of its score.
+    pub explain: bool,
 }
 
 impl Default for SearchSource {
@@ -111,6 +112,7 @@ impl Default for SearchSource {
             search_after: Vec::new(),
             // ALLOC: empty; parsing pushes one an entry.
             docvalue_fields: Vec::new(),
+            explain: false,
         }
     }
 }
@@ -184,11 +186,12 @@ impl SearchSource {
             "size" => self.size = non_negative("size", int_value(p)?)?,
             "sort" => self.sort = parse_sort(&mut p.clone())?,
             // `SearchSourceBuilder`'s value branch takes no null.
-            "_source" | "track_total_hits" if kind == Kind::Null => {
+            "_source" | "track_total_hits" | "explain" if kind == Kind::Null => {
                 return Err(unknown_key(p, kind, name));
             }
             "_source" => self.source = parse_source(&mut p.clone(), name)?,
             "track_total_hits" => self.track_total_hits = track_total_hits(p)?,
+            "explain" => self.explain = bool_value(p)?,
             known if VALUE_KEYS.contains(&known) => return Err(unsupported(known)),
             _ => return Err(unknown_key(p, kind, name)),
         }
