@@ -81,7 +81,7 @@ fn keys_opensearch_does_not_know_fail_with_their_token() {
 #[test]
 fn keys_opensearch_knows_are_refused_as_not_served() {
     for body in [
-        r#"{"highlight":{"fields":{"t":{}}}}"#,
+        r#"{"highlight":{"fields":{"t":{"fragmenter":"span"}}}}"#,
         r#"{"aggs":{"t":{"terms":{"field":"tag"}}}}"#,
         r#"{"stored_fields":["a"]}"#,
     ] {
@@ -90,6 +90,20 @@ fn keys_opensearch_knows_are_refused_as_not_served() {
             "{body}"
         );
     }
+}
+
+#[test]
+fn a_highlight_is_read_with_its_fields() {
+    let s = source(r#"{"highlight":{"fields":{"t":{},"u":{}}}}"#).expect("parses");
+    let names: Vec<_> = s
+        .highlight
+        .expect("highlight")
+        .fields
+        .into_iter()
+        .map(|f| f.0)
+        .collect();
+    assert_eq!(names, ["t", "u"]);
+    assert!(source("{}").expect("parses").highlight.is_none());
 }
 
 #[test]

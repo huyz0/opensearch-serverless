@@ -11,6 +11,10 @@ src/dsl/values.rs	port	libs/core/src/main/java/org/opensearch/core/xcontent/Abst
 src/fetch/mod.rs	new		the fetch phase's per-hit features
 src/fetch/explain.rs	port	server/src/main/java/org/opensearch/search/fetch/subphase/ExplainPhase.java@3.10.0	ExplainPhase.getProcessor's explanation of each hit and SearchHit.toInnerXContent's _explanation
 src/fetch/explain_tests.rs	new		tests of explain.rs
+src/fetch/highlight_parse.rs	port	server/src/main/java/org/opensearch/search/fetch/subphase/highlight/HighlightBuilder.java@3.10.0	fromXContent for the unified highlighter's options and their merge over the highlight's and the defaults
+src/fetch/highlight.rs	port	server/src/main/java/org/opensearch/search/fetch/subphase/highlight/UnifiedHighlighter.java@3.10.0	HighlightPhase's field resolution, UnifiedHighlighter's breaks and passages over the engine, and SearchHit's highlight fields
+src/fetch/highlight_parse_tests.rs	new		tests of highlight_parse.rs
+src/fetch/highlight_tests.rs	new		tests of highlight.rs
 src/fetch/docvalue_fields.rs	port	server/src/main/java/org/opensearch/search/fetch/subphase/DocValueFieldsFetchSubPhase.java@3.10.0	FieldAndFormat.fromXContent, SearchService.parseSource's docvalue_fields limit, getProcessor's resolution and process's values
 src/fetch/docvalue_fields_tests.rs	new		tests of docvalue_fields.rs
 src/fetch/source_filter.rs	port	server/src/main/java/org/opensearch/search/fetch/subphase/FetchSourceContext.java@3.10.0	fromXContent and validateAmbiguousFields; XContentMapValues.filter (set-based and automaton filters); the source map's HashMap order and Jackson's number and string writing

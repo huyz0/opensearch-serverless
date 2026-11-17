@@ -57,6 +57,7 @@ lucene-search = { git = "https://github.com/huyz0/lucene-rust", rev = "3b4e3a3e6
 lucene-codecs = { git = "https://github.com/huyz0/lucene-rust", rev = "3b4e3a3e6c1df64f9177d123a204b5f05fa16a21" }
 lucene-analysis = { git = "https://github.com/huyz0/lucene-rust", rev = "3b4e3a3e6c1df64f9177d123a204b5f05fa16a21" }
 lucene-aggs = { git = "https://github.com/huyz0/lucene-rust", rev = "3b4e3a3e6c1df64f9177d123a204b5f05fa16a21" }
+lucene-highlighter = { git = "https://github.com/huyz0/lucene-rust", rev = "3b4e3a3e6c1df64f9177d123a204b5f05fa16a21" }
 
 # Any crate may use `unsafe`, item by item, in the five patterns of
 # docs/unsafe.md: each use takes a local `#[allow(unsafe_code)]`, a

@@ -28,6 +28,7 @@ use crate::dsl::{SearchSource, SortKey};
 use crate::failure::Failure;
 use crate::fetch::docvalue_fields::{self, HitField};
 use crate::fetch::explain;
+use crate::fetch::highlight::{self, Plan};
 use crate::fetch::source_filter::SourceFilter;
 use crate::lucene_query::{QueryContext, shard_failure, to_lucene};
 use crate::mapping::FieldType;
@@ -82,6 +83,8 @@ pub struct Hits {
     pub fields: Vec<HitField>,
     /// Each hit's explanation, in order; empty unless `explain` was asked.
     pub explanations: Vec<Explanation>,
+    /// What to highlight in each hit; `None` without `highlight`.
+    pub highlight: Option<Plan>,
 }
 
 /// A failure on the shard, with the HTTP status it answers with.
@@ -276,6 +279,7 @@ pub fn search<S: BlobStore + 'static>(
                 fields: Vec::new(),
                 // ALLOC: empty; explained below when asked.
                 explanations: Vec::new(),
+                highlight: None,
             })
         }
         _ => {
@@ -309,12 +313,16 @@ pub fn search<S: BlobStore + 'static>(
                 fields: Vec::new(),
                 // ALLOC: as above.
                 explanations: Vec::new(),
+                highlight: None,
             })
         }
     }?;
     // The fetch phase resolves the fields only when it has a hit to fetch.
     if !hits.hits.is_empty() && !source.docvalue_fields.is_empty() {
         hits.fields = docvalue_fields::resolve(&source.docvalue_fields, &meta.mapping)?;
+    }
+    if let Some(spec) = source.highlight.as_ref().filter(|_| !hits.hits.is_empty()) {
+        hits.highlight = highlight::plan(spec, &meta.mapping, &query)?;
     }
     if source.explain && !hits.hits.is_empty() {
         let searcher = IndexSearcher::new(&segments, &norms).map_err(ShardError::engine)?;
