@@ -18,6 +18,7 @@ use oss_rest::write_json_str;
 
 use crate::OpenShard;
 use crate::aggs::metric::write_aggregations;
+use crate::fetch::highlight::{self, Highlighters};
 use crate::fetch::{docvalue_fields, explain, source_filter};
 use crate::search::{Hits, SortValue};
 
@@ -217,6 +218,7 @@ pub fn write_response<S: BlobStore + 'static>(
     let mut scratch = 0usize;
     let readers = shard.reader.segment_readers();
     let explained = hits.explanations.len() == hits.hits.len() && !hits.hits.is_empty();
+    let mut highlighters = hits.highlight.as_ref().map(Highlighters::new).transpose()?;
     for (i, hit) in hits.hits.iter().enumerate() {
         if i > 0 {
             out.write_all(b",")?;
@@ -271,6 +273,14 @@ pub fn write_response<S: BlobStore + 'static>(
             segment,
             hit.doc.saturating_sub(segment.doc_base),
         )?;
+        if let (Some(h), Some(plan)) = (highlighters.as_mut(), hits.highlight.as_ref()) {
+            let need = highlight::scratch_for(stored.source.len(), plan);
+            if need > scratch {
+                (stored.reserve)(need.saturating_sub(scratch))?;
+                scratch = need;
+            }
+            h.write(out, &stored.source)?;
+        }
         if !hit.sort.is_empty() {
             out.write_all(b",\"sort\":[")?;
             for (k, value) in hit.sort.iter().enumerate() {

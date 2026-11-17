@@ -92,6 +92,24 @@ fn filtering_reserves_its_scratch_once_for_the_largest_source() {
 }
 
 #[test]
+fn highlighting_reserves_its_scratch_once_for_the_largest_source() {
+    let shard = shard();
+    let (_, whole) = respond(&shard, r#"{"sort":[{"n":"asc"}]}"#);
+    let (_, lit) = respond(
+        &shard,
+        r#"{"sort":[{"n":"asc"}],"highlight":{"fields":{"tag":{"no_match_size":3}}}}"#,
+    );
+    let largest = (0..10)
+        .map(|i| doc_source(&spec(), i).len())
+        .max()
+        .unwrap_or(0);
+    let extra: usize = lit.iter().sum::<usize>() - whole.iter().sum::<usize>();
+    // The bound of the largest source, tags `<em>` and `</em>` included.
+    assert_eq!(extra, scratch_bytes(largest) + largest * 40, "{lit:?}");
+    assert!(!lit.contains(&0), "{lit:?}");
+}
+
+#[test]
 fn the_total_is_written_only_when_tracked() {
     let shard = shard();
     let (tracked, _) = respond(&shard, r#"{"size":0}"#);

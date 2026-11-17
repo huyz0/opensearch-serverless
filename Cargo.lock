@@ -341,6 +341,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "lucene-highlighter"
+version = "0.1.0"
+source = "git+https://github.com/huyz0/lucene-rust?rev=3b4e3a3e6c1df64f9177d123a204b5f05fa16a21#3b4e3a3e6c1df64f9177d123a204b5f05fa16a21"
+dependencies = [
+ "lucene-analysis",
+ "lucene-codecs",
+ "lucene-index",
+ "lucene-search",
+ "lucene-store",
+ "lucene-util",
+ "unicode-segmentation",
+]
+
+[[package]]
 name = "lucene-index"
 version = "0.1.0"
 source = "git+https://github.com/huyz0/lucene-rust?rev=3b4e3a3e6c1df64f9177d123a204b5f05fa16a21#3b4e3a3e6c1df64f9177d123a204b5f05fa16a21"
@@ -590,6 +604,7 @@ dependencies = [
  "lucene-aggs",
  "lucene-analysis",
  "lucene-codecs",
+ "lucene-highlighter",
  "lucene-index",
  "lucene-search",
  "lucene-store",
@@ -1002,6 +1017,12 @@ name = "unicode-ident"
 version = "1.0.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2c754d6c33795a1c324727428e5a7dedb5b06195f9890bdbcba760d3e246563"
+
+[[package]]
+name = "unicode-segmentation"
+version = "1.13.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c6f5d3c3b1bf09027a88a6bc961fc00497d651009560b5463668dc81b0fa87a8"
 
 [[package]]
 name = "untrusted"

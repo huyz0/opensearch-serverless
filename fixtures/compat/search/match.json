@@ -4913,6 +4913,1758 @@
           }
         }
       }
+    },
+    {
+      "name": "highlight a match",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "size": 2,
+          "query": {
+            "match": {
+              "title": "fox"
+            }
+          },
+          "highlight": {
+            "fields": {
+              "title": {}
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 0.41331142,
+            "hits": [
+              {
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 0.41331142,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "highlight": {
+                  "title": [
+                    "The quick brown <em>fox</em>"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-match",
+                "_id": "5",
+                "_score": 0.37691408,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "published": "1999-12-31"
+                },
+                "highlight": {
+                  "title": [
+                    "A <em>fox</em> in the snow"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "highlight with tags",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "size": 1,
+          "query": {
+            "match": {
+              "title": "fox"
+            }
+          },
+          "highlight": {
+            "pre_tags": [
+              "<b>"
+            ],
+            "post_tags": [
+              "</b>"
+            ],
+            "fields": {
+              "title": {}
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 0.41331142,
+            "hits": [
+              {
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 0.41331142,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "highlight": {
+                  "title": [
+                    "The quick brown <b>fox</b>"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "highlight the whole value",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "size": 1,
+          "query": {
+            "match": {
+              "title": "quick fox"
+            }
+          },
+          "highlight": {
+            "fields": {
+              "title": {
+                "number_of_fragments": 0
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 0.82662284,
+            "hits": [
+              {
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 0.82662284,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "highlight": {
+                  "title": [
+                    "The <em>quick</em> brown <em>fox</em>"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "highlight with no match in the field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "size": 1,
+          "query": {
+            "match": {
+              "title": "fox"
+            }
+          },
+          "highlight": {
+            "fields": {
+              "tag": {}
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 0.41331142,
+            "hits": [
+              {
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 0.41331142,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "highlight a no match with no_match_size",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "size": 1,
+          "query": {
+            "match_all": {}
+          },
+          "highlight": {
+            "fields": {
+              "title": {
+                "no_match_size": 10
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "highlight": {
+                  "title": [
+                    "The quick brown"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "highlight a keyword",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "size": 2,
+          "query": {
+            "term": {
+              "tag": "animal"
+            }
+          },
+          "highlight": {
+            "fields": {
+              "tag": {}
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "highlight": {
+                  "tag": [
+                    "<em>animal</em>"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-match",
+                "_id": "2",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Lazy dogs sleep all day",
+                  "tag": "animal",
+                  "year": 2002,
+                  "published": "2002-07-01T10:15:30Z"
+                },
+                "highlight": {
+                  "tag": [
+                    "<em>animal</em>"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "highlight by pattern",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "size": 2,
+          "query": {
+            "multi_match": {
+              "query": "fox animal",
+              "fields": [
+                "title",
+                "tag"
+              ]
+            }
+          },
+          "highlight": {
+            "fields": {
+              "*": {}
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 0.41331142,
+            "hits": [
+              {
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 0.41331142,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "highlight": {
+                  "title": [
+                    "The quick brown <em>fox</em>"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-match",
+                "_id": "5",
+                "_score": 0.37691408,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "published": "1999-12-31"
+                },
+                "highlight": {
+                  "title": [
+                    "A <em>fox</em> in the snow"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "highlight two fields",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "size": 2,
+          "query": {
+            "bool": {
+              "should": [
+                {
+                  "match": {
+                    "title": "fox"
+                  }
+                },
+                {
+                  "term": {
+                    "tag": "animal"
+                  }
+                }
+              ]
+            }
+          },
+          "highlight": {
+            "fields": {
+              "title": {},
+              "tag": {}
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 1.4133115,
+            "hits": [
+              {
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 1.4133115,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "highlight": {
+                  "tag": [
+                    "<em>animal</em>"
+                  ],
+                  "title": [
+                    "The quick brown <em>fox</em>"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-match",
+                "_id": "5",
+                "_score": 1.376914,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "published": "1999-12-31"
+                },
+                "highlight": {
+                  "tag": [
+                    "<em>animal</em>"
+                  ],
+                  "title": [
+                    "A <em>fox</em> in the snow"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "highlight without requiring the field to match",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "size": 1,
+          "query": {
+            "bool": {
+              "should": [
+                {
+                  "match": {
+                    "title": "fox"
+                  }
+                },
+                {
+                  "term": {
+                    "tag": "animal"
+                  }
+                }
+              ]
+            }
+          },
+          "highlight": {
+            "require_field_match": false,
+            "fields": {
+              "title": {}
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 1.4133115,
+            "hits": [
+              {
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 1.4133115,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "highlight": {
+                  "title": [
+                    "The quick brown <em>fox</em>"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "highlight with the html encoder",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "size": 1,
+          "query": {
+            "match": {
+              "title": "fox"
+            }
+          },
+          "highlight": {
+            "encoder": "html",
+            "fields": {
+              "title": {}
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 0.41331142,
+            "hits": [
+              {
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 0.41331142,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "highlight": {
+                  "title": [
+                    "The quick brown <em>fox</em>"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "highlight with a small fragment_size",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "size": 3,
+          "query": {
+            "match": {
+              "title": "quick fox"
+            }
+          },
+          "highlight": {
+            "fields": {
+              "title": {
+                "fragment_size": 8,
+                "number_of_fragments": 3
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 5,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 0.82662284,
+            "hits": [
+              {
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 0.82662284,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "highlight": {
+                  "title": [
+                    "The <em>quick</em>",
+                    "brown <em>fox</em>"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-match",
+                "_id": "3",
+                "_score": 0.45748958,
+                "_source": {
+                  "title": "Quick start guide",
+                  "tag": "manual",
+                  "year": 2010,
+                  "published": "2010-01-01"
+                },
+                "highlight": {
+                  "title": [
+                    "<em>Quick</em> start"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-match",
+                "_id": "5",
+                "_score": 0.37691408,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "published": "1999-12-31"
+                },
+                "highlight": {
+                  "title": [
+                    "A <em>fox</em> in"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "highlight in score order",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "size": 1,
+          "query": {
+            "match": {
+              "title": "quick fox"
+            }
+          },
+          "highlight": {
+            "order": "score",
+            "fields": {
+              "title": {
+                "fragment_size": 8,
+                "number_of_fragments": 3
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 0.82662284,
+            "hits": [
+              {
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 0.82662284,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "highlight": {
+                  "title": [
+                    "The <em>quick</em>",
+                    "brown <em>fox</em>"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "highlight with a field option over the global one",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "size": 1,
+          "query": {
+            "match": {
+              "title": "fox"
+            }
+          },
+          "highlight": {
+            "pre_tags": [
+              "<i>"
+            ],
+            "post_tags": [
+              "</i>"
+            ],
+            "fields": {
+              "title": {
+                "pre_tags": [
+                  "<u>"
+                ],
+                "post_tags": [
+                  "</u>"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 0.41331142,
+            "hits": [
+              {
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 0.41331142,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "highlight": {
+                  "title": [
+                    "The quick brown <u>fox</u>"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "highlight with the word boundary scanner",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "size": 1,
+          "query": {
+            "match": {
+              "title": "fox"
+            }
+          },
+          "highlight": {
+            "boundary_scanner": "word",
+            "fields": {
+              "title": {
+                "fragment_size": 10
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 0.41331142,
+            "hits": [
+              {
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 0.41331142,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "highlight": {
+                  "title": [
+                    "<em>fox</em>"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "highlight a phrase",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "size": 1,
+          "query": {
+            "match_phrase": {
+              "title": "brown fox"
+            }
+          },
+          "highlight": {
+            "fields": {
+              "title": {}
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 1,
+              "relation": "eq"
+            },
+            "max_score": 0.82662284,
+            "hits": [
+              {
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 0.82662284,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "highlight": {
+                  "title": [
+                    "The quick <em>brown</em> <em>fox</em>"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "highlight of an unmapped field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "size": 1,
+          "query": {
+            "match": {
+              "title": "fox"
+            }
+          },
+          "highlight": {
+            "fields": {
+              "nothing": {},
+              "title": {}
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 0.41331142,
+            "hits": [
+              {
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 0.41331142,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "highlight": {
+                  "title": [
+                    "The quick brown <em>fox</em>"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "highlight with no fields",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "size": 1,
+          "query": {
+            "match": {
+              "title": "fox"
+            }
+          },
+          "highlight": {}
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 0.41331142,
+            "hits": [
+              {
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 0.41331142,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "highlight with an empty fields object",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "size": 1,
+          "query": {
+            "match": {
+              "title": "fox"
+            }
+          },
+          "highlight": {
+            "fields": {}
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 0.41331142,
+            "hits": [
+              {
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 0.41331142,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "highlight with no hit",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "query": {
+            "match": {
+              "title": "nothing"
+            }
+          },
+          "highlight": {
+            "fields": {
+              "title": {}
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 0,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          }
+        }
+      }
+    },
+    {
+      "name": "highlight after fields, before sort and explanation",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "size": 1,
+          "query": {
+            "match": {
+              "title": "fox"
+            }
+          },
+          "sort": [
+            {
+              "year": "asc"
+            }
+          ],
+          "docvalue_fields": [
+            "year"
+          ],
+          "explain": true,
+          "highlight": {
+            "fields": {
+              "title": {}
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        },
+        {
+          "pointer": "/body/hits/hits/0/_node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": [
+              {
+                "_shard": "[compat-match][0]",
+                "_node": "fCExHjVeSVqVm7s_zifa3w",
+                "_index": "compat-match",
+                "_id": "5",
+                "_score": null,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "published": "1999-12-31"
+                },
+                "fields": {
+                  "year": [
+                    1999
+                  ]
+                },
+                "highlight": {
+                  "title": [
+                    "A <em>fox</em> in the snow"
+                  ]
+                },
+                "sort": [
+                  1999
+                ],
+                "_explanation": {
+                  "value": 0.37691408,
+                  "description": "weight(title:fox in 4) [PerFieldSimilarity], result of:",
+                  "details": [
+                    {
+                      "value": 0.37691408,
+                      "description": "score(freq=1.0), computed as boost * idf * tf from:",
+                      "details": [
+                        {
+                          "value": 0.87546873,
+                          "description": "idf, computed as log(1 + (N - n + 0.5) / (n + 0.5)) from:",
+                          "details": [
+                            {
+                              "value": 2,
+                              "description": "n, number of documents containing term",
+                              "details": []
+                            },
+                            {
+                              "value": 5,
+                              "description": "N, total number of documents with field",
+                              "details": []
+                            }
+                          ]
+                        },
+                        {
+                          "value": 0.43052834,
+                          "description": "tf, computed as freq / (freq + k1 * (1 - b + b * dl / avgdl)) from:",
+                          "details": [
+                            {
+                              "value": 1.0,
+                              "description": "freq, occurrences of term within document",
+                              "details": []
+                            },
+                            {
+                              "value": 1.2,
+                              "description": "k1, term saturation parameter",
+                              "details": []
+                            },
+                            {
+                              "value": 0.75,
+                              "description": "b, length normalization parameter",
+                              "details": []
+                            },
+                            {
+                              "value": 5.0,
+                              "description": "dl, length of field",
+                              "details": []
+                            },
+                            {
+                              "value": 4.4,
+                              "description": "avgdl, average length of field",
+                              "details": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "highlight of a hit without its source",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "size": 1,
+          "query": {
+            "match": {
+              "title": "fox"
+            }
+          },
+          "_source": false,
+          "highlight": {
+            "fields": {
+              "title": {}
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 0.41331142,
+            "hits": [
+              {
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 0.41331142,
+                "highlight": {
+                  "title": [
+                    "The quick brown <em>fox</em>"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "highlight with an unknown key",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "highlight": {
+            "aaa": 1,
+            "fields": {
+              "title": {}
+            }
+          },
+          "query": {
+            "match": {
+              "title": "fox"
+            }
+          },
+          "size": 1
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "x_content_parse_exception",
+                "reason": "[1:15] [highlight] unknown field [aaa]"
+              }
+            ],
+            "type": "x_content_parse_exception",
+            "reason": "[1:15] [highlight] unknown field [aaa]"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "highlight with an unknown field key",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "highlight": {
+            "fields": {
+              "title": {
+                "nope": 1
+              }
+            }
+          },
+          "query": {
+            "match": {
+              "title": "fox"
+            }
+          },
+          "size": 1
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "x_content_parse_exception",
+                "reason": "[1:34] [highlight_field] unknown field [nope]"
+              }
+            ],
+            "type": "x_content_parse_exception",
+            "reason": "[1:41] [highlight] failed to parse field [fields]",
+            "caused_by": {
+              "type": "x_content_parse_exception",
+              "reason": "[1:41] [fields] failed to parse field [title]",
+              "caused_by": {
+                "type": "x_content_parse_exception",
+                "reason": "[1:34] [highlight_field] unknown field [nope]"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "highlight with a fragment_size that is no number",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "highlight": {
+            "fields": {
+              "title": {
+                "fragment_size": "a"
+              }
+            }
+          },
+          "query": {
+            "match": {
+              "title": "fox"
+            }
+          },
+          "size": 1
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "x_content_parse_exception",
+                "reason": "[1:50] [highlight_field] failed to parse field [fragment_size]"
+              }
+            ],
+            "type": "x_content_parse_exception",
+            "reason": "[1:50] [highlight] failed to parse field [fields]",
+            "caused_by": {
+              "type": "x_content_parse_exception",
+              "reason": "[1:50] [fields] failed to parse field [title]",
+              "caused_by": {
+                "type": "x_content_parse_exception",
+                "reason": "[1:50] [highlight_field] failed to parse field [fragment_size]",
+                "caused_by": {
+                  "type": "number_format_exception",
+                  "reason": "For input string: \"a\""
+                }
+              }
+            }
+          },
+          "status": 400
+        }
+      }
     }
   ]
 }

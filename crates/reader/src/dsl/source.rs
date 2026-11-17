@@ -16,6 +16,7 @@ use crate::dsl::sort::{SortKey, parse_sort};
 use crate::dsl::tokens::{Kind, Parser, Recorder};
 use crate::dsl::values::{bool_value, int_value};
 use crate::fetch::docvalue_fields::{DocValueField, parse_docvalue_fields};
+use crate::fetch::highlight_parse::{HighlightSpec, parse_highlight};
 use crate::fetch::source_filter::{SourceFilter, parse_source};
 
 /// `SearchService.DEFAULT_SIZE`.
@@ -46,7 +47,6 @@ const OBJECT_KEYS: &[&str] = &[
     "indices_boost",
     "aggregations",
     "aggs",
-    "highlight",
     "suggest",
     "rescore",
     "ext",
@@ -94,6 +94,8 @@ pub struct SearchSource {
     pub docvalue_fields: Vec<DocValueField>,
     /// `explain`: whether each hit carries the explanation of its score.
     pub explain: bool,
+    /// `highlight`: the fields whose matches each hit marks.
+    pub highlight: Option<HighlightSpec>,
 }
 
 impl Default for SearchSource {
@@ -113,6 +115,7 @@ impl Default for SearchSource {
             // ALLOC: empty; parsing pushes one an entry.
             docvalue_fields: Vec::new(),
             explain: false,
+            highlight: None,
         }
     }
 }
@@ -204,6 +207,7 @@ impl SearchSource {
             "sort" => self.sort = parse_sort(p)?,
             "aggregations" | "aggs" => self.aggs = parse_aggregations(p)?,
             "_source" => self.source = parse_source(p, name)?,
+            "highlight" => self.highlight = Some(parse_highlight(p)?),
             known if OBJECT_KEYS.contains(&known) => return Err(unsupported(known)),
             _ => return Err(unknown_key(p, Kind::StartObject, name)),
         }

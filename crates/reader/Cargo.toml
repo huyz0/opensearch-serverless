@@ -19,6 +19,7 @@ lucene-search = { workspace = true }
 lucene-analysis = { workspace = true }
 lucene-codecs = { workspace = true }
 lucene-aggs = { workspace = true }
+lucene-highlighter = { workspace = true }
 
 [dev-dependencies]
 oss-blob = { workspace = true, features = ["emulator"] }
