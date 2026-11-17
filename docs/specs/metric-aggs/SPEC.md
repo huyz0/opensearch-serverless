@@ -23,7 +23,7 @@ Not in this change: `cardinality`, `percentiles`, `percentile_ranks` and `top_hi
 
 ## Test plan
 
-`crates/compat/tests/node_search.rs` replays AC-1 and AC-2 (red on three steps before the unknown type's cause, the text field's error and a key-order artifact were fixed). Unit tests in `aggs/metric/tests.rs` (parsing, writing, reduce, order), `aggs/metric/collect_tests.rs` (AC-3, AC-7 over an `oss-testkit` index), `double.rs`, `date_format.rs` and `hash_order.rs` (AC-8, AC-4, expected values printed by Java 21); the budget gate in `crates/node/tests/it/aggs_budgets.rs`.
+`crates/compat/tests/node_search.rs` replays AC-1 and AC-2 (red on three steps before the unknown type's cause, the text field's error and a key-order artifact were fixed). Unit tests in `aggs/metric/tests.rs` (parsing, writing, reduce, order), `aggs/metric/collect_tests.rs` (AC-3, AC-7 over an `oss-testkit` index), `double.rs`, `date_text.rs` and `hash_order.rs` (AC-8, AC-4, expected values printed by Java 21); the budget gate in `crates/node/tests/it/aggs_budgets.rs`.
 
 ## S3 request budget
 

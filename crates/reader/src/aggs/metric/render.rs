@@ -10,7 +10,7 @@ use std::io::{self, Write};
 
 use oss_rest::write_json_str;
 
-use crate::aggs::metric::date_format::write_date_of_double;
+use crate::aggs::metric::date_text::write_date_of_double;
 use crate::aggs::metric::double::write_java_double;
 use crate::aggs::metric::hash_order::hash_map_order;
 use crate::aggs::metric::partial::{Format, Partial, Value};

@@ -12,7 +12,7 @@
 //! `missing`, `format` and `meta` are refused as not served yet.
 
 pub mod collect;
-pub mod date_format;
+pub mod date_text;
 pub mod double;
 pub mod hash_order;
 pub mod parse;
