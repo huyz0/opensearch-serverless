@@ -120,3 +120,32 @@ fn weighted_averages_stay_between_their_points() {
     assert_eq!(weighted_average(3.0, 1.0, 1.0, 3.0), 1.5);
     assert!(weighted_average(1.0, 0.0, 1.0, 0.0).is_nan());
 }
+
+#[test]
+fn a_merge_keeps_the_centroid_arrays_and_grows_only_short_ones() {
+    let v = values("rnd", 3000);
+    let mut d = built(v.iter().copied(), 100.0);
+    let size = d.mean.len();
+    d.settle();
+    assert_eq!((d.mean.len(), d.weight.len()), (size, size));
+    // Arrays shorter than the merge needs grow one cell at a time, to the
+    // same answers. Fewer values than the buffer holds, so the engine has
+    // not merged yet.
+    let few = &v[..500];
+    let mut engine = MergingDigest::new(100.0);
+    for x in few {
+        engine.add(*x).expect("not NaN");
+    }
+    assert_eq!(engine.last_used_cell, 0);
+    engine.mean.truncate(1);
+    engine.weight.truncate(1);
+    let mut short = Digest::from_engine(engine);
+    let mut full = built(few.iter().copied(), 100.0);
+    short.settle();
+    full.settle();
+    assert_eq!(short.quantile(0.5).to_bits(), full.quantile(0.5).to_bits());
+    assert_eq!(short.cdf(5000.0).to_bits(), full.cdf(5000.0).to_bits());
+    assert_eq!(short.last_used_cell, full.last_used_cell);
+    assert!(full.last_used_cell > 1);
+    assert_eq!(short.mean.len(), short.last_used_cell);
+}

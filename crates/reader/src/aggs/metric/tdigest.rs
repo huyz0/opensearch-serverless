@@ -426,25 +426,19 @@ fn set(values: &mut [f64], at: usize, value: f64) {
 /// stable-sort buffer, which it keeps for the thread's next digest), and
 /// the order a merge here sorts.
 pub fn digest_bytes(compression: f64) -> usize {
-    let compression = if compression < 10.0 {
-        10.0
-    } else {
-        compression
-    };
+    // At least 10, as `MergingDigest` raises it.
+    let compression = compression.max(10.0);
     let fudge = if compression < 30.0 { 30.0 } else { 10.0 };
     // ARITH: none; f64 throughout, and `as` saturates.
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     let bytes = {
-        let mut size = (2.0 * compression + fudge).floor();
-        let mut buffer = 5.0 * size;
-        // `scale`: `max(1, bufferSize / size - 1)` with an int division, 4.
-        let working = 2.0 * compression;
-        if size < working + fudge {
-            size = (working + fudge).ceil();
-        }
-        if buffer <= 2.0 * size {
-            buffer = 2.0 * size;
-        }
+        // `size = (int) (2 * compression + fudge)`, `bufferSize = 5 * size`;
+        // the scale is then 4, the working compression `2 * compression`,
+        // and `size` grows to `ceil(2 * compression + fudge)`, still under
+        // half the buffer.
+        let exact = 2.0 * compression + fudge;
+        let size = exact.ceil();
+        let buffer = 5.0 * exact.floor();
         let centroids = size * 16.0;
         // A buffered slot: its mean and weight (8 bytes each), the engine's
         // u32 order, its two `(u64, u32)` radix keys and `u128` sort key
