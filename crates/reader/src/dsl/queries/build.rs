@@ -18,7 +18,7 @@ use lucene_search::{
 };
 
 use crate::dsl::bool_query::MAX_CLAUSES;
-use crate::dsl::queries::{Fuzziness, More, uid};
+use crate::dsl::queries::{Fuzziness, More, full_text_build, uid};
 use crate::dsl::values::Value;
 use crate::failure::Failure;
 use crate::lucene_query::{QueryContext, build, field_type, match_none, term, unsupported};
@@ -100,6 +100,14 @@ pub fn to_clause(m: &More, cx: &QueryContext<'_>) -> Result<Clause, Failure> {
             ))))
         }
         More::MatchNone { .. } => Ok(match_none()),
+        More::MatchPhrase {
+            field,
+            query,
+            slop,
+            zero_terms_all,
+            ..
+        } => full_text_build::phrase(cx, field, query, *slop, *zero_terms_all),
+        More::MultiMatch(m, _) => full_text_build::multi_match(cx, m),
     }
 }
 

@@ -370,7 +370,7 @@ fn parse_match(p: &mut Parser<'_>) -> Result<Query, DslError> {
 }
 
 /// `Operator.fromString`.
-fn parse_operator(text: &str) -> Result<Operator, DslError> {
+pub(crate) fn parse_operator(text: &str) -> Result<Operator, DslError> {
     match text.to_ascii_uppercase().as_str() {
         "OR" => Ok(Operator::Or),
         "AND" => Ok(Operator::And),
