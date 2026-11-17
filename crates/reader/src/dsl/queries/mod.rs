@@ -202,4 +202,7 @@ pub fn parse(name: &str, p: &mut Parser<'_>) -> Result<More, DslError> {
 mod parse_tests;
 
 #[cfg(test)]
+mod compound_tests;
+
+#[cfg(test)]
 mod build_tests;
