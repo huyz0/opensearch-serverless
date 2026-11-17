@@ -47,9 +47,12 @@ fn decimal(text: &[u8]) -> Decimal {
             out.len = out.len.saturating_add(1);
         }
     }
-    while out.len > 1 && out.digits.get(out.len.saturating_sub(1)) == Some(&b'0') {
-        out.len = out.len.saturating_sub(1);
-    }
+    // The first digit is never trimmed: past it, up to the last non-zero.
+    let rest = out.digits.get(1..out.len).unwrap_or_default();
+    out.len = rest
+        .iter()
+        .rposition(|b| *b != b'0')
+        .map_or(1, |last| last.saturating_add(2));
     out
 }
 
@@ -67,7 +70,11 @@ pub fn write_java_double(out: &mut dyn Write, d: f64) -> io::Result<()> {
         return out.write_all(b"NaN");
     }
     if d.is_infinite() {
-        return out.write_all(if d > 0.0 { b"Infinity" } else { b"-Infinity" });
+        return out.write_all(if d.is_sign_positive() {
+            b"Infinity"
+        } else {
+            b"-Infinity"
+        });
     }
     if d == 0.0 {
         return out.write_all(if d.is_sign_negative() {
@@ -86,7 +93,7 @@ pub fn write_java_double(out: &mut dyn Write, d: f64) -> io::Result<()> {
         // since they are no further from it than the one digit.
         dec = decimal(formatted(&mut buf, format_args!("{d:.1e}"))?);
     }
-    if d < 0.0 {
+    if d.is_sign_negative() {
         out.write_all(b"-")?;
     }
     let digits = dec.digits();
