@@ -339,7 +339,7 @@ fn malformed_query_objects() {
         reason(r#"{"query":{"matc":{}}}"#),
         "unknown query [matc] did you mean [match]?"
     );
-    assert!(reason(r#"{"query":{"wildcard":{}}}"#).contains("[wildcard] query is not supported"));
+    assert!(reason(r#"{"query":{"span_term":{}}}"#).contains("[span_term] query is not supported"));
     assert_eq!(
         reason(r#"{"query":{"match_all":1}}"#),
         "[match_all] query malformed, no start_object after query name"

@@ -8,6 +8,15 @@ src/dsl/mod.rs	new		module root: the DSL subset's types and parse_chunks
 src/dsl/tokens.rs	port	libs/x-content/src/main/java/org/opensearch/core/xcontent/XContentParser.java@3.10.0	a pull parser over recorded tokens with Jackson's token names and locations; no JSON tree
 src/dsl/error.rs	port	libs/core/src/main/java/org/opensearch/core/common/ParsingException.java@3.10.0	ParsingException and XContentParseException messages and locations, as Failures
 src/dsl/values.rs	port	libs/core/src/main/java/org/opensearch/core/xcontent/AbstractXContentParser.java@3.10.0	intValue/floatValue/booleanValue coercions; SuggestingErrorOnUnknown's suggestions with Lucene's LevenshteinDistance
+src/dsl/queries/mod.rs	port	server/src/main/java/org/opensearch/common/unit/Fuzziness.java@3.10.0	the module's query enum and dispatch; Fuzziness.asDistance
+src/dsl/queries/single_field.rs	port	server/src/main/java/org/opensearch/index/query/PrefixQueryBuilder.java@3.10.0	the one-field short-or-long form the term-level fromXContent share, and throwParsingExceptionOnMultipleFields
+src/dsl/queries/term_level.rs	port	server/src/main/java/org/opensearch/index/query/TermsQueryBuilder.java@3.10.0	fromXContent and constructor checks of TermsQueryBuilder, PrefixQueryBuilder, WildcardQueryBuilder, RegexpQueryBuilder, FuzzyQueryBuilder (with Fuzziness.parse), ExistsQueryBuilder and IdsQueryBuilder
+src/dsl/queries/compound.rs	port	server/src/main/java/org/opensearch/index/query/DisMaxQueryBuilder.java@3.10.0	fromXContent of DisMaxQueryBuilder, ConstantScoreQueryBuilder and MatchNoneQueryBuilder
+src/dsl/queries/build.rs	port	server/src/main/java/org/opensearch/index/mapper/StringFieldType.java@3.10.0	doRewrite/doToQuery of the module's builders; the field types' termsQuery, prefixQuery, wildcardQuery, regexpQuery, fuzzyQuery and existsQuery; ExistsQueryBuilder.newFilter
+src/dsl/queries/uid.rs	port	server/src/main/java/org/opensearch/index/mapper/Uid.java@3.10.0	encodeId
+src/dsl/queries/parse_tests.rs	new		tests of the module's term-level parsers, against messages recorded from OpenSearch
+src/dsl/queries/compound_tests.rs	new		tests of the module's compound parsers, against messages recorded from OpenSearch
+src/dsl/queries/build_tests.rs	new		tests of build.rs
 src/dsl/query.rs	port	server/src/main/java/org/opensearch/index/query/AbstractQueryBuilder.java@3.10.0	parseInnerQueryBuilder, with MatchAllQueryBuilder, TermQueryBuilder, MatchQueryBuilder and RangeQueryBuilder fromXContent
 src/dsl/query_tests.rs	new		tests of query.rs, against messages recorded from OpenSearch
 src/dsl/registered.rs	port	server/src/main/java/org/opensearch/search/SearchModule.java@3.10.0	the registered query names, the suggestion candidates
@@ -21,6 +30,7 @@ src/lucene_query_tests.rs	new		tests of lucene_query.rs
 src/mapping.rs	port	server/src/main/java/org/opensearch/index/mapper/MapperService.java@3.10.0	field types and dotted names from the descriptor's mapping, for the subset's types only; the Java builds full mappers
 src/numbers.rs	port	server/src/main/java/org/opensearch/index/mapper/NumberFieldMapper.java@3.10.0	INTEGER and LONG parse, termQuery and rangeQuery bounds, objectToDouble, hasDecimalPart and signum; Numbers.toLong
 src/response.rs	port	server/src/main/java/org/opensearch/search/SearchHit.java@3.10.0	SearchResponse, SearchHits and SearchHit toXContent with FetchPhase's _id and _source; Uid.decodeId; Float.toString
+src/search_tests.rs	new		tests of search.rs
 src/search.rs	port	server/src/main/java/org/opensearch/search/query/QueryPhase.java@3.10.0	the query phase over lucene-rust with TopDocsCollectorContext's counting, DefaultSearchContext's result window, and SortBuilder.buildSort / FieldSortBuilder.build; the reported total is SearchPhaseController.TopDocsStats.getTotalHits
 src/open_cost.rs	new		what an open shard keeps in the heap, estimated before opening (ADR 0014); the Java's ShardReaders keeps readers unbounded
 src/aggs/mod.rs	new		module root: aggregations on one shard

@@ -1,6 +1,6 @@
 {
   "name": "term queries",
-  "description": "term on keyword, text and integer fields, short and long forms.",
+  "description": "term-level and compound queries on keyword, text, integer and date fields.",
   "recorded_from": {
     "distribution": "opensearch",
     "version": "3.10.0-SNAPSHOT",
@@ -139,7 +139,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 124,
+          "took": 20,
           "errors": false,
           "items": [
             {
@@ -256,7 +256,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 67,
+          "took": 3,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -334,7 +334,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 6,
+          "took": 2,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -445,7 +445,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 14,
+          "took": 2,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -571,7 +571,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 2,
+          "took": 1,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -627,7 +627,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 4,
+          "took": 1,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -643,6 +643,2074 @@
             "max_score": null,
             "hits": []
           }
+        }
+      }
+    },
+    {
+      "name": "terms on a keyword",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "terms": {
+              "tag": [
+                "food",
+                "manual"
+              ]
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-term",
+                "_id": "3",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Quick start guide",
+                  "tag": "manual",
+                  "year": 2010,
+                  "published": "2010-01-01"
+                }
+              },
+              {
+                "_index": "compat-term",
+                "_id": "4",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "terms on a text field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "terms": {
+              "title": [
+                "snow",
+                "sugar",
+                "Quick"
+              ]
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-term",
+                "_id": "4",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                }
+              },
+              {
+                "_index": "compat-term",
+                "_id": "5",
+                "_score": 1.0,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "published": "1999-12-31"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "terms on an integer with a boost",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "terms": {
+              "year": [
+                2002,
+                "2010",
+                2002.5
+              ],
+              "boost": 2.0
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 2.0,
+            "hits": [
+              {
+                "_index": "compat-term",
+                "_id": "2",
+                "_score": 2.0,
+                "_source": {
+                  "title": "Lazy dogs sleep all day",
+                  "tag": "animal",
+                  "year": 2002,
+                  "published": "2002-07-01T10:15:30Z"
+                }
+              },
+              {
+                "_index": "compat-term",
+                "_id": "3",
+                "_score": 2.0,
+                "_source": {
+                  "title": "Quick start guide",
+                  "tag": "manual",
+                  "year": 2010,
+                  "published": "2010-01-01"
+                }
+              },
+              {
+                "_index": "compat-term",
+                "_id": "4",
+                "_score": 2.0,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "terms on a date",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "terms": {
+              "published": [
+                "2001-03-04",
+                "1999-12-31"
+              ]
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-term",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                }
+              },
+              {
+                "_index": "compat-term",
+                "_id": "5",
+                "_score": 1.0,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "published": "1999-12-31"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "terms with no values",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "terms": {
+              "tag": []
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 0,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          }
+        }
+      }
+    },
+    {
+      "name": "terms on an unmapped field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "terms": {
+              "nothing": [
+                "a"
+              ]
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 0,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          }
+        }
+      }
+    },
+    {
+      "name": "prefix on a keyword",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "prefix": {
+              "tag": "an"
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-term",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                }
+              },
+              {
+                "_index": "compat-term",
+                "_id": "2",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Lazy dogs sleep all day",
+                  "tag": "animal",
+                  "year": 2002,
+                  "published": "2002-07-01T10:15:30Z"
+                }
+              },
+              {
+                "_index": "compat-term",
+                "_id": "5",
+                "_score": 1.0,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "published": "1999-12-31"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "prefix on a text field, long form with a boost",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "prefix": {
+              "title": {
+                "value": "bro",
+                "boost": 3
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 3.0,
+            "hits": [
+              {
+                "_index": "compat-term",
+                "_id": "1",
+                "_score": 3.0,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                }
+              },
+              {
+                "_index": "compat-term",
+                "_id": "4",
+                "_score": 3.0,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "prefix on an integer",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "prefix": {
+              "year": "20"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "query_shard_exception",
+                "reason": "Can only use prefix queries on keyword and text fields - not on [year] which is of type [integer]",
+                "index": "compat-term",
+                "index_uuid": "CDuDfaDITKqzcMCTPn7Tpg"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-term",
+                "node": "fCExHjVeSVqVm7s_zifa3w",
+                "reason": {
+                  "type": "query_shard_exception",
+                  "reason": "Can only use prefix queries on keyword and text fields - not on [year] which is of type [integer]",
+                  "index": "compat-term",
+                  "index_uuid": "CDuDfaDITKqzcMCTPn7Tpg"
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "query_shard_exception",
+              "reason": "Can only use prefix queries on keyword and text fields - not on [year] which is of type [integer]",
+              "index": "compat-term",
+              "index_uuid": "CDuDfaDITKqzcMCTPn7Tpg"
+            }
+          },
+          "status": 400
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "index uuid, random per index"
+        },
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "node id, random per node"
+        },
+        {
+          "pointer": "/body/error/failed_shards/*/reason/index_uuid",
+          "reason": "index uuid, random per index"
+        },
+        {
+          "pointer": "/body/error/caused_by/index_uuid",
+          "reason": "index uuid, random per index"
+        }
+      ]
+    },
+    {
+      "name": "wildcard on a keyword",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "wildcard": {
+              "tag": "*a*l"
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 4,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-term",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                }
+              },
+              {
+                "_index": "compat-term",
+                "_id": "2",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Lazy dogs sleep all day",
+                  "tag": "animal",
+                  "year": 2002,
+                  "published": "2002-07-01T10:15:30Z"
+                }
+              },
+              {
+                "_index": "compat-term",
+                "_id": "3",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Quick start guide",
+                  "tag": "manual",
+                  "year": 2010,
+                  "published": "2010-01-01"
+                }
+              },
+              {
+                "_index": "compat-term",
+                "_id": "5",
+                "_score": 1.0,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "published": "1999-12-31"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "wildcard on a text field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "wildcard": {
+              "title": {
+                "value": "qu?ck"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-term",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                }
+              },
+              {
+                "_index": "compat-term",
+                "_id": "3",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Quick start guide",
+                  "tag": "manual",
+                  "year": 2010,
+                  "published": "2010-01-01"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "regexp on a keyword",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "regexp": {
+              "tag": "f.*d|m[a-z]+"
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-term",
+                "_id": "3",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Quick start guide",
+                  "tag": "manual",
+                  "year": 2010,
+                  "published": "2010-01-01"
+                }
+              },
+              {
+                "_index": "compat-term",
+                "_id": "4",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "regexp on a text field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "regexp": {
+              "title": {
+                "value": "s[nu].*",
+                "boost": 0.5
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 0.5,
+            "hits": [
+              {
+                "_index": "compat-term",
+                "_id": "4",
+                "_score": 0.5,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                }
+              },
+              {
+                "_index": "compat-term",
+                "_id": "5",
+                "_score": 0.5,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "published": "1999-12-31"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "fuzzy on a text field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "fuzzy": {
+              "title": "quikc"
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 0.36599168,
+            "hits": [
+              {
+                "_index": "compat-term",
+                "_id": "3",
+                "_score": 0.36599168,
+                "_source": {
+                  "title": "Quick start guide",
+                  "tag": "manual",
+                  "year": 2010,
+                  "published": "2010-01-01"
+                }
+              },
+              {
+                "_index": "compat-term",
+                "_id": "1",
+                "_score": 0.33064914,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "fuzzy on a keyword with fuzziness and prefix",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "fuzzy": {
+              "tag": {
+                "value": "animl",
+                "fuzziness": 1,
+                "prefix_length": 2
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 0.19599873,
+            "hits": [
+              {
+                "_index": "compat-term",
+                "_id": "1",
+                "_score": 0.19599873,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                }
+              },
+              {
+                "_index": "compat-term",
+                "_id": "2",
+                "_score": 0.19599873,
+                "_source": {
+                  "title": "Lazy dogs sleep all day",
+                  "tag": "animal",
+                  "year": 2002,
+                  "published": "2002-07-01T10:15:30Z"
+                }
+              },
+              {
+                "_index": "compat-term",
+                "_id": "5",
+                "_score": 0.19599873,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "published": "1999-12-31"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "fuzzy on an integer",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "fuzzy": {
+              "year": "2001"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "query_shard_exception",
+                "reason": "failed to create query: Can only use fuzzy queries on keyword and text fields - not on [year] which is of type [integer]",
+                "index": "compat-term",
+                "index_uuid": "CDuDfaDITKqzcMCTPn7Tpg"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-term",
+                "node": "fCExHjVeSVqVm7s_zifa3w",
+                "reason": {
+                  "type": "query_shard_exception",
+                  "reason": "failed to create query: Can only use fuzzy queries on keyword and text fields - not on [year] which is of type [integer]",
+                  "index": "compat-term",
+                  "index_uuid": "CDuDfaDITKqzcMCTPn7Tpg",
+                  "caused_by": {
+                    "type": "illegal_argument_exception",
+                    "reason": "Can only use fuzzy queries on keyword and text fields - not on [year] which is of type [integer]"
+                  }
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "query_shard_exception",
+              "reason": "failed to create query: Can only use fuzzy queries on keyword and text fields - not on [year] which is of type [integer]",
+              "index": "compat-term",
+              "index_uuid": "CDuDfaDITKqzcMCTPn7Tpg",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Can only use fuzzy queries on keyword and text fields - not on [year] which is of type [integer]"
+              }
+            }
+          },
+          "status": 400
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "index uuid, random per index"
+        },
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "node id, random per node"
+        },
+        {
+          "pointer": "/body/error/failed_shards/*/reason/index_uuid",
+          "reason": "index uuid, random per index"
+        },
+        {
+          "pointer": "/body/error/caused_by/index_uuid",
+          "reason": "index uuid, random per index"
+        }
+      ]
+    },
+    {
+      "name": "exists on a field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "exists": {
+              "field": "title"
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-term",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                }
+              },
+              {
+                "_index": "compat-term",
+                "_id": "2",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Lazy dogs sleep all day",
+                  "tag": "animal",
+                  "year": 2002,
+                  "published": "2002-07-01T10:15:30Z"
+                }
+              },
+              {
+                "_index": "compat-term",
+                "_id": "3",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Quick start guide",
+                  "tag": "manual",
+                  "year": 2010,
+                  "published": "2010-01-01"
+                }
+              },
+              {
+                "_index": "compat-term",
+                "_id": "4",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                }
+              },
+              {
+                "_index": "compat-term",
+                "_id": "5",
+                "_score": 1.0,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "published": "1999-12-31"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "exists on an unmapped field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "exists": {
+              "field": "nothing"
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 0,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          }
+        }
+      }
+    },
+    {
+      "name": "exists by pattern",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "exists": {
+              "field": "t*"
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-term",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                }
+              },
+              {
+                "_index": "compat-term",
+                "_id": "2",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Lazy dogs sleep all day",
+                  "tag": "animal",
+                  "year": 2002,
+                  "published": "2002-07-01T10:15:30Z"
+                }
+              },
+              {
+                "_index": "compat-term",
+                "_id": "3",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Quick start guide",
+                  "tag": "manual",
+                  "year": 2010,
+                  "published": "2010-01-01"
+                }
+              },
+              {
+                "_index": "compat-term",
+                "_id": "4",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                }
+              },
+              {
+                "_index": "compat-term",
+                "_id": "5",
+                "_score": 1.0,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "published": "1999-12-31"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "ids",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "ids": {
+              "values": [
+                "1",
+                "3",
+                "99"
+              ]
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-term",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                }
+              },
+              {
+                "_index": "compat-term",
+                "_id": "3",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Quick start guide",
+                  "tag": "manual",
+                  "year": 2010,
+                  "published": "2010-01-01"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "constant_score with a boost",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "constant_score": {
+              "filter": {
+                "match": {
+                  "title": "fox"
+                }
+              },
+              "boost": 1.5
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 1.5,
+            "hits": [
+              {
+                "_index": "compat-term",
+                "_id": "1",
+                "_score": 1.5,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                }
+              },
+              {
+                "_index": "compat-term",
+                "_id": "5",
+                "_score": 1.5,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "published": "1999-12-31"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "dis_max with a tie breaker",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "dis_max": {
+              "queries": [
+                {
+                  "match": {
+                    "title": "brown"
+                  }
+                },
+                {
+                  "match": {
+                    "title": "fox"
+                  }
+                }
+              ],
+              "tie_breaker": 0.3
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 0.5373049,
+            "hits": [
+              {
+                "_index": "compat-term",
+                "_id": "1",
+                "_score": 0.5373049,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                }
+              },
+              {
+                "_index": "compat-term",
+                "_id": "4",
+                "_score": 0.52695787,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                }
+              },
+              {
+                "_index": "compat-term",
+                "_id": "5",
+                "_score": 0.37691408,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "published": "1999-12-31"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "dis_max as one object",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "dis_max": {
+              "queries": {
+                "term": {
+                  "tag": "food"
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 1,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-term",
+                "_id": "4",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "match_none",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "match_none": {}
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 0,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          }
+        }
+      }
+    },
+    {
+      "name": "bool of new queries",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "prefix": {
+                    "tag": "ani"
+                  }
+                }
+              ],
+              "should": [
+                {
+                  "fuzzy": {
+                    "title": "snaw"
+                  }
+                }
+              ],
+              "must_not": [
+                {
+                  "ids": {
+                    "values": [
+                      "2"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 1.4476292,
+            "hits": [
+              {
+                "_index": "compat-term",
+                "_id": "5",
+                "_score": 1.4476292,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "published": "1999-12-31"
+                }
+              },
+              {
+                "_index": "compat-term",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "prefix on two fields",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "prefix": {
+              "tag": "a",
+              "title": "b"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parsing_exception",
+                "reason": "[prefix] query doesn't support multiple fields, found [tag] and [title]",
+                "line": 1,
+                "col": 39
+              }
+            ],
+            "type": "parsing_exception",
+            "reason": "[prefix] query doesn't support multiple fields, found [tag] and [title]",
+            "line": 1,
+            "col": 39
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "terms lookup on two fields",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "terms": {
+              "tag": [
+                "a"
+              ],
+              "title": [
+                "b"
+              ]
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parsing_exception",
+                "reason": "[terms] query does not support multiple fields",
+                "line": 1,
+                "col": 40
+              }
+            ],
+            "type": "parsing_exception",
+            "reason": "[terms] query does not support multiple fields",
+            "line": 1,
+            "col": 40
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "ids unknown field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "ids": {
+              "value": [
+                "1"
+              ]
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parsing_exception",
+                "reason": "[1:18] [ids] unknown field [value] did you mean [values]?",
+                "line": 1,
+                "col": 26
+              }
+            ],
+            "type": "parsing_exception",
+            "reason": "[1:18] [ids] unknown field [value] did you mean [values]?",
+            "line": 1,
+            "col": 26,
+            "caused_by": {
+              "type": "x_content_parse_exception",
+              "reason": "[1:18] [ids] unknown field [value] did you mean [values]?"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "constant_score without a filter",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "constant_score": {
+              "boost": 2
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parsing_exception",
+                "reason": "[constant_score] requires a 'filter' element",
+                "line": 1,
+                "col": 38
+              }
+            ],
+            "type": "parsing_exception",
+            "reason": "[constant_score] requires a 'filter' element",
+            "line": 1,
+            "col": 38
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "dis_max without queries",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "dis_max": {
+              "tie_breaker": 0.5
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parsing_exception",
+                "reason": "[dis_max] requires 'queries' field with at least one clause",
+                "line": 1,
+                "col": 39
+              }
+            ],
+            "type": "parsing_exception",
+            "reason": "[dis_max] requires 'queries' field with at least one clause",
+            "line": 1,
+            "col": 39
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "exists without a field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "exists": {}
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parsing_exception",
+                "reason": "[exists] must be provided with a [field]",
+                "line": 1,
+                "col": 21
+              }
+            ],
+            "type": "parsing_exception",
+            "reason": "[exists] must be provided with a [field]",
+            "line": 1,
+            "col": 21
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "fuzzy with a bad fuzziness",
+      "request": {
+        "method": "POST",
+        "path": "/compat-term/_search",
+        "body": {
+          "query": {
+            "fuzzy": {
+              "title": {
+                "value": "fox",
+                "fuzziness": "lots"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Invalid fuzziness value: lots"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Invalid fuzziness value: lots"
+          },
+          "status": 400
         }
       }
     }

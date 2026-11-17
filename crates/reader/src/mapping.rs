@@ -154,6 +154,11 @@ impl Mapping {
         self.fields.get(name)
     }
 
+    /// Every field's name, in order.
+    pub fn names(&self) -> impl Iterator<Item = &str> {
+        self.fields.keys().map(String::as_str)
+    }
+
     /// How many fields there are.
     pub fn len(&self) -> usize {
         self.fields.len()
