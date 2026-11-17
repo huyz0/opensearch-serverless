@@ -17,8 +17,10 @@ use lucene_codecs::stored_fields::{FieldValue, StoredField};
 use lucene_index::index_writer::{ExplicitDocument, IndexWriter};
 use lucene_index::segment_info::LuceneVersion;
 use lucene_search::directory_reader::DirectoryReader;
+use lucene_search::reader::LeafReader;
 use lucene_store::ByteBuffersDirectory;
 use oss_writer::document;
+use oss_writer::index::{Expect, Shard};
 use oss_writer::lucene::{Indexer, Meta};
 use oss_writer::mapping::Mapping;
 use serde_json::{Value, json};
@@ -297,12 +299,163 @@ fn replay(path: &Path) {
     }
 }
 
+/// Whether a fixture updates or deletes, which only a shard does.
+fn has_deletes(path: &Path) -> bool {
+    let fixture: Value =
+        serde_json::from_slice(&std::fs::read(path).expect("read")).expect("fixture json");
+    fixture["documents"]
+        .as_array()
+        .expect("documents")
+        .iter()
+        .any(|d| d.get("delete").is_some())
+}
+
 #[test]
 fn rust_documents_index_as_the_java_indexes_them() {
     let all = fixtures();
     assert!(all.len() >= 3, "fixtures found: {all:?}");
+    for path in all.iter().filter(|p| !has_deletes(p)) {
+        replay(path.as_path());
+    }
+}
+
+/// One committed document's stored fields and doc values, read back from
+/// the segment in `SegmentDump.document`'s form.
+fn read_back(segment: &lucene_search::directory_reader::SegmentReader, doc: i32) -> Value {
+    let infos: BTreeMap<i32, FieldInfo> = segment
+        .field_infos()
+        .fields
+        .iter()
+        .map(|f| (f.number, f.clone()))
+        .collect();
+    let stored: Vec<Value> = segment
+        .stored_document(doc)
+        .expect("stored")
+        .map(|d| {
+            d.fields
+                .iter()
+                .map(|f| stored_json(&infos[&f.field_number].name, &f.value))
+                .collect()
+        })
+        .unwrap_or_default();
+    let mut dv = serde_json::Map::new();
+    for info in infos.values() {
+        let v = match info.doc_values_type {
+            DocValuesType::Numeric => {
+                let mut it = segment
+                    .numeric_doc_values(&info.name)
+                    .expect("dv")
+                    .expect("field");
+                it.advance_exact(doc)
+                    .expect("advance")
+                    .then(|| json!(it.long_value()))
+            }
+            DocValuesType::SortedNumeric => {
+                let mut it = segment
+                    .sorted_numeric_doc_values(&info.name)
+                    .expect("dv")
+                    .expect("field");
+                it.advance_exact(doc).expect("advance").then(|| {
+                    let n = it.doc_value_count();
+                    json!(
+                        (0..n)
+                            .map(|_| it.next_value().expect("value"))
+                            .collect::<Vec<_>>()
+                    )
+                })
+            }
+            DocValuesType::SortedSet => {
+                let mut it = segment
+                    .sorted_set_doc_values(&info.name)
+                    .expect("dv")
+                    .expect("field");
+                it.advance_exact(doc).expect("advance").then(|| {
+                    let n = it.doc_value_count();
+                    let ords: Vec<i64> = (0..n).map(|_| it.next_ord().expect("ord")).collect();
+                    Value::Array(
+                        ords.into_iter()
+                            .map(|o| bytes(&it.lookup_ord(o).expect("term")))
+                            .collect(),
+                    )
+                })
+            }
+            _ => None,
+        };
+        if let Some(v) = v {
+            dv.insert(info.name.clone(), v);
+        }
+    }
+    json!({"stored": stored, "doc_values": dv})
+}
+
+/// Replays a fixture with updates and deletes through a shard, and compares
+/// what the committed segment reads back: its field infos, and each
+/// document's stored fields and doc values, `__soft_deletes` among them.
+fn replay_through_a_shard(path: &Path) {
+    let fixture: Value =
+        serde_json::from_slice(&std::fs::read(path).expect("read")).expect("fixture json");
+    let mapping = match fixture.get("mappings") {
+        Some(m) => Mapping::parse(m.to_string().as_bytes()).expect("mapping"),
+        None => Mapping::default(),
+    };
+    let dir = ByteBuffersDirectory::new();
+    {
+        let mut w = IndexWriter::open(&dir, Vec::new(), "Lucene104", VERSION).expect("writer");
+        w.enable_explicit_documents().expect("explicit");
+        let mut shard = Shard::new(&dir, w, mapping, 1, Box::new(|| 0)).expect("shard");
+        for (n, d) in fixture["documents"]
+            .as_array()
+            .expect("documents")
+            .iter()
+            .enumerate()
+        {
+            let id = d["id"].as_str().expect("id");
+            if d.get("delete").is_some() {
+                shard.delete(id, &Expect::default()).expect("delete");
+            } else {
+                let source = recorded_source(&fixture, n);
+                shard
+                    .index(id, source.as_bytes(), false, &Expect::default())
+                    .unwrap_or_else(|e| panic!("{}: {id}: {e:?}", path.display()));
+            }
+        }
+        shard.refresh().expect("refresh");
+    }
+    let reader = DirectoryReader::open(&dir).expect("open");
+    let segments = reader.segment_readers();
+    assert_eq!(segments.len(), 1, "{}: one segment", path.display());
+    let recorded = &fixture["segment"];
+    assert_eq!(json!(segments[0].max_doc), recorded["max_doc"]);
+    let fields: Vec<Value> = segments[0]
+        .field_infos()
+        .fields
+        .iter()
+        .map(field_json)
+        .collect();
+    assert_eq!(
+        Value::Array(fields),
+        recorded["fields"],
+        "{}: fields",
+        path.display()
+    );
+    for (doc, want) in recorded["docs"]
+        .as_array()
+        .expect("docs")
+        .iter()
+        .enumerate()
+    {
+        let got = read_back(&segments[0], i32::try_from(doc).expect("doc"));
+        let want = json!({"stored": want["stored"], "doc_values": want["doc_values"]});
+        assert_eq!(got, want, "{}: document {doc}", path.display());
+    }
+}
+
+#[test]
+fn updates_and_deletes_soft_delete_as_the_java_does() {
+    let all: Vec<PathBuf> = fixtures().into_iter().filter(|p| has_deletes(p)).collect();
+    assert!(!all.is_empty(), "no fixture updates");
     for path in all {
-        replay(&path);
+        replay_through_a_shard(&path);
     }
 }
 

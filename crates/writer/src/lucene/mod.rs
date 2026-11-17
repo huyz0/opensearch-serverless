@@ -43,6 +43,15 @@ pub struct Meta<'a> {
     pub source: &'a [u8],
 }
 
+/// `Uid.encodeId`: the bytes of the `_id` term for `id`.
+///
+/// # Errors
+///
+/// An empty id.
+pub fn uid(id: &str) -> Result<Vec<u8>, MappingError> {
+    encode_id(id)
+}
+
 /// Where a field's number comes from: the engine's field numbers, which
 /// hold for every segment of an index writer and refuse a field whose
 /// schema changes (`FieldInfos.FieldNumbers.addOrGet` and
@@ -134,6 +143,52 @@ impl Indexer {
         field: MetaField,
     ) -> Result<i32, MappingError> {
         self.slot(numbers, field.name(), None, Some(field))
+    }
+
+    /// The number of the soft-deletes field, registering it the first
+    /// time, as `IndexWriter.softUpdateDocument` registers it before the
+    /// document it adds.
+    ///
+    /// # Errors
+    ///
+    /// The engine refusing the field.
+    pub fn soft_deletes(&mut self, numbers: &mut dyn FieldNumbers) -> Result<i32, MappingError> {
+        self.meta(numbers, MetaField::SoftDeletes)
+    }
+
+    /// The tombstone a delete writes (`createDeleteTombstoneDoc`): `_id`,
+    /// `_seq_no`, `_primary_term`, `_version` and `_tombstone`, with the
+    /// soft-deletes field the engine adds to it.
+    ///
+    /// # Errors
+    ///
+    /// An empty id, or the engine refusing a field.
+    pub fn tombstone(
+        &mut self,
+        numbers: &mut dyn FieldNumbers,
+        id: &str,
+        seq_no: i64,
+        primary_term: i64,
+        version: i64,
+    ) -> Result<ExplicitDocument, MappingError> {
+        // ALLOC: one tombstone's fields, a few bytes and the id.
+        let mut out = Builder::default();
+        let uid = encode_id(id)?;
+        let n = self.meta(numbers, MetaField::Id)?;
+        out.term(n, &uid);
+        out.stored(n, Stored::Binary(uid));
+        let n = self.meta(numbers, MetaField::SeqNo)?;
+        out.point(n, long_point(seq_no));
+        out.doc_value(n, seq_no);
+        let n = self.meta(numbers, MetaField::PrimaryTerm)?;
+        out.doc_value(n, primary_term);
+        let n = self.meta(numbers, MetaField::Version)?;
+        out.doc_value(n, version);
+        let n = self.meta(numbers, MetaField::Tombstone)?;
+        out.doc_value(n, 1);
+        let n = self.meta(numbers, MetaField::SoftDeletes)?;
+        out.doc_value(n, 1);
+        Ok(out.finish())
     }
 
     /// The Lucene document for `doc`, read against `mapping` (the mapping

@@ -17,6 +17,8 @@ chunkjson = { workspace = true }
 lucene-analysis = { workspace = true }
 lucene-codecs = { workspace = true }
 lucene-index = { workspace = true }
+lucene-search = { workspace = true }
+lucene-store = { workspace = true }
 
 [lints]
 workspace = true
@@ -26,5 +28,3 @@ oss-blob = { workspace = true, features = ["emulator"] }
 oss-testkit = { workspace = true }
 # Test-only: the recorded segment fixtures are JSON. Exact pin, as oss-compat's.
 serde_json = "=1.0.145"
-lucene-search = { workspace = true }
-lucene-store = { workspace = true }

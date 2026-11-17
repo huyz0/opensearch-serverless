@@ -7,6 +7,7 @@
 //! makes rather than in extra PUTs.
 
 pub mod document;
+pub mod index;
 pub mod log;
 pub mod lucene;
 pub mod mapping;

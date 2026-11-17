@@ -1,0 +1,506 @@
+{
+  "name": "updates and deletes as soft deletes",
+  "description": "An id indexed twice keeps its first document soft-deleted; a delete writes a tombstone, for an existing id and a missing one; later ids follow.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0-SNAPSHOT",
+    "build_hash": "429b4cbcd98f0d22aeae421a9f38645f6dc55b62"
+  },
+  "index": "compat-segment-updates",
+  "mappings": {
+    "properties": {
+      "n": {
+        "type": "integer"
+      },
+      "t": {
+        "type": "keyword"
+      }
+    }
+  },
+  "documents": [
+    {
+      "id": "1",
+      "source": {
+        "n": 1,
+        "t": "a"
+      }
+    },
+    {
+      "id": "2",
+      "source": {
+        "n": 2
+      }
+    },
+    {
+      "id": "1",
+      "source": {
+        "n": 3,
+        "t": "b"
+      }
+    },
+    {
+      "id": "2",
+      "delete": true
+    },
+    {
+      "id": "3",
+      "delete": true
+    },
+    {
+      "id": "4",
+      "source": {
+        "t": "c"
+      }
+    },
+    {
+      "id": "1",
+      "source": {
+        "n": 5
+      }
+    }
+  ],
+  "segment": {
+    "max_doc": 7,
+    "fields": [
+      {
+        "number": 0,
+        "name": "_id",
+        "index_options": "DOCS",
+        "doc_values": "NONE",
+        "skip_index": "NONE",
+        "omit_norms": true,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 1,
+        "name": "_seq_no",
+        "index_options": "NONE",
+        "doc_values": "NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          1,
+          1,
+          8
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 2,
+        "name": "_primary_term",
+        "index_options": "NONE",
+        "doc_values": "NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 3,
+        "name": "_source",
+        "index_options": "NONE",
+        "doc_values": "NONE",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 4,
+        "name": "_version",
+        "index_options": "NONE",
+        "doc_values": "NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 5,
+        "name": "n",
+        "index_options": "NONE",
+        "doc_values": "SORTED_NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          1,
+          1,
+          4
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 6,
+        "name": "t",
+        "index_options": "DOCS",
+        "doc_values": "SORTED_SET",
+        "skip_index": "NONE",
+        "omit_norms": true,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 7,
+        "name": "__soft_deletes",
+        "index_options": "NONE",
+        "doc_values": "NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 8,
+        "name": "_tombstone",
+        "index_options": "NONE",
+        "doc_values": "NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      }
+    ],
+    "docs": [
+      {
+        "stored": [
+          [
+            "_id",
+            "binary",
+            "hex:fe1f"
+          ],
+          [
+            "_source",
+            "binary",
+            "{\"n\":1,\"t\":\"a\"}"
+          ]
+        ],
+        "inverted": {
+          "_id": {
+            "norm": null,
+            "terms": [
+              [
+                "hex:fe1f",
+                1
+              ]
+            ]
+          },
+          "t": {
+            "norm": null,
+            "terms": [
+              [
+                "a",
+                1
+              ]
+            ]
+          }
+        },
+        "doc_values": {
+          "__soft_deletes": 1,
+          "_primary_term": 1,
+          "_seq_no": 0,
+          "_version": 1,
+          "n": [
+            1
+          ],
+          "t": [
+            "a"
+          ]
+        },
+        "points": {
+          "_seq_no": [
+            "hex:8000000000000000"
+          ],
+          "n": [
+            "hex:80000001"
+          ]
+        }
+      },
+      {
+        "stored": [
+          [
+            "_id",
+            "binary",
+            "hex:fe2f"
+          ],
+          [
+            "_source",
+            "binary",
+            "{\"n\":2}"
+          ]
+        ],
+        "inverted": {
+          "_id": {
+            "norm": null,
+            "terms": [
+              [
+                "hex:fe2f",
+                1
+              ]
+            ]
+          }
+        },
+        "doc_values": {
+          "__soft_deletes": 1,
+          "_primary_term": 1,
+          "_seq_no": 1,
+          "_version": 1,
+          "n": [
+            2
+          ]
+        },
+        "points": {
+          "_seq_no": [
+            "hex:8000000000000001"
+          ],
+          "n": [
+            "hex:80000002"
+          ]
+        }
+      },
+      {
+        "stored": [
+          [
+            "_id",
+            "binary",
+            "hex:fe1f"
+          ],
+          [
+            "_source",
+            "binary",
+            "{\"n\":3,\"t\":\"b\"}"
+          ]
+        ],
+        "inverted": {
+          "_id": {
+            "norm": null,
+            "terms": [
+              [
+                "hex:fe1f",
+                1
+              ]
+            ]
+          },
+          "t": {
+            "norm": null,
+            "terms": [
+              [
+                "b",
+                1
+              ]
+            ]
+          }
+        },
+        "doc_values": {
+          "__soft_deletes": 1,
+          "_primary_term": 1,
+          "_seq_no": 2,
+          "_version": 2,
+          "n": [
+            3
+          ],
+          "t": [
+            "b"
+          ]
+        },
+        "points": {
+          "_seq_no": [
+            "hex:8000000000000002"
+          ],
+          "n": [
+            "hex:80000003"
+          ]
+        }
+      },
+      {
+        "stored": [
+          [
+            "_id",
+            "binary",
+            "hex:fe2f"
+          ]
+        ],
+        "inverted": {
+          "_id": {
+            "norm": null,
+            "terms": [
+              [
+                "hex:fe2f",
+                1
+              ]
+            ]
+          }
+        },
+        "doc_values": {
+          "__soft_deletes": 1,
+          "_primary_term": 1,
+          "_seq_no": 3,
+          "_tombstone": 1,
+          "_version": 2
+        },
+        "points": {
+          "_seq_no": [
+            "hex:8000000000000003"
+          ]
+        }
+      },
+      {
+        "stored": [
+          [
+            "_id",
+            "binary",
+            "hex:fe3f"
+          ]
+        ],
+        "inverted": {
+          "_id": {
+            "norm": null,
+            "terms": [
+              [
+                "hex:fe3f",
+                1
+              ]
+            ]
+          }
+        },
+        "doc_values": {
+          "__soft_deletes": 1,
+          "_primary_term": 1,
+          "_seq_no": 4,
+          "_tombstone": 1,
+          "_version": 1
+        },
+        "points": {
+          "_seq_no": [
+            "hex:8000000000000004"
+          ]
+        }
+      },
+      {
+        "stored": [
+          [
+            "_id",
+            "binary",
+            "hex:fe4f"
+          ],
+          [
+            "_source",
+            "binary",
+            "{\"t\":\"c\"}"
+          ]
+        ],
+        "inverted": {
+          "_id": {
+            "norm": null,
+            "terms": [
+              [
+                "hex:fe4f",
+                1
+              ]
+            ]
+          },
+          "t": {
+            "norm": null,
+            "terms": [
+              [
+                "c",
+                1
+              ]
+            ]
+          }
+        },
+        "doc_values": {
+          "_primary_term": 1,
+          "_seq_no": 5,
+          "_version": 1,
+          "t": [
+            "c"
+          ]
+        },
+        "points": {
+          "_seq_no": [
+            "hex:8000000000000005"
+          ]
+        }
+      },
+      {
+        "stored": [
+          [
+            "_id",
+            "binary",
+            "hex:fe1f"
+          ],
+          [
+            "_source",
+            "binary",
+            "{\"n\":5}"
+          ]
+        ],
+        "inverted": {
+          "_id": {
+            "norm": null,
+            "terms": [
+              [
+                "hex:fe1f",
+                1
+              ]
+            ]
+          }
+        },
+        "doc_values": {
+          "_primary_term": 1,
+          "_seq_no": 6,
+          "_version": 3,
+          "n": [
+            5
+          ]
+        },
+        "points": {
+          "_seq_no": [
+            "hex:8000000000000006"
+          ],
+          "n": [
+            "hex:80000005"
+          ]
+        }
+      }
+    ]
+  }
+}

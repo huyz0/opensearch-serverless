@@ -59,10 +59,14 @@ def record(base, data, lucene, path, server):
     check(*send(base, {"method": "PUT", "path": f"/{index}", "body": create})[::2], "create")
     lines = []
     for doc in fixture["documents"]:
-        lines += [{"index": {"_index": index, "_id": doc["id"]}}, doc["source"]]
+        if doc.get("delete"):
+            lines.append({"delete": {"_index": index, "_id": doc["id"]}})
+        else:
+            lines += [{"index": {"_index": index, "_id": doc["id"]}}, doc["source"]]
     status, _, body = send(base, {"method": "POST", "path": "/_bulk", "ndjson": lines})
     check(status, body, "bulk")
-    failed = [i["index"] for i in body["items"] if i["index"]["status"] >= 300]
+    items = [next(iter(i.values())) for i in body["items"]]
+    failed = [i for i in items if i["status"] >= 300 and i.get("result") != "not_found"]
     if failed:
         raise SystemExit(f"record: {path}: refused documents {json.dumps(failed)[:2000]}")
     check(*send(base, {"method": "POST", "path": f"/{index}/_flush", "query": {"force": "true"}})[::2], "flush")

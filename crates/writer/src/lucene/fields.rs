@@ -212,6 +212,11 @@ pub enum MetaField {
     FieldNames,
     /// `_ignored`: one term and stored string a field.
     Ignored,
+    /// `_tombstone`: numeric doc values 1 on a delete's tombstone.
+    Tombstone,
+    /// `__soft_deletes`: numeric doc values 1 on a replaced or deleted
+    /// document, the engine's soft-deletes field.
+    SoftDeletes,
 }
 
 impl MetaField {
@@ -225,6 +230,8 @@ impl MetaField {
             MetaField::Version => "_version",
             MetaField::FieldNames => "_field_names",
             MetaField::Ignored => "_ignored",
+            MetaField::Tombstone => "_tombstone",
+            MetaField::SoftDeletes => "__soft_deletes",
         }
     }
 
@@ -239,7 +246,8 @@ impl MetaField {
                 .with_index_options(IndexOptions::Docs)
                 .with_omit_norms(true),
             MetaField::SeqNo => numeric(info).with_points(1, 1, 8),
-            MetaField::PrimaryTerm | MetaField::Version => numeric(info),
+            MetaField::PrimaryTerm | MetaField::Version | MetaField::Tombstone => numeric(info),
+            MetaField::SoftDeletes => numeric(info).with_soft_deletes_field(true),
             MetaField::Source => info,
         }
     }
