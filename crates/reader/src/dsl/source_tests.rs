@@ -83,7 +83,7 @@ fn keys_opensearch_knows_are_refused_as_not_served() {
     for body in [
         r#"{"highlight":{"fields":{"t":{}}}}"#,
         r#"{"aggs":{"t":{"terms":{"field":"tag"}}}}"#,
-        r#"{"search_after":[1]}"#,
+        r#"{"docvalue_fields":["year"]}"#,
     ] {
         assert!(
             reason(body).contains("is not supported by this node yet"),

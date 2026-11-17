@@ -1,5 +1,6 @@
 //! A search request's source: `SearchSourceBuilder.parseXContent` for
-//! `query`, `size`, `from`, `sort` and `_source`, and the `size` and `from` URL
+//! `query`, `size`, `from`, `sort`, `track_total_hits`, `_source` and
+//! `search_after`, and the `size` and `from` URL
 //! parameters of `RestSearchAction.parseSearchSource`, at OpenSearch 3.10.0.
 //!
 //! Every other key OpenSearch reads is refused as not served yet; a key it
@@ -10,6 +11,7 @@ use oss_rest::json::{Limits, Tokenizer};
 use crate::aggs::metric::{MetricAgg, parse_aggregations};
 use crate::dsl::error::DslError;
 use crate::dsl::query::{Query, parse_inner};
+use crate::dsl::search_after::{AfterValue, parse_search_after};
 use crate::dsl::sort::{SortKey, parse_sort};
 use crate::dsl::tokens::{Kind, Parser, Recorder};
 use crate::dsl::values::{bool_value, int_value};
@@ -85,6 +87,9 @@ pub struct SearchSource {
     pub source: SourceFilter,
     /// The aggregations, in request order; none when empty.
     pub aggs: Vec<MetricAgg>,
+    /// `search_after`: the sort values the page starts after; none when
+    /// empty.
+    pub search_after: Vec<AfterValue>,
 }
 
 impl Default for SearchSource {
@@ -95,10 +100,12 @@ impl Default for SearchSource {
             size: DEFAULT_SIZE,
             // ALLOC: empty; a sort pushes at most MAX_SORT_KEYS.
             sort: Vec::new(),
-            // ALLOC: empty; parsing pushes one an aggregation.
             track_total_hits: Some(DEFAULT_TRACK_TOTAL_HITS),
             source: SourceFilter::default(),
+            // ALLOC: empty; parsing pushes one an aggregation.
             aggs: Vec::new(),
+            // ALLOC: empty; parsing pushes one a value.
+            search_after: Vec::new(),
         }
     }
 }
@@ -199,6 +206,7 @@ impl SearchSource {
         match name {
             "sort" => self.sort = parse_sort(p)?,
             "_source" => self.source = parse_source(p, name)?,
+            "search_after" => self.search_after = parse_search_after(p)?,
             known if ARRAY_KEYS.contains(&known) => return Err(unsupported(known)),
             _ => return Err(unknown_key(p, Kind::StartArray, name)),
         }

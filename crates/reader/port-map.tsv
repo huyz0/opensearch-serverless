@@ -28,8 +28,10 @@ src/dsl/query.rs	port	server/src/main/java/org/opensearch/index/query/AbstractQu
 src/dsl/query_tests.rs	new		tests of query.rs, against messages recorded from OpenSearch
 src/dsl/registered.rs	port	server/src/main/java/org/opensearch/search/SearchModule.java@3.10.0	the registered query names, the suggestion candidates
 src/dsl/bool_query.rs	port	server/src/main/java/org/opensearch/index/query/BoolQueryBuilder.java@3.10.0	BoolQueryBuilder.PARSER and the parts of ObjectParser.parse it uses
+src/dsl/search_after.rs	port	server/src/main/java/org/opensearch/search/searchafter/SearchAfterBuilder.java@3.10.0	fromXContent, buildFieldDoc and convertValueFromSortType; SearchService.parseSource's from and sort checks
+src/dsl/search_after_tests.rs	new		tests of search_after.rs
 src/dsl/sort.rs	port	server/src/main/java/org/opensearch/search/sort/SortBuilder.java@3.10.0	fromXContent, parseCompoundSortField and fieldOrScoreSort; FieldSortBuilder and ScoreSortBuilder read for order only
-src/dsl/source.rs	port	server/src/main/java/org/opensearch/search/builder/SearchSourceBuilder.java@3.10.0	parseXContent for query, size, from and sort; RestSearchAction.parseSearchSource's size and from parameters
+src/dsl/source.rs	port	server/src/main/java/org/opensearch/search/builder/SearchSourceBuilder.java@3.10.0	parseXContent for query, size, from, sort, track_total_hits, _source and search_after; RestSearchAction.parseSearchSource's size and from parameters
 src/dsl/source_tests.rs	new		tests of source.rs
 src/failure.rs	port	libs/core/src/main/java/org/opensearch/OpenSearchException.java@3.10.0	generateFailureXContent, guessRootCauses and generateThrowableXContent; SearchPhaseExecutionException's shard-failure body
 src/lucene_query.rs	port	server/src/main/java/org/opensearch/index/search/MatchQuery.java@3.10.0	each builder's doToQuery, AbstractQueryBuilder.toQuery's boost, Queries.calculateMinShouldMatch, applyMinimumShouldMatch and fixNegativeQueryIfNeeded, and the field types' termQuery and rangeQuery

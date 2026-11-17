@@ -3920,6 +3920,2307 @@
           "status": 400
         }
       }
+    },
+    {
+      "name": "search_after an integer",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "sort": [
+            "year"
+          ],
+          "search_after": [
+            2001
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "2",
+                "_score": null,
+                "_source": {
+                  "title": "Lazy dogs sleep all day",
+                  "tag": "animal",
+                  "year": 2002,
+                  "published": "2002-07-01T10:15:30Z"
+                },
+                "sort": [
+                  2002
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "4",
+                "_score": null,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                },
+                "sort": [
+                  2002
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "3",
+                "_score": null,
+                "_source": {
+                  "title": "Quick start guide",
+                  "tag": "manual",
+                  "year": 2010,
+                  "published": "2010-01-01"
+                },
+                "sort": [
+                  2010
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ]
+    },
+    {
+      "name": "search_after two keys descending",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "sort": [
+            {
+              "year": "desc"
+            },
+            "tag"
+          ],
+          "search_after": [
+            2002,
+            "food"
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_score": null,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "sort": [
+                  2001,
+                  "animal"
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "5",
+                "_score": null,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "published": "1999-12-31"
+                },
+                "sort": [
+                  1999,
+                  "animal"
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ]
+    },
+    {
+      "name": "search_after an integer as a string",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "sort": [
+            "year"
+          ],
+          "search_after": [
+            "+2001"
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "2",
+                "_score": null,
+                "_source": {
+                  "title": "Lazy dogs sleep all day",
+                  "tag": "animal",
+                  "year": 2002,
+                  "published": "2002-07-01T10:15:30Z"
+                },
+                "sort": [
+                  2002
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "4",
+                "_score": null,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                },
+                "sort": [
+                  2002
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "3",
+                "_score": null,
+                "_source": {
+                  "title": "Quick start guide",
+                  "tag": "manual",
+                  "year": 2010,
+                  "published": "2010-01-01"
+                },
+                "sort": [
+                  2010
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ]
+    },
+    {
+      "name": "search_after a fraction for an integer",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "sort": [
+            "year"
+          ],
+          "search_after": [
+            2001.7
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "2",
+                "_score": null,
+                "_source": {
+                  "title": "Lazy dogs sleep all day",
+                  "tag": "animal",
+                  "year": 2002,
+                  "published": "2002-07-01T10:15:30Z"
+                },
+                "sort": [
+                  2002
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "4",
+                "_score": null,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                },
+                "sort": [
+                  2002
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "3",
+                "_score": null,
+                "_source": {
+                  "title": "Quick start guide",
+                  "tag": "manual",
+                  "year": 2010,
+                  "published": "2010-01-01"
+                },
+                "sort": [
+                  2010
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ]
+    },
+    {
+      "name": "search_after a long past an integer wraps",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "sort": [
+            "year"
+          ],
+          "search_after": [
+            3000000000
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "5",
+                "_score": null,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "published": "1999-12-31"
+                },
+                "sort": [
+                  1999
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_score": null,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "sort": [
+                  2001
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "2",
+                "_score": null,
+                "_source": {
+                  "title": "Lazy dogs sleep all day",
+                  "tag": "animal",
+                  "year": 2002,
+                  "published": "2002-07-01T10:15:30Z"
+                },
+                "sort": [
+                  2002
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "4",
+                "_score": null,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                },
+                "sort": [
+                  2002
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "3",
+                "_score": null,
+                "_source": {
+                  "title": "Quick start guide",
+                  "tag": "manual",
+                  "year": 2010,
+                  "published": "2010-01-01"
+                },
+                "sort": [
+                  2010
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ]
+    },
+    {
+      "name": "search_after a fraction in a string for an integer",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "sort": [
+            "year"
+          ],
+          "search_after": [
+            "2001.7"
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Failed to parse search_after value for field [year]."
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-paging-sort",
+                "node": "fCExHjVeSVqVm7s_zifa3w",
+                "reason": {
+                  "type": "illegal_argument_exception",
+                  "reason": "Failed to parse search_after value for field [year].",
+                  "caused_by": {
+                    "type": "number_format_exception",
+                    "reason": "For input string: \"2001.7\""
+                  }
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Failed to parse search_after value for field [year].",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Failed to parse search_after value for field [year].",
+                "caused_by": {
+                  "type": "number_format_exception",
+                  "reason": "For input string: \"2001.7\""
+                }
+              }
+            }
+          },
+          "status": 400
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/0/node",
+          "reason": "node id, random per node"
+        }
+      ]
+    },
+    {
+      "name": "search_after a boolean for an integer",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "sort": [
+            "year"
+          ],
+          "search_after": [
+            true
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Failed to parse search_after value for field [year]."
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-paging-sort",
+                "node": "fCExHjVeSVqVm7s_zifa3w",
+                "reason": {
+                  "type": "illegal_argument_exception",
+                  "reason": "Failed to parse search_after value for field [year].",
+                  "caused_by": {
+                    "type": "number_format_exception",
+                    "reason": "For input string: \"true\""
+                  }
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Failed to parse search_after value for field [year].",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Failed to parse search_after value for field [year].",
+                "caused_by": {
+                  "type": "number_format_exception",
+                  "reason": "For input string: \"true\""
+                }
+              }
+            }
+          },
+          "status": 400
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/0/node",
+          "reason": "node id, random per node"
+        }
+      ]
+    },
+    {
+      "name": "search_after an empty string for an integer",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "sort": [
+            "year"
+          ],
+          "search_after": [
+            ""
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Failed to parse search_after value for field [year]."
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-paging-sort",
+                "node": "fCExHjVeSVqVm7s_zifa3w",
+                "reason": {
+                  "type": "illegal_argument_exception",
+                  "reason": "Failed to parse search_after value for field [year].",
+                  "caused_by": {
+                    "type": "number_format_exception",
+                    "reason": "For input string: \"\""
+                  }
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Failed to parse search_after value for field [year].",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Failed to parse search_after value for field [year].",
+                "caused_by": {
+                  "type": "number_format_exception",
+                  "reason": "For input string: \"\""
+                }
+              }
+            }
+          },
+          "status": 400
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/0/node",
+          "reason": "node id, random per node"
+        }
+      ]
+    },
+    {
+      "name": "search_after null for an integer",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "sort": [
+            "year"
+          ],
+          "search_after": [
+            null
+          ]
+        }
+      },
+      "response": {
+        "status": 500,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "null_pointer_exception",
+                "reason": "Cannot invoke \"java.lang.Integer.intValue()\" because \"value\" is null"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-paging-sort",
+                "node": "fCExHjVeSVqVm7s_zifa3w",
+                "reason": {
+                  "type": "null_pointer_exception",
+                  "reason": "Cannot invoke \"java.lang.Integer.intValue()\" because \"value\" is null"
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "null_pointer_exception",
+              "reason": "Cannot invoke \"java.lang.Integer.intValue()\" because \"value\" is null",
+              "caused_by": {
+                "type": "null_pointer_exception",
+                "reason": "Cannot invoke \"java.lang.Integer.intValue()\" because \"value\" is null"
+              }
+            }
+          },
+          "status": 500
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/0/node",
+          "reason": "node id, random per node"
+        }
+      ]
+    },
+    {
+      "name": "search_after more values than keys",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "sort": [
+            "year"
+          ],
+          "search_after": [
+            1,
+            2
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "search_after has 2 value(s) but sort has 1."
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-paging-sort",
+                "node": "fCExHjVeSVqVm7s_zifa3w",
+                "reason": {
+                  "type": "illegal_argument_exception",
+                  "reason": "search_after has 2 value(s) but sort has 1."
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "search_after has 2 value(s) but sort has 1.",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "search_after has 2 value(s) but sort has 1."
+              }
+            }
+          },
+          "status": 400
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/0/node",
+          "reason": "node id, random per node"
+        }
+      ]
+    },
+    {
+      "name": "search_after without a sort",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "search_after": [
+            1
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Sort must contain at least one field."
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-paging-sort",
+                "node": "fCExHjVeSVqVm7s_zifa3w",
+                "reason": {
+                  "type": "illegal_argument_exception",
+                  "reason": "Sort must contain at least one field."
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Sort must contain at least one field.",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Sort must contain at least one field."
+              }
+            }
+          },
+          "status": 400
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/0/node",
+          "reason": "node id, random per node"
+        }
+      ]
+    },
+    {
+      "name": "search_after a score sort alone",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "sort": [
+            "_score"
+          ],
+          "search_after": [
+            1
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Sort must contain at least one field."
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-paging-sort",
+                "node": "fCExHjVeSVqVm7s_zifa3w",
+                "reason": {
+                  "type": "illegal_argument_exception",
+                  "reason": "Sort must contain at least one field."
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Sort must contain at least one field.",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Sort must contain at least one field."
+              }
+            }
+          },
+          "status": 400
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/0/node",
+          "reason": "node id, random per node"
+        }
+      ]
+    },
+    {
+      "name": "search_after an ascending score",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "sort": [
+            {
+              "_score": "asc"
+            }
+          ],
+          "search_after": [
+            " 0.5f "
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "sort": [
+                  1.0
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "2",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Lazy dogs sleep all day",
+                  "tag": "animal",
+                  "year": 2002,
+                  "published": "2002-07-01T10:15:30Z"
+                },
+                "sort": [
+                  1.0
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "3",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Quick start guide",
+                  "tag": "manual",
+                  "year": 2010,
+                  "published": "2010-01-01"
+                },
+                "sort": [
+                  1.0
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "4",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                },
+                "sort": [
+                  1.0
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "5",
+                "_score": 1.0,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "published": "1999-12-31"
+                },
+                "sort": [
+                  1.0
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ]
+    },
+    {
+      "name": "search_after a score past every hit",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "sort": [
+            {
+              "_score": "asc"
+            }
+          ],
+          "search_after": [
+            1
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ]
+    },
+    {
+      "name": "search_after an empty score",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "sort": [
+            {
+              "_score": "asc"
+            }
+          ],
+          "search_after": [
+            ""
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Failed to parse search_after value for field [null]."
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-paging-sort",
+                "node": "fCExHjVeSVqVm7s_zifa3w",
+                "reason": {
+                  "type": "illegal_argument_exception",
+                  "reason": "Failed to parse search_after value for field [null].",
+                  "caused_by": {
+                    "type": "number_format_exception",
+                    "reason": "empty String"
+                  }
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Failed to parse search_after value for field [null].",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Failed to parse search_after value for field [null].",
+                "caused_by": {
+                  "type": "number_format_exception",
+                  "reason": "empty String"
+                }
+              }
+            }
+          },
+          "status": 400
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/0/node",
+          "reason": "node id, random per node"
+        }
+      ]
+    },
+    {
+      "name": "search_after null for a score",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "sort": [
+            {
+              "_score": "asc"
+            }
+          ],
+          "search_after": [
+            null
+          ]
+        }
+      },
+      "response": {
+        "status": 500,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "null_pointer_exception",
+                "reason": "Cannot invoke \"java.lang.Float.floatValue()\" because \"value\" is null"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-paging-sort",
+                "node": "fCExHjVeSVqVm7s_zifa3w",
+                "reason": {
+                  "type": "null_pointer_exception",
+                  "reason": "Cannot invoke \"java.lang.Float.floatValue()\" because \"value\" is null"
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "null_pointer_exception",
+              "reason": "Cannot invoke \"java.lang.Float.floatValue()\" because \"value\" is null",
+              "caused_by": {
+                "type": "null_pointer_exception",
+                "reason": "Cannot invoke \"java.lang.Float.floatValue()\" because \"value\" is null"
+              }
+            }
+          },
+          "status": 500
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/0/node",
+          "reason": "node id, random per node"
+        }
+      ]
+    },
+    {
+      "name": "search_after with from",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "sort": [
+            "year"
+          ],
+          "search_after": [
+            2001
+          ],
+          "from": 1
+        }
+      },
+      "response": {
+        "status": 500,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "search_exception",
+                "reason": "`from` parameter must be set to 0 when `search_after` is used."
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-paging-sort",
+                "node": "fCExHjVeSVqVm7s_zifa3w",
+                "reason": {
+                  "type": "search_exception",
+                  "reason": "`from` parameter must be set to 0 when `search_after` is used."
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "search_exception",
+              "reason": "`from` parameter must be set to 0 when `search_after` is used."
+            }
+          },
+          "status": 500
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/0/node",
+          "reason": "node id, random per node"
+        }
+      ]
+    },
+    {
+      "name": "search_after empty",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "sort": [
+            "year"
+          ],
+          "search_after": []
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Values must contains at least one value."
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Values must contains at least one value."
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "search_after not an array",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "search_after": 2001
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parsing_exception",
+                "reason": "Unknown key for a VALUE_NUMBER in [search_after].",
+                "line": 1,
+                "col": 17
+              }
+            ],
+            "type": "parsing_exception",
+            "reason": "Unknown key for a VALUE_NUMBER in [search_after].",
+            "line": 1,
+            "col": 17
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "search_after an object inside",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "search_after": [
+            {}
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parsing_exception",
+                "reason": "Expected [VALUE_STRING] or [VALUE_NUMBER] or [VALUE_BOOLEAN] or [VALUE_NULL] but found [START_OBJECT] inside search_after.",
+                "line": 1,
+                "col": 18
+              }
+            ],
+            "type": "parsing_exception",
+            "reason": "Expected [VALUE_STRING] or [VALUE_NUMBER] or [VALUE_BOOLEAN] or [VALUE_NULL] but found [START_OBJECT] inside search_after.",
+            "line": 1,
+            "col": 18
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "search_after a keyword",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "sort": [
+            "tag"
+          ],
+          "search_after": [
+            "animal"
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "4",
+                "_score": null,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                },
+                "sort": [
+                  "food"
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "3",
+                "_score": null,
+                "_source": {
+                  "title": "Quick start guide",
+                  "tag": "manual",
+                  "year": 2010,
+                  "published": "2010-01-01"
+                },
+                "sort": [
+                  "manual"
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ]
+    },
+    {
+      "name": "search_after null for a keyword",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "sort": [
+            "tag"
+          ],
+          "search_after": [
+            null
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ]
+    },
+    {
+      "name": "search_after a number for a keyword",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "sort": [
+            "tag"
+          ],
+          "search_after": [
+            25000000000.0
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_score": null,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "sort": [
+                  "animal"
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "2",
+                "_score": null,
+                "_source": {
+                  "title": "Lazy dogs sleep all day",
+                  "tag": "animal",
+                  "year": 2002,
+                  "published": "2002-07-01T10:15:30Z"
+                },
+                "sort": [
+                  "animal"
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "5",
+                "_score": null,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "published": "1999-12-31"
+                },
+                "sort": [
+                  "animal"
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "4",
+                "_score": null,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                },
+                "sort": [
+                  "food"
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "3",
+                "_score": null,
+                "_source": {
+                  "title": "Quick start guide",
+                  "tag": "manual",
+                  "year": 2010,
+                  "published": "2010-01-01"
+                },
+                "sort": [
+                  "manual"
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ]
+    },
+    {
+      "name": "search_after a boolean for a keyword",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "sort": [
+            "tag"
+          ],
+          "search_after": [
+            true
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ]
+    },
+    {
+      "name": "search_after a date",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "sort": [
+            "published"
+          ],
+          "search_after": [
+            "2002-01-01"
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "2",
+                "_score": null,
+                "_source": {
+                  "title": "Lazy dogs sleep all day",
+                  "tag": "animal",
+                  "year": 2002,
+                  "published": "2002-07-01T10:15:30Z"
+                },
+                "sort": [
+                  1025518530000
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "4",
+                "_score": null,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                },
+                "sort": [
+                  1041379199999
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "3",
+                "_score": null,
+                "_source": {
+                  "title": "Quick start guide",
+                  "tag": "manual",
+                  "year": 2010,
+                  "published": "2010-01-01"
+                },
+                "sort": [
+                  1262304000000
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ]
+    },
+    {
+      "name": "search_after a date in millis",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "sort": [
+            "published"
+          ],
+          "search_after": [
+            1000000000000.0
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "2",
+                "_score": null,
+                "_source": {
+                  "title": "Lazy dogs sleep all day",
+                  "tag": "animal",
+                  "year": 2002,
+                  "published": "2002-07-01T10:15:30Z"
+                },
+                "sort": [
+                  1025518530000
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "4",
+                "_score": null,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                },
+                "sort": [
+                  1041379199999
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "3",
+                "_score": null,
+                "_source": {
+                  "title": "Quick start guide",
+                  "tag": "manual",
+                  "year": 2010,
+                  "published": "2010-01-01"
+                },
+                "sort": [
+                  1262304000000
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ]
+    },
+    {
+      "name": "search_after a bad date",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "sort": [
+            "published"
+          ],
+          "search_after": [
+            "nope"
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parse_exception",
+                "reason": "failed to parse date field [nope] with format [strict_date_optional_time||epoch_millis]: [failed to parse date field [nope] with format [strict_date_optional_time||epoch_millis]]"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-paging-sort",
+                "node": "fCExHjVeSVqVm7s_zifa3w",
+                "reason": {
+                  "type": "parse_exception",
+                  "reason": "failed to parse date field [nope] with format [strict_date_optional_time||epoch_millis]: [failed to parse date field [nope] with format [strict_date_optional_time||epoch_millis]]",
+                  "caused_by": {
+                    "type": "illegal_argument_exception",
+                    "reason": "failed to parse date field [nope] with format [strict_date_optional_time||epoch_millis]",
+                    "caused_by": {
+                      "type": "date_time_parse_exception",
+                      "reason": "Failed to parse with all enclosed parsers"
+                    }
+                  }
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "parse_exception",
+              "reason": "failed to parse date field [nope] with format [strict_date_optional_time||epoch_millis]: [failed to parse date field [nope] with format [strict_date_optional_time||epoch_millis]]",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "failed to parse date field [nope] with format [strict_date_optional_time||epoch_millis]",
+                "caused_by": {
+                  "type": "date_time_parse_exception",
+                  "reason": "Failed to parse with all enclosed parsers"
+                }
+              }
+            }
+          },
+          "status": 400
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/0/node",
+          "reason": "node id, random per node"
+        }
+      ]
+    },
+    {
+      "name": "search_after now",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "sort": [
+            "published"
+          ],
+          "search_after": [
+            "now"
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parse_exception",
+                "reason": "could not read the current timestamp"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-paging-sort",
+                "node": "fCExHjVeSVqVm7s_zifa3w",
+                "reason": {
+                  "type": "parse_exception",
+                  "reason": "could not read the current timestamp",
+                  "caused_by": {
+                    "type": "illegal_state_exception",
+                    "reason": "now() is not allowed in [search_after] key"
+                  }
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "parse_exception",
+              "reason": "could not read the current timestamp",
+              "caused_by": {
+                "type": "illegal_state_exception",
+                "reason": "now() is not allowed in [search_after] key"
+              }
+            }
+          },
+          "status": 400
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/0/node",
+          "reason": "node id, random per node"
+        }
+      ]
+    },
+    {
+      "name": "search_after null for a date",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "sort": [
+            "published"
+          ],
+          "search_after": [
+            null
+          ]
+        }
+      },
+      "response": {
+        "status": 500,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "null_pointer_exception",
+                "reason": "Cannot invoke \"java.lang.Long.longValue()\" because \"value\" is null"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-paging-sort",
+                "node": "fCExHjVeSVqVm7s_zifa3w",
+                "reason": {
+                  "type": "null_pointer_exception",
+                  "reason": "Cannot invoke \"java.lang.Long.longValue()\" because \"value\" is null"
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "null_pointer_exception",
+              "reason": "Cannot invoke \"java.lang.Long.longValue()\" because \"value\" is null",
+              "caused_by": {
+                "type": "null_pointer_exception",
+                "reason": "Cannot invoke \"java.lang.Long.longValue()\" because \"value\" is null"
+              }
+            }
+          },
+          "status": 500
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/0/node",
+          "reason": "node id, random per node"
+        }
+      ]
+    },
+    {
+      "name": "search_after a document",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "sort": [
+            "_doc"
+          ],
+          "search_after": [
+            1
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "3",
+                "_score": null,
+                "_source": {
+                  "title": "Quick start guide",
+                  "tag": "manual",
+                  "year": 2010,
+                  "published": "2010-01-01"
+                },
+                "sort": [
+                  2
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "4",
+                "_score": null,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                },
+                "sort": [
+                  3
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "5",
+                "_score": null,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "published": "1999-12-31"
+                },
+                "sort": [
+                  4
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ]
+    },
+    {
+      "name": "search_after a word for a document",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "sort": [
+            "_doc"
+          ],
+          "search_after": [
+            "x"
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Failed to parse search_after value for field [null]."
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-paging-sort",
+                "node": "fCExHjVeSVqVm7s_zifa3w",
+                "reason": {
+                  "type": "illegal_argument_exception",
+                  "reason": "Failed to parse search_after value for field [null].",
+                  "caused_by": {
+                    "type": "number_format_exception",
+                    "reason": "For input string: \"x\""
+                  }
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Failed to parse search_after value for field [null].",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Failed to parse search_after value for field [null].",
+                "caused_by": {
+                  "type": "number_format_exception",
+                  "reason": "For input string: \"x\""
+                }
+              }
+            }
+          },
+          "status": 400
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/0/node",
+          "reason": "node id, random per node"
+        }
+      ]
+    },
+    {
+      "name": "search_after a key and a score",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "sort": [
+            "year",
+            {
+              "_score": "desc"
+            }
+          ],
+          "search_after": [
+            2002,
+            "0.5"
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "3",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Quick start guide",
+                  "tag": "manual",
+                  "year": 2010,
+                  "published": "2010-01-01"
+                },
+                "sort": [
+                  2010,
+                  1.0
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ]
+    },
+    {
+      "name": "search_after without a total",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "sort": [
+            "year"
+          ],
+          "search_after": [
+            2001
+          ],
+          "size": 1,
+          "track_total_hits": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "max_score": null,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "2",
+                "_score": null,
+                "_source": {
+                  "title": "Lazy dogs sleep all day",
+                  "tag": "animal",
+                  "year": 2002,
+                  "published": "2002-07-01T10:15:30Z"
+                },
+                "sort": [
+                  2002
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ]
     }
   ]
 }
