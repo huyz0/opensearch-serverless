@@ -42,6 +42,10 @@ fn bytes_are_totalled_and_broken_down_by_action() {
             cross_zone_by_action: meter.by_action(Path::CrossZone),
         }
     );
+    assert_eq!(
+        stats.cross_zone_by_action.values().sum::<u64>(),
+        stats.cross_zone_bytes
+    );
     meter.reset();
     assert_eq!(meter.stats(), ZoneTrafficStats::default());
     for path in Path::ALL {

@@ -13,6 +13,9 @@
 //! [`Path::Unknown`] rather than guessed, so a fleet that never configured
 //! zones reads as unmeasured, not as one zone.
 //!
+//! Each count takes one short lock; the Java's lock-free adders can replace
+//! it if the forward path shows contention once it records here.
+//!
 //! Unlike the Java, the action names kept per path are bounded
 //! ([`MAX_ACTIONS`]); past the bound an action's bytes are counted under
 //! [`OTHER_ACTION`], so the totals stay exact and memory stays fixed.
@@ -125,9 +128,7 @@ impl ZoneTraffic {
 
     /// The bytes counted on `path`, all actions together (`total`).
     pub fn total(&self, path: Path) -> u64 {
-        self.lock()
-            .get(path.slot())
-            .map_or(0, |m| m.values().fold(0u64, |a, b| a.saturating_add(*b)))
+        self.lock().get(path.slot()).map_or(0, sum)
     }
 
     /// The bytes counted on `path`, per action, sorted by action (`byAction`).
@@ -136,13 +137,20 @@ impl ZoneTraffic {
         self.lock().get(path.slot()).cloned().unwrap_or_default()
     }
 
-    /// The counts now, for the stats endpoint.
+    /// The counts now, for the stats endpoint, read under one lock so the
+    /// cross-zone total equals the sum of its breakdown.
     pub fn stats(&self) -> ZoneTrafficStats {
+        let counts = self.lock();
+        let total = |path: Path| counts.get(path.slot()).map_or(0, sum);
         ZoneTrafficStats {
-            same_zone_bytes: self.total(Path::SameZone),
-            cross_zone_bytes: self.total(Path::CrossZone),
-            unknown_zone_bytes: self.total(Path::Unknown),
-            cross_zone_by_action: self.by_action(Path::CrossZone),
+            same_zone_bytes: total(Path::SameZone),
+            cross_zone_bytes: total(Path::CrossZone),
+            unknown_zone_bytes: total(Path::Unknown),
+            // ALLOC: a copy of at most MAX_ACTIONS + 1 counts, for stats.
+            cross_zone_by_action: counts
+                .get(Path::CrossZone.slot())
+                .cloned()
+                .unwrap_or_default(),
         }
     }
 
@@ -161,4 +169,9 @@ impl ZoneTraffic {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
     }
+}
+
+/// The sum of one path's counts.
+fn sum(counts: &BTreeMap<String, u64>) -> u64 {
+    counts.values().fold(0u64, |a, b| a.saturating_add(*b))
 }

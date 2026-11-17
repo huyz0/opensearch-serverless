@@ -2,7 +2,7 @@
 
 ## Serves
 
-Roadmap R12.4 ([plan](../../roadmap.md)): a node's zone, the preference that keeps a hot shard's searches in the coordinator's zone, and the meter of bytes exchanged across zones, as the Java shell has them (`cluster/Zones`, `cluster/ZonePreference`, `transport/ZoneTraffic`). Cross-zone traffic is billed by the byte; the object store is free from every zone in a region.
+The parity plan's zones item, after the cluster stage ([roadmap](../../roadmap.md)): a node's zone, the preference that keeps a hot shard's searches in the coordinator's zone, and the meter of bytes exchanged across zones, as the Java shell has them (`cluster/Zones`, `cluster/ZonePreference`, `transport/ZoneTraffic`). Cross-zone traffic is billed by the byte; the object store is free from every zone in a region.
 
 ## Change
 
@@ -12,9 +12,9 @@ Roadmap R12.4 ([plan](../../roadmap.md)): a node's zone, the preference that kee
 
 ## Acceptance criteria
 
-- AC-1: `attribute` and `local_zone` answer as the Java's `Zones.attribute` and `Zones.localZone` for: `node.attr.zone` set, unset and blank; a renamed awareness attribute given as a comma list and as the `key.0`, `key.1` array form; a blank first entry skipped; an awareness list of only blanks falling back to `zone`.
+- AC-1: `attribute` and `local_zone` answer as the Java's `Zones.attribute` and `Zones.localZone` for: `node.attr.zone` set, unset and blank; a renamed awareness attribute given as a comma list and as the `key.0`, `key.1` array form, read up to `MAX_LIST_ENTRIES` entries and not past; a blank first entry skipped; an awareness list of only blanks falling back to `zone`.
 - AC-2: a zone set on a node's lease survives renewal through `Membership` and is read by a peer's refresh through the lease digest, on the emulator; a lease with no zone is read as none. `Path::to_peer` classifies from it.
-- AC-3: `ZoneTraffic` classifies as `ZoneTraffic.pathBetween` (either side unknown is `Unknown`), ignores zero bytes, totals and breaks down by action sorted by name, resets, counts exactly under eight concurrent threads, and holds at most `MAX_ACTIONS` names per path with the overflow counted under `_other` and the total still exact.
+- AC-3: `ZoneTraffic` classifies as `ZoneTraffic.pathBetween` (either side unknown is `Unknown`), ignores zero bytes, totals and breaks down by action sorted by name, reports stats whose cross-zone total equals its breakdown, resets, counts exactly under eight concurrent threads, and holds at most `MAX_ACTIONS` names per path with the overflow counted under `_other` and the total still exact.
 - AC-4: the Java's `ZoneCostMeterTests` fleet, modelled over placement (three zones, two search nodes per zone that coordinate and read, six shards, twenty rounds of a search from every node over every shard, a shard read on the coordinator itself moving no bytes): with the zone preference on, cross-zone search bytes are at most 5% of those with it off (`min_per_second` = `f64::MAX`), the Java's measured -95%; a fleet with no zones records everything as unknown and nothing as cross-zone.
 
 ## Test plan

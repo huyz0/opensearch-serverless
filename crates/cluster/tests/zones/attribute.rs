@@ -72,3 +72,24 @@ fn the_array_form_is_read_when_the_key_is_not_set() {
     let only_blanks = settings(&[("cluster.routing.allocation.awareness.attributes.0", "")]);
     assert_eq!(attribute(&only_blanks), DEFAULT_ATTRIBUTE);
 }
+
+#[test]
+fn the_array_form_is_read_up_to_its_bound_and_not_past() {
+    use oss_cluster::zones::MAX_LIST_ENTRIES;
+    let key = |i: usize| format!("{AWARENESS_ATTRIBUTES}.{i}");
+    let blanks_then = |at: usize| {
+        let mut set: BTreeMap<String, String> = (0..at).map(|i| (key(i), " ".to_owned())).collect();
+        set.insert(key(at), "az".to_owned());
+        set
+    };
+    assert_eq!(
+        attribute(&blanks_then(MAX_LIST_ENTRIES - 1)),
+        "az",
+        "the last entry read"
+    );
+    assert_eq!(
+        attribute(&blanks_then(MAX_LIST_ENTRIES)),
+        DEFAULT_ATTRIBUTE,
+        "one past"
+    );
+}

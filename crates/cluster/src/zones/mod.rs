@@ -10,6 +10,10 @@
 //! between zones by the byte, so a peer choice with a same-zone option takes
 //! it ([`ZonePreference`]), and [`ZoneTraffic`] counts what still crosses.
 //!
+//! The zone facts here sit below placement; only [`ZonePreference`], which
+//! reorders placement's readers, uses placement's ranking and spread, and
+//! placement re-exports it for its callers.
+//!
 //! Unknown is not a zone: a node with no attribute set is in no zone, and
 //! two such nodes are not in the same one, so a fleet that never configured
 //! zones neither looks like one zone nor reads as measured.
@@ -38,7 +42,7 @@ pub const NODE_ATTR_PREFIX: &str = "node.attr.";
 
 /// The most entries of the legacy array form (`key.0`, `key.1`, ...) read
 /// when looking for the first named awareness attribute.
-const MAX_LIST_ENTRIES: usize = 64;
+pub const MAX_LIST_ENTRIES: usize = 64;
 
 /// The node attribute that holds the zone: the first non-blank awareness
 /// attribute, trimmed, else [`DEFAULT_ATTRIBUTE`] (`Zones.attribute`).
