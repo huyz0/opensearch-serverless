@@ -322,22 +322,14 @@ fn to_long(s: &str) -> Result<i64, MappingError> {
 }
 
 /// `new BigDecimal(text)`: `[+-](digits[.digits]|.digits)[e[+-]digits]`.
+/// Rust's float parse reads the same forms, and also `inf` and `nan`,
+/// which have letters BigDecimal's form does not.
 fn big_decimal(s: &str) -> Option<f64> {
-    let body = s.strip_prefix(['+', '-']).unwrap_or(s);
-    let (mantissa, exp) = match body.find(['e', 'E']) {
-        Some(i) => (body.get(..i)?, Some(body.get(i.saturating_add(1)..)?)),
-        None => (body, None),
-    };
-    let (int, frac) = mantissa.split_once('.').unwrap_or((mantissa, ""));
-    let digits = |t: &str| t.bytes().all(|b| b.is_ascii_digit());
-    if (int.is_empty() && frac.is_empty()) || !digits(int) || !digits(frac) {
+    if !s
+        .bytes()
+        .all(|b| b.is_ascii_digit() || matches!(b, b'.' | b'e' | b'E' | b'+' | b'-'))
+    {
         return None;
-    }
-    if let Some(e) = exp {
-        let e = e.strip_prefix(['+', '-']).unwrap_or(e);
-        if e.is_empty() || !digits(e) {
-            return None;
-        }
     }
     s.parse::<f64>().ok()
 }
