@@ -28,10 +28,12 @@
 //! holding nothing unpublished is complete, deletable, and leaves the lease.
 
 mod join;
+mod timings;
 mod track;
 mod types;
 mod write;
 
+pub use timings::AckTimings;
 pub(crate) use types::epoch_entry;
 pub use types::{CommitError, CommitterConfig, EpochLease, Position, Refusal, ShardAdmission};
 
@@ -49,6 +51,7 @@ use super::hedge::Spawn;
 use super::hedge_delay::HedgeDelay;
 use super::window::{Latch, Window, WindowResult};
 use join::encode_all;
+use timings::CommitTimings;
 
 /// The committer's state, under its one lock.
 pub(crate) struct Inner {
@@ -79,6 +82,7 @@ pub struct NodeLogCommitter {
     pub(crate) records: AtomicU64,
     pub(crate) hedges: AtomicU64,
     pub(crate) hedges_won: AtomicU64,
+    pub(crate) timings: CommitTimings,
 }
 
 impl fmt::Debug for NodeLogCommitter {
@@ -127,6 +131,7 @@ impl NodeLogCommitter {
             blobs: AtomicU64::new(0),
             records: AtomicU64::new(0),
             hedges: AtomicU64::new(0),
+            timings: CommitTimings::default(),
             hedges_won: AtomicU64::new(0),
         }
     }
@@ -153,6 +158,7 @@ impl NodeLogCommitter {
             return Ok(None);
         }
         let counted = encode_all(records)?;
+        let joined_at = Instant::now();
         let mut inner = self.lock();
         let joined = self.join_all(&mut inner, shard, term, counted);
         let Some(mine) = joined.last().cloned() else {
@@ -183,6 +189,9 @@ impl NodeLogCommitter {
         } else {
             inner = self.await_landed(inner, &mine);
             drop(inner);
+        }
+        if let Some(result) = mine.get() {
+            self.timings.caller(joined_at, &result);
         }
         // Windows are written in order, one at a time, so the last landing
         // means the others were written.
@@ -297,6 +306,17 @@ impl NodeLogCommitter {
         )
     }
 
+    /// Where write acknowledgements spent their time since the last reset.
+    pub fn timings(&self) -> AckTimings {
+        let (hedges, won) = self.hedges();
+        self.timings.snapshot(hedges, won)
+    }
+
+    /// Starts the timings over; the hedge counts are kept.
+    pub fn reset_timings(&self) {
+        self.timings.reset();
+    }
+
     /// Lingers on, or writes, windows until `mine` is done. Called and
     /// returns with the lock held.
     fn await_landed<'a>(
@@ -338,7 +358,8 @@ impl NodeLogCommitter {
                 landed: None,
             };
             inner.flushing = true;
-            inner.last_flush_started = Some(Instant::now());
+            let flush_started = Instant::now();
+            inner.last_flush_started = Some(flush_started);
             drop(inner);
             let wrote =
                 std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.write(&mut head)));
@@ -355,6 +376,9 @@ impl NodeLogCommitter {
             let result = WindowResult {
                 landed: head.landed,
                 failures: std::mem::take(&mut head.window.failures),
+                closes_at: Some(head.window.closes_at),
+                flush_started: Some(flush_started),
+                done: Some(Instant::now()),
             };
             head.window.latch.set(result);
             self.changed.notify_all();

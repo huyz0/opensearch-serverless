@@ -15,6 +15,11 @@ pub(crate) struct WindowResult {
     pub(crate) landed: Option<Position>,
     /// The shards that did not land, and why.
     pub(crate) failures: BTreeMap<ShardKey, CommitError>,
+    /// When the window was due to close.
+    pub(crate) closes_at: Option<Instant>,
+    /// When its write started, and when it ended.
+    pub(crate) flush_started: Option<Instant>,
+    pub(crate) done: Option<Instant>,
 }
 
 /// A window's result, waited for by its writers (the Java's `landedLatch`).

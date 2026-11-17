@@ -25,7 +25,8 @@ use oss_blob::BlobError;
 use oss_format::FormatError;
 
 pub use committer::{
-    CommitError, CommitterConfig, EpochLease, NodeLogCommitter, Position, Refusal, ShardAdmission,
+    AckTimings, CommitError, CommitterConfig, EpochLease, NodeLogCommitter, Position, Refusal,
+    ShardAdmission,
 };
 pub use hedge::{HedgeOutcome, Spawn, ThreadPerPut};
 pub use keeper::{LeaseKeeper, LeaseWrite, RenewError};
