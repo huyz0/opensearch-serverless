@@ -89,7 +89,9 @@ impl Exception {
         e
     }
 
-    fn write(&self, out: &mut dyn Write, with_cause: bool) -> io::Result<()> {
+    /// Writes `type`, `reason`, the metadata and (`with_cause`) `caused_by`,
+    /// without braces: the members of an `error` object.
+    pub fn write_members(&self, out: &mut dyn Write, with_cause: bool) -> io::Result<()> {
         out.write_all(b"\"type\":")?;
         write_str(out, &self.kind)?;
         out.write_all(b",\"reason\":")?;
@@ -105,7 +107,7 @@ impl Exception {
         }
         if let (true, Some(cause)) = (with_cause, &self.cause) {
             out.write_all(b",\"caused_by\":{")?;
-            cause.write(out, true)?;
+            cause.write_members(out, true)?;
             out.write_all(b"}")?;
         }
         Ok(())
@@ -319,9 +321,9 @@ impl RestError {
             }
             Body::Exception(e) => {
                 out.write_all(b"{\"error\":{\"root_cause\":[{")?;
-                e.root().write(out, false)?;
+                e.root().write_members(out, false)?;
                 out.write_all(b"}],")?;
-                e.write(out, true)?;
+                e.write_members(out, true)?;
                 write!(out, "}},\"status\":{}}}", self.status)
             }
         }

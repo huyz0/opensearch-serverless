@@ -13,14 +13,18 @@ use super::layout::UnitLayout;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DocumentRouting<'a> {
     /// An index without a shard mode: core's murmur3 (32-bit, over UTF-16)
-    /// modulo the shard count, as the shell renders it (routing shards
-    /// equal to the shard count, so the routing factor is 1). An index
-    /// with `index.number_of_virtual_shards` is not routed here.
+    /// modulo the routing shards, divided by the routing factor (routing
+    /// shards over shards). The shell renders an index with routing shards
+    /// equal to the shard count unless `index.number_of_routing_shards` is
+    /// set, so the factor is 1 by default. An index with
+    /// `index.number_of_virtual_shards` is not routed here.
     Legacy {
         /// `number_of_shards`.
         shards: u32,
         /// `index.routing_partition_size`, 1 when unset.
         partition_size: u32,
+        /// `index.number_of_routing_shards`, the shard count when unset.
+        routing_shards: u32,
     },
     /// An index with a shard mode: the 64-bit hash in the unit layout. The
     /// answer is a unit id, which is the physical shard.
@@ -35,14 +39,36 @@ impl<'a> DocumentRouting<'a> {
     /// [`RoutingError::Invalid`] when `shards` is zero, or `partition_size`
     /// is zero or, past 1, not below `shards` (core refuses such an index).
     pub fn legacy(shards: u32, partition_size: u32) -> Result<Self, RoutingError> {
+        Self::legacy_scaled(shards, partition_size, shards)
+    }
+
+    /// Routing for an index without a shard mode whose
+    /// `index.number_of_routing_shards` is `routing_shards`.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::legacy`], and [`RoutingError::Invalid`] when
+    /// `routing_shards` is not a multiple of `shards` (core refuses such an
+    /// index).
+    pub fn legacy_scaled(
+        shards: u32,
+        partition_size: u32,
+        routing_shards: u32,
+    ) -> Result<Self, RoutingError> {
         if shards < 1 || partition_size < 1 || (partition_size != 1 && partition_size >= shards) {
             return Err(RoutingError::Invalid(
                 "a legacy index needs shards and a partition size below them",
             ));
         }
+        if routing_shards < shards || !routing_shards.is_multiple_of(shards) {
+            return Err(RoutingError::Invalid(
+                "routing shards must be a multiple of the shards",
+            ));
+        }
         Ok(Self::Legacy {
             shards,
             partition_size,
+            routing_shards,
         })
     }
 
@@ -61,6 +87,7 @@ impl<'a> DocumentRouting<'a> {
             Self::Legacy {
                 shards,
                 partition_size,
+                routing_shards,
             } => {
                 let offset = if partition_size == 1 {
                     0
@@ -71,7 +98,12 @@ impl<'a> DocumentRouting<'a> {
                 };
                 // Java's int addition wraps; the offset is below 2^31.
                 let hash = murmur3(&[effective]).wrapping_add(i32::try_from(offset).unwrap_or(0));
-                Ok(floor_mod(hash, shards))
+                // `shards` is at least 1 and divides `routing_shards`, so the factor
+                // is at least 1.
+                let factor = routing_shards.checked_div(shards).unwrap_or(1).max(1);
+                Ok(floor_mod(hash, routing_shards)
+                    .checked_div(factor)
+                    .unwrap_or(0))
             }
         }
     }
