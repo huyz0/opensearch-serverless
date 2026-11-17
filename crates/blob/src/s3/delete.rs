@@ -26,6 +26,10 @@ use crate::store::{MAX_DELETE_KEYS, check_key};
 
 /// Bytes read from the answer at a time.
 const ANSWER_CHUNK: usize = 4096;
+/// Reads an answer may take before it is given up as unavailable: a
+/// thousand keys listed one by one fit many times over, and a read takes
+/// a byte at least.
+const MAX_ANSWER_READS: usize = 1 << 20;
 /// The body's buffer as `ureq` reads it.
 const BODY_CHUNK: usize = 16_384;
 
@@ -128,7 +132,7 @@ fn first_error(answer: &mut dyn Read) -> BlobResult<Option<BlobError>> {
     // The last two bytes that were not white space: `/>` ends a result
     // written as one empty element.
     let mut tail = [0u8; 2];
-    loop {
+    for _ in 0..MAX_ANSWER_READS {
         let room = scan.get_mut(carried..).unwrap_or_default();
         let n = answer.read(room).map_err(|_| BlobError::Unavailable)?;
         if n == 0 {
@@ -176,6 +180,7 @@ fn first_error(answer: &mut dyn Read) -> BlobResult<Option<BlobError>> {
         carried = keep.min(filled);
         scan.copy_within(filled.saturating_sub(carried)..filled, 0);
     }
+    Err(BlobError::Unavailable)
 }
 
 /// What a key's error code means: a refusal, a transient failure that is
@@ -405,6 +410,18 @@ mod tests {
             Ok(Some(BlobError::Unavailable)),
             "an error with no code"
         );
+    }
+
+    #[test]
+    fn an_answer_that_never_ends_is_given_up() {
+        struct Endless;
+        impl Read for Endless {
+            fn read(&mut self, out: &mut [u8]) -> std::io::Result<usize> {
+                out[0] = b' ';
+                Ok(1)
+            }
+        }
+        assert_eq!(first_error(&mut Endless), Err(BlobError::Unavailable));
     }
 
     #[test]
