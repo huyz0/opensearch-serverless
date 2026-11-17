@@ -308,6 +308,15 @@ pub fn parse_meta(field: &str, node: &Json) -> Result<Vec<(String, String)>, Map
     Ok(out)
 }
 
+/// The package of [`java_class`]'s class.
+pub fn java_package(node: &Json) -> &'static str {
+    match java_class(node) {
+        "BigInteger" => "java.math",
+        "ArrayList" | "LinkedHashMap" => "java.util",
+        _ => "java.lang",
+    }
+}
+
 /// The simple name of the class Jackson reads a value as.
 pub fn java_class(node: &Json) -> &'static str {
     match node {

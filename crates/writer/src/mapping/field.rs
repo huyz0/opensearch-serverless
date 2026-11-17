@@ -183,8 +183,9 @@ impl Leaf {
             other => {
                 // ALLOC: mapping parse, merge or error path; bounded by the mapping text (MAX_MAPPING_BYTES).
                 return Err(MappingError::mapper_parsing(&format!(
-                    "expected map for property [fields] on field [{}] or [fields] but got a class java.lang.{}",
+                    "expected map for property [fields] on field [{}] or [fields] but got a class {}.{}",
                     other.java_string(),
+                    super::params::java_package(other),
                     super::params::java_class(other)
                 )));
             }

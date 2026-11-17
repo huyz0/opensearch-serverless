@@ -418,3 +418,30 @@ fn date_edges_as_java_time_reads_them() {
         assert_eq!(parse(&m, doc).is_ok(), ok, "{doc}");
     }
 }
+
+#[test]
+fn more_edges_as_stock_opensearch_answered() {
+    let m = mapping(
+        r#"{"properties":{"dt":{"type":"date"},"sl":{"type":"date","format":"yyyy/MM/dd HH:mm:ss"},"n":{"type":"integer"}}}"#,
+    );
+    // A negative offset is behind UTC.
+    assert_eq!(
+        values(&m, r#"{"dt":"2020-01-01T00:00:00-05:00"}"#),
+        vec![kv("dt", FieldValue::Date(1_577_854_800_000))]
+    );
+    for doc in [
+        r#"{"dt":"2020-01-01T00:60:00Z"}"#,
+        r#"{"dt":"2020-01-01T00:00:60Z"}"#,
+        r#"{"n":"2147483648"}"#,
+    ] {
+        assert!(parse(&m, doc).is_err(), "{doc}");
+    }
+    assert!(parse(&m, r#"{"n":"2147483647"}"#).is_ok());
+    // A day the month lacks, at the last second of the day.
+    let e = parse(&m, r#"{"sl":"2023/02/30 23:59:59"}"#).unwrap_err();
+    let cause = e.caused_by.expect("a cause");
+    assert_eq!(
+        (cause.ty, cause.reason.as_str()),
+        ("date_time_exception", "Invalid date 'FEBRUARY 30'")
+    );
+}

@@ -355,3 +355,22 @@ fn a_position_increment_gap_of_one_is_not_the_default() {
     let json = r#"{"properties":{"u":{"type":"text","position_increment_gap":1}}}"#;
     assert_eq!(parse(json).unwrap().to_json(), json);
 }
+
+#[test]
+fn a_scalar_multi_fields_names_its_java_class() {
+    for (v, class) in [
+        ("5", "java.lang.Integer"),
+        ("5000000000", "java.lang.Long"),
+        ("1.5", "java.lang.Double"),
+        ("99999999999999999999", "java.math.BigInteger"),
+    ] {
+        assert_eq!(
+            cause(&format!(
+                r#"{{"properties":{{"f":{{"type":"keyword","fields":{v}}}}}}}"#
+            )),
+            format!(
+                "expected map for property [fields] on field [{v}] or [fields] but got a class {class}"
+            ),
+        );
+    }
+}
