@@ -1,0 +1,463 @@
+{
+  "name": "mapping updates and conflicts",
+  "description": "PUT _mapping adds fields and sub-fields and changes updateable parameters; changing a type or a fixed parameter is refused with MapperService's conflict message.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0-SNAPSHOT",
+    "build_hash": "429b4cbcd98f0d22aeae421a9f38645f6dc55b62"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-update",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "create",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-update",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "t": {
+                "type": "text"
+              },
+              "k": {
+                "type": "keyword",
+                "ignore_above": 10
+              },
+              "n": {
+                "type": "long"
+              },
+              "o": {
+                "properties": {
+                  "x": {
+                    "type": "keyword"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-mapping-update"
+        }
+      }
+    },
+    {
+      "name": "add fields",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-update/_mapping",
+        "body": {
+          "properties": {
+            "added": {
+              "type": "integer"
+            },
+            "o": {
+              "properties": {
+                "y": {
+                  "type": "date"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true
+        }
+      }
+    },
+    {
+      "name": "raise ignore_above",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-update/_mapping",
+        "body": {
+          "properties": {
+            "k": {
+              "type": "keyword",
+              "ignore_above": 50
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true
+        }
+      }
+    },
+    {
+      "name": "add a sub-field",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-update/_mapping",
+        "body": {
+          "properties": {
+            "t": {
+              "type": "text",
+              "fields": {
+                "raw": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true
+        }
+      }
+    },
+    {
+      "name": "change a sub-field's type",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-update/_mapping",
+        "body": {
+          "properties": {
+            "t": {
+              "type": "text",
+              "fields": {
+                "raw": {
+                  "type": "long"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "mapper [t.raw] cannot be changed from type [keyword] to [long]"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "mapper [t.raw] cannot be changed from type [keyword] to [long]"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "change a type",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-update/_mapping",
+        "body": {
+          "properties": {
+            "n": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "mapper [n] cannot be changed from type [long] to [integer]"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "mapper [n] cannot be changed from type [long] to [integer]"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "change index",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-update/_mapping",
+        "body": {
+          "properties": {
+            "n": {
+              "type": "long",
+              "index": false
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Mapper for [n] conflicts with existing mapper:\n\tCannot update parameter [index] from [true] to [false]"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Mapper for [n] conflicts with existing mapper:\n\tCannot update parameter [index] from [true] to [false]"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "change two fixed parameters",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-update/_mapping",
+        "body": {
+          "properties": {
+            "k": {
+              "type": "keyword",
+              "doc_values": false,
+              "store": true
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Mapper for [k] conflicts with existing mapper:\n\tCannot update parameter [doc_values] from [true] to [false]\n\tCannot update parameter [store] from [false] to [true]"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Mapper for [k] conflicts with existing mapper:\n\tCannot update parameter [doc_values] from [true] to [false]\n\tCannot update parameter [store] from [false] to [true]"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "object to field",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-update/_mapping",
+        "body": {
+          "properties": {
+            "o": {
+              "type": "keyword"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "can't merge a non object mapping [o] with an object mapping"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "can't merge a non object mapping [o] with an object mapping"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "field to object",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-update/_mapping",
+        "body": {
+          "properties": {
+            "k": {
+              "properties": {
+                "x": {
+                  "type": "long"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "can't merge a non object mapping [k] with an object mapping"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "can't merge a non object mapping [k] with an object mapping"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "disable an object",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-update/_mapping",
+        "body": {
+          "properties": {
+            "o": {
+              "enabled": false,
+              "properties": {}
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 500,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_exception",
+                "reason": "the [enabled] parameter can't be updated for the object mapping [o]"
+              }
+            ],
+            "type": "mapper_exception",
+            "reason": "the [enabled] parameter can't be updated for the object mapping [o]"
+          },
+          "status": 500
+        }
+      }
+    },
+    {
+      "name": "same mapping again",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-update/_mapping",
+        "body": {
+          "properties": {
+            "t": {
+              "type": "text"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true
+        }
+      }
+    },
+    {
+      "name": "get mapping",
+      "request": {
+        "method": "GET",
+        "path": "/compat-mapping-update/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-mapping-update": {
+            "mappings": {
+              "properties": {
+                "added": {
+                  "type": "integer"
+                },
+                "k": {
+                  "type": "keyword",
+                  "ignore_above": 50
+                },
+                "n": {
+                  "type": "long"
+                },
+                "o": {
+                  "properties": {
+                    "x": {
+                      "type": "keyword"
+                    },
+                    "y": {
+                      "type": "date"
+                    }
+                  }
+                },
+                "t": {
+                  "type": "text",
+                  "fields": {
+                    "raw": {
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

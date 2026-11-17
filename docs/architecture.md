@@ -43,6 +43,7 @@ graph TD
     oss-types
     oss-writer --> oss-blob
     oss-writer --> oss-format
+    oss-writer --> oss-rest
     oss-writer --> oss-types
 ```
 <!-- crate-map:end -->

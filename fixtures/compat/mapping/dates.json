@@ -1,0 +1,407 @@
+{
+  "name": "date formats and parameter order",
+  "description": "Which date format and print_format a date field keeps for the formats this writer reads; boolean and keyword parameter order with meta and boost.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0-SNAPSHOT",
+    "build_hash": "429b4cbcd98f0d22aeae421a9f38645f6dc55b62"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-dates",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "create",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-dates",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "d1": {
+                "type": "date",
+                "format": "epoch_millis"
+              },
+              "d2": {
+                "type": "date",
+                "format": "strict_date_optional_time||epoch_millis"
+              },
+              "d3": {
+                "type": "date",
+                "format": "yyyy/MM/dd"
+              },
+              "d4": {
+                "type": "date",
+                "format": "strict_date_optional_time"
+              },
+              "d5": {
+                "type": "date",
+                "format": "yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis"
+              },
+              "d6": {
+                "type": "date",
+                "format": "epoch_second",
+                "print_format": "epoch_second"
+              },
+              "bo": {
+                "type": "boolean",
+                "meta": {
+                  "m": "v"
+                },
+                "boost": 1.5,
+                "null_value": "false"
+              },
+              "k": {
+                "type": "keyword",
+                "null_value": 7,
+                "boost": 3,
+                "fields": {
+                  "b": {
+                    "type": "text"
+                  },
+                  "a": {
+                    "type": "long"
+                  }
+                }
+              },
+              "n": {
+                "type": "long",
+                "boost": 2.0,
+                "coerce": "false"
+              },
+              "t": {
+                "type": "text",
+                "boost": 1.0,
+                "norms": "true",
+                "fields": []
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-mapping-dates"
+        }
+      }
+    },
+    {
+      "name": "get mapping",
+      "request": {
+        "method": "GET",
+        "path": "/compat-mapping-dates/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-mapping-dates": {
+            "mappings": {
+              "properties": {
+                "bo": {
+                  "type": "boolean",
+                  "meta": {
+                    "m": "v"
+                  },
+                  "boost": 1.5,
+                  "null_value": false
+                },
+                "d1": {
+                  "type": "date",
+                  "format": "epoch_millis"
+                },
+                "d2": {
+                  "type": "date"
+                },
+                "d3": {
+                  "type": "date",
+                  "format": "yyyy/MM/dd"
+                },
+                "d4": {
+                  "type": "date",
+                  "format": "strict_date_optional_time"
+                },
+                "d5": {
+                  "type": "date",
+                  "format": "yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis"
+                },
+                "d6": {
+                  "type": "date",
+                  "format": "epoch_second",
+                  "print_format": "epoch_second"
+                },
+                "k": {
+                  "type": "keyword",
+                  "null_value": "7",
+                  "boost": 3.0,
+                  "fields": {
+                    "a": {
+                      "type": "long"
+                    },
+                    "b": {
+                      "type": "text"
+                    }
+                  }
+                },
+                "n": {
+                  "type": "long",
+                  "coerce": false
+                },
+                "t": {
+                  "type": "text"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "turn norms off",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-dates/_mapping",
+        "body": {
+          "properties": {
+            "t": {
+              "type": "text",
+              "norms": false
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true
+        }
+      }
+    },
+    {
+      "name": "turn norms back on",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-dates/_mapping",
+        "body": {
+          "properties": {
+            "t": {
+              "type": "text",
+              "norms": true
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Mapper for [t] conflicts with existing mapper:\n\tCannot update parameter [norms] from [false] to [true]"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Mapper for [t] conflicts with existing mapper:\n\tCannot update parameter [norms] from [false] to [true]"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "change a date format",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-dates/_mapping",
+        "body": {
+          "properties": {
+            "d1": {
+              "type": "date",
+              "format": "epoch_second"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Mapper for [d1] conflicts with existing mapper:\n\tCannot update parameter [format] from [epoch_millis] to [epoch_second]"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Mapper for [d1] conflicts with existing mapper:\n\tCannot update parameter [format] from [epoch_millis] to [epoch_second]"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "change search_analyzer on default text",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-dates/_mapping",
+        "body": {
+          "properties": {
+            "t": {
+              "type": "text",
+              "search_analyzer": "standard",
+              "norms": false
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true
+        }
+      }
+    },
+    {
+      "name": "merge a multi-field and add one",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-dates/_mapping",
+        "body": {
+          "properties": {
+            "k": {
+              "type": "keyword",
+              "null_value": "7",
+              "fields": {
+                "a": {
+                  "type": "long",
+                  "coerce": false
+                },
+                "c": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true
+        }
+      }
+    },
+    {
+      "name": "get mapping after updates",
+      "request": {
+        "method": "GET",
+        "path": "/compat-mapping-dates/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-mapping-dates": {
+            "mappings": {
+              "properties": {
+                "bo": {
+                  "type": "boolean",
+                  "meta": {
+                    "m": "v"
+                  },
+                  "boost": 1.5,
+                  "null_value": false
+                },
+                "d1": {
+                  "type": "date",
+                  "format": "epoch_millis"
+                },
+                "d2": {
+                  "type": "date"
+                },
+                "d3": {
+                  "type": "date",
+                  "format": "yyyy/MM/dd"
+                },
+                "d4": {
+                  "type": "date",
+                  "format": "strict_date_optional_time"
+                },
+                "d5": {
+                  "type": "date",
+                  "format": "yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis"
+                },
+                "d6": {
+                  "type": "date",
+                  "format": "epoch_second",
+                  "print_format": "epoch_second"
+                },
+                "k": {
+                  "type": "keyword",
+                  "null_value": "7",
+                  "fields": {
+                    "a": {
+                      "type": "long",
+                      "coerce": false
+                    },
+                    "b": {
+                      "type": "text"
+                    },
+                    "c": {
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "n": {
+                  "type": "long",
+                  "coerce": false
+                },
+                "t": {
+                  "type": "text",
+                  "norms": false,
+                  "analyzer": "default",
+                  "search_analyzer": "standard"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

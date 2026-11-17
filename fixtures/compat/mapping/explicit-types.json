@@ -1,0 +1,388 @@
+{
+  "name": "every supported field type, defaults and set parameters",
+  "description": "PUT /<index> with each field type the writer supports, first with defaults then with each parameter set away from its default; GET _mapping shows what MapperService keeps.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0-SNAPSHOT",
+    "build_hash": "429b4cbcd98f0d22aeae421a9f38645f6dc55b62"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-types",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "create",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-types",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "t": {
+                "type": "text"
+              },
+              "t2": {
+                "type": "text",
+                "index": true,
+                "store": true,
+                "norms": false,
+                "index_options": "freqs",
+                "analyzer": "standard",
+                "search_analyzer": "standard",
+                "fielddata": true,
+                "eager_global_ordinals": true,
+                "meta": {
+                  "unit": "words"
+                },
+                "fields": {
+                  "raw": {
+                    "type": "keyword",
+                    "ignore_above": 20
+                  }
+                }
+              },
+              "t3": {
+                "type": "text",
+                "index_options": "offsets",
+                "position_increment_gap": 10,
+                "norms": true,
+                "store": false,
+                "search_quote_analyzer": "standard"
+              },
+              "t4": {
+                "type": "text",
+                "index": false
+              },
+              "k": {
+                "type": "keyword"
+              },
+              "k2": {
+                "type": "keyword",
+                "index": false,
+                "doc_values": false,
+                "store": true,
+                "null_value": "NA",
+                "eager_global_ordinals": true,
+                "ignore_above": 100,
+                "index_options": "freqs",
+                "norms": true,
+                "split_queries_on_whitespace": true,
+                "meta": {
+                  "a": "b"
+                }
+              },
+              "b": {
+                "type": "byte"
+              },
+              "s": {
+                "type": "short"
+              },
+              "i": {
+                "type": "integer"
+              },
+              "l": {
+                "type": "long"
+              },
+              "f": {
+                "type": "float"
+              },
+              "d": {
+                "type": "double"
+              },
+              "i2": {
+                "type": "integer",
+                "index": false,
+                "doc_values": false,
+                "store": true,
+                "ignore_malformed": true,
+                "coerce": false,
+                "null_value": 7
+              },
+              "l2": {
+                "type": "long",
+                "null_value": "12"
+              },
+              "d2": {
+                "type": "double",
+                "null_value": 1.5,
+                "coerce": true,
+                "ignore_malformed": false
+              },
+              "dt": {
+                "type": "date"
+              },
+              "dt2": {
+                "type": "date",
+                "index": false,
+                "doc_values": false,
+                "store": true,
+                "null_value": "2020-01-01",
+                "ignore_malformed": true
+              },
+              "bo": {
+                "type": "boolean"
+              },
+              "bo2": {
+                "type": "boolean",
+                "index": false,
+                "doc_values": false,
+                "store": true,
+                "null_value": true
+              },
+              "o": {
+                "properties": {
+                  "x": {
+                    "type": "keyword"
+                  },
+                  "y": {
+                    "properties": {
+                      "z": {
+                        "type": "long"
+                      }
+                    }
+                  }
+                }
+              },
+              "o2": {
+                "type": "object",
+                "dynamic": "strict",
+                "properties": {
+                  "w": {
+                    "type": "text"
+                  }
+                }
+              },
+              "o3": {
+                "type": "object",
+                "enabled": false
+              },
+              "o4": {
+                "type": "object"
+              },
+              "dotted.name": {
+                "type": "keyword"
+              },
+              "Z": {
+                "type": "keyword"
+              },
+              "_a": {
+                "type": "keyword"
+              },
+              "é": {
+                "type": "keyword"
+              },
+              "10": {
+                "type": "long"
+              },
+              "9": {
+                "type": "long"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-mapping-types"
+        }
+      }
+    },
+    {
+      "name": "get mapping",
+      "request": {
+        "method": "GET",
+        "path": "/compat-mapping-types/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-mapping-types": {
+            "mappings": {
+              "properties": {
+                "10": {
+                  "type": "long"
+                },
+                "9": {
+                  "type": "long"
+                },
+                "Z": {
+                  "type": "keyword"
+                },
+                "_a": {
+                  "type": "keyword"
+                },
+                "b": {
+                  "type": "byte"
+                },
+                "bo": {
+                  "type": "boolean"
+                },
+                "bo2": {
+                  "type": "boolean",
+                  "doc_values": false,
+                  "index": false,
+                  "null_value": true,
+                  "store": true
+                },
+                "d": {
+                  "type": "double"
+                },
+                "d2": {
+                  "type": "double",
+                  "ignore_malformed": false,
+                  "coerce": true,
+                  "null_value": 1.5
+                },
+                "dotted": {
+                  "properties": {
+                    "name": {
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "dt": {
+                  "type": "date"
+                },
+                "dt2": {
+                  "type": "date",
+                  "index": false,
+                  "doc_values": false,
+                  "store": true,
+                  "null_value": "2020-01-01",
+                  "ignore_malformed": true
+                },
+                "f": {
+                  "type": "float"
+                },
+                "i": {
+                  "type": "integer"
+                },
+                "i2": {
+                  "type": "integer",
+                  "index": false,
+                  "doc_values": false,
+                  "store": true,
+                  "ignore_malformed": true,
+                  "coerce": false,
+                  "null_value": 7
+                },
+                "k": {
+                  "type": "keyword"
+                },
+                "k2": {
+                  "type": "keyword",
+                  "index": false,
+                  "doc_values": false,
+                  "store": true,
+                  "null_value": "NA",
+                  "eager_global_ordinals": true,
+                  "ignore_above": 100,
+                  "index_options": "freqs",
+                  "norms": true,
+                  "split_queries_on_whitespace": true,
+                  "meta": {
+                    "a": "b"
+                  }
+                },
+                "l": {
+                  "type": "long"
+                },
+                "l2": {
+                  "type": "long",
+                  "null_value": 12
+                },
+                "o": {
+                  "properties": {
+                    "x": {
+                      "type": "keyword"
+                    },
+                    "y": {
+                      "properties": {
+                        "z": {
+                          "type": "long"
+                        }
+                      }
+                    }
+                  }
+                },
+                "o2": {
+                  "dynamic": "strict",
+                  "properties": {
+                    "w": {
+                      "type": "text"
+                    }
+                  }
+                },
+                "o3": {
+                  "type": "object",
+                  "enabled": false
+                },
+                "o4": {
+                  "type": "object"
+                },
+                "s": {
+                  "type": "short"
+                },
+                "t": {
+                  "type": "text"
+                },
+                "t2": {
+                  "type": "text",
+                  "store": true,
+                  "fields": {
+                    "raw": {
+                      "type": "keyword",
+                      "ignore_above": 20
+                    }
+                  },
+                  "meta": {
+                    "unit": "words"
+                  },
+                  "index_options": "freqs",
+                  "norms": false,
+                  "analyzer": "standard",
+                  "eager_global_ordinals": true,
+                  "fielddata": true
+                },
+                "t3": {
+                  "type": "text",
+                  "index_options": "offsets",
+                  "analyzer": "default",
+                  "search_analyzer": "default",
+                  "search_quote_analyzer": "standard",
+                  "position_increment_gap": 10
+                },
+                "t4": {
+                  "type": "text",
+                  "index": false
+                },
+                "é": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

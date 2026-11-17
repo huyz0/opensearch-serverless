@@ -628,6 +628,7 @@ version = "0.1.0"
 dependencies = [
  "oss-blob",
  "oss-format",
+ "oss-rest",
  "oss-testkit",
  "oss-types",
 ]

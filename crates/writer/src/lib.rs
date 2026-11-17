@@ -7,3 +7,4 @@
 //! makes rather than in extra PUTs.
 
 pub mod log;
+pub mod mapping;

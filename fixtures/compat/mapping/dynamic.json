@@ -1,0 +1,706 @@
+{
+  "name": "dynamic mapping from documents",
+  "description": "An index without a mapping maps each JSON value a document brings: strings as text with a keyword sub-field, or as dates when they look like one, integers as long, fractions as float, booleans, objects, arrays by their first value; nulls and empty arrays map nothing.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0-SNAPSHOT",
+    "build_hash": "429b4cbcd98f0d22aeae421a9f38645f6dc55b62"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-dynamic",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "create",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-dynamic",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-mapping-dynamic"
+        }
+      }
+    },
+    {
+      "name": "index a document with every JSON kind",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-dynamic/_doc/1",
+        "body": {
+          "s": "hello world",
+          "n": 42,
+          "f": 1.5,
+          "neg": -3,
+          "big": 12345678901234,
+          "bo": true,
+          "date": "2024-01-02",
+          "datetime": "2024-01-02T03:04:05Z",
+          "slashdate": "2024/01/02",
+          "notdate": "2024-13-45",
+          "num_text": "12",
+          "nul": null,
+          "empty": [],
+          "arr": [
+            1,
+            2,
+            3
+          ],
+          "arr_s": [
+            "a",
+            "b"
+          ],
+          "arr_null_first": [
+            null,
+            "x"
+          ],
+          "obj": {
+            "inner": "v",
+            "deeper": {
+              "x": 1
+            }
+          },
+          "emptyobj": {},
+          "dotted.key": "v",
+          "exp": 1000.0,
+          "zero_frac": 2.0
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-mapping-dynamic",
+          "_id": "1",
+          "_version": 1,
+          "result": "created",
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 0,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "get mapping",
+      "request": {
+        "method": "GET",
+        "path": "/compat-mapping-dynamic/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-mapping-dynamic": {
+            "mappings": {
+              "properties": {
+                "arr": {
+                  "type": "long"
+                },
+                "arr_null_first": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                },
+                "arr_s": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                },
+                "big": {
+                  "type": "long"
+                },
+                "bo": {
+                  "type": "boolean"
+                },
+                "date": {
+                  "type": "date"
+                },
+                "datetime": {
+                  "type": "date"
+                },
+                "dotted": {
+                  "properties": {
+                    "key": {
+                      "type": "text",
+                      "fields": {
+                        "keyword": {
+                          "type": "keyword",
+                          "ignore_above": 256
+                        }
+                      }
+                    }
+                  }
+                },
+                "emptyobj": {
+                  "type": "object"
+                },
+                "exp": {
+                  "type": "float"
+                },
+                "f": {
+                  "type": "float"
+                },
+                "n": {
+                  "type": "long"
+                },
+                "neg": {
+                  "type": "long"
+                },
+                "notdate": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                },
+                "num_text": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                },
+                "obj": {
+                  "properties": {
+                    "deeper": {
+                      "properties": {
+                        "x": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "inner": {
+                      "type": "text",
+                      "fields": {
+                        "keyword": {
+                          "type": "keyword",
+                          "ignore_above": 256
+                        }
+                      }
+                    }
+                  }
+                },
+                "s": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                },
+                "slashdate": {
+                  "type": "date",
+                  "format": "yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis",
+                  "print_format": "yyyy/MM/dd HH:mm:ss"
+                },
+                "zero_frac": {
+                  "type": "float"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "index a second document adding fields",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-dynamic/_doc/2",
+        "body": {
+          "s": "again",
+          "later": "new field",
+          "obj": {
+            "added": true
+          }
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-mapping-dynamic",
+          "_id": "2",
+          "_version": 1,
+          "result": "created",
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 1,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "get mapping after the second document",
+      "request": {
+        "method": "GET",
+        "path": "/compat-mapping-dynamic/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-mapping-dynamic": {
+            "mappings": {
+              "properties": {
+                "arr": {
+                  "type": "long"
+                },
+                "arr_null_first": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                },
+                "arr_s": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                },
+                "big": {
+                  "type": "long"
+                },
+                "bo": {
+                  "type": "boolean"
+                },
+                "date": {
+                  "type": "date"
+                },
+                "datetime": {
+                  "type": "date"
+                },
+                "dotted": {
+                  "properties": {
+                    "key": {
+                      "type": "text",
+                      "fields": {
+                        "keyword": {
+                          "type": "keyword",
+                          "ignore_above": 256
+                        }
+                      }
+                    }
+                  }
+                },
+                "emptyobj": {
+                  "type": "object"
+                },
+                "exp": {
+                  "type": "float"
+                },
+                "f": {
+                  "type": "float"
+                },
+                "later": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                },
+                "n": {
+                  "type": "long"
+                },
+                "neg": {
+                  "type": "long"
+                },
+                "notdate": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                },
+                "num_text": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                },
+                "obj": {
+                  "properties": {
+                    "added": {
+                      "type": "boolean"
+                    },
+                    "deeper": {
+                      "properties": {
+                        "x": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "inner": {
+                      "type": "text",
+                      "fields": {
+                        "keyword": {
+                          "type": "keyword",
+                          "ignore_above": 256
+                        }
+                      }
+                    }
+                  }
+                },
+                "s": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                },
+                "slashdate": {
+                  "type": "date",
+                  "format": "yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis",
+                  "print_format": "yyyy/MM/dd HH:mm:ss"
+                },
+                "zero_frac": {
+                  "type": "float"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "index a string into a long field",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-dynamic/_doc/3",
+        "body": {
+          "n": "not a number"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse field [n] of type [long] in document with id '3'. Preview of field's value: 'not a number'"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [n] of type [long] in document with id '3'. Preview of field's value: 'not a number'",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "For input string: \"not a number\""
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "index a string into a boolean field",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-dynamic/_doc/4",
+        "body": {
+          "bo": "yes"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse field [bo] of type [boolean] in document with id '4'. Preview of field's value: 'yes'"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [bo] of type [boolean] in document with id '4'. Preview of field's value: 'yes'",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Failed to parse value [yes] as only [true] or [false] are allowed."
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "index a scalar into an object field",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-dynamic/_doc/5",
+        "body": {
+          "obj": "scalar into object"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "object mapping for [obj] tried to parse field [obj] as object, but found a concrete value"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "object mapping for [obj] tried to parse field [obj] as object, but found a concrete value"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "index an object into a text field",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-dynamic/_doc/6",
+        "body": {
+          "s": {
+            "x": 1
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse field [s] of type [text] in document with id '6'. Preview of field's value: '{x=1}'"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [s] of type [text] in document with id '6'. Preview of field's value: '{x=1}'",
+            "caused_by": {
+              "type": "illegal_state_exception",
+              "reason": "Can't get text on a START_OBJECT at 1:6"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "get mapping after refusals",
+      "request": {
+        "method": "GET",
+        "path": "/compat-mapping-dynamic/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-mapping-dynamic": {
+            "mappings": {
+              "properties": {
+                "arr": {
+                  "type": "long"
+                },
+                "arr_null_first": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                },
+                "arr_s": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                },
+                "big": {
+                  "type": "long"
+                },
+                "bo": {
+                  "type": "boolean"
+                },
+                "date": {
+                  "type": "date"
+                },
+                "datetime": {
+                  "type": "date"
+                },
+                "dotted": {
+                  "properties": {
+                    "key": {
+                      "type": "text",
+                      "fields": {
+                        "keyword": {
+                          "type": "keyword",
+                          "ignore_above": 256
+                        }
+                      }
+                    }
+                  }
+                },
+                "emptyobj": {
+                  "type": "object"
+                },
+                "exp": {
+                  "type": "float"
+                },
+                "f": {
+                  "type": "float"
+                },
+                "later": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                },
+                "n": {
+                  "type": "long"
+                },
+                "neg": {
+                  "type": "long"
+                },
+                "notdate": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                },
+                "num_text": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                },
+                "obj": {
+                  "properties": {
+                    "added": {
+                      "type": "boolean"
+                    },
+                    "deeper": {
+                      "properties": {
+                        "x": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "inner": {
+                      "type": "text",
+                      "fields": {
+                        "keyword": {
+                          "type": "keyword",
+                          "ignore_above": 256
+                        }
+                      }
+                    }
+                  }
+                },
+                "s": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                },
+                "slashdate": {
+                  "type": "date",
+                  "format": "yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis",
+                  "print_format": "yyyy/MM/dd HH:mm:ss"
+                },
+                "zero_frac": {
+                  "type": "float"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
