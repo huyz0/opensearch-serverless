@@ -2,7 +2,7 @@
 //! into Java collections and printed with `toString`, members of an object
 //! in `HashMap` iteration order.
 
-use crate::mapping::json::{Json, is_integral, java_float, java_number};
+use crate::mapping::json::{Json, java_float, java_number};
 
 /// `String.hashCode`, over UTF-16 code units.
 fn java_hash(s: &str) -> i32 {
@@ -57,7 +57,7 @@ fn write(value: &Json, out: &mut String) {
     match value {
         Json::Null => out.push_str("null"),
         Json::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
-        Json::Num(t) if is_integral(t) => out.push_str(t),
+        // An integral number prints as written, others as `Double.toString`.
         Json::Num(t) => out.push_str(&java_number(t)),
         Json::Str(s) => out.push_str(s),
         Json::Arr(items) => {

@@ -246,3 +246,29 @@ fn numeric_detection_reads_strings_as_java_parses_them() {
         r#"{"properties":{"big":{"type":"float"},"n":{"type":"long"}}}"#
     );
 }
+
+#[test]
+fn duplicate_keys_are_found_per_object() {
+    let m = mapping("{}");
+    // An array closes without closing the object around it.
+    let e = parse(&m, r#"{"a":[1],"a":2}"#).unwrap_err();
+    let cause = e.caused_by.map_or(e.reason, |c| c.reason);
+    assert!(
+        cause.starts_with(r#"Duplicate Object property "a""#),
+        "{cause}"
+    );
+    // A key repeated in another object is no duplicate.
+    assert!(parse(&m, r#"{"o":{"x":1},"x":2,"p":[{"y":1},{"y":2}]}"#).is_ok());
+}
+
+#[test]
+fn a_keyword_at_its_ignore_above_is_kept() {
+    let m = mapping(TYPES);
+    assert_eq!(
+        values(&m, r#"{"t":"abc"}"#),
+        vec![
+            kv("t", FieldValue::Text("abc".into())),
+            kv("t.raw", FieldValue::Keyword("abc".into())),
+        ]
+    );
+}

@@ -3,6 +3,10 @@
 # Mutants listed here are equivalent: no test can tell them apart from the
 # original, so they would only ever be reported as missed. Each names why.
 exclude_re = [
+    # The JSON tokenizer refuses input that ends inside a value before it
+    # yields `Eof`, so skipping a value never meets one; the arm only keeps
+    # the loop from running forever if it did.
+    "crates/writer/src/document/reader.rs:.*delete match arm Tok::Eof in Reader<'a>::skip_children",
     # Base64 packs three bytes into disjoint bits of one number, where `|`
     # and `^` give the same number.
     "crates/blob/src/s3/delete.rs:.*replace \\| with \\^ in base64",
