@@ -1,15 +1,15 @@
 //! A parsed document as the Lucene document OpenSearch indexes for it: the
 //! metadata fields, then each value's fields as its mapper's
-//! `parseCreateField` adds them, then `_ignored`; and the numbers a
-//! segment's fields get, in the order an `IndexingChain` first sees them.
+//! `parseCreateField` adds them, then `_ignored`; each field registered
+//! with the engine, which numbers it as `FieldInfos.FieldNumbers` does.
 //!
 //! Ported from the field mappers' `parseCreateField`, `IdFieldMapper`,
 //! `SeqNoFieldMapper`, `VersionFieldMapper`, `SourceFieldMapper`,
 //! `FieldNamesFieldMapper` and `IgnoredFieldMapper` (server, OpenSearch
 //! 3.10), and `IndexingChain.invert`'s positions, offsets and lengths.
 
-pub mod encode;
-pub mod fields;
+mod encode;
+mod fields;
 mod invert;
 
 use std::collections::HashMap;
@@ -17,13 +17,15 @@ use std::collections::HashMap;
 use lucene_analysis::Analyzer;
 use lucene_codecs::field_infos::FieldInfo;
 use lucene_codecs::stored_fields::{FieldValue as Stored, StoredField};
-use lucene_index::index_writer::{ExplicitDocument, ExplicitFields};
+use lucene_index::index_writer::{
+    Error as EngineError, ExplicitDocument, ExplicitFields, IndexWriter,
+};
 
-use crate::document::{FieldValue, ParsedDocument};
+use crate::document::{FieldValue, ParsedDocument, hash_order};
 use crate::mapping::{Leaf, Mapper, Mapping, MappingError, Num, Object};
 
 use encode::{double_to_sortable_long, encode_id, float_to_sortable_int, int_point, long_point};
-use fields::{Meta as MetaField, Shape, Spec};
+use fields::{MetaField, Shape, Spec};
 use invert::Inverted;
 
 /// A document's metadata, given by the index request and the engine.
@@ -41,21 +43,44 @@ pub struct Meta<'a> {
     pub source: &'a [u8],
 }
 
-/// A field a segment knows: its number and, for a mapped field, its spec.
+/// Where a field's number comes from: the engine's field numbers, which
+/// hold for every segment of an index writer and refuse a field whose
+/// schema changes (`FieldInfos.FieldNumbers.addOrGet` and
+/// `verifySameSchema`).
+pub trait FieldNumbers {
+    /// The number of the field `info` describes, registering it on first
+    /// sight; `info.number` is ignored.
+    ///
+    /// # Errors
+    ///
+    /// The engine's message when the field's schema differs from the one
+    /// it was registered with.
+    fn number(&mut self, info: FieldInfo) -> Result<i32, String>;
+}
+
+impl FieldNumbers for IndexWriter<'_> {
+    fn number(&mut self, info: FieldInfo) -> Result<i32, String> {
+        self.register_field(info).map_err(|e| match e {
+            EngineError::Explicit(message) => message,
+            // ALLOC: error path; one message.
+            other => other.to_string(),
+        })
+    }
+}
+
+/// A field the engine has numbered and the spec it was registered with.
 #[derive(Clone, Copy, Debug)]
 struct Slot {
     number: i32,
     spec: Option<Spec>,
 }
 
-/// Builds a segment's Lucene documents: the analyzer, and the fields the
-/// segment has numbered so far.
+/// Builds an index writer's Lucene documents: the analyzer, and the
+/// numbers the engine gave the fields seen so far. One lives as long as
+/// its writer.
 pub struct Indexer {
     analyzer: Analyzer,
     slots: HashMap<String, Slot>,
-    next: i32,
-    /// Fields numbered since [`Indexer::new_fields`] last took them.
-    fresh: Vec<FieldInfo>,
 }
 
 impl Default for Indexer {
@@ -65,46 +90,50 @@ impl Default for Indexer {
 }
 
 impl Indexer {
-    /// An indexer for a new segment, with no field numbered yet.
+    /// An indexer that has seen no field yet.
     pub fn new() -> Self {
         Indexer {
             // The `standard` analyzer as OpenSearch builds it: no stop words.
             analyzer: Analyzer::standard(None),
-            // ALLOC: one entry a field of the segment, at most the mapping's total fields limit plus the metadata fields.
+            // ALLOC: one entry a field of the index, at most the mapping's total fields limit plus the metadata fields.
             slots: HashMap::new(),
-            next: 0,
-            // ALLOC: the fields the last document added, at most the total fields limit.
-            fresh: Vec::new(),
         }
     }
 
-    /// The fields numbered since the last call, in number order, to
-    /// register with the engine before the document that added them.
-    pub fn new_fields(&mut self) -> Vec<FieldInfo> {
-        std::mem::take(&mut self.fresh)
-    }
-
-    fn slot(&mut self, name: &str, spec: Option<Spec>, meta: Option<MetaField>) -> Slot {
-        if let Some(s) = self.slots.get(name) {
-            return *s;
+    /// The number of `name`, registering it with `numbers` the first time
+    /// and again whenever its spec changes, so that the engine refuses a
+    /// mapping update its schema cannot take, as Lucene refuses it.
+    fn slot(
+        &mut self,
+        numbers: &mut dyn FieldNumbers,
+        name: &str,
+        spec: Option<Spec>,
+        meta: Option<MetaField>,
+    ) -> Result<i32, MappingError> {
+        if let Some(s) = self.slots.get(name)
+            && s.spec == spec
+        {
+            return Ok(s.number);
         }
-        let number = self.next;
-        self.next = self.next.saturating_add(1);
         let info = match (spec, meta) {
-            (Some(s), _) => s.field_info(name, number),
-            (None, Some(m)) => m.field_info(number),
-            (None, None) => FieldInfo::new(name, number),
+            (Some(s), _) => s.field_info(name, 0),
+            (None, Some(m)) => m.field_info(0),
+            (None, None) => FieldInfo::new(name, 0),
         };
-        // ALLOC: one field info a new field, bounded as `fresh`.
-        self.fresh.push(info);
-        let slot = Slot { number, spec };
+        let number = numbers
+            .number(info)
+            .map_err(|message| MappingError::illegal_argument(&message))?;
         // ALLOC: one entry a new field, bounded as `slots`.
-        self.slots.insert(name.to_owned(), slot);
-        slot
+        self.slots.insert(name.to_owned(), Slot { number, spec });
+        Ok(number)
     }
 
-    fn meta(&mut self, field: MetaField) -> i32 {
-        self.slot(field.name(), None, Some(field)).number
+    fn meta(
+        &mut self,
+        numbers: &mut dyn FieldNumbers,
+        field: MetaField,
+    ) -> Result<i32, MappingError> {
+        self.slot(numbers, field.name(), None, Some(field))
     }
 
     /// The Lucene document for `doc`, read against `mapping` (the mapping
@@ -112,47 +141,46 @@ impl Indexer {
     ///
     /// # Errors
     ///
-    /// An empty id, or a field the mapping does not map.
+    /// An empty id, a field the mapping does not map, or a field whose
+    /// schema the engine refuses to change.
     pub fn document(
         &mut self,
+        numbers: &mut dyn FieldNumbers,
         mapping: &Mapping,
         doc: &ParsedDocument,
         meta: &Meta<'_>,
     ) -> Result<ExplicitDocument, MappingError> {
-        // ALLOC: one document's Lucene fields, bounded by the document's bytes (ADR 0017's reservation).
+        // ALLOC: one document's Lucene fields, bounded by the document's bytes (the HTTP body bound).
         let mut out = Builder::default();
         let id = encode_id(meta.id)?;
-        let n = self.meta(MetaField::Id);
+        let n = self.meta(numbers, MetaField::Id)?;
         out.term(n, &id);
         out.stored(n, Stored::Binary(id));
-        let n = self.meta(MetaField::SeqNo);
+        let n = self.meta(numbers, MetaField::SeqNo)?;
         out.point(n, long_point(meta.seq_no));
         out.doc_value(n, meta.seq_no);
-        let n = self.meta(MetaField::PrimaryTerm);
+        let n = self.meta(numbers, MetaField::PrimaryTerm)?;
         out.doc_value(n, meta.primary_term);
-        let n = self.meta(MetaField::Source);
+        let n = self.meta(numbers, MetaField::Source)?;
         // ALLOC: the document's source, kept as `_source`; bounded by the HTTP body bound.
         out.stored(n, Stored::Binary(meta.source.to_vec()));
-        let n = self.meta(MetaField::Version);
+        let n = self.meta(numbers, MetaField::Version)?;
         out.doc_value(n, meta.version);
         for (name, value) in &doc.fields {
-            let spec = match self.slots.get(name.as_str()) {
-                Some(Slot { spec: Some(s), .. }) => *s,
-                _ => {
-                    // ALLOC: error path; one message.
-                    let leaf = leaf(mapping.root(), name).ok_or_else(|| {
-                        MappingError::illegal_state(&format!("no mapper for field [{name}]"))
-                    })?;
-                    Spec::of(leaf)
-                }
-            };
+            // The mapping, not the spec a field was first registered with:
+            // an update may have changed it.
+            let leaf = leaf(mapping.root(), name).ok_or_else(|| {
+                // ALLOC: error path; one message.
+                MappingError::illegal_state(&format!("no mapper for field [{name}]"))
+            })?;
+            let spec = Spec::of(leaf);
             if !spec.adds_anything() {
                 continue;
             }
-            let number = self.slot(name, Some(spec), None).number;
+            let number = self.slot(numbers, name, Some(spec), None)?;
             self.value(&mut out, number, &spec, value)?;
             if spec.field_names() {
-                let n = self.meta(MetaField::FieldNames);
+                let n = self.meta(numbers, MetaField::FieldNames)?;
                 let mut end = 0;
                 while let Some(dot) = name.get(end..).and_then(|rest| rest.find('.')) {
                     end = end.saturating_add(dot);
@@ -163,8 +191,15 @@ impl Indexer {
             }
         }
         if !doc.ignored.is_empty() {
-            let n = self.meta(MetaField::Ignored);
-            for name in &doc.ignored {
+            let n = self.meta(numbers, MetaField::Ignored)?;
+            // `ParseContext`'s ignored fields are a `HashSet`, which
+            // `IgnoredFieldMapper.postParse` iterates.
+            // ALLOC: one name a malformed field, at most the document's fields.
+            let names: Vec<&str> = doc.ignored.iter().map(String::as_str).collect();
+            for i in hash_order(&names) {
+                let Some(name) = doc.ignored.get(i) else {
+                    continue;
+                };
                 out.term(n, name.as_bytes());
                 // ALLOC: one name a malformed field, at most the document's fields.
                 out.stored(n, Stored::String(name.clone()));

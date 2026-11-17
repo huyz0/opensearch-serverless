@@ -149,9 +149,9 @@ fn document_json(doc: &ExplicitDocument, infos: &BTreeMap<i32, FieldInfo>) -> Va
     for (field, values) in dv {
         let info = infos.values().find(|i| i.name == field).expect("field");
         let v = match info.doc_values_type {
-            DocValuesType::Numeric => match values[0] {
-                FieldValue::Long(l) => json!(l),
-                other => panic!("numeric {other:?}"),
+            DocValuesType::Numeric => match values.as_slice() {
+                [FieldValue::Long(l)] => json!(l),
+                other => panic!("{field}: one numeric value, not {other:?}"),
             },
             DocValuesType::SortedNumeric => {
                 let mut longs: Vec<i64> = values
@@ -226,7 +226,6 @@ fn replay(path: &Path) {
     };
     let mut indexer = Indexer::new();
     let dir = ByteBuffersDirectory::new();
-    let mut infos = BTreeMap::new();
     let mut docs = Vec::new();
     {
         let mut w = IndexWriter::open(&dir, Vec::new(), "Lucene104", VERSION).expect("writer");
@@ -250,12 +249,8 @@ fn replay(path: &Path) {
                 source: source.as_bytes(),
             };
             let doc = indexer
-                .document(&mapping, &parsed, &meta)
+                .document(&mut w, &mapping, &parsed, &meta)
                 .unwrap_or_else(|e| panic!("{}: {id}: {e:?}", path.display()));
-            for info in indexer.new_fields() {
-                infos.insert(info.number, info.clone());
-                w.register_field(info).expect("register");
-            }
             docs.push(doc.clone());
             w.add_explicit_documents(vec![doc]).expect("add");
         }
@@ -264,12 +259,15 @@ fn replay(path: &Path) {
     let reader = DirectoryReader::open(&dir).expect("open");
     let segments = reader.segment_readers();
     assert_eq!(segments.len(), 1, "{}: one segment", path.display());
-    let written: Vec<Value> = segments[0]
+    // The numbers the documents carry are the engine's: the dump names
+    // each field by what the segment says it is.
+    let infos: BTreeMap<i32, FieldInfo> = segments[0]
         .field_infos()
         .fields
         .iter()
-        .map(field_json)
+        .map(|f| (f.number, f.clone()))
         .collect();
+    let written: Vec<Value> = infos.values().map(field_json).collect();
     let recorded = &fixture["segment"];
     assert_eq!(
         json!(segments[0].max_doc),

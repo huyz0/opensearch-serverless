@@ -180,6 +180,19 @@
         "index": false,
         "store": true,
         "norms": false
+      },
+      "kw_freqs": {
+        "type": "keyword",
+        "index_options": "freqs"
+      },
+      "kw_freqs_norms": {
+        "type": "keyword",
+        "index_options": "freqs",
+        "norms": true
+      },
+      "i_malformed": {
+        "type": "integer",
+        "ignore_malformed": true
       }
     }
   },
@@ -335,10 +348,30 @@
         "obj.deep.n": 9,
         "title": ""
       }
+    },
+    {
+      "id": "6",
+      "source": {
+        "kw_freqs": [
+          "a",
+          "a",
+          "b"
+        ],
+        "kw_freqs_norms": [
+          "x",
+          "x",
+          "y"
+        ],
+        "f_malformed": [
+          "bad",
+          "worse"
+        ],
+        "i_malformed": "zz"
+      }
     }
   ],
   "segment": {
-    "max_doc": 5,
+    "max_doc": 6,
     "fields": [
       {
         "number": 0,
@@ -1037,6 +1070,36 @@
         "doc_values": "NONE",
         "skip_index": "NONE",
         "omit_norms": true,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 47,
+        "name": "kw_freqs",
+        "index_options": "DOCS_AND_FREQS",
+        "doc_values": "SORTED_SET",
+        "skip_index": "NONE",
+        "omit_norms": true,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 48,
+        "name": "kw_freqs_norms",
+        "index_options": "DOCS_AND_FREQS",
+        "doc_values": "SORTED_SET",
+        "skip_index": "NONE",
+        "omit_norms": false,
         "points": [
           0,
           0,
@@ -2257,6 +2320,98 @@
           ],
           "obj.deep.n": [
             "hex:80000009"
+          ]
+        }
+      },
+      {
+        "stored": [
+          [
+            "_id",
+            "binary",
+            "hex:fe6f"
+          ],
+          [
+            "_source",
+            "binary",
+            "{\"kw_freqs\":[\"a\",\"a\",\"b\"],\"kw_freqs_norms\":[\"x\",\"x\",\"y\"],\"f_malformed\":[\"bad\",\"worse\"],\"i_malformed\":\"zz\"}"
+          ],
+          [
+            "_ignored",
+            "string",
+            "i_malformed"
+          ],
+          [
+            "_ignored",
+            "string",
+            "f_malformed"
+          ]
+        ],
+        "inverted": {
+          "_id": {
+            "norm": null,
+            "terms": [
+              [
+                "hex:fe6f",
+                1
+              ]
+            ]
+          },
+          "_ignored": {
+            "norm": null,
+            "terms": [
+              [
+                "f_malformed",
+                1
+              ],
+              [
+                "i_malformed",
+                1
+              ]
+            ]
+          },
+          "kw_freqs": {
+            "norm": null,
+            "terms": [
+              [
+                "a",
+                2
+              ],
+              [
+                "b",
+                1
+              ]
+            ]
+          },
+          "kw_freqs_norms": {
+            "norm": 3,
+            "terms": [
+              [
+                "x",
+                2
+              ],
+              [
+                "y",
+                1
+              ]
+            ]
+          }
+        },
+        "doc_values": {
+          "_primary_term": 1,
+          "_seq_no": 5,
+          "_version": 1,
+          "kw_freqs": [
+            "a",
+            "b"
+          ],
+          "kw_freqs_norms": [
+            "x",
+            "y"
+          ]
+        },
+        "points": {
+          "_seq_no": [
+            "hex:8000000000000005"
           ]
         }
       }

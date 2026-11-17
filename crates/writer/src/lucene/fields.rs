@@ -60,6 +60,14 @@ fn flag(leaf: &Leaf, name: &str) -> bool {
     leaf.get(name).is_some_and(Value::flag)
 }
 
+/// A keyword's `index_options`: `docs`, or `freqs` (`TextParams.toIndexOptions`).
+fn keyword_options(leaf: &Leaf) -> IndexOptions {
+    match leaf.get("index_options").and_then(Value::text) {
+        Some("freqs") => IndexOptions::DocsAndFreqs,
+        _ => IndexOptions::Docs,
+    }
+}
+
 fn text_options(leaf: &Leaf) -> IndexOptions {
     match leaf.get("index_options").and_then(Value::text) {
         Some("docs") => IndexOptions::Docs,
@@ -95,7 +103,7 @@ impl Spec {
             FieldType::Keyword => (
                 Shape::Keyword,
                 if index {
-                    IndexOptions::Docs
+                    keyword_options(leaf)
                 } else {
                     IndexOptions::None
                 },
@@ -189,7 +197,7 @@ impl Spec {
 
 /// The metadata fields, in the order a document adds them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Meta {
+pub enum MetaField {
     /// `_id`: one term and its stored bytes.
     Id,
     /// `_seq_no`: a long point and numeric doc values.
@@ -206,17 +214,17 @@ pub enum Meta {
     Ignored,
 }
 
-impl Meta {
+impl MetaField {
     /// The field's name.
     pub fn name(self) -> &'static str {
         match self {
-            Meta::Id => "_id",
-            Meta::SeqNo => "_seq_no",
-            Meta::PrimaryTerm => "_primary_term",
-            Meta::Source => "_source",
-            Meta::Version => "_version",
-            Meta::FieldNames => "_field_names",
-            Meta::Ignored => "_ignored",
+            MetaField::Id => "_id",
+            MetaField::SeqNo => "_seq_no",
+            MetaField::PrimaryTerm => "_primary_term",
+            MetaField::Source => "_source",
+            MetaField::Version => "_version",
+            MetaField::FieldNames => "_field_names",
+            MetaField::Ignored => "_ignored",
         }
     }
 
@@ -227,12 +235,12 @@ impl Meta {
             i.with_doc_values(DocValuesType::Numeric, DocValuesSkipIndexType::None, -1)
         };
         match self {
-            Meta::Id | Meta::FieldNames | Meta::Ignored => info
+            MetaField::Id | MetaField::FieldNames | MetaField::Ignored => info
                 .with_index_options(IndexOptions::Docs)
                 .with_omit_norms(true),
-            Meta::SeqNo => numeric(info).with_points(1, 1, 8),
-            Meta::PrimaryTerm | Meta::Version => numeric(info),
-            Meta::Source => info,
+            MetaField::SeqNo => numeric(info).with_points(1, 1, 8),
+            MetaField::PrimaryTerm | MetaField::Version => numeric(info),
+            MetaField::Source => info,
         }
     }
 }

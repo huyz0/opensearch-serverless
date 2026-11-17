@@ -52,4 +52,4 @@ The Java shell stores a merged mapping re-serialized through a `HashMap`, so its
     - the update, at most 1,000 fields;
     - a path of at most 20 objects.
 
-    A node's indexing pool reserves this, roughly twice the document's size, for each document in flight (ADR 0004). The reservation is made when indexing is wired (R6.2).
+    A node's indexing pool reserves this, roughly twice the document's size, for each document in flight (ADR 0004). The reservation is made where bulk takes documents in (R6.3).
