@@ -28,7 +28,7 @@ Invariant I-1 (every request through `oss-blob`, metered). It is the follow-up t
 - AC-7: `Rounds` logs a 2,001-key batch delete as 3 sequential rounds, one a batch, each named by its first key.
 - AC-8: the node log's `delete_range` of 1,200 slots costs 2 `Delete` requests and no LIST.
 - AC-9: over HTTP, deleting `a\r\nb`, `c\rd` and `t\tu` deletes those keys and keeps `a\nb` and `c\nd`. A key holding U+0000, U+0001, U+001B or U+FFFE is refused with `InvalidArgument` before any request. The front end refuses a raw control character in a key.
-- AC-10: a 200 answer listing a key's `<Error>` fails the batch: `AccessDenied` is `Denied` in one attempt and the key stays; `InternalError` is retried, with each attempt counted; `InvalidObjectState` is `Protocol` in one attempt. An answer that breaks off before its end is `Unavailable`, and one written as an empty `<DeleteResult/>` element is success. The digest of a body the client builds matches one computed outside the crate.
+- AC-10: a 200 answer listing a key's `<Error>` fails the batch: `AccessDenied` is `Denied` in one attempt and the key stays; `InternalError` is retried, with each attempt counted; `InvalidObjectState` is `Protocol` in one attempt. An answer that breaks off before its end is `Unavailable`, and one written as an empty `<DeleteResult/>` element is success, and one that never ends is `Unavailable` after a bounded number of reads. The digest of a body the client builds matches one computed outside the crate.
 
 ## Test plan
 
