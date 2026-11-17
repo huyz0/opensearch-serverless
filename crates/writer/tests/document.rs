@@ -272,3 +272,41 @@ fn a_keyword_at_its_ignore_above_is_kept() {
         ]
     );
 }
+
+#[test]
+fn coerced_strings_at_the_range_edges() {
+    let m = mapping(TYPES);
+    let cause = |doc: &str| {
+        let e = parse(&m, doc).unwrap_err();
+        e.caused_by.map_or(e.reason, |c| c.reason)
+    };
+    // `IntegerFieldMapper` compares the double it read with the range,
+    // which NaN passes, and `(int) NaN` is 0.
+    assert_eq!(
+        values(&m, r#"{"i":"NaN","s":"NaN","b":"NaN","l":0}"#)
+            .into_iter()
+            .take(3)
+            .collect::<Vec<_>>(),
+        vec![
+            kv("i", FieldValue::Number(Num::Int(0))),
+            kv("s", FieldValue::Number(Num::Int(0))),
+            kv("b", FieldValue::Number(Num::Int(0))),
+        ]
+    );
+    assert_eq!(
+        values(&m, r#"{"i":"-2147483648"}"#),
+        vec![kv("i", FieldValue::Number(Num::Int(i32::MIN)))]
+    );
+    assert_eq!(
+        cause(r#"{"i":"-2147483649"}"#),
+        "Value [-2147483649] is out of range for an integer"
+    );
+    assert_eq!(
+        cause(r#"{"s":"-32768.5"}"#),
+        "Value [-32768.5] is out of range for a short"
+    );
+    assert_eq!(
+        cause(r#"{"d":"NaN"}"#),
+        "[double] supports only finite values, but got [NaN]"
+    );
+}

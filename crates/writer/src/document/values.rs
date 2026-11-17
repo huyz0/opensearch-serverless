@@ -270,7 +270,8 @@ fn from_string(ty: NumType, s: &str) -> Result<Num, MappingError> {
             } else {
                 (f64::from(i32::MIN), f64::from(i32::MAX), "an integer")
             };
-            if d.is_nan() || d < min || d > max {
+            // NaN passes the Java's range check and its `(int)` cast reads it as 0.
+            if d < min || d > max {
                 // ALLOC: document parse or error path; bounded by the document's bytes (the HTTP body bound).
                 return Err(MappingError::illegal_argument(&format!(
                     "Value [{s}] is out of range for {what}"
