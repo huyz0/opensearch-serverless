@@ -180,7 +180,14 @@ fn search_steps(fixtures: Vec<Fixture>) -> Vec<Fixture> {
             f.cleanup.clear();
             f.steps.retain(|s| s.request.path.ends_with("/_search"));
             for step in &mut f.steps {
-                if COLUMN_STEPS.contains(&(f.name.as_str(), step.name.as_str())) {
+                let function_score = f.name == "match queries"
+                    && step.name.starts_with("fs ")
+                    && step
+                        .response
+                        .as_ref()
+                        .and_then(|r| r.body.as_ref())
+                        .is_some_and(|b| b.pointer("/error/col").is_some());
+                if function_score || COLUMN_STEPS.contains(&(f.name.as_str(), step.name.as_str())) {
                     for at in ["/body/error/col", "/body/error/root_cause/0/col"] {
                         step.normalise.push(Rule {
                             pointer: Pointer::parse(at).expect("pointer"),

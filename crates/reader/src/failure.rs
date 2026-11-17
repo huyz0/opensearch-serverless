@@ -186,7 +186,8 @@ impl SearchError {
                 // type and message, so it is written twice.
                 out.write_all(b"}}],\"caused_by\":{")?;
                 if self.failure.opensearch {
-                    self.failure.write_fields(out, true)?;
+                    // An OpenSearch exception wrapping another is unwrapped.
+                    self.failure.root().write_fields(out, true)?;
                     out.write_all(b"}")?;
                 } else {
                     self.failure.write_fields(out, false)?;
@@ -274,6 +275,24 @@ mod tests {
         assert_eq!(
             body(&e),
             r#"{"error":{"root_cause":[{"type":"query_shard_exception","reason":"failed to create query: x","index":"probe"}],"type":"search_phase_execution_exception","reason":"all shards failed","phase":"query","grouped":true,"failed_shards":[{"shard":0,"index":"probe","node":"n","reason":{"type":"query_shard_exception","reason":"failed to create query: x","index":"probe","caused_by":{"type":"number_format_exception","reason":"x"}}}],"caused_by":{"type":"query_shard_exception","reason":"failed to create query: x","index":"probe","caused_by":{"type":"number_format_exception","reason":"x"}}},"status":400}"#
+        );
+    }
+
+    #[test]
+    fn an_opensearch_wrapper_of_an_opensearch_exception_is_unwrapped_at_the_top() {
+        let e = SearchError::on_shard(
+            400,
+            Failure::opensearch("query_shard_exception", "failed to create query: x")
+                .caused_by(Failure::opensearch("parse_exception", "x")),
+            ShardFailure {
+                index: "i".into(),
+                shard: 0,
+                node: "n".into(),
+            },
+        );
+        assert_eq!(
+            body(&e),
+            r#"{"error":{"root_cause":[{"type":"parse_exception","reason":"x"}],"type":"search_phase_execution_exception","reason":"all shards failed","phase":"query","grouped":true,"failed_shards":[{"shard":0,"index":"i","node":"n","reason":{"type":"query_shard_exception","reason":"failed to create query: x","caused_by":{"type":"parse_exception","reason":"x"}}}],"caused_by":{"type":"parse_exception","reason":"x"}},"status":400}"#
         );
     }
 

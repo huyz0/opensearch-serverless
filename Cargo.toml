@@ -59,6 +59,8 @@ lucene-analysis = { git = "https://github.com/huyz0/lucene-rust", rev = "f07615c
 lucene-aggs = { git = "https://github.com/huyz0/lucene-rust", rev = "f07615cf9f3adf126aa668436c02cc2c020332b7" }
 lucene-highlighter = { git = "https://github.com/huyz0/lucene-rust", rev = "f07615cf9f3adf126aa668436c02cc2c020332b7" }
 lucene-queryparser = { git = "https://github.com/huyz0/lucene-rust", rev = "f07615cf9f3adf126aa668436c02cc2c020332b7" }
+# The function-score node only: the analysis modules (heavy dictionaries) stay off.
+lucene-engine = { git = "https://github.com/huyz0/lucene-rust", rev = "f07615cf9f3adf126aa668436c02cc2c020332b7", default-features = false }
 
 # Any crate may use `unsafe`, item by item, in the five patterns of
 # docs/unsafe.md: each use takes a local `#[allow(unsafe_code)]`, a

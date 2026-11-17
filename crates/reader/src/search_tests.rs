@@ -86,3 +86,14 @@ fn the_scored_fields_are_each_term_s_field_once() {
     )))));
     assert_eq!(scored_fields(&must(nested)), vec!["year".to_owned()]);
 }
+
+#[test]
+fn a_function_score_scores_the_fields_of_its_wrapped_query() {
+    use lucene_search::extended_query::ExtendedQuery;
+    use lucene_search::function::FunctionScoreQuery;
+    let source = lucene_search::values_source::constant(1.0);
+    let wrapped = Clause::Extended(Box::new(ExtendedQuery::FunctionScore(
+        FunctionScoreQuery::new(term("title"), source),
+    )));
+    assert_eq!(scored_fields(&must(wrapped)), vec!["title".to_owned()]);
+}
