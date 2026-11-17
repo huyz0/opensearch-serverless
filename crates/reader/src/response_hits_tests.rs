@@ -316,4 +316,17 @@ fn the_hits_of_the_response_and_its_top_hits_are_fetched_in_one_round() {
     let rounds = store.store();
     // Three lists of 20 hits, announced together: still one round.
     assert!(rounds.depth() <= 1, "{}", rounds.detail());
+    let together = rounds.calls().len();
+    // The same hits listed twice cost no more requests than listed once.
+    let again = parse_chunks([br#"{"size":20,"query":{"term":{"tag":"t0"}},
+        "aggs":{"a":{"top_hits":{"size":20}},"b":{"top_hits":{"size":20}}}}"#
+        .as_slice()])
+    .expect("parses");
+    let hits = search(&shard, "idx", &again, &Analyzer::standard(None)).expect("searches");
+    store.store().reset(std::time::Duration::from_millis(20));
+    let mut out = Vec::new();
+    write_response(&mut out, &shard, "idx", "node", &hits, 0, &mut |_| Ok(())).expect("writes");
+    let rounds = store.store();
+    assert!(rounds.depth() <= 1, "{}", rounds.detail());
+    assert!(rounds.calls().len() <= together, "{}", rounds.detail());
 }

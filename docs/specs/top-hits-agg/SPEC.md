@@ -34,4 +34,4 @@ None: a request with `top_hits` was refused before.
 
 ## Risks
 
-Each `top_hits` runs the query once more, so a request with many pays the query's cost for each (OpenSearch runs one pass); the window of 100 bounds the memory. A coordinator's merge needs shard identity the hits do not carry yet.
+Each `top_hits` runs the query once more, so a request with many pays the query's cost for each (OpenSearch runs one pass); the window of 100 bounds the memory of each, and no cap on how many a request holds is set yet. A coordinator's merge needs shard identity the hits do not carry yet.

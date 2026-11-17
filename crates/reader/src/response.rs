@@ -258,7 +258,10 @@ fn prefetch<S: BlobStore + 'static>(shard: &OpenShard<S>, lists: &[&[Hit]]) -> i
             docs.push(hit.doc.saturating_sub(r.doc_base));
         }
     }
-    for (segment, docs) in readers.iter().zip(&announced) {
+    for (segment, docs) in readers.iter().zip(&mut announced) {
+        // A document in several lists is announced once.
+        docs.sort_unstable();
+        docs.dedup();
         if !docs.is_empty() {
             segment
                 .prefetch_stored_documents(docs)
