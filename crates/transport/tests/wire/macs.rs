@@ -232,7 +232,9 @@ fn malformed_or_missing_headers_are_refused() {
         format!("{head}:"),
         format!("{head}:{}", &mac[1..]),
         format!("{head}:zz{}", &mac[2..]),
-        format!("{head}:{}", mac.to_uppercase().replace('A', "G")),
+        // Upper case with one letter past F: the MAC is random, so a 'G' put
+        // in place of each 'A' leaves one with no 'A' valid hex.
+        format!("{head}:G{}", &mac.to_uppercase()[1..]),
         format!("{head}:{}", &mac[2..]),
     ] {
         assert_eq!(
