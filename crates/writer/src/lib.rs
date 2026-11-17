@@ -8,4 +8,5 @@
 
 pub mod document;
 pub mod log;
+pub mod lucene;
 pub mod mapping;

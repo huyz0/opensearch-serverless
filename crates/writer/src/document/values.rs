@@ -31,10 +31,10 @@ const LONG_BOUND: f64 = 9_223_372_036_854_775_808.0;
 pub enum Taken {
     /// A value to index.
     Value(FieldValue),
-    /// Nothing: a `null` with no `null_value`.
+    /// Nothing: a `null` with no `null_value`, or a keyword over its
+    /// `ignore_above`, which `KeywordFieldMapper` drops without adding the
+    /// field to `_ignored`.
     Nothing,
-    /// Nothing, and the field goes into `_ignored` (`ignore_above`).
-    Ignored,
 }
 
 /// `Location` as Jackson's coercion messages end.
@@ -105,7 +105,7 @@ fn keyword(leaf: &Leaf, tok: &Tok, at: At) -> Result<Taken, MappingError> {
     };
     // `String.length()` counts UTF-16 units.
     if value.encode_utf16().count() > ignore_above {
-        return Ok(Taken::Ignored);
+        return Ok(Taken::Nothing);
     }
     Ok(Taken::Value(FieldValue::Keyword(value)))
 }

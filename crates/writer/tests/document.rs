@@ -58,8 +58,10 @@ fn each_type_reads_its_values() {
         ]
     );
     let doc = parse(&m, r#"{"t":"abcd","im":"bad"}"#).unwrap();
-    // `t.raw` is over its `ignore_above`; `im` is malformed and ignored.
-    assert_eq!(doc.ignored, vec!["t.raw".to_owned(), "im".to_owned()]);
+    // `t.raw` is over its `ignore_above` and dropped, not listed, as the
+    // Java drops it (fixtures/segments/types.json, `short_tag`);
+    // `im` is malformed and ignored.
+    assert_eq!(doc.ignored, vec!["im".to_owned()]);
     assert_eq!(doc.update, None);
     assert_eq!(doc.grown, None);
     let nulls = values(&m, r#"{"bo":null,"de":null,"t":null,"l":null,"o":null}"#);

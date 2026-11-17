@@ -1,0 +1,2265 @@
+{
+  "name": "every type the writer indexes, with its parameters",
+  "description": "Each type and the parameters that change what Lucene stores: index, doc_values, store, norms, index_options, position_increment_gap, ignore_above, null_value, ignore_malformed, multi-fields, objects, arrays, coercion and dotted names.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0-SNAPSHOT",
+    "build_hash": "429b4cbcd98f0d22aeae421a9f38645f6dc55b62"
+  },
+  "index": "compat-segment-types",
+  "mappings": {
+    "properties": {
+      "title": {
+        "type": "text",
+        "fields": {
+          "raw": {
+            "type": "keyword"
+          }
+        }
+      },
+      "body": {
+        "type": "text",
+        "norms": false,
+        "index_options": "freqs"
+      },
+      "notes": {
+        "type": "text",
+        "index_options": "docs"
+      },
+      "offs": {
+        "type": "text",
+        "index_options": "offsets",
+        "store": true
+      },
+      "gap": {
+        "type": "text",
+        "position_increment_gap": 5
+      },
+      "hidden_text": {
+        "type": "text",
+        "index": false
+      },
+      "tag": {
+        "type": "keyword"
+      },
+      "short_tag": {
+        "type": "keyword",
+        "ignore_above": 5
+      },
+      "nulled": {
+        "type": "keyword",
+        "null_value": "NONE"
+      },
+      "kw_nodv": {
+        "type": "keyword",
+        "doc_values": false
+      },
+      "kw_noidx": {
+        "type": "keyword",
+        "index": false
+      },
+      "kw_stored": {
+        "type": "keyword",
+        "store": true
+      },
+      "kw_norms": {
+        "type": "keyword",
+        "norms": true
+      },
+      "b": {
+        "type": "byte"
+      },
+      "s": {
+        "type": "short"
+      },
+      "i": {
+        "type": "integer"
+      },
+      "l": {
+        "type": "long"
+      },
+      "f": {
+        "type": "float"
+      },
+      "d": {
+        "type": "double"
+      },
+      "i_stored": {
+        "type": "integer",
+        "store": true
+      },
+      "l_noidx": {
+        "type": "long",
+        "index": false
+      },
+      "d_nodv": {
+        "type": "double",
+        "doc_values": false
+      },
+      "f_stored": {
+        "type": "float",
+        "store": true
+      },
+      "d_stored": {
+        "type": "double",
+        "store": true
+      },
+      "f_malformed": {
+        "type": "float",
+        "ignore_malformed": true
+      },
+      "n_null": {
+        "type": "long",
+        "null_value": 7
+      },
+      "when": {
+        "type": "date"
+      },
+      "when_epoch": {
+        "type": "date",
+        "format": "epoch_millis",
+        "store": true
+      },
+      "when_noidx": {
+        "type": "date",
+        "index": false
+      },
+      "flag": {
+        "type": "boolean"
+      },
+      "flag_stored": {
+        "type": "boolean",
+        "store": true
+      },
+      "flag_nodv": {
+        "type": "boolean",
+        "doc_values": false
+      },
+      "obj": {
+        "properties": {
+          "inner": {
+            "type": "keyword"
+          },
+          "deep": {
+            "properties": {
+              "n": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "@timestamp": {
+        "type": "date"
+      },
+      "text_store_only": {
+        "type": "text",
+        "index": false,
+        "store": true
+      },
+      "kw_store_only": {
+        "type": "keyword",
+        "index": false,
+        "doc_values": false,
+        "store": true
+      },
+      "l_store_only": {
+        "type": "long",
+        "index": false,
+        "doc_values": false,
+        "store": true
+      },
+      "flag_store_only": {
+        "type": "boolean",
+        "index": false,
+        "doc_values": false,
+        "store": true
+      },
+      "text_nonorms_stored": {
+        "type": "text",
+        "index": false,
+        "store": true,
+        "norms": false
+      }
+    }
+  },
+  "documents": [
+    {
+      "id": "1",
+      "source": {
+        "title": "The Quick brown fox, the LAZY dog",
+        "body": "red red green",
+        "notes": "one two two",
+        "offs": "Offsets keep start and end",
+        "gap": "x y",
+        "hidden_text": "not indexed",
+        "tag": "alpha",
+        "short_tag": "abc",
+        "nulled": "set",
+        "kw_nodv": "nodv",
+        "kw_noidx": "noidx",
+        "kw_stored": "stored",
+        "kw_norms": "normed",
+        "b": -3,
+        "s": 300,
+        "i": -70000,
+        "l": 9007199254740993,
+        "f": 1.25,
+        "d": -2.5e-10,
+        "i_stored": 11,
+        "l_noidx": 12,
+        "d_nodv": 13.5,
+        "f_stored": 0.1,
+        "d_stored": 0.1,
+        "f_malformed": 2.5,
+        "n_null": 3,
+        "when": "2001-03-04T05:06:07.890Z",
+        "when_epoch": 1234567890123,
+        "when_noidx": "1999-12-31",
+        "flag": true,
+        "flag_stored": false,
+        "flag_nodv": true,
+        "obj": {
+          "inner": "in",
+          "deep": {
+            "n": 5
+          }
+        },
+        "@timestamp": "2024-05-06T07:08:09Z",
+        "text_store_only": "kept as written",
+        "kw_store_only": "kept",
+        "l_store_only": 77,
+        "flag_store_only": true,
+        "text_nonorms_stored": "x"
+      }
+    },
+    {
+      "id": "2",
+      "source": {
+        "title": [
+          "a b",
+          "c d"
+        ],
+        "gap": [
+          "x y",
+          "z"
+        ],
+        "offs": [
+          "first value",
+          "second"
+        ],
+        "tag": [
+          "b",
+          "a",
+          "b"
+        ],
+        "i": [
+          3,
+          1,
+          2,
+          3
+        ],
+        "when": [
+          "2020-01-01",
+          "2019-01-01"
+        ],
+        "flag": [
+          true,
+          false
+        ],
+        "obj": [
+          {
+            "inner": "x"
+          },
+          {
+            "inner": "y",
+            "deep": {
+              "n": [
+                1,
+                2
+              ]
+            }
+          }
+        ],
+        "kw_stored": [
+          "s1",
+          "s2"
+        ],
+        "i_stored": [
+          2,
+          1
+        ],
+        "@timestamp": [
+          "2024-01-01",
+          "2023-01-01"
+        ]
+      }
+    },
+    {
+      "id": "3",
+      "source": {
+        "nulled": null,
+        "n_null": null,
+        "i": "42",
+        "f": "1.5",
+        "l": 12.7,
+        "s": "7",
+        "flag": "true",
+        "short_tag": "toolongvalue",
+        "f_malformed": "bad",
+        "flag_stored": "false",
+        "when_epoch": "1000",
+        "d": "3",
+        "title": null,
+        "tag": [
+          null,
+          "c"
+        ]
+      }
+    },
+    {
+      "id": "4",
+      "source": {
+        "tag": "only",
+        "offs": [
+          "café 😀 ok",
+          "Ünïcode end"
+        ],
+        "title": "Ça va, Ärger 😀 x"
+      }
+    },
+    {
+      "id": "5",
+      "source": {
+        "obj.inner": "dotted",
+        "obj.deep.n": 9,
+        "title": ""
+      }
+    }
+  ],
+  "segment": {
+    "max_doc": 5,
+    "fields": [
+      {
+        "number": 0,
+        "name": "_id",
+        "index_options": "DOCS",
+        "doc_values": "NONE",
+        "skip_index": "NONE",
+        "omit_norms": true,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 1,
+        "name": "_seq_no",
+        "index_options": "NONE",
+        "doc_values": "NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          1,
+          1,
+          8
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 2,
+        "name": "_primary_term",
+        "index_options": "NONE",
+        "doc_values": "NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 3,
+        "name": "_source",
+        "index_options": "NONE",
+        "doc_values": "NONE",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 4,
+        "name": "_version",
+        "index_options": "NONE",
+        "doc_values": "NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 5,
+        "name": "title",
+        "index_options": "DOCS_AND_FREQS_AND_POSITIONS",
+        "doc_values": "NONE",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 6,
+        "name": "title.raw",
+        "index_options": "DOCS",
+        "doc_values": "SORTED_SET",
+        "skip_index": "NONE",
+        "omit_norms": true,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 7,
+        "name": "body",
+        "index_options": "DOCS_AND_FREQS",
+        "doc_values": "NONE",
+        "skip_index": "NONE",
+        "omit_norms": true,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 8,
+        "name": "_field_names",
+        "index_options": "DOCS",
+        "doc_values": "NONE",
+        "skip_index": "NONE",
+        "omit_norms": true,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 9,
+        "name": "notes",
+        "index_options": "DOCS",
+        "doc_values": "NONE",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 10,
+        "name": "offs",
+        "index_options": "DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS",
+        "doc_values": "NONE",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 11,
+        "name": "gap",
+        "index_options": "DOCS_AND_FREQS_AND_POSITIONS",
+        "doc_values": "NONE",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 12,
+        "name": "tag",
+        "index_options": "DOCS",
+        "doc_values": "SORTED_SET",
+        "skip_index": "NONE",
+        "omit_norms": true,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 13,
+        "name": "short_tag",
+        "index_options": "DOCS",
+        "doc_values": "SORTED_SET",
+        "skip_index": "NONE",
+        "omit_norms": true,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 14,
+        "name": "nulled",
+        "index_options": "DOCS",
+        "doc_values": "SORTED_SET",
+        "skip_index": "NONE",
+        "omit_norms": true,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 15,
+        "name": "kw_nodv",
+        "index_options": "DOCS",
+        "doc_values": "NONE",
+        "skip_index": "NONE",
+        "omit_norms": true,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 16,
+        "name": "kw_noidx",
+        "index_options": "NONE",
+        "doc_values": "SORTED_SET",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 17,
+        "name": "kw_stored",
+        "index_options": "DOCS",
+        "doc_values": "SORTED_SET",
+        "skip_index": "NONE",
+        "omit_norms": true,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 18,
+        "name": "kw_norms",
+        "index_options": "DOCS",
+        "doc_values": "SORTED_SET",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 19,
+        "name": "b",
+        "index_options": "NONE",
+        "doc_values": "SORTED_NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          1,
+          1,
+          4
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 20,
+        "name": "s",
+        "index_options": "NONE",
+        "doc_values": "SORTED_NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          1,
+          1,
+          4
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 21,
+        "name": "i",
+        "index_options": "NONE",
+        "doc_values": "SORTED_NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          1,
+          1,
+          4
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 22,
+        "name": "l",
+        "index_options": "NONE",
+        "doc_values": "SORTED_NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          1,
+          1,
+          8
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 23,
+        "name": "f",
+        "index_options": "NONE",
+        "doc_values": "SORTED_NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          1,
+          1,
+          4
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 24,
+        "name": "d",
+        "index_options": "NONE",
+        "doc_values": "SORTED_NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          1,
+          1,
+          8
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 25,
+        "name": "i_stored",
+        "index_options": "NONE",
+        "doc_values": "SORTED_NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          1,
+          1,
+          4
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 26,
+        "name": "l_noidx",
+        "index_options": "NONE",
+        "doc_values": "SORTED_NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 27,
+        "name": "d_nodv",
+        "index_options": "NONE",
+        "doc_values": "NONE",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          1,
+          1,
+          8
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 28,
+        "name": "f_stored",
+        "index_options": "NONE",
+        "doc_values": "SORTED_NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          1,
+          1,
+          4
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 29,
+        "name": "d_stored",
+        "index_options": "NONE",
+        "doc_values": "SORTED_NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          1,
+          1,
+          8
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 30,
+        "name": "f_malformed",
+        "index_options": "NONE",
+        "doc_values": "SORTED_NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          1,
+          1,
+          4
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 31,
+        "name": "n_null",
+        "index_options": "NONE",
+        "doc_values": "SORTED_NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          1,
+          1,
+          8
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 32,
+        "name": "when",
+        "index_options": "NONE",
+        "doc_values": "SORTED_NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          1,
+          1,
+          8
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 33,
+        "name": "when_epoch",
+        "index_options": "NONE",
+        "doc_values": "SORTED_NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          1,
+          1,
+          8
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 34,
+        "name": "when_noidx",
+        "index_options": "NONE",
+        "doc_values": "SORTED_NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 35,
+        "name": "flag",
+        "index_options": "DOCS",
+        "doc_values": "SORTED_NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": true,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 36,
+        "name": "flag_stored",
+        "index_options": "DOCS",
+        "doc_values": "SORTED_NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": true,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 37,
+        "name": "flag_nodv",
+        "index_options": "DOCS",
+        "doc_values": "NONE",
+        "skip_index": "NONE",
+        "omit_norms": true,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 38,
+        "name": "obj.inner",
+        "index_options": "DOCS",
+        "doc_values": "SORTED_SET",
+        "skip_index": "NONE",
+        "omit_norms": true,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 39,
+        "name": "obj.deep.n",
+        "index_options": "NONE",
+        "doc_values": "SORTED_NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          1,
+          1,
+          4
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 40,
+        "name": "@timestamp",
+        "index_options": "NONE",
+        "doc_values": "SORTED_NUMERIC",
+        "skip_index": "RANGE",
+        "omit_norms": false,
+        "points": [
+          1,
+          1,
+          8
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 41,
+        "name": "text_store_only",
+        "index_options": "NONE",
+        "doc_values": "NONE",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 42,
+        "name": "kw_store_only",
+        "index_options": "NONE",
+        "doc_values": "NONE",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 43,
+        "name": "l_store_only",
+        "index_options": "NONE",
+        "doc_values": "NONE",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 44,
+        "name": "flag_store_only",
+        "index_options": "NONE",
+        "doc_values": "NONE",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 45,
+        "name": "text_nonorms_stored",
+        "index_options": "NONE",
+        "doc_values": "NONE",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 46,
+        "name": "_ignored",
+        "index_options": "DOCS",
+        "doc_values": "NONE",
+        "skip_index": "NONE",
+        "omit_norms": true,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      }
+    ],
+    "docs": [
+      {
+        "stored": [
+          [
+            "_id",
+            "binary",
+            "hex:fe1f"
+          ],
+          [
+            "_source",
+            "binary",
+            "{\"title\":\"The Quick brown fox, the LAZY dog\",\"body\":\"red red green\",\"notes\":\"one two two\",\"offs\":\"Offsets keep start and end\",\"gap\":\"x y\",\"hidden_text\":\"not indexed\",\"tag\":\"alpha\",\"short_tag\":\"abc\",\"nulled\":\"set\",\"kw_nodv\":\"nodv\",\"kw_noidx\":\"noidx\",\"kw_stored\":\"stored\",\"kw_norms\":\"normed\",\"b\":-3,\"s\":300,\"i\":-70000,\"l\":9007199254740993,\"f\":1.25,\"d\":-2.5e-10,\"i_stored\":11,\"l_noidx\":12,\"d_nodv\":13.5,\"f_stored\":0.1,\"d_stored\":0.1,\"f_malformed\":2.5,\"n_null\":3,\"when\":\"2001-03-04T05:06:07.890Z\",\"when_epoch\":1234567890123,\"when_noidx\":\"1999-12-31\",\"flag\":true,\"flag_stored\":false,\"flag_nodv\":true,\"obj\":{\"inner\":\"in\",\"deep\":{\"n\":5}},\"@timestamp\":\"2024-05-06T07:08:09Z\",\"text_store_only\":\"kept as written\",\"kw_store_only\":\"kept\",\"l_store_only\":77,\"flag_store_only\":true,\"text_nonorms_stored\":\"x\"}"
+          ],
+          [
+            "offs",
+            "string",
+            "Offsets keep start and end"
+          ],
+          [
+            "kw_stored",
+            "binary",
+            "stored"
+          ],
+          [
+            "i_stored",
+            "int",
+            11
+          ],
+          [
+            "f_stored",
+            "float",
+            "0.1"
+          ],
+          [
+            "d_stored",
+            "double",
+            "0.1"
+          ],
+          [
+            "when_epoch",
+            "long",
+            1234567890123
+          ],
+          [
+            "flag_stored",
+            "string",
+            "F"
+          ],
+          [
+            "text_store_only",
+            "string",
+            "kept as written"
+          ],
+          [
+            "kw_store_only",
+            "binary",
+            "kept"
+          ],
+          [
+            "l_store_only",
+            "long",
+            77
+          ],
+          [
+            "flag_store_only",
+            "string",
+            "T"
+          ],
+          [
+            "text_nonorms_stored",
+            "string",
+            "x"
+          ]
+        ],
+        "inverted": {
+          "_field_names": {
+            "norm": null,
+            "terms": [
+              [
+                "body",
+                1
+              ],
+              [
+                "d_nodv",
+                1
+              ],
+              [
+                "flag_nodv",
+                1
+              ],
+              [
+                "flag_store_only",
+                1
+              ],
+              [
+                "kw_nodv",
+                1
+              ],
+              [
+                "kw_store_only",
+                1
+              ],
+              [
+                "l_store_only",
+                1
+              ],
+              [
+                "text_nonorms_stored",
+                1
+              ]
+            ]
+          },
+          "_id": {
+            "norm": null,
+            "terms": [
+              [
+                "hex:fe1f",
+                1
+              ]
+            ]
+          },
+          "body": {
+            "norm": null,
+            "terms": [
+              [
+                "green",
+                1
+              ],
+              [
+                "red",
+                2
+              ]
+            ]
+          },
+          "flag": {
+            "norm": null,
+            "terms": [
+              [
+                "T",
+                1
+              ]
+            ]
+          },
+          "flag_nodv": {
+            "norm": null,
+            "terms": [
+              [
+                "T",
+                1
+              ]
+            ]
+          },
+          "flag_stored": {
+            "norm": null,
+            "terms": [
+              [
+                "F",
+                1
+              ]
+            ]
+          },
+          "gap": {
+            "norm": 2,
+            "terms": [
+              [
+                "x",
+                1,
+                [
+                  0
+                ]
+              ],
+              [
+                "y",
+                1,
+                [
+                  1
+                ]
+              ]
+            ]
+          },
+          "kw_nodv": {
+            "norm": null,
+            "terms": [
+              [
+                "nodv",
+                1
+              ]
+            ]
+          },
+          "kw_norms": {
+            "norm": 1,
+            "terms": [
+              [
+                "normed",
+                1
+              ]
+            ]
+          },
+          "kw_stored": {
+            "norm": null,
+            "terms": [
+              [
+                "stored",
+                1
+              ]
+            ]
+          },
+          "notes": {
+            "norm": 2,
+            "terms": [
+              [
+                "one",
+                1
+              ],
+              [
+                "two",
+                1
+              ]
+            ]
+          },
+          "nulled": {
+            "norm": null,
+            "terms": [
+              [
+                "set",
+                1
+              ]
+            ]
+          },
+          "obj.inner": {
+            "norm": null,
+            "terms": [
+              [
+                "in",
+                1
+              ]
+            ]
+          },
+          "offs": {
+            "norm": 5,
+            "terms": [
+              [
+                "and",
+                1,
+                [
+                  3
+                ],
+                [
+                  [
+                    19,
+                    22
+                  ]
+                ]
+              ],
+              [
+                "end",
+                1,
+                [
+                  4
+                ],
+                [
+                  [
+                    23,
+                    26
+                  ]
+                ]
+              ],
+              [
+                "keep",
+                1,
+                [
+                  1
+                ],
+                [
+                  [
+                    8,
+                    12
+                  ]
+                ]
+              ],
+              [
+                "offsets",
+                1,
+                [
+                  0
+                ],
+                [
+                  [
+                    0,
+                    7
+                  ]
+                ]
+              ],
+              [
+                "start",
+                1,
+                [
+                  2
+                ],
+                [
+                  [
+                    13,
+                    18
+                  ]
+                ]
+              ]
+            ]
+          },
+          "short_tag": {
+            "norm": null,
+            "terms": [
+              [
+                "abc",
+                1
+              ]
+            ]
+          },
+          "tag": {
+            "norm": null,
+            "terms": [
+              [
+                "alpha",
+                1
+              ]
+            ]
+          },
+          "title": {
+            "norm": 7,
+            "terms": [
+              [
+                "brown",
+                1,
+                [
+                  2
+                ]
+              ],
+              [
+                "dog",
+                1,
+                [
+                  6
+                ]
+              ],
+              [
+                "fox",
+                1,
+                [
+                  3
+                ]
+              ],
+              [
+                "lazy",
+                1,
+                [
+                  5
+                ]
+              ],
+              [
+                "quick",
+                1,
+                [
+                  1
+                ]
+              ],
+              [
+                "the",
+                2,
+                [
+                  0,
+                  4
+                ]
+              ]
+            ]
+          },
+          "title.raw": {
+            "norm": null,
+            "terms": [
+              [
+                "The Quick brown fox, the LAZY dog",
+                1
+              ]
+            ]
+          }
+        },
+        "doc_values": {
+          "@timestamp": [
+            1714979289000
+          ],
+          "_primary_term": 1,
+          "_seq_no": 0,
+          "_version": 1,
+          "b": [
+            -3
+          ],
+          "d": [
+            -4463399334375249558
+          ],
+          "d_stored": [
+            4591870180066957722
+          ],
+          "f": [
+            1067450368
+          ],
+          "f_malformed": [
+            1075838976
+          ],
+          "f_stored": [
+            1036831949
+          ],
+          "flag": [
+            1
+          ],
+          "flag_stored": [
+            0
+          ],
+          "i": [
+            -70000
+          ],
+          "i_stored": [
+            11
+          ],
+          "kw_noidx": [
+            "noidx"
+          ],
+          "kw_norms": [
+            "normed"
+          ],
+          "kw_stored": [
+            "stored"
+          ],
+          "l": [
+            9007199254740993
+          ],
+          "l_noidx": [
+            12
+          ],
+          "n_null": [
+            3
+          ],
+          "nulled": [
+            "set"
+          ],
+          "obj.deep.n": [
+            5
+          ],
+          "obj.inner": [
+            "in"
+          ],
+          "s": [
+            300
+          ],
+          "short_tag": [
+            "abc"
+          ],
+          "tag": [
+            "alpha"
+          ],
+          "title.raw": [
+            "The Quick brown fox, the LAZY dog"
+          ],
+          "when": [
+            983682367890
+          ],
+          "when_epoch": [
+            1234567890123
+          ],
+          "when_noidx": [
+            946598400000
+          ]
+        },
+        "points": {
+          "@timestamp": [
+            "hex:8000018f4cbb37a8"
+          ],
+          "_seq_no": [
+            "hex:8000000000000000"
+          ],
+          "b": [
+            "hex:7ffffffd"
+          ],
+          "d": [
+            "hex:420ed1f417d9296a"
+          ],
+          "d_nodv": [
+            "hex:c02b000000000000"
+          ],
+          "d_stored": [
+            "hex:bfb999999999999a"
+          ],
+          "f": [
+            "hex:bfa00000"
+          ],
+          "f_malformed": [
+            "hex:c0200000"
+          ],
+          "f_stored": [
+            "hex:bdcccccd"
+          ],
+          "i": [
+            "hex:7ffeee90"
+          ],
+          "i_stored": [
+            "hex:8000000b"
+          ],
+          "l": [
+            "hex:8020000000000001"
+          ],
+          "n_null": [
+            "hex:8000000000000003"
+          ],
+          "obj.deep.n": [
+            "hex:80000005"
+          ],
+          "s": [
+            "hex:8000012c"
+          ],
+          "when": [
+            "hex:800000e50809c192"
+          ],
+          "when_epoch": [
+            "hex:8000011f71fb04cb"
+          ]
+        }
+      },
+      {
+        "stored": [
+          [
+            "_id",
+            "binary",
+            "hex:fe2f"
+          ],
+          [
+            "_source",
+            "binary",
+            "{\"title\":[\"a b\",\"c d\"],\"gap\":[\"x y\",\"z\"],\"offs\":[\"first value\",\"second\"],\"tag\":[\"b\",\"a\",\"b\"],\"i\":[3,1,2,3],\"when\":[\"2020-01-01\",\"2019-01-01\"],\"flag\":[true,false],\"obj\":[{\"inner\":\"x\"},{\"inner\":\"y\",\"deep\":{\"n\":[1,2]}}],\"kw_stored\":[\"s1\",\"s2\"],\"i_stored\":[2,1],\"@timestamp\":[\"2024-01-01\",\"2023-01-01\"]}"
+          ],
+          [
+            "offs",
+            "string",
+            "first value"
+          ],
+          [
+            "offs",
+            "string",
+            "second"
+          ],
+          [
+            "kw_stored",
+            "binary",
+            "s1"
+          ],
+          [
+            "kw_stored",
+            "binary",
+            "s2"
+          ],
+          [
+            "i_stored",
+            "int",
+            2
+          ],
+          [
+            "i_stored",
+            "int",
+            1
+          ]
+        ],
+        "inverted": {
+          "_id": {
+            "norm": null,
+            "terms": [
+              [
+                "hex:fe2f",
+                1
+              ]
+            ]
+          },
+          "flag": {
+            "norm": null,
+            "terms": [
+              [
+                "F",
+                1
+              ],
+              [
+                "T",
+                1
+              ]
+            ]
+          },
+          "gap": {
+            "norm": 3,
+            "terms": [
+              [
+                "x",
+                1,
+                [
+                  0
+                ]
+              ],
+              [
+                "y",
+                1,
+                [
+                  1
+                ]
+              ],
+              [
+                "z",
+                1,
+                [
+                  7
+                ]
+              ]
+            ]
+          },
+          "kw_stored": {
+            "norm": null,
+            "terms": [
+              [
+                "s1",
+                1
+              ],
+              [
+                "s2",
+                1
+              ]
+            ]
+          },
+          "obj.inner": {
+            "norm": null,
+            "terms": [
+              [
+                "x",
+                1
+              ],
+              [
+                "y",
+                1
+              ]
+            ]
+          },
+          "offs": {
+            "norm": 3,
+            "terms": [
+              [
+                "first",
+                1,
+                [
+                  0
+                ],
+                [
+                  [
+                    0,
+                    5
+                  ]
+                ]
+              ],
+              [
+                "second",
+                1,
+                [
+                  102
+                ],
+                [
+                  [
+                    12,
+                    18
+                  ]
+                ]
+              ],
+              [
+                "value",
+                1,
+                [
+                  1
+                ],
+                [
+                  [
+                    6,
+                    11
+                  ]
+                ]
+              ]
+            ]
+          },
+          "tag": {
+            "norm": null,
+            "terms": [
+              [
+                "a",
+                1
+              ],
+              [
+                "b",
+                1
+              ]
+            ]
+          },
+          "title": {
+            "norm": 4,
+            "terms": [
+              [
+                "a",
+                1,
+                [
+                  0
+                ]
+              ],
+              [
+                "b",
+                1,
+                [
+                  1
+                ]
+              ],
+              [
+                "c",
+                1,
+                [
+                  102
+                ]
+              ],
+              [
+                "d",
+                1,
+                [
+                  103
+                ]
+              ]
+            ]
+          },
+          "title.raw": {
+            "norm": null,
+            "terms": [
+              [
+                "a b",
+                1
+              ],
+              [
+                "c d",
+                1
+              ]
+            ]
+          }
+        },
+        "doc_values": {
+          "@timestamp": [
+            1672531200000,
+            1704067200000
+          ],
+          "_primary_term": 1,
+          "_seq_no": 1,
+          "_version": 1,
+          "flag": [
+            0,
+            1
+          ],
+          "i": [
+            1,
+            2,
+            3,
+            3
+          ],
+          "i_stored": [
+            1,
+            2
+          ],
+          "kw_stored": [
+            "s1",
+            "s2"
+          ],
+          "obj.deep.n": [
+            1,
+            2
+          ],
+          "obj.inner": [
+            "x",
+            "y"
+          ],
+          "tag": [
+            "a",
+            "b"
+          ],
+          "title.raw": [
+            "a b",
+            "c d"
+          ],
+          "when": [
+            1546300800000,
+            1577836800000
+          ]
+        },
+        "points": {
+          "@timestamp": [
+            "hex:800001856aa0c800",
+            "hex:8000018cc251f400"
+          ],
+          "_seq_no": [
+            "hex:8000000000000001"
+          ],
+          "i": [
+            "hex:80000001",
+            "hex:80000002",
+            "hex:80000003",
+            "hex:80000003"
+          ],
+          "i_stored": [
+            "hex:80000001",
+            "hex:80000002"
+          ],
+          "obj.deep.n": [
+            "hex:80000001",
+            "hex:80000002"
+          ],
+          "when": [
+            "hex:8000016806b5bc00",
+            "hex:8000016f5e66e800"
+          ]
+        }
+      },
+      {
+        "stored": [
+          [
+            "_id",
+            "binary",
+            "hex:fe3f"
+          ],
+          [
+            "_source",
+            "binary",
+            "{\"nulled\":null,\"n_null\":null,\"i\":\"42\",\"f\":\"1.5\",\"l\":12.7,\"s\":\"7\",\"flag\":\"true\",\"short_tag\":\"toolongvalue\",\"f_malformed\":\"bad\",\"flag_stored\":\"false\",\"when_epoch\":\"1000\",\"d\":\"3\",\"title\":null,\"tag\":[null,\"c\"]}"
+          ],
+          [
+            "flag_stored",
+            "string",
+            "F"
+          ],
+          [
+            "when_epoch",
+            "long",
+            1000
+          ],
+          [
+            "_ignored",
+            "string",
+            "f_malformed"
+          ]
+        ],
+        "inverted": {
+          "_id": {
+            "norm": null,
+            "terms": [
+              [
+                "hex:fe3f",
+                1
+              ]
+            ]
+          },
+          "_ignored": {
+            "norm": null,
+            "terms": [
+              [
+                "f_malformed",
+                1
+              ]
+            ]
+          },
+          "flag": {
+            "norm": null,
+            "terms": [
+              [
+                "T",
+                1
+              ]
+            ]
+          },
+          "flag_stored": {
+            "norm": null,
+            "terms": [
+              [
+                "F",
+                1
+              ]
+            ]
+          },
+          "nulled": {
+            "norm": null,
+            "terms": [
+              [
+                "NONE",
+                1
+              ]
+            ]
+          },
+          "tag": {
+            "norm": null,
+            "terms": [
+              [
+                "c",
+                1
+              ]
+            ]
+          }
+        },
+        "doc_values": {
+          "_primary_term": 1,
+          "_seq_no": 2,
+          "_version": 1,
+          "d": [
+            4613937818241073152
+          ],
+          "f": [
+            1069547520
+          ],
+          "flag": [
+            1
+          ],
+          "flag_stored": [
+            0
+          ],
+          "i": [
+            42
+          ],
+          "l": [
+            12
+          ],
+          "n_null": [
+            7
+          ],
+          "nulled": [
+            "NONE"
+          ],
+          "s": [
+            7
+          ],
+          "tag": [
+            "c"
+          ],
+          "when_epoch": [
+            1000
+          ]
+        },
+        "points": {
+          "_seq_no": [
+            "hex:8000000000000002"
+          ],
+          "d": [
+            "hex:c008000000000000"
+          ],
+          "f": [
+            "hex:bfc00000"
+          ],
+          "i": [
+            "hex:8000002a"
+          ],
+          "l": [
+            "hex:800000000000000c"
+          ],
+          "n_null": [
+            "hex:8000000000000007"
+          ],
+          "s": [
+            "hex:80000007"
+          ],
+          "when_epoch": [
+            "hex:80000000000003e8"
+          ]
+        }
+      },
+      {
+        "stored": [
+          [
+            "_id",
+            "binary",
+            "hex:fe4f"
+          ],
+          [
+            "_source",
+            "binary",
+            "{\"tag\":\"only\",\"offs\":[\"caf\\u00e9 \\ud83d\\ude00 ok\",\"\\u00dcn\\u00efcode end\"],\"title\":\"\\u00c7a va, \\u00c4rger \\ud83d\\ude00 x\"}"
+          ],
+          [
+            "offs",
+            "string",
+            "café 😀 ok"
+          ],
+          [
+            "offs",
+            "string",
+            "Ünïcode end"
+          ]
+        ],
+        "inverted": {
+          "_id": {
+            "norm": null,
+            "terms": [
+              [
+                "hex:fe4f",
+                1
+              ]
+            ]
+          },
+          "offs": {
+            "norm": 5,
+            "terms": [
+              [
+                "café",
+                1,
+                [
+                  0
+                ],
+                [
+                  [
+                    0,
+                    4
+                  ]
+                ]
+              ],
+              [
+                "end",
+                1,
+                [
+                  104
+                ],
+                [
+                  [
+                    19,
+                    22
+                  ]
+                ]
+              ],
+              [
+                "ok",
+                1,
+                [
+                  2
+                ],
+                [
+                  [
+                    8,
+                    10
+                  ]
+                ]
+              ],
+              [
+                "ünïcode",
+                1,
+                [
+                  103
+                ],
+                [
+                  [
+                    11,
+                    18
+                  ]
+                ]
+              ],
+              [
+                "😀",
+                1,
+                [
+                  1
+                ],
+                [
+                  [
+                    5,
+                    7
+                  ]
+                ]
+              ]
+            ]
+          },
+          "tag": {
+            "norm": null,
+            "terms": [
+              [
+                "only",
+                1
+              ]
+            ]
+          },
+          "title": {
+            "norm": 5,
+            "terms": [
+              [
+                "va",
+                1,
+                [
+                  1
+                ]
+              ],
+              [
+                "x",
+                1,
+                [
+                  4
+                ]
+              ],
+              [
+                "ärger",
+                1,
+                [
+                  2
+                ]
+              ],
+              [
+                "ça",
+                1,
+                [
+                  0
+                ]
+              ],
+              [
+                "😀",
+                1,
+                [
+                  3
+                ]
+              ]
+            ]
+          },
+          "title.raw": {
+            "norm": null,
+            "terms": [
+              [
+                "Ça va, Ärger 😀 x",
+                1
+              ]
+            ]
+          }
+        },
+        "doc_values": {
+          "_primary_term": 1,
+          "_seq_no": 3,
+          "_version": 1,
+          "tag": [
+            "only"
+          ],
+          "title.raw": [
+            "Ça va, Ärger 😀 x"
+          ]
+        },
+        "points": {
+          "_seq_no": [
+            "hex:8000000000000003"
+          ]
+        }
+      },
+      {
+        "stored": [
+          [
+            "_id",
+            "binary",
+            "hex:fe5f"
+          ],
+          [
+            "_source",
+            "binary",
+            "{\"obj.inner\":\"dotted\",\"obj.deep.n\":9,\"title\":\"\"}"
+          ]
+        ],
+        "inverted": {
+          "_id": {
+            "norm": null,
+            "terms": [
+              [
+                "hex:fe5f",
+                1
+              ]
+            ]
+          },
+          "obj.inner": {
+            "norm": null,
+            "terms": [
+              [
+                "dotted",
+                1
+              ]
+            ]
+          },
+          "title.raw": {
+            "norm": null,
+            "terms": [
+              [
+                "",
+                1
+              ]
+            ]
+          }
+        },
+        "doc_values": {
+          "_primary_term": 1,
+          "_seq_no": 4,
+          "_version": 1,
+          "obj.deep.n": [
+            9
+          ],
+          "obj.inner": [
+            "dotted"
+          ],
+          "title.raw": [
+            ""
+          ]
+        },
+        "points": {
+          "_seq_no": [
+            "hex:8000000000000004"
+          ],
+          "obj.deep.n": [
+            "hex:80000009"
+          ]
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,673 @@
+{
+  "name": "dynamic fields as OpenSearch indexes them",
+  "description": "No mapping: strings as text with a keyword sub-field, longs, floats, booleans, detected dates, objects, a string over ignore_above, arrays, and a field first seen in a later document, an empty string, and digits in a string.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0-SNAPSHOT",
+    "build_hash": "429b4cbcd98f0d22aeae421a9f38645f6dc55b62"
+  },
+  "index": "compat-segment-dynamic",
+  "documents": [
+    {
+      "id": "a",
+      "source": {
+        "s": "Hello World",
+        "n": 5,
+        "x": 1.5,
+        "flag": true,
+        "dt": "2021-02-03",
+        "o": {
+          "k": "v",
+          "m": 2
+        },
+        "long_string": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "arr": [
+          1,
+          2
+        ],
+        "e": [],
+        "z": null,
+        "blank": "",
+        "digits": "12"
+      }
+    },
+    {
+      "id": "b",
+      "source": {
+        "later": "z",
+        "n": 6,
+        "s": [
+          "two",
+          "values"
+        ]
+      }
+    }
+  ],
+  "segment": {
+    "max_doc": 2,
+    "fields": [
+      {
+        "number": 0,
+        "name": "_id",
+        "index_options": "DOCS",
+        "doc_values": "NONE",
+        "skip_index": "NONE",
+        "omit_norms": true,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 1,
+        "name": "_seq_no",
+        "index_options": "NONE",
+        "doc_values": "NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          1,
+          1,
+          8
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 2,
+        "name": "_primary_term",
+        "index_options": "NONE",
+        "doc_values": "NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 3,
+        "name": "_source",
+        "index_options": "NONE",
+        "doc_values": "NONE",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 4,
+        "name": "_version",
+        "index_options": "NONE",
+        "doc_values": "NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 5,
+        "name": "s",
+        "index_options": "DOCS_AND_FREQS_AND_POSITIONS",
+        "doc_values": "NONE",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 6,
+        "name": "s.keyword",
+        "index_options": "DOCS",
+        "doc_values": "SORTED_SET",
+        "skip_index": "NONE",
+        "omit_norms": true,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 7,
+        "name": "n",
+        "index_options": "NONE",
+        "doc_values": "SORTED_NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          1,
+          1,
+          8
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 8,
+        "name": "x",
+        "index_options": "NONE",
+        "doc_values": "SORTED_NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          1,
+          1,
+          4
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 9,
+        "name": "flag",
+        "index_options": "DOCS",
+        "doc_values": "SORTED_NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": true,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 10,
+        "name": "dt",
+        "index_options": "NONE",
+        "doc_values": "SORTED_NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          1,
+          1,
+          8
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 11,
+        "name": "o.k",
+        "index_options": "DOCS_AND_FREQS_AND_POSITIONS",
+        "doc_values": "NONE",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 12,
+        "name": "o.k.keyword",
+        "index_options": "DOCS",
+        "doc_values": "SORTED_SET",
+        "skip_index": "NONE",
+        "omit_norms": true,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 13,
+        "name": "o.m",
+        "index_options": "NONE",
+        "doc_values": "SORTED_NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          1,
+          1,
+          8
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 14,
+        "name": "long_string",
+        "index_options": "DOCS_AND_FREQS_AND_POSITIONS",
+        "doc_values": "NONE",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 15,
+        "name": "arr",
+        "index_options": "NONE",
+        "doc_values": "SORTED_NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          1,
+          1,
+          8
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 16,
+        "name": "blank",
+        "index_options": "DOCS_AND_FREQS_AND_POSITIONS",
+        "doc_values": "NONE",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 17,
+        "name": "blank.keyword",
+        "index_options": "DOCS",
+        "doc_values": "SORTED_SET",
+        "skip_index": "NONE",
+        "omit_norms": true,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 18,
+        "name": "digits",
+        "index_options": "DOCS_AND_FREQS_AND_POSITIONS",
+        "doc_values": "NONE",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 19,
+        "name": "digits.keyword",
+        "index_options": "DOCS",
+        "doc_values": "SORTED_SET",
+        "skip_index": "NONE",
+        "omit_norms": true,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 20,
+        "name": "later",
+        "index_options": "DOCS_AND_FREQS_AND_POSITIONS",
+        "doc_values": "NONE",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 21,
+        "name": "later.keyword",
+        "index_options": "DOCS",
+        "doc_values": "SORTED_SET",
+        "skip_index": "NONE",
+        "omit_norms": true,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      }
+    ],
+    "docs": [
+      {
+        "stored": [
+          [
+            "_id",
+            "binary",
+            "hex:ff61"
+          ],
+          [
+            "_source",
+            "binary",
+            "{\"s\":\"Hello World\",\"n\":5,\"x\":1.5,\"flag\":true,\"dt\":\"2021-02-03\",\"o\":{\"k\":\"v\",\"m\":2},\"long_string\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"arr\":[1,2],\"e\":[],\"z\":null,\"blank\":\"\",\"digits\":\"12\"}"
+          ]
+        ],
+        "inverted": {
+          "_id": {
+            "norm": null,
+            "terms": [
+              [
+                "hex:ff61",
+                1
+              ]
+            ]
+          },
+          "blank.keyword": {
+            "norm": null,
+            "terms": [
+              [
+                "",
+                1
+              ]
+            ]
+          },
+          "digits": {
+            "norm": 1,
+            "terms": [
+              [
+                "12",
+                1,
+                [
+                  0
+                ]
+              ]
+            ]
+          },
+          "digits.keyword": {
+            "norm": null,
+            "terms": [
+              [
+                "12",
+                1
+              ]
+            ]
+          },
+          "flag": {
+            "norm": null,
+            "terms": [
+              [
+                "T",
+                1
+              ]
+            ]
+          },
+          "long_string": {
+            "norm": 2,
+            "terms": [
+              [
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                1,
+                [
+                  1
+                ]
+              ],
+              [
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                1,
+                [
+                  0
+                ]
+              ]
+            ]
+          },
+          "o.k": {
+            "norm": 1,
+            "terms": [
+              [
+                "v",
+                1,
+                [
+                  0
+                ]
+              ]
+            ]
+          },
+          "o.k.keyword": {
+            "norm": null,
+            "terms": [
+              [
+                "v",
+                1
+              ]
+            ]
+          },
+          "s": {
+            "norm": 2,
+            "terms": [
+              [
+                "hello",
+                1,
+                [
+                  0
+                ]
+              ],
+              [
+                "world",
+                1,
+                [
+                  1
+                ]
+              ]
+            ]
+          },
+          "s.keyword": {
+            "norm": null,
+            "terms": [
+              [
+                "Hello World",
+                1
+              ]
+            ]
+          }
+        },
+        "doc_values": {
+          "_primary_term": 1,
+          "_seq_no": 0,
+          "_version": 1,
+          "arr": [
+            1,
+            2
+          ],
+          "blank.keyword": [
+            ""
+          ],
+          "digits.keyword": [
+            "12"
+          ],
+          "dt": [
+            1612310400000
+          ],
+          "flag": [
+            1
+          ],
+          "n": [
+            5
+          ],
+          "o.k.keyword": [
+            "v"
+          ],
+          "o.m": [
+            2
+          ],
+          "s.keyword": [
+            "Hello World"
+          ],
+          "x": [
+            1069547520
+          ]
+        },
+        "points": {
+          "_seq_no": [
+            "hex:8000000000000000"
+          ],
+          "arr": [
+            "hex:8000000000000001",
+            "hex:8000000000000002"
+          ],
+          "dt": [
+            "hex:8000017765304c00"
+          ],
+          "n": [
+            "hex:8000000000000005"
+          ],
+          "o.m": [
+            "hex:8000000000000002"
+          ],
+          "x": [
+            "hex:bfc00000"
+          ]
+        }
+      },
+      {
+        "stored": [
+          [
+            "_id",
+            "binary",
+            "hex:ff62"
+          ],
+          [
+            "_source",
+            "binary",
+            "{\"later\":\"z\",\"n\":6,\"s\":[\"two\",\"values\"]}"
+          ]
+        ],
+        "inverted": {
+          "_id": {
+            "norm": null,
+            "terms": [
+              [
+                "hex:ff62",
+                1
+              ]
+            ]
+          },
+          "later": {
+            "norm": 1,
+            "terms": [
+              [
+                "z",
+                1,
+                [
+                  0
+                ]
+              ]
+            ]
+          },
+          "later.keyword": {
+            "norm": null,
+            "terms": [
+              [
+                "z",
+                1
+              ]
+            ]
+          },
+          "s": {
+            "norm": 2,
+            "terms": [
+              [
+                "two",
+                1,
+                [
+                  0
+                ]
+              ],
+              [
+                "values",
+                1,
+                [
+                  101
+                ]
+              ]
+            ]
+          },
+          "s.keyword": {
+            "norm": null,
+            "terms": [
+              [
+                "two",
+                1
+              ],
+              [
+                "values",
+                1
+              ]
+            ]
+          }
+        },
+        "doc_values": {
+          "_primary_term": 1,
+          "_seq_no": 1,
+          "_version": 1,
+          "later.keyword": [
+            "z"
+          ],
+          "n": [
+            6
+          ],
+          "s.keyword": [
+            "two",
+            "values"
+          ]
+        },
+        "points": {
+          "_seq_no": [
+            "hex:8000000000000001"
+          ],
+          "n": [
+            "hex:8000000000000006"
+          ]
+        }
+      }
+    ]
+  }
+}
