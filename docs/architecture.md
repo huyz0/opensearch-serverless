@@ -43,6 +43,7 @@ graph TD
     oss-types
     oss-writer --> chunkjson
     oss-writer --> oss-blob
+    oss-writer --> oss-cluster
     oss-writer --> oss-format
     oss-writer --> oss-rest
     oss-writer --> oss-types
