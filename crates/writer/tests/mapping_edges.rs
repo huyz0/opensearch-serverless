@@ -261,3 +261,39 @@ fn an_unset_explicit_flag_remembers_it_was_not_set() {
         Some(&Value::Explicit(false, false))
     );
 }
+
+#[test]
+fn routing_is_optional_and_ignores_type() {
+    assert!(!parse("{}").unwrap().routing_required());
+    // `ParametrizedFieldMapper.parse` drops a `type` it has no parameter for.
+    let m = parse(r#"{"_routing":{"type":"x","required":true}}"#).unwrap();
+    assert!(m.routing_required());
+    // Setting the default explicitly is no change, before or after.
+    let off = parse("{}")
+        .unwrap()
+        .merge(&parse(r#"{"_routing":{"required":false}}"#).unwrap())
+        .unwrap();
+    assert!(!off.routing_required());
+    assert!(m.merge(&m).unwrap().routing_required());
+}
+
+#[test]
+fn depth_limit_names_the_first_object_past_it() {
+    let chain = |n: usize| {
+        (0..n).fold(r#"{"type":"keyword"}"#.to_string(), |inner, i| {
+            format!(r#"{{"properties":{{"o{i}":{inner}}}}}"#)
+        })
+    };
+    // Twenty objects under the root stay within the limit; with one more,
+    // the object at depth twenty-one is named, not the deeper one inside it.
+    assert!(parse(&chain(20)).is_ok());
+    let path = (1..21)
+        .rev()
+        .map(|i| format!("o{i}"))
+        .collect::<Vec<_>>()
+        .join(".");
+    assert_eq!(
+        parse(&chain(21)).unwrap_err().reason,
+        format!("Limit of mapping depth [20] has been exceeded due to object field [{path}]")
+    );
+}
