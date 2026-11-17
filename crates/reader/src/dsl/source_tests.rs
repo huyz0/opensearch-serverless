@@ -81,7 +81,7 @@ fn keys_opensearch_does_not_know_fail_with_their_token() {
 #[test]
 fn keys_opensearch_knows_are_refused_as_not_served() {
     for body in [
-        r#"{"track_total_hits":true}"#,
+        r#"{"highlight":{"fields":{"t":{}}}}"#,
         r#"{"aggs":{"t":{"terms":{"field":"tag"}}}}"#,
         r#"{"search_after":[1]}"#,
     ] {
@@ -154,5 +154,53 @@ fn a_token_after_the_main_object_is_refused_by_the_tokenizer() {
         failure.reason.contains("after the root value"),
         "{}",
         failure.reason
+    );
+}
+
+#[test]
+fn track_total_hits_counts_up_to_a_number_or_not_at_all() {
+    let tracked = |body: &str| source(body).expect("parses").track_total_hits;
+    assert_eq!(tracked("{}"), Some(DEFAULT_TRACK_TOTAL_HITS));
+    let exact = Some(u64::from(i32::MAX.cast_unsigned()));
+    assert_eq!(tracked(r#"{"track_total_hits":true}"#), exact);
+    assert_eq!(tracked(r#"{"track_total_hits":"true"}"#), exact);
+    assert_eq!(tracked(r#"{"track_total_hits":false}"#), None);
+    assert_eq!(tracked(r#"{"track_total_hits":"false"}"#), None);
+    assert_eq!(tracked(r#"{"track_total_hits":-1}"#), None);
+    assert_eq!(tracked(r#"{"track_total_hits":0}"#), Some(0));
+    assert_eq!(tracked(r#"{"track_total_hits":3}"#), Some(3));
+    assert_eq!(tracked(r#"{"track_total_hits":"3.7"}"#), Some(3));
+    assert_eq!(tracked(r#"{"track_total_hits":2147483647}"#), exact);
+    for below in ["-2", "-100"] {
+        assert!(
+            reason(&format!(r#"{{"track_total_hits":{below}}}"#))
+                .ends_with("is not supported by this node yet"),
+            "{below}"
+        );
+    }
+    assert_eq!(
+        reason(r#"{"track_total_hits":"yes"}"#),
+        "For input string: \"yes\""
+    );
+    assert_eq!(
+        reason(r#"{"track_total_hits":null}"#),
+        "Unknown key for a VALUE_NULL in [track_total_hits]."
+    );
+}
+
+#[test]
+fn the_source_filter_is_read_from_a_value_an_object_or_an_array() {
+    let filter = |body: &str| source(body).expect("parses").source;
+    assert!(filter(r#"{"_source":false}"#).skip);
+    assert_eq!(filter(r#"{"_source":"n*"}"#).includes, ["n*"]);
+    assert_eq!(filter(r#"{"_source":["a","b"]}"#).includes, ["a", "b"]);
+    let f = filter(r#"{"_source":{"includes":["a"],"excludes":"b"}}"#);
+    assert_eq!(
+        (f.includes, f.excludes),
+        (vec!["a".to_owned()], vec!["b".to_owned()])
+    );
+    assert_eq!(
+        reason(r#"{"_source":null}"#),
+        "Unknown key for a VALUE_NULL in [_source]."
     );
 }

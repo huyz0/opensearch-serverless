@@ -18,6 +18,7 @@ use oss_rest::write_json_str;
 
 use crate::OpenShard;
 use crate::aggs::metric::write_aggregations;
+use crate::fetch::source_filter;
 use crate::search::{Hits, SortValue};
 
 /// A hit's `_id` and `_source`, copied out of its stored fields into buffers
@@ -196,14 +197,23 @@ pub fn write_response<S: BlobStore + 'static>(
     write!(
         out,
         "{{\"took\":{took_ms},\"timed_out\":false,\"_shards\":{{\"total\":1,\"successful\":1,\
-         \"skipped\":0,\"failed\":0}},\"hits\":{{\"total\":{{\"value\":{},\"relation\":\"{}\"}},\
-         \"max_score\":",
-        hits.total,
-        if hits.exact { "eq" } else { "gte" }
+         \"skipped\":0,\"failed\":0}},\"hits\":{{"
     )?;
+    if hits.tracked {
+        write!(
+            out,
+            "\"total\":{{\"value\":{},\"relation\":\"{}\"}},",
+            hits.total,
+            if hits.exact { "eq" } else { "gte" }
+        )?;
+    }
+    out.write_all(b"\"max_score\":")?;
     write_score(out, hits.max_score)?;
     out.write_all(b",\"hits\":[")?;
     let mut stored = Stored::new(reserve);
+    // What filtering one hit's source may hold at once, reserved up to the
+    // most any hit has needed.
+    let mut scratch = 0usize;
     let readers = shard.reader.segment_readers();
     for (i, hit) in hits.hits.iter().enumerate() {
         if i > 0 {
@@ -231,12 +241,21 @@ pub fn write_response<S: BlobStore + 'static>(
         write_id(out, &stored.id)?;
         out.write_all(b",\"_score\":")?;
         write_score(out, hit.score)?;
-        if stored.source_field.is_some() && !stored.source.is_empty() {
+        if !hits.source.skip && stored.source_field.is_some() && !stored.source.is_empty() {
             if stored.source.iter().find(|b| !b.is_ascii_whitespace()) != Some(&b'{') {
                 return Err(io::Error::other("a _source that is not JSON"));
             }
             out.write_all(b",\"_source\":")?;
-            out.write_all(&stored.source)?;
+            if hits.source.is_whole() {
+                out.write_all(&stored.source)?;
+            } else {
+                let need = source_filter::scratch_bytes(stored.source.len());
+                if let Some(more) = need.checked_sub(scratch).filter(|n| *n > 0) {
+                    (stored.reserve)(more)?;
+                    scratch = need;
+                }
+                source_filter::write_filtered(out, &hits.source, &stored.source)?;
+            }
         }
         if !hit.sort.is_empty() {
             out.write_all(b",\"sort\":[")?;
@@ -259,6 +278,10 @@ pub fn write_response<S: BlobStore + 'static>(
     write_aggregations(out, &hits.aggregations)?;
     out.write_all(b"}")
 }
+
+#[cfg(test)]
+#[path = "response_hits_tests.rs"]
+mod hits_tests;
 
 #[cfg(test)]
 mod tests {

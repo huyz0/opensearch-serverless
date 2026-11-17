@@ -1,5 +1,5 @@
 //! A search request's source: `SearchSourceBuilder.parseXContent` for
-//! `query`, `size`, `from` and `sort`, and the `size` and `from` URL
+//! `query`, `size`, `from`, `sort` and `_source`, and the `size` and `from` URL
 //! parameters of `RestSearchAction.parseSearchSource`, at OpenSearch 3.10.0.
 //!
 //! Every other key OpenSearch reads is refused as not served yet; a key it
@@ -12,7 +12,8 @@ use crate::dsl::error::DslError;
 use crate::dsl::query::{Query, parse_inner};
 use crate::dsl::sort::{SortKey, parse_sort};
 use crate::dsl::tokens::{Kind, Parser, Recorder};
-use crate::dsl::values::int_value;
+use crate::dsl::values::{bool_value, int_value};
+use crate::fetch::source_filter::{SourceFilter, parse_source};
 
 /// `SearchService.DEFAULT_SIZE`.
 pub const DEFAULT_SIZE: usize = 10;
@@ -77,6 +78,11 @@ pub struct SearchSource {
     pub size: usize,
     /// The sort; by score when empty.
     pub sort: Vec<SortKey>,
+    /// `track_total_hits`: matches are counted exactly up to this many;
+    /// `None` reports no total.
+    pub track_total_hits: Option<u64>,
+    /// `_source`: whether and which of each hit's source to return.
+    pub source: SourceFilter,
     /// The aggregations, in request order; none when empty.
     pub aggs: Vec<MetricAgg>,
 }
@@ -90,8 +96,27 @@ impl Default for SearchSource {
             // ALLOC: empty; a sort pushes at most MAX_SORT_KEYS.
             sort: Vec::new(),
             // ALLOC: empty; parsing pushes one an aggregation.
+            track_total_hits: Some(DEFAULT_TRACK_TOTAL_HITS),
+            source: SourceFilter::default(),
             aggs: Vec::new(),
         }
+    }
+}
+
+/// `SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO`.
+pub const DEFAULT_TRACK_TOTAL_HITS: u64 = 10_000;
+
+/// `track_total_hits`: a boolean (or a string of one), else an int, `-1`
+/// turning the total off as `false` does.
+fn track_total_hits(p: &Parser<'_>) -> Result<Option<u64>, DslError> {
+    if p.current_token() == Some(Kind::Bool) || matches!(p.text(), "true" | "false") {
+        return Ok(bool_value(p)?.then_some(u64::from(i32::MAX.cast_unsigned())));
+    }
+    match int_value(p)? {
+        -1 => Ok(None),
+        // OpenSearch accepts it here and fails the fetch phase.
+        n if n < 0 => Err(DslError::unsupported("a [track_total_hits] below -1")),
+        n => Ok(Some(u64::from(n.cast_unsigned()))),
     }
 }
 
@@ -146,6 +171,12 @@ impl SearchSource {
             "from" => self.from = non_negative("from", int_value(p)?)?,
             "size" => self.size = non_negative("size", int_value(p)?)?,
             "sort" => self.sort = parse_sort(&mut p.clone())?,
+            // `SearchSourceBuilder`'s value branch takes no null.
+            "_source" | "track_total_hits" if kind == Kind::Null => {
+                return Err(unknown_key(p, kind, name));
+            }
+            "_source" => self.source = parse_source(&mut p.clone(), name)?,
+            "track_total_hits" => self.track_total_hits = track_total_hits(p)?,
             known if VALUE_KEYS.contains(&known) => return Err(unsupported(known)),
             _ => return Err(unknown_key(p, kind, name)),
         }
@@ -157,6 +188,7 @@ impl SearchSource {
             "query" => self.query = Some(parse_inner(p)?),
             "sort" => self.sort = parse_sort(p)?,
             "aggregations" | "aggs" => self.aggs = parse_aggregations(p)?,
+            "_source" => self.source = parse_source(p, name)?,
             known if OBJECT_KEYS.contains(&known) => return Err(unsupported(known)),
             _ => return Err(unknown_key(p, Kind::StartObject, name)),
         }
@@ -166,6 +198,7 @@ impl SearchSource {
     fn array(&mut self, p: &mut Parser<'_>, name: &str) -> Result<(), DslError> {
         match name {
             "sort" => self.sort = parse_sort(p)?,
+            "_source" => self.source = parse_source(p, name)?,
             known if ARRAY_KEYS.contains(&known) => return Err(unsupported(known)),
             _ => return Err(unknown_key(p, Kind::StartArray, name)),
         }

@@ -25,6 +25,7 @@ use crate::OpenShard;
 use crate::aggs::metric::{self, Partial, state_bytes};
 use crate::dsl::{SearchSource, SortKey};
 use crate::failure::{Failure, Meta};
+use crate::fetch::source_filter::SourceFilter;
 use crate::lucene_query::{QueryContext, shard_failure, to_lucene};
 use crate::mapping::FieldType;
 
@@ -32,7 +33,7 @@ use crate::mapping::FieldType;
 pub const MAX_RESULT_WINDOW: usize = 10_000;
 
 /// `track_total_hits`' default: matches are counted exactly up to here.
-pub const TRACK_TOTAL_HITS: u64 = 10_000;
+pub const TRACK_TOTAL_HITS: u64 = crate::dsl::source::DEFAULT_TRACK_TOTAL_HITS;
 
 /// One sort value of a hit.
 #[derive(Clone, Debug, PartialEq)]
@@ -69,6 +70,10 @@ pub struct Hits {
     pub hits: Vec<Hit>,
     /// The aggregations' shard-level results, in request order.
     pub aggregations: Vec<Partial>,
+    /// Whether the response carries the total (`track_total_hits` not off).
+    pub tracked: bool,
+    /// What of each hit's `_source` to write.
+    pub source: SourceFilter,
 }
 
 /// A failure on the shard, with the HTTP status it answers with.
@@ -142,12 +147,12 @@ pub fn hits_bytes<S: BlobStore + 'static>(source: &SearchSource, shard: &OpenSha
 }
 
 /// The total a search reports, as `SearchPhaseController.TopDocsStats.getTotalHits`
-/// gives it for the default `track_total_hits`: a count past
-/// [`TRACK_TOTAL_HITS`] is reported as that many, at least. The engine may
+/// gives it for `track_total_hits` of `limit`: a count past the limit is
+/// reported as that many, at least. The engine may
 /// count further when it has to visit every match anyway, as for a sort.
-pub fn reported(counted: u64, relation: TotalHitsRelation) -> (u64, bool) {
-    if counted > TRACK_TOTAL_HITS {
-        (TRACK_TOTAL_HITS, false)
+pub fn reported(counted: u64, relation: TotalHitsRelation, limit: u64) -> (u64, bool) {
+    if counted > limit {
+        (limit, false)
     } else {
         (counted, relation == TotalHitsRelation::EqualTo)
     }
@@ -209,6 +214,8 @@ pub fn search<S: BlobStore + 'static>(
     }
     let segments = opened.as_open_segments();
     let aggregations = metric::collect(&source.aggs, shard, &segments, &query)?;
+    // A total turned off counts nothing past the hits.
+    let limit = source.track_total_hits.unwrap_or(0);
     match sort {
         Some((keys, kinds)) if window > 0 => {
             let top = search_sorted(
@@ -218,7 +225,7 @@ pub fn search<S: BlobStore + 'static>(
                 &norms,
                 &keys,
                 window,
-                TRACK_TOTAL_HITS,
+                limit,
                 None,
             )
             .map_err(ShardError::engine)?;
@@ -230,25 +237,26 @@ pub fn search<S: BlobStore + 'static>(
                 .map(|h| sorted_hit(h, &kinds, score_at))
                 // ALLOC: one hit a result, at most MAX_RESULT_WINDOW.
                 .collect();
-            let (total, exact) = reported(top.total.value, top.total.relation);
+            let (total, exact) = reported(top.total.value, top.total.relation, limit);
             Ok(Hits {
                 total,
                 exact,
                 max_score: None,
                 hits,
                 aggregations,
+                tracked: source.track_total_hits.is_some(),
+                source: source.source.clone(),
             })
         }
         _ => {
             let searcher = IndexSearcher::new(&segments, &norms).map_err(ShardError::engine)?;
-            let mut collector =
-                TopDocsCollector::with_total_hits_threshold(window, TRACK_TOTAL_HITS);
+            let mut collector = TopDocsCollector::with_total_hits_threshold(window, limit);
             searcher
                 .search_collector(&query, &mut collector)
                 .map_err(ShardError::engine)?;
             let top = collector.top_docs();
             let counted = collector.total_hits();
-            let (total, exact) = reported(counted.value, counted.relation);
+            let (total, exact) = reported(counted.value, counted.relation, limit);
             Ok(Hits {
                 total,
                 exact,
@@ -265,6 +273,8 @@ pub fn search<S: BlobStore + 'static>(
                     // ALLOC: one hit a result, at most MAX_RESULT_WINDOW.
                     .collect(),
                 aggregations,
+                tracked: source.track_total_hits.is_some(),
+                source: source.source.clone(),
             })
         }
     }
