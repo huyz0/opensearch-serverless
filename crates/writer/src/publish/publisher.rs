@@ -238,19 +238,23 @@ impl ShardPublisher {
     /// An absent register is [`PublishError::Unusable`] "no commit
     /// published".
     fn read_register_bytes(&self) -> Result<(Last, u64, Vec<u8>), PublishError> {
-        let mut size = MANIFEST_READ_FIRST;
-        let (buf, read) = loop {
+        let mut found = None;
+        for size in [MANIFEST_READ_FIRST, MANIFEST_READ_BYTES] {
             // ALLOC: one buffer a register read, at most manifest-sized: a publisher's first, or after a lost swap.
             let mut buf = vec![0u8; size];
             match self.store.read_register(&self.manifest_key, &mut buf) {
-                Ok(Some(read)) => break (buf, read),
-                Ok(None) => return Err(PublishError::Unusable("no commit published")),
-                // A larger manifest than the first buffer: once more with room for the most.
-                Err(BlobError::InvalidArgument(_)) if size < MANIFEST_READ_BYTES => {
-                    size = MANIFEST_READ_BYTES;
+                Ok(Some(read)) => {
+                    found = Some((buf, read));
+                    break;
                 }
+                Ok(None) => return Err(PublishError::Unusable("no commit published")),
+                // A larger manifest than this buffer: once more with room for the most.
+                Err(BlobError::InvalidArgument(_)) => {}
                 Err(e) => return Err(e.into()),
             }
+        }
+        let Some((buf, read)) = found else {
+            return Err(PublishError::Unusable("a manifest too large to read"));
         };
         let value = buf.get(..read.len).unwrap_or_default();
         let manifest = CommitManifest::parse(value)?;

@@ -81,3 +81,42 @@ impl From<FormatError> for PublishError {
         Self::Format(e)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::PublishError;
+
+    #[test]
+    fn each_refusal_says_what_it_was() {
+        let stale = PublishError::Stale {
+            term: 4,
+            found: Some(5),
+        };
+        assert_eq!(
+            stale.to_string(),
+            "term 4 is stale: term 5 holds the commit register"
+        );
+        let lost = PublishError::Stale {
+            term: 4,
+            found: None,
+        };
+        assert_eq!(
+            lost.to_string(),
+            "term 4 lost the commit register to another writer"
+        );
+        let foreign = PublishError::Foreign {
+            term: 4,
+            existing: "a".to_owned(),
+            ours: "b".to_owned(),
+        };
+        assert_eq!(foreign.to_string(), "term 4 is held by writer [a], not [b]");
+        assert_eq!(
+            PublishError::Directory("x: gone".to_owned()).to_string(),
+            "x: gone"
+        );
+        assert_eq!(
+            PublishError::Unusable("why").to_string(),
+            "the published commit cannot be built on: why"
+        );
+    }
+}

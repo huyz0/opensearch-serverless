@@ -203,3 +203,56 @@ fn the_prefix_is_the_magic_and_a_big_endian_length() {
     let len = u32::from_be_bytes(bytes[4..PREFIX_BYTES].try_into().unwrap()) as usize;
     assert_eq!(bytes.len(), PREFIX_BYTES + len);
 }
+
+#[test]
+fn a_header_may_fill_its_limit_exactly_and_no_more() {
+    use oss_format::segment_blob_format::{MAX_FILES, MAX_HEADER_BYTES};
+    let limit = MAX_HEADER_BYTES as usize;
+    // A long first name pads the JSON a byte at a time.
+    let encode = |pad: usize| {
+        let mut files: Vec<(String, u64)> = (0..MAX_FILES)
+            .map(|i| (format!("_{i:04}.cfs"), 1))
+            .collect();
+        if let Some(first) = files.first_mut() {
+            first.0 = format!("{}{}", first.0, "x".repeat(pad));
+        }
+        let refs: Vec<(&str, u64)> = files.iter().map(|(n, l)| (n.as_str(), *l)).collect();
+        encode_segment_header(&refs)
+    };
+    let json_of = |pad: usize| encode(pad).map(|h| h.len() - PREFIX_BYTES);
+    let base = json_of(0).expect("encodes");
+    let exact = limit - base;
+    assert_eq!(json_of(exact).expect("fits exactly"), limit);
+    assert!(encode(exact + 1).is_err(), "one byte over the limit");
+}
+
+#[test]
+fn a_manifest_may_name_exactly_the_most_files() {
+    use oss_format::manifest_format::MAX_FILES;
+    let names: Vec<String> = (0..=MAX_FILES).map(|i| format!("_{i}.cfs")).collect();
+    let entries = |n: usize| -> Vec<ManifestEntry<'_>> {
+        names
+            .iter()
+            .take(n)
+            .map(|name| ManifestEntry {
+                name,
+                location: "t=1".to_owned(),
+                length: 0,
+            })
+            .collect()
+    };
+    assert!(encode_manifest(1, Some("n"), &entries(MAX_FILES), 0, -1).is_ok());
+    assert!(encode_manifest(1, Some("n"), &entries(MAX_FILES + 1), 0, -1).is_err());
+}
+
+#[test]
+fn control_characters_escape_as_four_hex_digits() {
+    let entry = ManifestEntry {
+        name: "a\u{1}b\u{10}c\u{1f}d e",
+        location: "t=1".to_owned(),
+        length: 0,
+    };
+    let bytes = encode_manifest(1, None, &[entry], 0, -1).expect("encodes");
+    let text = String::from_utf8(bytes).expect("utf8");
+    assert!(text.contains(r"a\u0001b\u0010c\u001fd e"), "{text}");
+}

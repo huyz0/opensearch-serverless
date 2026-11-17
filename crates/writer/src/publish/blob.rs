@@ -48,18 +48,22 @@ impl ChunkSource for SegmentBlob {
 
     fn fill(&mut self, buf: &mut [u8]) -> BlobResult<usize> {
         let mut n = 0usize;
-        while n < buf.len() {
-            let Some(bytes) = self.current() else { break };
-            let rest = bytes.get(self.at..).unwrap_or_default();
+        // Each pass moves bytes or moves on to the next part, and the parts
+        // are finite, so the loop ends.
+        while let Some(room) = buf.get_mut(n..).filter(|room| !room.is_empty())
+            && self.part <= self.parts.len()
+        {
+            let rest = self
+                .current()
+                .and_then(|bytes| bytes.get(self.at..))
+                .unwrap_or_default();
             if rest.is_empty() {
                 self.part = self.part.saturating_add(1);
                 self.at = 0;
                 continue;
             }
-            let take = rest.len().min(buf.len().saturating_sub(n));
-            let (Some(out), Some(from)) =
-                (buf.get_mut(n..n.saturating_add(take)), rest.get(..take))
-            else {
+            let take = rest.len().min(room.len());
+            let (Some(out), Some(from)) = (room.get_mut(..take), rest.get(..take)) else {
                 return Err(BlobError::Stream("a segment blob's part is out of range"));
             };
             out.copy_from_slice(from);
@@ -73,5 +77,64 @@ impl ChunkSource for SegmentBlob {
         self.part = 0;
         self.at = 0;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use lucene_store::Input;
+    use oss_blob::ChunkSource;
+
+    use super::SegmentBlob;
+
+    fn drain(blob: &mut SegmentBlob, buf_len: usize) -> Vec<u8> {
+        let mut out = Vec::new();
+        let mut buf = vec![0u8; buf_len];
+        loop {
+            let n = blob.fill(&mut buf).expect("fills");
+            if n == 0 {
+                return out;
+            }
+            out.extend_from_slice(buf.get(..n).expect("within"));
+        }
+    }
+
+    fn blob() -> SegmentBlob {
+        SegmentBlob::new(
+            b"HDR".to_vec(),
+            vec![
+                Input::Owned(b"aaaa".to_vec()),
+                Input::Owned(Vec::new()),
+                Input::Owned(b"bb".to_vec()),
+            ],
+        )
+    }
+
+    #[test]
+    fn the_header_then_each_part_streams_whatever_the_buffer() {
+        let mut b = blob();
+        assert_eq!(b.len(), 9);
+        for size in [1, 2, 3, 4, 5, 9, 10, 64] {
+            b.rewind().expect("rewinds");
+            assert_eq!(drain(&mut b, size), b"HDRaaaabb", "buffer of {size}");
+        }
+    }
+
+    #[test]
+    fn a_full_buffer_ends_a_fill_and_the_next_fill_goes_on() {
+        let mut b = blob();
+        let mut buf = [0u8; 5];
+        assert_eq!(b.fill(&mut buf).expect("fills"), 5);
+        assert_eq!(&buf, b"HDRaa");
+        assert_eq!(b.fill(&mut buf).expect("fills"), 4);
+        assert_eq!(buf.get(..4), Some(&b"aabb"[..]));
+        assert_eq!(b.fill(&mut buf).expect("fills"), 0);
+    }
+
+    #[test]
+    fn an_empty_buffer_takes_nothing() {
+        let mut b = blob();
+        assert_eq!(b.fill(&mut []).expect("fills"), 0);
+        assert_eq!(drain(&mut b, 64), b"HDRaaaabb");
     }
 }
