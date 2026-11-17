@@ -317,6 +317,7 @@ fn scored_fields(query: &BooleanQuery) -> Vec<String> {
         match c {
             Clause::Term(lucene_search::TermQuery { field, .. })
             | Clause::Fuzzy(lucene_search::FuzzyQuery { field, .. })
+            | Clause::Phrase(lucene_search::PhraseQuery { field, .. })
                 if !out.contains(field) =>
             {
                 // ALLOC: one name a scored field, at most the query's terms.

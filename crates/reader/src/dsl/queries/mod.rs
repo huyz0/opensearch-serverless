@@ -1,6 +1,7 @@
 //! The queries beyond the first subset: term-level queries (`terms`,
 //! `prefix`, `wildcard`, `regexp`, `fuzzy`, `exists`, `ids`) and compound
-//! ones (`constant_score`, `dis_max`, `match_none`).
+//! ones (`constant_score`, `dis_max`, `match_none`), and the full-text
+//! `match_phrase` and `multi_match`.
 //!
 //! Each parser is ported from its builder's `fromXContent` at OpenSearch
 //! 3.10.0 (server/src/main/java/org/opensearch/index/query/), with the same
@@ -9,6 +10,8 @@
 
 pub mod build;
 pub mod compound;
+pub mod full_text;
+pub mod full_text_build;
 pub mod single_field;
 pub mod term_level;
 pub mod uid;
@@ -30,6 +33,8 @@ pub const NAMES: &[&str] = &[
     "constant_score",
     "dis_max",
     "match_none",
+    "match_phrase",
+    "multi_match",
 ];
 
 /// `Fuzziness`: an edit distance, or `AUTO` with its two length bounds.
@@ -161,6 +166,21 @@ pub enum More {
         /// The boost.
         boost: f32,
     },
+    /// `MatchPhraseQueryBuilder`.
+    MatchPhrase {
+        /// The field.
+        field: String,
+        /// The text.
+        query: Value,
+        /// How many positions the terms may move.
+        slop: u32,
+        /// `zero_terms_query: all`.
+        zero_terms_all: bool,
+        /// The boost.
+        boost: f32,
+    },
+    /// `MultiMatchQueryBuilder` of the types served, and its boost.
+    MultiMatch(Box<full_text::MultiMatch>, f32),
 }
 
 impl More {
@@ -176,6 +196,8 @@ impl More {
             | More::Ids { boost, .. }
             | More::ConstantScore { boost, .. }
             | More::DisMax { boost, .. }
+            | More::MatchPhrase { boost, .. }
+            | More::MultiMatch(_, boost)
             | More::MatchNone { boost } => *boost,
         }
     }
@@ -194,6 +216,8 @@ pub fn parse(name: &str, p: &mut Parser<'_>) -> Result<More, DslError> {
         "ids" => term_level::parse_ids(p),
         "constant_score" => compound::parse_constant_score(p),
         "dis_max" => compound::parse_dis_max(p),
+        "match_phrase" => full_text::parse_match_phrase(p),
+        "multi_match" => full_text::parse_multi_match(p),
         _ => compound::parse_match_none(p),
     }
 }
@@ -206,3 +230,6 @@ mod compound_tests;
 
 #[cfg(test)]
 mod build_tests;
+
+#[cfg(test)]
+mod full_text_tests;

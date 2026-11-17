@@ -13,10 +13,13 @@ src/dsl/queries/single_field.rs	port	server/src/main/java/org/opensearch/index/q
 src/dsl/queries/term_level.rs	port	server/src/main/java/org/opensearch/index/query/TermsQueryBuilder.java@3.10.0	fromXContent and constructor checks of TermsQueryBuilder, PrefixQueryBuilder, WildcardQueryBuilder, RegexpQueryBuilder, FuzzyQueryBuilder (with Fuzziness.parse), ExistsQueryBuilder and IdsQueryBuilder
 src/dsl/queries/compound.rs	port	server/src/main/java/org/opensearch/index/query/DisMaxQueryBuilder.java@3.10.0	fromXContent of DisMaxQueryBuilder, ConstantScoreQueryBuilder and MatchNoneQueryBuilder
 src/dsl/queries/build.rs	port	server/src/main/java/org/opensearch/index/mapper/StringFieldType.java@3.10.0	doRewrite/doToQuery of the module's builders; the field types' termsQuery, prefixQuery, wildcardQuery, regexpQuery, fuzzyQuery and existsQuery; ExistsQueryBuilder.newFilter
+src/dsl/queries/full_text.rs	port	server/src/main/java/org/opensearch/index/query/MultiMatchQueryBuilder.java@3.10.0	fromXContent and constructor checks of MatchPhraseQueryBuilder and MultiMatchQueryBuilder (with Type.parse and parseFieldAndBoost)
+src/dsl/queries/full_text_build.rs	port	server/src/main/java/org/opensearch/index/search/MultiMatchQuery.java@3.10.0	MatchQuery.parse of the phrase type, MultiMatchQuery.parse with buildFieldQueries and combineGrouped, QueryParserHelper.resolveMappingFields
 src/dsl/queries/uid.rs	port	server/src/main/java/org/opensearch/index/mapper/Uid.java@3.10.0	encodeId
 src/dsl/queries/parse_tests.rs	new		tests of the module's term-level parsers, against messages recorded from OpenSearch
 src/dsl/queries/compound_tests.rs	new		tests of the module's compound parsers, against messages recorded from OpenSearch
 src/dsl/queries/build_tests.rs	new		tests of build.rs
+src/dsl/queries/full_text_tests.rs	new		tests of full_text.rs and full_text_build.rs
 src/dsl/query.rs	port	server/src/main/java/org/opensearch/index/query/AbstractQueryBuilder.java@3.10.0	parseInnerQueryBuilder, with MatchAllQueryBuilder, TermQueryBuilder, MatchQueryBuilder and RangeQueryBuilder fromXContent
 src/dsl/query_tests.rs	new		tests of query.rs, against messages recorded from OpenSearch
 src/dsl/registered.rs	port	server/src/main/java/org/opensearch/search/SearchModule.java@3.10.0	the registered query names, the suggestion candidates

@@ -268,7 +268,7 @@ fn range(
 
 /// `MatchQuery.parse` for the boolean type: a text field's terms combined
 /// by the operator, any other field's term query.
-fn match_query(
+pub(crate) fn match_query(
     cx: &QueryContext<'_>,
     field: &str,
     value: &Value,
