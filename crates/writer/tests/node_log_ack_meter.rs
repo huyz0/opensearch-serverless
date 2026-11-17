@@ -107,3 +107,28 @@ fn a_reset_starts_the_sums_over_and_the_line_names_each() {
          (0 head reads) put=0.0 ms | hedged=0 won=0 | epochs opened=0"
     );
 }
+
+#[test]
+fn means_are_sums_over_counts_in_milliseconds() {
+    let t = AckTimings {
+        callers: 2,
+        window_nanos: 3_000_000,
+        behind_nanos: 5_000_000,
+        write_nanos: 1_000_000,
+        puts: 4,
+        epoch_nanos: 2_000_000,
+        admission_nanos: 6_000_000,
+        put_nanos: 10_000_000,
+        ..AckTimings::default()
+    };
+    assert_eq!(
+        (t.window_ms(), t.behind_ms(), t.write_ms(), t.put_ms()),
+        (1.5, 2.5, 0.5, 2.5)
+    );
+    let line = t.to_string();
+    assert!(
+        line.contains("window=1.5 behind=2.5 write=0.5 | blobs=4 epoch=0.5 admission=1.5"),
+        "{line}"
+    );
+    assert!(line.contains("put=2.5 ms"), "{line}");
+}
