@@ -94,6 +94,13 @@ mod tests {
         assert_eq!(date(-62_135_596_800_000), "0001-01-01T00:00:00.000Z");
         // The last moment of year 9999 still has four digits and no sign.
         assert_eq!(date(253_402_300_799_999), "9999-12-31T23:59:59.999Z");
+        // Either side of a century's missing leap day, where the year of
+        // the era turns.
+        assert_eq!(date(-2_203_891_201_000), "1900-02-28T23:59:59.000Z");
+        assert_eq!(date(-2_203_891_200_000), "1900-03-01T00:00:00.000Z");
+        assert_eq!(date(4_107_499_200_000), "2100-02-28T12:00:00.000Z");
+        assert_eq!(date(4_107_542_400_000), "2100-03-01T00:00:00.000Z");
+        assert_eq!(date(-8_515_324_800_000), "1700-02-28T00:00:00.000Z");
         assert_eq!(date(-62_167_219_200_000), "0000-01-01T00:00:00.000Z");
         assert_eq!(date(-62_198_755_200_000), "-0001-01-01T00:00:00.000Z");
         assert_eq!(date(253_402_300_800_000), "+10000-01-01T00:00:00.000Z");
