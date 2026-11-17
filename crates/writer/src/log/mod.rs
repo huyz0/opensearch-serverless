@@ -16,6 +16,7 @@ mod hedge_delay;
 mod keeper;
 pub mod settings;
 mod store;
+mod takeover;
 mod window;
 
 use std::fmt;
@@ -29,6 +30,7 @@ pub use committer::{
 pub use hedge::{HedgeOutcome, Spawn, ThreadPerPut};
 pub use keeper::{LeaseKeeper, LeaseWrite, RenewError};
 pub use store::{HEADER_PROBE_BYTES, MAX_READ_BYTES, NodeLogStore};
+pub use takeover::{LeaseReader, MAX_REFENCES, NodeLogTakeover, TakeoverError};
 
 /// A lease's epoch, trim point or landed hint as a number of the log;
 /// a lease never holds a negative one.

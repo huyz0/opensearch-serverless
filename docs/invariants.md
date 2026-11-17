@@ -10,7 +10,7 @@ The properties the system must never lose, each linked to the check or test that
 | I-4 | An idle index makes zero periodic S3 requests | `an_idle_index_makes_no_requests`, `an_index_opens_once_with_two_gets_and_no_list` |
 | I-5 | A write is acknowledged after exactly one PUT to its node's write log, whatever the number of shards it touches | NOT-YET: needs the writer |
 | I-6 | A segment is uploaded as one immutable blob and never rewritten | NOT-YET: needs the writer |
-| I-7 | A fenced-out writer cannot overwrite its successor's log slot | NOT-YET: needs the writer |
+| I-7 | A fenced-out writer cannot overwrite its successor's log slot | `a_fenced_writer_lands_nothing_more`, `a_fence_from_a_stale_lease_is_searched_for_again_above_the_deleted_slots` |
 | I-8 | Crate dependencies point downward; reader and writer are independent | `scripts/check-layering.py` |
 | I-9 | `unsafe` appears only item by item, with a SAFETY comment, never module- or crate-wide; `unsafe impl Send/Sync`, `transmute` and FFI only with the owner's OK ([unsafe.md](unsafe.md)) | `scripts/check-unsafe.py` |
 | I-10 | No Rust file over 1,000 lines; over 500 only on the shrinking baseline | `scripts/check-module-size.py` |
