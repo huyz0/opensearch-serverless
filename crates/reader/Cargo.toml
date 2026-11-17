@@ -21,6 +21,7 @@ lucene-codecs = { workspace = true }
 lucene-aggs = { workspace = true }
 lucene-highlighter = { workspace = true }
 lucene-queryparser = { workspace = true }
+lucene-engine = { workspace = true }
 
 [dev-dependencies]
 oss-blob = { workspace = true, features = ["emulator"] }

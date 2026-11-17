@@ -15,6 +15,7 @@ use std::collections::HashMap;
 
 use lucene_analysis::Analyzer;
 use lucene_search::collector::{TopDocsCollector, TotalHitsRelation};
+use lucene_search::extended_query::ExtendedQuery;
 use lucene_search::field_norms::FieldNorms;
 use lucene_search::index_searcher::IndexSearcher;
 use lucene_search::top_field::{FieldDoc, search_sorted};
@@ -387,6 +388,11 @@ fn scored_fields(query: &BooleanQuery) -> Vec<String> {
             }
             Clause::Boolean(b) => each(b, out),
             Clause::Boost(b) => walk(&b.inner, out),
+            Clause::Extended(e) => {
+                if let ExtendedQuery::FunctionScore(q) = &**e {
+                    walk(q.wrapped_query(), out);
+                }
+            }
             Clause::DisjunctionMax(d) => {
                 for c in &d.disjuncts {
                     walk(c, out);

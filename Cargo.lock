@@ -314,6 +314,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "lucene-analysis-icu"
+version = "0.1.0"
+source = "git+https://github.com/huyz0/lucene-rust?rev=f07615cf9f3adf126aa668436c02cc2c020332b7#f07615cf9f3adf126aa668436c02cc2c020332b7"
+dependencies = [
+ "lucene-analysis",
+ "lucene-index",
+ "miniz_oxide",
+]
+
+[[package]]
 name = "lucene-codecs"
 version = "0.1.0"
 source = "git+https://github.com/huyz0/lucene-rust?rev=f07615cf9f3adf126aa668436c02cc2c020332b7#f07615cf9f3adf126aa668436c02cc2c020332b7"
@@ -336,6 +346,42 @@ dependencies = [
  "lucene-store",
  "lucene-util",
  "lucene-vector-quant",
+ "rayon",
+ "thiserror",
+]
+
+[[package]]
+name = "lucene-engine"
+version = "0.1.0"
+source = "git+https://github.com/huyz0/lucene-rust?rev=f07615cf9f3adf126aa668436c02cc2c020332b7#f07615cf9f3adf126aa668436c02cc2c020332b7"
+dependencies = [
+ "lucene-aggs",
+ "lucene-analysis",
+ "lucene-analysis-icu",
+ "lucene-codecs",
+ "lucene-facet",
+ "lucene-index",
+ "lucene-misc",
+ "lucene-painless",
+ "lucene-pattern-text",
+ "lucene-sandbox",
+ "lucene-search",
+ "lucene-sparse",
+ "lucene-store",
+ "lucene-tensor",
+ "lucene-util",
+]
+
+[[package]]
+name = "lucene-facet"
+version = "0.1.0"
+source = "git+https://github.com/huyz0/lucene-rust?rev=f07615cf9f3adf126aa668436c02cc2c020332b7#f07615cf9f3adf126aa668436c02cc2c020332b7"
+dependencies = [
+ "lucene-codecs",
+ "lucene-index",
+ "lucene-search",
+ "lucene-store",
+ "lucene-util",
  "rayon",
  "thiserror",
 ]
@@ -384,6 +430,41 @@ dependencies = [
 ]
 
 [[package]]
+name = "lucene-misc"
+version = "0.1.0"
+source = "git+https://github.com/huyz0/lucene-rust?rev=f07615cf9f3adf126aa668436c02cc2c020332b7#f07615cf9f3adf126aa668436c02cc2c020332b7"
+dependencies = [
+ "lucene-codecs",
+ "lucene-index",
+ "lucene-search",
+ "lucene-store",
+ "lucene-util",
+ "rayon",
+]
+
+[[package]]
+name = "lucene-painless"
+version = "0.1.0"
+source = "git+https://github.com/huyz0/lucene-rust?rev=f07615cf9f3adf126aa668436c02cc2c020332b7#f07615cf9f3adf126aa668436c02cc2c020332b7"
+dependencies = [
+ "lucene-analysis",
+ "lucene-util",
+ "regex",
+ "thiserror",
+]
+
+[[package]]
+name = "lucene-pattern-text"
+version = "0.1.0"
+source = "git+https://github.com/huyz0/lucene-rust?rev=f07615cf9f3adf126aa668436c02cc2c020332b7#f07615cf9f3adf126aa668436c02cc2c020332b7"
+dependencies = [
+ "lucene-codecs",
+ "lucene-index",
+ "lucene-search",
+ "thiserror",
+]
+
+[[package]]
 name = "lucene-queryparser"
 version = "0.1.0"
 source = "git+https://github.com/huyz0/lucene-rust?rev=f07615cf9f3adf126aa668436c02cc2c020332b7#f07615cf9f3adf126aa668436c02cc2c020332b7"
@@ -395,6 +476,20 @@ dependencies = [
  "lucene-store",
  "lucene-util",
  "quick-xml",
+]
+
+[[package]]
+name = "lucene-sandbox"
+version = "0.1.0"
+source = "git+https://github.com/huyz0/lucene-rust?rev=f07615cf9f3adf126aa668436c02cc2c020332b7#f07615cf9f3adf126aa668436c02cc2c020332b7"
+dependencies = [
+ "lucene-analysis",
+ "lucene-codecs",
+ "lucene-facet",
+ "lucene-index",
+ "lucene-search",
+ "lucene-store",
+ "lucene-util",
 ]
 
 [[package]]
@@ -413,6 +508,19 @@ dependencies = [
  "lucene-util",
  "miniz_oxide",
  "rayon",
+ "thiserror",
+]
+
+[[package]]
+name = "lucene-sparse"
+version = "0.1.0"
+source = "git+https://github.com/huyz0/lucene-rust?rev=f07615cf9f3adf126aa668436c02cc2c020332b7#f07615cf9f3adf126aa668436c02cc2c020332b7"
+dependencies = [
+ "lucene-codecs",
+ "lucene-index",
+ "lucene-search",
+ "lucene-store",
+ "lucene-util",
  "thiserror",
 ]
 
@@ -444,6 +552,18 @@ dependencies = [
  "libc",
  "lucene-util",
  "memmap2",
+ "thiserror",
+]
+
+[[package]]
+name = "lucene-tensor"
+version = "0.1.0"
+source = "git+https://github.com/huyz0/lucene-rust?rev=f07615cf9f3adf126aa668436c02cc2c020332b7#f07615cf9f3adf126aa668436c02cc2c020332b7"
+dependencies = [
+ "lucene-codecs",
+ "lucene-index",
+ "lucene-search",
+ "lucene-util",
  "thiserror",
 ]
 
@@ -618,6 +738,7 @@ dependencies = [
  "lucene-aggs",
  "lucene-analysis",
  "lucene-codecs",
+ "lucene-engine",
  "lucene-highlighter",
  "lucene-index",
  "lucene-queryparser",
