@@ -388,7 +388,8 @@ impl Leaf {
             let ok = match def.merge {
                 Merge::Updateable => true,
                 Merge::Fixed => current == next,
-                Merge::Norms => current == next || (current.flag() && !next.flag()),
+                // Norms can be turned off, never back on.
+                Merge::Norms => current.flag() || !next.flag(),
             };
             if ok {
                 merged.values[i] = next.clone();

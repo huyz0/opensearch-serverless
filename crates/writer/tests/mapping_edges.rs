@@ -219,3 +219,41 @@ fn builders_for_dynamic_fields() {
         "strict_dynamic_mapping_exception: mapping set to strict, dynamic introduction of [b] within [_doc] is not allowed"
     );
 }
+
+#[test]
+fn norms_may_only_be_turned_off() {
+    let field = |ty: &str, norms: &str| {
+        parse(&format!(
+            r#"{{"properties":{{"a":{{"type":"{ty}"{norms}}}}}}}"#
+        ))
+        .unwrap()
+    };
+    let merge = |from: &Mapping, to: &Mapping| from.merge(to).map(|_| ()).map_err(|e| e.reason);
+    let on = field("text", "");
+    let off = field("text", r#","norms":false"#);
+    assert_eq!(merge(&on, &on), Ok(()));
+    assert_eq!(merge(&off, &off), Ok(()));
+    assert_eq!(merge(&on, &off), Ok(()));
+    assert!(
+        merge(&off, &on)
+            .unwrap_err()
+            .contains("Cannot update parameter [norms] from [false] to [true]")
+    );
+    let keyword = field("keyword", "");
+    assert_eq!(merge(&keyword, &keyword), Ok(()));
+}
+
+#[test]
+fn an_unset_explicit_flag_remembers_it_was_not_set() {
+    let long = Leaf::new(FieldType::from_name("long").unwrap());
+    assert_eq!(long.get("coerce"), Some(&Value::Explicit(true, false)));
+    assert_eq!(
+        long.get("ignore_malformed"),
+        Some(&Value::Explicit(false, false))
+    );
+    let date = Leaf::new(FieldType::Date);
+    assert_eq!(
+        date.get("ignore_malformed"),
+        Some(&Value::Explicit(false, false))
+    );
+}
