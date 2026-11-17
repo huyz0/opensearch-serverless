@@ -24,6 +24,8 @@ use oss_format::{NodeLogEpoch, NodeLogHeader, ShardKey};
 
 use crate::log::{LogError, NodeLogStore, Refusal, lease_slot};
 
+mod read;
+
 /// How many times a fence is searched for again after the predecessor's
 /// lease moved past it (the Java's `MAX_REFENCES`).
 pub const MAX_REFENCES: u32 = 8;
@@ -81,7 +83,7 @@ pub(crate) struct Fenced {
     pub(crate) ends: BTreeMap<u64, u64>,
     /// Per epoch, the last header below its end and at or above its trim
     /// point; `None` when it held no records there.
-    pub(crate) last_headers: BTreeMap<u64, Option<NodeLogHeader<'static>>>,
+    pub(crate) last_headers: BTreeMap<u64, Option<Arc<NodeLogHeader<'static>>>>,
 }
 
 /// A successor's hold on one predecessor's log.
@@ -93,6 +95,10 @@ pub struct NodeLogTakeover {
     reread: Option<Box<dyn LeaseReader>>,
     fence: bool,
     fenced: Mutex<Option<Arc<Fenced>>>,
+    /// Headers read for one shard, kept for the others in the same blob.
+    headers: Mutex<BTreeMap<(u64, u64), Arc<NodeLogHeader<'static>>>>,
+    /// Bodies read whole, kept for the other shards in the same blob.
+    bodies: Mutex<read::Bodies>,
 }
 
 impl NodeLogTakeover {
@@ -150,6 +156,9 @@ impl NodeLogTakeover {
             reread,
             fence,
             fenced: Mutex::new(None),
+            // ALLOC: one header a blob holding a shard asked about, bounded by the predecessor's unpublished blobs.
+            headers: Mutex::new(BTreeMap::new()),
+            bodies: Mutex::new(read::Bodies::default()),
         }
     }
 
@@ -222,7 +231,8 @@ impl NodeLogTakeover {
         let mut last_headers = BTreeMap::new();
         for (&epoch, &end) in &ends {
             let floor = floors.get(&epoch).copied().unwrap_or(0);
-            last_headers.insert(epoch, self.log.last_header_below(epoch, end, floor)?);
+            let last = self.log.last_header_below(epoch, end, floor)?;
+            last_headers.insert(epoch, last.map(Arc::new));
         }
         let fenced = Arc::new(Fenced { ends, last_headers });
         *held = Some(Arc::clone(&fenced));
