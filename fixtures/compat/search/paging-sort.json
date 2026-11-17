@@ -6221,6 +6221,1194 @@
           "reason": "elapsed time"
         }
       ]
+    },
+    {
+      "name": "docvalue_fields of each type",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "_source": false,
+          "docvalue_fields": [
+            "year",
+            "tag",
+            "published"
+          ],
+          "size": 3
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_score": 1.0,
+                "fields": {
+                  "year": [
+                    2001
+                  ],
+                  "tag": [
+                    "animal"
+                  ],
+                  "published": [
+                    "2001-03-04T00:00:00.000Z"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "2",
+                "_score": 1.0,
+                "fields": {
+                  "year": [
+                    2002
+                  ],
+                  "tag": [
+                    "animal"
+                  ],
+                  "published": [
+                    "2002-07-01T10:15:30.000Z"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "3",
+                "_score": 1.0,
+                "fields": {
+                  "year": [
+                    2010
+                  ],
+                  "tag": [
+                    "manual"
+                  ],
+                  "published": [
+                    "2010-01-01T00:00:00.000Z"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ]
+    },
+    {
+      "name": "docvalue_fields by pattern",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "docvalue_fields": [
+            "y*"
+          ],
+          "size": 2
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "fields": {
+                  "year": [
+                    2001
+                  ]
+                }
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "2",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Lazy dogs sleep all day",
+                  "tag": "animal",
+                  "year": 2002,
+                  "published": "2002-07-01T10:15:30Z"
+                },
+                "fields": {
+                  "year": [
+                    2002
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ]
+    },
+    {
+      "name": "docvalue_fields unmapped",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "docvalue_fields": [
+            "nope",
+            "nope*",
+            1,
+            true
+          ],
+          "size": 1
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ]
+    },
+    {
+      "name": "docvalue_fields of a text field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "docvalue_fields": [
+            "title"
+          ],
+          "size": 1
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Text fields are not optimised for operations that require per-document field data like aggregations and sorting, so these operations are disabled by default. Please use a keyword field instead. Alternatively, set fielddata=true on [title] in order to load field data by uninverting the inverted index. Note that this can use significant memory."
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-paging-sort",
+                "node": "fCExHjVeSVqVm7s_zifa3w",
+                "reason": {
+                  "type": "illegal_argument_exception",
+                  "reason": "Text fields are not optimised for operations that require per-document field data like aggregations and sorting, so these operations are disabled by default. Please use a keyword field instead. Alternatively, set fielddata=true on [title] in order to load field data by uninverting the inverted index. Note that this can use significant memory."
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Text fields are not optimised for operations that require per-document field data like aggregations and sorting, so these operations are disabled by default. Please use a keyword field instead. Alternatively, set fielddata=true on [title] in order to load field data by uninverting the inverted index. Note that this can use significant memory.",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Text fields are not optimised for operations that require per-document field data like aggregations and sorting, so these operations are disabled by default. Please use a keyword field instead. Alternatively, set fielddata=true on [title] in order to load field data by uninverting the inverted index. Note that this can use significant memory."
+              }
+            }
+          },
+          "status": 400
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/0/node",
+          "reason": "node id, random per node"
+        }
+      ]
+    },
+    {
+      "name": "docvalue_fields pattern over a text field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "docvalue_fields": [
+            "t*"
+          ],
+          "size": 1
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Text fields are not optimised for operations that require per-document field data like aggregations and sorting, so these operations are disabled by default. Please use a keyword field instead. Alternatively, set fielddata=true on [title] in order to load field data by uninverting the inverted index. Note that this can use significant memory."
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-paging-sort",
+                "node": "fCExHjVeSVqVm7s_zifa3w",
+                "reason": {
+                  "type": "illegal_argument_exception",
+                  "reason": "Text fields are not optimised for operations that require per-document field data like aggregations and sorting, so these operations are disabled by default. Please use a keyword field instead. Alternatively, set fielddata=true on [title] in order to load field data by uninverting the inverted index. Note that this can use significant memory."
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Text fields are not optimised for operations that require per-document field data like aggregations and sorting, so these operations are disabled by default. Please use a keyword field instead. Alternatively, set fielddata=true on [title] in order to load field data by uninverting the inverted index. Note that this can use significant memory.",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Text fields are not optimised for operations that require per-document field data like aggregations and sorting, so these operations are disabled by default. Please use a keyword field instead. Alternatively, set fielddata=true on [title] in order to load field data by uninverting the inverted index. Note that this can use significant memory."
+              }
+            }
+          },
+          "status": 400
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/0/node",
+          "reason": "node id, random per node"
+        }
+      ]
+    },
+    {
+      "name": "docvalue_fields of a text field without hits",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "docvalue_fields": [
+            "title"
+          ],
+          "size": 0
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ]
+    },
+    {
+      "name": "docvalue_fields of a text field matching nothing",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "docvalue_fields": [
+            "title"
+          ],
+          "query": {
+            "term": {
+              "tag": "none"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 0,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ]
+    },
+    {
+      "name": "docvalue_fields as objects",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "docvalue_fields": [
+            {
+              "field": "year"
+            },
+            {
+              "field": "published",
+              "format": null
+            },
+            {
+              "field": "tag",
+              "format": "use_field_mapping"
+            }
+          ],
+          "size": 1
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "fields": {
+                  "year": [
+                    2001
+                  ],
+                  "published": [
+                    "2001-03-04T00:00:00.000Z"
+                  ],
+                  "tag": [
+                    "animal"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ]
+    },
+    {
+      "name": "docvalue_fields twice",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "_source": false,
+          "docvalue_fields": [
+            "published",
+            "published",
+            "year"
+          ],
+          "size": 2
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_score": 1.0,
+                "fields": {
+                  "year": [
+                    2001
+                  ],
+                  "published": [
+                    "2001-03-04T00:00:00.000Z",
+                    "2001-03-04T00:00:00.000Z"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "2",
+                "_score": 1.0,
+                "fields": {
+                  "year": [
+                    2002
+                  ],
+                  "published": [
+                    "2002-07-01T10:15:30.000Z",
+                    "2002-07-01T10:15:30.000Z"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ]
+    },
+    {
+      "name": "docvalue_fields with a sort",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "_source": false,
+          "docvalue_fields": [
+            "year"
+          ],
+          "size": 2,
+          "sort": [
+            {
+              "year": "desc"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "3",
+                "_score": null,
+                "fields": {
+                  "year": [
+                    2010
+                  ]
+                },
+                "sort": [
+                  2010
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "2",
+                "_score": null,
+                "fields": {
+                  "year": [
+                    2002
+                  ]
+                },
+                "sort": [
+                  2002
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ]
+    },
+    {
+      "name": "docvalue_fields not an array",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "docvalue_fields": "year"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parsing_exception",
+                "reason": "Unknown key for a VALUE_STRING in [docvalue_fields].",
+                "line": 1,
+                "col": 20
+              }
+            ],
+            "type": "parsing_exception",
+            "reason": "Unknown key for a VALUE_STRING in [docvalue_fields].",
+            "line": 1,
+            "col": 20
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "docvalue_fields an object",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "docvalue_fields": {
+            "a": 1
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parsing_exception",
+                "reason": "Unknown key for a START_OBJECT in [docvalue_fields].",
+                "line": 1,
+                "col": 20
+              }
+            ],
+            "type": "parsing_exception",
+            "reason": "Unknown key for a START_OBJECT in [docvalue_fields].",
+            "line": 1,
+            "col": 20
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "docvalue_fields without field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "docvalue_fields": [
+            {}
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Required [field]"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Required [field]"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "docvalue_fields with only a format",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "docvalue_fields": [
+            {
+              "format": "x"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Required [field]"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Required [field]"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "docvalue_fields a number field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "docvalue_fields": [
+            {
+              "field": 1
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "x_content_parse_exception",
+                "reason": "[1:30] [docvalues_field] field doesn't support values of type: VALUE_NUMBER"
+              }
+            ],
+            "type": "x_content_parse_exception",
+            "reason": "[1:30] [docvalues_field] field doesn't support values of type: VALUE_NUMBER"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "docvalue_fields a number format",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "docvalue_fields": [
+            {
+              "field": "year",
+              "format": 1
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "x_content_parse_exception",
+                "reason": "[1:46] [docvalues_field] format doesn't support values of type: VALUE_NUMBER"
+              }
+            ],
+            "type": "x_content_parse_exception",
+            "reason": "[1:46] [docvalues_field] format doesn't support values of type: VALUE_NUMBER"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "docvalue_fields an object field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "docvalue_fields": [
+            {
+              "field": {
+                "a": 1
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "x_content_parse_exception",
+                "reason": "[1:30] [docvalues_field] field doesn't support values of type: START_OBJECT"
+              }
+            ],
+            "type": "x_content_parse_exception",
+            "reason": "[1:30] [docvalues_field] field doesn't support values of type: START_OBJECT"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "docvalue_fields an unknown key",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "docvalue_fields": [
+            {
+              "nope": "year"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "x_content_parse_exception",
+                "reason": "[1:22] [docvalues_field] unknown field [nope]"
+              }
+            ],
+            "type": "x_content_parse_exception",
+            "reason": "[1:22] [docvalues_field] unknown field [nope]"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "docvalue_fields a near key",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "docvalue_fields": [
+            {
+              "fild": "year"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "x_content_parse_exception",
+                "reason": "[1:22] [docvalues_field] unknown field [fild] did you mean [field]?"
+              }
+            ],
+            "type": "x_content_parse_exception",
+            "reason": "[1:22] [docvalues_field] unknown field [fild] did you mean [field]?"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "docvalue_fields a null",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "docvalue_fields": [
+            null,
+            "a"
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "x_content_parse_exception",
+                "reason": "[1:26] [docvalues_field] Expected START_OBJECT but was: VALUE_STRING"
+              }
+            ],
+            "type": "x_content_parse_exception",
+            "reason": "[1:26] [docvalues_field] Expected START_OBJECT but was: VALUE_STRING"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "docvalue_fields an array",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "docvalue_fields": [
+            [
+              1
+            ]
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "x_content_parse_exception",
+                "reason": "[1:22] [docvalues_field] Expected START_OBJECT but was: VALUE_NUMBER"
+              }
+            ],
+            "type": "x_content_parse_exception",
+            "reason": "[1:22] [docvalues_field] Expected START_OBJECT but was: VALUE_NUMBER"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "docvalue_fields too many",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "docvalue_fields": [
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year",
+            "year"
+          ],
+          "size": 0
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Trying to retrieve too many docvalue_fields. Must be less than or equal to: [100] but was [101]. This limit can be set by changing the [index.max_docvalue_fields_search] index level setting."
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-paging-sort",
+                "node": "fCExHjVeSVqVm7s_zifa3w",
+                "reason": {
+                  "type": "illegal_argument_exception",
+                  "reason": "Trying to retrieve too many docvalue_fields. Must be less than or equal to: [100] but was [101]. This limit can be set by changing the [index.max_docvalue_fields_search] index level setting."
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Trying to retrieve too many docvalue_fields. Must be less than or equal to: [100] but was [101]. This limit can be set by changing the [index.max_docvalue_fields_search] index level setting.",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Trying to retrieve too many docvalue_fields. Must be less than or equal to: [100] but was [101]. This limit can be set by changing the [index.max_docvalue_fields_search] index level setting."
+              }
+            }
+          },
+          "status": 400
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/0/node",
+          "reason": "node id, random per node"
+        }
+      ]
     }
   ]
 }
