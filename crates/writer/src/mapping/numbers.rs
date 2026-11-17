@@ -72,18 +72,12 @@ impl Num {
 /// and `Infinity`. Hexadecimal floating point is not taken.
 pub fn java_parse_double(text: &str) -> Option<f64> {
     let t = text.trim_matches(|c: char| c <= ' ');
-    let body = t.strip_suffix(['d', 'D', 'f', 'F']).unwrap_or(t);
-    let unsigned = body.strip_prefix(['+', '-']).unwrap_or(body);
+    let unsigned = t.strip_prefix(['+', '-']).unwrap_or(t);
+    let negative = t.starts_with('-');
     match unsigned {
-        "NaN" => {
-            return if unsigned.len() == body.len() {
-                Some(f64::NAN)
-            } else {
-                None
-            };
-        }
+        "NaN" => return Some(f64::NAN),
         "Infinity" => {
-            return Some(if body.starts_with('-') {
+            return Some(if negative {
                 f64::NEG_INFINITY
             } else {
                 f64::INFINITY
@@ -91,21 +85,40 @@ pub fn java_parse_double(text: &str) -> Option<f64> {
         }
         _ => {}
     }
-    if t.len() != body.len() && (unsigned == "NaN" || unsigned == "Infinity") {
+    let body = unsigned
+        .strip_suffix(['d', 'D', 'f', 'F'])
+        .unwrap_or(unsigned);
+    let b = body.as_bytes();
+    let digits = |from: usize| {
+        b.get(from..)
+            .map_or(0, |r| r.iter().take_while(|c| c.is_ascii_digit()).count())
+    };
+    let whole = digits(0);
+    let mut at = whole;
+    let mut fraction = 0;
+    if b.get(at) == Some(&b'.') {
+        fraction = digits(at.saturating_add(1));
+        at = at.saturating_add(1).saturating_add(fraction);
+    }
+    if whole.saturating_add(fraction) == 0 {
         return None;
     }
-    let ok = !unsigned.is_empty()
-        && unsigned
-            .bytes()
-            .all(|b| b.is_ascii_digit() || matches!(b, b'.' | b'e' | b'E' | b'+' | b'-'))
-        && unsigned
-            .bytes()
-            .next()
-            .is_some_and(|b| b.is_ascii_digit() || b == b'.');
-    if !ok {
+    if matches!(b.get(at), Some(b'e' | b'E')) {
+        at = at.saturating_add(1);
+        if matches!(b.get(at), Some(b'+' | b'-')) {
+            at = at.saturating_add(1);
+        }
+        let exponent = digits(at);
+        if exponent == 0 {
+            return None;
+        }
+        at = at.saturating_add(exponent);
+    }
+    if at != b.len() {
         return None;
     }
-    body.parse::<f64>().ok()
+    let v = body.parse::<f64>().ok()?;
+    Some(if negative { -v } else { v })
 }
 
 /// What Jackson reads from a JSON value, as the Java's `value.toString()`.
@@ -260,5 +273,72 @@ mod tests {
         assert_eq!(java_parse_double(" 2.5d "), Some(2.5));
         assert_eq!(java_parse_double("x"), None);
         assert_eq!(java_parse_double("-Infinity"), Some(f64::NEG_INFINITY));
+    }
+
+    #[test]
+    fn integral_types_take_their_range_edges() {
+        for (ty, min, max) in [
+            (NumType::Byte, "-128", "127"),
+            (NumType::Short, "-32768", "32767"),
+            (NumType::Integer, "-2147483648", "2147483647"),
+        ] {
+            assert!(parse(ty, &num(min), false).is_ok(), "{min}");
+            assert!(parse(ty, &num(max), false).is_ok(), "{max}");
+        }
+        for (ty, out, what) in [
+            (NumType::Short, "32768", "a short"),
+            (NumType::Short, "-32769", "a short"),
+            (NumType::Byte, "-129", "a byte"),
+        ] {
+            let e = parse(ty, &num(out), false).unwrap_err();
+            assert_eq!(
+                e.reason,
+                format!("Value [{out}] is out of range for {what}")
+            );
+        }
+    }
+
+    #[test]
+    fn parses_doubles_as_double_parse_double() {
+        // Each case as `Double.parseDouble` answered it on a JVM.
+        for nan in ["NaN", "-NaN", "+NaN", " NaN "] {
+            assert!(java_parse_double(nan).is_some_and(f64::is_nan), "{nan}");
+        }
+        for bad in [
+            "NaNd",
+            "Infinityd",
+            "..1",
+            "-",
+            "+",
+            "",
+            ".",
+            "1e",
+            "1e+",
+            "1.5x",
+            "e5",
+            "1d5",
+            "inf",
+            "nan",
+            "1e5dd",
+            "1.2.3",
+            "--1",
+            "0x10",
+        ] {
+            assert_eq!(java_parse_double(bad), None, "{bad}");
+        }
+        for (text, v) in [
+            ("Infinity", f64::INFINITY),
+            ("+Infinity", f64::INFINITY),
+            (" 1.5d ", 1.5),
+            ("1e5f", 100_000.0),
+            ("1.", 1.0),
+            (".5", 0.5),
+            ("-2.5E-1", -0.25),
+            ("+3", 3.0),
+            ("1e+2D", 100.0),
+            ("7F", 7.0),
+        ] {
+            assert_eq!(java_parse_double(text), Some(v), "{text}");
+        }
     }
 }

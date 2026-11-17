@@ -90,4 +90,6 @@ exclude_re = [
     # The node log's I/O buffer size: a GET or PUT streams through any
     # non-empty buffer to the same bytes; only the chunk count differs.
     "crates/writer/src/log/store.rs:21:43: replace \\* with \\+",
+    # Only an infinite value reaches the sign test, and it is never 0.
+    "crates/writer/src/mapping/json.rs:.*replace > with >= in java_floating",
 ]

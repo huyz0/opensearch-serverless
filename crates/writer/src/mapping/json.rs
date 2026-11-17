@@ -366,6 +366,34 @@ mod tests {
     use super::*;
 
     #[test]
+    fn a_document_at_the_size_limit_is_read_and_one_past_it_is_not() {
+        let mut text = b"{}".to_vec();
+        text.resize(MAX_MAPPING_BYTES, b' ');
+        assert_eq!(parse(&text).unwrap().to_json(), "{}");
+        text.push(b' ');
+        let e = parse(&text).unwrap_err();
+        assert_eq!(e.reason, "the mapping is larger than its limit");
+    }
+
+    #[test]
+    fn nesting_is_bounded_by_max_depth() {
+        let nested = |n: usize| {
+            let mut t = "[".repeat(n);
+            t.push_str(&"]".repeat(n));
+            t
+        };
+        assert!(parse(nested(MAX_DEPTH).as_bytes()).is_ok());
+        assert!(parse(nested(MAX_DEPTH + 1).as_bytes()).is_err());
+    }
+
+    #[test]
+    fn control_characters_below_space_are_escaped() {
+        let mut out = String::new();
+        write_str(&mut out, "\u{1f} \u{0}");
+        assert_eq!(out, "\"\\u001F \\u0000\"");
+    }
+
+    #[test]
     fn java_doubles() {
         for (v, want) in [
             (1.5, "1.5"),
