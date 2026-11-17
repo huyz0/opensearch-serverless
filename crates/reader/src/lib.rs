@@ -21,6 +21,7 @@ pub mod open_cost;
 pub mod response;
 pub mod search;
 mod search_sort;
+mod search_top;
 pub mod shard_files;
 
 use std::sync::Arc;

@@ -17,10 +17,13 @@ use oss_blob::BlobStore;
 use oss_rest::write_json_str;
 
 use crate::OpenShard;
-use crate::aggs::metric::write_aggregations;
-use crate::fetch::highlight::{self, Highlighters};
-use crate::fetch::{docvalue_fields, explain, source_filter};
-use crate::search::{Hits, SortValue};
+use crate::aggs::metric::{Value, write_aggregations_with};
+use crate::fetch::docvalue_fields::{self, HitField};
+use crate::fetch::highlight::{self, Highlighters, Plan};
+use crate::fetch::source_filter::SourceFilter;
+use crate::fetch::{explain, source_filter};
+use crate::search::{Hit, Hits, SortValue};
+use lucene_search::Explanation;
 
 /// A hit's `_id` and `_source`, copied out of its stored fields into buffers
 /// that grow only by what `reserve` grants first.
@@ -212,34 +215,94 @@ pub fn write_response<S: BlobStore + 'static>(
     out.write_all(b"\"max_score\":")?;
     write_score(out, hits.max_score)?;
     out.write_all(b",\"hits\":[")?;
-    let mut stored = Stored::new(reserve);
-    // What filtering one hit's source may hold at once, reserved up to the
-    // most any hit has needed.
-    let mut scratch = 0usize;
+    // ALLOC: one entry the hits and each `top_hits`, bounded by the request's.
+    let mut lists: Vec<&[Hit]> = vec![&hits.hits];
+    lists.extend(hits.aggregations.iter().filter_map(|p| match &p.value {
+        Value::TopHits(top) => Some(top.hits.as_slice()),
+        _ => None,
+    }));
+    prefetch(shard, &lists)?;
+    let mut fetch = Fetch {
+        stored: Stored::new(reserve),
+        scratch: 0,
+    };
+    write_hit_list(out, shard, index, node_id, &hits.view(), &mut fetch)?;
+    out.write_all(b"]}")?;
+    write_aggregations_with(out, &hits.aggregations, &mut |out, top| {
+        write!(
+            out,
+            "\"hits\":{{\"total\":{{\"value\":{},\"relation\":\"eq\"}},\"max_score\":",
+            top.total
+        )?;
+        write_score(out, top.max_score)?;
+        out.write_all(b",\"hits\":[")?;
+        write_hit_list(out, shard, index, node_id, &top.view(), &mut fetch)?;
+        out.write_all(b"]}")
+    })?;
+    out.write_all(b"}")
+}
+
+/// `StoredFields.prefetch` of the fetch phase: every hit's chunk of stored
+/// fields, of every list the response writes, is announced a segment at a
+/// time, so the chunks a cold segment must read arrive as one batch rather
+/// than one a hit or one a list.
+fn prefetch<S: BlobStore + 'static>(shard: &OpenShard<S>, lists: &[&[Hit]]) -> io::Result<()> {
     let readers = shard.reader.segment_readers();
-    let explained = hits.explanations.len() == hits.hits.len() && !hits.hits.is_empty();
-    let mut highlighters = hits.highlight.as_ref().map(Highlighters::new).transpose()?;
-    // `StoredFields.prefetch` of the fetch phase: every hit's chunk of stored
-    // fields is announced, a segment at a time, so the chunks a cold segment
-    // must read arrive as one batch rather than one a hit.
     // ALLOC: one list a segment and one doc id a hit, at most the result
-    // window.
+    // window and the `top_hits` windows.
     let mut announced: Vec<Vec<i32>> = vec![Vec::new(); readers.len()];
-    for hit in &hits.hits {
+    for hit in lists.iter().flat_map(|list| list.iter()) {
         if let Some(at) = readers.iter().rposition(|r| r.doc_base <= hit.doc)
             && let (Some(docs), Some(r)) = (announced.get_mut(at), readers.get(at))
         {
             docs.push(hit.doc.saturating_sub(r.doc_base));
         }
     }
-    for (segment, docs) in readers.iter().zip(&announced) {
+    for (segment, docs) in readers.iter().zip(&mut announced) {
+        // A document in several lists is announced once.
+        docs.sort_unstable();
+        docs.dedup();
         if !docs.is_empty() {
             segment
                 .prefetch_stored_documents(docs)
                 .map_err(io::Error::other)?;
         }
     }
-    for (i, hit) in hits.hits.iter().enumerate() {
+    Ok(())
+}
+
+/// What one list of hits is written from: the hits and how each is shown.
+pub(crate) struct HitView<'a> {
+    pub hits: &'a [Hit],
+    pub source: &'a SourceFilter,
+    pub fields: &'a [HitField],
+    pub explanations: &'a [Explanation],
+    pub highlight: Option<&'a Plan>,
+}
+
+/// The buffers every list of a response's hits is fetched through: one
+/// hit's stored fields at a time, and the scratch filtering and
+/// highlighting hold, reserved up to the most any hit has needed.
+struct Fetch<'a> {
+    stored: Stored<'a>,
+    scratch: usize,
+}
+
+/// Writes the hits of `view`, comma separated, fetching each hit's stored
+/// fields in turn.
+fn write_hit_list<S: BlobStore + 'static>(
+    out: &mut dyn Write,
+    shard: &OpenShard<S>,
+    index: &str,
+    node_id: &str,
+    view: &HitView<'_>,
+    fetch: &mut Fetch<'_>,
+) -> io::Result<()> {
+    let Fetch { stored, scratch } = fetch;
+    let readers = shard.reader.segment_readers();
+    let explained = view.explanations.len() == view.hits.len() && !view.hits.is_empty();
+    let mut highlighters = view.highlight.map(Highlighters::new).transpose()?;
+    for (i, hit) in view.hits.iter().enumerate() {
         if i > 0 {
             out.write_all(b",")?;
         }
@@ -254,7 +317,7 @@ pub fn write_response<S: BlobStore + 'static>(
         stored.id.clear();
         stored.source.clear();
         segment
-            .visit_stored_document(hit.doc.saturating_sub(segment.doc_base), &mut stored)
+            .visit_stored_document(hit.doc.saturating_sub(segment.doc_base), stored)
             .map_err(io::Error::other)?;
         if let Some(e) = stored.refused.take() {
             return Err(e);
@@ -271,33 +334,33 @@ pub fn write_response<S: BlobStore + 'static>(
         write_id(out, &stored.id)?;
         out.write_all(b",\"_score\":")?;
         write_score(out, hit.score)?;
-        if !hits.source.skip && stored.source_field.is_some() && !stored.source.is_empty() {
+        if !view.source.skip && stored.source_field.is_some() && !stored.source.is_empty() {
             if stored.source.iter().find(|b| !b.is_ascii_whitespace()) != Some(&b'{') {
                 return Err(io::Error::other("a _source that is not JSON"));
             }
             out.write_all(b",\"_source\":")?;
-            if hits.source.is_whole() {
+            if view.source.is_whole() {
                 out.write_all(&stored.source)?;
             } else {
                 let need = source_filter::scratch_bytes(stored.source.len());
-                if let Some(more) = need.checked_sub(scratch).filter(|n| *n > 0) {
+                if let Some(more) = need.checked_sub(*scratch).filter(|n| *n > 0) {
                     (stored.reserve)(more)?;
-                    scratch = need;
+                    *scratch = need;
                 }
-                source_filter::write_filtered(out, &hits.source, &stored.source)?;
+                source_filter::write_filtered(out, view.source, &stored.source)?;
             }
         }
         docvalue_fields::write_fields(
             out,
-            &hits.fields,
+            view.fields,
             segment,
             hit.doc.saturating_sub(segment.doc_base),
         )?;
-        if let (Some(h), Some(plan)) = (highlighters.as_mut(), hits.highlight.as_ref()) {
+        if let (Some(h), Some(plan)) = (highlighters.as_mut(), view.highlight) {
             let need = highlight::scratch_for(stored.source.len(), plan);
-            if need > scratch {
-                (stored.reserve)(need.saturating_sub(scratch))?;
-                scratch = need;
+            if need > *scratch {
+                (stored.reserve)(need.saturating_sub(*scratch))?;
+                *scratch = need;
             }
             h.write(out, &stored.source)?;
         }
@@ -316,14 +379,12 @@ pub fn write_response<S: BlobStore + 'static>(
             }
             out.write_all(b"]")?;
         }
-        if let Some(e) = hits.explanations.get(i) {
+        if let Some(e) = view.explanations.get(i) {
             explain::write_explanation(out, e)?;
         }
         out.write_all(b"}")?;
     }
-    out.write_all(b"]}")?;
-    write_aggregations(out, &hits.aggregations)?;
-    out.write_all(b"}")
+    Ok(())
 }
 
 #[cfg(test)]

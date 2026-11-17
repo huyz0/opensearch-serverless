@@ -1,6 +1,6 @@
 //! Metric aggregations on one shard: `min`, `max`, `sum`, `avg`, `stats`,
 //! `value_count`, `cardinality`, `percentiles` and `percentile_ranks` of a
-//! numeric or date field, at the top level of a search.
+//! numeric or date field, and `top_hits`, at the top level of a search.
 //!
 //! A request's aggregations are parsed with its body ([`parse`]), computed
 //! over the query's live matches in one pass of lucene-aggs, the engine's
@@ -21,12 +21,14 @@ pub mod partial;
 pub mod percentiles;
 pub mod render;
 pub mod tdigest;
+pub mod top_hits;
 
 pub use collect::collect;
 pub use parse::parse_aggregations;
 pub use partial::{Format, Partial, Value};
 pub use percentiles::PercentilesOptions;
-pub use render::write_aggregations;
+pub use render::{write_aggregations, write_aggregations_with};
+pub use top_hits::{TopHitsResult, TopHitsSpec};
 
 /// Which metric an aggregation computes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -51,11 +53,13 @@ pub enum Metric {
     /// `percentile_ranks`: the percent of values at or below given values,
     /// from a t-digest.
     PercentileRanks,
+    /// `top_hits`: the top documents in a sort of its own.
+    TopHits,
 }
 
 impl Metric {
     /// Every metric served, by its aggregation type name.
-    pub const ALL: [Metric; 9] = [
+    pub const ALL: [Metric; 10] = [
         Metric::Min,
         Metric::Max,
         Metric::Sum,
@@ -65,6 +69,7 @@ impl Metric {
         Metric::Cardinality,
         Metric::Percentiles,
         Metric::PercentileRanks,
+        Metric::TopHits,
     ];
 
     /// The aggregation type name.
@@ -79,6 +84,7 @@ impl Metric {
             Metric::Cardinality => "cardinality",
             Metric::Percentiles => "percentiles",
             Metric::PercentileRanks => "percentile_ranks",
+            Metric::TopHits => "top_hits",
         }
     }
 
@@ -102,6 +108,9 @@ pub struct MetricAgg {
     /// A `percentiles`' or `percentile_ranks`' options; the defaults, with
     /// no keys, for every other metric.
     pub percentiles: PercentilesOptions,
+    /// A `top_hits`' options; `None` for every other metric (whose `field`
+    /// is the one it reads).
+    pub top_hits: Option<Box<TopHitsSpec>>,
 }
 
 /// What a `cardinality` aggregation sets besides its field.
@@ -163,3 +172,6 @@ mod tests;
 
 #[cfg(test)]
 mod cardinality_tests;
+
+#[cfg(test)]
+mod top_hits_tests;

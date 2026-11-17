@@ -11,6 +11,7 @@ use lucene_search::java_math::{JAVA_NAN, java_max, java_min};
 
 use crate::aggs::metric::hll::Hll;
 use crate::aggs::metric::tdigest::Digest;
+use crate::aggs::metric::top_hits::TopHitsResult;
 
 /// How a value is shown beside its number (`DocValueFormat`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -67,6 +68,9 @@ pub enum Value {
         /// `None` when no document matched.
         digest: Option<Digest>,
     },
+    /// `InternalTopHits`: the shard's top hits, which a coordinator merges
+    /// by their sort once it has fetched them.
+    TopHits(Box<TopHitsResult>),
 }
 
 /// One aggregation's shard-level result.
@@ -113,6 +117,8 @@ pub fn reduce(parts: &[Value]) -> Option<Value> {
     match first {
         Value::Cardinality(_) => return reduce_cardinality(parts),
         Value::Percentiles { .. } => return reduce_percentiles(parts),
+        // Merging hits needs them fetched and their shard known.
+        Value::TopHits(_) => return None,
         _ => {}
     }
     let mut sum = CompensatedSum::default();
@@ -162,7 +168,7 @@ pub fn reduce(parts: &[Value]) -> Option<Value> {
         },
         Value::ValueCount(_) => Value::ValueCount(count),
         // Reduced above.
-        Value::Cardinality(_) | Value::Percentiles { .. } => return None,
+        Value::Cardinality(_) | Value::Percentiles { .. } | Value::TopHits(_) => return None,
     })
 }
 

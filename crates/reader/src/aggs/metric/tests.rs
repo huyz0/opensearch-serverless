@@ -23,6 +23,7 @@ fn agg(name: &str, metric: Metric, field: &str) -> MetricAgg {
     MetricAgg {
         cardinality: crate::aggs::metric::CardinalityOptions::default(),
         percentiles: crate::aggs::metric::PercentilesOptions::default(),
+        top_hits: None,
         name: name.to_owned(),
         metric,
         field: field.to_owned(),
