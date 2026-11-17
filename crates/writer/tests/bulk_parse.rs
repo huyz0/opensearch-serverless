@@ -258,3 +258,59 @@ fn an_object_given_for_any_other_parameter_is_refused() {
     let body = "{\"index\":{\"routing\":{\"x\":1},\"_id\":\"1\"}}\n{}\n";
     assert!(run(body, &with_index()).is_err());
 }
+
+#[test]
+fn a_create_refusal_stops_the_item_s_other_checks() {
+    // `IndexRequest.validate` returns at a create refusal: the empty
+    // pipeline is not reported.
+    let body = "{\"create\":{\"_id\":\"1\",\"version\":3,\"version_type\":\"external\",\"pipeline\":\"\"}}\n{}\n";
+    assert_eq!(
+        run(body, &with_index()),
+        Err(
+            "Validation Failed: 1: create operations only support internal versioning. use index instead;"
+                .to_owned()
+        )
+    );
+}
+
+#[test]
+fn an_index_refusal_does_not_stop_the_item_s_other_checks() {
+    let body = "{\"index\":{\"_id\":\"1\",\"version\":-5,\"version_type\":\"external\",\"pipeline\":\"\"}}\n{}\n";
+    assert_eq!(
+        run(body, &with_index()),
+        Err(
+            "Validation Failed: 1: illegal version value [-5] for version type [EXTERNAL];2: pipeline cannot be an empty string;"
+                .to_owned()
+        )
+    );
+}
+
+#[test]
+fn a_version_without_an_id_asks_for_one() {
+    let need = "an id must be provided if version type or value are set";
+    for line in [
+        r#"{"index":{"version":5,"version_type":"external"}}"#,
+        r#"{"index":{"version":-3,"version_type":"external_gte"}}"#,
+    ] {
+        let body = format!("{line}\n{{}}\n");
+        let Err(reason) = run(&body, &with_index()) else {
+            panic!("{line} was accepted");
+        };
+        assert!(reason.contains(need), "{line}: {reason}");
+    }
+    // An internal version with no id is refused for its version, and
+    // asks for an id too.
+    let body = "{\"index\":{\"version\":5}}\n{}\n";
+    let Err(reason) = run(body, &with_index()) else {
+        panic!("accepted");
+    };
+    assert!(
+        reason.starts_with(&format!("Validation Failed: 1: {need};")),
+        "{reason}"
+    );
+    // No version, or a create, needs none.
+    for line in [r#"{"index":{}}"#, r#"{"create":{}}"#] {
+        let body = format!("{line}\n{{}}\n");
+        assert_eq!(run(&body, &with_index()), Ok(vec![201]), "{line}");
+    }
+}

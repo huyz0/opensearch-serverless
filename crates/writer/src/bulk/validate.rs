@@ -35,13 +35,8 @@ pub fn op_errors(op: &Op, errors: &mut Vec<String>) {
             }
             if a.id.is_none() {
                 let e = &a.expect;
-                let resolved = if create && e.version == MATCH_ANY {
-                    MATCH_DELETED
-                } else {
-                    e.version
-                };
                 if e.version_type != VersionType::Internal
-                    || (resolved != MATCH_DELETED && resolved != MATCH_ANY)
+                    || (e.version != MATCH_DELETED && e.version != MATCH_ANY)
                 {
                     errors.insert(
                         before,

@@ -27,9 +27,15 @@ impl IdGenerator {
         use std::hash::{BuildHasher, Hasher};
         let mut h = std::collections::hash_map::RandomState::new().build_hasher();
         h.write_u8(0);
-        let bits = h.finish().to_le_bytes();
+        Self::from_bits(h.finish().to_le_bytes())
+    }
+
+    /// A generator from eight random bytes: four seed the sequence, and
+    /// the address is made of the other four and two munged from the first
+    /// two, with the multicast bit set as the Java sets it on a random
+    /// address.
+    fn from_bits(bits: [u8; 8]) -> Self {
         let [a, b, c, d, e, f, g, i] = bits;
-        // The Java sets the multicast bit of a random address it munges.
         Self::new(
             u32::from_le_bytes([a, b, c, d]),
             [e | 1, f, g, i, a ^ e, b ^ f],
@@ -65,7 +71,7 @@ fn base64url(bytes: &[u8; 15]) -> String {
     let mut out = String::with_capacity(20);
     for chunk in bytes.chunks_exact(3) {
         let [a, b, c] = [chunk[0], chunk[1], chunk[2]];
-        let n = (u32::from(a) << 16) | (u32::from(b) << 8) | u32::from(c);
+        let n = u32::from_be_bytes([0, a, b, c]);
         for shift in [18u32, 12, 6, 0] {
             let index = usize::try_from((n >> shift) & 63).unwrap_or(0);
             out.push(char::from(ALPHABET[index]));
@@ -108,6 +114,13 @@ mod tests {
     fn base64url_uses_the_url_alphabet() {
         assert_eq!(base64url(&[0xfb; 15]), "-_v7-_v7-_v7-_v7-_v7");
         assert_eq!(base64url(&[0; 15]), "AAAAAAAAAAAAAAAAAAAA");
+    }
+
+    #[test]
+    fn a_random_address_is_munged_from_the_bits() {
+        let g = IdGenerator::from_bits([0x10, 0x20, 0x30, 0x40, 0x04, 0x05, 0x06, 0x07]);
+        assert_eq!(g.sequence, 0x4030_2010);
+        assert_eq!(g.address, [0x05, 0x05, 0x06, 0x07, 0x14, 0x25]);
     }
 
     #[test]

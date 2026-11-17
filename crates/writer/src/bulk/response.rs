@@ -145,3 +145,19 @@ fn write_item(out: &mut dyn Write, item: &Item) -> io::Result<()> {
     }
     out.write_all(b"}}")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_an_illegal_state_is_a_server_error() {
+        let refusal = |ty| MappingError {
+            ty,
+            reason: String::new(),
+            caused_by: None,
+        };
+        assert_eq!(mapping_status(&refusal("illegal_state_exception")), 500);
+        assert_eq!(mapping_status(&refusal("mapper_parsing_exception")), 400);
+    }
+}
