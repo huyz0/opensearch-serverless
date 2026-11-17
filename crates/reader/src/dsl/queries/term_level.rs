@@ -246,12 +246,12 @@ fn parse_fuzziness(p: &Parser<'_>) -> Result<Fuzziness, DslError> {
     if text.eq_ignore_ascii_case("AUTO") {
         return Ok(Fuzziness::AUTO);
     }
-    if text.len() > 5
-        && text
-            .get(..5)
-            .is_some_and(|s| s.eq_ignore_ascii_case("AUTO:"))
+    if text
+        .get(..5)
+        .is_some_and(|s| s.eq_ignore_ascii_case("AUTO:"))
     {
-        let mut parts = text.get(5..).unwrap_or("").split(',');
+        // `String.split` drops trailing empty strings.
+        let mut parts = text.get(5..).unwrap_or("").trim_end_matches(',').split(',');
         let (Some(low), Some(high), None) = (parts.next(), parts.next(), parts.next()) else {
             return Err(DslError::Failure(crate::failure::Failure::opensearch(
                 "parse_exception",
@@ -259,7 +259,9 @@ fn parse_fuzziness(p: &Parser<'_>) -> Result<Fuzziness, DslError> {
             )));
         };
         return match (low.parse::<i32>(), high.parse::<i32>()) {
-            (Ok(low), Ok(high)) if low < 0 || high < 0 || low > high => Err(DslError::illegal(
+            // Java also refuses a negative high, which a low of at least 0
+            // and at most the high already rules out.
+            (Ok(low), Ok(high)) if low < 0 || low > high => Err(DslError::illegal(
                 "fuzziness wrongly configured, must be: lowDistance > 0, highDistance > 0 and \
                  lowDistance <= highDistance ",
             )),

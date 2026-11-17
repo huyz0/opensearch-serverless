@@ -198,6 +198,7 @@ fn string_queries_refuse_bad_shapes_and_unserved_options() {
         r#"{"regexp":{"tag":{"value":"a","flags":"INTERSECTION"}}}"#,
         r#"{"regexp":{"tag":{"value":"a","flags_value":1}}}"#,
         r#"{"regexp":{"tag":{"value":"a","max_determinized_states":100}}}"#,
+        r#"{"regexp":{"tag":{"value":"a","max_determinized_states":0}}}"#,
     ] {
         assert!(
             reason(&q(unsupported)).contains("not supported"),
@@ -270,6 +271,30 @@ fn fuzzy_refuses_what_opensearch_refuses() {
         bad(r#""AUTO:a,b""#),
         "failed to parse [AUTO:a,b] as a \"auto:int,int\""
     );
+    assert_eq!(
+        bad(r#""AUTO:""#),
+        "failed to find low and high distance values"
+    );
+    assert_eq!(
+        bad(r#""AUTO:1,2,3""#),
+        "failed to find low and high distance values"
+    );
+    for fine in [
+        r#""AUTO:0,4""#,
+        r#""AUTO:0,0""#,
+        r#""AUTO:3,3""#,
+        r#""auto:1,2,,""#,
+    ] {
+        assert!(
+            matches!(
+                more(&q(&format!(
+                    r#"{{"fuzzy":{{"title":{{"value":"a","fuzziness":{fine}}}}}}}"#
+                ))),
+                More::Fuzzy { .. }
+            ),
+            "{fine}"
+        );
+    }
     for wrong in [r#""AUTO:-1,4""#, r#""AUTO:5,4""#] {
         assert_eq!(
             bad(wrong),
