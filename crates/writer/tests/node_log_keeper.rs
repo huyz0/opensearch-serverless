@@ -291,3 +291,16 @@ fn a_renewal_racing_new_epochs_never_drops_one_a_blob_landed_in() {
     }
     assert_eq!(named.len(), 40, "every epoch is still named");
 }
+
+#[test]
+fn a_renewal_failure_says_which_step_failed() {
+    let lease = RenewError::Lease(Arc::new(std::io::Error::other("down")));
+    assert_eq!(lease.to_string(), "the lease was not written: down");
+    let delete = RenewError::Delete(oss_writer::log::LogError::Taken);
+    assert!(
+        delete
+            .to_string()
+            .starts_with("a delete behind the lease failed: "),
+        "{delete}"
+    );
+}

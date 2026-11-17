@@ -15,7 +15,9 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use oss_format::NodeLogEpoch;
 
-use crate::log::{EpochLease, LogError, NodeLogCommitter, NodeLogStore, Refusal};
+use crate::log::{
+    EpochLease, LogError, NodeLogCommitter, NodeLogStore, Refusal, lease_slot as slot,
+};
 
 /// Slots past a complete epoch's landed hint that are deleted with it: the
 /// one an append of unknown outcome may have taken, and a fence after it.
@@ -133,11 +135,10 @@ impl LeaseKeeper {
         for entry in named {
             let epoch = slot(entry.epoch);
             let from = trim.deleted_below.get(&epoch).copied().unwrap_or(0);
-            let below = slot(entry.trim);
-            if below > from {
-                self.store.delete_range(epoch, from, below)?;
-                trim.deleted_below.insert(epoch, below);
-            }
+            // An empty range sends nothing; a trim point never moves down.
+            let below = slot(entry.trim).max(from);
+            self.store.delete_range(epoch, from, below)?;
+            trim.deleted_below.insert(epoch, below);
         }
         while let Some(entry) = trim.completed.front() {
             let epoch = slot(entry.epoch);
@@ -156,9 +157,4 @@ impl EpochLease for LeaseKeeper {
         let _trim = self.lock();
         self.writer.write(&self.with_inherited(epochs), true)
     }
-}
-
-/// A lease number as a slot or epoch; they are never negative.
-fn slot(n: i64) -> u64 {
-    u64::try_from(n).unwrap_or(0)
 }
