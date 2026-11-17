@@ -642,11 +642,17 @@ name = "oss-writer"
 version = "0.1.0"
 dependencies = [
  "chunkjson",
+ "lucene-analysis",
+ "lucene-codecs",
+ "lucene-index",
+ "lucene-search",
+ "lucene-store",
  "oss-blob",
  "oss-format",
  "oss-rest",
  "oss-testkit",
  "oss-types",
+ "serde_json",
 ]
 
 [[package]]

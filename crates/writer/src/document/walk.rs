@@ -311,13 +311,14 @@ impl<'m, 'a> Parser<'m, 'a> {
             // ALLOC: document parse or error path; bounded by the document's bytes (the HTTP body bound).
             Ok(Taken::Value(v)) => self.out.fields.push((full.to_owned(), v)),
             Ok(Taken::Nothing) => {}
-            // ALLOC: document parse or error path; bounded by the document's bytes (the HTTP body bound).
-            Ok(Taken::Ignored) => self.out.ignored.push(full.to_owned()),
             Err(cause) => {
                 let value = self.reader.read_value(tok)?;
                 if leaf.get("ignore_malformed").is_some_and(Value::flag) {
-                    // ALLOC: document parse or error path; bounded by the document's bytes (the HTTP body bound).
-                    self.out.ignored.push(full.to_owned());
+                    // Once a field, as `ParseContext`'s set keeps it.
+                    if !self.out.ignored.iter().any(|f| f == full) {
+                        // ALLOC: document parse or error path; bounded by the document's bytes (the HTTP body bound).
+                        self.out.ignored.push(full.to_owned());
+                    }
                     return Ok(());
                 }
                 let float = leaf.ty() == FieldType::Number(NumType::Float);

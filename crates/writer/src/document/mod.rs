@@ -12,6 +12,7 @@ mod reader;
 mod values;
 mod walk;
 
+pub(crate) use preview::hash_order;
 pub use values::{FieldValue, parse_date};
 
 use crate::mapping::{Mapping, MappingError, Object};
@@ -22,8 +23,11 @@ pub struct ParsedDocument {
     /// Each value a field indexes, by the field's full name, in document
     /// order; a multi-field follows its parent's value.
     pub fields: Vec<(String, FieldValue)>,
-    /// Fields that kept a value out of the index (`ignore_above`,
-    /// `ignore_malformed`), for `_ignored`, in document order.
+    /// Fields that kept a malformed value out of the index
+    /// (`ignore_malformed`), for `_ignored`, once each, in the order first
+    /// met. A keyword
+    /// over its `ignore_above` is dropped without being listed, as
+    /// `KeywordFieldMapper` drops it.
     pub ignored: Vec<String>,
     /// The fields and objects dynamic mapping added, as a mapping of their
     /// own, or `None` when it added none.
