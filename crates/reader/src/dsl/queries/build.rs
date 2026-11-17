@@ -310,8 +310,10 @@ fn exists_one(cx: &QueryContext<'_>, field: &str) -> Result<Clause, Failure> {
 
 /// Whether `name` is a field under the object `object`.
 fn is_under(object: &str, name: &str) -> bool {
+    // A mapped name never ends in a dot, so a dot after the object's name
+    // is followed by a sub-field's.
     name.strip_prefix(object)
-        .is_some_and(|rest| rest.len() > 1 && rest.starts_with('.'))
+        .is_some_and(|rest| rest.starts_with('.'))
 }
 
 /// `ExistsQueryBuilder.newFilter`: the fields the pattern names (an object

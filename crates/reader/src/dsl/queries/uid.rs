@@ -49,7 +49,7 @@ pub fn encode_id(id: &str) -> Option<Vec<u8>> {
         for pair in bytes.chunks(2) {
             let high = pair.first().map_or(0, |b| b.saturating_sub(b'0'));
             let low = pair.get(1).map_or(0x0f, |b| b.saturating_sub(b'0'));
-            out.push((high << 4) | low);
+            out.push(high.saturating_mul(16).saturating_add(low));
         }
         return Some(out);
     }
@@ -106,6 +106,13 @@ mod tests {
         assert_eq!(encode_id("AQ"), Some(vec![1]));
         assert_eq!(encode_id("_w"), Some(vec![0xfd, 0xff]));
         assert_eq!(encode_id("-A"), Some(vec![0xf8]));
+        // Four characters may end in any of them; five never decode.
+        assert_eq!(encode_id("abcd"), Some(vec![0x69, 0xb7, 0x1d]));
+        assert_eq!(encode_id("abcdA"), Some(b"\xffabcdA".to_vec()));
+        // Two characters end in one of four, three in one of sixteen.
+        assert_eq!(encode_id("AE"), Some(b"\xffAE".to_vec()));
+        assert_eq!(encode_id("AAE"), Some(vec![0, 1]));
+        assert_eq!(encode_id("AAA0"), Some(vec![0, 0, 52]));
     }
 
     #[test]

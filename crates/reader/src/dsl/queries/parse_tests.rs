@@ -454,6 +454,10 @@ fn compound_queries_refuse_what_opensearch_refuses() {
         "[dis_max] query does not support [x]"
     );
     assert_eq!(
+        reason(&q(r#"{"dis_max":{"query":{"match_all":{}}}}"#)),
+        "[dis_max] query does not support [query]"
+    );
+    assert_eq!(
         reason(&q(r#"{"match_none":{"x":1}}"#)),
         "[match_none] query does not support [x]"
     );

@@ -105,7 +105,8 @@ pub fn parse_terms(p: &mut Parser<'_>) -> Result<More, DslError> {
                 }
                 return Err(DslError::unsupported("the [terms] lookup"));
             }
-            Some(k) if k.is_value() => match current {
+            // A value: inside an object nothing else follows a name.
+            Some(_) => match current {
                 "boost" => boost = float_value(p)?,
                 "value_type" if p.text() == "default" => {}
                 "value_type" | "_name" => {
@@ -114,13 +115,6 @@ pub fn parse_terms(p: &mut Parser<'_>) -> Result<More, DslError> {
                 }
                 _ => return Err(does_not_support(p, "terms", current)),
             },
-            Some(k) => {
-                return Err(DslError::parsing(
-                    p.location(),
-                    // ALLOC: error path; one message.
-                    format!("[terms] unknown token [{}] after [{current}]", k.name()),
-                ));
-            }
         }
     }
     let Some(field) = field else {
@@ -374,19 +368,13 @@ pub fn parse_exists(p: &mut Parser<'_>) -> Result<More, DslError> {
 /// `XContentParseException` is one) become a `ParsingException` at the
 /// token the parser stopped on.
 pub fn parse_ids(p: &mut Parser<'_>) -> Result<More, DslError> {
+    // Every failure the object parser gives is one of those: an
+    // `illegal_argument_exception`, `x_content_parse_exception` or
+    // `number_format_exception`.
     ids_object(p).map_err(|e| match e {
-        DslError::Failure(f)
-            if matches!(
-                f.kind,
-                "illegal_argument_exception"
-                    | "x_content_parse_exception"
-                    | "number_format_exception"
-            ) =>
-        {
-            DslError::Failure(
-                crate::dsl::error::parsing_failure(p.location(), f.reason.clone()).caused_by(f),
-            )
-        }
+        DslError::Failure(f) => DslError::Failure(
+            crate::dsl::error::parsing_failure(p.location(), f.reason.clone()).caused_by(f),
+        ),
         other => other,
     })
 }
