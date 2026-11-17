@@ -141,14 +141,15 @@ fn an_epoch_with_nothing_above_its_trim_point_names_no_shard() {
             landed: 1
         }]
     );
-    let (puts, gets) = (count(&r, S3Op::Put), count(&r, S3Op::Get));
+    let gets = |r: &Rig| count(r, S3Op::Get) + count(r, S3Op::GetRange);
+    let (puts, got) = (count(&r, S3Op::Put), gets(&r));
     let takeover = NodeLogTakeover::new(r.log.clone(), lease, "node-2", 2);
     assert!(takeover.named().expect("fences").is_empty());
     assert_eq!(count(&r, S3Op::Put) - puts, 1, "the fence");
     assert_eq!(
-        count(&r, S3Op::Get),
-        gets,
-        "nothing read below the trim point: the fence searches by HEAD"
+        gets(&r) - got,
+        1,
+        "the fence's look at the slot below it for another successor's fence, and no header read"
     );
 }
 
@@ -214,7 +215,9 @@ fn a_reread_finding_the_fence_safe_reads_the_lease_once_and_fences_once() {
     let at = r.committer.last_position(&shard(1)).expect("landed");
     r.committer.on_published(&shard(1), at);
     let lease = r.committer.positions();
-    let requests = |r: &Rig| count(r, S3Op::Head) + count(r, S3Op::Get) + count(r, S3Op::Put);
+    let requests = |r: &Rig| {
+        count(r, S3Op::Head) + count(r, S3Op::Get) + count(r, S3Op::GetRange) + count(r, S3Op::Put)
+    };
 
     let before = requests(&r);
     NodeLogTakeover::new(r.log.clone(), lease.clone(), "node-2", 2)

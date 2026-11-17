@@ -18,7 +18,7 @@ Parity plan R5.3 (roadmap stage 3, [roadmap](../../roadmap.md)). Invariant I-7: 
 - AC-1 (I-7): after a takeover fences a writer's epoch, the writer's next commit fails `Fenced`, and the ends name the fence's slot, one past the writer's last blob.
 - AC-2: three shards in four blobs each: one takeover's `fence_all`, `ends` and `named` together write exactly 1 blob (the fence), list nothing, and `named` holds the three shards; a second successor's takeover of the same lease writes nothing.
 - AC-3: a takeover from a lease whose landed hint points below slots the writer deleted after it, rereading the current lease, places its fence above the hole: the writer's next commit fails and the ends name a slot above the new trim point. Without the reread, the fence lands in the hole and the writer's next commit lands.
-- AC-4: an epoch with nothing above its trim point names no shard, and reads no blob below its trim point: one write (the fence) and no GET; the fence searches by HEAD.
+- AC-4: an epoch with nothing above its trim point names no shard, and reads no blob below its trim point: one write (the fence) and one GET, the fence's look at the slot below it; no header is read.
 - AC-5: an unfenced reader writes nothing, the writer's next commit lands, and its ends are each epoch's first free slot.
 - AC-6: a failed fence or a failed lease reread fails the call and caches nothing; the next call succeeds.
 
