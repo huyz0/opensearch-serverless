@@ -336,3 +336,15 @@ fn properties_must_be_an_object_or_empty() {
         "properties must be a map type"
     );
 }
+
+#[test]
+fn an_objects_include_in_all_is_dropped() {
+    let m = parse(
+        r#"{"properties":{"o":{"include_in_all":true,"properties":{"a":{"type":"keyword"}}}}}"#,
+    )
+    .unwrap();
+    assert_eq!(
+        m.to_json(),
+        r#"{"properties":{"o":{"properties":{"a":{"type":"keyword"}}}}}"#
+    );
+}
