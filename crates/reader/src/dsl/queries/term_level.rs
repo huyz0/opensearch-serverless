@@ -222,7 +222,7 @@ pub fn parse_regexp(p: &mut Parser<'_>) -> Result<More, DslError> {
 }
 
 /// `Fuzziness.parse`.
-fn parse_fuzziness(p: &Parser<'_>) -> Result<Fuzziness, DslError> {
+pub(crate) fn parse_fuzziness(p: &Parser<'_>) -> Result<Fuzziness, DslError> {
     if !matches!(p.current_token(), Some(Kind::String | Kind::Number)) {
         return Err(DslError::illegal(
             // ALLOC: error path; one message.

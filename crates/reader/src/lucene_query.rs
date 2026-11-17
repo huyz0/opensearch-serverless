@@ -234,7 +234,7 @@ fn date_range(
 }
 
 /// `RangeQueryBuilder.doToQuery` for numeric and date fields.
-fn range(
+pub(crate) fn range(
     cx: &QueryContext<'_>,
     field: &str,
     from: Option<&Value>,

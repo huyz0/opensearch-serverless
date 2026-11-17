@@ -2,14 +2,14 @@
 //! a fuzzy term over the resolved fields, as OpenSearch's
 //! `SimpleQueryStringQueryParser` builds them.
 
-use lucene_search::query_builder::QueryBuilder;
-use lucene_search::{BoostQuery, Clause, DisjunctionMaxQuery};
+use lucene_search::{Clause, DisjunctionMaxQuery};
 
 use super::simple_string_build::{Node, Run};
 use crate::dsl::queries::Fuzziness;
 use crate::dsl::queries::build;
 use crate::dsl::queries::full_text::{MultiMatch, MultiType};
 use crate::dsl::queries::full_text_build::multi_match;
+use crate::dsl::queries::leaf_common::{boosted, no_terms};
 use crate::dsl::values::Value;
 use crate::failure::Failure;
 use crate::lucene_query::{field_type, match_none};
@@ -19,29 +19,7 @@ impl Run<'_, '_> {
     /// Whether `text` has no term to search in any of the fields, which
     /// `ZeroTermsQuery.NULL` makes `null`: only text fields drop it.
     pub(super) fn has_no_terms(&self, text: &str, slop: Option<u32>) -> bool {
-        let builder = QueryBuilder::new(self.cx.analyzer);
-        self.fields.iter().all(|(field, _)| {
-            let text_field = self
-                .cx
-                .mapping
-                .get(field)
-                .is_some_and(|f| f.ty == FieldType::Text);
-            text_field
-                && match slop {
-                    None => matches!(
-                        builder.create_boolean_query_with(
-                            field,
-                            text,
-                            lucene_search::query_visitor::Occur::Should
-                        ),
-                        Ok(None)
-                    ),
-                    Some(s) => matches!(
-                        builder.create_phrase_query_with_slop(field, text, s),
-                        Ok(None)
-                    ),
-                }
-        })
+        no_terms(self.cx, self.fields.iter().map(|(f, _)| *f), text, slop)
     }
 
     pub(super) fn matched(
@@ -103,12 +81,7 @@ impl Run<'_, '_> {
 
     /// `wrapWithBoost`.
     pub(super) fn boosted(query: Clause, boost: f32) -> Clause {
-        if matches!(query, Clause::MatchNoDocs(_)) || boost == 1.0 {
-            query
-        } else {
-            // ALLOC: one box a boosted field's query.
-            Clause::Boost(Box::new(BoostQuery::new(query, boost)))
-        }
+        boosted(query, boost)
     }
 
     /// The analyzer's `normalize` of a term for a field: a text field's

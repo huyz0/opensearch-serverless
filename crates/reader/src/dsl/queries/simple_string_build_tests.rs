@@ -42,7 +42,7 @@ fn ok(body: &str) -> String {
     built(body).expect("builds")
 }
 
-fn show(c: &Clause) -> String {
+pub(super) fn show(c: &Clause) -> String {
     match c {
         Clause::Term(t) => format!("{}:{}", t.field, String::from_utf8_lossy(&t.term)),
         Clause::Prefix(p) => format!("{}:{}*", p.field, String::from_utf8_lossy(&p.prefix)),
@@ -68,6 +68,7 @@ fn show(c: &Clause) -> String {
             let mut parts = Vec::new();
             parts.extend(b.must.iter().map(|c| format!("+{}", show(c))));
             parts.extend(b.should.iter().map(show));
+            parts.extend(b.filter.iter().map(|c| format!("#{}", show(c))));
             parts.extend(b.must_not.iter().map(|c| format!("-{}", show(c))));
             let msm = if b.minimum_should_match > 0 {
                 format!("%{}", b.minimum_should_match)

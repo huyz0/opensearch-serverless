@@ -128,7 +128,7 @@ fn parse_float(text: &str) -> Result<f32, DslError> {
 }
 
 /// `MultiMatchQueryBuilder.Type.parse`.
-fn multi_type(text: &str) -> Result<MultiType, DslError> {
+pub(crate) fn multi_type(text: &str) -> Result<MultiType, DslError> {
     match text {
         "best_fields" | "boolean" => Ok(MultiType::BestFields),
         "most_fields" => Ok(MultiType::MostFields),

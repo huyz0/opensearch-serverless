@@ -40,26 +40,8 @@ pub fn to_clause(m: &More, cx: &QueryContext<'_>) -> Result<Clause, Failure> {
         More::Prefix { field, value, .. } => string_query(cx, "prefix", field, || {
             Clause::Prefix(PrefixQuery::new(field.as_str(), value.as_bytes()))
         }),
-        More::Wildcard { field, value, .. } => string_query(cx, "wildcard", field, || {
-            Clause::Wildcard(WildcardQuery::new(field.as_str(), value.as_bytes()))
-        }),
-        More::Regexp { field, value, .. }
-            if value.chars().count() > MAX_REGEX_LENGTH && cx.mapping.get(field).is_some() =>
-        {
-            Err(Failure::plain(
-                "illegal_argument_exception",
-                // ALLOC: error path; one message.
-                format!(
-                    "The length of regex [{}] used in the Regexp Query request has exceeded the \
-                     allowed maximum of [{MAX_REGEX_LENGTH}]. This maximum can be set by \
-                     changing the [index.max_regex_length] index level setting.",
-                    value.chars().count()
-                ),
-            ))
-        }
-        More::Regexp { field, value, .. } => string_query(cx, "regexp", field, || {
-            Clause::Regexp(RegexpQuery::new(field.as_str(), value.as_str()))
-        }),
+        More::Wildcard { field, value, .. } => wildcard_clause(cx, field, value),
+        More::Regexp { field, value, .. } => regexp_clause(cx, field, value),
         More::Fuzzy {
             field,
             value,
@@ -109,6 +91,7 @@ pub fn to_clause(m: &More, cx: &QueryContext<'_>) -> Result<Clause, Failure> {
         } => full_text_build::phrase(cx, field, query, *slop, *zero_terms_all),
         More::MultiMatch(m, _) => full_text_build::multi_match(cx, m),
         More::SimpleQueryString(s, _) => super::simple_string_build::simple_query_string(cx, s),
+        More::QueryString(q, _) => super::query_string_build::query_string(cx, q),
     }
 }
 
@@ -137,6 +120,40 @@ pub(crate) fn prefix_clause(
 ) -> Result<Clause, Failure> {
     string_query(cx, "prefix", field, || {
         Clause::Prefix(PrefixQuery::new(field, term.as_bytes()))
+    })
+}
+
+/// `wildcardQuery` on one field.
+pub(crate) fn wildcard_clause(
+    cx: &QueryContext<'_>,
+    field: &str,
+    pattern: &str,
+) -> Result<Clause, Failure> {
+    string_query(cx, "wildcard", field, || {
+        Clause::Wildcard(WildcardQuery::new(field, pattern.as_bytes()))
+    })
+}
+
+/// `regexpQuery` on one field, refused past `index.max_regex_length`.
+pub(crate) fn regexp_clause(
+    cx: &QueryContext<'_>,
+    field: &str,
+    value: &str,
+) -> Result<Clause, Failure> {
+    if value.chars().count() > MAX_REGEX_LENGTH && cx.mapping.get(field).is_some() {
+        return Err(Failure::plain(
+            "illegal_argument_exception",
+            // ALLOC: error path; one message.
+            format!(
+                "The length of regex [{}] used in the Regexp Query request has exceeded the \
+                 allowed maximum of [{MAX_REGEX_LENGTH}]. This maximum can be set by \
+                 changing the [index.max_regex_length] index level setting.",
+                value.chars().count()
+            ),
+        ));
+    }
+    string_query(cx, "regexp", field, || {
+        Clause::Regexp(RegexpQuery::new(field, value))
     })
 }
 
@@ -338,7 +355,7 @@ fn is_under(object: &str, name: &str) -> bool {
 
 /// `ExistsQueryBuilder.newFilter`: the fields the pattern names (an object
 /// names its sub-fields), none matching nothing.
-fn exists(cx: &QueryContext<'_>, pattern: &str) -> Result<Clause, Failure> {
+pub(crate) fn exists(cx: &QueryContext<'_>, pattern: &str) -> Result<Clause, Failure> {
     let mut fields: Vec<&str> = if pattern.contains('*') {
         let matching = cx.mapping.names().filter(|n| simple_match(pattern, n));
         // ALLOC: one name a field the pattern matches, at most MAX_FIELDS.
