@@ -341,7 +341,7 @@ fn bool_query(cx: &QueryContext<'_>, b: &BoolQuery) -> Result<Clause, Failure> {
 
 /// `Queries.applyMinimumShouldMatch`: the spec over the `SHOULD` clauses,
 /// set when it asks for at least one.
-fn apply_min_should_match(
+pub(crate) fn apply_min_should_match(
     mut q: BooleanQuery,
     spec: Option<&str>,
 ) -> Result<BooleanQuery, Failure> {
