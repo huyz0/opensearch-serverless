@@ -4,3 +4,4 @@
 - AC-2: `shards_in_one_blob_are_read_with_one_read_of_it` (writer, on the emulator's meter).
 - AC-3: `records_after_a_position_and_in_known_runs` (writer).
 - AC-4: `a_consumer_stops_the_read_and_a_failed_body_read_keeps_nothing` (writer).
+- AC-5: `a_body_is_kept_only_when_shared_and_within_its_bounds`, `bodies_are_let_go_once_kept_past_their_time` (writer).

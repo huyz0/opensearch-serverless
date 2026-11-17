@@ -6,7 +6,9 @@ mod common;
 use common::committer::{Rig, rec, rig, shard, window};
 use oss_blob::{BlobStore, S3Op};
 use oss_format::{OrdinalRange, UNASSIGNED_SEQ_NO};
-use oss_writer::log::{NodeLogTakeover, Position, TakeoverError};
+use std::time::Duration;
+
+use oss_writer::log::{BodyCache, NodeLogTakeover, Position, TakeoverError};
 
 fn count(r: &Rig, op: S3Op) -> u64 {
     r.store.meter().count(op)
@@ -182,4 +184,104 @@ fn a_consumer_stops_the_read_and_a_failed_body_read_keeps_nothing() {
     assert_eq!(failed, Err(Stop::Takeover));
     assert_eq!(ids(&takeover, 1), ["1-0"], "read again");
     assert_eq!(ids(&takeover, 2), ["2-0"]);
+}
+
+/// `blobs` blobs, each holding one record of shards 1 and 2.
+fn shared_blobs(blobs: i64) -> Rig {
+    let r = rig(window(0));
+    for b in 0..blobs {
+        for n in 1..=2 {
+            r.committer
+                .enqueue(&shard(n), 1, &[rec(&format!("{n}-{b}"), b)], |_| {})
+                .expect("queued");
+        }
+        r.committer.flush_queued();
+    }
+    r
+}
+
+fn takeover_with(r: &Rig, cache: BodyCache) -> NodeLogTakeover {
+    let t = NodeLogTakeover::new(r.log.clone(), r.committer.positions(), "node-2", 2)
+        .with_body_cache(cache);
+    t.fence_all().expect("fences");
+    t
+}
+
+#[test]
+fn a_body_is_kept_only_when_shared_and_within_its_bounds() {
+    // One shard a blob: read by slice, nothing kept.
+    let r = rig(window(0));
+    commit(&r, 1, "a0", 0);
+    let alone = takeover_with(&r, BodyCache::default());
+    assert_eq!(ids(&alone, 1), ["a0"]);
+    assert_eq!(alone.kept_body_bytes(), 0, "a blob of one slice");
+
+    let r = shared_blobs(2);
+    let t = takeover_with(&r, BodyCache::default());
+    assert_eq!(ids(&t, 1), ["1-0", "1-1"]);
+    let both = t.kept_body_bytes();
+    assert!(
+        both > 0 && both.is_multiple_of(2),
+        "two bodies of one size: {both}"
+    );
+    let one = both / 2;
+
+    let exact = BodyCache {
+        max_body: one,
+        ..BodyCache::default()
+    };
+    let t = takeover_with(&r, exact);
+    assert_eq!(ids(&t, 1), ["1-0", "1-1"]);
+    assert_eq!(
+        t.kept_body_bytes(),
+        both,
+        "a body of exactly the bound is kept"
+    );
+
+    let under = BodyCache {
+        max_body: one - 1,
+        ..BodyCache::default()
+    };
+    let t = takeover_with(&r, under);
+    let before = gets(&r);
+    assert_eq!(ids(&t, 1), ["1-0", "1-1"]);
+    assert_eq!(ids(&t, 2), ["2-0", "2-1"]);
+    assert_eq!(t.kept_body_bytes(), 0, "a body over the bound is not");
+    assert_eq!(
+        gets(&r) - before,
+        5,
+        "a slice a shard a blob, and the first blob's header once"
+    );
+
+    let room_for_one = BodyCache {
+        max_kept: one,
+        ..BodyCache::default()
+    };
+    let t = takeover_with(&r, room_for_one);
+    assert_eq!(ids(&t, 1), ["1-0", "1-1"]);
+    assert_eq!(t.kept_body_bytes(), one, "the second would pass the total");
+    let room_for_two = BodyCache {
+        max_kept: both,
+        ..BodyCache::default()
+    };
+    let t = takeover_with(&r, room_for_two);
+    assert_eq!(ids(&t, 1), ["1-0", "1-1"]);
+    assert_eq!(t.kept_body_bytes(), both, "exactly the total fits");
+}
+
+#[test]
+fn bodies_are_let_go_once_kept_past_their_time() {
+    let r = shared_blobs(1);
+    let t = takeover_with(
+        &r,
+        BodyCache {
+            keep_for: Duration::ZERO,
+            ..BodyCache::default()
+        },
+    );
+    assert_eq!(ids(&t, 1), ["1-0"]);
+    std::thread::sleep(Duration::from_millis(2));
+    let before = gets(&r);
+    assert_eq!(ids(&t, 2), ["2-0"]);
+    assert_eq!(gets(&r) - before, 1, "read again after it was let go");
 }

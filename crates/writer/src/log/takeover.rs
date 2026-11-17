@@ -26,6 +26,8 @@ use crate::log::{LogError, NodeLogStore, Refusal, lease_slot};
 
 mod read;
 
+pub use read::BodyCache;
+
 /// How many times a fence is searched for again after the predecessor's
 /// lease moved past it (the Java's `MAX_REFENCES`).
 pub const MAX_REFENCES: u32 = 8;
@@ -158,7 +160,7 @@ impl NodeLogTakeover {
             fenced: Mutex::new(None),
             // ALLOC: one header a blob holding a shard asked about, bounded by the predecessor's unpublished blobs.
             headers: Mutex::new(BTreeMap::new()),
-            bodies: Mutex::new(read::Bodies::default()),
+            bodies: Mutex::new(read::Bodies::new(read::BodyCache::default())),
         }
     }
 

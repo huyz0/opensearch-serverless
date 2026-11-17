@@ -18,24 +18,51 @@ use oss_format::{
 use super::{NodeLogTakeover, TakeoverError};
 use crate::log::{LogError, NodeLogStore, Position, lease_slot};
 
-/// The largest body read whole, rather than slice by slice.
-pub const MAX_BODY_BYTES: u64 = 8 << 20;
-/// The most bytes of bodies one reader keeps.
-pub const MAX_KEPT_BYTES: u64 = 64 << 20;
-/// How long bodies are kept from the first one read: a takeover's opens
-/// read them within seconds of each other.
-pub const KEEP_BODIES: Duration = Duration::from_secs(60);
+/// How a reader keeps bodies it read whole.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BodyCache {
+    /// The largest body read whole, rather than slice by slice.
+    pub max_body: u64,
+    /// The most bytes of bodies kept at once.
+    pub max_kept: u64,
+    /// How long bodies are kept from the first one read: a takeover's
+    /// opens read them within seconds of each other.
+    pub keep_for: Duration,
+}
+
+impl Default for BodyCache {
+    /// 8 MiB a body, 64 MiB in all, for 60 s (the Java's).
+    fn default() -> Self {
+        Self {
+            max_body: 8 << 20,
+            max_kept: 64 << 20,
+            keep_for: Duration::from_secs(60),
+        }
+    }
+}
 
 /// One body: filled by the reader that claimed it, `None` when its read
 /// failed and each shard reads its own slices instead.
 type Kept = Arc<Mutex<Option<Arc<Vec<u8>>>>>;
 
-/// Bodies read whole, per epoch and slot, within [`MAX_KEPT_BYTES`].
-#[derive(Default)]
+/// Bodies read whole, per epoch and slot, within the cache's bounds.
 pub(super) struct Bodies {
+    cache: BodyCache,
     kept: BTreeMap<(u64, u64), Kept>,
     bytes: u64,
     since: Option<Instant>,
+}
+
+impl Bodies {
+    pub(super) fn new(cache: BodyCache) -> Self {
+        Self {
+            cache,
+            // ALLOC: one entry a body kept, within the cache's byte bound.
+            kept: BTreeMap::new(),
+            bytes: 0,
+            since: None,
+        }
+    }
 }
 
 /// A record handed to a consumer, which may fail with its own error.
@@ -249,37 +276,38 @@ impl NodeLogTakeover {
     ) -> Result<Option<Arc<Vec<u8>>>, TakeoverError> {
         let length = header.body_length();
         let key = (epoch, header.ordinal);
-        let (kept, mine) = {
+        // ALLOC: one slot a body kept, within the cache's byte bound.
+        let kept: Kept = Arc::new(Mutex::new(None));
+        let mut slot = {
             let mut bodies = locked(&self.bodies);
             let now = Instant::now();
-            if bodies
-                .since
-                .is_some_and(|since| now.saturating_duration_since(since) > KEEP_BODIES)
-            {
+            let cache = bodies.cache;
+            let expired = bodies.since.is_some_and(|since| {
+                !now.saturating_duration_since(since)
+                    .saturating_sub(cache.keep_for)
+                    .is_zero()
+            });
+            if expired {
                 // Long past the takeover that read them: let them go.
-                *bodies = Bodies::default();
+                *bodies = Bodies::new(cache);
             }
-            if let Some(kept) = bodies.kept.get(&key) {
-                (Arc::clone(kept), None)
-            } else {
-                if length > MAX_BODY_BYTES || bodies.bytes.saturating_add(length) > MAX_KEPT_BYTES {
-                    return Ok(None);
-                }
-                let kept: Kept = Arc::new(Mutex::new(None));
-                // Claimed before the map is let go, so the others wait on it.
-                let guard = locked(&kept);
-                let claim = Arc::clone(&kept);
-                bodies.kept.insert(key, Arc::clone(&kept));
-                bodies.bytes = bodies.bytes.saturating_add(length);
-                bodies.since.get_or_insert(now);
-                drop(guard);
-                (claim, Some(()))
+            if let Some(other) = bodies.kept.get(&key).map(Arc::clone) {
+                drop(bodies);
+                // Its reader holds it until the read ends: `None` means the
+                // read failed, and this one reads its own slices.
+                return Ok(locked(&other).clone());
             }
+            let total = bodies.bytes.saturating_add(length);
+            if length > cache.max_body || total > cache.max_kept {
+                return Ok(None);
+            }
+            // Claimed before the map is let go, so the others wait on it.
+            let slot = locked(&kept);
+            bodies.kept.insert(key, Arc::clone(&kept));
+            bodies.bytes = total;
+            bodies.since.get_or_insert(now);
+            slot
         };
-        let mut slot = locked(&kept);
-        if mine.is_none() || slot.is_some() {
-            return Ok(slot.clone());
-        }
         match self.log.read_body(epoch, header) {
             Ok(body) => {
                 let body = Arc::new(body);
@@ -296,5 +324,19 @@ impl NodeLogTakeover {
                 Err(TakeoverError::Log(e))
             }
         }
+    }
+
+    /// Reads bodies whole within `cache`'s bounds rather than the
+    /// defaults, dropping what is kept.
+    #[must_use]
+    pub fn with_body_cache(self, cache: BodyCache) -> Self {
+        *locked(&self.bodies) = Bodies::new(cache);
+        self
+    }
+
+    /// Bytes of bodies this reader keeps now.
+    #[must_use]
+    pub fn kept_body_bytes(&self) -> u64 {
+        locked(&self.bodies).bytes
     }
 }
