@@ -121,7 +121,9 @@ impl Hll {
                 // ARITH: none; the bits of an int, as Java's `encoded & mask`.
                 #[allow(clippy::cast_sign_loss)]
                 let mut i = (encoded as u32 as usize) & mask;
-                loop {
+                // The table is upgraded before it fills, so a probe ends
+                // within one pass; the bound only stops a broken table.
+                for _ in 0..slots.len() {
                     let Some(slot) = slots.get_mut(i) else { return };
                     if *slot == 0 {
                         *slot = encoded;
