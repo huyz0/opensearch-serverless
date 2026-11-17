@@ -720,9 +720,11 @@ name = "oss-node"
 version = "0.1.0"
 dependencies = [
  "lucene-analysis",
+ "lucene-index",
  "lucene-store",
  "oss-blob",
  "oss-coordinator",
+ "oss-format",
  "oss-mem",
  "oss-reader",
  "oss-rest",

@@ -201,6 +201,21 @@ impl<'d> Shard<'d> {
         Ok(())
     }
 
+    /// The files of the last commit, `segments_N` included: what a publish
+    /// of the commit `refresh` made uploads.
+    ///
+    /// # Errors
+    ///
+    /// A segment's files not listing.
+    pub fn committed_files(&self) -> Result<Vec<String>, String> {
+        lucene_index::index_file_deleter::files_of_infos(
+            self.dir,
+            self.writer.segment_infos(),
+            true,
+        )
+        .map_err(|e| message(&e))
+    }
+
     fn current(&self, id: &str, uid: &[u8]) -> Result<Option<Current>, Refused> {
         if let Some(c) = self.versions.get(id, (self.clock)(), GC_DELETES_MILLIS) {
             return Ok(Some(c));

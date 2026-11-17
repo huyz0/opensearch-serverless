@@ -75,11 +75,15 @@ pub type CreateHook = dyn Fn(&Emulator, &str, &mut dyn ChunkSource, &mut [u8]) -
     + Send
     + Sync;
 
-/// An emulator whose creates go through a hook; everything else is the
-/// emulator's.
+/// What a [`Hooked`] store does in place of a register swap.
+pub type SwapHook = dyn Fn(&Emulator, &str, u64, &[u8]) -> BlobResult<SwapOutcome> + Send + Sync;
+
+/// An emulator whose creates go through a hook, and its register swaps
+/// through another when one is set; everything else is the emulator's.
 pub struct Hooked {
     inner: Arc<Emulator>,
     create: Box<CreateHook>,
+    swap: Option<Box<SwapHook>>,
 }
 
 impl Hooked {
@@ -94,6 +98,19 @@ impl Hooked {
         Arc::new(Self {
             inner: Arc::clone(inner),
             create: Box::new(create),
+            swap: None,
+        })
+    }
+
+    /// `inner` with its register swaps sent through `swap`, as a store.
+    pub fn swapping(
+        inner: &Arc<Emulator>,
+        swap: impl Fn(&Emulator, &str, u64, &[u8]) -> BlobResult<SwapOutcome> + Send + Sync + 'static,
+    ) -> Arc<dyn BlobStore> {
+        Arc::new(Self {
+            inner: Arc::clone(inner),
+            create: Box::new(|e, key, body, buf| e.create_if_absent(key, body, buf)),
+            swap: Some(Box::new(swap)),
         })
     }
 }
@@ -146,7 +163,10 @@ impl BlobStore for Hooked {
         self.inner.read_register(key, buf)
     }
     fn swap_register(&self, key: &str, expected: u64, value: &[u8]) -> BlobResult<SwapOutcome> {
-        self.inner.swap_register(key, expected, value)
+        match &self.swap {
+            Some(hook) => hook(&self.inner, key, expected, value),
+            None => self.inner.swap_register(key, expected, value),
+        }
     }
     fn create_register(&self, key: &str, value: &[u8]) -> BlobResult<SwapOutcome> {
         self.inner.create_register(key, value)

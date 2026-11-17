@@ -51,3 +51,8 @@ src/bulk/budget.rs	port	serverless/shell/src/main/java/org/opensearch/serverless
 src/bulk/ids.rs	port	libs/common/src/main/java/org/opensearch/common/TimeBasedUUIDGenerator.java@429b4cbc	getBase64UUID: the ids of an index or create without one
 src/bulk/run.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/documents/BulkDispatch.java@429b4cbc	route and apply: items grouped by shard in request order, a foreign group forwarded once
 src/bulk/response.rs	port	server/src/main/java/org/opensearch/action/bulk/BulkItemResponse.java@429b4cbc	the bulk response body: took, errors and each item's result or failure
+src/publish/mod.rs	new		the publish module's exports
+src/publish/error.rs	new		the publish error type
+src/publish/blob.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/SegmentPublisher.java	a segment blob as a streamed PUT body
+src/publish/names.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/SegmentPublisher.java	the segment name of a Lucene file (IndexFileNames.parseSegmentName)
+src/publish/publisher.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/SegmentPublisher.java@429b4cbc	publishCommit: fence, upload fresh files by segment, swap the register; staging, node packs and buckets not ported

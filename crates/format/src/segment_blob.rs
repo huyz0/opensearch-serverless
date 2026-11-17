@@ -17,6 +17,7 @@ use std::borrow::Cow;
 
 use crate::error::{FormatError, corrupt, len64};
 use crate::json::{Reader, Token};
+use crate::json_write::{push_string, push_u64};
 
 const WHAT: &str = "segment blob header";
 
@@ -32,6 +33,85 @@ pub const MAX_HEADER_BYTES: u32 = 64 * 1024;
 
 /// The most files one segment blob may name.
 pub const MAX_FILES: usize = 1_024;
+
+/// Puts `files` in the order a blob lays them out: smallest first, equal
+/// sizes by name (`SegmentBlobs.prepare`).
+pub fn blob_order(files: &mut [(&str, u64)]) {
+    files.sort_unstable_by(|a, b| a.1.cmp(&b.1).then_with(|| a.0.cmp(b.0)));
+}
+
+/// The header of a blob holding `files` in this order, with the magic and
+/// length before it, as `SegmentBlobs.header` writes it: the files follow
+/// it in the same order.
+///
+/// The offsets count the header itself, whose length depends on how many
+/// digits they take, so it is encoded until its length stops moving, which
+/// a second or third pass always does.
+///
+/// # Errors
+///
+/// [`FormatError::Corrupt`] for no file, a name twice or a range that
+/// overflows; [`FormatError::TooLarge`] past [`MAX_FILES`] or
+/// [`MAX_HEADER_BYTES`].
+pub fn encode_header(files: &[(&str, u64)]) -> Result<Vec<u8>, FormatError> {
+    if files.is_empty() {
+        return Err(corrupt(WHAT, "a blob names no file"));
+    }
+    if files.len() > MAX_FILES {
+        return Err(FormatError::TooLarge {
+            what: WHAT,
+            limit: len64(MAX_FILES),
+            actual: len64(files.len()),
+        });
+    }
+    // ALLOC: one name a file, at most MAX_FILES, for the duplicate check.
+    let mut names: Vec<&str> = files.iter().map(|f| f.0).collect();
+    names.sort_unstable();
+    if names.windows(2).any(|w| matches!(w, [a, b] if a == b)) {
+        return Err(corrupt(WHAT, "a file is named twice"));
+    }
+    // ALLOC: the JSON, under MAX_HEADER_BYTES, rebuilt until its length settles.
+    let mut encoded: Vec<u8> = Vec::new();
+    for _ in 0..8 {
+        let mut offset = len64(PREFIX_BYTES.saturating_add(encoded.len()));
+        // ALLOC: the JSON of one pass, under MAX_HEADER_BYTES.
+        let mut next: Vec<u8> = Vec::with_capacity(encoded.len().max(64));
+        next.extend_from_slice(b"{\"version\":1,\"files\":{");
+        for (i, (name, length)) in files.iter().enumerate() {
+            if i > 0 {
+                next.push(b',');
+            }
+            push_string(&mut next, name);
+            next.push(b':');
+            next.push(b'[');
+            push_u64(&mut next, offset);
+            next.push(b',');
+            push_u64(&mut next, *length);
+            next.push(b']');
+            offset = offset
+                .checked_add(*length)
+                .ok_or(corrupt(WHAT, "a file range overflows"))?;
+        }
+        next.extend_from_slice(b"}}");
+        if next.len() > usize::try_from(MAX_HEADER_BYTES).unwrap_or(usize::MAX) {
+            return Err(FormatError::TooLarge {
+                what: WHAT,
+                limit: MAX_HEADER_BYTES.into(),
+                actual: len64(next.len()),
+            });
+        }
+        if next.len() == encoded.len() {
+            // ALLOC: the header, under MAX_HEADER_BYTES, once a blob.
+            let mut out = Vec::with_capacity(PREFIX_BYTES.saturating_add(next.len()));
+            out.extend_from_slice(&MAGIC);
+            out.extend_from_slice(&u32::try_from(next.len()).unwrap_or(u32::MAX).to_be_bytes());
+            out.extend_from_slice(&next);
+            return Ok(out);
+        }
+        encoded = next;
+    }
+    Err(corrupt(WHAT, "the header's length did not settle"))
+}
 
 /// One file in a segment blob.
 #[derive(Debug, Clone, PartialEq, Eq)]

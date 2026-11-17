@@ -24,10 +24,10 @@ exclude_re = [
     "crates/transport/src/stream/input.rs:.*replace \\| with \\^ in Input<'a>::string",
     "crates/transport/src/version.rs:.*replace \\^ with \\| in WireVersion::wire_id",
     # The inflate chunk's size only sets how often the loop turns.
-    "crates/transport/src/frame/compress.rs:.*replace \\* with \\+",
+    "crates/transport/src/frame/compress.rs:.*replace \\* with \\+$",
     # As the inflate chunk: the discard buffer's size only sets how often
     # the loop turns.
-    "crates/transport/src/channel.rs:.*replace \\* with \\+",
+    "crates/transport/src/channel.rs:.*replace \\* with \\+$",
     # A hex pair joins a high nibble shifted past a low one: disjoint bits.
     "crates/transport/src/auth.rs:.*replace \\| with \\^ in unhex",
     # `Instant` deltas against the probe interval: `<` and `<=` differ for
@@ -89,7 +89,7 @@ exclude_re = [
     "crates/format/src/mutf8.rs:.*replace \\| with \\^ in write",
     # The node log's I/O buffer size: a GET or PUT streams through any
     # non-empty buffer to the same bytes; only the chunk count differs.
-    "crates/writer/src/log/store.rs:21:43: replace \\* with \\+",
+    "crates/writer/src/log/store.rs:21:43: replace \\* with \\+$",
     # Only an infinite value reaches the sign test, and it is never 0.
     "crates/writer/src/mapping/json.rs:.*replace > with >= in java_floating",
     # The quote analyzer follows the search analyzer, which follows the
@@ -114,6 +114,8 @@ exclude_re = [
     # no input makes it do; it exists so a broken loop fails a query where
     # it would hang the node.
     "simple_string_build.rs:\\d+:\\d+: replace .* in Run<'_, '_>::tick",
+    # The publish buffer's size only sets how often the upload loop turns.
+    "crates/writer/src/publish/publisher.rs:\\d+:\\d+: replace \\* with \\+$",
     # Opening the points for a numeric sort only lets the engine skip
     # non-competitive documents: a sort reads its values from doc values
     # either way, and gives the same hits.

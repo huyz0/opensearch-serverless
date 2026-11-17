@@ -41,6 +41,7 @@ mod descriptor;
 mod error;
 mod index_record;
 mod json;
+mod json_write;
 mod keys;
 mod location;
 mod manifest;
@@ -73,7 +74,7 @@ pub use keys::{
     tombstone_marker_key, transport_secret_key,
 };
 pub use location::{FileLocation, NODE_PACK_PREFIX};
-pub use manifest::{CommitManifest, ManifestFile};
+pub use manifest::{CommitManifest, ManifestEntry, ManifestFile, encode as encode_manifest};
 pub use members::{
     LEASE_PREFIX, LeaseDigest, MAX_NODE_ID_BYTES, MEMBERS_PREFIX, check_node_id, decode_digest,
     decode_members, encode_digest, encode_members, lease_digest_key, lease_key, members_index_key,
@@ -88,7 +89,10 @@ pub use reclaim_intent::{
     MAX_RECLAIM_INTENT_BYTES, ReclaimIntent, reclaim_bucket, reclaim_bucket_start,
 };
 pub use register::{GENERATION_BYTES, Register};
-pub use segment_blob::{SegmentBlobHeader, SegmentFile};
+pub use segment_blob::{
+    SegmentBlobHeader, SegmentFile, blob_order as segment_blob_order,
+    encode_header as encode_segment_header,
+};
 pub use tombstone::{MAX_TOMBSTONE_BYTES, Tombstone, tombstone_bucket, tombstone_bucket_start};
 
 /// Node pack format constants and the header-length probe.

@@ -12,3 +12,4 @@ pub mod index;
 pub mod log;
 pub mod lucene;
 pub mod mapping;
+pub mod publish;
