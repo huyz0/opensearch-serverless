@@ -15,9 +15,28 @@ use crate::aggs::metric::double::write_java_double;
 use crate::aggs::metric::hash_order::hash_map_order;
 use crate::aggs::metric::partial::{Format, Partial, Value};
 use crate::aggs::metric::percentiles::write_percentiles;
+use crate::aggs::metric::top_hits::TopHitsResult;
 
-/// Writes `,"aggregations":{..}` for `parts`, or nothing when there are none.
+/// Writes a `top_hits` result's body: `"hits":{..}`, with its hits fetched.
+pub type HitsWriter<'a> = dyn FnMut(&mut dyn Write, &TopHitsResult) -> io::Result<()> + 'a;
+
+/// Writes `,"aggregations":{..}` for `parts`, or nothing when there are none,
+/// for results that hold no `top_hits`.
 pub fn write_aggregations(out: &mut dyn Write, parts: &[Partial]) -> io::Result<()> {
+    write_aggregations_with(out, parts, &mut |_, _| {
+        Err(io::Error::other(
+            "a top_hits result written without its hits",
+        ))
+    })
+}
+
+/// Writes `,"aggregations":{..}` for `parts`, or nothing when there are none;
+/// a `top_hits` result's body is `hits`' to write.
+pub fn write_aggregations_with(
+    out: &mut dyn Write,
+    parts: &[Partial],
+    hits: &mut HitsWriter<'_>,
+) -> io::Result<()> {
     if parts.is_empty() {
         return Ok(());
     }
@@ -31,7 +50,10 @@ pub fn write_aggregations(out: &mut dyn Write, parts: &[Partial]) -> io::Result<
         }
         write_json_str(out, &part.name)?;
         out.write_all(b":{")?;
-        write_body(out, part.format, &part.value)?;
+        match &part.value {
+            Value::TopHits(top) => hits(out, top)?,
+            value => write_body(out, part.format, value)?,
+        }
         out.write_all(b"}")?;
     }
     out.write_all(b"}")
@@ -124,6 +146,8 @@ fn write_body(out: &mut dyn Write, format: Format, value: &Value) -> io::Result<
             ref digest,
             ..
         } => write_percentiles(out, format, ranks, keys, keyed, digest.as_ref()),
+        // Written by the caller, which fetches the hits.
+        Value::TopHits(_) => Ok(()),
     }
 }
 

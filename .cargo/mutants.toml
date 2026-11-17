@@ -116,4 +116,9 @@ exclude_re = [
     "simple_string_build.rs:\\d+:\\d+: replace .* in Run<'_, '_>::tick",
     # The publish buffer's size only sets how often the upload loop turns.
     "crates/writer/src/publish/publisher.rs:\\d+:\\d+: replace \\* with \\+$",
+    # Opening the points for a numeric sort only lets the engine skip
+    # non-competitive documents: a sort reads its values from doc values
+    # either way, and gives the same hits.
+    "crates/reader/src/search.rs:.*replace \\|\\| with && in search",
 ]
+

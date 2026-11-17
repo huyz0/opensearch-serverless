@@ -7409,6 +7409,1298 @@
           "reason": "node id, random per node"
         }
       ]
+    },
+    {
+      "name": "top_hits with its defaults",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "t": {
+              "top_hits": {}
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "t": {
+              "hits": {
+                "total": {
+                  "value": 5,
+                  "relation": "eq"
+                },
+                "max_score": 1.0,
+                "hits": [
+                  {
+                    "_index": "compat-paging-sort",
+                    "_id": "1",
+                    "_score": 1.0,
+                    "_source": {
+                      "title": "The quick brown fox",
+                      "tag": "animal",
+                      "year": 2001,
+                      "published": "2001-03-04"
+                    }
+                  },
+                  {
+                    "_index": "compat-paging-sort",
+                    "_id": "2",
+                    "_score": 1.0,
+                    "_source": {
+                      "title": "Lazy dogs sleep all day",
+                      "tag": "animal",
+                      "year": 2002,
+                      "published": "2002-07-01T10:15:30Z"
+                    }
+                  },
+                  {
+                    "_index": "compat-paging-sort",
+                    "_id": "3",
+                    "_score": 1.0,
+                    "_source": {
+                      "title": "Quick start guide",
+                      "tag": "manual",
+                      "year": 2010,
+                      "published": "2010-01-01"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "top_hits of a scored query with from",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "query": {
+            "match": {
+              "title": "fox quick brown"
+            }
+          },
+          "aggs": {
+            "t": {
+              "top_hits": {
+                "from": 1,
+                "size": 2
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 4,
+              "relation": "eq"
+            },
+            "max_score": 1.2399342,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_score": 1.2399342
+              }
+            ]
+          },
+          "aggregations": {
+            "t": {
+              "hits": {
+                "total": {
+                  "value": 4,
+                  "relation": "eq"
+                },
+                "max_score": 1.2399342,
+                "hits": [
+                  {
+                    "_index": "compat-paging-sort",
+                    "_id": "4",
+                    "_score": 0.52695787,
+                    "_source": {
+                      "title": "Brown sugar and brown bread",
+                      "tag": "food",
+                      "year": 2002,
+                      "published": "2002-12-31T23:59:59.999Z"
+                    }
+                  },
+                  {
+                    "_index": "compat-paging-sort",
+                    "_id": "3",
+                    "_score": 0.45748958,
+                    "_source": {
+                      "title": "Quick start guide",
+                      "tag": "manual",
+                      "year": 2010,
+                      "published": "2010-01-01"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "top_hits from past the matches",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "query": {
+            "match": {
+              "title": "fox quick brown"
+            }
+          },
+          "aggs": {
+            "t": {
+              "top_hits": {
+                "from": 4,
+                "size": 2
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 4,
+              "relation": "eq"
+            },
+            "max_score": 1.2399342,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_score": 1.2399342
+              }
+            ]
+          },
+          "aggregations": {
+            "t": {
+              "hits": {
+                "total": {
+                  "value": 4,
+                  "relation": "eq"
+                },
+                "max_score": 1.2399342,
+                "hits": []
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "top_hits of nothing",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "query": {
+            "match": {
+              "title": "nothing"
+            }
+          },
+          "aggs": {
+            "t": {
+              "top_hits": {}
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 0,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "t": {
+              "hits": {
+                "total": {
+                  "value": 0,
+                  "relation": "eq"
+                },
+                "max_score": null,
+                "hits": []
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "top_hits sorted with a source filter and doc values",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "t": {
+              "top_hits": {
+                "from": 1,
+                "size": 2,
+                "sort": [
+                  "year"
+                ],
+                "_source": [
+                  "tag"
+                ],
+                "docvalue_fields": [
+                  "year"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "t": {
+              "hits": {
+                "total": {
+                  "value": 5,
+                  "relation": "eq"
+                },
+                "max_score": null,
+                "hits": [
+                  {
+                    "_index": "compat-paging-sort",
+                    "_id": "1",
+                    "_score": null,
+                    "_source": {
+                      "tag": "animal"
+                    },
+                    "fields": {
+                      "year": [
+                        2001
+                      ]
+                    },
+                    "sort": [
+                      2001
+                    ]
+                  },
+                  {
+                    "_index": "compat-paging-sort",
+                    "_id": "2",
+                    "_score": null,
+                    "_source": {
+                      "tag": "animal"
+                    },
+                    "fields": {
+                      "year": [
+                        2002
+                      ]
+                    },
+                    "sort": [
+                      2002
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "top_hits sorted by a keyword then the score",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "t": {
+              "top_hits": {
+                "sort": [
+                  {
+                    "tag": "desc"
+                  },
+                  "_score"
+                ],
+                "size": 3
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "t": {
+              "hits": {
+                "total": {
+                  "value": 5,
+                  "relation": "eq"
+                },
+                "max_score": null,
+                "hits": [
+                  {
+                    "_index": "compat-paging-sort",
+                    "_id": "3",
+                    "_score": null,
+                    "_source": {
+                      "title": "Quick start guide",
+                      "tag": "manual",
+                      "year": 2010,
+                      "published": "2010-01-01"
+                    },
+                    "sort": [
+                      "manual",
+                      1.0
+                    ]
+                  },
+                  {
+                    "_index": "compat-paging-sort",
+                    "_id": "4",
+                    "_score": null,
+                    "_source": {
+                      "title": "Brown sugar and brown bread",
+                      "tag": "food",
+                      "year": 2002,
+                      "published": "2002-12-31T23:59:59.999Z"
+                    },
+                    "sort": [
+                      "food",
+                      1.0
+                    ]
+                  },
+                  {
+                    "_index": "compat-paging-sort",
+                    "_id": "1",
+                    "_score": null,
+                    "_source": {
+                      "title": "The quick brown fox",
+                      "tag": "animal",
+                      "year": 2001,
+                      "published": "2001-03-04"
+                    },
+                    "sort": [
+                      "animal",
+                      1.0
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "top_hits sorted by document order",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "t": {
+              "top_hits": {
+                "sort": [
+                  "_doc"
+                ],
+                "size": 2,
+                "_source": false
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "t": {
+              "hits": {
+                "total": {
+                  "value": 5,
+                  "relation": "eq"
+                },
+                "max_score": null,
+                "hits": [
+                  {
+                    "_index": "compat-paging-sort",
+                    "_id": "1",
+                    "_score": null,
+                    "sort": [
+                      0
+                    ]
+                  },
+                  {
+                    "_index": "compat-paging-sort",
+                    "_id": "2",
+                    "_score": null,
+                    "sort": [
+                      1
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "top_hits ignores the request's sort, from and total",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "sort": [
+            "year"
+          ],
+          "from": 3,
+          "track_total_hits": 2,
+          "aggs": {
+            "t": {
+              "top_hits": {
+                "size": 1,
+                "_source": false
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "gte"
+            },
+            "max_score": null,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "4",
+                "_score": null,
+                "sort": [
+                  2002
+                ]
+              }
+            ]
+          },
+          "aggregations": {
+            "t": {
+              "hits": {
+                "total": {
+                  "value": 5,
+                  "relation": "eq"
+                },
+                "max_score": 1.0,
+                "hits": [
+                  {
+                    "_index": "compat-paging-sort",
+                    "_id": "1",
+                    "_score": 1.0
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "top_hits beside other aggregations",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "t": {
+              "top_hits": {
+                "size": 1,
+                "_source": false
+              }
+            },
+            "a": {
+              "avg": {
+                "field": "year"
+              }
+            },
+            "b": {
+              "top_hits": {
+                "size": 1,
+                "sort": [
+                  "year"
+                ],
+                "_source": false
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "a": {
+              "value": 2002.8
+            },
+            "b": {
+              "hits": {
+                "total": {
+                  "value": 5,
+                  "relation": "eq"
+                },
+                "max_score": null,
+                "hits": [
+                  {
+                    "_index": "compat-paging-sort",
+                    "_id": "5",
+                    "_score": null,
+                    "sort": [
+                      1999
+                    ]
+                  }
+                ]
+              }
+            },
+            "t": {
+              "hits": {
+                "total": {
+                  "value": 5,
+                  "relation": "eq"
+                },
+                "max_score": 1.0,
+                "hits": [
+                  {
+                    "_index": "compat-paging-sort",
+                    "_id": "1",
+                    "_score": 1.0
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "top_hits with a source filter",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "t": {
+              "top_hits": {
+                "size": 2,
+                "_source": {
+                  "includes": [
+                    "ti*",
+                    "tag"
+                  ],
+                  "excludes": [
+                    "title"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "t": {
+              "hits": {
+                "total": {
+                  "value": 5,
+                  "relation": "eq"
+                },
+                "max_score": 1.0,
+                "hits": [
+                  {
+                    "_index": "compat-paging-sort",
+                    "_id": "1",
+                    "_score": 1.0,
+                    "_source": {
+                      "tag": "animal"
+                    }
+                  },
+                  {
+                    "_index": "compat-paging-sort",
+                    "_id": "2",
+                    "_score": 1.0,
+                    "_source": {
+                      "tag": "animal"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "top_hits with its numbers as strings",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "t": {
+              "top_hits": {
+                "size": "2",
+                "from": "1",
+                "_source": false
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 4,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "t": {
+              "hits": {
+                "total": {
+                  "value": 5,
+                  "relation": "eq"
+                },
+                "max_score": 1.0,
+                "hits": [
+                  {
+                    "_index": "compat-paging-sort",
+                    "_id": "2",
+                    "_score": 1.0
+                  },
+                  {
+                    "_index": "compat-paging-sort",
+                    "_id": "3",
+                    "_score": 1.0
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "top_hits at the edge of the result window",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "t": {
+              "top_hits": {
+                "size": 100,
+                "_source": false
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "t": {
+              "hits": {
+                "total": {
+                  "value": 5,
+                  "relation": "eq"
+                },
+                "max_score": 1.0,
+                "hits": [
+                  {
+                    "_index": "compat-paging-sort",
+                    "_id": "1",
+                    "_score": 1.0
+                  },
+                  {
+                    "_index": "compat-paging-sort",
+                    "_id": "2",
+                    "_score": 1.0
+                  },
+                  {
+                    "_index": "compat-paging-sort",
+                    "_id": "3",
+                    "_score": 1.0
+                  },
+                  {
+                    "_index": "compat-paging-sort",
+                    "_id": "4",
+                    "_score": 1.0
+                  },
+                  {
+                    "_index": "compat-paging-sort",
+                    "_id": "5",
+                    "_score": 1.0
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "top_hits with a highlight",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "query": {
+            "match": {
+              "title": "fox"
+            }
+          },
+          "aggs": {
+            "t": {
+              "top_hits": {
+                "size": 2,
+                "_source": false,
+                "highlight": {
+                  "fields": {
+                    "title": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 0.41331142,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_score": 0.41331142
+              }
+            ]
+          },
+          "aggregations": {
+            "t": {
+              "hits": {
+                "total": {
+                  "value": 2,
+                  "relation": "eq"
+                },
+                "max_score": 0.41331142,
+                "hits": [
+                  {
+                    "_index": "compat-paging-sort",
+                    "_id": "1",
+                    "_score": 0.41331142,
+                    "highlight": {
+                      "title": [
+                        "The quick brown <em>fox</em>"
+                      ]
+                    }
+                  },
+                  {
+                    "_index": "compat-paging-sort",
+                    "_id": "5",
+                    "_score": 0.37691408,
+                    "highlight": {
+                      "title": [
+                        "A <em>fox</em> in the snow"
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "top_hits with doc values of a date and a number",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "t": {
+              "top_hits": {
+                "size": 2,
+                "_source": false,
+                "docvalue_fields": [
+                  "published",
+                  "year"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "t": {
+              "hits": {
+                "total": {
+                  "value": 5,
+                  "relation": "eq"
+                },
+                "max_score": 1.0,
+                "hits": [
+                  {
+                    "_index": "compat-paging-sort",
+                    "_id": "1",
+                    "_score": 1.0,
+                    "fields": {
+                      "year": [
+                        2001
+                      ],
+                      "published": [
+                        "2001-03-04T00:00:00.000Z"
+                      ]
+                    }
+                  },
+                  {
+                    "_index": "compat-paging-sort",
+                    "_id": "2",
+                    "_score": 1.0,
+                    "fields": {
+                      "year": [
+                        2002
+                      ],
+                      "published": [
+                        "2002-07-01T10:15:30.000Z"
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
     }
   ]
 }

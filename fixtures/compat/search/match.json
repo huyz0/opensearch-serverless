@@ -23105,6 +23105,216 @@
           "reason": "elapsed time"
         }
       ]
+    },
+    {
+      "name": "top_hits with explain",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "query": {
+            "match": {
+              "title": "fox"
+            }
+          },
+          "aggs": {
+            "t": {
+              "top_hits": {
+                "explain": true,
+                "size": 2,
+                "_source": false
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        },
+        {
+          "pointer": "/body/aggregations/t/hits/hits/*/_node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 5,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 0.41331142,
+            "hits": [
+              {
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 0.41331142
+              }
+            ]
+          },
+          "aggregations": {
+            "t": {
+              "hits": {
+                "total": {
+                  "value": 2,
+                  "relation": "eq"
+                },
+                "max_score": 0.41331142,
+                "hits": [
+                  {
+                    "_shard": "[compat-match][0]",
+                    "_node": "RrioyQY1SImtIrCF0TThrg",
+                    "_index": "compat-match",
+                    "_id": "1",
+                    "_score": 0.41331142,
+                    "_explanation": {
+                      "value": 0.41331142,
+                      "description": "weight(title:fox in 0) [PerFieldSimilarity], result of:",
+                      "details": [
+                        {
+                          "value": 0.41331142,
+                          "description": "score(freq=1.0), computed as boost * idf * tf from:",
+                          "details": [
+                            {
+                              "value": 0.87546873,
+                              "description": "idf, computed as log(1 + (N - n + 0.5) / (n + 0.5)) from:",
+                              "details": [
+                                {
+                                  "value": 2,
+                                  "description": "n, number of documents containing term",
+                                  "details": []
+                                },
+                                {
+                                  "value": 5,
+                                  "description": "N, total number of documents with field",
+                                  "details": []
+                                }
+                              ]
+                            },
+                            {
+                              "value": 0.472103,
+                              "description": "tf, computed as freq / (freq + k1 * (1 - b + b * dl / avgdl)) from:",
+                              "details": [
+                                {
+                                  "value": 1.0,
+                                  "description": "freq, occurrences of term within document",
+                                  "details": []
+                                },
+                                {
+                                  "value": 1.2,
+                                  "description": "k1, term saturation parameter",
+                                  "details": []
+                                },
+                                {
+                                  "value": 0.75,
+                                  "description": "b, length normalization parameter",
+                                  "details": []
+                                },
+                                {
+                                  "value": 4.0,
+                                  "description": "dl, length of field",
+                                  "details": []
+                                },
+                                {
+                                  "value": 4.4,
+                                  "description": "avgdl, average length of field",
+                                  "details": []
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "_shard": "[compat-match][0]",
+                    "_node": "RrioyQY1SImtIrCF0TThrg",
+                    "_index": "compat-match",
+                    "_id": "5",
+                    "_score": 0.37691408,
+                    "_explanation": {
+                      "value": 0.37691408,
+                      "description": "weight(title:fox in 4) [PerFieldSimilarity], result of:",
+                      "details": [
+                        {
+                          "value": 0.37691408,
+                          "description": "score(freq=1.0), computed as boost * idf * tf from:",
+                          "details": [
+                            {
+                              "value": 0.87546873,
+                              "description": "idf, computed as log(1 + (N - n + 0.5) / (n + 0.5)) from:",
+                              "details": [
+                                {
+                                  "value": 2,
+                                  "description": "n, number of documents containing term",
+                                  "details": []
+                                },
+                                {
+                                  "value": 5,
+                                  "description": "N, total number of documents with field",
+                                  "details": []
+                                }
+                              ]
+                            },
+                            {
+                              "value": 0.43052834,
+                              "description": "tf, computed as freq / (freq + k1 * (1 - b + b * dl / avgdl)) from:",
+                              "details": [
+                                {
+                                  "value": 1.0,
+                                  "description": "freq, occurrences of term within document",
+                                  "details": []
+                                },
+                                {
+                                  "value": 1.2,
+                                  "description": "k1, term saturation parameter",
+                                  "details": []
+                                },
+                                {
+                                  "value": 0.75,
+                                  "description": "b, length normalization parameter",
+                                  "details": []
+                                },
+                                {
+                                  "value": 5.0,
+                                  "description": "dl, length of field",
+                                  "details": []
+                                },
+                                {
+                                  "value": 4.4,
+                                  "description": "avgdl, average length of field",
+                                  "details": []
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
     }
   ]
 }

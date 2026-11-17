@@ -253,7 +253,7 @@ fn unsupported(key: &str) -> DslError {
     DslError::unsupported(&format!("the search request's [{key}]"))
 }
 
-fn unknown_key(p: &Parser<'_>, kind: Kind, name: &str) -> DslError {
+pub(crate) fn unknown_key(p: &Parser<'_>, kind: Kind, name: &str) -> DslError {
     DslError::parsing(
         p.location(),
         // ALLOC: error path; one message.

@@ -66,6 +66,7 @@ src/response_hits_tests.rs	new		tests of response.rs's hits over a real index
 src/search_tests.rs	new		tests of search.rs
 src/search_sort_tests.rs	new		tests of search_sort.rs
 src/search_sort.rs	port	server/src/main/java/org/opensearch/search/sort/SortBuilder.java@3.10.0	buildSort and FieldSortBuilder.build: the body's sort keys as the engine's sort fields
+src/search_top.rs	port	server/src/main/java/org/opensearch/search/query/TopDocsCollectorContext.java@3.10.0	the score and field top-docs collectors with the exact-count threshold, shared by a search's hits and each top_hits
 src/search.rs	port	server/src/main/java/org/opensearch/search/query/QueryPhase.java@3.10.0	the query phase over lucene-rust with TopDocsCollectorContext's counting and DefaultSearchContext's result window; the reported total is SearchPhaseController.TopDocsStats.getTotalHits
 src/open_cost.rs	new		what an open shard keeps in the heap, estimated before opening (ADR 0014); the Java's ShardReaders keeps readers unbounded
 src/aggs/mod.rs	new		module root: aggregations on one shard
@@ -82,6 +83,8 @@ src/aggs/metric/hll_tests.rs	new		tests of hll.rs against vectors printed by Ope
 src/aggs/metric/cardinality_tests.rs	new		tests of cardinality's parsing, writing and reduce, against messages recorded from OpenSearch
 src/aggs/metric/percentiles.rs	port	server/src/main/java/org/opensearch/search/aggregations/metrics/AbstractPercentilesAggregationBuilder.java@3.10.0	createParser's ConstructingObjectParser with PercentilesAggregationBuilder.validatePercentiles and the ranks constructor, PercentilesMethod.TDIGEST_PARSER, and AbstractInternalTDigestPercentiles.doXContentBody
 src/aggs/metric/percentiles_tests.rs	new		tests of percentiles' parsing, writing and reduce, against messages recorded from OpenSearch
+src/aggs/metric/top_hits.rs	port	server/src/main/java/org/opensearch/search/aggregations/metrics/TopHitsAggregationBuilder.java@3.10.0	parse's key loop and its errors, and TopHitsAggregatorFactory and TopHitsAggregator's window, size and sort checks and collection
+src/aggs/metric/top_hits_tests.rs	new		tests of top_hits' parsing, checks and collection on a four-segment index
 src/aggs/metric/tdigest.rs	port	server/src/main/java/org/opensearch/search/aggregations/metrics/TDigestState.java@3.10.0	the t-digest 3.3 MergingDigest that TDigestState extends: mergeNewValues, merge, quantile, cdf, and AbstractTDigest.add(TDigest) for the reduce
 src/aggs/metric/tdigest_tests.rs	new		tests of tdigest.rs against vectors printed by OpenSearch's TDigestState
 src/aggs/metric/tests.rs	new		tests of the metric aggregations, against messages and values recorded from OpenSearch
