@@ -6,22 +6,26 @@
 //! OpenSearch 3.10.0: an unmapped field aggregates nothing, a numeric or
 //! date field is read from its doc values, and any other type fails the
 //! shard as OpenSearch fails it. The values come from one pass of
-//! lucene-aggs' `metric_states` over the query's live matches, segment by
+//! lucene-aggs' `aggregate_tree` over the query's live matches, segment by
 //! segment in document order: OpenSearch's aggregators ported, sums
-//! compensated in the same order, so each state is the one OpenSearch's
-//! aggregator builds on a shard searched without concurrent segment slices.
+//! compensated in the same order and `cardinality` sketches written as
+//! OpenSearch writes them, so each state is the one OpenSearch's aggregator
+//! builds on a shard searched without concurrent segment slices.
 
+use std::collections::HashMap;
+
+use lucene_aggs::bucket_aggs::{AggNode, AggResult, CardinalityKind, Globals, aggregate_tree};
 use lucene_aggs::metric_aggs::{
-    MetricSpec, MetricState, NEED_COUNT, NEED_MAX, NEED_MIN, NEED_MIN_MAX, NEED_SUM, Source,
-    ValueKind, metric_states,
+    MetricState, NEED_COUNT, NEED_MAX, NEED_MIN, NEED_MIN_MAX, NEED_SUM, Source, ValueKind,
 };
 use lucene_search::BooleanQuery;
 use lucene_search::multi_segment::OpenSegment;
 use oss_blob::BlobStore;
 
 use crate::OpenShard;
+use crate::aggs::metric::hll::Hll;
 use crate::aggs::metric::partial::{Format, Partial, Value};
-use crate::aggs::metric::{Metric, MetricAgg};
+use crate::aggs::metric::{DEFAULT_PRECISION, Metric, MetricAgg};
 use crate::failure::Failure;
 use crate::mapping::FieldType;
 use crate::search::ShardError;
@@ -80,12 +84,13 @@ fn resolve<S: BlobStore + 'static>(
         FieldType::Int { .. } | FieldType::Long => Format::Raw,
         FieldType::Date => Format::Date,
         FieldType::Text => return Err(text_fielddata(&agg.field)),
-        FieldType::Keyword if agg.metric == Metric::ValueCount => {
+        FieldType::Keyword if matches!(agg.metric, Metric::ValueCount | Metric::Cardinality) => {
             return Err(bad_request(Failure::plain(
                 "illegal_argument_exception",
                 // ALLOC: error path; one message.
                 format!(
-                    "[value_count] of the keyword field [{}] is not supported by this node yet",
+                    "[{}] of the keyword field [{}] is not supported by this node yet",
+                    agg.metric.name(),
                     agg.field
                 ),
             )));
@@ -142,7 +147,7 @@ fn needs(metric: Metric) -> u8 {
         Metric::Sum => NEED_SUM,
         Metric::Avg => AVG_NEEDS,
         Metric::Stats => STATS_NEEDS,
-        Metric::ValueCount => NEED_COUNT,
+        Metric::ValueCount | Metric::Cardinality => NEED_COUNT,
     }
 }
 
@@ -163,12 +168,77 @@ fn value_of(metric: Metric, state: &MetricState) -> Value {
             max: state.max,
         },
         Metric::ValueCount => Value::ValueCount(state.count),
+        Metric::Cardinality => Value::Cardinality(None),
     }
 }
 
-/// Runs `aggs` over `query`'s live matches in `segments` of `shard`: one
-/// result each, in request order. A field the aggregation cannot read
-/// fails the shard with OpenSearch's status and exception.
+/// `CardinalityAggregatorFactory`'s `ExecutionMode.fromString`, run as
+/// the factory is built.
+fn check_execution_hint(agg: &MetricAgg) -> Result<(), ShardError> {
+    match agg.cardinality.execution_hint.as_deref() {
+        None => Ok(()),
+        Some(hint) if matches!(hint.to_uppercase().as_str(), "DIRECT" | "ORDINALS") => Ok(()),
+        Some(hint) => Err(bad_request(Failure::plain(
+            "illegal_argument_exception",
+            // ALLOC: error path; one message.
+            format!("Unknown execution_hint: [{hint}], expected any of [direct, ordinals]"),
+        ))),
+    }
+}
+
+/// The engine's node for a numeric `agg` at `precision` (a `cardinality`'s).
+fn node(agg: &MetricAgg, precision: u32) -> AggNode {
+    // ALLOC: one field name an aggregation, bounded by the request's.
+    let field = agg.field.clone();
+    // `byte` to `long` and `date` are longs read as they are.
+    match agg.metric {
+        Metric::Cardinality => AggNode::Cardinality {
+            field,
+            kind: CardinalityKind::Numeric(ValueKind::Long),
+            precision: Some(precision),
+        },
+        metric => AggNode::Metric {
+            field,
+            missing: None,
+            kind: ValueKind::Long,
+            source: Source::DocValues,
+            needs: needs(metric),
+            script: None,
+        },
+    }
+}
+
+fn engine_error(e: &dyn std::fmt::Display) -> ShardError {
+    ShardError {
+        status: 500,
+        // ALLOC: error path; one message.
+        failure: Failure::opensearch("exception", e.to_string()),
+    }
+}
+
+/// The shard-level result of `agg` from the engine's `result`.
+fn value_from(agg: &MetricAgg, result: Option<AggResult>) -> Result<Value, ShardError> {
+    match result {
+        Some(AggResult::Metric(states)) => Ok(value_of(
+            agg.metric,
+            states.first().unwrap_or(&MetricState::default()),
+        )),
+        Some(AggResult::CardinalitySketch(sketches)) => match sketches.first().map(Vec::as_slice) {
+            None | Some([]) => Ok(Value::Cardinality(None)),
+            Some(bytes) => Hll::read(bytes)
+                .map(|h| Value::Cardinality(Some(h)))
+                .ok_or_else(|| engine_error(&"an unreadable cardinality sketch")),
+        },
+        _ => Err(engine_error(&"an aggregation result of another kind")),
+    }
+}
+
+/// Runs `aggs` over `query`'s live matches in `segments` of `shard`, in one
+/// pass: one result each, in request order. A field the aggregation cannot
+/// read, or an option the shard refuses, fails the shard with OpenSearch's
+/// status and exception, in OpenSearch's order: every factory is built
+/// (the field, then a `cardinality`'s hint) before any aggregator (its
+/// precision).
 pub fn collect<S: BlobStore + 'static>(
     aggs: &[MetricAgg],
     shard: &OpenShard<S>,
@@ -181,53 +251,63 @@ pub fn collect<S: BlobStore + 'static>(
     }
     // ALLOC: one entry an aggregation, bounded by the request's.
     let mut resolved = Vec::with_capacity(aggs.len());
-    // ALLOC: as above.
-    let mut specs = Vec::with_capacity(aggs.len());
     for agg in aggs {
-        let r = resolve(agg, shard)?;
-        if matches!(r, Resolved::Numeric(_)) {
-            specs.push(MetricSpec {
-                // ALLOC: one field name an aggregation, as above.
-                field: agg.field.clone(),
-                // `byte` to `long` and `date` are longs read as they are.
-                kind: ValueKind::Long,
-                source: Source::DocValues,
-                needs: needs(agg.metric),
-            });
+        resolved.push(resolve(agg, shard)?);
+        if agg.metric == Metric::Cardinality {
+            check_execution_hint(agg)?;
         }
-        resolved.push(r);
     }
-    let states = if specs.is_empty() {
+    // ALLOC: as above.
+    let mut nodes = Vec::with_capacity(aggs.len());
+    for (agg, r) in aggs.iter().zip(&resolved) {
+        let precision = match agg.metric {
+            Metric::Cardinality => agg
+                .cardinality
+                .precision()
+                .map_err(|m| bad_request(Failure::plain("illegal_argument_exception", m)))?,
+            _ => DEFAULT_PRECISION,
+        };
+        if matches!(r, Resolved::Numeric(_)) {
+            nodes.push(node(agg, precision));
+        }
+    }
+    let mut results = if nodes.is_empty() {
         // ALLOC: empty.
         Vec::new()
     } else {
-        metric_states(segments, shard.reader.segment_readers(), query, &specs).map_err(|e| {
-            ShardError {
-                status: 500,
-                // ALLOC: error path; one message.
-                failure: Failure::opensearch("exception", e.to_string()),
-            }
-        })?
-    };
-    let mut states = states.iter();
-    let empty = MetricState::default();
-    let parts = aggs
-        .iter()
-        .zip(resolved)
-        .map(|(agg, r)| {
-            let (format, state) = match r {
-                Resolved::Unmapped => (Format::Raw, &empty),
-                Resolved::Numeric(format) => (format, states.next().unwrap_or(&empty)),
-            };
-            Partial {
-                // ALLOC: one name an aggregation, as above.
-                name: agg.name.clone(),
-                format,
-                value: value_of(agg.metric, state),
-            }
-        })
-        // ALLOC: one result an aggregation, as above.
-        .collect();
+        // ALLOC: empty; no keyword field is read.
+        let ords = HashMap::new();
+        // ALLOC: one index a segment: one slice, the whole shard in order.
+        let slices = [(0..segments.len()).collect::<Vec<usize>>()];
+        aggregate_tree(
+            segments,
+            shard.reader.segment_readers(),
+            query,
+            &nodes,
+            &Globals::new(&ords),
+            &slices,
+            None,
+        )
+        .map_err(|e| engine_error(&e))?
+        .into_iter()
+        .next()
+        .unwrap_or_default()
+    }
+    .into_iter();
+    // ALLOC: one result an aggregation, as above.
+    let mut parts = Vec::with_capacity(aggs.len());
+    for (agg, r) in aggs.iter().zip(resolved) {
+        let (format, value) = match r {
+            Resolved::Unmapped => (Format::Raw, value_of(agg.metric, &MetricState::default())),
+            Resolved::Numeric(format) => (format, value_from(agg, results.next())?),
+        };
+        parts.push(Partial {
+            // ALLOC: one name an aggregation, as above.
+            name: agg.name.clone(),
+            format,
+            value,
+        });
+    }
     Ok(parts)
 }
 

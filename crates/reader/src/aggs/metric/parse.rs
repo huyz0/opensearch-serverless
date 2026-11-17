@@ -7,7 +7,7 @@
 //! fails there ("Unknown aggregation type [..]"). Of a metric's keys, only
 //! `field` is served.
 
-use crate::aggs::metric::{Metric, MetricAgg};
+use crate::aggs::metric::{CardinalityOptions, Metric, MetricAgg};
 use crate::dsl::error::{DslError, parsing_failure};
 use crate::dsl::tokens::{Kind, Parser};
 use crate::dsl::values::suggest;
@@ -249,12 +249,13 @@ fn parse_definition(p: &mut Parser<'_>, name: &str, level: usize) -> Result<Defi
                         .caused_by(cause),
                     ));
                 };
-                let field = parse_metric_body(p, metric)?;
+                let (field, cardinality) = parse_metric_body(p, metric, name)?;
                 definition.agg = Some(MetricAgg {
                     // ALLOC: one name an aggregation, bounded by the body's recording.
                     name: name.to_owned(),
                     metric,
                     field,
+                    cardinality,
                 });
             }
         }
@@ -262,61 +263,181 @@ fn parse_definition(p: &mut Parser<'_>, name: &str, level: usize) -> Result<Defi
     Ok(definition)
 }
 
-/// The keys every metric here declares (`declareFields(PARSER, true, true,
-/// false)`: scriptable and formattable).
+/// The keys every metric here but `cardinality` declares
+/// (`declareFields(PARSER, true, true, false)`: scriptable and formattable).
 const VALUES_SOURCE_KEYS: &[&str] = &["field", "missing", "value_type", "format", "script"];
 
+/// `CardinalityAggregationBuilder`'s keys: `declareFields(PARSER, true,
+/// false, false)`, not formattable, and its own three.
+const CARDINALITY_KEYS: &[&str] = &[
+    "field",
+    "missing",
+    "value_type",
+    "script",
+    "precision_threshold",
+    "execution_hint",
+    "rehash",
+];
+
 /// The `ObjectParser` of `metric`'s builder over its object, the parser on
-/// its start: the field it names.
-fn parse_metric_body(p: &mut Parser<'_>, metric: Metric) -> Result<String, DslError> {
+/// its start: the field it names, and a `cardinality`'s options.
+fn parse_metric_body(
+    p: &mut Parser<'_>,
+    metric: Metric,
+    name: &str,
+) -> Result<(String, CardinalityOptions), DslError> {
     let ty = metric.name();
+    let keys = if metric == Metric::Cardinality {
+        CARDINALITY_KEYS
+    } else {
+        VALUES_SOURCE_KEYS
+    };
     let mut field: Option<String> = None;
+    let mut options = CardinalityOptions::default();
     let mut key = "";
     let mut key_at = p.location();
     loop {
         let token = p.next_token();
-        match token {
+        let kind = match token {
             Some(Kind::EndObject) | None => break,
             Some(Kind::FieldName) => {
                 key = p.text();
                 key_at = p.location();
                 continue;
             }
-            Some(kind) => {
-                if !VALUES_SOURCE_KEYS.contains(&key) {
-                    return Err(DslError::xcontent(
-                        key_at,
-                        // ALLOC: error path; one message.
-                        &format!(
-                            "[{ty}] unknown field [{key}]{}",
-                            suggest(key, VALUES_SOURCE_KEYS)
-                        ),
-                        None,
-                    ));
-                }
-                if key != "field" {
-                    // ALLOC: error path; one message.
-                    return Err(DslError::unsupported(&format!(
-                        "the [{ty}] aggregation's [{key}]"
-                    )));
-                }
-                if kind != Kind::String {
-                    return Err(DslError::xcontent(
+            Some(kind) => kind,
+        };
+        if !keys.contains(&key) {
+            return Err(DslError::xcontent(
+                key_at,
+                // ALLOC: error path; one message.
+                &format!("[{ty}] unknown field [{key}]{}", suggest(key, keys)),
+                None,
+            ));
+        }
+        let accepted = match key {
+            "field" | "execution_hint" => kind == Kind::String,
+            "precision_threshold" | "rehash" => matches!(kind, Kind::Number | Kind::String),
+            _ => {
+                // ALLOC: error path; one message.
+                return Err(DslError::unsupported(&format!(
+                    "the [{ty}] aggregation's [{key}]"
+                )));
+            }
+        };
+        if !accepted {
+            return Err(DslError::xcontent(
+                p.location(),
+                // ALLOC: error path; one message.
+                &format!(
+                    "[{ty}] {key} doesn't support values of type: {}",
+                    kind.name()
+                ),
+                None,
+            ));
+        }
+        match key {
+            // ALLOC: one field name an aggregation, bounded by the body's recording.
+            "field" => field = Some(p.text().to_owned()),
+            // ALLOC: one hint an aggregation, bounded by the body's recording.
+            "execution_hint" => options.execution_hint = Some(p.text().to_owned()),
+            _ => {
+                let failed = |cause: DslError| {
+                    DslError::xcontent(
                         p.location(),
                         // ALLOC: error path; one message.
-                        &format!(
-                            "[{ty}] field doesn't support values of type: {}",
-                            kind.name()
-                        ),
-                        None,
-                    ));
+                        &format!("[{ty}] failed to parse field [{key}]"),
+                        Some(cause),
+                    )
+                };
+                let value = long_value(kind, p.text()).map_err(failed)?;
+                if key == "precision_threshold" {
+                    if value < 0 {
+                        return Err(failed(DslError::illegal(
+                            // ALLOC: error path; one message.
+                            format!(
+                                "[precisionThreshold] must be greater than or equal to 0. \
+                                 Found [{value}] in [{name}]"
+                            ),
+                        )));
+                    }
+                    options.precision_threshold = Some(value);
                 }
-                // ALLOC: one field name an aggregation, bounded by the body's recording.
-                field = Some(p.text().to_owned());
             }
         }
     }
-    field.ok_or_else(|| {
+    let field = field.ok_or_else(|| {
         DslError::illegal("Required one of fields [field, script], but none were specified. ")
-    })
+    })?;
+    Ok((field, options))
+}
+
+/// `parser.longValue()` with coercion, the parser on a number or a string:
+/// a number as Jackson reads it (a fraction truncated), a string as
+/// `Numbers.toLong(text, true)` reads it.
+fn long_value(kind: Kind, text: &str) -> Result<i64, DslError> {
+    if let Ok(n) = text.parse::<i64>() {
+        return Ok(n);
+    }
+    // 2^63, exact as a double.
+    const LIMIT: f64 = 9_223_372_036_854_775_808.0;
+    let decimal = is_big_decimal(text);
+    let value = if decimal {
+        text.parse::<f64>().ok()
+    } else {
+        None
+    };
+    if kind == Kind::Number {
+        return match value {
+            // ARITH: none; `as` truncates, and the value is inside a long.
+            #[allow(clippy::cast_possible_truncation)]
+            Some(v) if text.contains(['.', 'e', 'E']) && (-LIMIT..=LIMIT).contains(&v) => {
+                Ok(v as i64)
+            }
+            _ => Err(DslError::Failure(Failure::plain(
+                "input_coercion_exception",
+                // ALLOC: error path; one message.
+                format!(
+                    "Numeric value ({text}) out of range of `long` (-9223372036854775808 - \
+                     9223372036854775807)"
+                ),
+            ))),
+        };
+    }
+    match value {
+        // ARITH: none; `as` truncates toward zero as `toBigInteger` does,
+        // and the value is inside a long.
+        #[allow(clippy::cast_possible_truncation)]
+        Some(v) if v > -LIMIT - 1.0 && v < LIMIT => Ok(v as i64),
+        Some(_) => Err(DslError::illegal(
+            // ALLOC: error path; one message.
+            format!("Value [{text}] is out of range for a long"),
+        )),
+        // ALLOC: error path; one message.
+        None => Err(DslError::illegal(format!("For input string: \"{text}\""))),
+    }
+}
+
+/// Whether `new BigDecimal(text)` reads `text`: a sign, digits with at most
+/// one point and at least one digit, and an exponent.
+fn is_big_decimal(text: &str) -> bool {
+    let body = text.strip_prefix(['+', '-']).unwrap_or(text);
+    let (mantissa, exponent) = match body.find(['e', 'E']) {
+        Some(at) => (
+            body.get(..at).unwrap_or_default(),
+            body.get(at.saturating_add(1)..),
+        ),
+        None => (body, None),
+    };
+    let mut parts = mantissa.splitn(2, '.');
+    let whole = parts.next().unwrap_or_default();
+    let fraction = parts.next().unwrap_or_default();
+    let digits = |s: &str| s.bytes().all(|b| b.is_ascii_digit());
+    let mantissa_ok =
+        digits(whole) && digits(fraction) && !(whole.is_empty() && fraction.is_empty());
+    let exponent_ok = exponent.is_none_or(|e| {
+        let e = e.strip_prefix(['+', '-']).unwrap_or(e);
+        !e.is_empty() && digits(e)
+    });
+    mantissa_ok && exponent_ok
 }

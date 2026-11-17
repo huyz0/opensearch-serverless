@@ -42,5 +42,8 @@ src/aggs/metric/render.rs	port	server/src/main/java/org/opensearch/search/aggreg
 src/aggs/metric/hash_order.rs	port	server/src/main/java/org/opensearch/search/aggregations/InternalAggregations.java@3.10.0	reduce's HashMap listing order: String.hashCode, HashMap.hash and its resize rules
 src/aggs/metric/double.rs	new		Double.toString of JDK 19 and later, as Jackson writes a double; the JDK is not OpenSearch source
 src/aggs/metric/date_text.rs	port	server/src/main/java/org/opensearch/common/time/DateFormatters.java@3.10.0	STRICT_DATE_OPTIONAL_TIME_PRINTER in UTC at millisecond resolution, and DocValueFormat.DateTime.format
+src/aggs/metric/hll.rs	port	server/src/main/java/org/opensearch/search/aggregations/metrics/HyperLogLogPlusPlus.java@3.10.0	reading AbstractHyperLogLogPlusPlus.writeTo's bytes, AbstractLinearCounting and AbstractHyperLogLog.cardinality with its bias tables (hll_bias.txt, from AbstractHyperLogLog), merge, and precisionFromThreshold
+src/aggs/metric/hll_tests.rs	new		tests of hll.rs against vectors printed by OpenSearch's HyperLogLogPlusPlus
+src/aggs/metric/cardinality_tests.rs	new		tests of cardinality's parsing, writing and reduce, against messages recorded from OpenSearch
 src/aggs/metric/tests.rs	new		tests of the metric aggregations, against messages and values recorded from OpenSearch
 src/aggs/metric/collect_tests.rs	new		tests of collect.rs over a real index

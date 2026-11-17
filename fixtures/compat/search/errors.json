@@ -103,7 +103,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 16,
+          "took": 37,
           "errors": false,
           "items": [
             {
@@ -958,6 +958,382 @@
           "aggs": {
             "a": {
               "value_count": {
+                "field": "title"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Text fields are not optimised for operations that require per-document field data like aggregations and sorting, so these operations are disabled by default. Please use a keyword field instead. Alternatively, set fielddata=true on [title] in order to load field data by uninverting the inverted index. Note that this can use significant memory."
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-errors",
+                "node": "RrioyQY1SImtIrCF0TThrg",
+                "reason": {
+                  "type": "illegal_argument_exception",
+                  "reason": "Text fields are not optimised for operations that require per-document field data like aggregations and sorting, so these operations are disabled by default. Please use a keyword field instead. Alternatively, set fielddata=true on [title] in order to load field data by uninverting the inverted index. Note that this can use significant memory."
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Text fields are not optimised for operations that require per-document field data like aggregations and sorting, so these operations are disabled by default. Please use a keyword field instead. Alternatively, set fielddata=true on [title] in order to load field data by uninverting the inverted index. Note that this can use significant memory.",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Text fields are not optimised for operations that require per-document field data like aggregations and sorting, so these operations are disabled by default. Please use a keyword field instead. Alternatively, set fielddata=true on [title] in order to load field data by uninverting the inverted index. Note that this can use significant memory."
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "cardinality with a negative precision threshold",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "c": {
+              "cardinality": {
+                "field": "year",
+                "precision_threshold": -1
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "x_content_parse_exception",
+                "reason": "[1:67] [cardinality] failed to parse field [precision_threshold]"
+              }
+            ],
+            "type": "x_content_parse_exception",
+            "reason": "[1:67] [cardinality] failed to parse field [precision_threshold]",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "[precisionThreshold] must be greater than or equal to 0. Found [-1] in [c]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "cardinality with a precision threshold that is not a number",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "c": {
+              "cardinality": {
+                "field": "year",
+                "precision_threshold": "x"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "x_content_parse_exception",
+                "reason": "[1:67] [cardinality] failed to parse field [precision_threshold]"
+              }
+            ],
+            "type": "x_content_parse_exception",
+            "reason": "[1:67] [cardinality] failed to parse field [precision_threshold]",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "For input string: \"x\""
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "cardinality with a boolean precision threshold",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "c": {
+              "cardinality": {
+                "field": "year",
+                "precision_threshold": true
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "x_content_parse_exception",
+                "reason": "[1:67] [cardinality] precision_threshold doesn't support values of type: VALUE_BOOLEAN"
+              }
+            ],
+            "type": "x_content_parse_exception",
+            "reason": "[1:67] [cardinality] precision_threshold doesn't support values of type: VALUE_BOOLEAN"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "cardinality with a precision threshold too large for a sketch",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "c": {
+              "cardinality": {
+                "field": "year",
+                "precision_threshold": 9223372036854775807
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "maxValue must be non-negative (got: -4)"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-errors",
+                "node": "RrioyQY1SImtIrCF0TThrg",
+                "reason": {
+                  "type": "illegal_argument_exception",
+                  "reason": "maxValue must be non-negative (got: -4)"
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "maxValue must be non-negative (got: -4)",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "maxValue must be non-negative (got: -4)"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "cardinality with an unknown execution hint",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "c": {
+              "cardinality": {
+                "execution_hint": "foo",
+                "field": "year"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Unknown execution_hint: [foo], expected any of [direct, ordinals]"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-errors",
+                "node": "RrioyQY1SImtIrCF0TThrg",
+                "reason": {
+                  "type": "illegal_argument_exception",
+                  "reason": "Unknown execution_hint: [foo], expected any of [direct, ordinals]"
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Unknown execution_hint: [foo], expected any of [direct, ordinals]",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Unknown execution_hint: [foo], expected any of [direct, ordinals]"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "cardinality with a numeric execution hint",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "c": {
+              "cardinality": {
+                "execution_hint": 5,
+                "field": "year"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "x_content_parse_exception",
+                "reason": "[1:47] [cardinality] execution_hint doesn't support values of type: VALUE_NUMBER"
+              }
+            ],
+            "type": "x_content_parse_exception",
+            "reason": "[1:47] [cardinality] execution_hint doesn't support values of type: VALUE_NUMBER"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "cardinality with a format",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "c": {
+              "cardinality": {
+                "field": "year",
+                "format": "0.0"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "x_content_parse_exception",
+                "reason": "[1:45] [cardinality] unknown field [format]"
+              }
+            ],
+            "type": "x_content_parse_exception",
+            "reason": "[1:45] [cardinality] unknown field [format]"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "cardinality of a text field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "c": {
+              "cardinality": {
                 "field": "title"
               }
             }
