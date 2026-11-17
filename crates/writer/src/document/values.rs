@@ -298,15 +298,8 @@ fn byte_range(ty: NumType, v: i32) -> Result<Num, MappingError> {
 
 /// `Numbers.toLong(text, true)`.
 fn to_long(s: &str) -> Result<i64, MappingError> {
-    let java_long = s.strip_prefix('+').unwrap_or(s);
-    if !java_long.is_empty()
-        && java_long
-            .trim_start_matches('-')
-            .bytes()
-            .all(|b| b.is_ascii_digit())
-        && java_long.trim_start_matches('-').len().saturating_add(1) >= java_long.len()
-        && let Ok(v) = java_long.parse::<i64>()
-    {
+    // `Long.parseLong`: one optional sign, then digits, in range.
+    if let Ok(v) = s.parse::<i64>() {
         return Ok(v);
     }
     let Some(d) = big_decimal(s) else {

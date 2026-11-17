@@ -310,3 +310,26 @@ fn coerced_strings_at_the_range_edges() {
         "[double] supports only finite values, but got [NaN]"
     );
 }
+
+#[test]
+fn a_long_string_parses_exactly_or_through_big_decimal() {
+    let m = mapping(TYPES);
+    let cause = |doc: &str| {
+        let e = parse(&m, doc).unwrap_err();
+        e.caused_by.map_or(e.reason, |c| c.reason)
+    };
+    // `Long.parseLong` first, so no double rounds it.
+    assert_eq!(
+        values(&m, r#"{"l":"9007199254740993"}"#),
+        vec![kv(
+            "l",
+            FieldValue::Number(Num::Long(9_007_199_254_740_993))
+        )]
+    );
+    for text in ["inf", "+-5", "x.5", "1.x"] {
+        assert_eq!(
+            cause(&format!(r#"{{"l":"{text}"}}"#)),
+            format!("For input string: \"{text}\""),
+        );
+    }
+}
