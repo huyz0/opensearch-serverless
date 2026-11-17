@@ -8,7 +8,11 @@ use lucene_search::{
     MatchNoDocsQuery, PrefixQuery, RegexpQuery, TermInSetQuery, TermQuery, WildcardQuery,
 };
 
+use crate::dsl::bool_query::MAX_CLAUSES;
 use crate::dsl::parse_chunks;
+use crate::dsl::queries::More;
+use crate::dsl::queries::build::{MAX_REGEX_LENGTH, MAX_TERMS_COUNT, to_clause};
+use crate::dsl::values::Value;
 use crate::failure::Failure;
 use crate::lucene_query::{QueryContext, shard_failure, to_lucene};
 use crate::mapping::Mapping;
@@ -351,4 +355,85 @@ fn point_ranges_stay_beside_point_sets() {
             PointRangeQuery::int_range("year", &[2000], &[i32::MAX]).expect("range")
         ))))
     );
+}
+
+fn terms_of(n: usize) -> Result<Clause, Failure> {
+    let mapping = Mapping::from_json(MAPPING).expect("mapping");
+    let analyzer = Analyzer::standard(None);
+    let cx = QueryContext {
+        mapping: &mapping,
+        analyzer: &analyzer,
+        max_doc: 5,
+    };
+    // A body this long passes the recorder's bound only if the bound grows,
+    // so the query is made directly.
+    let m = More::Terms {
+        field: "tag".into(),
+        values: vec![Value::Str("a".into()); n],
+        boost: 1.0,
+    };
+    to_clause(&m, &cx)
+}
+
+#[test]
+fn terms_hold_at_most_the_terms_count() {
+    assert!(matches!(
+        terms_of(MAX_TERMS_COUNT),
+        Ok(Clause::TermInSet(_))
+    ));
+    let Err(f) = terms_of(MAX_TERMS_COUNT + 1) else {
+        panic!("built");
+    };
+    assert_eq!(f.kind, "illegal_argument_exception");
+    assert_eq!(
+        f.reason,
+        "The number of terms [65537] used in the Terms Query request has exceeded the allowed \
+         maximum of [65536]. This maximum can be set by changing the [index.max_terms_count] \
+         index level setting."
+    );
+}
+
+#[test]
+fn date_terms_hold_at_most_the_clause_limit() {
+    let dates = |n: usize| vec!["0"; n].join(",");
+    let at = format!(r#"{{"terms":{{"published":[{}]}}}}"#, dates(MAX_CLAUSES));
+    assert!(matches!(one(&at), Clause::ConstantScore(_)));
+    let over = format!(
+        r#"{{"terms":{{"published":[{}]}}}}"#,
+        dates(MAX_CLAUSES + 1)
+    );
+    let f = failure(&over);
+    assert_eq!(f.kind, "too_many_clauses");
+    assert_eq!(f.reason, "maxClauseCount is set to 1024");
+}
+
+#[test]
+fn a_regexp_holds_at_most_the_regex_length() {
+    let at = format!(
+        r#"{{"regexp":{{"tag":"{}"}}}}"#,
+        "a".repeat(MAX_REGEX_LENGTH)
+    );
+    assert!(matches!(one(&at), Clause::Regexp(_)));
+    let long = "a".repeat(MAX_REGEX_LENGTH + 1);
+    let f = failure(&format!(r#"{{"regexp":{{"tag":"{long}"}}}}"#));
+    assert_eq!(f.kind, "illegal_argument_exception");
+    assert_eq!(
+        f.reason,
+        "The length of regex [1001] used in the Regexp Query request has exceeded the allowed \
+         maximum of [1000]. This maximum can be set by changing the [index.max_regex_length] \
+         index level setting."
+    );
+    // An unmapped field matches nothing before the length is looked at.
+    assert_eq!(
+        one(&format!(r#"{{"regexp":{{"nothing":"{long}"}}}}"#)),
+        none()
+    );
+}
+
+#[test]
+fn fuzzy_expands_to_at_most_the_clause_limit() {
+    let Clause::Fuzzy(q) = one(r#"{"fuzzy":{"tag":{"value":"a","max_expansions":5000}}}"#) else {
+        panic!("not fuzzy");
+    };
+    assert_eq!(q.max_expansions, MAX_CLAUSES);
 }

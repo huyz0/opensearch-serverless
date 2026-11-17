@@ -8,9 +8,6 @@ use crate::dsl::queries::{Fuzziness, More};
 use crate::dsl::tokens::{Kind, Parser};
 use crate::dsl::values::{Value, bool_value, float_value, int_value, object_value, text_or_null};
 
-/// `index.max_terms_count`'s default, the most values one `terms` or `ids`
-/// query may hold, is never reached: a body's recording
-/// ([`crate::dsl::MAX_RECORDED_BYTES`]) holds fewer values than that.
 /// `RegexpQueryBuilder.DEFAULT_DETERMINIZE_WORK_LIMIT`.
 pub const DEFAULT_DETERMINIZE_WORK_LIMIT: i32 = 10_000;
 
@@ -218,6 +215,11 @@ pub fn parse_regexp(p: &mut Parser<'_>) -> Result<More, DslError> {
             format!("[regexp] max_determinized_states cannot be negative but was [{max_states}]"),
         ));
     }
+    if max_states != DEFAULT_DETERMINIZE_WORK_LIMIT {
+        return Err(DslError::unsupported(
+            "[regexp] [max_determinized_states] other than the default",
+        ));
+    }
     Ok(More::Regexp {
         field,
         value,
@@ -257,6 +259,10 @@ fn parse_fuzziness(p: &Parser<'_>) -> Result<Fuzziness, DslError> {
             )));
         };
         return match (low.parse::<i32>(), high.parse::<i32>()) {
+            (Ok(low), Ok(high)) if low < 0 || high < 0 || low > high => Err(DslError::illegal(
+                "fuzziness wrongly configured, must be: lowDistance > 0, highDistance > 0 and \
+                 lowDistance <= highDistance ",
+            )),
             (Ok(low), Ok(high)) => Ok(Fuzziness::Auto { low, high }),
             _ => Err(DslError::Failure(crate::failure::Failure::opensearch(
                 "parse_exception",

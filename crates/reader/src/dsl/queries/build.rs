@@ -17,12 +17,21 @@ use lucene_search::{
     RegexpQuery, TermInSetQuery, TermQuery, WildcardQuery,
 };
 
+use crate::dsl::bool_query::MAX_CLAUSES;
 use crate::dsl::queries::{Fuzziness, More, uid};
 use crate::dsl::values::Value;
 use crate::failure::Failure;
 use crate::lucene_query::{QueryContext, build, field_type, match_none, term, unsupported};
 use crate::mapping::FieldType;
 use crate::numbers;
+
+/// `index.max_terms_count`'s default: the most values one `terms` query
+/// may hold.
+pub const MAX_TERMS_COUNT: usize = 65_536;
+
+/// `index.max_regex_length`'s default: the most characters a `regexp`
+/// query's pattern may hold.
+pub const MAX_REGEX_LENGTH: usize = 1000;
 
 /// The query `m` builds, before its boost.
 pub fn to_clause(m: &More, cx: &QueryContext<'_>) -> Result<Clause, Failure> {
@@ -34,6 +43,20 @@ pub fn to_clause(m: &More, cx: &QueryContext<'_>) -> Result<Clause, Failure> {
         More::Wildcard { field, value, .. } => string_query(cx, "wildcard", field, || {
             Clause::Wildcard(WildcardQuery::new(field.as_str(), value.as_bytes()))
         }),
+        More::Regexp { field, value, .. }
+            if value.chars().count() > MAX_REGEX_LENGTH && cx.mapping.get(field).is_some() =>
+        {
+            Err(Failure::plain(
+                "illegal_argument_exception",
+                // ALLOC: error path; one message.
+                format!(
+                    "The length of regex [{}] used in the Regexp Query request has exceeded the \
+                     allowed maximum of [{MAX_REGEX_LENGTH}]. This maximum can be set by \
+                     changing the [index.max_regex_length] index level setting.",
+                    value.chars().count()
+                ),
+            ))
+        }
         More::Regexp { field, value, .. } => string_query(cx, "regexp", field, || {
             Clause::Regexp(RegexpQuery::new(field.as_str(), value.as_str()))
         }),
@@ -130,6 +153,18 @@ fn terms(cx: &QueryContext<'_>, field: &str, values: &[Value]) -> Result<Clause,
     if values.is_empty() {
         return Ok(match_none());
     }
+    if values.len() > MAX_TERMS_COUNT {
+        return Err(Failure::plain(
+            "illegal_argument_exception",
+            // ALLOC: error path; one message.
+            format!(
+                "The number of terms [{}] used in the Terms Query request has exceeded the \
+                 allowed maximum of [{MAX_TERMS_COUNT}]. This maximum can be set by changing \
+                 the [index.max_terms_count] index level setting.",
+                values.len()
+            ),
+        ));
+    }
     let set = |q: lucene_search::Result<PointInSetQuery>| -> Result<Clause, Failure> {
         let q = q.map_err(|e| {
             // ALLOC: error path; one message.
@@ -171,6 +206,13 @@ fn terms(cx: &QueryContext<'_>, field: &str, values: &[Value]) -> Result<Clause,
             set(PointInSetQuery::long_set(field, &longs))
         }
         FieldType::Date => {
+            if values.len() > MAX_CLAUSES {
+                return Err(Failure::plain(
+                    "too_many_clauses",
+                    // ALLOC: error path; one message.
+                    format!("maxClauseCount is set to {MAX_CLAUSES}"),
+                ));
+            }
             let mut q = BooleanQuery::default();
             for v in values {
                 q.should.push(term(cx, field, v)?);
@@ -210,8 +252,9 @@ fn fuzzy(
     let Ok(prefix_length) = usize::try_from(prefix_length) else {
         return Err(illegal("prefixLength cannot be negative."));
     };
+    // `TopTermsRewrite` keeps at most `maxClauseCount` terms.
     let max_expansions = match usize::try_from(max_expansions) {
-        Ok(n) if n > 0 => n,
+        Ok(n) if n > 0 => n.min(MAX_CLAUSES),
         _ => return Err(illegal("maxExpansions must be positive.")),
     };
     let text = value.text();

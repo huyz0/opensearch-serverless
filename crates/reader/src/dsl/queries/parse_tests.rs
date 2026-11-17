@@ -123,7 +123,7 @@ fn prefix_wildcard_and_regexp_short_and_long_forms() {
     );
     assert_eq!(
         more(&q(
-            r#"{"regexp":{"tag":{"value":"a.*","flags":"ALL","flags_value":65535,"max_determinized_states":100,"boost":3}}}"#
+            r#"{"regexp":{"tag":{"value":"a.*","flags":"ALL","flags_value":65535,"max_determinized_states":10000,"boost":3}}}"#
         )),
         More::Regexp {
             field: "tag".into(),
@@ -197,6 +197,7 @@ fn string_queries_refuse_bad_shapes_and_unserved_options() {
         r#"{"wildcard":{"tag":{"value":"a","_name":"n"}}}"#,
         r#"{"regexp":{"tag":{"value":"a","flags":"INTERSECTION"}}}"#,
         r#"{"regexp":{"tag":{"value":"a","flags_value":1}}}"#,
+        r#"{"regexp":{"tag":{"value":"a","max_determinized_states":100}}}"#,
     ] {
         assert!(
             reason(&q(unsupported)).contains("not supported"),
@@ -269,6 +270,14 @@ fn fuzzy_refuses_what_opensearch_refuses() {
         bad(r#""AUTO:a,b""#),
         "failed to parse [AUTO:a,b] as a \"auto:int,int\""
     );
+    for wrong in [r#""AUTO:-1,4""#, r#""AUTO:5,4""#] {
+        assert_eq!(
+            bad(wrong),
+            "fuzziness wrongly configured, must be: lowDistance > 0, highDistance > 0 and \
+             lowDistance <= highDistance ",
+            "{wrong}"
+        );
+    }
     assert_eq!(
         reason(&q(r#"{"fuzzy":{"title":{"value":"fox","x":1}}}"#)),
         "[fuzzy] query does not support [x]"

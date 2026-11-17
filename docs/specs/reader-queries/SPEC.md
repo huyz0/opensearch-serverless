@@ -15,11 +15,12 @@ Not in this change: `terms` lookups and `value_type: bitmap`, `case_insensitive:
 - AC-1: every `_search` step of `fixtures/compat/search/term.json` (the 9 recorded before and 32 more for this change: each new query on keyword, text, integer and date fields, boosts, unmapped fields, and their parse and shard errors) gets the status and body OpenSearch 3.10.0 gave, replayed against a reader node over the same blobs.
 - AC-2: each parser gives OpenSearch's message for a bad shape (two fields, a missing field or value, an unknown parameter, a bad fuzziness, an empty `dis_max`), and refuses every parameter it does not serve with "not supported by this node yet".
 - AC-3: each query builds the Lucene query OpenSearch builds for each field type: a term set for strings and point sets for numbers (values with a fraction dropped), constant-scored multi-term queries, fuzzy edits from `AUTO` by length, exists by doc values, norms or `_field_names`, by pattern and by object; a string query on another type is a `query_shard_exception` naming the index, a fuzzy one an `illegal_argument_exception`.
+- AC-5: each query keeps OpenSearch's bounds at their defaults: at most 65,536 `terms` values, at most 1,024 clauses for a `terms` on a date, a `regexp` pattern of at most 1,000 characters, `fuzzy` expanding to at most 1,024 terms, and `max_determinized_states` only at its default; each over-bound gives OpenSearch's message.
 - AC-4: an `ids` value is encoded as `Uid.encodeId` encodes it, and every encoding reads back through `response::write_id` as the id written.
 
 ## Test plan
 
-AC-1 by the replay (`crates/compat/tests/node_search.rs`), seen red with a recorded score and a recorded column changed. AC-2 by `dsl/queries/parse_tests.rs`, AC-3 by `dsl/queries/build_tests.rs`, AC-4 by `dsl/queries/uid.rs`'s tests.
+AC-1 by the replay (`crates/compat/tests/node_search.rs`), seen red with a recorded score and a recorded column changed. AC-2 by `dsl/queries/parse_tests.rs`, AC-3 by `dsl/queries/build_tests.rs`, AC-4 by `dsl/queries/uid.rs`'s tests, AC-5 by `dsl/queries/build_tests.rs` and `parse_tests.rs`.
 
 ## S3 request budget
 
