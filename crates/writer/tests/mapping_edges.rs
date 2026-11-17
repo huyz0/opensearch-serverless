@@ -307,3 +307,18 @@ fn multi_fields_must_be_an_object_or_empty() {
         "{e}"
     );
 }
+
+#[test]
+fn a_field_of_only_enabled_is_an_object() {
+    let m = parse(r#"{"properties":{"o":{"enabled":false}}}"#).unwrap();
+    assert!(
+        m.to_json()
+            .contains(r#""o":{"type":"object","enabled":false}"#),
+        "{}",
+        m.to_json()
+    );
+    assert_eq!(
+        cause(r#"{"properties":{"o":{"enabled":false,"dynamic":true}}}"#),
+        "No type specified for field [o]"
+    );
+}
