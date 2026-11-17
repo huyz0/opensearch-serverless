@@ -1,6 +1,6 @@
 //! Metric aggregations on one shard: `min`, `max`, `sum`, `avg`, `stats`,
-//! `value_count` and `cardinality` of a numeric or date field, at the top
-//! level of a search.
+//! `value_count`, `cardinality`, `percentiles` and `percentile_ranks` of a
+//! numeric or date field, at the top level of a search.
 //!
 //! A request's aggregations are parsed with its body ([`parse`]), computed
 //! over the query's live matches in one pass of lucene-aggs, the engine's
@@ -18,11 +18,14 @@ pub mod hash_order;
 pub mod hll;
 pub mod parse;
 pub mod partial;
+pub mod percentiles;
 pub mod render;
+pub mod tdigest;
 
 pub use collect::collect;
 pub use parse::parse_aggregations;
 pub use partial::{Format, Partial, Value};
+pub use percentiles::PercentilesOptions;
 pub use render::write_aggregations;
 
 /// Which metric an aggregation computes.
@@ -43,11 +46,16 @@ pub enum Metric {
     /// `cardinality`: an estimate of how many distinct values, from a
     /// HyperLogLog++ sketch.
     Cardinality,
+    /// `percentiles`: the values at given percents, from a t-digest.
+    Percentiles,
+    /// `percentile_ranks`: the percent of values at or below given values,
+    /// from a t-digest.
+    PercentileRanks,
 }
 
 impl Metric {
     /// Every metric served, by its aggregation type name.
-    pub const ALL: [Metric; 7] = [
+    pub const ALL: [Metric; 9] = [
         Metric::Min,
         Metric::Max,
         Metric::Sum,
@@ -55,6 +63,8 @@ impl Metric {
         Metric::Stats,
         Metric::ValueCount,
         Metric::Cardinality,
+        Metric::Percentiles,
+        Metric::PercentileRanks,
     ];
 
     /// The aggregation type name.
@@ -67,6 +77,8 @@ impl Metric {
             Metric::Stats => "stats",
             Metric::ValueCount => "value_count",
             Metric::Cardinality => "cardinality",
+            Metric::Percentiles => "percentiles",
+            Metric::PercentileRanks => "percentile_ranks",
         }
     }
 
@@ -77,7 +89,7 @@ impl Metric {
 }
 
 /// One metric aggregation of a request.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct MetricAgg {
     /// The aggregation's name, its key in the response.
     pub name: String,
@@ -87,6 +99,9 @@ pub struct MetricAgg {
     pub field: String,
     /// A `cardinality`'s options; the defaults for every other metric.
     pub cardinality: CardinalityOptions,
+    /// A `percentiles`' or `percentile_ranks`' options; the defaults, with
+    /// no keys, for every other metric.
+    pub percentiles: PercentilesOptions,
 }
 
 /// What a `cardinality` aggregation sets besides its field.
@@ -113,7 +128,8 @@ pub const DEFAULT_PRECISION: u32 = 14;
 
 /// The most bytes aggregating `aggs` holds beyond the hits: each
 /// aggregation's result with its name, the engine's request and state for
-/// it, and a `cardinality`'s sketch. What the caller reserves before
+/// it, a `cardinality`'s sketch, and a `percentiles`' digest and keys (held
+/// by the request and by the result). What the caller reserves before
 /// searching.
 pub fn state_bytes(aggs: &[MetricAgg]) -> usize {
     let per_agg = std::mem::size_of::<Partial>()
@@ -124,6 +140,14 @@ pub fn state_bytes(aggs: &[MetricAgg]) -> usize {
     aggs.iter().fold(0usize, |total, agg| {
         let sketch = match agg.metric {
             Metric::Cardinality => agg.cardinality.precision().map_or(0, hll::sketch_bytes),
+            Metric::Percentiles | Metric::PercentileRanks => {
+                tdigest::digest_bytes(agg.percentiles.compression).saturating_add(
+                    agg.percentiles
+                        .keys
+                        .len()
+                        .saturating_mul(std::mem::size_of::<[f64; 2]>()),
+                )
+            }
             _ => 0,
         };
         total

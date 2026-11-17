@@ -10,6 +10,7 @@
 use lucene_search::java_math::{JAVA_NAN, java_max, java_min};
 
 use crate::aggs::metric::hll::Hll;
+use crate::aggs::metric::tdigest::Digest;
 
 /// How a value is shown beside its number (`DocValueFormat`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -52,6 +53,20 @@ pub enum Value {
     ValueCount(u64),
     /// `InternalCardinality.counts`: `None` when no value was seen.
     Cardinality(Option<Hll>),
+    /// `AbstractInternalTDigestPercentiles`: the keys asked for, how they
+    /// are written, and the digest, settled.
+    Percentiles {
+        /// `percentile_ranks` rather than `percentiles`.
+        ranks: bool,
+        /// The percents or the values ranked, sorted.
+        keys: Vec<f64>,
+        /// Written as an object rather than an array.
+        keyed: bool,
+        /// The compression asked for: what a reduce's digest is made with.
+        compression: f64,
+        /// `None` when no document matched.
+        digest: Option<Digest>,
+    },
 }
 
 /// One aggregation's shard-level result.
@@ -95,8 +110,10 @@ impl CompensatedSum {
 /// precisions differ (which OpenSearch refuses).
 pub fn reduce(parts: &[Value]) -> Option<Value> {
     let first = parts.first()?;
-    if let Value::Cardinality(_) = first {
-        return reduce_cardinality(parts);
+    match first {
+        Value::Cardinality(_) => return reduce_cardinality(parts),
+        Value::Percentiles { .. } => return reduce_percentiles(parts),
+        _ => {}
     }
     let mut sum = CompensatedSum::default();
     let mut count = 0u64;
@@ -145,7 +162,7 @@ pub fn reduce(parts: &[Value]) -> Option<Value> {
         },
         Value::ValueCount(_) => Value::ValueCount(count),
         // Reduced above.
-        Value::Cardinality(_) => return None,
+        Value::Cardinality(_) | Value::Percentiles { .. } => return None,
     })
 }
 
@@ -166,4 +183,50 @@ fn reduce_cardinality(parts: &[Value]) -> Option<Value> {
         }
     }
     Some(Value::Cardinality(reduced))
+}
+
+/// `AbstractInternalTDigestPercentiles.reduce`: every digest added, in
+/// shard order, into an empty one of the first's compression, with the
+/// first's keys; no digest when no shard had one. It holds the reduced
+/// digest and one input's copy at a time: a caller reserves twice
+/// `tdigest::digest_bytes` of the compression.
+fn reduce_percentiles(parts: &[Value]) -> Option<Value> {
+    let Some(Value::Percentiles {
+        ranks,
+        keys,
+        keyed,
+        compression,
+        ..
+    }) = parts.first()
+    else {
+        return None;
+    };
+    let mut reduced: Option<Digest> = None;
+    for part in parts {
+        let Value::Percentiles {
+            ranks: r, digest, ..
+        } = part
+        else {
+            return None;
+        };
+        if r != ranks {
+            return None;
+        }
+        if let Some(d) = digest {
+            reduced
+                .get_or_insert_with(|| Digest::new(*compression))
+                .add_digest(d);
+        }
+    }
+    if let Some(d) = reduced.as_mut() {
+        d.settle();
+    }
+    Some(Value::Percentiles {
+        ranks: *ranks,
+        // ALLOC: one key an asked-for percent, bounded by the request's.
+        keys: keys.clone(),
+        keyed: *keyed,
+        compression: *compression,
+        digest: reduced,
+    })
 }

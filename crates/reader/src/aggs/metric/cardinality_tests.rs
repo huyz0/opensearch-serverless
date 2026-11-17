@@ -183,6 +183,7 @@ fn a_cardinality_reserves_its_sketch_only_once_it_can_have_one() {
         metric: Metric::Cardinality,
         field: "n".to_owned(),
         cardinality: options,
+        percentiles: crate::aggs::metric::PercentilesOptions::default(),
     };
     let plain = state_bytes(&[MetricAgg {
         metric: Metric::Min,

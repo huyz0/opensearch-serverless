@@ -9,7 +9,8 @@
 //! lucene-aggs' `aggregate_tree` over the query's live matches, segment by
 //! segment in document order: OpenSearch's aggregators ported, sums
 //! compensated in the same order and `cardinality` sketches written as
-//! OpenSearch writes them, so each state is the one OpenSearch's aggregator
+//! OpenSearch writes them and t-digests built value by value as OpenSearch
+//! builds them, so each state is the one OpenSearch's aggregator
 //! builds on a shard searched without concurrent segment slices.
 
 use std::collections::HashMap;
@@ -25,6 +26,7 @@ use oss_blob::BlobStore;
 use crate::OpenShard;
 use crate::aggs::metric::hll::Hll;
 use crate::aggs::metric::partial::{Format, Partial, Value};
+use crate::aggs::metric::tdigest::Digest;
 use crate::aggs::metric::{DEFAULT_PRECISION, Metric, MetricAgg};
 use crate::failure::Failure;
 use crate::mapping::FieldType;
@@ -147,13 +149,16 @@ fn needs(metric: Metric) -> u8 {
         Metric::Sum => NEED_SUM,
         Metric::Avg => AVG_NEEDS,
         Metric::Stats => STATS_NEEDS,
-        Metric::ValueCount | Metric::Cardinality => NEED_COUNT,
+        Metric::ValueCount
+        | Metric::Cardinality
+        | Metric::Percentiles
+        | Metric::PercentileRanks => NEED_COUNT,
     }
 }
 
-/// The shard-level result of `metric` from its field's `state`.
-fn value_of(metric: Metric, state: &MetricState) -> Value {
-    match metric {
+/// The shard-level result of `agg` from its field's `state`.
+fn value_of(agg: &MetricAgg, state: &MetricState) -> Value {
+    match agg.metric {
         Metric::Min => Value::Min(state.min_of_mins),
         Metric::Max => Value::Max(state.max_of_maxes),
         Metric::Sum => Value::Sum(state.sum),
@@ -169,6 +174,23 @@ fn value_of(metric: Metric, state: &MetricState) -> Value {
         },
         Metric::ValueCount => Value::ValueCount(state.count),
         Metric::Cardinality => Value::Cardinality(None),
+        Metric::Percentiles | Metric::PercentileRanks => percentiles_of(agg, None),
+    }
+}
+
+/// `agg`'s percentiles over `digest`, settled here once so the response
+/// and a reduce read it without changing it.
+fn percentiles_of(agg: &MetricAgg, digest: Option<Digest>) -> Value {
+    Value::Percentiles {
+        ranks: agg.metric == Metric::PercentileRanks,
+        // ALLOC: one key an asked-for percent, bounded by the request's.
+        keys: agg.percentiles.keys.clone(),
+        keyed: agg.percentiles.keyed,
+        compression: agg.percentiles.compression,
+        digest: digest.map(|mut d| {
+            d.settle();
+            d
+        }),
     }
 }
 
@@ -197,6 +219,13 @@ fn node(agg: &MetricAgg, precision: u32) -> AggNode {
             kind: CardinalityKind::Numeric(ValueKind::Long),
             precision: Some(precision),
         },
+        Metric::Percentiles | Metric::PercentileRanks => AggNode::Percentiles {
+            field,
+            missing: None,
+            kind: ValueKind::Long,
+            compression: agg.percentiles.compression,
+            hdr: false,
+        },
         metric => AggNode::Metric {
             field,
             missing: None,
@@ -220,7 +249,7 @@ fn engine_error(e: &dyn std::fmt::Display) -> ShardError {
 fn value_from(agg: &MetricAgg, result: Option<AggResult>) -> Result<Value, ShardError> {
     match result {
         Some(AggResult::Metric(states)) => Ok(value_of(
-            agg.metric,
+            agg,
             states.first().unwrap_or(&MetricState::default()),
         )),
         Some(AggResult::CardinalitySketch(sketches)) => match sketches.first().map(Vec::as_slice) {
@@ -229,6 +258,18 @@ fn value_from(agg: &MetricAgg, result: Option<AggResult>) -> Result<Value, Shard
                 .map(|h| Value::Cardinality(Some(h)))
                 .ok_or_else(|| engine_error(&"an unreadable cardinality sketch")),
         },
+        // A long or a date is never NaN, which a digest refuses.
+        Some(AggResult::Digests {
+            digests,
+            nan: false,
+        }) => Ok(percentiles_of(
+            agg,
+            digests
+                .into_iter()
+                .next()
+                .flatten()
+                .map(Digest::from_engine),
+        )),
         _ => Err(engine_error(&"an aggregation result of another kind")),
     }
 }
@@ -298,7 +339,7 @@ pub fn collect<S: BlobStore + 'static>(
     let mut parts = Vec::with_capacity(aggs.len());
     for (agg, r) in aggs.iter().zip(resolved) {
         let (format, value) = match r {
-            Resolved::Unmapped => (Format::Raw, value_of(agg.metric, &MetricState::default())),
+            Resolved::Unmapped => (Format::Raw, value_of(agg, &MetricState::default())),
             Resolved::Numeric(format) => (format, value_from(agg, results.next())?),
         };
         parts.push(Partial {
