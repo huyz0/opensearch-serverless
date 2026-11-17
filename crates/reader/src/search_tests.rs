@@ -4,19 +4,23 @@ use super::*;
 
 #[test]
 fn a_count_past_the_tracking_limit_is_reported_at_the_limit() {
+    let reported_at = |n, r| reported(n, r, TRACK_TOTAL_HITS);
     let exact = TotalHitsRelation::EqualTo;
     let at_least = TotalHitsRelation::GreaterThanOrEqualTo;
-    assert_eq!(reported(0, exact), (0, true));
-    assert_eq!(reported(TRACK_TOTAL_HITS, exact), (TRACK_TOTAL_HITS, true));
+    assert_eq!(reported_at(0, exact), (0, true));
     assert_eq!(
-        reported(TRACK_TOTAL_HITS, at_least),
+        reported_at(TRACK_TOTAL_HITS, exact),
+        (TRACK_TOTAL_HITS, true)
+    );
+    assert_eq!(
+        reported_at(TRACK_TOTAL_HITS, at_least),
         (TRACK_TOTAL_HITS, false)
     );
     assert_eq!(
-        reported(TRACK_TOTAL_HITS + 1, exact),
+        reported_at(TRACK_TOTAL_HITS + 1, exact),
         (TRACK_TOTAL_HITS, false)
     );
-    assert_eq!(reported(12_000, at_least), (TRACK_TOTAL_HITS, false));
+    assert_eq!(reported_at(12_000, at_least), (TRACK_TOTAL_HITS, false));
 }
 
 fn points() -> Clause {

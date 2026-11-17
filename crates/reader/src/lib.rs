@@ -13,6 +13,7 @@ pub mod dsl;
 pub mod engine_store;
 pub mod error;
 pub mod failure;
+pub mod fetch;
 pub mod lucene_query;
 pub mod mapping;
 pub mod numbers;
