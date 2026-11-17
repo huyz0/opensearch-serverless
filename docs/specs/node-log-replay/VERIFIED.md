@@ -5,4 +5,4 @@
 - AC-3: `records_after_a_position_and_in_known_runs` (writer).
 - AC-4: `a_consumer_stops_the_read_and_a_failed_body_read_keeps_nothing` (writer).
 - AC-5: `a_body_is_kept_only_when_shared_and_within_its_bounds`, `bodies_are_let_go_once_kept_past_their_time` (writer).
-- AC-6: `a_log_the_shell_wrote_on_fs_replays_as_the_shell_reads_it` (writer, `tests/node_log_cross_replay.rs`).
+- AC-6: `a_log_the_shell_wrote_on_fs_replays_as_the_shell_reads_it`, `the_rust_committer_writes_the_log_the_shell_wrote` (writer, `tests/node_log_cross_replay.rs`).

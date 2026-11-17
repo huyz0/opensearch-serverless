@@ -1,6 +1,6 @@
 # Node-log replay recording
 
-A node's write log as the shell writes it on a filesystem store, and what the shell's own successor reads from it. `crates/writer/tests/node_log_cross_replay.rs` fences and replays a copy of `log/` with the Rust takeover on `FsStore` and checks it gets the same.
+A node's write log as the shell writes it on a filesystem store, and what the shell's own successor reads from it. `crates/writer/tests/node_log_cross_replay.rs` fences and replays a copy of `log/` with the Rust takeover on `FsStore` and checks it gets the same; it also makes the recorder's calls on the Rust committer and checks it writes `log/` byte for byte, so the shell reads a Rust-written log as it reads its own.
 
 `NodeLogReplay.java` runs the shell's `NodeLogCommitter`, `NodeLogStore` and `NodeLogTakeover` from huyz0/OpenSearch `serverless/shell/src/main/java/org/opensearch/serverless/nodelog/` at `429b4cbc`, unchanged, as node `node-1` from epoch 7 with no window:
 
