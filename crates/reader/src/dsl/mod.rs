@@ -12,6 +12,7 @@ pub mod error;
 pub mod queries;
 pub mod query;
 pub mod registered;
+pub mod search_after;
 pub mod sort;
 pub mod source;
 pub mod tokens;

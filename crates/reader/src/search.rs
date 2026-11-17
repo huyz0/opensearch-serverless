@@ -23,6 +23,7 @@ use oss_blob::BlobStore;
 
 use crate::OpenShard;
 use crate::aggs::metric::{self, Partial, state_bytes};
+use crate::dsl::search_after::{AfterKey, field_doc};
 use crate::dsl::{SearchSource, SortKey};
 use crate::failure::{Failure, Meta};
 use crate::fetch::source_filter::SourceFilter;
@@ -198,6 +199,24 @@ pub fn search<S: BlobStore + 'static>(
         )));
     }
     let sort = sort_fields(&source.sort, shard, index)?;
+    let after = if source.search_after.is_empty() {
+        None
+    } else {
+        let is_date =
+            |name: &str| matches!(meta.mapping.get(name).map(|f| &f.ty), Some(FieldType::Date));
+        let keys: Option<Vec<AfterKey<'_>>> = sort.as_ref().map(|(fields, _)| {
+            fields
+                .iter()
+                .map(|f| AfterKey::of(f, is_date))
+                // ALLOC: one key a sort key, at most MAX_SORT_KEYS.
+                .collect()
+        });
+        Some(field_doc(
+            source.from,
+            &source.search_after,
+            keys.as_deref(),
+        )?)
+    };
     let fields = scored_fields(&query);
     let owned = shard
         .reader
@@ -226,7 +245,7 @@ pub fn search<S: BlobStore + 'static>(
                 &keys,
                 window,
                 limit,
-                None,
+                after.as_ref(),
             )
             .map_err(ShardError::engine)?;
             let score_at = kinds.iter().position(|k| *k == KeyKind::Score);
