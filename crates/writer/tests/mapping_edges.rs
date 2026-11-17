@@ -284,8 +284,8 @@ fn depth_limit_names_the_first_object_past_it() {
             format!(r#"{{"properties":{{"o{i}":{inner}}}}}"#)
         })
     };
-    // Twenty objects under the root stay within the limit; with one more,
-    // the object at depth twenty-one is named, not the deeper one inside it.
+    // Nineteen objects under the root, the last holding a field, stay
+    // within the limit; with twenty, the twentieth is named.
     assert!(parse(&chain(20)).is_ok());
     let path = (1..21)
         .rev()

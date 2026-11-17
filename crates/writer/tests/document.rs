@@ -333,3 +333,26 @@ fn a_long_string_parses_exactly_or_through_big_decimal() {
         );
     }
 }
+
+#[test]
+fn objects_reach_the_depth_limit() {
+    let m = mapping("{}");
+    let deep = |n: usize| (0..n).fold("1".to_string(), |inner, _| format!(r#"{{"a":{inner}}}"#));
+    // Stock OpenSearch takes twenty objects, the root among them, and
+    // refuses a twenty-first.
+    assert_eq!(parse(&m, &deep(20)).unwrap().fields.len(), 1);
+    let e = parse(&m, &deep(21)).unwrap_err();
+    assert!(
+        e.caused_by
+            .is_some_and(|c| c.reason.starts_with("The depth of the field has exceeded")),
+    );
+    // Unmapped objects are skipped, not counted.
+    let skipped = mapping(r#"{"dynamic":false}"#);
+    assert!(parse(&skipped, &deep(23)).is_ok());
+}
+
+#[test]
+fn a_metadata_name_inside_an_object_is_a_field() {
+    let doc = parse(&mapping("{}"), r#"{"o":{"_id":"x"}}"#).unwrap();
+    assert_eq!(doc.fields.first().map(|(n, _)| n.as_str()), Some("o._id"));
+}
