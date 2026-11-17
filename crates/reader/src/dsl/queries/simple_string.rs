@@ -92,7 +92,7 @@ fn field_boost(text: &str) -> Result<f32, DslError> {
 }
 
 /// `QueryParserHelper.parseFieldsAndWeights` of one entry.
-fn push_field(p: &Parser<'_>, fields: &mut Vec<(String, f32)>) -> Result<(), DslError> {
+pub(super) fn push_field(p: &Parser<'_>, fields: &mut Vec<(String, f32)>) -> Result<(), DslError> {
     let text = p.text();
     let (name, boost) = match text.split_once('^') {
         Some((name, boost)) => (name, field_boost(boost)?),

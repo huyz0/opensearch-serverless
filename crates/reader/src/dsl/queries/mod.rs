@@ -12,6 +12,9 @@ pub mod build;
 pub mod compound;
 pub mod full_text;
 pub mod full_text_build;
+mod leaf_common;
+pub mod query_string;
+pub mod query_string_build;
 pub mod simple_string;
 pub mod simple_string_build;
 mod simple_string_leaf;
@@ -39,6 +42,7 @@ pub const NAMES: &[&str] = &[
     "match_phrase",
     "multi_match",
     "simple_query_string",
+    "query_string",
 ];
 
 /// `Fuzziness`: an edit distance, or `AUTO` with its two length bounds.
@@ -187,6 +191,8 @@ pub enum More {
     MultiMatch(Box<full_text::MultiMatch>, f32),
     /// `SimpleQueryStringBuilder`, and its boost.
     SimpleQueryString(Box<simple_string::SimpleQueryString>, f32),
+    /// `QueryStringQueryBuilder`, and its boost.
+    QueryString(Box<query_string::QueryString>, f32),
 }
 
 impl More {
@@ -205,6 +211,7 @@ impl More {
             | More::MatchPhrase { boost, .. }
             | More::MultiMatch(_, boost)
             | More::SimpleQueryString(_, boost)
+            | More::QueryString(_, boost)
             | More::MatchNone { boost } => *boost,
         }
     }
@@ -226,6 +233,7 @@ pub fn parse(name: &str, p: &mut Parser<'_>) -> Result<More, DslError> {
         "match_phrase" => full_text::parse_match_phrase(p),
         "multi_match" => full_text::parse_multi_match(p),
         "simple_query_string" => simple_string::parse_simple_query_string(p),
+        "query_string" => query_string::parse_query_string(p),
         _ => compound::parse_match_none(p),
     }
 }
@@ -241,6 +249,12 @@ mod build_tests;
 
 #[cfg(test)]
 mod full_text_tests;
+
+#[cfg(test)]
+mod query_string_build_tests;
+
+#[cfg(test)]
+mod query_string_tests;
 
 #[cfg(test)]
 mod simple_string_build_tests;
