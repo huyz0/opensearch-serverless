@@ -1,0 +1,205 @@
+{
+  "name": "strict and disabled dynamic mapping",
+  "description": "dynamic strict refuses a document with an unmapped field, at the root and inside an object; dynamic false indexes it without mapping the field.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0-SNAPSHOT",
+    "build_hash": "429b4cbcd98f0d22aeae421a9f38645f6dc55b62"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-strict",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "create",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-strict",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "dynamic": "strict",
+            "properties": {
+              "a": {
+                "type": "keyword"
+              },
+              "loose": {
+                "type": "object",
+                "dynamic": false,
+                "properties": {
+                  "k": {
+                    "type": "keyword"
+                  }
+                }
+              },
+              "tight": {
+                "type": "object",
+                "properties": {
+                  "k": {
+                    "type": "keyword"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-mapping-strict"
+        }
+      }
+    },
+    {
+      "name": "unmapped root field",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-strict/_doc/1",
+        "body": {
+          "a": "x",
+          "b": "y"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "strict_dynamic_mapping_exception",
+                "reason": "mapping set to strict, dynamic introduction of [b] within [_doc] is not allowed"
+              }
+            ],
+            "type": "strict_dynamic_mapping_exception",
+            "reason": "mapping set to strict, dynamic introduction of [b] within [_doc] is not allowed"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "unmapped field in an object inheriting strict",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-strict/_doc/2",
+        "body": {
+          "a": "x",
+          "tight": {
+            "k": "v",
+            "other": 1
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "strict_dynamic_mapping_exception",
+                "reason": "mapping set to strict, dynamic introduction of [other] within [tight] is not allowed"
+              }
+            ],
+            "type": "strict_dynamic_mapping_exception",
+            "reason": "mapping set to strict, dynamic introduction of [other] within [tight] is not allowed"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "unmapped field in a dynamic false object",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-strict/_doc/3",
+        "body": {
+          "a": "x",
+          "loose": {
+            "k": "v",
+            "other": 1
+          }
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-mapping-strict",
+          "_id": "3",
+          "_version": 1,
+          "result": "created",
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 0,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "get mapping",
+      "request": {
+        "method": "GET",
+        "path": "/compat-mapping-strict/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-mapping-strict": {
+            "mappings": {
+              "dynamic": "strict",
+              "properties": {
+                "a": {
+                  "type": "keyword"
+                },
+                "loose": {
+                  "dynamic": "false",
+                  "properties": {
+                    "k": {
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "tight": {
+                  "properties": {
+                    "k": {
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

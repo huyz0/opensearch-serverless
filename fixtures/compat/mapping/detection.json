@@ -1,0 +1,131 @@
+{
+  "name": "date and numeric detection",
+  "description": "date_detection off maps date-like strings as text; numeric_detection on maps numeric strings as long or float.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0-SNAPSHOT",
+    "build_hash": "429b4cbcd98f0d22aeae421a9f38645f6dc55b62"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-detection",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "create",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-detection",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "date_detection": false,
+            "numeric_detection": true
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-mapping-detection"
+        }
+      }
+    },
+    {
+      "name": "index strings",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-detection/_doc/1",
+        "body": {
+          "date": "2024-01-02",
+          "int_text": "12",
+          "float_text": "1.5",
+          "text": "abc",
+          "neg_text": "-7"
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-mapping-detection",
+          "_id": "1",
+          "_version": 1,
+          "result": "created",
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 0,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "get mapping",
+      "request": {
+        "method": "GET",
+        "path": "/compat-mapping-detection/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-mapping-detection": {
+            "mappings": {
+              "date_detection": false,
+              "numeric_detection": true,
+              "properties": {
+                "date": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                },
+                "float_text": {
+                  "type": "float"
+                },
+                "int_text": {
+                  "type": "long"
+                },
+                "neg_text": {
+                  "type": "long"
+                },
+                "text": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

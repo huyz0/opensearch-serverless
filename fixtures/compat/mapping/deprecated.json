@@ -1,0 +1,84 @@
+{
+  "name": "deprecated parameters a type does not declare",
+  "description": "store, meta, boost, index, doc_values, index_options and similarity on a type that does not declare them are dropped with a warning.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0-SNAPSHOT",
+    "build_hash": "429b4cbcd98f0d22aeae421a9f38645f6dc55b62"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-deprecated",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "create",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-deprecated",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "a": {
+                "type": "long",
+                "boost": 2,
+                "index_options": "docs"
+              },
+              "b": {
+                "type": "date",
+                "index_options": "docs"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-mapping-deprecated"
+        }
+      }
+    },
+    {
+      "name": "get mapping",
+      "request": {
+        "method": "GET",
+        "path": "/compat-mapping-deprecated/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-mapping-deprecated": {
+            "mappings": {
+              "properties": {
+                "a": {
+                  "type": "long"
+                },
+                "b": {
+                  "type": "date"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

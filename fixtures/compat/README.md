@@ -25,7 +25,7 @@ Requests and normalisation rules are written by hand. **Responses are never writ
 }
 ```
 
-- **request**: `method` (GET, PUT, POST, DELETE, HEAD), `path` (starting with `/`, no query string), optional `query` (string values), and at most one of `body` (one JSON document) or `ndjson` (an array, sent one document per line, for `_bulk` and `_msearch`).
+- **request**: `method` (GET, PUT, POST, DELETE, HEAD), `path` (starting with `/`, no query string), optional `query` (string values), and at most one of `body` (one JSON document), `raw` (a string sent as written, for a body that is no single JSON value: duplicate keys, trailing data) or `ndjson` (an array, sent one document per line, for `_bulk` and `_msearch`).
 - **response**: `status`, `headers` and `body` as recorded. Only the headers listed are compared; `record.py` keeps the names already listed, or records `content-type` for a new step. `body` is absent when the response had none.
 - **normalise**: rules for fields that legitimately vary. `pointer` is a JSON pointer into `{"status", "headers", "body"}`; a `*` segment matches every array element and object member (`/body/hits/hits/*/_id`). `reason` is required. Both the recorded and the actual value are replaced by `"<normalised>"` before comparing.
 - **cleanup**: requests sent before the steps (and by the recorder after them), so a fixture runs against a target that is not fresh. Their responses are not compared.
@@ -86,6 +86,17 @@ Neither the gate nor CI runs `record.py`; checking fixtures needs nothing but th
 | File | Covers |
 |---|---|
 | [index/create-index.json](index/create-index.json) | `PUT /<index>` with settings and mappings; the second create's `resource_already_exists_exception` |
+| [mapping/explicit-types.json](mapping/explicit-types.json) | `PUT /<index>` with every field type the writer indexes, parameters on and off their defaults; `GET _mapping` |
+| [mapping/dates.json](mapping/dates.json) | date formats and `print_format`, parameter order with `meta` and `boost`, `norms` and multi-field merges |
+| [mapping/root-options.json](mapping/root-options.json) | the root's `dynamic`, `date_detection`, `numeric_detection` and `_routing` |
+| [mapping/put-mapping.json](mapping/put-mapping.json) | `PUT _mapping`: added fields and sub-fields, updateable parameters, and the conflict messages |
+| [mapping/invalid.json](mapping/invalid.json) | `MapperParsingException` messages for unknown parameters and types, a missing type, bad values, nulls, `meta` limits, and one index per refusal |
+| [mapping/dynamic.json](mapping/dynamic.json) | dynamic mapping of every JSON kind, and refused values |
+| [mapping/detection.json](mapping/detection.json) | `date_detection` off and `numeric_detection` on |
+| [mapping/dynamic-strict.json](mapping/dynamic-strict.json) | `dynamic: strict` and `false`, at the root and in objects |
+| [mapping/values.json](mapping/values.json) | how each type reads document values: coercion, ranges, `ignore_malformed`, `null_value`, booleans, `ignore_above`, date formats, objects and arrays, mixed dynamic arrays, bad field names |
+| [mapping/document-edges.json](mapping/document-edges.json) | metadata fields in a body, the depth limits, coercion messages, many-key previews, dotted names, the template dynamic modes, strict nulls, object and field conflicts |
+| [mapping/deprecated.json](mapping/deprecated.json) | parameters a type does not declare (`store`, `boost`, `index` and the rest), dropped silently as OpenSearch drops them |
 | [search/match-all.json](search/match-all.json) | `_bulk` with explicit ids and `refresh=true`; `_search` with `match_all` |
 | [search/term.json](search/term.json) | `term` on keyword, text and integer fields, short and long forms |
 | [search/match.json](search/match.json) | `match` with the standard analyzer: `or`, `and`, `minimum_should_match`, numbers |
@@ -94,4 +105,4 @@ Neither the gate nor CI runs `record.py`; checking fixtures needs nothing but th
 | [search/paging-sort.json](search/paging-sort.json) | `size` and `from` in the body and as parameters; `sort` by fields and by score |
 | [search/errors.json](search/errors.json) | OpenSearch's error bodies for queries, keys and parameters the subset refuses, and the result window |
 
-The search fixtures' indices are also written through the Java shell into [fixtures/compat-blobs/](../compat-blobs/README.md), so a reader node replays their `_search` steps.
+The mapping fixtures are replayed through the writer's mapping by `crates/writer/tests/mapping_fixtures.rs`; the 3.10.0-SNAPSHOT they were recorded from was built from huyz0/OpenSearch `429b4cbc` (`./gradlew localDistro`). The search fixtures' indices are also written through the Java shell into [fixtures/compat-blobs/](../compat-blobs/README.md), so a reader node replays their `_search` steps.

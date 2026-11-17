@@ -641,8 +641,10 @@ version = "0.1.0"
 name = "oss-writer"
 version = "0.1.0"
 dependencies = [
+ "chunkjson",
  "oss-blob",
  "oss-format",
+ "oss-rest",
  "oss-testkit",
  "oss-types",
 ]

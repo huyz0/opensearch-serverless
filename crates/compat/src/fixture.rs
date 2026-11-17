@@ -82,6 +82,9 @@ pub enum Body {
     /// One JSON document per line, sent as `application/x-ndjson` (bulk,
     /// msearch).
     Ndjson(Vec<Value>),
+    /// Text sent as written, as `application/json`: a body that is no
+    /// single JSON value (duplicate keys, trailing data).
+    Raw(String),
 }
 
 /// A request to replay.
@@ -102,7 +105,7 @@ impl Request {
     pub fn content_type(&self) -> Option<&'static str> {
         match self.body {
             Body::None => None,
-            Body::Json(_) => Some("application/json"),
+            Body::Json(_) | Body::Raw(_) => Some("application/json"),
             Body::Ndjson(_) => Some("application/x-ndjson"),
         }
     }
@@ -113,6 +116,7 @@ impl Request {
         match &self.body {
             Body::None => None,
             Body::Json(doc) => Some(doc.to_string().into_bytes()),
+            Body::Raw(text) => Some(text.as_bytes().to_vec()),
             Body::Ndjson(lines) => {
                 let mut out = Vec::new();
                 for line in lines {
@@ -285,7 +289,7 @@ fn parse_step(v: &Value, at: &str) -> Result<Step, FixtureError> {
 }
 
 fn parse_request(v: &Value, at: &str) -> Result<Request, FixtureError> {
-    let obj = object(v, at, &["method", "path", "query", "body", "ndjson"])?;
+    let obj = object(v, at, &["method", "path", "query", "body", "ndjson", "raw"])?;
     let method_at = format!("{at}.method");
     let method_text = string(required(obj, "method", at)?, &method_at)?;
     let method = Method::parse(method_text)
@@ -302,16 +306,24 @@ fn parse_request(v: &Value, at: &str) -> Result<Request, FixtureError> {
         None => BTreeMap::new(),
         Some(q) => string_map(q, &format!("{at}.query"), false)?,
     };
-    let body = match (obj.get("body"), obj.get("ndjson")) {
-        (None, None) => Body::None,
-        (Some(b), None) => Body::Json(b.clone()),
-        (None, Some(lines)) => Body::Ndjson(array(lines, &format!("{at}.ndjson"))?.clone()),
-        (Some(_), Some(_)) => {
-            return Err(err(
-                at,
-                "has both `body` and `ndjson`; a request has one body",
-            ));
-        }
+    let given: Vec<&str> = ["body", "ndjson", "raw"]
+        .into_iter()
+        .filter(|k| obj.contains_key(*k))
+        .collect();
+    if let [first, second, ..] = given.as_slice() {
+        return Err(err(
+            at,
+            format!("has both `{first}` and `{second}`; a request has one body"),
+        ));
+    }
+    let body = if let Some(b) = obj.get("body") {
+        Body::Json(b.clone())
+    } else if let Some(lines) = obj.get("ndjson") {
+        Body::Ndjson(array(lines, &format!("{at}.ndjson"))?.clone())
+    } else if let Some(text) = obj.get("raw") {
+        Body::Raw(string(text, &format!("{at}.raw"))?.to_owned())
+    } else {
+        Body::None
     };
     Ok(Request {
         method,

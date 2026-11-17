@@ -1,0 +1,1964 @@
+{
+  "name": "invalid mappings",
+  "description": "MapperParsingException messages for unknown parameters and types, a missing type, bad values and nulls.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0-SNAPSHOT",
+    "build_hash": "429b4cbcd98f0d22aeae421a9f38645f6dc55b62"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-1",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-2",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-3",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-4",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-5",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-6",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-7",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-8",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-9",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-10",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-11",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-12",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-13",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-14",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-15",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-16",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-17",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-18",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-19",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-20",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-21",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-22",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-23",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-24",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-25",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-26",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-27",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-28",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-29",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-30",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-31",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-32",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-33",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-34",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-35",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-36",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-37",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-invalid-38",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "unknown parameter",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-1",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "a": {
+                "type": "keyword",
+                "bogus": 1
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "unknown parameter [bogus] on mapper [a] of type [keyword]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: unknown parameter [bogus] on mapper [a] of type [keyword]",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "unknown parameter [bogus] on mapper [a] of type [keyword]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "unknown type",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-2",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "a": {
+                "type": "nope"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "No handler for type [nope] declared on field [a]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: No handler for type [nope] declared on field [a]",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "No handler for type [nope] declared on field [a]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "no type",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-3",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "a": {
+                "index": true
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "No type specified for field [a]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: No type specified for field [a]",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "No type specified for field [a]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "bad boolean",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-4",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "a": {
+                "type": "keyword",
+                "index": "maybe"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Failed to parse value [maybe] as only [true] or [false] are allowed."
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Failed to parse value [maybe] as only [true] or [false] are allowed.",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Failed to parse value [maybe] as only [true] or [false] are allowed."
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "null parameter",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-5",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "a": {
+                "type": "keyword",
+                "ignore_above": null
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "[ignore_above] on mapper [a] of type [keyword] must not have a [null] value"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: [ignore_above] on mapper [a] of type [keyword] must not have a [null] value",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "[ignore_above] on mapper [a] of type [keyword] must not have a [null] value"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "bad integer",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-6",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "a": {
+                "type": "keyword",
+                "ignore_above": "x"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: For input string: \"x\""
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: For input string: \"x\"",
+            "caused_by": {
+              "type": "number_format_exception",
+              "reason": "For input string: \"x\""
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "bad index_options",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-7",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "a": {
+                "type": "text",
+                "index_options": "bogus"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Unknown value [bogus] for field [index_options] - accepted values are [positions, docs, freqs, offsets]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Unknown value [bogus] for field [index_options] - accepted values are [positions, docs, freqs, offsets]",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "Unknown value [bogus] for field [index_options] - accepted values are [positions, docs, freqs, offsets]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "keyword positions",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-8",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "a": {
+                "type": "keyword",
+                "index_options": "positions"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Unknown value [positions] for field [index_options] - accepted values are [docs, freqs]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Unknown value [positions] for field [index_options] - accepted values are [docs, freqs]",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "Unknown value [positions] for field [index_options] - accepted values are [docs, freqs]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "field not an object",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-9",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "a": "keyword"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Expected map for property [fields] on field [a] but got a class java.lang.String"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Expected map for property [fields] on field [a] but got a class java.lang.String",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "Expected map for property [fields] on field [a] but got a class java.lang.String"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "bad numeric null_value",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-10",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "a": {
+                "type": "long",
+                "null_value": "abc"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: For input string: \"abc\""
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: For input string: \"abc\"",
+            "caused_by": {
+              "type": "number_format_exception",
+              "reason": "For input string: \"abc\""
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "unknown root parameter",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-11",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "bogus_root": 1
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Root mapping definition has unsupported parameters:  [bogus_root : 1]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Root mapping definition has unsupported parameters:  [bogus_root : 1]",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "Root mapping definition has unsupported parameters:  [bogus_root : 1]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "object sub-field",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-12",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "a": {
+                "type": "text",
+                "fields": {
+                  "b": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Type [object] cannot be used in multi field"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Type [object] cannot be used in multi field",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "Type [object] cannot be used in multi field"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "empty field name",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-13",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "": {
+                "type": "keyword"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: name cannot be empty string"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: name cannot be empty string",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "name cannot be empty string"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "gap without positions",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-14",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "a": {
+                "type": "text",
+                "position_increment_gap": 5,
+                "index_options": "docs"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Cannot set position_increment_gap on field [a] without positions enabled"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Cannot set position_increment_gap on field [a] without positions enabled",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Cannot set position_increment_gap on field [a] without positions enabled"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "fractional integer",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-15",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "a": {
+                "type": "keyword",
+                "ignore_above": 1.5
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: 1.5 is not an integer value"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: 1.5 is not an integer value",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "1.5 is not an integer value"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "integer overflow",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-16",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "a": {
+                "type": "keyword",
+                "ignore_above": 3000000000
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: integer overflow"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: integer overflow",
+            "caused_by": {
+              "type": "arithmetic_exception",
+              "reason": "integer overflow"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "meta not an object",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-17",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "a": {
+                "type": "keyword",
+                "meta": "x"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "[meta] must be an object, got String[x] for field [a]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: [meta] must be an object, got String[x] for field [a]",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "[meta] must be an object, got String[x] for field [a]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "meta with eleven entries",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-18",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "a": {
+                "type": "keyword",
+                "meta": {
+                  "a": "v",
+                  "b": "v",
+                  "c": "v",
+                  "d": "v",
+                  "e": "v",
+                  "f": "v",
+                  "g": "v",
+                  "h": "v",
+                  "i": "v",
+                  "j": "v",
+                  "k": "v"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-mapping-invalid-18"
+        }
+      }
+    },
+    {
+      "name": "meta with a number",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-19",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "a": {
+                "type": "keyword",
+                "meta": {
+                  "a": 3
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "[meta] values can only be strings, but got Integer[3] for field [a]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: [meta] values can only be strings, but got Integer[3] for field [a]",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "[meta] values can only be strings, but got Integer[3] for field [a]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "meta with a null",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-20",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "a": {
+                "type": "keyword",
+                "meta": {
+                  "a": null
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "[meta] values can't be null (field [a])"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: [meta] values can't be null (field [a])",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "[meta] values can't be null (field [a])"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "meta key too long",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-21",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "a": {
+                "type": "keyword",
+                "meta": {
+                  "abcdefghijklmnopqrstu": "x"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-mapping-invalid-21"
+        }
+      }
+    },
+    {
+      "name": "bad dynamic",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-22",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "dynamic": "maybe"
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Could not convert [dynamic.dynamic] to boolean"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Could not convert [dynamic.dynamic] to boolean",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Could not convert [dynamic.dynamic] to boolean",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Failed to parse value [maybe] as only [true] or [false] are allowed."
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "bad enabled",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-23",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "o": {
+                "type": "object",
+                "enabled": "x"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Could not convert [enabled.enabled] to boolean"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Could not convert [enabled.enabled] to boolean",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Could not convert [enabled.enabled] to boolean",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Failed to parse value [x] as only [true] or [false] are allowed."
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "bad date_detection",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-24",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "date_detection": "x"
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Could not convert [date_detection] to boolean"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Could not convert [date_detection] to boolean",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Could not convert [date_detection] to boolean",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Failed to parse value [x] as only [true] or [false] are allowed."
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "properties not a map",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-25",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": "x"
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parse_exception",
+                "reason": "properties must be a map type"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: properties must be a map type",
+            "caused_by": {
+              "type": "parse_exception",
+              "reason": "properties must be a map type"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "unknown object parameter",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-26",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "o": {
+                "properties": {},
+                "foo": 1
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Mapping definition for [o] has unsupported parameters:  [foo : 1]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Mapping definition for [o] has unsupported parameters:  [foo : 1]",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "Mapping definition for [o] has unsupported parameters:  [foo : 1]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "dotted multi-field",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-27",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "a": {
+                "type": "text",
+                "fields": {
+                  "x.y": {
+                    "type": "keyword"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Field name [x.y] which is a multi field of [a] cannot contain '.'"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Field name [x.y] which is a multi field of [a] cannot contain '.'",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "Field name [x.y] which is a multi field of [a] cannot contain '.'"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "multi-field not an object",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-28",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "a": {
+                "type": "text",
+                "fields": {
+                  "x": "keyword"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "illegal field [x], only fields can be specified inside fields"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: illegal field [x], only fields can be specified inside fields",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "illegal field [x], only fields can be specified inside fields"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "multi-field without a type",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-29",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "a": {
+                "type": "text",
+                "fields": {
+                  "x": {
+                    "index": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "no type specified for property [x]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: no type specified for property [x]",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "no type specified for property [x]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "multi-field unknown type",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-30",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "a": {
+                "type": "text",
+                "fields": {
+                  "x": {
+                    "type": "bogus"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "no handler for type [bogus] declared on field [x]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: no handler for type [bogus] declared on field [x]",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "no handler for type [bogus] declared on field [x]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "fields not an object",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-31",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "a": {
+                "type": "text",
+                "fields": "x"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "expected map for property [fields] on field [x] or [fields] but got a class java.lang.String"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: expected map for property [fields] on field [x] or [fields] but got a class java.lang.String",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "expected map for property [fields] on field [x] or [fields] but got a class java.lang.String"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "bad boost",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-32",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "a": {
+                "type": "keyword",
+                "boost": "abc"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: For input string: \"abc\""
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: For input string: \"abc\"",
+            "caused_by": {
+              "type": "number_format_exception",
+              "reason": "For input string: \"abc\""
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "routing not an object",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-33",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "_routing": "x"
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: [_parent] must be an object containing [type]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: [_parent] must be an object containing [type]",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "[_parent] must be an object containing [type]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "routing unknown parameter",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-34",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "_routing": {
+              "required": true,
+              "x": 1
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "unknown parameter [x] on mapper [_routing] of type [null]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: unknown parameter [x] on mapper [_routing] of type [null]",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "unknown parameter [x] on mapper [_routing] of type [null]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "fractional integer null_value",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-35",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "a": {
+                "type": "integer",
+                "null_value": 1.5
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Value [1.5] has a decimal part"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Value [1.5] has a decimal part",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Value [1.5] has a decimal part"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "byte null_value out of range",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-36",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "a": {
+                "type": "byte",
+                "null_value": 300
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Value [300] is out of range for a byte"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Value [300] is out of range for a byte",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Value [300] is out of range for a byte"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "bad boolean null_value",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-37",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "a": {
+                "type": "boolean",
+                "null_value": "yes"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Failed to parse value [yes] as only [true] or [false] are allowed."
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Failed to parse value [yes] as only [true] or [false] are allowed.",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Failed to parse value [yes] as only [true] or [false] are allowed."
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "boost and an integer as text are accepted",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-invalid-38",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "a": {
+                "type": "keyword",
+                "boost": 2.0
+              },
+              "b": {
+                "type": "keyword",
+                "ignore_above": "12"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-mapping-invalid-38"
+        }
+      }
+    },
+    {
+      "name": "get the mapping that was created",
+      "request": {
+        "method": "GET",
+        "path": "/compat-mapping-invalid-38/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-mapping-invalid-38": {
+            "mappings": {
+              "properties": {
+                "a": {
+                  "type": "keyword",
+                  "boost": 2.0
+                },
+                "b": {
+                  "type": "keyword",
+                  "ignore_above": 12
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

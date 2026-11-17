@@ -1,0 +1,185 @@
+{
+  "name": "root object options",
+  "description": "The root's dynamic, date_detection, numeric_detection and _routing options are kept and shown.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0-SNAPSHOT",
+    "build_hash": "429b4cbcd98f0d22aeae421a9f38645f6dc55b62"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-mapping-root",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "create",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-root",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "dynamic": "strict",
+            "date_detection": false,
+            "numeric_detection": true,
+            "_routing": {
+              "required": true
+            },
+            "properties": {
+              "a": {
+                "type": "keyword"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-mapping-root"
+        }
+      }
+    },
+    {
+      "name": "get mapping",
+      "request": {
+        "method": "GET",
+        "path": "/compat-mapping-root/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-mapping-root": {
+            "mappings": {
+              "dynamic": "strict",
+              "_routing": {
+                "required": true
+              },
+              "date_detection": false,
+              "numeric_detection": true,
+              "properties": {
+                "a": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "set dynamic true",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-root/_mapping",
+        "body": {
+          "dynamic": true
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true
+        }
+      }
+    },
+    {
+      "name": "get mapping after dynamic true",
+      "request": {
+        "method": "GET",
+        "path": "/compat-mapping-root/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-mapping-root": {
+            "mappings": {
+              "dynamic": "true",
+              "_routing": {
+                "required": true
+              },
+              "date_detection": false,
+              "numeric_detection": true,
+              "properties": {
+                "a": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "set dynamic false as text",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-mapping-root/_mapping",
+        "body": {
+          "dynamic": "false"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true
+        }
+      }
+    },
+    {
+      "name": "get mapping after dynamic false",
+      "request": {
+        "method": "GET",
+        "path": "/compat-mapping-root/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-mapping-root": {
+            "mappings": {
+              "dynamic": "false",
+              "_routing": {
+                "required": true
+              },
+              "date_detection": false,
+              "numeric_detection": true,
+              "properties": {
+                "a": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

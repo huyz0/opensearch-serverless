@@ -34,6 +34,9 @@ def send(base, request):
     data, ctype = None, None
     if "body" in request:
         data, ctype = json.dumps(request["body"], separators=(",", ":")).encode(), "application/json"
+    elif "raw" in request:
+        # A body that is no single JSON value (duplicate keys, trailing data), sent as written.
+        data, ctype = request["raw"].encode(), "application/json"
     elif "ndjson" in request:
         lines = (json.dumps(line, separators=(",", ":")) for line in request["ndjson"])
         data, ctype = ("\n".join(lines) + "\n").encode(), "application/x-ndjson"
