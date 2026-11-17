@@ -88,7 +88,19 @@ fn a_delete_outlives_a_refresh_until_gc_deletes() {
         .unwrap();
     assert_eq!((again.outcome, again.version), (Outcome::Created, 3));
     s.delete("a", &Expect::default()).unwrap();
+    // Exactly gc_deletes old, the delete still counts.
     clock.store(1_000 + GC_DELETES_MILLIS, Ordering::Relaxed);
+    s.refresh().unwrap();
+    let external = Expect {
+        version: 4,
+        version_type: VersionType::External,
+        ..Expect::default()
+    };
+    assert!(matches!(
+        s.index("a", br#"{"n":1}"#, false, &external),
+        Err(Refused::Conflict(_))
+    ));
+    clock.store(1_001 + GC_DELETES_MILLIS, Ordering::Relaxed);
     s.refresh().unwrap();
     // Pruned: the id is new again, as the Java's is once gc_deletes passed.
     let fresh = s
@@ -219,4 +231,76 @@ fn requests_are_checked_as_the_java_validates_them() {
         Err("Validation Failed: 1: create operations do not support compare and set. use index instead;".into())
     );
     assert_eq!(validate(&seq(1, 1), false), Ok(()));
+}
+
+#[test]
+fn an_expired_delete_does_not_count_even_before_a_refresh() {
+    let dir = ByteBuffersDirectory::new();
+    let clock = Arc::new(AtomicU64::new(0));
+    let mut s = shard(&dir, &clock);
+    s.index("a", br#"{"n":1}"#, false, &Expect::default())
+        .unwrap();
+    s.delete("a", &Expect::default()).unwrap();
+    clock.store(GC_DELETES_MILLIS + 1, Ordering::Relaxed);
+    let again = s
+        .index("a", br#"{"n":1}"#, false, &Expect::default())
+        .unwrap();
+    assert_eq!((again.outcome, again.version), (Outcome::Created, 1));
+}
+
+#[test]
+fn a_reopened_shard_continues_its_sequence_numbers() {
+    let dir = ByteBuffersDirectory::new();
+    let clock = Arc::new(AtomicU64::new(0));
+    {
+        let mut s = shard(&dir, &clock);
+        for id in ["a", "b", "c"] {
+            s.index(id, br#"{"n":1}"#, false, &Expect::default())
+                .unwrap();
+        }
+        s.refresh().unwrap();
+    }
+    let mut s = shard(&dir, &clock);
+    assert_eq!(s.max_seq_no(), 2);
+    let d = s
+        .index("d", br#"{"n":1}"#, false, &Expect::default())
+        .unwrap();
+    assert_eq!(d.seq_no, 3);
+    // The committed documents' versions are found in the segments.
+    let a = s.index("a", br#"{"n":2}"#, false, &seq(0, 3)).unwrap();
+    assert_eq!((a.outcome, a.version, a.seq_no), (Outcome::Updated, 2, 4));
+}
+
+#[test]
+fn the_version_map_counts_toward_the_indexing_buffer() {
+    let dir = ByteBuffersDirectory::new();
+    let clock = Arc::new(AtomicU64::new(0));
+    let mut s = shard(&dir, &clock);
+    assert_eq!(s.version_map_bytes(), 0);
+    s.index("a", br#"{"n":1}"#, false, &Expect::default())
+        .unwrap();
+    let one = s.version_map_bytes();
+    assert!(one > 0 && s.indexing_buffer_bytes() > one);
+    s.index("a", br#"{"n":2}"#, false, &Expect::default())
+        .unwrap();
+    assert_eq!(s.version_map_bytes(), one);
+    s.index("bb", br#"{"n":1}"#, false, &Expect::default())
+        .unwrap();
+    assert!(s.version_map_bytes() > 2 * one);
+    s.refresh().unwrap();
+    assert_eq!(s.version_map_bytes(), 0);
+}
+
+#[test]
+fn a_conflicting_write_still_grows_the_mapping() {
+    let dir = ByteBuffersDirectory::new();
+    let clock = Arc::new(AtomicU64::new(0));
+    let mut s = shard(&dir, &clock);
+    s.index("a", br#"{"n":1}"#, false, &Expect::default())
+        .unwrap();
+    assert!(
+        s.index("a", br#"{"t":"x"}"#, true, &Expect::default())
+            .is_err()
+    );
+    assert!(s.mapping().to_json().contains(r#""t":{"type":"text""#));
 }

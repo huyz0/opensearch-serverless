@@ -18,6 +18,13 @@ use super::versions::{GC_DELETES_MILLIS, VersionMap};
 /// `SequenceNumbers.NO_OPS_PERFORMED`.
 pub const NO_OPS_PERFORMED: i64 = -1;
 
+/// `SequenceNumbers.MAX_SEQ_NO`: the commit user data key of the highest
+/// sequence number a commit holds.
+pub const MAX_SEQ_NO_KEY: &str = "max_seq_no";
+
+/// `SequenceNumbers.LOCAL_CHECKPOINT_KEY`.
+pub const LOCAL_CHECKPOINT_KEY: &str = "local_checkpoint";
+
 /// What a write did.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Outcome {
@@ -83,11 +90,14 @@ pub struct Shard<'d> {
 impl<'d> Shard<'d> {
     /// A shard over `writer`, which writes to `dir`, its documents read
     /// against `mapping` and written under `primary_term`; `clock` gives
-    /// milliseconds, for keeping deletes `gc_deletes` long.
+    /// milliseconds, for keeping deletes `gc_deletes` long. Over an index
+    /// already committed, sequence numbers continue from the commit's
+    /// `max_seq_no` (`loadSeqNoInfoFromLuceneCommit`).
     ///
     /// # Errors
     ///
-    /// The segments already in `dir` not opening.
+    /// The segments already in `dir` not opening, or a commit whose
+    /// `max_seq_no` does not read.
     pub fn new(
         dir: &'d dyn Directory,
         writer: IndexWriter<'d>,
@@ -95,6 +105,14 @@ impl<'d> Shard<'d> {
         primary_term: i64,
         clock: Box<dyn Fn() -> u64 + Send + 'd>,
     ) -> Result<Self, String> {
+        let max_seq_no = match writer
+            .live_commit_data()
+            .iter()
+            .find(|(k, _)| k == MAX_SEQ_NO_KEY)
+        {
+            Some((_, v)) => v.parse::<i64>().map_err(|e| message(&e))?,
+            None => NO_OPS_PERFORMED,
+        };
         let mut shard = Shard {
             dir,
             writer,
@@ -103,7 +121,7 @@ impl<'d> Shard<'d> {
             versions: VersionMap::default(),
             reader: None,
             primary_term,
-            max_seq_no: NO_OPS_PERFORMED,
+            max_seq_no,
             clock,
         };
         shard.open_reader()?;
@@ -122,16 +140,34 @@ impl<'d> Shard<'d> {
     }
 
     fn open_reader(&mut self) -> Result<(), String> {
-        // A directory with no commit yet has no segments to look in.
-        self.reader = match DirectoryReader::open(self.dir) {
-            Ok(r) => Some(
-                r.soft_deletes_wrapper("__soft_deletes")
-                    .map_err(|e| message(&e))?,
-            ),
-            Err(_) if self.max_seq_no == NO_OPS_PERFORMED && self.reader.is_none() => None,
-            Err(e) => return Err(message(&e)),
-        };
+        // An index with no commit yet has no segments to look in.
+        if self.writer.commit_generations().is_empty() {
+            self.reader = None;
+            return Ok(());
+        }
+        let reader = DirectoryReader::open(self.dir).map_err(|e| message(&e))?;
+        self.reader = Some(
+            reader
+                .soft_deletes_wrapper("__soft_deletes")
+                .map_err(|e| message(&e))?,
+        );
         Ok(())
+    }
+
+    /// The heap the version map holds, which counts toward the indexing
+    /// buffer with the writer's own (`IndexingMemoryController` refreshes a
+    /// shard when the buffer fills).
+    pub fn version_map_bytes(&self) -> usize {
+        self.versions.ram_bytes()
+    }
+
+    /// The heap the shard's indexing buffer holds: the writer's buffered
+    /// documents and the version map. A caller refreshes the shard when it
+    /// passes the node's indexing buffer.
+    pub fn indexing_buffer_bytes(&self) -> usize {
+        self.writer
+            .ram_bytes_used()
+            .saturating_add(self.versions.ram_bytes())
     }
 
     /// Commits what the writer holds and looks up versions in the new
@@ -141,6 +177,22 @@ impl<'d> Shard<'d> {
     ///
     /// The commit or the new reader failing.
     pub fn refresh(&mut self) -> Result<(), String> {
+        // A primary's writes complete in order, so the local checkpoint is
+        // the highest sequence number given.
+        let mut data: Vec<(String, String)> = self
+            .writer
+            .live_commit_data()
+            .iter()
+            .filter(|(k, _)| k != MAX_SEQ_NO_KEY && k != LOCAL_CHECKPOINT_KEY)
+            // ALLOC: the commit's user data, a few entries, once a refresh.
+            .cloned()
+            .collect();
+        // ALLOC: one number's text a refresh.
+        let seq = self.max_seq_no.to_string();
+        // ALLOC: two entries of commit user data a refresh.
+        data.push((LOCAL_CHECKPOINT_KEY.to_owned(), seq.clone()));
+        data.push((MAX_SEQ_NO_KEY.to_owned(), seq));
+        self.writer.set_live_commit_data(data);
         self.writer.commit().map_err(|e| message(&e))?;
         self.open_reader()?;
         self.versions.refreshed();
@@ -150,7 +202,7 @@ impl<'d> Shard<'d> {
     }
 
     fn current(&self, id: &str, uid: &[u8]) -> Result<Option<Current>, Refused> {
-        if let Some(c) = self.versions.get(id) {
+        if let Some(c) = self.versions.get(id, (self.clock)(), GC_DELETES_MILLIS) {
             return Ok(Some(c));
         }
         match &self.reader {
@@ -194,9 +246,15 @@ impl<'d> Shard<'d> {
         };
         let parsed = document::parse(&self.mapping, id, source).map_err(Refused::Mapping)?;
         let key = uid(id).map_err(Refused::Mapping)?;
+        // The Java publishes a document's mapping update before the engine
+        // plans it, so the update holds even when the write conflicts.
+        if let Some(grown) = &parsed.grown {
+            // ALLOC: the grown mapping, bounded by the total fields limit.
+            self.mapping = grown.clone();
+        }
         let current = self.current(id, &key)?;
         let p = plan(id, current, &expect).map_err(Refused::Conflict)?;
-        let mapping = parsed.grown.as_ref().unwrap_or(&self.mapping);
+        let mapping = &self.mapping;
         let seq_no = self.max_seq_no.saturating_add(1);
         let meta = Meta {
             id,
@@ -230,9 +288,6 @@ impl<'d> Shard<'d> {
         }
         .map_err(|e| Self::engine(&e))?;
         self.next_seq_no();
-        if let Some(grown) = parsed.grown {
-            self.mapping = grown;
-        }
         let current = Current {
             version: p.version,
             seq_no,
