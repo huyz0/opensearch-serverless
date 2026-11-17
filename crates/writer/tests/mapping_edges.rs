@@ -348,3 +348,10 @@ fn an_objects_include_in_all_is_dropped() {
         r#"{"properties":{"o":{"properties":{"a":{"type":"keyword"}}}}}"#
     );
 }
+
+#[test]
+fn a_position_increment_gap_of_one_is_not_the_default() {
+    // Recorded from stock OpenSearch: the default is -1, use the analyzer's.
+    let json = r#"{"properties":{"u":{"type":"text","position_increment_gap":1}}}"#;
+    assert_eq!(parse(json).unwrap().to_json(), json);
+}

@@ -92,4 +92,7 @@ exclude_re = [
     "crates/writer/src/log/store.rs:21:43: replace \\* with \\+",
     # Only an infinite value reaches the sign test, and it is never 0.
     "crates/writer/src/mapping/json.rs:.*replace > with >= in java_floating",
+    # The quote analyzer follows the search analyzer, which follows the
+    # analyzer: with `standard` the only analyzer taken, all three are equal.
+    "crates/writer/src/mapping/types.rs:.*replace \\+ with \\*$",
 ]
