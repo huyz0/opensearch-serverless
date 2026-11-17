@@ -21,11 +21,15 @@ fn spread(s: &str) -> u32 {
 /// The order a `HashMap` built by putting `keys` in turn iterates them:
 /// by bucket of the final table, then by insertion within a bucket.
 pub fn hash_order(keys: &[&str]) -> Vec<usize> {
-    // The table starts at 16 and doubles past three quarters full.
-    let mut capacity: usize = 16;
-    while keys.len() > (capacity / 4).saturating_mul(3) {
-        capacity = capacity.saturating_mul(2);
-    }
+    // The table starts at 16 and doubles past three quarters full: the
+    // smallest power of two from 16 that holds the keys at three quarters.
+    let capacity = keys
+        .len()
+        .saturating_mul(4)
+        .saturating_add(2)
+        .div_euclid(3)
+        .next_power_of_two()
+        .max(16);
     let mask = (capacity as u32).wrapping_sub(1);
     // ALLOC: one index a member; error-message path.
     let mut order: Vec<usize> = (0..keys.len()).collect();
@@ -93,6 +97,8 @@ mod tests {
     fn hash_map_order() {
         // `"b".hashCode()` is 98 and `"a"` 97: bucket order, not insertion.
         assert_eq!(hash_order(&["b", "a"]), vec![1, 0]);
+        // Even two keys sit in a table of 16: "e" (101) in bucket 5, "a" in 1.
+        assert_eq!(hash_order(&["e", "a"]), vec![1, 0]);
         // "Aa" and "BB" share a hash, so they keep insertion order.
         assert_eq!(hash_order(&["BB", "Aa"]), vec![0, 1]);
         // The thirteenth put grows the table to 32, which moves "p" (112)
