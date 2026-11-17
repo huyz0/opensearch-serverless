@@ -18,7 +18,7 @@ use oss_rest::write_json_str;
 
 use crate::OpenShard;
 use crate::aggs::metric::write_aggregations;
-use crate::fetch::{docvalue_fields, source_filter};
+use crate::fetch::{docvalue_fields, explain, source_filter};
 use crate::search::{Hits, SortValue};
 
 /// A hit's `_id` and `_source`, copied out of its stored fields into buffers
@@ -190,6 +190,7 @@ pub fn write_response<S: BlobStore + 'static>(
     out: &mut dyn Write,
     shard: &OpenShard<S>,
     index: &str,
+    node_id: &str,
     hits: &Hits,
     took_ms: u64,
     reserve: &mut dyn FnMut(usize) -> io::Result<()>,
@@ -215,6 +216,7 @@ pub fn write_response<S: BlobStore + 'static>(
     // most any hit has needed.
     let mut scratch = 0usize;
     let readers = shard.reader.segment_readers();
+    let explained = hits.explanations.len() == hits.hits.len() && !hits.hits.is_empty();
     for (i, hit) in hits.hits.iter().enumerate() {
         if i > 0 {
             out.write_all(b",")?;
@@ -235,7 +237,13 @@ pub fn write_response<S: BlobStore + 'static>(
         if let Some(e) = stored.refused.take() {
             return Err(e);
         }
-        out.write_all(b"{\"_index\":")?;
+        out.write_all(b"{")?;
+        if explained {
+            write!(out, "\"_shard\":\"[{index}][0]\",\"_node\":")?;
+            write_json_str(out, node_id)?;
+            out.write_all(b",")?;
+        }
+        out.write_all(b"\"_index\":")?;
         write_json_str(out, index)?;
         out.write_all(b",\"_id\":")?;
         write_id(out, &stored.id)?;
@@ -277,6 +285,9 @@ pub fn write_response<S: BlobStore + 'static>(
                 }
             }
             out.write_all(b"]")?;
+        }
+        if let Some(e) = hits.explanations.get(i) {
+            explain::write_explanation(out, e)?;
         }
         out.write_all(b"}")?;
     }

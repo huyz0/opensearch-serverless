@@ -1938,6 +1938,2981 @@
           "status": 400
         }
       }
+    },
+    {
+      "name": "explain a match",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "explain": true,
+          "query": {
+            "match": {
+              "title": "fox"
+            }
+          },
+          "size": 1
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        },
+        {
+          "pointer": "/body/hits/hits/0/_node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 0.41331142,
+            "hits": [
+              {
+                "_shard": "[compat-match][0]",
+                "_node": "fCExHjVeSVqVm7s_zifa3w",
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 0.41331142,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "_explanation": {
+                  "value": 0.41331142,
+                  "description": "weight(title:fox in 0) [PerFieldSimilarity], result of:",
+                  "details": [
+                    {
+                      "value": 0.41331142,
+                      "description": "score(freq=1.0), computed as boost * idf * tf from:",
+                      "details": [
+                        {
+                          "value": 0.87546873,
+                          "description": "idf, computed as log(1 + (N - n + 0.5) / (n + 0.5)) from:",
+                          "details": [
+                            {
+                              "value": 2,
+                              "description": "n, number of documents containing term",
+                              "details": []
+                            },
+                            {
+                              "value": 5,
+                              "description": "N, total number of documents with field",
+                              "details": []
+                            }
+                          ]
+                        },
+                        {
+                          "value": 0.472103,
+                          "description": "tf, computed as freq / (freq + k1 * (1 - b + b * dl / avgdl)) from:",
+                          "details": [
+                            {
+                              "value": 1.0,
+                              "description": "freq, occurrences of term within document",
+                              "details": []
+                            },
+                            {
+                              "value": 1.2,
+                              "description": "k1, term saturation parameter",
+                              "details": []
+                            },
+                            {
+                              "value": 0.75,
+                              "description": "b, length normalization parameter",
+                              "details": []
+                            },
+                            {
+                              "value": 4.0,
+                              "description": "dl, length of field",
+                              "details": []
+                            },
+                            {
+                              "value": 4.4,
+                              "description": "avgdl, average length of field",
+                              "details": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "explain a match of two words",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "explain": true,
+          "query": {
+            "match": {
+              "title": "quick brown"
+            }
+          },
+          "size": 1
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        },
+        {
+          "pointer": "/body/hits/hits/0/_node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 0.82662284,
+            "hits": [
+              {
+                "_shard": "[compat-match][0]",
+                "_node": "fCExHjVeSVqVm7s_zifa3w",
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 0.82662284,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "_explanation": {
+                  "value": 0.82662284,
+                  "description": "sum of:",
+                  "details": [
+                    {
+                      "value": 0.41331142,
+                      "description": "weight(title:quick in 0) [PerFieldSimilarity], result of:",
+                      "details": [
+                        {
+                          "value": 0.41331142,
+                          "description": "score(freq=1.0), computed as boost * idf * tf from:",
+                          "details": [
+                            {
+                              "value": 0.87546873,
+                              "description": "idf, computed as log(1 + (N - n + 0.5) / (n + 0.5)) from:",
+                              "details": [
+                                {
+                                  "value": 2,
+                                  "description": "n, number of documents containing term",
+                                  "details": []
+                                },
+                                {
+                                  "value": 5,
+                                  "description": "N, total number of documents with field",
+                                  "details": []
+                                }
+                              ]
+                            },
+                            {
+                              "value": 0.472103,
+                              "description": "tf, computed as freq / (freq + k1 * (1 - b + b * dl / avgdl)) from:",
+                              "details": [
+                                {
+                                  "value": 1.0,
+                                  "description": "freq, occurrences of term within document",
+                                  "details": []
+                                },
+                                {
+                                  "value": 1.2,
+                                  "description": "k1, term saturation parameter",
+                                  "details": []
+                                },
+                                {
+                                  "value": 0.75,
+                                  "description": "b, length normalization parameter",
+                                  "details": []
+                                },
+                                {
+                                  "value": 4.0,
+                                  "description": "dl, length of field",
+                                  "details": []
+                                },
+                                {
+                                  "value": 4.4,
+                                  "description": "avgdl, average length of field",
+                                  "details": []
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "value": 0.41331142,
+                      "description": "weight(title:brown in 0) [PerFieldSimilarity], result of:",
+                      "details": [
+                        {
+                          "value": 0.41331142,
+                          "description": "score(freq=1.0), computed as boost * idf * tf from:",
+                          "details": [
+                            {
+                              "value": 0.87546873,
+                              "description": "idf, computed as log(1 + (N - n + 0.5) / (n + 0.5)) from:",
+                              "details": [
+                                {
+                                  "value": 2,
+                                  "description": "n, number of documents containing term",
+                                  "details": []
+                                },
+                                {
+                                  "value": 5,
+                                  "description": "N, total number of documents with field",
+                                  "details": []
+                                }
+                              ]
+                            },
+                            {
+                              "value": 0.472103,
+                              "description": "tf, computed as freq / (freq + k1 * (1 - b + b * dl / avgdl)) from:",
+                              "details": [
+                                {
+                                  "value": 1.0,
+                                  "description": "freq, occurrences of term within document",
+                                  "details": []
+                                },
+                                {
+                                  "value": 1.2,
+                                  "description": "k1, term saturation parameter",
+                                  "details": []
+                                },
+                                {
+                                  "value": 0.75,
+                                  "description": "b, length normalization parameter",
+                                  "details": []
+                                },
+                                {
+                                  "value": 4.0,
+                                  "description": "dl, length of field",
+                                  "details": []
+                                },
+                                {
+                                  "value": 4.4,
+                                  "description": "avgdl, average length of field",
+                                  "details": []
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "explain a match with operator and",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "explain": true,
+          "query": {
+            "match": {
+              "title": {
+                "query": "quick brown",
+                "operator": "and"
+              }
+            }
+          },
+          "size": 1
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        },
+        {
+          "pointer": "/body/hits/hits/0/_node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 1,
+              "relation": "eq"
+            },
+            "max_score": 0.82662284,
+            "hits": [
+              {
+                "_shard": "[compat-match][0]",
+                "_node": "fCExHjVeSVqVm7s_zifa3w",
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 0.82662284,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "_explanation": {
+                  "value": 0.82662284,
+                  "description": "sum of:",
+                  "details": [
+                    {
+                      "value": 0.41331142,
+                      "description": "weight(title:quick in 0) [PerFieldSimilarity], result of:",
+                      "details": [
+                        {
+                          "value": 0.41331142,
+                          "description": "score(freq=1.0), computed as boost * idf * tf from:",
+                          "details": [
+                            {
+                              "value": 0.87546873,
+                              "description": "idf, computed as log(1 + (N - n + 0.5) / (n + 0.5)) from:",
+                              "details": [
+                                {
+                                  "value": 2,
+                                  "description": "n, number of documents containing term",
+                                  "details": []
+                                },
+                                {
+                                  "value": 5,
+                                  "description": "N, total number of documents with field",
+                                  "details": []
+                                }
+                              ]
+                            },
+                            {
+                              "value": 0.472103,
+                              "description": "tf, computed as freq / (freq + k1 * (1 - b + b * dl / avgdl)) from:",
+                              "details": [
+                                {
+                                  "value": 1.0,
+                                  "description": "freq, occurrences of term within document",
+                                  "details": []
+                                },
+                                {
+                                  "value": 1.2,
+                                  "description": "k1, term saturation parameter",
+                                  "details": []
+                                },
+                                {
+                                  "value": 0.75,
+                                  "description": "b, length normalization parameter",
+                                  "details": []
+                                },
+                                {
+                                  "value": 4.0,
+                                  "description": "dl, length of field",
+                                  "details": []
+                                },
+                                {
+                                  "value": 4.4,
+                                  "description": "avgdl, average length of field",
+                                  "details": []
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "value": 0.41331142,
+                      "description": "weight(title:brown in 0) [PerFieldSimilarity], result of:",
+                      "details": [
+                        {
+                          "value": 0.41331142,
+                          "description": "score(freq=1.0), computed as boost * idf * tf from:",
+                          "details": [
+                            {
+                              "value": 0.87546873,
+                              "description": "idf, computed as log(1 + (N - n + 0.5) / (n + 0.5)) from:",
+                              "details": [
+                                {
+                                  "value": 2,
+                                  "description": "n, number of documents containing term",
+                                  "details": []
+                                },
+                                {
+                                  "value": 5,
+                                  "description": "N, total number of documents with field",
+                                  "details": []
+                                }
+                              ]
+                            },
+                            {
+                              "value": 0.472103,
+                              "description": "tf, computed as freq / (freq + k1 * (1 - b + b * dl / avgdl)) from:",
+                              "details": [
+                                {
+                                  "value": 1.0,
+                                  "description": "freq, occurrences of term within document",
+                                  "details": []
+                                },
+                                {
+                                  "value": 1.2,
+                                  "description": "k1, term saturation parameter",
+                                  "details": []
+                                },
+                                {
+                                  "value": 0.75,
+                                  "description": "b, length normalization parameter",
+                                  "details": []
+                                },
+                                {
+                                  "value": 4.0,
+                                  "description": "dl, length of field",
+                                  "details": []
+                                },
+                                {
+                                  "value": 4.4,
+                                  "description": "avgdl, average length of field",
+                                  "details": []
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "explain a match with a boost",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "explain": true,
+          "query": {
+            "match": {
+              "title": {
+                "query": "sugar",
+                "boost": 3
+              }
+            }
+          },
+          "size": 1
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        },
+        {
+          "pointer": "/body/hits/hits/0/_node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 1,
+              "relation": "eq"
+            },
+            "max_score": 1.7905171,
+            "hits": [
+              {
+                "_shard": "[compat-match][0]",
+                "_node": "fCExHjVeSVqVm7s_zifa3w",
+                "_index": "compat-match",
+                "_id": "4",
+                "_score": 1.7905171,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                },
+                "_explanation": {
+                  "value": 1.7905171,
+                  "description": "weight(title:sugar in 3) [PerFieldSimilarity], result of:",
+                  "details": [
+                    {
+                      "value": 1.7905171,
+                      "description": "score(freq=1.0), computed as boost * idf * tf from:",
+                      "details": [
+                        {
+                          "value": 3.0,
+                          "description": "boost",
+                          "details": []
+                        },
+                        {
+                          "value": 1.3862944,
+                          "description": "idf, computed as log(1 + (N - n + 0.5) / (n + 0.5)) from:",
+                          "details": [
+                            {
+                              "value": 1,
+                              "description": "n, number of documents containing term",
+                              "details": []
+                            },
+                            {
+                              "value": 5,
+                              "description": "N, total number of documents with field",
+                              "details": []
+                            }
+                          ]
+                        },
+                        {
+                          "value": 0.43052834,
+                          "description": "tf, computed as freq / (freq + k1 * (1 - b + b * dl / avgdl)) from:",
+                          "details": [
+                            {
+                              "value": 1.0,
+                              "description": "freq, occurrences of term within document",
+                              "details": []
+                            },
+                            {
+                              "value": 1.2,
+                              "description": "k1, term saturation parameter",
+                              "details": []
+                            },
+                            {
+                              "value": 0.75,
+                              "description": "b, length normalization parameter",
+                              "details": []
+                            },
+                            {
+                              "value": 5.0,
+                              "description": "dl, length of field",
+                              "details": []
+                            },
+                            {
+                              "value": 4.4,
+                              "description": "avgdl, average length of field",
+                              "details": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "explain a match on a keyword",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "explain": true,
+          "query": {
+            "match": {
+              "tag": "food"
+            }
+          },
+          "size": 1
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        },
+        {
+          "pointer": "/body/hits/hits/0/_node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 25,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 1,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_shard": "[compat-match][0]",
+                "_node": "fCExHjVeSVqVm7s_zifa3w",
+                "_index": "compat-match",
+                "_id": "4",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                },
+                "_explanation": {
+                  "value": 1.0,
+                  "description": "ConstantScore(tag:food)",
+                  "details": []
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "explain a match_phrase",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "explain": true,
+          "query": {
+            "match_phrase": {
+              "title": "brown fox"
+            }
+          },
+          "size": 1
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        },
+        {
+          "pointer": "/body/hits/hits/0/_node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 1,
+              "relation": "eq"
+            },
+            "max_score": 0.82662284,
+            "hits": [
+              {
+                "_shard": "[compat-match][0]",
+                "_node": "fCExHjVeSVqVm7s_zifa3w",
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 0.82662284,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "_explanation": {
+                  "value": 0.82662284,
+                  "description": "weight(title:\"brown fox\" in 0) [PerFieldSimilarity], result of:",
+                  "details": [
+                    {
+                      "value": 0.82662284,
+                      "description": "score(freq=1.0), computed as boost * idf * tf from:",
+                      "details": [
+                        {
+                          "value": 1.7509375,
+                          "description": "idf, sum of:",
+                          "details": [
+                            {
+                              "value": 0.87546873,
+                              "description": "idf, computed as log(1 + (N - n + 0.5) / (n + 0.5)) from:",
+                              "details": [
+                                {
+                                  "value": 2,
+                                  "description": "n, number of documents containing term",
+                                  "details": []
+                                },
+                                {
+                                  "value": 5,
+                                  "description": "N, total number of documents with field",
+                                  "details": []
+                                }
+                              ]
+                            },
+                            {
+                              "value": 0.87546873,
+                              "description": "idf, computed as log(1 + (N - n + 0.5) / (n + 0.5)) from:",
+                              "details": [
+                                {
+                                  "value": 2,
+                                  "description": "n, number of documents containing term",
+                                  "details": []
+                                },
+                                {
+                                  "value": 5,
+                                  "description": "N, total number of documents with field",
+                                  "details": []
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "value": 0.472103,
+                          "description": "tf, computed as freq / (freq + k1 * (1 - b + b * dl / avgdl)) from:",
+                          "details": [
+                            {
+                              "value": 1.0,
+                              "description": "phraseFreq=1.0",
+                              "details": []
+                            },
+                            {
+                              "value": 1.2,
+                              "description": "k1, term saturation parameter",
+                              "details": []
+                            },
+                            {
+                              "value": 0.75,
+                              "description": "b, length normalization parameter",
+                              "details": []
+                            },
+                            {
+                              "value": 4.0,
+                              "description": "dl, length of field",
+                              "details": []
+                            },
+                            {
+                              "value": 4.4,
+                              "description": "avgdl, average length of field",
+                              "details": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "explain a multi_match best_fields",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "explain": true,
+          "query": {
+            "multi_match": {
+              "query": "brown fox",
+              "fields": [
+                "title",
+                "tag"
+              ]
+            }
+          },
+          "size": 1
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        },
+        {
+          "pointer": "/body/hits/hits/0/_node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 0.82662284,
+            "hits": [
+              {
+                "_shard": "[compat-match][0]",
+                "_node": "fCExHjVeSVqVm7s_zifa3w",
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 0.82662284,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "_explanation": {
+                  "value": 0.82662284,
+                  "description": "max of:",
+                  "details": [
+                    {
+                      "value": 0.82662284,
+                      "description": "sum of:",
+                      "details": [
+                        {
+                          "value": 0.41331142,
+                          "description": "weight(title:brown in 0) [PerFieldSimilarity], result of:",
+                          "details": [
+                            {
+                              "value": 0.41331142,
+                              "description": "score(freq=1.0), computed as boost * idf * tf from:",
+                              "details": [
+                                {
+                                  "value": 0.87546873,
+                                  "description": "idf, computed as log(1 + (N - n + 0.5) / (n + 0.5)) from:",
+                                  "details": [
+                                    {
+                                      "value": 2,
+                                      "description": "n, number of documents containing term",
+                                      "details": []
+                                    },
+                                    {
+                                      "value": 5,
+                                      "description": "N, total number of documents with field",
+                                      "details": []
+                                    }
+                                  ]
+                                },
+                                {
+                                  "value": 0.472103,
+                                  "description": "tf, computed as freq / (freq + k1 * (1 - b + b * dl / avgdl)) from:",
+                                  "details": [
+                                    {
+                                      "value": 1.0,
+                                      "description": "freq, occurrences of term within document",
+                                      "details": []
+                                    },
+                                    {
+                                      "value": 1.2,
+                                      "description": "k1, term saturation parameter",
+                                      "details": []
+                                    },
+                                    {
+                                      "value": 0.75,
+                                      "description": "b, length normalization parameter",
+                                      "details": []
+                                    },
+                                    {
+                                      "value": 4.0,
+                                      "description": "dl, length of field",
+                                      "details": []
+                                    },
+                                    {
+                                      "value": 4.4,
+                                      "description": "avgdl, average length of field",
+                                      "details": []
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "value": 0.41331142,
+                          "description": "weight(title:fox in 0) [PerFieldSimilarity], result of:",
+                          "details": [
+                            {
+                              "value": 0.41331142,
+                              "description": "score(freq=1.0), computed as boost * idf * tf from:",
+                              "details": [
+                                {
+                                  "value": 0.87546873,
+                                  "description": "idf, computed as log(1 + (N - n + 0.5) / (n + 0.5)) from:",
+                                  "details": [
+                                    {
+                                      "value": 2,
+                                      "description": "n, number of documents containing term",
+                                      "details": []
+                                    },
+                                    {
+                                      "value": 5,
+                                      "description": "N, total number of documents with field",
+                                      "details": []
+                                    }
+                                  ]
+                                },
+                                {
+                                  "value": 0.472103,
+                                  "description": "tf, computed as freq / (freq + k1 * (1 - b + b * dl / avgdl)) from:",
+                                  "details": [
+                                    {
+                                      "value": 1.0,
+                                      "description": "freq, occurrences of term within document",
+                                      "details": []
+                                    },
+                                    {
+                                      "value": 1.2,
+                                      "description": "k1, term saturation parameter",
+                                      "details": []
+                                    },
+                                    {
+                                      "value": 0.75,
+                                      "description": "b, length normalization parameter",
+                                      "details": []
+                                    },
+                                    {
+                                      "value": 4.0,
+                                      "description": "dl, length of field",
+                                      "details": []
+                                    },
+                                    {
+                                      "value": 4.4,
+                                      "description": "avgdl, average length of field",
+                                      "details": []
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "explain a multi_match most_fields",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "explain": true,
+          "query": {
+            "multi_match": {
+              "query": "fox",
+              "fields": [
+                "title",
+                "tag"
+              ],
+              "type": "most_fields"
+            }
+          },
+          "size": 1
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        },
+        {
+          "pointer": "/body/hits/hits/0/_node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 0.41331142,
+            "hits": [
+              {
+                "_shard": "[compat-match][0]",
+                "_node": "fCExHjVeSVqVm7s_zifa3w",
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 0.41331142,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "_explanation": {
+                  "value": 0.41331142,
+                  "description": "sum of:",
+                  "details": [
+                    {
+                      "value": 0.41331142,
+                      "description": "weight(title:fox in 0) [PerFieldSimilarity], result of:",
+                      "details": [
+                        {
+                          "value": 0.41331142,
+                          "description": "score(freq=1.0), computed as boost * idf * tf from:",
+                          "details": [
+                            {
+                              "value": 0.87546873,
+                              "description": "idf, computed as log(1 + (N - n + 0.5) / (n + 0.5)) from:",
+                              "details": [
+                                {
+                                  "value": 2,
+                                  "description": "n, number of documents containing term",
+                                  "details": []
+                                },
+                                {
+                                  "value": 5,
+                                  "description": "N, total number of documents with field",
+                                  "details": []
+                                }
+                              ]
+                            },
+                            {
+                              "value": 0.472103,
+                              "description": "tf, computed as freq / (freq + k1 * (1 - b + b * dl / avgdl)) from:",
+                              "details": [
+                                {
+                                  "value": 1.0,
+                                  "description": "freq, occurrences of term within document",
+                                  "details": []
+                                },
+                                {
+                                  "value": 1.2,
+                                  "description": "k1, term saturation parameter",
+                                  "details": []
+                                },
+                                {
+                                  "value": 0.75,
+                                  "description": "b, length normalization parameter",
+                                  "details": []
+                                },
+                                {
+                                  "value": 4.0,
+                                  "description": "dl, length of field",
+                                  "details": []
+                                },
+                                {
+                                  "value": 4.4,
+                                  "description": "avgdl, average length of field",
+                                  "details": []
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "explain match_all",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "explain": true,
+          "query": {
+            "match_all": {}
+          },
+          "size": 1
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        },
+        {
+          "pointer": "/body/hits/hits/0/_node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_shard": "[compat-match][0]",
+                "_node": "fCExHjVeSVqVm7s_zifa3w",
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "_explanation": {
+                  "value": 1.0,
+                  "description": "*:*",
+                  "details": []
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "explain a term",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "explain": true,
+          "query": {
+            "term": {
+              "tag": "animal"
+            }
+          },
+          "size": 1
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        },
+        {
+          "pointer": "/body/hits/hits/0/_node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_shard": "[compat-match][0]",
+                "_node": "fCExHjVeSVqVm7s_zifa3w",
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "_explanation": {
+                  "value": 1.0,
+                  "description": "ConstantScore(tag:animal)",
+                  "details": []
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "explain a bool with a filter",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "explain": true,
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "match": {
+                    "title": "fox"
+                  }
+                }
+              ],
+              "filter": [
+                {
+                  "term": {
+                    "tag": "animal"
+                  }
+                }
+              ]
+            }
+          },
+          "size": 1
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        },
+        {
+          "pointer": "/body/hits/hits/0/_node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 0.41331142,
+            "hits": [
+              {
+                "_shard": "[compat-match][0]",
+                "_node": "fCExHjVeSVqVm7s_zifa3w",
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 0.41331142,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "_explanation": {
+                  "value": 0.41331142,
+                  "description": "sum of:",
+                  "details": [
+                    {
+                      "value": 0.41331142,
+                      "description": "weight(title:fox in 0) [PerFieldSimilarity], result of:",
+                      "details": [
+                        {
+                          "value": 0.41331142,
+                          "description": "score(freq=1.0), computed as boost * idf * tf from:",
+                          "details": [
+                            {
+                              "value": 0.87546873,
+                              "description": "idf, computed as log(1 + (N - n + 0.5) / (n + 0.5)) from:",
+                              "details": [
+                                {
+                                  "value": 2,
+                                  "description": "n, number of documents containing term",
+                                  "details": []
+                                },
+                                {
+                                  "value": 5,
+                                  "description": "N, total number of documents with field",
+                                  "details": []
+                                }
+                              ]
+                            },
+                            {
+                              "value": 0.472103,
+                              "description": "tf, computed as freq / (freq + k1 * (1 - b + b * dl / avgdl)) from:",
+                              "details": [
+                                {
+                                  "value": 1.0,
+                                  "description": "freq, occurrences of term within document",
+                                  "details": []
+                                },
+                                {
+                                  "value": 1.2,
+                                  "description": "k1, term saturation parameter",
+                                  "details": []
+                                },
+                                {
+                                  "value": 0.75,
+                                  "description": "b, length normalization parameter",
+                                  "details": []
+                                },
+                                {
+                                  "value": 4.0,
+                                  "description": "dl, length of field",
+                                  "details": []
+                                },
+                                {
+                                  "value": 4.4,
+                                  "description": "avgdl, average length of field",
+                                  "details": []
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "value": 0.0,
+                      "description": "match on required clause, product of:",
+                      "details": [
+                        {
+                          "value": 0.0,
+                          "description": "# clause",
+                          "details": []
+                        },
+                        {
+                          "value": 1.0,
+                          "description": "tag:animal",
+                          "details": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "explain a bool with should and must_not",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "explain": true,
+          "query": {
+            "bool": {
+              "should": [
+                {
+                  "match": {
+                    "title": "fox"
+                  }
+                },
+                {
+                  "match": {
+                    "title": "quick"
+                  }
+                }
+              ],
+              "must_not": [
+                {
+                  "term": {
+                    "tag": "food"
+                  }
+                }
+              ]
+            }
+          },
+          "size": 1
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        },
+        {
+          "pointer": "/body/hits/hits/0/_node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 0.82662284,
+            "hits": [
+              {
+                "_shard": "[compat-match][0]",
+                "_node": "fCExHjVeSVqVm7s_zifa3w",
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 0.82662284,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "_explanation": {
+                  "value": 0.82662284,
+                  "description": "sum of:",
+                  "details": [
+                    {
+                      "value": 0.41331142,
+                      "description": "weight(title:fox in 0) [PerFieldSimilarity], result of:",
+                      "details": [
+                        {
+                          "value": 0.41331142,
+                          "description": "score(freq=1.0), computed as boost * idf * tf from:",
+                          "details": [
+                            {
+                              "value": 0.87546873,
+                              "description": "idf, computed as log(1 + (N - n + 0.5) / (n + 0.5)) from:",
+                              "details": [
+                                {
+                                  "value": 2,
+                                  "description": "n, number of documents containing term",
+                                  "details": []
+                                },
+                                {
+                                  "value": 5,
+                                  "description": "N, total number of documents with field",
+                                  "details": []
+                                }
+                              ]
+                            },
+                            {
+                              "value": 0.472103,
+                              "description": "tf, computed as freq / (freq + k1 * (1 - b + b * dl / avgdl)) from:",
+                              "details": [
+                                {
+                                  "value": 1.0,
+                                  "description": "freq, occurrences of term within document",
+                                  "details": []
+                                },
+                                {
+                                  "value": 1.2,
+                                  "description": "k1, term saturation parameter",
+                                  "details": []
+                                },
+                                {
+                                  "value": 0.75,
+                                  "description": "b, length normalization parameter",
+                                  "details": []
+                                },
+                                {
+                                  "value": 4.0,
+                                  "description": "dl, length of field",
+                                  "details": []
+                                },
+                                {
+                                  "value": 4.4,
+                                  "description": "avgdl, average length of field",
+                                  "details": []
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "value": 0.41331142,
+                      "description": "weight(title:quick in 0) [PerFieldSimilarity], result of:",
+                      "details": [
+                        {
+                          "value": 0.41331142,
+                          "description": "score(freq=1.0), computed as boost * idf * tf from:",
+                          "details": [
+                            {
+                              "value": 0.87546873,
+                              "description": "idf, computed as log(1 + (N - n + 0.5) / (n + 0.5)) from:",
+                              "details": [
+                                {
+                                  "value": 2,
+                                  "description": "n, number of documents containing term",
+                                  "details": []
+                                },
+                                {
+                                  "value": 5,
+                                  "description": "N, total number of documents with field",
+                                  "details": []
+                                }
+                              ]
+                            },
+                            {
+                              "value": 0.472103,
+                              "description": "tf, computed as freq / (freq + k1 * (1 - b + b * dl / avgdl)) from:",
+                              "details": [
+                                {
+                                  "value": 1.0,
+                                  "description": "freq, occurrences of term within document",
+                                  "details": []
+                                },
+                                {
+                                  "value": 1.2,
+                                  "description": "k1, term saturation parameter",
+                                  "details": []
+                                },
+                                {
+                                  "value": 0.75,
+                                  "description": "b, length normalization parameter",
+                                  "details": []
+                                },
+                                {
+                                  "value": 4.0,
+                                  "description": "dl, length of field",
+                                  "details": []
+                                },
+                                {
+                                  "value": 4.4,
+                                  "description": "avgdl, average length of field",
+                                  "details": []
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "explain a prefix",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "explain": true,
+          "query": {
+            "prefix": {
+              "tag": "ani"
+            }
+          },
+          "size": 1
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        },
+        {
+          "pointer": "/body/hits/hits/0/_node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_shard": "[compat-match][0]",
+                "_node": "fCExHjVeSVqVm7s_zifa3w",
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "_explanation": {
+                  "value": 1.0,
+                  "description": "tag:ani*",
+                  "details": []
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "explain a wildcard",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "explain": true,
+          "query": {
+            "wildcard": {
+              "tag": "an*"
+            }
+          },
+          "size": 1
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        },
+        {
+          "pointer": "/body/hits/hits/0/_node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_shard": "[compat-match][0]",
+                "_node": "fCExHjVeSVqVm7s_zifa3w",
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "_explanation": {
+                  "value": 1.0,
+                  "description": "tag:an*",
+                  "details": []
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "explain terms",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "explain": true,
+          "query": {
+            "terms": {
+              "tag": [
+                "animal",
+                "food"
+              ]
+            }
+          },
+          "size": 1
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        },
+        {
+          "pointer": "/body/hits/hits/0/_node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 4,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_shard": "[compat-match][0]",
+                "_node": "fCExHjVeSVqVm7s_zifa3w",
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "_explanation": {
+                  "value": 1.0,
+                  "description": "tag:(animal food)",
+                  "details": []
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "explain a dis_max",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "explain": true,
+          "query": {
+            "dis_max": {
+              "queries": [
+                {
+                  "match": {
+                    "title": "fox"
+                  }
+                },
+                {
+                  "match": {
+                    "title": "quick"
+                  }
+                }
+              ],
+              "tie_breaker": 0.3
+            }
+          },
+          "size": 1
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        },
+        {
+          "pointer": "/body/hits/hits/0/_node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 0.5373049,
+            "hits": [
+              {
+                "_shard": "[compat-match][0]",
+                "_node": "fCExHjVeSVqVm7s_zifa3w",
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 0.5373049,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "_explanation": {
+                  "value": 0.5373049,
+                  "description": "max plus 0.3 times others of:",
+                  "details": [
+                    {
+                      "value": 0.41331142,
+                      "description": "weight(title:fox in 0) [PerFieldSimilarity], result of:",
+                      "details": [
+                        {
+                          "value": 0.41331142,
+                          "description": "score(freq=1.0), computed as boost * idf * tf from:",
+                          "details": [
+                            {
+                              "value": 0.87546873,
+                              "description": "idf, computed as log(1 + (N - n + 0.5) / (n + 0.5)) from:",
+                              "details": [
+                                {
+                                  "value": 2,
+                                  "description": "n, number of documents containing term",
+                                  "details": []
+                                },
+                                {
+                                  "value": 5,
+                                  "description": "N, total number of documents with field",
+                                  "details": []
+                                }
+                              ]
+                            },
+                            {
+                              "value": 0.472103,
+                              "description": "tf, computed as freq / (freq + k1 * (1 - b + b * dl / avgdl)) from:",
+                              "details": [
+                                {
+                                  "value": 1.0,
+                                  "description": "freq, occurrences of term within document",
+                                  "details": []
+                                },
+                                {
+                                  "value": 1.2,
+                                  "description": "k1, term saturation parameter",
+                                  "details": []
+                                },
+                                {
+                                  "value": 0.75,
+                                  "description": "b, length normalization parameter",
+                                  "details": []
+                                },
+                                {
+                                  "value": 4.0,
+                                  "description": "dl, length of field",
+                                  "details": []
+                                },
+                                {
+                                  "value": 4.4,
+                                  "description": "avgdl, average length of field",
+                                  "details": []
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "value": 0.41331142,
+                      "description": "weight(title:quick in 0) [PerFieldSimilarity], result of:",
+                      "details": [
+                        {
+                          "value": 0.41331142,
+                          "description": "score(freq=1.0), computed as boost * idf * tf from:",
+                          "details": [
+                            {
+                              "value": 0.87546873,
+                              "description": "idf, computed as log(1 + (N - n + 0.5) / (n + 0.5)) from:",
+                              "details": [
+                                {
+                                  "value": 2,
+                                  "description": "n, number of documents containing term",
+                                  "details": []
+                                },
+                                {
+                                  "value": 5,
+                                  "description": "N, total number of documents with field",
+                                  "details": []
+                                }
+                              ]
+                            },
+                            {
+                              "value": 0.472103,
+                              "description": "tf, computed as freq / (freq + k1 * (1 - b + b * dl / avgdl)) from:",
+                              "details": [
+                                {
+                                  "value": 1.0,
+                                  "description": "freq, occurrences of term within document",
+                                  "details": []
+                                },
+                                {
+                                  "value": 1.2,
+                                  "description": "k1, term saturation parameter",
+                                  "details": []
+                                },
+                                {
+                                  "value": 0.75,
+                                  "description": "b, length normalization parameter",
+                                  "details": []
+                                },
+                                {
+                                  "value": 4.0,
+                                  "description": "dl, length of field",
+                                  "details": []
+                                },
+                                {
+                                  "value": 4.4,
+                                  "description": "avgdl, average length of field",
+                                  "details": []
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "explain with a sort and docvalue_fields",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "explain": true,
+          "query": {
+            "term": {
+              "tag": "animal"
+            }
+          },
+          "size": 1,
+          "sort": [
+            {
+              "year": "asc"
+            }
+          ],
+          "docvalue_fields": [
+            "year"
+          ]
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        },
+        {
+          "pointer": "/body/hits/hits/0/_node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": [
+              {
+                "_shard": "[compat-match][0]",
+                "_node": "fCExHjVeSVqVm7s_zifa3w",
+                "_index": "compat-match",
+                "_id": "5",
+                "_score": null,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "published": "1999-12-31"
+                },
+                "fields": {
+                  "year": [
+                    1999
+                  ]
+                },
+                "sort": [
+                  1999
+                ],
+                "_explanation": {
+                  "value": 1.0,
+                  "description": "ConstantScore(tag:animal)",
+                  "details": []
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "explain two hits",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "explain": true,
+          "query": {
+            "match": {
+              "title": "fox"
+            }
+          },
+          "size": 2
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        },
+        {
+          "pointer": "/body/hits/hits/0/_node",
+          "reason": "node id, random per node"
+        },
+        {
+          "pointer": "/body/hits/hits/1/_node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 0.41331142,
+            "hits": [
+              {
+                "_shard": "[compat-match][0]",
+                "_node": "fCExHjVeSVqVm7s_zifa3w",
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 0.41331142,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "_explanation": {
+                  "value": 0.41331142,
+                  "description": "weight(title:fox in 0) [PerFieldSimilarity], result of:",
+                  "details": [
+                    {
+                      "value": 0.41331142,
+                      "description": "score(freq=1.0), computed as boost * idf * tf from:",
+                      "details": [
+                        {
+                          "value": 0.87546873,
+                          "description": "idf, computed as log(1 + (N - n + 0.5) / (n + 0.5)) from:",
+                          "details": [
+                            {
+                              "value": 2,
+                              "description": "n, number of documents containing term",
+                              "details": []
+                            },
+                            {
+                              "value": 5,
+                              "description": "N, total number of documents with field",
+                              "details": []
+                            }
+                          ]
+                        },
+                        {
+                          "value": 0.472103,
+                          "description": "tf, computed as freq / (freq + k1 * (1 - b + b * dl / avgdl)) from:",
+                          "details": [
+                            {
+                              "value": 1.0,
+                              "description": "freq, occurrences of term within document",
+                              "details": []
+                            },
+                            {
+                              "value": 1.2,
+                              "description": "k1, term saturation parameter",
+                              "details": []
+                            },
+                            {
+                              "value": 0.75,
+                              "description": "b, length normalization parameter",
+                              "details": []
+                            },
+                            {
+                              "value": 4.0,
+                              "description": "dl, length of field",
+                              "details": []
+                            },
+                            {
+                              "value": 4.4,
+                              "description": "avgdl, average length of field",
+                              "details": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "_shard": "[compat-match][0]",
+                "_node": "fCExHjVeSVqVm7s_zifa3w",
+                "_index": "compat-match",
+                "_id": "5",
+                "_score": 0.37691408,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "published": "1999-12-31"
+                },
+                "_explanation": {
+                  "value": 0.37691408,
+                  "description": "weight(title:fox in 4) [PerFieldSimilarity], result of:",
+                  "details": [
+                    {
+                      "value": 0.37691408,
+                      "description": "score(freq=1.0), computed as boost * idf * tf from:",
+                      "details": [
+                        {
+                          "value": 0.87546873,
+                          "description": "idf, computed as log(1 + (N - n + 0.5) / (n + 0.5)) from:",
+                          "details": [
+                            {
+                              "value": 2,
+                              "description": "n, number of documents containing term",
+                              "details": []
+                            },
+                            {
+                              "value": 5,
+                              "description": "N, total number of documents with field",
+                              "details": []
+                            }
+                          ]
+                        },
+                        {
+                          "value": 0.43052834,
+                          "description": "tf, computed as freq / (freq + k1 * (1 - b + b * dl / avgdl)) from:",
+                          "details": [
+                            {
+                              "value": 1.0,
+                              "description": "freq, occurrences of term within document",
+                              "details": []
+                            },
+                            {
+                              "value": 1.2,
+                              "description": "k1, term saturation parameter",
+                              "details": []
+                            },
+                            {
+                              "value": 0.75,
+                              "description": "b, length normalization parameter",
+                              "details": []
+                            },
+                            {
+                              "value": 5.0,
+                              "description": "dl, length of field",
+                              "details": []
+                            },
+                            {
+                              "value": 4.4,
+                              "description": "avgdl, average length of field",
+                              "details": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "explain with a _source filter",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "explain": true,
+          "query": {
+            "match": {
+              "title": "fox"
+            }
+          },
+          "size": 1,
+          "_source": [
+            "tag"
+          ]
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        },
+        {
+          "pointer": "/body/hits/hits/0/_node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 0.41331142,
+            "hits": [
+              {
+                "_shard": "[compat-match][0]",
+                "_node": "fCExHjVeSVqVm7s_zifa3w",
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 0.41331142,
+                "_source": {
+                  "tag": "animal"
+                },
+                "_explanation": {
+                  "value": 0.41331142,
+                  "description": "weight(title:fox in 0) [PerFieldSimilarity], result of:",
+                  "details": [
+                    {
+                      "value": 0.41331142,
+                      "description": "score(freq=1.0), computed as boost * idf * tf from:",
+                      "details": [
+                        {
+                          "value": 0.87546873,
+                          "description": "idf, computed as log(1 + (N - n + 0.5) / (n + 0.5)) from:",
+                          "details": [
+                            {
+                              "value": 2,
+                              "description": "n, number of documents containing term",
+                              "details": []
+                            },
+                            {
+                              "value": 5,
+                              "description": "N, total number of documents with field",
+                              "details": []
+                            }
+                          ]
+                        },
+                        {
+                          "value": 0.472103,
+                          "description": "tf, computed as freq / (freq + k1 * (1 - b + b * dl / avgdl)) from:",
+                          "details": [
+                            {
+                              "value": 1.0,
+                              "description": "freq, occurrences of term within document",
+                              "details": []
+                            },
+                            {
+                              "value": 1.2,
+                              "description": "k1, term saturation parameter",
+                              "details": []
+                            },
+                            {
+                              "value": 0.75,
+                              "description": "b, length normalization parameter",
+                              "details": []
+                            },
+                            {
+                              "value": 4.0,
+                              "description": "dl, length of field",
+                              "details": []
+                            },
+                            {
+                              "value": 4.4,
+                              "description": "avgdl, average length of field",
+                              "details": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "explain with no hit",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "explain": true,
+          "query": {
+            "term": {
+              "tag": "nothing"
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 0,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          }
+        }
+      }
+    },
+    {
+      "name": "explain false",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "explain": false,
+          "query": {
+            "match": {
+              "title": "fox"
+            }
+          },
+          "size": 1
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 0.41331142,
+            "hits": [
+              {
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 0.41331142,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "explain as a string",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "explain": "true",
+          "query": {
+            "match": {
+              "title": "fox"
+            }
+          },
+          "size": 1
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        },
+        {
+          "pointer": "/body/hits/hits/0/_node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 0.41331142,
+            "hits": [
+              {
+                "_shard": "[compat-match][0]",
+                "_node": "fCExHjVeSVqVm7s_zifa3w",
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 0.41331142,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "_explanation": {
+                  "value": 0.41331142,
+                  "description": "weight(title:fox in 0) [PerFieldSimilarity], result of:",
+                  "details": [
+                    {
+                      "value": 0.41331142,
+                      "description": "score(freq=1.0), computed as boost * idf * tf from:",
+                      "details": [
+                        {
+                          "value": 0.87546873,
+                          "description": "idf, computed as log(1 + (N - n + 0.5) / (n + 0.5)) from:",
+                          "details": [
+                            {
+                              "value": 2,
+                              "description": "n, number of documents containing term",
+                              "details": []
+                            },
+                            {
+                              "value": 5,
+                              "description": "N, total number of documents with field",
+                              "details": []
+                            }
+                          ]
+                        },
+                        {
+                          "value": 0.472103,
+                          "description": "tf, computed as freq / (freq + k1 * (1 - b + b * dl / avgdl)) from:",
+                          "details": [
+                            {
+                              "value": 1.0,
+                              "description": "freq, occurrences of term within document",
+                              "details": []
+                            },
+                            {
+                              "value": 1.2,
+                              "description": "k1, term saturation parameter",
+                              "details": []
+                            },
+                            {
+                              "value": 0.75,
+                              "description": "b, length normalization parameter",
+                              "details": []
+                            },
+                            {
+                              "value": 4.0,
+                              "description": "dl, length of field",
+                              "details": []
+                            },
+                            {
+                              "value": 4.4,
+                              "description": "avgdl, average length of field",
+                              "details": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "explain as null",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "explain": null,
+          "query": {
+            "match": {
+              "title": "fox"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parsing_exception",
+                "reason": "Unknown key for a VALUE_NULL in [explain].",
+                "line": 1,
+                "col": 12
+              }
+            ],
+            "type": "parsing_exception",
+            "reason": "Unknown key for a VALUE_NULL in [explain].",
+            "line": 1,
+            "col": 12
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "explain a constant_score",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "explain": true,
+          "size": 1,
+          "query": {
+            "constant_score": {
+              "filter": {
+                "term": {
+                  "tag": "animal"
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        },
+        {
+          "pointer": "/body/hits/hits/0/_node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_shard": "[compat-match][0]",
+                "_node": "fCExHjVeSVqVm7s_zifa3w",
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "_explanation": {
+                  "value": 1.0,
+                  "description": "ConstantScore(tag:animal)",
+                  "details": []
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "explain a bool with a must_not",
+      "request": {
+        "method": "POST",
+        "path": "/compat-match/_search",
+        "body": {
+          "explain": true,
+          "size": 1,
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "match": {
+                    "title": "fox"
+                  }
+                }
+              ],
+              "must_not": [
+                {
+                  "term": {
+                    "tag": "food"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        },
+        {
+          "pointer": "/body/hits/hits/0/_node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 0.41331142,
+            "hits": [
+              {
+                "_shard": "[compat-match][0]",
+                "_node": "fCExHjVeSVqVm7s_zifa3w",
+                "_index": "compat-match",
+                "_id": "1",
+                "_score": 0.41331142,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                },
+                "_explanation": {
+                  "value": 0.41331142,
+                  "description": "sum of:",
+                  "details": [
+                    {
+                      "value": 0.41331142,
+                      "description": "weight(title:fox in 0) [PerFieldSimilarity], result of:",
+                      "details": [
+                        {
+                          "value": 0.41331142,
+                          "description": "score(freq=1.0), computed as boost * idf * tf from:",
+                          "details": [
+                            {
+                              "value": 0.87546873,
+                              "description": "idf, computed as log(1 + (N - n + 0.5) / (n + 0.5)) from:",
+                              "details": [
+                                {
+                                  "value": 2,
+                                  "description": "n, number of documents containing term",
+                                  "details": []
+                                },
+                                {
+                                  "value": 5,
+                                  "description": "N, total number of documents with field",
+                                  "details": []
+                                }
+                              ]
+                            },
+                            {
+                              "value": 0.472103,
+                              "description": "tf, computed as freq / (freq + k1 * (1 - b + b * dl / avgdl)) from:",
+                              "details": [
+                                {
+                                  "value": 1.0,
+                                  "description": "freq, occurrences of term within document",
+                                  "details": []
+                                },
+                                {
+                                  "value": 1.2,
+                                  "description": "k1, term saturation parameter",
+                                  "details": []
+                                },
+                                {
+                                  "value": 0.75,
+                                  "description": "b, length normalization parameter",
+                                  "details": []
+                                },
+                                {
+                                  "value": 4.0,
+                                  "description": "dl, length of field",
+                                  "details": []
+                                },
+                                {
+                                  "value": 4.4,
+                                  "description": "avgdl, average length of field",
+                                  "details": []
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
     }
   ]
 }

@@ -20,6 +20,7 @@ pub mod numbers;
 pub mod open_cost;
 pub mod response;
 pub mod search;
+mod search_sort;
 pub mod shard_files;
 
 use std::sync::Arc;

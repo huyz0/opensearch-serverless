@@ -82,7 +82,7 @@ fn run(shard: &OpenShard<Emulator>, index: &str, body: &str) {
     let hits = search(shard, index, &source, &Analyzer::standard(None)).expect("searches");
     assert!(!hits.hits.is_empty(), "{index}: {body} found nothing");
     let mut out = Vec::new();
-    write_response(&mut out, shard, index, &hits, 0, &mut |_| Ok(())).expect("writes");
+    write_response(&mut out, shard, index, "node", &hits, 0, &mut |_| Ok(())).expect("writes");
 }
 
 #[test]

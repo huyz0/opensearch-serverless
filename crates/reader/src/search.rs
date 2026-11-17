@@ -17,19 +17,21 @@ use lucene_analysis::Analyzer;
 use lucene_search::collector::{TopDocsCollector, TotalHitsRelation};
 use lucene_search::field_norms::FieldNorms;
 use lucene_search::index_searcher::IndexSearcher;
-use lucene_search::top_field::{FieldDoc, SortField, SortType, search_sorted};
-use lucene_search::{BooleanQuery, Clause};
+use lucene_search::top_field::{FieldDoc, search_sorted};
+use lucene_search::{BooleanQuery, Clause, Explanation};
 use oss_blob::BlobStore;
 
 use crate::OpenShard;
 use crate::aggs::metric::{self, Partial, state_bytes};
 use crate::dsl::search_after::{AfterKey, field_doc};
 use crate::dsl::{SearchSource, SortKey};
-use crate::failure::{Failure, Meta};
+use crate::failure::Failure;
 use crate::fetch::docvalue_fields::{self, HitField};
+use crate::fetch::explain;
 use crate::fetch::source_filter::SourceFilter;
 use crate::lucene_query::{QueryContext, shard_failure, to_lucene};
 use crate::mapping::FieldType;
+use crate::search_sort::{KeyKind, sort_fields};
 
 /// `index.max_result_window`'s default: the most `from + size` may reach.
 pub const MAX_RESULT_WINDOW: usize = 10_000;
@@ -78,6 +80,8 @@ pub struct Hits {
     pub source: SourceFilter,
     /// The fields each hit's `fields` object carries, in its order.
     pub fields: Vec<HitField>,
+    /// Each hit's explanation, in order; empty unless `explain` was asked.
+    pub explanations: Vec<Explanation>,
 }
 
 /// A failure on the shard, with the HTTP status it answers with.
@@ -90,14 +94,14 @@ pub struct ShardError {
 }
 
 impl ShardError {
-    fn bad_request(failure: Failure) -> Self {
+    pub(crate) fn bad_request(failure: Failure) -> Self {
         Self {
             status: 400,
             failure,
         }
     }
 
-    fn engine(e: impl std::fmt::Display) -> Self {
+    pub(crate) fn engine(e: impl std::fmt::Display) -> Self {
         Self {
             status: 500,
             // ALLOC: error path; one message.
@@ -162,14 +166,6 @@ pub fn reported(counted: u64, relation: TotalHitsRelation, limit: u64) -> (u64, 
     }
 }
 
-/// How a key orders, and how its values read back.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum KeyKind {
-    Score,
-    Numeric,
-    Term,
-}
-
 /// Runs `source` on `shard` of index `index`.
 pub fn search<S: BlobStore + 'static>(
     shard: &OpenShard<S>,
@@ -199,6 +195,13 @@ pub fn search<S: BlobStore + 'static>(
                  efficient way to request large data sets. This limit can be set by changing \
                  the [index.max_result_window] index level setting."
             ),
+        )));
+    }
+    if let Some(what) = source.explain.then(|| explain::refusal(&query)).flatten() {
+        return Err(ShardError::bad_request(Failure::plain(
+            "illegal_argument_exception",
+            // ALLOC: error path; one message.
+            format!("explain of {what} is not supported by this node yet"),
         )));
     }
     let sort = sort_fields(&source.sort, shard, index)?;
@@ -271,6 +274,8 @@ pub fn search<S: BlobStore + 'static>(
                 source: source.source.clone(),
                 // ALLOC: empty; resolved below when there are hits.
                 fields: Vec::new(),
+                // ALLOC: empty; explained below when asked.
+                explanations: Vec::new(),
             })
         }
         _ => {
@@ -302,12 +307,19 @@ pub fn search<S: BlobStore + 'static>(
                 source: source.source.clone(),
                 // ALLOC: as above.
                 fields: Vec::new(),
+                // ALLOC: as above.
+                explanations: Vec::new(),
             })
         }
     }?;
     // The fetch phase resolves the fields only when it has a hit to fetch.
     if !hits.hits.is_empty() && !source.docvalue_fields.is_empty() {
         hits.fields = docvalue_fields::resolve(&source.docvalue_fields, &meta.mapping)?;
+    }
+    if source.explain && !hits.hits.is_empty() {
+        let searcher = IndexSearcher::new(&segments, &norms).map_err(ShardError::engine)?;
+        hits.explanations =
+            explain::explain_hits(&searcher, &query, &hits.hits).map_err(ShardError::engine)?;
     }
     Ok(hits)
 }
@@ -390,104 +402,6 @@ fn scored_fields(query: &BooleanQuery) -> Vec<String> {
     let mut out = Vec::new();
     each(query, &mut out);
     out
-}
-
-type Sort = Option<(Vec<SortField>, Vec<KeyKind>)>;
-
-/// `SortBuilder.buildSort`: `None` for a sort by score alone.
-fn sort_fields<S: BlobStore + 'static>(
-    keys: &[SortKey],
-    shard: &OpenShard<S>,
-    index: &str,
-) -> Result<Sort, ShardError> {
-    if keys.is_empty() || keys == [SortKey::Score { ascending: false }] {
-        return Ok(None);
-    }
-    // ALLOC: one entry a sort key, at most MAX_SORT_KEYS.
-    let mut fields = Vec::with_capacity(keys.len());
-    // ALLOC: one entry a sort key, at most MAX_SORT_KEYS.
-    let mut kinds = Vec::with_capacity(keys.len());
-    for key in keys {
-        let (field, kind) = match key {
-            SortKey::Score { ascending } => {
-                let mut f = SortField::score();
-                f.reverse = *ascending;
-                (f, KeyKind::Score)
-            }
-            SortKey::Field { field, ascending } => field_sort(field, !*ascending, shard, index)?,
-        };
-        fields.push(field);
-        kinds.push(kind);
-    }
-    Ok(Some((fields, kinds)))
-}
-
-/// `FieldSortBuilder.build`: missing values last, whichever the order.
-fn field_sort<S: BlobStore + 'static>(
-    name: &str,
-    reverse: bool,
-    shard: &OpenShard<S>,
-    index: &str,
-) -> Result<(SortField, KeyKind), ShardError> {
-    if name == "_doc" {
-        let mut f = SortField::doc();
-        f.reverse = reverse;
-        return Ok((f, KeyKind::Numeric));
-    }
-    let Some(field) = shard.meta.mapping.get(name) else {
-        return Err(ShardError::bad_request(
-            Failure::opensearch(
-                "query_shard_exception",
-                // ALLOC: error path; one message.
-                format!("No mapping found for [{name}] in order to sort on"),
-            )
-            // ALLOC: error path; the index name.
-            .with_meta("index", Meta::Str(index.to_owned()))
-            // ALLOC: error path; the index uuid.
-            .with_meta("index_uuid", Meta::Str(shard.meta.uuid.clone())),
-        ));
-    };
-    let unsupported = |what: &str| {
-        ShardError::bad_request(Failure::plain(
-            "illegal_argument_exception",
-            // ALLOC: error path; one message.
-            format!("sorting on {what} is not supported by this node yet"),
-        ))
-    };
-    if matches!(field.ty, FieldType::Text) {
-        return Err(ShardError::bad_request(Failure::plain(
-            "illegal_argument_exception",
-            // ALLOC: error path; one message.
-            format!(
-                "Text fields are not optimised for operations that require per-document field \
-                 data like aggregations and sorting, so these operations are disabled by default. \
-                 Please use a keyword field instead. Alternatively, set fielddata=true on [{name}] \
-                 in order to load field data by uninverting the inverted index. Note that this can \
-                 use significant memory."
-            ),
-        )));
-    }
-    if !field.doc_values {
-        // ALLOC: error path; one message.
-        return Err(unsupported(&format!(
-            "the field [{name}] without doc values"
-        )));
-    }
-    let (ty, min, max) = match &field.ty {
-        FieldType::Keyword => {
-            let mut f = SortField::string(name, reverse);
-            f.missing = i64::from(!reverse);
-            return Ok((f, KeyKind::Term));
-        }
-        FieldType::Int { .. } => (SortType::Int, i64::from(i32::MIN), i64::from(i32::MAX)),
-        FieldType::Long | FieldType::Date => (SortType::Long, i64::MIN, i64::MAX),
-        // ALLOC: error path; one message.
-        FieldType::Unsupported(what) => return Err(unsupported(&format!("{what} [{name}]"))),
-        FieldType::Text => return Err(unsupported("a text field")),
-    };
-    let mut f = SortField::numeric(name, ty, reverse);
-    f.missing = if reverse { min } else { max };
-    Ok((f, KeyKind::Numeric))
 }
 
 #[cfg(test)]
