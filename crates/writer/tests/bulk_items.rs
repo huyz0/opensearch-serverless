@@ -109,6 +109,13 @@ fn a_refresh_reaches_each_written_shard_once_and_marks_the_items() {
     for item in response["items"].as_array().unwrap() {
         assert_eq!(item["index"]["forced_refresh"], true);
     }
+    // Each slice applies on its own: a shard written by two is still
+    // refreshed once.
+    let (_, refreshed) = run(&body, 1, true);
+    let mut seen = refreshed.clone();
+    seen.sort_unstable();
+    seen.dedup();
+    assert_eq!(seen.len(), refreshed.len(), "{refreshed:?}");
     // Without the flag nothing is refreshed or marked.
     let (response, refreshed) = run(&body, 1 << 20, false);
     assert!(refreshed.is_empty());

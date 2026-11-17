@@ -228,6 +228,8 @@ mod tests {
                 thread::yield_now();
             }
         }
+        // Were a waiter to fail, the channel must close rather than hang.
+        drop(tx);
         drop(first);
         let order: Vec<&str> = rx.iter().take(2).collect();
         assert_eq!(order, ["large", "small"]);

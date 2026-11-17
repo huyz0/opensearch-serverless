@@ -314,3 +314,12 @@ fn a_version_without_an_id_asks_for_one() {
         assert_eq!(run(&body, &with_index()), Ok(vec![201]), "{line}");
     }
 }
+
+#[test]
+fn a_create_that_passes_its_version_checks_gets_the_rest() {
+    let body = "{\"create\":{\"_id\":\"1\",\"pipeline\":\"\"}}\n{}\n";
+    assert_eq!(
+        run(body, &with_index()),
+        Err("Validation Failed: 1: pipeline cannot be an empty string;".to_owned())
+    );
+}
