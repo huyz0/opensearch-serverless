@@ -1,0 +1,3 @@
+# epoch trim landed: the predecessor's lease as positions() reports it
+7 2 3
+8 0 3
