@@ -219,6 +219,26 @@ pub fn write_response<S: BlobStore + 'static>(
     let readers = shard.reader.segment_readers();
     let explained = hits.explanations.len() == hits.hits.len() && !hits.hits.is_empty();
     let mut highlighters = hits.highlight.as_ref().map(Highlighters::new).transpose()?;
+    // `StoredFields.prefetch` of the fetch phase: every hit's chunk of stored
+    // fields is announced, a segment at a time, so the chunks a cold segment
+    // must read arrive as one batch rather than one a hit.
+    // ALLOC: one list a segment and one doc id a hit, at most the result
+    // window.
+    let mut announced: Vec<Vec<i32>> = vec![Vec::new(); readers.len()];
+    for hit in &hits.hits {
+        if let Some(at) = readers.iter().rposition(|r| r.doc_base <= hit.doc)
+            && let (Some(docs), Some(r)) = (announced.get_mut(at), readers.get(at))
+        {
+            docs.push(hit.doc.saturating_sub(r.doc_base));
+        }
+    }
+    for (segment, docs) in readers.iter().zip(&announced) {
+        if !docs.is_empty() {
+            segment
+                .prefetch_stored_documents(docs)
+                .map_err(io::Error::other)?;
+        }
+    }
     for (i, hit) in hits.hits.iter().enumerate() {
         if i > 0 {
             out.write_all(b",")?;

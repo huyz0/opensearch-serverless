@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use lucene_analysis::Analyzer;
 use lucene_store::page_cache::{PageCache, PageCacheConfig};
-use oss_blob::{Emulator, PooledStore, SliceSource};
+use oss_blob::{Emulator, PooledStore, Rounds, SliceSource};
 use oss_mem::{BudgetConfig, BufferPool, MemoryBudget, Pool, SMALL_BUFFER};
 use oss_testkit::index::{Spec, blobs, doc_source};
 
@@ -124,4 +124,76 @@ fn the_total_is_written_only_when_tracked() {
     );
     let (untracked, _) = respond(&shard, r#"{"size":0,"track_total_hits":false}"#);
     assert!(untracked.contains(r#""hits":{"max_score""#), "{untracked}");
+}
+
+#[test]
+fn the_hits_of_a_cold_shard_are_fetched_in_one_round() {
+    let spec = Spec::new("wide", 4000).segments_of(4000).padded(2000);
+    let config = BudgetConfig::new(4 << 20)
+        .with_pool(Pool::Transport, 4 << 20)
+        .expect("fits");
+    let budget = MemoryBudget::new(&config);
+    let buffers = BufferPool::new(&budget, Pool::Transport, SMALL_BUFFER, 8).expect("fits");
+    let store = Arc::new(PooledStore::new(
+        Rounds::new(Emulator::new(64 << 20, 1)),
+        buffers,
+    ));
+    for (key, bytes) in blobs("", &spec) {
+        store.put(&key, &mut SliceSource::new(&bytes)).expect("put");
+    }
+    let cache = Arc::new(
+        PageCache::new(PageCacheConfig {
+            page_size: 4096,
+            download_window: Some(4096),
+            ..PageCacheConfig::default()
+        })
+        .expect("page cache"),
+    );
+    let shard = open_shard(store.clone(), cache, "", "wide", 0).expect("opens");
+    let source =
+        parse_chunks([br#"{"size":30,"query":{"term":{"tag":"t0"}}}"#.as_slice()]).expect("parses");
+    let hits = search(&shard, "idx", &source, &Analyzer::standard(None)).expect("searches");
+    store.store().reset(std::time::Duration::from_millis(20));
+    let mut out = Vec::new();
+    write_response(&mut out, &shard, "idx", "node", &hits, 0, &mut |_| Ok(())).expect("writes");
+    let rounds = store.store();
+    assert!(rounds.depth() <= 1, "{}", rounds.detail());
+}
+
+#[test]
+fn the_hits_of_each_segment_are_fetched_in_the_segments_own_round() {
+    let spec = Spec::new("wide", 4000).segments_of(2000).padded(2000);
+    let config = BudgetConfig::new(4 << 20)
+        .with_pool(Pool::Transport, 4 << 20)
+        .expect("fits");
+    let budget = MemoryBudget::new(&config);
+    let buffers = BufferPool::new(&budget, Pool::Transport, SMALL_BUFFER, 8).expect("fits");
+    let store = Arc::new(PooledStore::new(
+        Rounds::new(Emulator::new(64 << 20, 1)),
+        buffers,
+    ));
+    for (key, bytes) in blobs("", &spec) {
+        store.put(&key, &mut SliceSource::new(&bytes)).expect("put");
+    }
+    let cache = Arc::new(
+        PageCache::new(PageCacheConfig {
+            page_size: 4096,
+            download_window: Some(4096),
+            ..PageCacheConfig::default()
+        })
+        .expect("page cache"),
+    );
+    let shard = open_shard(store.clone(), cache, "", "wide", 0).expect("opens");
+    let source = parse_chunks([br#"{"size":300,"query":{"term":{"tag":"t0"}}}"#.as_slice()])
+        .expect("parses");
+    let hits = search(&shard, "idx", &source, &Analyzer::standard(None)).expect("searches");
+    store.store().reset(std::time::Duration::from_millis(20));
+    let mut out = Vec::new();
+    write_response(&mut out, &shard, "idx", "node", &hits, 0, &mut |_| Ok(())).expect("writes");
+    let rounds = store.store();
+    // 250 hits over two segments: the chunks of each segment come in the
+    // merged reads its announcement makes (three in all, the second segment
+    // having a chunk apart), and none is left for the hits themselves.
+    assert_eq!(rounds.calls().len(), 3, "{}", rounds.detail());
+    assert_eq!(rounds.depth(), 3, "{}", rounds.detail());
 }
