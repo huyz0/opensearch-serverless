@@ -185,3 +185,56 @@ fn a_delete_takes_no_source_line() {
         Ok(vec![201, 201])
     );
 }
+
+/// Gives `first` once, then the body.
+struct FailsOnce<'a> {
+    first: Option<std::io::ErrorKind>,
+    body: &'a [u8],
+}
+
+impl std::io::Read for FailsOnce<'_> {
+    fn read(&mut self, out: &mut [u8]) -> std::io::Result<usize> {
+        if let Some(kind) = self.first.take() {
+            return Err(kind.into());
+        }
+        self.body.read(out)
+    }
+}
+
+fn stream_from(reader: &mut dyn std::io::Read) -> Result<usize, u16> {
+    let budget = BulkBudget::new(1 << 20, 2);
+    let config = StreamConfig {
+        slice_bytes: 1 << 20,
+        max_wait: Duration::from_secs(5),
+    };
+    let mut target = Accept;
+    let mut ids = IdGenerator::new(0, [0; 6]);
+    let mut buffer = [0u8; 64];
+    let mut bulk = Bulk::new(&mut target, &mut ids, 1, false);
+    stream(
+        reader,
+        &mut buffer,
+        &with_index(),
+        &budget,
+        config,
+        &mut bulk,
+    )
+    .and_then(|()| bulk.finish())
+    .map(|items| items.len())
+    .map_err(|e| e.status())
+}
+
+#[test]
+fn an_interrupted_read_is_retried_and_any_other_failure_refuses_the_body() {
+    let body = b"{\"index\":{\"_id\":\"1\"}}\n{\"n\":1}\n";
+    let mut interrupted = FailsOnce {
+        first: Some(std::io::ErrorKind::Interrupted),
+        body,
+    };
+    assert_eq!(stream_from(&mut interrupted), Ok(1));
+    let mut broken = FailsOnce {
+        first: Some(std::io::ErrorKind::BrokenPipe),
+        body,
+    };
+    assert_eq!(stream_from(&mut broken), Err(400));
+}

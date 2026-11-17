@@ -96,3 +96,19 @@ pub fn stream<T: Target>(
     drop(grant);
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_defaults_are_the_documented_ones() {
+        assert_eq!(DEFAULT_SLICE_BYTES, 8 * 1024 * 1024);
+        assert_eq!(DEFAULT_MAX_WAIT, Duration::from_secs(120));
+        let c = StreamConfig::default();
+        assert_eq!(
+            (c.slice_bytes, c.max_wait),
+            (DEFAULT_SLICE_BYTES, DEFAULT_MAX_WAIT)
+        );
+    }
+}
