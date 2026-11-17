@@ -22,6 +22,7 @@ use std::borrow::Cow;
 
 use crate::error::{FormatError, corrupt, len64};
 use crate::json::{Reader, Token};
+use crate::json_write::{push_string, push_u64};
 use crate::location::FileLocation;
 
 const WHAT: &str = "commit manifest";
@@ -29,6 +30,110 @@ const WHAT: &str = "commit manifest";
 /// The most files one manifest may name. A Lucene commit holds about a dozen
 /// files a segment, and a shard keeps tens of segments.
 pub const MAX_FILES: usize = 16_384;
+
+/// One file to record in a manifest being written.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ManifestEntry<'a> {
+    /// The Lucene file name.
+    pub name: &'a str,
+    /// Its location as recorded: [`FileLocation::encode`]'s text.
+    pub location: String,
+    /// Its length.
+    pub length: u64,
+}
+
+/// A commit manifest as `CommitManifest.toBytes` writes it: `term`,
+/// `writer` when there is one, `files`, `lengths`, then `wal_ordinal` and
+/// `stage_seq` when not negative. Files are written by name, so the same
+/// commit is the same bytes (the Java's order is a salted map's). No
+/// pruning digest is written: a manifest without one is valid.
+///
+/// # Errors
+///
+/// [`FormatError::Corrupt`] for a name that is empty or given twice, a
+/// location no reader follows, a length the location's range disagrees with
+/// or a term past `i64`; [`FormatError::TooLarge`] past [`MAX_FILES`].
+pub fn encode(
+    term: u64,
+    writer: Option<&str>,
+    files: &[ManifestEntry<'_>],
+    wal_ordinal: i64,
+    stage_sequence: i64,
+) -> Result<Vec<u8>, FormatError> {
+    if files.len() > MAX_FILES {
+        return Err(FormatError::TooLarge {
+            what: WHAT,
+            limit: len64(MAX_FILES),
+            actual: len64(files.len()),
+        });
+    }
+    if i64::try_from(term).is_err() {
+        return Err(corrupt(WHAT, "the term is past a signed 64-bit integer"));
+    }
+    // ALLOC: one reference a file, at most MAX_FILES, sorted by name.
+    let mut sorted: Vec<&ManifestEntry<'_>> = files.iter().collect();
+    sorted.sort_unstable_by(|a, b| a.name.cmp(b.name));
+    for pair in sorted.windows(2) {
+        if matches!(pair, [a, b] if a.name == b.name) {
+            return Err(corrupt(WHAT, "a file is named twice"));
+        }
+    }
+    for entry in &sorted {
+        if entry.name.is_empty() {
+            return Err(corrupt(WHAT, "a file has no name"));
+        }
+        let location = FileLocation::parse(&entry.location)?;
+        if location
+            .range()
+            .is_some_and(|(_, length)| length != entry.length)
+        {
+            return Err(corrupt(
+                WHAT,
+                "a length disagrees with its location's range",
+            ));
+        }
+    }
+    // ALLOC: the manifest, about a hundred bytes a file, once a publish.
+    let mut out: Vec<u8> = Vec::with_capacity(files.len().saturating_mul(96).saturating_add(64));
+    out.extend_from_slice(b"{\"term\":");
+    push_u64(&mut out, term);
+    if let Some(writer) = writer {
+        out.extend_from_slice(b",\"writer\":");
+        push_string(&mut out, writer);
+    }
+    out.extend_from_slice(b",\"files\":{");
+    for (i, entry) in sorted.iter().enumerate() {
+        if i > 0 {
+            out.push(b',');
+        }
+        push_string(&mut out, entry.name);
+        out.push(b':');
+        push_string(&mut out, &entry.location);
+    }
+    out.push(b'}');
+    if !sorted.is_empty() {
+        out.extend_from_slice(b",\"lengths\":{");
+        for (i, entry) in sorted.iter().enumerate() {
+            if i > 0 {
+                out.push(b',');
+            }
+            push_string(&mut out, entry.name);
+            out.push(b':');
+            push_u64(&mut out, entry.length);
+        }
+        out.push(b'}');
+    }
+    for (name, value) in [("wal_ordinal", wal_ordinal), ("stage_seq", stage_sequence)] {
+        if let Ok(value) = u64::try_from(value) {
+            out.extend_from_slice(b",\"");
+            out.extend_from_slice(name.as_bytes());
+            out.extend_from_slice(b"\":");
+            push_u64(&mut out, value);
+        }
+    }
+    out.push(b'}');
+    Ok(out)
+}
 
 /// One file a manifest names.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -86,6 +86,37 @@ impl<'a> FileLocation<'a> {
         })
     }
 
+    /// The text a manifest records for this location: what [`parse`] reads.
+    ///
+    /// [`parse`]: FileLocation::parse
+    pub fn encode(&self) -> String {
+        match *self {
+            Self::Whole { term_dir } => {
+                // ALLOC: one location's text, a few dozen bytes, once a file a publish.
+                term_dir.to_owned()
+            }
+            Self::Packed {
+                term_dir,
+                blob,
+                offset,
+                length,
+            } => {
+                // ALLOC: one location's text, a few dozen bytes, once a file a publish.
+                format!("{term_dir}/{blob}#{offset}:{length}")
+            }
+            Self::NodePacked {
+                node,
+                epoch,
+                ordinal,
+                offset,
+                length,
+            } => {
+                // ALLOC: one location's text, under a hundred bytes, once a file a publish.
+                format!("{NODE_PACK_PREFIX}{node}/e={epoch:020}/{ordinal:020}#{offset}:{length}")
+            }
+        }
+    }
+
     /// The file's range in its blob, or `None` for a blob of its own.
     pub fn range(&self) -> Option<(u64, u64)> {
         match *self {
