@@ -7,6 +7,7 @@ use std::time::Instant;
 use oss_format::ShardBatch;
 use oss_format::node_log_format::encode;
 
+use super::timings::add_nanos;
 use super::{CommitError, Flushing, NodeLogCommitter, Position};
 use crate::log::epochs::EpochState;
 use crate::log::window::Window;
@@ -17,13 +18,17 @@ impl NodeLogCommitter {
     /// flusher, which owns the window meanwhile.
     pub(super) fn write(&self, head: &mut Flushing) {
         let window = &mut head.window;
-        let epoch = match self.open_epoch() {
+        let opening = Instant::now();
+        let opened = self.open_epoch();
+        add_nanos(&self.timings.epoch_nanos, opening.elapsed());
+        let epoch = match opened {
             Ok(epoch) => epoch,
             Err(e) => {
                 window.fail_all(&CommitError::Lease(e));
                 return;
             }
         };
+        let admitting = Instant::now();
         // A shard's first records in this epoch wait for a check that this
         // node still owns it; under one hold of the lock for the window.
         // ALLOC: one entry a (shard, term) new to the epoch, bounded by the window.
@@ -40,6 +45,10 @@ impl NodeLogCommitter {
                 }
             }
         }
+        self.timings.admission_checks.fetch_add(
+            u64::try_from(to_admit.len()).unwrap_or(u64::MAX),
+            Ordering::Relaxed,
+        );
         for (shard, term) in to_admit {
             match self.admission.admit(&shard, term, epoch) {
                 Ok(()) => {
@@ -64,6 +73,7 @@ impl NodeLogCommitter {
             })
             // ALLOC: one batch a (shard, term) in the window, borrowing its records.
             .collect();
+        add_nanos(&self.timings.admission_nanos, admitting.elapsed());
         if batches.is_empty() {
             return;
         }
@@ -125,8 +135,11 @@ impl NodeLogCommitter {
             }
             Err(_) => {}
         }
+        let took = putting.elapsed();
+        add_nanos(&self.timings.put_nanos, took);
+        self.timings.puts.fetch_add(1, Ordering::Relaxed);
         if appended.is_ok() {
-            self.hedge_delay.note_put_took(putting.elapsed(), len);
+            self.hedge_delay.note_put_took(took, len);
         }
         let landed_records: u64 = batches
             .iter()
@@ -193,6 +206,7 @@ impl NodeLogCommitter {
             .epochs
             .insert(epoch, crate::log::epochs::EpochState::default());
         inner.current = Some(epoch);
+        self.timings.epochs_opened.fetch_add(1, Ordering::Relaxed);
         Ok(epoch)
     }
 
