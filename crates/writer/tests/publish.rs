@@ -271,9 +271,11 @@ fn a_new_file_of_a_published_segment_takes_a_fresh_blob_name_without_trying_the_
     s.refresh().expect("refresh");
     let files = s.committed_files().expect("files");
     let puts = count(&st, S3Op::Put);
+    let refused = st.meter().errors();
     let out = p.publish(&dir, &files, 3, "node-1", 1, 2).expect("second");
     let m = CommitManifest::parse(&out.manifest).expect("parses");
     assert!(m.files().len() > 2);
+    assert_eq!(st.meter().errors(), refused, "no create refused as taken");
     assert_eq!(
         count(&st, S3Op::Put) - puts,
         out.blobs.len() as u64 + 1,

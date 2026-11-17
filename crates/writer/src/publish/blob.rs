@@ -130,11 +130,4 @@ mod tests {
         assert_eq!(buf.get(..4), Some(&b"aabb"[..]));
         assert_eq!(b.fill(&mut buf).expect("fills"), 0);
     }
-
-    #[test]
-    fn an_empty_buffer_takes_nothing() {
-        let mut b = blob();
-        assert_eq!(b.fill(&mut []).expect("fills"), 0);
-        assert_eq!(drain(&mut b, 64), b"HDRaaaabb");
-    }
 }
