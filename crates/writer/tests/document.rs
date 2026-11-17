@@ -356,3 +356,20 @@ fn a_metadata_name_inside_an_object_is_a_field() {
     let doc = parse(&mapping("{}"), r#"{"o":{"_id":"x"}}"#).unwrap();
     assert_eq!(doc.fields.first().map(|(n, _)| n.as_str()), Some("o._id"));
 }
+
+#[test]
+fn arrays_reach_the_depth_limit() {
+    let m = mapping("{}");
+    let nested = |n: usize| format!(r#"{{"z":{}1{}}}"#, "[".repeat(n), "]".repeat(n));
+    // Stock OpenSearch takes twenty arrays inside each other.
+    assert_eq!(parse(&m, &nested(20)).unwrap().fields.len(), 1);
+    assert!(parse(&m, &nested(21)).is_err());
+}
+
+#[test]
+fn a_dotted_name_reaches_a_mapped_leaf() {
+    let m = mapping(r#"{"properties":{"o":{"properties":{"x":{"type":"keyword"}}}}}"#);
+    let doc = parse(&m, r#"{"o.x":5}"#).unwrap();
+    assert_eq!(doc.fields, vec![kv("o.x", FieldValue::Keyword("5".into()))]);
+    assert_eq!(doc.update, None);
+}
