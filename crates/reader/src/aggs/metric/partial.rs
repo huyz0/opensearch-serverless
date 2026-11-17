@@ -9,6 +9,8 @@
 
 use lucene_search::java_math::{JAVA_NAN, java_max, java_min};
 
+use crate::aggs::metric::hll::Hll;
+
 /// How a value is shown beside its number (`DocValueFormat`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Format {
@@ -20,7 +22,7 @@ pub enum Format {
 }
 
 /// What one shard computed for one aggregation.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Value {
     /// `InternalMin.min`: positive infinity when there was no value.
     Min(f64),
@@ -48,6 +50,8 @@ pub enum Value {
     },
     /// `InternalValueCount.value`.
     ValueCount(u64),
+    /// `InternalCardinality.counts`: `None` when no value was seen.
+    Cardinality(Option<Hll>),
 }
 
 /// One aggregation's shard-level result.
@@ -87,21 +91,25 @@ impl CompensatedSum {
 }
 
 /// The reduce of the shard results `parts`, all of one aggregation: `None`
-/// when there are none or they are not all the same kind.
+/// when there are none, they are not all the same kind, or two sketches'
+/// precisions differ (which OpenSearch refuses).
 pub fn reduce(parts: &[Value]) -> Option<Value> {
-    let first = *parts.first()?;
+    let first = parts.first()?;
+    if let Value::Cardinality(_) = first {
+        return reduce_cardinality(parts);
+    }
     let mut sum = CompensatedSum::default();
     let mut count = 0u64;
     let mut low = f64::INFINITY;
     let mut high = f64::NEG_INFINITY;
     for part in parts {
-        match (first, *part) {
-            (Value::Min(_), Value::Min(m)) => low = java_min(low, m),
-            (Value::Max(_), Value::Max(m)) => high = java_max(high, m),
-            (Value::Sum(_), Value::Sum(s)) => sum.add(s),
+        match (first, part) {
+            (Value::Min(_), Value::Min(m)) => low = java_min(low, *m),
+            (Value::Max(_), Value::Max(m)) => high = java_max(high, *m),
+            (Value::Sum(_), Value::Sum(s)) => sum.add(*s),
             (Value::Avg { .. }, Value::Avg { sum: s, count: c }) => {
-                count = count.saturating_add(c);
-                sum.add(s);
+                count = count.saturating_add(*c);
+                sum.add(*s);
             }
             (
                 Value::Stats { .. },
@@ -112,12 +120,12 @@ pub fn reduce(parts: &[Value]) -> Option<Value> {
                     max,
                 },
             ) => {
-                count = count.saturating_add(c);
-                low = java_min(low, min);
-                high = java_max(high, max);
-                sum.add(s);
+                count = count.saturating_add(*c);
+                low = java_min(low, *min);
+                high = java_max(high, *max);
+                sum.add(*s);
             }
-            (Value::ValueCount(_), Value::ValueCount(c)) => count = count.saturating_add(c),
+            (Value::ValueCount(_), Value::ValueCount(c)) => count = count.saturating_add(*c),
             _ => return None,
         }
     }
@@ -136,5 +144,26 @@ pub fn reduce(parts: &[Value]) -> Option<Value> {
             max: high,
         },
         Value::ValueCount(_) => Value::ValueCount(count),
+        // Reduced above.
+        Value::Cardinality(_) => return None,
     })
+}
+
+/// `InternalCardinality.reduce`: every sketch merged, in shard order, into
+/// an empty one of the first's precision; no sketch when none saw a value.
+fn reduce_cardinality(parts: &[Value]) -> Option<Value> {
+    let mut reduced: Option<Hll> = None;
+    for part in parts {
+        let Value::Cardinality(sketch) = part else {
+            return None;
+        };
+        let Some(sketch) = sketch else { continue };
+        if !reduced
+            .get_or_insert_with(|| Hll::empty_like(sketch))
+            .merge(sketch)
+        {
+            return None;
+        }
+    }
+    Some(Value::Cardinality(reduced))
 }

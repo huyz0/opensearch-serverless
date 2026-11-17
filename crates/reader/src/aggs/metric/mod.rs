@@ -1,6 +1,6 @@
-//! Metric aggregations on one shard: `min`, `max`, `sum`, `avg`, `stats`
-//! and `value_count` of a numeric or date field, at the top level of a
-//! search.
+//! Metric aggregations on one shard: `min`, `max`, `sum`, `avg`, `stats`,
+//! `value_count` and `cardinality` of a numeric or date field, at the top
+//! level of a search.
 //!
 //! A request's aggregations are parsed with its body ([`parse`]), computed
 //! over the query's live matches in one pass of lucene-aggs, the engine's
@@ -15,6 +15,7 @@ pub mod collect;
 pub mod date_text;
 pub mod double;
 pub mod hash_order;
+pub mod hll;
 pub mod parse;
 pub mod partial;
 pub mod render;
@@ -39,17 +40,21 @@ pub enum Metric {
     Stats,
     /// `value_count`: how many values.
     ValueCount,
+    /// `cardinality`: an estimate of how many distinct values, from a
+    /// HyperLogLog++ sketch.
+    Cardinality,
 }
 
 impl Metric {
     /// Every metric served, by its aggregation type name.
-    pub const ALL: [Metric; 6] = [
+    pub const ALL: [Metric; 7] = [
         Metric::Min,
         Metric::Max,
         Metric::Sum,
         Metric::Avg,
         Metric::Stats,
         Metric::ValueCount,
+        Metric::Cardinality,
     ];
 
     /// The aggregation type name.
@@ -61,6 +66,7 @@ impl Metric {
             Metric::Avg => "avg",
             Metric::Stats => "stats",
             Metric::ValueCount => "value_count",
+            Metric::Cardinality => "cardinality",
         }
     }
 
@@ -79,19 +85,50 @@ pub struct MetricAgg {
     pub metric: Metric,
     /// The field it reads.
     pub field: String,
+    /// A `cardinality`'s options; the defaults for every other metric.
+    pub cardinality: CardinalityOptions,
 }
 
+/// What a `cardinality` aggregation sets besides its field.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct CardinalityOptions {
+    /// `precision_threshold`: the count below which the sketch counts
+    /// exactly; `None` for the default precision, 14.
+    pub precision_threshold: Option<i64>,
+    /// `execution_hint`, checked when the shard builds the aggregator.
+    pub execution_hint: Option<String>,
+}
+
+impl CardinalityOptions {
+    /// `CardinalityAggregatorFactory.precision()`, or the message of the
+    /// `IllegalArgumentException` the shard fails with.
+    pub fn precision(&self) -> Result<u32, String> {
+        self.precision_threshold
+            .map_or(Ok(DEFAULT_PRECISION), hll::precision_from_threshold)
+    }
+}
+
+/// `HyperLogLogPlusPlus.DEFAULT_PRECISION`.
+pub const DEFAULT_PRECISION: u32 = 14;
+
 /// The most bytes aggregating `aggs` holds beyond the hits: each
-/// aggregation's result with its name, and the engine's request and state
-/// for it. What the caller reserves before searching.
+/// aggregation's result with its name, the engine's request and state for
+/// it, and a `cardinality`'s sketch. What the caller reserves before
+/// searching.
 pub fn state_bytes(aggs: &[MetricAgg]) -> usize {
     let per_agg = std::mem::size_of::<Partial>()
-        .saturating_add(std::mem::size_of::<lucene_aggs::metric_aggs::MetricSpec>())
+        .saturating_add(std::mem::size_of::<lucene_aggs::bucket_aggs::AggNode>())
+        .saturating_add(std::mem::size_of::<lucene_aggs::bucket_aggs::AggResult>())
         .saturating_add(std::mem::size_of::<lucene_aggs::metric_aggs::MetricState>())
         .saturating_add(std::mem::size_of::<usize>());
     aggs.iter().fold(0usize, |total, agg| {
+        let sketch = match agg.metric {
+            Metric::Cardinality => agg.cardinality.precision().map_or(0, hll::sketch_bytes),
+            _ => 0,
+        };
         total
             .saturating_add(per_agg)
+            .saturating_add(sketch)
             .saturating_add(agg.name.len())
             .saturating_add(agg.field.len())
     })
@@ -99,3 +136,6 @@ pub fn state_bytes(aggs: &[MetricAgg]) -> usize {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod cardinality_tests;

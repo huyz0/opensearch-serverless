@@ -260,3 +260,107 @@ fn each_metric_asks_for_what_it_reads() {
     assert_ne!(needs(Metric::Stats) & NEED_MIN_MAX, 0);
     assert_eq!(needs(Metric::ValueCount), NEED_COUNT);
 }
+
+fn cardinality(shard: &OpenShard<Emulator>, body: &str) -> u64 {
+    match values(shard, body).as_slice() {
+        [Value::Cardinality(sketch)] => sketch.as_ref().map_or(0, |s| s.cardinality()),
+        other => panic!("{body}: {other:?}"),
+    }
+}
+
+#[test]
+fn cardinality_estimates_the_distinct_values_as_opensearch_does() {
+    let shard = shard("aggs-cardinality");
+    // `n` is 0 to 199: the sketch of their `mix64` hashes, whose estimates
+    // OpenSearch's `HyperLogLogPlusPlus` prints as 200 (precision 14,
+    // counting exactly), 206 (10) and 168 (4).
+    let body = |extra: &str| {
+        format!(r#"{{"size":0,"aggs":{{"c":{{"cardinality":{{"field":"n"{extra}}}}}}}}}"#)
+    };
+    assert_eq!(cardinality(&shard, &body("")), 200);
+    assert_eq!(
+        cardinality(&shard, &body(r#","precision_threshold":100"#)),
+        206
+    );
+    assert_eq!(
+        cardinality(&shard, &body(r#","precision_threshold":0"#)),
+        168
+    );
+    assert_eq!(
+        cardinality(&shard, &body(r#","execution_hint":"Ordinals""#)),
+        200
+    );
+    // Only the query's matches: one document.
+    let one = r#"{"size":0,"query":{"term":{"tag":"t3"}},"aggs":{"c":{"cardinality":{"field":"n","precision_threshold":0}}}}"#;
+    assert!(cardinality(&shard, one) > 0);
+    let none =
+        r#"{"size":0,"query":{"term":{"tag":"nope"}},"aggs":{"c":{"cardinality":{"field":"n"}}}}"#;
+    assert_eq!(values(&shard, none), [Value::Cardinality(None)]);
+    let unmapped = r#"{"size":0,"aggs":{"c":{"cardinality":{"field":"nope"}}}}"#;
+    assert_eq!(values(&shard, unmapped), [Value::Cardinality(None)]);
+    // Beside other metrics, in one pass.
+    let both = r#"{"size":0,"aggs":{"m":{"max":{"field":"n"}},"c":{"cardinality":{"field":"n"}}}}"#;
+    match values(&shard, both).as_slice() {
+        [Value::Max(m), Value::Cardinality(Some(s))] => {
+            assert_eq!(*m, 199.0);
+            assert_eq!(s.cardinality(), 200);
+        }
+        other => panic!("{other:?}"),
+    }
+}
+
+#[test]
+fn cardinality_options_the_shard_refuses_fail_it_in_opensearch_order() {
+    let shard = shard("aggs-cardinality-refused");
+    for (body, want) in [
+        (
+            r#"{"aggs":{"c":{"cardinality":{"field":"n","execution_hint":"foo"}}}}"#,
+            "Unknown execution_hint: [foo], expected any of [direct, ordinals]",
+        ),
+        (
+            r#"{"aggs":{"c":{"cardinality":{"field":"nope","precision_threshold":9223372036854775807}}}}"#,
+            "maxValue must be non-negative (got: -4)",
+        ),
+        // Every factory is built before any aggregator: the second's hint
+        // fails before the first's precision.
+        (
+            r#"{"aggs":{"a":{"cardinality":{"field":"n","precision_threshold":9223372036854775807}},"b":{"cardinality":{"field":"n","execution_hint":"x"}}}}"#,
+            "Unknown execution_hint: [x], expected any of [direct, ordinals]",
+        ),
+        // The field first, then the hint.
+        (
+            r#"{"aggs":{"c":{"cardinality":{"field":"x0","execution_hint":"x"}}}}"#,
+            "Text fields are not optimised for operations that require per-document field data \
+             like aggregations and sorting, so these operations are disabled by default. Please \
+             use a keyword field instead. Alternatively, set fielddata=true on [x0] in order to \
+             load field data by uninverting the inverted index. Note that this can use \
+             significant memory.",
+        ),
+        (
+            r#"{"aggs":{"c":{"cardinality":{"field":"tag"}}}}"#,
+            "[cardinality] of the keyword field [tag] is not supported by this node yet",
+        ),
+    ] {
+        let e = run(&shard, body).expect_err("refused");
+        assert_eq!(e.status, 400, "{body}");
+        assert_eq!(e.failure.reason, want, "{body}");
+    }
+}
+
+#[test]
+fn a_cardinality_reserves_its_sketch() {
+    let shard = shard("aggs-cardinality-bytes");
+    let min = source(r#"{"size":0,"aggs":{"c":{"min":{"field":"n"}}}}"#);
+    let card = source(r#"{"size":0,"aggs":{"c":{"cardinality":{"field":"n"}}}}"#);
+    let low =
+        source(r#"{"size":0,"aggs":{"c":{"cardinality":{"field":"n","precision_threshold":0}}}}"#);
+    let bytes = |s: &crate::dsl::SearchSource| crate::search::hits_bytes(s, &shard);
+    assert_eq!(
+        bytes(&card) - bytes(&min),
+        crate::aggs::metric::hll::sketch_bytes(14)
+    );
+    assert_eq!(
+        bytes(&low) - bytes(&min),
+        crate::aggs::metric::hll::sketch_bytes(4)
+    );
+}

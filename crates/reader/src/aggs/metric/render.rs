@@ -57,6 +57,14 @@ fn as_string(out: &mut dyn Write, key: &str, value: f64) -> io::Result<()> {
 fn write_body(out: &mut dyn Write, format: Format, value: &Value) -> io::Result<()> {
     let dated = format == Format::Date;
     match *value {
+        Value::Cardinality(ref sketch) => {
+            // `InternalCardinality.getValue`: 0 when no value was seen.
+            write!(
+                out,
+                "\"value\":{}",
+                sketch.as_ref().map_or(0, |s| s.cardinality())
+            )
+        }
         Value::Min(v) | Value::Max(v) => {
             // `InternalMin`/`InternalMax`: no value is an infinity.
             let present = !v.is_infinite();

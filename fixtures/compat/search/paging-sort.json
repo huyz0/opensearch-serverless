@@ -139,7 +139,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 30,
+          "took": 111,
           "errors": false,
           "items": [
             {
@@ -255,7 +255,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 2,
+          "took": 60,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -322,7 +322,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 2,
+          "took": 7,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -388,7 +388,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 1,
+          "took": 3,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -433,7 +433,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 6,
+          "took": 15,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -474,7 +474,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 1,
+          "took": 6,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -535,7 +535,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 18,
+          "took": 30,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -653,7 +653,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 4,
+          "took": 5,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -767,7 +767,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 2,
+          "took": 7,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -888,7 +888,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 21,
+          "took": 45,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -981,7 +981,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 4,
+          "took": 5,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -1052,7 +1052,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 1,
+          "took": 2,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -1182,7 +1182,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 3,
+          "took": 35,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -1333,7 +1333,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 2,
+          "took": 6,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -1478,7 +1478,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 2,
+          "took": 5,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -1579,7 +1579,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 2,
+          "took": 3,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -1674,7 +1674,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 2,
+          "took": 8,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -1807,7 +1807,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 8,
+          "took": 10,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -1881,7 +1881,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 1,
+          "took": 2,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -1952,6 +1952,240 @@
                 }
               }
             ]
+          }
+        }
+      }
+    },
+    {
+      "name": "cardinality of a number and a date",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "size": 1,
+          "aggs": {
+            "years": {
+              "cardinality": {
+                "field": "year"
+              }
+            },
+            "dates": {
+              "cardinality": {
+                "field": "published",
+                "execution_hint": "direct"
+              }
+            },
+            "first": {
+              "min": {
+                "field": "year"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 21,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                }
+              }
+            ]
+          },
+          "aggregations": {
+            "dates": {
+              "value": 5
+            },
+            "years": {
+              "value": 4
+            },
+            "first": {
+              "value": 1999.0
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cardinality past linear counting",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "size": 1,
+          "aggs": {
+            "years": {
+              "cardinality": {
+                "field": "year",
+                "precision_threshold": 0
+              }
+            },
+            "dates": {
+              "cardinality": {
+                "field": "published",
+                "precision_threshold": "2.5",
+                "rehash": 1
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 4,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                }
+              }
+            ]
+          },
+          "aggregations": {
+            "dates": {
+              "value": 5
+            },
+            "years": {
+              "value": 5
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cardinality of a query's matches, none and an unmapped field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "query": {
+            "match": {
+              "title": "brown"
+            }
+          },
+          "size": 1,
+          "aggs": {
+            "years": {
+              "cardinality": {
+                "field": "year",
+                "precision_threshold": 100
+              }
+            },
+            "none": {
+              "cardinality": {
+                "field": "nope"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 0.52695787,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "4",
+                "_score": 0.52695787,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                }
+              }
+            ]
+          },
+          "aggregations": {
+            "none": {
+              "value": 0
+            },
+            "years": {
+              "value": 2
+            }
           }
         }
       }
