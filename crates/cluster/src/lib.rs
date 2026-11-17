@@ -17,6 +17,9 @@
 //!   from the leases, with the Java's hashes.
 //! - [`EarlyRevoke`]: revoking a refused peer's lease before it expires,
 //!   off by default (`serverless.lease.early_revoke`).
+//! - [`zones`]: a node's zone from its awareness attribute, the zone
+//!   preference that keeps a hot shard's searches in the coordinator's zone,
+//!   and the meter of bytes exchanged across zones.
 //! - [`transport_secret`]: the keys of the transport's request MAC, read
 //!   from their register and cached for one lease TTL.
 
@@ -25,6 +28,7 @@ pub use lease::early_revoke;
 pub mod placement;
 pub mod routing;
 pub mod transport_secret;
+pub mod zones;
 
 mod error;
 

@@ -3,7 +3,7 @@
 //! node from the leases alone so they agree without asking each other.
 //!
 //! Ported from the Java shell's `cluster/Rendezvous`, `ReaderPlacement`,
-//! `HotShardSpread`, `ZonePreference`, `Zones`, `ShardAssignment` and the
+//! `HotShardSpread`, `ShardAssignment` and the
 //! pure decisions of `node/FleetPlacement`, with the Java's hashes
 //! ([`murmur3`], [`java_hash_code`]) so Rust and Java nodes pick the same
 //! owner. Nothing here reads or writes the store: an answer is advice, and
@@ -13,7 +13,6 @@ mod fleet;
 mod hash;
 mod rendezvous;
 mod spread;
-mod zone;
 
 use oss_format::NodeLease;
 
@@ -27,7 +26,9 @@ pub use spread::{
     DEFAULT_MAX_READERS, DEFAULT_TARGET_PER_SECOND, HotShardSpread, MAX_TRACKED, Nanos, Running,
     SpreadConfig,
 };
-pub use zone::{
+// The zone preference lives in `zones`; re-exported here, where placement's
+// callers already look for it.
+pub use crate::zones::{
     DEFAULT_MIN_PER_SECOND, DEFAULT_SPILL_IN_FLIGHT, ZonePreference, crosses, normalise, same,
     zone_of,
 };

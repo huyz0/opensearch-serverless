@@ -16,10 +16,14 @@ src/placement/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverle
 src/placement/hash.rs	port	server/src/main/java/org/opensearch/cluster/routing/Murmur3HashFunction.java@3.3.0	hash(String) over each UTF-16 unit, and String.hashCode, both taking a key in parts
 src/placement/rendezvous.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/cluster/Rendezvous.java@1455ff58	owner, and ReaderPlacement.candidatesFor as readers_for
 src/placement/spread.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/cluster/HotShardSpread.java@1455ff58	the rate, width and two-choice pick; settings are a constructor argument until a node wires them
-src/placement/zone.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/cluster/ZonePreference.java@1455ff58	ZonePreference.order and Zones.same, crosses, zoneOf, normalise; the attribute and local zone come from settings with the node wiring
+src/zones/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/cluster/Zones.java@429b4cbc	attribute, localZone, zoneOf, same, crosses, normalise; the awareness list is read as Settings.getAsList reads flat settings (comma list or the key.0 array form, at most 64 entries)
+src/zones/preference.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/cluster/ZonePreference.java@1455ff58	ZonePreference.order; its settings come with the node wiring
+src/zones/traffic.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/transport/ZoneTraffic.java@429b4cbc	pathBetween, record, total, byAction, reset, and the stats handler's zone_traffic fields; action names bounded at 64 per path (overflow under _other); sizeOf is left to the caller, which knows its payload length
 src/placement/fleet.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/FleetPlacement.java@1455ff58	fleetSize, nearlyFull, memberWithRoom, takeoverWinner, fleetMeanHeld, aboveFleetShare, memberBelowMean, handOffTarget, writerFor over a view; takeoverBelongsElsewhere waits for shard heads
 tests/placement/main.rs	new		test support: the recorded fleet
 tests/placement/java.rs	new		hashes, owners, reader ranks and zone choice against the Java
+tests/zones/main.rs	new		the awareness attribute, the byte meter, and the Java's zone cost fleet modelled over placement
+tests/leases/zone.rs	new		the zone through renewal, the digest and a peer's refresh
 tests/placement/fleet.rs	new		fleet decisions against the Java
 tests/placement/spread.rs	new		hot-shard spread properties
 src/routing/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/routing/ShardMode.java@429b4cbc	ShardMode re-exported from oss-format; the errors the Java throws as IllegalArgument and IllegalState

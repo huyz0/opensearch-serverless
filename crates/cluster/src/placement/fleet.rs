@@ -11,9 +11,9 @@ use oss_format::{NodeLease, java_order};
 
 use super::hash::{ShardKey, decimal, java_hash_code};
 use super::rendezvous::owner;
-use super::zone::same;
 use super::{ROLE_INGEST, has_role};
 use crate::lease::lock;
+use crate::zones::same;
 
 /// The share of capacity a fleet is sized to use.
 pub const TARGET_UTILISATION: f64 = 0.8;

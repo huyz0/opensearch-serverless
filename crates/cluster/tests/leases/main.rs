@@ -14,6 +14,7 @@ mod refresh;
 mod renew;
 mod revoke;
 mod secret;
+mod zone;
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicI64, AtomicU32, Ordering};

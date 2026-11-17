@@ -1,16 +1,14 @@
-//! Keeping a search in the searching node's zone. Ported from
-//! `cluster/Zones.java` and `cluster/ZonePreference.java`: cross-zone
-//! traffic is billed, so a shard searched at least `min_per_second` from
-//! here is read by a reader in this zone when placement's first choice is
-//! in another, unless that reader is busier than the first choice by more
-//! than `spill_in_flight` searches. A cold shard keeps placement's answer,
-//! so a node does not pin every shard it ever searched to one local reader.
+//! Keeping a search in the searching node's zone (`cluster/ZonePreference`):
+//! a shard searched at least `min_per_second` from here is read by a reader
+//! in this zone when placement's first choice is in another, unless that
+//! reader is busier than the first choice by more than `spill_in_flight`
+//! searches. A cold shard keeps placement's answer, so a node does not pin
+//! every shard it ever searched to one local reader.
 
 use oss_format::NodeLease;
 
-use super::hash::ShardKey;
-use super::rendezvous::readers_for;
-use super::spread::HotShardSpread;
+use super::{same, zone_of};
+use crate::placement::{HotShardSpread, ShardKey, readers_for};
 
 /// The rate below which placement's choice is kept
 /// (`serverless.search.zone_local.min_per_second`).
@@ -19,29 +17,6 @@ pub const DEFAULT_MIN_PER_SECOND: f64 = 1.0;
 /// choice before the search spills to it
 /// (`serverless.search.zone_local.spill_in_flight`).
 pub const DEFAULT_SPILL_IN_FLIGHT: usize = 8;
-
-/// A zone as the Java compares it: blank is no zone.
-pub fn normalise(zone: Option<&str>) -> Option<&str> {
-    zone.map(str::trim).filter(|z| !z.is_empty())
-}
-
-/// Whether `a` and `b` name the same zone; no zone matches nothing.
-pub fn same(a: Option<&str>, b: Option<&str>) -> bool {
-    a.is_some() && a == b
-}
-
-/// Whether traffic from `a` to `b` crosses zones: both known and differing.
-pub fn crosses(a: Option<&str>, b: Option<&str>) -> bool {
-    a.is_some() && b.is_some() && a != b
-}
-
-/// The zone `node_id`'s lease names among `members`.
-pub fn zone_of<'a>(members: &'a [NodeLease], node_id: &str) -> Option<&'a str> {
-    members
-        .iter()
-        .find(|l| l.node_id == node_id)
-        .and_then(NodeLease::zone)
-}
 
 /// The zone preference: when a search stays in this node's zone.
 #[derive(Debug, Clone, Copy, PartialEq)]
