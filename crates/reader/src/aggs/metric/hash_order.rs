@@ -100,4 +100,39 @@ mod tests {
         assert!(pos("a") < pos("q"));
         assert_eq!(order.len(), 13);
     }
+
+    #[test]
+    fn a_ninth_name_in_one_bucket_doubles_a_small_table() {
+        // Nine names in bucket 17 of 64 ("k16" ... "k1056") and "k70" in
+        // bucket 5: the ninth doubles the table to 32, which lists "k70"
+        // first. Java's `HashMap` prints this same order.
+        let names = [
+            "k16", "k38", "k160", "k182", "k281", "k380", "k1012", "k1034", "k1056", "k70",
+        ];
+        assert_eq!(hash_map_order(&names), [9, 0, 1, 2, 3, 4, 5, 6, 7, 8]);
+    }
+
+    #[test]
+    fn a_table_of_64_does_not_double_for_a_full_bucket() {
+        // Eleven names in bucket 65 of 128, "k33" in bucket 10: the table
+        // stops at 64, where the eleven (bucket 1) come before "k33". Java
+        // lists "k33" last too; it orders the treeified bucket itself
+        // differently, which is not modelled.
+        let names = [
+            "k209", "k407", "k528", "k605", "k649", "k726", "k803", "k847", "k924", "k968",
+            "k1919", "k33",
+        ];
+        assert_eq!(hash_map_order(&names).last(), Some(&11));
+    }
+
+    #[test]
+    fn twelve_names_fit_a_table_of_16() {
+        // Twelve is three quarters of 16, not past it: "q" and "a" still
+        // share bucket 1 in the order they were put, as Java lists them.
+        let names = ["q", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"];
+        assert_eq!(
+            hash_map_order(&names),
+            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+        );
+    }
 }
