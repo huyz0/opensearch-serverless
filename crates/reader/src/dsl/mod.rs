@@ -4,10 +4,12 @@
 //! tokens a [`Recorder`] keeps within a byte limit; [`SearchSource::parse`]
 //! then reads them with the ported OpenSearch parsers. No JSON tree is
 //! built and the body is never held whole. The subset is `match_all`,
-//! `term`, `match`, `range` and `bool`, with `size`, `from` and `sort`.
+//! `term`, `match`, `range` and `bool`, the queries of [`queries`], with
+//! `size`, `from` and `sort`.
 
 pub mod bool_query;
 pub mod error;
+pub mod queries;
 pub mod query;
 pub mod registered;
 pub mod sort;

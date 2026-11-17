@@ -298,6 +298,7 @@ fn has_points(query: &BooleanQuery) -> bool {
             Clause::Boolean(b) => has_points(b),
             Clause::Boost(b) => walk(&b.inner),
             Clause::ConstantScore(c) => walk(&c.inner),
+            Clause::DisjunctionMax(d) => d.disjuncts.iter().any(walk),
             _ => false,
         }
     }
@@ -314,12 +315,20 @@ fn has_points(query: &BooleanQuery) -> bool {
 fn scored_fields(query: &BooleanQuery) -> Vec<String> {
     fn walk(c: &Clause, out: &mut Vec<String>) {
         match c {
-            Clause::Term(t) if !out.contains(&t.field) => {
+            Clause::Term(lucene_search::TermQuery { field, .. })
+            | Clause::Fuzzy(lucene_search::FuzzyQuery { field, .. })
+                if !out.contains(field) =>
+            {
                 // ALLOC: one name a scored field, at most the query's terms.
-                out.push(t.field.clone());
+                out.push(field.clone());
             }
             Clause::Boolean(b) => each(b, out),
             Clause::Boost(b) => walk(&b.inner, out),
+            Clause::DisjunctionMax(d) => {
+                for c in &d.disjuncts {
+                    walk(c, out);
+                }
+            }
             _ => {}
         }
     }

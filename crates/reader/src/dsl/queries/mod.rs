@@ -1,0 +1,205 @@
+//! The queries beyond the first subset: term-level queries (`terms`,
+//! `prefix`, `wildcard`, `regexp`, `fuzzy`, `exists`, `ids`) and compound
+//! ones (`constant_score`, `dis_max`, `match_none`).
+//!
+//! Each parser is ported from its builder's `fromXContent` at OpenSearch
+//! 3.10.0 (server/src/main/java/org/opensearch/index/query/), with the same
+//! messages; [`build`] holds their `doToQuery`. A parameter OpenSearch takes
+//! but this reader does not serve yet is refused rather than ignored.
+
+pub mod build;
+pub mod compound;
+pub mod single_field;
+pub mod term_level;
+pub mod uid;
+
+use crate::dsl::error::DslError;
+use crate::dsl::query::Query;
+use crate::dsl::tokens::Parser;
+use crate::dsl::values::Value;
+
+/// The names [`parse`] reads.
+pub const NAMES: &[&str] = &[
+    "terms",
+    "prefix",
+    "wildcard",
+    "regexp",
+    "fuzzy",
+    "exists",
+    "ids",
+    "constant_score",
+    "dis_max",
+    "match_none",
+];
+
+/// `Fuzziness`: an edit distance, or `AUTO` with its two length bounds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Fuzziness {
+    /// A fixed distance: 0, 1 or 2.
+    Edits(u8),
+    /// `AUTO:low,high`: 0 edits below `low` characters, 1 below `high`, 2
+    /// from there.
+    Auto {
+        /// Terms shorter than this take no edit.
+        low: i32,
+        /// Terms shorter than this take one edit.
+        high: i32,
+    },
+}
+
+impl Fuzziness {
+    /// `Fuzziness.AUTO`, the default.
+    pub const AUTO: Fuzziness = Fuzziness::Auto { low: 3, high: 6 };
+
+    /// `Fuzziness.asDistance(text)`: the edits for a term, its length
+    /// counted in code points as `termLen` counts.
+    pub fn as_distance(self, text: &str) -> u8 {
+        match self {
+            Fuzziness::Edits(n) => n,
+            Fuzziness::Auto { low, high } => {
+                let len = i64::try_from(text.chars().count()).unwrap_or(i64::MAX);
+                if len < i64::from(low) {
+                    0
+                } else if len < i64::from(high) {
+                    1
+                } else {
+                    2
+                }
+            }
+        }
+    }
+}
+
+/// A parsed query of this module.
+#[derive(Clone, Debug, PartialEq)]
+pub enum More {
+    /// `TermsQueryBuilder` with values (no terms lookup).
+    Terms {
+        /// The field.
+        field: String,
+        /// The values; empty matches nothing.
+        values: Vec<Value>,
+        /// The boost.
+        boost: f32,
+    },
+    /// `PrefixQueryBuilder`.
+    Prefix {
+        /// The field.
+        field: String,
+        /// The prefix.
+        value: String,
+        /// The boost.
+        boost: f32,
+    },
+    /// `WildcardQueryBuilder`.
+    Wildcard {
+        /// The field.
+        field: String,
+        /// The pattern: `*` any run, `?` one character, `\` an escape.
+        value: String,
+        /// The boost.
+        boost: f32,
+    },
+    /// `RegexpQueryBuilder` with the default flags.
+    Regexp {
+        /// The field.
+        field: String,
+        /// The regular expression, matched against whole terms.
+        value: String,
+        /// The boost.
+        boost: f32,
+    },
+    /// `FuzzyQueryBuilder`.
+    Fuzzy {
+        /// The field.
+        field: String,
+        /// The term.
+        value: Value,
+        /// How many edits.
+        fuzziness: Fuzziness,
+        /// How many leading characters must match exactly.
+        prefix_length: i32,
+        /// The most terms the query expands to.
+        max_expansions: i32,
+        /// Whether a swap of two adjacent characters is one edit.
+        transpositions: bool,
+        /// The boost.
+        boost: f32,
+    },
+    /// `ExistsQueryBuilder`.
+    Exists {
+        /// The field name or pattern.
+        field: String,
+        /// The boost.
+        boost: f32,
+    },
+    /// `IdsQueryBuilder`.
+    Ids {
+        /// The ids.
+        values: Vec<String>,
+        /// The boost.
+        boost: f32,
+    },
+    /// `ConstantScoreQueryBuilder`.
+    ConstantScore {
+        /// The filter.
+        filter: Query,
+        /// The boost, which is the score.
+        boost: f32,
+    },
+    /// `DisMaxQueryBuilder`.
+    DisMax {
+        /// The disjuncts.
+        queries: Vec<Query>,
+        /// How much of the other disjuncts' scores is added to the best.
+        tie_breaker: f32,
+        /// The boost.
+        boost: f32,
+    },
+    /// `MatchNoneQueryBuilder`.
+    MatchNone {
+        /// The boost.
+        boost: f32,
+    },
+}
+
+impl More {
+    /// The query's boost.
+    pub fn boost(&self) -> f32 {
+        match self {
+            More::Terms { boost, .. }
+            | More::Prefix { boost, .. }
+            | More::Wildcard { boost, .. }
+            | More::Regexp { boost, .. }
+            | More::Fuzzy { boost, .. }
+            | More::Exists { boost, .. }
+            | More::Ids { boost, .. }
+            | More::ConstantScore { boost, .. }
+            | More::DisMax { boost, .. }
+            | More::MatchNone { boost } => *boost,
+        }
+    }
+}
+
+/// Parses query `name`, one of [`NAMES`]: the parser is on the query
+/// object's start, and ends on its end.
+pub fn parse(name: &str, p: &mut Parser<'_>) -> Result<More, DslError> {
+    match name {
+        "terms" => term_level::parse_terms(p),
+        "prefix" => term_level::parse_prefix(p),
+        "wildcard" => term_level::parse_wildcard(p),
+        "regexp" => term_level::parse_regexp(p),
+        "fuzzy" => term_level::parse_fuzzy(p),
+        "exists" => term_level::parse_exists(p),
+        "ids" => term_level::parse_ids(p),
+        "constant_score" => compound::parse_constant_score(p),
+        "dis_max" => compound::parse_dis_max(p),
+        _ => compound::parse_match_none(p),
+    }
+}
+
+#[cfg(test)]
+mod parse_tests;
+
+#[cfg(test)]
+mod build_tests;
