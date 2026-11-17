@@ -223,7 +223,7 @@ enum Answer {
 
 fn bad_request(e: DslError) -> Answer {
     // ALLOC: error path; one box.
-    Answer::Search(Box::new(SearchError::request(400, e.into_failure())))
+    Answer::Search(Box::new(SearchError::request(e.status(), e.into_failure())))
 }
 
 /// The body, streamed through the recorder, and the URL parameters.

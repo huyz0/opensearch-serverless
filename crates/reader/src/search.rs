@@ -22,6 +22,7 @@ use lucene_search::{BooleanQuery, Clause};
 use oss_blob::BlobStore;
 
 use crate::OpenShard;
+use crate::aggs::metric::{self, Partial, state_bytes};
 use crate::dsl::{SearchSource, SortKey};
 use crate::failure::{Failure, Meta};
 use crate::lucene_query::{QueryContext, shard_failure, to_lucene};
@@ -66,6 +67,8 @@ pub struct Hits {
     pub max_score: Option<f32>,
     /// The hits after `from`, at most `size`.
     pub hits: Vec<Hit>,
+    /// The aggregations' shard-level results, in request order.
+    pub aggregations: Vec<Partial>,
 }
 
 /// A failure on the shard, with the HTTP status it answers with.
@@ -133,7 +136,9 @@ pub fn hits_bytes<S: BlobStore + 'static>(source: &SearchSource, shard: &OpenSha
             std::mem::size_of::<SortValue>().saturating_add(std::mem::size_of::<[i64; 2]>()),
         ))
         .saturating_add(terms.saturating_mul(MAX_TERM_BYTES.saturating_mul(2)));
-    window.saturating_mul(per_hit)
+    window
+        .saturating_mul(per_hit)
+        .saturating_add(state_bytes(&source.aggs))
 }
 
 /// The total a search reports, as `SearchPhaseController.TopDocsStats.getTotalHits`
@@ -203,6 +208,7 @@ pub fn search<S: BlobStore + 'static>(
         opened.open_points().map_err(ShardError::engine)?;
     }
     let segments = opened.as_open_segments();
+    let aggregations = metric::collect(&source.aggs, shard, &segments, &query)?;
     match sort {
         Some((keys, kinds)) if window > 0 => {
             let top = search_sorted(
@@ -230,6 +236,7 @@ pub fn search<S: BlobStore + 'static>(
                 exact,
                 max_score: None,
                 hits,
+                aggregations,
             })
         }
         _ => {
@@ -257,6 +264,7 @@ pub fn search<S: BlobStore + 'static>(
                     })
                     // ALLOC: one hit a result, at most MAX_RESULT_WINDOW.
                     .collect(),
+                aggregations,
             })
         }
     }

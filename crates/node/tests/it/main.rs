@@ -7,6 +7,7 @@
 #[path = "../support/mod.rs"]
 mod support;
 
+mod aggs_budgets;
 mod budgets;
 mod built;
 mod search;

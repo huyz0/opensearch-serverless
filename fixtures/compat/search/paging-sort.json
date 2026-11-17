@@ -139,7 +139,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 17,
+          "took": 30,
           "errors": false,
           "items": [
             {
@@ -433,7 +433,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 7,
+          "took": 6,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -535,7 +535,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 15,
+          "took": 18,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -653,7 +653,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 3,
+          "took": 4,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -767,7 +767,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 1,
+          "took": 2,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -888,7 +888,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 14,
+          "took": 21,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -981,7 +981,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 2,
+          "took": 4,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -1039,6 +1039,835 @@
       "request": {
         "method": "GET",
         "path": "/compat-paging-sort/_search"
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                }
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "2",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Lazy dogs sleep all day",
+                  "tag": "animal",
+                  "year": 2002,
+                  "published": "2002-07-01T10:15:30Z"
+                }
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "3",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Quick start guide",
+                  "tag": "manual",
+                  "year": 2010,
+                  "published": "2010-01-01"
+                }
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "4",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                }
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "5",
+                "_score": 1.0,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "published": "1999-12-31"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "metric aggregations over both segments",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "query": {
+            "match_all": {}
+          },
+          "aggs": {
+            "min_year": {
+              "min": {
+                "field": "year"
+              }
+            },
+            "max_year": {
+              "max": {
+                "field": "year"
+              }
+            },
+            "sum_year": {
+              "sum": {
+                "field": "year"
+              }
+            },
+            "avg_year": {
+              "avg": {
+                "field": "year"
+              }
+            },
+            "stats_year": {
+              "stats": {
+                "field": "year"
+              }
+            },
+            "count_year": {
+              "value_count": {
+                "field": "year"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                }
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "2",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Lazy dogs sleep all day",
+                  "tag": "animal",
+                  "year": 2002,
+                  "published": "2002-07-01T10:15:30Z"
+                }
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "3",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Quick start guide",
+                  "tag": "manual",
+                  "year": 2010,
+                  "published": "2010-01-01"
+                }
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "4",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                }
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "5",
+                "_score": 1.0,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "published": "1999-12-31"
+                }
+              }
+            ]
+          },
+          "aggregations": {
+            "sum_year": {
+              "value": 10014.0
+            },
+            "count_year": {
+              "value": 5
+            },
+            "stats_year": {
+              "count": 5,
+              "min": 1999.0,
+              "max": 2010.0,
+              "avg": 2002.8,
+              "sum": 10014.0
+            },
+            "min_year": {
+              "value": 1999.0
+            },
+            "max_year": {
+              "value": 2010.0
+            },
+            "avg_year": {
+              "value": 2002.8
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "metric aggregations of a date field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "aggregations": {
+            "first": {
+              "min": {
+                "field": "published"
+              }
+            },
+            "last": {
+              "max": {
+                "field": "published"
+              }
+            },
+            "total": {
+              "sum": {
+                "field": "published"
+              }
+            },
+            "mean": {
+              "avg": {
+                "field": "published"
+              }
+            },
+            "all": {
+              "stats": {
+                "field": "published"
+              }
+            },
+            "count": {
+              "value_count": {
+                "field": "published"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                }
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "2",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Lazy dogs sleep all day",
+                  "tag": "animal",
+                  "year": 2002,
+                  "published": "2002-07-01T10:15:30Z"
+                }
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "3",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Quick start guide",
+                  "tag": "manual",
+                  "year": 2010,
+                  "published": "2010-01-01"
+                }
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "4",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                }
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "5",
+                "_score": 1.0,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "published": "1999-12-31"
+                }
+              }
+            ]
+          },
+          "aggregations": {
+            "all": {
+              "count": 5,
+              "min": 946598400000.0,
+              "max": 1262304000000.0,
+              "avg": 1051892825999.8,
+              "sum": 5259464129999.0,
+              "min_as_string": "1999-12-31T00:00:00.000Z",
+              "max_as_string": "2010-01-01T00:00:00.000Z",
+              "avg_as_string": "2003-05-02T16:27:05.999Z",
+              "sum_as_string": "2136-08-31T10:15:29.999Z"
+            },
+            "total": {
+              "value": 5259464129999.0,
+              "value_as_string": "2136-08-31T10:15:29.999Z"
+            },
+            "last": {
+              "value": 1262304000000.0,
+              "value_as_string": "2010-01-01T00:00:00.000Z"
+            },
+            "mean": {
+              "value": 1051892825999.8,
+              "value_as_string": "2003-05-02T16:27:05.999Z"
+            },
+            "count": {
+              "value": 5
+            },
+            "first": {
+              "value": 946598400000.0,
+              "value_as_string": "1999-12-31T00:00:00.000Z"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "metric aggregations of a query's matches",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "query": {
+            "match": {
+              "title": "brown"
+            }
+          },
+          "size": 1,
+          "aggs": {
+            "stats_year": {
+              "stats": {
+                "field": "year"
+              }
+            },
+            "avg_published": {
+              "avg": {
+                "field": "published"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 0.52695787,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "4",
+                "_score": 0.52695787,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                }
+              }
+            ]
+          },
+          "aggregations": {
+            "avg_published": {
+              "value": 1012521599999.5,
+              "value_as_string": "2002-01-31T23:59:59.999Z"
+            },
+            "stats_year": {
+              "count": 2,
+              "min": 2001.0,
+              "max": 2002.0,
+              "avg": 2001.5,
+              "sum": 4003.0
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "metric aggregations with no match",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "query": {
+            "term": {
+              "tag": "none"
+            }
+          },
+          "aggs": {
+            "min_year": {
+              "min": {
+                "field": "year"
+              }
+            },
+            "stats_year": {
+              "stats": {
+                "field": "year"
+              }
+            },
+            "avg_year": {
+              "avg": {
+                "field": "year"
+              }
+            },
+            "sum_year": {
+              "sum": {
+                "field": "year"
+              }
+            },
+            "count_year": {
+              "value_count": {
+                "field": "year"
+              }
+            },
+            "max_published": {
+              "max": {
+                "field": "published"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 0,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "max_published": {
+              "value": null
+            },
+            "sum_year": {
+              "value": 0.0
+            },
+            "count_year": {
+              "value": 0
+            },
+            "stats_year": {
+              "count": 0,
+              "min": null,
+              "max": null,
+              "avg": null,
+              "sum": 0.0
+            },
+            "min_year": {
+              "value": null
+            },
+            "avg_year": {
+              "value": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "metric aggregations of an unmapped field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "aggs": {
+            "a": {
+              "min": {
+                "field": "nope"
+              }
+            },
+            "b": {
+              "stats": {
+                "field": "nope"
+              }
+            },
+            "c": {
+              "value_count": {
+                "field": "nope"
+              }
+            },
+            "d": {
+              "avg": {
+                "field": "nope"
+              }
+            },
+            "e": {
+              "sum": {
+                "field": "nope"
+              }
+            },
+            "f": {
+              "max": {
+                "field": "nope"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                }
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "2",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Lazy dogs sleep all day",
+                  "tag": "animal",
+                  "year": 2002,
+                  "published": "2002-07-01T10:15:30Z"
+                }
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "3",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Quick start guide",
+                  "tag": "manual",
+                  "year": 2010,
+                  "published": "2010-01-01"
+                }
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "4",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                }
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "5",
+                "_score": 1.0,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "published": "1999-12-31"
+                }
+              }
+            ]
+          },
+          "aggregations": {
+            "a": {
+              "value": null
+            },
+            "b": {
+              "count": 0,
+              "min": null,
+              "max": null,
+              "avg": null,
+              "sum": 0.0
+            },
+            "c": {
+              "value": 0
+            },
+            "d": {
+              "value": null
+            },
+            "e": {
+              "value": 0.0
+            },
+            "f": {
+              "value": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "metric aggregations sorted and paged",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "from": 1,
+          "size": 2,
+          "sort": [
+            {
+              "year": "desc"
+            }
+          ],
+          "aggs": {
+            "y": {
+              "max": {
+                "field": "year"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 8,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "2",
+                "_score": null,
+                "_source": {
+                  "title": "Lazy dogs sleep all day",
+                  "tag": "animal",
+                  "year": 2002,
+                  "published": "2002-07-01T10:15:30Z"
+                },
+                "sort": [
+                  2002
+                ]
+              },
+              {
+                "_index": "compat-paging-sort",
+                "_id": "4",
+                "_score": null,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                },
+                "sort": [
+                  2002
+                ]
+              }
+            ]
+          },
+          "aggregations": {
+            "y": {
+              "value": 2010.0
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "an empty aggregations object",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "aggs": {}
+        }
       },
       "normalise": [
         {
