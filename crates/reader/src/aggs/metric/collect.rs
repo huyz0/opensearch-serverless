@@ -128,14 +128,20 @@ fn resolve<S: BlobStore + 'static>(
     Ok(Resolved::Numeric(format))
 }
 
+/// What `avg` reads: the sum and the count.
+const AVG_NEEDS: u8 = NEED_SUM | NEED_COUNT;
+
+/// What `stats` reads: the count, the sum, the smallest and the largest.
+const STATS_NEEDS: u8 = NEED_COUNT | NEED_SUM | NEED_MIN_MAX;
+
 /// What a metric reads of its field's state.
 fn needs(metric: Metric) -> u8 {
     match metric {
         Metric::Min => NEED_MIN,
         Metric::Max => NEED_MAX,
         Metric::Sum => NEED_SUM,
-        Metric::Avg => NEED_SUM | NEED_COUNT,
-        Metric::Stats => NEED_COUNT | NEED_SUM | NEED_MIN_MAX,
+        Metric::Avg => AVG_NEEDS,
+        Metric::Stats => STATS_NEEDS,
         Metric::ValueCount => NEED_COUNT,
     }
 }
