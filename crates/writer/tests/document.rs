@@ -382,6 +382,8 @@ fn leap_days_follow_the_gregorian_rules() {
         ("2024-02-29", true),
         ("1900-02-29", false),
         ("2023-02-29", false),
+        ("2020-13-01", false),
+        ("2020-00-01", false),
     ] {
         let doc = parse(&m, &format!(r#"{{"dt":"{text}"}}"#));
         assert_eq!(doc.is_ok(), ok, "{text}: {doc:?}");
