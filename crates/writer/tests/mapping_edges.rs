@@ -28,6 +28,10 @@ fn meta_limits_are_javas() {
         cause(&meta(&over.join(","))),
         "[meta] can't have more than 100 entries, but got 101 on field [a]"
     );
+    let longest_key = "k".repeat(255);
+    assert!(parse(&meta(&format!(r#""{longest_key}":"v""#))).is_ok());
+    let longest_value = "v".repeat(10_000);
+    assert!(parse(&meta(&format!(r#""k":"{longest_value}""#))).is_ok());
     let key = "k".repeat(256);
     assert_eq!(
         cause(&meta(&format!(r#""{key}":"v""#))),

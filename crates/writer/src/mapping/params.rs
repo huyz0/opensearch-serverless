@@ -226,12 +226,9 @@ pub fn parse_int(node: &Json) -> Result<i32, MappingError> {
     }
 }
 
-/// `Integer.parseInt`: an optional sign and decimal digits.
+/// `Integer.parseInt`: an optional sign and decimal digits, which is what
+/// `i32`'s parse takes.
 fn java_parse_int(text: &str) -> Option<i32> {
-    let digits = text.strip_prefix(['+', '-']).unwrap_or(text);
-    if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
-        return None;
-    }
     text.parse().ok()
 }
 
