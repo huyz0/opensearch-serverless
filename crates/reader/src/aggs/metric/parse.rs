@@ -4,10 +4,12 @@
 //!
 //! Every aggregation type OpenSearch registers but this node does not serve
 //! is refused as not supported yet; a type it does not know fails as it
-//! fails there ("Unknown aggregation type [..]"). Of a metric's keys, only
-//! `field` is served.
+//! fails there ("Unknown aggregation type [..]"). Of a metric's keys,
+//! `field` and each metric's own options are served
+//! ([`parse_percentiles_body`] for the two percentile metrics).
 
-use crate::aggs::metric::{CardinalityOptions, Metric, MetricAgg};
+use crate::aggs::metric::percentiles::parse_percentiles_body;
+use crate::aggs::metric::{CardinalityOptions, Metric, MetricAgg, PercentilesOptions};
 use crate::dsl::error::{DslError, parsing_failure};
 use crate::dsl::tokens::{Kind, Parser};
 use crate::dsl::values::suggest;
@@ -249,13 +251,23 @@ fn parse_definition(p: &mut Parser<'_>, name: &str, level: usize) -> Result<Defi
                         .caused_by(cause),
                     ));
                 };
-                let (field, cardinality) = parse_metric_body(p, metric, name)?;
+                let (field, cardinality, percentiles) = match metric {
+                    Metric::Percentiles | Metric::PercentileRanks => {
+                        let (field, options) = parse_percentiles_body(p, metric, name)?;
+                        (field, CardinalityOptions::default(), options)
+                    }
+                    _ => {
+                        let (field, options) = parse_metric_body(p, metric, name)?;
+                        (field, options, PercentilesOptions::default())
+                    }
+                };
                 definition.agg = Some(MetricAgg {
                     // ALLOC: one name an aggregation, bounded by the body's recording.
                     name: name.to_owned(),
                     metric,
                     field,
                     cardinality,
+                    percentiles,
                 });
             }
         }

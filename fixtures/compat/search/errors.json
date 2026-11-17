@@ -103,7 +103,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 37,
+          "took": 11,
           "errors": false,
           "items": [
             {
@@ -1382,6 +1382,644 @@
                 "reason": "Text fields are not optimised for operations that require per-document field data like aggregations and sorting, so these operations are disabled by default. Please use a keyword field instead. Alternatively, set fielddata=true on [title] in order to load field data by uninverting the inverted index. Note that this can use significant memory."
               }
             }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "percentiles with no percents",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "p": {
+              "percentiles": {
+                "field": "year",
+                "percents": []
+              }
+            }
+          }
+        }
+      },
+      "normalise": [],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "x_content_parse_exception",
+                "reason": "Failed to build [percentiles] after last required field arrived"
+              }
+            ],
+            "type": "x_content_parse_exception",
+            "reason": "Failed to build [percentiles] after last required field arrived",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "[percents] must not be empty: [p]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "a percent above 100",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "p": {
+              "percentiles": {
+                "field": "year",
+                "percents": [
+                  5,
+                  101
+                ]
+              }
+            }
+          }
+        }
+      },
+      "normalise": [],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "x_content_parse_exception",
+                "reason": "Failed to build [percentiles] after last required field arrived"
+              }
+            ],
+            "type": "x_content_parse_exception",
+            "reason": "Failed to build [percentiles] after last required field arrived",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "percent must be in [0,100], got [101.0]: [p]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "percentile ranks without values",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "p": {
+              "percentile_ranks": {
+                "field": "year"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "x_content_parse_exception",
+                "reason": "Failed to build [percentile_ranks] after last required field arrived"
+              }
+            ],
+            "type": "x_content_parse_exception",
+            "reason": "Failed to build [percentile_ranks] after last required field arrived",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "[values] must not be null: [p]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "percentile ranks with no values",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "p": {
+              "percentile_ranks": {
+                "field": "year",
+                "values": []
+              }
+            }
+          }
+        }
+      },
+      "normalise": [],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "x_content_parse_exception",
+                "reason": "Failed to build [percentile_ranks] after last required field arrived"
+              }
+            ],
+            "type": "x_content_parse_exception",
+            "reason": "Failed to build [percentile_ranks] after last required field arrived",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "[values] must not be an empty array: [p]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "a negative compression",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "p": {
+              "percentiles": {
+                "field": "year",
+                "tdigest": {
+                  "compression": -1
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "x_content_parse_exception",
+                "reason": "[1:70] [tdigest] failed to parse field [compression]"
+              }
+            ],
+            "type": "x_content_parse_exception",
+            "reason": "[1:70] [percentiles] failed to parse field [tdigest]",
+            "caused_by": {
+              "type": "x_content_parse_exception",
+              "reason": "[1:70] [tdigest] failed to parse field [compression]",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "[compression] must be greater than or equal to 0. Found [-1.0]"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "a compression that is not a number",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "p": {
+              "percentiles": {
+                "field": "year",
+                "tdigest": {
+                  "compression": "x"
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "x_content_parse_exception",
+                "reason": "[1:70] [tdigest] failed to parse field [compression]"
+              }
+            ],
+            "type": "x_content_parse_exception",
+            "reason": "[1:70] [percentiles] failed to parse field [tdigest]",
+            "caused_by": {
+              "type": "x_content_parse_exception",
+              "reason": "[1:70] [tdigest] failed to parse field [compression]",
+              "caused_by": {
+                "type": "number_format_exception",
+                "reason": "For input string: \"x\""
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "an unknown tdigest key",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "p": {
+              "percentiles": {
+                "field": "year",
+                "tdigest": {
+                  "compresion": 1
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "x_content_parse_exception",
+                "reason": "[1:56] [tdigest] unknown field [compresion] did you mean [compression]?"
+              }
+            ],
+            "type": "x_content_parse_exception",
+            "reason": "[1:69] [percentiles] failed to parse field [tdigest]",
+            "caused_by": {
+              "type": "x_content_parse_exception",
+              "reason": "[1:56] [tdigest] unknown field [compresion] did you mean [compression]?"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "a tdigest that is not an object",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "p": {
+              "percentiles": {
+                "field": "year",
+                "tdigest": 5
+              }
+            }
+          }
+        }
+      },
+      "normalise": [],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "x_content_parse_exception",
+                "reason": "[1:55] [percentiles] tdigest doesn't support values of type: VALUE_NUMBER"
+              }
+            ],
+            "type": "x_content_parse_exception",
+            "reason": "[1:55] [percentiles] tdigest doesn't support values of type: VALUE_NUMBER"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "percents given an object",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "p": {
+              "percentiles": {
+                "field": "year",
+                "percents": {}
+              }
+            }
+          }
+        }
+      },
+      "normalise": [],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "x_content_parse_exception",
+                "reason": "[1:56] [percentiles] percents doesn't support values of type: START_OBJECT"
+              }
+            ],
+            "type": "x_content_parse_exception",
+            "reason": "[1:56] [percentiles] percents doesn't support values of type: START_OBJECT"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "a percent that is not a number",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "p": {
+              "percentiles": {
+                "field": "year",
+                "percents": [
+                  1,
+                  "x"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "normalise": [],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "x_content_parse_exception",
+                "reason": "[1:59] [percentiles] failed to parse field [percents]"
+              }
+            ],
+            "type": "x_content_parse_exception",
+            "reason": "[1:59] [percentiles] failed to parse field [percents]",
+            "caused_by": {
+              "type": "number_format_exception",
+              "reason": "For input string: \"x\""
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "keyed that is not a boolean",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "p": {
+              "percentiles": {
+                "field": "year",
+                "keyed": "yes"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "x_content_parse_exception",
+                "reason": "[1:53] [percentiles] failed to parse field [keyed]"
+              }
+            ],
+            "type": "x_content_parse_exception",
+            "reason": "[1:53] [percentiles] failed to parse field [keyed]",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Failed to parse value [yes] as only [true] or [false] are allowed."
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "an unknown percentiles key",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "p": {
+              "percentiles": {
+                "field": "year",
+                "method": "tdigest"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "x_content_parse_exception",
+                "reason": "[1:45] [percentiles] unknown field [method]"
+              }
+            ],
+            "type": "x_content_parse_exception",
+            "reason": "[1:45] [percentiles] unknown field [method]"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "percentiles with no field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "p": {
+              "percentiles": {
+                "percents": [
+                  1
+                ]
+              }
+            }
+          }
+        }
+      },
+      "normalise": [],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Required one of fields [field, script], but none were specified. "
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Required one of fields [field, script], but none were specified. "
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "percentiles of a keyword field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "p": {
+              "percentiles": {
+                "field": "tag"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Field [tag] of type [keyword] is not supported for aggregation [percentiles]"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-errors",
+                "node": "RrioyQY1SImtIrCF0TThrg",
+                "reason": {
+                  "type": "illegal_argument_exception",
+                  "reason": "Field [tag] of type [keyword] is not supported for aggregation [percentiles]"
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Field [tag] of type [keyword] is not supported for aggregation [percentiles]",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Field [tag] of type [keyword] is not supported for aggregation [percentiles]"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "a NaN value to rank",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "p": {
+              "percentile_ranks": {
+                "field": "year",
+                "values": [
+                  "NaN"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "normalise": [],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Invalid value: NaN"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Invalid value: NaN"
           },
           "status": 400
         }

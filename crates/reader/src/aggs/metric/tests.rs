@@ -22,6 +22,7 @@ fn reason(body: &str) -> String {
 fn agg(name: &str, metric: Metric, field: &str) -> MetricAgg {
     MetricAgg {
         cardinality: crate::aggs::metric::CardinalityOptions::default(),
+        percentiles: crate::aggs::metric::PercentilesOptions::default(),
         name: name.to_owned(),
         metric,
         field: field.to_owned(),

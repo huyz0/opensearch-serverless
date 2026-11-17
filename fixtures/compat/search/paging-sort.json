@@ -139,7 +139,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 111,
+          "took": 43,
           "errors": false,
           "items": [
             {
@@ -255,7 +255,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 60,
+          "took": 2,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -322,7 +322,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 7,
+          "took": 1,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -388,7 +388,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 3,
+          "took": 1,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -433,7 +433,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 15,
+          "took": 1,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -474,7 +474,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 6,
+          "took": 1,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -535,7 +535,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 30,
+          "took": 1,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -653,7 +653,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 5,
+          "took": 1,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -767,7 +767,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 7,
+          "took": 1,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -888,7 +888,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 45,
+          "took": 2,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -981,7 +981,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 5,
+          "took": 1,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -1052,7 +1052,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 2,
+          "took": 1,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -1182,7 +1182,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 35,
+          "took": 2,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -1333,7 +1333,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 6,
+          "took": 2,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -1478,7 +1478,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 5,
+          "took": 1,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -1579,7 +1579,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 3,
+          "took": 1,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -1674,7 +1674,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 8,
+          "took": 1,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -1807,7 +1807,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 10,
+          "took": 1,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -1881,7 +1881,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 2,
+          "took": 1,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -1995,7 +1995,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 21,
+          "took": 1,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -2073,7 +2073,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 4,
+          "took": 3,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -2151,7 +2151,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 3,
+          "took": 2,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -2185,6 +2185,474 @@
             },
             "years": {
               "value": 2
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "percentiles and percentile ranks of a number and a date",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "size": 1,
+          "aggs": {
+            "years": {
+              "percentiles": {
+                "field": "year"
+              }
+            },
+            "dates": {
+              "percentiles": {
+                "field": "published",
+                "percents": [
+                  50,
+                  0,
+                  100
+                ]
+              }
+            },
+            "ranks": {
+              "percentile_ranks": {
+                "field": "year",
+                "values": [
+                  2000,
+                  2001.5,
+                  "2003"
+                ]
+              }
+            },
+            "date_ranks": {
+              "percentile_ranks": {
+                "field": "published",
+                "values": [
+                  1000000000000
+                ]
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                }
+              }
+            ]
+          },
+          "aggregations": {
+            "ranks": {
+              "values": {
+                "2000.0": 20.0,
+                "2001.5": 40.0,
+                "2003.0": 80.0
+              }
+            },
+            "dates": {
+              "values": {
+                "0.0": 946598400000.0,
+                "0.0_as_string": "1999-12-31T00:00:00.000Z",
+                "50.0": 1025518530000.0,
+                "50.0_as_string": "2002-07-01T10:15:30.000Z",
+                "100.0": 1262304000000.0,
+                "100.0_as_string": "2010-01-01T00:00:00.000Z"
+              }
+            },
+            "date_ranks": {
+              "values": {
+                "1.0E12": 40.0,
+                "1.0E12_as_string": "1970-01-01T00:00:00.040Z"
+              }
+            },
+            "years": {
+              "values": {
+                "1.0": 1999.0,
+                "5.0": 1999.0,
+                "25.0": 2001.0,
+                "50.0": 2002.0,
+                "75.0": 2002.0,
+                "95.0": 2010.0,
+                "99.0": 2010.0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "percentiles unkeyed, repeated, as one value and compressed",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "size": 1,
+          "aggs": {
+            "list": {
+              "percentiles": {
+                "field": "year",
+                "percents": [
+                  50,
+                  50,
+                  25
+                ],
+                "keyed": false
+              }
+            },
+            "one": {
+              "percentiles": {
+                "field": "year",
+                "percents": "75",
+                "tdigest": {
+                  "compression": 5
+                },
+                "keyed": "true"
+              }
+            },
+            "dates": {
+              "percentiles": {
+                "field": "published",
+                "percents": [
+                  10
+                ],
+                "keyed": false
+              }
+            },
+            "ranks": {
+              "percentile_ranks": {
+                "field": "published",
+                "values": [
+                  1000000000000
+                ],
+                "keyed": "false",
+                "tdigest": {}
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "published": "2001-03-04"
+                }
+              }
+            ]
+          },
+          "aggregations": {
+            "ranks": {
+              "values": [
+                {
+                  "key": 1000000000000.0,
+                  "value": 40.0,
+                  "value_as_string": "1970-01-01T00:00:00.040Z"
+                }
+              ]
+            },
+            "one": {
+              "values": {
+                "75.0": 2002.0
+              }
+            },
+            "dates": {
+              "values": [
+                {
+                  "key": 10.0,
+                  "value": 946598400000.0,
+                  "value_as_string": "1999-12-31T00:00:00.000Z"
+                }
+              ]
+            },
+            "list": {
+              "values": [
+                {
+                  "key": 25.0,
+                  "value": 2001.0
+                },
+                {
+                  "key": 50.0,
+                  "value": 2002.0
+                },
+                {
+                  "key": 50.0,
+                  "value": 2002.0
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "percentiles of no match, an unmapped field and a NaN percent",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "query": {
+            "match": {
+              "title": "zebra"
+            }
+          },
+          "size": 1,
+          "aggs": {
+            "none": {
+              "percentiles": {
+                "field": "published",
+                "percents": [
+                  50
+                ]
+              }
+            },
+            "none_list": {
+              "percentile_ranks": {
+                "field": "year",
+                "values": [
+                  1
+                ],
+                "keyed": false
+              }
+            },
+            "unmapped": {
+              "percentiles": {
+                "field": "nope"
+              }
+            },
+            "nan": {
+              "percentiles": {
+                "field": "year",
+                "percents": [
+                  "NaN"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 0,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "nan": {
+              "values": {
+                "NaN": null
+              }
+            },
+            "none": {
+              "values": {
+                "50.0": null
+              }
+            },
+            "none_list": {
+              "values": [
+                {
+                  "key": 1.0,
+                  "value": null
+                }
+              ]
+            },
+            "unmapped": {
+              "values": {
+                "1.0": null,
+                "5.0": null,
+                "25.0": null,
+                "50.0": null,
+                "75.0": null,
+                "95.0": null,
+                "99.0": null
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "percentiles of a query's matches",
+      "request": {
+        "method": "POST",
+        "path": "/compat-paging-sort/_search",
+        "body": {
+          "query": {
+            "match": {
+              "title": "brown"
+            }
+          },
+          "size": 1,
+          "aggs": {
+            "nan": {
+              "percentiles": {
+                "field": "year",
+                "percents": [
+                  "NaN",
+                  0.5
+                ],
+                "keyed": false
+              }
+            },
+            "years": {
+              "percentiles": {
+                "field": "year",
+                "percents": [
+                  0,
+                  33.3,
+                  99.9,
+                  100
+                ]
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 0.52695787,
+            "hits": [
+              {
+                "_index": "compat-paging-sort",
+                "_id": "4",
+                "_score": 0.52695787,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "published": "2002-12-31T23:59:59.999Z"
+                }
+              }
+            ]
+          },
+          "aggregations": {
+            "nan": {
+              "values": [
+                {
+                  "key": 0.5,
+                  "value": 2001.0
+                },
+                {
+                  "key": "NaN",
+                  "value": "NaN"
+                }
+              ]
+            },
+            "years": {
+              "values": {
+                "0.0": 2001.0,
+                "33.3": 2001.0,
+                "99.9": 2002.0,
+                "100.0": 2002.0
+              }
             }
           }
         }

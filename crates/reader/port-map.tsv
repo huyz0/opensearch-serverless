@@ -45,5 +45,9 @@ src/aggs/metric/date_text.rs	port	server/src/main/java/org/opensearch/common/tim
 src/aggs/metric/hll.rs	port	server/src/main/java/org/opensearch/search/aggregations/metrics/HyperLogLogPlusPlus.java@3.10.0	reading AbstractHyperLogLogPlusPlus.writeTo's bytes, AbstractLinearCounting and AbstractHyperLogLog.cardinality with its bias tables (hll_bias.txt, from AbstractHyperLogLog), merge, and precisionFromThreshold
 src/aggs/metric/hll_tests.rs	new		tests of hll.rs against vectors printed by OpenSearch's HyperLogLogPlusPlus
 src/aggs/metric/cardinality_tests.rs	new		tests of cardinality's parsing, writing and reduce, against messages recorded from OpenSearch
+src/aggs/metric/percentiles.rs	port	server/src/main/java/org/opensearch/search/aggregations/metrics/AbstractPercentilesAggregationBuilder.java@3.10.0	createParser's ConstructingObjectParser with PercentilesAggregationBuilder.validatePercentiles and the ranks constructor, PercentilesMethod.TDIGEST_PARSER, and AbstractInternalTDigestPercentiles.doXContentBody
+src/aggs/metric/percentiles_tests.rs	new		tests of percentiles' parsing, writing and reduce, against messages recorded from OpenSearch
+src/aggs/metric/tdigest.rs	port	server/src/main/java/org/opensearch/search/aggregations/metrics/TDigestState.java@3.10.0	the t-digest 3.3 MergingDigest that TDigestState extends: mergeNewValues, merge, quantile, cdf, and AbstractTDigest.add(TDigest) for the reduce
+src/aggs/metric/tdigest_tests.rs	new		tests of tdigest.rs against vectors printed by OpenSearch's TDigestState
 src/aggs/metric/tests.rs	new		tests of the metric aggregations, against messages and values recorded from OpenSearch
 src/aggs/metric/collect_tests.rs	new		tests of collect.rs over a real index

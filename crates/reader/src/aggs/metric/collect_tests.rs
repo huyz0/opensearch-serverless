@@ -364,3 +364,97 @@ fn a_cardinality_reserves_its_sketch() {
         crate::aggs::metric::hll::sketch_bytes(4)
     );
 }
+
+/// The values a percentiles result writes, keyed by its keys.
+fn percentiles(shard: &OpenShard<Emulator>, body: &str) -> Vec<(f64, Option<f64>)> {
+    match values(shard, body).as_slice() {
+        [
+            Value::Percentiles {
+                ranks,
+                keys,
+                digest,
+                ..
+            },
+        ] => keys
+            .iter()
+            .map(|&k| {
+                let v = digest.as_ref().filter(|d| d.size() > 0).map(|d| {
+                    if *ranks {
+                        d.cdf(k).clamp(0.0, 1.0) * 100.0
+                    } else {
+                        d.quantile(k / 100.0)
+                    }
+                });
+                (k, v)
+            })
+            .collect(),
+        other => panic!("{body}: {other:?}"),
+    }
+}
+
+#[test]
+fn percentiles_follow_the_digest_opensearch_builds() {
+    let shard = shard("aggs-percentiles");
+    // `n` is 0 to 199, added in document order across the four segments;
+    // OpenSearch's `TDigestState` answers these.
+    let all = percentiles(
+        &shard,
+        r#"{"size":0,"aggs":{"p":{"percentiles":{"field":"n"}}}}"#,
+    );
+    let want = [2.0, 10.0, 49.5, 99.5, 149.5, 190.0, 198.0];
+    let keys = [1.0, 5.0, 25.0, 50.0, 75.0, 95.0, 99.0];
+    assert_eq!(
+        all,
+        keys.iter()
+            .zip(want)
+            .map(|(&k, v)| (k, Some(v)))
+            .collect::<Vec<_>>()
+    );
+    let small = percentiles(
+        &shard,
+        r#"{"size":0,"aggs":{"p":{"percentiles":{"field":"n","percents":[1],"tdigest":{"compression":5}}}}}"#,
+    );
+    assert_eq!(small, [(1.0, Some(1.0))]);
+    let ranks = percentiles(
+        &shard,
+        r#"{"size":0,"aggs":{"r":{"percentile_ranks":{"field":"n","values":[-1,50.5,100,199,1e9]}}}}"#,
+    );
+    assert_eq!(
+        ranks,
+        [
+            (-1.0, Some(0.0)),
+            (50.5, Some(25.5)),
+            (100.0, Some(50.24999999999999)),
+            (199.0, Some(99.75)),
+            (1e9, Some(100.0)),
+        ]
+    );
+    // Only the query's matches, 10 to 19.
+    let some = r#"{"size":0,"query":{"range":{"n":{"gte":10,"lt":20}}},
+        "aggs":{"p":{"percentiles":{"field":"n","percents":[50]}}}}"#;
+    assert_eq!(percentiles(&shard, some), [(50.0, Some(15.0))]);
+    let none = r#"{"size":0,"query":{"term":{"tag":"nope"}},
+        "aggs":{"p":{"percentile_ranks":{"field":"n","values":[1]}}}}"#;
+    assert_eq!(percentiles(&shard, none), [(1.0, None)]);
+    let unmapped = r#"{"size":0,"aggs":{"p":{"percentiles":{"field":"nope","percents":[5]}}}}"#;
+    assert_eq!(percentiles(&shard, unmapped), [(5.0, None)]);
+    let e = run(&shard, r#"{"aggs":{"p":{"percentiles":{"field":"tag"}}}}"#).expect_err("refused");
+    assert_eq!(
+        e.failure.reason,
+        "Field [tag] of type [keyword] is not supported for aggregation [percentiles]"
+    );
+}
+
+#[test]
+fn a_percentiles_reserves_its_digest_and_keys() {
+    let shard = shard("aggs-percentiles-bytes");
+    let min = source(r#"{"size":0,"aggs":{"c":{"min":{"field":"n"}}}}"#);
+    let p = source(r#"{"size":0,"aggs":{"c":{"percentiles":{"field":"n","percents":[1,2]}}}}"#);
+    let big = source(
+        r#"{"size":0,"aggs":{"c":{"percentile_ranks":{"field":"n","values":[1],"tdigest":{"compression":1000}}}}}"#,
+    );
+    let bytes = |s: &crate::dsl::SearchSource| crate::search::hits_bytes(s, &shard);
+    let digest = crate::aggs::metric::tdigest::digest_bytes;
+    assert_eq!(bytes(&p) - bytes(&min), digest(100.0) + 2 * 16);
+    assert_eq!(bytes(&big) - bytes(&min), digest(1000.0) + 16);
+}

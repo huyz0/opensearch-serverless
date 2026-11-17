@@ -14,6 +14,7 @@ use crate::aggs::metric::date_text::write_date_of_double;
 use crate::aggs::metric::double::write_java_double;
 use crate::aggs::metric::hash_order::hash_map_order;
 use crate::aggs::metric::partial::{Format, Partial, Value};
+use crate::aggs::metric::percentiles::write_percentiles;
 
 /// Writes `,"aggregations":{..}` for `parts`, or nothing when there are none.
 pub fn write_aggregations(out: &mut dyn Write, parts: &[Partial]) -> io::Result<()> {
@@ -116,6 +117,13 @@ fn write_body(out: &mut dyn Write, format: Format, value: &Value) -> io::Result<
             Ok(())
         }
         Value::ValueCount(n) => write!(out, "\"value\":{n}"),
+        Value::Percentiles {
+            ranks,
+            ref keys,
+            keyed,
+            ref digest,
+            ..
+        } => write_percentiles(out, format, ranks, keys, keyed, digest.as_ref()),
     }
 }
 
