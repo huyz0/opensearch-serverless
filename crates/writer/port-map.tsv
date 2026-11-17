@@ -13,3 +13,4 @@ src/log/hedge_delay.rs	port	serverless/shell/src/main/java/org/opensearch/server
 src/log/settings.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/nodelog/NodeLogSettings.java@429b4cbc	window, max bytes and records, hedge delay, idle flush; admission concurrency comes with concurrent admissions
 src/log/committer/join.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/nodelog/NodeLogCommitter.java@429b4cbc	joinAll and join
 src/log/committer/types.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/nodelog/NodeLogCommitter.java@429b4cbc	EpochLease, ShardAdmission, Position; the errors as one enum
+src/log/keeper.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/NodeLogWriter.java@429b4cbc	renew, deleteBehind, withInherited and the lease lock; LeaseWriter as the LeaseWrite trait; pins and flushQueued are the caller's

@@ -13,6 +13,7 @@ mod epochs;
 mod fence;
 mod hedge;
 mod hedge_delay;
+mod keeper;
 pub mod settings;
 mod store;
 mod window;
@@ -26,7 +27,14 @@ pub use committer::{
     CommitError, CommitterConfig, EpochLease, NodeLogCommitter, Position, Refusal, ShardAdmission,
 };
 pub use hedge::{HedgeOutcome, Spawn, ThreadPerPut};
+pub use keeper::{LeaseKeeper, LeaseWrite, RenewError};
 pub use store::{HEADER_PROBE_BYTES, MAX_READ_BYTES, NodeLogStore};
+
+/// A lease's epoch, trim point or landed hint as a number of the log;
+/// a lease never holds a negative one.
+pub(crate) fn lease_slot(n: i64) -> u64 {
+    u64::try_from(n).unwrap_or(0)
+}
 
 /// The most slots a fence tries before giving up on a writer that keeps
 /// taking the next one (the Java's `FENCE_ATTEMPTS`).
