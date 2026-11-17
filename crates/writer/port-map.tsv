@@ -15,3 +15,4 @@ src/log/committer/join.rs	port	serverless/shell/src/main/java/org/opensearch/ser
 src/log/committer/types.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/nodelog/NodeLogCommitter.java@429b4cbc	EpochLease, ShardAdmission, Position; the errors as one enum
 src/log/keeper.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/NodeLogWriter.java@429b4cbc	renew, deleteBehind, withInherited and the lease lock; LeaseWriter as the LeaseWrite trait; pins and flushQueued are the caller's
 src/log/takeover.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/nodelog/NodeLogTakeover.java@429b4cbc	fenceAll, ends, named, unfenced and LeaseReader; reading records is a later piece
+src/log/takeover/read.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/nodelog/NodeLogTakeover.java@429b4cbc	forEachRecord, forEachRecordAfter, forEachRecordIn, maxSeqNoOf, holds, header and body caches; records stream to a consumer
