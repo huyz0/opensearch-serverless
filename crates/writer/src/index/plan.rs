@@ -105,9 +105,29 @@ pub fn plan(id: &str, current: Option<Current>, expect: &Expect) -> Result<Plan,
 /// `action_request_validation_exception`'s message, every failed check
 /// numbered as `ActionRequestValidationException` lists them.
 pub fn validate(expect: &Expect, create: bool) -> Result<(), String> {
-    use super::version::{MATCH_ANY, MATCH_DELETED};
     // ALLOC: the failed checks, at most five; refused request.
     let mut errors: Vec<String> = Vec::new();
+    version_errors(expect, create, &mut errors);
+    if errors.is_empty() {
+        return Ok(());
+    }
+    Err(validation_failed(&errors))
+}
+
+/// `ActionRequestValidationException`'s message over `errors`, each
+/// numbered from 1.
+pub fn validation_failed(errors: &[String]) -> String {
+    // ALLOC: one message; refused request.
+    let mut message = String::from("Validation Failed: ");
+    for (i, e) in errors.iter().enumerate() {
+        message.push_str(&format!("{}: {e};", i.saturating_add(1)));
+    }
+    message
+}
+
+/// Adds to `errors` the checks `validate` makes, in the Java's order.
+pub fn version_errors(expect: &Expect, create: bool, errors: &mut Vec<String>) {
+    use super::version::{MATCH_ANY, MATCH_DELETED};
     if create {
         if expect.version_type != VersionType::Internal {
             errors.push(
@@ -162,13 +182,4 @@ pub fn validate(expect: &Expect, create: bool) -> Result<(), String> {
             ));
         }
     }
-    if errors.is_empty() {
-        return Ok(());
-    }
-    // ALLOC: one message; refused request.
-    let mut message = String::from("Validation Failed: ");
-    for (i, e) in errors.iter().enumerate() {
-        message.push_str(&format!("{}: {e};", i.saturating_add(1)));
-    }
-    Err(message)
 }

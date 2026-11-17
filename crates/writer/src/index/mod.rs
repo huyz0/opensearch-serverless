@@ -13,7 +13,9 @@ mod shard;
 mod version;
 mod versions;
 
-pub use plan::{Current, Expect, Plan, UNASSIGNED_SEQ_NO, plan, validate};
+pub use plan::{
+    Current, Expect, Plan, UNASSIGNED_SEQ_NO, plan, validate, validation_failed, version_errors,
+};
 pub use shard::{NO_OPS_PERFORMED, Outcome, Refused, Shard, Written};
 pub use version::{MATCH_ANY, MATCH_DELETED, NOT_FOUND, VersionType};
 pub use versions::{GC_DELETES_MILLIS, VersionMap};

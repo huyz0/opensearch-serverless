@@ -14,7 +14,7 @@ Parity plan R6.3 (roadmap stage 3, [roadmap](../../roadmap.md)): the writer take
   - **respond**: `BulkResponse` as stock renders it: `took`, `errors`, and each item's `_index`, `_id`, `_version`, `result`, `forced_refresh`, `_shards`, `_seq_no`, `_primary_term`, `status`, or its `error` with `type`, `reason`, `caused_by`, `index`, `shard` and `index_uuid`.
 - `?refresh=true` refreshes the shards a bulk wrote and answers `forced_refresh`.
 - Fixtures: `fixtures/compat/bulk/items.json` and `shards.json`, recorded from stock 3.10.
-- Not changed: the `update` action (a partial merge reads the current source first; it answers as an item failure until a realtime get exists), ingest pipelines, `require_alias` and write aliases, auto-creating a missing index, `wait_for_active_shards`, `?refresh=wait_for`, and acknowledging through the node write log, which is R6.4's with segment publish. Replicas: `_shards` reports one copy, as an index with no replicas does.
+- Not changed: a `_source` object on an action line is skipped without `FetchSourceContext`'s own checks, and a non-numeric `version` says `cannot use` without the byte offset the Jackson message carries; the `update` action (a partial merge reads the current source first; it answers as an item failure until a realtime get exists), ingest pipelines, `require_alias` and write aliases, auto-creating a missing index, `wait_for_active_shards`, `?refresh=wait_for`, and acknowledging through the node write log, which is R6.4's with segment publish. Replicas: `_shards` reports one copy, as an index with no replicas does.
 
 ## Acceptance criteria
 
@@ -26,7 +26,7 @@ Parity plan R6.3 (roadmap stage 3, [roadmap](../../roadmap.md)): the writer take
 
 ## Test plan
 
-`crates/writer/tests/bulk_fixtures.rs` replays the fixtures (AC-1, AC-4); `crates/writer/tests/bulk_stream.rs` feeds a 64 MiB body in 64 KiB chunks under the counting allocator, and bodies cut at every boundary kind (AC-2); `crates/writer/src/bulk/budget.rs` unit tests with a manual clock (AC-3); `crates/writer/tests/bulk_forward.rs` with a recording forwarder (AC-5).
+`crates/writer/tests/bulk_fixtures.rs` replays the fixtures (AC-1, AC-4); `crates/writer/tests/bulk_stream.rs` feeds a 64 MiB body in 64 KiB chunks under the counting allocator, and bodies cut at every boundary kind (AC-2); `crates/writer/src/bulk/budget.rs` unit tests with a manual clock (AC-3); `crates/writer/tests/bulk_forward.rs` with a recording forwarder (AC-5); `crates/writer/tests/bulk_parse.rs` for action-line cases recorded from stock.
 
 ## S3 request budget
 

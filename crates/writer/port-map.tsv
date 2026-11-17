@@ -43,3 +43,11 @@ src/index/version.rs	port	server/src/main/java/org/opensearch/index/VersionType.
 src/index/versions.rs	port	server/src/main/java/org/opensearch/index/engine/LiveVersionMap.java@429b4cbc	the versions since the last refresh, deletes kept until index.gc_deletes (pruneTombstones)
 src/index/lookup.rs	port	server/src/main/java/org/opensearch/common/lucene/uid/VersionsAndSeqNoResolver.java@429b4cbc	loadDocIdAndSeqNo: the live document with the _id term, its _version, _seq_no and _primary_term doc values
 src/index/shard.rs	port	server/src/main/java/org/opensearch/index/engine/InternalEngine.java@429b4cbc	index and delete as a primary with no local translog (ServerlessWriterEngine, DiscardingTranslogManager): sequence numbers, softUpdateDocument, the delete tombstone, refresh
+src/bulk/mod.rs	new		the streamed bulk path: read a slice, apply it, answer
+src/bulk/action.rs	port	server/src/main/java/org/opensearch/action/bulk/BulkRequestParser.java@429b4cbc	parse: the action line's name and parameters, and the messages of a malformed one
+src/bulk/reader.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/documents/BulkBodyParser.java@429b4cbc	parsePrefix: the whole operations at the front of a body still arriving
+src/bulk/validate.rs	port	server/src/main/java/org/opensearch/action/bulk/BulkRequest.java@429b4cbc	validate over each item's IndexRequest, DeleteRequest and UpdateRequest checks
+src/bulk/budget.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/documents/BulkMemoryBudget.java@429b4cbc	the heap streamed slices may hold, granted in arrival order, and the 429 after the wait
+src/bulk/ids.rs	port	libs/common/src/main/java/org/opensearch/common/TimeBasedUUIDGenerator.java@429b4cbc	getBase64UUID: the ids of an index or create without one
+src/bulk/run.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/documents/BulkDispatch.java@429b4cbc	route and apply: items grouped by shard in request order, a foreign group forwarded once
+src/bulk/response.rs	port	server/src/main/java/org/opensearch/action/bulk/BulkItemResponse.java@429b4cbc	the bulk response body: took, errors and each item's result or failure

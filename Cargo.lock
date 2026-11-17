@@ -648,6 +648,7 @@ dependencies = [
  "lucene-search",
  "lucene-store",
  "oss-blob",
+ "oss-cluster",
  "oss-format",
  "oss-rest",
  "oss-testkit",
