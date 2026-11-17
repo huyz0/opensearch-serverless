@@ -1,0 +1,1640 @@
+{
+  "name": "document edges",
+  "description": "refusals the value fixture does not reach: metadata fields in a body, the object and array depth limits, coercion messages, previews of many-key objects, dotted names, and the dynamic modes with templates and strict nulls.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0-SNAPSHOT",
+    "build_hash": "429b4cbcd98f0d22aeae421a9f38645f6dc55b62"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-document-edges",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-document-modes",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-document-conflicts",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "create",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-edges",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "t": {
+                "type": "text",
+                "fields": {
+                  "raw": {
+                    "type": "keyword",
+                    "ignore_above": 3
+                  }
+                }
+              },
+              "k": {
+                "type": "keyword",
+                "null_value": "NV"
+              },
+              "l": {
+                "type": "long"
+              },
+              "i": {
+                "type": "integer"
+              },
+              "s": {
+                "type": "short"
+              },
+              "b": {
+                "type": "byte"
+              },
+              "f": {
+                "type": "float"
+              },
+              "d": {
+                "type": "double",
+                "null_value": 2.5
+              },
+              "bo": {
+                "type": "boolean",
+                "null_value": true
+              },
+              "dt": {
+                "type": "date"
+              },
+              "de": {
+                "type": "date",
+                "format": "epoch_second",
+                "null_value": "10"
+              },
+              "im": {
+                "type": "integer",
+                "ignore_malformed": true
+              },
+              "o": {
+                "properties": {
+                  "x": {
+                    "type": "long"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-document-edges"
+        }
+      }
+    },
+    {
+      "name": "metadata field _id",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-edges/_doc/1",
+        "body": {
+          "_id": "x"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Field [_id] is a metadata field and cannot be added inside a document. Use the index API request parameters."
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [_id] of type [_id] in document with id '1'. Preview of field's value: 'x'",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "Field [_id] is a metadata field and cannot be added inside a document. Use the index API request parameters."
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "metadata field _source",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-edges/_doc/2",
+        "body": {
+          "_source": {
+            "a": 1
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Field [_source] is a metadata field and cannot be added inside a document. Use the index API request parameters."
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [_source] of type [_source] in document with id '2'. Preview of field's value: '{a=1}'",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "Field [_source] is a metadata field and cannot be added inside a document. Use the index API request parameters."
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "metadata field _version",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-edges/_doc/3",
+        "body": {
+          "_version": 3
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Field [_version] is a metadata field and cannot be added inside a document. Use the index API request parameters."
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [_version] of type [_version] in document with id '3'. Preview of field's value: '3'",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "Field [_version] is a metadata field and cannot be added inside a document. Use the index API request parameters."
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "doc count field",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-edges/_doc/4",
+        "body": {
+          "_doc_count": 3
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-document-edges",
+          "_id": "4",
+          "_version": 1,
+          "result": "created",
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 0,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "unknown underscore field",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-edges/_doc/5",
+        "body": {
+          "_mine": "x"
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-document-edges",
+          "_id": "5",
+          "_version": 1,
+          "result": "created",
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 1,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "objects 22 deep",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-edges/_doc/6",
+        "body": {
+          "z": {
+            "a": {
+              "a": {
+                "a": {
+                  "a": {
+                    "a": {
+                      "a": {
+                        "a": {
+                          "a": {
+                            "a": {
+                              "a": {
+                                "a": {
+                                  "a": {
+                                    "a": {
+                                      "a": {
+                                        "a": {
+                                          "a": {
+                                            "a": {
+                                              "a": {
+                                                "a": {
+                                                  "a": {
+                                                    "a": 1
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parse_exception",
+                "reason": "The depth of the field has exceeded the allowed limit of [20]. This limit can be set by changing the [index.mapping.depth.limit] index level setting."
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse",
+            "caused_by": {
+              "type": "parse_exception",
+              "reason": "The depth of the field has exceeded the allowed limit of [20]. This limit can be set by changing the [index.mapping.depth.limit] index level setting."
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "arrays 21 deep",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-edges/_doc/7",
+        "body": {
+          "z": [
+            [
+              [
+                [
+                  [
+                    [
+                      [
+                        [
+                          [
+                            [
+                              [
+                                [
+                                  [
+                                    [
+                                      [
+                                        [
+                                          [
+                                            [
+                                              [
+                                                [
+                                                  [
+                                                    1
+                                                  ]
+                                                ]
+                                              ]
+                                            ]
+                                          ]
+                                        ]
+                                      ]
+                                    ]
+                                  ]
+                                ]
+                              ]
+                            ]
+                          ]
+                        ]
+                      ]
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parse_exception",
+                "reason": "The depth of the nested array field has exceeded the allowed limit of [20]. This limit can be set by changing the [index.mapping.depth.limit] index level setting."
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse",
+            "caused_by": {
+              "type": "parse_exception",
+              "reason": "The depth of the nested array field has exceeded the allowed limit of [20]. This limit can be set by changing the [index.mapping.depth.limit] index level setting."
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "float into boolean",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-edges/_doc/8",
+        "body": {
+          "bo": 1.5
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse field [bo] of type [boolean] in document with id '8'. Preview of field's value: '1.5'"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [bo] of type [boolean] in document with id '8'. Preview of field's value: '1.5'",
+            "caused_by": {
+              "type": "input_coercion_exception",
+              "reason": "Current token (VALUE_NUMBER_FLOAT) not of boolean type\n at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); byte offset: #9]",
+              "caused_by": {
+                "type": "input_coercion_exception",
+                "reason": "Current token (VALUE_NUMBER_FLOAT) not of boolean type\n at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); byte offset: #9]"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "text into double",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-edges/_doc/9",
+        "body": {
+          "d": "abc"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse field [d] of type [double] in document with id '9'. Preview of field's value: 'abc'"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [d] of type [double] in document with id '9'. Preview of field's value: 'abc'",
+            "caused_by": {
+              "type": "number_format_exception",
+              "reason": "For input string: \"abc\""
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "float out of range of short",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-edges/_doc/10",
+        "body": {
+          "s": 150000.0
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse field [s] of type [short] in document with id '10'. Preview of field's value: '150000.0'"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [s] of type [short] in document with id '10'. Preview of field's value: '150000.0'",
+            "caused_by": {
+              "type": "input_coercion_exception",
+              "reason": "Numeric value (150000.0) out of range of `short` (-32768 - 32767)\n at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); byte offset: #13]",
+              "caused_by": {
+                "type": "input_coercion_exception",
+                "reason": "Numeric value (150000.0) out of range of `short` (-32768 - 32767)\n at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); byte offset: #13]"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "exponent string out of long range",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-edges/_doc/11",
+        "body": {
+          "l": "1e30"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse field [l] of type [long] in document with id '11'. Preview of field's value: '1e30'"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [l] of type [long] in document with id '11'. Preview of field's value: '1e30'",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Value [1e30] is out of range for a long"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "two dots string into long",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-edges/_doc/12",
+        "body": {
+          "l": "1.2.3"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse field [l] of type [long] in document with id '12'. Preview of field's value: '1.2.3'"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [l] of type [long] in document with id '12'. Preview of field's value: '1.2.3'",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "For input string: \"1.2.3\""
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "boolean into date",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-edges/_doc/13",
+        "body": {
+          "dt": true
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse field [dt] of type [date] in document with id '13'. Preview of field's value: 'true'"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [dt] of type [date] in document with id '13'. Preview of field's value: 'true'",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "failed to parse date field [true] with format [strict_date_optional_time||epoch_millis]",
+              "caused_by": {
+                "type": "date_time_parse_exception",
+                "reason": "Failed to parse with all enclosed parsers"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "object element in a keyword array",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-edges/_doc/14",
+        "body": {
+          "k": [
+            "a",
+            {
+              "b": 1
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse field [k] of type [keyword] in document with id '14'. Preview of field's value: '{b=1}'"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [k] of type [keyword] in document with id '14'. Preview of field's value: '{b=1}'",
+            "caused_by": {
+              "type": "illegal_state_exception",
+              "reason": "Can't get text on a START_OBJECT at 1:11"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "scalar element in an object array",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-edges/_doc/15",
+        "body": {
+          "o": [
+            {
+              "x": 1
+            },
+            2
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "object mapping for [o] tried to parse field [null] as object, but found a concrete value"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "object mapping for [o] tried to parse field [null] as object, but found a concrete value"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "trailing dot",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-edges/_doc/16",
+        "body": {
+          "l.": 4
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-document-edges",
+          "_id": "16",
+          "_version": 1,
+          "result": "created",
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 2,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "leading dot",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-edges/_doc/17",
+        "body": {
+          ".l": 4
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "object field starting or ending with a [.] makes object resolution ambiguous: [.l]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "many-key object preview",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-edges/_doc/18",
+        "body": {
+          "t": {
+            "zeta": 1,
+            "alpha": 2,
+            "mid": 3,
+            "b": 4,
+            "aa": 5
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse field [t] of type [text] in document with id '18'. Preview of field's value: '{zeta=1, aa=5, b=4, alpha=2, mid=3}'"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [t] of type [text] in document with id '18'. Preview of field's value: '{zeta=1, aa=5, b=4, alpha=2, mid=3}'",
+            "caused_by": {
+              "type": "illegal_state_exception",
+              "reason": "Can't get text on a START_OBJECT at 1:6"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "null text multi-field",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-edges/_doc/19",
+        "body": {
+          "t": null
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-document-edges",
+          "_id": "19",
+          "_version": 1,
+          "result": "created",
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 3,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "get mapping",
+      "request": {
+        "method": "GET",
+        "path": "/compat-document-edges/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-document-edges": {
+            "mappings": {
+              "properties": {
+                "_mine": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                },
+                "b": {
+                  "type": "byte"
+                },
+                "bo": {
+                  "type": "boolean",
+                  "null_value": true
+                },
+                "d": {
+                  "type": "double",
+                  "null_value": 2.5
+                },
+                "de": {
+                  "type": "date",
+                  "format": "epoch_second",
+                  "null_value": "10"
+                },
+                "dt": {
+                  "type": "date"
+                },
+                "f": {
+                  "type": "float"
+                },
+                "i": {
+                  "type": "integer"
+                },
+                "im": {
+                  "type": "integer",
+                  "ignore_malformed": true
+                },
+                "k": {
+                  "type": "keyword",
+                  "null_value": "NV"
+                },
+                "l": {
+                  "type": "long"
+                },
+                "o": {
+                  "properties": {
+                    "x": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "s": {
+                  "type": "short"
+                },
+                "t": {
+                  "type": "text",
+                  "fields": {
+                    "raw": {
+                      "type": "keyword",
+                      "ignore_above": 3
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create modes",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-modes",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "dynamic": "strict_allow_templates",
+            "properties": {
+              "f": {
+                "type": "object",
+                "dynamic": "false_allow_templates"
+              },
+              "n": {
+                "type": "object",
+                "dynamic": "true"
+              },
+              "sx": {
+                "type": "object",
+                "dynamic": "strict"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-document-modes"
+        }
+      }
+    },
+    {
+      "name": "strict_allow_templates scalar",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-modes/_doc/1",
+        "body": {
+          "x": 1
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "strict_dynamic_mapping_exception",
+                "reason": "mapping set to strict_allow_templates, dynamic introduction of [x] within [_doc] is not allowed"
+              }
+            ],
+            "type": "strict_dynamic_mapping_exception",
+            "reason": "mapping set to strict_allow_templates, dynamic introduction of [x] within [_doc] is not allowed"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "strict_allow_templates null",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-modes/_doc/2",
+        "body": {
+          "x": null
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "strict_dynamic_mapping_exception",
+                "reason": "mapping set to strict_allow_templates, dynamic introduction of [x] within [_doc] is not allowed"
+              }
+            ],
+            "type": "strict_dynamic_mapping_exception",
+            "reason": "mapping set to strict_allow_templates, dynamic introduction of [x] within [_doc] is not allowed"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "strict_allow_templates object",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-modes/_doc/3",
+        "body": {
+          "x": {}
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "strict_dynamic_mapping_exception",
+                "reason": "mapping set to strict_allow_templates, dynamic introduction of [x] within [_doc] is not allowed"
+              }
+            ],
+            "type": "strict_dynamic_mapping_exception",
+            "reason": "mapping set to strict_allow_templates, dynamic introduction of [x] within [_doc] is not allowed"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "strict_allow_templates array",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-modes/_doc/4",
+        "body": {
+          "x": []
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "strict_dynamic_mapping_exception",
+                "reason": "mapping set to strict_allow_templates, dynamic introduction of [x] within [_doc] is not allowed"
+              }
+            ],
+            "type": "strict_dynamic_mapping_exception",
+            "reason": "mapping set to strict_allow_templates, dynamic introduction of [x] within [_doc] is not allowed"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "strict_allow_templates dotted",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-modes/_doc/5",
+        "body": {
+          "x.y": 1
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "strict_dynamic_mapping_exception",
+                "reason": "mapping set to strict_allow_templates, dynamic introduction of [x] within [_doc] is not allowed"
+              }
+            ],
+            "type": "strict_dynamic_mapping_exception",
+            "reason": "mapping set to strict_allow_templates, dynamic introduction of [x] within [_doc] is not allowed"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "false_allow_templates and true objects",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-modes/_doc/6",
+        "body": {
+          "f": {
+            "a": 1,
+            "b": {
+              "c": 1
+            },
+            "d": [
+              1
+            ]
+          },
+          "n": {
+            "a": "t"
+          }
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-document-modes",
+          "_id": "6",
+          "_version": 1,
+          "result": "created",
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 0,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "null in a strict object",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-modes/_doc/7",
+        "body": {
+          "sx": {
+            "q": null
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "strict_dynamic_mapping_exception",
+                "reason": "mapping set to strict, dynamic introduction of [q] within [sx] is not allowed"
+              }
+            ],
+            "type": "strict_dynamic_mapping_exception",
+            "reason": "mapping set to strict, dynamic introduction of [q] within [sx] is not allowed"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "null in an inherited strict object",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-modes/_doc/8",
+        "body": {
+          "n": {
+            "q": null
+          }
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-document-modes",
+          "_id": "8",
+          "_version": 1,
+          "result": "created",
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 1,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "get modes mapping",
+      "request": {
+        "method": "GET",
+        "path": "/compat-document-modes/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-document-modes": {
+            "mappings": {
+              "dynamic": "strict_allow_templates",
+              "properties": {
+                "f": {
+                  "type": "object",
+                  "dynamic": "false_allow_templates"
+                },
+                "n": {
+                  "dynamic": "true",
+                  "properties": {
+                    "a": {
+                      "type": "text",
+                      "fields": {
+                        "keyword": {
+                          "type": "keyword",
+                          "ignore_above": 256
+                        }
+                      }
+                    }
+                  }
+                },
+                "sx": {
+                  "type": "object",
+                  "dynamic": "strict"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create conflicts",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-conflicts",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-document-conflicts"
+        }
+      }
+    },
+    {
+      "name": "field then object in an array",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-conflicts/_doc/1",
+        "body": {
+          "a": [
+            1,
+            {
+              "b": 1
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "can't merge a non object mapping [a] with an object mapping"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "can't merge a non object mapping [a] with an object mapping"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "object then field in an array",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-conflicts/_doc/2",
+        "body": {
+          "a": [
+            {
+              "b": 1
+            },
+            1
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "can't merge a non object mapping [a] with an object mapping"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "can't merge a non object mapping [a] with an object mapping"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "field then dotted object",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-conflicts/_doc/3",
+        "body": {
+          "a": 1,
+          "a.b": 1
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "can't merge a non object mapping [a] with an object mapping"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "can't merge a non object mapping [a] with an object mapping"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "dotted object then field",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-conflicts/_doc/4",
+        "body": {
+          "a.b": 1,
+          "a": 1
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "can't merge a non object mapping [a] with an object mapping"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "can't merge a non object mapping [a] with an object mapping"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "same dynamic object twice",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-conflicts/_doc/5",
+        "body": {
+          "o.x": 1,
+          "o": {
+            "y": "z"
+          }
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-document-conflicts",
+          "_id": "5",
+          "_version": 1,
+          "result": "created",
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 0,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "duplicate key in an object",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-conflicts/_doc/10",
+        "raw": "{\"a\":1,\"b\":{\"x\":1,\"x\":2}}"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse",
+            "caused_by": {
+              "type": "json_parse_exception",
+              "reason": "Duplicate Object property \"x\"\n at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); byte offset: #21]",
+              "caused_by": {
+                "type": "stream_read_exception",
+                "reason": "Duplicate Object property \"x\"\n at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); byte offset: #21]"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "map a disabled object",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-conflicts/_mapping",
+        "body": {
+          "properties": {
+            "od": {
+              "type": "object",
+              "enabled": false
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true
+        }
+      }
+    },
+    {
+      "name": "duplicate key in a skipped object",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-conflicts/_doc/11",
+        "raw": "{\"od\":{\"x\":1,\"x\":2}}"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse",
+            "caused_by": {
+              "type": "json_parse_exception",
+              "reason": "Duplicate Object property \"x\"\n at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); byte offset: #16]",
+              "caused_by": {
+                "type": "stream_read_exception",
+                "reason": "Duplicate Object property \"x\"\n at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); byte offset: #16]"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "trailing object",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-conflicts/_doc/12",
+        "raw": "{\"a\":1} {\"b\":2}"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Malformed content, found extra data after parsing: START_OBJECT"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "duplicate key at the root",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-document-conflicts/_doc/14",
+        "raw": "{\"q\":1,\"q\":1}"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse",
+            "caused_by": {
+              "type": "json_parse_exception",
+              "reason": "Duplicate Object property \"q\"\n at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); byte offset: #10]",
+              "caused_by": {
+                "type": "stream_read_exception",
+                "reason": "Duplicate Object property \"q\"\n at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); byte offset: #10]"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "get conflicts mapping",
+      "request": {
+        "method": "GET",
+        "path": "/compat-document-conflicts/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-document-conflicts": {
+            "mappings": {
+              "properties": {
+                "o": {
+                  "properties": {
+                    "x": {
+                      "type": "long"
+                    },
+                    "y": {
+                      "type": "text",
+                      "fields": {
+                        "keyword": {
+                          "type": "keyword",
+                          "ignore_above": 256
+                        }
+                      }
+                    }
+                  }
+                },
+                "od": {
+                  "type": "object",
+                  "enabled": false
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,8 +1,8 @@
-# Mappings: parse, merge and write back
+# Mappings: parse, merge, write back, and grow from documents
 
 ## Serves
 
-Parity plan R6.1, part 1 (roadmap stage 3, [roadmap](../../roadmap.md)): the writer reads an index's mapping, merges updates into it, and writes it in the form OpenSearch keeps, so indexing (R6.2) and dynamic mapping (R6.1, part 2) have a mapping to grow.
+Parity plan R6.1 (roadmap stage 3, [roadmap](../../roadmap.md)): the writer reads an index's mapping, merges updates into it, and writes it in the form OpenSearch keeps, and reads a document against it as `DocumentParser` does: the values each field indexes, and the fields dynamic mapping adds, so indexing (R6.2) has both. [ADR 0017](../../adr/0017-mappings-and-documents-as-the-java-reads-them.md).
 
 ## Change
 
@@ -14,7 +14,12 @@ Parity plan R6.1, part 1 (roadmap stage 3, [roadmap](../../roadmap.md)): the wri
   - Root options kept: `dynamic`, `date_detection`, `numeric_detection`, `_routing.required`.
 - The shell stores a merged mapping re-serialized through a `HashMap`, so its member order is a hash order; two stored mappings are equal when they parse to the same `Mapping`, not when their text is.
 - `fixtures/compat/mapping/` holds eight recorded fixtures (create, get and put mapping, dynamic mapping, refusals), recorded from a stock OpenSearch 3.10.0-SNAPSHOT built from `429b4cbc`.
-- Not changed: dynamic mapping (part 2: the fixtures' document steps are replayed then), the descriptor CAS that stores a grown mapping (`MappingGrowthPath`, with indexing), the REST handlers (R7.4), the reader's own read-only `mapping.rs`.
+- `oss-writer` gains `document` (`crates/writer/src/document/`), a port of `DocumentParser`, `FieldMapper.parse` and each mapper's `parseCreateField`:
+  - `document::parse(mapping, id, source)` pulls the document's tokens (`chunkjson`) and returns each field's values (`FieldValue`: text, keyword, number of the field's type, date in milliseconds, boolean), the fields kept out by `ignore_above` or `ignore_malformed` (for `_ignored`), the dynamic update, and the mapping grown by it.
+  - Values follow Jackson's accessors and OpenSearch's coercion: strings into numbers when `coerce`, decimals truncated, Jackson's range messages with the token's end offset, `null_value`, booleans as `Booleans.parseBoolean`, dates in the field's formats.
+  - Dynamic mapping as the Java's with no templates: strings to text with a `keyword` multi-field (`ignore_above` 256), or to a date by `dynamic_date_formats`, or to long or float under `numeric_detection`; numbers to long or float; booleans; objects; arrays by element; `dynamic` `strict`, `false` and the template modes; dotted names to objects. Each new value builds its own field and they merge after the document, so a mixed array fails as the Java's does. The total fields limit is checked as fields are added.
+  - Refusals carry the Java's messages: `failed to parse field [...] of type [...] in document with id '...'. Preview of field's value: '...'` with its cause, strict dynamic, bad field names, metadata fields in a body, the object and array depth limits.
+- Not changed: dynamic templates (refused as unsupported in the mapping), nested, `copy_to`, the descriptor CAS that stores a grown mapping (`MappingGrowthPath`, with indexing), the REST handlers (R7.4), the reader's own read-only `mapping.rs`.
 
 ## Acceptance criteria
 
@@ -23,14 +28,17 @@ Parity plan R6.1, part 1 (roadmap stage 3, [roadmap](../../roadmap.md)): the wri
 - AC-3: a stored mapping with its members in any order parses to the same `Mapping` as its sorted form, and writes the sorted form.
 - AC-4: 1,001 fields, or objects 21 deep, are refused with the Java's limit messages, at parse and at merge.
 - AC-5: malformed JSON, a duplicate key and a non-object mapping are refused; `_routing.required` cannot change; `date_detection` and `numeric_detection` survive a merge that does not set them.
+- AC-6: every document step of `fixtures/compat/mapping/` replays: an accepted document is accepted and the mapping it grows is written back as the next `GET _mapping` shows it; a refused one is refused with the same exception types and messages down its `caused_by` chain.
+- AC-7: each mapped type yields the value OpenSearch indexes for coerced strings and decimals, `null_value`, multi-fields, arrays, dotted names and dates (as milliseconds), and `ignore_above` and `ignore_malformed` put the field in `ignored`.
+- AC-8: a document adding 1,000 fields to an empty mapping is accepted and one adding 1,001 is refused with the Java's limit message; the update never holds more than the limit.
 
 ## Test plan
 
-`crates/writer/tests/mapping_fixtures.rs` replays the recorded fixtures (AC-1); `crates/writer/tests/mapping.rs` covers AC-2 to AC-5. The recorded fixtures were failing tests before the code existed; `scripts/mutants.sh` on the diff stands in for watching each unit test fail.
+`crates/writer/tests/mapping_fixtures.rs` replays the recorded fixtures (AC-1); `crates/writer/tests/mapping.rs` covers AC-2 to AC-5; the fixtures' document steps cover AC-6 and `crates/writer/tests/document.rs` AC-7 and AC-8. The recorded fixtures were failing tests before the code existed; `scripts/mutants.sh` on the diff stands in for watching each unit test fail.
 
 ## S3 request budget
 
-Unchanged: parsing and merging read no blob. Storing a grown mapping is the descriptor CAS the shell already makes, priced with indexing.
+Unchanged: parsing, merging and reading a document touch no blob. Storing a grown mapping is the descriptor CAS the shell already makes, priced with indexing.
 
 ## Switch
 

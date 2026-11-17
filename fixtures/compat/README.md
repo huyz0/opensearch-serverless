@@ -25,7 +25,7 @@ Requests and normalisation rules are written by hand. **Responses are never writ
 }
 ```
 
-- **request**: `method` (GET, PUT, POST, DELETE, HEAD), `path` (starting with `/`, no query string), optional `query` (string values), and at most one of `body` (one JSON document) or `ndjson` (an array, sent one document per line, for `_bulk` and `_msearch`).
+- **request**: `method` (GET, PUT, POST, DELETE, HEAD), `path` (starting with `/`, no query string), optional `query` (string values), and at most one of `body` (one JSON document), `raw` (a string sent as written, for a body that is no single JSON value: duplicate keys, trailing data) or `ndjson` (an array, sent one document per line, for `_bulk` and `_msearch`).
 - **response**: `status`, `headers` and `body` as recorded. Only the headers listed are compared; `record.py` keeps the names already listed, or records `content-type` for a new step. `body` is absent when the response had none.
 - **normalise**: rules for fields that legitimately vary. `pointer` is a JSON pointer into `{"status", "headers", "body"}`; a `*` segment matches every array element and object member (`/body/hits/hits/*/_id`). `reason` is required. Both the recorded and the actual value are replaced by `"<normalised>"` before comparing.
 - **cleanup**: requests sent before the steps (and by the recorder after them), so a fixture runs against a target that is not fresh. Their responses are not compared.
@@ -94,6 +94,8 @@ Neither the gate nor CI runs `record.py`; checking fixtures needs nothing but th
 | [mapping/dynamic.json](mapping/dynamic.json) | dynamic mapping of every JSON kind, and refused values |
 | [mapping/detection.json](mapping/detection.json) | `date_detection` off and `numeric_detection` on |
 | [mapping/dynamic-strict.json](mapping/dynamic-strict.json) | `dynamic: strict` and `false`, at the root and in objects |
+| [mapping/values.json](mapping/values.json) | how each type reads document values: coercion, ranges, `ignore_malformed`, `null_value`, booleans, `ignore_above`, date formats, objects and arrays, mixed dynamic arrays, bad field names |
+| [mapping/document-edges.json](mapping/document-edges.json) | metadata fields in a body, the depth limits, coercion messages, many-key previews, dotted names, the template dynamic modes, strict nulls, object and field conflicts |
 | [mapping/deprecated.json](mapping/deprecated.json) | parameters a type does not declare (`store`, `boost`, `index` and the rest), dropped silently as OpenSearch drops them |
 | [search/match-all.json](search/match-all.json) | `_bulk` with explicit ids and `refresh=true`; `_search` with `match_all` |
 | [search/term.json](search/term.json) | `term` on keyword, text and integer fields, short and long forms |

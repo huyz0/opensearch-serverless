@@ -16,6 +16,7 @@
 //! A mapping this writer cannot index (a type or parameter it does not
 //! support) is refused with [`MappingError::unsupported`].
 
+mod date_text;
 mod dates;
 mod error;
 mod field;
@@ -28,7 +29,7 @@ mod types;
 pub use dates::{Format, Formats};
 pub use error::{MappingError, UNSUPPORTED};
 pub use field::Leaf;
-pub use numbers::{Num, NumType};
+pub use numbers::{Num, NumType, java_parse_double};
 pub use object::{Dynamic, Mapper, Object};
 pub use params::Value;
 pub use types::{DEFAULT_DATE_FORMAT, FieldType, POSITION_INCREMENT_GAP_USE_ANALYZER};
@@ -249,6 +250,19 @@ impl Mapping {
 
     /// `MappingLookup.checkLimits`: fields and objects at most
     /// [`TOTAL_FIELDS_LIMIT`], objects at most [`DEPTH_LIMIT`] deep.
+    /// How many fields the total-fields limit counts: every object and
+    /// field, and every multi-field.
+    pub fn field_count(&self) -> usize {
+        let mut count = 0usize;
+        self.root.walk("", &mut |_, mapper| {
+            count = count.saturating_add(1);
+            if let Mapper::Leaf(leaf) = mapper {
+                count = count.saturating_add(leaf.multi_fields().len());
+            }
+        });
+        count
+    }
+
     fn check_limits(&self) -> Result<(), MappingError> {
         let mut count = 0usize;
         let mut too_deep: Option<String> = None;

@@ -6,5 +6,6 @@
 //! immutable blob, and carries commit metadata inside uploads it already
 //! makes rather than in extra PUTs.
 
+pub mod document;
 pub mod log;
 pub mod mapping;

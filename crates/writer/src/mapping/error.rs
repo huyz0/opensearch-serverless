@@ -60,15 +60,62 @@ impl MappingError {
         Self::new("arithmetic_exception", reason)
     }
 
-    /// `StrictDynamicMappingException`.
+    /// `StrictDynamicMappingException` for `dynamic: strict`.
     pub fn strict_dynamic(field: &str, within: &str) -> Self {
+        Self::strict_dynamic_as("strict", within, field)
+    }
+
+    /// `StrictDynamicMappingException(mode, within, field)`, for the
+    /// `dynamic` setting `mode`.
+    pub fn strict_dynamic_as(mode: &str, within: &str, field: &str) -> Self {
         Self::new(
             "strict_dynamic_mapping_exception",
             // ALLOC: mapping parse, merge or error path; bounded by the mapping text (MAX_MAPPING_BYTES).
             &format!(
-                "mapping set to strict, dynamic introduction of [{field}] within [{within}] is not allowed"
+                "mapping set to {mode}, dynamic introduction of [{field}] within [{within}] is not allowed"
             ),
         )
+    }
+
+    /// Malformed JSON in a document (Jackson's `JsonParseException`).
+    pub fn json_parse(reason: &str) -> Self {
+        Self::new("json_parse_exception", reason)
+    }
+
+    /// `NotXContentException`: a body that is no JSON object.
+    pub fn not_x_content(reason: &str) -> Self {
+        Self::new("not_x_content_exception", reason)
+    }
+
+    /// Jackson's `StreamReadException`, the cause Jackson's parse errors carry.
+    pub fn stream_read(reason: &str) -> Self {
+        Self::new("stream_read_exception", reason)
+    }
+
+    /// Jackson's `InputCoercionException`: a number accessor on a token
+    /// that is not one, or a number out of the accessor's range.
+    pub fn input_coercion(reason: &str) -> Self {
+        Self::new("input_coercion_exception", reason)
+    }
+
+    /// `IllegalStateException`.
+    pub fn illegal_state(reason: &str) -> Self {
+        Self::new("illegal_state_exception", reason)
+    }
+
+    /// `java.time.DateTimeException`.
+    pub fn date_time(reason: &str) -> Self {
+        Self::new("date_time_exception", reason)
+    }
+
+    /// `java.time.format.DateTimeParseException`.
+    pub fn date_time_parse(reason: &str) -> Self {
+        Self::new("date_time_parse_exception", reason)
+    }
+
+    /// OpenSearch's own `OpenSearchParseException`.
+    pub fn opensearch_parse(reason: &str) -> Self {
+        Self::new("parse_exception", reason)
     }
 
     /// Malformed JSON in a mapping (`parse_exception`).

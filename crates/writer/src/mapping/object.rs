@@ -100,10 +100,20 @@ impl Object {
 
     /// A child by simple name.
     pub fn child(&self, name: &str) -> Option<&Mapper> {
-        self.children
-            .iter()
-            .find(|(n, _)| n == name)
-            .map(|(_, m)| m)
+        let i = self
+            .children
+            .binary_search_by(|(n, _)| java_cmp(n, name))
+            .ok()?;
+        self.children.get(i).map(|(_, m)| m)
+    }
+
+    /// A child by simple name, to change in place.
+    pub fn child_mut(&mut self, name: &str) -> Option<&mut Mapper> {
+        let i = self
+            .children
+            .binary_search_by(|(n, _)| java_cmp(n, name))
+            .ok()?;
+        self.children.get_mut(i).map(|(_, m)| m)
     }
 
     /// Adds or replaces a child, keeping the order.
@@ -246,6 +256,8 @@ impl Object {
     /// The Java's messages for an object turned into a field or back, a
     /// changed `enabled`, and every conflict of the fields under it.
     pub fn merge(&self, incoming: &Object, full_name: &str) -> Result<Object, MappingError> {
+        // ALLOC: one copy of the mapping, bounded by its text (MAX_MAPPING_BYTES) or, for a
+        // document's dynamic update, by the total fields limit; once a merge, not once a field.
         let mut merged = self.clone();
         if incoming.dynamic.is_some() {
             merged.dynamic = incoming.dynamic;

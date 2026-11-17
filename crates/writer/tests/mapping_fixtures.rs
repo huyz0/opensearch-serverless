@@ -1,14 +1,16 @@
 //! Replays the mapping steps of `fixtures/compat/mapping/` (recorded from
 //! stock OpenSearch 3.10) through the writer's mapping: a create-index's
-//! `mappings`, `PUT _mapping` and `GET _mapping`. A created index's mapping
-//! must be written back byte for byte as OpenSearch shows it, and a refused
-//! one must be refused with the same exception types and messages.
+//! `mappings`, `PUT _mapping`, documents (`PUT _doc`) and `GET _mapping`. A
+//! mapping, as created, updated or grown by dynamic mapping, must be
+//! written back byte for byte as OpenSearch shows it, and a refused mapping
+//! or document must be refused with the same exception types and messages.
 
 #![allow(clippy::disallowed_methods)]
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+use oss_writer::document;
 use oss_writer::mapping::json::{self, Json};
 use oss_writer::mapping::{Mapping, MappingError};
 
@@ -104,9 +106,6 @@ fn mapping_steps_replay() {
         let fixture = json::parse(&raw).unwrap();
         let file = path.file_name().unwrap().to_string_lossy().into_owned();
         let mut indices: BTreeMap<String, Mapping> = BTreeMap::new();
-        // Once a document's dynamic fields would change the mapping, the
-        // rest of the fixture waits for dynamic mapping.
-        let mut grown = false;
         let Some(Json::Arr(steps)) = fixture.get("steps") else {
             panic!("{file}: steps")
         };
@@ -147,7 +146,7 @@ fn mapping_steps_replay() {
                         indices.insert(index.to_string(), m);
                     }
                 }
-                ("GET", [index, "_mapping"]) if !grown => {
+                ("GET", [index, "_mapping"]) => {
                     let Some(m) = indices.get(*index) else {
                         assert_eq!(step.status, 404, "{file} / {}", step.name);
                         continue;
@@ -168,12 +167,24 @@ fn mapping_steps_replay() {
                         step.name
                     );
                 }
-                ("PUT", [_, "_doc", _]) => grown = true,
-                ("GET", _) => {}
+                ("PUT", [index, "_doc", id]) => {
+                    let current = indices.get(*index).expect("index exists").clone();
+                    let source = match request.get("raw") {
+                        Some(Json::Str(raw)) => raw.clone(),
+                        _ => step.body.unwrap().to_json(),
+                    };
+                    let got = document::parse(&current, id, source.as_bytes());
+                    expect_outcome(&step, got.as_ref().map(|_| ()).map_err(Clone::clone));
+                    if let Ok(doc) = got
+                        && let Some(m) = doc.grown
+                    {
+                        indices.insert(index.to_string(), m);
+                    }
+                }
                 other => panic!("{file}: no replay for {other:?}"),
             }
             replayed += 1;
         }
     }
-    assert!(replayed >= 40, "replayed {replayed}");
+    assert!(replayed >= 150, "replayed {replayed}");
 }

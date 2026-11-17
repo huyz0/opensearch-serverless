@@ -13,6 +13,7 @@ oss-types = { workspace = true }
 oss-blob = { workspace = true }
 oss-format = { workspace = true }
 oss-rest = { workspace = true }
+chunkjson = { workspace = true }
 
 [lints]
 workspace = true
