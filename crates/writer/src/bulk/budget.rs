@@ -159,7 +159,7 @@ mod tests {
     use std::sync::mpsc;
     use std::thread;
 
-    const LONG: Duration = Duration::from_secs(30);
+    const LONG: Duration = Duration::from_secs(10);
 
     #[test]
     fn grants_fit_and_come_back() {
@@ -222,7 +222,9 @@ mod tests {
                 drop(g);
             }));
             // Let it queue before the next one.
+            let patience = Instant::now() + Duration::from_secs(5);
             while lock(b_state(&first)).queue.len() < waiters.len() {
+                assert!(Instant::now() < patience, "the waiter never queued");
                 thread::yield_now();
             }
         }

@@ -238,3 +238,23 @@ fn an_interrupted_read_is_retried_and_any_other_failure_refuses_the_body() {
     };
     assert_eq!(stream_from(&mut broken), Err(400));
 }
+
+#[test]
+fn an_object_source_in_the_action_is_skipped_whatever_its_depth() {
+    // Stock reads the action's `_source` as a nested value and moves on to
+    // the parameters after it.
+    for line in [
+        r#"{"delete":{"_source":{"a":{"b":[1,{"c":2}]},"d":[]},"_id":"1"}}"#,
+        r#"{"delete":{"_source":{},"_id":"1"}}"#,
+        r#"{"delete":{"_source":{"a":[[1],[2]]},"_id":"1"}}"#,
+    ] {
+        let body = format!("{line}\n");
+        assert_eq!(run(&body, &with_index()), Ok(vec![201]), "{line}");
+    }
+}
+
+#[test]
+fn an_object_given_for_any_other_parameter_is_refused() {
+    let body = "{\"index\":{\"routing\":{\"x\":1},\"_id\":\"1\"}}\n{}\n";
+    assert!(run(body, &with_index()).is_err());
+}
