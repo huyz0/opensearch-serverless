@@ -1,5 +1,6 @@
 //! The S3 client against a real S3 implementation: a RustFS binary on
-//! loopback (docs/specs/s3-client/SPEC.md AC-14). It runs only when
+//! loopback (docs/specs/s3-client/SPEC.md AC-14, and the batch delete of
+//! docs/specs/blob-batch-delete/SPEC.md AC-6). It runs only when
 //! `RUSTFS_BIN` names the binary, and says it skipped otherwise; nothing
 //! here reaches beyond 127.0.0.1.
 //!
@@ -165,13 +166,17 @@ fn the_client_round_trips_against_rustfs() {
     );
     s3.delete("log/1").unwrap();
     assert_eq!(s3.head("log/1"), Ok(None));
+    // A batch delete, its Content-MD5 checked by the server, and a key that
+    // is not there (docs/specs/blob-batch-delete/SPEC.md AC-6).
+    s3.delete_many(&["seg/a b+c", "never/there"]).unwrap();
+    assert_eq!(s3.head("seg/a b+c"), Ok(None));
     for (op, n) in [
         (S3Op::Put, 3),
         (S3Op::Get, 1),
         (S3Op::GetRange, 1),
-        (S3Op::Head, 2),
+        (S3Op::Head, 3),
         (S3Op::List, 1),
-        (S3Op::Delete, 1),
+        (S3Op::Delete, 2),
     ] {
         assert_eq!(s3.meter().count(op), n, "{op:?}");
     }

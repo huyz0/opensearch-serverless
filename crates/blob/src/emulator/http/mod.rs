@@ -63,6 +63,9 @@ struct Script {
     answer: Option<(u16, &'static str, u32)>,
     /// Cut the next GET body after this many bytes.
     cut: Option<u64>,
+    /// List the first key of the next `n` batch deletes as failed with
+    /// this code, deleting nothing.
+    delete_error: Option<(&'static str, u32)>,
 }
 
 /// State every connection thread shares.
@@ -94,6 +97,15 @@ impl Shared {
     /// The scripted cut for this GET body, if one is pending.
     pub(crate) fn take_cut(&self) -> Option<u64> {
         lock(&self.script).cut.take()
+    }
+
+    /// The code to list this batch delete's first key as failed with, if
+    /// one is pending.
+    pub(crate) fn scripted_delete_error(&self) -> Option<&'static str> {
+        let mut script = lock(&self.script);
+        let (code, left) = script.delete_error?;
+        script.delete_error = left.checked_sub(1).filter(|n| *n > 0).map(|n| (code, n));
+        Some(code)
     }
 }
 
@@ -160,6 +172,13 @@ impl S3Server {
     /// S3 error document carrying `code`, without touching the emulator.
     pub fn answer_next(&self, status: u16, code: &'static str, n: u32) {
         lock(&self.shared.script).answer = (n > 0).then_some((status, code, n));
+    }
+
+    /// Answers the next `n` batch deletes 200, listing their first key as
+    /// failed with `code` and deleting nothing: a store that refused one
+    /// key of a batch.
+    pub fn list_delete_error_next(&self, code: &'static str, n: u32) {
+        lock(&self.shared.script).delete_error = (n > 0).then_some((code, n));
     }
 
     /// Cuts the next GET's body after `after` bytes and closes its

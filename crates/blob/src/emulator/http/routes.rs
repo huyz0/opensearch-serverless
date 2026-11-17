@@ -176,6 +176,9 @@ pub(crate) fn respond(
         ("PUT", Some(key)) => writes::put(shared, head, key, body),
         ("DELETE", Some(key)) => writes::delete(shared, head, key),
         ("GET", None) => list(shared, &request.query, out),
+        ("POST", None) if request.query.iter().any(|(n, _)| n == "delete") => {
+            writes::delete_batch(shared, head, body, out)
+        }
         _ => Reply::Error(405, "MethodNotAllowed"),
     }
 }

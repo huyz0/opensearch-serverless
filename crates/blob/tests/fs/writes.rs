@@ -215,3 +215,25 @@ fn a_key_that_is_also_a_prefix_is_refused() {
     let r = s.create_if_absent("c", &mut SliceSource::new(b"z"), &mut [0; 4]);
     assert_eq!(r, Ok(CreateOutcome::AlreadyExists));
 }
+
+// docs/specs/blob-batch-delete/SPEC.md AC-5
+#[test]
+fn a_batch_delete_on_disk_is_one_delete_a_key_after_checking_them_all() {
+    let (s, _dir) = crate::store("batch");
+    for k in ["d/a", "d/b"] {
+        crate::put(&s, k, b"x");
+    }
+    assert!(matches!(
+        s.delete_many(&["d/a", ""]),
+        Err(BlobError::InvalidArgument(_))
+    ));
+    assert_eq!(
+        s.head("d/a").unwrap().map(|m| m.len),
+        Some(1),
+        "nothing deleted"
+    );
+    s.delete_many(&["d/a", "d/b", "d/missing"]).unwrap();
+    assert_eq!(s.head("d/a").unwrap(), None);
+    assert_eq!(s.head("d/b").unwrap(), None);
+    assert_eq!(s.meter().count(S3Op::Delete), 3);
+}

@@ -16,11 +16,12 @@
 //! `request.rs`.
 
 mod body;
+pub(crate) mod delete;
 mod register;
 mod request;
 pub mod retry;
 pub mod sigv4;
-mod xml;
+pub(crate) mod xml;
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, SystemTime};
@@ -328,6 +329,10 @@ impl BlobStore for S3Store {
     fn delete(&self, key: &str) -> BlobResult<()> {
         check_key(key)?;
         self.run(|_| Some((self.delete_once(key, None).map(|_| ()), true)))
+    }
+
+    fn delete_many(&self, keys: &[&str]) -> BlobResult<()> {
+        self.delete_batches(keys)
     }
 
     // LIST: the client's implementation of the trait's one bounded page.

@@ -44,6 +44,6 @@ pub use s3::sigv4::Credentials;
 pub use s3::{S3Config, S3Store};
 pub use settings::StoreSettings;
 pub use store::{
-    BlobStore, ByteRange, CreateOutcome, GetOutcome, ListPage, MAX_KEY_BYTES, MAX_LIST_KEYS,
-    ObjectMeta,
+    BlobStore, ByteRange, CreateOutcome, GetOutcome, ListPage, MAX_DELETE_KEYS, MAX_KEY_BYTES,
+    MAX_LIST_KEYS, ObjectMeta,
 };

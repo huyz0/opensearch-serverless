@@ -10,14 +10,14 @@ use oss_blob::emulator::http::MAX_CONNECTIONS;
 use oss_blob::s3::sigv4::{self, Scope, UNSIGNED_PAYLOAD};
 use oss_blob::*;
 
-fn connect(endpoint: &str) -> TcpStream {
+pub(crate) fn connect(endpoint: &str) -> TcpStream {
     let s = TcpStream::connect(endpoint.trim_start_matches("http://")).unwrap();
     s.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
     s
 }
 
 /// Sends `raw` and reads until the server closes or 300 ms pass quietly.
-fn exchange(endpoint: &str, raw: &[u8]) -> String {
+pub(crate) fn exchange(endpoint: &str, raw: &[u8]) -> String {
     let mut s = connect(endpoint);
     s.write_all(raw).unwrap();
     s.set_read_timeout(Some(Duration::from_millis(300)))
@@ -34,7 +34,7 @@ fn exchange(endpoint: &str, raw: &[u8]) -> String {
 }
 
 /// A request signed as the client signs, with `extra` headers signed too.
-fn signed(endpoint: &str, method: &str, target: &str, extra: &[(&str, &str)]) -> String {
+pub(crate) fn signed(endpoint: &str, method: &str, target: &str, extra: &[(&str, &str)]) -> String {
     let host = endpoint.trim_start_matches("http://");
     let now = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
@@ -75,7 +75,7 @@ fn signed(endpoint: &str, method: &str, target: &str, extra: &[(&str, &str)]) ->
 }
 
 /// Reads until the server closes, failing if the 5 s timeout comes first.
-fn read_to_close(s: &mut TcpStream) -> String {
+pub(crate) fn read_to_close(s: &mut TcpStream) -> String {
     let mut out = Vec::new();
     let mut buf = [0u8; 4096];
     loop {
@@ -87,7 +87,7 @@ fn read_to_close(s: &mut TcpStream) -> String {
     }
 }
 
-fn status(response: &str) -> &str {
+pub(crate) fn status(response: &str) -> &str {
     response.split(' ').nth(1).unwrap_or("")
 }
 
