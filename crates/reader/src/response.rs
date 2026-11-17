@@ -18,7 +18,7 @@ use oss_rest::write_json_str;
 
 use crate::OpenShard;
 use crate::aggs::metric::write_aggregations;
-use crate::fetch::source_filter;
+use crate::fetch::{docvalue_fields, source_filter};
 use crate::search::{Hits, SortValue};
 
 /// A hit's `_id` and `_source`, copied out of its stored fields into buffers
@@ -257,6 +257,12 @@ pub fn write_response<S: BlobStore + 'static>(
                 source_filter::write_filtered(out, &hits.source, &stored.source)?;
             }
         }
+        docvalue_fields::write_fields(
+            out,
+            &hits.fields,
+            segment,
+            hit.doc.saturating_sub(segment.doc_base),
+        )?;
         if !hit.sort.is_empty() {
             out.write_all(b",\"sort\":[")?;
             for (k, value) in hit.sort.iter().enumerate() {

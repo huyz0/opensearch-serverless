@@ -1,6 +1,6 @@
 //! A search request's source: `SearchSourceBuilder.parseXContent` for
-//! `query`, `size`, `from`, `sort`, `track_total_hits`, `_source` and
-//! `search_after`, and the `size` and `from` URL
+//! `query`, `size`, `from`, `sort`, `track_total_hits`, `_source`,
+//! `search_after` and `docvalue_fields`, and the `size` and `from` URL
 //! parameters of `RestSearchAction.parseSearchSource`, at OpenSearch 3.10.0.
 //!
 //! Every other key OpenSearch reads is refused as not served yet; a key it
@@ -15,6 +15,7 @@ use crate::dsl::search_after::{AfterValue, parse_search_after};
 use crate::dsl::sort::{SortKey, parse_sort};
 use crate::dsl::tokens::{Kind, Parser, Recorder};
 use crate::dsl::values::{bool_value, int_value};
+use crate::fetch::docvalue_fields::{DocValueField, parse_docvalue_fields};
 use crate::fetch::source_filter::{SourceFilter, parse_source};
 
 /// `SearchService.DEFAULT_SIZE`.
@@ -90,6 +91,8 @@ pub struct SearchSource {
     /// `search_after`: the sort values the page starts after; none when
     /// empty.
     pub search_after: Vec<AfterValue>,
+    /// `docvalue_fields`: the fields whose doc values each hit carries.
+    pub docvalue_fields: Vec<DocValueField>,
 }
 
 impl Default for SearchSource {
@@ -106,6 +109,8 @@ impl Default for SearchSource {
             aggs: Vec::new(),
             // ALLOC: empty; parsing pushes one a value.
             search_after: Vec::new(),
+            // ALLOC: empty; parsing pushes one an entry.
+            docvalue_fields: Vec::new(),
         }
     }
 }
@@ -207,6 +212,7 @@ impl SearchSource {
             "sort" => self.sort = parse_sort(p)?,
             "_source" => self.source = parse_source(p, name)?,
             "search_after" => self.search_after = parse_search_after(p)?,
+            "docvalue_fields" => self.docvalue_fields = parse_docvalue_fields(p)?,
             known if ARRAY_KEYS.contains(&known) => return Err(unsupported(known)),
             _ => return Err(unknown_key(p, Kind::StartArray, name)),
         }

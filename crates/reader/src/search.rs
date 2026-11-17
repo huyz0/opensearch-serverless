@@ -26,6 +26,7 @@ use crate::aggs::metric::{self, Partial, state_bytes};
 use crate::dsl::search_after::{AfterKey, field_doc};
 use crate::dsl::{SearchSource, SortKey};
 use crate::failure::{Failure, Meta};
+use crate::fetch::docvalue_fields::{self, HitField};
 use crate::fetch::source_filter::SourceFilter;
 use crate::lucene_query::{QueryContext, shard_failure, to_lucene};
 use crate::mapping::FieldType;
@@ -75,6 +76,8 @@ pub struct Hits {
     pub tracked: bool,
     /// What of each hit's `_source` to write.
     pub source: SourceFilter,
+    /// The fields each hit's `fields` object carries, in its order.
+    pub fields: Vec<HitField>,
 }
 
 /// A failure on the shard, with the HTTP status it answers with.
@@ -199,6 +202,7 @@ pub fn search<S: BlobStore + 'static>(
         )));
     }
     let sort = sort_fields(&source.sort, shard, index)?;
+    docvalue_fields::check_count(&source.docvalue_fields)?;
     let after = if source.search_after.is_empty() {
         None
     } else {
@@ -235,7 +239,7 @@ pub fn search<S: BlobStore + 'static>(
     let aggregations = metric::collect(&source.aggs, shard, &segments, &query)?;
     // A total turned off counts nothing past the hits.
     let limit = source.track_total_hits.unwrap_or(0);
-    match sort {
+    let mut hits = match sort {
         Some((keys, kinds)) if window > 0 => {
             let top = search_sorted(
                 &segments,
@@ -265,6 +269,8 @@ pub fn search<S: BlobStore + 'static>(
                 aggregations,
                 tracked: source.track_total_hits.is_some(),
                 source: source.source.clone(),
+                // ALLOC: empty; resolved below when there are hits.
+                fields: Vec::new(),
             })
         }
         _ => {
@@ -294,9 +300,16 @@ pub fn search<S: BlobStore + 'static>(
                 aggregations,
                 tracked: source.track_total_hits.is_some(),
                 source: source.source.clone(),
+                // ALLOC: as above.
+                fields: Vec::new(),
             })
         }
+    }?;
+    // The fetch phase resolves the fields only when it has a hit to fetch.
+    if !hits.hits.is_empty() && !source.docvalue_fields.is_empty() {
+        hits.fields = docvalue_fields::resolve(&source.docvalue_fields, &meta.mapping)?;
     }
+    Ok(hits)
 }
 
 fn sorted_hit(h: &FieldDoc, kinds: &[KeyKind], score_at: Option<usize>) -> Hit {
