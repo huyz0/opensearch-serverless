@@ -40,6 +40,14 @@ pub struct QueryContext<'a> {
 /// OpenSearch exception becomes a `query_shard_exception` naming the index.
 pub fn shard_failure(f: Failure, index: &str, uuid: &str) -> Failure {
     if f.opensearch {
+        // A `QueryShardException` names the index it was thrown on.
+        if f.kind == "query_shard_exception" && f.meta.is_empty() {
+            return f
+                // ALLOC: error path; the index name.
+                .with_meta("index", Meta::Str(index.to_owned()))
+                // ALLOC: error path; the index uuid.
+                .with_meta("index_uuid", Meta::Str(uuid.to_owned()));
+        }
         return f;
     }
     // ALLOC: error path; one message.
@@ -67,7 +75,7 @@ pub fn to_lucene(query: &Query, cx: &QueryContext<'_>) -> Result<BooleanQuery, F
 
 /// `AbstractQueryBuilder.toQuery`: the builder's query, boosted unless the
 /// boost is 1 or nothing can match.
-fn build(query: &Query, cx: &QueryContext<'_>) -> Result<Clause, Failure> {
+pub(crate) fn build(query: &Query, cx: &QueryContext<'_>) -> Result<Clause, Failure> {
     let (clause, boost) = match query {
         Query::MatchAll { boost } => (match_all(cx), *boost),
         Query::Term {
@@ -112,6 +120,7 @@ fn build(query: &Query, cx: &QueryContext<'_>) -> Result<Clause, Failure> {
             *boost,
         ),
         Query::Bool(b) => (bool_query(cx, b)?, b.boost),
+        Query::More(m) => (crate::dsl::queries::build::to_clause(m, cx)?, m.boost()),
     };
     if boost == 1.0 || matches!(clause, Clause::MatchNoDocs(_)) {
         return Ok(clause);
@@ -120,15 +129,15 @@ fn build(query: &Query, cx: &QueryContext<'_>) -> Result<Clause, Failure> {
     Ok(Clause::Boost(Box::new(BoostQuery::new(clause, boost))))
 }
 
-fn match_all(cx: &QueryContext<'_>) -> Clause {
+pub(crate) fn match_all(cx: &QueryContext<'_>) -> Clause {
     Clause::MatchAllDocs(MatchAllDocsQuery::new(cx.max_doc))
 }
 
-fn match_none() -> Clause {
+pub(crate) fn match_none() -> Clause {
     Clause::MatchNoDocs(MatchNoDocsQuery::new())
 }
 
-fn unsupported(what: &str) -> Failure {
+pub(crate) fn unsupported(what: &str) -> Failure {
     Failure::plain(
         "illegal_argument_exception",
         // ALLOC: error path; one message.
@@ -137,7 +146,10 @@ fn unsupported(what: &str) -> Failure {
 }
 
 /// The field's type, refusing one this reader does not search.
-fn field_type<'m>(cx: &QueryContext<'m>, field: &str) -> Result<Option<&'m FieldType>, Failure> {
+pub(crate) fn field_type<'m>(
+    cx: &QueryContext<'m>,
+    field: &str,
+) -> Result<Option<&'m FieldType>, Failure> {
     let Some(f) = cx.mapping.get(field) else {
         return Ok(None);
     };
@@ -155,7 +167,7 @@ fn field_type<'m>(cx: &QueryContext<'m>, field: &str) -> Result<Option<&'m Field
 }
 
 /// `MappedFieldType.termQuery` for each type of the subset.
-fn term(cx: &QueryContext<'_>, field: &str, value: &Value) -> Result<Clause, Failure> {
+pub(crate) fn term(cx: &QueryContext<'_>, field: &str, value: &Value) -> Result<Clause, Failure> {
     let Some(ty) = field_type(cx, field)? else {
         return Ok(match_none());
     };
@@ -186,7 +198,7 @@ fn term(cx: &QueryContext<'_>, field: &str, value: &Value) -> Result<Clause, Fai
     })
 }
 
-fn point(q: lucene_search::Result<PointRangeQuery>) -> Result<Clause, Failure> {
+pub(crate) fn point(q: lucene_search::Result<PointRangeQuery>) -> Result<Clause, Failure> {
     let q = q.map_err(|e| {
         // ALLOC: error path; one message.
         Failure::plain("illegal_argument_exception", e.to_string())

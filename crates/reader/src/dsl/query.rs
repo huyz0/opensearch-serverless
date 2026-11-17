@@ -72,6 +72,8 @@ pub enum Query {
     },
     /// `BoolQueryBuilder`.
     Bool(Box<BoolQuery>),
+    /// A query of [`crate::dsl::queries`].
+    More(Box<crate::dsl::queries::More>),
 }
 
 /// `parseInnerQueryBuilder`: the parser is on (or just before) the query
@@ -114,6 +116,10 @@ pub fn parse_inner(p: &mut Parser<'_>) -> Result<Query, DslError> {
         "range" => parse_range(p)?,
         // ALLOC: one box a bool query, nested at most as deep as the tokenizer allows.
         "bool" => Query::Bool(Box::new(parse_bool(p)?)),
+        // ALLOC: one box a query of the module, nested at most as deep as the tokenizer allows.
+        more if crate::dsl::queries::NAMES.contains(&more) => {
+            Query::More(Box::new(crate::dsl::queries::parse(more, p)?))
+        }
         known if REGISTERED_QUERIES.contains(&known) => {
             // ALLOC: error path; one message.
             return Err(DslError::unsupported(&format!("the [{known}] query")));
