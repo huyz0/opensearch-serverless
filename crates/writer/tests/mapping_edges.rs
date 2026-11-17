@@ -322,3 +322,17 @@ fn a_field_of_only_enabled_is_an_object() {
         "No type specified for field [o]"
     );
 }
+
+#[test]
+fn properties_must_be_an_object_or_empty() {
+    let m = parse(r#"{"properties":{"o":{"properties":[]}}}"#).unwrap();
+    assert!(
+        m.to_json().contains(r#""o":{"type":"object"}"#),
+        "{}",
+        m.to_json()
+    );
+    assert_eq!(
+        cause(r#"{"properties":{"o":{"properties":["x"]}}}"#),
+        "properties must be a map type"
+    );
+}
