@@ -206,3 +206,52 @@ fn a_takeover_failure_says_what_failed() {
         "{log}"
     );
 }
+
+#[test]
+fn a_reread_finding_the_fence_safe_reads_the_lease_once_and_fences_once() {
+    let r = rig(window(0));
+    commit(&r, 1, "a0", 0).expect("lands");
+    let at = r.committer.last_position(&shard(1)).expect("landed");
+    r.committer.on_published(&shard(1), at);
+    let lease = r.committer.positions();
+    let requests = |r: &Rig| count(r, S3Op::Head) + count(r, S3Op::Get) + count(r, S3Op::Put);
+
+    let before = requests(&r);
+    NodeLogTakeover::new(r.log.clone(), lease.clone(), "node-2", 2)
+        .fence_all()
+        .expect("fences");
+    let plain = requests(&r) - before;
+
+    // The trim point equals the fence's slot: nothing was deleted past it.
+    let reads = Arc::new(std::sync::atomic::AtomicU32::new(0));
+    let counted = Arc::clone(&reads);
+    let now = lease.clone();
+    let reread = Box::new(move || -> Result<Vec<NodeLogEpoch>, Refusal> {
+        counted.fetch_add(1, Ordering::SeqCst);
+        Ok(now.clone())
+    });
+    let before = requests(&r);
+    let second = NodeLogTakeover::rereading(r.log.clone(), lease, "node-3", 2, reread);
+    assert_eq!(second.ends().expect("fences"), BTreeMap::from([(7, 1)]));
+    assert_eq!(reads.load(Ordering::SeqCst), 1, "the lease is read once");
+    assert_eq!(requests(&r) - before, plain, "and the epoch fenced once");
+}
+
+#[test]
+fn a_fence_moved_once_reads_the_lease_twice() {
+    let r = rig(window(0));
+    let (stale, now) = deleted_behind_a_stale_lease(&r);
+    let reads = Arc::new(std::sync::atomic::AtomicU32::new(0));
+    let counted = Arc::clone(&reads);
+    let reread = Box::new(move || -> Result<Vec<NodeLogEpoch>, Refusal> {
+        counted.fetch_add(1, Ordering::SeqCst);
+        Ok(now.clone())
+    });
+    let takeover = NodeLogTakeover::rereading(r.log.clone(), stale, "node-2", 2, reread);
+    assert_eq!(takeover.ends().expect("fences"), BTreeMap::from([(7, 7)]));
+    assert_eq!(
+        reads.load(Ordering::SeqCst),
+        2,
+        "once to find the hole, once to see the new fence is safe"
+    );
+}
