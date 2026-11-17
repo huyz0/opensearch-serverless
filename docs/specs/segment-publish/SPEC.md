@@ -23,11 +23,11 @@ Parity plan R6.4 (roadmap stage 3, [roadmap](../../roadmap.md)), invariants I-6 
 - AC-6: a register holding a newer term refuses the publish with `StaleWriter` and writes no register; the same term from another writer is `ForeignWriter`.
 - AC-7: a swap that loses re-reads once and publishes over the register; the same term and writer found there answers with that manifest.
 - AC-8: a 64 MiB segment publishes with the publisher's peak heap below 2 MiB over the commit's own bytes (counting allocator).
-- AC-9: documents indexed through `index::Shard` and published are found by the reader from the object store: `open_shard` over the written register opens the commit and a search returns the documents, including after a second publish that deletes and updates.
+- AC-9: documents indexed through `index::Shard` and published are found by the reader from the object store: `open_shard` over the written register opens the commit and counts the documents, including after a second publish that deletes and updates (seen through the soft-deletes wrapper, which the reader does not apply yet).
 
 ## Test plan
 
-`crates/format/tests/shell_blobs.rs` re-encodes the Java's headers and manifests (AC-1, AC-2); `crates/writer/tests/publish.rs` over the in-process emulator with a request meter (AC-3 to AC-7); `crates/writer/tests/publish_memory.rs` under the counting allocator (AC-8); `crates/node/tests/publish_read.rs`, which has both roles, indexes through the shard, publishes, and searches through the reader (AC-9).
+`crates/format/tests/writers.rs` re-encodes the Java's headers and manifests (AC-1, AC-2); `crates/writer/tests/publish.rs` over the in-process emulator with a request meter (AC-3 to AC-7); `crates/writer/tests/publish_memory.rs` under the counting allocator (AC-8); `crates/node/tests/publish_read.rs`, which has both roles, indexes through the shard, publishes, and counts through the reader (AC-9).
 
 ## S3 request budget
 

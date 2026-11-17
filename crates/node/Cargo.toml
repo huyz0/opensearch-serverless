@@ -39,9 +39,18 @@ lucene-store = { workspace = true }
 oss-blob = { workspace = true, features = ["emulator"] }
 oss-mem = { workspace = true }
 oss-testkit = { workspace = true, features = ["index"] }
+# The publish-then-read test: what the writer publishes, the reader opens.
+oss-writer = { workspace = true }
+oss-reader = { workspace = true }
+oss-format = { workspace = true }
+lucene-index = { workspace = true }
 
 [lints]
 workspace = true
+
+[[test]]
+name = "publish_read"
+path = "tests/publish_read.rs"
 
 [[test]]
 name = "it"
