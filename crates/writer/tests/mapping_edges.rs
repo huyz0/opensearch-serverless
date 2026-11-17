@@ -302,9 +302,9 @@ fn depth_limit_names_the_first_object_past_it() {
 fn multi_fields_must_be_an_object_or_empty() {
     assert!(parse(r#"{"properties":{"k":{"type":"keyword","fields":[]}}}"#).is_ok());
     let e = cause(r#"{"properties":{"k":{"type":"keyword","fields":["x"]}}}"#);
-    assert!(
-        e.starts_with("expected map for property [fields] on field [[x]]"),
-        "{e}"
+    assert_eq!(
+        e,
+        "expected map for property [fields] on field [[x]] or [fields] but got a class java.util.ArrayList"
     );
 }
 
