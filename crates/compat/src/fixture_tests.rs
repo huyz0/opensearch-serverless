@@ -261,3 +261,35 @@ fn the_response_document_selects_headers_when_asked() {
         json!({"status": 201, "headers": {"b": "2"}, "body": null})
     );
 }
+
+#[test]
+fn a_raw_body_is_sent_as_written() {
+    let doc = with(
+        minimal(),
+        "/steps/0/request",
+        json!({"method": "PUT", "path": "/a/_doc/1", "raw": "{\"x\":1,\"x\":2}"}),
+    );
+    let f = Fixture::from_value(&doc).unwrap();
+    let request = &f.steps[0].request;
+    assert_eq!(request.content_type(), Some("application/json"));
+    assert_eq!(
+        request.encode_body().unwrap(),
+        b"{\"x\":1,\"x\":2}".to_vec()
+    );
+}
+
+#[test]
+fn a_raw_body_must_be_a_string_and_stand_alone() {
+    let not_text = with(
+        minimal(),
+        "/steps/0/request",
+        json!({"method": "PUT", "path": "/a/_doc/1", "raw": {"x": 1}}),
+    );
+    assert_eq!(refusal(not_text).at, "steps[0].request.raw");
+    let both = with(
+        minimal(),
+        "/steps/0/request",
+        json!({"method": "PUT", "path": "/a/_doc/1", "raw": "{}", "body": {}}),
+    );
+    assert_eq!(refusal(both).at, "steps[0].request");
+}
