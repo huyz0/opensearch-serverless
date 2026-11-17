@@ -136,3 +136,23 @@ fn search_routings_split_as_cores() {
     assert_eq!(normalize(Some("x")), Some("x"));
     assert_eq!(normalize(None), None);
 }
+
+#[test]
+fn routing_shards_scale_the_hash_as_core_does() {
+    // Stock OpenSearch over three shards and 768 routing shards put ids
+    // "0" to "7" on these shards (fixtures/compat/bulk/shards.json).
+    let routing = DocumentRouting::legacy_scaled(3, 1, 768).unwrap();
+    let shards: Vec<u32> = (0..8)
+        .map(|i| routing.shard_for(&i.to_string(), None).unwrap())
+        .collect();
+    assert_eq!(shards, [1, 2, 1, 1, 1, 0, 2, 0]);
+    assert_eq!(routing.shard_for("x", Some("same")), Ok(1));
+    // Without routing shards the factor is 1, as the shell renders an index.
+    assert_eq!(
+        DocumentRouting::legacy_scaled(3, 1, 3).unwrap(),
+        DocumentRouting::legacy(3, 1).unwrap()
+    );
+    assert!(DocumentRouting::legacy_scaled(3, 1, 4).is_err());
+    assert!(DocumentRouting::legacy_scaled(3, 1, 0).is_err());
+    assert!(DocumentRouting::legacy_scaled(4, 2, 2).is_err());
+}

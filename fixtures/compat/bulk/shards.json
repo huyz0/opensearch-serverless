@@ -1,0 +1,527 @@
+{
+  "name": "bulk across shards",
+  "description": "Bulk items routed across shards (routing shards set, as stock's default for three shards would be), generated ids, and request validation of several items.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0-SNAPSHOT",
+    "build_hash": "429b4cbcd98f0d22aeae421a9f38645f6dc55b62"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-bulk-shards",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "create the index",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-bulk-shards",
+        "body": {
+          "settings": {
+            "number_of_shards": 3,
+            "number_of_replicas": 0,
+            "number_of_routing_shards": 768
+          },
+          "mappings": {
+            "properties": {
+              "n": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-bulk-shards"
+        }
+      }
+    },
+    {
+      "name": "ids across shards",
+      "request": {
+        "method": "POST",
+        "path": "/compat-bulk-shards/_bulk",
+        "ndjson": [
+          {
+            "index": {
+              "_id": "0"
+            }
+          },
+          {
+            "n": 0
+          },
+          {
+            "index": {
+              "_id": "1"
+            }
+          },
+          {
+            "n": 1
+          },
+          {
+            "index": {
+              "_id": "2"
+            }
+          },
+          {
+            "n": 2
+          },
+          {
+            "index": {
+              "_id": "3"
+            }
+          },
+          {
+            "n": 3
+          },
+          {
+            "index": {
+              "_id": "4"
+            }
+          },
+          {
+            "n": 4
+          },
+          {
+            "index": {
+              "_id": "5"
+            }
+          },
+          {
+            "n": 5
+          },
+          {
+            "index": {
+              "_id": "6"
+            }
+          },
+          {
+            "n": 6
+          },
+          {
+            "index": {
+              "_id": "7"
+            }
+          },
+          {
+            "n": 7
+          }
+        ]
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "errors": false,
+          "items": [
+            {
+              "index": {
+                "_index": "compat-bulk-shards",
+                "_id": "0",
+                "_version": 1,
+                "result": "created",
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 0,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-bulk-shards",
+                "_id": "1",
+                "_version": 1,
+                "result": "created",
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 0,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-bulk-shards",
+                "_id": "2",
+                "_version": 1,
+                "result": "created",
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 1,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-bulk-shards",
+                "_id": "3",
+                "_version": 1,
+                "result": "created",
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 2,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-bulk-shards",
+                "_id": "4",
+                "_version": 1,
+                "result": "created",
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 3,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-bulk-shards",
+                "_id": "5",
+                "_version": 1,
+                "result": "created",
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 0,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-bulk-shards",
+                "_id": "6",
+                "_version": 1,
+                "result": "created",
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 1,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-bulk-shards",
+                "_id": "7",
+                "_version": 1,
+                "result": "created",
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 1,
+                "_primary_term": 1,
+                "status": 201
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "routing picks the shard",
+      "request": {
+        "method": "POST",
+        "path": "/compat-bulk-shards/_bulk",
+        "ndjson": [
+          {
+            "index": {
+              "_id": "r0",
+              "routing": "same"
+            }
+          },
+          {
+            "n": 0
+          },
+          {
+            "index": {
+              "_id": "r1",
+              "routing": "same"
+            }
+          },
+          {
+            "n": 1
+          },
+          {
+            "index": {
+              "_id": "r2",
+              "routing": "same"
+            }
+          },
+          {
+            "n": 2
+          },
+          {
+            "index": {
+              "_id": "r3",
+              "routing": "same"
+            }
+          },
+          {
+            "n": 3
+          }
+        ]
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "errors": false,
+          "items": [
+            {
+              "index": {
+                "_index": "compat-bulk-shards",
+                "_id": "r0",
+                "_version": 1,
+                "result": "created",
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 4,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-bulk-shards",
+                "_id": "r1",
+                "_version": 1,
+                "result": "created",
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 5,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-bulk-shards",
+                "_id": "r2",
+                "_version": 1,
+                "result": "created",
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 6,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-bulk-shards",
+                "_id": "r3",
+                "_version": 1,
+                "result": "created",
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 7,
+                "_primary_term": 1,
+                "status": 201
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "generated ids",
+      "request": {
+        "method": "POST",
+        "path": "/compat-bulk-shards/_bulk",
+        "ndjson": [
+          {
+            "index": {}
+          },
+          {
+            "n": 1
+          },
+          {
+            "create": {}
+          },
+          {
+            "n": 2
+          }
+        ]
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        },
+        {
+          "pointer": "/body/items/*/*/_id",
+          "reason": "a generated id"
+        },
+        {
+          "pointer": "/body/items/*/*/_seq_no",
+          "reason": "the shard, and so its sequence numbers, follow the generated id"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "errors": false,
+          "items": [
+            {
+              "index": {
+                "_index": "compat-bulk-shards",
+                "_id": "pkZA6KEBkgfvGqAknJGO",
+                "_version": 1,
+                "result": "created",
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 2,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "create": {
+                "_index": "compat-bulk-shards",
+                "_id": "p0ZA6KEBkgfvGqAknJGO",
+                "_version": 1,
+                "result": "created",
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 2,
+                "_primary_term": 1,
+                "status": 201
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "two invalid items",
+      "request": {
+        "method": "POST",
+        "path": "/compat-bulk-shards/_bulk",
+        "ndjson": [
+          {
+            "index": {
+              "_id": "a",
+              "version": 0
+            }
+          },
+          {
+            "n": 1
+          },
+          {
+            "delete": {}
+          },
+          {
+            "create": {
+              "_id": "b",
+              "version": 3,
+              "version_type": "external"
+            }
+          },
+          {
+            "n": 1
+          }
+        ]
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "action_request_validation_exception",
+                "reason": "Validation Failed: 1: illegal version value [0] for version type [INTERNAL];2: internal versioning can not be used for optimistic concurrency control. Please use `if_seq_no` and `if_primary_term` instead;3: id is missing;4: create operations only support internal versioning. use index instead;"
+              }
+            ],
+            "type": "action_request_validation_exception",
+            "reason": "Validation Failed: 1: illegal version value [0] for version type [INTERNAL];2: internal versioning can not be used for optimistic concurrency control. Please use `if_seq_no` and `if_primary_term` instead;3: id is missing;4: create operations only support internal versioning. use index instead;"
+          },
+          "status": 400
+        }
+      }
+    }
+  ]
+}
