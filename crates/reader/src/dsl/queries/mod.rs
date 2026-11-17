@@ -12,6 +12,9 @@ pub mod build;
 pub mod compound;
 pub mod full_text;
 pub mod full_text_build;
+pub mod simple_string;
+pub mod simple_string_build;
+mod simple_string_leaf;
 pub mod single_field;
 pub mod term_level;
 pub mod uid;
@@ -35,6 +38,7 @@ pub const NAMES: &[&str] = &[
     "match_none",
     "match_phrase",
     "multi_match",
+    "simple_query_string",
 ];
 
 /// `Fuzziness`: an edit distance, or `AUTO` with its two length bounds.
@@ -181,6 +185,8 @@ pub enum More {
     },
     /// `MultiMatchQueryBuilder` of the types served, and its boost.
     MultiMatch(Box<full_text::MultiMatch>, f32),
+    /// `SimpleQueryStringBuilder`, and its boost.
+    SimpleQueryString(Box<simple_string::SimpleQueryString>, f32),
 }
 
 impl More {
@@ -198,6 +204,7 @@ impl More {
             | More::DisMax { boost, .. }
             | More::MatchPhrase { boost, .. }
             | More::MultiMatch(_, boost)
+            | More::SimpleQueryString(_, boost)
             | More::MatchNone { boost } => *boost,
         }
     }
@@ -218,6 +225,7 @@ pub fn parse(name: &str, p: &mut Parser<'_>) -> Result<More, DslError> {
         "dis_max" => compound::parse_dis_max(p),
         "match_phrase" => full_text::parse_match_phrase(p),
         "multi_match" => full_text::parse_multi_match(p),
+        "simple_query_string" => simple_string::parse_simple_query_string(p),
         _ => compound::parse_match_none(p),
     }
 }
@@ -233,3 +241,9 @@ mod build_tests;
 
 #[cfg(test)]
 mod full_text_tests;
+
+#[cfg(test)]
+mod simple_string_build_tests;
+
+#[cfg(test)]
+mod simple_string_tests;

@@ -95,4 +95,23 @@ exclude_re = [
     # The quote analyzer follows the search analyzer, which follows the
     # analyzer: with `standard` the only analyzer taken, all three are equal.
     "crates/writer/src/mapping/types.rs:.*replace \\+ with \\*$",
+    # simple_query_string's grammar reads the query text through `at`,
+    # which returns 0 past the end, and an index that stays on a closing
+    # `)` is advanced by the `)` arm of the same loop, so these
+    # mutants give the same query: `>` to `>=` and `+` to `-` or `*` in
+    # the check for a `~` after a phrase's closing quote, `+=` to `*=` for
+    # the step past an empty or finished group, `<` to `<=` at the end of a
+    # fuzziness's digits, and the phrase or boolean analysis choice of a
+    # text that has no terms either way.
+    "simple_string_build.rs:\\d+:37: replace > with >= in Run<'_, '_>::consume_phrase",
+    "simple_string_build.rs:\\d+:51: replace \\+ with .* in Run<'_, '_>::consume_phrase",
+    "simple_string_build.rs:\\d+:25: replace \\+= with \\*= in Run<'_, '_>::consume_sub_query",
+    "simple_string_build.rs:\\d+:27: replace < with <= in Run<'_, '_>::parse_fuzziness",
+    # An empty token builds no query either way: the analyzer gives it no terms.
+    "simple_string_build.rs:\\d+:19: replace > with >= in Run<'_, '_>::consume_token",
+    "simple_string_leaf.rs:\\d+:46: replace == with != in Run<'_, '_>::matched",
+    # The grammar's loop guard only fires when a loop stops moving, which
+    # no input makes it do; it exists so a broken loop fails a query where
+    # it would hang the node.
+    "simple_string_build.rs:\\d+:\\d+: replace .* in Run<'_, '_>::tick",
 ]

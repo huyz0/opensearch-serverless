@@ -51,7 +51,7 @@ pub fn phrase(
 /// two entries resolve to taking the product of their boosts. Java's check
 /// for more fields than the clause limit (1,024) cannot fail here: a
 /// mapping holds at most `mapping::MAX_FIELDS` (1,000).
-fn resolve<'a>(
+pub(crate) fn resolve<'a>(
     cx: &'a QueryContext<'_>,
     listed: &'a [(String, f32)],
 ) -> Result<Vec<(&'a str, f32)>, Failure> {

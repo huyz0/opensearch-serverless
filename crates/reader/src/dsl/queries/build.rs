@@ -108,6 +108,7 @@ pub fn to_clause(m: &More, cx: &QueryContext<'_>) -> Result<Clause, Failure> {
             ..
         } => full_text_build::phrase(cx, field, query, *slop, *zero_terms_all),
         More::MultiMatch(m, _) => full_text_build::multi_match(cx, m),
+        More::SimpleQueryString(s, _) => super::simple_string_build::simple_query_string(cx, s),
     }
 }
 
@@ -126,6 +127,17 @@ fn type_name(ty: &FieldType) -> &str {
         FieldType::Date => "date",
         FieldType::Unsupported(what) => what,
     }
+}
+
+/// `prefixQuery` on one field, as `newPrefixQuery` builds it per field.
+pub(crate) fn prefix_clause(
+    cx: &QueryContext<'_>,
+    field: &str,
+    term: &str,
+) -> Result<Clause, Failure> {
+    string_query(cx, "prefix", field, || {
+        Clause::Prefix(PrefixQuery::new(field, term.as_bytes()))
+    })
 }
 
 /// `prefixQuery`, `wildcardQuery` and `regexpQuery`: string fields only;
@@ -233,7 +245,7 @@ fn terms(cx: &QueryContext<'_>, field: &str, values: &[Value]) -> Result<Clause,
 }
 
 /// `StringFieldType.fuzzyQuery` and `FuzzyQuery`'s constructor checks.
-fn fuzzy(
+pub(crate) fn fuzzy(
     cx: &QueryContext<'_>,
     field: &str,
     value: &Value,
