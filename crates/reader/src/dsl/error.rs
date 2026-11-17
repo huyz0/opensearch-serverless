@@ -50,6 +50,16 @@ impl DslError {
         DslError::illegal(format!("{what} is not supported by this node yet"))
     }
 
+    /// The HTTP status OpenSearch answers this failure with: 500 for an
+    /// `AggregationInitializationException`, which keeps
+    /// `OpenSearchException.status()`'s default, else 400.
+    pub fn status(&self) -> u16 {
+        match self {
+            DslError::Failure(f) if f.kind == "aggregation_initialization_exception" => 500,
+            _ => 400,
+        }
+    }
+
     /// The exception to answer with.
     pub fn into_failure(self) -> Failure {
         match self {

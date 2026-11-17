@@ -7,6 +7,7 @@
 //! records pushed by the writer and the search endpoint come next
 //! (docs/roadmap.md).
 
+pub mod aggs;
 pub mod date;
 pub mod dsl;
 pub mod engine_store;

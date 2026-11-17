@@ -17,6 +17,7 @@ use oss_blob::BlobStore;
 use oss_rest::write_json_str;
 
 use crate::OpenShard;
+use crate::aggs::metric::write_aggregations;
 use crate::search::{Hits, SortValue};
 
 /// A hit's `_id` and `_source`, copied out of its stored fields into buffers
@@ -254,7 +255,9 @@ pub fn write_response<S: BlobStore + 'static>(
         }
         out.write_all(b"}")?;
     }
-    out.write_all(b"]}}")
+    out.write_all(b"]}")?;
+    write_aggregations(out, &hits.aggregations)?;
+    out.write_all(b"}")
 }
 
 #[cfg(test)]

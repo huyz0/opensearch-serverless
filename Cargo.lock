@@ -288,6 +288,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5d15f86d12da44cd8d4ec3c73984537eb7f4cadcb9776a575a0a8a05ca11005c"
 
 [[package]]
+name = "lucene-aggs"
+version = "0.1.0"
+source = "git+https://github.com/huyz0/lucene-rust?rev=3b4e3a3e6c1df64f9177d123a204b5f05fa16a21#3b4e3a3e6c1df64f9177d123a204b5f05fa16a21"
+dependencies = [
+ "lucene-analysis",
+ "lucene-codecs",
+ "lucene-index",
+ "lucene-search",
+ "lucene-store",
+ "lucene-util",
+ "rayon",
+]
+
+[[package]]
 name = "lucene-analysis"
 version = "0.1.0"
 source = "git+https://github.com/huyz0/lucene-rust?rev=3b4e3a3e6c1df64f9177d123a204b5f05fa16a21#3b4e3a3e6c1df64f9177d123a204b5f05fa16a21"
@@ -573,6 +587,7 @@ dependencies = [
 name = "oss-reader"
 version = "0.1.0"
 dependencies = [
+ "lucene-aggs",
  "lucene-analysis",
  "lucene-codecs",
  "lucene-index",

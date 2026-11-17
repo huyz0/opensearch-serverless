@@ -103,7 +103,7 @@
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 11,
+          "took": 16,
           "errors": false,
           "items": [
             {
@@ -389,7 +389,7 @@
               {
                 "shard": 0,
                 "index": "compat-errors",
-                "node": "c8s9-RmITm-aV4KDlW4Z8Q",
+                "node": "RrioyQY1SImtIrCF0TThrg",
                 "reason": {
                   "type": "illegal_argument_exception",
                   "reason": "Result window is too large, from + size must be less than or equal to: [10000] but was [10001]. See the scroll api for a more efficient way to request large data sets. This limit can be set by changing the [index.max_result_window] index level setting."
@@ -483,6 +483,531 @@
             "index_uuid": "_na_"
           },
           "status": 404
+        }
+      }
+    },
+    {
+      "name": "aggregation of an unknown type",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "a": {
+              "mn": {
+                "field": "year"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parsing_exception",
+                "reason": "Unknown aggregation type [mn] did you mean [min]?",
+                "line": 1,
+                "col": 20
+              }
+            ],
+            "type": "parsing_exception",
+            "reason": "Unknown aggregation type [mn] did you mean [min]?",
+            "line": 1,
+            "col": 20,
+            "caused_by": {
+              "type": "named_object_not_found_exception",
+              "reason": "[1:20] unknown field [mn]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "aggregation without a definition",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "a": {}
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parsing_exception",
+                "reason": "Missing definition for aggregation [a]",
+                "line": 1,
+                "col": 15
+              }
+            ],
+            "type": "parsing_exception",
+            "reason": "Missing definition for aggregation [a]",
+            "line": 1,
+            "col": 15
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "aggregation with two types",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "a": {
+              "avg": {
+                "field": "year"
+              },
+              "min": {
+                "field": "year"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parsing_exception",
+                "reason": "Found two aggregation type definitions in [a]: [avg] and [min]",
+                "line": 1,
+                "col": 44
+              }
+            ],
+            "type": "parsing_exception",
+            "reason": "Found two aggregation type definitions in [a]: [avg] and [min]",
+            "line": 1,
+            "col": 44
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "aggregation with an invalid name",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "a>b": {
+              "min": {
+                "field": "year"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parsing_exception",
+                "reason": "Invalid aggregation name [a>b]. Aggregation names can contain any character except '[', ']', and '>'",
+                "line": 1,
+                "col": 10
+              }
+            ],
+            "type": "parsing_exception",
+            "reason": "Invalid aggregation name [a>b]. Aggregation names can contain any character except '[', ']', and '>'",
+            "line": 1,
+            "col": 10
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "aggregation definition not an object",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "a": 1
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parsing_exception",
+                "reason": "Aggregation definition for [a starts with a [VALUE_NUMBER], expected a [START_OBJECT].",
+                "line": 1,
+                "col": 14
+              }
+            ],
+            "type": "parsing_exception",
+            "reason": "Aggregation definition for [a starts with a [VALUE_NUMBER], expected a [START_OBJECT].",
+            "line": 1,
+            "col": 14
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "aggregation without a field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "a": {
+              "avg": {}
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Required one of fields [field, script], but none were specified. "
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Required one of fields [field, script], but none were specified. "
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "aggregation with an unknown key",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "a": {
+              "sum": {
+                "feild": "year"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "x_content_parse_exception",
+                "reason": "[1:22] [sum] unknown field [feild] did you mean [field]?"
+              }
+            ],
+            "type": "x_content_parse_exception",
+            "reason": "[1:22] [sum] unknown field [feild] did you mean [field]?"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "aggregation field not a string",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "a": {
+              "max": {
+                "field": 1
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "x_content_parse_exception",
+                "reason": "[1:30] [max] field doesn't support values of type: VALUE_NUMBER"
+              }
+            ],
+            "type": "x_content_parse_exception",
+            "reason": "[1:30] [max] field doesn't support values of type: VALUE_NUMBER"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "metric aggregation with sub-aggregations",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "a": {
+              "min": {
+                "field": "year"
+              },
+              "aggs": {
+                "b": {
+                  "max": {
+                    "field": "year"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 500,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "aggregation_initialization_exception",
+                "reason": "Aggregator [a] of type [min] cannot accept sub-aggregations"
+              }
+            ],
+            "type": "aggregation_initialization_exception",
+            "reason": "Aggregator [a] of type [min] cannot accept sub-aggregations"
+          },
+          "status": 500
+        }
+      }
+    },
+    {
+      "name": "min of a keyword field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "a": {
+              "min": {
+                "field": "tag"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Field [tag] of type [keyword] is not supported for aggregation [min]"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-errors",
+                "node": "RrioyQY1SImtIrCF0TThrg",
+                "reason": {
+                  "type": "illegal_argument_exception",
+                  "reason": "Field [tag] of type [keyword] is not supported for aggregation [min]"
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Field [tag] of type [keyword] is not supported for aggregation [min]",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Field [tag] of type [keyword] is not supported for aggregation [min]"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "stats of a text field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "a": {
+              "stats": {
+                "field": "title"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Text fields are not optimised for operations that require per-document field data like aggregations and sorting, so these operations are disabled by default. Please use a keyword field instead. Alternatively, set fielddata=true on [title] in order to load field data by uninverting the inverted index. Note that this can use significant memory."
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-errors",
+                "node": "RrioyQY1SImtIrCF0TThrg",
+                "reason": {
+                  "type": "illegal_argument_exception",
+                  "reason": "Text fields are not optimised for operations that require per-document field data like aggregations and sorting, so these operations are disabled by default. Please use a keyword field instead. Alternatively, set fielddata=true on [title] in order to load field data by uninverting the inverted index. Note that this can use significant memory."
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Text fields are not optimised for operations that require per-document field data like aggregations and sorting, so these operations are disabled by default. Please use a keyword field instead. Alternatively, set fielddata=true on [title] in order to load field data by uninverting the inverted index. Note that this can use significant memory.",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Text fields are not optimised for operations that require per-document field data like aggregations and sorting, so these operations are disabled by default. Please use a keyword field instead. Alternatively, set fielddata=true on [title] in order to load field data by uninverting the inverted index. Note that this can use significant memory."
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "value_count of a text field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "a": {
+              "value_count": {
+                "field": "title"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Text fields are not optimised for operations that require per-document field data like aggregations and sorting, so these operations are disabled by default. Please use a keyword field instead. Alternatively, set fielddata=true on [title] in order to load field data by uninverting the inverted index. Note that this can use significant memory."
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-errors",
+                "node": "RrioyQY1SImtIrCF0TThrg",
+                "reason": {
+                  "type": "illegal_argument_exception",
+                  "reason": "Text fields are not optimised for operations that require per-document field data like aggregations and sorting, so these operations are disabled by default. Please use a keyword field instead. Alternatively, set fielddata=true on [title] in order to load field data by uninverting the inverted index. Note that this can use significant memory."
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Text fields are not optimised for operations that require per-document field data like aggregations and sorting, so these operations are disabled by default. Please use a keyword field instead. Alternatively, set fielddata=true on [title] in order to load field data by uninverting the inverted index. Note that this can use significant memory.",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Text fields are not optimised for operations that require per-document field data like aggregations and sorting, so these operations are disabled by default. Please use a keyword field instead. Alternatively, set fielddata=true on [title] in order to load field data by uninverting the inverted index. Note that this can use significant memory."
+              }
+            }
+          },
+          "status": 400
         }
       }
     }

@@ -7,6 +7,7 @@
 
 use oss_rest::json::{Limits, Tokenizer};
 
+use crate::aggs::metric::{MetricAgg, parse_aggregations};
 use crate::dsl::error::DslError;
 use crate::dsl::query::{Query, parse_inner};
 use crate::dsl::sort::{SortKey, parse_sort};
@@ -76,6 +77,8 @@ pub struct SearchSource {
     pub size: usize,
     /// The sort; by score when empty.
     pub sort: Vec<SortKey>,
+    /// The aggregations, in request order; none when empty.
+    pub aggs: Vec<MetricAgg>,
 }
 
 impl Default for SearchSource {
@@ -86,6 +89,8 @@ impl Default for SearchSource {
             size: DEFAULT_SIZE,
             // ALLOC: empty; a sort pushes at most MAX_SORT_KEYS.
             sort: Vec::new(),
+            // ALLOC: empty; parsing pushes one an aggregation.
+            aggs: Vec::new(),
         }
     }
 }
@@ -151,6 +156,7 @@ impl SearchSource {
         match name {
             "query" => self.query = Some(parse_inner(p)?),
             "sort" => self.sort = parse_sort(p)?,
+            "aggregations" | "aggs" => self.aggs = parse_aggregations(p)?,
             known if OBJECT_KEYS.contains(&known) => return Err(unsupported(known)),
             _ => return Err(unknown_key(p, Kind::StartObject, name)),
         }
