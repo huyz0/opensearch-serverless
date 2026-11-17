@@ -27,6 +27,7 @@ use crate::OpenShard;
 use crate::aggs::metric::hll::Hll;
 use crate::aggs::metric::partial::{Format, Partial, Value};
 use crate::aggs::metric::tdigest::Digest;
+use crate::aggs::metric::top_hits::TopHitsResult;
 use crate::aggs::metric::{DEFAULT_PRECISION, Metric, MetricAgg};
 use crate::failure::Failure;
 use crate::mapping::FieldType;
@@ -152,7 +153,8 @@ fn needs(metric: Metric) -> u8 {
         Metric::ValueCount
         | Metric::Cardinality
         | Metric::Percentiles
-        | Metric::PercentileRanks => NEED_COUNT,
+        | Metric::PercentileRanks
+        | Metric::TopHits => NEED_COUNT,
     }
 }
 
@@ -175,6 +177,9 @@ fn value_of(agg: &MetricAgg, state: &MetricState) -> Value {
         Metric::ValueCount => Value::ValueCount(state.count),
         Metric::Cardinality => Value::Cardinality(None),
         Metric::Percentiles | Metric::PercentileRanks => percentiles_of(agg, None),
+        // Filled in by the search once the hits are collected.
+        // ALLOC: one box a `top_hits`, bounded by the request's.
+        Metric::TopHits => Value::TopHits(Box::new(TopHitsResult::empty())),
     }
 }
 

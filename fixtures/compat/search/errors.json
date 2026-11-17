@@ -2024,6 +2024,499 @@
           "status": 400
         }
       }
+    },
+    {
+      "name": "top_hits past the inner result window",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "t": {
+              "top_hits": {
+                "size": 101
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Top hits result window is too large, the top hits aggregator [t]'s from + size must be less than or equal to: [100] but was [101]. This limit can be set by changing the [index.max_inner_result_window] index level setting."
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-errors",
+                "node": "RrioyQY1SImtIrCF0TThrg",
+                "reason": {
+                  "type": "illegal_argument_exception",
+                  "reason": "Top hits result window is too large, the top hits aggregator [t]'s from + size must be less than or equal to: [100] but was [101]. This limit can be set by changing the [index.max_inner_result_window] index level setting."
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Top hits result window is too large, the top hits aggregator [t]'s from + size must be less than or equal to: [100] but was [101]. This limit can be set by changing the [index.max_inner_result_window] index level setting.",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Top hits result window is too large, the top hits aggregator [t]'s from + size must be less than or equal to: [100] but was [101]. This limit can be set by changing the [index.max_inner_result_window] index level setting."
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "top_hits from and size past the inner result window",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "t": {
+              "top_hits": {
+                "from": 1,
+                "size": 100
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Top hits result window is too large, the top hits aggregator [t]'s from + size must be less than or equal to: [100] but was [101]. This limit can be set by changing the [index.max_inner_result_window] index level setting."
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-errors",
+                "node": "RrioyQY1SImtIrCF0TThrg",
+                "reason": {
+                  "type": "illegal_argument_exception",
+                  "reason": "Top hits result window is too large, the top hits aggregator [t]'s from + size must be less than or equal to: [100] but was [101]. This limit can be set by changing the [index.max_inner_result_window] index level setting."
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Top hits result window is too large, the top hits aggregator [t]'s from + size must be less than or equal to: [100] but was [101]. This limit can be set by changing the [index.max_inner_result_window] index level setting.",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Top hits result window is too large, the top hits aggregator [t]'s from + size must be less than or equal to: [100] but was [101]. This limit can be set by changing the [index.max_inner_result_window] index level setting."
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "top_hits of size zero",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "t": {
+              "top_hits": {
+                "size": 0
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "node id, random per node"
+        }
+      ],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "numHits must be > 0; please use TotalHitCountCollectorManager if you just need the total hit count"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-errors",
+                "node": "RrioyQY1SImtIrCF0TThrg",
+                "reason": {
+                  "type": "illegal_argument_exception",
+                  "reason": "numHits must be > 0; please use TotalHitCountCollectorManager if you just need the total hit count"
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "numHits must be > 0; please use TotalHitCountCollectorManager if you just need the total hit count",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "numHits must be > 0; please use TotalHitCountCollectorManager if you just need the total hit count"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "top_hits with a negative size",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "t": {
+              "top_hits": {
+                "size": -1
+              }
+            }
+          }
+        }
+      },
+      "normalise": [],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "[size] must be greater than or equal to 0. Found [-1] in [t]"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "[size] must be greater than or equal to 0. Found [-1] in [t]"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "top_hits with a negative from",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "t": {
+              "top_hits": {
+                "from": -1
+              }
+            }
+          }
+        }
+      },
+      "normalise": [],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "[from] must be greater than or equal to 0. Found [-1] in [t]"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "[from] must be greater than or equal to 0. Found [-1] in [t]"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "top_hits with an unknown key",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "t": {
+              "top_hits": {
+                "bogus": 1
+              }
+            }
+          }
+        }
+      },
+      "normalise": [],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parsing_exception",
+                "reason": "Unknown key for a VALUE_NUMBER in [bogus].",
+                "line": 1,
+                "col": 35
+              }
+            ],
+            "type": "parsing_exception",
+            "reason": "Unknown key for a VALUE_NUMBER in [bogus].",
+            "line": 1,
+            "col": 35
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "top_hits with a null from",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "t": {
+              "top_hits": {
+                "from": null
+              }
+            }
+          }
+        }
+      },
+      "normalise": [],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parsing_exception",
+                "reason": "Unknown key for a VALUE_NULL in [from].",
+                "line": 1,
+                "col": 34
+              }
+            ],
+            "type": "parsing_exception",
+            "reason": "Unknown key for a VALUE_NULL in [from].",
+            "line": 1,
+            "col": 34
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "top_hits with an unknown object",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "t": {
+              "top_hits": {
+                "bogus": {}
+              }
+            }
+          }
+        }
+      },
+      "normalise": [],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parsing_exception",
+                "reason": "Unknown key for a START_OBJECT in [bogus].",
+                "line": 1,
+                "col": 35
+              }
+            ],
+            "type": "parsing_exception",
+            "reason": "Unknown key for a START_OBJECT in [bogus].",
+            "line": 1,
+            "col": 35
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "top_hits with an unknown array",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "t": {
+              "top_hits": {
+                "bogus": []
+              }
+            }
+          }
+        }
+      },
+      "normalise": [],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parsing_exception",
+                "reason": "Unknown key for a START_ARRAY in [bogus].",
+                "line": 1,
+                "col": 35
+              }
+            ],
+            "type": "parsing_exception",
+            "reason": "Unknown key for a START_ARRAY in [bogus].",
+            "line": 1,
+            "col": 35
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "top_hits that is not an object",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "t": {
+              "top_hits": []
+            }
+          }
+        }
+      },
+      "normalise": [],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parsing_exception",
+                "reason": "Expected [START_OBJECT] under [top_hits], but got a [START_ARRAY] in [t]",
+                "line": 1,
+                "col": 26
+              }
+            ],
+            "type": "parsing_exception",
+            "reason": "Expected [START_OBJECT] under [top_hits], but got a [START_ARRAY] in [t]",
+            "line": 1,
+            "col": 26
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "top_hits with a size that is not a number",
+      "request": {
+        "method": "POST",
+        "path": "/compat-errors/_search",
+        "body": {
+          "aggs": {
+            "t": {
+              "top_hits": {
+                "size": "two"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "number_format_exception",
+                "reason": "For input string: \"two\""
+              }
+            ],
+            "type": "number_format_exception",
+            "reason": "For input string: \"two\""
+          },
+          "status": 400
+        }
+      }
     }
   ]
 }

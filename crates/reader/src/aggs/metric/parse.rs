@@ -9,6 +9,7 @@
 //! ([`parse_percentiles_body`] for the two percentile metrics).
 
 use crate::aggs::metric::percentiles::parse_percentiles_body;
+use crate::aggs::metric::top_hits::parse_top_hits_body;
 use crate::aggs::metric::{CardinalityOptions, Metric, MetricAgg, PercentilesOptions};
 use crate::dsl::error::{DslError, parsing_failure};
 use crate::dsl::tokens::{Kind, Parser};
@@ -251,10 +252,21 @@ fn parse_definition(p: &mut Parser<'_>, name: &str, level: usize) -> Result<Defi
                         .caused_by(cause),
                     ));
                 };
+                let mut top_hits = None;
                 let (field, cardinality, percentiles) = match metric {
                     Metric::Percentiles | Metric::PercentileRanks => {
                         let (field, options) = parse_percentiles_body(p, metric, name)?;
                         (field, CardinalityOptions::default(), options)
+                    }
+                    Metric::TopHits => {
+                        // ALLOC: one box a `top_hits`, bounded by the body's recording.
+                        top_hits = Some(Box::new(parse_top_hits_body(p, name)?));
+                        (
+                            // ALLOC: empty; a `top_hits` reads no field.
+                            String::new(),
+                            CardinalityOptions::default(),
+                            PercentilesOptions::default(),
+                        )
                     }
                     _ => {
                         let (field, options) = parse_metric_body(p, metric, name)?;
@@ -268,6 +280,7 @@ fn parse_definition(p: &mut Parser<'_>, name: &str, level: usize) -> Result<Defi
                     field,
                     cardinality,
                     percentiles,
+                    top_hits,
                 });
             }
         }

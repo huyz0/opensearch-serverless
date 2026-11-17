@@ -14,15 +14,16 @@
 use std::collections::HashMap;
 
 use lucene_analysis::Analyzer;
-use lucene_search::collector::{TopDocsCollector, TotalHitsRelation};
+use lucene_search::collector::TotalHitsRelation;
 use lucene_search::extended_query::ExtendedQuery;
 use lucene_search::field_norms::FieldNorms;
 use lucene_search::index_searcher::IndexSearcher;
-use lucene_search::top_field::{FieldDoc, search_sorted};
+use lucene_search::top_field::FieldDoc;
 use lucene_search::{BooleanQuery, Clause, Explanation};
 use oss_blob::BlobStore;
 
 use crate::OpenShard;
+use crate::aggs::metric::top_hits;
 use crate::aggs::metric::{self, Partial, state_bytes};
 use crate::dsl::search_after::{AfterKey, field_doc};
 use crate::dsl::{SearchSource, SortKey};
@@ -34,6 +35,7 @@ use crate::fetch::source_filter::SourceFilter;
 use crate::lucene_query::{QueryContext, shard_failure, to_lucene};
 use crate::mapping::FieldType;
 use crate::search_sort::{KeyKind, sort_fields};
+use crate::search_top::collect_top;
 
 /// `index.max_result_window`'s default: the most `from + size` may reach.
 pub const MAX_RESULT_WINDOW: usize = 10_000;
@@ -88,6 +90,19 @@ pub struct Hits {
     pub highlight: Option<Plan>,
 }
 
+impl Hits {
+    /// What the response writes the hits from.
+    pub(crate) fn view(&self) -> crate::response::HitView<'_> {
+        crate::response::HitView {
+            hits: &self.hits,
+            source: &self.source,
+            fields: &self.fields,
+            explanations: &self.explanations,
+            highlight: self.highlight.as_ref(),
+        }
+    }
+}
+
 /// A failure on the shard, with the HTTP status it answers with.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ShardError {
@@ -135,8 +150,31 @@ pub fn hits_bytes<S: BlobStore + 'static>(source: &SearchSource, shard: &OpenSha
         .saturating_add(source.size)
         .min(MAX_RESULT_WINDOW)
         .min(docs);
-    let terms = source
-        .sort
+    // Each `top_hits` collects its own window, in its own sort.
+    let inner = source
+        .aggs
+        .iter()
+        .filter_map(|agg| agg.top_hits.as_deref())
+        .fold(0usize, |total, spec| {
+            let window = spec
+                .from
+                .saturating_add(spec.size)
+                .min(top_hits::MAX_INNER_RESULT_WINDOW)
+                .min(docs);
+            total.saturating_add(window_bytes(window, &spec.sort, shard))
+        });
+    window_bytes(window, &source.sort, shard)
+        .saturating_add(inner)
+        .saturating_add(state_bytes(&source.aggs))
+}
+
+/// The bytes `window` hits sorted by `sort` hold: see [`hits_bytes`].
+fn window_bytes<S: BlobStore + 'static>(
+    window: usize,
+    sort: &[SortKey],
+    shard: &OpenShard<S>,
+) -> usize {
+    let terms = sort
         .iter()
         .filter(|key| match key {
             SortKey::Field { field, .. } => shard
@@ -149,13 +187,11 @@ pub fn hits_bytes<S: BlobStore + 'static>(source: &SearchSource, shard: &OpenSha
         .count();
     let per_hit = std::mem::size_of::<Hit>()
         .saturating_add(std::mem::size_of::<FieldDoc>().saturating_mul(2))
-        .saturating_add(source.sort.len().saturating_mul(
+        .saturating_add(sort.len().saturating_mul(
             std::mem::size_of::<SortValue>().saturating_add(std::mem::size_of::<[i64; 2]>()),
         ))
         .saturating_add(terms.saturating_mul(MAX_TERM_BYTES.saturating_mul(2)));
-    window
-        .saturating_mul(per_hit)
-        .saturating_add(state_bytes(&source.aggs))
+    window.saturating_mul(per_hit)
 }
 
 /// The total a search reports, as `SearchPhaseController.TopDocsStats.getTotalHits`
@@ -236,88 +272,52 @@ pub fn search<S: BlobStore + 'static>(
     // ALLOC: one entry a segment.
     let norms: Vec<Option<&HashMap<String, FieldNorms<'_>>>> = owned.iter().map(Some).collect();
     let mut opened = shard.reader.open_segments().map_err(ShardError::engine)?;
+    let top_plans = top_hits::plan(&source.aggs, shard, index)?;
     let numeric_sort = sort
         .as_ref()
-        .is_some_and(|(_, kinds)| kinds.contains(&KeyKind::Numeric));
+        .is_some_and(|(_, kinds)| kinds.contains(&KeyKind::Numeric))
+        || top_plans.iter().any(top_hits::TopHitsPlan::numeric);
     if numeric_sort || has_points(&query) {
         opened.open_points().map_err(ShardError::engine)?;
     }
     let segments = opened.as_open_segments();
-    let aggregations = metric::collect(&source.aggs, shard, &segments, &query)?;
+    let mut aggregations = metric::collect(&source.aggs, shard, &segments, &query)?;
+    top_hits::fill(
+        &mut aggregations,
+        &source.aggs,
+        &top_plans,
+        shard,
+        &segments,
+        &norms,
+        &query,
+    )?;
     // A total turned off counts nothing past the hits.
     let limit = source.track_total_hits.unwrap_or(0);
-    let mut hits = match sort {
-        Some((keys, kinds)) if window > 0 => {
-            let top = search_sorted(
-                &segments,
-                shard.reader.segment_readers(),
-                &query,
-                &norms,
-                &keys,
-                window,
-                limit,
-                after.as_ref(),
-            )
-            .map_err(ShardError::engine)?;
-            let score_at = kinds.iter().position(|k| *k == KeyKind::Score);
-            let hits = top
-                .hits
-                .iter()
-                .skip(source.from)
-                .map(|h| sorted_hit(h, &kinds, score_at))
-                // ALLOC: one hit a result, at most MAX_RESULT_WINDOW.
-                .collect();
-            let (total, exact) = reported(top.total.value, top.total.relation, limit);
-            Ok(Hits {
-                total,
-                exact,
-                max_score: None,
-                hits,
-                aggregations,
-                tracked: source.track_total_hits.is_some(),
-                source: source.source.clone(),
-                // ALLOC: empty; resolved below when there are hits.
-                fields: Vec::new(),
-                // ALLOC: empty; explained below when asked.
-                explanations: Vec::new(),
-                highlight: None,
-            })
-        }
-        _ => {
-            let searcher = IndexSearcher::new(&segments, &norms).map_err(ShardError::engine)?;
-            let mut collector = TopDocsCollector::with_total_hits_threshold(window, limit);
-            searcher
-                .search_collector(&query, &mut collector)
-                .map_err(ShardError::engine)?;
-            let top = collector.top_docs();
-            let counted = collector.total_hits();
-            let (total, exact) = reported(counted.value, counted.relation, limit);
-            Ok(Hits {
-                total,
-                exact,
-                max_score: top.first().map(|h| h.score),
-                hits: top
-                    .iter()
-                    .skip(source.from)
-                    .map(|h| Hit {
-                        doc: h.doc_id,
-                        score: Some(h.score),
-                        // ALLOC: empty.
-                        sort: Vec::new(),
-                    })
-                    // ALLOC: one hit a result, at most MAX_RESULT_WINDOW.
-                    .collect(),
-                aggregations,
-                tracked: source.track_total_hits.is_some(),
-                source: source.source.clone(),
-                // ALLOC: as above.
-                fields: Vec::new(),
-                // ALLOC: as above.
-                explanations: Vec::new(),
-                highlight: None,
-            })
-        }
-    }?;
+    let top = collect_top(
+        &segments,
+        shard,
+        &norms,
+        &query,
+        sort.as_ref(),
+        window,
+        source.from,
+        limit,
+        after.as_ref(),
+    )?;
+    let mut hits = Hits {
+        total: top.total,
+        exact: top.exact,
+        max_score: top.max_score,
+        hits: top.hits,
+        aggregations,
+        tracked: source.track_total_hits.is_some(),
+        source: source.source.clone(),
+        // ALLOC: empty; resolved below when there are hits.
+        fields: Vec::new(),
+        // ALLOC: empty; explained below when asked.
+        explanations: Vec::new(),
+        highlight: None,
+    };
     // The fetch phase resolves the fields only when it has a hit to fetch.
     if !hits.hits.is_empty() && !source.docvalue_fields.is_empty() {
         hits.fields = docvalue_fields::resolve(&source.docvalue_fields, &meta.mapping)?;
@@ -331,26 +331,6 @@ pub fn search<S: BlobStore + 'static>(
             explain::explain_hits(&searcher, &query, &hits.hits).map_err(ShardError::engine)?;
     }
     Ok(hits)
-}
-
-fn sorted_hit(h: &FieldDoc, kinds: &[KeyKind], score_at: Option<usize>) -> Hit {
-    let value = |i: usize| h.values.get(i).copied().unwrap_or(0);
-    let score_of = |i: usize| f32::from_bits(u32::try_from(value(i)).unwrap_or(0));
-    let sort = kinds
-        .iter()
-        .enumerate()
-        .map(|(i, kind)| match kind {
-            KeyKind::Score => SortValue::Score(score_of(i)),
-            KeyKind::Numeric => SortValue::Long(value(i)),
-            KeyKind::Term => SortValue::Term(h.terms.get(i).cloned().flatten()),
-        })
-        // ALLOC: one value a sort key, at most MAX_SORT_KEYS.
-        .collect();
-    Hit {
-        doc: h.doc,
-        score: score_at.map(score_of),
-        sort,
-    }
 }
 
 /// Whether a query has a point clause, which needs the points open.

@@ -8,7 +8,7 @@ Roadmap R10.3, the reader half: OpenSearch's metric aggregations on a reader's s
 
 `oss-reader` parses a body's `aggs` (or `aggregations`) as `AggregatorFactories.parseAggregators` does, at OpenSearch 3.10.0, and serves `min`, `max`, `sum`, `avg`, `stats` and `value_count` of integer, long and date fields at the top level: computed over the query's live matches by lucene-aggs (lucene-rust's port of the metric aggregators, compensated sums in Java's order), kept as each `Internal*` aggregation's state (`aggs::metric::partial`), and written after the hits in the order OpenSearch's reduce lists them. `partial::reduce` is each `Internal*` reduce, for the coordinator to call once it exists.
 
-Not in this change: `cardinality`, `percentiles`, `percentile_ranks` and `top_hits` (each its own change), every other aggregation type, sub-aggregations, `missing`, `format`, `script`, `value_type`, `meta`, `value_count` of a keyword, and the coordinator's reduce across shards (R7). Each is refused with "not supported by this node yet"; the differences are in [compatibility.md](../../compatibility.md).
+Not in this change: `cardinality`, `percentiles`, `percentile_ranks` and `top_hits` (each its own change, since made), every other aggregation type, sub-aggregations, `missing`, `format`, `script`, `value_type`, `meta`, `value_count` of a keyword, and the coordinator's reduce across shards (R7). Each is refused with "not supported by this node yet"; the differences are in [compatibility.md](../../compatibility.md).
 
 ## Acceptance criteria
 
