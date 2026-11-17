@@ -383,3 +383,17 @@ fn a_top_hits_reserves_its_own_window_of_hits() {
     let keyed = bytes(r#"{"t":{"top_hits":{"size":100,"sort":["tag"]}}}"#);
     assert!(keyed > big + 100 * 32_766, "{keyed} {big}");
 }
+
+#[test]
+fn a_sorted_search_of_no_hits_still_counts_its_matches() {
+    let shard = shard("th-sorted-zero");
+    for body in [
+        r#"{"size":0,"sort":[{"n":"asc"}]}"#,
+        r#"{"size":0,"sort":[{"tag":"asc"}]}"#,
+    ] {
+        let source = source(body).expect("parses");
+        let hits = search(&shard, "idx", &source, &Analyzer::standard(None)).expect("searches");
+        assert_eq!((hits.total, hits.exact), (DOCS as u64, true), "{body}");
+        assert!(hits.hits.is_empty() && hits.max_score.is_none(), "{body}");
+    }
+}
