@@ -8,7 +8,7 @@ The properties the system must never lose, each linked to the check or test that
 | I-2 | LIST is billed in the PUT class, and every LIST call site is justified | `list_is_priced_like_put`, `list_counts_toward_the_put_class`, `scripts/check-s3-access.py` |
 | I-3 | Every S3 attempt, failed ones included, is counted by the meter as one attempt of its kind | `records_each_kind_separately`, `class_total_saturates`, `each_operation_records_exactly_one_attempt_of_its_kind`, `a_failed_attempt_is_still_one_attempt_and_one_error`, `no_free_buffer_is_busy_and_sends_nothing` |
 | I-4 | An idle index makes zero periodic S3 requests | `an_idle_index_makes_no_requests`, `an_index_opens_once_with_two_gets_and_no_list` |
-| I-5 | A write is acknowledged after exactly one PUT to its node's write log, whatever the number of shards it touches | NOT-YET: needs the writer |
+| I-5 | A write is acknowledged after exactly one PUT to its node's write log, whatever the number of shards it touches | `a_window_of_any_number_of_shards_is_one_put`, `the_next_write_to_a_shard_is_one_put_in_one_round` |
 | I-6 | A segment is uploaded as one immutable blob and never rewritten | NOT-YET: needs the writer |
 | I-7 | A fenced-out writer cannot overwrite its successor's log slot | `a_fenced_writer_lands_nothing_more`, `a_fence_from_a_stale_lease_is_searched_for_again_above_the_deleted_slots` |
 | I-8 | Crate dependencies point downward; reader and writer are independent | `scripts/check-layering.py` |
