@@ -234,3 +234,15 @@ fn the_total_fields_limit_holds_while_fields_are_added() {
     .unwrap_err();
     assert_eq!(e.reason, "Limit of total fields [1000] has been exceeded");
 }
+
+#[test]
+fn numeric_detection_reads_strings_as_java_parses_them() {
+    let m = mapping(r#"{"numeric_detection":true}"#);
+    // Past `Long.MAX_VALUE`, `Long.parseLong` fails and `Double.parseDouble`
+    // reads it, so the field is a float.
+    let doc = parse(&m, r#"{"n":"-12","big":"99999999999999999999"}"#).unwrap();
+    assert_eq!(
+        doc.update.unwrap().to_json(),
+        r#"{"properties":{"big":{"type":"float"},"n":{"type":"long"}}}"#
+    );
+}

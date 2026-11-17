@@ -95,9 +95,14 @@ mod tests {
         assert_eq!(hash_order(&["b", "a"]), vec![1, 0]);
         // "Aa" and "BB" share a hash, so they keep insertion order.
         assert_eq!(hash_order(&["BB", "Aa"]), vec![0, 1]);
-        let many: Vec<String> = (0..13).map(|i| format!("k{i}")).collect();
-        let refs: Vec<&str> = many.iter().map(String::as_str).collect();
-        assert_eq!(hash_order(&refs).len(), 13);
+        // The thirteenth put grows the table to 32, which moves "p" (112)
+        // from bucket 0 to bucket 16, after "a" to "l" (97 to 108); with
+        // twelve keys the table is still 16 and "p" comes first.
+        let mut keys: Vec<&str> = vec!["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"];
+        keys.push("p");
+        assert_eq!(hash_order(&keys).first(), Some(&11));
+        keys.insert(11, "l");
+        assert_eq!(hash_order(&keys), (0..13).collect::<Vec<_>>());
         let v = Json::Obj(vec![
             ("c".into(), Json::Str("x".into())),
             ("a".into(), Json::Num("1".into())),
