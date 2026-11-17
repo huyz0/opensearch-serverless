@@ -373,3 +373,21 @@ fn a_dotted_name_reaches_a_mapped_leaf() {
     assert_eq!(doc.fields, vec![kv("o.x", FieldValue::Keyword("5".into()))]);
     assert_eq!(doc.update, None);
 }
+
+#[test]
+fn leap_days_follow_the_gregorian_rules() {
+    let m = mapping(TYPES);
+    for (text, ok) in [
+        ("2000-02-29", true),
+        ("2024-02-29", true),
+        ("1900-02-29", false),
+        ("2023-02-29", false),
+    ] {
+        let doc = parse(&m, &format!(r#"{{"dt":"{text}"}}"#));
+        assert_eq!(doc.is_ok(), ok, "{text}: {doc:?}");
+    }
+    assert_eq!(
+        values(&m, r#"{"dt":"2000-02-29"}"#),
+        vec![kv("dt", FieldValue::Date(951_782_400_000))]
+    );
+}
