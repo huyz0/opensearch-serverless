@@ -13,6 +13,7 @@ mod epochs;
 mod fence;
 mod hedge;
 mod hedge_delay;
+mod keeper;
 pub mod settings;
 mod store;
 mod window;
@@ -26,6 +27,7 @@ pub use committer::{
     CommitError, CommitterConfig, EpochLease, NodeLogCommitter, Position, Refusal, ShardAdmission,
 };
 pub use hedge::{HedgeOutcome, Spawn, ThreadPerPut};
+pub use keeper::{LeaseKeeper, LeaseWrite, RenewError};
 pub use store::{HEADER_PROBE_BYTES, MAX_READ_BYTES, NodeLogStore};
 
 /// The most slots a fence tries before giving up on a writer that keeps
