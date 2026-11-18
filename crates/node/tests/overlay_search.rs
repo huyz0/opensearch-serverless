@@ -229,6 +229,11 @@ impl OverlaySource for Source {
         _now: u64,
     ) -> Option<Arc<Ready>> {
         assert_eq!((uuid, shard), ("u1", 0));
+        assert_eq!(
+            commit.mapping_json(),
+            r#"{"properties":{"n":{"type":"integer"}}}"#,
+            "the source gets the mapping the descriptor holds"
+        );
         let mut asked = self.asked.lock().expect("lock");
         *asked = asked.saturating_add(1);
         if !self.ready {
