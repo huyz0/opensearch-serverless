@@ -125,6 +125,7 @@ fn a_head_of_exactly_the_size_bound_reads_and_one_byte_more_is_refused() {
             "p".repeat(pad)
         )
     };
+    assert_eq!(MAX_SHARD_HEAD_BYTES, 16_384);
     let fixed = head(0).len();
     let at_bound = head(MAX_SHARD_HEAD_BYTES - fixed);
     assert_eq!(at_bound.len(), MAX_SHARD_HEAD_BYTES);
