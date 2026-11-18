@@ -28,6 +28,9 @@ pub const FETCH_TIMEOUT: Duration = Duration::from_millis(500);
 /// The most a fetch request takes: names, a uuid, numbers.
 const MAX_FETCH_BYTES: usize = 4096;
 
+/// The most a push message takes: what a writer sends at most.
+pub const MAX_PUSH_BYTES: usize = 8 << 20;
+
 /// The milliseconds the held writes count their keep in.
 pub type Clock = Arc<dyn Fn() -> i64 + Send + Sync>;
 
@@ -46,6 +49,12 @@ impl TailPushHandler {
 
 impl Handler for TailPushHandler {
     fn handle(&self, request: &Request<'_>, out: &mut Output<'_>) -> Result<(), RemoteException> {
+        if request.message.len() > MAX_PUSH_BYTES {
+            return Err(RemoteException::status(
+                "tail push too large",
+                "BAD_REQUEST",
+            ));
+        }
         let push = PushRequest::read(&mut Input::new(request.message))
             .map_err(|_| RemoteException::status("malformed tail push", "BAD_REQUEST"))?;
         self.held

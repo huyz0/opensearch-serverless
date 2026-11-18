@@ -241,11 +241,11 @@ fn the_push_handler_refuses_a_message_that_does_not_decode() {
 
 // ---- the writer's side of a fetch
 
-struct Facts;
+struct Facts(bool);
 
 impl ShardFacts for Facts {
     fn writes(&self, _: &str, _: u32) -> bool {
-        true
+        self.0
     }
     fn ownership_in_doubt(&self) -> bool {
         false
@@ -280,7 +280,7 @@ fn writer(secret: &str) -> Server {
         ],
         true,
     );
-    let serve_tail = Arc::new(TailServe::new(keep, Arc::new(Facts), Arc::new(Clock)));
+    let serve_tail = Arc::new(TailServe::new(keep, Arc::new(Facts(true)), Arc::new(Clock)));
     let mut handlers: Handlers = HashMap::new();
     handlers.insert(
         FETCH_ACTION.into(),
@@ -296,8 +296,7 @@ struct Live(Option<LiveWriter>);
 
 impl LiveWriters for Live {
     fn live(&self, node_id: &str) -> Option<LiveWriter> {
-        assert_eq!(node_id, "writer-1");
-        self.0.clone()
+        (node_id == "writer-1").then(|| self.0.clone()).flatten()
     }
 }
 
@@ -343,7 +342,20 @@ fn a_fetch_reaches_the_writer_signed_and_the_answer_grants_the_shard() {
 #[test]
 fn a_fetch_to_a_writer_not_shown_live_or_one_that_does_not_answer_gives_nothing() {
     let server = writer(SECRET);
+    // A writer that would answer, not shown live: nothing is sent to it.
+    let reached = Arc::new(AtomicBool::new(false));
+    let mut handlers: Handlers = HashMap::new();
+    handlers.insert(
+        FETCH_ACTION.into(),
+        Arc::new(Guarded::new(
+            auth(&identity("writer-1", "eph"), SECRET),
+            Odder(Odd::Garbage, Arc::clone(&reached)),
+        )),
+    );
+    let listening = serve("writer-1", handlers);
     assert_eq!(asker(None).fetch("writer-1", &fetch_request()), None);
+    assert!(!reached.load(Ordering::SeqCst), "not shown live: not asked");
+    drop(listening);
     // Signed with the reader's secret, which the writer here does not share.
     let other = writer(OTHER);
     assert_eq!(
@@ -406,9 +418,10 @@ fn a_writer_that_is_silent_fails_or_answers_garbage_is_no_answer() {
 #[test]
 fn the_fetch_handler_refuses_a_message_that_does_not_decode_and_a_shard_it_does_not_write_gets_no_grant()
  {
+    // A node that does not write the shard.
     let handler = TailFetchHandler::new(Arc::new(TailServe::new(
         Arc::new(TailKeep::new()),
-        Arc::new(Facts),
+        Arc::new(Facts(false)),
         Arc::new(Clock),
     )));
     let variable = VariableHeader::default();
@@ -435,10 +448,62 @@ fn the_fetch_handler_refuses_a_message_that_does_not_decode_and_a_shard_it_does_
     };
     let mut ask = fetch_request();
     ask.shard = shard_ref("unknown");
-    ask.subscription = oss_transport::actions::tail::CHECK;
     let answer = asker(Some(server.address()))
         .fetch("writer-1", &ask)
         .expect("answered");
     assert_eq!(answer.subscription, oss_transport::actions::tail::NONE);
     assert!(answer.records.is_empty());
+    assert_eq!(answer.claimed_through, i64::MAX, "no claim to compare");
+}
+
+#[test]
+fn a_push_over_the_bound_or_to_another_process_is_a_link_error() {
+    let held = Arc::new(TailHeld::new());
+    held.track("u1", 0, -1);
+    let server = reader(SECRET, Arc::clone(&held));
+    let address = server.address().to_string();
+    let right = link(&address, SECRET, false);
+    let mut big = push_of(&["u1"]);
+    big.shards[0].1[0].source = "x".repeat(oss_node::tail_link::MAX_PUSH_BYTES);
+    assert_eq!(right.send("reader-1", &big), Err(LinkError), "too large");
+    // The lease names another process than the one listening.
+    let mut elsewhere = lease("reader-1", &address, false);
+    elsewhere.ephemeral_id = "other".into();
+    let wrong = TransportTailLink::new(
+        client(),
+        auth(&identity("writer-1", "eph"), SECRET),
+        Fixed(vec![elsewhere].into()),
+    );
+    assert_eq!(wrong.send("reader-1", &push_of(&["u1"])), Err(LinkError));
+    assert!(held.from("u1", 0, 0).is_empty());
+}
+
+#[test]
+fn a_handler_refuses_a_message_over_its_bound() {
+    let variable = VariableHeader::default();
+    let held = Arc::new(TailHeld::new());
+    let push = TailPushHandler::new(held, Arc::new(|| 5));
+    let big = vec![0_u8; oss_node::tail_reader_link::MAX_PUSH_BYTES + 1];
+    let mut out = Vec::new();
+    assert!(
+        push.handle(
+            &request(PUSH_ACTION, &big, &variable),
+            &mut Output::new(&mut out, 1024)
+        )
+        .is_err()
+    );
+    let fetch = TailFetchHandler::new(Arc::new(TailServe::new(
+        Arc::new(TailKeep::new()),
+        Arc::new(Facts(true)),
+        Arc::new(Clock),
+    )));
+    let big = vec![0_u8; oss_node::tail_link::MAX_FETCH_BYTES + 1];
+    assert!(
+        fetch
+            .handle(
+                &request(FETCH_ACTION, &big, &variable),
+                &mut Output::new(&mut out, 1024)
+            )
+            .is_err()
+    );
 }

@@ -16,10 +16,10 @@ A writer the leases do not show live is asked nothing. Nothing here reads the ob
 ## Acceptance criteria
 
 - AC-1: a tail push sent through the link reaches a reader's guarded handler with every record as sent and the answer names the shards the reader does not want; the shard a reader tracks is held, one it does not is named unwanted.
-- AC-2: a push the reader refuses (another secret), to a node the leases do not name, to a revoked lease, to an address that is none, or to one nobody listens on is a link error, and the reader holds nothing.
+- AC-2: a push the reader refuses (another secret), to a node the leases do not name, to a revoked lease, to an address that is none, to one nobody listens on, to a process other than the one the lease names, or a push over 8 MiB is a link error, and the reader holds nothing.
 - AC-3: a fetch asked of a live writer over a real socket, signed, reaches the writer's handler with every field as sent and comes back with the records above the checkpoint, a subscription and its grant; fed to `TailHeld::answered` the shard is then granted.
 - AC-4: a fetch to a writer the leases do not show live, one that does not answer in the timeout, one that fails, or one that answers bytes that do not decode gives nothing.
-- AC-5: each handler refuses a message that does not decode and answers a fetch or push for a shard it knows nothing about as the engine does (no grant; unwanted).
+- AC-5: each handler refuses a message that does not decode or is over its bound (8 MiB a push, 4 KiB a fetch) and answers a fetch or push for a shard it knows nothing about as the engine does (no grant; unwanted).
 
 ## Test plan
 

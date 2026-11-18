@@ -29,7 +29,12 @@ pub const SEND_TIMEOUT: Duration = Duration::from_millis(500);
 /// The largest push message.
 pub const MAX_PUSH_BYTES: usize = 8 << 20;
 
-/// Sends tail pushes over the transport client, signed.
+/// The most a fetch request takes: names, a uuid, numbers.
+pub const MAX_FETCH_BYTES: usize = 4096;
+
+/// Sends tail pushes over the transport client, signed. A lease that is not
+/// revoked is tried even if it has expired, as the commit push does: a push
+/// to a node that is gone costs one timeout and is a lost push.
 pub struct TransportTailLink<L> {
     client: Arc<Client>,
     auth: Arc<Authenticator>,
@@ -105,6 +110,12 @@ impl TailFetchHandler {
 
 impl Handler for TailFetchHandler {
     fn handle(&self, request: &Request<'_>, out: &mut Output<'_>) -> Result<(), RemoteException> {
+        if request.message.len() > MAX_FETCH_BYTES {
+            return Err(RemoteException::status(
+                "tail fetch too large",
+                "BAD_REQUEST",
+            ));
+        }
         let fetch = FetchRequest::read(&mut Input::new(request.message))
             .map_err(|_| RemoteException::status("malformed tail fetch", "BAD_REQUEST"))?;
         let answer = self.serve.answer(&fetch);
