@@ -9,6 +9,7 @@
 pub mod bulk;
 pub mod document;
 pub mod index;
+pub mod indexing_memory;
 pub mod log;
 pub mod lucene;
 pub mod mapping;
