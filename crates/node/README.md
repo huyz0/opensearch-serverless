@@ -22,3 +22,5 @@ With `writer`, `forward::BulkForwarder` sends a shard's bulk to its owner, signe
 With `writer`, `WriterRole::staged` remembers the manifest a shard's last publish produced and `newest::NewestHandler` answers a reader's `internal:serverless/commit/newest` ask with it, from memory. Contract: [docs/specs/writer-newest/SPEC.md](../../docs/specs/writer-newest/SPEC.md).
 
 With `reader`, `newest_ask::TransportNewestAsk` is a `NewestSource` a cold open asks for the newer commit a staging writer holds (`SearchService::set_newest_source`; setting `serverless.reader.newest_commit_ask`, off by default; `newest_ask::install`). Contract: [docs/specs/reader-newest-ask/SPEC.md](../../docs/specs/reader-newest-ask/SPEC.md).
+
+With `writer`, `tail_keep::TailKeep` holds the writes a node acknowledged and has not published (20,000 records and 16 MiB a shard, 256 MiB a node) for a reader opening an older commit. Nothing calls it yet. Contract: [docs/specs/writer-tail-keep/SPEC.md](../../docs/specs/writer-tail-keep/SPEC.md).
