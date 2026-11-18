@@ -40,7 +40,7 @@ pub use shard_files::{FileRange, IndexMeta, MAX_REGISTER_BYTES, ShardFiles};
 /// One shard's latest published commit, open for search.
 pub struct OpenShard<S: BlobStore + 'static> {
     /// The directory the reader's files come from; it outlives the reader.
-    pub directory: CachedBlobDirectory<EngineStore<S>>,
+    pub directory: Arc<CachedBlobDirectory<EngineStore<S>>>,
     /// The engine's reader over the commit's segments.
     pub reader: DirectoryReader,
     /// The index's uuid, shard count and fields.
@@ -101,10 +101,15 @@ pub fn open_located<S: BlobStore + 'static>(
 ) -> Result<OpenShard<S>, ReaderError> {
     // ALLOC: one namespace per open shard.
     let namespace = format!("{base}/{index}/{shard}/t={}", files.term);
-    let directory = CachedBlobDirectory::new(EngineStore::new(store, files), cache, &namespace);
+    let directory = Arc::new(CachedBlobDirectory::new(
+        EngineStore::new(store, files),
+        cache,
+        &namespace,
+    ));
     // What the writer replaced or deleted stays in the segment as a soft
     // delete; searches and counts do not see it.
-    let reader = DirectoryReader::open(&directory)?.soft_deletes_wrapper(SOFT_DELETES_FIELD)?;
+    let reader =
+        DirectoryReader::open(directory.as_ref())?.soft_deletes_wrapper(SOFT_DELETES_FIELD)?;
     Ok(OpenShard {
         directory,
         reader,
