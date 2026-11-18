@@ -8,6 +8,7 @@
 //! caller can hide the commit's copies. Nothing here reads the object store.
 
 mod commit;
+mod view;
 
 use std::collections::HashMap;
 
@@ -21,6 +22,7 @@ use oss_doc::mapping::Mapping;
 use oss_format::WalRecord;
 
 pub use commit::{Copies, Copy, find_copies};
+pub use view::{Masks, combine};
 
 /// The most distinct ids one overlay replaces or deletes; more leaves the
 /// shard on its commit.

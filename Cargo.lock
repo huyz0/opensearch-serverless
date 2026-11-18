@@ -763,6 +763,7 @@ dependencies = [
  "lucene-queryparser",
  "lucene-search",
  "lucene-store",
+ "lucene-util",
  "oss-blob",
  "oss-doc",
  "oss-format",

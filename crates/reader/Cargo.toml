@@ -19,6 +19,7 @@ lucene-index = { workspace = true }
 lucene-search = { workspace = true }
 lucene-analysis = { workspace = true }
 lucene-codecs = { workspace = true }
+lucene-util = { workspace = true }
 lucene-aggs = { workspace = true }
 lucene-highlighter = { workspace = true }
 lucene-queryparser = { workspace = true }

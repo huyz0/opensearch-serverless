@@ -3,21 +3,13 @@
 // ARITH: test sizes are small; an overflow panics the test, which fails it as it should.
 #![allow(clippy::arithmetic_side_effects)]
 
-use lucene_index::index_writer::IndexWriter;
-use lucene_index::segment_info::LuceneVersion;
 use lucene_search::directory_reader::DirectoryReader;
 use lucene_store::ByteBuffersDirectory;
-use oss_doc::document;
-use oss_doc::lucene::{Indexer, Meta};
 use oss_doc::mapping::Mapping;
 use oss_format::WalRecord;
-use oss_reader::overlay::{MAX_IDS, Overlay, candidate_ids, find_copies};
+mod common;
 
-const VERSION: LuceneVersion = LuceneVersion {
-    major: 10,
-    minor: 4,
-    bugfix: 0,
-};
+use oss_reader::overlay::{MAX_IDS, Overlay, candidate_ids, find_copies};
 
 fn mapping() -> Mapping {
     Mapping::parse(br#"{"properties":{"name":{"type":"keyword"}}}"#).expect("mapping")
@@ -39,32 +31,24 @@ fn deletion(id: &str, seq: i64) -> WalRecord<'static> {
 
 /// A commit with one segment for each batch of `(id, seq_no)`.
 fn commit(batches: &[&[(&str, i64)]]) -> (ByteBuffersDirectory, DirectoryReader) {
-    let m = mapping();
-    let dir = ByteBuffersDirectory::new();
-    {
-        let mut w = IndexWriter::open(&dir, Vec::new(), "Lucene104", VERSION).expect("writer");
-        w.enable_explicit_documents().expect("explicit");
-        let mut indexer = Indexer::new();
-        for batch in batches {
-            let mut docs = Vec::new();
-            for (id, seq) in *batch {
-                let source = format!(r#"{{"name":"{id}"}}"#);
-                let parsed = document::parse(&m, id, source.as_bytes()).expect("parse");
-                let meta = Meta {
-                    id,
-                    seq_no: *seq,
-                    primary_term: 1,
-                    version: 1,
-                    source: source.as_bytes(),
-                };
-                docs.push(indexer.document(&mut w, &m, &parsed, &meta).expect("doc"));
-            }
-            w.add_explicit_documents(docs).expect("add");
-            w.commit().expect("commit");
-        }
-    }
-    let reader = DirectoryReader::open(&dir).expect("open");
-    (dir, reader)
+    let sources: Vec<Vec<(&str, String, i64)>> = batches
+        .iter()
+        .map(|b| {
+            b.iter()
+                .map(|(id, seq)| (*id, format!(r#"{{"name":"{id}"}}"#), *seq))
+                .collect()
+        })
+        .collect();
+    let refs: Vec<Vec<(&str, &str, i64)>> = sources
+        .iter()
+        .map(|b| {
+            b.iter()
+                .map(|(id, s, seq)| (*id, s.as_str(), *seq))
+                .collect()
+        })
+        .collect();
+    let slices: Vec<&[(&str, &str, i64)]> = refs.iter().map(Vec::as_slice).collect();
+    common::commit_of(&mapping(), &slices)
 }
 
 fn ids(list: &[&str]) -> Vec<String> {

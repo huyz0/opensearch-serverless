@@ -16,3 +16,5 @@ Opening published commits, the page cache over ranged segment reads, tail-record
 `overlay::Overlay::build` makes one in-memory segment from the writes a writer pushed above a commit's checkpoint (latest version of each id, the ids it replaces or deletes), and `overlay::estimate_bytes` bounds its heap for the pool charge ([ADR 0018](../../docs/adr/0018-tail-overlay-in-the-reader.md)). Contract: [docs/specs/reader-overlay-segment/SPEC.md](../../docs/specs/reader-overlay-segment/SPEC.md).
 
 `overlay::find_copies` looks up the commit's live copies of the ids an overlay replaces, `overlay::candidate_ids` names them before the build, `Overlay::build_over` drops records the commit already holds and `Overlay::hidden` lists the commit documents to hide (contract: [docs/specs/reader-overlay-commit/SPEC.md](../../docs/specs/reader-overlay-commit/SPEC.md)).
+
+`overlay::Masks` and `overlay::combine` give the searcher one segment list of the commit (hidden documents masked) and the overlay, and `Overlay::norms` its norms (contract: [docs/specs/reader-overlay-view/SPEC.md](../../docs/specs/reader-overlay-view/SPEC.md)).
