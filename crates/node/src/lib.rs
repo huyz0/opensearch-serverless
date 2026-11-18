@@ -6,6 +6,8 @@
 
 #[cfg(feature = "writer")]
 pub mod forward;
+#[cfg(feature = "writer")]
+pub mod newest;
 #[cfg(feature = "reader")]
 pub mod open_indexes;
 #[cfg(feature = "reader")]

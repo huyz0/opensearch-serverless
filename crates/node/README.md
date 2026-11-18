@@ -18,3 +18,5 @@ With `reader`, `search::start_reader` serves `GET|POST /{index}/_search` over th
 With `writer`, `writer::WriterRole` holds the shards this node writes and applies a write to the engine, stages its record in the node's one log through the committer, and acknowledges only once the blob landed; a failed stage releases the shard. `writer::RoleTarget` is its `bulk::Target`; a shard held elsewhere goes through `writer::Routes::forward`. Contract: [docs/specs/node-writer/SPEC.md](../../docs/specs/node-writer/SPEC.md).
 
 With `writer`, `forward::BulkForwarder` sends a shard's bulk to its owner, signed, and is the one call site of `EarlyRevoke::on_refused` for a refused connect (`serverless.lease.early_revoke`, off by default). Contract: [docs/specs/forward/SPEC.md](../../docs/specs/forward/SPEC.md).
+
+With `writer`, `WriterRole::staged` remembers the manifest a shard's last publish produced and `newest::NewestHandler` answers a reader's `internal:serverless/commit/newest` ask with it, from memory. Contract: [docs/specs/writer-newest/SPEC.md](../../docs/specs/writer-newest/SPEC.md).
