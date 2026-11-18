@@ -265,3 +265,41 @@ fn a_keep_begun_by_a_fetch_raises_a_lower_claim_to_its_floor() {
     assert_eq!(a.claimed_through, 5, "the floor, not the earlier claim");
     assert_eq!(r.serve.claimed_through(U, 0), 5);
 }
+
+#[test]
+fn shards_and_uuids_are_served_apart() {
+    let r = rig();
+    let at = |uuid: &str, shard: i32, node: &str| {
+        let mut request = ask(node, 5, NEW);
+        request.shard.index_uuid = uuid.into();
+        request.shard.shard = shard;
+        request
+    };
+    assert_eq!(r.serve.answer(&at(U, 0, "a")).subscription, 0);
+    assert_eq!(
+        r.serve.answer(&at(U, 1, "b")).subscription,
+        0,
+        "ids count per shard"
+    );
+    assert_eq!(r.serve.answer(&at("other", 0, "c")).subscription, 0);
+    assert_eq!(r.serve.subscribers_of(U, 0), ["a"]);
+    assert_eq!(r.serve.subscribers_of(U, 1), ["b"]);
+    assert_eq!(r.serve.subscribers_of("other", 0), ["c"]);
+    assert!(r.keep.keeps(U, 1));
+    r.serve.unsubscribe(U, 1, "a");
+    assert_eq!(r.serve.subscribers_of(U, 0), ["a"], "not this shard's node");
+    r.facts.max.store(8, Ordering::SeqCst);
+    r.serve.claim(U, 1);
+    assert_eq!(r.serve.claimed_through(U, 1), 8);
+    assert_eq!(r.serve.claimed_through(U, 0), 5, "another shard's claim");
+    assert_eq!(r.serve.claimed_through("other", 0), 5);
+    r.serve.released(U, 0);
+    assert_eq!(
+        r.serve.subscribers_of(U, 1),
+        ["b"],
+        "release is for one shard"
+    );
+    assert_eq!(r.serve.subscribers_of("other", 0), ["c"]);
+    assert!(r.keep.keeps(U, 1) && r.keep.keeps("other", 0));
+    assert_eq!(r.serve.claimed_through(U, 1), 8);
+}
