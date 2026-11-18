@@ -26,3 +26,5 @@ With `reader`, `newest_ask::TransportNewestAsk` is a `NewestSource` a cold open 
 With `writer`, `tail_keep::TailKeep` holds the writes a node acknowledged and has not published (20,000 records and 16 MiB a shard, 256 MiB a node) for a reader opening an older commit. Nothing calls it yet. Contract: [docs/specs/writer-tail-keep/SPEC.md](../../docs/specs/writer-tail-keep/SPEC.md).
 
 `tail_serve::TailServe` answers a reader's tail fetch from it (records past the reader's commit, a subscription with a 600 ms grant, the claim); nothing registers it as a handler yet. Contract: [docs/specs/writer-tail-fetch/SPEC.md](../../docs/specs/writer-tail-fetch/SPEC.md).
+
+`tail_push::TailPush` queues the writes a node acknowledged and, on `flush`, sends each subscribed reader one `PushRequest` and counts its answer through `TailServe`; the caller schedules the flush and nothing calls it yet. Contract: [docs/specs/writer-tail-push/SPEC.md](../../docs/specs/writer-tail-push/SPEC.md).

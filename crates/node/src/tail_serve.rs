@@ -8,7 +8,7 @@
 //! Memory only; the transport handler, the push to subscribers and waiting
 //! for them are separate pieces.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use oss_cluster::lease::LeaseClock;
@@ -38,6 +38,53 @@ struct Subscription {
     id: i64,
     /// When the grant runs out, in milliseconds on the clock.
     grant_until: i64,
+    /// The shard's position through which the node has every record.
+    confirmed: u64,
+    /// The number the next push of this shard to the node takes.
+    next_send: u64,
+    /// The lowest push number not yet answered.
+    next_to_confirm: u64,
+    /// Pushes sent and not yet counted, by number: the position each reaches.
+    sent: BTreeMap<u64, u64>,
+    /// Pushes answered out of order, waiting for an earlier one.
+    answered: BTreeSet<u64>,
+}
+
+impl Subscription {
+    fn new(id: i64, grant_until: i64, confirmed: u64) -> Self {
+        Self {
+            id,
+            grant_until,
+            confirmed,
+            next_send: 0,
+            next_to_confirm: 0,
+            sent: BTreeMap::new(),
+            answered: BTreeSet::new(),
+        }
+    }
+
+    fn answered_push(&mut self, number: u64) {
+        // A push already counted, or never sent, is not in `sent`.
+        if !self.sent.contains_key(&number) {
+            return;
+        }
+        self.answered.insert(number);
+        while self.answered.remove(&self.next_to_confirm) {
+            if let Some(reached) = self.sent.remove(&self.next_to_confirm) {
+                self.confirmed = self.confirmed.max(reached);
+            }
+            self.next_to_confirm = self.next_to_confirm.saturating_add(1);
+        }
+    }
+}
+
+/// A push's place in the subscription it was sent under.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Sent {
+    /// The subscription's id.
+    pub id: i64,
+    /// The push's number within it.
+    pub number: u64,
 }
 
 #[derive(Default)]
@@ -66,7 +113,7 @@ fn key(uuid: &str, shard: u32) -> (String, u32) {
     (uuid.to_owned(), shard)
 }
 
-fn owned(record: &oss_format::WalRecord<'_>) -> Record {
+pub(crate) fn owned(record: &oss_format::WalRecord<'_>) -> Record {
     Record {
         id: record.id().to_owned(),
         deletion: record.is_deletion(),
@@ -145,6 +192,85 @@ impl TailServe {
         }
     }
 
+    /// Numbers a push reaching position `end` for each node the shard is
+    /// pushed to, nodes in name order.
+    pub fn targets(&self, uuid: &str, shard: u32, end: u64) -> Vec<(String, Sent)> {
+        let mut state = self.lock();
+        let Some(serving) = state.serving.get_mut(&key(uuid, shard)) else {
+            return Vec::new();
+        };
+        let mut out: Vec<(String, Sent)> = serving
+            .by_node
+            .iter_mut()
+            .map(|(node, subscription)| {
+                let number = subscription.next_send;
+                subscription.next_send = number.saturating_add(1);
+                subscription.sent.insert(number, end);
+                (
+                    node.clone(),
+                    Sent {
+                        id: subscription.id,
+                        number,
+                    },
+                )
+            })
+            .collect();
+        out.sort_by(|a, b| a.0.cmp(&b.0));
+        out
+    }
+
+    /// Counts a push the node answered, if the node still holds the
+    /// subscription it was sent under.
+    pub fn confirm(&self, uuid: &str, shard: u32, node: &str, sent: Sent) {
+        if let Some(held) = self
+            .lock()
+            .serving
+            .get_mut(&key(uuid, shard))
+            .and_then(|serving| serving.by_node.get_mut(node))
+            && held.id == sent.id
+        {
+            held.answered_push(sent.number);
+        }
+    }
+
+    /// Stops pushing the shard to a node, if it still holds the subscription
+    /// the push was sent under: a node that fetched again has a new one,
+    /// which what became of an older push says nothing about.
+    pub fn drop_sent(&self, uuid: &str, shard: u32, node: &str, sent: Sent) {
+        if let Some(serving) = self.lock().serving.get_mut(&key(uuid, shard))
+            && serving
+                .by_node
+                .get(node)
+                .is_some_and(|held| held.id == sent.id)
+        {
+            serving.by_node.remove(node);
+        }
+    }
+
+    /// The position through which a node is confirmed to have the shard's
+    /// records, if it is subscribed.
+    pub fn confirmed(&self, uuid: &str, shard: u32, node: &str) -> Option<u64> {
+        self.lock()
+            .serving
+            .get(&key(uuid, shard))?
+            .by_node
+            .get(node)
+            .map(|held| held.confirmed)
+    }
+
+    /// Stops pushing a shard to every node it is pushed to.
+    pub fn unsubscribe_all(&self, uuid: &str, shard: u32) {
+        if let Some(serving) = self.lock().serving.get_mut(&key(uuid, shard)) {
+            serving.by_node.clear();
+        }
+    }
+
+    /// Stops keeping and pushing a shard; its claim stays.
+    pub fn stop(&self, uuid: &str, shard: u32) {
+        self.lock().serving.remove(&key(uuid, shard));
+        self.keep.released(uuid, shard);
+    }
+
     /// Forgets a shard this node no longer writes: its subscribers, its claim
     /// and what is kept for it.
     pub fn released(&self, uuid: &str, shard: u32) {
@@ -170,8 +296,9 @@ impl TailServe {
             return none(i64::MAX);
         }
         let highest = self.facts.max_seq_no(uuid, shard);
+        let on = self.facts.overlay_on(uuid, shard);
         let mut state = self.lock();
-        if !self.facts.overlay_on(uuid, shard)
+        if !on
             || request.subscription == CHECK
             || self.keep.gap_after(uuid, shard, request.after_seq_no)
         {
@@ -183,6 +310,10 @@ impl TailServe {
             *claimed = (*claimed).max(highest);
         }
         let grant_until = self.clock.now_millis().saturating_add(GRANT_MILLIS);
+        // Read before the records are: a record acknowledged between the two
+        // is both in the answer and pushed, and `confirmed` is never too
+        // high.
+        let position = self.keep.position(uuid, shard);
         let serving = state.serving.entry(key(uuid, shard)).or_default();
         if let Some(held) = serving.by_node.get_mut(&request.subscriber)
             && request.subscription >= 0
@@ -199,9 +330,10 @@ impl TailServe {
         }
         let id = serving.next_id;
         serving.next_id = serving.next_id.saturating_add(1);
-        serving
-            .by_node
-            .insert(request.subscriber.clone(), Subscription { id, grant_until });
+        serving.by_node.insert(
+            request.subscriber.clone(),
+            Subscription::new(id, grant_until, position),
+        );
         let claimed_through = Self::claimed(&mut state, uuid, shard, highest);
         drop(state);
         // Subscribed before the records are read, so a write acknowledged in

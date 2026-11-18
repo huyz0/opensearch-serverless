@@ -24,6 +24,8 @@ pub mod settings;
 #[cfg(feature = "writer")]
 pub mod tail_keep;
 #[cfg(feature = "writer")]
+pub mod tail_push;
+#[cfg(feature = "writer")]
 pub mod tail_serve;
 #[cfg(feature = "writer")]
 pub mod writer;
