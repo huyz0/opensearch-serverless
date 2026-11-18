@@ -100,3 +100,7 @@ required-features = ["writer"]
 [[test]]
 name = "tail_keep"
 required-features = ["writer"]
+
+[[test]]
+name = "tail_serve"
+required-features = ["writer"]
