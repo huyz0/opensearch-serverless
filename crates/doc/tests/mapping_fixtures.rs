@@ -10,9 +10,9 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use oss_writer::document;
-use oss_writer::mapping::json::{self, Json};
-use oss_writer::mapping::{Mapping, MappingError};
+use oss_doc::document;
+use oss_doc::mapping::json::{self, Json};
+use oss_doc::mapping::{Mapping, MappingError};
 
 fn fixtures() -> Vec<PathBuf> {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/compat/mapping");

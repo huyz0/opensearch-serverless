@@ -2,9 +2,9 @@
 //! unsupported, the shell's hash-ordered stored mappings, limits and the
 //! leaf listing.
 
-use oss_writer::mapping::{FieldType, Mapping, NumType, Value};
+use oss_doc::mapping::{FieldType, Mapping, NumType, Value};
 
-fn parse(json: &str) -> Result<Mapping, oss_writer::mapping::MappingError> {
+fn parse(json: &str) -> Result<Mapping, oss_doc::mapping::MappingError> {
     Mapping::parse(json.as_bytes())
 }
 

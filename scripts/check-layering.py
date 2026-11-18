@@ -30,6 +30,7 @@ LAYERS = {
     "oss-transport": 1,
     "oss-meta": 2,
     "oss-cluster": 2,
+    "oss-doc": 2,
     "oss-reader": 3,
     "oss-writer": 3,
     "oss-coordinator": 4,

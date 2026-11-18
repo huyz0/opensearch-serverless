@@ -2,8 +2,8 @@
 //! (they record only acceptance and the mapping), `_ignored`, multi-fields,
 //! date milliseconds, and the dynamic update.
 
-use oss_writer::document::{self, FieldValue, ParsedDocument};
-use oss_writer::mapping::{Mapping, MappingError, Num};
+use oss_doc::document::{self, FieldValue, ParsedDocument};
+use oss_doc::mapping::{Mapping, MappingError, Num};
 
 fn mapping(json: &str) -> Mapping {
     Mapping::parse(json.as_bytes()).unwrap()

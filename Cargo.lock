@@ -692,6 +692,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "oss-doc"
+version = "0.1.0"
+dependencies = [
+ "chunkjson",
+ "lucene-analysis",
+ "lucene-codecs",
+ "lucene-index",
+ "lucene-search",
+ "lucene-store",
+ "oss-rest",
+]
+
+[[package]]
 name = "oss-format"
 version = "0.1.0"
 dependencies = [
@@ -806,6 +819,7 @@ dependencies = [
  "lucene-store",
  "oss-blob",
  "oss-cluster",
+ "oss-doc",
  "oss-format",
  "oss-meta",
  "oss-rest",
