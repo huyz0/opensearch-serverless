@@ -234,6 +234,11 @@ impl OverlaySource for Source {
             r#"{"properties":{"n":{"type":"integer"}}}"#,
             "the source gets the mapping the descriptor holds"
         );
+        assert_eq!(
+            commit.index_name(),
+            "logs",
+            "the source gets the name of the index it serves"
+        );
         let mut asked = self.asked.lock().expect("lock");
         *asked = asked.saturating_add(1);
         if !self.ready {

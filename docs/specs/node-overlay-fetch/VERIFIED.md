@@ -7,3 +7,4 @@
 - AC-5: `a_stage_gives_the_writer_that_staged_it` in crates/reader/tests/commit_push.rs
 - AC-1 (transport): `the_builders_fetcher_trait_reaches_the_same_writer` in crates/node/tests/tail_fetch.rs
 - AC-6: `a_fetch_queued_for_a_stage_the_shard_left_asks_nobody` in crates/node/tests/overlay_fetch.rs and `a_fetch_queued_for_a_closed_shard_asks_nobody` in crates/node/tests/overlay_fetch.rs
+- AC-1 (engine name): `a_new_overlay_from_the_source_makes_a_new_view_once` in crates/node/tests/overlay_search.rs, whose source asserts the index name the engine gives
