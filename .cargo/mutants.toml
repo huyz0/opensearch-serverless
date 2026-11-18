@@ -123,4 +123,6 @@ exclude_re = [
     # The lookup's error text only carries the engine's message into a
     # refusal; a segment that fails to read cannot be built in a test.
     "crates/writer/src/index/lookup.rs:\\d+:\\d+: replace fail -> String with",
+    # Same for the shard's engine error text.
+    "crates/writer/src/index/shard.rs:\\d+:\\d+: replace message -> String with",
 ]

@@ -126,6 +126,7 @@ mod tests {
         let gc = GC_DELETES_MILLIS;
         assert_eq!(m.get("a", 5, gc), Some(at(2, false)));
         assert_eq!(m.len(), 2);
+        assert!(!m.is_empty());
         let two = m.ram_bytes();
         assert_eq!(two, 2 * entry_bytes("a"));
         m.refreshed();
