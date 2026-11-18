@@ -82,6 +82,9 @@ pub fn open_shard_pushed<S: BlobStore + 'static>(
     open_located(store, cache, base, index, shard, files, meta)
 }
 
+/// The numeric doc values field holding 1 on a replaced or deleted document.
+const SOFT_DELETES_FIELD: &str = "__soft_deletes";
+
 /// Opens the commit [`ShardFiles::open_with_meta`] found for shard `shard`
 /// of `index` under `base`, with the engine's ranged reads through `cache`.
 /// What it keeps in the heap is at most [`open_cost::open_bytes`] of the
@@ -98,7 +101,9 @@ pub fn open_located<S: BlobStore + 'static>(
     // ALLOC: one namespace per open shard.
     let namespace = format!("{base}/{index}/{shard}/t={}", files.term);
     let directory = CachedBlobDirectory::new(EngineStore::new(store, files), cache, &namespace);
-    let reader = DirectoryReader::open(&directory)?;
+    // What the writer replaced or deleted stays in the segment as a soft
+    // delete; searches and counts do not see it.
+    let reader = DirectoryReader::open(&directory)?.soft_deletes_wrapper(SOFT_DELETES_FIELD)?;
     Ok(OpenShard {
         directory,
         reader,
