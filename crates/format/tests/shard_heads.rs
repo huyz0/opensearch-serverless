@@ -92,3 +92,46 @@ fn the_writers_are_capped_and_a_head_too_long_to_read_back_is_not_written() {
     head.index = "x".repeat(MAX_SHARD_HEAD_BYTES);
     assert!(matches!(head.to_bytes(), Err(FormatError::TooLarge { .. })));
 }
+
+#[test]
+fn a_field_repeated_is_refused_whichever_field_it_is() {
+    let values = [
+        ("index", "\"x\""),
+        ("shard", "0"),
+        ("term", "1"),
+        ("owner_node_id", "\"n\""),
+        ("owner_ephemeral_id", "\"e\""),
+        ("lease_expires_at_millis", "5"),
+        ("index_uuid", "\"u\""),
+        ("writers", "[\"w\"]"),
+    ];
+    for (name, value) in values {
+        let once = format!("{{\"index\":\"x\",\"shard\":0,\"term\":1,\"{name}\":{value}}}");
+        let twice = format!(
+            "{{\"index\":\"x\",\"shard\":0,\"term\":1,\"{name}\":{value},\"{name}\":{value}}}"
+        );
+        // A name already in the base head is repeated by the "once" form too.
+        let base = matches!(name, "index" | "shard" | "term");
+        assert_eq!(ShardHead::parse(once.as_bytes()).is_err(), base, "{name}");
+        assert!(ShardHead::parse(twice.as_bytes()).is_err(), "{name} twice");
+    }
+}
+
+#[test]
+fn a_head_of_exactly_the_size_bound_reads_and_one_byte_more_is_refused() {
+    let head = |pad: usize| {
+        format!(
+            "{{\"index\":\"x\",\"shard\":0,\"term\":1,\"pad\":\"{}\"}}",
+            "p".repeat(pad)
+        )
+    };
+    let fixed = head(0).len();
+    let at_bound = head(MAX_SHARD_HEAD_BYTES - fixed);
+    assert_eq!(at_bound.len(), MAX_SHARD_HEAD_BYTES);
+    assert!(ShardHead::parse(at_bound.as_bytes()).is_ok());
+    let over = head(MAX_SHARD_HEAD_BYTES - fixed + 1);
+    assert!(matches!(
+        ShardHead::parse(over.as_bytes()),
+        Err(FormatError::TooLarge { .. })
+    ));
+}
