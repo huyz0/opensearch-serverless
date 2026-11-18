@@ -5,7 +5,7 @@
 
 use std::path::PathBuf;
 
-use oss_format::{FormatError, ShardHead};
+use oss_format::{FormatError, MAX_SHARD_HEAD_BYTES, MAX_WRITERS, ShardHead};
 
 fn fixture(name: &str) -> Vec<String> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -19,7 +19,7 @@ fn fixture(name: &str) -> Vec<String> {
 }
 
 fn written(head: &ShardHead) -> String {
-    String::from_utf8(head.to_bytes()).expect("utf-8")
+    String::from_utf8(head.to_bytes().expect("fits")).expect("utf-8")
 }
 
 #[test]
@@ -76,4 +76,19 @@ fn truncated_and_corrupt_heads_are_refused() {
     ] {
         assert!(ShardHead::parse(bad).is_err(), "{bad:?}");
     }
+}
+
+#[test]
+fn the_writers_are_capped_and_a_head_too_long_to_read_back_is_not_written() {
+    let mut head = ShardHead::parse(br#"{"index":"logs","shard":0,"term":1}"#).expect("parses");
+    for i in 0..(MAX_WRITERS + 10) {
+        head = head.with_writer(Some(&format!("node-{i}")));
+    }
+    assert_eq!(head.writers.len(), MAX_WRITERS);
+    assert_eq!(head.writers.last().map(String::as_str), Some("node-73"));
+    assert_eq!(head.writers.first().map(String::as_str), Some("node-10"));
+    let bytes = head.to_bytes().expect("capped writers fit");
+    assert_eq!(ShardHead::parse(&bytes).expect("reads back"), head);
+    head.index = "x".repeat(MAX_SHARD_HEAD_BYTES);
+    assert!(matches!(head.to_bytes(), Err(FormatError::TooLarge { .. })));
 }

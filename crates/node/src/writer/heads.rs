@@ -82,6 +82,12 @@ impl ShardAdmission for HeadAdmission {
             .read(&name, shard.shard)
             .map_err(|e| refuse(e.to_string()))?;
         match head {
+            // A head left by another incarnation of the name is not this
+            // shard's, however it names this node.
+            Some(h) if h.index_uuid.as_deref().is_some_and(|u| u != uuid) => Err(refuse(format!(
+                "[{name}][{}] is headed for another incarnation of the index",
+                shard.shard
+            ))),
             Some(h) if h.term == term && h.owned_by(&self.node_id, &self.ephemeral_id) => Ok(()),
             Some(h) => Err(refuse(format!(
                 "[{name}][{}] is owned at term {} by {:?}, not this node at term {term}",

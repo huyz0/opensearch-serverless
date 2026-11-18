@@ -84,7 +84,10 @@ impl Fenced {
             .confirmed
             .lock()
             .unwrap_or_else(PoisonError::into_inner);
-        confirmed.retain(|(u, _)| u != uuid);
+        let window = self.window;
+        // Entries past the window are dropped here, so the list holds only
+        // the indexes written within the last window.
+        confirmed.retain(|(u, at)| u != uuid && at.elapsed() < window);
         if live {
             // ALLOC: one entry an index confirmed.
             confirmed.push((uuid.to_owned(), Instant::now()));

@@ -22,6 +22,12 @@ const WHAT: &str = "shard head";
 /// writers. A longer one is refused.
 pub const MAX_SHARD_HEAD_BYTES: usize = 16 * 1024;
 
+/// The most writers a head names. A take adds the owner it takes from, so
+/// the list would otherwise grow with every dead owner; past this the
+/// oldest are dropped, which only costs a successor a log it would have
+/// read for records long since published.
+pub const MAX_WRITERS: usize = 64;
+
 /// A shard head, as the Java's `ShardHead` holds it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ShardHead {
@@ -70,6 +76,8 @@ impl ShardHead {
             self.writers.retain(|w| w != writer);
             // ALLOC: one name, within MAX_SHARD_HEAD_BYTES.
             self.writers.push(writer.to_owned());
+            let excess = self.writers.len().saturating_sub(MAX_WRITERS);
+            self.writers.drain(..excess);
         }
         self
     }
@@ -110,14 +118,17 @@ impl ShardHead {
     }
 
     /// The head's bytes, as a register value.
-    pub fn to_bytes(&self) -> Vec<u8> {
+    ///
+    /// # Errors
+    ///
+    /// [`FormatError::TooLarge`] past [`MAX_SHARD_HEAD_BYTES`]: a head that
+    /// long would not read back, so none is written.
+    pub fn to_bytes(&self) -> Result<Vec<u8>, FormatError> {
         // ALLOC: one register value, at most MAX_SHARD_HEAD_BYTES.
         let mut buf = vec![0u8; MAX_SHARD_HEAD_BYTES];
-        // A head longer than the bound is cut: the writers list is capped
-        // by the caller's own bound.
-        let n = self.write(&mut buf).unwrap_or(0);
+        let n = self.write(&mut buf)?;
         buf.truncate(n);
-        buf
+        Ok(buf)
     }
 
     /// Parses a head as the Java's `fromStream` does.

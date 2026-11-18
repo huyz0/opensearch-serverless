@@ -57,6 +57,15 @@ fn admission_passes_the_owner_at_its_term_and_refuses_everything_else() {
     assert!(admit("n2", "e1", 1).is_err(), "another node");
     assert!(admit("n1", "e2", 1).is_err(), "another process");
     assert!(admit("n1", "e1", 2).is_err(), "another term");
+    heads
+        .acquire("logs", 1, "n1", "e1", Some("other"))
+        .expect("take");
+    let other = ShardKey::new("u1", 1, None::<&str>);
+    let by_name_ = HeadAdmission::new(Arc::clone(&heads), Arc::clone(&names), "n1", "e1");
+    assert!(
+        by_name_.admit(&other, 1, 1).is_err(),
+        "a head of another incarnation"
+    );
     let unknown = ShardKey::new("nope", 0, None::<&str>);
     let by_name = HeadAdmission::new(Arc::clone(&heads), Arc::clone(&names), "n1", "e1");
     assert!(by_name.admit(&unknown, 1, 1).is_err(), "an index not held");

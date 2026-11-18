@@ -119,7 +119,7 @@ impl ShardHeadStore {
         };
         let Some((generation, current)) = self.read_raw(&key)? else {
             let head = owned(1);
-            return match self.store.create_register(&key, &head.to_bytes())? {
+            return match self.store.create_register(&key, &head.to_bytes()?)? {
                 SwapOutcome::Applied(_) => Ok(Acquisition::Won {
                     head,
                     taken_from: None,
@@ -156,7 +156,7 @@ impl ShardHeadStore {
         }
         match self
             .store
-            .swap_register(&key, generation, &next.to_bytes())?
+            .swap_register(&key, generation, &next.to_bytes()?)?
         {
             SwapOutcome::Applied(_) => Ok(Acquisition::Won {
                 head: next,
