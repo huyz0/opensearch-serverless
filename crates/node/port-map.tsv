@@ -6,3 +6,4 @@ src/search.rs	port	server/src/main/java/org/opensearch/rest/action/search/RestSe
 src/settings.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/settings/ServerlessSettings.java@3920dc36	collects each crate's SETTINGS list where the shell loads each SettingsProvider by ServiceLoader
 src/search_tests.rs	new		tests for open indexes charged to their pool
 src/push.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/transport/CommitPush.java	the receive side: answer whether the shard is open here and, when the push is newer than the open commit, keep it for the next open and let the open index go; the shell swaps the open reader in place
+src/push_sender.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/transport/CommitPush.java	the send side: the commit to the ranked readers in parallel and the readers that answered open; blocks and the thread pool are not ported

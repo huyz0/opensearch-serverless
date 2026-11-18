@@ -8,6 +8,8 @@
 pub mod open_indexes;
 #[cfg(feature = "reader")]
 pub mod push;
+#[cfg(feature = "writer")]
+pub mod push_sender;
 #[cfg(feature = "reader")]
 pub mod search;
 pub mod settings;
