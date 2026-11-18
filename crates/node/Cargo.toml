@@ -96,3 +96,7 @@ required-features = ["writer"]
 name = "writer_heads"
 path = "tests/writer_heads.rs"
 required-features = ["writer"]
+
+[[test]]
+name = "tail_keep"
+required-features = ["writer"]
