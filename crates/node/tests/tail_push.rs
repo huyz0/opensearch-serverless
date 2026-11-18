@@ -427,3 +427,50 @@ fn turning_a_shard_off_discards_its_queued_writes_and_only_its_own() {
         "(U, 0) is gone, the rest stay"
     );
 }
+
+#[test]
+fn the_same_shard_number_of_two_indexes_is_batched_and_bounded_apart() {
+    let r = rig();
+    let at = |uuid: &str| {
+        r.serve.answer(&FetchRequest {
+            shard: ShardRef {
+                index_name: uuid.into(),
+                index_uuid: uuid.into(),
+                shard: 0,
+            },
+            subscriber: "n1".into(),
+            subscription: NEW,
+            ..FetchRequest::default()
+        });
+    };
+    at(U);
+    at("other");
+    r.push.acked(U, U, 0, &recs(1..=2), true);
+    r.push.acked("other", "other", 0, &recs(3..=3), true);
+    r.push.acked(U, U, 0, &recs(4..=4), true);
+    r.push.flush();
+    {
+        let sent = r.link.sent.lock().unwrap();
+        let entries: Vec<(String, Vec<i64>)> = sent[0]
+            .1
+            .shards
+            .iter()
+            .map(|(s, rs)| (s.index_uuid.clone(), rs.iter().map(|r| r.seq_no).collect()))
+            .collect();
+        assert_eq!(
+            entries,
+            [(U.to_owned(), vec![1, 2, 4]), ("other".to_owned(), vec![3])]
+        );
+    }
+    // One index passing the bound leaves the other's queue alone.
+    r.push.acked("other", "other", 0, &recs(5..=5), true);
+    let n = MAX_QUEUED as i64;
+    r.push.acked(U, U, 0, &recs(10..=10 + n), true);
+    assert!(r.serve.subscribers_of(U, 0).is_empty());
+    assert_eq!(r.serve.subscribers_of("other", 0), ["n1"]);
+    r.push.flush();
+    let sent = r.link.sent.lock().unwrap();
+    assert_eq!(sent.len(), 2);
+    assert_eq!(sent[1].1.shards.len(), 1);
+    assert_eq!(sent[1].1.shards[0].0.index_uuid, "other");
+}
