@@ -231,6 +231,16 @@ fn requests_are_checked_as_the_java_validates_them() {
         Err("Validation Failed: 1: create operations do not support compare and set. use index instead;".into())
     );
     assert_eq!(validate(&seq(1, 1), false), Ok(()));
+    // An internal explicit version beside a compare-and-set is refused too.
+    let both = Expect {
+        version: 2,
+        ..seq(1, 1)
+    };
+    let message = validate(&both, false).unwrap_err();
+    assert!(
+        message.contains("compare and write operations can not use versioning"),
+        "{message}"
+    );
     // Either half of the compare-and-set pair is enough to refuse a create.
     for half in [seq(1, 0), seq(UNASSIGNED_SEQ_NO, 4)] {
         let message = validate(&half, true).unwrap_err();
