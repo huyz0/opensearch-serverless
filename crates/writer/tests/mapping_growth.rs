@@ -72,9 +72,12 @@ fn described(r: &Rig) -> (String, i64) {
 
 /// Spins until `flag` is set, failing the test rather than hanging it.
 fn spin_until(flag: &AtomicU64) {
-    let deadline = std::time::Instant::now() + Duration::from_secs(10);
+    let start = std::time::Instant::now();
     while flag.load(Ordering::SeqCst) == 0 {
-        assert!(std::time::Instant::now() < deadline, "a flag never came");
+        assert!(
+            start.elapsed() < Duration::from_secs(10),
+            "a flag never came"
+        );
         std::thread::yield_now();
     }
 }
@@ -305,10 +308,7 @@ fn a_batch_the_store_failed_goes_back_to_the_callers_waiting_on_it() {
         if first.swap(0, Ordering::SeqCst) == 1 {
             // The leader is mid swap: let the follower queue behind it, then fail.
             inside.store(1, Ordering::SeqCst);
-            let deadline = std::time::Instant::now() + Duration::from_secs(5);
-            while ready.load(Ordering::SeqCst) == 0 && std::time::Instant::now() < deadline {
-                std::thread::yield_now();
-            }
+            spin_until(&ready);
             std::thread::sleep(Duration::from_millis(100));
             return Err(oss_blob::BlobError::Stream("the store failed"));
         }
