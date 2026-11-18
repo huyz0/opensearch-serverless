@@ -27,6 +27,15 @@ java -cp "$CP:out" org.opensearch.serverless.transport.ForwardingRecordings fixt
 
 `crates/transport/tests/wire/{forwarding,macs,mac_rotation}.rs` check every row.
 
+`PushRecordings.java` records the reader-push messages the same way: `push.txt` holds commit push requests (with and without blocks, a writer and a parent task) and answers, newest-commit requests, and newest-commit answers (a commit, or none), each round-tripped through the shell's class. Hex is as above, a commit is its register value in hex, `~` is none. It compiles against the shell's sources and the 3.10 snapshot's jars (`build/distribution/local/.../lib/*.jar`) with the shell's source root as `-sourcepath`, in package `org.opensearch.serverless.transport`:
+
+```bash
+javac -proc:none -nowarn -cp "$CP" -sourcepath serverless/shell/src/main/java -d out fixtures/transport/PushRecordings.java
+java -cp "$CP:out" org.opensearch.serverless.transport.PushRecordings fixtures/transport
+```
+
+`crates/transport/tests/wire/push.rs` checks every row.
+
 ## Live interop
 
 `TransportInterop.java` runs a real `Netty4Transport` and `TransportService` at the shell's version id against `crates/transport/examples/interop.rs`, both ways: echo plain and compressed, `ActionNotFound` and status failures read as each side's own types, and a node under another ephemeral id refused. Beside the jars above it needs `transport-netty4-client`, Netty 4.1.125, the Lucene 10.3.1 modules, `opensearch-{cli,geo,secure-sm,telemetry,task-commons}`, joda-time, t-digest, HdrHistogram, spatial4j, jts-core and log4j-core, from Maven Central. Leave out `opensearch-compress`: its zstd provider needs a native library.
