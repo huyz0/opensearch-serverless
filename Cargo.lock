@@ -734,6 +734,7 @@ version = "0.1.0"
 dependencies = [
  "lucene-analysis",
  "lucene-index",
+ "lucene-search",
  "lucene-store",
  "oss-blob",
  "oss-cluster",

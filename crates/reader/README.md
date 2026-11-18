@@ -20,3 +20,5 @@ Opening published commits, the page cache over ranged segment reads, tail-record
 `overlay::Masks` and `overlay::combine` give the searcher one segment list of the commit (hidden documents masked) and the overlay, and `Overlay::norms` its norms (contract: [docs/specs/reader-overlay-view/SPEC.md](../../docs/specs/reader-overlay-view/SPEC.md)).
 
 `OpenShard::with_overlay` (through `Overlay::view_of`) is the shard a search sees with the overlay on top of its commit: the same shared directory, a reader over the masked commit segments and the overlay's (contract: [docs/specs/reader-overlay-search/SPEC.md](../../docs/specs/reader-overlay-search/SPEC.md)).
+
+`overlay::Ready` (a finished overlay with the commit's copies of its ids) and the `overlay::OverlaySource` trait are what a search asks for the overlay of the shard it serves: finished, or nothing (contract: [docs/specs/reader-overlay-source/SPEC.md](../../docs/specs/reader-overlay-source/SPEC.md)).

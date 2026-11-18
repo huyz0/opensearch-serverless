@@ -232,6 +232,7 @@ fn concurrent_first_searches_open_once_and_close_nothing_else() {
     .expect("opens");
     drop(Lead::new(&service.open, INDEXES[1]).opened(Arc::new(Held {
         shard,
+        view: std::sync::Mutex::default(),
         stage: oss_reader::commit_push::Stage::new(1, None, -1),
         charge,
     })));
