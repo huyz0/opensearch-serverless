@@ -19,6 +19,7 @@ pub mod lucene_query;
 pub mod mapping;
 pub mod numbers;
 pub mod open_cost;
+pub mod overlay;
 pub mod response;
 pub mod search;
 mod search_sort;

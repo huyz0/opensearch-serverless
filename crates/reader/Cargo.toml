@@ -12,6 +12,7 @@ repository.workspace = true
 oss-types = { workspace = true }
 oss-blob = { workspace = true }
 oss-format = { workspace = true }
+oss-doc = { workspace = true }
 oss-rest = { workspace = true }
 lucene-store = { workspace = true }
 lucene-index = { workspace = true }
