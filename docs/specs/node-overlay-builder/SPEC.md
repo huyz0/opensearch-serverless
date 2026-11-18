@@ -16,7 +16,8 @@ Parity plan R7.6, the tail overlay engine, sixth piece ([ADR 0018](../../adr/001
 - AC-2: while the held records are unchanged `ready` returns the same `Ready` (pointer-equal) and builds nothing more (`builds()` stays).
 - AC-3: new records held make one new build; until it finishes `ready` returns the previous `Ready` for the same commit.
 - AC-4: a build whose estimate the pool refuses builds nothing, holds no charge and serves the commit; the pool's in-use bytes are what they were before. A finished overlay holds its estimate in the pool until replaced or closed, and then returns it.
-- AC-5: a build that fails (a record the mapping refuses) is not retried until the held records change; searches serve the commit.
+- AC-5: a build that fails (a record the mapping refuses) is not retried until the held records change; searches serve the commit. A build the pool refused is tried again once the pool has the refused bytes free, with no record changed.
+- AC-9: a build queued for a stage the shard has since left is dropped with its charge, and the new stage keeps its own.
 - AC-6: the first `ready` for a shard tracks it at the commit's local checkpoint (records at or below it are never held); a different stage tracks it again and drops the old `Ready`; `closed` for its stage untracks it, drops its `Ready` and returns its charge; `closed` for an older stage changes nothing.
 - AC-7: the queue is bounded: with the worker paused and a queue of one, three shards' asks queue at most two builds and return at once; after the worker resumes every shard's overlay is finished by later asks. `pause` and `resume` hold the worker (shutdown uses them too).
 - AC-8 (`oss-reader`): `build_ready` leaves out the records the commit already holds (checkpoint and copies) and keeps newer ones; `local_checkpoint` and `mapping_json` are those of the commit and index it is given.
@@ -35,8 +36,8 @@ Records held are capped per shard by `TailHeld`; one build holds at most `MAX_ID
 
 ## Switch
 
-The builder is only installed under `serverless.search.tail_overlay.enabled` (default `false`).
+`tail_overlay::install` installs a source only under `serverless.search.tail_overlay.enabled` (default `false`); nothing constructs a builder yet, so the node wiring piece adds the both-values test.
 
 ## Risks
 
-A build over another commit would hide the wrong documents: the job holds the commit it was queued with and the `Ready` is kept per stage. A stalled worker leaves searches on the commit, never blocked.
+A build over another commit would hide the wrong documents: the job holds the commit it was queued with and the `Ready` is kept per stage. A stalled worker leaves searches on the commit, never blocked, but up to the queue's length of engines stay pinned by their queued jobs. The worker copies the held records before it reserves: they are already in memory, capped per shard by `TailHeld`. A slot is keyed by stage, so an engine evicted and reopened on the same commit that closes late drops the new engine's overlay once; the next ask rebuilds it.

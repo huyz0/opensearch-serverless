@@ -42,6 +42,9 @@ struct Slot {
     /// The ordinal the latest queued or tried build covered up to: asked
     /// again only once more records are held.
     attempted: Option<u64>,
+    /// The bytes the pool refused the latest build: tried again once the
+    /// pool has that much free, though no record changed.
+    refused: Option<usize>,
 }
 
 struct Job {
@@ -164,6 +167,7 @@ impl OverlaySource for OverlayBuilder {
                     stage: stage.clone(),
                     built: None,
                     attempted: None,
+                    refused: None,
                 },
             );
         }
@@ -174,7 +178,10 @@ impl OverlaySource for OverlayBuilder {
         {
             return Some(Arc::clone(&built.ready));
         }
-        if next > 0 && slot.attempted != Some(next) {
+        let freed = slot
+            .refused
+            .is_some_and(|bytes| inner.budget.available(Pool::OpenIndexes) >= bytes);
+        if next > 0 && (slot.attempted != Some(next) || freed) {
             let job = Job {
                 key,
                 stage: stage.clone(),
@@ -186,7 +193,10 @@ impl OverlaySource for OverlayBuilder {
                 control.pending = control.pending.saturating_add(1);
             }
             match self.queue.try_send(job) {
-                Ok(()) => slot.attempted = Some(next),
+                Ok(()) => {
+                    slot.attempted = Some(next);
+                    slot.refused = None;
+                }
                 Err(TrySendError::Full(_) | TrySendError::Disconnected(_)) => inner.finish(),
             }
         }
@@ -239,6 +249,11 @@ impl Inner {
         let estimate = estimate_bytes(&records);
         // Never evicts an open index: an overlay is worth less than one.
         let Ok(charge) = self.budget.try_reserve(Pool::OpenIndexes, estimate) else {
+            if let Some(slot) = lock(&self.slots).get_mut(&job.key)
+                && slot.stage == job.stage
+            {
+                slot.refused = Some(estimate);
+            }
             return;
         };
         self.builds.fetch_add(1, Ordering::Relaxed);

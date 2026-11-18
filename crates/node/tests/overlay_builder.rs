@@ -238,7 +238,7 @@ fn the_first_ask_tracks_the_shard_at_the_commits_checkpoint_and_closing_untracks
         held.take("u1", 0, &[index("n2", 1, checkpoint + 2)], 20),
         Some(1)
     );
-    // A new stage tracks again: the shard is held by two engines for a moment.
+    // A new stage tracks again in place of the old: still one engine.
     let _ = builder.ready("u1", 0, &stage(2), &commit, 30);
     assert_eq!(
         held.take("u1", 0, &[index("n3", 1, checkpoint + 3)], 30),
@@ -265,7 +265,12 @@ fn a_full_queue_refuses_a_further_build_and_the_asks_finish_later() {
         held.take(u, 0, &[index("d", 1, 100)], 1);
         assert!(builder.ready(u, 0, &stage(1), &commit, 1).is_none());
     }
-    assert!(builder.pending() <= 2, "{} queued", builder.pending());
+    assert!(
+        (1..=2).contains(&builder.pending()),
+        "{} queued",
+        builder.pending()
+    );
+    assert_eq!(builder.builds(), 0, "nothing built while paused");
     builder.resume();
     for _ in 0..10 {
         builder.settle();
@@ -277,4 +282,57 @@ fn a_full_queue_refuses_a_further_build_and_the_asks_finish_later() {
     for u in uuids {
         assert!(builder.ready(u, 0, &stage(1), &commit, 1).is_some(), "{u}");
     }
+}
+
+#[test]
+fn a_build_queued_for_an_old_stage_is_dropped_when_the_stage_changed() {
+    let one = fixture(16 << 20);
+    one.push(&[index("d", 8, 100)]);
+    let _ = one.ready();
+    one.builder.settle();
+    let single = one.budget.in_use(Pool::OpenIndexes);
+    assert!(single > 0);
+
+    let fx = fixture(16 << 20);
+    fx.push(&[index("d", 8, 100)]);
+    fx.builder.pause();
+    let _ = fx.builder.ready("u1", 0, &stage(1), &fx.commit, 1_000);
+    // The engine moved to another commit before the build ran.
+    assert!(
+        fx.builder
+            .ready("u1", 0, &stage(2), &fx.commit, 1_000)
+            .is_none()
+    );
+    fx.builder.resume();
+    fx.builder.settle();
+    let ready = fx.builder.ready("u1", 0, &stage(2), &fx.commit, 1_000);
+    assert!(ready.is_some(), "the new stage's own build finished");
+    assert_eq!(
+        fx.budget.in_use(Pool::OpenIndexes),
+        single,
+        "the old stage's overlay was dropped with its charge"
+    );
+}
+
+#[test]
+fn a_refused_build_is_tried_again_once_the_pool_has_room() {
+    let held = Arc::new(TailHeld::new());
+    let budget = budget(1 << 20);
+    let builder = OverlayBuilder::new(Arc::clone(&held), budget.clone());
+    let commit = commit(&["a"]);
+    // Everything but a little is taken by something else.
+    let taken = budget
+        .try_reserve(Pool::OpenIndexes, (1 << 20) - 1_000)
+        .expect("fits");
+    let _ = builder.ready("u1", 0, &stage(1), &commit, 1);
+    held.take("u1", 0, &[index("d", 1, 100)], 1);
+    let _ = builder.ready("u1", 0, &stage(1), &commit, 1);
+    builder.settle();
+    assert!(builder.ready("u1", 0, &stage(1), &commit, 1).is_none());
+    assert_eq!(builder.builds(), 0, "refused: nothing built");
+    drop(taken);
+    let _ = builder.ready("u1", 0, &stage(1), &commit, 1);
+    builder.settle();
+    assert!(builder.ready("u1", 0, &stage(1), &commit, 1).is_some());
+    assert_eq!(builder.builds(), 1);
 }
