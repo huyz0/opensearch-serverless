@@ -23,6 +23,8 @@ With `writer`, `WriterRole::staged` remembers the manifest a shard's last publis
 
 With `reader`, `newest_ask::TransportNewestAsk` is a `NewestSource` a cold open asks for the newer commit a staging writer holds (`SearchService::set_newest_source`; setting `serverless.reader.newest_commit_ask`, off by default; `newest_ask::install`). Contract: [docs/specs/reader-newest-ask/SPEC.md](../../docs/specs/reader-newest-ask/SPEC.md).
 
+With `reader`, `tail_overlay::install` installs an `OverlaySource` a search asks for the overlay of the shard it serves (`SearchService::set_overlay_source`; setting `serverless.search.tail_overlay.enabled`, off by default). Contract: [docs/specs/reader-overlay-source/SPEC.md](../../docs/specs/reader-overlay-source/SPEC.md).
+
 With `writer`, `tail_keep::TailKeep` holds the writes a node acknowledged and has not published (20,000 records and 16 MiB a shard, 256 MiB a node) for a reader opening an older commit. Nothing calls it yet. Contract: [docs/specs/writer-tail-keep/SPEC.md](../../docs/specs/writer-tail-keep/SPEC.md).
 
 `tail_serve::TailServe` answers a reader's tail fetch from it (records past the reader's commit, a subscription with a 600 ms grant, the claim); nothing registers it as a handler yet. Contract: [docs/specs/writer-tail-fetch/SPEC.md](../../docs/specs/writer-tail-fetch/SPEC.md).

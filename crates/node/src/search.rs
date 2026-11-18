@@ -27,6 +27,7 @@ use oss_reader::commit_push::{NewestSource, PushedCommits, ShardKey, Stage};
 use oss_reader::dsl::{DslError, MAX_RECORDED_BYTES, Recorder, SearchSource, source};
 use oss_reader::failure::{Failure, Meta, SearchError, ShardFailure};
 use oss_reader::open_cost::open_bytes;
+use oss_reader::overlay::OverlaySource;
 use oss_reader::response::write_response;
 use oss_reader::search::{hits_bytes, search};
 use oss_reader::{OpenShard, ReaderError, ShardFiles, open_located};
@@ -39,6 +40,8 @@ pub const SEARCH_PARAMS: &[&str] = &["size", "from"];
 /// the last search holding it finishes.
 pub(crate) struct Held<S: BlobStore + 'static> {
     pub(crate) shard: OpenShard<S>,
+    /// The shard with an overlay on top, for the overlay it was made from.
+    view: Mutex<Option<overlay::OverlayView<S>>>,
     /// Where the commit it is open on sits among its writer's.
     pub(crate) stage: Stage,
     charge: Reservation,
@@ -65,6 +68,9 @@ pub struct SearchService<S: BlobStore + 'static> {
     pub(crate) epoch: Instant,
     /// What asks a staging writer for its newest commit on a cold open.
     newest: OnceLock<Arc<dyn NewestSource>>,
+    /// Where a search finds the overlay of the shard it serves; none, and a
+    /// search is answered from the commit.
+    overlay: OnceLock<Arc<dyn OverlaySource>>,
 }
 
 impl<S: BlobStore + 'static> SearchService<S> {
@@ -90,7 +96,14 @@ impl<S: BlobStore + 'static> SearchService<S> {
             pushed: Mutex::new(PushedCommits::new(PUSHED_SHARDS, PUSHED_BYTES)),
             epoch: Instant::now(),
             newest: OnceLock::new(),
+            overlay: OnceLock::new(),
         }
+    }
+
+    /// Installs where a search finds the overlay of the shard it serves.
+    /// False when one is installed already.
+    pub fn set_overlay_source(&self, source: Arc<dyn OverlaySource>) -> bool {
+        self.overlay.set(source).is_ok()
     }
 
     /// Installs what a cold open asks for a staging writer's newest commit.
@@ -189,6 +202,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
         // ALLOC: one open shard an index; the pool bounds them.
         Ok(lead.opened(Arc::new(Held {
             shard,
+            view: Mutex::new(None),
             stage,
             charge,
         })))
@@ -244,7 +258,8 @@ impl<S: BlobStore + 'static> SearchService<S> {
             Err(Answer::Rest(e)) => return Err(e),
             Err(Answer::Search(e)) => return send(resp, &e),
         };
-        let shard = &held.shard;
+        let view = self.overlay_view(&held, &held.shard.meta.uuid);
+        let shard = view.as_deref().unwrap_or(&held.shard);
         req.body().reserve(hits_bytes(&source, shard))?;
         let analyzer = Analyzer::standard(None);
         let hits = match search(shard, &index, &source, &analyzer) {
@@ -398,6 +413,9 @@ pub fn routes<S: BlobStore + 'static>(
             move |req: &mut Request<'_>, resp: &mut Response<'_>| service.handle(req, resp),
         )
 }
+
+#[path = "search_overlay.rs"]
+mod overlay;
 
 #[cfg(test)]
 #[path = "search_tests.rs"]
