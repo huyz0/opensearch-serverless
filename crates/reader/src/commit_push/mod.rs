@@ -52,6 +52,7 @@ pub struct Stage {
     term: u64,
     writer: Option<String>,
     sequence: i64,
+    generation: i64,
 }
 
 impl Stage {
@@ -62,7 +63,14 @@ impl Stage {
             term,
             writer,
             sequence,
+            generation: -1,
         }
+    }
+
+    /// This commit with the generation of the Lucene commit it names.
+    pub fn with_generation(mut self, generation: i64) -> Self {
+        self.generation = generation;
+        self
     }
 
     /// Where `manifest` sits.
@@ -72,8 +80,21 @@ impl Stage {
             // ALLOC: one writer name a commit.
             writer: manifest.writer.as_deref().map(str::to_owned),
             sequence: manifest.stage_sequence,
+            generation: generation(manifest),
         }
     }
+}
+
+/// `CommitPush.generation`: the highest generation of the `segments_N` files
+/// a manifest names (`N` in base 36), or -1 when it names none.
+fn generation(manifest: &CommitManifest<'_>) -> i64 {
+    manifest
+        .files()
+        .iter()
+        .filter_map(|f| f.name.strip_prefix("segments_"))
+        .filter_map(|n| i64::from_str_radix(n, 36).ok())
+        .max()
+        .unwrap_or(-1)
 }
 
 /// `CommitManifest.stagedAfter`: `a` is later than `b`, both staged by one
@@ -85,6 +106,19 @@ pub fn staged_after(a: &Stage, b: &Stage) -> bool {
         && a.writer.is_some()
         && a.writer == b.writer
         && a.sequence > b.sequence
+}
+
+/// `CommitPush.newer`: `candidate` is a later commit than `than`: a later
+/// term, or in one term a later stage of one writer, or a later Lucene commit
+/// generation.
+pub fn newer(candidate: &Stage, than: &Stage) -> bool {
+    if candidate.term != than.term {
+        return candidate.term > than.term;
+    }
+    staged_after(candidate, than)
+        || (candidate.generation >= 0
+            && than.generation >= 0
+            && candidate.generation > than.generation)
 }
 
 /// `NewestCommits.newerThan`: `newest`, what the register's writer staged
@@ -144,7 +178,8 @@ impl PushedCommits {
     }
 
     /// Keeps `value`, a commit register's value, for `key`. Gives whether
-    /// it was kept: a commit staged before the one already held is not.
+    /// it was kept: a commit that is not [`newer`] than the one already held
+    /// is not.
     ///
     /// # Errors
     ///
@@ -156,7 +191,7 @@ impl PushedCommits {
         let stage = Stage::of(&manifest);
         if let Some(held) = self.held.get(key)
             && !held.expired(now_millis)
-            && staged_after(&held.stage, &stage)
+            && !newer(&stage, &held.stage)
         {
             return Ok(false);
         }

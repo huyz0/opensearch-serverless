@@ -1,13 +1,23 @@
 //! The mailbox a writer's pushed commits wait in, and the order that picks
 //! the newer of two commits.
 
-use oss_format::encode_manifest as encode;
+use oss_format::{ManifestEntry, encode_manifest};
 use oss_reader::commit_push::{
-    KEEP_MILLIS, PushedCommits, Refused, ShardKey, Stage, newer_than, staged_after,
+    KEEP_MILLIS, PushedCommits, Refused, ShardKey, Stage, newer, newer_than, staged_after,
 };
 
 fn commit(term: u64, writer: Option<&str>, stage: i64) -> Vec<u8> {
-    encode(term, writer, &[], 0, stage).expect("encode")
+    encode_manifest(term, writer, &[], 0, stage).expect("encode")
+}
+
+/// A commit that names a `segments_N` file.
+fn commit_at(term: u64, writer: Option<&str>, stage: i64, segments: &str) -> Vec<u8> {
+    let entry = ManifestEntry {
+        name: segments,
+        location: "t=1/_1.seg#0:10".to_owned(),
+        length: 10,
+    };
+    encode_manifest(term, writer, &[entry], 0, stage).expect("encode")
 }
 
 fn key(shard: u32) -> ShardKey {
@@ -53,21 +63,42 @@ fn a_push_older_than_the_keep_time_is_not_handed_out() {
 }
 
 #[test]
-fn a_later_push_replaces_an_earlier_one_but_not_the_reverse() {
+fn only_a_newer_push_replaces_the_one_held() {
     let mut m = PushedCommits::new(8, 1 << 20);
     let five = commit(2, Some("w"), 5);
-    m.push(&key(0), &five, 0).unwrap();
+    assert_eq!(m.push(&key(0), &five, 0), Ok(true));
     assert_eq!(m.push(&key(0), &commit(2, Some("w"), 3), 0), Ok(false));
-    assert_eq!(m.push(&key(0), &commit(2, Some("w"), 5), 0), Ok(true));
+    assert_eq!(
+        m.push(&key(0), &commit(2, Some("w"), 5), 0),
+        Ok(false),
+        "the same commit again is not newer"
+    );
     let seven = commit(2, Some("w"), 7);
     assert_eq!(m.push(&key(0), &seven, 0), Ok(true));
     assert_eq!(m.held_bytes(), seven.len(), "one commit a shard");
-    // Another writer, or another term, is not ordered with it: it replaces.
-    let other = commit(2, Some("x"), 1);
-    assert_eq!(m.push(&key(0), &other, 0), Ok(true));
+    // Another writer in the same term is not ordered with it: the one held
+    // stays, and a lower term never replaces a higher one.
+    assert_eq!(m.push(&key(0), &commit(2, Some("x"), 9), 0), Ok(false));
+    assert_eq!(m.push(&key(0), &commit(1, Some("w"), 99), 0), Ok(false));
+    // A higher term replaces whatever the stages say.
     let term = commit(3, Some("x"), 0);
     assert_eq!(m.push(&key(0), &term, 0), Ok(true));
     assert_eq!(m.take(&key(0), 0), Some(term));
+}
+
+#[test]
+fn a_higher_lucene_generation_is_newer_when_no_stage_orders_them() {
+    let mut m = PushedCommits::new(8, 1 << 20);
+    let a = commit_at(2, Some("w"), -1, "segments_5");
+    assert_eq!(m.push(&key(0), &a, 0), Ok(true));
+    assert_eq!(
+        m.push(&key(0), &commit_at(2, Some("w"), -1, "segments_4"), 0),
+        Ok(false)
+    );
+    // Generations are base 36: `a` is ten, past five.
+    let ten = commit_at(2, Some("x"), -1, "segments_a");
+    assert_eq!(m.push(&key(0), &ten, 0), Ok(true));
+    assert_eq!(m.take(&key(0), 0), Some(ten));
 }
 
 #[test]
@@ -160,4 +191,24 @@ fn the_newer_of_the_register_and_a_staged_commit_is_picked() {
     assert_eq!(newer_than(&unstaged, Some(&later)), &unstaged);
     let anonymous = stage(2, None, 5);
     assert_eq!(newer_than(&anonymous, Some(&stage(2, None, 6))), &anonymous);
+}
+
+#[test]
+fn a_commit_is_newer_by_term_then_stage_then_generation() {
+    let at = |term, writer: Option<&str>, seq, generation| {
+        Stage::new(term, writer.map(str::to_owned), seq).with_generation(generation)
+    };
+    // The term decides first, whatever the rest say.
+    assert!(newer(&at(3, Some("w"), 0, 1), &at(2, Some("w"), 9, 9)));
+    assert!(!newer(&at(2, Some("w"), 9, 9), &at(3, Some("w"), 0, 1)));
+    // In one term a later stage of one writer.
+    assert!(newer(&at(2, Some("w"), 6, -1), &at(2, Some("w"), 5, -1)));
+    assert!(!newer(&at(2, Some("w"), 5, -1), &at(2, Some("w"), 5, -1)));
+    // Else a later generation, when both are known.
+    assert!(newer(&at(2, Some("w"), -1, 6), &at(2, Some("x"), -1, 5)));
+    assert!(!newer(&at(2, Some("w"), -1, 5), &at(2, Some("x"), -1, 5)));
+    assert!(!newer(&at(2, None, -1, 6), &at(2, None, -1, -1)), "unknown");
+    assert!(!newer(&at(2, None, -1, -1), &at(2, None, -1, 5)), "unknown");
+    // Generation zero is a generation.
+    assert!(newer(&at(2, None, -1, 1), &at(2, None, -1, 0)));
 }
