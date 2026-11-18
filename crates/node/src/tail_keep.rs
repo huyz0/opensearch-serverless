@@ -42,6 +42,8 @@ struct Kept {
     published_through: i64,
     /// The highest sequence number acknowledged and not kept for want of room.
     dropped_through: i64,
+    /// How many records have been queued for pushing.
+    position: u64,
 }
 
 impl Kept {
@@ -100,10 +102,17 @@ impl TailKeep {
     /// Takes records just acknowledged. With `push` false the shard's keep
     /// begins at them and nothing is stored: readers see them in the next
     /// commit.
-    pub fn acked(&self, uuid: &str, shard: u32, records: &[WalRecord<'static>], push: bool) {
-        let Some(lowest) = records.iter().map(WalRecord::seq_no).min() else {
-            return;
-        };
+    ///
+    /// Returns the shard's position after a pushed batch: how many records
+    /// have been queued for pushing.
+    pub fn acked(
+        &self,
+        uuid: &str,
+        shard: u32,
+        records: &[WalRecord<'static>],
+        push: bool,
+    ) -> Option<u64> {
+        let lowest = records.iter().map(WalRecord::seq_no).min()?;
         let mut guard = self.lock();
         let state = &mut *guard;
         let kept = state
@@ -111,7 +120,7 @@ impl TailKeep {
             .entry((uuid.to_owned(), shard))
             .or_insert_with(|| Kept::new(lowest.saturating_sub(1)));
         if !push {
-            return;
+            return None;
         }
         for record in records {
             if record.seq_no() <= kept.published_through {
@@ -137,6 +146,16 @@ impl TailKeep {
             kept.bytes = kept.bytes.saturating_sub(bytes);
             state.bytes = state.bytes.saturating_sub(bytes);
         }
+        kept.position = kept.position.saturating_add(records.len() as u64);
+        Some(kept.position)
+    }
+
+    /// How many records have been queued for pushing for the shard.
+    pub fn position(&self, uuid: &str, shard: u32) -> u64 {
+        self.lock()
+            .shards
+            .get(&(uuid.to_owned(), shard))
+            .map_or(0, |kept| kept.position)
     }
 
     /// Drops what a published commit holds: every record at or below its
