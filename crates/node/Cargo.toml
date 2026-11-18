@@ -21,7 +21,7 @@ reader = [
     "dep:oss-mem",
     "dep:oss-transport",
 ]
-writer = ["dep:oss-writer", "dep:oss-blob"]
+writer = ["dep:oss-writer", "dep:oss-blob", "dep:oss-transport"]
 coordinator = ["dep:oss-coordinator", "dep:oss-blob"]
 
 [dependencies]
