@@ -7,6 +7,8 @@
 //! `oss_doc`. The ids the overlay replaces or deletes are listed so the
 //! caller can hide the commit's copies. Nothing here reads the object store.
 
+mod commit;
+
 use std::collections::HashMap;
 
 use lucene_index::index_writer::IndexWriter;
@@ -17,6 +19,8 @@ use oss_doc::document;
 use oss_doc::lucene::{Indexer, Meta};
 use oss_doc::mapping::Mapping;
 use oss_format::WalRecord;
+
+pub use commit::{Copies, Copy, find_copies};
 
 /// The most distinct ids one overlay replaces or deletes; more leaves the
 /// shard on its commit.
@@ -146,8 +150,31 @@ impl Overlay {
         local_checkpoint: i64,
         max_bytes: usize,
     ) -> Result<Self, BuildError> {
+        Self::build_over(
+            mapping,
+            records,
+            local_checkpoint,
+            max_bytes,
+            &Copies::default(),
+        )
+    }
+
+    /// As [`Self::build`], dropping each record whose copy in the commit has
+    /// a sequence number at or above its own: the commit already holds that
+    /// version or a newer one.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::build`].
+    pub fn build_over(
+        mapping: &Mapping,
+        records: &[WalRecord<'_>],
+        local_checkpoint: i64,
+        max_bytes: usize,
+        copies: &Copies,
+    ) -> Result<Self, BuildError> {
         // Nothing is allocated for the index until both caps have passed.
-        let (kept, ids) = latest(records, local_checkpoint)?;
+        let (kept, ids) = latest(records, local_checkpoint, copies)?;
         let estimate = estimate_kept(&kept);
         if estimate > max_bytes {
             return Err(BuildError::TooManyBytes {
@@ -219,6 +246,18 @@ impl Overlay {
         &self.ids
     }
 
+    /// The commit documents the overlay hides, as `(segment, document)`: the
+    /// copy of every id it replaces or deletes that the commit holds.
+    #[must_use]
+    pub fn hidden(&self, copies: &Copies) -> Vec<(usize, i32)> {
+        self.ids
+            .iter()
+            .filter_map(|id| copies.get(id))
+            .map(|c| (c.segment, c.doc))
+            // ALLOC: one entry an id, at most MAX_IDS.
+            .collect()
+    }
+
     /// How many documents the overlay holds.
     #[must_use]
     pub fn doc_count(&self) -> i32 {
@@ -231,6 +270,7 @@ impl Overlay {
 fn latest<'r, 'a>(
     records: &'r [WalRecord<'a>],
     checkpoint: i64,
+    copies: &Copies,
 ) -> Result<(Vec<&'r WalRecord<'a>>, Vec<String>), BuildError> {
     // ALLOC: one entry an id, at most MAX_IDS.
     let mut slot: HashMap<&str, usize> = HashMap::new();
@@ -252,7 +292,21 @@ fn latest<'r, 'a>(
             }
         }
     }
+    kept.retain(|r| copies.get(r.id()).is_none_or(|c| r.seq_no() > c.seq_no));
     // ALLOC: one string an id, at most MAX_IDS.
     let ids = kept.iter().map(|r| r.id().to_owned()).collect();
     Ok((kept, ids))
+}
+
+/// The distinct ids with a record above `local_checkpoint`, in first-seen
+/// order: the ids to look up in the commit before building.
+///
+/// # Errors
+///
+/// [`BuildError::TooManyIds`] past [`MAX_IDS`] ids.
+pub fn candidate_ids(
+    records: &[WalRecord<'_>],
+    local_checkpoint: i64,
+) -> Result<Vec<String>, BuildError> {
+    latest(records, local_checkpoint, &Copies::default()).map(|(_, ids)| ids)
 }
