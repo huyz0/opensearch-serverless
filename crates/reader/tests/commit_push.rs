@@ -261,6 +261,14 @@ fn a_later_stage_of_the_same_writer_and_term_replaces_the_register() {
 }
 
 #[test]
+fn a_register_commit_at_stage_zero_is_asked_about() {
+    use oss_reader::commit_push::newer_commit;
+    let later = commit(2, Some("w"), 1);
+    let chosen = newer_commit(&commit(2, Some("w"), 0), |_| Some(later.clone()));
+    assert_eq!(chosen, Some(later));
+}
+
+#[test]
 fn a_register_commit_that_was_not_staged_is_never_asked_about() {
     use oss_reader::commit_push::newer_commit;
     let ask = |_: &str| -> Option<Vec<u8>> { panic!("asked") };
