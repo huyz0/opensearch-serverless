@@ -20,6 +20,7 @@ mod raw;
 mod reader;
 mod stream;
 mod support;
+mod tail;
 
 use std::net::IpAddr;
 use std::path::PathBuf;

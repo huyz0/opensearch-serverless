@@ -36,6 +36,15 @@ java -cp "$CP:out" org.opensearch.serverless.transport.PushRecordings fixtures/t
 
 `crates/transport/tests/wire/push.rs` checks every row.
 
+`TailRecordings.java` records the tail overlay messages the same way: `tail.txt` holds tail fetch requests (a new subscription, a renewal, a check), fetch answers, tail push requests (one shard, several, none) and answers. Hex is as above, `~` is none, `-` is empty; a record is `id,deleted,source,seq_no,primary_term,version,routing`, records are `;`-separated, and a push row's shards are `/`-separated with `|` between a shard's index name, uuid, number and records. It compiles as `PushRecordings.java` does, with the shell's source root as `-sourcepath`, in package `org.opensearch.serverless.transport`:
+
+```bash
+javac -proc:none -nowarn -cp "$CP" -sourcepath serverless/shell/src/main/java -d out fixtures/transport/TailRecordings.java
+java -cp "$CP:out" org.opensearch.serverless.transport.TailRecordings fixtures/transport
+```
+
+`crates/transport/tests/wire/tail.rs` checks every row.
+
 ## Live interop
 
 `TransportInterop.java` runs a real `Netty4Transport` and `TransportService` at the shell's version id against `crates/transport/examples/interop.rs`, both ways: echo plain and compressed, `ActionNotFound` and status failures read as each side's own types, and a node under another ephemeral id refused. Beside the jars above it needs `transport-netty4-client`, Netty 4.1.125, the Lucene 10.3.1 modules, `opensearch-{cli,geo,secure-sm,telemetry,task-commons}`, joda-time, t-digest, HdrHistogram, spatial4j, jts-core and log4j-core, from Maven Central. Leave out `opensearch-compress`: its zstd provider needs a native library.
