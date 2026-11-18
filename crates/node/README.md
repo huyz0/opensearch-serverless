@@ -28,3 +28,5 @@ With `writer`, `tail_keep::TailKeep` holds the writes a node acknowledged and ha
 `tail_serve::TailServe` answers a reader's tail fetch from it (records past the reader's commit, a subscription with a 600 ms grant, the claim); nothing registers it as a handler yet. Contract: [docs/specs/writer-tail-fetch/SPEC.md](../../docs/specs/writer-tail-fetch/SPEC.md).
 
 `tail_push::TailPush` queues the writes a node acknowledged and, on `flush`, sends each subscribed reader one `PushRequest` and counts its answer through `TailServe`; the caller schedules the flush and nothing calls it yet. Contract: [docs/specs/writer-tail-push/SPEC.md](../../docs/specs/writer-tail-push/SPEC.md).
+
+With `reader`, `tail_held::TailHeld` holds the writes a writer pushed a reader (100,000 records a shard) and the grant its fetch answered; nothing applies them yet. Contract: [docs/specs/reader-tail-held/SPEC.md](../../docs/specs/reader-tail-held/SPEC.md).

@@ -21,6 +21,8 @@ pub mod push_sender;
 #[cfg(feature = "reader")]
 pub mod search;
 pub mod settings;
+#[cfg(feature = "reader")]
+pub mod tail_held;
 #[cfg(feature = "writer")]
 pub mod tail_keep;
 #[cfg(feature = "writer")]
