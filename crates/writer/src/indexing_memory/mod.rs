@@ -11,7 +11,7 @@ use std::sync::{Mutex, MutexGuard, PoisonError, TryLockError};
 pub use budget::{BufferSize, DEFAULT_MIN_BYTES, DEFAULT_PERCENT_BASIS_POINTS, IndexingBudget};
 
 /// Core's default for `indices.memory.shard_inactive_time`: five minutes.
-pub const DEFAULT_INACTIVE_MILLIS: u64 = 5 * 60 * 1000;
+pub const DEFAULT_INACTIVE_MILLIS: u64 = 300_000;
 
 /// What one shard is using, as the node reads it for a check.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -145,30 +145,26 @@ impl<K: Clone + Eq + Hash> IndexingMemory<K> {
             let used = shard.buffer_bytes.saturating_sub(shard.writing_bytes);
             total_writing = total_writing.saturating_add(shard.writing_bytes);
             total_used = total_used.saturating_add(used);
-            if used > 0 {
-                // ALLOC: the shards using something, at most the node's shards.
-                counted.push((used, &shard.key));
-            }
+            // Shards using nothing sort last and are never reached: the loop
+            // below stops once the rest fits.
+            counted.push((used, &shard.key));
         }
-        let over = total_used > self.budget.bytes();
         let throttling = self
             .budget
             .past_one_and_a_half(total_writing.saturating_add(total_used));
         let mut throttled = lock(&self.throttled);
-        if over {
-            // Largest first; the sort is stable, so ties keep the node's order.
-            counted.sort_by_key(|(used, _)| std::cmp::Reverse(*used));
-            for (used, key) in counted {
-                if total_used <= self.budget.bytes() {
-                    break;
-                }
-                // ALLOC: the shards to refresh, at most the node's shards.
-                decision.refresh.push(key.clone());
-                total_used = total_used.saturating_sub(used);
-                if throttling && throttled.insert(key.clone()) {
-                    // ALLOC: the shards to throttle, at most the node's shards.
-                    decision.throttle.push(key.clone());
-                }
+        // Largest first; the sort is stable, so ties keep the node's order.
+        counted.sort_by_key(|(used, _)| std::cmp::Reverse(*used));
+        for (used, key) in counted {
+            if total_used <= self.budget.bytes() {
+                break;
+            }
+            // ALLOC: the shards to refresh, at most the node's shards.
+            decision.refresh.push(key.clone());
+            total_used = total_used.saturating_sub(used);
+            if throttling && throttled.insert(key.clone()) {
+                // ALLOC: the shards to throttle, at most the node's shards.
+                decision.throttle.push(key.clone());
             }
         }
         if !throttling {
