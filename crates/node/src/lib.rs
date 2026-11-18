@@ -27,10 +27,14 @@ pub mod settings;
 pub mod tail_held;
 #[cfg(feature = "writer")]
 pub mod tail_keep;
+#[cfg(feature = "writer")]
+pub mod tail_link;
 #[cfg(feature = "reader")]
 pub mod tail_overlay;
 #[cfg(feature = "writer")]
 pub mod tail_push;
+#[cfg(feature = "reader")]
+pub mod tail_reader_link;
 #[cfg(feature = "writer")]
 pub mod tail_serve;
 #[cfg(feature = "writer")]
