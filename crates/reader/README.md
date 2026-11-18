@@ -18,3 +18,5 @@ Opening published commits, the page cache over ranged segment reads, tail-record
 `overlay::find_copies` looks up the commit's live copies of the ids an overlay replaces, `overlay::candidate_ids` names them before the build, `Overlay::build_over` drops records the commit already holds and `Overlay::hidden` lists the commit documents to hide (contract: [docs/specs/reader-overlay-commit/SPEC.md](../../docs/specs/reader-overlay-commit/SPEC.md)).
 
 `overlay::Masks` and `overlay::combine` give the searcher one segment list of the commit (hidden documents masked) and the overlay, and `Overlay::norms` its norms (contract: [docs/specs/reader-overlay-view/SPEC.md](../../docs/specs/reader-overlay-view/SPEC.md)).
+
+`OpenShard::with_overlay` (through `Overlay::view_of`) is the shard a search sees with the overlay on top of its commit: the same shared directory, a reader over the masked commit segments and the overlay's (contract: [docs/specs/reader-overlay-search/SPEC.md](../../docs/specs/reader-overlay-search/SPEC.md)).
