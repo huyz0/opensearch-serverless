@@ -314,3 +314,14 @@ fn a_handler_takes_a_message_at_its_bound_and_refuses_one_over_it() {
         &padded(&ask, MAX_FETCH_BYTES + 1)
     ));
 }
+
+#[test]
+fn the_builders_fetcher_trait_reaches_the_same_writer() {
+    let server = writer(SECRET);
+    let asker = asker(Some(server.address()));
+    let fetcher: &dyn oss_node::overlay_builder::TailFetcher = &asker;
+    let answer = fetcher
+        .fetch("writer-1", &fetch_request())
+        .expect("answered");
+    assert_eq!(answer.records.len(), 2);
+}

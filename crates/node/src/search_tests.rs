@@ -234,6 +234,7 @@ fn concurrent_first_searches_open_once_and_close_nothing_else() {
         shard,
         view: std::sync::Mutex::default(),
         stage: oss_reader::commit_push::Stage::new(1, None, -1),
+        index: INDEXES[1].to_owned(),
         charge,
         source: None,
         epoch: std::time::Instant::now(),

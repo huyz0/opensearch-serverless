@@ -276,3 +276,9 @@ fn a_register_commit_that_was_not_staged_is_never_asked_about() {
     assert_eq!(newer_commit(&commit(2, None, 4), ask), None);
     assert_eq!(newer_commit(b"not a commit", ask), None);
 }
+
+#[test]
+fn a_stage_gives_the_writer_that_staged_it() {
+    assert_eq!(stage(3, Some("w1"), 5).writer(), Some("w1"));
+    assert_eq!(stage(3, None, -1).writer(), None);
+}
