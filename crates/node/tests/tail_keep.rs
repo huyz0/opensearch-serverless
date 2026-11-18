@@ -202,3 +202,58 @@ fn the_default_limits_are_the_shells() {
     assert_eq!(l.shard_bytes, 16 << 20);
     assert_eq!(l.node_bytes, 256 << 20);
 }
+
+#[test]
+fn begin_sets_a_floor_once_and_a_gap_is_a_drop_above_the_commit() {
+    let keep = small(2, 1 << 20, 1 << 30);
+    assert!(!keep.gap_after(U, 0, 0), "nothing kept, nothing dropped");
+    keep.begin(U, 0, 4);
+    keep.begin(U, 0, 9);
+    assert!(keep.keeps(U, 0));
+    assert!(keep.complete_after(U, 0, 4), "the first floor stands");
+    assert!(!keep.complete_after(U, 0, 3));
+    keep.acked(
+        U,
+        0,
+        &(5..=8).map(|s| rec(s, "{}")).collect::<Vec<_>>(),
+        true,
+    );
+    // 5 and 6 were dropped for room.
+    assert!(keep.gap_after(U, 0, 5));
+    assert!(
+        !keep.gap_after(U, 0, 6),
+        "a commit at 6 holds what was dropped"
+    );
+    assert!(!keep.gap_after(U, 1, 0), "another shard");
+}
+
+#[test]
+fn a_snapshot_reads_the_records_and_whether_they_are_whole_together() {
+    let keep = small(2, 1 << 20, 1 << 30);
+    assert_eq!(
+        keep.snapshot_after(U, 0, 0),
+        (Vec::new(), false),
+        "not kept"
+    );
+    keep.begin(U, 0, 4);
+    keep.acked(
+        U,
+        0,
+        &(5..=7).map(|s| rec(s, "{}")).collect::<Vec<_>>(),
+        true,
+    );
+    // 5 was dropped for room: whole only from a commit at 5.
+    let (records, whole) = keep.snapshot_after(U, 0, 4);
+    assert_eq!((seqs(&records), whole), (vec![6, 7], false));
+    let (records, whole) = keep.snapshot_after(U, 0, 5);
+    assert_eq!((seqs(&records), whole), (vec![6, 7], true));
+    keep.published(U, 0, 6);
+    let (records, whole) = keep.snapshot_after(U, 0, 5);
+    assert_eq!(
+        (seqs(&records), whole),
+        (vec![7], false),
+        "6 was published away"
+    );
+    let (records, whole) = keep.snapshot_after(U, 0, 6);
+    assert_eq!((seqs(&records), whole), (vec![7], true));
+}

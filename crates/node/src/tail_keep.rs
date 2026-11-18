@@ -185,6 +185,33 @@ impl TailKeep {
             .unwrap_or_default()
     }
 
+    /// The kept records above `after` and whether they are every write
+    /// acknowledged above it, read under one lock so a concurrent ack or
+    /// publish cannot make the two disagree.
+    pub fn snapshot_after(
+        &self,
+        uuid: &str,
+        shard: u32,
+        after: i64,
+    ) -> (Vec<WalRecord<'static>>, bool) {
+        let guard = self.lock();
+        let Some(kept) = guard.shards.get(&(uuid.to_owned(), shard)) else {
+            return (Vec::new(), false);
+        };
+        // ALLOC: at most the shard's record limit
+        let records = kept
+            .records
+            .iter()
+            .filter(|record| record.seq_no() > after)
+            .cloned()
+            .collect();
+        (records, Self::complete(kept, after))
+    }
+
+    fn complete(kept: &Kept, after: i64) -> bool {
+        after >= kept.floor && after >= kept.published_through && after >= kept.dropped_through
+    }
+
     /// Whether a reader holding a commit at `after` gets every acknowledged
     /// write above it from [`TailKeep::kept_after`]: false for a shard never
     /// kept, below the floor, below what a publish discarded, and below a record dropped for room.
@@ -193,11 +220,23 @@ impl TailKeep {
         guard
             .shards
             .get(&(uuid.to_owned(), shard))
-            .is_some_and(|kept| {
-                after >= kept.floor
-                    && after >= kept.published_through
-                    && after >= kept.dropped_through
-            })
+            .is_some_and(|kept| Self::complete(kept, after))
+    }
+
+    /// Begins keeping a shard at `floor` unless it is kept already.
+    pub fn begin(&self, uuid: &str, shard: u32, floor: i64) {
+        self.lock()
+            .shards
+            .entry((uuid.to_owned(), shard))
+            .or_insert_with(|| Kept::new(floor));
+    }
+
+    /// Whether a write above `after` was acknowledged and not kept.
+    pub fn gap_after(&self, uuid: &str, shard: u32, after: i64) -> bool {
+        self.lock()
+            .shards
+            .get(&(uuid.to_owned(), shard))
+            .is_some_and(|kept| kept.dropped_through > after)
     }
 
     /// Whether anything has begun to be kept for the shard.
