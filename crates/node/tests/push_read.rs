@@ -1,6 +1,7 @@
-//! A reader that falls behind its writer: the writer's push takes the open
-//! index out of the set, and the next search opens on the pushed commit with
-//! one GET, where the register path takes two.
+//! A reader over what a writer publishes: when it falls behind, the
+//! writer's push takes the open index out of the set and the next search
+//! opens on the pushed commit with one GET, where the register path takes
+//! two; and what the writer replaced or deleted is not found.
 
 #[path = "support/mod.rs"]
 mod support;
@@ -301,4 +302,25 @@ fn the_handler_answers_whether_the_shard_is_open_and_moves_the_reader() {
         &mut Output::new(&mut answer, 1 << 20),
     );
     assert!(refused.is_err());
+}
+
+#[test]
+fn a_replaced_or_deleted_document_is_not_found() {
+    let root = TempDir::new("soft-deletes");
+    let dir = ByteBuffersDirectory::new();
+    let mut f = fixture(root.path(), &dir, &["a", "b", "c"]);
+    // `a` is written again and `b` is deleted: three live documents become
+    // two, and the old versions stay in the segment as soft deletes.
+    f.writing
+        .shard
+        .index("a", br#"{"n":2}"#, false, &Expect::default())
+        .expect("replaced");
+    f.writing
+        .shard
+        .delete("b", &Expect::default())
+        .expect("deleted");
+    f.writing.publish(&[]);
+    let reply = f.search();
+    assert_eq!(reply.status, 200, "{}", reply.text());
+    assert_eq!(total(&reply.text()), 2, "{}", reply.text());
 }
