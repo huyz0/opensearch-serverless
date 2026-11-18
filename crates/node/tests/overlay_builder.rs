@@ -282,6 +282,23 @@ fn a_full_queue_refuses_a_further_build_and_the_asks_finish_later() {
     for u in uuids {
         assert!(builder.ready(u, 0, &stage(1), &commit, 1).is_some(), "{u}");
     }
+    assert_eq!(builder.pending(), 0, "nothing left queued");
+}
+
+#[test]
+fn a_shard_with_no_records_queues_no_build() {
+    let held = Arc::new(TailHeld::new());
+    let builder = OverlayBuilder::new(Arc::clone(&held), budget(16 << 20));
+    let commit = commit(&["a"]);
+    builder.pause();
+    assert!(builder.ready("u1", 0, &stage(1), &commit, 1).is_none());
+    assert_eq!(builder.pending(), 0, "no record, no job");
+    held.take("u1", 0, &[index("d", 1, 100)], 1);
+    assert!(builder.ready("u1", 0, &stage(1), &commit, 1).is_none());
+    assert_eq!(builder.pending(), 1, "a record queues one job");
+    builder.resume();
+    assert!(builder.settle());
+    assert_eq!(builder.pending(), 0);
 }
 
 #[test]
