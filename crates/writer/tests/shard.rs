@@ -231,6 +231,32 @@ fn requests_are_checked_as_the_java_validates_them() {
         Err("Validation Failed: 1: create operations do not support compare and set. use index instead;".into())
     );
     assert_eq!(validate(&seq(1, 1), false), Ok(()));
+    // The two marker versions are the Java's own numbers.
+    for marker in [-3, -4] {
+        let e = Expect {
+            version: marker,
+            ..Expect::default()
+        };
+        assert_eq!(validate(&e, false), Ok(()), "{marker}");
+    }
+    // An internal explicit version beside a compare-and-set is refused too.
+    let both = Expect {
+        version: 2,
+        ..seq(1, 1)
+    };
+    let message = validate(&both, false).unwrap_err();
+    assert!(
+        message.contains("compare and write operations can not use versioning"),
+        "{message}"
+    );
+    // Either half of the compare-and-set pair is enough to refuse a create.
+    for half in [seq(1, 0), seq(UNASSIGNED_SEQ_NO, 4)] {
+        let message = validate(&half, true).unwrap_err();
+        assert!(
+            message.contains("create operations do not support compare and set"),
+            "{message}"
+        );
+    }
 }
 
 #[test]
@@ -325,4 +351,77 @@ fn a_shard_is_idle_since_its_last_write() {
     let refused = s.index("a", br#"{"n":"x"}"#, false, &Expect::default());
     assert!(refused.is_err());
     assert_eq!(s.idle_millis(), 3_000);
+}
+
+#[test]
+fn a_refresh_keeps_other_commit_data_and_one_copy_of_its_own() {
+    let dir = ByteBuffersDirectory::new();
+    let clock = Arc::new(AtomicU64::new(0));
+    {
+        let mut w = IndexWriter::open(&dir, Vec::new(), "Lucene104", VERSION).expect("writer");
+        w.enable_explicit_documents().expect("explicit");
+        w.set_live_commit_data(vec![("history_uuid".into(), "h".into())]);
+        let mapping = Mapping::parse(br#"{"properties":{"n":{"type":"integer"}}}"#).unwrap();
+        let tick = Arc::clone(&clock);
+        let mut s = Shard::new(
+            &dir,
+            w,
+            mapping,
+            3,
+            Box::new(move || tick.load(Ordering::Relaxed)),
+        )
+        .unwrap();
+        for id in ["a", "b"] {
+            s.index(id, br#"{"n":1}"#, false, &Expect::default())
+                .unwrap();
+            s.refresh().unwrap();
+        }
+    }
+    let w = IndexWriter::open(&dir, Vec::new(), "Lucene104", VERSION).expect("writer");
+    let data = w.live_commit_data();
+    let of = |key: &str| {
+        data.iter()
+            .filter(|(k, _)| k == key)
+            .map(|(_, v)| v.as_str())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(of("history_uuid"), ["h"]);
+    assert_eq!(of("max_seq_no"), ["1"]);
+    assert_eq!(of("local_checkpoint"), ["1"]);
+}
+
+#[test]
+fn a_create_ignores_the_versioning_the_request_carried() {
+    let dir = ByteBuffersDirectory::new();
+    let clock = Arc::new(AtomicU64::new(0));
+    let mut s = shard(&dir, &clock);
+    s.index("a", br#"{"n":1}"#, false, &Expect::default())
+        .unwrap();
+    let external = Expect {
+        version: 10,
+        version_type: VersionType::External,
+        ..Expect::default()
+    };
+    let Err(Refused::Conflict(m)) = s.index("a", br#"{"n":2}"#, true, &external) else {
+        panic!("a create over a document is a conflict");
+    };
+    assert!(m.contains("document already exists"), "{m}");
+}
+
+#[test]
+fn a_deleted_document_in_a_segment_is_gone_once_its_tombstone_is_pruned() {
+    let dir = ByteBuffersDirectory::new();
+    let clock = Arc::new(AtomicU64::new(1_000));
+    let mut s = shard(&dir, &clock);
+    s.index("a", br#"{"n":1}"#, false, &Expect::default())
+        .unwrap();
+    s.refresh().unwrap();
+    s.delete("a", &Expect::default()).unwrap();
+    s.refresh().unwrap();
+    clock.store(2_000 + GC_DELETES_MILLIS, Ordering::Relaxed);
+    s.refresh().unwrap();
+    let again = s
+        .index("a", br#"{"n":1}"#, false, &Expect::default())
+        .unwrap();
+    assert_eq!((again.outcome, again.version), (Outcome::Created, 1));
 }

@@ -120,5 +120,12 @@ exclude_re = [
     # non-competitive documents: a sort reads its values from doc values
     # either way, and gives the same hits.
     "crates/reader/src/search.rs:.*replace \\|\\| with && in search",
+    # The lookup's error text only carries the engine's message into a
+    # refusal; a segment that fails to read cannot be built in a test.
+    "crates/writer/src/index/lookup.rs:\\d+:\\d+: replace fail -> String with",
+    # Same for the shard's engine error text.
+    "crates/writer/src/index/shard.rs:\\d+:\\d+: replace message -> String with",
+    # A delete registers the soft-deletes field only to be sure it exists;
+    # any earlier index already did, and the update below names it again.
+    "crates/writer/src/index/shard.rs:\\d+:\\d+: delete ! in Shard<'d>::delete",
 ]
-
