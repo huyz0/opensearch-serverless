@@ -91,6 +91,9 @@ pub trait CommitAccess: Send + Sync {
 
     /// The mapping's JSON source, as the index's descriptor gave it.
     fn mapping_json(&self) -> &str;
+
+    /// The name of the index the commit belongs to.
+    fn index_name(&self) -> &str;
 }
 
 /// Where a node's searches get the overlay of a shard. A search never

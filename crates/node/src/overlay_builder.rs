@@ -7,6 +7,10 @@
 //! with the last finished overlay over the same commit, or nothing. The
 //! worker reserves the build's estimate from the `open_indexes` pool without
 //! evicting an open index; a refusal serves the commit alone.
+//!
+//! A builder with a [`TailFetcher`] also asks the writer a shard's commit
+//! names, once for each stage, for the records past the commit's checkpoint,
+//! on the same worker, before that stage's first build.
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -19,9 +23,31 @@ use oss_reader::commit_push::Stage;
 use oss_reader::overlay::{
     CommitAccess, OverlaySource, Ready, build_ready, estimate_bytes, local_checkpoint,
 };
-use oss_transport::actions::tail::Record;
+use oss_transport::actions::tail::{FetchRequest, FetchResponse, NEW, Record, ShardRef};
+use oss_transport::stream::TaskId;
 
+use crate::newest_ask::LiveWriters;
 use crate::tail_held::TailHeld;
+use crate::tail_reader_link::{Clock, TransportTailFetch};
+
+/// Asks a writer for the records it acknowledged past a commit.
+pub trait TailFetcher: Send + Sync {
+    /// The writer `writer`'s answer to `request`, or nothing.
+    fn fetch(&self, writer: &str, request: &FetchRequest) -> Option<FetchResponse>;
+}
+
+impl<L: LiveWriters> TailFetcher for TransportTailFetch<L> {
+    fn fetch(&self, writer: &str, request: &FetchRequest) -> Option<FetchResponse> {
+        TransportTailFetch::fetch(self, writer, request)
+    }
+}
+
+/// What a builder fetches with, and as whom.
+struct Fetching {
+    fetcher: Arc<dyn TailFetcher>,
+    subscriber: String,
+    clock: Clock,
+}
 
 /// How many builds wait for the worker.
 pub const QUEUE: usize = 64;
@@ -54,6 +80,8 @@ struct Job {
     key: Key,
     stage: Stage,
     commit: Arc<dyn CommitAccess>,
+    /// Whether to ask the stage's writer first.
+    fetch: bool,
 }
 
 #[derive(Default)]
@@ -65,6 +93,7 @@ struct Control {
 struct Inner {
     held: Arc<TailHeld>,
     budget: MemoryBudget,
+    fetching: Option<Fetching>,
     slots: Mutex<HashMap<Key, Slot>>,
     control: Mutex<Control>,
     changed: Condvar,
@@ -89,9 +118,36 @@ impl OverlayBuilder {
 
     /// As [`Self::new`] with a queue of `queue` builds.
     pub fn with_queue(held: Arc<TailHeld>, budget: MemoryBudget, queue: usize) -> Arc<Self> {
+        Self::start(held, budget, queue, None)
+    }
+
+    /// As [`Self::new`], asking a shard's writer through `fetcher` for the
+    /// records past the commit, as the node `subscriber`, timed by `clock`.
+    pub fn fetching(
+        held: Arc<TailHeld>,
+        budget: MemoryBudget,
+        fetcher: Arc<dyn TailFetcher>,
+        subscriber: String,
+        clock: Clock,
+    ) -> Arc<Self> {
+        let fetching = Fetching {
+            fetcher,
+            subscriber,
+            clock,
+        };
+        Self::start(held, budget, QUEUE, Some(fetching))
+    }
+
+    fn start(
+        held: Arc<TailHeld>,
+        budget: MemoryBudget,
+        queue: usize,
+        fetching: Option<Fetching>,
+    ) -> Arc<Self> {
         let inner = Arc::new(Inner {
             held,
             budget,
+            fetching,
             slots: Mutex::new(HashMap::new()),
             control: Mutex::new(Control::default()),
             changed: Condvar::new(),
@@ -149,6 +205,24 @@ impl OverlayBuilder {
     }
 }
 
+impl OverlayBuilder {
+    /// Queues `job` for the worker; whether the queue took it.
+    fn enqueue(&self, job: Job) -> bool {
+        // Counted before the send: the worker may finish it first.
+        {
+            let mut control = lock(&self.inner.control);
+            control.pending = control.pending.saturating_add(1);
+        }
+        match self.queue.try_send(job) {
+            Ok(()) => true,
+            Err(TrySendError::Full(_) | TrySendError::Disconnected(_)) => {
+                self.inner.finish();
+                false
+            }
+        }
+    }
+}
+
 impl OverlaySource for OverlayBuilder {
     fn ready(
         &self,
@@ -182,6 +256,14 @@ impl OverlaySource for OverlayBuilder {
                 },
             );
         }
+        if fresh && inner.fetching.is_some() && stage.writer().is_some() {
+            self.enqueue(Job {
+                key: key.clone(),
+                stage: stage.clone(),
+                commit: Arc::clone(commit),
+                fetch: true,
+            });
+        }
         let next = inner.held.next_ordinal(index_uuid, shard);
         let slot = slots.get_mut(&key)?;
         if let Some(built) = &slot.built
@@ -197,18 +279,11 @@ impl OverlaySource for OverlayBuilder {
                 key,
                 stage: stage.clone(),
                 commit: Arc::clone(commit),
+                fetch: false,
             };
-            // Counted before the send: the worker may finish it first.
-            {
-                let mut control = lock(&inner.control);
-                control.pending = control.pending.saturating_add(1);
-            }
-            match self.queue.try_send(job) {
-                Ok(()) => {
-                    slot.attempted = Some(next);
-                    slot.refused = None;
-                }
-                Err(TrySendError::Full(_) | TrySendError::Disconnected(_)) => inner.finish(),
+            if self.enqueue(job) {
+                slot.attempted = Some(next);
+                slot.refused = None;
             }
         }
         slot.built.as_ref().map(|b| Arc::clone(&b.ready))
@@ -244,8 +319,46 @@ impl Inner {
                         .unwrap_or_else(PoisonError::into_inner);
                 }
             }
+            if job.fetch {
+                self.fetch(&job);
+            }
             self.build(&job);
             self.finish();
+        }
+    }
+
+    /// Asks the writer the job's stage names for the records past the
+    /// commit, and holds its answer.
+    fn fetch(&self, job: &Job) {
+        let Some(fetching) = &self.fetching else {
+            return;
+        };
+        let Some(writer) = job.stage.writer() else {
+            return;
+        };
+        let (uuid, shard) = (&job.key.0, job.key.1);
+        let current = lock(&self.slots)
+            .get(&job.key)
+            .is_some_and(|slot| slot.stage == job.stage);
+        if !current {
+            return;
+        }
+        // ALLOC: one request a shard open, a few short strings.
+        let request = FetchRequest {
+            parent: TaskId::EMPTY,
+            shard: ShardRef {
+                index_name: job.commit.index_name().to_owned(),
+                index_uuid: uuid.clone(),
+                shard: i32::try_from(shard).unwrap_or(i32::MAX),
+            },
+            after_seq_no: local_checkpoint(job.commit.reader()),
+            subscriber: fetching.subscriber.clone(),
+            subscription: NEW,
+        };
+        let sent_at = (fetching.clock)();
+        if let Some(answer) = fetching.fetcher.fetch(writer, &request) {
+            self.held
+                .answered(uuid, shard, writer, NEW, sent_at, &answer);
         }
     }
 

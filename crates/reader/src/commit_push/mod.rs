@@ -78,6 +78,11 @@ impl Stage {
         }
     }
 
+    /// The writer that staged this commit, if any.
+    pub fn writer(&self) -> Option<&str> {
+        self.writer.as_deref()
+    }
+
     /// This commit with the generation of the Lucene commit it names.
     pub fn with_generation(mut self, generation: i64) -> Self {
         self.generation = generation;

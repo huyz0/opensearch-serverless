@@ -44,6 +44,8 @@ pub(crate) struct Held<S: BlobStore + 'static> {
     view: Mutex<Option<overlay::OverlayView<S>>>,
     /// Where the commit it is open on sits among its writer's.
     pub(crate) stage: Stage,
+    /// The index's name.
+    pub(crate) index: String,
     charge: Reservation,
     /// Told when this engine lets go, so it can drop what it kept for it.
     source: Option<Arc<dyn OverlaySource>>,
@@ -207,6 +209,8 @@ impl<S: BlobStore + 'static> SearchService<S> {
             shard,
             view: Mutex::new(None),
             stage,
+            // ALLOC: one name an open shard.
+            index: index.to_owned(),
             charge,
             source: self.overlay.get().cloned(),
             epoch: self.epoch,
