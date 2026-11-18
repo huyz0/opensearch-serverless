@@ -105,12 +105,6 @@ impl<S: BlobStore + 'static> SearchService<S> {
         }
     }
 
-    /// Installs where a search finds the overlay of the shard it serves.
-    /// False when one is installed already.
-    pub fn set_overlay_source(&self, source: Arc<dyn OverlaySource>) -> bool {
-        self.overlay.set(source).is_ok()
-    }
-
     /// Installs what a cold open asks for a staging writer's newest commit.
     /// False when one is installed already.
     pub fn set_newest_source(&self, source: Arc<dyn NewestSource>) -> bool {

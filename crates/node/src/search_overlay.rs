@@ -5,7 +5,7 @@ use std::sync::Arc;
 use lucene_search::directory_reader::DirectoryReader;
 use oss_blob::BlobStore;
 use oss_reader::OpenShard;
-use oss_reader::overlay::{CommitAccess, Ready};
+use oss_reader::overlay::{CommitAccess, OverlaySource, Ready};
 
 use super::{Held, SearchService};
 
@@ -14,6 +14,17 @@ use super::{Held, SearchService};
 pub(super) type OverlayView<S> = (Arc<Ready>, Option<Arc<OpenShard<S>>>);
 
 impl<S: BlobStore + 'static> SearchService<S> {
+    /// Whether a source of overlays is installed.
+    pub fn has_overlay_source(&self) -> bool {
+        self.overlay.get().is_some()
+    }
+
+    /// Installs where a search finds the overlay of the shard it serves.
+    /// False when one is installed already.
+    pub fn set_overlay_source(&self, source: Arc<dyn OverlaySource>) -> bool {
+        self.overlay.set(source).is_ok()
+    }
+
     /// `held`'s shard with the overlay the source has finished on top, or
     /// `None` to serve the commit alone: no source, no finished overlay, or a
     /// view the engine refused.

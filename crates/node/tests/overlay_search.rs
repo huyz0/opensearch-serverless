@@ -14,11 +14,13 @@ use oss_blob::{BlobStore, FsStore, PooledStore, S3Op};
 use oss_format::ShardRef;
 use oss_format::WalRecord;
 use oss_mem::{BudgetConfig, BufferPool, MemoryBudget, Pool, SMALL_BUFFER};
+use oss_node::overlay_builder::TailFetcher;
 use oss_node::search::{SearchService, start_reader};
-use oss_node::tail_overlay::{TAIL_OVERLAY_ENABLED, install};
+use oss_node::tail_overlay::{TAIL_OVERLAY_ENABLED, install, wire};
 use oss_reader::commit_push::Stage;
 use oss_reader::overlay::{CommitAccess, Overlay, OverlaySource, Ready, find_copies};
 use oss_testkit::TempDir;
+use oss_transport::actions::tail::{FetchRequest, FetchResponse, Record};
 use oss_writer::index::{Expect, Shard};
 use oss_writer::mapping::Mapping;
 use oss_writer::publish::ShardPublisher;
@@ -390,4 +392,68 @@ fn a_source_is_told_when_the_engine_it_served_closes() {
         [("u1".to_owned(), 0)],
         "told once, for the shard it served"
     );
+}
+
+/// A writer that has acknowledged one write past every commit it is asked
+/// about.
+struct Writer;
+
+impl TailFetcher for Writer {
+    fn fetch(&self, _writer: &str, request: &FetchRequest) -> Option<FetchResponse> {
+        Some(FetchResponse {
+            records: vec![Record {
+                id: "x".to_owned(),
+                deletion: false,
+                source: r#"{"n":5}"#.to_owned(),
+                seq_no: request.after_seq_no.saturating_add(1),
+                primary_term: 1,
+                version: 1,
+                routing: None,
+            }],
+            subscription: 1,
+            complete: true,
+            claimed_through: i64::MAX,
+        })
+    }
+}
+
+fn wired(fx: &Fixture<'_>, enabled: bool) -> Option<oss_node::tail_overlay::Wired> {
+    wire(
+        &fx.service,
+        enabled,
+        MemoryBudget::new(&support::budget_config()),
+        Arc::new(Writer),
+        "reader-1".to_owned(),
+        Arc::new(|| 1_000),
+    )
+}
+
+#[test]
+fn a_wired_node_fetches_the_writers_records_into_the_overlay_a_search_sees() {
+    let root = TempDir::new("overlay-wired");
+    let dir = ByteBuffersDirectory::new();
+    let fx = fixture(root.path(), &dir, &["a", "b"]);
+    let wired = wired(&fx, true).expect("wired");
+    // The first search opens the shard and serves the commit; the builder
+    // asks the writer in the background.
+    assert_eq!(all(&fx), 2, "the commit serves while nothing is built");
+    assert!(wired.builder.settle(), "never settled");
+    assert_eq!(wired.held.next_ordinal("u1", 0), 1, "the write is held");
+    // The fetch and the build are one job: the overlay is finished.
+    assert_eq!(all(&fx), 3);
+    assert_eq!(n_is(&fx, 5), 1);
+    assert!(wired.held.granted("u1", 0, "node-1", 1_000));
+}
+
+#[test]
+fn with_the_setting_off_nothing_is_wired_and_a_second_wire_is_refused() {
+    let root = TempDir::new("overlay-wire-off");
+    let dir = ByteBuffersDirectory::new();
+    let fx = fixture(root.path(), &dir, &["a", "b"]);
+    assert!(wired(&fx, false).is_none());
+    assert_eq!(all(&fx), 2);
+    assert!(!fx.service.has_overlay_source());
+    assert!(wired(&fx, true).is_some());
+    assert!(fx.service.has_overlay_source());
+    assert!(wired(&fx, true).is_none(), "a source is installed already");
 }
