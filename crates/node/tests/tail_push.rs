@@ -392,3 +392,38 @@ fn concurrent_acks_and_flushes_deliver_every_record_once_and_confirm_through_the
     assert_eq!(got, want);
     assert_eq!(r.serve.confirmed(U, 0, "n1"), Some(400));
 }
+
+#[test]
+fn turning_a_shard_off_discards_its_queued_writes_and_only_its_own() {
+    let r = rig();
+    for (uuid, shard) in [(U, 0), (U, 1), ("other", 0)] {
+        r.serve.answer(&FetchRequest {
+            shard: ShardRef {
+                index_name: "logs".into(),
+                index_uuid: uuid.into(),
+                shard,
+            },
+            subscriber: "n1".into(),
+            subscription: NEW,
+            ..FetchRequest::default()
+        });
+        r.push.acked("logs", uuid, shard as u32, &recs(1..=1), true);
+    }
+    r.facts.0.store(false, Ordering::SeqCst);
+    r.push.acked("logs", U, 0, &recs(2..=2), true);
+    r.facts.0.store(true, Ordering::SeqCst);
+    r.push.flush();
+    let sent = r.link.sent.lock().unwrap();
+    assert_eq!(sent.len(), 1);
+    let shards: Vec<(&str, i32)> = sent[0]
+        .1
+        .shards
+        .iter()
+        .map(|(s, _)| (s.index_uuid.as_str(), s.shard))
+        .collect();
+    assert_eq!(
+        shards,
+        [(U, 1), ("other", 0)],
+        "(U, 0) is gone, the rest stay"
+    );
+}
