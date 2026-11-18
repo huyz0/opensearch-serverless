@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use lucene_index::index_writer::IndexWriter;
 use lucene_index::segment_info::LuceneVersion;
 use lucene_search::directory_reader::DirectoryReader;
-use lucene_store::{ByteBuffersDirectory, Directory};
+use lucene_store::ByteBuffersDirectory;
 use oss_doc::document;
 use oss_doc::lucene::{Indexer, Meta};
 use oss_doc::mapping::Mapping;
@@ -25,12 +25,14 @@ pub const MAX_IDS: usize = 10_000;
 /// What the segment's fixed parts take whatever the records: segment
 /// metadata, field infos and the writer's own buffers.
 const FIXED_BYTES: usize = 256 << 10;
-/// What a record's bytes become: postings, doc values, norms and the stored
-/// source take a few times its length.
-const PER_BYTE: usize = 16;
-/// What a record costs beyond its bytes: a document's entries in each
-/// metadata field and the segment's per-document tables.
-const PER_RECORD: usize = 2048;
+/// What a record's bytes become at the build's peak: the parsed document, the
+/// writer's buffers and the stored source take a few times its length
+/// (measured by `tests/overlay_heap.rs`, about twice).
+const PER_BYTE: usize = 4;
+/// What a record costs beyond its bytes at the build's peak: a document's
+/// entries in each field and the segment's per-document tables (measured
+/// about 3 KiB).
+const PER_RECORD: usize = 4096;
 
 const VERSION: LuceneVersion = LuceneVersion {
     major: 10,
@@ -50,6 +52,13 @@ pub enum BuildError {
         /// What went wrong.
         reason: String,
     },
+    /// The records kept would take more than the bytes the caller reserved.
+    TooManyBytes {
+        /// What [`estimate_bytes`] gives for the kept records.
+        estimate: usize,
+        /// What the caller reserved.
+        max_bytes: usize,
+    },
     /// The in-memory index could not be written or opened.
     Engine(String),
 }
@@ -59,6 +68,10 @@ impl std::fmt::Display for BuildError {
         match self {
             Self::TooManyIds => write!(f, "more than {MAX_IDS} ids"),
             Self::Record { id, reason } => write!(f, "record {id}: {reason}"),
+            Self::TooManyBytes {
+                estimate,
+                max_bytes,
+            } => write!(f, "{estimate} bytes over the {max_bytes} reserved"),
             Self::Engine(reason) => write!(f, "in-memory index: {reason}"),
         }
     }
@@ -75,19 +88,31 @@ fn engine(e: impl std::fmt::Display) -> BuildError {
 /// made before the build.
 #[must_use]
 pub fn estimate_bytes(records: &[WalRecord<'_>]) -> usize {
-    let bytes = records.iter().fold(0_usize, |sum, r| {
-        sum.saturating_add(r.id().len())
-            .saturating_add(r.source().len())
+    estimate_of(records.iter())
+}
+
+fn estimate_kept(kept: &[&WalRecord<'_>]) -> usize {
+    estimate_of(kept.iter().copied())
+}
+
+fn estimate_of<'r, 'a: 'r>(records: impl Iterator<Item = &'r WalRecord<'a>>) -> usize {
+    let (count, bytes) = records.fold((0_usize, 0_usize), |(count, bytes), r| {
+        (
+            count.saturating_add(1),
+            bytes
+                .saturating_add(r.id().len())
+                .saturating_add(r.source().len()),
+        )
     });
     FIXED_BYTES
         .saturating_add(bytes.saturating_mul(PER_BYTE))
-        .saturating_add(records.len().saturating_mul(PER_RECORD))
+        .saturating_add(count.saturating_mul(PER_RECORD))
 }
 
 /// The overlay segment and what it replaces.
 pub struct Overlay {
     // Kept so the segment's files outlive the reader over them.
-    directory: ByteBuffersDirectory,
+    _directory: ByteBuffersDirectory,
     reader: Option<DirectoryReader>,
     ids: Vec<String>,
     doc_count: i32,
@@ -104,19 +129,32 @@ impl std::fmt::Debug for Overlay {
 
 impl Overlay {
     /// Builds the overlay of `records`, given in ordinal order, above
-    /// `local_checkpoint`, read against `mapping`.
+    /// `local_checkpoint`, read against `mapping`, taking no more than
+    /// `max_bytes` by [`estimate_bytes`] of the records kept (the bytes the
+    /// caller reserved from the pool before calling).
     ///
     /// # Errors
     ///
     /// [`BuildError::TooManyIds`] past [`MAX_IDS`] distinct ids,
+    /// [`BuildError::TooManyBytes`] when the kept records need more than
+    /// `max_bytes`,
     /// [`BuildError::Record`] for a source the mapping refuses, and
     /// [`BuildError::Engine`] when the in-memory index fails.
     pub fn build(
         mapping: &Mapping,
         records: &[WalRecord<'_>],
         local_checkpoint: i64,
+        max_bytes: usize,
     ) -> Result<Self, BuildError> {
+        // Nothing is allocated for the index until both caps have passed.
         let (kept, ids) = latest(records, local_checkpoint)?;
+        let estimate = estimate_kept(&kept);
+        if estimate > max_bytes {
+            return Err(BuildError::TooManyBytes {
+                estimate,
+                max_bytes,
+            });
+        }
         let directory = ByteBuffersDirectory::new();
         let mut doc_count = 0_i32;
         {
@@ -162,7 +200,7 @@ impl Overlay {
             Some(DirectoryReader::open(&directory).map_err(engine)?)
         };
         Ok(Self {
-            directory,
+            _directory: directory,
             reader,
             ids,
             doc_count,
@@ -185,19 +223,6 @@ impl Overlay {
     #[must_use]
     pub fn doc_count(&self) -> i32 {
         self.doc_count
-    }
-
-    /// The bytes of the segment's files, what [`estimate_bytes`] must cover.
-    #[must_use]
-    pub fn heap_bytes(&self) -> usize {
-        self.directory
-            .list_all()
-            .unwrap_or_default()
-            .iter()
-            .filter_map(|name| self.directory.file_length(name).ok())
-            .fold(0_usize, |sum, n| {
-                sum.saturating_add(usize::try_from(n).unwrap_or(usize::MAX))
-            })
     }
 }
 

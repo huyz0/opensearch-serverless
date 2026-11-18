@@ -6,4 +6,5 @@
 - AC-4: `more_than_the_most_ids_is_refused_and_exactly_the_most_builds` in crates/reader/tests/overlay_segment.rs
 - AC-5: `a_source_the_mapping_refuses_names_its_id` in crates/reader/tests/overlay_segment.rs
 - AC-6: `nothing_above_the_checkpoint_is_an_empty_overlay` in crates/reader/tests/overlay_segment.rs
-- AC-7: `the_estimate_covers_the_built_heap_and_grows_with_the_records` in crates/reader/tests/overlay_segment.rs
+- AC-7: `the_estimate_bounds_what_a_build_takes` in crates/reader/tests/overlay_heap.rs (provisional, WSL2-class numbers: the estimate was 1.5 to 2.3 times the measured peak across the shapes)
+- AC-8: `the_estimate_grows_with_the_records_and_bounds_the_build` in crates/reader/tests/overlay_segment.rs
