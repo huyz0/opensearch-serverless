@@ -10,6 +10,9 @@
 //! an operation the log does not, so it reopens from the log. A bulk group
 //! is applied item by item and staged with one commit.
 
+mod heads;
+mod incarnation;
+mod lease;
 mod slot;
 mod target;
 
@@ -24,8 +27,12 @@ use oss_writer::index::{Refused, Written};
 use oss_writer::log::NodeLogCommitter;
 use oss_writer::mapping::Mapping;
 
+use incarnation::Fenced;
 use slot::ShardSlot;
 
+pub use heads::{HeadAdmission, ShardNames};
+pub use incarnation::{DescriptorIncarnation, FENCE_WINDOW, Incarnation};
+pub use lease::MembershipLeaseWrite;
 pub use target::RoleTarget;
 
 /// What a writer asks of the rest of the cluster: which indexes exist,
@@ -63,6 +70,8 @@ type Held = HashMap<(String, u32), Arc<Mutex<ShardSlot>>>;
 pub struct WriterRole {
     committer: Arc<NodeLogCommitter>,
     routes: Arc<dyn Routes>,
+    names: Arc<ShardNames>,
+    incarnation: Option<Fenced>,
     shards: Mutex<Held>,
 }
 
@@ -83,9 +92,31 @@ impl WriterRole {
         Self {
             committer,
             routes,
+            names: Arc::new(ShardNames::default()),
+            incarnation: None,
             // ALLOC: one entry a shard this node writes.
             shards: Mutex::new(HashMap::new()),
         }
+    }
+
+    /// The names of held indexes are kept in `names`, which admission
+    /// shares to find a head by name.
+    #[must_use]
+    pub fn with_names(mut self, names: Arc<ShardNames>) -> Self {
+        self.names = names;
+        self
+    }
+
+    /// Confirms through `check`, at most once a `window` for an index,
+    /// that a held shard's index is still the incarnation it was opened for.
+    #[must_use]
+    pub fn with_incarnation(
+        mut self,
+        check: Arc<dyn Incarnation>,
+        window: std::time::Duration,
+    ) -> Self {
+        self.incarnation = Some(Fenced::new(check, window));
+        self
     }
 
     /// Holds shard `shard` of `index`, empty, at `term`, its documents read
@@ -103,6 +134,7 @@ impl WriterRole {
     ) -> Result<(), String> {
         let key = ShardKey::new(index.uuid.as_str(), shard, None::<&str>);
         let slot = ShardSlot::open(key, term, mapping, now_millis)?;
+        self.names.insert(&index.uuid, &index.name);
         // ALLOC: one entry and one key a shard opened.
         lock(&self.shards).insert((index.uuid.clone(), shard), Arc::new(Mutex::new(slot)));
         Ok(())
@@ -157,6 +189,24 @@ impl WriterRole {
                 )
             });
         };
+        if let Some(fenced) = &self.incarnation {
+            match fenced.ensure(&index.name, &index.uuid) {
+                Ok(true) => {}
+                Ok(false) => {
+                    // The index was deleted and created again: this shard
+                    // serves a deleted one.
+                    self.release(&index.uuid, shard, &slot);
+                    return unavailable(group.len(), || {
+                        // ALLOC: error path; one message.
+                        format!(
+                            "[{}] is no longer the index this shard was opened for",
+                            index.name
+                        )
+                    });
+                }
+                Err(e) => return unavailable(group.len(), || e.clone()),
+            }
+        }
         let held = Arc::clone(&slot);
         let mut slot = lock(&slot);
         if slot.released() {

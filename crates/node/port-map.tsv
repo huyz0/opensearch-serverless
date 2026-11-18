@@ -12,3 +12,6 @@ examples/write_commit.rs	new		writes a shard through the Rust writer for a Java 
 src/writer/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/NodeWritePath.java	indexUnderFence and appendOrRelease: apply, stage, release the shard on a failed stage; the fence, back-pressure, pools and reconciler guards are not ported yet
 src/writer/slot.rs	new		a shard's directory and engine owned together (self_cell); the Java's IndexShard owns its store
 src/writer/target.rs	new		the role as a bulk Target; the Java's BulkDispatch calls NodeWritePath directly
+src/writer/heads.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/nodelog/NodeLogCommitter.java@429b4cbc	the ShardAdmission over the shard head: the head names this process at the term; the Java wires its own at node assembly
+src/writer/lease.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/NodeLogWriter.java@429b4cbc	LeaseWriter over the membership renew, the lease's node_log replaced by the epochs
+src/writer/incarnation.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/WriteFences.java@429b4cbc	ensureIncarnationLive: one descriptor read, none within the fence window
