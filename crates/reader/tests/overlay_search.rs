@@ -28,7 +28,7 @@ fn open() -> (Arc<PooledStore<Emulator>>, OpenShard<Emulator>, Mapping) {
     let budget = MemoryBudget::new(&config);
     let buffers = BufferPool::new(&budget, Pool::Transport, SMALL_BUFFER, 8).expect("fits");
     let store = Arc::new(PooledStore::new(Emulator::new(64 << 20, 1), buffers));
-    let spec = Spec::new(INDEX, 40);
+    let spec = Spec::new(INDEX, 40).segments_of(10);
     for (key, bytes) in blobs("", &spec) {
         store.put(&key, &mut SliceSource::new(&bytes)).expect("put");
     }
@@ -91,7 +91,9 @@ fn a_search_finds_the_overlays_documents_and_not_the_copies_they_replace() {
     let (store, shard, mapping) = open();
     let overlay = tail(&mapping);
     let copies = find_copies(&shard.reader, overlay.ids()).expect("copies");
+    let before = store.store().meter().count(S3Op::GetRange);
     let view = shard.with_overlay(&overlay, &copies).expect("view");
+    assert_eq!(store.store().meter().count(S3Op::GetRange), before);
     // doc.1 had tag t1 with doc.17 and doc.33; doc.2 had t2 with 18 and 34.
     assert_eq!(tag_count(&view, "t1"), 2);
     assert_eq!(tag_count(&view, "t2"), 2);
@@ -103,9 +105,9 @@ fn a_search_finds_the_overlays_documents_and_not_the_copies_they_replace() {
     assert!(hits.contains(r#""_id":"doc.new""#), "{hits}");
     assert!(hits.contains(r#""_source":{"tag":"zz","n":500}"#), "{hits}");
     // Warm now: a repeat search over the view reads nothing from the store.
-    let before = store.store().meter().count(S3Op::GetRange);
+    let warm = store.store().meter().count(S3Op::GetRange);
     tag_count(&view, "zz");
-    assert_eq!(store.store().meter().count(S3Op::GetRange), before);
+    assert_eq!(store.store().meter().count(S3Op::GetRange), warm);
 }
 
 #[test]

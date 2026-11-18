@@ -22,7 +22,7 @@ The commit's reader, files and the original `OpenShard` are never changed.
 
 ## Test plan
 
-`crates/reader/tests/overlay_search.rs`, one test per criterion, over an index of 40 documents built with `oss-testkit` and records built in the test.
+`crates/reader/tests/overlay_search.rs`, one test per criterion, over an index of 40 documents in four segments built with `oss-testkit` and records built in the test.
 
 ## S3 request budget
 
@@ -30,7 +30,7 @@ Zero added: a view reads the commit through the same directory and page cache, a
 
 ## Bounds
 
-A view holds clones of the commit's segment readers (reference counts) and the masks counted in the overlay's charge.
+A view holds clones of the commit's segment readers (reference counts) and one bit set of `max_doc / 8` bytes for each commit segment with a hidden document. The overlay's charge does not yet include those bytes: the wiring piece adds their sum to the pool charge and tests the limit.
 
 ## Switch
 
