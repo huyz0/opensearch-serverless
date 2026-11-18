@@ -9,3 +9,6 @@ src/push.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/transp
 src/push_sender.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/transport/CommitPush.java	the send side: the commit to the ranked readers in parallel and the readers that answered open; blocks and the thread pool are not ported
 src/push_link.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/transport/CommitPush.java	readerTargets and the send: the ranked search nodes but this one, and the signed call with the 500 ms timeout; the shell resolves peers through its router
 examples/write_commit.rs	new		writes a shard through the Rust writer for a Java reader to open; the Java has no counterpart
+src/writer/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/NodeWritePath.java	indexUnderFence and appendOrRelease: apply, stage, release the shard on a failed stage; the fence, back-pressure, pools and reconciler guards are not ported yet
+src/writer/slot.rs	new		a shard's directory and engine owned together (self_cell); the Java's IndexShard owns its store
+src/writer/target.rs	new		the role as a bulk Target; the Java's BulkDispatch calls NodeWritePath directly
