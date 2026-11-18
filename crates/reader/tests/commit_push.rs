@@ -3,7 +3,8 @@
 
 use oss_format::{ManifestEntry, encode_manifest};
 use oss_reader::commit_push::{
-    KEEP_MILLIS, PushedCommits, Refused, ShardKey, Stage, Taken, newer, newer_than, staged_after,
+    KEEP_MILLIS, PushedCommits, Refused, ShardKey, Stage, Taken, newer, newer_than, stage_of,
+    staged_after,
 };
 
 fn commit(term: u64, writer: Option<&str>, stage: i64) -> Vec<u8> {
@@ -222,4 +223,15 @@ fn a_commit_is_newer_by_term_then_stage_then_generation() {
     assert!(!newer(&at(2, None, -1, -1), &at(2, None, -1, 5)), "unknown");
     // Generation zero is a generation.
     assert!(newer(&at(2, None, -1, 1), &at(2, None, -1, 0)));
+}
+
+#[test]
+fn a_commit_that_names_no_segments_file_has_no_generation_to_be_newer_by() {
+    let none = stage_of(&commit(2, None, -1)).expect("a commit");
+    let zero = stage_of(&commit_at(2, None, -1, "segments_0")).expect("a commit");
+    let ten = stage_of(&commit_at(2, None, -1, "segments_a")).expect("a commit");
+    assert!(!newer(&none, &zero), "no generation is not newer than zero");
+    assert!(!newer(&zero, &none));
+    assert!(newer(&ten, &zero), "base 36");
+    assert!(stage_of(b"not a commit").is_none());
 }

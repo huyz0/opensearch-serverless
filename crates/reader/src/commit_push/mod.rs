@@ -8,6 +8,7 @@
 //! calls [`PushedCommits::push`], and the open that wants the commit calls
 //! [`PushedCommits::take`], each under the caller's lock and clock.
 
+use std::cmp::Ordering;
 use std::collections::BTreeMap;
 
 use oss_format::CommitManifest;
@@ -130,8 +131,10 @@ pub fn stage_of(value: &[u8]) -> Option<Stage> {
 /// term, or in one term a later stage of one writer, or a later Lucene commit
 /// generation.
 pub fn newer(candidate: &Stage, than: &Stage) -> bool {
-    if candidate.term != than.term {
-        return candidate.term > than.term;
+    match candidate.term.cmp(&than.term) {
+        Ordering::Greater => return true,
+        Ordering::Less => return false,
+        Ordering::Equal => {}
     }
     staged_after(candidate, than)
         || (candidate.generation >= 0
