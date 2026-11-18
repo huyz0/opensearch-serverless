@@ -32,3 +32,54 @@ pub fn install<S: oss_blob::BlobStore + 'static>(
 ) -> bool {
     enabled && service.set_overlay_source(source)
 }
+
+/// What a node with the tail overlay on holds: the records writers pushed
+/// and fetched, the handler for their pushes, and the builder that turns
+/// them into overlays.
+pub struct Wired {
+    /// The records held for the shards this node serves.
+    pub held: Arc<crate::tail_held::TailHeld>,
+    /// Takes a writer's push into [`Self::held`]; registered on the node's
+    /// transport by whoever assembles it.
+    pub push: crate::tail_reader_link::TailPushHandler,
+    /// The overlay source installed on the search service.
+    pub builder: Arc<crate::overlay_builder::OverlayBuilder>,
+}
+
+/// Turns the tail overlay on for `service` when the setting is on
+/// (`enabled`): a builder charging `budget`'s `open_indexes` pool, asking a
+/// shard's writer through `fetcher` as the node `subscriber`. Off, or with a
+/// source installed already, nothing is built and the answer is `None`.
+pub fn wire<S: oss_blob::BlobStore + 'static>(
+    service: &crate::search::SearchService<S>,
+    enabled: bool,
+    budget: oss_mem::MemoryBudget,
+    fetcher: Arc<dyn crate::overlay_builder::TailFetcher>,
+    subscriber: String,
+    clock: crate::tail_reader_link::Clock,
+) -> Option<Wired> {
+    if !enabled {
+        return None;
+    }
+    let held = Arc::new(crate::tail_held::TailHeld::new());
+    let builder = crate::overlay_builder::OverlayBuilder::fetching(
+        Arc::clone(&held),
+        budget,
+        fetcher,
+        subscriber,
+        Arc::clone(&clock),
+    );
+    if !install(
+        service,
+        true,
+        Arc::clone(&builder) as Arc<dyn OverlaySource>,
+    ) {
+        return None;
+    }
+    let push = crate::tail_reader_link::TailPushHandler::new(Arc::clone(&held), clock);
+    Some(Wired {
+        held,
+        push,
+        builder,
+    })
+}
