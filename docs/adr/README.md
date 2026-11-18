@@ -27,3 +27,4 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0015](0015-cluster-crate-and-node-leases.md) | A cluster crate beside the metadata crate, and node leases on registers | Accepted |
 | [0016](0016-native-transport-and-early-revoke.md) | OpenSearch's native transport, ported, and early revocation of a refused peer | Accepted |
 | [0017](0017-mappings-and-documents-as-the-java-reads-them.md) | Mappings and documents read as the Java reads them; what the writer cannot index stays with a Java writer | Accepted |
+| [0018](0018-tail-overlay-in-the-reader.md) | The reader searches pushed, unpublished writes through one small in-memory segment beside the commit | Accepted |
