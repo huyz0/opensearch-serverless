@@ -292,3 +292,30 @@ fn a_refused_build_is_tried_again_once_the_pool_has_room() {
     assert!(builder.ready("u1", 0, &stage(1), &commit, 1).is_some());
     assert_eq!(builder.builds(), 1);
 }
+
+#[test]
+fn an_overlay_is_charged_its_estimate_and_the_masks_of_the_commit() {
+    // One segment of three documents: one 64-bit word of mask.
+    let probe = commit(&["a", "b", "c"]);
+    assert_eq!(oss_reader::overlay::mask_bytes(probe.reader()), 8);
+    let record = oss_format::WalRecord::index("d", r#"{"n":8}"#, 100, 1, 101);
+    let estimate = oss_reader::overlay::estimate_bytes(&[record]);
+
+    let roomy = fixture(16 << 20);
+    roomy.push(&[index("d", 8, 100)]);
+    let _ = roomy.ready();
+    assert!(roomy.builder.settle());
+    assert_eq!(roomy.budget.in_use(Pool::OpenIndexes), estimate + 8);
+
+    // Room for the estimate alone is not room for the overlay.
+    let tight = fixture(estimate + 7);
+    tight.push(&[index("d", 8, 100)]);
+    let _ = tight.ready();
+    assert!(tight.builder.settle());
+    assert_eq!(tight.builder.builds(), 0, "refused");
+    let exact = fixture(estimate + 8);
+    exact.push(&[index("d", 8, 100)]);
+    let _ = exact.ready();
+    assert!(exact.builder.settle());
+    assert_eq!(exact.builder.builds(), 1, "fits exactly");
+}

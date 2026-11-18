@@ -163,3 +163,15 @@ pub fn local_checkpoint(reader: &DirectoryReader) -> i64 {
         .and_then(|(_, value)| value.parse().ok())
         .unwrap_or(-1)
 }
+
+/// The heap the masks of a view over `reader`'s commit take at most: a
+/// bit set of each segment's `max_doc` bits, whether or not a document of it
+/// is hidden. Charged with an overlay's estimate, since the view a search
+/// caches holds them as long as the overlay.
+#[must_use]
+pub fn mask_bytes(reader: &DirectoryReader) -> usize {
+    reader.segment_readers().iter().fold(0_usize, |bytes, r| {
+        let docs = usize::try_from(r.max_doc).unwrap_or(0);
+        bytes.saturating_add(docs.div_ceil(64).saturating_mul(8))
+    })
+}
