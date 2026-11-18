@@ -347,6 +347,10 @@ fn a_refused_build_is_tried_again_once_the_pool_has_room() {
     assert!(builder.settle(), "a build never finished");
     assert!(builder.ready("u1", 0, &stage(1), &commit, 1).is_none());
     assert_eq!(builder.builds(), 0, "refused: nothing built");
+    builder.pause();
+    let _ = builder.ready("u1", 0, &stage(1), &commit, 1);
+    assert_eq!(builder.pending(), 0, "no room yet: not asked again");
+    builder.resume();
     drop(taken);
     let _ = builder.ready("u1", 0, &stage(1), &commit, 1);
     assert!(builder.settle(), "a build never finished");
