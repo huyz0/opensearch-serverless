@@ -30,6 +30,7 @@ graph TD
     oss-node -.-> oss-coordinator
     oss-node -.-> oss-format
     oss-node -.-> oss-mem
+    oss-node -.-> oss-meta
     oss-node -.-> oss-reader
     oss-node -.-> oss-rest
     oss-node -.-> oss-transport
