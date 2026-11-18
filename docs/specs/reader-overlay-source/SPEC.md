@@ -16,6 +16,7 @@ Parity plan R7.6, the tail overlay engine, fifth piece ([ADR 0018](../../adr/001
 - AC-2: with a source installed a search finds the overlay's documents and not the commit's copies they replace.
 - AC-3: a source that has no overlay yet leaves the answer the commit's.
 - AC-4: a search does not rebuild the view while the source returns the same `Ready` (four searches make one view, counted by `Ready::views_made`), and a new `Ready` makes one new view. A refused view is cached with its `Ready`, so a refusal is not repeated.
+- AC-6: a `Ready` counts the views it makes (`views_made`: 0, then one a view) and each shows the overlay.
 - AC-5: the setting is `false` by default and the node's registry holds it.
 
 ## Test plan

@@ -13,7 +13,7 @@ use oss_doc::mapping::Mapping;
 use oss_format::WalRecord;
 use oss_mem::{BudgetConfig, BufferPool, MemoryBudget, Pool, SMALL_BUFFER};
 use oss_reader::dsl::{MAX_RECORDED_BYTES, Recorder, SearchSource, source};
-use oss_reader::overlay::{Overlay, find_copies};
+use oss_reader::overlay::{Overlay, Ready, find_copies};
 use oss_reader::response::write_response;
 use oss_reader::search::search;
 use oss_reader::{OpenShard, open_shard};
@@ -151,4 +151,20 @@ fn making_a_view_leaves_the_commit_as_it_was() {
     assert_eq!(tag_count(&shard, "t1"), before);
     assert_eq!(tag_count(&shard, "zz"), 0);
     assert_eq!(shard.reader.max_doc(), 40);
+}
+
+#[test]
+fn a_ready_counts_the_views_it_makes_and_shows_the_same_answers() {
+    let (_store, shard, mapping) = open();
+    let overlay = tail(&mapping);
+    let copies = find_copies(&shard.reader, overlay.ids()).expect("copies");
+    let ready = Ready::new(overlay, copies);
+    assert_eq!(ready.views_made(), 0);
+    assert_eq!(ready.overlay().ids().len(), 3);
+    let first = ready.view(&shard).expect("view");
+    assert_eq!(ready.views_made(), 1);
+    let second = ready.view(&shard).expect("view");
+    assert_eq!(ready.views_made(), 2);
+    assert_eq!(tag_count(&first, "zz"), 2);
+    assert_eq!(tag_count(&second, "zz"), 2);
 }
