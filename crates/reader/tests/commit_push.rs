@@ -235,3 +235,36 @@ fn a_commit_that_names_no_segments_file_has_no_generation_to_be_newer_by() {
     assert!(newer(&ten, &zero), "base 36");
     assert!(stage_of(b"not a commit").is_none());
 }
+
+#[test]
+fn a_later_stage_of_the_same_writer_and_term_replaces_the_register() {
+    use oss_reader::commit_push::newer_commit;
+    let register = commit(2, Some("w"), 4);
+    let later = commit(2, Some("w"), 6);
+    let asked = std::cell::RefCell::new(Vec::new());
+    let chosen = newer_commit(&register, |writer| {
+        asked.borrow_mut().push(writer.to_owned());
+        Some(later.clone())
+    });
+    assert_eq!(chosen, Some(later));
+    assert_eq!(*asked.borrow(), ["w"]);
+    for answer in [
+        commit(2, Some("x"), 6),
+        commit(2, Some("w"), 4),
+        commit(2, Some("w"), 3),
+        commit(3, Some("w"), 6),
+        b"not a commit".to_vec(),
+    ] {
+        assert_eq!(newer_commit(&register, |_| Some(answer.clone())), None);
+    }
+    assert_eq!(newer_commit(&register, |_| None), None);
+}
+
+#[test]
+fn a_register_commit_that_was_not_staged_is_never_asked_about() {
+    use oss_reader::commit_push::newer_commit;
+    let ask = |_: &str| -> Option<Vec<u8>> { panic!("asked") };
+    assert_eq!(newer_commit(&commit(2, Some("w"), -1), ask), None);
+    assert_eq!(newer_commit(&commit(2, None, 4), ask), None);
+    assert_eq!(newer_commit(b"not a commit", ask), None);
+}

@@ -15,7 +15,7 @@
 //! ([ADR 0014](../../../docs/adr/0014-open-indexes-pool.md)).
 
 use std::io::Write;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
 use crate::open_indexes::{Found, Lead, OpenSet, lock};
@@ -23,7 +23,7 @@ use lucene_analysis::Analyzer;
 use lucene_store::page_cache::PageCache;
 use oss_blob::{BlobError, BlobStore, PooledStore};
 use oss_mem::{MemoryBudget, Pool, Reservation};
-use oss_reader::commit_push::{PushedCommits, ShardKey, Stage};
+use oss_reader::commit_push::{NewestSource, PushedCommits, ShardKey, Stage};
 use oss_reader::dsl::{DslError, MAX_RECORDED_BYTES, Recorder, SearchSource, source};
 use oss_reader::failure::{Failure, Meta, SearchError, ShardFailure};
 use oss_reader::open_cost::open_bytes;
@@ -63,6 +63,8 @@ pub struct SearchService<S: BlobStore + 'static> {
     pub(crate) pushed: Mutex<PushedCommits>,
     /// What the keep time of a pushed commit counts from.
     pub(crate) epoch: Instant,
+    /// What asks a staging writer for its newest commit on a cold open.
+    newest: OnceLock<Arc<dyn NewestSource>>,
 }
 
 impl<S: BlobStore + 'static> SearchService<S> {
@@ -87,7 +89,14 @@ impl<S: BlobStore + 'static> SearchService<S> {
             open: Mutex::default(),
             pushed: Mutex::new(PushedCommits::new(PUSHED_SHARDS, PUSHED_BYTES)),
             epoch: Instant::now(),
+            newest: OnceLock::new(),
         }
+    }
+
+    /// Installs what a cold open asks for a staging writer's newest commit.
+    /// False when one is installed already.
+    pub fn set_newest_source(&self, source: Arc<dyn NewestSource>) -> bool {
+        self.newest.set(source).is_ok()
     }
 
     /// How many indexes are open.
@@ -199,8 +208,18 @@ impl<S: BlobStore + 'static> SearchService<S> {
             return Ok((files, meta));
         }
         // No push, a push that is no commit, or one for an index since
-        // recreated: the register decides.
-        ShardFiles::open_with_meta(&self.store, &self.base, index, 0)
+        // recreated: the register decides, or the newer commit its writer
+        // says it staged after it.
+        match self.newest.get() {
+            Some(source) => ShardFiles::open_asking_with_meta(
+                &self.store,
+                &self.base,
+                index,
+                0,
+                source.as_ref(),
+            ),
+            None => ShardFiles::open_with_meta(&self.store, &self.base, index, 0),
+        }
     }
 
     /// Milliseconds since this service started: what a pushed commit's keep

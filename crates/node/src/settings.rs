@@ -10,6 +10,8 @@ fn providers() -> Vec<&'static [&'static Setting]> {
     vec![
         #[cfg(any(feature = "reader", feature = "writer", feature = "coordinator"))]
         oss_blob::settings::SETTINGS,
+        #[cfg(feature = "reader")]
+        crate::newest_ask::SETTINGS,
         #[cfg(feature = "writer")]
         oss_writer::log::settings::SETTINGS,
         #[cfg(feature = "writer")]
@@ -42,7 +44,15 @@ mod tests {
         )) {
             assert!(keys.contains(&"serverless.store.type"), "{keys:?}");
             let writer = cfg!(feature = "writer");
-            assert_eq!(keys.len(), if writer { 12 } else { 6 });
+            let reader = cfg!(feature = "reader");
+            assert_eq!(
+                keys.len(),
+                6 + usize::from(reader) + if writer { 6 } else { 0 }
+            );
+            assert_eq!(
+                keys.contains(&"serverless.reader.newest_commit_ask"),
+                reader
+            );
             assert_eq!(keys.contains(&"serverless.lease.early_revoke"), writer);
             assert_eq!(keys.contains(&"serverless.wal.node_log.idle_flush"), writer);
         } else {
