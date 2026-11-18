@@ -334,17 +334,18 @@ mod tests {
             Recording::new(&[("r1", Some(true))]),
             true,
         );
-        for shard in 0..=u32::try_from(MAX_SHARDS).expect("small") {
+        let bound = u32::try_from(MAX_SHARDS).expect("small");
+        for shard in 0..bound {
             sender.published(published(shard));
-            assert!(sender.remembered_shards() <= MAX_SHARDS);
+            assert_eq!(sender.remembered_shards(), shard as usize + 1);
         }
-        assert_eq!(
-            sender.open_readers("logs", u32::try_from(MAX_SHARDS).expect("small")),
-            ["r1"]
-        );
-        assert!(
-            sender.remembered_shards() < MAX_SHARDS,
-            "others were dropped"
-        );
+        // A shard already remembered is replaced, not counted again.
+        sender.published(published(0));
+        assert_eq!(sender.remembered_shards(), MAX_SHARDS);
+        // A new one past the bound drops the others.
+        sender.published(published(bound));
+        assert_eq!(sender.remembered_shards(), 1);
+        assert_eq!(sender.open_readers("logs", bound), ["r1"]);
+        assert!(sender.open_readers("logs", 0).is_empty());
     }
 }
