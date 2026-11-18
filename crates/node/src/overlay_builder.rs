@@ -26,6 +26,9 @@ use crate::tail_held::TailHeld;
 /// How many builds wait for the worker.
 pub const QUEUE: usize = 64;
 
+/// The longest [`OverlayBuilder::settle`] waits.
+pub const SETTLE: std::time::Duration = std::time::Duration::from_secs(10);
+
 type Key = (String, u32);
 
 /// A finished overlay, the records it covers and what it holds of the pool.
@@ -125,16 +128,24 @@ impl OverlayBuilder {
         self.inner.changed.notify_all();
     }
 
-    /// Waits until no build is queued or running.
-    pub fn settle(&self) {
+    /// Waits until no build is queued or running, at most [`SETTLE`];
+    /// whether none is.
+    pub fn settle(&self) -> bool {
+        let started = std::time::Instant::now();
         let mut control = lock(&self.inner.control);
         while control.pending > 0 {
+            let left = SETTLE.saturating_sub(started.elapsed());
+            if left.is_zero() {
+                return false;
+            }
             control = self
                 .inner
                 .changed
-                .wait(control)
-                .unwrap_or_else(PoisonError::into_inner);
+                .wait_timeout(control, left)
+                .unwrap_or_else(PoisonError::into_inner)
+                .0;
         }
+        true
     }
 }
 

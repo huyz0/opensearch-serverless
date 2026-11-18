@@ -111,7 +111,7 @@ impl Fixture {
     /// The first ask tracks the shard, so records pushed after it are held.
     fn push(&self, records: &[Record]) {
         assert!(self.ready().is_none(), "nothing is finished yet");
-        self.builder.settle();
+        assert!(self.builder.settle(), "a build never finished");
         let taken = self.held.take("u1", 0, records, 1_000);
         assert!(taken.is_some(), "the shard is tracked");
     }
@@ -128,7 +128,7 @@ fn ready_answers_nothing_at_once_and_the_overlay_once_built() {
     for _ in 0..5 {
         let _ = fx.ready();
     }
-    fx.builder.settle();
+    assert!(fx.builder.settle(), "a build never finished");
     assert_eq!(fx.builder.builds(), 1, "one build however many asks");
     let ready = fx.ready().expect("finished");
     assert_eq!(ready.overlay().ids(), ["a", "d"]);
@@ -140,12 +140,12 @@ fn unchanged_records_give_the_same_overlay_and_build_nothing_more() {
     let fx = fixture(16 << 20);
     fx.push(&[index("d", 8, 100)]);
     let _ = fx.ready();
-    fx.builder.settle();
+    assert!(fx.builder.settle(), "a build never finished");
     let first = fx.ready().expect("finished");
     for _ in 0..4 {
         assert!(Arc::ptr_eq(&first, &fx.ready().expect("finished")));
     }
-    fx.builder.settle();
+    assert!(fx.builder.settle(), "a build never finished");
     assert_eq!(fx.builder.builds(), 1);
 }
 
@@ -154,14 +154,14 @@ fn new_records_build_again_and_the_old_overlay_serves_meanwhile() {
     let fx = fixture(16 << 20);
     fx.push(&[index("d", 8, 100)]);
     let _ = fx.ready();
-    fx.builder.settle();
+    assert!(fx.builder.settle(), "a build never finished");
     let first = fx.ready().expect("finished");
     fx.builder.pause();
     fx.held.take("u1", 0, &[index("e", 9, 101)], 1_000);
     let meanwhile = fx.ready().expect("the old overlay");
     assert!(Arc::ptr_eq(&first, &meanwhile), "served while paused");
     fx.builder.resume();
-    fx.builder.settle();
+    assert!(fx.builder.settle(), "a build never finished");
     let second = fx.ready().expect("finished");
     assert!(!Arc::ptr_eq(&first, &second));
     assert_eq!(second.overlay().ids(), ["d", "e"]);
@@ -173,7 +173,7 @@ fn a_pool_that_refuses_builds_nothing_and_a_finished_overlay_holds_its_estimate(
     let small = fixture(1_000);
     small.push(&[index("d", 8, 100)]);
     let _ = small.ready();
-    small.builder.settle();
+    assert!(small.builder.settle(), "a build never finished");
     assert!(small.ready().is_none(), "the commit serves");
     assert_eq!(small.builder.builds(), 0);
     assert_eq!(small.budget.in_use(Pool::OpenIndexes), 0);
@@ -181,7 +181,7 @@ fn a_pool_that_refuses_builds_nothing_and_a_finished_overlay_holds_its_estimate(
     let roomy = fixture(16 << 20);
     roomy.push(&[index("d", 8, 100)]);
     let _ = roomy.ready();
-    roomy.builder.settle();
+    assert!(roomy.builder.settle(), "a build never finished");
     assert!(roomy.ready().is_some());
     assert!(roomy.budget.in_use(Pool::OpenIndexes) > 0, "charged");
     roomy.builder.closed("u1", 0, &stage(1), 2_000);
@@ -196,17 +196,17 @@ fn a_build_that_fails_is_not_retried_until_the_records_change() {
         ..index("d", 0, 100)
     }]);
     let _ = fx.ready();
-    fx.builder.settle();
+    assert!(fx.builder.settle(), "a build never finished");
     assert!(fx.ready().is_none());
     for _ in 0..4 {
         let _ = fx.ready();
     }
-    fx.builder.settle();
+    assert!(fx.builder.settle(), "a build never finished");
     assert_eq!(fx.builder.builds(), 1, "tried once");
     assert_eq!(fx.budget.in_use(Pool::OpenIndexes), 0, "no charge kept");
     fx.held.take("u1", 0, &[index("e", 1, 101)], 1_000);
     let _ = fx.ready();
-    fx.builder.settle();
+    assert!(fx.builder.settle(), "a build never finished");
     assert_eq!(fx.builder.builds(), 2, "tried again for the new records");
 }
 
@@ -273,12 +273,12 @@ fn a_full_queue_refuses_a_further_build_and_the_asks_finish_later() {
     assert_eq!(builder.builds(), 0, "nothing built while paused");
     builder.resume();
     for _ in 0..10 {
-        builder.settle();
+        assert!(builder.settle(), "a build never finished");
         for u in uuids {
             let _ = builder.ready(u, 0, &stage(1), &commit, 1);
         }
     }
-    builder.settle();
+    assert!(builder.settle(), "a build never finished");
     for u in uuids {
         assert!(builder.ready(u, 0, &stage(1), &commit, 1).is_some(), "{u}");
     }
@@ -289,7 +289,7 @@ fn a_build_queued_for_an_old_stage_is_dropped_when_the_stage_changed() {
     let one = fixture(16 << 20);
     one.push(&[index("d", 8, 100)]);
     let _ = one.ready();
-    one.builder.settle();
+    assert!(one.builder.settle(), "a build never finished");
     let single = one.budget.in_use(Pool::OpenIndexes);
     assert!(single > 0);
 
@@ -304,7 +304,7 @@ fn a_build_queued_for_an_old_stage_is_dropped_when_the_stage_changed() {
             .is_none()
     );
     fx.builder.resume();
-    fx.builder.settle();
+    assert!(fx.builder.settle(), "a build never finished");
     let ready = fx.builder.ready("u1", 0, &stage(2), &fx.commit, 1_000);
     assert!(ready.is_some(), "the new stage's own build finished");
     assert_eq!(
@@ -327,12 +327,12 @@ fn a_refused_build_is_tried_again_once_the_pool_has_room() {
     let _ = builder.ready("u1", 0, &stage(1), &commit, 1);
     held.take("u1", 0, &[index("d", 1, 100)], 1);
     let _ = builder.ready("u1", 0, &stage(1), &commit, 1);
-    builder.settle();
+    assert!(builder.settle(), "a build never finished");
     assert!(builder.ready("u1", 0, &stage(1), &commit, 1).is_none());
     assert_eq!(builder.builds(), 0, "refused: nothing built");
     drop(taken);
     let _ = builder.ready("u1", 0, &stage(1), &commit, 1);
-    builder.settle();
+    assert!(builder.settle(), "a build never finished");
     assert!(builder.ready("u1", 0, &stage(1), &commit, 1).is_some());
     assert_eq!(builder.builds(), 1);
 }
