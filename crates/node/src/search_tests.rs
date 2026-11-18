@@ -263,3 +263,13 @@ fn closing_makes_room_exactly_when_the_idle_bytes_cover_the_shortfall() {
     assert!(never_fits(&refused(101, 0)));
     assert!(!closing_makes_room(&refused(101, 100), 100));
 }
+
+#[test]
+fn the_service_clock_counts_milliseconds_from_its_start() {
+    let (service, _budget, _charges) = service_for_two();
+    let first = service.now_millis();
+    thread::sleep(std::time::Duration::from_millis(20));
+    let later = service.now_millis();
+    assert!(later >= first + 20, "{first} then {later}");
+    assert!(later < 60_000, "{later}");
+}
