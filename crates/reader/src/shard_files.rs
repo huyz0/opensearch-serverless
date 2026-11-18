@@ -15,7 +15,7 @@ use std::collections::BTreeMap;
 use oss_blob::{BlobStore, ByteRange, PooledStore};
 use oss_format::{CommitManifest, DescriptorRecord, Register, descriptor_key};
 
-use crate::commit_push::Stage;
+use crate::commit_push::{NewestSource, Stage, newer_commit};
 use crate::error::ReaderError;
 use crate::mapping::Mapping;
 
@@ -75,7 +75,7 @@ impl ShardFiles {
         index: &str,
         shard: u32,
     ) -> Result<(Self, IndexMeta), ReaderError> {
-        Self::open_from(store, base, index, shard, None)
+        Self::open_from(store, base, index, shard, None, None)
     }
 
     /// [`Self::open_with_meta`] for a commit the shard's writer pushed:
@@ -88,7 +88,19 @@ impl ShardFiles {
         shard: u32,
         pushed: &[u8],
     ) -> Result<(Self, IndexMeta), ReaderError> {
-        Self::open_from(store, base, index, shard, Some(pushed))
+        Self::open_from(store, base, index, shard, Some(pushed), None)
+    }
+
+    /// [`Self::open_with_meta`], on the newer of the register's commit and
+    /// the one `newest` has from the register's writer: the same two GETs.
+    pub fn open_asking_with_meta<S: BlobStore>(
+        store: &PooledStore<S>,
+        base: &str,
+        index: &str,
+        shard: u32,
+        newest: &dyn NewestSource,
+    ) -> Result<(Self, IndexMeta), ReaderError> {
+        Self::open_from(store, base, index, shard, None, Some(newest))
     }
 
     fn open_from<S: BlobStore>(
@@ -97,6 +109,7 @@ impl ShardFiles {
         index: &str,
         shard: u32,
         pushed: Option<&[u8]>,
+        newest: Option<&dyn NewestSource>,
     ) -> Result<(Self, IndexMeta), ReaderError> {
         let descriptor_bytes =
             read_register(store, &descriptor_key(base, index)?, MAX_REGISTER_BYTES)?;
@@ -124,6 +137,16 @@ impl ShardFiles {
                     read_register(store, &shard_ref.manifest_key(base)?, MAX_REGISTER_BYTES)?;
                 Register::parse(&register_bytes)?.value
             }
+        };
+        let asked;
+        let value = match (pushed, newest) {
+            (None, Some(source)) => {
+                asked = newer_commit(value, |writer| {
+                    source.newest(index, &meta.uuid, shard, writer)
+                });
+                asked.as_deref().unwrap_or(value)
+            }
+            _ => value,
         };
         let manifest = CommitManifest::parse(value)?;
         let extents = shard_ref.resolve(base, &manifest)?;

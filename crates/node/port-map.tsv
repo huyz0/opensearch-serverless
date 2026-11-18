@@ -17,3 +17,4 @@ src/writer/lease.rs	port	serverless/shell/src/main/java/org/opensearch/serverles
 src/writer/incarnation.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/WriteFences.java@429b4cbc	ensureIncarnationLive: one descriptor read, none within the fence window
 src/forward.rs	new		the signed send of a forwarded bulk to the owner named by its lease, and the call site of early revoke: a refused connect asks EarlyRevoke; the Java has no separate sender class
 src/newest.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/transport/NewestCommits.java@429b4cbc	handle and local: the writer answers a reader with the manifest its last publish produced; the newerThan side is the reader's
+src/newest_ask.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/transport/NewestCommits.java@429b4cbc	newerThan's ask: a writer not live in the lease snapshot is asked nothing, a call times out at 500 ms; the answer side is src/newest.rs

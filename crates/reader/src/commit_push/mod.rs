@@ -151,6 +151,30 @@ pub fn newer_than<'a>(register: &'a Stage, newest: Option<&'a Stage>) -> &'a Sta
     }
 }
 
+/// What asks a shard's writer for the newest commit it published
+/// (`NewestCommits`'s ask): `None` when there is no answer, whatever the
+/// reason.
+pub trait NewestSource: Send + Sync {
+    /// The newest commit `writer` published for shard `shard` of `index`
+    /// (with `index_uuid`), as a commit register value.
+    fn newest(&self, index: &str, index_uuid: &str, shard: u32, writer: &str) -> Option<Vec<u8>>;
+}
+
+/// `NewestCommits.newerThan` over register values: the commit `ask` gives
+/// when it is a later stage of the writer the register's commit names, in
+/// its term; else `None`, and the register's commit stands. `ask` is called
+/// only for a register commit that has a stage sequence and a writer, with
+/// that writer's name.
+pub fn newer_commit(register: &[u8], ask: impl FnOnce(&str) -> Option<Vec<u8>>) -> Option<Vec<u8>> {
+    let held = stage_of(register)?;
+    if held.sequence < 0 {
+        return None;
+    }
+    let newest = ask(held.writer.as_deref()?)?;
+    let stage = stage_of(&newest)?;
+    staged_after(&stage, &held).then_some(newest)
+}
+
 struct Held {
     uuid: String,
     value: Vec<u8>,
