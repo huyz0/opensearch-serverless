@@ -1,0 +1,3 @@
+term 3 writer node-1 files 43
+num_docs 2
+max_doc 5
