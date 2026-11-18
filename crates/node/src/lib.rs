@@ -4,6 +4,8 @@
 //! on, so a reader-only build carries no writer code. [`enabled_roles`] reports
 //! what this binary was built with.
 
+#[cfg(feature = "writer")]
+pub mod forward;
 #[cfg(feature = "reader")]
 pub mod open_indexes;
 #[cfg(feature = "reader")]

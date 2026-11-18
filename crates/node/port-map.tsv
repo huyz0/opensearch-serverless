@@ -15,3 +15,4 @@ src/writer/target.rs	new		the role as a bulk Target; the Java's BulkDispatch cal
 src/writer/heads.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/nodelog/NodeLogCommitter.java@429b4cbc	the ShardAdmission over the shard head: the head names this process at the term; the Java wires its own at node assembly
 src/writer/lease.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/NodeLogWriter.java@429b4cbc	LeaseWriter over the membership renew, the lease's node_log replaced by the epochs
 src/writer/incarnation.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/WriteFences.java@429b4cbc	ensureIncarnationLive: one descriptor read, none within the fence window
+src/forward.rs	new		the signed send of a forwarded bulk to the owner named by its lease, and the call site of early revoke: a refused connect asks EarlyRevoke; the Java has no separate sender class
