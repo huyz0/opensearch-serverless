@@ -45,6 +45,7 @@ graph TD
     oss-writer --> oss-blob
     oss-writer --> oss-cluster
     oss-writer --> oss-format
+    oss-writer --> oss-meta
     oss-writer --> oss-rest
     oss-writer --> oss-types
 ```

@@ -56,3 +56,6 @@ src/publish/error.rs	new		the publish error type
 src/publish/blob.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/SegmentPublisher.java	a segment blob as a streamed PUT body
 src/publish/names.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/SegmentPublisher.java	the segment name of a Lucene file (IndexFileNames.parseSegmentName)
 src/publish/publisher.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/SegmentPublisher.java@429b4cbc	publishCommit: fence, upload fresh files by segment, swap the register; staging, node packs and buckets not ported
+src/mapping_growth/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/MappingGrowthPath.java	growMapping: per-index coalescing of additions, one swap for the batch, a failed batch requeued; the node's reconciler refresh is not ported
+src/mapping_growth/attempts.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/MappingGrowthPath.java	growMappingBy: five attempts, jittered backoff min(500, 20 << min(attempt, 6)), uuid check, the descriptor swap
+src/mapping_growth/error.rs	new		the growth error type (MappingConflictException and the IOExceptions)

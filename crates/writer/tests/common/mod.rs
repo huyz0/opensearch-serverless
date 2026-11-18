@@ -78,12 +78,17 @@ pub type CreateHook = dyn Fn(&Emulator, &str, &mut dyn ChunkSource, &mut [u8]) -
 /// What a [`Hooked`] store does in place of a register swap.
 pub type SwapHook = dyn Fn(&Emulator, &str, u64, &[u8]) -> BlobResult<SwapOutcome> + Send + Sync;
 
-/// An emulator whose creates go through a hook, and its register swaps
-/// through another when one is set; everything else is the emulator's.
+/// What a [`Hooked`] store does in place of a register read.
+pub type ReadHook =
+    dyn Fn(&Emulator, &str, &mut [u8]) -> BlobResult<Option<RegisterRead>> + Send + Sync;
+
+/// An emulator whose creates go through a hook, and its register swaps and
+/// reads through others when set; everything else is the emulator's.
 pub struct Hooked {
     inner: Arc<Emulator>,
     create: Box<CreateHook>,
     swap: Option<Box<SwapHook>>,
+    read: Option<Box<ReadHook>>,
 }
 
 impl Hooked {
@@ -99,6 +104,7 @@ impl Hooked {
             inner: Arc::clone(inner),
             create: Box::new(create),
             swap: None,
+            read: None,
         })
     }
 
@@ -111,6 +117,23 @@ impl Hooked {
             inner: Arc::clone(inner),
             create: Box::new(|e, key, body, buf| e.create_if_absent(key, body, buf)),
             swap: Some(Box::new(swap)),
+            read: None,
+        })
+    }
+
+    /// `inner` with its register reads sent through `read`, as a store.
+    pub fn reading(
+        inner: &Arc<Emulator>,
+        read: impl Fn(&Emulator, &str, &mut [u8]) -> BlobResult<Option<RegisterRead>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Arc<dyn BlobStore> {
+        Arc::new(Self {
+            inner: Arc::clone(inner),
+            create: Box::new(|e, key, body, buf| e.create_if_absent(key, body, buf)),
+            swap: None,
+            read: Some(Box::new(read)),
         })
     }
 }
@@ -160,7 +183,10 @@ impl BlobStore for Hooked {
         self.inner.list_prefix(prefix, start_after, max_keys, visit)
     }
     fn read_register(&self, key: &str, buf: &mut [u8]) -> BlobResult<Option<RegisterRead>> {
-        self.inner.read_register(key, buf)
+        match &self.read {
+            Some(hook) => hook(&self.inner, key, buf),
+            None => self.inner.read_register(key, buf),
+        }
     }
     fn swap_register(&self, key: &str, expected: u64, value: &[u8]) -> BlobResult<SwapOutcome> {
         match &self.swap {
