@@ -2,4 +2,5 @@
 //! one module per action family, each as the Java shell writes it.
 
 pub mod push;
+pub mod tail;
 pub mod write;
