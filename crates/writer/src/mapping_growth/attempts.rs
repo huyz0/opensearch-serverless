@@ -13,11 +13,11 @@ use crate::mapping::Mapping;
 pub const ATTEMPTS: u32 = 5;
 
 /// The most a descriptor read keeps.
-const MAX_REGISTER_BYTES: usize = 4 << 20;
+const MAX_REGISTER_BYTES: usize = 4_194_304;
 
 /// What an attempt's write buffer holds beside the mapping's text: the
 /// record's other fields.
-const RECORD_SLACK: usize = 8 << 10;
+const RECORD_SLACK: usize = 8_192;
 
 /// The longest wait before attempt `attempt` (counting from 0): none before
 /// the first, then `min(500, 20 << min(attempt, 6))` milliseconds.

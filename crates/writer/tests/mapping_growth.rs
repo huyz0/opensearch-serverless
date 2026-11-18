@@ -70,6 +70,15 @@ fn described(r: &Rig) -> (String, i64) {
     )
 }
 
+/// Spins until `flag` is set, failing the test rather than hanging it.
+fn spin_until(flag: &AtomicU64) {
+    let deadline = std::time::Instant::now() + Duration::from_secs(10);
+    while flag.load(Ordering::SeqCst) == 0 {
+        assert!(std::time::Instant::now() < deadline, "a flag never came");
+        std::thread::yield_now();
+    }
+}
+
 type Waits = Arc<Mutex<Vec<Duration>>>;
 
 fn growth(r: &Rig) -> (MappingGrowth, Waits) {
@@ -202,8 +211,11 @@ fn a_refused_merge_is_a_conflict_after_one_read_and_poisons_nothing() {
     let r = rig();
     let (g, waits) = growth(&r);
     let puts = swaps(&r);
+    let reads = r.store.meter().count(S3Op::Get) + r.store.meter().count(S3Op::GetRange);
     let clash = mapping(r#"{"properties":{"a":{"type":"long"}}}"#);
     let err = g.grow("logs", "u1", &clash).expect_err("refused");
+    let read = r.store.meter().count(S3Op::Get) + r.store.meter().count(S3Op::GetRange);
+    assert_eq!(read, reads + 1, "one read");
     assert!(matches!(err, GrowthError::Conflict(_)), "{err:?}");
     assert!(
         err.to_string().contains("cannot be changed from type"),
@@ -308,9 +320,7 @@ fn a_batch_the_store_failed_goes_back_to_the_callers_waiting_on_it() {
         let g = Arc::clone(&g);
         std::thread::spawn(move || g.grow("logs", "u1", &field("lost")))
     };
-    while leader_in.load(Ordering::SeqCst) == 0 {
-        std::thread::yield_now();
-    }
+    spin_until(&leader_in);
     let follower = {
         let g = Arc::clone(&g);
         let ready = Arc::clone(&follower_ready);
@@ -350,5 +360,60 @@ fn a_store_failure_with_nobody_waiting_leaves_the_mapping_alone() {
     assert!(
         !grown.to_json().contains("\"lost\""),
         "a failed request's addition is not kept"
+    );
+}
+
+#[test]
+fn a_growth_service_names_itself() {
+    let r = rig();
+    let (g, _) = growth(&r);
+    assert_eq!(format!("{g:?}"), "MappingGrowth { .. }");
+}
+
+#[test]
+fn a_batch_with_one_refused_addition_still_grows_the_others() {
+    let emulator = Arc::new(Emulator::new(1 << 24, 3));
+    let first_in = Arc::new(AtomicU64::new(0));
+    let queued = Arc::new(AtomicU64::new(0));
+    let (inside, behind) = (Arc::clone(&first_in), Arc::clone(&queued));
+    let seen = Arc::new(AtomicU64::new(0));
+    let hooked = common::Hooked::reading(&emulator, move |e, key, buf| {
+        if key.starts_with("indices/") && seen.fetch_add(1, Ordering::SeqCst) == 0 {
+            // The first growth is mid read: two more queue behind it.
+            inside.store(1, Ordering::SeqCst);
+            spin_until(&behind);
+            std::thread::sleep(Duration::from_millis(150));
+        }
+        e.read_register(key, buf)
+    });
+    let r = rig_on(hooked, emulator);
+    let g = Arc::new(MappingGrowth::new(Arc::clone(&r.descriptors)));
+    let start = |name: &'static str, m: Mapping| {
+        let g = Arc::clone(&g);
+        std::thread::spawn(move || (name, g.grow("logs", "u1", &m)))
+    };
+    let first = start("first", field("one"));
+    spin_until(&first_in);
+    let bad = start("bad", mapping(r#"{"properties":{"a":{"type":"long"}}}"#));
+    let good = start("good", field("two"));
+    std::thread::sleep(Duration::from_millis(50));
+    queued.store(1, Ordering::SeqCst);
+    let results: Vec<_> = [first, bad, good]
+        .into_iter()
+        .map(|h| h.join().expect("thread"))
+        .collect();
+    for (name, result) in results {
+        match name {
+            "bad" => assert!(
+                matches!(result, Err(GrowthError::Conflict(_))),
+                "{result:?}"
+            ),
+            _ => assert!(result.is_ok(), "{name}: {result:?}"),
+        }
+    }
+    let text = described(&r).0;
+    assert!(
+        text.contains("\"one\"") && text.contains("\"two\""),
+        "{text}"
     );
 }
