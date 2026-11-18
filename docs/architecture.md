@@ -26,7 +26,9 @@ graph TD
     oss-meta --> oss-blob
     oss-meta --> oss-format
     oss-node -.-> oss-blob
+    oss-node -.-> oss-cluster
     oss-node -.-> oss-coordinator
+    oss-node -.-> oss-format
     oss-node -.-> oss-mem
     oss-node -.-> oss-reader
     oss-node -.-> oss-rest

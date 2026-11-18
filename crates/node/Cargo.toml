@@ -21,7 +21,13 @@ reader = [
     "dep:oss-mem",
     "dep:oss-transport",
 ]
-writer = ["dep:oss-writer", "dep:oss-blob", "dep:oss-transport"]
+writer = [
+    "dep:oss-writer",
+    "dep:oss-blob",
+    "dep:oss-transport",
+    "dep:oss-cluster",
+    "dep:oss-format",
+]
 coordinator = ["dep:oss-coordinator", "dep:oss-blob"]
 
 [dependencies]
@@ -31,6 +37,8 @@ oss-writer = { workspace = true, optional = true }
 oss-coordinator = { workspace = true, optional = true }
 oss-rest = { workspace = true, optional = true }
 oss-transport = { workspace = true, optional = true }
+oss-cluster = { workspace = true, optional = true }
+oss-format = { workspace = true, optional = true }
 oss-blob = { workspace = true, optional = true }
 lucene-store = { workspace = true, optional = true }
 lucene-analysis = { workspace = true, optional = true }
