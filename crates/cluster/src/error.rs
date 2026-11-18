@@ -35,6 +35,8 @@ pub enum ClusterError {
     Contended,
     /// The transport secret could not be minted or read back.
     TransportSecret(&'static str),
+    /// A shard head vanished between a lost race and the read of its winner.
+    Heads(&'static str),
 }
 
 impl fmt::Display for ClusterError {
@@ -55,7 +57,7 @@ impl fmt::Display for ClusterError {
                  {other_address}) holds this node's lease; this node will not renew"
             ),
             Self::Contended => f.write_str("the lease register moved under every attempt"),
-            Self::TransportSecret(why) => f.write_str(why),
+            Self::TransportSecret(why) | Self::Heads(why) => f.write_str(why),
         }
     }
 }

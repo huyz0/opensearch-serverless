@@ -40,10 +40,10 @@ OSS_REQUEST_BUDGETS_RECORD=1 cargo test -p oss-node --test it budgets -- --nocap
 | `cluster_settings.update.requests` | A later update: a read, then a swap | 2 | exact | enforced | `crates/meta/tests/descriptors/budgets.rs::a_cluster_settings_update_costs_what_the_table_says` |
 | `cluster_settings.update.round_trips` | Round trips that update waits through | 2 | exact | enforced | `crates/meta/tests/descriptors/budgets.rs::a_cluster_settings_update_costs_what_the_table_says` |
 | `take.fresh.requests` | First take of four never-written shards | 50 | max | blocked | The writer's shard take is not ported |
-| `write.first.requests` | The node's first write after the take: opens its log epoch | 4 | exact | blocked | The node log is ported, but the lease write and the shard-head read it waits on are not wired to the writer yet |
+| `write.first.requests` | The node's first write after the take: opens its log epoch | 4 | exact | enforced | `crates/node/tests/writer_first.rs::the_first_write_after_a_take_costs_what_the_table_says` |
 | `write.next.requests` | The next write to the same shard, inside the descriptor fence window: one log PUT | 1 | exact | enforced | `crates/writer/tests/node_log_budgets.rs::the_next_write_to_a_shard_is_one_put_in_one_round` |
 | `publish.requests` | One write to each of four shards, then a publish of all four | 23 | exact | blocked | Segment publish is not ported |
-| `write.first.round_trips` | Round trips the node's first write waits through (Java: 5, a ceiling) | 5 | max | blocked | The node log is ported, but the lease write and the shard-head read it waits on are not wired to the writer yet |
+| `write.first.round_trips` | Round trips the node's first write waits through (Java: 5, a ceiling) | 5 | max | enforced | `crates/node/tests/writer_first.rs::the_first_write_after_a_take_costs_what_the_table_says` |
 | `write.next.round_trips` | Round trips the next write waits through (Java: 1, a ceiling) | 1 | max | enforced | `crates/writer/tests/node_log_budgets.rs::the_next_write_to_a_shard_is_one_put_in_one_round` |
 | `lease.first_renewal.requests` | A node's first renewal: its lease created, the members index read, the index swapped to name it | 3 | exact | enforced | `crates/cluster/tests/leases/budget.rs::lease_operations_cost_what_the_table_says` |
 | `lease.renewal.requests` | Every later renewal: one swap of its own lease | 1 | exact | enforced | `crates/cluster/tests/leases/budget.rs::lease_operations_cost_what_the_table_says` |

@@ -31,6 +31,7 @@ writer = [
     "dep:lucene-index",
     "dep:self_cell",
     "dep:oss-rest",
+    "dep:oss-meta",
 ]
 coordinator = ["dep:oss-coordinator", "dep:oss-blob"]
 
@@ -42,6 +43,7 @@ oss-coordinator = { workspace = true, optional = true }
 oss-rest = { workspace = true, optional = true }
 oss-transport = { workspace = true, optional = true }
 oss-cluster = { workspace = true, optional = true }
+oss-meta = { workspace = true, optional = true }
 oss-format = { workspace = true, optional = true }
 oss-blob = { workspace = true, optional = true }
 lucene-store = { workspace = true, optional = true }
@@ -75,4 +77,14 @@ path = "tests/it/main.rs"
 [[test]]
 name = "writer_role"
 path = "tests/writer_role.rs"
+required-features = ["writer"]
+
+[[test]]
+name = "writer_first"
+path = "tests/writer_first.rs"
+required-features = ["writer"]
+
+[[test]]
+name = "writer_heads"
+path = "tests/writer_heads.rs"
 required-features = ["writer"]

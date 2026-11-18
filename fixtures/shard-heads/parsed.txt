@@ -1,0 +1,12 @@
+{"index":"logs","shard":0,"term":1,"owner_node_id":"node-1","owner_ephemeral_id":"e1","lease_expires_at_millis":1700000000000}
+{"index":"logs","shard":3,"term":7,"owner_node_id":"node-2","owner_ephemeral_id":"e2","lease_expires_at_millis":1700000000500,"index_uuid":"u-1"}
+{"index":"logs","shard":3,"term":8,"owner_node_id":null,"owner_ephemeral_id":null,"lease_expires_at_millis":0,"index_uuid":"u-1","writers":["node-1","node-2"]}
+{"index":"logs","shard":1,"term":2,"owner_node_id":"node-1","owner_ephemeral_id":null,"lease_expires_at_millis":5}
+{"index":"quote\"d","shard":2,"term":3,"owner_node_id":"né","owner_ephemeral_id":"e","lease_expires_at_millis":9}
+refused
+refused
+refused
+refused
+{"index":"logs","shard":0,"term":1,"owner_node_id":null,"owner_ephemeral_id":null,"lease_expires_at_millis":0}
+refused
+refused
