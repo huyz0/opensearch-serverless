@@ -84,6 +84,7 @@ pub struct Shard<'d> {
     reader: Option<DirectoryReader>,
     primary_term: i64,
     max_seq_no: i64,
+    last_write_millis: u64,
     clock: Box<dyn Fn() -> u64 + Send + 'd>,
 }
 
@@ -113,6 +114,7 @@ impl<'d> Shard<'d> {
             Some((_, v)) => v.parse::<i64>().map_err(|e| message(&e))?,
             None => NO_OPS_PERFORMED,
         };
+        let opened = clock();
         let mut shard = Shard {
             dir,
             writer,
@@ -122,6 +124,7 @@ impl<'d> Shard<'d> {
             reader: None,
             primary_term,
             max_seq_no,
+            last_write_millis: opened,
             clock,
         };
         shard.open_reader()?;
@@ -131,6 +134,12 @@ impl<'d> Shard<'d> {
     /// The mapping, grown by the dynamic updates documents made.
     pub fn mapping(&self) -> &Mapping {
         &self.mapping
+    }
+
+    /// The time since the shard's last index or delete, or since it opened:
+    /// what the inactive-shard check reads.
+    pub fn idle_millis(&self) -> u64 {
+        (self.clock)().saturating_sub(self.last_write_millis)
     }
 
     /// The highest sequence number given, the local checkpoint: a primary
@@ -309,7 +318,9 @@ impl<'d> Shard<'d> {
             term: self.primary_term,
             deleted: false,
         };
-        self.versions.put(id, current, (self.clock)());
+        let now = (self.clock)();
+        self.versions.put(id, current, now);
+        self.last_write_millis = now;
         Ok(Written {
             outcome: if p.not_found_or_deleted {
                 Outcome::Created
@@ -361,7 +372,9 @@ impl<'d> Shard<'d> {
             term: self.primary_term,
             deleted: true,
         };
-        self.versions.put(id, current, (self.clock)());
+        let now = (self.clock)();
+        self.versions.put(id, current, now);
+        self.last_write_millis = now;
         Ok(Written {
             outcome: if p.not_found_or_deleted {
                 Outcome::NotFound

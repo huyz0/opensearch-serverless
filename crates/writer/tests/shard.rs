@@ -304,3 +304,25 @@ fn a_conflicting_write_still_grows_the_mapping() {
     );
     assert!(s.mapping().to_json().contains(r#""t":{"type":"text""#));
 }
+
+#[test]
+fn a_shard_is_idle_since_its_last_write() {
+    let dir = ByteBuffersDirectory::new();
+    let clock = Arc::new(AtomicU64::new(1_000));
+    let mut s = shard(&dir, &clock);
+    assert_eq!(s.idle_millis(), 0, "just opened");
+    clock.store(4_000, Ordering::Relaxed);
+    assert_eq!(s.idle_millis(), 3_000);
+    s.index("a", br#"{"n":1}"#, false, &Expect::default())
+        .expect("indexed");
+    assert_eq!(s.idle_millis(), 0, "an index is a write");
+    clock.store(9_000, Ordering::Relaxed);
+    assert_eq!(s.idle_millis(), 5_000);
+    s.delete("a", &Expect::default()).expect("deleted");
+    assert_eq!(s.idle_millis(), 0, "a delete is a write");
+    // A refused write is not a write.
+    clock.store(12_000, Ordering::Relaxed);
+    let refused = s.index("a", br#"{"n":"x"}"#, false, &Expect::default());
+    assert!(refused.is_err());
+    assert_eq!(s.idle_millis(), 3_000);
+}
