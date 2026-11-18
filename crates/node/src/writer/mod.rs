@@ -66,6 +66,13 @@ enum Failure {
 /// The shards held, by index uuid and shard number.
 type Held = HashMap<(String, u32), Arc<Mutex<ShardSlot>>>;
 
+/// The commit each held shard last published, by index uuid and shard.
+type Newest = HashMap<(String, u32), Arc<[u8]>>;
+
+/// The largest commit manifest a shard's newest-commit answer holds: the
+/// largest a reader reads.
+pub const MAX_NEWEST_BYTES: usize = 4 << 20;
+
 /// The shards this node writes, and the log their writes are staged in.
 pub struct WriterRole {
     committer: Arc<NodeLogCommitter>,
@@ -73,6 +80,7 @@ pub struct WriterRole {
     names: Arc<ShardNames>,
     incarnation: Option<Fenced>,
     shards: Mutex<Held>,
+    newest: Mutex<Newest>,
 }
 
 fn now_millis() -> u64 {
@@ -96,6 +104,8 @@ impl WriterRole {
             incarnation: None,
             // ALLOC: one entry a shard this node writes.
             shards: Mutex::new(HashMap::new()),
+            // ALLOC: empty; at most one manifest a held shard, MAX_NEWEST_BYTES each.
+            newest: Mutex::new(HashMap::new()),
         }
     }
 
@@ -135,9 +145,46 @@ impl WriterRole {
         let key = ShardKey::new(index.uuid.as_str(), shard, None::<&str>);
         let slot = ShardSlot::open(key, term, mapping, now_millis)?;
         self.names.insert(&index.uuid, &index.name);
-        // ALLOC: one entry and one key a shard opened.
-        lock(&self.shards).insert((index.uuid.clone(), shard), Arc::new(Mutex::new(slot)));
+        // ALLOC: one key a shard opened.
+        let key = (index.uuid.clone(), shard);
+        // Lock order: shards, then newest, everywhere both are held.
+        let mut shards = lock(&self.shards);
+        // ALLOC: one entry a shard opened.
+        shards.insert(key.clone(), Arc::new(Mutex::new(slot)));
+        // A shard opened again has published nothing yet.
+        lock(&self.newest).remove(&key);
         Ok(())
+    }
+
+    /// Remembers `manifest`, the commit a publish of the shard produced,
+    /// for readers that ask. False, and nothing remembered, when the shard
+    /// is not held or the manifest is over [`MAX_NEWEST_BYTES`].
+    pub fn staged(&self, index_uuid: &str, shard: u32, manifest: &[u8]) -> bool {
+        if manifest.len() > MAX_NEWEST_BYTES {
+            return false;
+        }
+        // ALLOC: one key a call.
+        let key = (index_uuid.to_owned(), shard);
+        // Held across the insert, so a release between the check and the
+        // insert cannot leave a manifest for a shard no longer held.
+        let shards = lock(&self.shards);
+        if !shards.contains_key(&key) {
+            return false;
+        }
+        // ALLOC: one manifest a held shard, at most MAX_NEWEST_BYTES.
+        lock(&self.newest).insert(key, Arc::from(manifest));
+        true
+    }
+
+    /// The commit the shard last published, if it is held and has.
+    pub fn newest_commit(&self, index_uuid: &str, shard: u32) -> Option<Arc<[u8]>> {
+        // ALLOC: one key a lookup.
+        let key = (index_uuid.to_owned(), shard);
+        let shards = lock(&self.shards);
+        if !shards.contains_key(&key) {
+            return None;
+        }
+        lock(&self.newest).get(&key).cloned()
     }
 
     /// Whether this node holds the shard.
@@ -159,6 +206,7 @@ impl WriterRole {
         // Not a slot opened since.
         if shards.get(&key).is_some_and(|s| Arc::ptr_eq(s, slot)) {
             shards.remove(&key);
+            lock(&self.newest).remove(&key);
         }
     }
 
