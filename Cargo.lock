@@ -803,6 +803,7 @@ dependencies = [
  "oss-blob",
  "oss-cluster",
  "oss-format",
+ "oss-meta",
  "oss-rest",
  "oss-testkit",
  "oss-types",
