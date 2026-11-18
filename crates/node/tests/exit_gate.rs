@@ -2,6 +2,10 @@
 //! Lucene reader opened (`fixtures/exit-gate`), opened by the Rust reader:
 //! both readers count the same files and documents in the same bytes.
 
+// ARITH: fixture sizes are small; an overflow panics the test, which is the
+// failure wanted. The fixture files are a few kilobytes, read whole.
+#![allow(clippy::arithmetic_side_effects, clippy::disallowed_methods)]
+
 use std::path::PathBuf;
 use std::sync::Arc;
 
