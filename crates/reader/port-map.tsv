@@ -1,4 +1,5 @@
 rust_path	kind	java_source	note
+src/commit_push/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/transport/CommitPush.java	the pushed map (keep time, shard bound), NewestCommits.newerThan and CommitManifest.stagedAfter; sans I/O, the transport action and the blocks are not ported
 src/lib.rs	new		crate root
 src/shard_files.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/SegmentPublisher.java@49f238ed	readManifest (the commit register) and ObjectStoreIndexInput's file locations; the descriptor read is DescriptorStore.get; files map to blob ranges instead of being downloaded
 src/engine_store.rs	new		lucene-rust's BlobStore over oss-blob; the Java reads through its BlockCacheDirectory instead

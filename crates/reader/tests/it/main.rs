@@ -6,6 +6,7 @@
 #![allow(clippy::arithmetic_side_effects, clippy::disallowed_methods)]
 
 mod open;
+mod push;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
