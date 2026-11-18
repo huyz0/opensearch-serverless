@@ -1,0 +1,1 @@
+VÅMêC‹é{"name":"logs","uuid":"u1","number_of_shards":1,"mapping":"{\"properties\":{\"n\":{\"type\":\"integer\"},\"title\":{\"type\":\"text\"},\"tag\":{\"type\":\"keyword\"}}}","settings":{}}
