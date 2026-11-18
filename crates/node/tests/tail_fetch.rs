@@ -248,32 +248,69 @@ fn the_fetch_handler_refuses_a_message_that_does_not_decode_and_a_shard_it_does_
     assert_eq!(answer.claimed_through, i64::MAX, "no claim to compare");
 }
 
+/// A valid message padded with zeros to `len` bytes.
+fn padded(message: &impl Encodes, len: usize) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    message.encode(&mut bytes);
+    assert!(bytes.len() <= len);
+    bytes.resize(len, 0);
+    bytes
+}
+
+trait Encodes {
+    fn encode(&self, into: &mut Vec<u8>);
+}
+
+impl Encodes for oss_transport::actions::tail::PushRequest {
+    fn encode(&self, into: &mut Vec<u8>) {
+        self.write(&mut Output::new(into, 1024)).expect("encodes");
+    }
+}
+
+impl Encodes for FetchRequest {
+    fn encode(&self, into: &mut Vec<u8>) {
+        self.write(&mut Output::new(into, 1024)).expect("encodes");
+    }
+}
+
 #[test]
-fn a_handler_refuses_a_message_over_its_bound() {
+fn a_handler_takes_a_message_at_its_bound_and_refuses_one_over_it() {
     let variable = VariableHeader::default();
     let held = Arc::new(TailHeld::new());
     let push = TailPushHandler::new(held, Arc::new(|| 5));
-    let big = vec![0_u8; MAX_PUSH_BYTES + 1];
-    let mut out = Vec::new();
-    assert!(
-        push.handle(
-            &request(PUSH_ACTION, &big, &variable),
-            &mut Output::new(&mut out, 1024)
-        )
-        .is_err()
-    );
     let fetch = TailFetchHandler::new(Arc::new(TailServe::new(
         Arc::new(TailKeep::new()),
         Arc::new(Facts(true)),
         Arc::new(Clock),
     )));
-    let big = vec![0_u8; MAX_FETCH_BYTES + 1];
-    assert!(
-        fetch
+    let take = |handler: &dyn Handler, action: &str, message: &[u8]| {
+        let mut out = Vec::new();
+        handler
             .handle(
-                &request(FETCH_ACTION, &big, &variable),
-                &mut Output::new(&mut out, 1024)
+                &request(action, message, &variable),
+                &mut Output::new(&mut out, 1 << 20),
             )
-            .is_err()
-    );
+            .is_ok()
+    };
+    let empty_push = oss_transport::actions::tail::PushRequest::default();
+    assert!(take(
+        &push,
+        PUSH_ACTION,
+        &padded(&empty_push, MAX_PUSH_BYTES)
+    ));
+    assert!(!take(
+        &push,
+        PUSH_ACTION,
+        &padded(&empty_push, MAX_PUSH_BYTES + 1)
+    ));
+    let ask = FetchRequest {
+        shard: shard_ref("u1"),
+        ..FetchRequest::default()
+    };
+    assert!(take(&fetch, FETCH_ACTION, &padded(&ask, MAX_FETCH_BYTES)));
+    assert!(!take(
+        &fetch,
+        FETCH_ACTION,
+        &padded(&ask, MAX_FETCH_BYTES + 1)
+    ));
 }
