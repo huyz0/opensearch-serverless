@@ -1,0 +1,295 @@
+//! The writer role of a node: applies a write to the shard's engine, stages
+//! its record in the node's one write log, and acknowledges only once the
+//! log blob holding it landed.
+//!
+//! Ported from the write path of
+//! `serverless/shell/src/main/java/org/opensearch/serverless/node/NodeWritePath.java`
+//! (`indexUnderFence`, `appendOrRelease`): the engine runs first because it
+//! assigns the sequence number the record carries; a stage that fails after
+//! the engine applied the write releases the shard, whose engine now holds
+//! an operation the log does not, so it reopens from the log. A bulk group
+//! is applied item by item and staged with one commit.
+
+mod slot;
+mod target;
+
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use oss_format::{ShardKey, WalRecord};
+use oss_rest::{Exception, Meta};
+use oss_writer::bulk::{IndexInfo, ItemResult, Kind, Owner, Planned, item_result};
+use oss_writer::index::{Refused, Written};
+use oss_writer::log::NodeLogCommitter;
+use oss_writer::mapping::Mapping;
+
+use slot::ShardSlot;
+
+pub use target::RoleTarget;
+
+/// What a writer asks of the rest of the cluster: which indexes exist,
+/// who owns a shard it does not hold, and how to send that owner a group.
+pub trait Routes: Send + Sync {
+    /// The index called `name`, if there is one.
+    fn index(&self, name: &str) -> Option<IndexInfo>;
+
+    /// Who owns `shard` of `index`, asked when this node does not hold it.
+    fn owner(&self, index: &IndexInfo, shard: u32) -> Owner;
+
+    /// Sends a group to the node that owns its shard, once, and answers
+    /// each item's outcome in the group's order.
+    fn forward(
+        &self,
+        node: &str,
+        index: &IndexInfo,
+        shard: u32,
+        group: &[Planned<'_>],
+    ) -> Vec<ItemResult>;
+}
+
+/// Why an item did not go ahead.
+enum Failure {
+    /// The engine refused it; it took no sequence number.
+    Refused(Refused),
+    /// The write could not be made durable or the shard is not held.
+    Unavailable(String),
+}
+
+/// The shards held, by index uuid and shard number.
+type Held = HashMap<(String, u32), Arc<Mutex<ShardSlot>>>;
+
+/// The shards this node writes, and the log their writes are staged in.
+pub struct WriterRole {
+    committer: Arc<NodeLogCommitter>,
+    routes: Arc<dyn Routes>,
+    shards: Mutex<Held>,
+}
+
+fn now_millis() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
+}
+
+fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+impl WriterRole {
+    /// A role staging into `committer`, asking `routes` about everything it
+    /// does not hold.
+    pub fn new(committer: Arc<NodeLogCommitter>, routes: Arc<dyn Routes>) -> Self {
+        Self {
+            committer,
+            routes,
+            // ALLOC: one entry a shard this node writes.
+            shards: Mutex::new(HashMap::new()),
+        }
+    }
+
+    /// Holds shard `shard` of `index`, empty, at `term`, its documents read
+    /// against `mapping`.
+    ///
+    /// # Errors
+    ///
+    /// The engine not opening.
+    pub fn open_shard(
+        &self,
+        index: &IndexInfo,
+        shard: u32,
+        term: i64,
+        mapping: Mapping,
+    ) -> Result<(), String> {
+        let key = ShardKey::new(index.uuid.as_str(), shard, None::<&str>);
+        let slot = ShardSlot::open(key, term, mapping, now_millis)?;
+        // ALLOC: one entry and one key a shard opened.
+        lock(&self.shards).insert((index.uuid.clone(), shard), Arc::new(Mutex::new(slot)));
+        Ok(())
+    }
+
+    /// Whether this node holds the shard.
+    pub fn held(&self, index_uuid: &str, shard: u32) -> bool {
+        // ALLOC: one key a lookup.
+        lock(&self.shards).contains_key(&(index_uuid.to_owned(), shard))
+    }
+
+    fn slot(&self, uuid: &str, shard: u32) -> Option<Arc<Mutex<ShardSlot>>> {
+        // ALLOC: one key a lookup.
+        lock(&self.shards).get(&(uuid.to_owned(), shard)).cloned()
+    }
+
+    /// Lets go of the shard: the engine reopens from the log.
+    fn release(&self, uuid: &str, shard: u32, slot: &Arc<Mutex<ShardSlot>>) {
+        let mut shards = lock(&self.shards);
+        // ALLOC: one key a release.
+        let key = (uuid.to_owned(), shard);
+        // Not a slot opened since.
+        if shards.get(&key).is_some_and(|s| Arc::ptr_eq(s, slot)) {
+            shards.remove(&key);
+        }
+    }
+
+    /// Whether the group's shard is held here; otherwise who owns it.
+    pub(crate) fn owner(&self, index: &IndexInfo, shard: u32) -> Owner {
+        if self.held(&index.uuid, shard) {
+            Owner::Local
+        } else {
+            self.routes.owner(index, shard)
+        }
+    }
+
+    /// Applies each item of a group to the shard and stages the written
+    /// ones in one commit, so every written item is in the log when this
+    /// returns `Ok`.
+    fn group(
+        &self,
+        index: &IndexInfo,
+        shard: u32,
+        group: &[Planned<'_>],
+    ) -> Vec<Result<Written, Failure>> {
+        let Some(slot) = self.slot(&index.uuid, shard) else {
+            return unavailable(group.len(), || {
+                // ALLOC: error path; one message.
+                format!(
+                    "cannot index into [{}][{shard}]: not open on this node",
+                    index.name
+                )
+            });
+        };
+        let held = Arc::clone(&slot);
+        let mut slot = lock(&slot);
+        if slot.released() {
+            return unavailable(group.len(), || {
+                // ALLOC: error path; one message.
+                format!(
+                    "cannot index into [{}][{shard}]: released after a failed write",
+                    index.name
+                )
+            });
+        }
+        // ALLOC: one outcome and one record an item of the group.
+        let mut outcomes: Vec<Result<Written, Failure>> = Vec::with_capacity(group.len());
+        let mut records: Vec<WalRecord<'_>> = Vec::with_capacity(group.len());
+        let mut staged: Vec<usize> = Vec::with_capacity(group.len());
+        for item in group {
+            let a = &item.op.action;
+            let source = match std::str::from_utf8(&item.op.source) {
+                Ok(s) => s,
+                Err(_) if a.kind == Kind::Delete => "",
+                Err(_) => {
+                    outcomes.push(Err(Failure::Unavailable(
+                        // ALLOC: error path; one message.
+                        "the document source is not valid UTF-8".to_owned(),
+                    )));
+                    continue;
+                }
+            };
+            let routing = a.routing.as_deref().filter(|r| !r.is_empty());
+            // Checked before the engine runs: a write the engine took must
+            // always have a record to stage.
+            if let Err(e) = WalRecord::index(item.id, source, 0, 0, 0).with_routing(routing) {
+                outcomes.push(Err(Failure::Unavailable(e.to_string())));
+                continue;
+            }
+            match slot.apply(a.kind, item.id, &item.op.source, a.create, &a.expect) {
+                Ok(written) => {
+                    let record = if a.kind == Kind::Delete {
+                        WalRecord::deletion(
+                            item.id,
+                            written.seq_no,
+                            written.primary_term,
+                            written.version,
+                        )
+                    } else {
+                        WalRecord::index(
+                            item.id,
+                            source,
+                            written.seq_no,
+                            written.primary_term,
+                            written.version,
+                        )
+                    };
+                    // The routing was checked above, so this keeps the record.
+                    let record = record.with_routing(routing).unwrap_or_else(|_| {
+                        WalRecord::index(
+                            item.id,
+                            source,
+                            written.seq_no,
+                            written.primary_term,
+                            written.version,
+                        )
+                    });
+                    staged.push(outcomes.len());
+                    records.push(record);
+                    outcomes.push(Ok(written));
+                }
+                Err(refused) => outcomes.push(Err(Failure::Refused(refused))),
+            }
+        }
+        if let Err(e) = self.committer.commit(slot.key(), slot.term(), &records) {
+            // The engine holds writes the log does not: the shard reopens
+            // from the log, and these writes are refused.
+            slot.release();
+            drop(slot);
+            self.release(&index.uuid, shard, &held);
+            for at in staged {
+                if let Some(o) = outcomes.get_mut(at) {
+                    // ALLOC: error path; one message an item.
+                    *o = Err(Failure::Unavailable(format!(
+                        "the write could not be made durable: {e}"
+                    )));
+                }
+            }
+        }
+        outcomes
+    }
+
+    /// Applies a group to a shard held here, staged and acknowledged as a
+    /// bulk answers its items.
+    pub fn apply_group(
+        &self,
+        index: &IndexInfo,
+        shard: u32,
+        group: &[Planned<'_>],
+    ) -> Vec<ItemResult> {
+        self.group(index, shard, group)
+            .into_iter()
+            .map(|outcome| match outcome {
+                Ok(w) => item_result(Ok(w), index, shard),
+                Err(Failure::Refused(r)) => item_result(Err(r), index, shard),
+                Err(Failure::Unavailable(reason)) => ItemResult::Failed {
+                    status: 503,
+                    error: Exception::new("node_log_exception", reason)
+                        // ALLOC: three short fields an item that failed.
+                        .with_meta("index", Meta::Str(index.name.clone()))
+                        .with_meta("shard", Meta::Str(shard.to_string()))
+                        .with_meta("index_uuid", Meta::Str(index.uuid.clone())),
+                },
+            })
+            .collect()
+    }
+
+    /// Refreshes a shard held here.
+    ///
+    /// # Errors
+    ///
+    /// The shard not held, or the engine's.
+    pub fn refresh(&self, index: &IndexInfo, shard: u32) -> Result<(), String> {
+        match self.slot(&index.uuid, shard) {
+            Some(slot) => lock(&slot).refresh(),
+            // ALLOC: error path; one message.
+            None => Err(format!(
+                "[{}][{shard}] is not open on this node",
+                index.name
+            )),
+        }
+    }
+}
+
+fn unavailable(n: usize, reason: impl Fn() -> String) -> Vec<Result<Written, Failure>> {
+    // ALLOC: one outcome an item of the group.
+    (0..n)
+        .map(|_| Err(Failure::Unavailable(reason())))
+        .collect()
+}

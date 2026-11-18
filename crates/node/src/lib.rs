@@ -15,6 +15,8 @@ pub mod push_sender;
 #[cfg(feature = "reader")]
 pub mod search;
 pub mod settings;
+#[cfg(feature = "writer")]
+pub mod writer;
 
 /// A role a node can serve.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

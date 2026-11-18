@@ -27,6 +27,10 @@ writer = [
     "dep:oss-transport",
     "dep:oss-cluster",
     "dep:oss-format",
+    "dep:lucene-store",
+    "dep:lucene-index",
+    "dep:self_cell",
+    "dep:oss-rest",
 ]
 coordinator = ["dep:oss-coordinator", "dep:oss-blob"]
 
@@ -42,6 +46,8 @@ oss-format = { workspace = true, optional = true }
 oss-blob = { workspace = true, optional = true }
 lucene-store = { workspace = true, optional = true }
 lucene-analysis = { workspace = true, optional = true }
+lucene-index = { workspace = true, optional = true }
+self_cell = { workspace = true, optional = true }
 oss-mem = { workspace = true, optional = true }
 
 [dev-dependencies]
@@ -65,3 +71,8 @@ path = "tests/publish_read.rs"
 [[test]]
 name = "it"
 path = "tests/it/main.rs"
+
+[[test]]
+name = "writer_role"
+path = "tests/writer_role.rs"
+required-features = ["writer"]

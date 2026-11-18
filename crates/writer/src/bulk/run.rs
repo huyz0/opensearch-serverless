@@ -73,6 +73,23 @@ pub trait Target {
         item: &Planned<'_>,
     ) -> Result<Written, Refused>;
 
+    /// Applies a group of items to a shard this node owns and answers each
+    /// item's outcome in the group's order. The default applies them one at
+    /// a time; a target that makes writes durable overrides it to do that
+    /// once for the group.
+    fn apply_group(
+        &mut self,
+        index: &IndexInfo,
+        shard: u32,
+        group: &[Planned<'_>],
+    ) -> Vec<ItemResult> {
+        group
+            .iter()
+            .map(|p| item_result(self.apply(index, shard, p), index, shard))
+            // ALLOC: one result an item of the group.
+            .collect()
+    }
+
     /// Refreshes a shard this node owns.
     ///
     /// # Errors
@@ -178,11 +195,7 @@ impl<'t, T: Target> Bulk<'t, T> {
                 // ALLOC: one entry an item of the group.
                 .collect();
             let results = match self.target.owner(&info, shard) {
-                Owner::Local => group
-                    .iter()
-                    .map(|p| written_or_failed(self.target.apply(&info, shard, p), &info, shard))
-                    // ALLOC: one result an item of the group.
-                    .collect(),
+                Owner::Local => self.target.apply_group(&info, shard, &group),
                 Owner::Node(node) => self.target.forward(&node, &info, shard, &group),
             };
             let mut wrote = false;
@@ -376,7 +389,7 @@ impl<'t, T: Target> Bulk<'t, T> {
 }
 
 /// The engine's answer for one item as its result.
-fn written_or_failed(result: Result<Written, Refused>, info: &IndexInfo, shard: u32) -> ItemResult {
+pub fn item_result(result: Result<Written, Refused>, info: &IndexInfo, shard: u32) -> ItemResult {
     match result {
         Ok(written) => ItemResult::Written {
             written,

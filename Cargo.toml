@@ -40,6 +40,8 @@ oss-cluster = { path = "crates/cluster" }
 oss-transport = { path = "crates/transport" }
 oss-rest = { path = "crates/rest" }
 chunkjson = { path = "crates/chunkjson" }
+# A struct that owns a value and what borrows it, in safe code.
+self_cell = "1"
 oss-reader = { path = "crates/reader" }
 oss-writer = { path = "crates/writer" }
 oss-coordinator = { path = "crates/coordinator" }
