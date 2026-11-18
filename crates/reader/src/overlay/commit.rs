@@ -145,3 +145,21 @@ pub fn find_copies(reader: &DirectoryReader, ids: &[String]) -> Result<Copies, B
     }
     Ok(Copies { found })
 }
+
+/// The commit user data key the writer stores the local checkpoint under.
+const LOCAL_CHECKPOINT_KEY: &str = "local_checkpoint";
+
+/// The local checkpoint the commit holds: every operation up to it is in the
+/// commit. `-1` (no operation performed) when the commit has none or it is
+/// not a number. Reads nothing: the user data is in the commit's own
+/// `segments_N`.
+#[must_use]
+pub fn local_checkpoint(reader: &DirectoryReader) -> i64 {
+    reader
+        .segment_infos
+        .user_data
+        .iter()
+        .find(|(key, _)| key == LOCAL_CHECKPOINT_KEY)
+        .and_then(|(_, value)| value.parse().ok())
+        .unwrap_or(-1)
+}

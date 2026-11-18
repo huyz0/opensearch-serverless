@@ -140,3 +140,16 @@ fn a_whole_file_read_is_one_ranged_get_of_exactly_that_file() {
         3
     );
 }
+
+#[test]
+fn the_mapping_source_is_kept_for_the_overlay_s_builder() {
+    let store = store_with_fixtures();
+    let (_files, meta) = ShardFiles::open_with_meta(&store, BASE, INDEX, 0).expect("meta");
+    assert!(
+        meta.mapping_json.starts_with('{') && meta.mapping_json.contains("properties"),
+        "{}",
+        meta.mapping_json
+    );
+    oss_doc::mapping::Mapping::parse(meta.mapping_json.as_bytes())
+        .expect("parses as the builder reads it");
+}

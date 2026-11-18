@@ -30,6 +30,16 @@ pub fn commit_without(
     batches: &[&[(&str, &str, i64)]],
     deleted: &[&str],
 ) -> (ByteBuffersDirectory, DirectoryReader) {
+    commit_with_data(mapping, batches, deleted, &[])
+}
+
+/// As [`commit_without`], the last commit carrying `user_data`.
+pub fn commit_with_data(
+    mapping: &Mapping,
+    batches: &[&[(&str, &str, i64)]],
+    deleted: &[&str],
+    user_data: &[(&str, &str)],
+) -> (ByteBuffersDirectory, DirectoryReader) {
     let dir = ByteBuffersDirectory::new();
     {
         let mut w = IndexWriter::open(&dir, Vec::new(), "Lucene104", VERSION).expect("writer");
@@ -61,6 +71,15 @@ pub fn commit_without(
                 .map(|id| Term::new("_id", oss_doc::lucene::uid(id).expect("uid")))
                 .collect();
             w.delete_documents_by_term(&terms).expect("delete");
+            w.commit().expect("commit");
+        }
+        if !user_data.is_empty() {
+            w.set_live_commit_data(
+                user_data
+                    .iter()
+                    .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
+                    .collect(),
+            );
             w.commit().expect("commit");
         }
     }

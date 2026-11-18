@@ -22,7 +22,7 @@ use oss_doc::lucene::{Indexer, Meta};
 use oss_doc::mapping::Mapping;
 use oss_format::WalRecord;
 
-pub use commit::{Copies, Copy, find_copies};
+pub use commit::{Copies, Copy, find_copies, local_checkpoint};
 pub use source::{OverlaySource, Ready};
 pub use view::{Masks, combine};
 
