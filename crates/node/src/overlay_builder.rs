@@ -21,7 +21,7 @@ use oss_format::WalRecord;
 use oss_mem::{MemoryBudget, Pool, Reservation};
 use oss_reader::commit_push::Stage;
 use oss_reader::overlay::{
-    CommitAccess, OverlaySource, Ready, build_ready, estimate_bytes, local_checkpoint,
+    CommitAccess, OverlaySource, Ready, build_ready, estimate_bytes, local_checkpoint, mask_bytes,
 };
 use oss_transport::actions::tail::{FetchRequest, FetchResponse, NEW, Record, ShardRef};
 use oss_transport::stream::TaskId;
@@ -372,11 +372,13 @@ impl Inner {
         let records: Vec<WalRecord<'_>> = held.iter().map(|(_, r)| wal(r)).collect();
         let estimate = estimate_bytes(&records);
         // Never evicts an open index: an overlay is worth less than one.
-        let Ok(charge) = self.budget.try_reserve(Pool::OpenIndexes, estimate) else {
+        // The view a search caches also holds a mask of every commit segment.
+        let charged = estimate.saturating_add(mask_bytes(job.commit.reader()));
+        let Ok(charge) = self.budget.try_reserve(Pool::OpenIndexes, charged) else {
             if let Some(slot) = lock(&self.slots).get_mut(&job.key)
                 && slot.stage == job.stage
             {
-                slot.refused = Some(estimate);
+                slot.refused = Some(charged);
             }
             return;
         };

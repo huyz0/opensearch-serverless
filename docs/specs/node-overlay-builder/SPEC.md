@@ -21,6 +21,7 @@ Parity plan R7.6, the tail overlay engine, sixth piece ([ADR 0018](../../adr/001
 - AC-6: the first `ready` for a shard tracks it at the commit's local checkpoint (records at or below it are never held); a different stage tracks it again and drops the old `Ready`; `closed` for its stage untracks it, drops its `Ready` and returns its charge; `closed` for an older stage changes nothing.
 - AC-7: the queue is bounded: with the worker paused and a queue of one, three shards' asks queue at most two builds and return at once; after the worker resumes every shard's overlay is finished by later asks. `pause` and `resume` hold the worker (shutdown uses them too).
 - AC-8 (`oss-reader`): `build_ready` leaves out the records the commit already holds (checkpoint and copies) and keeps newer ones; `local_checkpoint` and `mapping_json` are those of the commit and index it is given.
+- AC-10: an overlay is charged its estimate plus the masks its cached view holds (`mask_bytes`: one bit set of `max_doc` bits for each commit segment); a pool with room for the estimate alone refuses, and one with room for both accepts.
 
 ## Test plan
 
