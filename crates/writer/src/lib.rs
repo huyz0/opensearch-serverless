@@ -7,11 +7,10 @@
 //! makes rather than in extra PUTs.
 
 pub mod bulk;
-pub mod document;
 pub mod index;
 pub mod indexing_memory;
 pub mod log;
-pub mod lucene;
-pub mod mapping;
 pub mod mapping_growth;
 pub mod publish;
+
+pub use oss_doc::{document, lucene, mapping};

@@ -8,9 +8,9 @@ use lucene_index::index_writer::IndexWriter;
 use lucene_index::segment_info::LuceneVersion;
 use lucene_search::directory_reader::DirectoryReader;
 use lucene_store::ByteBuffersDirectory;
-use oss_writer::document;
-use oss_writer::lucene::{Indexer, Meta};
-use oss_writer::mapping::{Mapping, MappingError};
+use oss_doc::document;
+use oss_doc::lucene::{Indexer, Meta};
+use oss_doc::mapping::{Mapping, MappingError};
 
 const VERSION: LuceneVersion = LuceneVersion {
     major: 10,

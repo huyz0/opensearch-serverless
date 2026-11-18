@@ -3,8 +3,8 @@
 //! decimals, JSON escaping, dotted names that share a parent, and the
 //! builders dynamic mapping uses.
 
-use oss_writer::mapping::json::{Json, java_double, java_float, parse as parse_json};
-use oss_writer::mapping::{Dynamic, FieldType, Leaf, Mapper, Mapping, MappingError, Value};
+use oss_doc::mapping::json::{Json, java_double, java_float, parse as parse_json};
+use oss_doc::mapping::{Dynamic, FieldType, Leaf, Mapper, Mapping, MappingError, Value};
 
 fn parse(json: &str) -> Result<Mapping, MappingError> {
     Mapping::parse(json.as_bytes())

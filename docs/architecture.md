@@ -4,7 +4,7 @@ A stateless search service on object storage. Nodes hold caches, never durable s
 
 ## Crate map
 
-Dependencies point downward only (`scripts/check-layering.py`): `oss-types`, `oss-mem`, `oss-testkit` (layer 0) ← `oss-blob`, `oss-format`, `oss-rest`, `oss-transport` (1, siblings) ← `oss-meta`, `oss-cluster` (2, siblings) ← `oss-reader`, `oss-writer` (3, siblings that never depend on each other) ← `oss-coordinator` (4) ← `oss-node` (5) ← `oss-compat` (6). The graph below is generated from `cargo metadata` by `scripts/gen-crate-map.py`; dashed edges are optional (a role behind its Cargo feature). CI fails when it is stale.
+Dependencies point downward only (`scripts/check-layering.py`): `oss-types`, `oss-mem`, `oss-testkit` (layer 0) ← `oss-blob`, `oss-format`, `oss-rest`, `oss-transport` (1, siblings) ← `oss-meta`, `oss-cluster`, `oss-doc` (2, siblings) ← `oss-reader`, `oss-writer` (3, siblings that never depend on each other) ← `oss-coordinator` (4) ← `oss-node` (5) ← `oss-compat` (6). The graph below is generated from `cargo metadata` by `scripts/gen-crate-map.py`; dashed edges are optional (a role behind its Cargo feature). CI fails when it is stale.
 
 <!-- crate-map:start -->
 ```mermaid
@@ -21,6 +21,8 @@ graph TD
     oss-coordinator --> oss-reader
     oss-coordinator --> oss-types
     oss-coordinator --> oss-writer
+    oss-doc --> chunkjson
+    oss-doc --> oss-rest
     oss-format --> oss-types
     oss-mem
     oss-meta --> oss-blob
@@ -48,6 +50,7 @@ graph TD
     oss-writer --> chunkjson
     oss-writer --> oss-blob
     oss-writer --> oss-cluster
+    oss-writer --> oss-doc
     oss-writer --> oss-format
     oss-writer --> oss-meta
     oss-writer --> oss-rest
