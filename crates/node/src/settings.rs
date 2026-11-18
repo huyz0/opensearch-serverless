@@ -10,6 +10,10 @@ fn providers() -> Vec<&'static [&'static Setting]> {
     vec![
         #[cfg(any(feature = "reader", feature = "writer", feature = "coordinator"))]
         oss_blob::settings::SETTINGS,
+        #[cfg(feature = "writer")]
+        oss_writer::log::settings::SETTINGS,
+        #[cfg(feature = "writer")]
+        oss_cluster::early_revoke::SETTINGS,
     ]
 }
 
@@ -37,7 +41,10 @@ mod tests {
             feature = "coordinator"
         )) {
             assert!(keys.contains(&"serverless.store.type"), "{keys:?}");
-            assert_eq!(keys.len(), 6);
+            let writer = cfg!(feature = "writer");
+            assert_eq!(keys.len(), if writer { 12 } else { 6 });
+            assert_eq!(keys.contains(&"serverless.lease.early_revoke"), writer);
+            assert_eq!(keys.contains(&"serverless.wal.node_log.idle_flush"), writer);
         } else {
             assert!(keys.is_empty());
         }
