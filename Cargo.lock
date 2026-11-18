@@ -723,6 +723,7 @@ dependencies = [
  "lucene-index",
  "lucene-store",
  "oss-blob",
+ "oss-cluster",
  "oss-coordinator",
  "oss-format",
  "oss-mem",
