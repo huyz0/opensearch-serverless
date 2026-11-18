@@ -39,6 +39,7 @@ graph TD
     oss-node --> oss-types
     oss-node -.-> oss-writer
     oss-reader --> oss-blob
+    oss-reader --> oss-doc
     oss-reader --> oss-format
     oss-reader --> oss-rest
     oss-reader --> oss-types
