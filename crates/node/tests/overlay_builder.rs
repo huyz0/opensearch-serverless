@@ -159,6 +159,10 @@ fn new_records_build_again_and_the_old_overlay_serves_meanwhile() {
     fx.builder.pause();
     fx.held.take("u1", 0, &[index("e", 9, 101)], 1_000);
     let meanwhile = fx.ready().expect("the old overlay");
+    // Long enough for an unpaused worker to have built it.
+    std::thread::sleep(std::time::Duration::from_millis(150));
+    assert_eq!(fx.builder.builds(), 1, "held back while paused");
+    assert_eq!(fx.builder.pending(), 1);
     assert!(Arc::ptr_eq(&first, &meanwhile), "served while paused");
     fx.builder.resume();
     assert!(fx.builder.settle(), "a build never finished");
