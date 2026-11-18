@@ -23,7 +23,7 @@ use oss_doc::mapping::Mapping;
 use oss_format::WalRecord;
 
 pub use commit::{Copies, Copy, find_copies, local_checkpoint};
-pub use source::{OverlaySource, Ready};
+pub use source::{CommitAccess, OverlaySource, Ready, build_ready};
 pub use view::{Masks, combine};
 
 /// The most distinct ids one overlay replaces or deletes; more leaves the

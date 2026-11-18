@@ -18,8 +18,10 @@ reader = [
     "dep:oss-blob",
     "dep:lucene-store",
     "dep:lucene-analysis",
+    "dep:lucene-search",
     "dep:oss-mem",
     "dep:oss-transport",
+    "dep:oss-format",
 ]
 writer = [
     "dep:oss-writer",
@@ -49,6 +51,7 @@ oss-blob = { workspace = true, optional = true }
 lucene-store = { workspace = true, optional = true }
 lucene-analysis = { workspace = true, optional = true }
 lucene-index = { workspace = true, optional = true }
+lucene-search = { workspace = true, optional = true }
 self_cell = { workspace = true, optional = true }
 oss-mem = { workspace = true, optional = true }
 

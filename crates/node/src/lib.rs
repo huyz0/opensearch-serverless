@@ -13,6 +13,8 @@ pub mod newest_ask;
 #[cfg(feature = "reader")]
 pub mod open_indexes;
 #[cfg(feature = "reader")]
+pub mod overlay_builder;
+#[cfg(feature = "reader")]
 pub mod push;
 #[cfg(feature = "writer")]
 pub mod push_link;

@@ -5,6 +5,7 @@ src/main.rs	new		process entry point
 src/search.rs	port	server/src/main/java/org/opensearch/rest/action/search/RestSearchAction.java@3.10.0	prepareRequest's size and from parameters and the index lookup's IndexNotFoundException; open shards are kept, never polled, each charged to the open_indexes pool
 src/settings.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/settings/ServerlessSettings.java@3920dc36	collects each crate's SETTINGS list where the shell loads each SettingsProvider by ServiceLoader
 src/search_tests.rs	new		tests for open indexes charged to their pool
+src/overlay_builder.rs	new		builds the overlay of the held writes on a worker thread and hands a search what is finished; the shell builds in its engine
 src/push.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/transport/CommitPush.java	the receive side: answer whether the shard is open here and, when the push is newer than the open commit, keep it for the next open and let the open index go; the shell swaps the open reader in place
 src/push_sender.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/transport/CommitPush.java	the send side: the commit to the ranked readers in parallel and the readers that answered open; blocks and the thread pool are not ported
 src/push_link.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/transport/CommitPush.java	readerTargets and the send: the ranked search nodes but this one, and the signed call with the 500 ms timeout; the shell resolves peers through its router

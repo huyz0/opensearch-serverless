@@ -4,8 +4,10 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use lucene_search::directory_reader::DirectoryReader;
+use oss_doc::mapping::Mapping;
+use oss_format::WalRecord;
 
-use super::{BuildError, Copies, Overlay};
+use super::{BuildError, Copies, Overlay, candidate_ids, find_copies, local_checkpoint};
 use crate::OpenShard;
 use crate::commit_push::Stage;
 
@@ -56,6 +58,41 @@ impl Ready {
     }
 }
 
+/// Builds the overlay of `records`, given in ordinal order, over `commit`:
+/// reads the commit's local checkpoint and its copies of the ids above it,
+/// and leaves out every record the commit already holds. `mapping_json` is
+/// the index's mapping source and `max_bytes` what the caller reserved.
+///
+/// # Errors
+///
+/// As [`Overlay::build_over`], and [`BuildError::Engine`] for a mapping that
+/// does not parse or a commit that cannot be searched for the ids.
+pub fn build_ready(
+    commit: &DirectoryReader,
+    mapping_json: &str,
+    records: &[WalRecord<'_>],
+    max_bytes: usize,
+) -> Result<Ready, BuildError> {
+    let checkpoint = local_checkpoint(commit);
+    let ids = candidate_ids(records, checkpoint)?;
+    let copies = find_copies(commit, &ids)?;
+    let mapping = Mapping::parse(mapping_json.as_bytes())
+        // ALLOC: one message on a failed build.
+        .map_err(|e| BuildError::Engine(format!("mapping: {e:?}")))?;
+    let overlay = Overlay::build_over(&mapping, records, checkpoint, max_bytes, &copies)?;
+    Ok(Ready::new(overlay, copies))
+}
+
+/// The commit a shard is open on, held by a build that outlives the search
+/// which asked for it.
+pub trait CommitAccess: Send + Sync {
+    /// The commit's reader.
+    fn reader(&self) -> &DirectoryReader;
+
+    /// The mapping's JSON source, as the index's descriptor gave it.
+    fn mapping_json(&self) -> &str;
+}
+
 /// Where a node's searches get the overlay of a shard. A search never
 /// starts a build: the source answers with what is finished, or nothing.
 pub trait OverlaySource: Send + Sync {
@@ -66,7 +103,11 @@ pub trait OverlaySource: Send + Sync {
         index_uuid: &str,
         shard: u32,
         stage: &Stage,
-        commit: &DirectoryReader,
+        commit: &Arc<dyn CommitAccess>,
         now_millis: u64,
     ) -> Option<Arc<Ready>>;
+
+    /// The engine open on shard `shard` of `index_uuid` at `stage` let go:
+    /// what the source kept for that engine can go too. Nothing by default.
+    fn closed(&self, _index_uuid: &str, _shard: u32, _stage: &Stage, _now_millis: u64) {}
 }
