@@ -75,6 +75,10 @@ name = "it"
 path = "tests/it/main.rs"
 
 [[test]]
+name = "forward"
+required-features = ["writer"]
+
+[[test]]
 name = "writer_role"
 path = "tests/writer_role.rs"
 required-features = ["writer"]
