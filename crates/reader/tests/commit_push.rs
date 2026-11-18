@@ -22,13 +22,16 @@ fn stage(term: u64, writer: Option<&str>, sequence: i64) -> Stage {
 fn a_push_is_kept_until_taken_and_taken_once() {
     let mut m = PushedCommits::new(8, 1 << 20);
     let value = commit(2, Some("w"), 4);
+    assert!(m.is_empty());
     assert_eq!(m.push(&key(0), &value, 100), Ok(true));
+    assert!(!m.is_empty());
     assert_eq!(m.len(), 1);
     assert_eq!(m.held_bytes(), value.len());
     assert_eq!(m.take(&key(1), 100), None, "another shard's");
     assert_eq!(m.take(&key(0), 100), Some(value));
     assert_eq!(m.take(&key(0), 100), None);
     assert_eq!((m.len(), m.held_bytes()), (0, 0));
+    assert!(m.is_empty());
 }
 
 #[test]
