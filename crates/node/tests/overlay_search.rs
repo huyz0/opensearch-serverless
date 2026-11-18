@@ -184,6 +184,8 @@ struct Source {
     asked: Mutex<u32>,
     built: Mutex<Option<Arc<Ready>>>,
     ready: bool,
+    /// The id of the third record: changing it makes the next overlay differ.
+    new_id: Mutex<&'static str>,
 }
 
 impl Source {
@@ -194,7 +196,24 @@ impl Source {
             asked: Mutex::new(0),
             built: Mutex::new(None),
             ready,
+            new_id: Mutex::new("c"),
         })
+    }
+}
+
+impl Source {
+    /// The next `ready` builds an overlay whose new document has `id`.
+    fn replace_with(&self, id: &'static str) {
+        *self.new_id.lock().expect("lock") = id;
+        *self.built.lock().expect("lock") = None;
+    }
+
+    fn views(&self) -> u64 {
+        self.built
+            .lock()
+            .expect("lock")
+            .as_ref()
+            .map_or(0, |r| r.views_made())
     }
 }
 
@@ -218,7 +237,13 @@ impl OverlaySource for Source {
             let records = [
                 WalRecord::index("a".to_owned(), r#"{"n":7}"#.to_owned(), 1000, 1, 1001),
                 WalRecord::deletion("b".to_owned(), 1001, 1, 1002),
-                WalRecord::index("c".to_owned(), r#"{"n":9}"#.to_owned(), 1002, 1, 1003),
+                WalRecord::index(
+                    self.new_id.lock().expect("lock").to_owned(),
+                    r#"{"n":9}"#.to_owned(),
+                    1002,
+                    1,
+                    1003,
+                ),
             ];
             let overlay = Overlay::build(&self.mapping, &records, 0, 4 << 20).expect("builds");
             let copies = find_copies(commit, overlay.ids()).expect("copies");
@@ -293,7 +318,8 @@ fn searches_between_two_overlays_share_one_view_and_make_no_request() {
     let root = TempDir::new("overlay-view");
     let dir = ByteBuffersDirectory::new();
     let fx = fixture(root.path(), &dir, &["a", "b"]);
-    assert!(install(&fx.service, true, Source::new(true)));
+    let source = Source::new(true);
+    assert!(install(&fx.service, true, source.clone()));
     assert_eq!(all(&fx), 2);
     let before = counts(&fx.store);
     for _ in 0..3 {
@@ -303,6 +329,22 @@ fn searches_between_two_overlays_share_one_view_and_make_no_request() {
     for op in [S3Op::Get, S3Op::List, S3Op::Head, S3Op::Put, S3Op::Delete] {
         assert_eq!(gets(before, after, op), 0, "{op:?}");
     }
+    assert_eq!(source.views(), 1, "four searches made one view");
+}
+
+#[test]
+fn a_new_overlay_from_the_source_makes_a_new_view_once() {
+    let root = TempDir::new("overlay-swap");
+    let dir = ByteBuffersDirectory::new();
+    let fx = fixture(root.path(), &dir, &["a", "b"]);
+    let source = Source::new(true);
+    assert!(install(&fx.service, true, source.clone()));
+    assert_eq!(n_is(&fx, 9), 1);
+    source.replace_with("d");
+    for _ in 0..3 {
+        assert_eq!(n_is(&fx, 9), 1);
+    }
+    assert_eq!(source.views(), 1, "the new overlay was viewed once");
 }
 
 #[test]

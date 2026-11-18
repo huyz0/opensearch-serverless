@@ -1,6 +1,7 @@
 //! What a search asks for the overlay of a shard it serves.
 
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use lucene_search::directory_reader::DirectoryReader;
 
@@ -14,19 +15,31 @@ use crate::commit_push::Stage;
 pub struct Ready {
     overlay: Overlay,
     copies: Copies,
+    views: AtomicU64,
 }
 
 impl Ready {
     /// `overlay` with `copies`, found in the commit it was built over.
     #[must_use]
     pub fn new(overlay: Overlay, copies: Copies) -> Self {
-        Self { overlay, copies }
+        Self {
+            overlay,
+            copies,
+            views: AtomicU64::new(0),
+        }
     }
 
     /// The overlay.
     #[must_use]
     pub fn overlay(&self) -> &Overlay {
         &self.overlay
+    }
+
+    /// How many views this overlay has been asked for: a search that finds
+    /// its shard's view cached asks for none.
+    #[must_use]
+    pub fn views_made(&self) -> u64 {
+        self.views.load(Ordering::Relaxed)
     }
 
     /// The shard as a search sees it with this overlay on top.
@@ -38,6 +51,7 @@ impl Ready {
         &self,
         shard: &OpenShard<S>,
     ) -> Result<OpenShard<S>, BuildError> {
+        self.views.fetch_add(1, Ordering::Relaxed);
         shard.with_overlay(&self.overlay, &self.copies)
     }
 }

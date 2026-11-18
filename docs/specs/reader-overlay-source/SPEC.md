@@ -7,7 +7,7 @@ Parity plan R7.6, the tail overlay engine, fifth piece ([ADR 0018](../../adr/001
 ## Change
 
 - `oss-reader`: `overlay::Ready` (a finished overlay with the commit's copies of its ids) and the `OverlaySource` trait, `ready(index_uuid, shard, stage, commit, now_millis) -> Option<Arc<Ready>>`: only a finished overlay, never started by a search.
-- `oss-node`: the setting `serverless.search.tail_overlay.enabled` (node scope, default `false`), `tail_overlay::install` (as `newest_ask::install`) and `SearchService::set_overlay_source`. With a source installed, `_search` serves a shard through the view the source's `Ready` makes over the open commit; the view is cached with the open shard and rebuilt only when the source returns another `Ready`. A refused view serves the commit alone.
+- `oss-node`: the setting `serverless.search.tail_overlay.enabled` (node scope, default `false`), `tail_overlay::install` (as `newest_ask::install`) and `SearchService::set_overlay_source`. With a source installed, `_search` serves a shard through the view the source's `Ready` makes over the open commit; the view is cached with the open shard and rebuilt only when the source returns another `Ready`. A refused view serves the commit alone. The shard asked for is 0: a node serves single-shard indexes only.
 - The index-level override `index.serverless.tail_overlay` is not defined here: the descriptor reader does not yet read an index's settings. The next piece adds both together.
 
 ## Acceptance criteria
@@ -15,7 +15,7 @@ Parity plan R7.6, the tail overlay engine, fifth piece ([ADR 0018](../../adr/001
 - AC-1: with the setting off no source is installed, and a search is answered from the commit alone.
 - AC-2: with a source installed a search finds the overlay's documents and not the commit's copies they replace.
 - AC-3: a source that has no overlay yet leaves the answer the commit's.
-- AC-4: a search does not rebuild the view while the source returns the same `Ready`: one view serves the searches between two overlays.
+- AC-4: a search does not rebuild the view while the source returns the same `Ready` (four searches make one view, counted by `Ready::views_made`), and a new `Ready` makes one new view. A refused view is cached with its `Ready`, so a refusal is not repeated.
 - AC-5: the setting is `false` by default and the node's registry holds it.
 
 ## Test plan

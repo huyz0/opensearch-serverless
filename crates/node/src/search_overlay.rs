@@ -8,8 +8,9 @@ use oss_reader::overlay::Ready;
 
 use super::{Held, SearchService};
 
-/// An overlay and the shard view made from it.
-pub(super) type OverlayView<S> = (Arc<Ready>, Arc<OpenShard<S>>);
+/// An overlay and the shard view made from it; `None` when the engine
+/// refused the view, so the refusal is not repeated on every search.
+pub(super) type OverlayView<S> = (Arc<Ready>, Option<Arc<OpenShard<S>>>);
 
 impl<S: BlobStore + 'static> SearchService<S> {
     /// `held`'s shard with the overlay the source has finished on top, or
@@ -21,6 +22,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
         meta_uuid: &str,
     ) -> Option<Arc<OpenShard<S>>> {
         let source = self.overlay.get()?;
+        // Shard 0: a node serves single-shard indexes only (`SearchService::shard`).
         let ready = source.ready(
             meta_uuid,
             0,
@@ -35,10 +37,13 @@ impl<S: BlobStore + 'static> SearchService<S> {
         if let Some((made_from, view)) = cached.as_ref()
             && Arc::ptr_eq(made_from, &ready)
         {
-            return Some(Arc::clone(view));
+            return view.clone();
         }
-        let view = Arc::new(ready.view(&held.shard).ok()?);
-        *cached = Some((ready, Arc::clone(&view)));
-        Some(view)
+        // The build reads nothing from the store, so holding the lock
+        // through it costs the searches of one shard a short wait, once an
+        // overlay.
+        let view = ready.view(&held.shard).ok().map(Arc::new);
+        *cached = Some((ready, view.clone()));
+        view
     }
 }
