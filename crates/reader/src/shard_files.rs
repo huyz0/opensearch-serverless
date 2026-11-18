@@ -73,6 +73,29 @@ impl ShardFiles {
         index: &str,
         shard: u32,
     ) -> Result<(Self, IndexMeta), ReaderError> {
+        Self::open_from(store, base, index, shard, None)
+    }
+
+    /// [`Self::open_with_meta`] for a commit the shard's writer pushed:
+    /// `pushed` is the commit register's value, so only the descriptor is
+    /// read, one GET.
+    pub fn open_pushed_with_meta<S: BlobStore>(
+        store: &PooledStore<S>,
+        base: &str,
+        index: &str,
+        shard: u32,
+        pushed: &[u8],
+    ) -> Result<(Self, IndexMeta), ReaderError> {
+        Self::open_from(store, base, index, shard, Some(pushed))
+    }
+
+    fn open_from<S: BlobStore>(
+        store: &PooledStore<S>,
+        base: &str,
+        index: &str,
+        shard: u32,
+        pushed: Option<&[u8]>,
+    ) -> Result<(Self, IndexMeta), ReaderError> {
         let descriptor_bytes =
             read_register(store, &descriptor_key(base, index)?, MAX_REGISTER_BYTES)?;
         let descriptor = match DescriptorRecord::parse(Register::parse(&descriptor_bytes)?.value)? {
@@ -91,9 +114,16 @@ impl ShardFiles {
             mapping,
         };
         let shard_ref = descriptor.shard(shard)?;
-        let manifest_bytes =
-            read_register(store, &shard_ref.manifest_key(base)?, MAX_REGISTER_BYTES)?;
-        let manifest = CommitManifest::parse(Register::parse(&manifest_bytes)?.value)?;
+        let register_bytes;
+        let value = match pushed {
+            Some(value) => value,
+            None => {
+                register_bytes =
+                    read_register(store, &shard_ref.manifest_key(base)?, MAX_REGISTER_BYTES)?;
+                Register::parse(&register_bytes)?.value
+            }
+        };
+        let manifest = CommitManifest::parse(value)?;
         let extents = shard_ref.resolve(base, &manifest)?;
         // ALLOC: one entry a commit file, at most the manifest's file limit.
         let mut files = BTreeMap::new();

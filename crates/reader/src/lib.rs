@@ -8,6 +8,7 @@
 //! (docs/roadmap.md).
 
 pub mod aggs;
+pub mod commit_push;
 pub mod date;
 pub mod dsl;
 pub mod engine_store;
@@ -64,6 +65,20 @@ pub fn open_shard<S: BlobStore + 'static>(
     shard: u32,
 ) -> Result<OpenShard<S>, ReaderError> {
     let (files, meta) = ShardFiles::open_with_meta(&store, base, index, shard)?;
+    open_located(store, cache, base, index, shard, files, meta)
+}
+
+/// [`open_shard`] for a commit the shard's writer pushed: `pushed` is the
+/// commit register's value, so one GET (the descriptor) finds the commit.
+pub fn open_shard_pushed<S: BlobStore + 'static>(
+    store: Arc<PooledStore<S>>,
+    cache: Arc<PageCache>,
+    base: &str,
+    index: &str,
+    shard: u32,
+    pushed: &[u8],
+) -> Result<OpenShard<S>, ReaderError> {
+    let (files, meta) = ShardFiles::open_pushed_with_meta(&store, base, index, shard, pushed)?;
     open_located(store, cache, base, index, shard, files, meta)
 }
 
