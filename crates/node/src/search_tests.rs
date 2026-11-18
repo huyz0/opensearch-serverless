@@ -235,6 +235,8 @@ fn concurrent_first_searches_open_once_and_close_nothing_else() {
         view: std::sync::Mutex::default(),
         stage: oss_reader::commit_push::Stage::new(1, None, -1),
         charge,
+        source: None,
+        epoch: std::time::Instant::now(),
     })));
     for w in workers {
         assert!(w.join().expect("worker"));

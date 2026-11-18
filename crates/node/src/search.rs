@@ -45,6 +45,9 @@ pub(crate) struct Held<S: BlobStore + 'static> {
     /// Where the commit it is open on sits among its writer's.
     pub(crate) stage: Stage,
     charge: Reservation,
+    /// Told when this engine lets go, so it can drop what it kept for it.
+    source: Option<Arc<dyn OverlaySource>>,
+    epoch: Instant,
 }
 
 /// How many shards' pushed commits a node keeps for the opens that follow.
@@ -205,6 +208,8 @@ impl<S: BlobStore + 'static> SearchService<S> {
             view: Mutex::new(None),
             stage,
             charge,
+            source: self.overlay.get().cloned(),
+            epoch: self.epoch,
         })))
     }
 
@@ -258,7 +263,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
             Err(Answer::Rest(e)) => return Err(e),
             Err(Answer::Search(e)) => return send(resp, &e),
         };
-        let view = self.overlay_view(&held, &held.shard.meta.uuid);
+        let view = self.overlay_view(&held);
         let shard = view.as_deref().unwrap_or(&held.shard);
         req.body().reserve(hits_bytes(&source, shard))?;
         let analyzer = Analyzer::standard(None);

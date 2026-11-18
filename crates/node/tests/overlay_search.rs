@@ -9,7 +9,6 @@ use std::sync::{Arc, Mutex};
 
 use lucene_index::index_writer::IndexWriter;
 use lucene_index::segment_info::LuceneVersion;
-use lucene_search::directory_reader::DirectoryReader;
 use lucene_store::ByteBuffersDirectory;
 use oss_blob::{BlobStore, FsStore, PooledStore, S3Op};
 use oss_format::ShardRef;
@@ -18,7 +17,7 @@ use oss_mem::{BudgetConfig, BufferPool, MemoryBudget, Pool, SMALL_BUFFER};
 use oss_node::search::{SearchService, start_reader};
 use oss_node::tail_overlay::{TAIL_OVERLAY_ENABLED, install};
 use oss_reader::commit_push::Stage;
-use oss_reader::overlay::{Overlay, OverlaySource, Ready, find_copies};
+use oss_reader::overlay::{CommitAccess, Overlay, OverlaySource, Ready, find_copies};
 use oss_testkit::TempDir;
 use oss_writer::index::{Expect, Shard};
 use oss_writer::mapping::Mapping;
@@ -186,6 +185,8 @@ struct Source {
     ready: bool,
     /// The id of the third record: changing it makes the next overlay differ.
     new_id: Mutex<&'static str>,
+    /// The shards an engine closed on, in order.
+    closed: Mutex<Vec<(String, u32)>>,
 }
 
 impl Source {
@@ -197,6 +198,7 @@ impl Source {
             built: Mutex::new(None),
             ready,
             new_id: Mutex::new("c"),
+            closed: Mutex::new(Vec::new()),
         })
     }
 }
@@ -223,7 +225,7 @@ impl OverlaySource for Source {
         uuid: &str,
         shard: u32,
         _stage: &Stage,
-        commit: &DirectoryReader,
+        commit: &Arc<dyn CommitAccess>,
         _now: u64,
     ) -> Option<Arc<Ready>> {
         assert_eq!((uuid, shard), ("u1", 0));
@@ -246,10 +248,17 @@ impl OverlaySource for Source {
                 ),
             ];
             let overlay = Overlay::build(&self.mapping, &records, 0, 4 << 20).expect("builds");
-            let copies = find_copies(commit, overlay.ids()).expect("copies");
+            let copies = find_copies(commit.reader(), overlay.ids()).expect("copies");
             *built = Some(Arc::new(Ready::new(overlay, copies)));
         }
         built.clone()
+    }
+
+    fn closed(&self, uuid: &str, shard: u32, _stage: &Stage, _now: u64) {
+        self.closed
+            .lock()
+            .expect("lock")
+            .push((uuid.to_owned(), shard));
     }
 }
 
@@ -350,4 +359,25 @@ fn a_new_overlay_from_the_source_makes_a_new_view_once() {
 #[test]
 fn the_setting_is_off_by_default() {
     assert!(!TAIL_OVERLAY_ENABLED.default());
+}
+
+#[test]
+fn a_source_is_told_when_the_engine_it_served_closes() {
+    let root = TempDir::new("overlay-closed");
+    let dir = ByteBuffersDirectory::new();
+    let fx = fixture(root.path(), &dir, &["a", "b"]);
+    let source = Source::new(true);
+    assert!(install(&fx.service, true, source.clone()));
+    assert_eq!(all(&fx), 2);
+    assert!(source.closed.lock().expect("lock").is_empty());
+    let Fixture {
+        service, server, ..
+    } = fx;
+    server.shutdown();
+    drop(service);
+    assert_eq!(
+        *source.closed.lock().expect("lock"),
+        [("u1".to_owned(), 0)],
+        "told once, for the shard it served"
+    );
 }

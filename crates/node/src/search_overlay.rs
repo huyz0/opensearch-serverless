@@ -2,9 +2,10 @@
 
 use std::sync::Arc;
 
+use lucene_search::directory_reader::DirectoryReader;
 use oss_blob::BlobStore;
 use oss_reader::OpenShard;
-use oss_reader::overlay::Ready;
+use oss_reader::overlay::{CommitAccess, Ready};
 
 use super::{Held, SearchService};
 
@@ -16,18 +17,15 @@ impl<S: BlobStore + 'static> SearchService<S> {
     /// `held`'s shard with the overlay the source has finished on top, or
     /// `None` to serve the commit alone: no source, no finished overlay, or a
     /// view the engine refused.
-    pub(super) fn overlay_view(
-        &self,
-        held: &Held<S>,
-        meta_uuid: &str,
-    ) -> Option<Arc<OpenShard<S>>> {
+    pub(super) fn overlay_view(&self, held: &Arc<Held<S>>) -> Option<Arc<OpenShard<S>>> {
         let source = self.overlay.get()?;
         // Shard 0: a node serves single-shard indexes only (`SearchService::shard`).
+        let commit: Arc<dyn CommitAccess> = Arc::clone(held) as _;
         let ready = source.ready(
-            meta_uuid,
+            &held.shard.meta.uuid,
             0,
             &held.stage,
-            &held.shard.reader,
+            &commit,
             self.now_millis(),
         )?;
         let mut cached = held
@@ -45,5 +43,24 @@ impl<S: BlobStore + 'static> SearchService<S> {
         let view = ready.view(&held.shard).ok().map(Arc::new);
         *cached = Some((ready, view.clone()));
         view
+    }
+}
+
+impl<S: BlobStore + 'static> CommitAccess for Held<S> {
+    fn reader(&self) -> &DirectoryReader {
+        &self.shard.reader
+    }
+
+    fn mapping_json(&self) -> &str {
+        &self.shard.meta.mapping_json
+    }
+}
+
+impl<S: BlobStore + 'static> Drop for Held<S> {
+    fn drop(&mut self) {
+        if let Some(source) = &self.source {
+            let now = u64::try_from(self.epoch.elapsed().as_millis()).unwrap_or(u64::MAX);
+            source.closed(&self.shard.meta.uuid, 0, &self.stage, now);
+        }
     }
 }
