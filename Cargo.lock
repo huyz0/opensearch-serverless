@@ -729,6 +729,7 @@ dependencies = [
  "oss-reader",
  "oss-rest",
  "oss-testkit",
+ "oss-transport",
  "oss-types",
  "oss-writer",
 ]

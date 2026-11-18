@@ -230,7 +230,11 @@ fn concurrent_first_searches_open_once_and_close_nothing_else() {
         meta,
     )
     .expect("opens");
-    drop(Lead::new(&service.open, INDEXES[1]).opened(Arc::new(Held { shard, charge })));
+    drop(Lead::new(&service.open, INDEXES[1]).opened(Arc::new(Held {
+        shard,
+        stage: oss_reader::commit_push::Stage::new(1, None, -1),
+        charge,
+    })));
     for w in workers {
         assert!(w.join().expect("worker"));
     }
@@ -258,4 +262,14 @@ fn closing_makes_room_exactly_when_the_idle_bytes_cover_the_shortfall() {
     assert!(closing_makes_room(&refused(100, 1), 1));
     assert!(never_fits(&refused(101, 0)));
     assert!(!closing_makes_room(&refused(101, 100), 100));
+}
+
+#[test]
+fn the_service_clock_counts_milliseconds_from_its_start() {
+    let (service, _budget, _charges) = service_for_two();
+    let first = service.now_millis();
+    thread::sleep(std::time::Duration::from_millis(20));
+    let later = service.now_millis();
+    assert!(later >= first + 20, "{first} then {later}");
+    assert!(later < 60_000, "{later}");
 }

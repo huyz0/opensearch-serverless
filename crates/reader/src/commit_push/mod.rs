@@ -8,6 +8,7 @@
 //! calls [`PushedCommits::push`], and the open that wants the commit calls
 //! [`PushedCommits::take`], each under the caller's lock and clock.
 
+use std::cmp::Ordering;
 use std::collections::BTreeMap;
 
 use oss_format::CommitManifest;
@@ -28,22 +29,32 @@ pub enum Refused {
     Full,
 }
 
-/// A shard, by its index's uuid and number.
+/// A shard, by the index's name (or uuid, whichever the caller holds) and
+/// the shard number.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ShardKey {
-    uuid: String,
+    index: String,
     shard: u32,
 }
 
 impl ShardKey {
-    /// The key of shard `shard` of the index with `uuid`.
-    pub fn new(uuid: &str, shard: u32) -> Self {
+    /// The key of shard `shard` of `index`.
+    pub fn new(index: &str, shard: u32) -> Self {
         Self {
-            // ALLOC: one uuid a key, at most the shards the mailbox holds.
-            uuid: uuid.to_owned(),
+            // ALLOC: one name a key, at most the shards the mailbox holds.
+            index: index.to_owned(),
             shard,
         }
     }
+}
+
+/// A pushed commit taken from the mailbox.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Taken {
+    /// The uuid of the index the writer pushed it for.
+    pub uuid: String,
+    /// The commit register's value, as the writer wrote it.
+    pub value: Vec<u8>,
 }
 
 /// Where a commit sits among those its writer staged.
@@ -52,6 +63,7 @@ pub struct Stage {
     term: u64,
     writer: Option<String>,
     sequence: i64,
+    generation: i64,
 }
 
 impl Stage {
@@ -62,7 +74,14 @@ impl Stage {
             term,
             writer,
             sequence,
+            generation: -1,
         }
+    }
+
+    /// This commit with the generation of the Lucene commit it names.
+    pub fn with_generation(mut self, generation: i64) -> Self {
+        self.generation = generation;
+        self
     }
 
     /// Where `manifest` sits.
@@ -72,8 +91,21 @@ impl Stage {
             // ALLOC: one writer name a commit.
             writer: manifest.writer.as_deref().map(str::to_owned),
             sequence: manifest.stage_sequence,
+            generation: generation(manifest),
         }
     }
+}
+
+/// `CommitPush.generation`: the highest generation of the `segments_N` files
+/// a manifest names (`N` in base 36), or -1 when it names none.
+fn generation(manifest: &CommitManifest<'_>) -> i64 {
+    manifest
+        .files()
+        .iter()
+        .filter_map(|f| f.name.strip_prefix("segments_"))
+        .filter_map(|n| i64::from_str_radix(n, 36).ok())
+        .max()
+        .unwrap_or(-1)
 }
 
 /// `CommitManifest.stagedAfter`: `a` is later than `b`, both staged by one
@@ -87,6 +119,29 @@ pub fn staged_after(a: &Stage, b: &Stage) -> bool {
         && a.sequence > b.sequence
 }
 
+/// Where the commit register value `value` sits, or `None` when it is not a
+/// commit.
+pub fn stage_of(value: &[u8]) -> Option<Stage> {
+    CommitManifest::parse(value)
+        .ok()
+        .map(|manifest| Stage::of(&manifest))
+}
+
+/// `CommitPush.newer`: `candidate` is a later commit than `than`: a later
+/// term, or in one term a later stage of one writer, or a later Lucene commit
+/// generation.
+pub fn newer(candidate: &Stage, than: &Stage) -> bool {
+    match candidate.term.cmp(&than.term) {
+        Ordering::Greater => return true,
+        Ordering::Less => return false,
+        Ordering::Equal => {}
+    }
+    staged_after(candidate, than)
+        || (candidate.generation >= 0
+            && than.generation >= 0
+            && candidate.generation > than.generation)
+}
+
 /// `NewestCommits.newerThan`: `newest`, what the register's writer staged
 /// last, when it is staged after the register's commit; else the register's.
 pub fn newer_than<'a>(register: &'a Stage, newest: Option<&'a Stage>) -> &'a Stage {
@@ -97,6 +152,7 @@ pub fn newer_than<'a>(register: &'a Stage, newest: Option<&'a Stage>) -> &'a Sta
 }
 
 struct Held {
+    uuid: String,
     value: Vec<u8>,
     stage: Stage,
     at_millis: u64,
@@ -144,19 +200,26 @@ impl PushedCommits {
     }
 
     /// Keeps `value`, a commit register's value, for `key`. Gives whether
-    /// it was kept: a commit staged before the one already held is not.
+    /// it was kept: a commit that is not [`newer`] than the one already held
+    /// is not.
     ///
     /// # Errors
     ///
     /// [`Refused::NotACommit`] for bytes that do not parse as a commit;
     /// [`Refused::Full`] past the shard or byte bound, after dropping what is
     /// past its keep time.
-    pub fn push(&mut self, key: &ShardKey, value: &[u8], now_millis: u64) -> Result<bool, Refused> {
+    pub fn push(
+        &mut self,
+        key: &ShardKey,
+        uuid: &str,
+        value: &[u8],
+        now_millis: u64,
+    ) -> Result<bool, Refused> {
         let manifest = CommitManifest::parse(value).map_err(|_| Refused::NotACommit)?;
         let stage = Stage::of(&manifest);
         if let Some(held) = self.held.get(key)
             && !held.expired(now_millis)
-            && staged_after(&held.stage, &stage)
+            && !newer(&stage, &held.stage)
         {
             return Ok(false);
         }
@@ -170,6 +233,8 @@ impl PushedCommits {
         let replaced = self.held.insert(
             key.clone(),
             Held {
+                // ALLOC: one uuid a shard, as the shard keys.
+                uuid: uuid.to_owned(),
                 // ALLOC: one commit a shard, within the byte bound.
                 value: value.to_vec(),
                 stage,
@@ -186,10 +251,13 @@ impl PushedCommits {
 
     /// The commit pushed for `key`, once: it is not kept after. Nothing when
     /// none came or it is past its keep time.
-    pub fn take(&mut self, key: &ShardKey, now_millis: u64) -> Option<Vec<u8>> {
+    pub fn take(&mut self, key: &ShardKey, now_millis: u64) -> Option<Taken> {
         let held = self.held.remove(key)?;
         self.bytes = self.bytes.saturating_sub(held.value.len());
-        (!held.expired(now_millis)).then_some(held.value)
+        (!held.expired(now_millis)).then_some(Taken {
+            uuid: held.uuid,
+            value: held.value,
+        })
     }
 
     /// Whether a commit of `size` bytes for `key` is within both bounds.

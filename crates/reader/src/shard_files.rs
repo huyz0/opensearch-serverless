@@ -15,6 +15,7 @@ use std::collections::BTreeMap;
 use oss_blob::{BlobStore, ByteRange, PooledStore};
 use oss_format::{CommitManifest, DescriptorRecord, Register, descriptor_key};
 
+use crate::commit_push::Stage;
 use crate::error::ReaderError;
 use crate::mapping::Mapping;
 
@@ -50,6 +51,7 @@ pub struct IndexMeta {
 pub struct ShardFiles {
     /// The commit's primary term.
     pub term: u64,
+    stage: Stage,
     files: BTreeMap<String, FileRange>,
 }
 
@@ -145,6 +147,7 @@ impl ShardFiles {
         Ok((
             Self {
                 term: manifest.term,
+                stage: Stage::of(&manifest),
                 files,
             },
             meta,
@@ -154,7 +157,17 @@ impl ShardFiles {
     /// A commit of `files`, for tests.
     #[cfg(test)]
     pub(crate) fn of(term: u64, files: BTreeMap<String, FileRange>) -> Self {
-        Self { term, files }
+        Self {
+            term,
+            stage: Stage::new(term, None, -1),
+            files,
+        }
+    }
+
+    /// Where the commit sits among the writer's: its term, writer, stage
+    /// and Lucene generation.
+    pub fn stage(&self) -> &Stage {
+        &self.stage
     }
 
     /// The commit's files, in name order.
@@ -245,10 +258,7 @@ mod tests {
 
     #[test]
     fn an_empty_commit_is_empty() {
-        let files = ShardFiles {
-            term: 1,
-            files: BTreeMap::new(),
-        };
+        let files = ShardFiles::of(1, BTreeMap::new());
         assert!(files.is_empty());
         assert_eq!(files.len(), 0);
         let mut one = files.clone();
