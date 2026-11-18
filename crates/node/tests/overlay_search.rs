@@ -452,6 +452,8 @@ fn with_the_setting_off_nothing_is_wired_and_a_second_wire_is_refused() {
     let fx = fixture(root.path(), &dir, &["a", "b"]);
     assert!(wired(&fx, false).is_none());
     assert_eq!(all(&fx), 2);
+    assert!(!fx.service.has_overlay_source());
     assert!(wired(&fx, true).is_some());
+    assert!(fx.service.has_overlay_source());
     assert!(wired(&fx, true).is_none(), "a source is installed already");
 }

@@ -58,7 +58,8 @@ pub fn wire<S: oss_blob::BlobStore + 'static>(
     subscriber: String,
     clock: crate::tail_reader_link::Clock,
 ) -> Option<Wired> {
-    if !enabled {
+    // Checked before anything is built: a refused wire starts no worker.
+    if !enabled || service.has_overlay_source() {
         return None;
     }
     let held = Arc::new(crate::tail_held::TailHeld::new());

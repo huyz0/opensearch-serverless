@@ -105,6 +105,11 @@ impl<S: BlobStore + 'static> SearchService<S> {
         }
     }
 
+    /// Whether a source of overlays is installed.
+    pub fn has_overlay_source(&self) -> bool {
+        self.overlay.get().is_some()
+    }
+
     /// Installs where a search finds the overlay of the shard it serves.
     /// False when one is installed already.
     pub fn set_overlay_source(&self, source: Arc<dyn OverlaySource>) -> bool {
