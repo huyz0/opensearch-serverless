@@ -25,6 +25,7 @@
 
 pub mod lease;
 pub use lease::early_revoke;
+pub mod heads;
 pub mod placement;
 pub mod routing;
 pub mod transport_secret;

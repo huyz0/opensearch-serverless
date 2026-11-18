@@ -727,6 +727,7 @@ dependencies = [
  "oss-coordinator",
  "oss-format",
  "oss-mem",
+ "oss-meta",
  "oss-reader",
  "oss-rest",
  "oss-testkit",

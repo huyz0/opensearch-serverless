@@ -53,6 +53,7 @@ mod node_pack;
 mod reclaim_intent;
 mod register;
 mod segment_blob;
+mod shard_head;
 mod tombstone;
 mod transport_secret;
 mod unit_layout;
@@ -93,6 +94,7 @@ pub use segment_blob::{
     SegmentBlobHeader, SegmentFile, blob_order as segment_blob_order,
     encode_header as encode_segment_header,
 };
+pub use shard_head::{MAX_SHARD_HEAD_BYTES, ShardHead};
 pub use tombstone::{MAX_TOMBSTONE_BYTES, Tombstone, tombstone_bucket, tombstone_bucket_start};
 
 /// Node pack format constants and the header-length probe.
