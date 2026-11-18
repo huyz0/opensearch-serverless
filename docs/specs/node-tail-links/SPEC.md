@@ -23,7 +23,7 @@ A writer the leases do not show live is asked nothing. Nothing here reads the ob
 
 ## Test plan
 
-`crates/node/tests/tail_links.rs`: real servers on loopback with guarded handlers, a real `TailKeep`/`TailServe` on the writer and `TailHeld` on the reader.
+`crates/node/tests/tail_links.rs` (push) and `tail_fetch.rs` (fetch, bounds), over `tail_rig`: real servers on loopback with guarded handlers, a real `TailKeep`/`TailServe` on the writer and `TailHeld` on the reader.
 
 ## S3 request budget
 
