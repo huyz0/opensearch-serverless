@@ -142,6 +142,21 @@ impl<T> OpenSet<T> {
         self.indexes.remove(&name).map(|(held, _)| held)
     }
 
+    /// The open `index`, without counting as a search of it.
+    pub fn peek(&self, index: &str) -> Option<&Arc<T>> {
+        self.indexes.get(index).map(|(held, _)| held)
+    }
+
+    /// Takes `index` out of the set, held by searches or not, and hands it
+    /// back for the caller to drop once the set's lock is released. A search
+    /// that holds it finishes on it; the next search opens afresh.
+    pub fn release(&mut self, index: &str) -> Option<Arc<T>> {
+        let (name, (held, tick)) = self.indexes.remove_entry(index)?;
+        self.by_use.remove(&tick);
+        let _ = name;
+        Some(held)
+    }
+
     /// `index`, now the most recently searched, if it is open.
     fn touch(&mut self, index: &str) -> Option<Arc<T>> {
         let tick = self.next_tick();
@@ -278,5 +293,41 @@ mod tests {
         drop(Lead::new(&set, "a"));
         assert!(matches!(lock(&set).find("a"), Found::Lead));
         assert!(lock(&set).is_empty());
+    }
+
+    #[test]
+    fn a_released_index_is_peeked_no_more_and_opens_afresh() {
+        let mut set: OpenSet<u8> = OpenSet::default();
+        assert!(set.peek("a").is_none());
+        assert!(set.release("a").is_none());
+        assert!(matches!(set.find("a"), Found::Lead));
+        set.finish("a", Some(Arc::new(4)));
+        assert_eq!(set.peek("a").map(|h| **h), Some(4));
+        // A search holds it; releasing still takes it out of the set.
+        let Found::Open(held) = set.find("a") else {
+            panic!("a is open");
+        };
+        let released = set.release("a").expect("released");
+        assert!(Arc::ptr_eq(&held, &released));
+        assert!(set.peek("a").is_none());
+        assert!(set.is_empty());
+        assert!(set.close_oldest().is_none(), "nothing left to close");
+        assert!(
+            matches!(set.find("a"), Found::Lead),
+            "the next search opens"
+        );
+    }
+
+    #[test]
+    fn peeking_does_not_count_as_a_search() {
+        let mut set: OpenSet<u8> = OpenSet::default();
+        for (i, name) in ["a", "b"].into_iter().enumerate() {
+            assert!(matches!(set.find(name), Found::Lead));
+            set.finish(name, Some(Arc::new(u8::try_from(i).expect("small"))));
+        }
+        // a is the oldest; peeking at it leaves it the oldest.
+        assert!(set.peek("a").is_some());
+        let oldest = set.close_oldest().expect("one closes");
+        assert_eq!(*oldest, 0);
     }
 }

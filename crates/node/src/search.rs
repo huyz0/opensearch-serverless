@@ -23,6 +23,7 @@ use lucene_analysis::Analyzer;
 use lucene_store::page_cache::PageCache;
 use oss_blob::{BlobError, BlobStore, PooledStore};
 use oss_mem::{MemoryBudget, Pool, Reservation};
+use oss_reader::commit_push::{PushedCommits, ShardKey, Stage};
 use oss_reader::dsl::{DslError, MAX_RECORDED_BYTES, Recorder, SearchSource, source};
 use oss_reader::failure::{Failure, Meta, SearchError, ShardFailure};
 use oss_reader::open_cost::open_bytes;
@@ -36,10 +37,18 @@ pub const SEARCH_PARAMS: &[&str] = &["size", "from"];
 
 /// An open index and its charge to the `open_indexes` pool, released when
 /// the last search holding it finishes.
-struct Held<S: BlobStore + 'static> {
-    shard: OpenShard<S>,
+pub(crate) struct Held<S: BlobStore + 'static> {
+    pub(crate) shard: OpenShard<S>,
+    /// Where the commit it is open on sits among its writer's.
+    pub(crate) stage: Stage,
     charge: Reservation,
 }
+
+/// How many shards' pushed commits a node keeps for the opens that follow.
+const PUSHED_SHARDS: usize = 4096;
+
+/// The most bytes of pushed commits a node keeps.
+const PUSHED_BYTES: usize = 4_194_304;
 
 /// Serves searches of the indexes under one deployment base.
 pub struct SearchService<S: BlobStore + 'static> {
@@ -48,7 +57,12 @@ pub struct SearchService<S: BlobStore + 'static> {
     base: String,
     node_id: String,
     budget: MemoryBudget,
-    open: Mutex<OpenSet<Held<S>>>,
+    pub(crate) open: Mutex<OpenSet<Held<S>>>,
+    /// Commits pushed for open indexes that fell behind, for the open that
+    /// follows.
+    pub(crate) pushed: Mutex<PushedCommits>,
+    /// What the keep time of a pushed commit counts from.
+    pub(crate) epoch: Instant,
 }
 
 impl<S: BlobStore + 'static> SearchService<S> {
@@ -71,6 +85,8 @@ impl<S: BlobStore + 'static> SearchService<S> {
             node_id: node_id.to_owned(),
             budget: budget.clone(),
             open: Mutex::default(),
+            pushed: Mutex::new(PushedCommits::new(PUSHED_SHARDS, PUSHED_BYTES)),
+            epoch: Instant::now(),
         }
     }
 
@@ -79,7 +95,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
         self.lock().len()
     }
 
-    fn lock(&self) -> std::sync::MutexGuard<'_, OpenSet<Held<S>>> {
+    pub(crate) fn lock(&self) -> std::sync::MutexGuard<'_, OpenSet<Held<S>>> {
         lock(&self.open)
     }
 
@@ -123,7 +139,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
             }
         }
         let lead = Lead::new(&self.open, index);
-        let (files, meta) = match ShardFiles::open_with_meta(&self.store, &self.base, index, 0) {
+        let (files, meta) = match self.find_commit(index) {
             Ok(found) => found,
             Err(e) => return Err(open_failure(index, e)),
         };
@@ -141,6 +157,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
                 ),
             ))));
         }
+        let stage = files.stage().clone();
         let bytes = open_bytes(&files, &meta, &self.cache);
         let charge = self.charge(bytes).map_err(|e| {
             Answer::Rest(RestError::breaker(
@@ -161,7 +178,35 @@ impl<S: BlobStore + 'static> SearchService<S> {
         )
         .map_err(|e| open_failure(index, e))?;
         // ALLOC: one open shard an index; the pool bounds them.
-        Ok(lead.opened(Arc::new(Held { shard, charge })))
+        Ok(lead.opened(Arc::new(Held {
+            shard,
+            stage,
+            charge,
+        })))
+    }
+
+    /// The latest commit of shard 0 of `index`: the one its writer pushed
+    /// since this node's reader let go of an older one, which costs the
+    /// descriptor's one GET; else the register's, two.
+    fn find_commit(&self, index: &str) -> Result<(ShardFiles, oss_reader::IndexMeta), ReaderError> {
+        let key = ShardKey::new(index, 0);
+        let taken = lock_pushed(&self.pushed).take(&key, self.now_millis());
+        if let Some(taken) = taken
+            && let Ok((files, meta)) =
+                ShardFiles::open_pushed_with_meta(&self.store, &self.base, index, 0, &taken.value)
+            && meta.uuid == taken.uuid
+        {
+            return Ok((files, meta));
+        }
+        // No push, a push that is no commit, or one for an index since
+        // recreated: the register decides.
+        ShardFiles::open_with_meta(&self.store, &self.base, index, 0)
+    }
+
+    /// Milliseconds since this service started: what a pushed commit's keep
+    /// time counts.
+    pub(crate) fn now_millis(&self) -> u64 {
+        u64::try_from(self.epoch.elapsed().as_millis()).unwrap_or(u64::MAX)
     }
 
     /// Handles one `_search`.
@@ -394,4 +439,14 @@ pub fn start_reader<S: BlobStore + 'static>(
     let server =
         oss_rest::Server::start(listener, config, router, budget).map_err(StartError::Server)?;
     Ok((server, service))
+}
+
+/// Locks the pushed commits, taking them over if a push panicked holding
+/// them: every change to them is one whole step.
+pub(crate) fn lock_pushed(
+    pushed: &Mutex<PushedCommits>,
+) -> std::sync::MutexGuard<'_, PushedCommits> {
+    pushed
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }

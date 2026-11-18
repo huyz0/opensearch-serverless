@@ -3,7 +3,7 @@
 
 use oss_format::{ManifestEntry, encode_manifest};
 use oss_reader::commit_push::{
-    KEEP_MILLIS, PushedCommits, Refused, ShardKey, Stage, newer, newer_than, staged_after,
+    KEEP_MILLIS, PushedCommits, Refused, ShardKey, Stage, Taken, newer, newer_than, staged_after,
 };
 
 fn commit(term: u64, writer: Option<&str>, stage: i64) -> Vec<u8> {
@@ -20,8 +20,16 @@ fn commit_at(term: u64, writer: Option<&str>, stage: i64, segments: &str) -> Vec
     encode_manifest(term, writer, &[entry], 0, stage).expect("encode")
 }
 
+/// What a take of the commit pushed under uuid `u` gives.
+fn taken(value: &[u8]) -> Taken {
+    Taken {
+        uuid: "u".to_owned(),
+        value: value.to_vec(),
+    }
+}
+
 fn key(shard: u32) -> ShardKey {
-    ShardKey::new("uuid", shard)
+    ShardKey::new("logs", shard)
 }
 
 fn stage(term: u64, writer: Option<&str>, sequence: i64) -> Stage {
@@ -33,12 +41,12 @@ fn a_push_is_kept_until_taken_and_taken_once() {
     let mut m = PushedCommits::new(8, 1 << 20);
     let value = commit(2, Some("w"), 4);
     assert!(m.is_empty());
-    assert_eq!(m.push(&key(0), &value, 100), Ok(true));
+    assert_eq!(m.push(&key(0), "u", &value, 100), Ok(true));
     assert!(!m.is_empty());
     assert_eq!(m.len(), 1);
     assert_eq!(m.held_bytes(), value.len());
     assert_eq!(m.take(&key(1), 100), None, "another shard's");
-    assert_eq!(m.take(&key(0), 100), Some(value));
+    assert_eq!(m.take(&key(0), 100), Some(taken(&value)));
     assert_eq!(m.take(&key(0), 100), None);
     assert_eq!((m.len(), m.held_bytes()), (0, 0));
     assert!(m.is_empty());
@@ -48,67 +56,70 @@ fn a_push_is_kept_until_taken_and_taken_once() {
 fn a_push_older_than_the_keep_time_is_not_handed_out() {
     let mut m = PushedCommits::new(8, 1 << 20);
     let value = commit(2, Some("w"), 4);
-    m.push(&key(0), &value, 1_000).unwrap();
+    m.push(&key(0), "u", &value, 1_000).unwrap();
     assert_eq!(
         m.take(&key(0), 1_000 + KEEP_MILLIS),
-        Some(value.clone()),
+        Some(taken(&value)),
         "exactly as old as the keep time still counts"
     );
-    m.push(&key(0), &value, 1_000).unwrap();
+    m.push(&key(0), "u", &value, 1_000).unwrap();
     assert_eq!(m.take(&key(0), 1_001 + KEEP_MILLIS), None);
     assert_eq!((m.len(), m.held_bytes()), (0, 0), "dropped, not kept");
     // A clock that went back is not an age.
-    m.push(&key(0), &value, 5_000).unwrap();
-    assert_eq!(m.take(&key(0), 1_000), Some(value));
+    m.push(&key(0), "u", &value, 5_000).unwrap();
+    assert_eq!(m.take(&key(0), 1_000), Some(taken(&value)));
 }
 
 #[test]
 fn only_a_newer_push_replaces_the_one_held() {
     let mut m = PushedCommits::new(8, 1 << 20);
     let five = commit(2, Some("w"), 5);
-    assert_eq!(m.push(&key(0), &five, 0), Ok(true));
-    assert_eq!(m.push(&key(0), &commit(2, Some("w"), 3), 0), Ok(false));
+    assert_eq!(m.push(&key(0), "u", &five, 0), Ok(true));
+    assert_eq!(m.push(&key(0), "u", &commit(2, Some("w"), 3), 0), Ok(false));
     assert_eq!(
-        m.push(&key(0), &commit(2, Some("w"), 5), 0),
+        m.push(&key(0), "u", &commit(2, Some("w"), 5), 0),
         Ok(false),
         "the same commit again is not newer"
     );
     let seven = commit(2, Some("w"), 7);
-    assert_eq!(m.push(&key(0), &seven, 0), Ok(true));
+    assert_eq!(m.push(&key(0), "u", &seven, 0), Ok(true));
     assert_eq!(m.held_bytes(), seven.len(), "one commit a shard");
     // Another writer in the same term is not ordered with it: the one held
     // stays, and a lower term never replaces a higher one.
-    assert_eq!(m.push(&key(0), &commit(2, Some("x"), 9), 0), Ok(false));
-    assert_eq!(m.push(&key(0), &commit(1, Some("w"), 99), 0), Ok(false));
+    assert_eq!(m.push(&key(0), "u", &commit(2, Some("x"), 9), 0), Ok(false));
+    assert_eq!(
+        m.push(&key(0), "u", &commit(1, Some("w"), 99), 0),
+        Ok(false)
+    );
     // A higher term replaces whatever the stages say.
     let term = commit(3, Some("x"), 0);
-    assert_eq!(m.push(&key(0), &term, 0), Ok(true));
-    assert_eq!(m.take(&key(0), 0), Some(term));
+    assert_eq!(m.push(&key(0), "u", &term, 0), Ok(true));
+    assert_eq!(m.take(&key(0), 0), Some(taken(&term)));
 }
 
 #[test]
 fn a_higher_lucene_generation_is_newer_when_no_stage_orders_them() {
     let mut m = PushedCommits::new(8, 1 << 20);
     let a = commit_at(2, Some("w"), -1, "segments_5");
-    assert_eq!(m.push(&key(0), &a, 0), Ok(true));
+    assert_eq!(m.push(&key(0), "u", &a, 0), Ok(true));
     assert_eq!(
-        m.push(&key(0), &commit_at(2, Some("w"), -1, "segments_4"), 0),
+        m.push(&key(0), "u", &commit_at(2, Some("w"), -1, "segments_4"), 0),
         Ok(false)
     );
     // Generations are base 36: `a` is ten, past five.
     let ten = commit_at(2, Some("x"), -1, "segments_a");
-    assert_eq!(m.push(&key(0), &ten, 0), Ok(true));
-    assert_eq!(m.take(&key(0), 0), Some(ten));
+    assert_eq!(m.push(&key(0), "u", &ten, 0), Ok(true));
+    assert_eq!(m.take(&key(0), 0), Some(taken(&ten)));
 }
 
 #[test]
 fn bytes_that_are_not_a_commit_are_refused_and_held_nowhere() {
     let mut m = PushedCommits::new(8, 1 << 20);
     assert_eq!(
-        m.push(&key(0), b"not a commit", 0),
+        m.push(&key(0), "u", b"not a commit", 0),
         Err(Refused::NotACommit)
     );
-    assert_eq!(m.push(&key(0), b"", 0), Err(Refused::NotACommit));
+    assert_eq!(m.push(&key(0), "u", b"", 0), Err(Refused::NotACommit));
     assert_eq!((m.len(), m.held_bytes()), (0, 0));
 }
 
@@ -116,32 +127,32 @@ fn bytes_that_are_not_a_commit_are_refused_and_held_nowhere() {
 fn past_the_shard_or_byte_bound_a_push_is_refused_and_the_held_stay() {
     let one = commit(2, Some("w"), 1);
     let mut m = PushedCommits::new(2, 1 << 20);
-    m.push(&key(0), &one, 0).unwrap();
-    m.push(&key(1), &one, 0).unwrap();
-    assert_eq!(m.push(&key(2), &one, 0), Err(Refused::Full));
+    m.push(&key(0), "u", &one, 0).unwrap();
+    m.push(&key(1), "u", &one, 0).unwrap();
+    assert_eq!(m.push(&key(2), "u", &one, 0), Err(Refused::Full));
     // A shard already held is not a new shard.
-    assert_eq!(m.push(&key(1), &commit(2, Some("w"), 2), 0), Ok(true));
+    assert_eq!(m.push(&key(1), "u", &commit(2, Some("w"), 2), 0), Ok(true));
     assert_eq!(m.len(), 2);
 
     let mut m = PushedCommits::new(8, one.len() * 2);
-    m.push(&key(0), &one, 0).unwrap();
-    m.push(&key(1), &one, 0).unwrap();
-    assert_eq!(m.push(&key(2), &one, 0), Err(Refused::Full));
+    m.push(&key(0), "u", &one, 0).unwrap();
+    m.push(&key(1), "u", &one, 0).unwrap();
+    assert_eq!(m.push(&key(2), "u", &one, 0), Err(Refused::Full));
     assert_eq!(m.held_bytes(), one.len() * 2);
     // Replacing counts the difference, not both.
-    assert_eq!(m.push(&key(0), &commit(2, Some("w"), 2), 0), Ok(true));
+    assert_eq!(m.push(&key(0), "u", &commit(2, Some("w"), 2), 0), Ok(true));
     // A taken push gives its bytes back.
     m.take(&key(0), 0).unwrap();
-    assert_eq!(m.push(&key(2), &one, 0), Ok(true));
+    assert_eq!(m.push(&key(2), "u", &one, 0), Ok(true));
 }
 
 #[test]
 fn a_full_mailbox_makes_room_by_dropping_what_is_past_its_keep_time() {
     let one = commit(2, Some("w"), 1);
     let mut m = PushedCommits::new(1, 1 << 20);
-    m.push(&key(0), &one, 0).unwrap();
-    assert_eq!(m.push(&key(1), &one, KEEP_MILLIS), Err(Refused::Full));
-    assert_eq!(m.push(&key(1), &one, KEEP_MILLIS + 1), Ok(true));
+    m.push(&key(0), "u", &one, 0).unwrap();
+    assert_eq!(m.push(&key(1), "u", &one, KEEP_MILLIS), Err(Refused::Full));
+    assert_eq!(m.push(&key(1), "u", &one, KEEP_MILLIS + 1), Ok(true));
     assert_eq!(m.len(), 1);
     assert_eq!(m.take(&key(0), KEEP_MILLIS + 1), None);
 }
