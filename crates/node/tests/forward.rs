@@ -407,3 +407,16 @@ fn a_bulk_too_large_to_send_is_refused_without_a_call() {
     ));
     assert!(taken.lock().expect("lock").is_empty());
 }
+
+#[test]
+fn every_error_says_what_happened() {
+    for (error, says) in [
+        (ForwardError::NoPeer, "no live lease"),
+        (ForwardError::TooLarge, "too large"),
+        (ForwardError::BadAnswer, "did not decode"),
+        (ForwardError::Gone, "lease is gone"),
+        (ForwardError::Failed(CallError::Timeout), "Timeout"),
+    ] {
+        assert!(error.to_string().contains(says), "{error}");
+    }
+}
