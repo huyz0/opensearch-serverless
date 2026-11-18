@@ -12,6 +12,8 @@
 
 use std::collections::BTreeMap;
 
+use std::sync::Arc;
+
 use oss_blob::{BlobStore, ByteRange, PooledStore};
 use oss_format::{CommitManifest, DescriptorRecord, Register, descriptor_key};
 
@@ -44,6 +46,9 @@ pub struct IndexMeta {
     pub number_of_shards: u32,
     /// The index's fields; empty when the descriptor holds no mapping.
     pub mapping: Mapping,
+    /// The mapping's JSON source as the document builder reads it; empty when
+    /// the descriptor holds none.
+    pub mapping_json: Arc<str>,
 }
 
 /// Every file of one shard's latest published commit, by Lucene file name.
@@ -118,15 +123,19 @@ impl ShardFiles {
             DescriptorRecord::Tombstone => return Err(ReaderError::Deleted),
             DescriptorRecord::Alias => return Err(ReaderError::Alias),
         };
-        let mapping = match descriptor.mapping_escaped {
-            Some(escaped) => Mapping::from_escaped(escaped)?,
-            None => Mapping::default(),
+        let (mapping, mapping_json) = match descriptor.mapping_escaped {
+            Some(escaped) => {
+                let json = Mapping::unescape(escaped)?;
+                (Mapping::from_json(&json)?, Arc::<str>::from(json))
+            }
+            None => (Mapping::default(), Arc::<str>::from("")),
         };
         let meta = IndexMeta {
             // ALLOC: one uuid an open index.
             uuid: descriptor.uuid.to_string(),
             number_of_shards: descriptor.number_of_shards,
             mapping,
+            mapping_json,
         };
         let shard_ref = descriptor.shard(shard)?;
         let register_bytes;

@@ -122,6 +122,7 @@ pub fn estimate(
                 .saturating_mul(SEGMENT_BYTES.saturating_add(fields.saturating_mul(FIELD_BYTES))),
         )
         .saturating_add(files.len().saturating_mul(FILE_BYTES))
+        .saturating_add(meta.mapping_json.len())
         .saturating_add(whole)
 }
 
@@ -157,6 +158,7 @@ mod tests {
             uuid: "u".to_owned(),
             number_of_shards: 1,
             mapping: Mapping::from_escaped(mapping.as_bytes()).expect("mapping"),
+            mapping_json: std::sync::Arc::from(mapping),
         }
     }
 
@@ -215,7 +217,7 @@ mod tests {
         let pinned = |name: &str| name.ends_with(".tip");
         let fixed =
             SHARD_BYTES + 2 * (SEGMENT_BYTES + (2 + META_FIELDS) * FIELD_BYTES) + 6 * FILE_BYTES;
-        let small = 500 + 400 + 200;
+        let small = 500 + 400 + 200 + meta.mapping_json.len();
         let tip = usize::try_from(big).expect("fits");
         assert_eq!(
             estimate(&commit, &meta, &paging(true, None), &pinned),
@@ -229,7 +231,7 @@ mod tests {
         );
         assert_eq!(
             estimate(&files(&[]), &meta, &paging(true, None), &pinned),
-            SHARD_BYTES,
+            SHARD_BYTES + meta.mapping_json.len(),
         );
     }
 
@@ -251,7 +253,7 @@ mod tests {
         let meta = meta("{}");
         assert_eq!(
             open_bytes(&commit, &meta, &cache),
-            SHARD_BYTES + SEGMENT_BYTES + META_FIELDS * FIELD_BYTES + FILE_BYTES + 10
+            SHARD_BYTES + SEGMENT_BYTES + META_FIELDS * FIELD_BYTES + FILE_BYTES + 10 + 2
         );
     }
 }

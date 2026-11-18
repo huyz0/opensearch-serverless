@@ -116,6 +116,11 @@ impl TokenSink for Unescape {
 impl Mapping {
     /// Reads the mapping from its escaped form in a descriptor.
     pub fn from_escaped(escaped: &[u8]) -> Result<Self, MappingError> {
+        Self::from_json(&Self::unescape(escaped)?)
+    }
+
+    /// The JSON source of a mapping in its escaped form in a descriptor.
+    pub fn unescape(escaped: &[u8]) -> Result<String, MappingError> {
         let mut tokenizer = Tokenizer::new(Limits::default());
         let mut sink = Unescape {
             // ALLOC: the decoded mapping, at most MAX_MAPPING_BYTES; once per index opened.
@@ -125,7 +130,7 @@ impl Mapping {
         tokenizer.feed(escaped, &mut sink)?;
         tokenizer.feed(b"\"", &mut sink)?;
         tokenizer.finish(&mut sink)?;
-        Self::from_json(&sink.text)
+        Ok(sink.text)
     }
 
     /// Reads a mapping's JSON source.
