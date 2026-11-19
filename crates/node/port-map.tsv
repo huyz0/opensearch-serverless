@@ -30,3 +30,4 @@ src/tail_overlay.rs	new		the setting and install for the overlay source a search
 src/handlers.rs	new		the signed registry of the transport actions a node serves; the Java registers each handler on its transport service
 src/search_open.rs	new		the open of a shard for a search (pool charge, commit, errors), split from search.rs; the Java's ShardReaders opens shards in the engine
 src/search_shard.rs	new		one shard's query and the selected hits of its result, for a coordinator in the same process; the Java runs the query phase and the fetch phase in the engine
+src/coordinate.rs	new		one search over an index's shards run by this node's readers through the coordinator's merge

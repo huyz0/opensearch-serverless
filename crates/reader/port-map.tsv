@@ -103,3 +103,8 @@ src/aggs/bucket/terms_collect.rs	port	server/src/main/java/org/opensearch/search
 src/aggs/bucket/terms_render.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/LongTerms.java@3.10.0	LongTerms.Bucket.keyToXContent and InternalTerms.doXContentCommon
 src/aggs/bucket/collect_tests.rs	new		tests of terms on a real index
 src/aggs/bucket/terms_tests.rs	new		tests of terms parsing, reduce and writing
+src/prefetch/mod.rs	new		the open prefetch: the small and pinned files a cold open reads whole, fetched together; the Java downloads whole commits at open instead
+src/prefetch/plan.rs	new		picks those files from the file table and merges neighbours of a blob into ranges
+src/prefetch/plan_tests.rs	new		tests of plan.rs over a hand-built file table
+src/prefetch/primed.rs	new		holds the fetched bytes and serves the engine store from them until the open returns
+src/prefetch/tests.rs	new		tests of the open prefetch over a real index on the emulator

@@ -53,8 +53,8 @@ fn an_index_opens_once_with_two_gets_and_no_list() {
     );
     assert_eq!(
         get(&first, S3Op::GetRange),
-        4,
-        "the ranged reads of the files open and match_all touch, once each through the page cache: {first:?}"
+        1,
+        "the files open and match_all touch, in one merged ranged read by the open prefetch: {first:?}"
     );
     for op in [S3Op::List, S3Op::Head, S3Op::Put, S3Op::Copy, S3Op::Delete] {
         assert_eq!(get(&first, op), 0, "{op:?}: {first:?}");
@@ -213,17 +213,33 @@ fn an_index_the_node_cannot_serve_is_refused() {
     });
     crate::support::put_variant(&node.store, "compat-term", "corrupt", |_| "{".into());
     let r = request(node.addr(), "GET", "/two-shards/_search", None);
-    assert_eq!(r.status, 400);
-    assert!(
-        r.text()
-            .contains("searching an index of [2] shards is not supported by this node yet"),
-        "{}",
-        r.text()
-    );
+    // Without the coordinator an index of two shards is refused; with it
+    // the second shard, whose blobs are not here, fails alone.
+    #[cfg(not(feature = "coordinator"))]
+    {
+        assert_eq!(r.status, 400);
+        assert!(
+            r.text()
+                .contains("searching an index of [2] shards is not supported by this node yet"),
+            "{}",
+            r.text()
+        );
+    }
+    #[cfg(feature = "coordinator")]
+    {
+        assert_eq!(r.status, 200, "{}", r.text());
+        assert!(
+            r.text()
+                .contains(r#""successful":1,"skipped":0,"failed":1"#)
+        );
+    }
     let r = request(node.addr(), "GET", "/corrupt/_search", None);
     assert_eq!(r.status, 500, "{}", r.text());
     assert!(r.text().contains(r#""type":"exception""#), "{}", r.text());
-    assert_eq!(node.service.open_indexes(), 0);
+    assert_eq!(
+        node.service.open_indexes(),
+        usize::from(cfg!(feature = "coordinator"))
+    );
 }
 
 #[test]
