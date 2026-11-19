@@ -1,6 +1,6 @@
 # 0021: The open's prefetch fetches outside the page cache, under one node-wide gate of bytes and threads
 
-**Status:** Proposed, 2026-11-19. Two independent reviews did not clear it: it trades away ADR 0004's reserve-before-allocate and ADR 0005's single executor for this path, which the rule sends to the owner. Amends [ADR 0004](0004-bounded-memory-and-streaming.md) (reserve from a pool before allocating) and [ADR 0005](0005-io-model.md) (one bounded fetch executor) for this one path, until the sunset below.
+**Status:** Accepted by the owner, 2026-11-19, after two independent reviews that did not clear it (it trades away ADR 0004's reserve-before-allocate and ADR 0005's single executor for this path). Amends [ADR 0004](0004-bounded-memory-and-streaming.md) and [ADR 0005](0005-io-model.md) for this one path until the sunset below.
 
 ## Context
 
@@ -12,7 +12,7 @@ A cold open reads the commit file, each segment's `.si` and the other small and 
 2. Its threads and bytes come from one process-wide `Gate` (32 MiB and 32 fetches, defaults) taken without waiting, before any buffer is allocated or thread spawned. However many shards open at once, the prefetch holds at most the gate. A range the gate refuses is left to the engine: the prefetch is a hint, so a refusal costs round trips, never an answer or a 429.
 3. A fetched range's bytes stay reserved until the open returns, then both go back.
 4. The prefetch is a switch (`OpenPrefetch::enabled`), on by default, because it measured a win with no cost on the shapes tried: over the shell's layout (a segment is one blob) the seven compat indexes open in 3 requests, or 4, instead of 6, or 9, in 3 round trips instead of 6, reading the same bytes (`crates/node/tests/it/open_prefetch.rs`, emulator, provisional); the testkit's one-blob-per-file indexes read the same requests and bytes, which shows only that nothing is added there. A shell index whose small files sit apart in a segment blob would pay the gap bytes, not yet measured. It can read more only by the gaps it spans and small files the open would not read, bounded per open (8 MiB, gaps included) and per node by the gate; in a layout with one blob per file an unneeded small file would be one extra request.
-5. Sunset: the exception ends when the merged ranges go through the engine's executor and the bytes through the node's `MemoryBudget`; revisit by 2026-12-31 or with the node's open-path work, whichever is first.
+5. Sunset: the exception ends on 2026-12-31, or when the node's open-path work moves the merged ranges into the engine's executor and the bytes into the node's `MemoryBudget`, whichever is first.
 
 ## Consequences
 

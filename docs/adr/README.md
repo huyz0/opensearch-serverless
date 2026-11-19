@@ -30,4 +30,4 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0018](0018-tail-overlay-in-the-reader.md) | The reader searches pushed, unpublished writes through one small in-memory segment beside the commit | Accepted |
 | [0019](0019-document-indexing-crate-below-reader-and-writer.md) | Turning a document into Lucene fields moves to a crate below the reader and the writer | Accepted |
 | [0020](0020-janitor-crate.md) | The janitor is a crate beside the reader and the writer | Accepted |
-| [0021](0021-open-prefetch-gate.md) | The open's prefetch fetches outside the page cache, under one node-wide gate of bytes and threads | Proposed |
+| [0021](0021-open-prefetch-gate.md) | The open's prefetch fetches outside the page cache, under one node-wide gate of bytes and threads | Accepted |
