@@ -5,3 +5,4 @@ src/route/resolve.rs	port	serverless/shell/src/main/java/org/opensearch/serverle
 src/route/place.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/ops/RequestRouting.java@429b4cbc	place, afterForwardFailure and notHere with ForwardFailure, NotHereException and Placement folded in; the node (hints, heads, reconciler, signals) is a trait
 src/reduce/mod.rs	new		reduces what the shards answered into one response
 src/reduce/hits.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/ops/SearchMerge.java@429b4cbc	the hit half of the merge (order, window trim, totals, ceiling) over shard answers a caller renders from; the aggregation reduce and the breaker are separate pieces
+src/reduce/aggs.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/ops/SearchMerge.java@429b4cbc	the aggregation half of the merge: each named metric aggregation reduced over the shards that have it; buckets, top_hits and the breaker are separate pieces
