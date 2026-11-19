@@ -8,6 +8,7 @@
 //! `field` and each metric's own options are served
 //! ([`parse_percentiles_body`] for the two percentile metrics).
 
+use crate::aggs::bucket::histogram_parse::parse_histogram_body;
 use crate::aggs::bucket::terms_parse::parse_terms_body;
 use crate::aggs::metric::percentiles::parse_percentiles_body;
 use crate::aggs::metric::top_hits::parse_top_hits_body;
@@ -147,10 +148,12 @@ fn parse_level(p: &mut Parser<'_>, level: usize) -> Result<Vec<MetricAgg>, DslEr
                 format!("Missing definition for aggregation [{name}]"),
             ));
         };
-        if definition.has_subs && agg.metric == Metric::Terms {
-            return Err(DslError::unsupported(
-                "sub-aggregations of a [terms] aggregation",
-            ));
+        if definition.has_subs && matches!(agg.metric, Metric::Terms | Metric::Histogram) {
+            // ALLOC: error path; one message.
+            return Err(DslError::unsupported(&format!(
+                "sub-aggregations of a [{}] aggregation",
+                agg.metric.name()
+            )));
         }
         if definition.has_subs {
             return Err(DslError::Failure(Failure::opensearch(
@@ -259,7 +262,7 @@ fn parse_definition(p: &mut Parser<'_>, name: &str, level: usize) -> Result<Defi
                     ));
                 };
                 let mut top_hits = None;
-                let mut terms = None;
+                let (mut terms, mut histogram) = (None, None);
                 let (field, cardinality, percentiles) = match metric {
                     Metric::Percentiles | Metric::PercentileRanks => {
                         let (field, options) = parse_percentiles_body(p, metric, name)?;
@@ -285,6 +288,16 @@ fn parse_definition(p: &mut Parser<'_>, name: &str, level: usize) -> Result<Defi
                             PercentilesOptions::default(),
                         )
                     }
+                    Metric::Histogram => {
+                        let (field, spec) = parse_histogram_body(p, name)?;
+                        // ALLOC: one box a `histogram`, bounded by the body's recording.
+                        histogram = Some(Box::new(spec));
+                        (
+                            field,
+                            CardinalityOptions::default(),
+                            PercentilesOptions::default(),
+                        )
+                    }
                     _ => {
                         let (field, options) = parse_metric_body(p, metric, name)?;
                         (field, options, PercentilesOptions::default())
@@ -299,6 +312,7 @@ fn parse_definition(p: &mut Parser<'_>, name: &str, level: usize) -> Result<Defi
                     percentiles,
                     top_hits,
                     terms,
+                    histogram,
                 });
             }
         }

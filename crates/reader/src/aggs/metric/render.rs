@@ -10,6 +10,7 @@ use std::io::{self, Write};
 
 use oss_rest::write_json_str;
 
+use crate::aggs::bucket::histogram_render::write_histogram;
 use crate::aggs::bucket::keyword_terms::write_keyword_terms;
 use crate::aggs::bucket::terms_render::write_terms;
 use crate::aggs::metric::date_text::write_date_of_double;
@@ -149,6 +150,7 @@ fn write_body(out: &mut dyn Write, format: Format, value: &Value) -> io::Result<
             ..
         } => write_percentiles(out, format, ranks, keys, keyed, digest.as_ref()),
         Value::Terms(ref result) => write_terms(out, format, result),
+        Value::Histogram(ref result) => write_histogram(out, format, result),
         Value::KeywordTerms(ref result) => write_keyword_terms(out, result),
         // Written by the caller, which fetches the hits.
         Value::TopHits(_) => Ok(()),
