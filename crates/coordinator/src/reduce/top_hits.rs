@@ -102,30 +102,30 @@ pub enum RenderError<E> {
     },
 }
 
-/// Fetches the hits of `merged`'s page from their shards and writes the
-/// aggregation's `"hits":{..}` body as one shard writes it.
+/// Fetches the hits of a merged page from their shards: `page` names each
+/// as the shard's index among the merged results and the hit's position.
 ///
 /// `fetch` is called once for each shard the page draws on, at most
-/// `concurrency` at a time, with the shard's index among the merged results
-/// and the positions wanted (as `merged.page` names them); it returns each
-/// hit's JSON object in the order asked. The hits come out in page order.
+/// `concurrency` at a time, with the shard's index and the positions wanted
+/// (in page order); it returns each hit's JSON object in the order asked.
+/// The hits come out in page order.
 ///
 /// # Errors
 ///
 /// [`RenderError`] naming the first shard (in page order) whose fetch failed,
 /// panicked, or answered a number of hits other than the number asked.
-pub fn render_page<E, F>(
-    merged: &TopHitsMerged,
+pub fn fetch_page<E, F>(
+    page: &[(usize, usize)],
     concurrency: usize,
     fetch: F,
-) -> Result<Vec<u8>, RenderError<E>>
+) -> Result<Vec<Vec<u8>>, RenderError<E>>
 where
     E: Send,
     F: Fn(usize, &[usize]) -> Result<Vec<Vec<u8>>, E> + Sync,
 {
     // ALLOC: one entry a shard the page draws on, at most the merged shards.
     let mut asks: Vec<(usize, Vec<usize>)> = Vec::new();
-    for &(shard, at) in &merged.page {
+    for &(shard, at) in page {
         match asks.iter_mut().find(|(s, _)| *s == shard) {
             Some((_, positions)) => positions.push(at),
             // ALLOC: one list a shard, at most the page's hits.
@@ -156,6 +156,36 @@ where
             Ok(rendered) => hits.push((*shard, rendered.into_iter())),
         }
     }
+    // ALLOC: one entry a hit of the page.
+    let mut ordered = Vec::with_capacity(page.len());
+    for &(shard, _) in page {
+        let hit = hits
+            .iter_mut()
+            .find(|(s, _)| *s == shard)
+            .and_then(|(_, it)| it.next());
+        // Every shard answered as many as it was asked, so one is left.
+        ordered.push(hit.unwrap_or_default());
+    }
+    Ok(ordered)
+}
+
+/// Fetches the hits of `merged`'s page from their shards and writes the
+/// aggregation's `"hits":{..}` body as one shard writes it, through
+/// [`fetch_page`].
+///
+/// # Errors
+///
+/// As [`fetch_page`].
+pub fn render_page<E, F>(
+    merged: &TopHitsMerged,
+    concurrency: usize,
+    fetch: F,
+) -> Result<Vec<u8>, RenderError<E>>
+where
+    E: Send,
+    F: Fn(usize, &[usize]) -> Result<Vec<Vec<u8>>, E> + Sync,
+{
+    let ordered = fetch_page(&merged.page, concurrency, fetch)?;
     // ALLOC: the body, bounded by the page's rendered hits.
     let mut out = Vec::new();
     // Writing to a vector cannot fail.
@@ -171,16 +201,11 @@ where
         None => out.extend_from_slice(b"null"),
     }
     out.extend_from_slice(b",\"hits\":[");
-    for (i, &(shard, _)) in merged.page.iter().enumerate() {
+    for (i, hit) in ordered.iter().enumerate() {
         if i > 0 {
             out.push(b',');
         }
-        let hit = hits
-            .iter_mut()
-            .find(|(s, _)| *s == shard)
-            .and_then(|(_, it)| it.next());
-        // Every shard answered as many as it was asked, so one is left.
-        out.extend_from_slice(&hit.unwrap_or_default());
+        out.extend_from_slice(hit);
     }
     out.extend_from_slice(b"]}");
     Ok(out)

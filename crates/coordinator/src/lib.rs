@@ -10,4 +10,5 @@ pub mod fanout;
 pub mod indices;
 pub mod reduce;
 pub mod route;
+pub mod search;
 pub mod zone_meter;
