@@ -305,3 +305,16 @@ fn a_single_shard_result_is_written_reduced() {
         r#""doc_count_error_upper_bound":0,"sum_other_doc_count":3,"buckets":[{"key":2,"doc_count":5}]"#
     );
 }
+
+#[test]
+fn the_reduce_dispatch_reaches_terms() {
+    use crate::aggs::partial::{Value, reduce};
+    let s = spec(2, 13, 1, TermsOrder::CountDesc);
+    let part = |buckets: &[(i64, u64)]| Value::Terms(Box::new(shard(&s, 0, buckets)));
+    let Some(Value::Terms(t)) = reduce(&[part(&[(1, 2)]), part(&[(1, 3), (2, 1)])]) else {
+        panic!("not reduced");
+    };
+    assert_eq!(t.buckets, [(1, 5), (2, 1)]);
+    // A terms beside a value of another kind is not a reduce.
+    assert!(reduce(&[part(&[(1, 2)]), Value::Min(1.0)]).is_none());
+}

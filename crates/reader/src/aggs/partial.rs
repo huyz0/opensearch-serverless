@@ -92,8 +92,8 @@ pub fn reduce(parts: &[Value]) -> Option<Value> {
         Value::Cardinality(_) => reduce_cardinality(parts),
         Value::Percentiles { .. } => reduce_percentiles(parts),
         Value::Terms(_) => terms::reduce(parts),
-        // Merging hits needs them fetched and their shard known.
-        Value::TopHits(_) => None,
+        // A `top_hits` has no reduce here: merging hits needs them fetched
+        // and their shard known, so `reduce_scalar` answers `None` for it.
         _ => reduce_scalar(parts),
     }
 }
