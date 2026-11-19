@@ -4,8 +4,8 @@
 use std::io::{self, Write};
 
 use crate::aggs::bucket::terms::{TermsResult, reduce_results};
-use crate::aggs::metric::Format;
 use crate::aggs::metric::date_text::write_date;
+use crate::aggs::partial::Format;
 
 /// Writes the body of the reduce of the one shard result `result`: the
 /// error bound, the documents not in a bucket and the buckets, a date

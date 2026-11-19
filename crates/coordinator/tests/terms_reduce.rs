@@ -3,7 +3,7 @@
 
 use oss_coordinator::reduce::aggs::reduce_shards;
 use oss_reader::aggs::bucket::terms::{TermsOrder, TermsResult, TermsSpec};
-use oss_reader::aggs::metric::partial::Value;
+use oss_reader::aggs::partial::Value;
 
 fn shard(other: u64, buckets: &[(i64, u64)]) -> Vec<(String, Value)> {
     vec![(

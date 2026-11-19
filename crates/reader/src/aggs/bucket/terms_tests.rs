@@ -8,7 +8,8 @@
 
 use super::terms::{TermsOrder, TermsResult, TermsSpec, reduce_results};
 use super::terms_render::write_terms;
-use crate::aggs::metric::{Format, MetricAgg};
+use crate::aggs::metric::MetricAgg;
+use crate::aggs::partial::Format;
 use crate::dsl::parse_chunks;
 
 fn aggs(body: &str) -> Vec<MetricAgg> {

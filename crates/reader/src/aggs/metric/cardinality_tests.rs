@@ -3,8 +3,8 @@
 //! Tests; compiled only under `#[cfg(test)]` from the parent module.
 
 use super::hll::Hll;
-use super::partial::reduce;
 use super::*;
+use crate::aggs::partial::reduce;
 use crate::dsl::{DslError, SearchSource, parse_chunks};
 
 fn source(body: &str) -> Result<SearchSource, DslError> {

@@ -1,6 +1,6 @@
 //! Reducing each named metric aggregation across the shards that answered.
 
-use oss_reader::aggs::metric::partial::{Value, reduce};
+use oss_reader::aggs::partial::{Value, reduce};
 
 /// Why a named aggregation could not be reduced.
 #[derive(Clone, Debug, PartialEq)]
