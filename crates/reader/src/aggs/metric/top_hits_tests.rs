@@ -415,3 +415,24 @@ fn the_hits_ahead_of_from_are_kept_for_the_coordinator_s_merge() {
     assert!(t.hits.is_empty());
     assert_eq!(t.before.len(), 10);
 }
+
+#[test]
+fn a_field_the_hits_cannot_carry_fails_only_when_a_hit_is_written() {
+    let shard = shard("th-bad-fields");
+    let bad = r#""docvalue_fields":["_id"]"#;
+    // A hit to fetch: the refusal is the search's.
+    let (status, reason) = failure(
+        &shard,
+        &format!(r#"{{"aggs":{{"t":{{"top_hits":{{{bad},"size":1}}}}}}}}"#),
+    );
+    assert_eq!(status, 400, "{reason}");
+    // Only hits ahead of `from`: nothing is written here, so the shard
+    // answers, with what the merge could pull left unresolved.
+    let t = top(
+        &shard,
+        &format!(
+            r#"{{"query":{{"range":{{"n":{{"gte":10,"lt":20}}}}}},"aggs":{{"t":{{"top_hits":{{{bad},"from":50}}}}}}}}"#
+        ),
+    );
+    assert!(t.hits.is_empty() && t.before.len() == 10 && t.fields.is_empty());
+}
