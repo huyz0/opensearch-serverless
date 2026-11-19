@@ -101,3 +101,5 @@ src/prefetch/plan.rs	new		picks those files from the file table and merges neigh
 src/prefetch/plan_tests.rs	new		tests of plan.rs over a hand-built file table
 src/prefetch/primed.rs	new		holds the fetched bytes and serves the engine store from them until the open returns
 src/prefetch/tests.rs	new		tests of the open prefetch over a real index on the emulator
+src/prefetch/gate.rs	new		the node-wide bytes and threads every open prefetch takes before it allocates or spawns
+src/prefetch/gate_tests.rs	new		tests of gate.rs
