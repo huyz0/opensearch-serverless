@@ -37,9 +37,12 @@ pub trait FencedLog {
 
 /// The write logs of the nodes in a deployment.
 pub trait NodeLogs {
-    /// Fences every one of `epochs` of `node`'s log, checking each fence
-    /// against the lease as it stands afterwards, and answers what they
-    /// hold. Called before anything is judged.
+    /// Fences every one of `epochs` of `node`'s log, so the node can add
+    /// nothing after what is read, and answers what they hold. Called
+    /// before anything is judged. An implementation may also check each
+    /// fence against the lease as it stands afterwards; the collector's own
+    /// guard is the lease swap that forgets the epochs, which a node that
+    /// came back wins.
     ///
     /// # Errors
     ///

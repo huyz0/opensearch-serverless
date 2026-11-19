@@ -28,13 +28,13 @@ pub enum Collected {
 
 /// Collects dead nodes' write logs.
 pub struct Collector<'a> {
-    pub(crate) membership: &'a Membership,
-    pub(crate) heads: &'a ShardHeadStore,
-    pub(crate) descriptors: &'a DescriptorStore,
-    pub(crate) logs: &'a dyn NodeLogs,
-    pub(crate) commits: &'a dyn Commits,
-    pub(crate) clock: &'a dyn Fn() -> i64,
-    pub(crate) dry_run: bool,
+    membership: &'a Membership,
+    heads: &'a ShardHeadStore,
+    descriptors: &'a DescriptorStore,
+    logs: &'a dyn NodeLogs,
+    commits: &'a dyn Commits,
+    clock: &'a dyn Fn() -> i64,
+    dry_run: bool,
 }
 
 impl<'a> Collector<'a> {
@@ -88,22 +88,28 @@ impl<'a> Collector<'a> {
             return Ok(Collected::WouldCollect);
         }
         let ends = log.ends()?;
+        // What to delete, settled before the lease forgets the epochs: a
+        // lease that no longer names them leaves nothing to retry from.
+        // ALLOC: one range an epoch the lease names, at most MAX_LEASE_BYTES' worth.
+        let mut ranges = Vec::with_capacity(epochs.len());
+        for epoch in &epochs {
+            let out_of_range = || JanitorError::Log("an epoch number out of range".into());
+            let number = u64::try_from(epoch.epoch).map_err(|_| out_of_range())?;
+            let from = u64::try_from(epoch.trim).map_err(|_| out_of_range())?;
+            let landed = u64::try_from(epoch.landed).map_err(|_| out_of_range())?;
+            // From the trim point the lease recorded (the node deleted below
+            // it itself, up to a renewal's worth) through the fence's end, or
+            // the landed hint where the fence names none.
+            let end = ends.get(&number).copied().unwrap_or(landed);
+            ranges.push((number, from, end.saturating_add(1)));
+        }
         // The lease stops naming the epochs by a swap a returning node wins;
         // only then do the blobs go.
         if !self.membership.forget_node_log(node, &epochs)? {
             return Ok(Collected::StillNeeded);
         }
-        for epoch in &epochs {
-            let (Ok(number), Ok(from)) = (u64::try_from(epoch.epoch), u64::try_from(epoch.trim))
-            else {
-                continue;
-            };
-            let landed = u64::try_from(epoch.landed).unwrap_or(0);
-            let end = ends.get(&number).copied().unwrap_or(landed);
-            // From the trim point the lease recorded: the node deleted below
-            // it itself, up to a renewal's worth.
-            self.logs
-                .delete_range(node, number, from, end.saturating_add(1))?;
+        for (number, from, to) in ranges {
+            self.logs.delete_range(node, number, from, to)?;
         }
         Ok(Collected::Collected)
     }

@@ -401,3 +401,53 @@ fn a_failed_delete_after_the_forget_is_an_error_and_the_lease_stays_forgotten() 
     assert!(rig.try_run(false).is_err());
     assert_eq!(rig.lease_epochs(), 0);
 }
+
+#[test]
+fn an_epoch_the_fence_names_no_end_for_is_deleted_through_its_landed_hint() {
+    let mut rig = Rig::new();
+    rig.shard("logs", "u1", 10);
+    rig.commit("u1", Committed::Commit(Some(10)));
+    rig.log.ends = BTreeMap::from([(7, 12)]);
+    assert_eq!(rig.run(false), Collected::Collected);
+    // epoch 8 landed at 3 and has no end: 0..4
+    assert_eq!(
+        rig.calls(),
+        ["fence n2 2", "delete n2 7 2..13", "delete n2 8 0..4"]
+    );
+}
+
+#[test]
+fn one_shard_not_published_past_keeps_the_log_whichever_order_they_come_in() {
+    let mut rig = Rig::new();
+    rig.shard("a", "u1", 10);
+    rig.shard("b", "u2", 10);
+    rig.commit("u1", Committed::Commit(Some(10)));
+    assert_eq!(rig.run(false), Collected::StillNeeded);
+    rig.commit("u1", Committed::Commit(Some(1)));
+    rig.commit("u2", Committed::Commit(Some(10)));
+    assert_eq!(rig.run(false), Collected::StillNeeded);
+    assert!(!rig.calls().iter().any(|c| c.starts_with("delete")));
+}
+
+#[test]
+fn a_head_owned_by_another_node_is_judged_by_the_commit() {
+    let mut rig = Rig::new();
+    rig.shard("logs", "u1", 10);
+    // the successor holds the head; n1 is live, so the acquire takes it
+    let store: Arc<dyn BlobStore> = rig.store.clone();
+    let clock: Arc<dyn LeaseClock> = rig.clock.clone();
+    let config = LeaseConfig {
+        ttl_millis: TTL,
+        max_members: 16,
+        conditional_deletes: false,
+    };
+    let n1 = Membership::new(store, BASE, clock, config).unwrap();
+    n1.renew(&NodeLease::new("n1", "e1", "a1", 0)).unwrap();
+    rig.heads
+        .acquire("logs", 0, "n1", "e1", Some("u1"))
+        .unwrap();
+    rig.commit("u1", Committed::Commit(Some(9)));
+    assert_eq!(rig.run(false), Collected::StillNeeded);
+    rig.commit("u1", Committed::Commit(Some(10)));
+    assert_eq!(rig.run(false), Collected::Collected);
+}

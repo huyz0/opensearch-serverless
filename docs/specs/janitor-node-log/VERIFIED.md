@@ -12,3 +12,4 @@ Run with `cargo test -p oss-janitor`, `cargo mutants -p oss-janitor` (59 mutants
 - AC-8: `a_node_that_comes_back_before_the_forget_keeps_its_log`
 - AC-9: `a_dry_run_judges_the_same_and_changes_nothing`
 - AC-10: `the_requests_are_the_lease_the_heads_and_descriptors_and_the_forget`
+- AC-11: `an_epoch_the_fence_names_no_end_for_is_deleted_through_its_landed_hint`, `one_shard_not_published_past_keeps_the_log_whichever_order_they_come_in`, `a_head_owned_by_another_node_is_judged_by_the_commit`

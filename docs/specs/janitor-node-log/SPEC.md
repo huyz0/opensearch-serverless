@@ -10,7 +10,7 @@ Parity plan R8.4, second piece, invariants I-1 and the fencing rule. Ported from
   - **Nothing** for a node with no lease, a lease that names no epochs, or one that is live (neither revoked nor expired by the collector's clock).
   - **Fence, then judge.** Every epoch the lease names is fenced first (the `NodeLogs` seam), so a node that is not as dead as it looks adds nothing after what is read. Each shard the last headers name must be published past: a shard with no index name is not (the log cannot be judged); an index that is deleted or recreated under another uuid needs nothing; a head still owned by this node is not (settled or taken first, and judged then); a shard the log holds nothing of (sequence number unassigned) needs nothing; otherwise the published commit's local checkpoint must reach the highest sequence number the log holds of it, and a shard with no commit, or a commit recording no checkpoint, does not. One shard not published past gives **StillNeeded** and nothing is changed.
   - **Forget, then delete.** The lease stops naming the epochs by one swap that a node coming back wins (`Membership::forget_node_log`); a lost swap is StillNeeded. Only then is each epoch deleted from its recorded trim point to the fence's end, plus one. A failed delete costs storage, not records, and is an error the next pass repeats from the lease's (now empty) view: the bucket's lifecycle rule on the log prefix removes the rest, as the Java documents.
-  - **Dry run** (`serverless.janitor.dry_run`, the same switch): judges exactly the same and answers **WouldCollect** without swapping the lease or deleting anything.
+  - **Dry run** (`serverless.janitor.dry_run`, the same switch): judges exactly the same and answers **WouldCollect** without swapping the lease or deleting anything. It does fence the epochs, because the judgment needs a fenced read: the same fence a takeover puts on a node whose lease has expired, so a node that was only slow loses those epochs and opens new ones. A dry run is not read-only for a dead node's log; it changes nothing the lease and the log's data keep.
 - The log itself is read through two seams the node implements over the writer's `NodeLogTakeover` and `NodeLogStore`, because the janitor never depends on the writer: `NodeLogs` (fence a node's epochs and answer what they name, the highest sequence number of a shard, each epoch's end; delete a range of an epoch's slots) and `Commits` (a shard's published commit: absent, or its local checkpoint if recorded). The crate ships no implementation of either.
 - Not in this change: the scheduling of which dead nodes to collect (the pass), inherited epochs of a live node's own earlier process, `settleAbandoned` and `settleReleased` (takeover's, R8.2), the node wiring.
 
@@ -24,7 +24,8 @@ Parity plan R8.4, second piece, invariants I-1 and the fencing rule. Ported from
 - AC-6: a shard the log names but holds nothing of needs nothing.
 - AC-7: the epochs are fenced before any shard is judged.
 - AC-8: a lease that changed between the judgment and the forget (the node came back, or another epoch) is StillNeeded and nothing is deleted.
-- AC-9: with `dry_run` on the same judgments are made, the answer is WouldCollect for what would be collected, and the lease and the log are untouched.
+- AC-9: with `dry_run` on the same judgments are made, the answer is WouldCollect for what would be collected, and the lease is not swapped and no slot is deleted (the fence is the only thing done).
+- AC-11: an epoch the fence names no end for is deleted through its landed hint; one shard not published past keeps the log whatever its place in the order; a head owned by another node is judged by the commit.
 - AC-10: the requests are exactly: the lease read, the lease read and swap of the forget, one head read and one descriptor read a shard judged, plus the seams' own; no LIST.
 
 ## Test plan
@@ -42,4 +43,5 @@ The one switch, `serverless.janitor.dry_run`, default on.
 ## Risks
 
 - Deleting a log a successor still needs to replay: the fence first, the commit's checkpoint against the log's headers, the head's owner, and the swap that a returning node wins.
+- A node that stays StillNeeded (a shard key with no index name, a head nobody takes) is fenced and judged again each pass, about two reads a shard: the pass must back off on it, and a bucket lifecycle rule on the log prefix is the backstop for a log that is never collectable, as the Java documents. The descriptor is read once a shard, not once an index.
 - A seam that answers wrongly: both are traits with the failure mode stated; the real ones are wired and tested at the node.
