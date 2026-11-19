@@ -104,6 +104,7 @@ pub fn search<T: Shards>(
     shards: usize,
     p: &Params,
 ) -> Result<Vec<u8>, SearchFailure<T::Error>> {
+    // ALLOC: bounded by the shards, the page or the request's aggregations.
     let numbers: Vec<usize> = (0..shards).collect();
     let outcomes = fanout::run(p.concurrency, &numbers, |&shard| t.query(shard));
     // ALLOC: one slot a shard.
@@ -118,10 +119,12 @@ pub fn search<T: Shards>(
                 queries.push(None);
                 let reason = match failed {
                     TaskError::Failed(error) => {
+                        // ALLOC: bounded by the shards, the page or the request's aggregations.
                         let reason = error.to_string();
                         first_error.get_or_insert(error);
                         reason
                     }
+                    // ALLOC: bounded by the shards, the page or the request's aggregations.
                     TaskError::Panicked => "the shard's query panicked".to_owned(),
                 };
                 failures.push((shard, reason));
@@ -134,6 +137,7 @@ pub fn search<T: Shards>(
             Some(error) => Err(SearchFailure::AllFailed { error }),
             None => Err(SearchFailure::Fetch {
                 shard: 0,
+                // ALLOC: bounded by the shards, the page or the request's aggregations.
                 reason: "the shard's query panicked".to_owned(),
             }),
         };
@@ -167,10 +171,12 @@ pub fn search<T: Shards>(
     let merged = merger
         .finish(p.track_total_hits_up_to)
         .map_err(SearchFailure::Merge)?;
+    // ALLOC: bounded by the shards, the page or the request's aggregations.
     let page: Vec<(usize, usize)> = merged.page.iter().map(|h| h.payload).collect();
     let rendered = fetch_page(&page, p.concurrency, |shard, positions| {
         match queries.get(shard).and_then(Option::as_ref) {
             Some(query) => t.render(shard, query, positions),
+            // ALLOC: bounded by the shards, the page or the request's aggregations.
             None => Ok(Vec::new()),
         }
     })
@@ -179,7 +185,9 @@ pub fn search<T: Shards>(
     // ALLOC: the response, bounded by the page's rendered hits.
     let mut out = Vec::new();
     // Writing to a vector cannot fail.
-    let _ = write_envelope(&mut out, p, &merged, &rendered, &failures, shards, answered, t, &parts);
+    let _ = write_envelope(
+        &mut out, p, &merged, &rendered, &failures, shards, answered, t, &parts,
+    );
     Ok(out)
 }
 
@@ -188,14 +196,17 @@ fn fetch_failure<E: Display, T>(e: &RenderError<E>) -> SearchFailure<T> {
     match e {
         RenderError::Failed { shard, error } => SearchFailure::Fetch {
             shard: *shard,
+            // ALLOC: bounded by the shards, the page or the request's aggregations.
             reason: error.to_string(),
         },
         RenderError::Panicked { shard } => SearchFailure::Fetch {
             shard: *shard,
+            // ALLOC: bounded by the shards, the page or the request's aggregations.
             reason: "the shard's render panicked".to_owned(),
         },
         RenderError::WrongCount { shard, asked, got } => SearchFailure::Fetch {
             shard: *shard,
+            // ALLOC: bounded by the shards, the page or the request's aggregations.
             reason: format!("asked {asked} hits and got {got}"),
         },
     }
@@ -218,6 +229,7 @@ fn reduce_aggregations<T: Shards>(
                 .map(|a| (a.name.clone(), a.value.clone()))
                 .collect()
         })
+        // ALLOC: bounded by the shards, the page or the request's aggregations.
         .collect();
     let reduced = reduce_shards(&values).map_err(SearchFailure::Aggs)?;
     let first = answers.first().map(|h| &h.aggregations);

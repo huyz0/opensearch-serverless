@@ -136,7 +136,10 @@ fn the_response_envelope_is_written_exactly() {
     inexact.exact = false;
     let f = fake(vec![Ok(inexact)]);
     let body = text(search(&f, 1, &capped).expect("searches"));
-    assert!(body.contains(r#""total":{"value":1,"relation":"gte"}"#), "{body}");
+    assert!(
+        body.contains(r#""total":{"value":1,"relation":"gte"}"#),
+        "{body}"
+    );
     let f = fake(vec![Ok(hits(0, &[], vec![]))]);
     let body = text(search(&f, 1, &params(0, 10)).expect("searches"));
     assert!(body.contains(r#""max_score":null,"hits":[]"#), "{body}");
@@ -148,7 +151,10 @@ fn an_untracked_total_is_not_written() {
     let mut p = params(0, 10);
     p.show_total = false;
     let body = text(search(&f, 1, &p).expect("searches"));
-    assert!(body.contains(r#""hits":{"max_score":2.5,"hits":["#), "{body}");
+    assert!(
+        body.contains(r#""hits":{"max_score":2.5,"hits":["#),
+        "{body}"
+    );
 }
 
 #[test]
@@ -198,7 +204,10 @@ fn aggregations_are_reduced_and_written() {
         Ok(hits(1, &[0.5], vec![sum(2.0)])),
     ]);
     let body = text(search(&f, 2, &params(0, 10)).expect("searches"));
-    assert!(body.contains(r#""aggregations":{"total":{"value":3.5}}"#), "{body}");
+    assert!(
+        body.contains(r#""aggregations":{"total":{"value":3.5}}"#),
+        "{body}"
+    );
     let f = fake(vec![Ok(hits(1, &[1.0], vec![]))]);
     assert!(!text(search(&f, 1, &params(0, 10)).expect("ok")).contains("aggregations"));
 }
