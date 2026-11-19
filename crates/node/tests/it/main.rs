@@ -12,5 +12,6 @@ mod budgets;
 mod built;
 #[cfg(feature = "coordinator")]
 mod coordinate;
+mod open_prefetch;
 mod search;
 mod shards;

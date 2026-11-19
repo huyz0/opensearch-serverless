@@ -77,6 +77,8 @@ pub struct SearchService<S: BlobStore + 'static> {
     /// Where a search finds the overlay of the shard it serves; none, and a
     /// search is answered from the commit.
     overlay: OnceLock<Arc<dyn OverlaySource>>,
+    /// The layers a setting resolves through above an index's own.
+    layers: OnceLock<open_prefetch::Layered>,
 }
 
 impl<S: BlobStore + 'static> SearchService<S> {
@@ -103,6 +105,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
             epoch: Instant::now(),
             newest: OnceLock::new(),
             overlay: OnceLock::new(),
+            layers: OnceLock::new(),
         }
     }
 
@@ -274,6 +277,8 @@ pub use shard_query::ShardQuery;
 mod coordinate;
 #[cfg(feature = "coordinator")]
 pub use coordinate::ShardError;
+#[path = "open_prefetch.rs"]
+pub mod open_prefetch;
 #[path = "search_overlay.rs"]
 mod overlay;
 

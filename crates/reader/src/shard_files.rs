@@ -49,6 +49,9 @@ pub struct IndexMeta {
     /// The mapping's JSON source as the document builder reads it; empty when
     /// the descriptor holds none.
     pub mapping_json: Arc<str>,
+    /// The index's settings, flat by dotted key; empty when the descriptor
+    /// holds none.
+    pub settings: oss_format::ClusterSettings,
 }
 
 /// Every file of one shard's latest published commit, by Lucene file name.
@@ -130,12 +133,17 @@ impl ShardFiles {
             }
             None => (Mapping::default(), Arc::<str>::from("")),
         };
+        let settings = match descriptor.settings {
+            Some(bytes) => oss_format::ClusterSettings::parse(bytes)?,
+            None => oss_format::ClusterSettings::default(),
+        };
         let meta = IndexMeta {
             // ALLOC: one uuid an open index.
             uuid: descriptor.uuid.to_string(),
             number_of_shards: descriptor.number_of_shards,
             mapping,
             mapping_json,
+            settings,
         };
         let shard_ref = descriptor.shard(shard)?;
         let register_bytes;

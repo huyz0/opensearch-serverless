@@ -236,3 +236,32 @@ fn a_reader_walks_from_the_index_name_to_its_files() {
         Err(oss_format::FormatError::NotFollowable { .. })
     ));
 }
+
+#[test]
+fn a_descriptors_settings_are_kept_as_their_bytes() {
+    let with = br#"{"name":"n","uuid":"u","number_of_shards":1,"settings":{"index.serverless.x":"false","a":{"b":1}}}"#;
+    let DescriptorRecord::Index(d) = DescriptorRecord::parse(with).unwrap() else {
+        panic!()
+    };
+    assert_eq!(
+        d.settings,
+        Some(&br#"{"index.serverless.x":"false","a":{"b":1}}"#[..])
+    );
+    let without = br#"{"name":"n","uuid":"u","number_of_shards":1}"#;
+    let DescriptorRecord::Index(d) = DescriptorRecord::parse(without).unwrap() else {
+        panic!()
+    };
+    assert_eq!(d.settings, None);
+    let null = br#"{"name":"n","uuid":"u","number_of_shards":1,"settings":null}"#;
+    let DescriptorRecord::Index(d) = DescriptorRecord::parse(null).unwrap() else {
+        panic!()
+    };
+    assert_eq!(d.settings, None, "a null settings");
+    for bad in [
+        &br#"{"name":"n","uuid":"u","number_of_shards":1,"settings":[]}"#[..],
+        br#"{"name":"n","uuid":"u","number_of_shards":1,"settings":"x"}"#,
+        br#"{"name":"n","uuid":"u","number_of_shards":1,"settings":{"a":}}"#,
+    ] {
+        assert!(DescriptorRecord::parse(bad).is_err(), "{bad:?}");
+    }
+}

@@ -7,7 +7,7 @@
 
 use std::collections::BTreeMap;
 
-use super::{OpenPrefetch, plan};
+use super::{OpenPrefetch, plan, planned_bytes};
 use crate::shard_files::{FileRange, ShardFiles};
 
 fn table(files: &[(&str, &str, u64, u64)]) -> ShardFiles {
@@ -127,4 +127,17 @@ fn the_gaps_a_range_spans_count_against_the_byte_limit() {
     };
     // Both files fit the limit, the 30 KB range between them does not.
     assert!(plan(&files, &pin_si, 4096, &config).is_empty());
+}
+
+#[test]
+fn planned_bytes_are_the_ranges_lengths_gaps_included() {
+    let files = table(&[
+        ("_0.si", "a", 0, 100),
+        ("_0.fnm", "a", 120, 50),
+        ("_1.fnm", "b", 0, 30),
+    ]);
+    let ranges = plan(&files, &pin_si, 4096, &OpenPrefetch::default());
+    assert_eq!(ranges.len(), 2);
+    assert_eq!(planned_bytes(&ranges), 170 + 30, "a range reads its gap");
+    assert_eq!(planned_bytes(&[]), 0);
 }
