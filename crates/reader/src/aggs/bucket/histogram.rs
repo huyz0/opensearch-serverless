@@ -4,9 +4,8 @@
 
 use std::cmp::Ordering;
 
-use lucene_util::sorter::{IntroTarget, intro_sort};
-
 use crate::aggs::bucket::BUCKET_LIMIT;
+use crate::aggs::bucket::count_order::sort_by_count;
 use crate::aggs::partial::Value;
 
 /// How a `histogram`'s buckets are ordered.
@@ -188,36 +187,6 @@ fn fill(
     Ok(out)
 }
 
-/// The sort `CollectionUtil.introSort` runs over the buckets by count: the
-/// same unstable sort, so equal counts land where OpenSearch puts them.
-struct ByCount<'a> {
-    buckets: &'a mut [(f64, u64)],
-    ascending: bool,
-    pivot: u64,
-}
-
-impl IntroTarget for ByCount<'_> {
-    fn swap(&mut self, i: usize, j: usize) {
-        self.buckets.swap(i, j);
-    }
-    fn set_pivot(&mut self, i: usize) {
-        self.pivot = self.buckets.get(i).map_or(0, |b| b.1);
-    }
-    fn compare_pivot(&mut self, j: usize) -> i32 {
-        let other = self.buckets.get(j).map_or(0, |b| b.1);
-        let ordering = if self.ascending {
-            self.pivot.cmp(&other)
-        } else {
-            other.cmp(&self.pivot)
-        };
-        match ordering {
-            Ordering::Less => -1,
-            Ordering::Equal => 0,
-            Ordering::Greater => 1,
-        }
-    }
-}
-
 /// The final reduce of `parts`, which are not empty, of one aggregation
 /// (`InternalHistogram.reduce`): equal keys add, the buckets under
 /// `min_doc_count` go, with `min_doc_count` 0 the gaps are filled, and the
@@ -258,16 +227,7 @@ pub fn reduce_results(parts: &[&HistogramResult], limit: usize) -> Result<Histog
         HistogramOrder::KeyAsc => {}
         HistogramOrder::KeyDesc => buckets.reverse(),
         HistogramOrder::CountAsc | HistogramOrder::CountDesc => {
-            let len = buckets.len();
-            intro_sort(
-                &mut ByCount {
-                    buckets: &mut buckets,
-                    ascending: spec.order == HistogramOrder::CountAsc,
-                    pivot: 0,
-                },
-                0,
-                len,
-            );
+            sort_by_count(&mut buckets, spec.order == HistogramOrder::CountAsc);
         }
     }
     Ok(HistogramResult { spec, buckets })
