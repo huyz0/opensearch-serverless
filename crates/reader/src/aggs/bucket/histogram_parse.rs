@@ -198,7 +198,7 @@ pub fn parse_histogram_body(
                 spec.extended_bounds = Some(parse_bounds(p).map_err(|e| failed(p, e))?);
             }
             "hard_bounds" => spec.hard_bounds = parse_bounds(p).map_err(|e| failed(p, e))?,
-            _ => spec.order = parse_order(p, kind)?,
+            _ => spec.order = parse_order(p, kind, "histogram")?,
         }
     }
     let field = field.ok_or_else(|| {
@@ -238,25 +238,30 @@ fn check_bounds(spec: &HistogramSpec) -> Result<(), DslError> {
 /// `InternalOrder.Parser.parseOrderParam` over one object, or an array of
 /// one, the parser on its start (`kind`): `_count` or `_key`, `asc` or
 /// `desc`. A sub-aggregation's path and several criteria are not served.
-fn parse_order(p: &mut Parser<'_>, kind: Kind) -> Result<HistogramOrder, DslError> {
-    const SEVERAL: &str = "an [order] of several criteria in a [histogram] aggregation";
+pub(super) fn parse_order(
+    p: &mut Parser<'_>,
+    kind: Kind,
+    agg: &str,
+) -> Result<HistogramOrder, DslError> {
+    // ALLOC: error path; one message.
+    let several = format!("an [order] of several criteria in a [{agg}] aggregation");
     let array = kind == Kind::StartArray;
     let mut order: Option<HistogramOrder> = None;
     if array {
         loop {
             match p.next_token() {
                 Some(Kind::EndArray) | None => break,
-                Some(Kind::StartObject) if order.is_none() => order = Some(parse_one(p)?),
-                Some(_) => return Err(DslError::unsupported(SEVERAL)),
+                Some(Kind::StartObject) if order.is_none() => order = Some(parse_one(p, agg)?),
+                Some(_) => return Err(DslError::unsupported(&several)),
             }
         }
-        return order.ok_or_else(|| DslError::unsupported(SEVERAL));
+        return order.ok_or_else(|| DslError::unsupported(&several));
     }
-    parse_one(p)
+    parse_one(p, agg)
 }
 
 /// One criterion's object, the parser on its start.
-fn parse_one(p: &mut Parser<'_>) -> Result<HistogramOrder, DslError> {
+fn parse_one(p: &mut Parser<'_>, agg: &str) -> Result<HistogramOrder, DslError> {
     let mut by: Option<&'static str> = None;
     let mut ascending = false;
     loop {
@@ -264,17 +269,19 @@ fn parse_one(p: &mut Parser<'_>) -> Result<HistogramOrder, DslError> {
             Some(Kind::EndObject) | None => break,
             Some(Kind::FieldName) => {
                 if by.is_some() {
-                    return Err(DslError::unsupported(
-                        "an [order] of several criteria in a [histogram] aggregation",
-                    ));
+                    // ALLOC: error path; one message.
+                    return Err(DslError::unsupported(&format!(
+                        "an [order] of several criteria in a [{agg}] aggregation"
+                    )));
                 }
                 by = match p.text() {
                     "_count" => Some("_count"),
                     "_key" | "_term" => Some("_key"),
                     _ => {
-                        return Err(DslError::unsupported(
-                            "an [order] by a sub-aggregation in a [histogram] aggregation",
-                        ));
+                        // ALLOC: error path; one message.
+                        return Err(DslError::unsupported(&format!(
+                            "an [order] by a sub-aggregation in a [{agg}] aggregation"
+                        )));
                     }
                 };
             }
@@ -294,7 +301,7 @@ fn parse_one(p: &mut Parser<'_>) -> Result<HistogramOrder, DslError> {
                 return Err(DslError::illegal(
                     // ALLOC: error path; one message.
                     format!(
-                        "Unexpected token [{}] in an order of a [histogram] aggregation",
+                        "Unexpected token [{}] in an order of a [{agg}] aggregation",
                         other.name()
                     ),
                 ));

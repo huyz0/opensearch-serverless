@@ -72,6 +72,7 @@ src/search.rs	port	server/src/main/java/org/opensearch/search/query/QueryPhase.j
 src/open_cost.rs	new		what an open shard keeps in the heap, estimated before opening (ADR 0014); the Java's ShardReaders keeps readers unbounded
 src/aggs/mod.rs	new		module root: aggregations on one shard
 src/aggs/metric/mod.rs	new		module root: the served metrics and the state each holds
+src/aggs/metric/long_value.rs	port	libs/core/src/main/java/org/opensearch/core/xcontent/AbstractXContentParser.java@3.10.0	longValue with coercion (Numbers.toLong)
 src/aggs/metric/parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/AggregatorFactories.java@3.10.0	parseAggregators, and the ObjectParser of ValuesSourceAggregationBuilder.declareFields for the served metrics; SearchModule's registered aggregation names
 src/aggs/metric/collect.rs	port	server/src/main/java/org/opensearch/search/aggregations/support/ValuesSourceConfig.java@3.10.0	resolve and ValuesSourceRegistry.getAggregator's field checks; the values come from lucene-aggs' port of the metric aggregators
 src/aggs/metric/partial.rs	port	server/src/main/java/org/opensearch/search/aggregations/metrics/InternalStats.java@3.10.0	the shard-level state of InternalMin, InternalMax, InternalSum, InternalAvg, InternalStats and InternalValueCount, each reduce, and CompensatedSum.add
@@ -101,6 +102,13 @@ src/aggs/bucket/terms.rs	port	server/src/main/java/org/opensearch/search/aggrega
 src/aggs/bucket/terms_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/TermsAggregationBuilder.java@3.10.0	the ObjectParser keys, the setters' checks, TermsAggregatorFactory's shard size and InternalOrder's criterion
 src/aggs/bucket/terms_collect.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/NumericTermsAggregator.java@3.10.0	the numeric terms node over lucene-aggs and MultiBucketConsumerService's TooManyBucketsException
 src/aggs/bucket/terms_render.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/LongTerms.java@3.10.0	LongTerms.Bucket.keyToXContent and InternalTerms.doXContentCommon
+src/aggs/bucket/count_order.rs	port	server/src/main/java/org/opensearch/search/aggregations/InternalOrder.java@3.10.0	comparingCounts under CollectionUtil.introSort
+src/aggs/bucket/date_histogram.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/histogram/InternalDateHistogram.java@3.10.0	InternalDateHistogram's state, reduce, addEmptyBuckets, nextKey and LongBounds.round
+src/aggs/bucket/date_histogram_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/histogram/DateHistogramAggregationBuilder.java@3.10.0	the ObjectParser keys, DateIntervalWrapper, TimeValue.parseTimeValue, LongBounds and innerBuild's rounding and bounds checks
+src/aggs/bucket/date_histogram_collect.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/histogram/DateHistogramAggregator.java@3.10.0	the date_histogram node over lucene-aggs
+src/aggs/bucket/date_histogram_render.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/histogram/InternalDateHistogram.java@3.10.0	Bucket.toXContent and doXContentBody
+src/aggs/bucket/date_histogram_tests.rs	new		tests of date_histogram parsing, reduce and writing
+src/aggs/bucket/date_histogram_collect_tests.rs	new		tests of date_histogram on a real index
 src/aggs/bucket/histogram.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/histogram/InternalHistogram.java@3.10.0	HistogramAggregationBuilder defaults, InternalHistogram's state, reduce, addEmptyBuckets and the order sort
 src/aggs/bucket/histogram_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/histogram/HistogramAggregationBuilder.java@3.10.0	the ObjectParser keys, the setters' checks, DoubleBounds and the bounds check of innerBuild
 src/aggs/bucket/histogram_collect.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/histogram/NumericHistogramAggregator.java@3.10.0	the histogram node over lucene-aggs and AbstractHistogramAggregator's interval check

@@ -25,6 +25,8 @@ use oss_blob::BlobStore;
 
 use crate::OpenShard;
 use crate::aggs::bucket::BUCKET_LIMIT;
+use crate::aggs::bucket::date_histogram::{DateHistogramSpec, reduce_results as reduce_dates};
+use crate::aggs::bucket::date_histogram_collect;
 use crate::aggs::bucket::histogram::{HistogramSpec, reduce_results};
 use crate::aggs::bucket::histogram_collect;
 use crate::aggs::bucket::keyword_collect;
@@ -171,6 +173,11 @@ fn histogram_spec(agg: &MetricAgg) -> HistogramSpec {
     agg.histogram.as_deref().cloned().unwrap_or_default()
 }
 
+/// `agg`'s `date_histogram` options (every `date_histogram` has them).
+fn date_histogram_spec(agg: &MetricAgg) -> DateHistogramSpec {
+    agg.date_histogram.as_deref().copied().unwrap_or_default()
+}
+
 /// What `avg` reads: the sum and the count.
 const AVG_NEEDS: u8 = NEED_SUM | NEED_COUNT;
 
@@ -191,7 +198,8 @@ fn needs(metric: Metric) -> u8 {
         | Metric::PercentileRanks
         | Metric::TopHits
         | Metric::Terms
-        | Metric::Histogram => NEED_COUNT,
+        | Metric::Histogram
+        | Metric::DateHistogram => NEED_COUNT,
     }
 }
 
@@ -220,6 +228,10 @@ fn value_of(agg: &MetricAgg, state: &MetricState) -> Value {
         Metric::Histogram => {
             Value::Histogram(Box::new(histogram_collect::empty(&histogram_spec(agg))))
         }
+        // ALLOC: one box a `date_histogram`, bounded by the request's.
+        Metric::DateHistogram => Value::DateHistogram(Box::new(date_histogram_collect::empty(
+            &date_histogram_spec(agg),
+        ))),
         // Filled in by the search once the hits are collected.
         // ALLOC: one box a `top_hits`, bounded by the request's.
         Metric::TopHits => Value::TopHits(Box::new(TopHitsResult::empty())),
@@ -264,6 +276,9 @@ fn node(agg: &MetricAgg, precision: u32) -> AggNode {
     match agg.metric {
         Metric::Terms => terms_collect::node(&agg.field, &terms_spec(agg)),
         Metric::Histogram => histogram_collect::node(&agg.field, &histogram_spec(agg)),
+        Metric::DateHistogram => {
+            date_histogram_collect::node(&agg.field, &date_histogram_spec(agg))
+        }
         Metric::Cardinality => AggNode::Cardinality {
             field,
             kind: CardinalityKind::Numeric(ValueKind::Long),
@@ -340,6 +355,18 @@ fn value_from(agg: &MetricAgg, result: Option<AggResult>) -> Result<Value, Shard
                 .map_err(|made| terms_collect::too_many_buckets(made, BUCKET_LIMIT))?;
             // ALLOC: one box a `histogram`, bounded by the request's.
             Ok(Value::Histogram(Box::new(result)))
+        }
+        Some(AggResult::DateHistogram { buckets, .. }) if agg.metric == Metric::DateHistogram => {
+            let spec = date_histogram_spec(agg);
+            let result = date_histogram_collect::from_engine(
+                &spec,
+                buckets.first().map_or(&[][..], Vec::as_slice),
+            );
+            // The answer's gaps count against the limit as the buckets do.
+            reduce_dates(&[&result], BUCKET_LIMIT)
+                .map_err(|made| terms_collect::too_many_buckets(made, BUCKET_LIMIT))?;
+            // ALLOC: one box a `date_histogram`, bounded by the request's.
+            Ok(Value::DateHistogram(Box::new(result)))
         }
         _ => Err(engine_error(&"an aggregation result of another kind")),
     }
