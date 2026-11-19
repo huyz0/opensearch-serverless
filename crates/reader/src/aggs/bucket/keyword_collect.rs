@@ -2,14 +2,27 @@
 //! (`GlobalOrdinalsStringTermsAggregator`) over the field's global ordinals,
 //! its result as `StringTerms` holds it, and the memory the ordinals take.
 
-use lucene_aggs::bucket_aggs::AggNode;
-use lucene_search::global_ords::keyword_column;
+use lucene_aggs::bucket_aggs::{AcceptedOrds, AggNode};
+use lucene_codecs::regexp::RegexpPattern;
+use lucene_codecs::terms_dict::TermsCursor;
+use lucene_search::global_ords::{GlobalOrds, keyword_column};
 
 use crate::OpenShard;
 use crate::aggs::bucket::BUCKET_LIMIT;
+use crate::aggs::bucket::keyword_options::TermFilter;
 use crate::aggs::bucket::keyword_terms::KeywordTermsResult;
 use crate::aggs::bucket::terms::TermsSpec;
+use crate::failure::Failure;
+use crate::search::ShardError;
 use oss_blob::BlobStore;
+
+/// What each term of the dictionaries holds while `min_doc_count: 0` lists
+/// the empty buckets: a candidate bucket (24 bytes) and its seen flag.
+pub const ZERO_BUCKET_BYTES: usize = 32;
+
+/// The most characters of an `include` or `exclude` pattern
+/// (`IncludeExclude.DEFAULT_MAX_REGEX_LENGTH`).
+const MAX_REGEX_LENGTH: usize = 1000;
 
 /// What one term of a segment's dictionary holds while the search runs: its
 /// entry in the segment's map to global ordinals (8 bytes), the global
@@ -49,6 +62,23 @@ pub fn reserved_bytes<S: BlobStore + 'static>(
         }
     }
     let kept = spec.shard_size.min(BUCKET_LIMIT).min(terms);
+    // `min_doc_count: 0` makes every term a candidate bucket; a filter's
+    // accepted bits are built beside a shifted copy and read terms as long
+    // as the longest.
+    let zero = if spec.min_doc_count == 0 {
+        terms.saturating_mul(ZERO_BUCKET_BYTES)
+    } else {
+        0
+    };
+    let filter = if spec.keyword.filters() {
+        terms
+            .div_ceil(8)
+            .saturating_add(8)
+            .saturating_mul(2)
+            .saturating_add(longest)
+    } else {
+        0
+    };
     terms
         .saturating_mul(ORD_BYTES)
         .saturating_add(segments.saturating_mul(longest).saturating_mul(2))
@@ -59,27 +89,199 @@ pub fn reserved_bytes<S: BlobStore + 'static>(
                     .saturating_add(BUCKET_BYTES),
             ),
         )
+        .saturating_add(zero)
+        .saturating_add(filter)
 }
 
-/// The engine's node for a `terms` of the keyword field `field`.
-pub fn node(field: &str, spec: &TermsSpec) -> AggNode {
+/// The engine's node for a `terms` of the keyword field `field`, with the
+/// accepted ordinals of its `include` and `exclude` ([`accepted_ords`]).
+pub fn node(field: &str, spec: &TermsSpec, accepted: Option<AcceptedOrds>) -> AggNode {
     AggNode::Terms {
         // ALLOC: one field name an aggregation, bounded by the request's.
         field: field.to_owned(),
-        missing: None,
-        accepted: None,
+        // ALLOC: one term an aggregation, bounded by the request's.
+        missing: spec.keyword.missing.as_ref().map(|m| m.as_bytes().to_vec()),
+        accepted,
         shard_size: spec.shard_size,
         order: spec.order,
-        zero_buckets: false,
+        zero_buckets: spec.min_doc_count == 0,
         // ALLOC: empty; sub-aggregations are refused.
         subs: Vec::new(),
     }
 }
 
-/// A shard's result with no bucket: an unmapped field, or no match.
-pub fn empty(spec: &TermsSpec) -> KeywordTermsResult {
-    // ALLOC: empty.
-    from_engine(spec, 0, Vec::new())
+fn bad_request(reason: String) -> ShardError {
+    ShardError {
+        status: 400,
+        failure: Failure::plain("illegal_argument_exception", reason),
+    }
+}
+
+fn engine_error(e: &dyn std::fmt::Display) -> ShardError {
+    ShardError {
+        status: 500,
+        // ALLOC: error path; one message.
+        failure: Failure::opensearch("exception", e.to_string()),
+    }
+}
+
+/// One side of `include` or `exclude` ready to test terms
+/// (`IncludeExclude.toAutomaton`).
+enum Matcher {
+    Regex(Box<RegexpPattern>),
+    Set(Vec<Vec<u8>>),
+}
+
+impl Matcher {
+    fn new(filter: &TermFilter) -> Result<Self, ShardError> {
+        match filter {
+            TermFilter::Regex(pattern) => {
+                // `validateRegExpStringLength`, in Java's UTF-16 units.
+                let length = pattern.encode_utf16().count();
+                if length > MAX_REGEX_LENGTH {
+                    // ALLOC: error path; one message.
+                    return Err(bad_request(format!(
+                        "The length of regex [{length}] used in the request has exceeded the \
+                         allowed maximum of [{MAX_REGEX_LENGTH}]. This maximum can be set by \
+                         changing the [index.max_regex_length] index level setting."
+                    )));
+                }
+                // ALLOC: error path; one message.
+                let compiled =
+                    RegexpPattern::parse(pattern).map_err(|e| bad_request(e.to_string()))?;
+                // A pattern too large to determinize would be matched by a
+                // backtracking fallback that answers "no match" past its
+                // budget; OpenSearch fails it instead.
+                if compiled.dfa_matches(b"").is_none() {
+                    return Err(bad_request(
+                        // ALLOC: error path; one message.
+                        "a pattern of an [include] or [exclude] too complex to determinize is \
+                         not supported by this node yet"
+                            .to_owned(),
+                    ));
+                }
+                // ALLOC: one compiled pattern a filter, bounded by the request's.
+                Ok(Matcher::Regex(Box::new(compiled)))
+            }
+            // ALLOC: one term a listed value; the body's size bounds them.
+            TermFilter::Set(terms) => Ok(Matcher::Set(
+                terms.iter().map(|t| t.as_bytes().to_vec()).collect(),
+            )),
+        }
+    }
+
+    fn matches(&self, term: &[u8]) -> bool {
+        match self {
+            Matcher::Regex(p) => p.dfa_matches(term).unwrap_or(false),
+            Matcher::Set(terms) => terms.binary_search_by(|t| t.as_slice().cmp(term)).is_ok(),
+        }
+    }
+}
+
+fn set_bit(bits: &mut [u64], ord: usize) {
+    if let Some(word) = bits.get_mut(ord >> 6) {
+        *word |= 1 << (ord & 63);
+    }
+}
+
+fn get_bit(bits: &[u64], ord: usize) -> bool {
+    bits.get(ord >> 6).is_some_and(|w| w >> (ord & 63) & 1 == 1)
+}
+
+/// The global ordinals `include` and `exclude` accept
+/// (`IncludeExclude.OrdinalsFilter.acceptedGlobalOrdinals`), numbered with
+/// the `missing` term among them where it sorts when no segment holds it:
+/// `None` when the aggregation has neither. Each segment's dictionary is
+/// read once in order, and its memory is what [`reserved_bytes`] counts.
+pub fn accepted_ords<S: BlobStore + 'static>(
+    shard: &OpenShard<S>,
+    field: &str,
+    ords: &GlobalOrds,
+    spec: &TermsSpec,
+) -> Result<Option<AcceptedOrds>, ShardError> {
+    if !spec.keyword.filters() {
+        return Ok(None);
+    }
+    let include = spec
+        .keyword
+        .include
+        .as_ref()
+        .map(Matcher::new)
+        .transpose()?;
+    let exclude = spec
+        .keyword
+        .exclude
+        .as_ref()
+        .map(Matcher::new)
+        .transpose()?;
+    let accepts = |term: &[u8]| {
+        include.as_ref().is_none_or(|m| m.matches(term))
+            && !exclude.as_ref().is_some_and(|m| m.matches(term))
+    };
+    let missing = spec.keyword.missing.as_ref().map(|m| m.as_bytes());
+    let count = ords.value_count();
+    // ALLOC: one bit a global ordinal, reserved by `reserved_bytes`.
+    let mut bits = vec![0u64; count.div_ceil(64)];
+    let mut before_missing = 0usize;
+    let mut holds_missing = false;
+    for (index, segment) in shard.reader.segment_readers().iter().enumerate() {
+        let Some((_, data, entry)) =
+            keyword_column(segment, field).map_err(|e| engine_error(&e))?
+        else {
+            continue;
+        };
+        let to_global = ords.segment_map(index).unwrap_or_default();
+        let mut cursor = TermsCursor::open(data, entry).map_err(|e| engine_error(&e))?;
+        let mut segment_ord = 0usize;
+        while let Some(term) = cursor.next_term().map_err(|e| engine_error(&e))? {
+            let global = to_global.get(segment_ord).copied().unwrap_or(-1);
+            segment_ord = segment_ord.saturating_add(1);
+            // A term of several segments is read from the first.
+            if ords.first_segment(global) != Some(index) {
+                continue;
+            }
+            if accepts(term) {
+                set_bit(&mut bits, usize::try_from(global).unwrap_or(usize::MAX));
+            }
+            if let Some(m) = missing {
+                match term.cmp(m) {
+                    std::cmp::Ordering::Less => before_missing = before_missing.saturating_add(1),
+                    std::cmp::Ordering::Equal => holds_missing = true,
+                    std::cmp::Ordering::Greater => {}
+                }
+            }
+        }
+    }
+    let Some(m) = missing.filter(|_| !holds_missing) else {
+        return Ok(Some(AcceptedOrds {
+            count: count as u64,
+            // ALLOC: the bits, as above.
+            bits: bits.into(),
+        }));
+    };
+    // The inserted term takes the ordinal `before_missing`: every later
+    // ordinal moves up one.
+    // ALLOC: the bits with one more, as above.
+    let mut shifted = vec![0u64; count.saturating_add(1).div_ceil(64)];
+    for ord in 0..count {
+        if get_bit(&bits, ord) {
+            set_bit(
+                &mut shifted,
+                if ord >= before_missing {
+                    ord.saturating_add(1)
+                } else {
+                    ord
+                },
+            );
+        }
+    }
+    if accepts(m) {
+        set_bit(&mut shifted, before_missing);
+    }
+    Ok(Some(AcceptedOrds {
+        count: (count as u64).saturating_add(1),
+        bits: shifted.into(),
+    }))
 }
 
 /// The result of the engine's first owning bucket: the documents of the

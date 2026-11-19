@@ -105,6 +105,8 @@ src/aggs/bucket/collect_tests.rs	new		tests of terms on a real index
 src/aggs/bucket/terms_tests.rs	new		tests of terms parsing, reduce and writing
 src/aggs/bucket/keyword_terms.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/StringTerms.java@3.10.0	StringTerms' state, InternalTerms.reduce over terms and StringTerms.Bucket.keyToXContent
 src/aggs/bucket/keyword_collect.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/GlobalOrdinalsStringTermsAggregator.java@3.10.0	the keyword terms node over lucene-aggs' global ordinals and the memory they take
+src/aggs/bucket/keyword_options.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/IncludeExclude.java@3.10.0	parseInclude, parseExclude and merge's checks, for a regular expression or a set
+src/aggs/bucket/keyword_options_tests.rs	new		tests of the keyword-only options of terms parsed
 src/aggs/bucket/keyword_terms_tests.rs	new		tests of keyword terms reduce and writing
 src/aggs/bucket/keyword_collect_tests.rs	new		tests of keyword terms on a real index
 src/prefetch/mod.rs	new		the open prefetch: the small and pinned files a cold open reads whole, fetched together; the Java downloads whole commits at open instead

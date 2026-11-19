@@ -4,6 +4,7 @@
 //! one pass, one response writer and one reduce serve them all.
 
 pub mod keyword_collect;
+pub mod keyword_options;
 pub mod keyword_terms;
 pub mod terms;
 pub mod terms_collect;
@@ -19,6 +20,8 @@ pub const BUCKET_LIMIT: usize = 65_535;
 mod collect_tests;
 #[cfg(test)]
 mod keyword_collect_tests;
+#[cfg(test)]
+mod keyword_options_tests;
 #[cfg(test)]
 mod keyword_terms_tests;
 #[cfg(test)]

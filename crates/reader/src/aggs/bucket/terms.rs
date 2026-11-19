@@ -4,6 +4,7 @@
 
 pub use lucene_aggs::bucket_aggs::TermsOrder;
 
+use crate::aggs::bucket::keyword_options::KeywordOptions;
 use crate::aggs::partial::Value;
 
 /// `BucketUtils.suggestShardSideQueueSize`: the shard size when none is
@@ -23,6 +24,8 @@ pub struct TermsSpec {
     pub min_doc_count: u64,
     /// How the buckets are ordered.
     pub order: TermsOrder,
+    /// The options only a keyword field reads.
+    pub keyword: KeywordOptions,
 }
 
 impl Default for TermsSpec {
@@ -33,6 +36,7 @@ impl Default for TermsSpec {
             shard_size: suggested_shard_size(10),
             min_doc_count: 1,
             order: TermsOrder::CountDesc,
+            keyword: KeywordOptions::default(),
         }
     }
 }
