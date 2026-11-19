@@ -36,7 +36,7 @@ Parity plan R8.4, first slice (the garbage collector), invariants I-1 (every sto
 
 ## S3 request budget
 
-One sweep of one shard: 1 register read (GET-class), `ceil(keys / 1000)` LIST pages over the shard's storage path (LIST is priced like a PUT: the cost scales with the shard's blob count, as the Java's listing of its term containers does, and with nothing else; relisting avoidance is the next slice), and `ceil(deleted / 1000)` DELETE batches. Nothing scales with documents, indexes or elapsed time; an idle index is swept only by the pass that visits it, at the pass's interval, and a pass never runs while a node is hibernated. The pass over shards lands with its own budget row.
+One sweep of one shard: 1 register read (GET-class), `ceil(keys / 1000)` LIST pages over the shard's storage path (LIST is priced like a PUT: the cost scales with the shard's blob count, as the Java's listing of its term containers does, and with nothing else; relisting avoidance is the next slice), and `ceil(deleted / 1000)` DELETE batches. Nothing scales with documents, indexes or elapsed time; an index is swept only when its trigger fires (a commit that dropped a file, a pin change), never on a timer, so an idle index makes none. The pass over shards lands with its own budget row.
 
 ## Switch
 

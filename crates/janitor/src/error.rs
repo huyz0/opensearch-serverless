@@ -50,4 +50,22 @@ mod tests {
         let e = JanitorError::Pins("a view record");
         assert_eq!(e.to_string(), "the pins could not be read: a view record");
     }
+
+    #[test]
+    fn a_store_or_format_failure_keeps_its_own_message() {
+        let blob = oss_blob::BlobError::Stream("cut");
+        let message = blob.to_string();
+        let e = JanitorError::from(blob);
+        assert!(matches!(e, JanitorError::Blob(_)));
+        assert_eq!(e.to_string(), message);
+        let format = oss_format::FormatError::Truncated {
+            what: "register",
+            needed: 8,
+            have: 1,
+        };
+        let message = format.to_string();
+        let e = JanitorError::from(format);
+        assert!(matches!(e, JanitorError::Format(_)));
+        assert_eq!(e.to_string(), message);
+    }
 }
