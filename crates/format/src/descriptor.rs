@@ -53,6 +53,9 @@ pub struct IndexDescriptor<'a> {
     /// the descriptor: the bytes between the string's quotes, escapes left
     /// in. `None` when the descriptor has none.
     pub mapping_escaped: Option<&'a [u8]>,
+    /// The `settings` object's bytes as written; `None` when the descriptor
+    /// has none or it is `null`.
+    pub settings: Option<&'a [u8]>,
 }
 
 impl<'a> DescriptorRecord<'a> {
@@ -75,6 +78,7 @@ impl<'a> DescriptorRecord<'a> {
         let mut bucket = None;
         let mut has_unit_layout = false;
         let mut mapping = None;
+        let mut settings = None;
         while let Some(field) = json.next_field()? {
             match field.as_ref() {
                 "alias" => {
@@ -86,6 +90,16 @@ impl<'a> DescriptorRecord<'a> {
                     json.skip_value()?;
                 }
                 "mapping" => mapping = json.raw_string()?,
+                "settings" => {
+                    settings = if json.next_is_object() {
+                        Some(json.raw_object("settings must be an object")?)
+                    } else {
+                        match json.expect_token()? {
+                            Token::Null => None,
+                            _ => return Err(json.error("settings must be an object")),
+                        }
+                    };
+                }
                 "name" | "uuid" | "bucket" | "number_of_shards" => {
                     match (field.as_ref(), json.expect_token()?) {
                         ("name", Token::Str(text)) => name = Some(text),
@@ -109,7 +123,7 @@ impl<'a> DescriptorRecord<'a> {
                         }
                     }
                 }
-                // The settings and anything newer: skipped, never decoded.
+                // Anything newer: skipped, never decoded.
                 _ => json.skip_value()?,
             }
         }
@@ -125,6 +139,7 @@ impl<'a> DescriptorRecord<'a> {
                 bucket,
                 has_unit_layout,
                 mapping_escaped: mapping,
+                settings,
             })),
             _ => Err(corrupt(WHAT, "missing a required field")),
         }

@@ -32,3 +32,4 @@ src/search_open.rs	new		the open of a shard for a search (pool charge, commit, e
 src/search_shard.rs	new		one shard's query and the selected hits of its result, for a coordinator in the same process; the Java runs the query phase and the fetch phase in the engine
 src/coordinate.rs	new		one search over an index's shards run by this node's readers through the coordinator's merge
 src/bulk_route.rs	new		the _bulk route over the node's writer role: streamed slices charged to the bulk budget
+src/open_prefetch.rs	new		whether a cold open prefetches (index, cluster, node, default) and the open_indexes bytes it holds meanwhile

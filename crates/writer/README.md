@@ -3,7 +3,7 @@
 The indexing role. Appends to the node's one write log, builds segments, uploads each as one immutable blob, publishes commits.
 
 ## Owns
-The per-node write log and its fencing, index mappings (parse, merge, dynamic growth), segment build and upload, commit publish, and pushing tail records to readers.
+The per-node write log and its fencing, index mappings (parse, merge, dynamic growth), segment build and upload, commit publish (and `publish::lazy`, when a shard is due for one), and pushing tail records to readers.
 
 ## Depends on
 `oss-types`, `oss-blob`, `oss-format`, `oss-rest` (its JSON tokenizer, for mappings), `chunkjson` (pull tokens, for documents), lucene-rust's `lucene-index`, `lucene-codecs`, `lucene-analysis`, `lucene-search` (a shard's version lookups) and `lucene-store` (the engine). Never `oss-reader`.
