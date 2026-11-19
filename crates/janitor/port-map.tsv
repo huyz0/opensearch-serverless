@@ -6,3 +6,5 @@ src/gc/pins.rs	new		the pin source as a trait; the Java reads PointInTime and Sn
 src/gc/memory.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/reconcile/GarbageCollector.java@3920dc36	firstSeenUnreferenced and the candidates map
 src/settings.rs	new		serverless.janitor.dry_run
 src/error.rs	new		the sweep error
+src/node_log/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/metadata/ShardSettlement.java@3920dc36	collectNodeLog and publishedPast; dry run is new
+src/node_log/seams.rs	new		the writer's log reader and the commit's checkpoint as traits, so the janitor never depends on the writer or reader
