@@ -33,6 +33,7 @@ LAYERS = {
     "oss-doc": 2,
     "oss-reader": 3,
     "oss-writer": 3,
+    "oss-janitor": 3,
     "oss-coordinator": 4,
     "oss-node": 5,
     "oss-compat": 6,

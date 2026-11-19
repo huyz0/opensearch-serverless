@@ -29,3 +29,4 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0017](0017-mappings-and-documents-as-the-java-reads-them.md) | Mappings and documents read as the Java reads them; what the writer cannot index stays with a Java writer | Accepted |
 | [0018](0018-tail-overlay-in-the-reader.md) | The reader searches pushed, unpublished writes through one small in-memory segment beside the commit | Accepted |
 | [0019](0019-document-indexing-crate-below-reader-and-writer.md) | Turning a document into Lucene fields moves to a crate below the reader and the writer | Accepted |
+| [0020](0020-janitor-crate.md) | The janitor is a crate beside the reader and the writer | Proposed |

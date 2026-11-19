@@ -716,6 +716,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "oss-janitor"
+version = "0.1.0"
+dependencies = [
+ "oss-blob",
+ "oss-format",
+ "oss-testkit",
+ "oss-types",
+]
+
+[[package]]
 name = "oss-mem"
 version = "0.1.0"
 dependencies = [
