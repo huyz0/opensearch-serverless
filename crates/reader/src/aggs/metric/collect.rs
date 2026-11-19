@@ -29,7 +29,6 @@ use crate::aggs::bucket::date_histogram::{DateHistogramSpec, reduce_results as r
 use crate::aggs::bucket::date_histogram_collect;
 use crate::aggs::bucket::histogram::{HistogramSpec, reduce_results};
 use crate::aggs::bucket::histogram_collect;
-use crate::aggs::bucket::keyword_collect;
 use crate::aggs::bucket::keyword_subs;
 use crate::aggs::bucket::terms::TermsSpec;
 use crate::aggs::bucket::terms_collect;
@@ -425,22 +424,7 @@ pub fn collect<S: BlobStore + 'static>(
         };
         match r {
             Resolved::Numeric(_) => nodes.push(node(agg, precision)),
-            Resolved::Keyword => {
-                if !ords.contains_key(&agg.field) {
-                    let built = shard
-                        .reader
-                        .global_ords(&agg.field)
-                        .map_err(|e| engine_error(&e))?;
-                    // ALLOC: one field name a keyword field, as above.
-                    ords.insert(agg.field.clone(), built);
-                }
-                let spec = terms_spec(agg);
-                let accepted = match ords.get(&agg.field) {
-                    Some(g) => keyword_collect::accepted_ords(shard, &agg.field, g, &spec)?,
-                    None => None,
-                };
-                nodes.push(keyword_subs::node(agg, shard, &spec, accepted)?);
-            }
+            Resolved::Keyword => nodes.push(keyword_subs::node(agg, shard, &mut ords)?),
             Resolved::Unmapped => {}
         }
     }
@@ -478,7 +462,7 @@ pub fn collect<S: BlobStore + 'static>(
             Resolved::Numeric(format) => (format, value_from(agg, results.next())?),
             Resolved::Keyword => (
                 Format::Raw,
-                keyword_subs::value(agg, shard, &terms_spec(agg), results.next())?,
+                keyword_subs::value(agg, shard, results.next())?,
             ),
         };
         parts.push(Partial {

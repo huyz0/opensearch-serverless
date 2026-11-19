@@ -23,7 +23,7 @@ use lucene_search::{BooleanQuery, Clause, Explanation};
 use oss_blob::BlobStore;
 
 use crate::OpenShard;
-use crate::aggs::bucket::keyword_collect;
+use crate::aggs::bucket::{keyword_collect, keyword_subs};
 use crate::aggs::metric::top_hits;
 use crate::aggs::metric::{self, Partial, state_bytes};
 use crate::dsl::search_after::{AfterKey, field_doc};
@@ -171,14 +171,14 @@ pub fn hits_bytes<S: BlobStore + 'static>(source: &SearchSource, shard: &OpenSha
         .aggs
         .iter()
         .filter_map(|agg| agg.terms.as_deref().map(|spec| (agg, spec)))
-        .fold(0usize, |total, (agg, spec)| {
+        .fold(0usize, |total, (agg, _)| {
             let keyword = shard
                 .meta
                 .mapping
                 .get(&agg.field)
                 .is_some_and(|f| f.ty == FieldType::Keyword);
             total.saturating_add(if keyword {
-                keyword_collect::reserved_bytes(shard, &agg.field, spec, agg.subs.len())
+                keyword_subs::reserved(shard, agg, keyword_collect::Parent::TOP)
             } else {
                 docs.saturating_mul(TERMS_BYTES_PER_VALUE)
             })

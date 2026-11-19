@@ -16,6 +16,8 @@ Not in this change, each refused with "not supported by this node yet": a partit
 
 Third slice: sub-aggregations of a keyword `terms`, the single-value and stats metrics (`min`, `max`, `sum`, `avg`, `stats`, `value_count`) over a numeric or date field. The engine collects each into the bucket of the document's term; the shard result carries one value a kept bucket and sub-aggregation; the reduce merges the values of equal keys with the metric's own reduce; each bucket writes its sub-aggregations after `doc_count` in the order `Aggregations.toXContent` lists them. A sub-aggregation of another kind, and any sub-aggregation of a numeric `terms`, is refused as not supported yet (a `histogram`'s still is); a sub-aggregation of a metric is OpenSearch's `aggregation_initialization_exception`.
 
+Fourth slice: a keyword `terms` as a sub-aggregation of a keyword `terms`, to any depth, each with its own scalar or `terms` sub-aggregations. The engine counts the inner terms per outer bucket (ordinals of the inner field are built once a field); each outer bucket carries the inner `terms` result as its sub-aggregation value, which reduces and writes as any keyword `terms`. A numeric `terms`, a `histogram`, and every other kind remain refused as not supported yet.
+
 ## Acceptance criteria
 
 - AC-1: on an index of several segments, the buckets of a keyword field are its distinct terms with their document counts over the query's matches, ordered by count descending then term ascending, cut at `size`, with `sum_other_doc_count` the documents of the buckets cut; `order` by `_key` and by `_count` ascending list as OpenSearch lists them; keys compare as bytes.
@@ -31,14 +33,17 @@ Third slice: sub-aggregations of a keyword `terms`, the single-value and stats m
 - AC-11: shard results reduce the sub-aggregations of equal keys with the metric's reduce (an `avg` adds sums and counts, a `min` takes the smallest), a bucket on one shard only keeps its values, and the buckets cut by `size` take theirs with them.
 - AC-12: a bucket writes its sub-aggregations after `doc_count`, in the order `Aggregations.toXContent` lists sibling aggregations.
 - AC-13: the search reserves a keyword `terms`' sub-aggregations with it: for each term of the dictionaries a metric state a sub-aggregation (the engine's), and for each kept bucket a result value a sub-aggregation; a sub-aggregation of another kind is refused as not supported yet at parse and one under a numeric `terms` at the shard, `histogram`'s refusal unchanged.
+- AC-14: a keyword `terms` under a keyword `terms` counts, in each outer bucket, the inner terms of that bucket's documents under the query (with the inner `size`, `order`, `min_doc_count`, `include`, `exclude` and `missing`, cut with its own `sum_other_doc_count`), and may hold scalar sub-aggregations and further `terms`; an inner `terms` of an unmapped field has no buckets in every outer bucket, and one of a numeric field is refused as not supported yet.
+- AC-15: nested results reduce across shards (an inner `terms` of equal outer keys reduces as a keyword `terms` does, `doc_count_error_upper_bound` included) and write inside their outer bucket after `doc_count`, in the order of the sub-aggregations' names.
+- AC-16: the search reserves an inner `terms` as a keyword `terms` whose kept buckets are `shard_size` (at most its terms) of each outer bucket kept, at most the bucket limit, plus its own ordinals and, for every (outer cell, term) pair, at most the bucket limit, its hash entry, its sub-aggregation states and a candidate bucket under `min_doc_count: 0`, where an outer cell is a term the outer `terms` counts (kept or not).
 
 ## Test plan
 
-Unit tests in `aggs/bucket/keyword_terms_tests.rs` (reduce, writing: AC-3, AC-4), `aggs/bucket/keyword_collect_tests.rs` over an `oss-testkit` index of four segments (AC-1, AC-2, AC-5), `crates/coordinator/tests/keyword_terms_reduce.rs` (AC-3 across shards), the budget gate in `crates/node/tests/it/aggs_budgets.rs` (AC-6); the second slice in `keyword_options_tests.rs` (AC-9) and the end of `keyword_collect_tests.rs` (AC-7, AC-8); the third in the same files (AC-10 to AC-13) and `crates/coordinator/tests/keyword_terms_reduce.rs` (AC-11).
+Unit tests in `aggs/bucket/keyword_terms_tests.rs` (reduce, writing: AC-3, AC-4), `aggs/bucket/keyword_collect_tests.rs` over an `oss-testkit` index of four segments (AC-1, AC-2, AC-5), `crates/coordinator/tests/keyword_terms_reduce.rs` (AC-3 across shards), the budget gate in `crates/node/tests/it/aggs_budgets.rs` (AC-6); the second slice in `keyword_options_tests.rs` (AC-9) and the end of `keyword_collect_tests.rs` (AC-7, AC-8); the third in the same files (AC-10 to AC-13; AC-14 to AC-16 in `keyword_subs_tests.rs`) and `crates/coordinator/tests/keyword_terms_reduce.rs` (AC-11).
 
 ## S3 request budget
 
-Measured, not assumed: AC-6 holds the cold request and round-trip counts of a keyword `terms` beside the metric aggregations. LIST 0, HEAD 0, PUT 0; an idle index makes none. The same row holds with `max` sub-aggregations of the keyword `terms`: they add no request, whatever their number.
+Measured, not assumed: AC-6 holds the cold request and round-trip counts of a keyword `terms` beside the metric aggregations. LIST 0, HEAD 0, PUT 0; an idle index makes none. The same row holds with `max` sub-aggregations of the keyword `terms`: they add no request, whatever their number. A keyword `terms` of a second field under one is held equal to the plain `terms`' cold request count (`a_nested_keyword_terms_adds_no_request_to_a_cold_search`, 15 GETs on the built index both ways).
 
 ## Switch
 

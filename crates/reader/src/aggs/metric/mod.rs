@@ -207,6 +207,7 @@ pub fn state_bytes(aggs: &[MetricAgg]) -> usize {
             .saturating_add(sketch)
             .saturating_add(agg.name.len())
             .saturating_add(agg.field.len())
+            .saturating_add(state_bytes(&agg.subs))
     })
 }
 

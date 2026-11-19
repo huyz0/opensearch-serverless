@@ -48,30 +48,33 @@ pub const SUB_COPIES: usize = 3;
 /// term buffers a segment, and the key of each kept bucket (at most the
 /// bucket limit, and no more than the terms there are) at [`KEY_COPIES`]
 /// copies of the longest term of any segment and [`BUCKET_BYTES`], and
-/// `subs` sub-aggregations' states and values.
+/// `subs` sub-aggregations' states and values; `parent` is what it counts
+/// under.
 pub fn reserved_bytes<S: BlobStore + 'static>(
     shard: &OpenShard<S>,
     field: &str,
     spec: &TermsSpec,
     subs: usize,
+    parent: Parent,
 ) -> usize {
-    let mut terms = 0usize;
-    let mut segments = 0usize;
-    let mut longest = 0usize;
-    for segment in shard.reader.segment_readers() {
-        // A dictionary that cannot be read fails the search itself.
-        if let Ok(Some((_, _, entry))) = keyword_column(segment, field) {
-            segments = segments.saturating_add(1);
-            terms = terms.saturating_add(usize::try_from(entry.terms_dict_size).unwrap_or(0));
-            longest = longest.max(usize::try_from(entry.max_term_length).unwrap_or(0));
-        }
-    }
-    let kept = spec.shard_size.min(BUCKET_LIMIT).min(terms);
-    // `min_doc_count: 0` makes every term a candidate bucket; a filter's
-    // accepted bits are built beside a shifted copy and read terms as long
-    // as the longest.
+    let (terms, segments, longest) = dictionary(shard, field);
+    let kept = parent
+        .kept
+        .saturating_mul(spec.shard_size.min(terms))
+        .min(BUCKET_LIMIT);
+    let cells = parent.cells(terms);
+    // The engine holds a state for every (owner, term) pair it sees, at
+    // most the limit; under a parent they are also hashed.
+    let pairs = if parent.cells > 1 {
+        cells.saturating_mul(BUCKET_BYTES)
+    } else {
+        0
+    };
+    // `min_doc_count: 0` makes every term of every owner a candidate bucket;
+    // a filter's accepted bits are built beside a shifted copy and read
+    // terms as long as the longest.
     let zero = if spec.min_doc_count == 0 {
-        terms.saturating_mul(ZERO_BUCKET_BYTES)
+        cells.saturating_mul(ZERO_BUCKET_BYTES)
     } else {
         0
     };
@@ -84,10 +87,10 @@ pub fn reserved_bytes<S: BlobStore + 'static>(
     } else {
         0
     };
-    // Each sub-aggregation keeps an engine state for every term the search
-    // counts, and a value for each kept bucket in the engine's result, the
-    // shard's and a reduce's.
-    let sub_states = terms
+    // Each sub-aggregation keeps an engine state for every cell, and a value
+    // for each kept bucket in the engine's result, the shard's and a
+    // reduce's.
+    let sub_states = cells
         .saturating_mul(subs)
         .saturating_mul(std::mem::size_of::<lucene_aggs::metric_aggs::MetricState>());
     let sub_values = kept
@@ -97,6 +100,7 @@ pub fn reserved_bytes<S: BlobStore + 'static>(
     terms
         .saturating_mul(ORD_BYTES)
         .saturating_add(sub_states)
+        .saturating_add(pairs)
         .saturating_add(sub_values)
         .saturating_add(segments.saturating_mul(longest).saturating_mul(2))
         .saturating_add(
@@ -108,6 +112,52 @@ pub fn reserved_bytes<S: BlobStore + 'static>(
         )
         .saturating_add(zero)
         .saturating_add(filter)
+}
+
+/// What a `terms` counts under: how many parent buckets the engine holds
+/// state for (every one it sees) and how many of them are kept.
+#[derive(Clone, Copy, Debug)]
+pub struct Parent {
+    /// The parent's cells; 1 at the top of a request.
+    pub cells: usize,
+    /// The parent's kept buckets; 1 at the top.
+    pub kept: usize,
+}
+
+impl Parent {
+    /// The top of a request: one owner.
+    pub const TOP: Parent = Parent { cells: 1, kept: 1 };
+
+    /// How many (owner, term) pairs a `terms` of `terms` dictionary terms
+    /// holds state for: at most the bucket limit under a parent.
+    pub fn cells(self, terms: usize) -> usize {
+        if self.cells > 1 {
+            terms.saturating_mul(self.cells).min(BUCKET_LIMIT)
+        } else {
+            terms
+        }
+    }
+}
+
+/// `(terms, segments, longest)`: the terms of `field`'s dictionaries, how
+/// many segments hold the field and its longest term, from the segments'
+/// metadata.
+pub fn dictionary<S: BlobStore + 'static>(
+    shard: &OpenShard<S>,
+    field: &str,
+) -> (usize, usize, usize) {
+    let mut terms = 0usize;
+    let mut segments = 0usize;
+    let mut longest = 0usize;
+    for segment in shard.reader.segment_readers() {
+        // A dictionary that cannot be read fails the search itself.
+        if let Ok(Some((_, _, entry))) = keyword_column(segment, field) {
+            segments = segments.saturating_add(1);
+            terms = terms.saturating_add(usize::try_from(entry.terms_dict_size).unwrap_or(0));
+            longest = longest.max(usize::try_from(entry.max_term_length).unwrap_or(0));
+        }
+    }
+    (terms, segments, longest)
 }
 
 /// The engine's node for a `terms` of the keyword field `field`, with the

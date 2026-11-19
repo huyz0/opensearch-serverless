@@ -223,3 +223,37 @@ fn a_bucket_writes_its_sub_aggregations_after_doc_count() {
     assert!(got.contains("\"m\":{\"value\":4.0}"), "{got}");
     assert!(got.ends_with("}}]"), "{got}");
 }
+
+// AC-15
+#[test]
+fn nested_results_reduce_and_write_inside_their_buckets() {
+    let inner = |a: u64, b: u64| {
+        let mut r = shard(
+            &spec(10, 10, 1, TermsOrder::CountDesc),
+            1,
+            &[("p", a), ("q", b)],
+        );
+        r.doc_count_error = 0;
+        Value::KeywordTerms(Box::new(r))
+    };
+    let outer = |count: u64, a: u64, b: u64| {
+        let mut r = shard(&spec(10, 10, 1, TermsOrder::CountDesc), 0, &[("x", count)]);
+        r.sub_meta = vec![("n".to_owned(), Format::Raw)];
+        r.subs = vec![vec![inner(a, b)]];
+        r
+    };
+    let got = reduced(&[outer(5, 2, 3), outer(4, 4, 1)]);
+    assert_eq!(keys(&got), [("x", 9)]);
+    let Value::KeywordTerms(n) = &got.subs[0][0] else {
+        panic!("{:?}", got.subs);
+    };
+    assert_eq!(keys(n), [("p", 6), ("q", 4)]);
+    assert_eq!(n.other_doc_count, 2);
+    let out = written(&got);
+    assert!(
+        out.contains(
+            "\"doc_count\":9,\"n\":{\"doc_count_error_upper_bound\":0,\"sum_other_doc_count\":2,\"buckets\":[{\"key\":\"p\",\"doc_count\":6},{\"key\":\"q\",\"doc_count\":4}]}}"
+        ),
+        "{out}"
+    );
+}
