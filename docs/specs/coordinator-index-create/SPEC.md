@@ -6,7 +6,7 @@ Parity plan R7.4, index admin REST, first piece: the decisions in the Java shell
 
 ## Change
 
-`oss-coordinator` gains `indices::settings` (`flatten`: a settings object as dotted keys with core's `index.` prefix) and `indices::create` (`parse`, `CreateRequest`, `MAX_SHARDS`). `Refusal::new` becomes public so every REST decision refuses in one type.
+`oss-coordinator` gains `indices::flat` (`flatten`: a settings object as dotted keys with core's `index.` prefix) and `indices::create` (`parse`, `CreateRequest`, `MAX_SHARDS`). `Refusal::new` becomes public so every REST decision refuses in one type.
 
 ## Acceptance criteria
 

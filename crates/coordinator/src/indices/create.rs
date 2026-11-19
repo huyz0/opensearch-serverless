@@ -3,7 +3,7 @@
 
 use oss_doc::mapping::json::{Json, parse as parse_json};
 
-use super::settings::flatten;
+use super::flat::flatten;
 use crate::route::resolve::Refusal;
 
 /// The most shards an index may have.
