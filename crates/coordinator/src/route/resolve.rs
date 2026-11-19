@@ -117,7 +117,7 @@ impl Refusal {
 
 /// One trailing star and nothing else: what a prefix listing can answer. A
 /// bare `*` is a prefix of everything.
-fn is_prefix_pattern(name: &str) -> bool {
+pub(crate) fn is_prefix_pattern(name: &str) -> bool {
     name.strip_suffix('*')
         .is_some_and(|rest| !rest.contains('*'))
 }
