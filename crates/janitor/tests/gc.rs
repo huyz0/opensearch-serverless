@@ -103,6 +103,7 @@ const LIVE: Config = Config {
     dry_run: false,
     minimum_unreferenced_millis: 0,
     max_watched: 100_000,
+    max_pinned: 100_000,
 };
 
 fn whole(term_dir: &str) -> FileLocation<'_> {
@@ -224,6 +225,7 @@ fn a_minimum_age_holds_a_blob_seen_twice_until_the_clock_has_moved() {
         dry_run: false,
         minimum_unreferenced_millis: 1_000,
         max_watched: 100_000,
+        max_pinned: 100_000,
     };
     rig.sweep(config);
     rig.now.set(1_500);
@@ -255,6 +257,7 @@ fn a_dry_run_deletes_nothing_and_reports_what_it_would() {
         dry_run: true,
         minimum_unreferenced_millis: 0,
         max_watched: 100_000,
+        max_pinned: 100_000,
     };
     assert!(rig.sweep(dry).would_delete.is_empty());
     let second = rig.sweep(dry);
@@ -343,4 +346,55 @@ fn a_sweep_watches_no_more_than_its_cap_and_later_sweeps_take_the_rest() {
     rig.sweep(capped);
     assert_eq!(rig.sweep(capped).deleted.len(), 1);
     assert!(!rig.exists("t=1/_4.seg"));
+}
+
+#[test]
+fn a_lowered_cap_shrinks_the_memory_but_never_starves_an_aged_blob() {
+    let mut rig = Rig::new();
+    for i in 0..4 {
+        rig.blob(&format!("t=1/_{i}.seg"));
+    }
+    rig.manifest(2, &[]);
+    assert_eq!(rig.sweep(LIVE).watching, 4);
+    let capped = Config {
+        max_watched: 1,
+        ..LIVE
+    };
+    // all four are due, so all four go though the cap is one
+    assert_eq!(rig.sweep(capped).deleted.len(), 4);
+}
+
+#[test]
+fn pins_naming_more_keys_than_the_cap_are_as_if_they_said_everything() {
+    let mut rig = Rig::new();
+    rig.blob("t=1/_0.seg");
+    rig.manifest(2, &[]);
+    rig.sweep(LIVE);
+    rig.pins.set(Pinned::Blobs(vec!["a".into(), "b".into()]));
+    let capped = Config {
+        max_pinned: 1,
+        ..LIVE
+    };
+    let sweep = rig.sweep(capped);
+    assert_eq!(sweep.outcome, Outcome::Pinned);
+    assert!(rig.exists("t=1/_0.seg"));
+    // exactly the cap is honoured as the keys it names
+    rig.pins
+        .set(Pinned::Blobs(vec![format!("{PATH}t=1/_0.seg")]));
+    assert_eq!(rig.sweep(capped).outcome, Outcome::Swept);
+}
+
+#[test]
+fn a_failed_delete_deletes_nothing_it_claims_and_leaves_the_memory() {
+    let mut rig = Rig::new();
+    rig.blob("t=1/_0.seg");
+    rig.manifest(2, &[]);
+    rig.sweep(LIVE);
+    rig.store.fail_next(S3Op::Delete, 8);
+    assert!(rig.try_sweep(LIVE).is_err());
+    assert_eq!(rig.memory.watching(PATH), 1);
+    assert!(rig.exists("t=1/_0.seg"));
+    // the store recovers and the next sweep finishes it
+    rig.store.fail_next(S3Op::Delete, 0);
+    assert_eq!(rig.sweep(LIVE).deleted.len(), 1);
 }

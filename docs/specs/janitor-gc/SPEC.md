@@ -8,10 +8,10 @@ Parity plan R8.4, first slice (the garbage collector), invariants I-1 (every sto
 
 - A new crate `oss-janitor` (layer 3, beside the reader and writer, never depending on either) holds the janitor's passes. This slice is its first: `gc::Collector::sweep`, one shard.
 - **The rule, the Java's whole safety argument.** A blob is deleted only when it lives in a term container (`t=<term>/`) strictly older than the published manifest's term, **and** nothing names it: not the manifest (through any location form that points into the shard's path), and not a pin. Blobs outside `t=<n>/`, or of the live or a later term, are never judged.
-- **The grace.** A blob must be seen unreferenced by two consecutive sweeps of the shard, and for at least `minimum_unreferenced_millis` (default 0, a pure pass count) between the first sight and the delete. What a sweep saw is `gc::Memory`, held by the caller and keyed by the shard's storage path (so a new incarnation starts empty); a node that has just taken a shard starts empty and so deletes nothing on its first sweep. Forgetting only delays a deletion.
+- **The grace.** A blob must be seen unreferenced by two consecutive sweeps of the shard, and for at least `minimum_unreferenced_millis` (`serverless.janitor.minimum_unreferenced_millis`, node scope, dynamic, default 60,000 as the Java's node-pack collector; two back-to-back sweeps are no grace for a reader still serving the previous commit; 0 is a pure pass count, for tests) between the first sight and the delete. What a sweep saw is `gc::Memory`, held by the caller and keyed by the shard's storage path (so a new incarnation starts empty); a node that has just taken a shard starts empty and so deletes nothing on its first sweep. Forgetting only delays a deletion.
 - **Pins.** `gc::Pins` answers, for one shard, the blobs a frozen view or a snapshot still names, or `Everything` when it cannot tell (an unreadable record, a capture still reading manifests). `Everything` deletes nothing and leaves the memory as it was, so the grace is not restarted. The crate ships no implementation that answers "no pins": point in time (R10.6) and snapshots (R14.2) wire theirs, and nothing can wire a sweep before (the same rule as `oss_meta::ShardPins`, ADR 0012). Tests carry their own.
 - **No commit, nothing judged.** A shard with no manifest register may be mid-first-publish: every blob is a candidate for the commit about to be made. An unreadable or malformed manifest is an error, and nothing is deleted.
-- **Dry run.** With `dry_run` on, a sweep does everything but the delete: it reports what it would delete, and keeps those blobs watched, so the sweep after the switch flips deletes them at once. `Config::max_watched` caps what a sweep holds (the pass sets it from its pool reservation). Default on (`serverless.janitor.dry_run`, node scope, dynamic); it flips once the fault suites (R8.6) show no live blob is ever counted. The setting is declared in `oss-janitor` and registered in the node's settings when the node wires a pass.
+- **Dry run.** With `dry_run` on, a sweep does everything but the delete: it reports what it would delete, and keeps those blobs watched, so the sweep after the switch flips deletes them at once. `Config::max_watched` caps what a sweep holds and `Config::max_pinned` what the pins may name (the pass sets both from its pool reservation). The flip of `dry_run` also requires the minimum age to stay above the readers' refresh backstop. Default on (`serverless.janitor.dry_run`, node scope, dynamic); it flips once the fault suites (R8.6) show no live blob is ever counted. The setting is declared in `oss-janitor` and registered in the node's settings when the node wires a pass.
 - Not in this change: the pass over every shard of every index, the shard memory's eviction when an index is gone, relisting avoidance (`SweepScope`), node packs and the log cleanups, point in time and snapshot pins, tombstone and reclaim scheduling, the node wiring.
 
 ## Acceptance criteria
@@ -28,11 +28,14 @@ Parity plan R8.4, first slice (the garbage collector), invariants I-1 (every sto
 - AC-10: keys outside `t=<n>/` (the manifest register, a non-numeric container, a nested key) are never judged.
 - AC-11: a sweep deletes with `delete_many` and the request counts are exactly: one register read, one LIST page per 1,000 keys under the shard's path, one DELETE batch per 1,000 blobs deleted; no GET, HEAD or PUT.
 - AC-12: the memory holds only candidates (what was deleted or referenced again leaves it); an empty memory holds no entry for the shard.
+- AC-14: pins naming more than `max_pinned` keys are as if they said `Everything`.
+- AC-15: a failed delete leaves the memory as it was, and the next sweep finishes the job.
+- AC-16: a cap lowered between sweeps shrinks what is watched, but a blob already due is never held back by it.
 - AC-13: a sweep watches at most `max_watched` blobs; the rest are judged by later sweeps.
 
 ## Test plan
 
-`crates/janitor/tests/gc.rs` over the in-process emulator with its meter, writing manifests with `oss_format::manifest::encode` and blobs with `put` (AC-1 to AC-13). A test for each mutation of the rule: strict `<` of the term, the two-pass condition, the pin set, the reference set. The setting's default and bounds in `settings.rs`.
+`crates/janitor/tests/gc.rs` over the in-process emulator with its meter, writing manifests with `oss_format::manifest::encode` and blobs with `put` (AC-1 to AC-16). A test for each mutation of the rule: strict `<` of the term, the two-pass condition, the pin set, the reference set. The setting's default and bounds in `settings.rs`.
 
 ## S3 request budget
 

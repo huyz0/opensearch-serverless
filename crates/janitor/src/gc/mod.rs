@@ -39,6 +39,9 @@ pub struct Config {
     /// The most unreferenced blobs a sweep watches or deletes at once;
     /// blobs past it are judged by later sweeps. Bounds the memory.
     pub max_watched: usize,
+    /// The most blob keys the pins may name for one shard; more is as if
+    /// they said [`Pinned::Everything`], so nothing is deleted.
+    pub max_pinned: usize,
 }
 
 /// What kind of sweep this was.
@@ -65,6 +68,11 @@ pub struct Sweep {
     pub would_delete: Vec<String>,
     /// The blobs now being watched: unreferenced, not yet deletable.
     pub watching: usize,
+}
+
+/// Whether a blob first seen at `since` is old enough to delete at `now`.
+fn aged_since(since: Option<i64>, now: i64, config: &Config) -> bool {
+    since.is_some_and(|since| now.saturating_sub(since) >= config.minimum_unreferenced_millis)
 }
 
 impl Sweep {
@@ -141,6 +149,9 @@ impl<'a> Collector<'a> {
         match self.pins.pinned(&shard)? {
             Pinned::Everything => return Ok(Sweep::empty(Outcome::Pinned)),
             // ALLOC: one key a blob a pin names, bounded by the shard's blobs.
+            Pinned::Blobs(keys) if keys.len() > self.config.max_pinned => {
+                return Ok(Sweep::empty(Outcome::Pinned));
+            }
             Pinned::Blobs(keys) => referenced.extend(keys),
         }
 
@@ -167,12 +178,12 @@ impl<'a> Collector<'a> {
                         return;
                     }
                     let since = before.get(key).copied();
-                    if since.is_none() && watching.len() >= self.config.max_watched {
+                    let aged = aged_since(since, now, &self.config);
+                    // The cap holds for every blob but one already due, so a
+                    // lowered cap shrinks the memory and an aged blob is never starved.
+                    if watching.len() >= self.config.max_watched && !aged {
                         return;
                     }
-                    let aged = since.is_some_and(|since| {
-                        now.saturating_sub(since) >= self.config.minimum_unreferenced_millis
-                    });
                     if aged {
                         due.push(key.to_owned());
                     }

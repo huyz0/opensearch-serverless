@@ -1,6 +1,6 @@
 # Janitor: reclaim segment blobs no commit names: verified
 
-Run with `cargo test -p oss-janitor`, `cargo mutants -p oss-janitor` (32 mutants: 27 caught, 4 unviable, 1 missed, the `Display` of the error, then covered by `an_unreadable_pin_says_so`) and the whole gate, `scripts/gate.sh`, on 2026-11-19 (Linux sandbox, emulator only, numbers provisional).
+Run with `cargo test -p oss-janitor`, `cargo mutants -p oss-janitor` (40 mutants: 36 caught, 4 unviable, none missed) and the whole gate, `scripts/gate.sh`, on 2026-11-19 (Linux sandbox, emulator only, numbers provisional).
 
 - AC-1: `an_unreferenced_blob_of_an_older_term_goes_on_the_second_sweep_not_the_first`
 - AC-2: `a_blob_the_manifest_names_is_never_deleted_whatever_its_term`
@@ -15,3 +15,7 @@ Run with `cargo test -p oss-janitor`, `cargo mutants -p oss-janitor` (32 mutants
 - AC-11: `a_sweep_is_one_register_read_a_listing_and_a_delete_batch`
 - AC-12: `the_memory_holds_only_what_is_still_a_candidate`
 - AC-13: `a_sweep_watches_no_more_than_its_cap_and_later_sweeps_take_the_rest`
+- AC-14: `pins_naming_more_keys_than_the_cap_are_as_if_they_said_everything`
+- AC-15: `a_failed_delete_deletes_nothing_it_claims_and_leaves_the_memory`
+- AC-16: `a_lowered_cap_shrinks_the_memory_but_never_starves_an_aged_blob`
+- Default minimum age: `a_blob_must_be_unreferenced_for_a_minute_by_default`
