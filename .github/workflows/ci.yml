@@ -91,7 +91,9 @@ jobs:
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
-          for c in $(git rev-list "$BASE..$HEAD"); do
+          # A merge commit (main merged into the branch) is not checked: the
+          # PR is squash-merged and its own commits are what carry the rules.
+          for c in $(git rev-list --no-merges "$BASE..$HEAD"); do
             git log -1 --format=%B "$c" > "$RUNNER_TEMP/msg.txt"
             scripts/check-commit-msg.sh "$RUNNER_TEMP/msg.txt" || { echo "commit $c"; exit 1; }
           done

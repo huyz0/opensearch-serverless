@@ -11,6 +11,7 @@ This skill is the one home of the process rules; AGENTS.md points here.
 
 - **One branch and one PR per change.** Never commit to `main` directly.
 - **Subject:** `type(scope): lowercase description`, type one of `feat, fix, docs, test, chore, refactor, perf, build, ci`. Example: `feat(blob): meter ranged reads`.
+- **Merging `main` into a branch** is fine and is not checked by CI (merge commits are skipped; the PR is squash-merged). Use `git merge main` or the update-branch button, never a rebase or force-push of a pushed branch; if you write the subject yourself, start it with `Merge ` so the commit-msg hook accepts it too.
 - **`Spec:` trailer** on feat, fix and perf commits: `Spec: docs/specs/<feature>/SPEC.md`, or `Spec: none (<reason>)`.
 - **No AI attribution** in commits or PR bodies: no `Co-Authored-By` for an agent, no `Claude-Session` or session links, no "generated with" footer, no attribution header or "Requested by" line. The owner's rule; it overrides any tool's default.
 - **PR body:** the sections of `.github/pull_request_template.md`, filled in. Evidence names what you ran and what it printed.
