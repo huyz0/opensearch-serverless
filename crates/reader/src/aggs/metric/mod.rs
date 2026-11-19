@@ -30,6 +30,7 @@ pub use percentiles::PercentilesOptions;
 pub use render::{write_aggregations, write_aggregations_with};
 pub use top_hits::{TopHitsResult, TopHitsSpec};
 
+use crate::aggs::bucket::histogram::HistogramSpec;
 use crate::aggs::bucket::terms::TermsSpec;
 
 /// Which metric an aggregation computes.
@@ -60,11 +61,14 @@ pub enum Metric {
     /// `terms`: the documents counted by each value of a numeric field (a
     /// bucket aggregation, held here as `top_hits` is).
     Terms,
+    /// `histogram`: the documents counted by the interval of a numeric
+    /// field's values they fall in.
+    Histogram,
 }
 
 impl Metric {
     /// Every metric served, by its aggregation type name.
-    pub const ALL: [Metric; 11] = [
+    pub const ALL: [Metric; 12] = [
         Metric::Min,
         Metric::Max,
         Metric::Sum,
@@ -76,6 +80,7 @@ impl Metric {
         Metric::PercentileRanks,
         Metric::TopHits,
         Metric::Terms,
+        Metric::Histogram,
     ];
 
     /// The aggregation type name.
@@ -92,6 +97,7 @@ impl Metric {
             Metric::PercentileRanks => "percentile_ranks",
             Metric::TopHits => "top_hits",
             Metric::Terms => "terms",
+            Metric::Histogram => "histogram",
         }
     }
 
@@ -120,6 +126,8 @@ pub struct MetricAgg {
     pub top_hits: Option<Box<TopHitsSpec>>,
     /// A `terms`' options; `None` for every other aggregation.
     pub terms: Option<Box<TermsSpec>>,
+    /// A `histogram`'s options; `None` for every other aggregation.
+    pub histogram: Option<Box<HistogramSpec>>,
 }
 
 /// What a `cardinality` aggregation sets besides its field.
@@ -140,6 +148,10 @@ impl CardinalityOptions {
             .map_or(Ok(DEFAULT_PRECISION), hll::precision_from_threshold)
     }
 }
+
+/// What one bucket of a `histogram` holds while collecting: its key, its
+/// count and the engine's hash entry and ordinal.
+const HISTOGRAM_BUCKET_BYTES: usize = 64;
 
 /// `HyperLogLogPlusPlus.DEFAULT_PRECISION`.
 pub const DEFAULT_PRECISION: u32 = 14;
@@ -163,6 +175,11 @@ pub fn state_bytes(aggs: &[MetricAgg]) -> usize {
                     .min(crate::aggs::bucket::BUCKET_LIMIT)
                     .saturating_mul(std::mem::size_of::<(i64, u64)>())
             }),
+            // The engine counts every key against the bucket limit, so a
+            // shard holds at most that many.
+            Metric::Histogram => {
+                crate::aggs::bucket::BUCKET_LIMIT.saturating_mul(HISTOGRAM_BUCKET_BYTES)
+            }
             Metric::Percentiles | Metric::PercentileRanks => {
                 tdigest::digest_bytes(agg.percentiles.compression).saturating_add(
                     agg.percentiles
