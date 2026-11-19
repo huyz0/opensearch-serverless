@@ -18,6 +18,8 @@ graph TD
     oss-cluster --> oss-types
     oss-compat
     oss-coordinator --> oss-blob
+    oss-coordinator --> oss-cluster
+    oss-coordinator --> oss-format
     oss-coordinator --> oss-reader
     oss-coordinator --> oss-types
     oss-coordinator --> oss-writer

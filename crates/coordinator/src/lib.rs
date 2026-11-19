@@ -8,3 +8,4 @@ pub mod docs;
 pub mod fanout;
 pub mod reduce;
 pub mod route;
+pub mod zone_meter;
