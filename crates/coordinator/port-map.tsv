@@ -17,3 +17,6 @@ src/docs/update.rs	port	serverless/shell/src/main/java/org/opensearch/serverless
 src/docs/by_query.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/ops/DeleteByQueryExecution.java@429b4cbc	the walk of a delete- or update-by-query over shards, bounded by the newest sequence number, paged and admitted; the searches and the change are the caller traits
 src/cluster/mod.rs	new		cluster-level decisions
 src/cluster/health.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/ClusterHealthHandler.java@429b4cbc	the health decisions that need no node: parameter refusals, wait_for_nodes, shard and index classification, status, and when a wait is satisfied; the route, polling, reads and rendering are separate pieces
+src/indices/mod.rs	new		index administration decisions
+src/indices/settings.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/indexadmin/IndexCreateRequest.java@429b4cbc	core's Settings.loadFromMap and normalizePrefix over a JSON settings object
+src/indices/create.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/indexadmin/IndexCreateRequest.java@429b4cbc	the create-index body: bare mapping or envelope, alias option refusals, the shard and replica checks; the template layering, route and reply are separate pieces
