@@ -45,6 +45,8 @@ pub struct OpenShard<S: BlobStore + 'static> {
     pub reader: DirectoryReader,
     /// The index's uuid, shard count and fields.
     pub meta: IndexMeta,
+    /// Which shard of the index this is.
+    pub shard: u32,
 }
 
 impl<S: BlobStore + 'static> std::fmt::Debug for OpenShard<S> {
@@ -114,5 +116,6 @@ pub fn open_located<S: BlobStore + 'static>(
         directory,
         reader,
         meta,
+        shard,
     })
 }

@@ -257,6 +257,9 @@ pub fn routes<S: BlobStore + 'static>(
 
 #[path = "search_open.rs"]
 pub(crate) mod open_shard;
+#[path = "search_shard.rs"]
+mod shard_query;
+pub use shard_query::ShardQuery;
 #[path = "search_overlay.rs"]
 mod overlay;
 

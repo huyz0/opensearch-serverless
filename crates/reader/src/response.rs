@@ -324,7 +324,7 @@ fn write_hit_list<S: BlobStore + 'static>(
         }
         out.write_all(b"{")?;
         if explained {
-            write!(out, "\"_shard\":\"[{index}][0]\",\"_node\":")?;
+            write!(out, "\"_shard\":\"[{index}][{}]\",\"_node\":", shard.shard)?;
             write_json_str(out, node_id)?;
             out.write_all(b",")?;
         }

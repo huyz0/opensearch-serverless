@@ -94,5 +94,5 @@ src/overlay/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless
 src/overlay/commit.rs	new		finds the commit documents an overlay replaces or deletes by one filter search, which the Java shell does with a per-id version map
 src/overlay/view.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/engine/OverlayReadOnlyEngine.java@429b4cbc	the commit hidden by a live-documents mask beside the overlay segment
 src/overlay/source.rs	new		the overlay a search asks for: finished or nothing, never a build on the search path
-src/response_selected.rs	new		writes chosen hits of a top_hits result as response.rs writes them, for a coordinator that merged several shards
+src/response_selected.rs	new		writes chosen hits of a top_hits result, or of a shard's top-level hits, as response.rs writes them, for a coordinator that merged several shards
 src/response_selected_tests.rs	new		tests of response_selected.rs over a real index

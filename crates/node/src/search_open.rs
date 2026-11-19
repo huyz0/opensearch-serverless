@@ -57,25 +57,19 @@ impl<S: BlobStore + 'static> SearchService<S> {
     /// The search error an open of it answers: no such index, a shard the
     /// index does not have, a failed read or a full pool.
     pub fn open(&self, index: &str, shard: u32) -> Result<(), Box<SearchError>> {
-        match self.open_shard(index, shard, false) {
-            Ok(_) => Ok(()),
-            Err(Answer::Search(e)) => Err(e),
-            Err(Answer::Rest(e)) => {
-                // ALLOC: error path; one box and one message.
-                Err(Box::new(SearchError::request(
-                    e.status(),
-                    Failure::opensearch(
-                        "circuit_breaking_exception",
-                        "the open_indexes pool cannot hold the shard",
-                    ),
-                )))
-            }
-        }
+        self.open_shard(index, shard, false)
+            .map(|_| ())
+            .map_err(into_error)
     }
 
     /// The open shard `shard` of `index`, opened now if it is not yet;
     /// `single` refuses an index of more than one shard.
-    fn open_shard(&self, index: &str, shard: u32, single: bool) -> Result<Arc<Held<S>>, Answer> {
+    pub(super) fn open_shard(
+        &self,
+        index: &str,
+        shard: u32,
+        single: bool,
+    ) -> Result<Arc<Held<S>>, Answer> {
         let key = set_key(index, shard);
         loop {
             // The lock is released before waiting.
@@ -204,6 +198,23 @@ pub(crate) fn set_key(index: &str, shard: u32) -> std::borrow::Cow<'_, str> {
     } else {
         // ALLOC: one key a first open of a shard past the first.
         std::borrow::Cow::Owned(format!("{index}#{shard}"))
+    }
+}
+
+/// What an open that failed answers, as a search error.
+pub(super) fn into_error(answer: Answer) -> Box<SearchError> {
+    match answer {
+        Answer::Search(e) => e,
+        Answer::Rest(e) => {
+            // ALLOC: error path; one box and one message.
+            Box::new(SearchError::request(
+                e.status(),
+                Failure::opensearch(
+                    "circuit_breaking_exception",
+                    "the open_indexes pool cannot hold the shard",
+                ),
+            ))
+        }
     }
 }
 
