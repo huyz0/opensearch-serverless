@@ -16,7 +16,7 @@ mod plan_tests;
 #[cfg(test)]
 mod tests;
 
-pub use plan::{Member, Range, plan};
+pub use plan::{Member, Range, plan, planned_bytes};
 pub use primed::Primed;
 
 /// How the open's files are prefetched.
