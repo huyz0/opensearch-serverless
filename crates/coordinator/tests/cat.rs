@@ -224,7 +224,7 @@ fn a_request_is_refused_in_order_and_walks_or_pages() {
     assert_eq!(
         plan(true, "\u{a0}p*", None, None, None),
         Ok(Some(Paging {
-            prefix: None,
+            prefix: Some("\u{a0}p".to_owned()),
             after: None,
             size: 500
         }))
