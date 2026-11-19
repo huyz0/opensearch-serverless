@@ -8,3 +8,4 @@ src/settings.rs	new		serverless.janitor.dry_run
 src/error.rs	new		the sweep error
 src/node_log/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/metadata/ShardSettlement.java@3920dc36	collectNodeLog and publishedPast; dry run is new
 src/node_log/seams.rs	new		the writer's log reader and the commit's checkpoint as traits, so the janitor never depends on the writer or reader
+src/published/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/reconcile/PublishedSweeps.java@3920dc36	sweepPublished and sweepCanFindSomething: the dropped-file gate, the watch list; the driver is new (state held here, not on the pass)

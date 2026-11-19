@@ -10,6 +10,7 @@
 
 pub mod gc;
 pub mod node_log;
+pub mod published;
 pub mod settings;
 
 mod error;

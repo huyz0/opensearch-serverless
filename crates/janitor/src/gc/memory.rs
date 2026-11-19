@@ -33,6 +33,12 @@ impl Memory {
         self.shards.len()
     }
 
+    /// Forgets what is remembered of the shard at `path`: the node let it go,
+    /// and a later owner starts empty.
+    pub fn forget(&mut self, path: &str) {
+        self.shards.remove(path);
+    }
+
     pub(super) fn seen(&self, path: &str) -> Option<&BTreeMap<String, i64>> {
         self.shards.get(path)
     }
