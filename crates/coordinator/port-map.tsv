@@ -3,6 +3,7 @@ src/lib.rs	new		crate root
 src/route/mod.rs	new		routes a request to the shards it names
 src/route/resolve.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/SearchIndexResolver.java@429b4cbc	resolveIndices without the digest-rollup pruning; the metadata plane is a trait so the resolution is tested without a store
 src/route/place.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/ops/RequestRouting.java@429b4cbc	place, afterForwardFailure and notHere with ForwardFailure, NotHereException and Placement folded in; the node (hints, heads, reconciler, signals) is a trait
+src/search.rs	new		one search over the shards: query, merge, fetch the page, reduce metric aggregations, write the response
 src/reduce/mod.rs	new		reduces what the shards answered into one response
 src/reduce/hits.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/ops/SearchMerge.java@429b4cbc	the hit half of the merge (order, window trim, totals, ceiling) over shard answers a caller renders from; the aggregation reduce and the breaker are separate pieces
 src/reduce/aggs.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/ops/SearchMerge.java@429b4cbc	the aggregation half of the merge: each named metric aggregation reduced over the shards that have it; buckets, top_hits and the breaker are separate pieces
