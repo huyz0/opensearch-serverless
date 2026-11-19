@@ -31,8 +31,9 @@ pub struct Range {
 
 /// The ranges that fetch what the engine reads whole when it opens `files`:
 /// files whose name `pinned` accepts, and files of at most `page_size`
-/// bytes. Files stop being picked once `max_bytes` is reached; files of one
-/// blob at most `gap_bytes` apart share a range.
+/// bytes. A file that would pass `max_bytes` of files is not picked, and a
+/// range that would pass `max_bytes` read, gaps included, is dropped; files
+/// of one blob at most `gap_bytes` apart share a range.
 pub fn plan(
     files: &ShardFiles,
     pinned: &dyn Fn(&str) -> bool,
@@ -90,6 +91,16 @@ pub fn plan(
         }
         ranges.extend(open);
     }
+    // The bytes read, the gaps between files included, stay within the
+    // limit: a range that would pass it is left to the engine.
+    let mut read = 0u64;
+    ranges.retain(|r| {
+        let Some(total) = read.checked_add(r.len).filter(|t| *t <= config.max_bytes) else {
+            return false;
+        };
+        read = total;
+        true
+    });
     ranges
 }
 

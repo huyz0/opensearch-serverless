@@ -16,7 +16,7 @@ Not changed: the descriptor and commit register reads, the search path, and any 
 
 - AC-1: a cold open and first term search of a one-segment shard makes 3 round trips (descriptor, commit, one merged read of the segment's opening files) and 3 requests; with the prefetch off it makes 6 and 6.
 - AC-2: for a shard of several segments in several blobs, the prefetch makes no more requests than the same open with it off, and a depth of 3.
-- AC-3: the plan merges files of one blob whose gap is at most `gap_bytes`, never merges across blobs, never picks a file the engine would page (large, unpinned), and stops at `max_bytes` of files picked.
+- AC-3: the plan merges files of one blob whose gap is at most `gap_bytes`, never merges across blobs, never picks a file the engine would page (large, unpinned), and never reads more than `max_bytes`, gaps included.
 - AC-4: a prefetch that fails (the store refuses a range) leaves the open succeeding with the engine's own reads, and the search answer unchanged.
 - AC-5: after the open returns the fetched bytes are no longer held.
 - AC-6: the search answers of every compat replay step are unchanged, and `docs/request-budgets.md` rows `search.cold.*` and `search.metric_aggs.cold.*` are the new, lower numbers, enforced.
@@ -29,11 +29,11 @@ Not changed: the descriptor and commit register reads, the search path, and any 
 
 ## S3 request budget
 
-Never more requests than before: a merged range replaces the ranges of its files, and the plan adds none. Bytes can rise by the gaps it spans (at most `gap_bytes` each, default 32 KiB) and by small files the open would not have read (at most `max_bytes` in all, default 8 MiB); a segment written by the shell is one blob, so its opening files are usually one range. Depth falls from 2 + the files read one after another to 3. LIST 0, HEAD 0, PUT 0. Idle: 0.
+Never more requests than before: a merged range replaces the ranges of its files, and the plan adds none. Bytes can rise by the gaps it spans (at most `gap_bytes` each, default 32 KiB) and by small files the open would not have read (at most `max_bytes` in all, default 8 MiB, gaps included); a segment written by the shell is one blob, so its opening files are usually one range. Depth falls from 2 + the files read one after another to 3. LIST 0, HEAD 0, PUT 0. Idle: 0.
 
 ## Memory
 
-At most `max_bytes` (8 MiB) held for the length of one open, and counted in the open's estimate already: [`open_cost`](../../../crates/reader/src/open_cost.rs) charges the bytes of the files read whole. Freed when the open returns.
+At most `max_bytes` (8 MiB) read in all, the gaps between files included (a range that would pass it is left to the engine), held for the length of one open and freed when it returns. ⚠️ This is a second copy beside the engine's own copy of the same small files, which [`open_cost`](../../../crates/reader/src/open_cost.rs) charges once, and it is a plain allocation, not reserved from a pool: the reader's open takes no `MemoryBudget`. Reserving it from the `open_indexes` pool before fetching is a follow-up that needs the open's callers (the node's) to pass the pool in.
 
 ## Switch
 

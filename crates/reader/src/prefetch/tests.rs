@@ -103,3 +103,23 @@ fn a_range_the_store_refuses_is_left_to_the_engine() {
     let mut out = [0u8; 4];
     assert_eq!(primed.read("f", 0, &mut out), None);
 }
+
+#[test]
+fn an_open_whose_prefetch_is_refused_still_opens_and_reads_every_document() {
+    let spec = Spec::new("tight", 40);
+    let config = BudgetConfig::new(4 << 20)
+        .with_pool(Pool::Transport, 4 << 20)
+        .expect("fits");
+    let budget = MemoryBudget::new(&config);
+    // Two buffers: the prefetch's four concurrent ranges find the pool busy.
+    let buffers = BufferPool::new(&budget, Pool::Transport, SMALL_BUFFER, 2).expect("fits");
+    let store = Arc::new(PooledStore::new(
+        Rounds::new(Emulator::new(64 << 20, 1)),
+        buffers,
+    ));
+    for (key, bytes) in blobs("", &spec) {
+        store.put(&key, &mut SliceSource::new(&bytes)).expect("put");
+    }
+    let (_, _, shard) = cold_open(&store, "tight", &OpenPrefetch::default());
+    assert_eq!(shard.reader.num_docs(), 40);
+}

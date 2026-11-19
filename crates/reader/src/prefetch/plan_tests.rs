@@ -105,3 +105,26 @@ fn the_plan_stops_at_the_byte_limit() {
 fn an_empty_file_table_plans_nothing() {
     assert!(plan(&table(&[]), &pin_si, 4096, &OpenPrefetch::default()).is_empty());
 }
+
+#[test]
+fn a_smaller_file_after_one_that_does_not_fit_is_still_picked() {
+    let files = table(&[("_0.fnm", "a", 0, 100), ("_1.fnm", "b", 0, 20)]);
+    let config = OpenPrefetch {
+        max_bytes: 50,
+        ..OpenPrefetch::default()
+    };
+    let ranges = plan(&files, &pin_si, 4096, &config);
+    assert_eq!(ranges.len(), 1);
+    assert_eq!(ranges[0].members[0].name, "_1.fnm");
+}
+
+#[test]
+fn the_gaps_a_range_spans_count_against_the_byte_limit() {
+    let files = table(&[("_0.fnm", "a", 0, 10), ("_1.fnm", "a", 30_000, 10)]);
+    let config = OpenPrefetch {
+        max_bytes: 100,
+        ..OpenPrefetch::default()
+    };
+    // Both files fit the limit, the 30 KB range between them does not.
+    assert!(plan(&files, &pin_si, 4096, &config).is_empty());
+}
