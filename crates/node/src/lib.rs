@@ -6,6 +6,8 @@
 
 #[cfg(feature = "writer")]
 pub mod forward;
+#[cfg(any(feature = "reader", feature = "writer", feature = "coordinator"))]
+pub mod handlers;
 #[cfg(feature = "writer")]
 pub mod newest;
 #[cfg(feature = "reader")]

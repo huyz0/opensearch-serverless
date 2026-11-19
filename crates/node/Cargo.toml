@@ -35,7 +35,7 @@ writer = [
     "dep:oss-rest",
     "dep:oss-meta",
 ]
-coordinator = ["dep:oss-coordinator", "dep:oss-blob"]
+coordinator = ["dep:oss-coordinator", "dep:oss-blob", "dep:oss-transport"]
 
 [dependencies]
 oss-types = { workspace = true }
