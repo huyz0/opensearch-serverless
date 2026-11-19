@@ -8,7 +8,7 @@ R10.6: `PointInTimeStore::capture`, the write half of a point in time: it freeze
 
 `PointInTimeStore::capture(descriptors, index, keep_alive, buf)` returns the finished `PointInTime`.
 
-1. Resolve the descriptor. An absent name or an alias is `NoSuchIndex`; a bucketed index or one laid out in units is `Unsupported` (later slices). Nothing is written for these.
+1. Resolve the descriptor. An absent name or an alias is `NoSuchIndex`; a bucketed index is `Unsupported` (its commits are in its bucket's manifest, which the Rust side has no reader for yet). Nothing is written for these. An index with a unit layout freezes its live units, not `0..number_of_shards`: a unit a split retired keeps its slot but is not served, and the halves of a pending split are not live yet (the Java's `unitIds`). A layout that cannot be read is refused with the one descriptor read.
 2. Create the capturing marker under a fresh 22-character id (16 random bytes, base64url), expiring at the store's clock plus the keep-alive. It is written before any manifest is read, so the janitor holds everything while the capture runs.
 3. Resolve again: a descriptor with another uuid means the index was deleted and made again, and the capture is refused as `Replaced`.
 4. Read each shard's manifest register, shards `0..n`. One never published is `NothingPublished(shard)`. The view records each file's name, encoded location and length.
@@ -16,7 +16,7 @@ R10.6: `PointInTimeStore::capture`, the write half of a point in time: it freeze
 
 A failure after step 2 releases the marker best-effort and reports the first failure.
 
-Not here: the REST handlers, the node wiring, bucketed and unit-layout indexes.
+Not here: the REST handlers, the node wiring, bucketed indexes.
 
 ## Acceptance criteria
 
@@ -25,6 +25,7 @@ Not here: the REST handlers, the node wiring, bucketed and unit-layout indexes.
 - AC-3: a shard with nothing published refuses the capture and leaves no live view.
 - AC-4: an absent name or an alias is refused; nothing is written.
 - AC-5: a bucketed index is refused after one descriptor read and nothing written.
+- AC-9: an index in units freezes exactly its live units in ascending order, whatever order the layout lists them and whatever retired slots or pending halves it holds; a live unit with nothing published refuses the capture and leaves nothing pinned; an unreadable layout is refused after one descriptor read.
 - AC-6: an index replaced between the marker and the incarnation check is refused and its marker released.
 - AC-7: a view of one incarnation does not pin a later index of the same name.
 - AC-8: `new_id` yields 22 base64url characters, for known byte vectors.

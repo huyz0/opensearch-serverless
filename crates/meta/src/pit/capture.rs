@@ -10,7 +10,7 @@
 use std::fmt;
 
 use oss_blob::BlobError;
-use oss_format::{CommitManifest, PitFile, PitShard, PointInTime, ShardRef};
+use oss_format::{CommitManifest, PitFile, PitShard, PointInTime, ShardRef, UnitLayoutRecord};
 
 use super::PointInTimeStore;
 use crate::descriptors::{DescriptorStore, Target};
@@ -22,8 +22,8 @@ pub enum CaptureError {
     /// The name is no index: nothing is registered under it, or it is
     /// an alias, which freezes only index by index.
     NoSuchIndex,
-    /// The index is one this slice cannot freeze: bucketed, or laid out in
-    /// units rather than shards.
+    /// The index is one this slice cannot freeze: bucketed, its commits being
+    /// in its bucket's manifest.
     Unsupported(&'static str),
     /// A shard has published nothing, so there is no commit to freeze, and a
     /// view of the rest would silently cover part of the index.
@@ -57,6 +57,28 @@ impl<E: Into<MetaError>> From<E> for CaptureError {
     fn from(e: E) -> Self {
         Self::Meta(e.into())
     }
+}
+
+/// The shards that hold documents now, ascending: `0..slots` for an index
+/// without a shard mode, the live unit ids of its layout otherwise (a unit a
+/// split retired keeps its slot but is not served, and neither are the
+/// halves of a split still pending), as `IndexDescriptor.unitIds`.
+fn live_units(layout: Option<&[u8]>, slots: u32) -> Result<Vec<u32>, MetaError> {
+    let Some(bytes) = layout else {
+        // ALLOC: one id a shard, at most the index record's shard count.
+        return Ok((0..slots).collect());
+    };
+    let layout = UnitLayoutRecord::parse(bytes)?;
+    // ALLOC: one id a live unit, at most MAX_SHARDS.
+    let mut ids: Vec<u32> = layout
+        .units
+        .iter()
+        // `parse` refuses a negative id, so none is dropped here.
+        .filter_map(|unit| u32::try_from(unit.id).ok())
+        // ALLOC: the ids counted above.
+        .collect();
+    ids.sort_unstable();
+    Ok(ids)
 }
 
 /// A fresh id: 16 random bytes in URL-safe base64 without padding, the
@@ -125,13 +147,9 @@ impl PointInTimeStore {
                         "a point in time over a bucketed index is not supported yet",
                     ));
                 }
-                if record.unit_layout.is_some() {
-                    return Err(CaptureError::Unsupported(
-                        "a point in time over an index laid out in units is not supported yet",
-                    ));
-                }
+                let units = live_units(record.unit_layout, record.number_of_shards)?;
                 // ALLOC: the uuid, once a capture.
-                (record.uuid.into_owned(), record.number_of_shards)
+                (record.uuid.into_owned(), units)
             }
             Target::Alias(_) | Target::Absent => return Err(CaptureError::NoSuchIndex),
         };
@@ -162,7 +180,7 @@ impl PointInTimeStore {
         &self,
         descriptors: &DescriptorStore,
         marker: &PointInTime,
-        shards: u32,
+        shards: Vec<u32>,
         buf: &mut [u8],
     ) -> Result<PointInTime, CaptureError> {
         let uuid = marker.index_uuid.as_deref().unwrap_or_default();
@@ -175,7 +193,7 @@ impl PointInTimeStore {
         }
         // ALLOC: one entry a shard, at most the index record's shard count.
         let mut frozen: Vec<PitShard> = Vec::new();
-        for shard in 0..shards {
+        for shard in shards {
             let at = ShardRef {
                 index: &marker.index,
                 uuid,

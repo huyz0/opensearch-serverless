@@ -236,13 +236,67 @@ fn a_refusal_before_the_marker_writes_nothing() {
         });
         assert!(matches!(got, Err(CaptureError::NoSuchIndex)));
         assert_eq!(sent, [(Get, 1)], "{:?}", b.kind);
-        let unit = IndexRecord {
+    }
+}
+
+/// Two live units, 1 and 3, in four slots; 0 and 2 are the halves of a split of
+/// 3 still pending, so a capture that counted them would ask for their commits.
+const LAYOUT: &[u8] = br#"{"mode":"adaptive","declared_shards":2,"next_unit_id":4,"units":[{"id":3,"first":"8000000000000000","last":"ffffffffffffffff"},{"id":1,"first":"0","last":"7fffffffffffffff"}],"pending_split":[{"id":3,"first":"8000000000000000","last":"ffffffffffffffff"},{"id":2,"first":"8000000000000000","last":"bfffffffffffffff"},{"id":0,"first":"c000000000000000","last":"ffffffffffffffff"}]}"#;
+
+fn units(d: &DescriptorStore) {
+    let record = IndexRecord {
+        unit_layout: Some(LAYOUT),
+        ..IndexRecord::new("logs", "u1", 4)
+    };
+    d.create(&record, 1, &mut buf()).unwrap();
+}
+
+#[test]
+fn an_index_in_units_freezes_its_live_units_and_no_retired_slot() {
+    for b in all() {
+        let (d, p) = setup(&b);
+        units(&d);
+        publish(&*b.store, "logs", "u1", 1, 3);
+        publish(&*b.store, "logs", "u1", 3, 4);
+        let view = p.capture(&d, "logs", KEEP_ALIVE, &mut buf()).unwrap();
+        assert_eq!(
+            view.shards
+                .iter()
+                .map(|s| (s.shard, s.term))
+                .collect::<Vec<_>>(),
+            [(1, 3), (3, 4)],
+            "{:?}",
+            b.kind
+        );
+        assert_eq!(p.read(&view.id, &mut buf()).unwrap(), Some(view));
+    }
+}
+
+#[test]
+fn a_live_unit_that_has_published_nothing_refuses_an_index_in_units() {
+    for b in all() {
+        let (d, p) = setup(&b);
+        units(&d);
+        publish(&*b.store, "logs", "u1", 1, 3);
+        match p.capture(&d, "logs", KEEP_ALIVE, &mut buf()) {
+            Err(CaptureError::NothingPublished(3)) => {}
+            other => panic!("{other:?}"),
+        }
+        assert!(p.live(&mut buf()).unwrap().is_empty());
+    }
+}
+
+#[test]
+fn a_layout_that_cannot_be_read_is_refused_before_anything_is_written() {
+    for b in all() {
+        let (d, p) = setup(&b);
+        let record = IndexRecord {
             unit_layout: Some(b"{}"),
-            ..IndexRecord::new("u", "u1", 1)
+            ..IndexRecord::new("logs", "u1", 2)
         };
-        d.create(&unit, 1, &mut buf()).unwrap();
-        let (got, sent) = counted(b.meter(), || p.capture(&d, "u", KEEP_ALIVE, &mut buf()));
-        assert!(matches!(got, Err(CaptureError::Unsupported(_))));
+        d.create(&record, 1, &mut buf()).unwrap();
+        let (got, sent) = counted(b.meter(), || p.capture(&d, "logs", KEEP_ALIVE, &mut buf()));
+        assert!(matches!(got, Err(CaptureError::Meta(_))), "{got:?}");
         assert_eq!(sent, [(Get, 1)], "{:?}", b.kind);
     }
 }
