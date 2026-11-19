@@ -147,7 +147,9 @@ where
             continue;
         };
         let mut after: Option<i64> = None;
-        while out.visited < max_docs {
+        // The shard check above and the last page's break keep `visited`
+        // below `max_docs` here, so the loop ends only by those breaks.
+        loop {
             let want = BATCH_SIZE.min(max_docs.saturating_sub(out.visited));
             let size = usize::try_from(want).unwrap_or(usize::MAX);
             let hits = source.page(shard, up_to, after, size)?;
