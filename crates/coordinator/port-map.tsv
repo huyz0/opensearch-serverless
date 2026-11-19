@@ -11,3 +11,4 @@ src/zone_meter.rs	new		counts the bytes of each peer exchange by zone into the c
 src/docs/mod.rs	new		the document APIs decisions
 src/docs/get.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/ops/DocumentReads.java@429b4cbc	where a get is served (local, absent, reader, forward, not here) and the read version conflict of VersionType; the reads, the forward and the source filter are separate pieces
 src/docs/write.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/ops/DocumentWrites.java@429b4cbc	where a write is applied (local, activate, forward, not here) and the native write options validation; the writes, the activation and the forward are separate pieces
+src/docs/bulk.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/documents/BulkDispatch.java@429b4cbc	routing of each bulk item (route) and the grouping by index and shard (dispatch); the group write, throttling, pipelines and the response are separate pieces
