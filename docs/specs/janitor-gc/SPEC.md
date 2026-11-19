@@ -27,12 +27,12 @@ Parity plan R8.4, first slice (the garbage collector), invariants I-1 (every sto
 - AC-9: with `dry_run` on, nothing is deleted, no DELETE request is sent, the report names what would be, the blobs stay watched, and the first sweep after the switch flips deletes them.
 - AC-10: keys outside `t=<n>/` (the manifest register, a non-numeric container, a nested key) are never judged.
 - AC-11: a sweep deletes with `delete_many` and the request counts are exactly: one register read, one LIST page per 1,000 keys under the shard's path, one DELETE batch per 1,000 blobs deleted; no GET, HEAD or PUT.
-- AC-13: a sweep watches at most `max_watched` blobs; the rest are judged by later sweeps.
 - AC-12: the memory holds only candidates (what was deleted or referenced again leaves it); an empty memory holds no entry for the shard.
+- AC-13: a sweep watches at most `max_watched` blobs; the rest are judged by later sweeps.
 
 ## Test plan
 
-`crates/janitor/tests/gc.rs` over the in-process emulator with its meter, writing manifests with `oss_format::manifest::encode` and blobs with `put` (AC-1 to AC-12). A test for each mutation of the rule: strict `<` of the term, the two-pass condition, the pin set, the reference set. The setting's default and bounds in `settings.rs`.
+`crates/janitor/tests/gc.rs` over the in-process emulator with its meter, writing manifests with `oss_format::manifest::encode` and blobs with `put` (AC-1 to AC-13). A test for each mutation of the rule: strict `<` of the term, the two-pass condition, the pin set, the reference set. The setting's default and bounds in `settings.rs`.
 
 ## S3 request budget
 

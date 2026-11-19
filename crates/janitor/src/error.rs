@@ -40,3 +40,14 @@ impl From<FormatError> for JanitorError {
         Self::Format(e)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::JanitorError;
+
+    #[test]
+    fn an_unreadable_pin_says_so() {
+        let e = JanitorError::Pins("a view record");
+        assert_eq!(e.to_string(), "the pins could not be read: a view record");
+    }
+}
