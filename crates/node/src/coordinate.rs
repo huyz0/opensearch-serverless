@@ -16,8 +16,8 @@ use oss_coordinator::search::{Params, SearchFailure, Shards, search};
 use oss_mem::{Pool, Reservation};
 use oss_reader::dsl::{SearchSource, SortKey};
 use oss_reader::failure::{Failure, SearchError};
-use oss_reader::search::{Hits, hits_bytes};
-use oss_rest::{JSON, Length, Request, Response, RestError};
+use oss_reader::search::Hits;
+use oss_rest::{JSON, Length, Response, RestError};
 
 use super::{Answer, SearchService, ShardQuery, send};
 
@@ -61,7 +61,7 @@ impl<S: BlobStore + 'static> Shards for Local<'_, S> {
     fn query(&self, shard: usize) -> Result<ShardQuery<S>, ShardError> {
         let shard = u32::try_from(shard).unwrap_or(u32::MAX);
         self.service
-            .query_shard(self.index, shard, &self.source)
+            .query_shard_reserving(self.index, shard, &self.source, self.reserve)
             .map_err(ShardError)
     }
 
@@ -191,26 +191,14 @@ impl<S: BlobStore + 'static> SearchService<S> {
     /// Answers `source` over the `shards` shards of `index` as one response.
     pub(super) fn handle_sharded(
         &self,
-        req: &mut Request<'_>,
         resp: &mut Response<'_>,
         index: &str,
         shards: usize,
         source: &SearchSource,
         started: Instant,
     ) -> Result<(), RestError> {
-        let held = match self.open_shard(index, 0, false) {
-            Ok(held) => held,
-            Err(Answer::Rest(e)) => return Err(e),
-            Err(Answer::Search(e)) => return send(resp, &e),
-        };
-        // Every shard keeps its top `from + size` until the merge is done.
-        let mut window = source.clone();
-        window.size = source.from.saturating_add(source.size);
-        window.from = 0;
-        let each = hits_bytes(&window, &held.shard);
-        req.body().reserve(each.saturating_mul(shards))?;
-        // The buffers the shards' renders read into are held until the
-        // response is written.
+        // The buffers each shard's hits take and its renders read into are
+        // held until the response is written.
         let held_buffers: Mutex<Vec<Reservation>> = Mutex::new(Vec::new());
         let reserve = |n: usize| {
             let grant = self

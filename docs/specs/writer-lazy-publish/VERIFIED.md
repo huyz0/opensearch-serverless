@@ -10,3 +10,4 @@
 - AC-8: `a_forgotten_shard_is_due_once_again` (writer, `crates/writer/src/publish/lazy.rs`).
 - AC-9: `the_settings_form_a_valid_registry_with_the_javas_defaults` (writer, `crates/writer/src/publish/lazy.rs`).
 - AC-10: `lazy_publishing_makes_a_fifth_of_the_publishes_at_the_requests_of_one_blob_and_one_swap` (writer, `tests/lazy_publish.rs`): 20 shards, 10 s, 160 publishes against 800 eager, 2 PUT and 0 LIST each. Emulator, provisional.
+- AC-11: `the_nodes_settings_form_a_valid_registry` in crates/node/src/settings.rs
