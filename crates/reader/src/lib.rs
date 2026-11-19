@@ -20,6 +20,7 @@ pub mod mapping;
 pub mod numbers;
 pub mod open_cost;
 pub mod overlay;
+pub mod prefetch;
 pub mod response;
 pub mod search;
 mod search_sort;
@@ -35,6 +36,7 @@ use oss_blob::{BlobStore, PooledStore};
 
 pub use engine_store::EngineStore;
 pub use error::ReaderError;
+pub use prefetch::OpenPrefetch;
 pub use shard_files::{FileRange, IndexMeta, MAX_REGISTER_BYTES, ShardFiles};
 
 /// One shard's latest published commit, open for search.
@@ -45,6 +47,8 @@ pub struct OpenShard<S: BlobStore + 'static> {
     pub reader: DirectoryReader,
     /// The index's uuid, shard count and fields.
     pub meta: IndexMeta,
+    /// Which shard of the index this is.
+    pub shard: u32,
 }
 
 impl<S: BlobStore + 'static> std::fmt::Debug for OpenShard<S> {
@@ -99,20 +103,53 @@ pub fn open_located<S: BlobStore + 'static>(
     files: ShardFiles,
     meta: IndexMeta,
 ) -> Result<OpenShard<S>, ReaderError> {
+    open_located_with(
+        store,
+        cache,
+        base,
+        index,
+        shard,
+        files,
+        meta,
+        &OpenPrefetch::default(),
+    )
+}
+
+/// [`open_located`] with `prefetch` deciding how the files the open reads
+/// whole are fetched ([`prefetch`]).
+#[allow(clippy::too_many_arguments)]
+pub fn open_located_with<S: BlobStore + 'static>(
+    store: Arc<PooledStore<S>>,
+    cache: Arc<PageCache>,
+    base: &str,
+    index: &str,
+    shard: u32,
+    files: ShardFiles,
+    meta: IndexMeta,
+    prefetch: &OpenPrefetch,
+) -> Result<OpenShard<S>, ReaderError> {
+    let primed = prefetch.enabled.then(|| {
+        let page = u64::try_from(cache.config().page_size).unwrap_or(u64::MAX);
+        let ranges = prefetch::plan(&files, &|n| cache.is_pinned_name(n), page, prefetch);
+        prefetch::Primed::fetch(&store, &ranges)
+    });
     // ALLOC: one namespace per open shard.
     let namespace = format!("{base}/{index}/{shard}/t={}", files.term);
-    let directory = Arc::new(CachedBlobDirectory::new(
-        EngineStore::new(store, files),
-        cache,
-        &namespace,
-    ));
+    let engine = EngineStore::new(store, files);
+    if let Some(primed) = primed {
+        engine.prime(primed);
+    }
+    let directory = Arc::new(CachedBlobDirectory::new(engine, cache, &namespace));
     // What the writer replaced or deleted stays in the segment as a soft
     // delete; searches and counts do not see it.
-    let reader =
-        DirectoryReader::open(directory.as_ref())?.soft_deletes_wrapper(SOFT_DELETES_FIELD)?;
+    let opened = DirectoryReader::open(directory.as_ref())
+        .and_then(|r| r.soft_deletes_wrapper(SOFT_DELETES_FIELD));
+    directory.store().release();
+    let reader = opened?;
     Ok(OpenShard {
         directory,
         reader,
         meta,
+        shard,
     })
 }

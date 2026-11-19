@@ -15,7 +15,7 @@ use oss_blob::{Emulator, PooledStore, SliceSource};
 use oss_mem::{BudgetConfig, BufferPool, MemoryBudget, Pool, SMALL_BUFFER};
 use oss_testkit::index::{Spec, blobs};
 
-use super::{render_selected_hits, write_response};
+use super::{render_selected_hits, render_selected_result_hits, write_response};
 use crate::aggs::metric::{TopHitsResult, Value};
 use crate::dsl::parse_chunks;
 use crate::search::{Hits, search};
@@ -145,5 +145,86 @@ fn no_position_or_one_beyond_the_result_is_refused() {
     assert!(run(&[]).is_err());
     assert!(run(&[0, 3]).is_err());
     assert!(run(&[3]).is_err());
+    assert_eq!(run(&[2]).expect("last").len(), 1);
+}
+
+fn searched_top(shard: &OpenShard<Emulator>, body: &str) -> Hits {
+    let source = parse_chunks([body.as_bytes()]).expect("parses");
+    search(shard, "idx", &source, &Analyzer::standard(None)).expect("searches")
+}
+
+/// The `hits` list of the response's top-level hits, as it is written.
+fn response_top(shard: &OpenShard<Emulator>, hits: &Hits) -> String {
+    let mut out = Vec::new();
+    write_response(&mut out, shard, "idx", "node", hits, 0, &mut |_| Ok(())).expect("writes");
+    let body = String::from_utf8(out).expect("utf-8");
+    let from = body.find(r#""hits":["#).expect("hits") + 8;
+    let end = body[from..].rfind("]}").expect("end") + from;
+    body[from..end].to_string()
+}
+
+fn render_top(shard: &OpenShard<Emulator>, hits: &Hits, positions: &[usize]) -> Vec<String> {
+    render_selected_result_hits(shard, "idx", "node", hits, positions, &mut |_| Ok(()))
+        .expect("renders")
+        .into_iter()
+        .map(|h| String::from_utf8(h).expect("utf-8"))
+        .collect()
+}
+
+#[test]
+fn selected_result_hits_are_written_as_the_response_writes_them() {
+    let shard = shard();
+    let hits = searched_top(&shard, r#"{"size":6}"#);
+    let all = response_top(&shard, &hits);
+    let whole = render_top(&shard, &hits, &[0, 1, 2, 3, 4, 5]);
+    assert_eq!(whole.join(","), all);
+    let picked = render_top(&shard, &hits, &[5, 0, 0, 3]);
+    assert_eq!(
+        picked,
+        [
+            whole[5].clone(),
+            whole[0].clone(),
+            whole[0].clone(),
+            whole[3].clone()
+        ]
+    );
+}
+
+#[test]
+fn selected_result_hits_carry_explain_sort_fields_and_source_filtering() {
+    let shard = shard();
+    for (options, marks) in [
+        (
+            r#"{"_source":["n"],"docvalue_fields":["n"],"explain":true,"size":4}"#,
+            [r#""_explanation""#, r#""fields":{"n""#],
+        ),
+        (
+            r#"{"sort":[{"n":"desc"}],"_source":["n"],"docvalue_fields":["n"],"size":4}"#,
+            [r#""sort":["#, r#""fields":{"n""#],
+        ),
+    ] {
+        let hits = searched_top(&shard, options);
+        let all = response_top(&shard, &hits);
+        for mark in marks {
+            assert!(all.contains(mark), "{mark} in {all}");
+        }
+        let whole = render_top(&shard, &hits, &[0, 1, 2, 3]);
+        assert_eq!(whole.join(","), all);
+        assert_eq!(
+            render_top(&shard, &hits, &[3, 1]),
+            [whole[3].clone(), whole[1].clone()]
+        );
+    }
+}
+
+#[test]
+fn no_position_or_one_beyond_the_result_hits_is_refused() {
+    let shard = shard();
+    let hits = searched_top(&shard, r#"{"size":3}"#);
+    let run = |positions: &[usize]| {
+        render_selected_result_hits(&shard, "idx", "node", &hits, positions, &mut |_| Ok(()))
+    };
+    assert!(run(&[]).is_err());
+    assert!(run(&[0, 3]).is_err());
     assert_eq!(run(&[2]).expect("last").len(), 1);
 }

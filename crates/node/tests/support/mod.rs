@@ -177,6 +177,24 @@ pub fn put_variant(
         .expect("put variant");
 }
 
+/// Puts every blob of shard 0 of `index` (whose uuid is `uuid`) again as
+/// shard `shard`, so a variant descriptor of more shards finds them.
+pub fn put_shard_copy(store: &PooledStore<Emulator>, index: &str, uuid: &str, shard: u32) {
+    let from = format!("{index}#{uuid}#0");
+    let root = blobs_root().join("segments").join(&from);
+    let mut blobs = Vec::new();
+    walk(&root, &root, &mut blobs);
+    assert!(!blobs.is_empty(), "no blobs under {from}");
+    for (key, bytes) in blobs {
+        store
+            .put(
+                &format!("segments/{index}#{uuid}#{shard}/{key}"),
+                &mut SliceSource::new(&bytes),
+            )
+            .expect("put shard blob");
+    }
+}
+
 /// A reply.
 #[derive(Debug)]
 pub struct Reply {

@@ -6,8 +6,8 @@
 // fails it as it should.
 #![allow(clippy::arithmetic_side_effects)]
 
-use super::partial::reduce;
 use super::*;
+use crate::aggs::partial::reduce;
 use crate::dsl::{DslError, SearchSource, parse_chunks};
 
 fn source(body: &str) -> Result<SearchSource, DslError> {
@@ -24,6 +24,7 @@ fn agg(name: &str, metric: Metric, field: &str) -> MetricAgg {
         cardinality: crate::aggs::metric::CardinalityOptions::default(),
         percentiles: crate::aggs::metric::PercentilesOptions::default(),
         top_hits: None,
+        terms: None,
         name: name.to_owned(),
         metric,
         field: field.to_owned(),
@@ -58,7 +59,7 @@ fn every_served_metric_parses_in_request_order() {
     for m in Metric::ALL {
         assert_eq!(Metric::from_name(m.name()), Some(m));
     }
-    assert_eq!(Metric::from_name("terms"), None);
+    assert_eq!(Metric::from_name("histogram"), None);
 }
 
 #[test]
@@ -103,8 +104,8 @@ fn malformed_aggregations_fail_as_opensearch_fails_them() {
             "Unknown aggregation type [nope]",
         ),
         (
-            r#"{"aggs":{"a":{"terms":{"field":"tag"}}}}"#,
-            "the [terms] aggregation is not supported by this node yet",
+            r#"{"aggs":{"a":{"histogram":{"field":"tag"}}}}"#,
+            "the [histogram] aggregation is not supported by this node yet",
         ),
         (
             r#"{"aggs":{"a":{"min":{"field":"n"},"meta":{}}}}"#,

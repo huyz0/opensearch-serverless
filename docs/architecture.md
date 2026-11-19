@@ -4,7 +4,7 @@ A stateless search service on object storage. Nodes hold caches, never durable s
 
 ## Crate map
 
-Dependencies point downward only (`scripts/check-layering.py`): `oss-types`, `oss-mem`, `oss-testkit` (layer 0) ← `oss-blob`, `oss-format`, `oss-rest`, `oss-transport` (1, siblings) ← `oss-meta`, `oss-cluster`, `oss-doc` (2, siblings) ← `oss-reader`, `oss-writer` (3, siblings that never depend on each other) ← `oss-coordinator` (4) ← `oss-node` (5) ← `oss-compat` (6). The graph below is generated from `cargo metadata` by `scripts/gen-crate-map.py`; dashed edges are optional (a role behind its Cargo feature). CI fails when it is stale.
+Dependencies point downward only (`scripts/check-layering.py`): `oss-types`, `oss-mem`, `oss-testkit` (layer 0) ← `oss-blob`, `oss-format`, `oss-rest`, `oss-transport` (1, siblings) ← `oss-meta`, `oss-cluster`, `oss-doc` (2, siblings) ← `oss-reader`, `oss-writer`, `oss-janitor` (3, siblings that never depend on each other) ← `oss-coordinator` (4) ← `oss-node` (5) ← `oss-compat` (6). The graph below is generated from `cargo metadata` by `scripts/gen-crate-map.py`; dashed edges are optional (a role behind its Cargo feature). CI fails when it is stale.
 
 <!-- crate-map:start -->
 ```mermaid
@@ -27,6 +27,11 @@ graph TD
     oss-doc --> chunkjson
     oss-doc --> oss-rest
     oss-format --> oss-types
+    oss-janitor --> oss-blob
+    oss-janitor --> oss-cluster
+    oss-janitor --> oss-format
+    oss-janitor --> oss-meta
+    oss-janitor --> oss-types
     oss-mem
     oss-meta --> oss-blob
     oss-meta --> oss-format
@@ -77,6 +82,7 @@ lucene-rust, the engine and the only sibling project used as code, comes in belo
 | `oss-cluster` | fleet membership by node leases, placement computed from them, and document routing | [crates/cluster](../crates/cluster/README.md) |
 | `oss-reader` | published-commit reads, page cache, query phase | [crates/reader](../crates/reader/README.md) |
 | `oss-writer` | node write log, segment build and upload, publish | [crates/writer](../crates/writer/README.md) |
+| `oss-janitor` | the cleanup role: reclaim segment blobs no commit names, behind a dry run | [crates/janitor](../crates/janitor/README.md) |
 | `oss-coordinator` | REST, routing, fan-out, reduce | [crates/coordinator](../crates/coordinator/README.md) |
 | `oss-node` | process wiring, role selection | [crates/node](../crates/node/README.md) |
 | `oss-compat` | OpenSearch compatibility suite | [crates/compat](../crates/compat/README.md) |

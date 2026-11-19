@@ -10,12 +10,13 @@ use std::io::{self, Write};
 
 use oss_rest::write_json_str;
 
+use crate::aggs::bucket::terms_render::write_terms;
 use crate::aggs::metric::date_text::write_date_of_double;
 use crate::aggs::metric::double::write_java_double;
 use crate::aggs::metric::hash_order::hash_map_order;
-use crate::aggs::metric::partial::{Format, Partial, Value};
 use crate::aggs::metric::percentiles::write_percentiles;
 use crate::aggs::metric::top_hits::TopHitsResult;
+use crate::aggs::partial::{Format, Partial, Value};
 
 /// Writes a `top_hits` result's body: `"hits":{..}`, with its hits fetched.
 pub type HitsWriter<'a> = dyn FnMut(&mut dyn Write, &TopHitsResult) -> io::Result<()> + 'a;
@@ -146,6 +147,7 @@ fn write_body(out: &mut dyn Write, format: Format, value: &Value) -> io::Result<
             ref digest,
             ..
         } => write_percentiles(out, format, ranks, keys, keyed, digest.as_ref()),
+        Value::Terms(ref result) => write_terms(out, format, result),
         // Written by the caller, which fetches the hits.
         Value::TopHits(_) => Ok(()),
     }

@@ -82,7 +82,7 @@ fn keys_opensearch_does_not_know_fail_with_their_token() {
 fn keys_opensearch_knows_are_refused_as_not_served() {
     for body in [
         r#"{"highlight":{"fields":{"t":{"fragmenter":"span"}}}}"#,
-        r#"{"aggs":{"t":{"terms":{"field":"tag"}}}}"#,
+        r#"{"aggs":{"t":{"histogram":{"field":"tag"}}}}"#,
         r#"{"stored_fields":["a"]}"#,
     ] {
         assert!(

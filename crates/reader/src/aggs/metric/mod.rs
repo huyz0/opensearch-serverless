@@ -23,12 +23,14 @@ pub mod render;
 pub mod tdigest;
 pub mod top_hits;
 
+pub use crate::aggs::partial::{Format, Partial, Value};
 pub use collect::collect;
 pub use parse::parse_aggregations;
-pub use partial::{Format, Partial, Value};
 pub use percentiles::PercentilesOptions;
 pub use render::{write_aggregations, write_aggregations_with};
 pub use top_hits::{TopHitsResult, TopHitsSpec};
+
+use crate::aggs::bucket::terms::TermsSpec;
 
 /// Which metric an aggregation computes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -55,11 +57,14 @@ pub enum Metric {
     PercentileRanks,
     /// `top_hits`: the top documents in a sort of its own.
     TopHits,
+    /// `terms`: the documents counted by each value of a numeric field (a
+    /// bucket aggregation, held here as `top_hits` is).
+    Terms,
 }
 
 impl Metric {
     /// Every metric served, by its aggregation type name.
-    pub const ALL: [Metric; 10] = [
+    pub const ALL: [Metric; 11] = [
         Metric::Min,
         Metric::Max,
         Metric::Sum,
@@ -70,6 +75,7 @@ impl Metric {
         Metric::Percentiles,
         Metric::PercentileRanks,
         Metric::TopHits,
+        Metric::Terms,
     ];
 
     /// The aggregation type name.
@@ -85,6 +91,7 @@ impl Metric {
             Metric::Percentiles => "percentiles",
             Metric::PercentileRanks => "percentile_ranks",
             Metric::TopHits => "top_hits",
+            Metric::Terms => "terms",
         }
     }
 
@@ -111,6 +118,8 @@ pub struct MetricAgg {
     /// A `top_hits`' options; `None` for every other metric (whose `field`
     /// is the one it reads).
     pub top_hits: Option<Box<TopHitsSpec>>,
+    /// A `terms`' options; `None` for every other aggregation.
+    pub terms: Option<Box<TermsSpec>>,
 }
 
 /// What a `cardinality` aggregation sets besides its field.
@@ -149,6 +158,11 @@ pub fn state_bytes(aggs: &[MetricAgg]) -> usize {
     aggs.iter().fold(0usize, |total, agg| {
         let sketch = match agg.metric {
             Metric::Cardinality => agg.cardinality.precision().map_or(0, hll::sketch_bytes),
+            Metric::Terms => agg.terms.as_ref().map_or(0, |t| {
+                t.shard_size
+                    .min(crate::aggs::bucket::BUCKET_LIMIT)
+                    .saturating_mul(std::mem::size_of::<(i64, u64)>())
+            }),
             Metric::Percentiles | Metric::PercentileRanks => {
                 tdigest::digest_bytes(agg.percentiles.compression).saturating_add(
                     agg.percentiles

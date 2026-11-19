@@ -35,7 +35,7 @@ writer = [
     "dep:oss-rest",
     "dep:oss-meta",
 ]
-coordinator = ["dep:oss-coordinator", "dep:oss-blob"]
+coordinator = ["dep:oss-coordinator", "dep:oss-blob", "dep:oss-transport"]
 
 [dependencies]
 oss-types = { workspace = true }
@@ -116,3 +116,11 @@ required-features = ["writer"]
 [[test]]
 name = "tail_held"
 required-features = ["reader"]
+
+[[test]]
+name = "handlers"
+required-features = ["writer"]
+
+[[test]]
+name = "bulk_route"
+required-features = ["reader", "writer"]

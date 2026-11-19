@@ -1,0 +1,23 @@
+[package]
+name = "oss-janitor"
+description = "opensearch-serverless: the janitor, reclaiming blobs nothing names"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+oss-types = { workspace = true }
+oss-blob = { workspace = true }
+oss-format = { workspace = true }
+oss-cluster = { workspace = true }
+oss-meta = { workspace = true }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+oss-blob = { workspace = true, features = ["emulator"] }
+oss-testkit = { workspace = true }

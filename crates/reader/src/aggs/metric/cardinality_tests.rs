@@ -3,8 +3,8 @@
 //! Tests; compiled only under `#[cfg(test)]` from the parent module.
 
 use super::hll::Hll;
-use super::partial::reduce;
 use super::*;
+use crate::aggs::partial::reduce;
 use crate::dsl::{DslError, SearchSource, parse_chunks};
 
 fn source(body: &str) -> Result<SearchSource, DslError> {
@@ -185,6 +185,7 @@ fn a_cardinality_reserves_its_sketch_only_once_it_can_have_one() {
         cardinality: options,
         percentiles: crate::aggs::metric::PercentilesOptions::default(),
         top_hits: None,
+        terms: None,
     };
     let plain = state_bytes(&[MetricAgg {
         metric: Metric::Min,

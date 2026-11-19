@@ -324,7 +324,7 @@ fn write_hit_list<S: BlobStore + 'static>(
         }
         out.write_all(b"{")?;
         if explained {
-            write!(out, "\"_shard\":\"[{index}][0]\",\"_node\":")?;
+            write!(out, "\"_shard\":\"[{index}][{}]\",\"_node\":", shard.shard)?;
             write_json_str(out, node_id)?;
             out.write_all(b",")?;
         }
@@ -389,7 +389,7 @@ fn write_hit_list<S: BlobStore + 'static>(
 
 #[path = "response_selected.rs"]
 mod selected;
-pub use selected::render_selected_hits;
+pub use selected::{render_selected_hits, render_selected_result_hits};
 
 #[cfg(test)]
 #[path = "response_hits_tests.rs"]
