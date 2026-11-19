@@ -28,7 +28,9 @@ graph TD
     oss-doc --> oss-rest
     oss-format --> oss-types
     oss-janitor --> oss-blob
+    oss-janitor --> oss-cluster
     oss-janitor --> oss-format
+    oss-janitor --> oss-meta
     oss-janitor --> oss-types
     oss-mem
     oss-meta --> oss-blob
