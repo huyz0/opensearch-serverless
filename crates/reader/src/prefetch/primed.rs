@@ -17,7 +17,7 @@ pub struct Primed {
 }
 
 impl Primed {
-    /// Fetches `ranges`, up to [`MAX_CONCURRENT`] at once. A range the store
+    /// Fetches `ranges`, up to 16 at once. A range the store
     /// refuses is left out: the engine reads its files itself.
     pub fn fetch<S: BlobStore>(store: &PooledStore<S>, ranges: &[Range]) -> Self {
         let mut primed = Self::default();

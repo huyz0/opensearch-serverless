@@ -2,7 +2,7 @@
 //!
 //! The engine opens a commit by reading its small and pinned files one
 //! after another (the commit file, each segment's `.si`, field infos and
-//! metadata). [`plan`] picks those files from the commit's file table and
+//! metadata). [`plan()`] picks those files from the commit's file table and
 //! merges neighbours of one blob into ranges; [`Primed::fetch`] reads the
 //! ranges in one round; [`crate::EngineStore`] then serves the engine's reads
 //! from the bytes until the open returns. See
