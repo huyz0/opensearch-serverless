@@ -18,19 +18,18 @@ use std::io::Write;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
-use crate::open_indexes::{Found, Lead, OpenSet, lock};
+use crate::open_indexes::{OpenSet, lock};
 use lucene_analysis::Analyzer;
 use lucene_store::page_cache::PageCache;
-use oss_blob::{BlobError, BlobStore, PooledStore};
+use oss_blob::{BlobStore, PooledStore};
 use oss_mem::{MemoryBudget, Pool, Reservation};
-use oss_reader::commit_push::{NewestSource, PushedCommits, ShardKey, Stage};
+use oss_reader::OpenShard;
+use oss_reader::commit_push::{NewestSource, PushedCommits, Stage};
 use oss_reader::dsl::{DslError, MAX_RECORDED_BYTES, Recorder, SearchSource, source};
-use oss_reader::failure::{Failure, Meta, SearchError, ShardFailure};
-use oss_reader::open_cost::open_bytes;
+use oss_reader::failure::{SearchError, ShardFailure};
 use oss_reader::overlay::OverlaySource;
 use oss_reader::response::write_response;
 use oss_reader::search::{hits_bytes, search};
-use oss_reader::{OpenShard, ReaderError, ShardFiles, open_located};
 use oss_rest::{JSON, Length, Method, Request, Response, RestError, RouteError, Router};
 
 /// The query parameters `_search` takes.
@@ -46,6 +45,8 @@ pub(crate) struct Held<S: BlobStore + 'static> {
     pub(crate) stage: Stage,
     /// The index's name.
     pub(crate) index: String,
+    /// Which shard of the index this is.
+    pub(crate) shard_no: u32,
     charge: Reservation,
     /// Told when this engine lets go, so it can drop what it kept for it.
     source: Option<Arc<dyn OverlaySource>>,
@@ -118,125 +119,6 @@ impl<S: BlobStore + 'static> SearchService<S> {
 
     pub(crate) fn lock(&self) -> std::sync::MutexGuard<'_, OpenSet<Held<S>>> {
         lock(&self.open)
-    }
-
-    /// Reserves `bytes` from `open_indexes`, closing the least recently
-    /// searched indexes no search holds until it fits; refused when none is
-    /// left to close.
-    fn charge(&self, bytes: usize) -> Result<Reservation, oss_mem::Exhausted> {
-        loop {
-            match self.budget.try_reserve(Pool::OpenIndexes, bytes) {
-                Ok(charge) => return Ok(charge),
-                Err(e) => {
-                    let closed = {
-                        let mut set = self.lock();
-                        // Closing what cannot make room would only cost
-                        // those indexes a cold open; an index larger than
-                        // the whole pool never fits.
-                        if !closing_makes_room(&e, set.idle_bytes(|held| held.charge.bytes())) {
-                            return Err(e);
-                        }
-                        set.close_oldest()
-                    };
-                    // A closed index is held by no search: its engine state
-                    // and charge go here, with the set's lock released.
-                    if closed.is_none() {
-                        return Err(e);
-                    }
-                }
-            }
-        }
-    }
-
-    /// The open shard of `index`, opened now if it is not yet.
-    fn shard(&self, index: &str) -> Result<Arc<Held<S>>, Answer> {
-        loop {
-            // The lock is released before waiting.
-            let found = self.lock().find(index);
-            match found {
-                Found::Open(held) => return Ok(held),
-                Found::Wait(opening) => opening.wait(),
-                Found::Lead => break,
-            }
-        }
-        let lead = Lead::new(&self.open, index);
-        let (files, meta) = match self.find_commit(index) {
-            Ok(found) => found,
-            Err(e) => return Err(open_failure(index, e)),
-        };
-        if meta.number_of_shards != 1 {
-            // ALLOC: error path; one box.
-            return Err(Answer::Search(Box::new(SearchError::request(
-                400,
-                Failure::plain(
-                    "illegal_argument_exception",
-                    // ALLOC: error path; one message.
-                    format!(
-                        "searching an index of [{}] shards is not supported by this node yet",
-                        meta.number_of_shards
-                    ),
-                ),
-            ))));
-        }
-        let stage = files.stage().clone();
-        let bytes = open_bytes(&files, &meta, &self.cache);
-        let charge = self.charge(bytes).map_err(|e| {
-            Answer::Rest(RestError::breaker(
-                &e,
-                "open_indexes",
-                "<open_index>",
-                never_fits(&e),
-            ))
-        })?;
-        let shard = open_located(
-            Arc::clone(&self.store),
-            Arc::clone(&self.cache),
-            &self.base,
-            index,
-            0,
-            files,
-            meta,
-        )
-        .map_err(|e| open_failure(index, e))?;
-        // ALLOC: one open shard an index; the pool bounds them.
-        Ok(lead.opened(Arc::new(Held {
-            shard,
-            view: Mutex::new(None),
-            stage,
-            // ALLOC: one name an open shard.
-            index: index.to_owned(),
-            charge,
-            source: self.overlay.get().cloned(),
-            epoch: self.epoch,
-        })))
-    }
-
-    /// The latest commit of shard 0 of `index`: the one its writer pushed
-    /// since this node's reader let go of an older one, which costs the
-    /// descriptor's one GET; else the register's, two.
-    fn find_commit(&self, index: &str) -> Result<(ShardFiles, oss_reader::IndexMeta), ReaderError> {
-        let key = ShardKey::new(index, 0);
-        let taken = lock_pushed(&self.pushed).take(&key, self.now_millis());
-        if let Some(taken) = taken
-            && let Ok((files, meta)) =
-                ShardFiles::open_pushed_with_meta(&self.store, &self.base, index, 0, &taken.value)
-            && meta.uuid == taken.uuid
-        {
-            return Ok((files, meta));
-        }
-        // No push, a push that is no commit, or one for an index since
-        // recreated: the register decides, or the newer commit its writer
-        // says it staged after it.
-        match self.newest.get() {
-            Some(source) => ShardFiles::open_asking_with_meta(
-                &self.store,
-                &self.base,
-                index,
-                0,
-                source.as_ref(),
-            ),
-            None => ShardFiles::open_with_meta(&self.store, &self.base, index, 0),
-        }
     }
 
     /// Milliseconds since this service started: what a pushed commit's keep
@@ -348,50 +230,6 @@ fn read_source(req: &mut Request<'_>) -> Result<SearchSource, Answer> {
     Ok(source)
 }
 
-/// Whether closing indexes that free `idle` bytes would let the refused
-/// reservation `e` fit.
-fn closing_makes_room(e: &oss_mem::Exhausted, idle: usize) -> bool {
-    !never_fits(e) && idle >= e.in_use.saturating_add(e.requested).saturating_sub(e.limit)
-}
-
-/// Whether `e` asked for more than the whole pool: no retry admits it.
-fn never_fits(e: &oss_mem::Exhausted) -> bool {
-    e.requested > e.limit
-}
-
-/// What a failed locate or open answers.
-fn open_failure(index: &str, e: ReaderError) -> Answer {
-    match e {
-        ReaderError::Blob(BlobError::NotFound) | ReaderError::Deleted => {
-            // ALLOC: error path; one box.
-            Answer::Search(Box::new(index_not_found(index)))
-        }
-        e => {
-            // ALLOC: error path; one message.
-            let failure = Failure::opensearch("exception", e.to_string());
-            // ALLOC: error path; one box.
-            Answer::Search(Box::new(SearchError::request(500, failure)))
-        }
-    }
-}
-
-/// `IndexNotFoundException` for an index no descriptor names.
-fn index_not_found(index: &str) -> SearchError {
-    SearchError::request(
-        404,
-        Failure::opensearch(
-            "index_not_found_exception",
-            // ALLOC: error path; one message.
-            format!("no such index [{index}]"),
-        )
-        // ALLOC: error path; the index name, three times.
-        .with_meta("index", Meta::Str(index.to_owned()))
-        .with_meta("resource.id", Meta::Str(index.to_owned()))
-        .with_meta("resource.type", Meta::Str("index_or_alias".to_owned()))
-        .with_meta("index_uuid", Meta::Str("_na_".to_owned())),
-    )
-}
-
 fn send(resp: &mut Response<'_>, e: &SearchError) -> Result<(), RestError> {
     resp.send(e.status, JSON, &e.to_body())
 }
@@ -417,6 +255,8 @@ pub fn routes<S: BlobStore + 'static>(
         )
 }
 
+#[path = "search_open.rs"]
+pub(crate) mod open_shard;
 #[path = "search_overlay.rs"]
 mod overlay;
 

@@ -26,11 +26,12 @@ impl<S: BlobStore + 'static> SearchService<S> {
     /// pushed: `commit` is its register value. Gives whether the shard is
     /// open here as a reader, which is what the writer asks.
     pub fn take_push(&self, index: &str, uuid: &str, shard: u32, commit: &[u8]) -> bool {
-        let open = self.lock().peek(index).cloned();
+        let key = crate::search::open_shard::set_key(index, shard);
+        let open = self.lock().peek(&key).cloned();
         let Some(held) = open else {
             return false;
         };
-        if shard != 0 || held.shard.meta.uuid != uuid {
+        if held.shard.meta.uuid != uuid {
             return false;
         }
         let Some(stage) = stage_of(commit) else {
@@ -48,7 +49,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
             self.now_millis(),
         );
         // A search that holds the old index finishes on it.
-        let released = self.lock().release(index);
+        let released = self.lock().release(&key);
         drop(released);
         true
     }
