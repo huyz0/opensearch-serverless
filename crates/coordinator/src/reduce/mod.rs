@@ -2,3 +2,4 @@
 
 pub mod aggs;
 pub mod hits;
+pub mod top_hits;

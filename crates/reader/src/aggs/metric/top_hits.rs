@@ -87,6 +87,9 @@ pub struct TopHitsResult {
     pub total: u64,
     /// The best score of the window; `None` when sorted by fields.
     pub max_score: Option<f32>,
+    /// The hits ahead of `from`, which the shard does not write but a
+    /// coordinator's merge ranks: one of them can be in the merged page.
+    pub before: Vec<Hit>,
     /// The hits after `from`.
     pub hits: Vec<Hit>,
     /// What of each hit's `_source` to write.
@@ -106,6 +109,8 @@ impl TopHitsResult {
         Self {
             total: 0,
             max_score: None,
+            // ALLOC: empty.
+            before: Vec::new(),
             // ALLOC: empty.
             hits: Vec::new(),
             source: SourceFilter::default(),
@@ -278,7 +283,7 @@ pub(crate) fn fill<S: BlobStore + 'static>(
             query,
             plan.sort.as_ref(),
             plan.window,
-            spec.from,
+            0,
             EXACT,
             None,
         )?;
@@ -287,10 +292,13 @@ pub(crate) fn fill<S: BlobStore + 'static>(
             // a sort by the score still writes its value as a sort value.
             top.hits.iter_mut().for_each(|h| h.score = None);
         }
+        let mut before = top.hits;
+        let hits = before.split_off(spec.from.min(before.len()));
         let mut result = TopHitsResult {
             total: top.total,
             max_score: top.max_score,
-            hits: top.hits,
+            before,
+            hits,
             source: spec.source.clone(),
             // ALLOC: empty; resolved below when there are hits.
             fields: Vec::new(),

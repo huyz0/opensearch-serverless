@@ -397,3 +397,21 @@ fn a_sorted_search_of_no_hits_still_counts_its_matches() {
         assert!(hits.hits.is_empty() && hits.max_score.is_none(), "{body}");
     }
 }
+
+#[test]
+fn the_hits_ahead_of_from_are_kept_for_the_coordinator_s_merge() {
+    let shard = shard("th-before");
+    let t = top(&shard, r#"{"aggs":{"t":{"top_hits":{"from":2,"size":2}}}}"#);
+    assert_eq!(docs(&t), [2, 3]);
+    let before: Vec<i32> = t.before.iter().map(|h| h.doc).collect();
+    assert_eq!(before, [0, 1]);
+    let t = top(&shard, r#"{"aggs":{"t":{"top_hits":{"size":2}}}}"#);
+    assert!(t.before.is_empty());
+    // Past the matches every hit is ahead of `from`.
+    let t = top(
+        &shard,
+        r#"{"query":{"range":{"n":{"gte":10,"lt":20}}},"aggs":{"t":{"top_hits":{"from":50,"size":5}}}}"#,
+    );
+    assert!(t.hits.is_empty());
+    assert_eq!(t.before.len(), 10);
+}
