@@ -285,6 +285,17 @@ fn a_token_round_trips_and_anything_else_is_tainted() {
             "{bad}"
         );
     }
+    // Two padding characters, and padding that does not fit the length.
+    let two = indices::token("", "z");
+    assert_eq!(two, "MQoKeg");
+    assert!(plan(true, "*", None, Some(&format!("{two}==")), None).is_ok());
+    for bad in ["MQoKeg=", "MQoKeg===", "MQpwCn=", "MQpwCngAA"] {
+        assert_eq!(
+            plan(true, "p*", None, Some(bad), None).expect_err(bad).2,
+            tainted,
+            "{bad}"
+        );
+    }
     // The bare form's token carries an empty prefix.
     let bare = indices::token("", "z");
     assert_eq!(

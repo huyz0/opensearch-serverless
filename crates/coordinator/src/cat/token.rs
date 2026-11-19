@@ -12,7 +12,7 @@ pub(super) fn encode(bytes: &[u8]) -> String {
             chunk.get(1).copied().unwrap_or(0),
             chunk.get(2).copied().unwrap_or(0),
         ];
-        let n = (u32::from(b[0]) << 16) | (u32::from(b[1]) << 8) | u32::from(b[2]);
+        let n = u32::from_be_bytes([0, b[0], b[1], b[2]]);
         for shift in [18u32, 12, 6, 0]
             .into_iter()
             .take(chunk.len().saturating_add(1))
@@ -45,7 +45,7 @@ pub(super) fn decode(text: &str) -> Option<Vec<u8>> {
     let (mut acc, mut bits) = (0u32, 0u32);
     for c in body.bytes() {
         let v = ALPHABET.iter().position(|a| *a == c)?;
-        acc = (acc << 6) | u32::try_from(v).ok()?;
+        acc = acc.wrapping_shl(6).wrapping_add(u32::try_from(v).ok()?);
         bits = bits.saturating_add(6);
         if bits >= 8 {
             bits = bits.saturating_sub(8);
