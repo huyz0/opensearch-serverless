@@ -159,6 +159,7 @@ mod tests {
             number_of_shards: 1,
             mapping: Mapping::from_escaped(mapping.as_bytes()).expect("mapping"),
             mapping_json: std::sync::Arc::from(mapping),
+            settings: oss_format::ClusterSettings::default(),
         }
     }
 

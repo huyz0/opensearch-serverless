@@ -16,6 +16,7 @@ pub mod date_text;
 pub mod double;
 pub mod hash_order;
 pub mod hll;
+pub mod long_value;
 pub mod parse;
 pub mod partial;
 pub mod percentiles;
@@ -23,12 +24,16 @@ pub mod render;
 pub mod tdigest;
 pub mod top_hits;
 
+pub use crate::aggs::partial::{Format, Partial, Value};
 pub use collect::collect;
 pub use parse::parse_aggregations;
-pub use partial::{Format, Partial, Value};
 pub use percentiles::PercentilesOptions;
 pub use render::{write_aggregations, write_aggregations_with};
 pub use top_hits::{TopHitsResult, TopHitsSpec};
+
+use crate::aggs::bucket::date_histogram::DateHistogramSpec;
+use crate::aggs::bucket::histogram::HistogramSpec;
+use crate::aggs::bucket::terms::TermsSpec;
 
 /// Which metric an aggregation computes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -55,11 +60,20 @@ pub enum Metric {
     PercentileRanks,
     /// `top_hits`: the top documents in a sort of its own.
     TopHits,
+    /// `terms`: the documents counted by each value of a numeric field (a
+    /// bucket aggregation, held here as `top_hits` is).
+    Terms,
+    /// `histogram`: the documents counted by the interval of a numeric
+    /// field's values they fall in.
+    Histogram,
+    /// `date_histogram`: the documents counted by the calendar or fixed
+    /// interval of a date field's values they fall in.
+    DateHistogram,
 }
 
 impl Metric {
     /// Every metric served, by its aggregation type name.
-    pub const ALL: [Metric; 10] = [
+    pub const ALL: [Metric; 13] = [
         Metric::Min,
         Metric::Max,
         Metric::Sum,
@@ -70,6 +84,9 @@ impl Metric {
         Metric::Percentiles,
         Metric::PercentileRanks,
         Metric::TopHits,
+        Metric::Terms,
+        Metric::Histogram,
+        Metric::DateHistogram,
     ];
 
     /// The aggregation type name.
@@ -85,6 +102,9 @@ impl Metric {
             Metric::Percentiles => "percentiles",
             Metric::PercentileRanks => "percentile_ranks",
             Metric::TopHits => "top_hits",
+            Metric::Terms => "terms",
+            Metric::Histogram => "histogram",
+            Metric::DateHistogram => "date_histogram",
         }
     }
 
@@ -111,6 +131,15 @@ pub struct MetricAgg {
     /// A `top_hits`' options; `None` for every other metric (whose `field`
     /// is the one it reads).
     pub top_hits: Option<Box<TopHitsSpec>>,
+    /// A `terms`' options; `None` for every other aggregation.
+    pub terms: Option<Box<TermsSpec>>,
+    /// A `histogram`'s options; `None` for every other aggregation.
+    pub histogram: Option<Box<HistogramSpec>>,
+    /// A `date_histogram`'s options; `None` for every other aggregation.
+    pub date_histogram: Option<Box<DateHistogramSpec>>,
+    /// The sub-aggregations of a keyword `terms`, in request order; empty
+    /// for every other aggregation.
+    pub subs: Vec<MetricAgg>,
 }
 
 /// What a `cardinality` aggregation sets besides its field.
@@ -132,6 +161,10 @@ impl CardinalityOptions {
     }
 }
 
+/// What one bucket of a `histogram` holds while collecting: its key, its
+/// count and the engine's hash entry and ordinal.
+const HISTOGRAM_BUCKET_BYTES: usize = 64;
+
 /// `HyperLogLogPlusPlus.DEFAULT_PRECISION`.
 pub const DEFAULT_PRECISION: u32 = 14;
 
@@ -149,6 +182,16 @@ pub fn state_bytes(aggs: &[MetricAgg]) -> usize {
     aggs.iter().fold(0usize, |total, agg| {
         let sketch = match agg.metric {
             Metric::Cardinality => agg.cardinality.precision().map_or(0, hll::sketch_bytes),
+            Metric::Terms => agg.terms.as_ref().map_or(0, |t| {
+                t.shard_size
+                    .min(crate::aggs::bucket::BUCKET_LIMIT)
+                    .saturating_mul(std::mem::size_of::<(i64, u64)>())
+            }),
+            // The engine counts every key against the bucket limit, so a
+            // shard holds at most that many.
+            Metric::Histogram | Metric::DateHistogram => {
+                crate::aggs::bucket::BUCKET_LIMIT.saturating_mul(HISTOGRAM_BUCKET_BYTES)
+            }
             Metric::Percentiles | Metric::PercentileRanks => {
                 tdigest::digest_bytes(agg.percentiles.compression).saturating_add(
                     agg.percentiles
@@ -164,6 +207,7 @@ pub fn state_bytes(aggs: &[MetricAgg]) -> usize {
             .saturating_add(sketch)
             .saturating_add(agg.name.len())
             .saturating_add(agg.field.len())
+            .saturating_add(state_bytes(&agg.subs))
     })
 }
 

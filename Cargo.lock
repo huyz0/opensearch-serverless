@@ -720,7 +720,9 @@ name = "oss-janitor"
 version = "0.1.0"
 dependencies = [
  "oss-blob",
+ "oss-cluster",
  "oss-format",
+ "oss-meta",
  "oss-testkit",
  "oss-types",
 ]

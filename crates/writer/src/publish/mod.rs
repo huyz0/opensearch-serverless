@@ -8,6 +8,7 @@
 
 mod blob;
 mod error;
+pub mod lazy;
 mod names;
 mod publisher;
 

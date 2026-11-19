@@ -10,12 +10,16 @@ use std::io::{self, Write};
 
 use oss_rest::write_json_str;
 
+use crate::aggs::bucket::date_histogram_render::write_date_histogram;
+use crate::aggs::bucket::histogram_render::write_histogram;
+use crate::aggs::bucket::keyword_terms::write_keyword_terms;
+use crate::aggs::bucket::terms_render::write_terms;
 use crate::aggs::metric::date_text::write_date_of_double;
 use crate::aggs::metric::double::write_java_double;
 use crate::aggs::metric::hash_order::hash_map_order;
-use crate::aggs::metric::partial::{Format, Partial, Value};
 use crate::aggs::metric::percentiles::write_percentiles;
 use crate::aggs::metric::top_hits::TopHitsResult;
+use crate::aggs::partial::{Format, Partial, Value};
 
 /// Writes a `top_hits` result's body: `"hits":{..}`, with its hits fetched.
 pub type HitsWriter<'a> = dyn FnMut(&mut dyn Write, &TopHitsResult) -> io::Result<()> + 'a;
@@ -77,7 +81,7 @@ fn as_string(out: &mut dyn Write, key: &str, value: f64) -> io::Result<()> {
 }
 
 /// One metric's `doXContentBody`.
-fn write_body(out: &mut dyn Write, format: Format, value: &Value) -> io::Result<()> {
+pub(crate) fn write_body(out: &mut dyn Write, format: Format, value: &Value) -> io::Result<()> {
     let dated = format == Format::Date;
     match *value {
         Value::Cardinality(ref sketch) => {
@@ -146,6 +150,10 @@ fn write_body(out: &mut dyn Write, format: Format, value: &Value) -> io::Result<
             ref digest,
             ..
         } => write_percentiles(out, format, ranks, keys, keyed, digest.as_ref()),
+        Value::Terms(ref result) => write_terms(out, format, result),
+        Value::Histogram(ref result) => write_histogram(out, format, result),
+        Value::DateHistogram(ref result) => write_date_histogram(out, format, result),
+        Value::KeywordTerms(ref result) => write_keyword_terms(out, result),
         // Written by the caller, which fetches the hits.
         Value::TopHits(_) => Ok(()),
     }

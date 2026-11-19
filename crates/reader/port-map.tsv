@@ -72,6 +72,7 @@ src/search.rs	port	server/src/main/java/org/opensearch/search/query/QueryPhase.j
 src/open_cost.rs	new		what an open shard keeps in the heap, estimated before opening (ADR 0014); the Java's ShardReaders keeps readers unbounded
 src/aggs/mod.rs	new		module root: aggregations on one shard
 src/aggs/metric/mod.rs	new		module root: the served metrics and the state each holds
+src/aggs/metric/long_value.rs	port	libs/core/src/main/java/org/opensearch/core/xcontent/AbstractXContentParser.java@3.10.0	longValue with coercion (Numbers.toLong)
 src/aggs/metric/parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/AggregatorFactories.java@3.10.0	parseAggregators, and the ObjectParser of ValuesSourceAggregationBuilder.declareFields for the served metrics; SearchModule's registered aggregation names
 src/aggs/metric/collect.rs	port	server/src/main/java/org/opensearch/search/aggregations/support/ValuesSourceConfig.java@3.10.0	resolve and ValuesSourceRegistry.getAggregator's field checks; the values come from lucene-aggs' port of the metric aggregators
 src/aggs/metric/partial.rs	port	server/src/main/java/org/opensearch/search/aggregations/metrics/InternalStats.java@3.10.0	the shard-level state of InternalMin, InternalMax, InternalSum, InternalAvg, InternalStats and InternalValueCount, each reduce, and CompensatedSum.add
@@ -96,10 +97,37 @@ src/overlay/view.rs	port	serverless/shell/src/main/java/org/opensearch/serverles
 src/overlay/source.rs	new		the overlay a search asks for: finished or nothing, never a build on the search path
 src/response_selected.rs	new		writes chosen hits of a top_hits result, or of a shard's top-level hits, as response.rs writes them, for a coordinator that merged several shards
 src/response_selected_tests.rs	new		tests of response_selected.rs over a real index
+src/aggs/bucket/mod.rs	new		bucket aggregations module; the bucket limit is search.max_buckets's default
+src/aggs/bucket/terms.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/InternalTerms.java@3.10.0	TermsAggregationBuilder defaults, LongTerms' state, InternalTerms.reduce (final reduce) and getDocCountError
+src/aggs/bucket/terms_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/TermsAggregationBuilder.java@3.10.0	the ObjectParser keys, the setters' checks, TermsAggregatorFactory's shard size and InternalOrder's criterion
+src/aggs/bucket/terms_collect.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/NumericTermsAggregator.java@3.10.0	the numeric terms node over lucene-aggs and MultiBucketConsumerService's TooManyBucketsException
+src/aggs/bucket/terms_render.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/LongTerms.java@3.10.0	LongTerms.Bucket.keyToXContent and InternalTerms.doXContentCommon
+src/aggs/bucket/count_order.rs	port	server/src/main/java/org/opensearch/search/aggregations/InternalOrder.java@3.10.0	comparingCounts under CollectionUtil.introSort
+src/aggs/bucket/date_histogram.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/histogram/InternalDateHistogram.java@3.10.0	InternalDateHistogram's state, reduce, addEmptyBuckets, nextKey and LongBounds.round
+src/aggs/bucket/date_histogram_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/histogram/DateHistogramAggregationBuilder.java@3.10.0	the ObjectParser keys, DateIntervalWrapper, TimeValue.parseTimeValue, LongBounds and innerBuild's rounding and bounds checks
+src/aggs/bucket/date_histogram_collect.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/histogram/DateHistogramAggregator.java@3.10.0	the date_histogram node over lucene-aggs
+src/aggs/bucket/date_histogram_render.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/histogram/InternalDateHistogram.java@3.10.0	Bucket.toXContent and doXContentBody
+src/aggs/bucket/date_histogram_tests.rs	new		tests of date_histogram parsing, reduce and writing
+src/aggs/bucket/date_histogram_collect_tests.rs	new		tests of date_histogram on a real index
+src/aggs/bucket/histogram.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/histogram/InternalHistogram.java@3.10.0	HistogramAggregationBuilder defaults, InternalHistogram's state, reduce, addEmptyBuckets and the order sort
+src/aggs/bucket/histogram_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/histogram/HistogramAggregationBuilder.java@3.10.0	the ObjectParser keys, the setters' checks, DoubleBounds and the bounds check of innerBuild
+src/aggs/bucket/histogram_collect.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/histogram/NumericHistogramAggregator.java@3.10.0	the histogram node over lucene-aggs and AbstractHistogramAggregator's interval check
+src/aggs/bucket/histogram_render.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/histogram/InternalHistogram.java@3.10.0	Bucket.toXContent and doXContentBody
+src/aggs/bucket/histogram_tests.rs	new		tests of histogram parsing, reduce and writing
+src/aggs/bucket/histogram_collect_tests.rs	new		tests of histogram on a real index
+src/aggs/bucket/collect_tests.rs	new		tests of terms on a real index
+src/aggs/bucket/terms_tests.rs	new		tests of terms parsing, reduce and writing
+src/aggs/bucket/keyword_terms.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/StringTerms.java@3.10.0	StringTerms' state, InternalTerms.reduce over terms and StringTerms.Bucket.keyToXContent
+src/aggs/bucket/keyword_collect.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/GlobalOrdinalsStringTermsAggregator.java@3.10.0	the keyword terms node over lucene-aggs' global ordinals and the memory they take
+src/aggs/bucket/keyword_options.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/IncludeExclude.java@3.10.0	parseInclude, parseExclude and merge's checks, for a regular expression or a set
+src/aggs/bucket/keyword_options_tests.rs	new		tests of the keyword-only options of terms parsed
+src/aggs/bucket/keyword_subs.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/GlobalOrdinalsStringTermsAggregator.java@3.10.0	the sub-aggregation nodes under the keyword terms node and their per-bucket values
+src/aggs/bucket/keyword_subs_tests.rs	new		tests of keyword terms sub-aggregations on a real index
+src/aggs/bucket/keyword_terms_tests.rs	new		tests of keyword terms reduce and writing
+src/aggs/bucket/keyword_collect_tests.rs	new		tests of keyword terms on a real index
 src/prefetch/mod.rs	new		the open prefetch: the small and pinned files a cold open reads whole, fetched together; the Java downloads whole commits at open instead
 src/prefetch/plan.rs	new		picks those files from the file table and merges neighbours of a blob into ranges
 src/prefetch/plan_tests.rs	new		tests of plan.rs over a hand-built file table
 src/prefetch/primed.rs	new		holds the fetched bytes and serves the engine store from them until the open returns
 src/prefetch/tests.rs	new		tests of the open prefetch over a real index on the emulator
-src/prefetch/gate.rs	new		the node-wide bytes and threads every open prefetch takes before it allocates or spawns
-src/prefetch/gate_tests.rs	new		tests of gate.rs
+src/aggs/partial.rs	new		the shared shard-level result and the reduce dispatch, lifted out of aggs/metric/partial.rs

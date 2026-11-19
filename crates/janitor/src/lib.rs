@@ -9,6 +9,7 @@
 //! - [`settings`]: the janitor's node settings.
 
 pub mod gc;
+pub mod node_log;
 pub mod settings;
 
 mod error;

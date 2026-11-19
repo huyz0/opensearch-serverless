@@ -118,6 +118,11 @@ jobs:
           python3 scripts/gen-crate-map.py --check
           RUSTDOCFLAGS="-D warnings" cargo doc --locked --workspace --all-features --no-deps --document-private-items
 
+      - uses: taiki-e/install-action@v2
+        if: steps.changes.outputs.rust == 'true' && steps.changes.outputs.text_only == 'false'
+        with:
+          tool: cargo-nextest
+
       - name: tests (affected crates)
         if: steps.changes.outputs.rust == 'true' && steps.changes.outputs.text_only == 'false'
         env:
@@ -125,8 +130,13 @@ jobs:
           PACKAGES: ${{ steps.changes.outputs.packages }}
         run: |
           if [ "$FULL" = "true" ]; then sel="--workspace"; else sel="$PACKAGES"; fi
+          # nextest runs every test binary at once across the cores; plain
+          # `cargo test` runs them one after another. Doctests are not run by
+          # nextest, so they keep `cargo test --doc`.
           # shellcheck disable=SC2086
-          cargo test --locked --all-features $sel
+          cargo nextest run --profile ci --locked --all-features $sel
+          # shellcheck disable=SC2086
+          cargo test --locked --all-features --doc $sel
 
       - name: mutants (changed lines)
         if: github.event_name == 'pull_request' && steps.changes.outputs.rust == 'true' && steps.changes.outputs.text_only == 'false'
@@ -134,4 +144,8 @@ jobs:
         with:
           tool: cargo-mutants
       - if: github.event_name == 'pull_request' && steps.changes.outputs.rust == 'true' && steps.changes.outputs.text_only == 'false'
+        # In place, on the tree the tests step just built: the runner is
+        # thrown away, and a copy of the tree would rebuild every dependency.
+        env:
+          MUTANTS_IN_PLACE: "1"
         run: MUTANTS_BASE=origin/${{ github.base_ref }} scripts/mutants.sh --pr

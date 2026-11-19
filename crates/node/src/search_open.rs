@@ -8,7 +8,7 @@ use oss_mem::{Pool, Reservation};
 use oss_reader::commit_push::ShardKey;
 use oss_reader::failure::{Failure, Meta, SearchError};
 use oss_reader::open_cost::open_bytes;
-use oss_reader::{ReaderError, ShardFiles, open_located};
+use oss_reader::{ReaderError, ShardFiles, open_located_with};
 use oss_rest::RestError;
 
 use super::{Answer, Held, SearchService, lock_pushed};
@@ -116,7 +116,9 @@ impl<S: BlobStore + 'static> SearchService<S> {
                 never_fits(&e),
             ))
         })?;
-        let opened = open_located(
+        // The prefetch's bytes are held for the open alone.
+        let (prefetch, _prefetch_held) = self.open_prefetch(&files, &meta);
+        let opened = open_located_with(
             Arc::clone(&self.store),
             Arc::clone(&self.cache),
             &self.base,
@@ -124,6 +126,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
             shard,
             files,
             meta,
+            &prefetch,
         )
         .map_err(|e| open_failure(index, e))?;
         // ALLOC: one open shard; the pool bounds them.

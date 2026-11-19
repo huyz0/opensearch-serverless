@@ -29,6 +29,14 @@ pub struct Range {
     pub members: Vec<Member>,
 }
 
+/// The bytes `ranges` read, gaps included: what an open holds while its
+/// prefetch runs.
+pub fn planned_bytes(ranges: &[Range]) -> u64 {
+    ranges
+        .iter()
+        .fold(0u64, |total, range| total.saturating_add(range.len))
+}
+
 /// The ranges that fetch what the engine reads whole when it opens `files`:
 /// files whose name `pinned` accepts, and files of at most `page_size`
 /// bytes. A file that would pass `max_bytes` of files is not picked, and a

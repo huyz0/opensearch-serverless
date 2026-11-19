@@ -23,6 +23,7 @@ use lucene_search::{BooleanQuery, Clause, Explanation};
 use oss_blob::BlobStore;
 
 use crate::OpenShard;
+use crate::aggs::bucket::{keyword_collect, keyword_subs};
 use crate::aggs::metric::top_hits;
 use crate::aggs::metric::{self, Partial, state_bytes};
 use crate::dsl::search_after::{AfterKey, field_doc};
@@ -163,10 +164,34 @@ pub fn hits_bytes<S: BlobStore + 'static>(source: &SearchSource, shard: &OpenSha
                 .min(docs);
             total.saturating_add(window_bytes(window, &spec.sort, shard))
         });
+    // A numeric `terms` counts each distinct value its matches hold: at most
+    // one per document of the shard. A keyword one counts into the global
+    // ordinals of its field, whose size the segments state.
+    let counted = source
+        .aggs
+        .iter()
+        .filter_map(|agg| agg.terms.as_deref().map(|spec| (agg, spec)))
+        .fold(0usize, |total, (agg, _)| {
+            let keyword = shard
+                .meta
+                .mapping
+                .get(&agg.field)
+                .is_some_and(|f| f.ty == FieldType::Keyword);
+            total.saturating_add(if keyword {
+                keyword_subs::reserved(shard, agg, keyword_collect::Parent::TOP)
+            } else {
+                docs.saturating_mul(TERMS_BYTES_PER_VALUE)
+            })
+        });
     window_bytes(window, &source.sort, shard)
         .saturating_add(inner)
+        .saturating_add(counted)
         .saturating_add(state_bytes(&source.aggs))
 }
+
+/// What a `terms` holds for each distinct value it counts while it
+/// collects: its key, its count and its index entry.
+pub const TERMS_BYTES_PER_VALUE: usize = 64;
 
 /// The bytes `window` hits sorted by `sort` hold: see [`hits_bytes`].
 fn window_bytes<S: BlobStore + 'static>(

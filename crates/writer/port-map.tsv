@@ -41,3 +41,10 @@ src/mapping_growth/attempts.rs	port	serverless/shell/src/main/java/org/opensearc
 src/mapping_growth/error.rs	new		the growth error type (MappingConflictException and the IOExceptions)
 src/indexing_memory/mod.rs	port	server/src/main/java/org/opensearch/indices/IndexingMemoryController.java	the check on bytes written, largest-first refresh, throttle at 1.5x, idle flush; sans I/O, the native budget and the scheduler are not ported
 src/indexing_memory/budget.rs	port	server/src/main/java/org/opensearch/indices/IndexingMemoryController.java	computeBufferSize: percentage of heap with a floor and ceiling, the budget/30 check interval
+src/publish/lazy.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/reconcile/DirtyPublishing.java@429b4cbc	lazyPublishDue, publishAgeOf, markDirty's stamp; the tail overlay's raised age and the guardrail's stretched age are the caller's
+src/index/shard/replay.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/engine/ServerlessWriterEngine.java	applying a recovered log record with its own sequence number, term and version; stale ones skipped
+src/takeover/mod.rs	new		the takeover module's exports
+src/takeover/adopt.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/shard/ShardReconciler.java	the writer open's replay of the head's writers' logs, the publish and replayedAndPublished
+src/takeover/engine.rs	new		the engine over a shard, its directory and its publisher
+src/takeover/head.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/shard/ShardReconciler.java	NodeLogHooks.replayedAndPublished: clearing the replayed writers from the head by CAS
+src/takeover/predecessors.rs	new		one node-log reader per predecessor, shared by a batch of takes

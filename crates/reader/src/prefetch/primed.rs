@@ -4,8 +4,7 @@ use std::collections::BTreeMap;
 
 use oss_blob::{BlobError, BlobStore, ByteRange, PooledStore};
 
-use super::{Gate, Grant, MAX_CONCURRENT, Range};
-use std::sync::Arc;
+use super::{MAX_CONCURRENT, Range};
 
 /// Where a file's bytes are: buffer, start inside it, length.
 type Slot = (usize, usize, usize);
@@ -15,28 +14,18 @@ type Slot = (usize, usize, usize);
 pub struct Primed {
     buffers: Vec<Vec<u8>>,
     files: BTreeMap<String, Slot>,
-    /// What the gate granted for the buffers; given back by [`Self::clear`].
-    grants: Vec<Grant>,
 }
 
 impl Primed {
-    /// Fetches `ranges`, up to 16 at once. Each range takes its bytes and a
-    /// thread from `gate` first, so all opens of a node together stay
-    /// within it. A range the gate or the store refuses is left out: the
-    /// engine reads its files itself.
-    pub fn fetch<S: BlobStore>(store: &PooledStore<S>, ranges: &[Range], gate: &Arc<Gate>) -> Self {
+    /// Fetches `ranges`, up to 16 at once. A range the store
+    /// refuses is left out: the engine reads its files itself.
+    pub fn fetch<S: BlobStore>(store: &PooledStore<S>, ranges: &[Range]) -> Self {
         let mut primed = Self::default();
         for batch in ranges.chunks(MAX_CONCURRENT) {
-            // ALLOC: one grant a range, at most MAX_CONCURRENT.
-            let granted: Vec<(&Range, Grant)> = batch
-                .iter()
-                .filter_map(|r| gate.try_take(r.len).map(|g| (r, g)))
-                // ALLOC: one grant a range, at most MAX_CONCURRENT.
-                .collect();
             let fetched: Vec<Option<Vec<u8>>> = std::thread::scope(|scope| {
-                let handles: Vec<_> = granted
+                let handles: Vec<_> = batch
                     .iter()
-                    .map(|(range, _)| scope.spawn(move || read(store, range)))
+                    .map(|range| scope.spawn(move || read(store, range)))
                     // ALLOC: one handle a range, at most MAX_CONCURRENT.
                     .collect();
                 handles
@@ -45,15 +34,9 @@ impl Primed {
                     // ALLOC: one result a range, at most MAX_CONCURRENT.
                     .collect()
             });
-            for ((range, mut grant), bytes) in granted.into_iter().zip(fetched) {
-                grant.release_thread();
-                match bytes {
-                    Some(bytes) => {
-                        primed.add(range, bytes);
-                        // ALLOC: one grant a fetched range.
-                        primed.grants.push(grant);
-                    }
-                    None => drop(grant),
+            for (range, bytes) in batch.iter().zip(fetched) {
+                if let Some(bytes) = bytes {
+                    primed.add(range, bytes);
                 }
             }
         }
@@ -96,7 +79,6 @@ impl Primed {
         // ALLOC: empty, holds nothing.
         self.buffers = Vec::new();
         self.files.clear();
-        self.grants.clear();
     }
 }
 

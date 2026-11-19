@@ -9,8 +9,8 @@
 use lucene_aggs::tdigest::MergingDigest;
 
 use super::*;
-use crate::aggs::metric::partial::{Partial, Value, reduce};
 use crate::aggs::metric::{tdigest, write_aggregations};
+use crate::aggs::partial::{Partial, Value, reduce};
 use crate::dsl::{SearchSource, parse_chunks};
 
 fn source(body: &str) -> Result<SearchSource, DslError> {

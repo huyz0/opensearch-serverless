@@ -71,6 +71,17 @@ impl Quirky {
         }
     }
 
+    /// A store that fails as `quirk` says and runs `hook` once armed.
+    pub(crate) fn hooked_with(
+        quirk: Quirk,
+        hook: impl Fn(&dyn BlobStore) + Send + Sync + 'static,
+    ) -> Self {
+        Self {
+            hook: Some(Box::new(hook)),
+            ..Self::new(quirk)
+        }
+    }
+
     /// Runs the hook before the `n`-th request from now (counting from 1).
     pub(crate) fn arm(&self, n: u32) {
         let at = self.requests.load(Ordering::SeqCst) + n;

@@ -131,7 +131,7 @@ pub fn open_located_with<S: BlobStore + 'static>(
     let primed = prefetch.enabled.then(|| {
         let page = u64::try_from(cache.config().page_size).unwrap_or(u64::MAX);
         let ranges = prefetch::plan(&files, &|n| cache.is_pinned_name(n), page, prefetch);
-        prefetch::Primed::fetch(&store, &ranges, &prefetch.gate)
+        prefetch::Primed::fetch(&store, &ranges)
     });
     // ALLOC: one namespace per open shard.
     let namespace = format!("{base}/{index}/{shard}/t={}", files.term);

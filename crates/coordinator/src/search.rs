@@ -9,8 +9,8 @@ use std::fmt::Display;
 use std::io::Write;
 
 use oss_doc::mapping::json::write_str;
-use oss_reader::aggs::metric::partial::Partial;
 use oss_reader::aggs::metric::render::write_aggregations_with;
+use oss_reader::aggs::partial::Partial;
 use oss_reader::response::write_java_float;
 use oss_reader::search::Hits;
 
@@ -239,7 +239,7 @@ fn reduce_aggregations<T: Shards>(
             format: first
                 .and_then(|f| f.iter().find(|a| a.name == name))
                 .map(|a| a.format)
-                .unwrap_or(oss_reader::aggs::metric::partial::Format::Raw),
+                .unwrap_or(oss_reader::aggs::partial::Format::Raw),
             name,
             value,
         })
