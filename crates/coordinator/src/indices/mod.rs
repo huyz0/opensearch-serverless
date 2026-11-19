@@ -3,4 +3,5 @@
 
 pub mod create;
 pub mod flat;
+pub mod mapping_update;
 pub mod settings_update;
