@@ -15,7 +15,7 @@ use oss_mem::{BudgetConfig, BufferPool, MemoryBudget, Pool, SMALL_BUFFER};
 use oss_testkit::index::{Spec, blobs};
 
 use crate::aggs::bucket::terms::{TermsResult, reduce_results};
-use crate::aggs::metric::{Partial, Value};
+use crate::aggs::partial::{Partial, Value};
 use crate::dsl::parse_chunks;
 use crate::search::{ShardError, search};
 use crate::{OpenShard, open_shard};

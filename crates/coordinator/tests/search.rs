@@ -5,7 +5,7 @@
 use std::sync::Mutex;
 
 use oss_coordinator::search::{Params, SearchFailure, Shards, search};
-use oss_reader::aggs::metric::partial::{Format, Partial, Value};
+use oss_reader::aggs::partial::{Format, Partial, Value};
 use oss_reader::fetch::source_filter::SourceFilter;
 use oss_reader::search::{Hit, Hits};
 

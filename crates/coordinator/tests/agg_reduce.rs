@@ -1,8 +1,8 @@
 //! docs/specs/coordinator-agg-reduce: each named aggregation reduces across shards.
 
 use oss_coordinator::reduce::aggs::{AggsError, reduce_shards};
-use oss_reader::aggs::metric::partial::Value;
 use oss_reader::aggs::metric::top_hits::TopHitsResult;
+use oss_reader::aggs::partial::Value;
 
 fn named(name: &str, value: Value) -> (String, Value) {
     (name.to_string(), value)

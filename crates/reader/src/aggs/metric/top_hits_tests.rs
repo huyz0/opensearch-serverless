@@ -174,7 +174,7 @@ fn a_top_hits_is_one_of_the_aggregations_in_request_order() {
     assert_eq!(got.first(), Some(&Value::Max(199.0)));
     assert!(matches!(got.get(1), Some(Value::TopHits(t)) if t.hits.len() == 1));
     assert_eq!(got.get(2), Some(&Value::Min(0.0)));
-    assert!(crate::aggs::metric::partial::reduce(&got[1..2]).is_none());
+    assert!(crate::aggs::partial::reduce(&got[1..2]).is_none());
 }
 
 #[test]

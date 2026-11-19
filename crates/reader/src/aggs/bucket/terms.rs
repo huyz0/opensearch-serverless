@@ -4,7 +4,7 @@
 
 pub use lucene_aggs::bucket_aggs::TermsOrder;
 
-use crate::aggs::metric::Value;
+use crate::aggs::partial::Value;
 
 /// `BucketUtils.suggestShardSideQueueSize`: the shard size when none is
 /// asked for.
