@@ -53,8 +53,8 @@ fn an_index_opens_once_with_two_gets_and_no_list() {
     );
     assert_eq!(
         get(&first, S3Op::GetRange),
-        4,
-        "the ranged reads of the files open and match_all touch, once each through the page cache: {first:?}"
+        1,
+        "the files open and match_all touch, in one merged ranged read by the open prefetch: {first:?}"
     );
     for op in [S3Op::List, S3Op::Head, S3Op::Put, S3Op::Copy, S3Op::Delete] {
         assert_eq!(get(&first, op), 0, "{op:?}: {first:?}");

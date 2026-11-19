@@ -10,11 +10,12 @@
 //! is read-only: a reader never writes.
 
 use std::io::{self, ErrorKind};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, PoisonError};
 
 use lucene_store::{Error, Input, Result};
 use oss_blob::{BlobError, BlobStore, ByteRange, PooledStore};
 
+use crate::prefetch::Primed;
 use crate::shard_files::{FileRange, ShardFiles};
 
 /// A read-only lucene-rust store over one commit's files.
@@ -22,12 +23,40 @@ use crate::shard_files::{FileRange, ShardFiles};
 pub struct EngineStore<S> {
     store: Arc<PooledStore<S>>,
     files: ShardFiles,
+    /// Files fetched ahead of an open, served until it returns.
+    primed: Mutex<Primed>,
 }
 
 impl<S: BlobStore> EngineStore<S> {
     /// The engine's store for `files`, read through `store`.
     pub fn new(store: Arc<PooledStore<S>>, files: ShardFiles) -> Self {
-        Self { store, files }
+        Self {
+            store,
+            files,
+            primed: Mutex::new(Primed::default()),
+        }
+    }
+
+    /// Serves the engine's reads of `primed`'s files from its bytes.
+    pub fn prime(&self, primed: Primed) {
+        *self.primed.lock().unwrap_or_else(PoisonError::into_inner) = primed;
+    }
+
+    /// Drops what [`Self::prime`] held; later reads go to the store.
+    pub fn release(&self) {
+        self.primed
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clear();
+    }
+
+    /// Whether primed bytes are still held.
+    pub fn is_primed(&self) -> bool {
+        !self
+            .primed
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .is_empty()
     }
 
     /// The commit this store serves.
@@ -83,6 +112,14 @@ impl<S: BlobStore> lucene_store::BlobStore for EngineStore<S> {
         let want = u64::try_from(out.len())
             .unwrap_or(u64::MAX)
             .min(file.length.saturating_sub(offset));
+        let primed = self
+            .primed
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .read(name, offset, out);
+        if let Some(n) = primed.filter(|&n| u64::try_from(n).is_ok_and(|n| n == want)) {
+            return Ok(n);
+        }
         let start = file
             .offset
             .checked_add(offset)
