@@ -211,3 +211,47 @@ fn aggregations_are_reduced_and_written() {
     let f = fake(vec![Ok(hits(1, &[1.0], vec![]))]);
     assert!(!text(search(&f, 1, &params(0, 10)).expect("ok")).contains("aggregations"));
 }
+
+#[test]
+fn no_shards_is_an_empty_response() {
+    let f = fake(vec![]);
+    let body = text(search(&f, 0, &params(0, 10)).expect("searches"));
+    assert!(
+        body.contains(r#""_shards":{"total":0,"successful":0,"skipped":0,"failed":0}"#),
+        "{body}"
+    );
+}
+
+#[test]
+fn several_failed_shards_are_listed_in_order() {
+    let f = fake(vec![
+        Err("a".into()),
+        Ok(hits(1, &[1.0], vec![])),
+        Err("b".into()),
+    ]);
+    let body = text(search(&f, 3, &params(0, 10)).expect("searches"));
+    assert!(
+        body.contains(
+            r#""failures":[{"shard":0,"index":"idx","reason":{"type":"exception","reason":"a"}},{"shard":2,"index":"idx","reason":{"type":"exception","reason":"b"}}]"#
+        ),
+        "{body}"
+    );
+}
+
+#[test]
+fn an_aggregation_keeps_the_format_its_shards_gave() {
+    let max = |v| Partial {
+        name: "latest".into(),
+        format: Format::Date,
+        value: Value::Max(v),
+    };
+    let f = fake(vec![
+        Ok(hits(1, &[1.0], vec![max(1.0e12)])),
+        Ok(hits(1, &[0.5], vec![max(2.0e12)])),
+    ]);
+    let body = text(search(&f, 2, &params(0, 10)).expect("searches"));
+    assert!(
+        body.contains(r#""latest":{"value":2.0E12,"value_as_string":"#),
+        "{body}"
+    );
+}
