@@ -139,18 +139,10 @@ fn an_unmapped_field_or_no_match_has_no_buckets() {
 }
 
 #[test]
-fn a_keyword_or_text_field_fails_the_shard() {
-    let shard = shard("terms-kw", 20);
-    let e = run(&shard, r#"{"aggs":{"t":{"terms":{"field":"tag"}}}}"#).expect_err("refused");
-    assert_eq!(e.status, 400);
-    assert!(
-        e.failure
-            .reason
-            .contains("is not supported by this node yet"),
-        "{:?}",
-        e.failure
-    );
+fn a_text_field_fails_the_shard() {
+    let shard = shard("terms-text", 20);
     let e = run(&shard, r#"{"aggs":{"t":{"terms":{"field":"x0"}}}}"#).expect_err("refused");
+    assert_eq!(e.status, 400);
     assert!(
         e.failure.reason.contains("Text fields are not optimised"),
         "{:?}",

@@ -5,6 +5,7 @@
 //! from them. Metric values reduce in [`crate::aggs::metric::partial`],
 //! bucket values in [`crate::aggs::bucket`]; [`reduce`] picks by kind.
 
+use crate::aggs::bucket::keyword_terms::{self, KeywordTermsResult};
 use crate::aggs::bucket::terms::{self, TermsResult};
 use crate::aggs::metric::hll::Hll;
 use crate::aggs::metric::partial::{reduce_cardinality, reduce_percentiles, reduce_scalar};
@@ -71,6 +72,8 @@ pub enum Value {
     TopHits(Box<TopHitsResult>),
     /// `LongTerms`: a numeric `terms`' buckets.
     Terms(Box<TermsResult>),
+    /// `StringTerms`: a keyword `terms`' buckets.
+    KeywordTerms(Box<KeywordTermsResult>),
 }
 
 /// One aggregation's shard-level result.
@@ -92,6 +95,7 @@ pub fn reduce(parts: &[Value]) -> Option<Value> {
         Value::Cardinality(_) => reduce_cardinality(parts),
         Value::Percentiles { .. } => reduce_percentiles(parts),
         Value::Terms(_) => terms::reduce(parts),
+        Value::KeywordTerms(_) => keyword_terms::reduce(parts),
         // A `top_hits` has no reduce here: merging hits needs them fetched
         // and their shard known, so `reduce_scalar` answers `None` for it.
         _ => reduce_scalar(parts),
