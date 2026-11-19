@@ -98,6 +98,9 @@ pub struct TopHitsResult {
     pub fields: Vec<HitField>,
     /// Each hit's explanation, in order; empty unless `explain` was asked.
     pub explanations: Vec<Explanation>,
+    /// The explanations of `before`, in order, so a hit a merge pulls from
+    /// there is explained like the rest; empty unless `explain` was asked.
+    pub before_explanations: Vec<Explanation>,
     /// What to highlight in each hit; `None` without `highlight`.
     pub highlight: Option<HighlightPlan>,
 }
@@ -118,6 +121,8 @@ impl TopHitsResult {
             fields: Vec::new(),
             // ALLOC: empty.
             explanations: Vec::new(),
+            // ALLOC: empty.
+            before_explanations: Vec::new(),
             highlight: None,
         }
     }
@@ -304,6 +309,8 @@ pub(crate) fn fill<S: BlobStore + 'static>(
             fields: Vec::new(),
             // ALLOC: empty; explained below when asked.
             explanations: Vec::new(),
+            // ALLOC: empty; explained below when asked.
+            before_explanations: Vec::new(),
             highlight: None,
         };
         if spec.explain
@@ -315,19 +322,37 @@ pub(crate) fn fill<S: BlobStore + 'static>(
                 format!("explain of {what} is not supported by this node yet"),
             )));
         }
-        // The fetch phase resolves them only when it has a hit to fetch.
-        if !result.hits.is_empty() {
-            if !spec.docvalue_fields.is_empty() {
-                result.fields =
-                    docvalue_fields::resolve(&spec.docvalue_fields, &shard.meta.mapping)?;
-            }
-            if let Some(h) = &spec.highlight {
-                result.highlight = highlight::plan(h, &shard.meta.mapping, query)?;
+        // The fetch phase resolves them only when it has a hit to fetch. With
+        // only hits ahead of `from` a coordinator's merge may still pull one,
+        // so they are resolved if they can be, and an error is left to the
+        // shard whose hits are written.
+        let fetches = !result.hits.is_empty();
+        if fetches || !result.before.is_empty() {
+            let fields = if spec.docvalue_fields.is_empty() {
+                // ALLOC: empty.
+                Ok(Vec::new())
+            } else {
+                docvalue_fields::resolve(&spec.docvalue_fields, &shard.meta.mapping)
+            };
+            let plan = match &spec.highlight {
+                Some(h) => highlight::plan(h, &shard.meta.mapping, query),
+                None => Ok(None),
+            };
+            match (fields, plan) {
+                (Ok(fields), Ok(plan)) => {
+                    result.fields = fields;
+                    result.highlight = plan;
+                }
+                (Err(e), _) | (_, Err(e)) if fetches => return Err(e),
+                _ => {}
             }
             if spec.explain {
                 let searcher = IndexSearcher::new(segments, norms).map_err(ShardError::engine)?;
                 result.explanations = explain::explain_hits(&searcher, query, &result.hits)
                     .map_err(ShardError::engine)?;
+                result.before_explanations =
+                    explain::explain_hits(&searcher, query, &result.before)
+                        .map_err(ShardError::engine)?;
             }
         }
         // ALLOC: one box a `top_hits`, bounded by the request's.
