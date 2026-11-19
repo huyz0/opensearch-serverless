@@ -6,4 +6,4 @@
 - AC-4: `the_total_is_summed_and_the_best_score_is_the_highest` in crates/coordinator/tests/top_hits_reduce.rs
 - AC-5: `sort_values_of_different_kinds_are_refused` in crates/coordinator/tests/top_hits_reduce.rs
 - AC-6: `no_shards_or_no_hits_give_an_empty_page` in crates/coordinator/tests/top_hits_reduce.rs
-- AC-7: `the_pile_never_holds_more_than_twice_the_window` in crates/coordinator/tests/top_hits_reduce.rs
+- AC-7: `the_pile_never_holds_more_than_twice_the_window`, `the_pile_bound_counts_from_as_well_as_size` in crates/coordinator/tests/top_hits_reduce.rs

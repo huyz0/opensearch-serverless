@@ -150,3 +150,19 @@ fn the_pile_never_holds_more_than_twice_the_window() {
     assert_eq!(merged.page.len(), 3);
     assert!(merged.peak_held <= 2 * 3 + 4);
 }
+
+#[test]
+fn the_pile_bound_counts_from_as_well_as_size() {
+    let (from, size) = (2, 3);
+    let shards: Vec<TopHitsResult> = (0..20)
+        .map(|s| {
+            let hits = (0..5).map(|i| scored(i, (s * 5 + i) as f32)).collect();
+            shard(5, Some(1.0), from, hits)
+        })
+        .collect();
+    let merged = reduce_top_hits(&shards, from, size, None).expect("merges");
+    assert_eq!(merged.page.len(), size);
+    assert!(merged.peak_held <= 2 * (from + size) + 5);
+    // The page is the third to fifth best of 100 scores: shard 19's hits 2, 1, 0.
+    assert_eq!(merged.page, [(19, 2), (19, 1), (19, 0)]);
+}
