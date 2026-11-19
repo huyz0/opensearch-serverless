@@ -260,6 +260,11 @@ pub(crate) mod open_shard;
 #[path = "search_shard.rs"]
 mod shard_query;
 pub use shard_query::ShardQuery;
+#[cfg(feature = "coordinator")]
+#[path = "coordinate.rs"]
+mod coordinate;
+#[cfg(feature = "coordinator")]
+pub use coordinate::ShardError;
 #[path = "search_overlay.rs"]
 mod overlay;
 

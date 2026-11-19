@@ -1,0 +1,7 @@
+# Verified: a node coordinates a search over its own shards
+
+- AC-1: `two_shards_answer_as_one_with_each_hit_from_its_shard` in crates/node/tests/it/coordinate.rs
+- AC-2: `the_sort_orders_the_merge` in crates/node/tests/it/coordinate.rs
+- AC-3: `a_shard_the_index_lacks_fails_alone` in crates/node/tests/it/coordinate.rs
+- AC-4: `a_refused_reserve_fails_the_search` in crates/node/tests/it/coordinate.rs
+- AC-5: `the_total_follows_track_total_hits` in crates/node/tests/it/coordinate.rs
