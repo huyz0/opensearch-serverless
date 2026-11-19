@@ -91,10 +91,8 @@ impl Grant {
     /// Gives the thread back, keeping the bytes until the grant drops: the
     /// fetch is over, its bytes are still held.
     pub fn release_thread(&mut self) {
-        if self.threads > 0 {
-            self.gate.threads.fetch_sub(self.threads, Ordering::AcqRel);
-            self.threads = 0;
-        }
+        self.gate.threads.fetch_sub(self.threads, Ordering::AcqRel);
+        self.threads = 0;
     }
 }
 
