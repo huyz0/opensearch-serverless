@@ -285,3 +285,103 @@ fn bodies_are_let_go_once_kept_past_their_time() {
     assert_eq!(ids(&t, 2), ["2-0"]);
     assert_eq!(gets(&r) - before, 1, "read again after it was let go");
 }
+
+fn ids_above(takeover: &NodeLogTakeover, n: u32, through: i64) -> Vec<String> {
+    let mut out = Vec::new();
+    takeover
+        .for_each_record_above(&shard(n), through, |record| {
+            out.push(record.id().to_owned());
+            Ok::<_, TakeoverError>(())
+        })
+        .expect("reads");
+    out
+}
+
+/// Shard 1 in three blobs of its own, a0 a1 a2, and shard 2's b0 between.
+fn three_blobs(r: &Rig) -> NodeLogTakeover {
+    commit(r, 1, "a0", 0);
+    commit(r, 2, "b0", 0);
+    commit(r, 1, "a1", 1);
+    commit(r, 1, "a2", 2);
+    NodeLogTakeover::new(r.log.clone(), r.committer.positions(), "node-2", 2)
+}
+
+#[test]
+fn only_slices_past_the_commit_are_handed_over() {
+    let r = rig(window(0));
+    let takeover = three_blobs(&r);
+    assert_eq!(ids_above(&takeover, 1, -1), ["a0", "a1", "a2"]);
+    assert_eq!(ids_above(&takeover, 1, 0), ["a1", "a2"]);
+    assert_eq!(ids_above(&takeover, 1, 1), ["a2"]);
+    assert!(ids_above(&takeover, 1, 2).is_empty());
+    assert_eq!(ids_above(&takeover, 2, 0), Vec::<String>::new());
+}
+
+#[test]
+fn slices_the_commit_covers_cost_no_body_or_slice_read() {
+    let r = rig(window(0));
+    let takeover = three_blobs(&r);
+    takeover.fence_all().expect("fences");
+    // The headers are what every read pays; the first read keeps them.
+    assert_eq!(ids(&takeover, 1), ["a0", "a1", "a2"]);
+    let before = gets(&r);
+    assert!(ids_above(&takeover, 1, 2).is_empty());
+    assert_eq!(gets(&r), before, "nothing covered is fetched");
+    let before = gets(&r);
+    assert_eq!(ids(&takeover, 1), ["a0", "a1", "a2"]);
+    assert_eq!(gets(&r) - before, 3, "a slice read each without the skip");
+    let before = gets(&r);
+    assert_eq!(ids_above(&takeover, 1, 1), ["a2"]);
+    assert_eq!(gets(&r) - before, 1, "only the slice past the commit");
+}
+
+#[test]
+fn a_slice_with_no_sequence_number_is_never_skipped() {
+    let r = rig(window(0));
+    r.committer
+        .commit(
+            &shard(1),
+            1,
+            &[oss_format::WalRecord::index_unsequenced("u", r#"{"n":1}"#)],
+        )
+        .expect("lands");
+    let takeover = NodeLogTakeover::new(r.log.clone(), r.committer.positions(), "node-2", 2);
+    assert_eq!(ids_above(&takeover, 1, 1_000_000), ["u"]);
+}
+
+#[test]
+fn a_slice_mixing_unsequenced_and_sequenced_records_is_judged_by_the_sequenced_ones() {
+    let r = rig(window(0));
+    r.committer
+        .commit(
+            &shard(1),
+            1,
+            &[
+                oss_format::WalRecord::index_unsequenced("u", r#"{"n":1}"#),
+                rec("s", 5),
+            ],
+        )
+        .expect("lands");
+    let takeover = NodeLogTakeover::new(r.log.clone(), r.committer.positions(), "node-2", 2);
+    assert_eq!(ids_above(&takeover, 1, 4), ["u", "s"], "5 is past 4");
+    assert!(
+        ids_above(&takeover, 1, 5).is_empty(),
+        "covered through 5: the slice is skipped, unsequenced record and all"
+    );
+}
+
+#[test]
+fn a_shared_blob_hands_each_shard_only_its_slices_past_its_commit() {
+    let r = rig(window(0));
+    r.committer
+        .enqueue(&shard(1), 1, &[rec("a", 0)], |_| {})
+        .expect("queued");
+    r.committer
+        .enqueue(&shard(2), 1, &[rec("b", 5)], |_| {})
+        .expect("queued");
+    r.committer.flush_queued();
+    let takeover = NodeLogTakeover::new(r.log.clone(), r.committer.positions(), "node-2", 2);
+    assert!(ids_above(&takeover, 1, 0).is_empty(), "shard 1 is covered");
+    assert_eq!(ids_above(&takeover, 2, 0), ["b"], "shard 2 is not");
+    assert_eq!(ids_above(&takeover, 1, -1), ["a"]);
+}

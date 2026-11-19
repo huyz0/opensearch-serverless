@@ -3,6 +3,7 @@
 #![allow(dead_code)]
 
 pub mod committer;
+pub mod takeover;
 
 use std::sync::Arc;
 

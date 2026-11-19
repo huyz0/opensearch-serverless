@@ -24,6 +24,16 @@ pub trait Engine {
     /// The record or the engine refusing it, as a message.
     fn replay(&mut self, record: &WalRecord<'_>) -> Result<bool, String>;
 
+    /// The bytes the engine holds for what it applied and has not flushed.
+    fn buffered_bytes(&self) -> usize;
+
+    /// Commits what was applied locally, releasing what it buffered.
+    ///
+    /// # Errors
+    ///
+    /// The commit failing, as a message.
+    fn flush(&mut self) -> Result<(), String>;
+
     /// Publishes everything applied as a commit of `term`, swapping the
     /// register.
     ///
@@ -89,6 +99,11 @@ impl From<TakeoverError> for AdoptError {
 /// applied oldest first, published once under `won`'s term if any was, and
 /// only then are the writers whose logs were read cleared from the head.
 ///
+/// The engine is flushed whenever its buffer has grown by `max_buffer_bytes`
+/// (at least 1) since the last flush left it, so a replay of any length
+/// holds that, what a flush leaves behind, and one record, and always
+/// makes progress even when a flush leaves more than the bound.
+///
 /// # Errors
 ///
 /// A predecessor's log not reading, a record not applying, the publish
@@ -100,9 +115,13 @@ pub fn adopt(
     predecessors: &Predecessors,
     engine: &mut dyn Engine,
     heads: &HeadWriters,
+    max_buffer_bytes: usize,
 ) -> Result<Adopted, AdoptError> {
     let through = engine.committed_through();
     let mut replayed = 0u64;
+    let growth = max_buffer_bytes.max(1);
+    // What the engine held after its last flush.
+    let mut floor = 0usize;
     // The writers whose logs were read: a writer with no lease is not known
     // to have logged nothing, so the head keeps naming it.
     // ALLOC: the writers a head names, at most MAX_WRITERS.
@@ -111,9 +130,15 @@ pub fn adopt(
         let Some(log) = predecessors.of(writer)? else {
             continue;
         };
-        log.for_each_record(shard, |record| {
+        log.for_each_record_above(shard, through, |record| {
             if record.has_sequence_identity() && record.seq_no() <= through {
                 return Ok(());
+            }
+            // Bounded however long the replay: the buffer is released
+            // before the record that would pass the bound.
+            if engine.buffered_bytes() >= floor.saturating_add(growth) {
+                engine.flush().map_err(AdoptError::Replay)?;
+                floor = engine.buffered_bytes();
             }
             if engine.replay(&record).map_err(AdoptError::Replay)? {
                 replayed = replayed.saturating_add(1);
