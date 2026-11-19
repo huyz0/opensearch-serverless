@@ -67,3 +67,103 @@ fn a_push_for_a_shard_past_the_first_reaches_that_shard_alone() {
     );
     assert_eq!(node.service.open_indexes(), 2);
 }
+
+// ---- docs/specs/node-shard-query
+
+use oss_reader::dsl::{SearchSource, parse_chunks};
+
+use crate::support::{NODE, request};
+
+fn source(body: &str) -> SearchSource {
+    parse_chunks([body.as_bytes()]).expect("parses")
+}
+
+/// The hit list of a search response body.
+fn hit_list(body: &str) -> &str {
+    let from = body.find(r#""hits":["#).expect("hits") + 8;
+    let end = body[from..].rfind("]}").expect("end") + from;
+    &body[from..end]
+}
+
+const TERM: &str = r#"{"query":{"term":{"title":"brown"}}}"#;
+
+#[test]
+fn a_shard_query_finds_what_the_http_search_finds_and_writes_its_hits_the_same() {
+    let node = start();
+    let q = node
+        .service
+        .query_shard("compat-term", 0, &source(TERM))
+        .expect("queries");
+    assert_eq!((q.hits.total, q.hits.hits.len()), (2, 2));
+    let r = request(
+        node.addr(),
+        "POST",
+        "/compat-term/_search",
+        Some(TERM.as_bytes()),
+    );
+    assert_eq!(r.status, 200, "{}", r.text());
+    let written = q.render(NODE, &[0, 1], &mut |_| Ok(())).expect("renders");
+    let joined: Vec<String> = written
+        .into_iter()
+        .map(|h| String::from_utf8(h).expect("utf-8"))
+        .collect();
+    assert_eq!(joined.join(","), hit_list(&r.text()));
+    let back = q.render(NODE, &[1, 0], &mut |_| Ok(())).expect("renders");
+    assert_eq!(back[0], joined[1].as_bytes());
+}
+
+#[test]
+fn a_shard_past_the_first_is_queried_and_its_hits_name_it() {
+    let node = two_shards();
+    let explained = r#"{"query":{"term":{"title":"brown"}},"explain":true}"#;
+    let first = node
+        .service
+        .query_shard("two", 0, &source(explained))
+        .expect("queries");
+    let second = node
+        .service
+        .query_shard("two", 1, &source(explained))
+        .expect("queries");
+    assert_eq!(first.hits.total, second.hits.total, "the same data twice");
+    let one = |q: &oss_node::search::ShardQuery<_>| {
+        String::from_utf8(
+            q.render(NODE, &[0], &mut |_| Ok(()))
+                .expect("renders")
+                .remove(0),
+        )
+        .expect("utf-8")
+    };
+    assert!(
+        one(&first).starts_with(r#"{"_shard":"[two][0]""#),
+        "{}",
+        one(&first)
+    );
+    assert!(
+        one(&second).starts_with(r#"{"_shard":"[two][1]""#),
+        "{}",
+        one(&second)
+    );
+}
+
+#[test]
+fn a_failed_shard_query_names_the_shard() {
+    let node = two_shards();
+    let e = node
+        .service
+        .query_shard("two", 1, &source(r#"{"from":9999,"size":10}"#))
+        .err()
+        .expect("too large a window");
+    assert_eq!(e.status, 400);
+    let body = String::from_utf8(e.to_body()).expect("utf-8");
+    assert!(
+        body.contains(r#""shard":1"#) && body.contains(r#""index":"two""#),
+        "{body}"
+    );
+    let e = node
+        .service
+        .query_shard("missing", 0, &source("{}"))
+        .err()
+        .expect("no index");
+    assert_eq!(e.status, 404);
+    assert!(node.service.query_shard("two", 2, &source("{}")).is_err());
+}

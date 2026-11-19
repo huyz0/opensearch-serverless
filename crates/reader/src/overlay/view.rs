@@ -152,6 +152,7 @@ impl<S: oss_blob::BlobStore + 'static> OpenShard<S> {
             directory: Arc::clone(&self.directory),
             reader: overlay.view_of(&self.reader, copies)?,
             meta: self.meta.clone(),
+            shard: self.shard,
         })
     }
 }
