@@ -2,3 +2,4 @@
 //! caller's pins mean.
 
 pub mod get;
+pub mod write;

@@ -9,3 +9,4 @@ src/reduce/aggs.rs	port	serverless/shell/src/main/java/org/opensearch/serverless
 src/fanout.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/ops/Fanout.java@429b4cbc	a sliding window of per-shard calls with the caller as one worker, plus the coverage SearchFanout reports
 src/docs/mod.rs	new		the document APIs decisions
 src/docs/get.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/ops/DocumentReads.java@429b4cbc	where a get is served (local, absent, reader, forward, not here) and the read version conflict of VersionType; the reads, the forward and the source filter are separate pieces
+src/docs/write.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/ops/DocumentWrites.java@429b4cbc	where a write is applied (local, activate, forward, not here) and the native write options validation; the writes, the activation and the forward are separate pieces
