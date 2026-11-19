@@ -179,6 +179,17 @@ fn a_reduce_needs_parts_of_one_shape() {
     }));
     assert!(reduce(&[]).is_none());
     assert!(reduce(&[one.clone(), two]).is_none());
+    // The same count of ranges, but not the same ranges.
+    let other = |key: Option<&str>, to: f64, keyed: bool| {
+        Value::Range(Box::new(RangeResult {
+            keyed,
+            buckets: vec![bucket(key, 0.0, to, 1)],
+        }))
+    };
+    assert!(reduce(&[one.clone(), other(None, 2.0, false)]).is_none());
+    assert!(reduce(&[one.clone(), other(Some("k"), 1.0, false)]).is_none());
+    assert!(reduce(&[one.clone(), other(None, 1.0, true)]).is_none());
+    assert!(reduce(&[one.clone(), other(None, 1.0, false)]).is_some());
     assert!(reduce(&[one.clone(), Value::Min(1.0)]).is_none());
     assert_eq!(reduce(std::slice::from_ref(&one)), Some(one));
 }

@@ -147,7 +147,12 @@ fn a_range_reserves_its_buckets_with_the_hits() {
     let three = source(
         r#"{"size":0,"aggs":{"r":{"range":{"field":"n","ranges":[{"to":1},{"to":2},{"to":3}]}}}}"#,
     );
-    let size = std::mem::size_of::<crate::aggs::bucket::range::RangeBucket>();
+    let size = std::mem::size_of::<crate::aggs::bucket::range::RangeBucket>() + 16 + 8;
     assert_eq!(state_bytes(&three.aggs) - state_bytes(&one.aggs), 2 * size);
+    // A key's text is held by the request and by the result.
+    let keyed = source(
+        r#"{"size":0,"aggs":{"r":{"range":{"field":"n","ranges":[{"to":1,"key":"abcd"}]}}}}"#,
+    );
+    assert_eq!(state_bytes(&keyed.aggs) - state_bytes(&one.aggs), 8);
     assert!(hits_bytes(&three, &shard) >= state_bytes(&three.aggs));
 }

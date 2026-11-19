@@ -49,8 +49,18 @@ pub struct RangeResult {
     pub buckets: Vec<RangeBucket>,
 }
 
+/// Whether `a` and `b` answer the same request: the same `keyed` and, one
+/// for one, the same key and bounds.
+fn same_ranges(a: &RangeResult, b: &RangeResult) -> bool {
+    a.keyed == b.keyed
+        && a.buckets.len() == b.buckets.len()
+        && a.buckets.iter().zip(&b.buckets).all(|(x, y)| {
+            x.key == y.key && x.from.total_cmp(&y.from).is_eq() && x.to.total_cmp(&y.to).is_eq()
+        })
+}
+
 /// `InternalRange.reduce`: each range's counts add. `None` unless there is
-/// a part, every part is a `range` and all have the same buckets.
+/// a part, every part is a `range` and all have the same ranges.
 pub fn reduce(parts: &[Value]) -> Option<Value> {
     // ALLOC: one reference a shard, bounded by the shards that answered.
     let results: Option<Vec<&RangeResult>> = parts
@@ -63,7 +73,7 @@ pub fn reduce(parts: &[Value]) -> Option<Value> {
         .collect();
     let results = results?;
     let (first, rest) = results.split_first()?;
-    if rest.iter().any(|r| r.buckets.len() != first.buckets.len()) {
+    if rest.iter().any(|r| !same_ranges(first, r)) {
         return None;
     }
     let mut merged = (*first).clone();

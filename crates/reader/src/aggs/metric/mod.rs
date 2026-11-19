@@ -200,11 +200,20 @@ pub fn state_bytes(aggs: &[MetricAgg]) -> usize {
             Metric::Histogram | Metric::DateHistogram => {
                 crate::aggs::bucket::BUCKET_LIMIT.saturating_mul(HISTOGRAM_BUCKET_BYTES)
             }
+            // A bucket, the engine's bounds and count, and each key, kept
+            // by the request and by the result.
             Metric::Range => agg.range.as_ref().map_or(0, |r| {
+                let per_range = std::mem::size_of::<crate::aggs::bucket::range::RangeBucket>()
+                    .saturating_add(std::mem::size_of::<[f64; 2]>())
+                    .saturating_add(std::mem::size_of::<u64>());
+                let keys = r.ranges.iter().fold(0usize, |n, d| {
+                    n.saturating_add(d.key.as_ref().map_or(0, String::len).saturating_mul(2))
+                });
                 r.ranges
                     .len()
                     .min(crate::aggs::bucket::BUCKET_LIMIT)
-                    .saturating_mul(std::mem::size_of::<crate::aggs::bucket::range::RangeBucket>())
+                    .saturating_mul(per_range)
+                    .saturating_add(keys)
             }),
             Metric::Percentiles | Metric::PercentileRanks => {
                 tdigest::digest_bytes(agg.percentiles.compression).saturating_add(
