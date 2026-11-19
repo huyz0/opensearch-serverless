@@ -60,7 +60,7 @@ fn time_value_refusals_use_the_javas_words() {
             "failed to parse setting [max_age] with value [{v}] as a time value: unit is missing or unrecognized"
         )
     };
-    for v in ["7", "7w", "abc", "", "5M", "1.5"] {
+    for v in ["7", "7w", "abc", "", "5M", "1.5", "1", "01", "-2", "-"] {
         assert_eq!(parse(v, "max_age").unwrap_err(), unit(v), "{v}");
     }
     assert_eq!(
