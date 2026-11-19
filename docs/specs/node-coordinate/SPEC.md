@@ -23,3 +23,7 @@ Parity plan R7.6, node assembly: `SearchService::coordinate` runs one search ove
 ## S3 request budget
 
 Each shard opens once as for any search (the descriptor and the commit); the merge and the render read nothing more.
+
+## Route
+
+- AC-6: with the `coordinator` feature, `_search` on an index of more than one shard is answered through `coordinate`, the shard count read from shard 0's descriptor as it opens (no request beyond opening each shard once), and a warm search reads nothing from the store; an index of one shard is answered as before.
