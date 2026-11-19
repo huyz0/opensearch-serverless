@@ -200,3 +200,51 @@ fn a_body_of_several_slices_is_applied_whole() {
     );
     assert_eq!(r.budget.in_use(), (0, 0), "the budget is free again");
 }
+
+/// The millis a time-based id was made at: its bytes lie as
+/// `IdGenerator::next` lays them out.
+fn id_millis(id: &str) -> u64 {
+    let value = |c: char| {
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+            .find(c)
+            .expect("base64url") as u32
+    };
+    let chars: Vec<u32> = id.chars().map(value).collect();
+    let bytes: Vec<u8> = chars
+        .chunks(4)
+        .flat_map(|c| {
+            let n = (c[0] << 18) | (c[1] << 12) | (c[2] << 6) | c[3];
+            [(n >> 16) as u8, (n >> 8) as u8, n as u8]
+        })
+        .collect();
+    let at = |i: usize| u64::from(bytes[i]);
+    at(14) | at(12) << 8 | at(2) << 16 | at(3) << 24 | at(4) << 32 | at(5) << 40
+}
+
+#[test]
+fn an_item_without_an_id_gets_a_time_based_one() {
+    let r = rig(1 << 20);
+    let text = post(&r, "POST", "/docs/_bulk", "{\"index\":{}}\n{\"n\":1}\n").text();
+    let id = text
+        .split(r#""_id":""#)
+        .nth(1)
+        .and_then(|rest| rest.split('"').next())
+        .expect("an id")
+        .to_owned();
+    assert_eq!(id.len(), 20, "{text}");
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("clock")
+        .as_millis() as u64;
+    let made = id_millis(&id);
+    assert!(made <= now && now - made < 60_000, "{made} against {now}");
+}
+
+#[test]
+fn require_alias_refuses_an_index_that_is_not_one() {
+    let r = rig(1 << 20);
+    let text = post(&r, "POST", "/docs/_bulk?require_alias=true", TWO).text();
+    assert!(text.contains(r#""errors":true"#), "{text}");
+    let text = post(&r, "POST", "/docs/_bulk?require_alias=false", TWO).text();
+    assert!(text.contains(r#""errors":false"#), "{text}");
+}

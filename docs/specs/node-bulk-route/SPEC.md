@@ -23,3 +23,5 @@ Parity plan R7.6, node assembly: the HTTP route that takes a `_bulk` body, strea
 ## S3 request budget
 
 The writes stage in the node's one log as for any bulk; the route adds no request.
+
+- AC-6: an item without an id gets a time-based id made at the request's time, and `?require_alias=true` is passed to the bulk so an index that is not an alias is refused.
