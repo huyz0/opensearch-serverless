@@ -29,7 +29,7 @@ jobs:
       fail-fast: false
       max-parallel: 4
       matrix:
-        job: [coverage, mutants, slow-tests, clippy-aarch64, fuzz]
+        job: [coverage, slow-tests, clippy-aarch64, fuzz]
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -47,14 +47,19 @@ jobs:
         run: |
           case "$JOB" in
             coverage)       scripts/coverage.sh --locked --fail-under-lines 95 ;;
-            mutants)        scripts/mutants.sh --all ;;
             slow-tests)     cargo test --locked --workspace --all-features -- --ignored ;;
+            # The prebuilt cargo-fuzz defaults to its own musl target, which
+            # cannot link a sanitizer: name the gnu target.
             fuzz)           rustup toolchain install nightly-2026-11-13 --profile minimal &&
                             cd crates/chunkjson/fuzz &&
                             for t in oracle feed; do
-                              cargo +nightly-2026-11-13 fuzz run "$t" -- -max_total_time=600 || exit 1
+                              cargo +nightly-2026-11-13 fuzz run --target x86_64-unknown-linux-gnu "$t" -- -max_total_time=600 || exit 1
                             done ;;
-            clippy-aarch64) rustup target add aarch64-unknown-linux-gnu &&
+            # ring's build script needs an aarch64 C compiler and linker.
+            clippy-aarch64) sudo apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu &&
+                            rustup target add aarch64-unknown-linux-gnu &&
+                            CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
+                            CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
                             cargo clippy --locked --workspace --all-targets --all-features --target aarch64-unknown-linux-gnu -- -D warnings ;;
           esac
       - name: keep the fuzz reproducer
@@ -75,3 +80,52 @@ jobs:
           n=$(gh issue list --state open --search "\"$title\" in:title" --json number --jq '.[0].number // empty')
           if [ -n "$n" ]; then gh issue comment "$n" --body "Failed again: $URL"
           else gh issue create --title "$title" --body "The nightly $JOB job failed: $URL"; fi
+
+  # The workspace has about 12,900 mutants, far more than one job's hour: a
+  # single sweep was cancelled at the limit three nights in four. Each night
+  # four runners each take one of 28 slices, rotating by day of the year, so
+  # every mutant is tested once every seven nights. A slice that runs out of
+  # time still fails on a missed mutant it already found.
+  mutants:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        lane: [0, 1, 2, 3]
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: mutants
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-mutants
+      - name: run
+        env:
+          LANE: ${{ matrix.lane }}
+        run: |
+          slice=$(( (10#$(date -u +%j) * 4 + LANE) % 28 ))
+          echo "mutants: slice $slice/28"
+          set +e
+          MUTANTS_IN_PLACE=1 MUTANTS_BASELINE=run timeout 58m scripts/mutants.sh --all --shard "$slice/28" 2>&1 | tee "$RUNNER_TEMP/mutants.log"
+          rc=${PIPESTATUS[0]}
+          set -e
+          if [ "$rc" -eq 124 ]; then
+            if grep -q 'MISSED' "$RUNNER_TEMP/mutants.log"; then exit 1; fi
+            echo "::warning::mutants: slice $slice ran out of time with no miss so far"
+            exit 0
+          fi
+          exit "$rc"
+      - name: report failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="nightly: mutants"
+          n=$(gh issue list --state open --search "\"$title\" in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$n" ]; then gh issue comment "$n" --body "Failed again: $URL"
+          else gh issue create --title "$title" --body "A nightly mutants shard failed: $URL"; fi

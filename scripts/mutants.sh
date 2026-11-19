@@ -32,8 +32,14 @@ common=(--workspace --all-features --exclude 'crates/*/src/main.rs' --timeout-mu
 # copy, and skips the unmutated baseline, which that step already ran green.
 # Measured on one shard of 11 mutants: 108 s in a copy, 48 s in place.
 # Never set it on a checkout with uncommitted work.
+# MUTANTS_BASELINE=run keeps the baseline (the nightly shards have no tests step
+# before them).
 if [ "${MUTANTS_IN_PLACE:-}" = "1" ]; then
-  common=(--workspace --all-features --exclude 'crates/*/src/main.rs' --in-place --baseline skip --timeout 60)
+  if [ "${MUTANTS_BASELINE:-skip}" = "run" ]; then
+    common+=(--in-place)
+  else
+    common=(--workspace --all-features --exclude 'crates/*/src/main.rs' --in-place --baseline skip --timeout 60)
+  fi
 fi
 if [ "${1:-}" = "--all" ]; then
   shift
