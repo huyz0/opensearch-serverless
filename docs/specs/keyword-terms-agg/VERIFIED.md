@@ -15,3 +15,6 @@ Run on 2026-11-19 (Linux cloud container). No stock OpenSearch recording backs t
 - AC-11: `equal_keys_reduce_their_sub_aggregations_and_the_cut_buckets_take_theirs`, `sub_aggregations_reduce_with_their_buckets_across_shards` (crates/coordinator/tests/keyword_terms_reduce.rs)
 - AC-12: `a_bucket_writes_its_sub_aggregations_after_doc_count`
 - AC-13: `sub_aggregations_reserve_their_states_with_the_terms`, `sub_aggregations_that_are_not_served_are_refused`
+- AC-14: `an_inner_terms_counts_within_each_outer_bucket`, `an_inner_terms_of_an_unmapped_field_is_empty_and_a_numeric_one_is_refused`, `terms_nest_three_deep_and_deeper_is_refused`, `a_nested_keyword_terms_adds_no_request_to_a_cold_search` (crates/node/tests/it/aggs_budgets.rs)
+- AC-15: `nested_results_reduce_and_write_inside_their_buckets` (aggs/bucket/keyword_terms_tests.rs)
+- AC-16: `an_inner_terms_reserves_its_pairs_and_buckets`

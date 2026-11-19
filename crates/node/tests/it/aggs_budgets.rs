@@ -127,3 +127,32 @@ fn a_cold_search_with_a_keyword_terms_then_a_warm_one() {
         &rounds.detail(),
     );
 }
+
+/// Cold GET count of `body` on a fresh node over a built index of two
+/// keyword fields.
+fn cold_gets(body: &[u8]) -> u64 {
+    let node = crate::support::start();
+    let spec = oss_testkit::index::Spec::new("nest", 2_000)
+        .segments_of(500)
+        .with_keywords(1);
+    crate::support::put_built(&node.store, &spec);
+    let before = crate::support::counts(&node.store);
+    let r = request(node.addr(), "POST", "/nest/_search", Some(body));
+    assert_eq!(r.status, 200, "{}", r.text());
+    assert!(r.text().contains(r#""doc_count""#), "{}", r.text());
+    let after = crate::support::counts(&node.store);
+    before.iter().zip(after).map(|(b, a)| a - b).sum()
+}
+
+// docs/specs/keyword-terms-agg AC-14: a keyword `terms` of a second field
+// under a keyword `terms` adds no request to a cold search.
+#[test]
+fn a_nested_keyword_terms_adds_no_request_to_a_cold_search() {
+    let plain = cold_gets(br#"{"size":0,"aggs":{"t":{"terms":{"field":"tag"}}}}"#);
+    let nested = cold_gets(
+        br#"{"size":0,"aggs":{"t":{"terms":{"field":"tag"},
+            "aggs":{"k":{"terms":{"field":"k0"},"aggs":{"hi":{"max":{"field":"n"}}}}}}}}"#,
+    );
+    println!("plain {plain} nested {nested}");
+    assert_eq!(nested, plain);
+}

@@ -93,6 +93,10 @@ pub fn parse_aggregations(p: &mut Parser<'_>) -> Result<Vec<MetricAgg>, DslError
     parse_level(p, 0)
 }
 
+/// The deepest an aggregation holding sub-aggregations may sit (the top level
+/// is 0): four levels of aggregations.
+const MAX_NESTING: usize = 3;
+
 /// What one aggregation's definition held.
 struct Definition {
     agg: Option<MetricAgg>,
@@ -155,11 +159,21 @@ fn parse_level(p: &mut Parser<'_>, level: usize) -> Result<Vec<MetricAgg>, DslEr
             if agg.metric != Metric::Terms {
                 return Err(sub_refusal(&agg, name));
             }
-            if let Some(sub) = definition.subs.iter().find(|s| !is_scalar(s.metric)) {
+            if let Some(sub) = definition
+                .subs
+                .iter()
+                .find(|s| !is_scalar(s.metric) && s.metric != Metric::Terms)
+            {
                 // ALLOC: error path; one message.
                 return Err(DslError::unsupported(&format!(
                     "a [{}] sub-aggregation of a [terms] aggregation",
                     sub.metric.name()
+                )));
+            }
+            if level >= MAX_NESTING {
+                // ALLOC: error path; one message.
+                return Err(DslError::unsupported(&format!(
+                    "aggregations nested more than {MAX_NESTING} levels under [{name}]"
                 )));
             }
             agg.subs = definition.subs;
@@ -175,8 +189,8 @@ fn parse_level(p: &mut Parser<'_>, level: usize) -> Result<Vec<MetricAgg>, DslEr
     Ok(aggs)
 }
 
-/// Whether `metric` is a single-value or stats metric, the sub-aggregations
-/// of a `terms` this node runs.
+/// Whether `metric` is a single-value or stats metric, one of the
+/// sub-aggregations of a `terms` this node runs (a `terms` is the other).
 fn is_scalar(metric: Metric) -> bool {
     matches!(
         metric,
