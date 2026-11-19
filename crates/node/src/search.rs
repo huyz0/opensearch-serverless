@@ -138,6 +138,15 @@ impl<S: BlobStore + 'static> SearchService<S> {
             Err(Answer::Rest(e)) => return Err(e),
             Err(Answer::Search(e)) => return send(resp, &e),
         };
+        #[cfg(feature = "coordinator")]
+        match self.shard_count(&index) {
+            Ok(shards) if shards > 1 => {
+                return self.handle_sharded(req, resp, &index, shards, &source, started);
+            }
+            Ok(_) => {}
+            Err(Answer::Rest(e)) => return Err(e),
+            Err(Answer::Search(e)) => return send(resp, &e),
+        }
         let held = match self.shard(&index) {
             Ok(held) => held,
             Err(Answer::Rest(e)) => return Err(e),
@@ -260,6 +269,11 @@ pub(crate) mod open_shard;
 #[path = "search_shard.rs"]
 mod shard_query;
 pub use shard_query::ShardQuery;
+#[cfg(feature = "coordinator")]
+#[path = "coordinate.rs"]
+mod coordinate;
+#[cfg(feature = "coordinator")]
+pub use coordinate::ShardError;
 #[path = "search_overlay.rs"]
 mod overlay;
 

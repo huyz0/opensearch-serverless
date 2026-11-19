@@ -10,5 +10,7 @@ mod support;
 mod aggs_budgets;
 mod budgets;
 mod built;
+#[cfg(feature = "coordinator")]
+mod coordinate;
 mod search;
 mod shards;

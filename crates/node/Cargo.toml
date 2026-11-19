@@ -116,3 +116,7 @@ required-features = ["writer"]
 [[test]]
 name = "tail_held"
 required-features = ["reader"]
+
+[[test]]
+name = "handlers"
+required-features = ["writer"]
