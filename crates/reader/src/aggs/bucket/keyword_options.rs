@@ -41,6 +41,20 @@ impl KeywordOptions {
         self.include.is_none() && self.exclude.is_none() && self.missing.is_none()
     }
 
+    /// The name of the first option set, which a numeric field does not
+    /// serve.
+    pub fn first_set(&self) -> Option<&'static str> {
+        if self.include.is_some() {
+            Some("include")
+        } else if self.exclude.is_some() {
+            Some("exclude")
+        } else if self.missing.is_some() {
+            Some("missing")
+        } else {
+            None
+        }
+    }
+
     /// Whether `include` or `exclude` is set.
     pub fn filters(&self) -> bool {
         self.include.is_some() || self.exclude.is_some()

@@ -284,6 +284,23 @@ pub fn accepted_ords<S: BlobStore + 'static>(
     }))
 }
 
+/// The shard-level result of a keyword `terms` from the engine's `result`.
+pub fn value(
+    spec: &TermsSpec,
+    result: Option<lucene_aggs::bucket_aggs::AggResult>,
+) -> Result<crate::aggs::partial::Value, ShardError> {
+    match result {
+        Some(lucene_aggs::bucket_aggs::AggResult::Terms { buckets, .. }) => {
+            let (other, kept) = buckets.into_iter().next().unwrap_or_default();
+            // ALLOC: the kept buckets of one `terms`, at most its shard size.
+            Ok(crate::aggs::partial::Value::KeywordTerms(Box::new(
+                from_engine(spec, other, kept),
+            )))
+        }
+        _ => Err(engine_error(&"an aggregation result of another kind")),
+    }
+}
+
 /// The result of the engine's first owning bucket: the documents of the
 /// buckets it did not keep and the kept ones by term. A shard has no
 /// slice-level error, so its `doc_count_error` is 0.
