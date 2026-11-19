@@ -212,6 +212,23 @@ fn a_request_is_refused_in_order_and_walks_or_pages() {
             size: 500
         }))
     );
+    // Java's trim strips only characters up to a space, not other Unicode space.
+    assert_eq!(
+        plan(true, "\u{1}p*\n", None, None, None),
+        Ok(Some(Paging {
+            prefix: Some("p".to_owned()),
+            after: None,
+            size: 500
+        }))
+    );
+    assert_eq!(
+        plan(true, "\u{a0}p*", None, None, None),
+        Ok(Some(Paging {
+            prefix: None,
+            after: None,
+            size: 500
+        }))
+    );
     assert_eq!(
         plan(true, "*", Some("20"), None, None),
         Ok(Some(Paging {

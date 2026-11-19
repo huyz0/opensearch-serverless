@@ -28,7 +28,7 @@ Zero: pure decisions and rendering over what the caller read.
 
 ## Bounds
 
-The text and JSON are one allocation each, bounded by the rows the caller gives; a page is at most 5000 rows (`MAX_SIZE`).
+The text and JSON are one allocation each, bounded by the rows the caller gives; `plan` bounds a page's `size` to 5000 (`MAX_SIZE`); the caller holds the rows to it, and a `_cat` answer to the pattern cap.
 
 ## Switch
 

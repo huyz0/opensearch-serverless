@@ -99,7 +99,8 @@ pub fn plan(
         return Ok(None);
     }
     let size = page_size(size)?;
-    let expression = index.trim();
+    // Java's `String.trim`: characters up to a space, not all Unicode space.
+    let expression = index.trim_matches(|c: char| c <= ' ');
     if expression.contains(',') || !is_prefix_pattern(expression) {
         if next_token.is_some() {
             // ALLOC: one message, bounded by the expression.
