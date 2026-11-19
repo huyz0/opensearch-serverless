@@ -186,6 +186,7 @@ fn a_cardinality_reserves_its_sketch_only_once_it_can_have_one() {
         percentiles: crate::aggs::metric::PercentilesOptions::default(),
         top_hits: None,
         terms: None,
+        histogram: None,
     };
     let plain = state_bytes(&[MetricAgg {
         metric: Metric::Min,

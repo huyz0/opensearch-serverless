@@ -13,6 +13,7 @@
 mod heads;
 mod incarnation;
 mod lease;
+mod publishing;
 mod slot;
 mod target;
 
@@ -28,11 +29,13 @@ use oss_writer::log::NodeLogCommitter;
 use oss_writer::mapping::Mapping;
 
 use incarnation::Fenced;
+use publishing::Key;
 use slot::ShardSlot;
 
 pub use heads::{HeadAdmission, ShardNames};
 pub use incarnation::{DescriptorIncarnation, FENCE_WINDOW, Incarnation};
 pub use lease::MembershipLeaseWrite;
+pub use publishing::{PublishPass, Publishing};
 pub use target::RoleTarget;
 
 /// What a writer asks of the rest of the cluster: which indexes exist,
@@ -81,6 +84,7 @@ pub struct WriterRole {
     incarnation: Option<Fenced>,
     shards: Mutex<Held>,
     newest: Mutex<Newest>,
+    publishing: Option<Publishing>,
 }
 
 fn now_millis() -> u64 {
@@ -106,6 +110,7 @@ impl WriterRole {
             shards: Mutex::new(HashMap::new()),
             // ALLOC: empty; at most one manifest a held shard, MAX_NEWEST_BYTES each.
             newest: Mutex::new(HashMap::new()),
+            publishing: None,
         }
     }
 
@@ -127,6 +132,58 @@ impl WriterRole {
     ) -> Self {
         self.incarnation = Some(Fenced::new(check, window));
         self
+    }
+
+    /// Publishes held shards' commits as `publishing` decides, when
+    /// [`Self::publish_due`] is called.
+    #[must_use]
+    pub fn with_publishing(mut self, publishing: Publishing) -> Self {
+        self.publishing = Some(publishing);
+        self
+    }
+
+    /// Publishes each held shard the lazy policy finds due, remembering the
+    /// manifest as its newest commit. A shard that fails stays due and the
+    /// pass goes on.
+    pub fn publish_due(&self) -> PublishPass {
+        let mut pass = PublishPass::default();
+        let Some(publishing) = &self.publishing else {
+            return pass;
+        };
+        // ALLOC: one handle a held shard, once a pass.
+        let held: Vec<(Key, Arc<Mutex<ShardSlot>>)> = lock(&self.shards)
+            .iter()
+            .map(|(k, v)| (k.clone(), Arc::clone(v)))
+            .collect();
+        for (key, slot) in held {
+            let mut slot = lock(&slot);
+            if slot.released() {
+                continue;
+            }
+            let max_seq_no = slot.max_seq_no();
+            if !publishing.due(&key, max_seq_no) {
+                continue;
+            }
+            let Some(index) = self.names.name_of(&key.0) else {
+                continue;
+            };
+            let outcome = publishing.with_publisher(&key, &index, |publisher, node, now| {
+                slot.publish(publisher, node, now)
+            });
+            match outcome {
+                Ok(done) => {
+                    publishing.published(&key, max_seq_no);
+                    drop(slot);
+                    self.staged(&key.0, key.1, &done.manifest);
+                    pass.published = pass.published.saturating_add(1);
+                }
+                Err(reason) => {
+                    // ALLOC: error path; one message a failed shard.
+                    pass.failed.push(format!("[{}][{}] {reason}", key.0, key.1));
+                }
+            }
+        }
+        pass
     }
 
     /// Holds shard `shard` of `index`, empty, at `term`, its documents read
@@ -153,6 +210,9 @@ impl WriterRole {
         shards.insert(key.clone(), Arc::new(Mutex::new(slot)));
         // A shard opened again has published nothing yet.
         lock(&self.newest).remove(&key);
+        if let Some(p) = &self.publishing {
+            p.forget(&key);
+        }
         Ok(())
     }
 
@@ -207,6 +267,9 @@ impl WriterRole {
         if shards.get(&key).is_some_and(|s| Arc::ptr_eq(s, slot)) {
             shards.remove(&key);
             lock(&self.newest).remove(&key);
+            if let Some(p) = &self.publishing {
+                p.forget(&key);
+            }
         }
     }
 
@@ -325,7 +388,12 @@ impl WriterRole {
                 Err(refused) => outcomes.push(Err(Failure::Refused(refused))),
             }
         }
-        if let Err(e) = self.committer.commit(slot.key(), slot.term(), &records) {
+        let committed = self.committer.commit(slot.key(), slot.term(), &records);
+        if let (Ok(_), Some(p), false) = (&committed, &self.publishing, records.is_empty()) {
+            // ALLOC: one key a staged group.
+            p.written(&(index.uuid.clone(), shard));
+        }
+        if let Err(e) = committed {
             // The engine holds writes the log does not: the shard reopens
             // from the log, and these writes are refused.
             slot.release();

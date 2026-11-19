@@ -101,6 +101,12 @@ src/aggs/bucket/terms.rs	port	server/src/main/java/org/opensearch/search/aggrega
 src/aggs/bucket/terms_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/TermsAggregationBuilder.java@3.10.0	the ObjectParser keys, the setters' checks, TermsAggregatorFactory's shard size and InternalOrder's criterion
 src/aggs/bucket/terms_collect.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/NumericTermsAggregator.java@3.10.0	the numeric terms node over lucene-aggs and MultiBucketConsumerService's TooManyBucketsException
 src/aggs/bucket/terms_render.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/LongTerms.java@3.10.0	LongTerms.Bucket.keyToXContent and InternalTerms.doXContentCommon
+src/aggs/bucket/histogram.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/histogram/InternalHistogram.java@3.10.0	HistogramAggregationBuilder defaults, InternalHistogram's state, reduce, addEmptyBuckets and the order sort
+src/aggs/bucket/histogram_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/histogram/HistogramAggregationBuilder.java@3.10.0	the ObjectParser keys, the setters' checks, DoubleBounds and the bounds check of innerBuild
+src/aggs/bucket/histogram_collect.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/histogram/NumericHistogramAggregator.java@3.10.0	the histogram node over lucene-aggs and AbstractHistogramAggregator's interval check
+src/aggs/bucket/histogram_render.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/histogram/InternalHistogram.java@3.10.0	Bucket.toXContent and doXContentBody
+src/aggs/bucket/histogram_tests.rs	new		tests of histogram parsing, reduce and writing
+src/aggs/bucket/histogram_collect_tests.rs	new		tests of histogram on a real index
 src/aggs/bucket/collect_tests.rs	new		tests of terms on a real index
 src/aggs/bucket/terms_tests.rs	new		tests of terms parsing, reduce and writing
 src/aggs/bucket/keyword_terms.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/StringTerms.java@3.10.0	StringTerms' state, InternalTerms.reduce over terms and StringTerms.Bucket.keyToXContent

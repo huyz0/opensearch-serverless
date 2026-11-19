@@ -25,6 +25,8 @@ use oss_blob::BlobStore;
 
 use crate::OpenShard;
 use crate::aggs::bucket::BUCKET_LIMIT;
+use crate::aggs::bucket::histogram::{HistogramSpec, reduce_results};
+use crate::aggs::bucket::histogram_collect;
 use crate::aggs::bucket::keyword_collect;
 use crate::aggs::bucket::terms::TermsSpec;
 use crate::aggs::bucket::terms_collect;
@@ -176,6 +178,11 @@ fn terms_spec(agg: &MetricAgg) -> TermsSpec {
     agg.terms.as_deref().cloned().unwrap_or_default()
 }
 
+/// `agg`'s `histogram` options (every `histogram` has them).
+fn histogram_spec(agg: &MetricAgg) -> HistogramSpec {
+    agg.histogram.as_deref().cloned().unwrap_or_default()
+}
+
 /// What `avg` reads: the sum and the count.
 const AVG_NEEDS: u8 = NEED_SUM | NEED_COUNT;
 
@@ -195,7 +202,8 @@ fn needs(metric: Metric) -> u8 {
         | Metric::Percentiles
         | Metric::PercentileRanks
         | Metric::TopHits
-        | Metric::Terms => NEED_COUNT,
+        | Metric::Terms
+        | Metric::Histogram => NEED_COUNT,
     }
 }
 
@@ -220,6 +228,10 @@ fn value_of(agg: &MetricAgg, state: &MetricState) -> Value {
         Metric::Percentiles | Metric::PercentileRanks => percentiles_of(agg, None),
         // ALLOC: one box a `terms`, bounded by the request's.
         Metric::Terms => Value::Terms(Box::new(terms_collect::empty(&terms_spec(agg)))),
+        // ALLOC: one box a `histogram`, bounded by the request's.
+        Metric::Histogram => {
+            Value::Histogram(Box::new(histogram_collect::empty(&histogram_spec(agg))))
+        }
         // Filled in by the search once the hits are collected.
         // ALLOC: one box a `top_hits`, bounded by the request's.
         Metric::TopHits => Value::TopHits(Box::new(TopHitsResult::empty())),
@@ -263,6 +275,7 @@ fn node(agg: &MetricAgg, precision: u32) -> AggNode {
     // `byte` to `long` and `date` are longs read as they are.
     match agg.metric {
         Metric::Terms => terms_collect::node(&agg.field, &terms_spec(agg)),
+        Metric::Histogram => histogram_collect::node(&agg.field, &histogram_spec(agg)),
         Metric::Cardinality => AggNode::Cardinality {
             field,
             kind: CardinalityKind::Numeric(ValueKind::Long),
@@ -328,6 +341,18 @@ fn value_from(agg: &MetricAgg, result: Option<AggResult>) -> Result<Value, Shard
                 kept,
             ))))
         }
+        Some(AggResult::Histogram { buckets, .. }) if agg.metric == Metric::Histogram => {
+            let spec = histogram_spec(agg);
+            let result = histogram_collect::from_engine(
+                &spec,
+                buckets.first().map_or(&[][..], Vec::as_slice),
+            );
+            // The answer's gaps count against the limit as the buckets do.
+            reduce_results(&[&result], BUCKET_LIMIT)
+                .map_err(|made| terms_collect::too_many_buckets(made, BUCKET_LIMIT))?;
+            // ALLOC: one box a `histogram`, bounded by the request's.
+            Ok(Value::Histogram(Box::new(result)))
+        }
         _ => Err(engine_error(&"an aggregation result of another kind")),
     }
 }
@@ -367,6 +392,13 @@ pub fn collect<S: BlobStore + 'static>(
     // ALLOC: one entry an aggregation, bounded by the request's.
     let mut resolved = Vec::with_capacity(aggs.len());
     for agg in aggs {
+        if let Some(refusal) = agg
+            .histogram
+            .as_deref()
+            .and_then(histogram_collect::interval_refusal)
+        {
+            return Err(refusal);
+        }
         resolved.push(resolve(agg, shard)?);
         if agg.metric == Metric::Cardinality {
             check_execution_hint(agg)?;
