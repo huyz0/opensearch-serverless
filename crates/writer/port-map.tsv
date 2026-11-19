@@ -41,3 +41,4 @@ src/mapping_growth/attempts.rs	port	serverless/shell/src/main/java/org/opensearc
 src/mapping_growth/error.rs	new		the growth error type (MappingConflictException and the IOExceptions)
 src/indexing_memory/mod.rs	port	server/src/main/java/org/opensearch/indices/IndexingMemoryController.java	the check on bytes written, largest-first refresh, throttle at 1.5x, idle flush; sans I/O, the native budget and the scheduler are not ported
 src/indexing_memory/budget.rs	port	server/src/main/java/org/opensearch/indices/IndexingMemoryController.java	computeBufferSize: percentage of heap with a floor and ceiling, the budget/30 check interval
+src/publish/lazy.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/reconcile/DirtyPublishing.java@429b4cbc	lazyPublishDue, publishAgeOf, markDirty's stamp; the tail overlay's raised age and the guardrail's stretched age are the caller's
