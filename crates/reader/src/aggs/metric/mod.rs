@@ -137,6 +137,9 @@ pub struct MetricAgg {
     pub histogram: Option<Box<HistogramSpec>>,
     /// A `date_histogram`'s options; `None` for every other aggregation.
     pub date_histogram: Option<Box<DateHistogramSpec>>,
+    /// The sub-aggregations of a keyword `terms`, in request order; empty
+    /// for every other aggregation.
+    pub subs: Vec<MetricAgg>,
 }
 
 /// What a `cardinality` aggregation sets besides its field.

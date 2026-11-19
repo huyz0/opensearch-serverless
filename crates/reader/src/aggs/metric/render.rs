@@ -81,7 +81,7 @@ fn as_string(out: &mut dyn Write, key: &str, value: f64) -> io::Result<()> {
 }
 
 /// One metric's `doXContentBody`.
-fn write_body(out: &mut dyn Write, format: Format, value: &Value) -> io::Result<()> {
+pub(crate) fn write_body(out: &mut dyn Write, format: Format, value: &Value) -> io::Result<()> {
     let dated = format == Format::Date;
     match *value {
         Value::Cardinality(ref sketch) => {

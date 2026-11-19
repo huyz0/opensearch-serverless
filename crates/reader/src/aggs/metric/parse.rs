@@ -96,7 +96,7 @@ pub fn parse_aggregations(p: &mut Parser<'_>) -> Result<Vec<MetricAgg>, DslError
 /// What one aggregation's definition held.
 struct Definition {
     agg: Option<MetricAgg>,
-    has_subs: bool,
+    subs: Vec<MetricAgg>,
 }
 
 fn parse_level(p: &mut Parser<'_>, level: usize) -> Result<Vec<MetricAgg>, DslError> {
@@ -150,27 +150,19 @@ fn parse_level(p: &mut Parser<'_>, level: usize) -> Result<Vec<MetricAgg>, DslEr
                 format!("Missing definition for aggregation [{name}]"),
             ));
         };
-        if definition.has_subs
-            && matches!(
-                agg.metric,
-                Metric::Terms | Metric::Histogram | Metric::DateHistogram
-            )
-        {
-            // ALLOC: error path; one message.
-            return Err(DslError::unsupported(&format!(
-                "sub-aggregations of a [{}] aggregation",
-                agg.metric.name()
-            )));
-        }
-        if definition.has_subs {
-            return Err(DslError::Failure(Failure::opensearch(
-                "aggregation_initialization_exception",
+        let mut agg = agg;
+        if !definition.subs.is_empty() {
+            if agg.metric != Metric::Terms {
+                return Err(sub_refusal(&agg, name));
+            }
+            if let Some(sub) = definition.subs.iter().find(|s| !is_scalar(s.metric)) {
                 // ALLOC: error path; one message.
-                format!(
-                    "Aggregator [{name}] of type [{}] cannot accept sub-aggregations",
-                    agg.metric.name()
-                ),
-            )));
+                return Err(DslError::unsupported(&format!(
+                    "a [{}] sub-aggregation of a [terms] aggregation",
+                    sub.metric.name()
+                )));
+            }
+            agg.subs = definition.subs;
         }
         if aggs.iter().any(|a| a.name == agg.name) {
             return Err(DslError::illegal(
@@ -183,11 +175,40 @@ fn parse_level(p: &mut Parser<'_>, level: usize) -> Result<Vec<MetricAgg>, DslEr
     Ok(aggs)
 }
 
+/// Whether `metric` is a single-value or stats metric, the sub-aggregations
+/// of a `terms` this node runs.
+fn is_scalar(metric: Metric) -> bool {
+    matches!(
+        metric,
+        Metric::Min | Metric::Max | Metric::Sum | Metric::Avg | Metric::Stats | Metric::ValueCount
+    )
+}
+
+/// The refusal of sub-aggregations under `agg`, which holds none here.
+fn sub_refusal(agg: &MetricAgg, name: &str) -> DslError {
+    if matches!(agg.metric, Metric::Histogram | Metric::DateHistogram) {
+        // ALLOC: error path; one message.
+        return DslError::unsupported(&format!(
+            "sub-aggregations of a [{}] aggregation",
+            agg.metric.name()
+        ));
+    }
+    DslError::Failure(Failure::opensearch(
+        "aggregation_initialization_exception",
+        // ALLOC: error path; one message.
+        format!(
+            "Aggregator [{name}] of type [{}] cannot accept sub-aggregations",
+            agg.metric.name()
+        ),
+    ))
+}
+
 /// One aggregation's object, the parser on its start.
 fn parse_definition(p: &mut Parser<'_>, name: &str, level: usize) -> Result<Definition, DslError> {
     let mut definition = Definition {
         agg: None,
-        has_subs: false,
+        // ALLOC: empty; the definition's `aggs` fill it.
+        subs: Vec::new(),
     };
     let mut subs_seen = false;
     loop {
@@ -230,7 +251,7 @@ fn parse_definition(p: &mut Parser<'_>, name: &str, level: usize) -> Result<Defi
                 }
                 subs_seen = true;
                 // `parseAggregators` gives no factories for an empty object.
-                definition.has_subs = !parse_level(p, level.saturating_add(1))?.is_empty();
+                definition.subs = parse_level(p, level.saturating_add(1))?;
             }
             ty => {
                 if let Some(agg) = &definition.agg {
@@ -331,6 +352,8 @@ fn parse_definition(p: &mut Parser<'_>, name: &str, level: usize) -> Result<Defi
                     terms,
                     histogram,
                     date_histogram,
+                    // ALLOC: empty; the definition's `aggs` fill it.
+                    subs: Vec::new(),
                 });
             }
         }

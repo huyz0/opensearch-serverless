@@ -91,13 +91,13 @@ fn a_cold_search_with_a_keyword_terms_then_a_warm_one() {
             "/compat-term/_search",
             Some(
                 br#"{"query":{"term":{"title":"brown"}},"aggs":{"y":{"stats":{"field":"year"}},
-                    "t":{"terms":{"field":"tag"}}}}"#,
+                    "t":{"terms":{"field":"tag"},"aggs":{"m":{"max":{"field":"year"}}}}}}"#,
             ),
         );
         assert_eq!(r.status, 200, "{}", r.text());
         assert!(
             r.text()
-                .contains(r#""buckets":[{"key":"animal","doc_count":1}"#),
+                .contains(r#""buckets":[{"key":"animal","doc_count":1,"m":{"value":"#),
             "{}",
             r.text()
         );
