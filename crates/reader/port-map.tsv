@@ -96,3 +96,8 @@ src/overlay/view.rs	port	serverless/shell/src/main/java/org/opensearch/serverles
 src/overlay/source.rs	new		the overlay a search asks for: finished or nothing, never a build on the search path
 src/response_selected.rs	new		writes chosen hits of a top_hits result, or of a shard's top-level hits, as response.rs writes them, for a coordinator that merged several shards
 src/response_selected_tests.rs	new		tests of response_selected.rs over a real index
+src/prefetch/mod.rs	new		the open prefetch: the small and pinned files a cold open reads whole, fetched together; the Java downloads whole commits at open instead
+src/prefetch/plan.rs	new		picks those files from the file table and merges neighbours of a blob into ranges
+src/prefetch/plan_tests.rs	new		tests of plan.rs over a hand-built file table
+src/prefetch/primed.rs	new		holds the fetched bytes and serves the engine store from them until the open returns
+src/prefetch/tests.rs	new		tests of the open prefetch over a real index on the emulator
