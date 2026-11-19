@@ -9,6 +9,7 @@
 
 use lucene_search::java_math::{JAVA_NAN, java_max, java_min};
 
+use crate::aggs::bucket::terms::{self, TermsResult};
 use crate::aggs::metric::hll::Hll;
 use crate::aggs::metric::tdigest::Digest;
 use crate::aggs::metric::top_hits::TopHitsResult;
@@ -71,6 +72,8 @@ pub enum Value {
     /// `InternalTopHits`: the shard's top hits, which a coordinator merges
     /// by their sort once it has fetched them.
     TopHits(Box<TopHitsResult>),
+    /// `LongTerms`: a numeric `terms`' buckets.
+    Terms(Box<TermsResult>),
 }
 
 /// One aggregation's shard-level result.
@@ -117,6 +120,7 @@ pub fn reduce(parts: &[Value]) -> Option<Value> {
     match first {
         Value::Cardinality(_) => return reduce_cardinality(parts),
         Value::Percentiles { .. } => return reduce_percentiles(parts),
+        Value::Terms(_) => return terms::reduce(parts),
         // Merging hits needs them fetched and their shard known.
         Value::TopHits(_) => return None,
         _ => {}
@@ -168,7 +172,9 @@ pub fn reduce(parts: &[Value]) -> Option<Value> {
         },
         Value::ValueCount(_) => Value::ValueCount(count),
         // Reduced above.
-        Value::Cardinality(_) | Value::Percentiles { .. } | Value::TopHits(_) => return None,
+        Value::Cardinality(_) | Value::Percentiles { .. } | Value::TopHits(_) | Value::Terms(_) => {
+            return None;
+        }
     })
 }
 

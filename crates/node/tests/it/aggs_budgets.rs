@@ -36,7 +36,8 @@ fn a_cold_search_with_metric_aggregations_then_a_warm_one() {
             "/compat-term/_search",
             Some(
                 br#"{"query":{"term":{"title":"brown"}},"aggs":{"y":{"stats":{"field":"year"}},
-                    "p":{"max":{"field":"published"}}}}"#,
+                    "p":{"max":{"field":"published"}},
+                    "t":{"terms":{"field":"year"}}}}"#,
             ),
         );
         assert_eq!(r.status, 200, "{}", r.text());

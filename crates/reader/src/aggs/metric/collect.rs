@@ -24,6 +24,9 @@ use lucene_search::multi_segment::OpenSegment;
 use oss_blob::BlobStore;
 
 use crate::OpenShard;
+use crate::aggs::bucket::BUCKET_LIMIT;
+use crate::aggs::bucket::terms::TermsSpec;
+use crate::aggs::bucket::terms_collect;
 use crate::aggs::metric::hll::Hll;
 use crate::aggs::metric::partial::{Format, Partial, Value};
 use crate::aggs::metric::tdigest::Digest;
@@ -87,7 +90,12 @@ fn resolve<S: BlobStore + 'static>(
         FieldType::Int { .. } | FieldType::Long => Format::Raw,
         FieldType::Date => Format::Date,
         FieldType::Text => return Err(text_fielddata(&agg.field)),
-        FieldType::Keyword if matches!(agg.metric, Metric::ValueCount | Metric::Cardinality) => {
+        FieldType::Keyword
+            if matches!(
+                agg.metric,
+                Metric::ValueCount | Metric::Cardinality | Metric::Terms
+            ) =>
+        {
             return Err(bad_request(Failure::plain(
                 "illegal_argument_exception",
                 // ALLOC: error path; one message.
@@ -136,6 +144,11 @@ fn resolve<S: BlobStore + 'static>(
     Ok(Resolved::Numeric(format))
 }
 
+/// `agg`'s `terms` options (every `terms` has them).
+fn terms_spec(agg: &MetricAgg) -> TermsSpec {
+    agg.terms.as_deref().cloned().unwrap_or_default()
+}
+
 /// What `avg` reads: the sum and the count.
 const AVG_NEEDS: u8 = NEED_SUM | NEED_COUNT;
 
@@ -154,7 +167,8 @@ fn needs(metric: Metric) -> u8 {
         | Metric::Cardinality
         | Metric::Percentiles
         | Metric::PercentileRanks
-        | Metric::TopHits => NEED_COUNT,
+        | Metric::TopHits
+        | Metric::Terms => NEED_COUNT,
     }
 }
 
@@ -177,6 +191,8 @@ fn value_of(agg: &MetricAgg, state: &MetricState) -> Value {
         Metric::ValueCount => Value::ValueCount(state.count),
         Metric::Cardinality => Value::Cardinality(None),
         Metric::Percentiles | Metric::PercentileRanks => percentiles_of(agg, None),
+        // ALLOC: one box a `terms`, bounded by the request's.
+        Metric::Terms => Value::Terms(Box::new(terms_collect::empty(&terms_spec(agg)))),
         // Filled in by the search once the hits are collected.
         // ALLOC: one box a `top_hits`, bounded by the request's.
         Metric::TopHits => Value::TopHits(Box::new(TopHitsResult::empty())),
@@ -219,6 +235,7 @@ fn node(agg: &MetricAgg, precision: u32) -> AggNode {
     let field = agg.field.clone();
     // `byte` to `long` and `date` are longs read as they are.
     match agg.metric {
+        Metric::Terms => terms_collect::node(&agg.field, &terms_spec(agg)),
         Metric::Cardinality => AggNode::Cardinality {
             field,
             kind: CardinalityKind::Numeric(ValueKind::Long),
@@ -275,6 +292,15 @@ fn value_from(agg: &MetricAgg, result: Option<AggResult>) -> Result<Value, Shard
                 .flatten()
                 .map(Digest::from_engine),
         )),
+        Some(AggResult::NumericTerms { buckets, .. }) if agg.metric == Metric::Terms => {
+            let (other, kept) = buckets.into_iter().next().unwrap_or_default();
+            // ALLOC: the kept buckets of one `terms`, at most its shard size.
+            Ok(Value::Terms(Box::new(terms_collect::from_engine(
+                &terms_spec(agg),
+                other,
+                kept,
+            ))))
+        }
         _ => Err(engine_error(&"an aggregation result of another kind")),
     }
 }
@@ -330,11 +356,16 @@ pub fn collect<S: BlobStore + 'static>(
             shard.reader.segment_readers(),
             query,
             &nodes,
-            &Globals::new(&ords),
+            &Globals::new(&ords).with_bucket_limit(BUCKET_LIMIT),
             &slices,
             None,
         )
-        .map_err(|e| engine_error(&e))?
+        .map_err(|e| match e {
+            lucene_search::Error::TooManyBuckets(made, limit) => {
+                terms_collect::too_many_buckets(made, limit)
+            }
+            e => engine_error(&e),
+        })?
         .into_iter()
         .next()
         .unwrap_or_default()

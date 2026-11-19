@@ -8,6 +8,7 @@
 //! `field` and each metric's own options are served
 //! ([`parse_percentiles_body`] for the two percentile metrics).
 
+use crate::aggs::bucket::terms_parse::parse_terms_body;
 use crate::aggs::metric::percentiles::parse_percentiles_body;
 use crate::aggs::metric::top_hits::parse_top_hits_body;
 use crate::aggs::metric::{CardinalityOptions, Metric, MetricAgg, PercentilesOptions};
@@ -146,6 +147,11 @@ fn parse_level(p: &mut Parser<'_>, level: usize) -> Result<Vec<MetricAgg>, DslEr
                 format!("Missing definition for aggregation [{name}]"),
             ));
         };
+        if definition.has_subs && agg.metric == Metric::Terms {
+            return Err(DslError::unsupported(
+                "sub-aggregations of a [terms] aggregation",
+            ));
+        }
         if definition.has_subs {
             return Err(DslError::Failure(Failure::opensearch(
                 "aggregation_initialization_exception",
@@ -253,6 +259,7 @@ fn parse_definition(p: &mut Parser<'_>, name: &str, level: usize) -> Result<Defi
                     ));
                 };
                 let mut top_hits = None;
+                let mut terms = None;
                 let (field, cardinality, percentiles) = match metric {
                     Metric::Percentiles | Metric::PercentileRanks => {
                         let (field, options) = parse_percentiles_body(p, metric, name)?;
@@ -264,6 +271,16 @@ fn parse_definition(p: &mut Parser<'_>, name: &str, level: usize) -> Result<Defi
                         (
                             // ALLOC: empty; a `top_hits` reads no field.
                             String::new(),
+                            CardinalityOptions::default(),
+                            PercentilesOptions::default(),
+                        )
+                    }
+                    Metric::Terms => {
+                        let (field, spec) = parse_terms_body(p, name)?;
+                        // ALLOC: one box a `terms`, bounded by the body's recording.
+                        terms = Some(Box::new(spec));
+                        (
+                            field,
                             CardinalityOptions::default(),
                             PercentilesOptions::default(),
                         )
@@ -281,6 +298,7 @@ fn parse_definition(p: &mut Parser<'_>, name: &str, level: usize) -> Result<Defi
                     cardinality,
                     percentiles,
                     top_hits,
+                    terms,
                 });
             }
         }
@@ -400,7 +418,7 @@ fn parse_metric_body(
 /// `parser.longValue()` with coercion, the parser on a number or a string:
 /// a number as Jackson reads it (a fraction truncated), a string as
 /// `Numbers.toLong(text, true)` reads it.
-fn long_value(kind: Kind, text: &str) -> Result<i64, DslError> {
+pub(crate) fn long_value(kind: Kind, text: &str) -> Result<i64, DslError> {
     if let Ok(n) = text.parse::<i64>() {
         return Ok(n);
     }
