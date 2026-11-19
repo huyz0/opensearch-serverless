@@ -33,3 +33,4 @@ src/search_shard.rs	new		one shard's query and the selected hits of its result, 
 src/coordinate.rs	new		one search over an index's shards run by this node's readers through the coordinator's merge
 src/bulk_route.rs	new		the _bulk route over the node's writer role: streamed slices charged to the bulk budget
 src/open_prefetch.rs	new		whether a cold open prefetches (index, cluster, node, default) and the open_indexes bytes it holds meanwhile
+src/writer/publishing.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/BackgroundReconciler.java	the publish pass: lazyPublishDue then SegmentPublisher.publish, the manifest remembered as the newest commit; the timer, per-index refresh_interval age and log ordinal are not ported yet
