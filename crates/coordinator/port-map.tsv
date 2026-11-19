@@ -7,6 +7,7 @@ src/reduce/mod.rs	new		reduces what the shards answered into one response
 src/reduce/hits.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/ops/SearchMerge.java@429b4cbc	the hit half of the merge (order, window trim, totals, ceiling) over shard answers a caller renders from; the aggregation reduce and the breaker are separate pieces
 src/reduce/aggs.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/ops/SearchMerge.java@429b4cbc	the aggregation half of the merge: each named metric aggregation reduced over the shards that have it; buckets, top_hits and the breaker are separate pieces
 src/fanout.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/ops/Fanout.java@429b4cbc	a sliding window of per-shard calls with the caller as one worker, plus the coverage SearchFanout reports
+src/reduce/top_hits.rs	port	server/src/main/java/org/opensearch/search/aggregations/metrics/InternalTopHits.java@b9f09249	reduce over the shards' top from+size, from applied once over the merge, via the hit merger; the page names (shard, position), fetching is separate
 src/zone_meter.rs	new		counts the bytes of each peer exchange by zone into the cluster meter (the Java counts in the transport service)
 src/docs/mod.rs	new		the document APIs decisions
 src/docs/get.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/ops/DocumentReads.java@429b4cbc	where a get is served (local, absent, reader, forward, not here) and the read version conflict of VersionType; the reads, the forward and the source filter are separate pieces
