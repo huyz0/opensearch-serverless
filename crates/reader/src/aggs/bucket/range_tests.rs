@@ -183,6 +183,20 @@ fn a_reduce_needs_parts_of_one_shape() {
     assert_eq!(reduce(std::slice::from_ref(&one)), Some(one));
 }
 
+#[test]
+fn the_shared_reduce_dispatches_a_range_to_its_own() {
+    let part = |n: u64| {
+        Value::Range(Box::new(RangeResult {
+            keyed: false,
+            buckets: vec![bucket(None, 0.0, 1.0, n)],
+        }))
+    };
+    let Some(Value::Range(got)) = crate::aggs::partial::reduce(&[part(2), part(3)]) else {
+        panic!("no reduce");
+    };
+    assert_eq!(got.buckets[0].doc_count, 5);
+}
+
 // AC-6
 #[test]
 fn an_array_result_is_written_as_opensearch_writes_it() {
