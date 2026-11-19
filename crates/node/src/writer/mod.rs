@@ -13,6 +13,7 @@
 mod heads;
 mod incarnation;
 mod lease;
+mod publish_timer;
 mod publishing;
 mod slot;
 mod target;
@@ -35,6 +36,7 @@ use slot::ShardSlot;
 pub use heads::{HeadAdmission, ShardNames};
 pub use incarnation::{DescriptorIncarnation, FENCE_WINDOW, Incarnation};
 pub use lease::MembershipLeaseWrite;
+pub use publish_timer::PublishTimer;
 pub use publishing::{PublishPass, Publishing};
 pub use target::RoleTarget;
 
