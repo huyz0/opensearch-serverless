@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
 use oss_format::{
-    NodeLogEntry, NodeLogHeader, OrdinalRange, ShardKey, UNASSIGNED_SEQ_NO, WalRecord,
+    NodeLogEntry, NodeLogHeader, OrdinalRange, ShardKey, Slice, UNASSIGNED_SEQ_NO, WalRecord,
     slice_records, trim_below,
 };
 
@@ -128,7 +128,7 @@ impl NodeLogTakeover {
         shard: &ShardKey,
         mut each: impl FnMut(WalRecord<'_>) -> Result<(), E>,
     ) -> Result<(), E> {
-        self.records_from(shard, None, &mut each)
+        self.records_from(shard, None, None, &mut each)
     }
 
     /// As [`NodeLogTakeover::for_each_record`], leaving out what landed at
@@ -144,13 +144,14 @@ impl NodeLogTakeover {
         after: Position,
         mut each: impl FnMut(WalRecord<'_>) -> Result<(), E>,
     ) -> Result<(), E> {
-        self.records_from(shard, Some(after), &mut each)
+        self.records_from(shard, Some(after), None, &mut each)
     }
 
     fn records_from<E: From<TakeoverError>>(
         &self,
         shard: &ShardKey,
         after: Option<Position>,
+        through: Option<i64>,
         each: &mut Consumer<'_, E>,
     ) -> Result<(), E> {
         let fenced = self.fenced()?;
@@ -166,12 +167,35 @@ impl NodeLogTakeover {
             match after.filter(|a| a.epoch == epoch) {
                 Some(a) => {
                     let later = trim_below(runs, a.ordinal.saturating_add(1));
-                    self.read_runs(epoch, &later, Some(last), shard, each)?;
+                    self.read_runs(epoch, &later, Some(last), shard, through, each)?;
                 }
-                None => self.read_runs(epoch, runs, Some(last), shard, each)?,
+                None => self.read_runs(epoch, runs, Some(last), shard, through, each)?,
             }
         }
         Ok(())
+    }
+
+    /// As [`NodeLogTakeover::for_each_record`], leaving out every slice
+    /// whose highest sequence number for the shard is at or below
+    /// `through`: for a successor whose commit holds every operation to
+    /// there. A skipped slice is not fetched, and a blob with none left for
+    /// the shard costs no body or slice read. A slice is judged by its
+    /// highest sequence number, so one holding only unsequenced records is
+    /// never skipped, and one that mixes them with sequenced records is
+    /// judged by the sequenced ones: a node's log writers always assign
+    /// identity. One handed over comes whole, records the commit holds
+    /// included.
+    ///
+    /// # Errors
+    ///
+    /// When a fence or a read fails, or `each` does.
+    pub fn for_each_record_above<E: From<TakeoverError>>(
+        &self,
+        shard: &ShardKey,
+        through: i64,
+        mut each: impl FnMut(WalRecord<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.records_from(shard, None, Some(through), &mut each)
     }
 
     /// Hands a shard's records in known runs of one epoch to `each`, with
@@ -188,7 +212,7 @@ impl NodeLogTakeover {
         shard: &ShardKey,
         mut each: impl FnMut(WalRecord<'_>) -> Result<(), E>,
     ) -> Result<(), E> {
-        self.read_runs(epoch, runs, None, shard, &mut each)
+        self.read_runs(epoch, runs, None, shard, None, &mut each)
     }
 
     fn read_runs<E: From<TakeoverError>>(
@@ -197,6 +221,7 @@ impl NodeLogTakeover {
         runs: &[OrdinalRange],
         last: Option<&Arc<NodeLogHeader<'static>>>,
         shard: &ShardKey,
+        through: Option<i64>,
         each: &mut Consumer<'_, E>,
     ) -> Result<(), E> {
         for run in runs {
@@ -204,7 +229,12 @@ impl NodeLogTakeover {
                 let Some(header) = self.header(epoch, ordinal, last)? else {
                     continue;
                 };
-                if header.slices_of(shard).next().is_none() {
+                // A slice whose highest sequence number the commit covers
+                // holds nothing it lacks. An unassigned one is unknown.
+                let wanted = |slice: &&Slice| {
+                    through.is_none_or(|t| slice.max_seq_no < 0 || slice.max_seq_no > t)
+                };
+                if header.slices_of(shard).find(wanted).is_none() {
                     continue;
                 }
                 let body = if header.slices.len() > 1 {
@@ -212,7 +242,7 @@ impl NodeLogTakeover {
                 } else {
                     None
                 };
-                for slice in header.slices_of(shard) {
+                for slice in header.slices_of(shard).filter(wanted) {
                     let read;
                     let bytes = match &body {
                         Some(body) => {

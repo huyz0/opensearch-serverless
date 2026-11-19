@@ -52,6 +52,14 @@ impl Engine for ShardEngine<'_, '_> {
         self.shard.replay(record).map_err(|e| format!("{e:?}"))
     }
 
+    fn buffered_bytes(&self) -> usize {
+        self.shard.indexing_buffer_bytes()
+    }
+
+    fn flush(&mut self) -> Result<(), String> {
+        self.shard.refresh()
+    }
+
     fn publish(&mut self, term: u64) -> Result<Published, PublishError> {
         self.shard.refresh().map_err(PublishError::Directory)?;
         let files = self
