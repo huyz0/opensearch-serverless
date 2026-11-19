@@ -124,3 +124,34 @@ fn the_total_follows_track_total_hits() {
         "{capped}"
     );
 }
+
+#[test]
+fn the_search_route_answers_an_index_of_two_shards_through_the_coordinator() {
+    let node = two("compat-term", "compat-term-uuid", "two");
+    let before = crate::support::counts(&node.store);
+    let r = crate::support::request(
+        node.addr(),
+        "POST",
+        "/two/_search",
+        Some(br#"{"query":{"term":{"title":"brown"}}}"#),
+    );
+    assert_eq!(r.status, 200, "{}", r.text());
+    let body = r.text();
+    assert!(
+        body.contains(r#""_shards":{"total":2,"successful":2,"skipped":0,"failed":0}"#),
+        "{body}"
+    );
+    assert!(
+        body.contains(r#""total":{"value":4,"relation":"eq"}"#),
+        "{body}"
+    );
+    let again = crate::support::counts(&node.store);
+    let r = crate::support::request(node.addr(), "POST", "/two/_search", Some(b"{}"));
+    assert_eq!(r.status, 200, "{}", r.text());
+    assert_eq!(
+        crate::support::counts(&node.store),
+        again,
+        "a warm search reads nothing"
+    );
+    assert!(again.iter().sum::<u64>() > before.iter().sum::<u64>());
+}

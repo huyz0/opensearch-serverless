@@ -6,16 +6,20 @@
 //! different [`Shards`].
 
 use std::fmt;
-use std::io;
+use std::io::{self, Write};
+use std::sync::Mutex;
+use std::time::Instant;
 
 use oss_blob::BlobStore;
 use oss_coordinator::reduce::hits::SortSpec;
 use oss_coordinator::search::{Params, SearchFailure, Shards, search};
+use oss_mem::{Pool, Reservation};
 use oss_reader::dsl::{SearchSource, SortKey};
 use oss_reader::failure::{Failure, SearchError};
-use oss_reader::search::Hits;
+use oss_reader::search::{Hits, hits_bytes};
+use oss_rest::{JSON, Length, Request, Response, RestError};
 
-use super::{SearchService, ShardQuery};
+use super::{Answer, SearchService, ShardQuery, send};
 
 /// A shard's error, as the text a failure lists.
 #[derive(Debug)]
@@ -145,5 +149,92 @@ impl<S: BlobStore + 'static> SearchService<S> {
             reserve,
         };
         search(&local, shards, &params)
+    }
+}
+
+/// What a search that failed answers.
+fn refusal(failure: SearchFailure<ShardError>) -> Box<SearchError> {
+    let (status, failure) = match failure {
+        SearchFailure::AllFailed { error } => return error.into_inner(),
+        SearchFailure::Merge(e) => (
+            400,
+            Failure::plain("illegal_argument_exception", e.to_string()),
+        ),
+        SearchFailure::Aggs(e) => (
+            501,
+            // ALLOC: error path; one message.
+            Failure::plain(
+                "status_exception",
+                format!("cannot reduce aggregations: {e:?}"),
+            ),
+        ),
+        SearchFailure::Fetch { shard, reason } => (
+            500,
+            // ALLOC: error path; one message.
+            Failure::plain(
+                "exception",
+                format!("shard [{shard}] could not fetch its hits: {reason}"),
+            ),
+        ),
+    };
+    // ALLOC: error path; one box.
+    Box::new(SearchError::request(status, failure))
+}
+
+impl<S: BlobStore + 'static> SearchService<S> {
+    /// How many shards `index` has, opening its shard 0 if it is not open.
+    pub(super) fn shard_count(&self, index: &str) -> Result<usize, Answer> {
+        let held = self.open_shard(index, 0, false)?;
+        Ok(usize::try_from(held.shard.meta.number_of_shards).unwrap_or(usize::MAX))
+    }
+
+    /// Answers `source` over the `shards` shards of `index` as one response.
+    pub(super) fn handle_sharded(
+        &self,
+        req: &mut Request<'_>,
+        resp: &mut Response<'_>,
+        index: &str,
+        shards: usize,
+        source: &SearchSource,
+        started: Instant,
+    ) -> Result<(), RestError> {
+        let held = match self.open_shard(index, 0, false) {
+            Ok(held) => held,
+            Err(Answer::Rest(e)) => return Err(e),
+            Err(Answer::Search(e)) => return send(resp, &e),
+        };
+        // Every shard keeps its top `from + size` until the merge is done.
+        let mut window = source.clone();
+        window.size = source.from.saturating_add(source.size);
+        window.from = 0;
+        let each = hits_bytes(&window, &held.shard);
+        req.body().reserve(each.saturating_mul(shards))?;
+        // The buffers the shards' renders read into are held until the
+        // response is written.
+        let held_buffers: Mutex<Vec<Reservation>> = Mutex::new(Vec::new());
+        let reserve = |n: usize| {
+            let grant = self
+                .budget
+                .try_reserve(Pool::RequestBodies, n)
+                // ALLOC: error path; one box.
+                .map_err(|_| io::Error::other("the request-body pool is full"))?;
+            held_buffers
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                // ALLOC: one entry a render.
+                .push(grant);
+            Ok(())
+        };
+        let took = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
+        let answer = self.coordinate(index, shards, source, took, &reserve);
+        match answer {
+            Ok(bytes) => {
+                let mut out = resp.start(200, Some(JSON), Length::Chunked, &[])?;
+                out.write_all(&bytes)?;
+                out.flush()?;
+                out.finish()
+            }
+            Err(failure) => send(resp, &refusal(failure)),
+        }
     }
 }
