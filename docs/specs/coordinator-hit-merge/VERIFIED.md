@@ -7,3 +7,5 @@
 - AC-5: `the_pile_stays_within_two_windows_and_the_page_is_unchanged` in crates/coordinator/tests/hit_merge.rs
 - AC-6: `the_page_is_from_and_size_of_the_sorted_pile` in crates/coordinator/tests/hit_merge.rs
 - AC-7: `an_at_least_total_is_capped_by_the_tracked_bound` in crates/coordinator/tests/hit_merge.rs
+- AC-4 (best score): `the_best_score_is_the_highest_whichever_shard_had_it` in crates/coordinator/tests/hit_merge.rs
+- AC-5 (the cut): `the_pile_is_cut_only_once_it_is_deeper_than_two_windows` in crates/coordinator/tests/hit_merge.rs

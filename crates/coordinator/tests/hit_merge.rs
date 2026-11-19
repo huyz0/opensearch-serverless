@@ -254,3 +254,38 @@ fn an_at_least_total_is_capped_by_the_tracked_bound() {
     m.absorb(a).expect("absorbed");
     assert_eq!(m.finish(Some(100)).expect("merges").total, 50_000, "exact");
 }
+
+#[test]
+fn the_pile_is_cut_only_once_it_is_deeper_than_two_windows() {
+    // Window 2: four hits are kept as they are, a fifth cuts the pile to two.
+    let mut m = Merger::new(0, 2, None);
+    m.absorb(answer(vec![
+        scored("a", 4.0),
+        scored("b", 3.0),
+        scored("c", 2.0),
+        scored("d", 1.0),
+    ]))
+    .expect("absorbed");
+    assert_eq!(m.held(), 4);
+    m.absorb(answer(vec![scored("e", 5.0)])).expect("absorbed");
+    assert_eq!(m.held(), 2);
+    assert_eq!(page(m), ["e", "a"]);
+}
+
+#[test]
+fn the_best_score_is_the_highest_whichever_shard_had_it() {
+    for scores in [[1.0, 3.0, 2.0], [3.0, 1.0, 2.0], [2.0, 2.0, 3.0]] {
+        let mut m: Merger<&'static str> = Merger::new(0, 1, None);
+        for s in scores {
+            let mut a = answer(vec![]);
+            a.max_score = Some(s);
+            m.absorb(a).expect("absorbed");
+        }
+        assert_eq!(m.finish(None).expect("merges").max_score, Some(3.0));
+    }
+    let mut m: Merger<&'static str> = Merger::new(0, 1, None);
+    let mut a = answer(vec![]);
+    a.max_score = Some(f32::NAN);
+    m.absorb(a).expect("absorbed");
+    assert_eq!(m.finish(None).expect("merges").max_score, None);
+}

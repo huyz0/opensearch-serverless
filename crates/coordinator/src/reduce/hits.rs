@@ -175,6 +175,11 @@ impl<P> Merger<P> {
         self.from.saturating_add(self.size).max(1)
     }
 
+    /// How many hits the pile holds now.
+    pub fn held(&self) -> usize {
+        self.hits.len()
+    }
+
     /// The most hits the pile held at once, for the memory bound.
     pub fn peak_held(&self) -> usize {
         self.peak
@@ -248,10 +253,8 @@ impl<P> Merger<P> {
         if !answer.exact {
             self.relation = Relation::AtLeast;
         }
-        if let Some(score) = answer.max_score.filter(|s| !s.is_nan())
-            && self.max_score.is_none_or(|best| score > best)
-        {
-            self.max_score = Some(score);
+        if let Some(score) = answer.max_score.filter(|s| !s.is_nan()) {
+            self.max_score = Some(self.max_score.map_or(score, |best| best.max(score)));
         }
         self.timed_out |= answer.timed_out;
         if let Some(early) = answer.terminated_early {
