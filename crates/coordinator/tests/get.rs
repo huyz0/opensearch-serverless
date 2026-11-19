@@ -148,3 +148,13 @@ fn a_pinned_version_conflicts_as_the_shell_says() {
         Some("document does not exist (expected version [3])".into())
     );
 }
+
+#[test]
+fn the_version_markers_are_the_shells_numbers() {
+    assert_eq!(MATCH_ANY, -3);
+    assert_eq!(MATCH_DELETED, -4);
+    assert_eq!(NOT_FOUND, -1);
+    // Literals, so a marker whose sign flipped could not agree with itself.
+    assert_eq!(version_conflict(5, -3), None);
+    assert!(version_conflict(5, 3).is_some());
+}

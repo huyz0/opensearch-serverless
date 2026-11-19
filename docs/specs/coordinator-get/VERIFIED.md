@@ -6,3 +6,4 @@
 - AC-4: `another_nodes_shard_is_forwarded_to_it` in crates/coordinator/tests/get.rs
 - AC-5: `a_shard_owned_here_but_not_held_is_refused_as_acquiring` in crates/coordinator/tests/get.rs
 - AC-6: `a_pinned_version_conflicts_as_the_shell_says` in crates/coordinator/tests/get.rs
+- AC-6 (the markers): `the_version_markers_are_the_shells_numbers` in crates/coordinator/tests/get.rs
