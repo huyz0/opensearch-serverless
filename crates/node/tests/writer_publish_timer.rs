@@ -156,13 +156,16 @@ fn a_shard_written_after_the_timer_started_is_published() {
 #[test]
 fn dropping_the_timer_stops_it_promptly_and_for_good() {
     let r = rig();
-    let timer = PublishTimer::spawn(Arc::clone(&r.role), Duration::from_secs(30));
+    let slow = PublishTimer::spawn(Arc::clone(&r.role), Duration::from_secs(30));
     let started = Instant::now();
-    drop(timer);
+    drop(slow);
     assert!(
         started.elapsed() < Duration::from_secs(5),
         "joined promptly"
     );
+    let timer = PublishTimer::spawn(Arc::clone(&r.role), TICK);
+    std::thread::sleep(Duration::from_millis(50));
+    drop(timer);
     write(&r.role);
     let before = puts(&r);
     std::thread::sleep(Duration::from_millis(100));
