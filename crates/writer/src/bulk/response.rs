@@ -112,6 +112,50 @@ pub fn write(out: &mut dyn Write, took: u64, items: &[Item]) -> io::Result<()> {
     out.write_all(b"]}")
 }
 
+/// The HTTP status of the single-document answer for `item`.
+pub fn doc_status(item: &Item) -> u16 {
+    match &item.result {
+        ItemResult::Written { written, .. } => status_of(written.outcome),
+        ItemResult::Failed { status, .. } => *status,
+    }
+}
+
+/// Writes `item` as the single-document APIs answer it: `_index`, `_id`,
+/// `_version`, `result`, `_shards`, `_seq_no` and `_primary_term`, or the
+/// failure as `error` and `status`.
+///
+/// # Errors
+///
+/// The writer's.
+pub fn write_doc(out: &mut dyn Write, item: &Item) -> io::Result<()> {
+    match &item.result {
+        ItemResult::Written {
+            written,
+            forced_refresh,
+        } => {
+            out.write_all(b"{\"_index\":")?;
+            write_json_str(out, &item.index)?;
+            out.write_all(b",\"_id\":")?;
+            write_json_str(out, &item.id)?;
+            write!(out, ",\"_version\":{},\"result\":", written.version)?;
+            write_json_str(out, result_name(written.outcome))?;
+            if *forced_refresh {
+                out.write_all(b",\"forced_refresh\":true")?;
+            }
+            write!(
+                out,
+                ",\"_shards\":{{\"total\":1,\"successful\":1,\"failed\":0}},\"_seq_no\":{},\"_primary_term\":{}}}",
+                written.seq_no, written.primary_term
+            )
+        }
+        ItemResult::Failed { status, error } => {
+            out.write_all(b"{\"error\":{")?;
+            error.write_members(out, true)?;
+            write!(out, "}},\"status\":{status}}}")
+        }
+    }
+}
+
 fn write_item(out: &mut dyn Write, item: &Item) -> io::Result<()> {
     out.write_all(b"{")?;
     write_json_str(out, item.action)?;
