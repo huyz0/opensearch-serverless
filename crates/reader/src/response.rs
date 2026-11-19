@@ -389,7 +389,7 @@ fn write_hit_list<S: BlobStore + 'static>(
 
 #[path = "response_selected.rs"]
 mod selected;
-pub use selected::render_selected_hits;
+pub use selected::{render_selected_hits, render_selected_result_hits};
 
 #[cfg(test)]
 #[path = "response_hits_tests.rs"]
