@@ -251,3 +251,51 @@ fn a_record_of_exactly_the_bound_is_read() {
     text.push(b' ');
     assert!(PointInTime::parse(&text).is_err());
 }
+
+#[test]
+fn a_files_blob_key_is_derived_as_the_manifests_are() {
+    use oss_format::{FileLocation, ShardRef};
+    let shard = ShardRef {
+        index: "logs",
+        uuid: "u1",
+        shard: 2,
+    };
+    let key = |name, location| shard.blob_key("d/", name, &location).expect("key");
+    assert_eq!(
+        key("_0.si", FileLocation::Whole { term_dir: "t=3" }),
+        ("d/segments/logs#u1#2/t=3/_0.si".to_owned(), 0)
+    );
+    assert_eq!(
+        key(
+            "_0.cfs",
+            FileLocation::Packed {
+                term_dir: "t=3",
+                blob: "s1",
+                offset: 10,
+                length: 5
+            }
+        ),
+        ("d/segments/logs#u1#2/t=3/s1".to_owned(), 10)
+    );
+    assert_eq!(
+        key(
+            "_0.cfs",
+            FileLocation::NodePacked {
+                node: "n1",
+                epoch: 3,
+                ordinal: 7,
+                offset: 4,
+                length: 5
+            }
+        ),
+        (
+            "d/packs/n1/e=00000000000000000003/00000000000000000007".to_owned(),
+            4
+        )
+    );
+    assert!(
+        shard
+            .blob_key("d/", "a/b", &FileLocation::Whole { term_dir: "t=3" })
+            .is_err()
+    );
+}

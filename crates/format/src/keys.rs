@@ -268,37 +268,7 @@ impl ShardRef<'_> {
         // ALLOC: one entry a manifest file, at most manifest::MAX_FILES.
         let mut out = Vec::with_capacity(manifest.files().len());
         for file in manifest.files() {
-            // ALLOC: one key a file, at most manifest::MAX_FILES of them.
-            let mut key = String::new();
-            let offset = match file.location {
-                FileLocation::Whole { term_dir } => {
-                    check_segment(term_dir)?;
-                    check_segment(&file.name)?;
-                    let _ = write!(key, "{shard_base}{term_dir}/{}", file.name);
-                    0
-                }
-                FileLocation::Packed {
-                    term_dir,
-                    blob,
-                    offset,
-                    ..
-                } => {
-                    check_segment(term_dir)?;
-                    check_relative(blob)?;
-                    let _ = write!(key, "{shard_base}{term_dir}/{blob}");
-                    offset
-                }
-                FileLocation::NodePacked {
-                    node,
-                    epoch,
-                    ordinal,
-                    offset,
-                    ..
-                } => {
-                    key = node_pack_key(base, node, epoch, ordinal)?;
-                    offset
-                }
-            };
+            let (key, offset) = locate(base, &shard_base, &file.name, &file.location)?;
             out.push(FileExtent {
                 name: file.name.clone(),
                 key,
@@ -308,6 +278,64 @@ impl ShardRef<'_> {
         }
         Ok(out)
     }
+
+    /// The key of the blob a file recorded at `location` is in, and where
+    /// in it the file starts: what [`ShardRef::resolve`] derives for one
+    /// file, for a record that keeps locations as text.
+    ///
+    /// # Errors
+    ///
+    /// As [`ShardRef::resolve`].
+    pub fn blob_key(
+        &self,
+        base: &str,
+        name: &str,
+        location: &FileLocation<'_>,
+    ) -> Result<(String, u64), FormatError> {
+        locate(base, &self.base_path(base)?, name, location)
+    }
+}
+
+/// One file's blob key and offset, in the shard whose storage path is
+/// `shard_base`.
+fn locate(
+    base: &str,
+    shard_base: &str,
+    name: &str,
+    location: &FileLocation<'_>,
+) -> Result<(String, u64), FormatError> {
+    // ALLOC: one key, the length of its parts.
+    let mut key = String::new();
+    let offset = match *location {
+        FileLocation::Whole { term_dir } => {
+            check_segment(term_dir)?;
+            check_segment(name)?;
+            let _ = write!(key, "{shard_base}{term_dir}/{name}");
+            0
+        }
+        FileLocation::Packed {
+            term_dir,
+            blob,
+            offset,
+            ..
+        } => {
+            check_segment(term_dir)?;
+            check_relative(blob)?;
+            let _ = write!(key, "{shard_base}{term_dir}/{blob}");
+            offset
+        }
+        FileLocation::NodePacked {
+            node,
+            epoch,
+            ordinal,
+            offset,
+            ..
+        } => {
+            key = node_pack_key(base, node, epoch, ordinal)?;
+            offset
+        }
+    };
+    Ok((key, offset))
 }
 
 /// The key of a node pack.
