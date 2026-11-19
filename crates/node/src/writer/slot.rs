@@ -8,6 +8,7 @@ use oss_format::ShardKey;
 use oss_writer::bulk::Kind;
 use oss_writer::index::{Expect, Refused, Shard, Written};
 use oss_writer::mapping::Mapping;
+use oss_writer::publish::{Published, ShardPublisher};
 
 /// The Lucene version the writer's segments are written as.
 const VERSION: LuceneVersion = LuceneVersion {
@@ -89,6 +90,28 @@ impl ShardSlot {
         self.cell.with_dependent_mut(|_, shard| match kind {
             Kind::Delete => shard.delete(id, expect),
             _ => shard.index(id, source, create, expect),
+        })
+    }
+
+    /// The highest sequence number the engine assigned, negative for none.
+    pub(super) fn max_seq_no(&self) -> i64 {
+        self.cell.with_dependent(|_, shard| shard.max_seq_no())
+    }
+
+    /// Commits the engine and publishes that commit through `publisher`.
+    pub(super) fn publish(
+        &mut self,
+        publisher: &mut ShardPublisher,
+        writer: &str,
+        now_millis: u64,
+    ) -> Result<Published, String> {
+        let term = u64::try_from(self.term).map_err(|e| e.to_string())?;
+        self.cell.with_dependent_mut(|dir, shard| {
+            shard.refresh()?;
+            let files = shard.committed_files()?;
+            publisher
+                .publish(dir, &files, term, writer, -1, now_millis)
+                .map_err(|e| e.to_string())
         })
     }
 
