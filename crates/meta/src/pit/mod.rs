@@ -20,11 +20,14 @@ use oss_format::{FormatError, PointInTime, RELEASED, point_in_time_key, point_in
 
 use crate::error::MetaError;
 
+mod capture;
 mod sweep;
 
 /// How many times a change reads the state and swaps before giving up to
 /// contention, as the Java's.
 const ATTEMPTS: u32 = 16;
+
+pub use capture::{CaptureError, new_id};
 
 /// The clock a view's deadline is judged by, in milliseconds.
 pub type PitClock = Arc<dyn Fn() -> u64 + Send + Sync>;
