@@ -133,9 +133,12 @@ fn puts(r: &Rig) -> u64 {
 }
 
 fn wait_until(what: &str, mut done: impl FnMut() -> bool) {
-    let until = Instant::now() + Duration::from_secs(10);
+    let started = Instant::now();
     while !done() {
-        assert!(Instant::now() < until, "timed out: {what}");
+        assert!(
+            started.elapsed() < Duration::from_secs(10),
+            "timed out: {what}"
+        );
         std::thread::sleep(Duration::from_millis(5));
     }
 }
