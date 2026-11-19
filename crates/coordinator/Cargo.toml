@@ -12,6 +12,7 @@ repository.workspace = true
 oss-types = { workspace = true }
 oss-blob = { workspace = true }
 oss-cluster = { workspace = true }
+oss-doc = { workspace = true }
 oss-format = { workspace = true }
 oss-reader = { workspace = true }
 oss-writer = { workspace = true }

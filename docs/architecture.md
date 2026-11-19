@@ -19,6 +19,7 @@ graph TD
     oss-compat
     oss-coordinator --> oss-blob
     oss-coordinator --> oss-cluster
+    oss-coordinator --> oss-doc
     oss-coordinator --> oss-format
     oss-coordinator --> oss-reader
     oss-coordinator --> oss-types

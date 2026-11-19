@@ -92,7 +92,8 @@ pub struct Refusal {
 }
 
 impl Refusal {
-    fn new(status: u16, kind: &'static str, reason: impl Into<String>) -> Self {
+    /// A refusal with this status, type and reason.
+    pub fn new(status: u16, kind: &'static str, reason: impl Into<String>) -> Self {
         Self {
             status,
             kind,
