@@ -16,6 +16,7 @@ fn spec(size: usize, shard_size: usize, min: u64, order: TermsOrder) -> TermsSpe
         shard_size,
         min_doc_count: min,
         order,
+        keyword: Default::default(),
     }
 }
 

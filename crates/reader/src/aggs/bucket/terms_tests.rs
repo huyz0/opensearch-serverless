@@ -41,6 +41,7 @@ fn spec(size: usize, shard_size: usize, min: u64, order: TermsOrder) -> TermsSpe
         shard_size,
         min_doc_count: min,
         order,
+        keyword: Default::default(),
     }
 }
 
@@ -159,8 +160,6 @@ fn bad_options_fail_as_opensearch_fails_them() {
 #[test]
 fn unserved_options_are_refused_as_not_supported_yet() {
     for key in [
-        r#""include":"a.*""#,
-        r#""exclude":"a.*""#,
         r#""missing":0"#,
         r#""script":{"source":"1"}"#,
         r#""value_type":"long""#,
