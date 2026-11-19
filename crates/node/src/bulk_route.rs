@@ -1,0 +1,150 @@
+//! `_bulk` over the shards this node writes: the body streams through the
+//! bulk parser in slices charged to the bulk budget, each slice applied to
+//! the writer role, and the response is the items' results.
+
+use std::io::{self, Read, Write};
+use std::sync::{Arc, Mutex};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
+
+use oss_rest::{JSON, Length, Method, Request, Response, RestError, RouteError, Router};
+use oss_writer::bulk::{
+    Bulk, BulkBudget, Defaults, IdGenerator, StreamConfig, stream, write_response,
+};
+
+use crate::writer::{RoleTarget, WriterRole};
+
+/// The request parameters a bulk takes.
+const PARAMS: &[&str] = &["refresh", "routing", "pipeline", "require_alias"];
+
+/// Serves `_bulk` over a [`WriterRole`].
+pub struct BulkService {
+    role: Arc<WriterRole>,
+    budget: BulkBudget,
+    config: StreamConfig,
+    ids: Mutex<IdGenerator>,
+}
+
+/// A request body as a reader: each chunk is copied out whole, so the buffer
+/// it reads into holds the body's largest chunk.
+struct BodyRead<'r, 'a> {
+    body: &'r mut oss_rest::Body<'a>,
+    failure: Option<RestError>,
+}
+
+impl Read for BodyRead<'_, '_> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        match self.body.next_chunk() {
+            Ok(Some(chunk)) => {
+                let n = chunk.len().min(buf.len());
+                if let (Some(to), Some(from)) = (buf.get_mut(..n), chunk.get(..n)) {
+                    to.copy_from_slice(from);
+                }
+                Ok(n)
+            }
+            Ok(None) => Ok(0),
+            Err(e) => {
+                self.failure = Some(e);
+                Err(io::Error::other("the request body could not be read"))
+            }
+        }
+    }
+}
+
+fn now_millis() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
+}
+
+/// `?refresh`: whether the shards written are refreshed before the answer.
+fn refresh(value: Option<&str>) -> Result<bool, RestError> {
+    match value {
+        None | Some("false") => Ok(false),
+        Some("" | "true" | "wait_for") => Ok(true),
+        Some(other) => Err(RestError::illegal_argument(format!(
+            "Failed to parse value [{other}] as only [true], [false], [wait_for] or [] are allowed."
+        ))),
+    }
+}
+
+impl BulkService {
+    /// A service applying bulks to `role`, its slices charged to `budget`,
+    /// ids generated from `address`.
+    pub fn new(
+        role: Arc<WriterRole>,
+        budget: BulkBudget,
+        config: StreamConfig,
+        address: [u8; 6],
+    ) -> Self {
+        Self {
+            role,
+            budget,
+            config,
+            ids: Mutex::new(IdGenerator::new(0, address)),
+        }
+    }
+
+    /// Handles one `_bulk`.
+    pub fn handle(&self, req: &mut Request<'_>, resp: &mut Response<'_>) -> Result<(), RestError> {
+        let started = Instant::now();
+        let defaults = Defaults {
+            index: req.path_param("index").map(|i| i.into_owned()),
+            routing: req.param("routing").map(|v| v.into_owned()),
+            pipeline: req.param("pipeline").map(|v| v.into_owned()),
+            require_alias: req.param("require_alias").is_some_and(|v| v == "true"),
+        };
+        let refresh = refresh(req.param("refresh").as_deref())?;
+        let chunk = req.body().max_chunk().max(4096);
+        // ALLOC: one read buffer a bulk, the body's largest chunk.
+        let mut buffer = vec![0u8; chunk];
+        let mut target = RoleTarget::new(&self.role);
+        let mut ids = self
+            .ids
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut run = Bulk::new(&mut target, &mut ids, now_millis(), refresh);
+        let mut body = BodyRead {
+            body: req.body(),
+            failure: None,
+        };
+        let streamed = stream(
+            &mut body,
+            &mut buffer,
+            &defaults,
+            &self.budget,
+            self.config,
+            &mut run,
+        );
+        if let Some(e) = body.failure.take() {
+            return Err(e);
+        }
+        streamed?;
+        let items = run.finish()?;
+        let took = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
+        let mut out = resp.start(200, Some(JSON), Length::Chunked, &[])?;
+        write_response(&mut out, took, &items)?;
+        out.flush()?;
+        out.finish()
+    }
+}
+
+/// The routes of `_bulk`: with and without an index, by POST and PUT.
+///
+/// # Errors
+///
+/// A route registered twice.
+pub fn routes(router: Router, service: Arc<BulkService>) -> Result<Router, RouteError> {
+    let mut router = router;
+    for method in [Method::Post, Method::Put] {
+        for path in ["/_bulk", "/{index}/_bulk"] {
+            let service = Arc::clone(&service);
+            router = router.route(
+                method,
+                path,
+                PARAMS,
+                move |req: &mut Request<'_>, resp: &mut Response<'_>| service.handle(req, resp),
+            )?;
+        }
+    }
+    Ok(router)
+}
