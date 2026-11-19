@@ -23,20 +23,31 @@ fn skipped_escaped_strings_are_not_decoded() {
         r#"{{"term":1,"note":"{mapping}","files":{{"_0.si":"t=1"}},"digest":{{"f":"{mapping}"}}}}"#
     );
 
-    let before = ALLOC.total_allocated();
-    let parsed = DescriptorRecord::parse(descriptor.as_bytes())
-        .map(|r| matches!(r, DescriptorRecord::Index(_)));
-    let after_descriptor = ALLOC.total_allocated();
+    // The allocator counts the whole process, and the test harness's own
+    // threads allocate now and then; the parse's own allocation is the same
+    // every time, so the least over several runs is the parse's alone.
+    let mut least_descriptor = usize::MAX;
+    let mut parsed = Ok(false);
+    for _ in 0..8 {
+        let before = ALLOC.total_allocated();
+        parsed = DescriptorRecord::parse(descriptor.as_bytes())
+            .map(|r| matches!(r, DescriptorRecord::Index(_)));
+        least_descriptor = least_descriptor.min(ALLOC.total_allocated() - before);
+    }
     assert_eq!(parsed, Ok(true));
-    assert_eq!(after_descriptor - before, 0, "a descriptor parse allocated");
+    assert_eq!(least_descriptor, 0, "a descriptor parse allocated");
 
-    let before = ALLOC.total_allocated();
-    let files = CommitManifest::parse(manifest.as_bytes()).map(|m| m.files().len());
-    let allocated = ALLOC.total_allocated() - before;
+    let mut files = Ok(0);
+    let mut least_manifest = usize::MAX;
+    for _ in 0..8 {
+        let before = ALLOC.total_allocated();
+        files = CommitManifest::parse(manifest.as_bytes()).map(|m| m.files().len());
+        least_manifest = least_manifest.min(ALLOC.total_allocated() - before);
+    }
     assert_eq!(files, Ok(1));
     // One file entry; the skipped note and digest strings cost nothing.
     assert!(
-        allocated < 1024,
-        "a manifest parse allocated {allocated} bytes"
+        least_manifest < 1024,
+        "a manifest parse allocated {least_manifest} bytes"
     );
 }
