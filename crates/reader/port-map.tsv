@@ -131,3 +131,4 @@ src/prefetch/plan_tests.rs	new		tests of plan.rs over a hand-built file table
 src/prefetch/primed.rs	new		holds the fetched bytes and serves the engine store from them until the open returns
 src/prefetch/tests.rs	new		tests of the open prefetch over a real index on the emulator
 src/aggs/partial.rs	new		the shared shard-level result and the reduce dispatch, lifted out of aggs/metric/partial.rs
+src/frozen.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/shard/ShardReaders.java@429b4cbc	openFrozenReader: the incarnation check and the view's own manifest for the shard; the files resolve to blob ranges
