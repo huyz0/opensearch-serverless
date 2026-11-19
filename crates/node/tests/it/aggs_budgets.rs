@@ -68,3 +68,62 @@ fn a_cold_search_with_metric_aggregations_then_a_warm_one() {
         &rounds.detail(),
     );
 }
+
+#[test]
+fn a_cold_search_with_a_keyword_terms_then_a_warm_one() {
+    let store = loaded(Rounds::new(Emulator::new(64 << 20, 1)));
+    let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
+    let memory = MemoryBudget::new(&budget_config());
+    let (server, _service) = start_reader(
+        listener,
+        server_config(),
+        store.clone(),
+        "",
+        "node-1",
+        &memory,
+    )
+    .expect("starts");
+    let rounds = store.store();
+    let search = || {
+        let r = request(
+            server.local_addr(),
+            "POST",
+            "/compat-term/_search",
+            Some(
+                br#"{"query":{"term":{"title":"brown"}},"aggs":{"y":{"stats":{"field":"year"}},
+                    "t":{"terms":{"field":"tag"}}}}"#,
+            ),
+        );
+        assert_eq!(r.status, 200, "{}", r.text());
+        assert!(
+            r.text()
+                .contains(r#""buckets":[{"key":"animal","doc_count":1}"#),
+            "{}",
+            r.text()
+        );
+    };
+
+    rounds.reset(DELAY);
+    let before = rounds.meter().total();
+    search();
+    let detail = rounds.detail();
+    budget::check(
+        "search.keyword_terms.cold.requests",
+        rounds.meter().total() - before,
+        &detail,
+    );
+    budget::check(
+        "search.keyword_terms.cold.round_trips",
+        rounds.depth() as u64,
+        &detail,
+    );
+
+    rounds.reset(DELAY);
+    let before = rounds.meter().total();
+    search();
+    budget::check(
+        "search.keyword_terms.warm.requests",
+        rounds.meter().total() - before,
+        &rounds.detail(),
+    );
+}

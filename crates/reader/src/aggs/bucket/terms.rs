@@ -73,15 +73,14 @@ pub fn reduce(parts: &[Value]) -> Option<Value> {
 
 /// `InternalTerms.getDocCountError` of one shard's `terms`: what it may have
 /// cut, or -1 when that is unbounded.
-fn shard_error(terms: &TermsResult) -> i64 {
-    let key_ordered = matches!(terms.spec.order, TermsOrder::KeyAsc | TermsOrder::KeyDesc);
-    if terms.buckets.is_empty() || terms.buckets.len() < terms.spec.shard_size || key_ordered {
+pub(super) fn shard_error<K>(spec: &TermsSpec, buckets: &[(K, u64)], reported: i64) -> i64 {
+    let key_ordered = matches!(spec.order, TermsOrder::KeyAsc | TermsOrder::KeyDesc);
+    if buckets.is_empty() || buckets.len() < spec.shard_size || key_ordered {
         return 0;
     }
-    match terms.spec.order {
-        TermsOrder::CountDesc if terms.doc_count_error > 0 => terms.doc_count_error,
-        TermsOrder::CountDesc => terms
-            .buckets
+    match spec.order {
+        TermsOrder::CountDesc if reported > 0 => reported,
+        TermsOrder::CountDesc => buckets
             .iter()
             .map(|b| i64::try_from(b.1).unwrap_or(i64::MAX))
             .min()
@@ -92,12 +91,12 @@ fn shard_error(terms: &TermsResult) -> i64 {
 
 /// The order's comparison of two `(key, doc count)` buckets: the better one
 /// is `Less`.
-fn compare(order: TermsOrder, a: (i64, u64), b: (i64, u64)) -> std::cmp::Ordering {
+pub(super) fn compare<K: Ord>(order: TermsOrder, a: (&K, u64), b: (&K, u64)) -> std::cmp::Ordering {
     match order {
-        TermsOrder::CountDesc => b.1.cmp(&a.1).then(a.0.cmp(&b.0)),
-        TermsOrder::CountAsc => a.1.cmp(&b.1).then(a.0.cmp(&b.0)),
-        TermsOrder::KeyAsc => a.0.cmp(&b.0),
-        TermsOrder::KeyDesc => b.0.cmp(&a.0),
+        TermsOrder::CountDesc => b.1.cmp(&a.1).then(a.0.cmp(b.0)),
+        TermsOrder::CountAsc => a.1.cmp(&b.1).then(a.0.cmp(b.0)),
+        TermsOrder::KeyAsc => a.0.cmp(b.0),
+        TermsOrder::KeyDesc => b.0.cmp(a.0),
     }
 }
 
@@ -114,7 +113,7 @@ pub fn reduce_results(parts: &[&TermsResult]) -> TermsResult {
     let mut merged: std::collections::BTreeMap<i64, u64> = std::collections::BTreeMap::new();
     for part in parts {
         other = other.saturating_add(part.other_doc_count);
-        let error = shard_error(part);
+        let error = shard_error(&part.spec, &part.buckets, part.doc_count_error);
         sum_error = if sum_error == -1 || error == -1 {
             -1
         } else {
@@ -131,7 +130,7 @@ pub fn reduce_results(parts: &[&TermsResult]) -> TermsResult {
         .filter(|&(_, count)| count >= spec.min_doc_count)
         // ALLOC: as above.
         .collect();
-    kept.sort_by(|a, b| compare(spec.order, *a, *b));
+    kept.sort_by(|a, b| compare(spec.order, (&a.0, a.1), (&b.0, b.1)));
     for &(_, count) in kept.iter().skip(spec.size) {
         other = other.saturating_add(count);
     }

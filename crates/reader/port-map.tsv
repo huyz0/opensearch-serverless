@@ -103,6 +103,10 @@ src/aggs/bucket/terms_collect.rs	port	server/src/main/java/org/opensearch/search
 src/aggs/bucket/terms_render.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/LongTerms.java@3.10.0	LongTerms.Bucket.keyToXContent and InternalTerms.doXContentCommon
 src/aggs/bucket/collect_tests.rs	new		tests of terms on a real index
 src/aggs/bucket/terms_tests.rs	new		tests of terms parsing, reduce and writing
+src/aggs/bucket/keyword_terms.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/StringTerms.java@3.10.0	StringTerms' state, InternalTerms.reduce over terms and StringTerms.Bucket.keyToXContent
+src/aggs/bucket/keyword_collect.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/GlobalOrdinalsStringTermsAggregator.java@3.10.0	the keyword terms node over lucene-aggs' global ordinals and the memory they take
+src/aggs/bucket/keyword_terms_tests.rs	new		tests of keyword terms reduce and writing
+src/aggs/bucket/keyword_collect_tests.rs	new		tests of keyword terms on a real index
 src/prefetch/mod.rs	new		the open prefetch: the small and pinned files a cold open reads whole, fetched together; the Java downloads whole commits at open instead
 src/prefetch/plan.rs	new		picks those files from the file table and merges neighbours of a blob into ranges
 src/prefetch/plan_tests.rs	new		tests of plan.rs over a hand-built file table

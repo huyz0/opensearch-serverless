@@ -25,6 +25,7 @@ use oss_blob::BlobStore;
 
 use crate::OpenShard;
 use crate::aggs::bucket::BUCKET_LIMIT;
+use crate::aggs::bucket::keyword_collect;
 use crate::aggs::bucket::terms::TermsSpec;
 use crate::aggs::bucket::terms_collect;
 use crate::aggs::metric::hll::Hll;
@@ -42,6 +43,8 @@ enum Resolved {
     Unmapped,
     /// A numeric field's doc values, and how its values are shown.
     Numeric(Format),
+    /// A keyword field's global ordinals, for a `terms`.
+    Keyword,
 }
 
 /// The text of `Field [<name>] of type [<type>]`'s type.
@@ -90,12 +93,21 @@ fn resolve<S: BlobStore + 'static>(
         FieldType::Int { .. } | FieldType::Long => Format::Raw,
         FieldType::Date => Format::Date,
         FieldType::Text => return Err(text_fielddata(&agg.field)),
-        FieldType::Keyword
-            if matches!(
-                agg.metric,
-                Metric::ValueCount | Metric::Cardinality | Metric::Terms
-            ) =>
-        {
+        FieldType::Keyword if agg.metric == Metric::Terms => {
+            if agg.terms.as_ref().is_some_and(|t| t.min_doc_count == 0) {
+                return Err(bad_request(Failure::plain(
+                    "illegal_argument_exception",
+                    // ALLOC: error path; one message.
+                    format!(
+                        "[min_doc_count: 0] of the keyword field [{}] is not supported by this \
+                         node yet",
+                        agg.field
+                    ),
+                )));
+            }
+            Format::Raw
+        }
+        FieldType::Keyword if matches!(agg.metric, Metric::ValueCount | Metric::Cardinality) => {
             return Err(bad_request(Failure::plain(
                 "illegal_argument_exception",
                 // ALLOC: error path; one message.
@@ -140,6 +152,9 @@ fn resolve<S: BlobStore + 'static>(
                 type_name(&field.ty)
             ),
         )));
+    }
+    if field.ty == FieldType::Keyword {
+        return Ok(Resolved::Keyword);
     }
     Ok(Resolved::Numeric(format))
 }
@@ -305,6 +320,22 @@ fn value_from(agg: &MetricAgg, result: Option<AggResult>) -> Result<Value, Shard
     }
 }
 
+/// The shard-level result of a keyword `terms` from the engine's `result`.
+fn keyword_value(agg: &MetricAgg, result: Option<AggResult>) -> Result<Value, ShardError> {
+    match result {
+        Some(AggResult::Terms { buckets, .. }) => {
+            let (other, kept) = buckets.into_iter().next().unwrap_or_default();
+            // ALLOC: the kept buckets of one `terms`, at most its shard size.
+            Ok(Value::KeywordTerms(Box::new(keyword_collect::from_engine(
+                &terms_spec(agg),
+                other,
+                kept,
+            ))))
+        }
+        _ => Err(engine_error(&"an aggregation result of another kind")),
+    }
+}
+
 /// Runs `aggs` over `query`'s live matches in `segments` of `shard`, in one
 /// pass: one result each, in request order. A field the aggregation cannot
 /// read, or an option the shard refuses, fails the shard with OpenSearch's
@@ -339,16 +370,28 @@ pub fn collect<S: BlobStore + 'static>(
                 .map_err(|m| bad_request(Failure::plain("illegal_argument_exception", m)))?,
             _ => DEFAULT_PRECISION,
         };
-        if matches!(r, Resolved::Numeric(_)) {
-            nodes.push(node(agg, precision));
+        match r {
+            Resolved::Numeric(_) => nodes.push(node(agg, precision)),
+            Resolved::Keyword => nodes.push(keyword_collect::node(&agg.field, &terms_spec(agg))),
+            Resolved::Unmapped => {}
         }
     }
     let mut results = if nodes.is_empty() {
         // ALLOC: empty.
         Vec::new()
     } else {
-        // ALLOC: empty; no keyword field is read.
-        let ords = HashMap::new();
+        // ALLOC: one entry a keyword `terms`, bounded by the request's.
+        let mut ords = HashMap::new();
+        for (agg, r) in aggs.iter().zip(&resolved) {
+            if matches!(r, Resolved::Keyword) && !ords.contains_key(&agg.field) {
+                let built = shard
+                    .reader
+                    .global_ords(&agg.field)
+                    .map_err(|e| engine_error(&e))?;
+                // ALLOC: one field name a keyword field, as above.
+                ords.insert(agg.field.clone(), built);
+            }
+        }
         // ALLOC: one index a segment: one slice, the whole shard in order.
         let slices = [(0..segments.len()).collect::<Vec<usize>>()];
         aggregate_tree(
@@ -377,6 +420,7 @@ pub fn collect<S: BlobStore + 'static>(
         let (format, value) = match r {
             Resolved::Unmapped => (Format::Raw, value_of(agg, &MetricState::default())),
             Resolved::Numeric(format) => (format, value_from(agg, results.next())?),
+            Resolved::Keyword => (Format::Raw, keyword_value(agg, results.next())?),
         };
         parts.push(Partial {
             // ALLOC: one name an aggregation, as above.
