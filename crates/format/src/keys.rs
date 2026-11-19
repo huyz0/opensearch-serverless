@@ -83,6 +83,60 @@ pub fn change_stripe_key(base: &str, stripe: usize) -> Result<String, FormatErro
     Ok(key)
 }
 
+/// Where under a deployment's base a point in time's inventory entry is filed
+/// (`RegisterMap.pointsInTime`): one blob an id.
+pub const POINTS_IN_TIME_PREFIX: &str = "pits/";
+
+/// Where under a deployment's base a point in time's authoritative state
+/// register is (`RegisterMap.pointInTimeStates`): one register an id, kept
+/// for good so a released id cannot be brought back.
+pub const POINT_IN_TIME_STATES_PREFIX: &str = "pit-states/";
+
+/// Whether `name` could be a point in time's id: 22 characters of
+/// `A-Z a-z 0-9 - _` (`Names.looksLikeAnId`).
+pub fn looks_like_an_id(name: &str) -> bool {
+    name.len() == 22
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+}
+
+/// The key of a point in time's inventory entry (`pits/<id>`).
+///
+/// # Errors
+///
+/// [`FormatError::Corrupt`] for a base that is not empty and does not end in
+/// `/`, or an id that is not [`looks_like_an_id`].
+pub fn point_in_time_key(base: &str, id: &str) -> Result<String, FormatError> {
+    check_base(base)?;
+    check_id(id)?;
+    // ALLOC: one key, the length of its parts.
+    Ok([base, POINTS_IN_TIME_PREFIX, id].concat())
+}
+
+/// The key of a point in time's state register (`pit-states/<id>`).
+///
+/// # Errors
+///
+/// As [`point_in_time_key`].
+pub fn point_in_time_state_key(base: &str, id: &str) -> Result<String, FormatError> {
+    check_base(base)?;
+    check_id(id)?;
+    // ALLOC: one key, the length of its parts.
+    Ok([base, POINT_IN_TIME_STATES_PREFIX, id].concat())
+}
+
+fn check_id(id: &str) -> Result<(), FormatError> {
+    if looks_like_an_id(id) {
+        Ok(())
+    } else {
+        Err(corrupt(
+            WHAT,
+            "a point in time's id is 22 URL-safe characters",
+        ))
+    }
+}
+
 /// The cluster config register's key under a base: the Java's
 /// `RegisterMap.clusterConfig` container and its `settings` blob.
 pub const CLUSTER_CONFIG_KEY: &str = "cluster/config/settings";

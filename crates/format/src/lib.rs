@@ -50,6 +50,7 @@ mod mutf8;
 mod node_lease;
 mod node_log;
 mod node_pack;
+mod point_in_time;
 mod reclaim_intent;
 mod register;
 mod segment_blob;
@@ -70,8 +71,9 @@ pub use error::FormatError;
 pub use index_record::{EMPTY_SETTINGS, IndexRecord, MAX_SHARDS, NameRecord};
 pub use keys::{
     CHANGES_PREFIX, CLUSTER_CONFIG_KEY, DESCRIPTORS_PREFIX, FileExtent, MANIFEST, MARKERS_PREFIX,
-    NODE_LOG_PREFIX, RECLAIM_PREFIX, ShardRef, TRANSPORT_SECRET_KEY, change_stripe_key,
-    cluster_config_key, descriptor_key, node_log_key, node_pack_key, reclaim_intent_key,
+    NODE_LOG_PREFIX, POINT_IN_TIME_STATES_PREFIX, POINTS_IN_TIME_PREFIX, RECLAIM_PREFIX, ShardRef,
+    TRANSPORT_SECRET_KEY, change_stripe_key, cluster_config_key, descriptor_key, looks_like_an_id,
+    node_log_key, node_pack_key, point_in_time_key, point_in_time_state_key, reclaim_intent_key,
     tombstone_marker_key, transport_secret_key,
 };
 pub use location::{FileLocation, NODE_PACK_PREFIX};
@@ -86,6 +88,7 @@ pub use node_log::{
     Slice, SliceRecords, slice_records, trim_below, with_ordinal,
 };
 pub use node_pack::{Block, NodePackHeader};
+pub use point_in_time::{MAX_POINT_IN_TIME_BYTES, PitFile, PitShard, PointInTime, RELEASED};
 pub use reclaim_intent::{
     MAX_RECLAIM_INTENT_BYTES, ReclaimIntent, reclaim_bucket, reclaim_bucket_start,
 };

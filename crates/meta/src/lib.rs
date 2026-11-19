@@ -29,6 +29,9 @@
 //!   [`DescriptorStore::on_changed`].
 //! - [`ClusterConfig`]: an operator's persistent settings, one register a
 //!   deployment, read and updated as the Java's `ClusterConfig`.
+//! - [`PointInTimeStore`]: frozen views of an index, each a state register
+//!   and an inventory marker that keeps its files, released, extended and
+//!   expired by compare-and-swap.
 //! - [`IndexLifecycle`]: creating and deleting an index, idempotent on a
 //!   retried create, and finishing a delete from the [`ReclaimQueue`] once a
 //!   writer that missed it has stopped.
@@ -41,6 +44,7 @@ mod error;
 mod lifecycle;
 mod listing;
 mod names;
+mod pit;
 mod probe;
 mod routing;
 mod sweep;
@@ -59,9 +63,10 @@ pub use lifecycle::{
 };
 pub use names::{MAX_NAME_BYTES, NameError, NameRule, validate_index_or_alias, validate_prefix};
 pub use oss_format::{
-    AliasMutation, AliasRecord, ChangeKind, ClusterSettings, MAX_CLUSTER_SETTINGS_BYTES,
-    ReclaimIntent, STRIPES, Setting, SettingsRefused,
+    AliasMutation, AliasRecord, ChangeKind, ClusterSettings, MAX_CLUSTER_SETTINGS_BYTES, PitFile,
+    PitShard, PointInTime, RELEASED, ReclaimIntent, STRIPES, Setting, SettingsRefused,
 };
+pub use pit::{PitClock, PointInTimeStore};
 pub use probe::PROBE_PREFIX;
 pub use routing::{
     DEFAULT_ROUTING_CACHE_BYTES, DEFAULT_ROUTING_CACHE_MILLIS, DEFAULT_ROUTING_CACHE_PRUNE_ABOVE,
