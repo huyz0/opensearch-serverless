@@ -144,7 +144,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
         #[cfg(feature = "coordinator")]
         match self.shard_count(&index) {
             Ok(shards) if shards > 1 => {
-                return self.handle_sharded(req, resp, &index, shards, &source, started);
+                return self.handle_sharded(resp, &index, shards, &source, started);
             }
             Ok(_) => {}
             Err(Answer::Rest(e)) => return Err(e),

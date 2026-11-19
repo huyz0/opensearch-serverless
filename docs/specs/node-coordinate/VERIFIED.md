@@ -6,3 +6,4 @@
 - AC-4: `a_refused_reserve_fails_the_search` in crates/node/tests/it/coordinate.rs
 - AC-5: `the_total_follows_track_total_hits` in crates/node/tests/it/coordinate.rs
 - AC-6: `the_search_route_answers_an_index_of_two_shards_through_the_coordinator` in crates/node/tests/it/coordinate.rs
+- AC-7: `each_shard_reserves_its_own_hits_before_it_searches` and `shards_whose_hits_do_not_fit_fail_before_they_search` in crates/node/tests/it/coordinate.rs

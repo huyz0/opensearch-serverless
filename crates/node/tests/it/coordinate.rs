@@ -107,10 +107,40 @@ fn a_shard_the_index_lacks_fails_alone() {
 #[test]
 fn a_refused_reserve_fails_the_search() {
     let node = two("compat-term", "compat-term-uuid", "two");
-    let refuse = |_: usize| Err(io::Error::other("the request-body pool is full"));
+    // The two shards' own reservations go through; the render's is refused.
+    let calls = std::sync::atomic::AtomicUsize::new(0);
+    let refuse = |_: usize| {
+        if calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst) < 2 {
+            return Ok(());
+        }
+        Err(io::Error::other("the request-body pool is full"))
+    };
     let e = run(&node, "two", 2, r#"{"size":10}"#, &refuse).expect_err("refused");
     assert!(e.contains("Fetch"), "{e}");
     assert!(e.contains("the request-body pool is full"), "{e}");
+}
+
+#[test]
+fn each_shard_reserves_its_own_hits_before_it_searches() {
+    let node = two("compat-term", "compat-term-uuid", "two");
+    let seen = std::sync::Mutex::new(Vec::new());
+    let record = |n: usize| {
+        seen.lock().expect("lock").push(n);
+        Ok(())
+    };
+    run(&node, "two", 2, r#"{"size":3}"#, &record).expect("searches");
+    let seen = seen.into_inner().expect("lock");
+    assert!(seen.len() >= 2, "{seen:?}");
+    assert!(seen[..2].iter().all(|n| *n > 0), "{seen:?}");
+}
+
+#[test]
+fn shards_whose_hits_do_not_fit_fail_before_they_search() {
+    let node = two("compat-term", "compat-term-uuid", "two");
+    let refuse = |_: usize| Err(io::Error::other("the request-body pool is full"));
+    let e = run(&node, "two", 2, r#"{"size":3}"#, &refuse).expect_err("refused");
+    assert!(e.contains("AllFailed"), "{e}");
+    assert!(e.contains("pool is full"), "{e}");
 }
 
 #[test]
