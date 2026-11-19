@@ -28,3 +28,4 @@ src/tail_held.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/t
 src/search_overlay.rs	new		the shard a search serves over the overlay a source finished, cached with the open shard
 src/tail_overlay.rs	new		the setting and install for the overlay source a search asks; the shell switches the overlay by cluster setting
 src/handlers.rs	new		the signed registry of the transport actions a node serves; the Java registers each handler on its transport service
+src/search_open.rs	new		the open of a shard for a search (pool charge, commit, errors), split from search.rs; the Java's ShardReaders opens shards in the engine

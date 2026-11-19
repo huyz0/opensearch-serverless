@@ -36,3 +36,5 @@ With `reader`, `tail_held::TailHeld` holds the writes a writer pushed a reader (
 The tail's transport (docs/specs/node-tail-links/SPEC.md): with `writer`, `tail_link::TransportTailLink` sends a tail push to a reader a lease names and `TailFetchHandler` answers a fetch from `TailServe`; with `reader`, `tail_reader_link::TailPushHandler` gives a push to `TailHeld` and `TransportTailFetch` asks a live writer for the records past a commit. Nothing registers the handlers yet.
 
 `handlers::Registry` holds the transport actions a node serves, each behind the signature check, and refuses a second handler for an action; the assembly adds each role's handler to it ([docs/specs/node-handlers/SPEC.md](../../docs/specs/node-handlers/SPEC.md)).
+
+`SearchService::open(index, shard)` opens any shard of an index, one open shard each in the `open_indexes` pool; the HTTP search still serves indexes of one shard ([docs/specs/node-multi-shard-open/SPEC.md](../../docs/specs/node-multi-shard-open/SPEC.md)).

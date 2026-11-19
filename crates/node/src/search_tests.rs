@@ -15,7 +15,8 @@ use oss_reader::ShardFiles;
 use oss_reader::open_cost::open_bytes;
 use oss_testkit::index::{Spec, blobs};
 
-use super::{Answer, Held, SearchService, closing_makes_room, never_fits};
+use super::open_shard::{closing_makes_room, never_fits};
+use super::{Answer, Held, SearchService};
 use crate::open_indexes::{Found, Lead};
 
 const INDEXES: [&str; 3] = ["idx-a", "idx-b", "idx-c"];
@@ -235,6 +236,7 @@ fn concurrent_first_searches_open_once_and_close_nothing_else() {
         view: std::sync::Mutex::default(),
         stage: oss_reader::commit_push::Stage::new(1, None, -1),
         index: INDEXES[1].to_owned(),
+        shard_no: 0,
         charge,
         source: None,
         epoch: std::time::Instant::now(),

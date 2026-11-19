@@ -30,11 +30,10 @@ impl<S: BlobStore + 'static> SearchService<S> {
     /// view the engine refused.
     pub(super) fn overlay_view(&self, held: &Arc<Held<S>>) -> Option<Arc<OpenShard<S>>> {
         let source = self.overlay.get()?;
-        // Shard 0: a node serves single-shard indexes only (`SearchService::shard`).
         let commit: Arc<dyn CommitAccess> = Arc::clone(held) as _;
         let ready = source.ready(
             &held.shard.meta.uuid,
-            0,
+            held.shard_no,
             &held.stage,
             &commit,
             self.now_millis(),
@@ -75,7 +74,7 @@ impl<S: BlobStore + 'static> Drop for Held<S> {
     fn drop(&mut self) {
         if let Some(source) = &self.source {
             let now = u64::try_from(self.epoch.elapsed().as_millis()).unwrap_or(u64::MAX);
-            source.closed(&self.shard.meta.uuid, 0, &self.stage, now);
+            source.closed(&self.shard.meta.uuid, self.shard_no, &self.stage, now);
         }
     }
 }
