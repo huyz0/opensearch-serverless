@@ -14,6 +14,7 @@ pub mod histogram_parse;
 pub mod histogram_render;
 pub mod keyword_collect;
 pub mod keyword_options;
+pub mod keyword_subs;
 pub mod keyword_terms;
 pub mod terms;
 pub mod terms_collect;
@@ -39,6 +40,8 @@ mod histogram_tests;
 mod keyword_collect_tests;
 #[cfg(test)]
 mod keyword_options_tests;
+#[cfg(test)]
+mod keyword_subs_tests;
 #[cfg(test)]
 mod keyword_terms_tests;
 #[cfg(test)]

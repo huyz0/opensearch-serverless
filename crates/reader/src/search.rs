@@ -178,7 +178,7 @@ pub fn hits_bytes<S: BlobStore + 'static>(source: &SearchSource, shard: &OpenSha
                 .get(&agg.field)
                 .is_some_and(|f| f.ty == FieldType::Keyword);
             total.saturating_add(if keyword {
-                keyword_collect::reserved_bytes(shard, &agg.field, spec)
+                keyword_collect::reserved_bytes(shard, &agg.field, spec, agg.subs.len())
             } else {
                 docs.saturating_mul(TERMS_BYTES_PER_VALUE)
             })

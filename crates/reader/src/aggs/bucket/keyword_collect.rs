@@ -39,16 +39,21 @@ pub const BUCKET_BYTES: usize = 2 * 24 + 16;
 /// How many times a kept bucket's key is alive at once.
 pub const KEY_COPIES: usize = 3;
 
+/// How many times a kept bucket's sub-aggregation value is alive at once.
+pub const SUB_COPIES: usize = 3;
+
 /// The most bytes a keyword `terms` of `field` and `spec` holds on `shard`:
 /// [`ORD_BYTES`] for each term of each segment's dictionary (their number is
 /// in the segments' metadata, so nothing is read to size it), the merge's two
 /// term buffers a segment, and the key of each kept bucket (at most the
 /// bucket limit, and no more than the terms there are) at [`KEY_COPIES`]
-/// copies of the longest term of any segment and [`BUCKET_BYTES`].
+/// copies of the longest term of any segment and [`BUCKET_BYTES`], and
+/// `subs` sub-aggregations' states and values.
 pub fn reserved_bytes<S: BlobStore + 'static>(
     shard: &OpenShard<S>,
     field: &str,
     spec: &TermsSpec,
+    subs: usize,
 ) -> usize {
     let mut terms = 0usize;
     let mut segments = 0usize;
@@ -79,8 +84,20 @@ pub fn reserved_bytes<S: BlobStore + 'static>(
     } else {
         0
     };
+    // Each sub-aggregation keeps an engine state for every term the search
+    // counts, and a value for each kept bucket in the engine's result, the
+    // shard's and a reduce's.
+    let sub_states = terms
+        .saturating_mul(subs)
+        .saturating_mul(std::mem::size_of::<lucene_aggs::metric_aggs::MetricState>());
+    let sub_values = kept
+        .saturating_mul(subs)
+        .saturating_mul(SUB_COPIES)
+        .saturating_mul(std::mem::size_of::<crate::aggs::partial::Value>());
     terms
         .saturating_mul(ORD_BYTES)
+        .saturating_add(sub_states)
+        .saturating_add(sub_values)
         .saturating_add(segments.saturating_mul(longest).saturating_mul(2))
         .saturating_add(
             kept.saturating_mul(
@@ -105,7 +122,7 @@ pub fn node(field: &str, spec: &TermsSpec, accepted: Option<AcceptedOrds>) -> Ag
         shard_size: spec.shard_size,
         order: spec.order,
         zero_buckets: spec.min_doc_count == 0,
-        // ALLOC: empty; sub-aggregations are refused.
+        // ALLOC: empty; `keyword_subs` adds the sub-aggregations.
         subs: Vec::new(),
     }
 }
@@ -320,5 +337,9 @@ pub fn from_engine(
             .map(|(term, count)| (String::from_utf8_lossy(&term).into_owned(), count))
             // ALLOC: the kept buckets, as above.
             .collect(),
+        // ALLOC: empty; `keyword_subs` fills them.
+        sub_meta: Vec::new(),
+        // ALLOC: empty, as above.
+        subs: Vec::new(),
     }
 }

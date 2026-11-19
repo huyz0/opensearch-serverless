@@ -24,7 +24,7 @@ use crate::{OpenShard, open_shard};
 /// so `t0` to `t7` have 13 documents and `t8` to `t15` have 12.
 const DOCS: usize = 200;
 
-fn shard(name: &str, docs: usize) -> OpenShard<Emulator> {
+pub(super) fn shard(name: &str, docs: usize) -> OpenShard<Emulator> {
     let config = BudgetConfig::new(4 << 20)
         .with_pool(Pool::Transport, 4 << 20)
         .expect("fits");
@@ -42,12 +42,12 @@ fn shard(name: &str, docs: usize) -> OpenShard<Emulator> {
     open_shard(Arc::new(store), cache, "", name, 0).expect("opens")
 }
 
-fn run(shard: &OpenShard<Emulator>, body: &str) -> Result<Vec<Partial>, ShardError> {
+pub(super) fn run(shard: &OpenShard<Emulator>, body: &str) -> Result<Vec<Partial>, ShardError> {
     let source = parse_chunks([body.as_bytes()]).expect("parses");
     search(shard, "idx", &source, &Analyzer::standard(None)).map(|h| h.aggregations)
 }
 
-fn terms(shard: &OpenShard<Emulator>, body: &str) -> KeywordTermsResult {
+pub(super) fn terms(shard: &OpenShard<Emulator>, body: &str) -> KeywordTermsResult {
     let mut parts = run(shard, body).expect("searches");
     match parts.remove(0).value {
         Value::KeywordTerms(t) => *t,
@@ -55,7 +55,7 @@ fn terms(shard: &OpenShard<Emulator>, body: &str) -> KeywordTermsResult {
     }
 }
 
-fn keys(r: &KeywordTermsResult) -> Vec<(&str, u64)> {
+pub(super) fn keys(r: &KeywordTermsResult) -> Vec<(&str, u64)> {
     r.buckets.iter().map(|(k, c)| (k.as_str(), *c)).collect()
 }
 

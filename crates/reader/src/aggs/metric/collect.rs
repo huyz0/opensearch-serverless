@@ -30,6 +30,7 @@ use crate::aggs::bucket::date_histogram_collect;
 use crate::aggs::bucket::histogram::{HistogramSpec, reduce_results};
 use crate::aggs::bucket::histogram_collect;
 use crate::aggs::bucket::keyword_collect;
+use crate::aggs::bucket::keyword_subs;
 use crate::aggs::bucket::terms::TermsSpec;
 use crate::aggs::bucket::terms_collect;
 use crate::aggs::metric::hll::Hll;
@@ -42,7 +43,7 @@ use crate::mapping::FieldType;
 use crate::search::ShardError;
 
 /// What `ValuesSourceConfig` resolved an aggregation's field to.
-enum Resolved {
+pub(crate) enum Resolved {
     /// No such field: the aggregation sees no value.
     Unmapped,
     /// A numeric field's doc values, and how its values are shown.
@@ -86,7 +87,7 @@ fn text_fielddata(name: &str) -> ShardError {
 }
 
 /// Resolves `agg`'s field in `shard`'s mapping.
-fn resolve<S: BlobStore + 'static>(
+pub(crate) fn resolve<S: BlobStore + 'static>(
     agg: &MetricAgg,
     shard: &OpenShard<S>,
 ) -> Result<Resolved, ShardError> {
@@ -157,6 +158,16 @@ fn resolve<S: BlobStore + 'static>(
             ),
         )));
     }
+    if !agg.subs.is_empty() {
+        return Err(bad_request(Failure::plain(
+            "illegal_argument_exception",
+            // ALLOC: error path; one message.
+            format!(
+                "sub-aggregations of a numeric [terms] on [{}] are not supported by this node yet",
+                agg.field
+            ),
+        )));
+    }
     Ok(Resolved::Numeric(format))
 }
 
@@ -201,7 +212,7 @@ fn needs(metric: Metric) -> u8 {
 }
 
 /// The shard-level result of `agg` from its field's `state`.
-fn value_of(agg: &MetricAgg, state: &MetricState) -> Value {
+pub(crate) fn value_of(agg: &MetricAgg, state: &MetricState) -> Value {
     match agg.metric {
         Metric::Min => Value::Min(state.min_of_mins),
         Metric::Max => Value::Max(state.max_of_maxes),
@@ -266,7 +277,7 @@ fn check_execution_hint(agg: &MetricAgg) -> Result<(), ShardError> {
 }
 
 /// The engine's node for a numeric `agg` at `precision` (a `cardinality`'s).
-fn node(agg: &MetricAgg, precision: u32) -> AggNode {
+pub(crate) fn node(agg: &MetricAgg, precision: u32) -> AggNode {
     // ALLOC: one field name an aggregation, bounded by the request's.
     let field = agg.field.clone();
     // `byte` to `long` and `date` are longs read as they are.
@@ -428,7 +439,7 @@ pub fn collect<S: BlobStore + 'static>(
                     Some(g) => keyword_collect::accepted_ords(shard, &agg.field, g, &spec)?,
                     None => None,
                 };
-                nodes.push(keyword_collect::node(&agg.field, &spec, accepted));
+                nodes.push(keyword_subs::node(agg, shard, &spec, accepted)?);
             }
             Resolved::Unmapped => {}
         }
@@ -467,7 +478,7 @@ pub fn collect<S: BlobStore + 'static>(
             Resolved::Numeric(format) => (format, value_from(agg, results.next())?),
             Resolved::Keyword => (
                 Format::Raw,
-                keyword_collect::value(&terms_spec(agg), results.next())?,
+                keyword_subs::value(agg, shard, &terms_spec(agg), results.next())?,
             ),
         };
         parts.push(Partial {
