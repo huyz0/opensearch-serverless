@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use oss_blob::{BlobStore, Emulator, S3Op};
-use oss_format::{NodeLogEpoch, ShardKey, ShardRef};
+use oss_format::{CommitManifest, NodeLogEpoch, ShardKey, ShardRef};
 use oss_node::writer::{Publishing, RoleTarget, Routes, WriterRole};
 use oss_writer::bulk::{
     Bulk, BulkBudget, Defaults, IdGenerator, IndexInfo, ItemResult, Owner, Planned, StreamConfig,
@@ -149,7 +149,10 @@ fn the_first_pass_publishes_a_written_shard_for_a_blob_and_a_swap() {
     assert_eq!(puts(&r) - before.0, 2, "a blob and a swap");
     assert_eq!(r.store.meter().count(S3Op::List), before.1, "no LIST");
     let newest = r.role.newest_commit("logs-uuid", 0).expect("staged");
-    assert!(!newest.is_empty());
+    let manifest = CommitManifest::parse(&newest).expect("parses");
+    assert_eq!(manifest.term, 3);
+    assert_eq!(manifest.writer.as_deref(), Some("node-1"));
+    assert_eq!(manifest.wal_ordinal, -1, "the log ordinal is not known");
 }
 
 #[test]
