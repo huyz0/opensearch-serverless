@@ -2,6 +2,7 @@
 //! caller's pins mean.
 
 pub mod bulk;
+pub mod by_query;
 pub mod get;
 pub mod update;
 pub mod write;
