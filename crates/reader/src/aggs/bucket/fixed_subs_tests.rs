@@ -188,3 +188,41 @@ fn the_sub_aggregations_of_a_bucket_reserve_their_states() {
     assert_eq!(super::fixed_subs::reserved(&shard, &plain), 0);
     assert!(super::fixed_subs::reserved(&shard, &with) > 0);
 }
+
+#[test]
+fn a_scalar_sub_reserves_a_state_and_three_values_a_bucket() {
+    let shard = shard("fixed-reserved-exact");
+    let aggs = parse_chunks([br#"{"aggs":{"f":{"filters":{"filters":[
+            {"match_all":{}},{"match_all":{}},{"match_all":{}}]},
+            "aggs":{"m":{"min":{"field":"n"}}}}}}"#
+        .as_slice()])
+    .expect("parses")
+    .aggs;
+    let per_bucket = std::mem::size_of::<lucene_aggs::metric_aggs::MetricState>()
+        + 3 * std::mem::size_of::<Value>();
+    assert_eq!(super::fixed_subs::reserved(&shard, &aggs), 3 * per_bucket);
+}
+
+fn ranges_with(count: usize, sub: &str) -> Vec<crate::aggs::metric::MetricAgg> {
+    let body = format!(
+        r#"{{"aggs":{{"r":{{"range":{{"field":"n","ranges":[{{"from":0}}]}},"aggs":{{"a":{sub}}}}}}}}}"#
+    );
+    let mut aggs = parse_chunks([body.as_bytes()]).expect("parses").aggs;
+    let range = aggs[0].range.as_deref_mut().expect("a range");
+    let one = range.ranges[0].clone();
+    range.ranges = vec![one; count];
+    aggs
+}
+
+#[test]
+fn a_nested_terms_reserves_more_with_more_buckets_and_stops_at_the_bucket_limit() {
+    let shard = shard("fixed-reserved-terms");
+    let terms = r#"{"terms":{"field":"tag"}}"#;
+    let reserved =
+        |count: usize, sub: &str| super::fixed_subs::reserved(&shard, &ranges_with(count, sub));
+    let scalar = r#"{"min":{"field":"n"}}"#;
+    assert!(reserved(10, terms) > reserved(10, scalar));
+    assert!(reserved(10, terms) > reserved(1, terms));
+    let limit = crate::aggs::bucket::BUCKET_LIMIT;
+    assert_eq!(reserved(limit, terms), reserved(limit + 100, terms));
+}
