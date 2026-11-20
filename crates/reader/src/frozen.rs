@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 
 use oss_blob::BlobStore;
 use oss_blob::PooledStore;
-use oss_format::{FileLocation, FormatError, PointInTime, ShardRef, descriptor_key};
+use oss_format::{FileLocation, PointInTime, ShardRef, descriptor_key};
 
 use crate::commit_push::Stage;
 use crate::error::ReaderError;
@@ -50,8 +50,8 @@ impl ShardFiles {
             .iter()
             .find(|s| s.shard == shard && !view.capturing)
             .ok_or(ReaderError::NotFrozen(shard))?;
-        // A bucketed index's one shard has no storage of its own: only node
-        // packs, which no shard's path is part of, resolve for it.
+        // A bucketed index's one shard keeps its blobs under its own path as
+        // any shard does; only its commit register is the bucket's.
         let bucketed = descriptor.bucket.is_some();
         let at = if bucketed {
             ShardRef {
@@ -66,13 +66,6 @@ impl ShardFiles {
         let mut files = BTreeMap::new();
         for file in &frozen.files {
             let location = FileLocation::parse(&file.location)?;
-            if bucketed && !matches!(location, FileLocation::NodePacked { .. }) {
-                return Err(FormatError::NotFollowable {
-                    what: "bucketed point in time",
-                    reason: "a bucketed commit's files are in node packs",
-                }
-                .into());
-            }
             let (key, offset) = ShardRef { ..at }.blob_key(base, &file.name, &location)?;
             let length = file
                 .length

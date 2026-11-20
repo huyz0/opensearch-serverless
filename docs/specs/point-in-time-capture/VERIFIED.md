@@ -7,6 +7,7 @@ Run on 2026-11-19 in a Linux sandbox, emulator numbers provisional: `cargo test 
 - AC-3: `a_shard_that_has_published_nothing_refuses_the_capture_and_leaves_nothing_pinned`.
 - AC-4: `a_refusal_before_the_marker_writes_nothing` and `a_name_that_is_no_concrete_index_cannot_be_frozen`.
 - AC-5: `a_bucketed_index_freezes_its_members_commit_for_the_cost_of_a_shards`.
+- AC-5 also: `a_members_files_in_its_own_shard_path_are_frozen_as_recorded`.
 - AC-10: `a_bucketed_capture_that_cannot_freeze_is_refused_and_leaves_nothing_pinned` and `a_register_that_names_another_bucket_is_not_the_members_bucket`. The bucket manifests are JSON the tests write; the compact form is `bucket-manifest-reader`'s.
 - AC-6: `an_index_replaced_while_the_capture_began_is_refused_and_released`.
 - AC-7: `the_same_name_made_again_after_the_capture_is_not_the_captured_view`.

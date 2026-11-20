@@ -11,7 +11,7 @@ use std::fmt;
 
 use oss_blob::BlobError;
 use oss_format::{
-    CommitManifest, FileLocation, PitFile, PitShard, PointInTime, ShardRef, UnitLayoutRecord,
+    CommitManifest, PitFile, PitShard, PointInTime, ShardRef, UnitLayoutRecord,
     bucket_manifest_key, parse_bucket_member,
 };
 
@@ -26,8 +26,7 @@ pub enum CaptureError {
     NoSuchIndex,
     /// The name is an alias, which freezes only index by index.
     IsAlias,
-    /// The index is one this slice cannot freeze: a bucketed commit holding
-    /// a file outside the node packs.
+    /// The index is one this slice cannot freeze.
     Unsupported(&'static str),
     /// A shard has published nothing, so there is no commit to freeze, and a
     /// view of the rest would silently cover part of the index.
@@ -250,9 +249,8 @@ impl PointInTimeStore {
     }
 
     /// A bucketed member's commit, from its bucket's manifest register: the
-    /// one GET a shard's register would cost. A member whose files are not
-    /// all in node packs is refused: only those resolve without a shard's
-    /// own storage.
+    /// one GET a shard's register would cost. Its files are in node packs or
+    /// in the shard's own path, as for any shard.
     fn freeze_member(
         &self,
         bucket: &str,
@@ -279,15 +277,6 @@ impl PointInTimeStore {
             return Err(CaptureError::NothingPublished(shard));
         };
         let manifest = CommitManifest::parse(&commit).map_err(MetaError::Format)?;
-        if manifest
-            .files()
-            .iter()
-            .any(|f| !matches!(f.location, FileLocation::NodePacked { .. }))
-        {
-            return Err(CaptureError::Unsupported(
-                "a bucketed commit holds a file outside the node packs",
-            ));
-        }
         Ok(pit_shard(shard, &manifest))
     }
 }
