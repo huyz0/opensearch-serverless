@@ -21,7 +21,7 @@ A write group for a shard the role does not hold calls the opener once (opens of
 - AC-1: a write to a new index's shard through a role with an opener opens the shard and is acknowledged; the shard's head names this node at a positive term.
 - AC-2: a second write opens nothing: no head request is made.
 - AC-3: groups racing for an unheld shard open it once: the head's term is the first's.
-- AC-4: a shard whose head a live node owns is not opened and every item answers 503 naming the owner.
+- AC-4: a shard whose head a live node owns is not opened here; its group goes to that node ([holder forward](../writer-holder-forward/SPEC.md)), and where the routes cannot forward every item answers 503.
 - AC-5: a head that names earlier writers, and a shard with a published commit, are refused as takeover not supported yet; nothing is opened.
 - AC-6: an index deleted and recreated under the name since the group was planned is not opened: the descriptor's uuid must match.
 - AC-7: a role with no opener answers "not open on this node" as before.

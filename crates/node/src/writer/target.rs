@@ -71,6 +71,6 @@ impl Target for RoleTarget<'_> {
         shard: u32,
         group: &[Planned<'_>],
     ) -> Vec<ItemResult> {
-        self.role.routes.forward(node, index, shard, group)
+        self.role.forward(node, index, shard, group)
     }
 }
