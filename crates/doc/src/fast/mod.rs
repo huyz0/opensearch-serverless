@@ -116,7 +116,7 @@ impl FastIngest {
 /// A field with no token in the document (an empty text) is one of the segment's fields with no
 /// postings and no norm, as [`crate::lucene::Indexer`] gives it: its number goes to `registered`.
 fn leave_empty_fields_unwritten(doc: &mut ExplicitDocument) {
-    if doc.fields.inverted.iter().all(|f| !f.terms.is_empty()) {
+    if !doc.fields.inverted.iter().any(|f| f.terms.is_empty()) {
         return;
     }
     let (kept, empty): (Vec<_>, Vec<_>) = std::mem::take(&mut doc.fields.inverted)
