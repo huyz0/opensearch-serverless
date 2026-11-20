@@ -8,6 +8,7 @@
 mod support;
 
 mod aggs_budgets;
+mod analyze;
 mod budgets;
 mod built;
 #[cfg(feature = "coordinator")]
