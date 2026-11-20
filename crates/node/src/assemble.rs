@@ -19,6 +19,8 @@ use oss_writer::publish::lazy::Policy;
 
 use crate::bulk_route::{self, BulkService};
 use crate::doc_route::{self, DocService};
+#[cfg(feature = "coordinator")]
+use crate::index_route::{self, IndexService};
 use crate::pit_route::{self, PitService};
 use crate::search::{self, SearchService};
 use crate::writer::{
@@ -245,7 +247,7 @@ pub fn assemble(
     let pit = Arc::new(PitService::new(
         pits,
         descriptors,
-        clock,
+        Arc::clone(&clock),
         config.pit_buffer_bytes,
     ));
     let bulk = Arc::new(BulkService::new(
@@ -260,6 +262,18 @@ pub fn assemble(
     let router = bulk_route::routes(router, bulk).map_err(AssembleError::Route)?;
     let router = doc_route::routes(router, docs).map_err(AssembleError::Route)?;
     let router = pit_route::routes(router, pit).map_err(AssembleError::Route)?;
+    #[cfg(feature = "coordinator")]
+    let router = {
+        let descriptors =
+            DescriptorStore::new(Arc::clone(&store), &config.base, config.delete_mode)
+                .map_err(|e| AssembleError::Store(e.to_string()))?;
+        let indices = Arc::new(IndexService::new(
+            descriptors,
+            Arc::clone(&clock),
+            config.pit_buffer_bytes,
+        ));
+        index_route::routes(router, indices).map_err(AssembleError::Route)?
+    };
     let timer = PublishTimer::spawn(Arc::clone(&role), config.publish_every);
     let pass = Arc::new(JanitorPass::new(
         Arc::clone(&store),
