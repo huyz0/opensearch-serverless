@@ -160,3 +160,7 @@ required-features = ["writer"]
 [[test]]
 name = "bulk_route"
 required-features = ["reader", "writer"]
+
+[[test]]
+name = "cluster_routes"
+required-features = ["writer"]
