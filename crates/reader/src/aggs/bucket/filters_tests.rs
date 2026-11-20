@@ -293,3 +293,20 @@ fn a_reduce_keeps_no_sub_aggregation_when_no_shard_has_one() {
     assert!(r.subs.is_empty());
     assert_eq!(r.buckets, [("0".to_owned(), 3)]);
 }
+
+// AC-5
+#[test]
+fn a_reduce_reduces_each_buckets_sub_aggregations() {
+    use crate::aggs::partial::Format;
+    let part = |count: u64, min: f64| {
+        let mut r = result(false, &[("0", count)]);
+        r.sub_meta = vec![("m".to_owned(), Format::Raw)];
+        r.subs = vec![vec![Value::Min(min)]];
+        Value::Filters(Box::new(r))
+    };
+    let Some(Value::Filters(r)) = reduce(&[part(1, 5.0), part(2, 3.0)]) else {
+        panic!("no reduce");
+    };
+    assert_eq!(r.buckets, [("0".to_owned(), 3)]);
+    assert_eq!(r.subs, [vec![Value::Min(3.0)]]);
+}

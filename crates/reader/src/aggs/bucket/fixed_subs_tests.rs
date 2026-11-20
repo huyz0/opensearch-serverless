@@ -226,3 +226,15 @@ fn a_nested_terms_reserves_more_with_more_buckets_and_stops_at_the_bucket_limit(
     let limit = crate::aggs::bucket::BUCKET_LIMIT;
     assert_eq!(reserved(limit, terms), reserved(limit + 100, terms));
 }
+
+#[test]
+fn only_fixed_buckets_reserve_here() {
+    let shard = shard("fixed-reserved-only");
+    // A keyword `terms` under a keyword `terms` reserves in `keyword_subs`.
+    let aggs = parse_chunks([br#"{"aggs":{"t":{"terms":{"field":"tag"},
+        "aggs":{"u":{"terms":{"field":"tag"}}}}}}"#
+        .as_slice()])
+    .expect("parses")
+    .aggs;
+    assert_eq!(super::fixed_subs::reserved(&shard, &aggs), 0);
+}
