@@ -22,6 +22,7 @@ pub fn node(agg: &MetricAgg) -> AggNode {
         // ALLOC: one field name an aggregation, bounded by the request's.
         field: agg.field.clone(),
         missing: None,
+        script: None,
         kind: ValueKind::Long,
         // ALLOC: one pair a range, which the shard bounds before it runs.
         ranges: spec_of(agg).ranges.iter().map(|r| (r.from, r.to)).collect(),
