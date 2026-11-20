@@ -230,6 +230,13 @@ fn with_an_orphan(sweep_dry_run: Option<bool>) -> (Running, Arc<Emulator>, Strin
         config.sweep.dry_run = dry_run;
     }
     let (r, store) = start_with(config, 256 << 20);
+    // Planted before the first publish: the pass sweeps a shard once for
+    // each commit it publishes and then only while it watches a blob, so a
+    // blob planted after that first sweep would never be seen.
+    let key = "segments/docs#docs-uuid#0/t=1/orphan".to_owned();
+    store
+        .put(&key, &mut SliceSource::new(b"old"), &mut [0u8; 16])
+        .expect("planted");
     assert_eq!(
         call(&r, "PUT", "/docs/_doc/1", Some(r#"{"n":1}"#)).status,
         201
@@ -239,10 +246,6 @@ fn with_an_orphan(sweep_dry_run: Option<bool>) -> (Running, Arc<Emulator>, Strin
         assert!(started.elapsed() < Duration::from_secs(10), "not published");
         std::thread::sleep(Duration::from_millis(5));
     }
-    let key = "segments/docs#docs-uuid#0/t=1/orphan".to_owned();
-    store
-        .put(&key, &mut SliceSource::new(b"old"), &mut [0u8; 16])
-        .expect("planted");
     (r, store, key)
 }
 
