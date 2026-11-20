@@ -10,7 +10,7 @@
 
 use crate::aggs::bucket::date_histogram_parse::parse_date_histogram_body;
 use crate::aggs::bucket::histogram_parse::parse_histogram_body;
-use crate::aggs::bucket::terms_parse::parse_terms_body;
+use crate::aggs::bucket::{range_parse::parse_range_body, terms_parse::parse_terms_body};
 pub(crate) use crate::aggs::metric::long_value::long_value;
 use crate::aggs::metric::percentiles::parse_percentiles_body;
 use crate::aggs::metric::top_hits::parse_top_hits_body;
@@ -200,7 +200,10 @@ fn is_scalar(metric: Metric) -> bool {
 
 /// The refusal of sub-aggregations under `agg`, which holds none here.
 fn sub_refusal(agg: &MetricAgg, name: &str) -> DslError {
-    if matches!(agg.metric, Metric::Histogram | Metric::DateHistogram) {
+    if matches!(
+        agg.metric,
+        Metric::Histogram | Metric::DateHistogram | Metric::Range
+    ) {
         // ALLOC: error path; one message.
         return DslError::unsupported(&format!(
             "sub-aggregations of a [{}] aggregation",
@@ -304,7 +307,8 @@ fn parse_definition(p: &mut Parser<'_>, name: &str, level: usize) -> Result<Defi
                     ));
                 };
                 let mut top_hits = None;
-                let (mut terms, mut histogram, mut date_histogram) = (None, None, None);
+                let (mut terms, mut histogram, mut date_histogram, mut range) =
+                    (None, None, None, None);
                 let (field, cardinality, percentiles) = match metric {
                     Metric::Percentiles | Metric::PercentileRanks => {
                         let (field, options) = parse_percentiles_body(p, metric, name)?;
@@ -350,6 +354,16 @@ fn parse_definition(p: &mut Parser<'_>, name: &str, level: usize) -> Result<Defi
                             PercentilesOptions::default(),
                         )
                     }
+                    Metric::Range => {
+                        let (field, spec) = parse_range_body(p, name)?;
+                        // ALLOC: one box a `range`, bounded by the body's recording.
+                        range = Some(Box::new(spec));
+                        (
+                            field,
+                            CardinalityOptions::default(),
+                            PercentilesOptions::default(),
+                        )
+                    }
                     _ => {
                         let (field, options) = parse_metric_body(p, metric, name)?;
                         (field, options, PercentilesOptions::default())
@@ -366,6 +380,7 @@ fn parse_definition(p: &mut Parser<'_>, name: &str, level: usize) -> Result<Defi
                     terms,
                     histogram,
                     date_histogram,
+                    range,
                     // ALLOC: empty; the definition's `aggs` fill it.
                     subs: Vec::new(),
                 });

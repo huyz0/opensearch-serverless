@@ -37,7 +37,8 @@ fn a_cold_search_with_metric_aggregations_then_a_warm_one() {
             Some(
                 br#"{"query":{"term":{"title":"brown"}},"aggs":{"y":{"stats":{"field":"year"}},
                     "p":{"max":{"field":"published"}},
-                    "t":{"terms":{"field":"year"}}}}"#,
+                    "t":{"terms":{"field":"year"}},
+                    "r":{"range":{"field":"year","ranges":[{"to":2000},{"from":2000}]}}}}"#,
             ),
         );
         assert_eq!(r.status, 200, "{}", r.text());
