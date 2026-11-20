@@ -190,6 +190,16 @@ fn a_write_through_one_node_reaches_the_node_that_owns_the_shard() {
     );
 }
 
+// AC-9
+#[test]
+fn a_crashed_node_leaves_its_lease_to_lapse() {
+    let dir = TempDir::new("boot-crash");
+    let node = start(&config(dir.path(), "n1", "30000")).expect("starts");
+    node.crash();
+    // Not released, as a killed process does not: still listed at once.
+    assert_eq!(enrolled(dir.path()), ["n1"]);
+}
+
 // AC-7
 #[test]
 fn a_restarted_node_writes_above_the_epochs_it_left() {

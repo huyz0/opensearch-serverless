@@ -774,6 +774,7 @@ dependencies = [
  "oss-writer",
  "self_cell",
  "serde_json",
+ "ureq",
 ]
 
 [[package]]
