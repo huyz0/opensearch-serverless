@@ -1,0 +1,245 @@
+//! The composition root of a node with the reader and writer roles: the
+//! services each role serves, their routes on one router, and the publish
+//! timer, over one shared store.
+
+use std::net::{SocketAddr, TcpListener};
+use std::sync::Arc;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+use lucene_store::page_cache::{PageCache, PageCacheConfig};
+use oss_blob::{BlobStore, PooledStore, Shared};
+use oss_format::MAX_POINT_IN_TIME_BYTES;
+use oss_mem::{BufferPool, MemoryBudget, Pool, SMALL_BUFFER};
+use oss_meta::{DeleteMode, DescriptorStore, PitClock, PointInTimeStore};
+use oss_rest::{RouteError, Router, Server, ServerConfig};
+use oss_writer::bulk::{BulkBudget, StreamConfig};
+use oss_writer::log::NodeLogCommitter;
+use oss_writer::publish::lazy::Policy;
+
+use crate::bulk_route::{self, BulkService};
+use crate::doc_route::{self, DocService};
+use crate::pit_route::{self, PitService};
+use crate::search::{self, SearchService};
+use crate::writer::{PublishTimer, Publishing, Routes, WriterRole};
+
+/// Buffers the store's bodies stream through, a node's worth.
+const STORE_BUFFERS: usize = 16;
+
+/// How a node is sized and named.
+#[derive(Clone, Debug)]
+pub struct Config {
+    /// The deployment's base in the store (empty, or ending in `/`).
+    pub base: String,
+    /// This node's id.
+    pub node_id: String,
+    /// The six bytes time-based ids are made with.
+    pub address: [u8; 6],
+    /// The bytes of `_bulk` bodies in flight, node wide.
+    pub bulk_bytes: usize,
+    /// The bulks that may hold a share at once.
+    pub bulk_holders: usize,
+    /// How a `_bulk` body streams.
+    pub bulk: StreamConfig,
+    /// The buffer a point-in-time request holds.
+    pub pit_buffer_bytes: usize,
+    /// How a point in time's register is deleted.
+    pub delete_mode: DeleteMode,
+    /// How often the publish timer runs a pass.
+    pub publish_every: Duration,
+    /// `serverless.wal.node_log.publish_max_age_millis`.
+    pub publish_age_millis: u64,
+    /// `serverless.publish.max_unpublished_operations`.
+    pub publish_max_operations: u64,
+    /// The write log's window, which a due time rounds up to.
+    pub publish_tick_millis: u64,
+}
+
+impl Config {
+    /// The defaults for node `node_id` under `base`.
+    pub fn new(base: &str, node_id: &str, address: [u8; 6]) -> Self {
+        Self {
+            // ALLOC: two names, once a node.
+            base: base.to_owned(),
+            node_id: node_id.to_owned(),
+            address,
+            bulk_bytes: 64 << 20,
+            bulk_holders: 4,
+            bulk: StreamConfig::default(),
+            pit_buffer_bytes: MAX_POINT_IN_TIME_BYTES,
+            delete_mode: DeleteMode::Tombstone,
+            publish_every: Duration::from_millis(250),
+            publish_age_millis: 1_000,
+            publish_max_operations: 10_000,
+            publish_tick_millis: 250,
+        }
+    }
+}
+
+/// What the writer role is built on.
+pub struct Writer {
+    /// The node's one write log.
+    pub committer: Arc<NodeLogCommitter>,
+    /// Which indexes exist and who owns a shard this node does not hold.
+    pub routes: Arc<dyn Routes>,
+}
+
+/// Why a node was not assembled.
+#[derive(Debug)]
+pub enum AssembleError {
+    /// The budget gives the `open_indexes` pool nothing, so no index could
+    /// ever open.
+    NoOpenIndexes,
+    /// The page cache or the store's buffers could not be set up.
+    Memory(String),
+    /// A store refused the deployment's base.
+    Store(String),
+    /// A route is registered twice.
+    Route(RouteError),
+    /// The HTTP server did not start.
+    Server(oss_rest::StartError),
+}
+
+impl std::fmt::Display for AssembleError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AssembleError::NoOpenIndexes => f.write_str("the open_indexes pool is empty"),
+            AssembleError::Memory(e) => write!(f, "memory: {e}"),
+            AssembleError::Store(e) => write!(f, "store: {e}"),
+            AssembleError::Route(e) => write!(f, "route: {e:?}"),
+            AssembleError::Server(e) => write!(f, "server: {e:?}"),
+        }
+    }
+}
+
+impl std::error::Error for AssembleError {}
+
+/// A node built and not yet listening.
+pub struct Assembled {
+    router: Router,
+    /// The search service every `_search` goes through.
+    pub search: Arc<SearchService<Shared>>,
+    /// The role the write routes write through.
+    pub role: Arc<WriterRole>,
+    timer: PublishTimer,
+}
+
+/// A node listening.
+pub struct Running {
+    server: Server,
+    /// The search service every `_search` goes through.
+    pub search: Arc<SearchService<Shared>>,
+    /// The role the write routes write through.
+    pub role: Arc<WriterRole>,
+    _timer: PublishTimer,
+}
+
+impl Running {
+    /// The address the node listens on.
+    pub fn addr(&self) -> SocketAddr {
+        self.server.local_addr()
+    }
+}
+
+impl Assembled {
+    /// Starts serving on `listener`, the server's buffers charged to
+    /// `budget`.
+    ///
+    /// # Errors
+    ///
+    /// [`AssembleError::Server`] when the server does not start.
+    pub fn start(
+        self,
+        listener: TcpListener,
+        config: ServerConfig,
+        budget: &MemoryBudget,
+    ) -> Result<Running, AssembleError> {
+        let server =
+            Server::start(listener, config, self.router, budget).map_err(AssembleError::Server)?;
+        Ok(Running {
+            server,
+            search: self.search,
+            role: self.role,
+            _timer: self.timer,
+        })
+    }
+}
+
+fn now_millis() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
+}
+
+/// Builds a node's services over `store` and registers their routes.
+///
+/// # Errors
+///
+/// An [`AssembleError`] when the budget cannot hold the node, a store
+/// refuses the base, or a route is registered twice.
+pub fn assemble(
+    config: &Config,
+    store: Arc<dyn BlobStore>,
+    budget: &MemoryBudget,
+    writer: Writer,
+) -> Result<Assembled, AssembleError> {
+    if budget.limit(Pool::OpenIndexes) == 0 {
+        return Err(AssembleError::NoOpenIndexes);
+    }
+    let buffers = BufferPool::new(budget, Pool::Transport, SMALL_BUFFER, STORE_BUFFERS)
+        .map_err(|e| AssembleError::Memory(format!("{e:?}")))?;
+    let pooled = Arc::new(PooledStore::new(Shared::new(Arc::clone(&store)), buffers));
+    let cache = PageCache::new(PageCacheConfig::default())
+        .map_err(|e| AssembleError::Memory(e.to_string()))?;
+    // ALLOC: startup only.
+    let search = Arc::new(SearchService::new(
+        pooled,
+        Arc::new(cache),
+        &config.base,
+        &config.node_id,
+        budget,
+    ));
+    let publishing = Publishing::new(
+        Arc::clone(&store),
+        &config.base,
+        &config.node_id,
+        Policy::new(
+            config.publish_age_millis,
+            config.publish_max_operations,
+            config.publish_tick_millis,
+        ),
+        Box::new(now_millis),
+    );
+    // ALLOC: startup only.
+    let role =
+        Arc::new(WriterRole::new(writer.committer, writer.routes).with_publishing(publishing));
+    let clock: PitClock = Arc::new(now_millis);
+    let pits = PointInTimeStore::new(Arc::clone(&store), &config.base, Arc::clone(&clock))
+        .map_err(|e| AssembleError::Store(e.to_string()))?;
+    let descriptors = DescriptorStore::new(Arc::clone(&store), &config.base, config.delete_mode)
+        .map_err(|e| AssembleError::Store(e.to_string()))?;
+    let pit = Arc::new(PitService::new(
+        pits,
+        descriptors,
+        clock,
+        config.pit_buffer_bytes,
+    ));
+    let bulk = Arc::new(BulkService::new(
+        Arc::clone(&role),
+        BulkBudget::new(config.bulk_bytes, config.bulk_holders),
+        config.bulk,
+        config.address,
+    ));
+    let docs = Arc::new(DocService::new(Arc::clone(&role), config.address));
+    let router =
+        search::routes(Router::new(), Arc::clone(&search)).map_err(AssembleError::Route)?;
+    let router = bulk_route::routes(router, bulk).map_err(AssembleError::Route)?;
+    let router = doc_route::routes(router, docs).map_err(AssembleError::Route)?;
+    let router = pit_route::routes(router, pit).map_err(AssembleError::Route)?;
+    let timer = PublishTimer::spawn(Arc::clone(&role), config.publish_every);
+    Ok(Assembled {
+        router,
+        search,
+        role,
+        timer,
+    })
+}
