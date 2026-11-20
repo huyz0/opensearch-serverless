@@ -106,6 +106,21 @@ impl<S: BlobStore + 'static> SearchService<S> {
         if shard >= meta.number_of_shards {
             return Err(out_of_range(index, shard));
         }
+        let held = self.open_held(index, shard, files, meta, true)?;
+        Ok(lead.opened(held))
+    }
+
+    /// Charges `files`' open to the `open_indexes` pool and opens them as
+    /// shard `shard` of `index`; `overlays` says whether a search of it
+    /// reads the writer's overlay.
+    pub(super) fn open_held(
+        &self,
+        index: &str,
+        shard: u32,
+        files: ShardFiles,
+        meta: oss_reader::IndexMeta,
+        overlays: bool,
+    ) -> Result<Arc<Held<S>>, Answer> {
         let stage = files.stage().clone();
         let bytes = open_bytes(&files, &meta, &self.cache);
         let charge = self.charge(bytes).map_err(|e| {
@@ -130,7 +145,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
         )
         .map_err(|e| open_failure(index, e))?;
         // ALLOC: one open shard; the pool bounds them.
-        Ok(lead.opened(Arc::new(Held {
+        Ok(Arc::new(Held {
             shard: opened,
             view: Mutex::new(None),
             stage,
@@ -138,9 +153,13 @@ impl<S: BlobStore + 'static> SearchService<S> {
             index: index.to_owned(),
             shard_no: shard,
             charge,
-            source: self.overlay.get().cloned(),
+            source: if overlays {
+                self.overlay.get().cloned()
+            } else {
+                None
+            },
             epoch: self.epoch,
-        })))
+        }))
     }
 
     /// The latest commit of shard `shard` of `index`: the one its writer pushed
@@ -235,7 +254,7 @@ fn out_of_range(index: &str, shard: u32) -> Answer {
 }
 
 /// What a failed locate or open answers.
-fn open_failure(index: &str, e: ReaderError) -> Answer {
+pub(super) fn open_failure(index: &str, e: ReaderError) -> Answer {
     match e {
         ReaderError::Blob(BlobError::NotFound) | ReaderError::Deleted => {
             // ALLOC: error path; one box.

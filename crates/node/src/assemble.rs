@@ -237,6 +237,9 @@ pub fn assemble(
         .map_err(|e| AssembleError::Store(e.to_string()))?;
     let janitor_pits = PointInTimeStore::new(Arc::clone(&store), &config.base, Arc::clone(&clock))
         .map_err(|e| AssembleError::Store(e.to_string()))?;
+    let search_pits = PointInTimeStore::new(Arc::clone(&store), &config.base, Arc::clone(&clock))
+        .map_err(|e| AssembleError::Store(e.to_string()))?;
+    search.set_point_in_time(search_pits, Arc::clone(&clock), config.pit_buffer_bytes);
     let descriptors = DescriptorStore::new(Arc::clone(&store), &config.base, config.delete_mode)
         .map_err(|e| AssembleError::Store(e.to_string()))?;
     let pit = Arc::new(PitService::new(

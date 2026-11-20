@@ -16,14 +16,8 @@ use oss_rest::{
     write_json_str,
 };
 
-use params::{MAX_IDS, ids_of, time_millis};
-
-/// How long a view is held when the caller does not say.
-const DEFAULT_KEEP_ALIVE_MILLIS: u64 = 300_000;
-
-/// The longest a view may be held, so one request cannot pin a commit for a
-/// week: refused, not clamped.
-const MAX_KEEP_ALIVE_MILLIS: u64 = 3_600_000;
+use crate::time_value::{DEFAULT_KEEP_ALIVE_MILLIS, MAX_KEEP_ALIVE_MILLIS, time_millis};
+use params::{MAX_IDS, ids_of};
 
 /// The query parameters a create takes; the unsupported ones are refused.
 const CREATE_PARAMS: &[&str] = &[

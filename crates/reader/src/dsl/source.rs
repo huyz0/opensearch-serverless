@@ -10,6 +10,7 @@ use oss_rest::json::{Limits, Tokenizer};
 
 use crate::aggs::metric::{MetricAgg, parse_aggregations};
 use crate::dsl::error::DslError;
+use crate::dsl::pit::{PitRef, parse_pit};
 use crate::dsl::query::{Query, parse_inner};
 use crate::dsl::search_after::{AfterValue, parse_search_after};
 use crate::dsl::sort::{SortKey, parse_sort};
@@ -52,7 +53,6 @@ const OBJECT_KEYS: &[&str] = &[
     "ext",
     "slice",
     "collapse",
-    "pit",
     "search_pipeline",
     "derived",
 ];
@@ -96,6 +96,8 @@ pub struct SearchSource {
     pub explain: bool,
     /// `highlight`: the fields whose matches each hit marks.
     pub highlight: Option<HighlightSpec>,
+    /// `pit`: the point in time the search runs on.
+    pub pit: Option<PitRef>,
 }
 
 impl Default for SearchSource {
@@ -116,6 +118,7 @@ impl Default for SearchSource {
             docvalue_fields: Vec::new(),
             explain: false,
             highlight: None,
+            pit: None,
         }
     }
 }
@@ -208,6 +211,7 @@ impl SearchSource {
             "aggregations" | "aggs" => self.aggs = parse_aggregations(p)?,
             "_source" => self.source = parse_source(p, name)?,
             "highlight" => self.highlight = Some(parse_highlight(p)?),
+            "pit" => self.pit = Some(parse_pit(p)?),
             known if OBJECT_KEYS.contains(&known) => return Err(unsupported(known)),
             _ => return Err(unknown_key(p, Kind::StartObject, name)),
         }
