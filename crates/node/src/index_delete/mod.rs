@@ -72,7 +72,10 @@ impl DeleteService {
     ) -> Result<Self, MetaError> {
         let pits = PointInTimeStore::new(Arc::clone(store), base, Arc::clone(&clock))?;
         Ok(Self {
-            descriptors: DescriptorStore::new(Arc::clone(store), base, mode)?,
+            // A delete is recorded in the change stripes, so a writer that
+            // kept the index stops serving it within a window.
+            descriptors: DescriptorStore::new(Arc::clone(store), base, mode)?
+                .record_changes_in(oss_meta::ChangeStripes::new(Arc::clone(store), base)?),
             queue: ReclaimQueue::new(Arc::clone(store), base)?,
             heads: NodeHeads::new(Arc::clone(store), base)?,
             pins: NodePins::new(pits, snapshots, buffer_bytes),
