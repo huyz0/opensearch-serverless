@@ -328,6 +328,11 @@ impl ShardPublisher {
                     .push((name, length));
             }
         }
+        // No fresh segment to carry the commit points: they get a blob of
+        // their own, or the manifest would name no commit a reader can open.
+        if by_segment.is_empty() && !commit_points.is_empty() {
+            by_segment.insert("segments", std::mem::take(&mut commit_points));
+        }
         // Segments that already have files published: their next files,
         // such as deletions, cannot take the segment's plain name.
         let published_segments: BTreeSet<&str> = known

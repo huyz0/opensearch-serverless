@@ -8,6 +8,8 @@
 //! answers 429 or backs off instead of allocating (ADR 0004). No call here
 //! touches the global allocator.
 
+use std::time::Duration;
+
 use oss_mem::BufferPool;
 
 use crate::chunk::{ChunkSink, ChunkSource};
@@ -19,12 +21,33 @@ use crate::store::{BlobStore, ByteRange, CreateOutcome, GetOutcome};
 pub struct PooledStore<S> {
     store: S,
     buffers: BufferPool,
+    wait: Duration,
 }
 
 impl<S: BlobStore> PooledStore<S> {
     /// Streams `store`'s bodies through buffers checked out of `buffers`.
     pub fn new(store: S, buffers: BufferPool) -> Self {
-        Self { store, buffers }
+        Self {
+            store,
+            buffers,
+            wait: Duration::ZERO,
+        }
+    }
+
+    /// Waits up to `wait` for a free buffer before answering
+    /// [`BlobError::Busy`], so a burst of concurrent calls (a search over
+    /// several shards) queues for the pool instead of failing. Zero, the
+    /// default, answers at once.
+    #[must_use]
+    pub fn with_wait(mut self, wait: Duration) -> Self {
+        self.wait = wait;
+        self
+    }
+
+    fn checkout(&self) -> BlobResult<oss_mem::PooledBuffer> {
+        self.buffers
+            .checkout_within(self.wait)
+            .map_err(|_| BlobError::Busy)
     }
 
     /// The wrapped store, for the calls that carry no body.
@@ -44,13 +67,13 @@ impl<S: BlobStore> PooledStore<S> {
         range: ByteRange,
         sink: &mut dyn ChunkSink,
     ) -> BlobResult<GetOutcome> {
-        let mut buf = self.buffers.try_checkout().map_err(|_| BlobError::Busy)?;
+        let mut buf = self.checkout()?;
         self.store.get(key, range, &mut buf, sink)
     }
 
     /// [`BlobStore::put`] through a pooled buffer.
     pub fn put(&self, key: &str, body: &mut dyn ChunkSource) -> BlobResult<()> {
-        let mut buf = self.buffers.try_checkout().map_err(|_| BlobError::Busy)?;
+        let mut buf = self.checkout()?;
         self.store.put(key, body, &mut buf)
     }
 
@@ -60,7 +83,7 @@ impl<S: BlobStore> PooledStore<S> {
         key: &str,
         body: &mut dyn ChunkSource,
     ) -> BlobResult<CreateOutcome> {
-        let mut buf = self.buffers.try_checkout().map_err(|_| BlobError::Busy)?;
+        let mut buf = self.checkout()?;
         self.store.create_if_absent(key, body, &mut buf)
     }
 }
@@ -113,6 +136,25 @@ mod tests {
             .unwrap_err();
         assert_eq!(err, BlobError::NotFound);
         assert_eq!(s.buffers().available(), 1);
+    }
+
+    #[test]
+    fn a_call_waits_for_a_buffer_when_told_to_and_is_busy_after_the_wait() {
+        let s = std::sync::Arc::new(pooled(1).with_wait(Duration::from_secs(30)));
+        let held = s.buffers().try_checkout().expect("one free");
+        let waiter = {
+            let s = std::sync::Arc::clone(&s);
+            std::thread::spawn(move || s.put("k", &mut SliceSource::new(b"x")).is_ok())
+        };
+        std::thread::sleep(Duration::from_millis(50));
+        drop(held);
+        assert!(waiter.join().expect("joins"), "the put got the buffer");
+        let short = pooled(1).with_wait(Duration::from_millis(20));
+        let _held = short.buffers().try_checkout().expect("one free");
+        assert_eq!(
+            short.put("k", &mut SliceSource::new(b"x")),
+            Err(BlobError::Busy)
+        );
     }
 
     #[test]

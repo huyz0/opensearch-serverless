@@ -124,7 +124,6 @@ fn a_bulk_through_any_node_lands_on_the_node_that_owns_each_shard() {
 
 // AC-3
 #[test]
-#[ignore = "gap: issues #217 (no I/O buffer free under a fan-out) and #218 (a shard's published commit has no segments_N)"]
 fn a_search_from_any_node_finds_every_document() {
     let cluster = started(Cluster::new(TTL_MS, 4, false).expect("emulated"));
     create(&cluster, 2, "logs");

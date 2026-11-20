@@ -1,7 +1,8 @@
 //! A pool of fixed-size buffers, allocated once and charged to a memory pool.
 
 use std::ops::{Deref, DerefMut};
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
+use std::time::{Duration, Instant};
 
 use crate::{Exhausted, MemoryBudget, Pool, Reservation};
 
@@ -13,6 +14,8 @@ pub const LARGE_BUFFER: usize = 1 << 20;
 #[derive(Debug)]
 struct Inner {
     free: Mutex<Vec<Box<[u8]>>>,
+    /// Signalled when a buffer comes back.
+    returned: Condvar,
     size: usize,
     count: usize,
     charge: Reservation,
@@ -62,6 +65,7 @@ impl BufferPool {
         Ok(Self {
             inner: Arc::new(Inner {
                 free: Mutex::new(free),
+                returned: Condvar::new(),
                 size,
                 count,
                 charge,
@@ -86,6 +90,37 @@ impl BufferPool {
                 in_use: self.inner.charge.bytes(),
                 limit: self.inner.charge.bytes(),
             }),
+        }
+    }
+
+    /// Like [`Self::try_checkout`], but waits up to `wait` for a buffer to
+    /// come back when every one is checked out. A zero `wait` is
+    /// `try_checkout`.
+    ///
+    /// The wait cannot deadlock a caller that holds no buffer while it waits.
+    pub fn checkout_within(&self, wait: Duration) -> Result<PooledBuffer, Exhausted> {
+        let Some(deadline) = Instant::now().checked_add(wait) else {
+            return self.try_checkout();
+        };
+        let mut free = self.inner.free();
+        loop {
+            if let Some(buf) = free.pop() {
+                return Ok(PooledBuffer {
+                    buf: Some(buf),
+                    pool: Arc::clone(&self.inner),
+                });
+            }
+            let left = deadline.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                drop(free);
+                return self.try_checkout();
+            }
+            free = self
+                .inner
+                .returned
+                .wait_timeout(free, left)
+                .unwrap_or_else(PoisonError::into_inner)
+                .0;
         }
     }
 
@@ -132,6 +167,7 @@ impl Drop for PooledBuffer {
             // The free list was allocated with room for every buffer, so this
             // push never reallocates.
             self.pool.free().push(buf);
+            self.pool.returned.notify_one();
         }
     }
 }
@@ -179,6 +215,29 @@ mod tests {
         let err = BufferPool::new(&b, Pool::Transport, usize::MAX, 2).expect_err("overflows");
         assert_eq!((err.requested, err.limit), (usize::MAX, 1024));
         assert!(err.exceeds_limit());
+    }
+
+    #[test]
+    fn a_checkout_within_a_wait_takes_a_buffer_that_comes_back() {
+        let b = budget(64);
+        let p = BufferPool::new(&b, Pool::Transport, 64, 1).expect("fits");
+        let held = p.try_checkout().expect("free");
+        let waiter = {
+            let p = p.clone();
+            std::thread::spawn(move || p.checkout_within(Duration::from_secs(30)).is_ok())
+        };
+        std::thread::sleep(Duration::from_millis(50));
+        drop(held);
+        assert!(waiter.join().expect("joins"), "the buffer came back");
+    }
+
+    #[test]
+    fn a_checkout_within_a_wait_gives_up_when_none_comes_back() {
+        let b = budget(64);
+        let p = BufferPool::new(&b, Pool::Transport, 64, 1).expect("fits");
+        let _held = p.try_checkout().expect("free");
+        assert!(p.checkout_within(Duration::from_millis(20)).is_err());
+        assert!(p.checkout_within(Duration::ZERO).is_err());
     }
 
     #[test]

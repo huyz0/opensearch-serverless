@@ -15,7 +15,7 @@ Parity plan R7: three real nodes on one store, driven through REST only, so that
 
 - AC-1: a bulk with `refresh=true` through each of three nodes is applied: every item is created, though the shards are owned by different nodes.
 - AC-2: a get through each of the three nodes then finds each document: a node that does not hold the shard asks the one that does ([forwarded reads](../node-read-forward/SPEC.md)).
-- AC-3: a search from each node finds every document, with every shard answering. Ignored until #217 and #218 are fixed.
+- AC-3: a search from each node finds every document, with every shard answering.
 - AC-4: with the first node killed, the others see it go when its lease lapses; writes to every shard then succeed through either survivor, and every document, those the dead node wrote and those written since, is found by a get through either survivor: its shards were taken over with their history.
 - AC-5: AC-4's scenario over RustFS, where `RUSTFS_BIN` is set (skipped, and says so, otherwise).
 
@@ -29,8 +29,6 @@ Tests only; no product request changes except that `ClusterRoutes` no longer mak
 
 ## Risks
 
-- #217: a search over six shards fails shards for lack of an I/O buffer (16 a node).
-- #218: a shard's published commit can lack `segments_N`, so searches of it fail for good.
 - #219: a shard whose rendezvous owner changes while another live node holds its head answers 503 for as long as that node lives; the suite settles the members before it creates the index.
 - A killed node's lease lapses in one lease lifetime (3 s here) plus a view refresh, so AC-4 waits about that long.
 - RustFS was not run in the session that wrote this (no binary); AC-5 is unverified until a run with `RUSTFS_BIN`.
