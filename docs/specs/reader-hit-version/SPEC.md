@@ -26,7 +26,7 @@ Not in this change: the `version` and `seq_no_primary_term` of `top_hits`, which
 
 ## Test plan
 
-`crates/node/tests/it/search.rs`: `a_hit_carries_its_version_and_sequence_identity_when_asked`, over the recorded `compat-term` index (written by OpenSearch, so it holds all three doc values). The expected key order is read from `SearchHit.toInnerXContent`, not recorded from a running OpenSearch, so it is provisional until a fixture step records it.
+`crates/node/tests/it/search_hits.rs`: `a_hit_carries_its_version_and_sequence_identity_when_asked`, over the recorded `compat-term` index (written by OpenSearch, so it holds all three doc values). The expected key order is read from `SearchHit.toInnerXContent`, not recorded from a running OpenSearch, so it is provisional until a fixture step records it.
 
 ## S3 request budget
 

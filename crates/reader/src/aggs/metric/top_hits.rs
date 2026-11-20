@@ -36,7 +36,7 @@ use crate::fetch::highlight_parse::{HighlightSpec, parse_highlight};
 use crate::fetch::source_filter::{SourceFilter, parse_source};
 use crate::search::{Hit, ShardError};
 use crate::search_sort::{KeyKind, Sort, sort_fields};
-use crate::search_top::collect_top;
+use crate::search_top::{TopOptions, collect_top};
 
 /// `TopHitsAggregationBuilder.DEFAULT_SIZE`.
 pub const DEFAULT_SIZE: usize = 3;
@@ -292,6 +292,7 @@ pub(crate) fn fill<S: BlobStore + 'static>(
             0,
             EXACT,
             None,
+            TopOptions::default(),
         )?;
         if plan.sort.is_some() {
             // Scores are tracked only on request (`track_scores`, not served):

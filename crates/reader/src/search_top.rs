@@ -4,12 +4,12 @@
 
 use std::collections::HashMap;
 
-use lucene_search::BooleanQuery;
 use lucene_search::collector::TopDocsCollector;
 use lucene_search::field_norms::FieldNorms;
 use lucene_search::index_searcher::IndexSearcher;
-use lucene_search::multi_segment::OpenSegment;
-use lucene_search::top_field::{FieldDoc, SortField, search_sorted};
+use lucene_search::multi_segment::{OpenSegment, search_boolean_query_multi_segment_min_score};
+use lucene_search::top_field::{FieldDoc, SortField, search_sorted_min_score};
+use lucene_search::{BooleanQuery, ScoreDoc, TotalHits};
 use oss_blob::BlobStore;
 
 use crate::OpenShard;
@@ -28,6 +28,13 @@ pub(crate) struct Top {
     pub hits: Vec<Hit>,
 }
 
+/// What a search's collectors are asked besides the window.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct TopOptions {
+    /// `min_score`: `MinimumScoreCollector` around the collectors.
+    pub min_score: Option<f32>,
+}
+
 /// Collects the top `window` documents of `query` in `sort` (by score when
 /// `None`), counting matches exactly up to `limit`, and drops the first
 /// `from`. `after` resumes a sorted page.
@@ -42,10 +49,11 @@ pub(crate) fn collect_top<S: BlobStore + 'static>(
     from: usize,
     limit: u64,
     after: Option<&FieldDoc>,
+    options: TopOptions,
 ) -> Result<Top, ShardError> {
     match sort {
         Some((keys, kinds)) if window > 0 => {
-            let top = search_sorted(
+            let top = search_sorted_min_score(
                 segments,
                 shard.reader.segment_readers(),
                 query,
@@ -54,6 +62,9 @@ pub(crate) fn collect_top<S: BlobStore + 'static>(
                 window,
                 limit,
                 after,
+                false,
+                &[],
+                options.min_score,
             )
             .map_err(ShardError::engine)?;
             let score_at = kinds.iter().position(|k| *k == KeyKind::Score);
@@ -73,13 +84,26 @@ pub(crate) fn collect_top<S: BlobStore + 'static>(
             })
         }
         _ => {
-            let searcher = IndexSearcher::new(segments, norms).map_err(ShardError::engine)?;
+            let scored;
             let mut collector = TopDocsCollector::with_total_hits_threshold(window, limit);
-            searcher
-                .search_collector(query, &mut collector)
-                .map_err(ShardError::engine)?;
-            let top = collector.top_docs();
-            let counted = collector.total_hits();
+            let (top, counted): (&[ScoreDoc], TotalHits) = match options.min_score {
+                Some(min) => {
+                    let (docs, counted) = search_boolean_query_multi_segment_min_score(
+                        segments, query, norms, window, limit, min,
+                    )
+                    .map_err(ShardError::engine)?;
+                    scored = docs;
+                    (&scored, counted)
+                }
+                None => {
+                    let searcher =
+                        IndexSearcher::new(segments, norms).map_err(ShardError::engine)?;
+                    searcher
+                        .search_collector(query, &mut collector)
+                        .map_err(ShardError::engine)?;
+                    (collector.top_docs(), collector.total_hits())
+                }
+            };
             let (total, exact) = reported(counted.value, counted.relation, limit);
             Ok(Top {
                 total,

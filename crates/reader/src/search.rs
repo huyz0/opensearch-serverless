@@ -38,7 +38,7 @@ use crate::fetch::source_filter::SourceFilter;
 use crate::lucene_query::{QueryContext, shard_failure, to_lucene};
 use crate::mapping::FieldType;
 use crate::search_sort::{KeyKind, sort_fields};
-use crate::search_top::collect_top;
+use crate::search_top::{TopOptions, collect_top};
 
 /// `index.max_result_window`'s default: the most `from + size` may reach.
 pub const MAX_RESULT_WINDOW: usize = 10_000;
@@ -276,6 +276,13 @@ pub fn search<S: BlobStore + 'static>(
             format!("explain of {what} is not supported by this node yet"),
         )));
     }
+    if source.min_score.is_some() && !source.aggs.is_empty() {
+        // The collector wraps the aggregations' too; this node's do not.
+        return Err(ShardError::bad_request(Failure::plain(
+            "illegal_argument_exception",
+            "[min_score] with aggregations is not supported by this node yet",
+        )));
+    }
     let sort = sort_fields(&source.sort, shard, index)?;
     docvalue_fields::check_count(&source.docvalue_fields)?;
     let after = if source.search_after.is_empty() {
@@ -341,6 +348,9 @@ pub fn search<S: BlobStore + 'static>(
         source.from,
         limit,
         after.as_ref(),
+        TopOptions {
+            min_score: source.min_score,
+        },
     )?;
     let mut hits = Hits {
         total: top.total,
