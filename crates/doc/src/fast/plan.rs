@@ -104,7 +104,18 @@ struct Entry {
 
 /// The entry `leaf` is in a plan, or `None` when the plan cannot read it.
 fn entry(name: &str, leaf: &Leaf, spec: Spec, number: i32) -> Option<Entry> {
-    if !plain(leaf) || spec.store || !spec.adds_anything() || spec.field_names() {
+    if !plain(leaf) {
+        return None;
+    }
+    // A stored field, one that adds nothing and one the engine would have to name in
+    // `_field_names` stay with the complete path.
+    if spec.store {
+        return None;
+    }
+    if !spec.adds_anything() {
+        return None;
+    }
+    if spec.field_names() {
         return None;
     }
     let mut e = Entry {

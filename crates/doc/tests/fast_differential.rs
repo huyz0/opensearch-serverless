@@ -444,7 +444,18 @@ fn fields_the_plan_reads_with_their_parameters_equal_the_complete_path() {
     ] {
         let mapping = format!(r#"{{"properties":{{{field}}}}}"#);
         let doc = format!(r#"{{"f":{value}}}"#);
-        run(&mapping, &[doc.as_str(); 5]);
+        let taken = run(&mapping, &[doc.as_str(); 5]);
+        // The first document numbers the field; the plan reads the rest, so each parameter is
+        // one the plan carries (a declined field would trivially equal the complete path).
+        // Left to the complete path: a value `ignore_above` drops indexes nothing, so the field
+        // is never numbered; text without norms and a long without doc values are not carried.
+        let declined = value == r#""abcdef""#
+            || field.contains(r#""norms":false"#)
+            || field.contains(r#""type":"long","doc_values":false"#);
+        assert!(
+            declined || taken[1..].iter().all(|&t| t),
+            "{field} {value}: {taken:?}"
+        );
     }
 }
 
