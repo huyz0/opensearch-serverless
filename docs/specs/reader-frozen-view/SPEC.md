@@ -18,7 +18,7 @@ Not here: forwarding a frozen search to the node that holds the view, the node's
 - AC-4: a view that is still capturing, or has no entry for the shard, is refused as `NotFrozen`.
 - AC-5: a file with no length is refused as `UnknownLength`; a location nobody can follow is a format error.
 - AC-6: a missing index is not found after the one GET.
-- AC-7: a view of a bucketed index resolves its node-packed files after the one descriptor GET, from a shard reference that needs no storage of its own; a file in any other location is refused.
+- AC-7: a view of a bucketed index resolves its files after the one descriptor GET, node-packed ones to their packs and others under its one shard's own path (`segments/<index>#<uuid>#0/`); an unfollowable location is refused.
 
 ## Tests
 
