@@ -221,3 +221,21 @@ fn a_reopened_shard_publishes_at_its_first_write() {
     write(&r.role);
     assert_eq!(published(&r), 1, "never published as far as it knows");
 }
+
+#[test]
+fn a_refresh_publishes_what_was_written_and_the_timer_then_finds_nothing() {
+    let r = rig(1_000);
+    write(&r.role);
+    r.role.refresh(&info(), 0).expect("refreshes");
+    let newest = r.role.newest_commit("logs-uuid", 0).expect("staged");
+    assert_eq!(CommitManifest::parse(&newest).expect("parses").term, 3);
+    assert_eq!(published(&r), 0, "the refresh published it");
+}
+
+#[test]
+fn a_refresh_of_a_shard_not_held_is_refused() {
+    let r = rig(1_000);
+    let mut other = info();
+    other.uuid = "other".into();
+    assert!(r.role.refresh(&other, 0).is_err());
+}

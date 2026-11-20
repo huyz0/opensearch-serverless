@@ -19,6 +19,7 @@ mod newest_commit;
 mod opener;
 mod publish_timer;
 mod publishing;
+mod refresh;
 mod slot;
 mod tail;
 mod target;
@@ -462,22 +463,6 @@ impl WriterRole {
                 },
             })
             .collect()
-    }
-
-    /// Refreshes a shard held here.
-    ///
-    /// # Errors
-    ///
-    /// The shard not held, or the engine's.
-    pub fn refresh(&self, index: &IndexInfo, shard: u32) -> Result<(), String> {
-        match self.slot(&index.uuid, shard) {
-            Some(slot) => lock(&slot).refresh(),
-            // ALLOC: error path; one message.
-            None => Err(format!(
-                "[{}][{shard}] is not open on this node",
-                index.name
-            )),
-        }
     }
 }
 

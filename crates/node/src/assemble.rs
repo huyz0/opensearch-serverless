@@ -26,8 +26,8 @@ use crate::pit_route::{self, PitService};
 use crate::search::{self, SearchService};
 use crate::tail_node::{self, TailError, TailNode, TailParts};
 use crate::writer::{
-    JanitorPass, JanitorTimer, PassLimits, PublishTimer, Publishing, Routes, ShardOpener,
-    WriterRole,
+    Incarnation, JanitorPass, JanitorTimer, PassLimits, PublishTimer, Publishing, Routes,
+    ShardNames, ShardOpener, WriterRole,
 };
 
 /// Buffers the store's bodies stream through, a node's worth.
@@ -105,6 +105,12 @@ pub struct Writer {
     pub routes: Arc<dyn Routes>,
     /// What opens a shard a write names and the node does not hold yet.
     pub opener: Option<Arc<dyn ShardOpener>>,
+    /// The names the committer's admission finds a shard's head by, shared
+    /// with it; none, and the role keeps its own.
+    pub names: Option<Arc<ShardNames>>,
+    /// Confirms an open shard's index is still the incarnation it was
+    /// opened for, at most once a window.
+    pub incarnation: Option<(Arc<dyn Incarnation>, Duration)>,
 }
 
 /// Why a node was not assembled.
@@ -266,6 +272,12 @@ pub fn assemble(
     let mut role = WriterRole::new(writer.committer, writer.routes).with_publishing(publishing);
     if let Some(opener) = writer.opener {
         role = role.with_opener(opener);
+    }
+    if let Some(names) = writer.names {
+        role = role.with_names(names);
+    }
+    if let Some((check, window)) = writer.incarnation {
+        role = role.with_incarnation(check, window);
     }
     let role = Arc::new(role);
     let clock: PitClock = Arc::new(now_millis);

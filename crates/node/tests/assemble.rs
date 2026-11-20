@@ -97,6 +97,8 @@ fn writer(store: &Arc<Emulator>) -> Writer {
         )),
         routes: Arc::new(Local),
         opener: None,
+        names: None,
+        incarnation: None,
     }
 }
 
