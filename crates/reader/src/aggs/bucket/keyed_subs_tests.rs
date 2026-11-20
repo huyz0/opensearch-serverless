@@ -256,7 +256,7 @@ fn a_histograms_sub_aggregations_reserve_for_the_fields_values() {
     );
     assert_eq!(keyed_subs::reserved(&shard, &unmapped), 0);
     let fixed = aggs(
-        r#"{"aggs":{"f":{"filters":{"filters":[{"match_all":{}}]},
+        r#"{"aggs":{"r":{"range":{"field":"n","ranges":[{"to":5}]},
             "aggs":{"m":{"min":{"field":"n"}}}}}}"#,
     );
     assert_eq!(keyed_subs::reserved(&shard, &fixed), 0);
