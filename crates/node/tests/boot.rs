@@ -30,7 +30,7 @@ fn enrolled(root: &std::path::Path) -> Vec<String> {
     ids
 }
 
-fn config(root: &std::path::Path, id: &str) -> NodeConfig {
+fn config(root: &std::path::Path, id: &str, ttl: &str) -> NodeConfig {
     let root = root.display().to_string();
     let lookup = |key: &str| {
         Some(
@@ -39,8 +39,8 @@ fn config(root: &std::path::Path, id: &str) -> NodeConfig {
                 "OSS_STORE" => "fs",
                 "OSS_FS_ROOT" => root.as_str(),
                 "OSS_HTTP_ADDR" => "127.0.0.1:0",
-                // Fast enough for a test to see a peer; a third of it is the tick.
-                "OSS_LEASE_TTL_MS" => "600",
+                // A third of it is the renewal tick.
+                "OSS_LEASE_TTL_MS" => ttl,
                 _ => return None,
             }
             .to_owned(),
@@ -79,7 +79,7 @@ fn wait_for(what: &str, mut done: impl FnMut() -> bool) {
 #[test]
 fn a_started_node_is_enrolled_and_reports_itself() {
     let dir = TempDir::new("boot-health");
-    let node = start(&config(dir.path(), "n1")).expect("starts");
+    let node = start(&config(dir.path(), "n1", "30000")).expect("starts");
     assert_eq!(nodes_seen(&node), 1);
     assert_eq!(enrolled(dir.path()), ["n1"]);
     let health = call(&node, "GET", "/_cluster/health", None);
@@ -94,7 +94,7 @@ fn a_started_node_is_enrolled_and_reports_itself() {
 #[test]
 fn a_started_node_writes_and_reads_a_document() {
     let dir = TempDir::new("boot-doc");
-    let node = start(&config(dir.path(), "n1")).expect("starts");
+    let node = start(&config(dir.path(), "n1", "30000")).expect("starts");
     let made = call(&node, "PUT", "/logs", None);
     assert_eq!(made.status, 200, "{}", made.text());
     let wrote = call(&node, "PUT", "/logs/_doc/1", Some(r#"{"n":1}"#));
@@ -109,12 +109,12 @@ fn a_started_node_writes_and_reads_a_document() {
 #[test]
 fn a_second_node_is_seen_and_a_dropped_one_is_released() {
     let dir = TempDir::new("boot-pair");
-    let first = start(&config(dir.path(), "n1")).expect("starts");
-    let second = start(&config(dir.path(), "n2")).expect("starts");
+    let first = start(&config(dir.path(), "n1", "3000")).expect("starts");
+    let second = start(&config(dir.path(), "n2", "3000")).expect("starts");
     assert_eq!(enrolled(dir.path()), ["n1", "n2"]);
     wait_for("the first never saw the second", || nodes_seen(&first) == 2);
     drop(second);
-    // Released, not lapsed: the lease lasts 600 ms and the index is read at once.
+    // Released, not lapsed: the lease lasts 3 s and the index is read at once.
     assert_eq!(enrolled(dir.path()), ["n1"]);
     wait_for("the first never saw the second leave", || {
         nodes_seen(&first) == 1
