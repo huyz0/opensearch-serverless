@@ -56,7 +56,7 @@ pub struct DeleteService {
 
 impl DeleteService {
     /// A service over `store` under `base`. Each request holds
-    /// `BUFFERS` buffers of `buffer_bytes`, charged to the request-body pool.
+    /// five buffers of `buffer_bytes`, charged to the request-body pool.
     ///
     /// # Errors
     ///
