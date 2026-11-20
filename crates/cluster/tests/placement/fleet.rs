@@ -306,3 +306,27 @@ fn reapers_are_the_same_on_every_node_and_a_departure_moves_only_its_own() {
         .collect();
     assert!(firsts.len() > 1);
 }
+
+#[test]
+fn a_revoked_member_the_dead_node_itself_and_a_non_writer_are_each_never_a_reaper() {
+    let ingest = |id: &str| {
+        let mut l = oss_format::NodeLease::new(id, "e", "a", 0);
+        l.set_roles(["ingest".to_owned()]);
+        l
+    };
+    let mut revoked = ingest("revoked");
+    revoked.revoked = true;
+    let mut reader = oss_format::NodeLease::new("reader", "e", "a", 0);
+    reader.set_roles(["search".to_owned()]);
+    let members = [revoked, ingest("dead"), reader, ingest("ok")];
+    // Each excluded member alone with one good one: only the good one.
+    for bad in 0..3 {
+        let pair = [members[bad].clone(), members[3].clone()];
+        assert_eq!(
+            oss_cluster::placement::reapers_for("dead", pair.iter(), 2),
+            ["ok"],
+            "{}",
+            members[bad].node_id
+        );
+    }
+}
