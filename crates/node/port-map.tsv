@@ -43,6 +43,11 @@ src/writer/janitor_pass.rs	new		the janitor's sweep over the held shards that pu
 src/writer/janitor_timer.rs	new		one thread running the janitor pass on an interval, the sweep config read each pass; the Java reconciler is a scheduled executor task
 src/time_value.rs	port	server/src/main/java/org/opensearch/common/unit/TimeValue.java@3.10.0	parseTimeValue for the keep-alive units, and the default and longest keep-alive
 src/search_frozen.rs	new		the search of a point in time over a view's frozen shard, split from search.rs; the Java opens the context its PIT id names in the engine
+src/admin_assemble.rs	new		registers the settings and index table routes every node serves, over the registers under the base
+src/cat_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/ListIndicesHandler.java@429b4cbc	_cat/indices and _list/indices over the descriptors: the walk, the named resolution and the pattern cap; no system-index test, as no plugin owns an index here
+src/cluster_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/ClusterSettingsHandler.java@429b4cbc	the register read and write; the plugin check and the node-local apply are not here
+src/health_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/ClusterHealthHandler.java@429b4cbc	the route, the wait loop and the answer; the judging is oss-coordinator; the source reads the membership and heads
+src/route_util.rs	new		a refusal as the edge error, a flag, a table sent: shared by the cluster, health and cat routes
 src/index_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/indexadmin/IndexAdminHandler.java	the create and exists routes over the descriptor store; delete, GET, mapping and settings routes are not here yet
 src/descriptor_routes.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/metadata/ServerlessIndexResolver.java	the routing partition size, routing shards and _routing.required a write reads from an index descriptor; every shard is local until the cluster half lands
 src/tail_node.rs	new		the assembly of the tail overlay: the shell wires TailPush, TailOverlays and the lease view in its node bootstrap
@@ -50,4 +55,4 @@ src/writer/newest_commit.rs	new		the newest-commit memory split from writer/mod.
 src/writer/tail.rs	new		the seam the write path tells the tail overlay through; the Java calls TailPush from its write path directly
 src/writer/opener.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/ShardReconciler.java	the open of a shard no writer has published yet: win its head, open under its term; a shard with a history is refused until takeover lands
 src/writer/refresh.rs	new		a refresh that publishes the commit it makes visible; the Java shell refreshes and publishes on separate paths
-src/cluster_routes.rs	new		owner by rendezvous over the held leases and the forward of a group as one BulkRequest; the Java splits this across FleetPlacement and ForwardedBulkAction
+src/cluster_owner.rs	new		owner by rendezvous over the held leases and the forward of a group as one BulkRequest; the Java splits this across FleetPlacement and ForwardedBulkAction

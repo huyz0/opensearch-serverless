@@ -1,339 +1,341 @@
-//! docs/specs/node-cluster-routing: the cluster half of the writer's routes.
+//! docs/specs/node-cluster-routes: cluster settings and cluster and cat health over REST.
 
-#![cfg(feature = "writer")]
+#[path = "cluster_support/mod.rs"]
+mod cluster_support;
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::sync::atomic::Ordering;
+use std::time::{Duration, Instant};
 
-use oss_cluster::placement::{ROLE_INGEST, ROLE_SEARCH, ShardKey, owner};
-use oss_format::NodeLease;
-use oss_node::cluster_routes::{BulkSend, ClusterRoutes, IndexSource};
-use oss_node::forward::ForwardError;
-use oss_node::push_link::Leases;
-use oss_node::writer::Routes;
-use oss_transport::actions::write::{BulkOutcome, BulkRequest, BulkResponse};
-use oss_writer::bulk::{Action, IndexInfo, ItemResult, Kind, Op, Owner, Planned};
-use oss_writer::index::{Expect, Outcome};
+use cluster_support::{call, get, health_of, rig};
+use oss_coordinator::cluster::health::HeadRead;
 
-const NOW: i64 = 1_000_000;
-
-struct Fixed(Arc<[NodeLease]>);
-
-impl Leases for Fixed {
-    fn current(&self) -> Arc<[NodeLease]> {
-        Arc::clone(&self.0)
-    }
-}
-
-struct Indexes;
-
-impl IndexSource for Indexes {
-    fn index(&self, name: &str) -> Option<IndexInfo> {
-        (name == "logs").then(info)
-    }
-}
-
-enum Answer {
-    Outcomes(Vec<BulkOutcome>),
-    Fail(fn() -> ForwardError),
-}
-
-struct Fake {
-    seen: Mutex<Vec<(String, BulkRequest)>>,
-    answer: Mutex<Option<Answer>>,
-}
-
-struct Sender(Arc<Fake>);
-
-impl BulkSend for Sender {
-    fn bulk(&self, node: &str, request: &BulkRequest) -> Result<BulkResponse, ForwardError> {
-        self.0
-            .seen
-            .lock()
-            .expect("lock")
-            .push((node.to_owned(), request.clone()));
-        match self.0.answer.lock().expect("lock").take() {
-            Some(Answer::Outcomes(outcomes)) => Ok(BulkResponse {
-                owner_node_id: node.to_owned(),
-                outcomes,
-                refreshed: false,
-            }),
-            Some(Answer::Fail(e)) => Err(e()),
-            None => Err(ForwardError::NoPeer),
-        }
-    }
-}
-
-fn info() -> IndexInfo {
-    IndexInfo {
-        name: "logs".into(),
-        uuid: "u1".into(),
-        shards: 4,
-        partition_size: 1,
-        routing_shards: 4,
-        routing_required: false,
-    }
-}
-
-fn lease(id: &str, role: &str) -> NodeLease {
-    let mut l = NodeLease::new(id, "eph", "127.0.0.1:9300", NOW + 30_000);
-    l.set_roles([role.to_owned()]);
-    l
-}
-
-fn routes(leases: Vec<NodeLease>, fake: &Arc<Fake>, me: &str) -> impl Routes {
-    ClusterRoutes::new(
-        Indexes,
-        Fixed(leases.into()),
-        Sender(Arc::clone(fake)),
-        me,
-        Box::new(|| NOW),
-    )
-}
-
-fn fake(answer: Answer) -> Arc<Fake> {
-    Arc::new(Fake {
-        seen: Mutex::default(),
-        answer: Mutex::new(Some(answer)),
-    })
-}
-
-fn op(kind: Kind, create: bool, source: &[u8]) -> Op {
-    Op {
-        action: Action {
-            kind,
-            index: Some("logs".into()),
-            id: Some("a".into()),
-            routing: Some("r".into()),
-            create,
-            expect: Expect::default(),
-            pipeline: None,
-            require_alias: false,
-        },
-        source: source.to_vec(),
-    }
-}
-
-fn fleet() -> Vec<NodeLease> {
-    ["n1", "n2", "n3"].map(|id| lease(id, ROLE_INGEST)).to_vec()
-}
-
-fn winner(ids: &[&str], shard: i32) -> String {
-    owner(ShardKey::new("logs", shard), ids.iter().copied())
-        .expect("a winner")
-        .to_owned()
-}
-
-// AC-1
 #[test]
-fn the_winner_is_local_only_on_its_own_node() {
-    let f = fake(Answer::Outcomes(vec![]));
-    for shard in 0..4u32 {
-        let w = winner(&["n1", "n2", "n3"], i32::try_from(shard).unwrap());
-        for me in ["n1", "n2", "n3"] {
-            let got = routes(fleet(), &f, me).owner(&info(), shard);
-            if me == w {
-                assert_eq!(got, Owner::Local, "shard {shard} on {me}");
-            } else {
-                assert_eq!(got, Owner::Node(w.clone()), "shard {shard} on {me}");
-            }
-        }
-    }
-}
-
-// AC-2
-#[test]
-fn dead_and_non_ingest_members_are_never_chosen() {
-    let f = fake(Answer::Outcomes(vec![]));
-    let mut leases = fleet();
-    leases.push(lease("search-only", ROLE_SEARCH));
-    let mut revoked = lease("revoked", ROLE_INGEST);
-    revoked.revoked = true;
-    leases.push(revoked);
-    let mut lapsed = lease("lapsed", ROLE_INGEST);
-    lapsed.expires_at_millis = NOW;
-    leases.push(lapsed);
-    for shard in 0..32u32 {
-        let w = winner(&["n1", "n2", "n3"], i32::try_from(shard).unwrap());
-        assert_eq!(
-            routes(leases.clone(), &f, "n9").owner(&info(), shard),
-            Owner::Node(w)
-        );
-    }
+fn a_settings_read_nests_or_flattens_the_registers_persistent_settings() {
+    let r = rig();
+    let never = get(&r, "/_cluster/settings");
+    assert_eq!(never.status, 200, "{}", never.text());
+    assert_eq!(never.text(), r#"{"persistent":{},"transient":{}}"#);
+    let put = call(
+        &r,
+        "PUT",
+        "/_cluster/settings",
+        Some(r#"{"persistent":{"serverless":{"bucket":"auto"},"serverless.tail_overlay":"true"}}"#),
+    );
+    assert_eq!(put.status, 200, "{}", put.text());
     assert_eq!(
-        routes(vec![lease("s", ROLE_SEARCH)], &f, "n1").owner(&info(), 0),
-        Owner::Local
+        get(&r, "/_cluster/settings").text(),
+        r#"{"persistent":{"serverless":{"bucket":"auto","tail_overlay":"true"}},"transient":{}}"#
+    );
+    assert_eq!(
+        get(
+            &r,
+            "/_cluster/settings?flat_settings=true&include_defaults=true"
+        )
+        .text(),
+        r#"{"persistent":{"serverless.bucket":"auto","serverless.tail_overlay":"true"},"transient":{},"defaults":{}}"#
     );
 }
 
 #[test]
-fn an_index_is_the_sources() {
-    let f = fake(Answer::Outcomes(vec![]));
-    let r = routes(fleet(), &f, "n1");
-    assert!(r.index("logs").is_some());
-    assert!(r.index("other").is_none());
+fn an_update_answers_what_the_register_holds_and_merges_and_removes() {
+    let r = rig();
+    let first = call(
+        &r,
+        "PUT",
+        "/_cluster/settings",
+        Some(r#"{"persistent":{"serverless.bucket":"auto","a.b":1}}"#),
+    );
+    assert_eq!(
+        first.text(),
+        r#"{"acknowledged":true,"persistent":{"a":{"b":"1"},"serverless":{"bucket":"auto"}},"transient":{}}"#
+    );
+    let second = call(
+        &r,
+        "PUT",
+        "/_cluster/settings?flat_settings=true",
+        Some(r#"{"persistent":{"serverless.bucket":null,"c":true}}"#),
+    );
+    assert_eq!(
+        second.text(),
+        r#"{"acknowledged":true,"persistent":{"a.b":"1","c":"true"},"transient":{}}"#
+    );
 }
 
-fn planned<'o>(ops: &'o [Op], ids: &'o [&'o str]) -> Vec<Planned<'o>> {
-    ops.iter()
-        .zip(ids)
-        .enumerate()
-        .map(|(position, (op, id))| Planned { position, op, id })
-        .collect()
-}
-
-fn ok(created: bool) -> BulkOutcome {
-    BulkOutcome {
-        created,
-        version: 3,
-        seq_no: 7,
-        primary_term: 2,
-        ..BulkOutcome::default()
-    }
-}
-
-// AC-3 and AC-4
 #[test]
-fn a_group_is_one_request_and_each_outcome_is_the_items() {
-    let ops = [
-        op(Kind::Index, false, b"{\"a\":1}"),
-        op(Kind::Create, false, b"{}"),
-        op(Kind::Delete, false, b""),
-        op(Kind::Delete, false, b""),
-        op(Kind::Index, false, b"{}"),
-        op(Kind::Index, true, b"{}"),
-        op(Kind::Index, false, b"{}"),
+fn a_refused_update_answers_the_coordinators_words_and_writes_nothing() {
+    let r = rig();
+    let cases: [(Option<&str>, u16, &str, &str); 6] = [
+        (
+            None,
+            400,
+            "illegal_argument_exception",
+            "a settings update needs a 'persistent' object",
+        ),
+        (
+            Some(r#"{"transient":{"a":"b"}}"#),
+            400,
+            "illegal_argument_exception",
+            "a settings update needs a 'persistent' object",
+        ),
+        (
+            Some(r#"{"persistent":{"a":"b"},"transient":{"c":"d"}}"#),
+            501,
+            "status_exception",
+            "transient settings are not supported; use persistent",
+        ),
+        (
+            Some(r#"{"persistent":{"a":["b"]}}"#),
+            501,
+            "status_exception",
+            "'a' is a list; list-valued settings are not supported on this register",
+        ),
+        (
+            Some(r#"{"persistent":{"serverless.bucket":"sometimes"}}"#),
+            400,
+            "status_exception",
+            "bucket must be [auto] or [off], got [sometimes]",
+        ),
+        (
+            // Below the larger of 1,000 ms and twice the 250 ms commit period.
+            Some(r#"{"persistent":{"serverless.wal.node_log.commits.checkpoint_millis":"10"}}"#),
+            400,
+            "status_exception",
+            "checkpoint_millis",
+        ),
     ];
-    let ids = ["1", "2", "3", "4", "5", "6", "7"];
-    let outcomes = vec![
-        ok(true),
-        ok(false),
-        BulkOutcome {
-            deletion: true,
-            found: true,
-            ..ok(false)
-        },
-        BulkOutcome {
-            deletion: true,
-            ..ok(false)
-        },
-        BulkOutcome {
-            failure: Some("conflict".into()),
-            conflict: true,
-            ..BulkOutcome::default()
-        },
-        BulkOutcome {
-            failure: Some("busy".into()),
-            retryable: true,
-            ..BulkOutcome::default()
-        },
-        BulkOutcome {
-            failure: Some("boom".into()),
-            ..BulkOutcome::default()
-        },
-    ];
-    let f = fake(Answer::Outcomes(outcomes));
-    let group = planned(&ops, &ids);
-    let results = routes(fleet(), &f, "n1").forward("n2", &info(), 2, &group);
-    let seen = f.seen.lock().expect("lock");
-    assert_eq!(seen.len(), 1);
-    let (node, request) = &seen[0];
-    assert_eq!(node, "n2");
-    assert_eq!((request.index.as_str(), request.shard), ("logs", 2));
-    assert_eq!(request.index_uuid.as_deref(), Some("u1"));
-    let sent = &request.operations;
-    assert_eq!(sent.len(), 7);
+    for (body, status, kind, words) in cases {
+        let reply = call(&r, "PUT", "/_cluster/settings", body);
+        let text = reply.text();
+        assert_eq!(reply.status, status, "{body:?}: {text}");
+        assert!(text.contains(kind), "{body:?}: {text}");
+        assert!(text.contains(words), "{body:?}: {text}");
+    }
     assert_eq!(
-        (sent[0].id.as_str(), sent[0].source.as_str()),
-        ("1", "{\"a\":1}")
+        get(&r, "/_cluster/settings").text(),
+        r#"{"persistent":{},"transient":{}}"#
     );
-    assert_eq!(sent[0].routing.as_deref(), Some("r"));
-    assert!(!sent[0].deletion && !sent[0].require_absent);
-    assert!(sent[1].require_absent);
-    assert!(sent[2].deletion && sent[2].source.is_empty());
-    assert!(sent[5].require_absent);
-    assert_eq!(sent[0].if_seq_no, oss_writer::index::UNASSIGNED_SEQ_NO);
+}
 
-    let written = |r: &ItemResult| match r {
-        ItemResult::Written { written, .. } => Some(*written),
-        ItemResult::Failed { .. } => None,
-    };
-    let w0 = written(&results[0]).expect("written");
-    assert_eq!(
-        (w0.outcome, w0.version, w0.seq_no, w0.primary_term),
-        (Outcome::Created, 3, 7, 2)
-    );
-    assert_eq!(written(&results[1]).expect("w").outcome, Outcome::Updated);
-    assert_eq!(written(&results[2]).expect("w").outcome, Outcome::Deleted);
-    assert_eq!(written(&results[3]).expect("w").outcome, Outcome::NotFound);
-    let status = |r: &ItemResult| match r {
-        ItemResult::Failed { status, .. } => *status,
-        ItemResult::Written { .. } => 0,
-    };
-    assert_eq!(
-        [
-            status(&results[4]),
-            status(&results[5]),
-            status(&results[6])
+#[test]
+fn an_unscoped_health_answers_the_node_half_and_says_it_is_partial() {
+    let r = rig();
+    let reply = get(&r, "/_cluster/health");
+    let text = reply.text();
+    assert_eq!(reply.status, 200, "{text}");
+    for part in [
+        r#""cluster_name":"test-cluster""#,
+        r#""status":"green""#,
+        r#""status_scope":"control_plane""#,
+        r#""timed_out":false"#,
+        r#""number_of_nodes":3"#,
+        r#""number_of_data_nodes":3"#,
+        r#""complete":false"#,
+        r#""replication":"object-store""#,
+        r#""yellow_reachable":false"#,
+    ] {
+        assert!(text.contains(part), "{part}: {text}");
+    }
+    assert!(!text.contains("active_shards"), "{text}");
+    assert!(!text.contains("\"indices\""), "{text}");
+}
+
+#[test]
+fn a_scoped_health_counts_each_indexs_shards_and_their_states() {
+    let r = rig();
+    health_of(
+        &r,
+        "logs",
+        &[
+            (0, HeadRead::Owned { held: true }),
+            (1, HeadRead::Unowned),
+            (2, HeadRead::Owned { held: false }),
         ],
-        [409, 429, 500]
+    );
+    health_of(&r, "docs", &[(0, HeadRead::Owned { held: true })]);
+    let text = get(&r, "/_cluster/health/logs,docs").text();
+    for part in [
+        r#""status":"green""#,
+        r#""complete":true"#,
+        r#""active_primary_shards":4"#,
+        r#""active_shards":4"#,
+        r#""unassigned_shards":0"#,
+        r#""dormant_shards":2"#,
+        r#""active_shards_percent_as_number":100.0"#,
+        r#""active_shards_percent":"100.0%""#,
+        r#""indices":{"logs":{"status":"green","number_of_shards":3,"number_of_replicas":0,"active_primary_shards":3,"active_shards":3,"relocating_shards":0,"initializing_shards":0,"unassigned_shards":0,"dormant_shards":2}"#,
+    ] {
+        assert!(text.contains(part), "{part}: {text}");
+    }
+    assert!(!text.contains("\"shards\":{"), "{text}");
+    let shards = get(&r, "/_cluster/health/logs?level=shards").text();
+    assert!(
+        shards.contains(
+            r#""shards":{"0":{"status":"green","state":"owned","number_of_replicas":0},"1":{"status":"green","state":"dormant","number_of_replicas":0},"2":{"status":"green","state":"dormant","number_of_replicas":0}}"#
+        ),
+        "{shards}"
     );
 }
 
-// AC-5
 #[test]
-fn a_gone_owner_a_large_request_and_a_short_answer_fail_their_items() {
-    let ops = [op(Kind::Index, false, b"{}"), op(Kind::Index, false, b"{}")];
-    let ids = ["1", "2"];
-    let group = planned(&ops, &ids);
-    let status = |r: &ItemResult| match r {
-        ItemResult::Failed { status, .. } => *status,
-        ItemResult::Written { .. } => 0,
-    };
-    let f = fake(Answer::Fail(|| ForwardError::Gone));
-    let r = routes(fleet(), &f, "n1").forward("n2", &info(), 0, &group);
-    assert_eq!(r.iter().map(status).collect::<Vec<_>>(), [503, 503]);
-    let f = fake(Answer::Fail(|| ForwardError::TooLarge));
-    let r = routes(fleet(), &f, "n1").forward("n2", &info(), 0, &group);
-    assert_eq!(r.iter().map(status).collect::<Vec<_>>(), [413, 413]);
-    let f = fake(Answer::Outcomes(vec![ok(true)]));
-    let r = routes(fleet(), &f, "n1").forward("n2", &info(), 0, &group);
-    assert_eq!(r.iter().map(status).collect::<Vec<_>>(), [0, 502]);
-    let f = fake(Answer::Outcomes(vec![ok(true), ok(true), ok(true)]));
-    let r = routes(fleet(), &f, "n1").forward("n2", &info(), 0, &group);
-    assert_eq!(r.iter().map(status).collect::<Vec<_>>(), [502, 502]);
+fn a_missing_index_is_404_and_what_cannot_be_read_is_red_not_an_error() {
+    let r = rig();
+    let missing = get(&r, "/_cluster/health/nope");
+    assert_eq!(missing.status, 404, "{}", missing.text());
+    assert!(
+        missing.text().contains("index_not_found"),
+        "{}",
+        missing.text()
+    );
+    assert!(
+        missing.text().contains("no such index: nope"),
+        "{}",
+        missing.text()
+    );
+
+    health_of(
+        &r,
+        "logs",
+        &[
+            (0, HeadRead::Owned { held: true }),
+            (1, HeadRead::Unreadable),
+        ],
+    );
+    let red = get(&r, "/_cluster/health/logs?level=shards");
+    let text = red.text();
+    assert_eq!(red.status, 200, "{text}");
+    assert!(text.contains(r#""status":"red""#), "{text}");
+    assert!(text.contains(r#""unassigned_shards":1"#), "{text}");
+    assert!(text.contains(r#""state":"unservable""#), "{text}");
+    assert!(
+        text.contains(r#""active_shards_percent":"50.0%""#),
+        "{text}"
+    );
+
+    r.fake.unreadable.store(true, Ordering::SeqCst);
+    let down = get(&r, "/_cluster/health");
+    assert_eq!(down.status, 200, "{}", down.text());
+    assert!(down.text().contains(r#""status":"red""#), "{}", down.text());
 }
 
-// AC-6
 #[test]
-fn an_update_or_bad_utf8_fails_alone_and_is_not_sent() {
-    let ops = [
-        op(Kind::Update, false, b"{}"),
-        op(Kind::Index, false, &[0xff, 0xfe]),
-        op(Kind::Delete, false, &[0xff]),
-        op(Kind::Index, false, b"{}"),
-    ];
-    let ids = ["1", "2", "3", "4"];
-    let group = planned(&ops, &ids);
-    let f = fake(Answer::Outcomes(vec![
-        BulkOutcome {
-            deletion: true,
-            found: true,
-            ..ok(false)
-        },
-        ok(true),
-    ]));
-    let r = routes(fleet(), &f, "n1").forward("n2", &info(), 0, &group);
-    let seen = f.seen.lock().expect("lock");
-    let ids_sent: Vec<&str> = seen[0].1.operations.iter().map(|o| o.id.as_str()).collect();
-    assert_eq!(ids_sent, ["3", "4"]);
-    assert!(matches!(r[0], ItemResult::Failed { status: 400, .. }));
-    assert!(matches!(r[1], ItemResult::Failed { status: 400, .. }));
-    assert!(matches!(r[2], ItemResult::Written { .. }));
-    assert!(matches!(r[3], ItemResult::Written { .. }));
+fn wait_for_nodes_waits_and_a_wait_that_ran_out_is_408() {
+    let r = rig();
+    let started = Instant::now();
+    let out = get(&r, "/_cluster/health?wait_for_nodes=5&timeout=300ms");
+    assert_eq!(out.status, 408, "{}", out.text());
+    assert!(out.text().contains(r#""timed_out":true"#), "{}", out.text());
+    assert!(started.elapsed() >= Duration::from_millis(300));
 
-    let f = fake(Answer::Outcomes(vec![]));
-    let only = planned(&ops[..1], &ids[..1]);
-    let r = routes(fleet(), &f, "n1").forward("n2", &info(), 0, &only);
-    assert!(f.seen.lock().expect("lock").is_empty());
-    assert!(matches!(r[0], ItemResult::Failed { status: 400, .. }));
+    for (condition, ok) in [
+        ("3", true),
+        (">=3", true),
+        ("ge(3)", true),
+        (">3", false),
+        ("<=3", true),
+        ("<3", false),
+        ("lt(4)", true),
+        ("gt(3)", false),
+    ] {
+        let reply = get(
+            &r,
+            &format!("/_cluster/health?wait_for_nodes={condition}&timeout=0ms"),
+        );
+        assert_eq!(reply.status == 200, ok, "{condition}: {}", reply.text());
+    }
+
+    let fake = Arc::clone(&r.fake);
+    let raiser = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(100));
+        fake.nodes.store(5, Ordering::SeqCst);
+    });
+    let waited = get(&r, "/_cluster/health?wait_for_nodes=5&timeout=10s");
+    raiser.join().expect("joins");
+    assert_eq!(waited.status, 200, "{}", waited.text());
+    assert!(waited.text().contains(r#""number_of_nodes":5"#));
+
+    let bad = get(&r, "/_cluster/health?wait_for_nodes=many");
+    assert_eq!(bad.status, 400, "{}", bad.text());
+    assert!(bad.text().contains("invalid_parameter"), "{}", bad.text());
+    let unscoped = get(&r, "/_cluster/health?wait_for_status=green");
+    assert_eq!(unscoped.status, 400, "{}", unscoped.text());
+    assert!(unscoped.text().contains("unscoped_wait_for_status"));
+
+    health_of(&r, "logs", &[(0, HeadRead::Unreadable)]);
+    let red = get(
+        &r,
+        "/_cluster/health/logs?wait_for_status=green&timeout=0ms",
+    );
+    assert_eq!(red.status, 408, "{}", red.text());
+}
+
+#[test]
+fn the_parameters_the_shell_refuses_are_501_and_its_hints_are_accepted() {
+    let r = rig();
+    for (query, words) in [
+        (
+            "wait_for_status=red",
+            "wait_for_status must be 'green' or 'yellow'",
+        ),
+        (
+            "wait_for_active_shards=all",
+            "wait_for_active_shards counts shards",
+        ),
+        ("wait_for_events=urgent", "wait_for_events waits on"),
+        (
+            "level=nodes",
+            "level must be 'cluster', 'indices' or 'shards'",
+        ),
+    ] {
+        let reply = get(&r, &format!("/_cluster/health?{query}"));
+        assert_eq!(reply.status, 501, "{query}: {}", reply.text());
+        assert!(reply.text().contains("unsupported_health_parameter"));
+        assert!(reply.text().contains(words), "{query}: {}", reply.text());
+    }
+    for hint in [
+        "local=true",
+        "master_timeout=1s",
+        "cluster_manager_timeout=1s",
+        "expand_wildcards=all",
+        "awareness_attribute=zone",
+        "ensure_node_weighed_in=true",
+        "wait_for_no_relocating_shards=true",
+        "wait_for_no_initializing_shards=true",
+    ] {
+        let reply = get(&r, &format!("/_cluster/health?{hint}"));
+        assert_eq!(reply.status, 200, "{hint}: {}", reply.text());
+    }
+}
+
+#[test]
+fn cat_health_is_one_row_in_text_or_json() {
+    let r = rig();
+    let text = get(&r, "/_cat/health");
+    assert_eq!(text.status, 200);
+    assert_eq!(text.text(), "test-cluster green 3 3 - -\n");
+    assert!(
+        text.header("content-type")
+            .is_some_and(|t| t.starts_with("text/plain")),
+        "{:?}",
+        text.header("content-type")
+    );
+    assert_eq!(
+        get(&r, "/_cat/health?v=true").text(),
+        "cluster      status node.total node.data shards dormant\ntest-cluster green  3          3         -      -\n"
+    );
+    // The cat route names no index, so it counts no shard.
+    let by_index = get(&r, "/_cat/health/logs");
+    assert_eq!(by_index.status, 400, "{}", by_index.text());
+    let named = get(&r, "/_cat/health?format=json");
+    assert_eq!(
+        named.text(),
+        r#"[{"cluster":"test-cluster","status":"green","node.total":"3","node.data":"3","shards":"-","dormant":"-"}]"#
+    );
+    assert!(
+        named
+            .header("content-type")
+            .is_some_and(|t| t.starts_with("application/json"))
+    );
+    assert_eq!(get(&r, "/_cat/health?h=status").status, 501);
+    assert_eq!(get(&r, "/_cat/health?s=status").status, 501);
 }

@@ -15,7 +15,7 @@ use oss_cluster::early_revoke::MIN_RENEWED_AGO_MILLIS;
 use oss_cluster::{ConnectProbe, EarlyRevoke, LeaseClock, LeaseConfig, Membership};
 use oss_format::NodeLease;
 use oss_mem::{BudgetConfig, MemoryBudget, Pool};
-use oss_node::cluster_routes::BulkSend;
+use oss_node::cluster_owner::BulkSend;
 use oss_node::forward::{BulkForwarder, ForwardError, MAX_FORWARD_BYTES};
 use oss_node::push_link::Leases;
 use oss_transport::actions::write::{

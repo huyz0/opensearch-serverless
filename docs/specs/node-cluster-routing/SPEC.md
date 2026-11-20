@@ -6,7 +6,7 @@ Parity plan R7.6, node assembly: `Routes::owner` and `Routes::forward` over the 
 
 ## Change
 
-`oss-node` (`writer` feature) gains `cluster_routes`:
+`oss-node` (`writer` feature) gains `cluster_owner`:
 
 - `IndexSource`: the index half of `Routes` (`index(name)`), which a descriptor-backed source supplies.
 - `BulkSend`: the one call a forward makes, implemented by `forward::BulkForwarder`.
@@ -24,7 +24,7 @@ Parity plan R7.6, node assembly: `Routes::owner` and `Routes::forward` over the 
 
 ## Test plan
 
-`crates/node/tests/cluster_routes.rs` with a fake `BulkSend` that records requests and a fixed lease list; each test red before the code.
+`crates/node/tests/cluster_owner.rs` with a fake `BulkSend` that records requests and a fixed lease list; each test red before the code.
 
 ## S3 request budget
 
