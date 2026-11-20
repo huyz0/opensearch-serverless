@@ -5,9 +5,15 @@
 //! what this binary was built with.
 
 #[cfg(all(feature = "reader", feature = "writer"))]
+mod admin_assemble;
+#[cfg(all(feature = "reader", feature = "writer"))]
 pub mod assemble;
 #[cfg(feature = "writer")]
 pub mod bulk_route;
+#[cfg(feature = "writer")]
+pub mod cat_route;
+#[cfg(feature = "writer")]
+pub mod cluster_route;
 #[cfg(feature = "writer")]
 pub mod descriptor_routes;
 #[cfg(feature = "writer")]
@@ -18,6 +24,8 @@ pub mod forward;
 pub mod get_route;
 #[cfg(any(feature = "reader", feature = "writer", feature = "coordinator"))]
 pub mod handlers;
+#[cfg(feature = "writer")]
+pub mod health_route;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub mod index_route;
 #[cfg(feature = "writer")]
@@ -38,6 +46,8 @@ pub mod push_link;
 pub mod push_sender;
 #[cfg(feature = "writer")]
 pub mod refresh_route;
+#[cfg(feature = "writer")]
+pub(crate) mod route_util;
 #[cfg(feature = "reader")]
 pub mod search;
 pub mod settings;
