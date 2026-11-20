@@ -27,6 +27,7 @@ Not changed: sequence numbers, versions, deletes, soft deletes, tombstones, the 
 - AC-8: the writer's replay and takeover tests pass unchanged with the plan in front.
 - AC-9: a 10,000-document `_bulk` issues the same number of PUT-class and GET-class requests, and the same sequential depth, as before (the request meter).
 - AC-10: a source over 1 MiB stays with the complete path: at 1, 8 and 32 MB of text the plan builds the document in the same time and holds about twice the source's bytes more at its peak, so it gains nothing there and costs memory.
+- AC-11: a null on a name no mapping holds is read by the plan and gives oss-doc's document (it maps nothing and indexes nothing); on a dynamic mapping with four document shapes only the documents that number a field first are declined.
 
 ## Test plan
 
