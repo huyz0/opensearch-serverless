@@ -10,6 +10,7 @@ fn shard(counts: [u64; 2]) -> Vec<(String, Value)> {
         "f".to_string(),
         Value::Filters(Box::new(FiltersResult {
             keyed: true,
+            single: false,
             buckets: vec![
                 ("a".to_string(), counts[0]),
                 ("_other_".to_string(), counts[1]),

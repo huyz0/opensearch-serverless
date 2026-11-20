@@ -93,6 +93,22 @@ fn the_counts_are_those_of_the_querys_matches() {
     assert_eq!(got, pairs(&[("0", 10), ("1", 10)]));
 }
 
+// AC-2
+#[test]
+fn a_filter_counts_the_documents_it_matches() {
+    let shard = shard("filter-one", DOCS);
+    let mut parts = run(
+        &shard,
+        r#"{"aggs":{"f":{"filter":{"range":{"n":{"lt":10}}}}}}"#,
+    )
+    .expect("searches");
+    let Value::Filters(r) = parts.remove(0).value else {
+        panic!("not a filter");
+    };
+    assert!(r.single);
+    assert_eq!(r.buckets, pairs(&[("0", 10)]));
+}
+
 // AC-3
 #[test]
 fn a_query_matching_nothing_counts_zero_and_a_filter_on_an_unmapped_field_matches_none() {
