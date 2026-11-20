@@ -7,6 +7,7 @@
 
 mod config;
 mod renew;
+mod transport;
 
 use std::net::TcpListener;
 use std::sync::Arc;
@@ -14,18 +15,31 @@ use std::time::Duration;
 
 use oss_blob::{BlobStore, Credentials, FsStore, S3Config, S3Store};
 use oss_cluster::heads::ShardHeadStore;
-use oss_cluster::{LeaseClock, LeaseConfig, LivenessOracle, Membership, SystemClock};
+use oss_cluster::transport_secret::{CachedTransportSecrets, TransportSecretStore};
+use oss_cluster::{
+    EarlyRevoke, LeaseClock, LeaseConfig, LivenessOracle, Membership, SystemClock, TcpProbe,
+};
 use oss_format::{NodeLease, NodeLogEpoch};
 use oss_mem::MemoryBudget;
 use oss_meta::{DeleteMode, DescriptorStore};
 use oss_rest::ServerConfig;
+use oss_transport::actions::write::BULK_ACTION;
+use oss_transport::auth::{AuthConfig, Authenticator};
+use oss_transport::client::{Client, ClientConfig};
+use oss_transport::server::{Server as TransportServer, ServerConfig as TransportConfig};
 use oss_writer::log::{CommitterConfig, LeaseKeeper, NodeLogCommitter, NodeLogStore};
 
 use crate::assemble::{self, AssembleError, Config, Running, Writer};
+use crate::bulk_handler::BulkHandler;
+use crate::cluster_owner::{ClusterRoutes, IndexSource};
 use crate::descriptor_routes::DescriptorRoutes;
+use crate::forward::BulkForwarder;
+use crate::handlers::Registry;
 use crate::health_route::StoreHealth;
+use crate::push_link::Leases;
 use crate::writer::{
-    DescriptorIncarnation, HeadAdmission, HeadOpener, MembershipLeaseWrite, ShardNames, Takeover,
+    DescriptorIncarnation, HeadAdmission, HeadOpener, MembershipLeaseWrite, Routes, ShardNames,
+    Takeover,
 };
 
 pub use config::{MIN_MEMORY_BYTES, NodeConfig, StoreChoice};
@@ -42,6 +56,9 @@ const READ_BUFFER: usize = 1 << 20;
 
 /// The bytes a takeover's replay buffers before it commits locally.
 const REPLAY_BUFFER: usize = 16_777_216;
+
+/// The most request nonces the transport remembers.
+const REPLAY_CAPACITY: usize = 65_536;
 
 /// The buffer a lease register is read through.
 const LEASE_BUFFER: usize = 1 << 16;
@@ -75,9 +92,11 @@ impl std::fmt::Display for BootError {
 
 impl std::error::Error for BootError {}
 
-/// A node running: dropping it stops its lease renewal and releases its lease.
+/// A node running: dropping it stops its lease renewal, its servers, and
+/// releases its lease.
 pub struct Node {
     running: Option<Running>,
+    transport: Option<TransportServer>,
     renewal: Option<Renewal>,
     membership: Arc<Membership>,
     node_id: String,
@@ -91,6 +110,14 @@ impl Node {
             Running::addr,
         )
     }
+
+    /// The address the node's transport server listens on.
+    pub fn transport_addr(&self) -> std::net::SocketAddr {
+        self.transport.as_ref().map_or_else(
+            || std::net::SocketAddr::from(([0, 0, 0, 0], 0)),
+            TransportServer::address,
+        )
+    }
 }
 
 impl Drop for Node {
@@ -98,8 +125,24 @@ impl Drop for Node {
         // The renewal stops first, so it cannot write the lease back.
         drop(self.renewal.take());
         drop(self.running.take());
+        drop(self.transport.take());
         // Best effort: an unreleased lease lapses in one lifetime.
         let _ = self.membership.release(&self.node_id);
+    }
+}
+
+/// The leases this node holds, for the forwarder.
+struct Held(Arc<Membership>);
+
+impl Leases for Held {
+    fn current(&self) -> Arc<[NodeLease]> {
+        self.0.current()
+    }
+}
+
+impl IndexSource for DescriptorRoutes {
+    fn index(&self, name: &str) -> Option<oss_writer::bulk::IndexInfo> {
+        Routes::index(self, name)
     }
 }
 
@@ -168,10 +211,50 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         .map(|e| u64::try_from(e.epoch).unwrap_or(0))
         .max()
         .map_or(1, |m| m.saturating_add(1));
-    let mut lease = NodeLease::new(&config.node_id, &ephemeral, &config.advertise, 0);
+
+    // The transport listens before the lease names its address; what it
+    // answers is filled in once the roles exist.
+    let secrets = TransportSecretStore::new(Arc::clone(&store), &config.base, Arc::clone(&clock))
+        .map_err(cluster)?;
+    let auth = Arc::new(Authenticator::new(
+        AuthConfig {
+            identity: oss_transport::auth::identity(&config.node_id, &ephemeral),
+            window_millis: config.lease_ttl_millis,
+            replay_capacity: REPLAY_CAPACITY,
+        },
+        Arc::new(CachedTransportSecrets::new(
+            secrets,
+            config.lease_ttl_millis,
+        )),
+        {
+            let clock = Arc::clone(&clock);
+            Arc::new(move || clock.now_millis())
+        },
+    ));
+    let late = transport::Late::default();
+    let late_slot = late.slot();
+    let mut registry = Registry::new(Arc::clone(&auth));
+    registry
+        .add(BULK_ACTION, late)
+        .map_err(|e| BootError::Cluster(e.to_string()))?;
+    let transport_server = TransportServer::bind(
+        config.transport,
+        TransportConfig::new(
+            transport::describe(&config.node_id, &ephemeral, config.transport),
+            &config.cluster,
+            MAX_MEMBERS,
+        ),
+        budget.clone(),
+        registry.into_handlers(),
+    )
+    .map_err(|e| BootError::Bind(format!("{}: {e}", config.transport)))?;
+    let advertise = config
+        .advertise
+        .clone()
+        .unwrap_or_else(|| transport_server.address().to_string());
+    let mut lease = NodeLease::new(&config.node_id, &ephemeral, &advertise, 0);
     lease.set_roles(ROLES.map(str::to_owned));
     lease.node_log = inherited.clone();
-    membership.renew(&lease).map_err(cluster)?;
 
     let oracle = Arc::new(LivenessOracle::new(Arc::clone(&membership)));
     let heads = Arc::new(
@@ -191,6 +274,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     let names = Arc::new(ShardNames::default());
     let log =
         NodeLogStore::new(Arc::clone(&store), &config.base, &config.node_id).map_err(cluster)?;
+    let lease_for_enrolment = lease.clone();
     let keeper = Arc::new(LeaseKeeper::new(
         Box::new(MembershipLeaseWrite::new(Arc::clone(&membership), lease)),
         log.clone(),
@@ -224,10 +308,35 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         i64::try_from(first_epoch).unwrap_or(i64::MAX),
         REPLAY_BUFFER,
     ));
-    let routes = DescriptorRoutes::new(
-        DescriptorStore::new(Arc::clone(&store), &config.base, DeleteMode::Tombstone)
-            .map_err(cluster)?,
-        READ_BUFFER,
+    let descriptor_routes = || -> Result<DescriptorRoutes, BootError> {
+        Ok(DescriptorRoutes::new(
+            DescriptorStore::new(Arc::clone(&store), &config.base, DeleteMode::Tombstone)
+                .map_err(cluster)?,
+            READ_BUFFER,
+        ))
+    };
+    // A write another node owns goes to it over the transport. Early
+    // revoke stays off: it is a setting this node does not read yet.
+    let forwarder = BulkForwarder::new(
+        Arc::new(Client::new(ClientConfig::default(), budget.clone())),
+        Arc::clone(&auth),
+        Held(Arc::clone(&membership)),
+        Arc::new(EarlyRevoke::new(
+            Arc::clone(&membership),
+            Arc::new(TcpProbe::default()),
+            false,
+        )),
+        Arc::clone(&clock),
+    );
+    let routes = ClusterRoutes::new(
+        descriptor_routes()?,
+        Held(Arc::clone(&membership)),
+        forwarder,
+        &config.node_id,
+        {
+            let clock = Arc::clone(&clock);
+            Box::new(move || clock.now_millis())
+        },
     );
     let writer = Writer {
         committer: Arc::clone(&committer),
@@ -260,9 +369,17 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
             .map_err(cluster)?,
         Arc::clone(&clock),
     ));
-    let assembled = assemble::assemble(&node_config, store, &budget, writer)
+    let assembled = assemble::assemble(&node_config, Arc::clone(&store), &budget, writer)
         .and_then(|a| a.with_health(health, &config.cluster))
         .map_err(BootError::Assemble)?;
+    let handler: Arc<dyn oss_transport::server::Handler> = Arc::new(BulkHandler::new(
+        Arc::clone(&assembled.role),
+        Arc::new(descriptor_routes()?),
+        &config.node_id,
+    ));
+    late_slot.set(handler).ok();
+    // Enrolled last: a peer that sees the lease can reach everything it names.
+    membership.renew(&lease_for_enrolment).map_err(cluster)?;
     let listener = TcpListener::bind(config.http)
         .map_err(|e| BootError::Bind(format!("{}: {e}", config.http)))?;
     let running = assembled
@@ -278,6 +395,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     })
     .map_err(|e| BootError::Cluster(format!("lease renewal thread: {e}")))?;
     Ok(Node {
+        transport: Some(transport_server),
         running: Some(running),
         renewal: Some(renewal),
         membership,

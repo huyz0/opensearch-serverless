@@ -71,8 +71,11 @@ pub struct NodeConfig {
     pub store: StoreChoice,
     /// Where the HTTP server listens.
     pub http: SocketAddr,
-    /// The transport address this node's lease carries.
-    pub advertise: String,
+    /// Where the transport server listens (port 0 for any free port).
+    pub transport: SocketAddr,
+    /// The transport address this node's lease carries; the address the
+    /// server bound when unset.
+    pub advertise: Option<String>,
     /// The node's memory, split into pools.
     pub memory_bytes: usize,
     /// How far ahead a lease renewal stamps its expiry.
@@ -137,7 +140,10 @@ impl NodeConfig {
             base,
             store,
             http,
-            advertise: or("OSS_ADVERTISE_ADDR", "127.0.0.1:9300"),
+            transport: or("OSS_TRANSPORT_ADDR", "127.0.0.1:9300")
+                .parse()
+                .map_err(|e| format!("OSS_TRANSPORT_ADDR: {e}"))?,
+            advertise: get("OSS_ADVERTISE_ADDR").filter(|v| !v.is_empty()),
             memory_bytes,
             lease_ttl_millis,
         })
@@ -197,7 +203,8 @@ mod tests {
         assert_eq!(c.cluster, "opensearch-serverless");
         assert_eq!(c.base, "");
         assert_eq!(c.http, "127.0.0.1:9200".parse().expect("addr"));
-        assert_eq!(c.advertise, "127.0.0.1:9300");
+        assert_eq!(c.transport, "127.0.0.1:9300".parse().expect("addr"));
+        assert_eq!(c.advertise, None);
         assert_eq!(c.memory_bytes, 1 << 30);
         assert_eq!(c.lease_ttl_millis, 30_000);
         assert_eq!(c.renew_every(), Duration::from_secs(10));
@@ -242,6 +249,10 @@ mod tests {
         );
         refused(&with(&[("OSS_BASE", "prod")]), "OSS_BASE");
         refused(&with(&[("OSS_HTTP_ADDR", "nope")]), "OSS_HTTP_ADDR");
+        refused(
+            &with(&[("OSS_TRANSPORT_ADDR", "nope")]),
+            "OSS_TRANSPORT_ADDR",
+        );
         refused(&with(&[("OSS_MEMORY_BYTES", "x")]), "OSS_MEMORY_BYTES");
         refused(&with(&[("OSS_MEMORY_BYTES", "1000")]), "OSS_MEMORY_BYTES");
         refused(&with(&[("OSS_LEASE_TTL_MS", "y")]), "OSS_LEASE_TTL_MS");

@@ -202,3 +202,7 @@ required-features = ["reader", "writer"]
 [[test]]
 name = "boot"
 required-features = ["reader", "writer", "coordinator"]
+
+[[test]]
+name = "bulk_handler"
+required-features = ["writer"]

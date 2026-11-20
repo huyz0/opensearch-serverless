@@ -21,6 +21,7 @@ Parity plan R7.6, node assembly: `Routes::owner` and `Routes::forward` over the 
 - AC-4: each outcome becomes the item's result in the group's order: a created or updated index as `Written` with its version, sequence number and term; a delete as `Deleted` or `NotFound`; a conflict as 409 `version_conflict_engine_exception`; a retryable failure as 429; any other failure as 500.
 - AC-5: when the owner is gone or unknown every item fails 503, when the request is too large every item fails 413, when the answer holds fewer outcomes than items the missing items fail 502, and more outcomes than items fails the whole group 502; no item is reported written without an outcome.
 - AC-6: an `update` action, or a source that is not UTF-8 (other than a delete), fails its item alone and is not sent.
+- AC-7: a refresh of a shard another node owns is one request to that owner with no operations and the refresh flag, and succeeds only when the owner answers that it refreshed.
 
 ## Test plan
 

@@ -52,6 +52,7 @@ fn config(root: &std::path::Path, id: &str, ttl: &str) -> NodeConfig {
                 "OSS_STORE" => "fs",
                 "OSS_FS_ROOT" => root.as_str(),
                 "OSS_HTTP_ADDR" => "127.0.0.1:0",
+                "OSS_TRANSPORT_ADDR" => "127.0.0.1:0",
                 // A third of it is the renewal tick.
                 "OSS_LEASE_TTL_MS" => ttl,
                 _ => return None,
@@ -136,6 +137,60 @@ fn a_second_node_is_seen_and_a_dropped_one_is_released() {
     wait_for("the first never saw the second leave", || {
         nodes_seen(&first) == 1
     });
+}
+
+// AC-8
+#[test]
+fn a_write_through_one_node_reaches_the_node_that_owns_the_shard() {
+    let dir = TempDir::new("boot-forward");
+    let first = start(&config(dir.path(), "n1", "30000")).expect("starts");
+    let second = start(&config(dir.path(), "n2", "30000")).expect("starts");
+    wait_for("the first never saw the second", || nodes_seen(&first) == 2);
+    wait_for("the second never saw the first", || {
+        nodes_seen(&second) == 2
+    });
+    let made = call(
+        &first,
+        "PUT",
+        "/fwd",
+        Some(r#"{"settings":{"index":{"number_of_shards":8}}}"#),
+    );
+    assert_eq!(made.status, 200, "{}", made.text());
+    // Every id goes in through the second node; the shards it does not own
+    // are forwarded to the first.
+    for id in 0..24 {
+        let wrote = call(
+            &second,
+            "PUT",
+            &format!("/fwd/_doc/{id}?refresh=true"),
+            Some(r#"{"n":1}"#),
+        );
+        assert_eq!(wrote.status, 201, "id {id}: {}", wrote.text());
+    }
+    // A read is served by the node that holds the shard (reads are not
+    // forwarded): each document is on exactly one of the two, and both
+    // hold some, so the first took writes the second received.
+    let mut on_first = 0;
+    let mut on_second = 0;
+    for id in 0..24 {
+        // Not realtime: only a refresh makes it visible.
+        let target = format!("/fwd/_doc/{id}?realtime=false");
+        let one = call(&first, "GET", &target, None);
+        let two = call(&second, "GET", &target, None);
+        assert_eq!(
+            [one.status, two.status]
+                .iter()
+                .filter(|s| **s == 200)
+                .count(),
+            1,
+            "id {id}: {} / {}",
+            one.text(),
+            two.text()
+        );
+        on_first += usize::from(one.status == 200);
+        on_second += usize::from(two.status == 200);
+    }
+    assert!(on_first > 0 && on_second > 0, "{on_first} / {on_second}");
 }
 
 // AC-7

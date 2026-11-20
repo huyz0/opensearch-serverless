@@ -172,6 +172,22 @@ impl<S: IndexSource, L: Leases, B: BulkSend> Routes for ClusterRoutes<S, L, B> {
         }
     }
 
+    fn refresh_remote(&self, node: &str, index: &IndexInfo, shard: u32) -> Result<(), String> {
+        // No operations: the owner refreshes the shard and answers.
+        let request = BulkRequest {
+            index: index.name.clone(),
+            shard: i32::try_from(shard).unwrap_or(i32::MAX),
+            index_uuid: Some(index.uuid.clone()),
+            refresh: true,
+            ..BulkRequest::default()
+        };
+        match self.send.bulk(node, &request) {
+            Ok(response) if response.refreshed => Ok(()),
+            Ok(_) => Err("the owner did not refresh the shard".to_owned()),
+            Err(e) => Err(format!("the owner could not be asked to refresh: {e:?}")),
+        }
+    }
+
     fn forward(
         &self,
         node: &str,
