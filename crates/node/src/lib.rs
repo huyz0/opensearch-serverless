@@ -14,6 +14,8 @@ pub mod boot;
 pub mod bulk_handler;
 #[cfg(feature = "writer")]
 pub mod bulk_route;
+#[cfg(all(feature = "writer", feature = "coordinator"))]
+pub mod by_query;
 #[cfg(feature = "writer")]
 pub mod cat_route;
 #[cfg(feature = "writer")]
