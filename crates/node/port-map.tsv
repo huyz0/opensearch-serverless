@@ -62,3 +62,4 @@ src/cluster_owner.rs	new		owner by rendezvous over the held leases and the forwa
 src/boot/mod.rs	new		starts a node from configuration; the Java node is built by the OpenSearch bootstrap and a plugin, with no equivalent single entry
 src/boot/config.rs	new		environment configuration; the Java reads opensearch.yml
 src/boot/renew.rs	new		the lease renewal thread; the Java renews on a scheduled executor
+src/writer/takeover.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/ShardReconciler.java	the writer open of a shard with a history: restore, replay the head's writers, publish, then hold
