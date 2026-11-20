@@ -19,6 +19,8 @@ With `writer`, `writer::WriterRole` holds the shards this node writes and applie
 
 With `writer`, `forward::BulkForwarder` sends a shard's bulk to its owner, signed, and is the one call site of `EarlyRevoke::on_refused` for a refused connect (`serverless.lease.early_revoke`, off by default). Contract: [docs/specs/forward/SPEC.md](../../docs/specs/forward/SPEC.md).
 
+With `writer`, `cluster_owner::ClusterRoutes` is the cluster half of `writer::Routes`: the owner of a shard by rendezvous over the held leases, and a group forwarded as one bulk through `BulkSend`. Contract: [docs/specs/node-cluster-routing/SPEC.md](../../docs/specs/node-cluster-routing/SPEC.md).
+
 With `writer`, `WriterRole::staged` remembers the manifest a shard's last publish produced and `newest::NewestHandler` answers a reader's `internal:serverless/commit/newest` ask with it, from memory. Contract: [docs/specs/writer-newest/SPEC.md](../../docs/specs/writer-newest/SPEC.md).
 
 With `reader`, `newest_ask::TransportNewestAsk` is a `NewestSource` a cold open asks for the newer commit a staging writer holds (`SearchService::set_newest_source`; setting `serverless.reader.newest_commit_ask`, off by default; `newest_ask::install`). Contract: [docs/specs/reader-newest-ask/SPEC.md](../../docs/specs/reader-newest-ask/SPEC.md).
@@ -34,6 +36,8 @@ With `writer`, `tail_keep::TailKeep` holds the writes a node acknowledged and ha
 With `reader`, `tail_held::TailHeld` holds the writes a writer pushed a reader (100,000 records a shard) and the grant its fetch answered; nothing applies them yet. Contract: [docs/specs/reader-tail-held/SPEC.md](../../docs/specs/reader-tail-held/SPEC.md).
 
 The tail's transport (docs/specs/node-tail-links/SPEC.md): with `writer`, `tail_link::TransportTailLink` sends a tail push to a reader a lease names and `TailFetchHandler` answers a fetch from `TailServe`; with `reader`, `tail_reader_link::TailPushHandler` gives a push to `TailHeld` and `TransportTailFetch` asks a live writer for the records past a commit. Nothing registers the handlers yet.
+
+With `writer`, `cluster_route`, `health_route` and `cat_route` serve `GET`/`PUT /_cluster/settings`, `GET /_cluster/health[/{index}]`, `GET /_cat/health` and `GET /_cat/indices` and `/_list/indices` over the registers and the decisions in `oss-coordinator`; the assembly registers the settings and the index tables, and `Assembled::with_health` the health routes over a `HealthSource` (`StoreHealth` reads the membership and the shard heads). Contract: [docs/specs/node-cluster-routes/SPEC.md](../../docs/specs/node-cluster-routes/SPEC.md).
 
 `handlers::Registry` holds the transport actions a node serves, each behind the signature check, and refuses a second handler for an action; the assembly adds each role's handler to it ([docs/specs/node-handlers/SPEC.md](../../docs/specs/node-handlers/SPEC.md)).
 

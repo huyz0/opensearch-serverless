@@ -20,7 +20,27 @@ fn fail(e: &dyn std::fmt::Display) -> String {
 ///
 /// A segment that does not read.
 pub fn find(reader: &DirectoryReader, uid: &[u8]) -> Result<Option<Current>, String> {
-    for segment in reader.segment_readers().iter().rev() {
+    Ok(locate(reader, uid)?.map(|l| l.current))
+}
+
+/// A live document found: its segment's place in the reader, its number in
+/// that segment, and its version.
+pub struct Located {
+    /// The segment's index in `segment_readers`.
+    pub segment: usize,
+    /// The document's number in the segment.
+    pub doc: i32,
+    /// Its version, sequence number and term.
+    pub current: Current,
+}
+
+/// [`find`], with where the document is.
+///
+/// # Errors
+///
+/// A segment that does not read.
+pub fn locate(reader: &DirectoryReader, uid: &[u8]) -> Result<Option<Located>, String> {
+    for (at, segment) in reader.segment_readers().iter().enumerate().rev() {
         let Some(terms) = segment.terms("_id").map_err(|e| fail(&e))? else {
             continue;
         };
@@ -54,11 +74,15 @@ pub fn find(reader: &DirectoryReader, uid: &[u8]) -> Result<Option<Current>, Str
                 Err(fail(&format_args!("no {field} for document {doc}")))
             }
         };
-        return Ok(Some(Current {
-            version: value("_version")?,
-            seq_no: value("_seq_no")?,
-            term: value("_primary_term")?,
-            deleted: false,
+        return Ok(Some(Located {
+            segment: at,
+            doc,
+            current: Current {
+                version: value("_version")?,
+                seq_no: value("_seq_no")?,
+                term: value("_primary_term")?,
+                deleted: false,
+            },
         }));
     }
     Ok(None)

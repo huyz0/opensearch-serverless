@@ -36,6 +36,9 @@ src/open_prefetch.rs	new		whether a cold open prefetches (index, cluster, node, 
 src/writer/publishing.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/BackgroundReconciler.java	the publish pass: lazyPublishDue then SegmentPublisher.publish, the manifest remembered as the newest commit; the timer, per-index refresh_interval age and log ordinal are not ported yet
 src/writer/publish_timer.rs	new		one thread running the publish pass on an interval; the Java reconciler is a scheduled executor task
 src/doc_route.rs	new		the _doc, _create and delete routes over the writer role, each one item through the bulk path; the Java has the REST actions in OpenSearch core
+src/get_route.rs	new		the _doc and _source get routes over the writer role; the Java has the REST actions in OpenSearch core
+src/refresh_route.rs	new		the _refresh route over the writer role's shards; the Java has the REST action in OpenSearch core
+src/writer/get.rs	new		the role's get of a shard it holds and its index lookup
 src/pit_route/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/PointInTimeHandler.java@429b4cbc	routes, refusals and answer shapes for create, delete and list; the node actions and the closing of frozen readers are not here
 src/pit_route/params.rs	port	server/src/main/java/org/opensearch/action/search/DeletePitRequest.java@3.10.0	fromXContent for the pit_id body
 src/assemble.rs	new		the composition root: services, routes and the publish timer over one shared store; the Java assembles in ServerlessNode through plugin wiring
@@ -43,6 +46,11 @@ src/writer/janitor_pass.rs	new		the janitor's sweep over the held shards that pu
 src/writer/janitor_timer.rs	new		one thread running the janitor pass on an interval, the sweep config read each pass; the Java reconciler is a scheduled executor task
 src/time_value.rs	port	server/src/main/java/org/opensearch/common/unit/TimeValue.java@3.10.0	parseTimeValue for the keep-alive units, and the default and longest keep-alive
 src/search_frozen.rs	new		the search of a point in time over a view's frozen shard, split from search.rs; the Java opens the context its PIT id names in the engine
+src/admin_assemble.rs	new		registers the settings and index table routes every node serves, over the registers under the base
+src/cat_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/ListIndicesHandler.java@429b4cbc	_cat/indices and _list/indices over the descriptors: the walk, the named resolution and the pattern cap; no system-index test, as no plugin owns an index here
+src/cluster_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/ClusterSettingsHandler.java@429b4cbc	the register read and write; the plugin check and the node-local apply are not here
+src/health_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/ClusterHealthHandler.java@429b4cbc	the route, the wait loop and the answer; the judging is oss-coordinator; the source reads the membership and heads
+src/route_util.rs	new		a refusal as the edge error, a flag, a table sent: shared by the cluster, health and cat routes
 src/index_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/indexadmin/IndexAdminHandler.java	the create and exists routes over the descriptor store; delete, GET, mapping and settings routes are not here yet
 src/index_delete/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/indexadmin/IndexAdminHandler.java	the delete route over IndexLifecycle, and the reclaim drain
 src/index_delete/heads.rs	new		ShardHeads over the shard head registers
@@ -54,3 +62,4 @@ src/writer/newest_commit.rs	new		the newest-commit memory split from writer/mod.
 src/writer/tail.rs	new		the seam the write path tells the tail overlay through; the Java calls TailPush from its write path directly
 src/writer/opener.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/ShardReconciler.java	the open of a shard no writer has published yet: win its head, open under its term; a shard with a history is refused until takeover lands
 src/writer/refresh.rs	new		a refresh that publishes the commit it makes visible; the Java shell refreshes and publishes on separate paths
+src/cluster_owner.rs	new		owner by rendezvous over the held leases and the forward of a group as one BulkRequest; the Java splits this across FleetPlacement and ForwardedBulkAction

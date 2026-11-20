@@ -10,6 +10,7 @@
 //! an operation the log does not, so it reopens from the log. A bulk group
 //! is applied item by item and staged with one commit.
 
+mod get;
 mod heads;
 mod incarnation;
 mod janitor_pass;

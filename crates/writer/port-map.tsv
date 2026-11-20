@@ -23,6 +23,7 @@ src/index/version.rs	port	server/src/main/java/org/opensearch/index/VersionType.
 src/index/versions.rs	port	server/src/main/java/org/opensearch/index/engine/LiveVersionMap.java@429b4cbc	the versions since the last refresh, deletes kept until index.gc_deletes (pruneTombstones)
 src/index/lookup.rs	port	server/src/main/java/org/opensearch/common/lucene/uid/VersionsAndSeqNoResolver.java@429b4cbc	loadDocIdAndSeqNo: the live document with the _id term, its _version, _seq_no and _primary_term doc values
 src/index/shard.rs	port	server/src/main/java/org/opensearch/index/engine/InternalEngine.java@429b4cbc	index and delete as a primary with no local translog (ServerlessWriterEngine, DiscardingTranslogManager): sequence numbers, softUpdateDocument, the delete tombstone, refresh
+src/index/shard/get.rs	port	server/src/main/java/org/opensearch/index/engine/InternalEngine.java@429b4cbc	get: refresh when the version map holds the id (realtime), then the live document's version and stored _source
 src/bulk/mod.rs	new		the streamed bulk path: read a slice, apply it, answer
 src/bulk/action.rs	port	server/src/main/java/org/opensearch/action/bulk/BulkRequestParser.java@429b4cbc	parse: the action line's name and parameters, and the messages of a malformed one
 src/bulk/reader.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/documents/BulkBodyParser.java@429b4cbc	parsePrefix: the whole operations at the front of a body still arriving

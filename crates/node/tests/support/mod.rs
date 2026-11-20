@@ -243,10 +243,10 @@ pub fn request(addr: SocketAddr, method: &str, target: &str, body: Option<&[u8]>
             Ok(n) => raw.extend_from_slice(&buf[..n]),
         }
     }
-    parse(&raw)
+    parse(&raw, method == "HEAD")
 }
 
-fn parse(raw: &[u8]) -> Reply {
+fn parse(raw: &[u8], head_only: bool) -> Reply {
     let end = raw
         .windows(4)
         .position(|w| w == b"\r\n\r\n")
@@ -266,7 +266,10 @@ fn parse(raw: &[u8]) -> Reply {
     let chunked = headers
         .iter()
         .any(|(n, v)| n == "transfer-encoding" && v.eq_ignore_ascii_case("chunked"));
-    let body = if chunked {
+    // A HEAD reply names its framing and sends no body.
+    let body = if head_only {
+        Vec::new()
+    } else if chunked {
         dechunk(rest)
     } else {
         rest.to_vec()

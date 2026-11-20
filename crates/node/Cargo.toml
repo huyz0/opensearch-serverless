@@ -37,6 +37,7 @@ writer = [
     "dep:oss-meta",
     "dep:oss-janitor",
     "dep:oss-mem",
+    "dep:oss-coordinator",
 ]
 coordinator = ["dep:oss-coordinator", "dep:oss-blob", "dep:oss-transport"]
 
@@ -60,6 +61,7 @@ self_cell = { workspace = true, optional = true }
 oss-mem = { workspace = true, optional = true }
 
 [dev-dependencies]
+serde_json = "=1.0.145"
 lucene-store = { workspace = true }
 oss-blob = { workspace = true, features = ["emulator"] }
 oss-mem = { workspace = true }
@@ -146,6 +148,10 @@ name = "doc_route"
 required-features = ["writer"]
 
 [[test]]
+name = "get_route"
+required-features = ["writer"]
+
+[[test]]
 name = "writer_opener"
 required-features = ["writer"]
 
@@ -172,3 +178,19 @@ required-features = ["reader", "writer"]
 [[test]]
 name = "index_delete"
 required-features = ["writer", "coordinator"]
+
+[[test]]
+name = "cluster_owner"
+required-features = ["writer"]
+
+[[test]]
+name = "cat_routes"
+required-features = ["writer"]
+
+[[test]]
+name = "health_store"
+required-features = ["writer"]
+
+[[test]]
+name = "cluster_assemble"
+required-features = ["reader", "writer"]

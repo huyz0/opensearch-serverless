@@ -6,7 +6,7 @@ use lucene_index::segment_info::LuceneVersion;
 use lucene_store::ByteBuffersDirectory;
 use oss_format::ShardKey;
 use oss_writer::bulk::Kind;
-use oss_writer::index::{Expect, Refused, Shard, Written};
+use oss_writer::index::{Expect, Fetched, Refused, Shard, Written};
 use oss_writer::mapping::Mapping;
 use oss_writer::publish::{Published, ShardPublisher};
 
@@ -113,6 +113,12 @@ impl ShardSlot {
                 .publish(dir, &files, term, writer, -1, now_millis)
                 .map_err(|e| e.to_string())
         })
+    }
+
+    /// The live document of `id`; see [`Shard::get`].
+    pub(super) fn get(&mut self, id: &str, realtime: bool) -> Result<Option<Fetched>, String> {
+        self.cell
+            .with_dependent_mut(|_, shard| shard.get(id, realtime))
     }
 
     /// Refreshes the engine so its writes are visible to its own reads.

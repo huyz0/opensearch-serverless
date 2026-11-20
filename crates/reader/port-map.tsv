@@ -140,3 +140,10 @@ src/aggs/bucket/range_collect.rs	port	server/src/main/java/org/opensearch/search
 src/aggs/bucket/range_render.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/range/InternalRange.java@3.10.0	InternalRange.Bucket.toXContent, generateKey and doXContentBody
 src/aggs/bucket/range_collect_tests.rs	new		tests of range on a real index
 src/aggs/bucket/range_tests.rs	new		tests of range parsing, reduce and writing
+src/aggs/bucket/filters.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/filter/InternalFilters.java@3.10.0	FiltersAggregationBuilder's keyed filters and InternalFilters.reduce
+src/aggs/bucket/filters_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/filter/FiltersAggregationBuilder.java@3.10.0	FiltersAggregationBuilder.parse and the sort of keyed filters
+src/aggs/bucket/filters_collect.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/filter/FiltersAggregatorFactory.java@3.10.0	the filters built as queries, FiltersAggregator's node over lucene-aggs and its buckets
+src/aggs/bucket/filters_render.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/filter/InternalFilters.java@3.10.0	InternalFilters.InternalBucket.toXContent and doXContentBody
+src/aggs/bucket/filters_collect_tests.rs	new		tests of filters on a real index
+src/aggs/bucket/filters_tests.rs	new		tests of filters parsing, reduce and writing
+src/aggs/bucket/parse_arms.rs	new		parses the body of each bucket aggregation into its MetricAgg
