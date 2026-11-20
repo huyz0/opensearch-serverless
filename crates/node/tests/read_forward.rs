@@ -250,6 +250,7 @@ fn a_forwarded_get_of_a_missing_id_is_not_found() {
         .get("owner", &get("docs", None, 0, "nope"))
         .expect("answers");
     assert!(!answer.found);
+    assert_eq!(answer.owner_node_id, "owner");
     assert_eq!(answer.source, None);
     assert_eq!(answer.id, "nope");
 }
