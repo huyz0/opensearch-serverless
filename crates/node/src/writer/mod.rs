@@ -12,6 +12,7 @@
 
 mod heads;
 mod incarnation;
+mod janitor_pass;
 mod lease;
 mod publish_timer;
 mod publishing;
@@ -35,6 +36,7 @@ use slot::ShardSlot;
 
 pub use heads::{HeadAdmission, ShardNames};
 pub use incarnation::{DescriptorIncarnation, FENCE_WINDOW, Incarnation};
+pub use janitor_pass::{JanitorPass, JanitorReport, PassLimits};
 pub use lease::MembershipLeaseWrite;
 pub use publish_timer::PublishTimer;
 pub use publishing::{PublishPass, Publishing};
@@ -66,6 +68,20 @@ enum Failure {
     Refused(Refused),
     /// The write could not be made durable or the shard is not held.
     Unavailable(String),
+}
+
+/// A shard this node holds: its index's name and uuid, its number, and the
+/// commit it last published.
+#[derive(Debug, Clone)]
+pub struct HeldShard {
+    /// The index's name.
+    pub name: String,
+    /// The index's uuid.
+    pub uuid: String,
+    /// The shard number.
+    pub shard: u32,
+    /// The commit manifest the shard last published, if it has.
+    pub newest: Option<Arc<[u8]>>,
 }
 
 /// The shards held, by index uuid and shard number.
@@ -247,6 +263,26 @@ impl WriterRole {
             return None;
         }
         lock(&self.newest).get(&key).cloned()
+    }
+
+    /// The shards this node holds that have a name, each with the commit it
+    /// last published (none before its first publish).
+    pub fn held_shards(&self) -> Vec<HeldShard> {
+        // Lock order: shards, then newest, everywhere both are held.
+        let shards = lock(&self.shards);
+        let newest = lock(&self.newest);
+        // ALLOC: one entry a shard held, at most the shards of the node.
+        shards
+            .keys()
+            .filter_map(|key| {
+                Some(HeldShard {
+                    name: self.names.name_of(&key.0)?,
+                    uuid: key.0.clone(),
+                    shard: key.1,
+                    newest: newest.get(key).cloned(),
+                })
+            })
+            .collect()
     }
 
     /// Whether this node holds the shard.

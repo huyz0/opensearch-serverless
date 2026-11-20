@@ -34,6 +34,8 @@ writer = [
     "dep:self_cell",
     "dep:oss-rest",
     "dep:oss-meta",
+    "dep:oss-janitor",
+    "dep:oss-mem",
 ]
 coordinator = ["dep:oss-coordinator", "dep:oss-blob", "dep:oss-transport"]
 
@@ -46,6 +48,7 @@ oss-rest = { workspace = true, optional = true }
 oss-transport = { workspace = true, optional = true }
 oss-cluster = { workspace = true, optional = true }
 oss-meta = { workspace = true, optional = true }
+oss-janitor = { workspace = true, optional = true }
 oss-format = { workspace = true, optional = true }
 oss-blob = { workspace = true, optional = true }
 lucene-store = { workspace = true, optional = true }
@@ -77,6 +80,10 @@ path = "tests/publish_read.rs"
 [[test]]
 name = "it"
 path = "tests/it/main.rs"
+
+[[test]]
+name = "writer_janitor"
+required-features = ["writer"]
 
 [[test]]
 name = "forward"
