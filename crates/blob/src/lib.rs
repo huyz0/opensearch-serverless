@@ -26,6 +26,7 @@ pub mod register;
 mod rounds;
 pub mod s3;
 pub mod settings;
+mod shared;
 pub mod store;
 
 pub use chunk::{ChunkSink, ChunkSource, SliceSource};
@@ -43,6 +44,7 @@ pub use s3::retry::RetryPolicy;
 pub use s3::sigv4::Credentials;
 pub use s3::{S3Config, S3Store};
 pub use settings::StoreSettings;
+pub use shared::Shared;
 pub use store::{
     BlobStore, ByteRange, CreateOutcome, GetOutcome, ListPage, MAX_DELETE_KEYS, MAX_KEY_BYTES,
     MAX_LIST_KEYS, ObjectMeta,
