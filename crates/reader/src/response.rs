@@ -20,6 +20,7 @@ use crate::OpenShard;
 use crate::aggs::metric::{Value, write_aggregations_with};
 use crate::fetch::docvalue_fields::{self, HitField};
 use crate::fetch::highlight::{self, Highlighters, Plan};
+use crate::fetch::hit_meta::{self, HitMeta};
 use crate::fetch::source_filter::SourceFilter;
 use crate::fetch::{explain, source_filter};
 use crate::search::{Hit, Hits, SortValue};
@@ -203,6 +204,7 @@ pub(crate) struct HitView<'a> {
     pub fields: &'a [HitField],
     pub explanations: &'a [Explanation],
     pub highlight: Option<&'a Plan>,
+    pub meta: HitMeta,
 }
 
 /// The buffers every list of a response's hits is fetched through: one
@@ -257,6 +259,12 @@ fn write_hit_list<S: BlobStore + 'static>(
         write_json_str(out, index)?;
         out.write_all(b",\"_id\":")?;
         write_id(out, &stored.id)?;
+        hit_meta::write_meta(
+            out,
+            view.meta,
+            segment,
+            hit.doc.saturating_sub(segment.doc_base),
+        )?;
         out.write_all(b",\"_score\":")?;
         write_score(out, hit.score)?;
         if !view.source.skip && stored.source_field.is_some() && !stored.source.is_empty() {
