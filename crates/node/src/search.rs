@@ -223,8 +223,8 @@ fn bad_request(e: DslError) -> Answer {
     Answer::Search(Box::new(SearchError::request(e.status(), e.into_failure())))
 }
 
-/// The body, streamed through the recorder, and the URL parameters.
-fn read_source(req: &mut Request<'_>) -> Result<SearchSource, Answer> {
+/// The body streamed through the recorder, its growth reserved first.
+fn record_body(req: &mut Request<'_>) -> Result<Recorder, Answer> {
     let mut rec = Recorder::new(MAX_RECORDED_BYTES);
     let mut tokenizer = source::tokenizer();
     let body = req.body();
@@ -246,6 +246,12 @@ fn read_source(req: &mut Request<'_>) -> Result<SearchSource, Answer> {
         tokenizer.feed(chunk, &mut rec).map_err(bad_request)?;
     }
     tokenizer.finish(&mut rec).map_err(bad_request)?;
+    Ok(rec)
+}
+
+/// The body, streamed through the recorder, and the URL parameters.
+fn read_source(req: &mut Request<'_>) -> Result<SearchSource, Answer> {
+    let rec = record_body(req)?;
     let mut source = SearchSource::parse(&rec).map_err(bad_request)?;
     let from = req.param("from");
     let size = req.param("size");
@@ -275,6 +281,7 @@ pub fn routes<S: BlobStore + 'static>(
     let counting = Arc::clone(&service);
     let caps = Arc::clone(&service);
     let multi = Arc::clone(&service);
+    let analysis = Arc::clone(&service);
     router
         .route(
             Method::Get,
@@ -303,8 +310,11 @@ pub fn routes<S: BlobStore + 'static>(
         .and_then(|router| count::routes(router, counting))
         .and_then(|router| field_caps::routes(router, caps))
         .and_then(|router| msearch::routes(router, multi))
+        .and_then(|router| analyze::routes(router, analysis))
 }
 
+#[path = "search_analyze.rs"]
+mod analyze;
 #[path = "search_count.rs"]
 mod count;
 #[path = "search_field_caps.rs"]
