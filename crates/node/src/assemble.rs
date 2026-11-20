@@ -53,6 +53,9 @@ pub struct Config {
     pub bulk_holders: usize,
     /// How a `_bulk` body streams.
     pub bulk: StreamConfig,
+    /// How long a store call waits for a free I/O buffer before it is
+    /// refused as busy; zero refuses at once.
+    pub store_buffer_wait: Duration,
     /// The buffer a point-in-time request holds.
     pub pit_buffer_bytes: usize,
     /// How a point in time's register is deleted.
@@ -89,6 +92,7 @@ impl Config {
             bulk_bytes: 64 << 20,
             bulk_holders: 4,
             bulk: StreamConfig::default(),
+            store_buffer_wait: Duration::from_secs(5),
             pit_buffer_bytes: MAX_POINT_IN_TIME_BYTES,
             delete_mode: DeleteMode::Tombstone,
             publish_every: Duration::from_millis(250),
@@ -304,7 +308,10 @@ pub fn assemble(
     }
     let buffers = BufferPool::new(budget, Pool::Transport, SMALL_BUFFER, STORE_BUFFERS)
         .map_err(|e| AssembleError::Memory(format!("{e:?}")))?;
-    let pooled = Arc::new(PooledStore::new(Shared::new(Arc::clone(&store)), buffers));
+    let pooled = Arc::new(
+        PooledStore::new(Shared::new(Arc::clone(&store)), buffers)
+            .with_wait(config.store_buffer_wait),
+    );
     let cache = PageCache::new(PageCacheConfig::default())
         .map_err(|e| AssembleError::Memory(e.to_string()))?;
     // ALLOC: startup only.
