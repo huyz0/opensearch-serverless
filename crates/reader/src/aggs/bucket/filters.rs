@@ -13,6 +13,8 @@ pub const DEFAULT_OTHER_KEY: &str = "_other_";
 /// What a `filters` aggregation asks for.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct FiltersSpec {
+    /// A `filter`: one filter, written as its document count alone.
+    pub single: bool,
     /// The filters were given as an object: the buckets are written as an
     /// object named by their keys.
     pub keyed: bool,
@@ -32,6 +34,8 @@ pub fn compare_keys(a: &str, b: &str) -> Ordering {
 /// What one shard (or one reduce) holds for a `filters`: `InternalFilters`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FiltersResult {
+    /// A `filter`'s result: one bucket, written as its document count alone.
+    pub single: bool,
     /// Written as an object named by the keys.
     pub keyed: bool,
     /// `(key, doc count)`: one a filter, then the other bucket if asked.
@@ -54,6 +58,7 @@ pub fn reduce(parts: &[Value]) -> Option<Value> {
     let (first, rest) = results.split_first()?;
     let same = |r: &&FiltersResult| {
         r.keyed == first.keyed
+            && r.single == first.single
             && r.buckets.len() == first.buckets.len()
             && r.buckets
                 .iter()

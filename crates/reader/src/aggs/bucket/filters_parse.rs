@@ -7,6 +7,18 @@ use crate::dsl::error::DslError;
 use crate::dsl::query::parse_inner;
 use crate::dsl::tokens::{Kind, Parser};
 
+/// The options of a `filter` body, the parser on its start: the one filter,
+/// read as `FilterAggregationBuilder.parse` reads it.
+pub fn parse_filter_body(p: &mut Parser<'_>) -> Result<FiltersSpec, DslError> {
+    let query = parse_inner(p)?;
+    Ok(FiltersSpec {
+        single: true,
+        // ALLOC: one filter, bounded by the body's recording.
+        filters: vec![("0".to_owned(), query)],
+        ..FiltersSpec::default()
+    })
+}
+
 /// The options of a `filters` body, the parser on its start.
 pub fn parse_filters_body(p: &mut Parser<'_>, name: &str) -> Result<FiltersSpec, DslError> {
     let mut spec = FiltersSpec::default();

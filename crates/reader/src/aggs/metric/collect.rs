@@ -213,7 +213,7 @@ fn needs(metric: Metric) -> u8 {
         | Metric::Terms
         | Metric::Histogram
         | Metric::DateHistogram => NEED_COUNT,
-        Metric::Range | Metric::Filters => NEED_COUNT,
+        Metric::Range | Metric::Filters | Metric::Filter => NEED_COUNT,
     }
 }
 
@@ -247,7 +247,7 @@ pub(crate) fn value_of(agg: &MetricAgg, state: &MetricState) -> Value {
             &date_histogram_spec(agg),
         ))),
         Metric::Range => range_collect::value(agg, &[]),
-        Metric::Filters => filters_collect::value(agg, &[]),
+        Metric::Filters | Metric::Filter => filters_collect::value(agg, &[]),
         // Filled in by the search once the hits are collected.
         // ALLOC: one box a `top_hits`, bounded by the request's.
         Metric::TopHits => Value::TopHits(Box::new(TopHitsResult::empty())),

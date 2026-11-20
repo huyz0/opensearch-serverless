@@ -76,11 +76,13 @@ pub enum Metric {
     Range,
     /// `filters`: the documents counted by each of given queries they match.
     Filters,
+    /// `filter`: the documents counted that match one query.
+    Filter,
 }
 
 impl Metric {
     /// Every metric served, by its aggregation type name.
-    pub const ALL: [Metric; 15] = [
+    pub const ALL: [Metric; 16] = [
         Metric::Min,
         Metric::Max,
         Metric::Sum,
@@ -96,6 +98,7 @@ impl Metric {
         Metric::DateHistogram,
         Metric::Range,
         Metric::Filters,
+        Metric::Filter,
     ];
 
     /// The aggregation type name.
@@ -116,6 +119,7 @@ impl Metric {
             Metric::DateHistogram => "date_histogram",
             Metric::Range => "range",
             Metric::Filters => "filters",
+            Metric::Filter => "filter",
         }
     }
 
@@ -222,7 +226,7 @@ pub fn state_bytes(aggs: &[MetricAgg]) -> usize {
                     .saturating_mul(per_range)
                     .saturating_add(keys)
             }),
-            Metric::Filters => agg
+            Metric::Filters | Metric::Filter => agg
                 .filters
                 .as_deref()
                 .map_or(0, crate::aggs::bucket::filters_collect::state_bytes),

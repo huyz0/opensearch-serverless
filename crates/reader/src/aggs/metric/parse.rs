@@ -200,7 +200,11 @@ fn is_scalar(metric: Metric) -> bool {
 fn sub_refusal(agg: &MetricAgg, name: &str) -> DslError {
     if matches!(
         agg.metric,
-        Metric::Histogram | Metric::DateHistogram | Metric::Range | Metric::Filters
+        Metric::Histogram
+            | Metric::DateHistogram
+            | Metric::Range
+            | Metric::Filters
+            | Metric::Filter
     ) {
         // ALLOC: error path; one message.
         return DslError::unsupported(&format!(

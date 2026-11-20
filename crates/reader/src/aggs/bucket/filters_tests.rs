@@ -37,6 +37,7 @@ fn keys(spec: &FiltersSpec) -> Vec<&str> {
 fn result(keyed: bool, buckets: &[(&str, u64)]) -> FiltersResult {
     FiltersResult {
         keyed,
+        single: false,
         buckets: buckets.iter().map(|(k, n)| ((*k).to_owned(), *n)).collect(),
     }
 }
@@ -195,4 +196,65 @@ fn a_filters_under_a_terms_is_refused_as_not_supported_yet() {
         "{}",
         failure.reason
     );
+}
+
+// AC-1
+#[test]
+fn a_filter_body_is_one_query_under_the_key_zero() {
+    let body = r#"{"aggs":{"f":{"filter":{"term":{"tag":"b"}}}}}"#;
+    let agg = parse_chunks([body.as_bytes()])
+        .expect("parses")
+        .aggs
+        .remove(0);
+    let s = *agg.filters.expect("a filter");
+    assert!(s.single);
+    assert!(!s.keyed);
+    assert_eq!(s.other_key, None);
+    assert_eq!(keys(&s), ["0"]);
+    assert!(matches!(s.filters[0].1, Query::Term { .. }));
+}
+
+#[test]
+fn a_malformed_filter_fails_as_a_malformed_query_does() {
+    let body = r#"{"aggs":{"f":{"filter":{"no_such_query":{}}}}}"#;
+    assert!(parse_chunks([body.as_bytes()]).is_err());
+}
+
+#[test]
+fn a_filter_refuses_sub_aggregations_as_not_supported_yet() {
+    let body = r#"{"aggs":{"f":{"filter":{"match_all":{}},"aggs":{"m":{"min":{"field":"n"}}}}}}"#;
+    let failure = parse_chunks([body.as_bytes()])
+        .expect_err("refused")
+        .into_failure();
+    assert!(
+        failure.reason.contains("sub-aggregations of a [filter]"),
+        "{}",
+        failure.reason
+    );
+}
+
+// AC-5
+#[test]
+fn a_single_and_a_multiple_result_do_not_reduce_together() {
+    let mut single = result(false, &[("0", 1)]);
+    single.single = true;
+    let multi = result(false, &[("0", 2)]);
+    let (a, b) = (
+        Value::Filters(Box::new(single)),
+        Value::Filters(Box::new(multi)),
+    );
+    assert!(reduce(&[a.clone(), b]).is_none());
+    let Some(Value::Filters(sum)) = reduce(&[a.clone(), a]) else {
+        panic!("no reduce");
+    };
+    assert!(sum.single);
+    assert_eq!(sum.buckets, [("0".to_owned(), 2)]);
+}
+
+// AC-6
+#[test]
+fn a_single_result_writes_only_its_count() {
+    let mut r = result(false, &[("0", 7)]);
+    r.single = true;
+    assert_eq!(written(&r), r#""doc_count":7"#);
 }

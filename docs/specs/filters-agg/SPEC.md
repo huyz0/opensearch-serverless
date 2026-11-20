@@ -8,7 +8,7 @@ Roadmap R10.2: OpenSearch's `filters` bucket aggregation of a single-shard `_sea
 
 `oss-reader` parses `filters` (as `FiltersAggregationBuilder.parse` does at OpenSearch 3.10.0, each filter read as `parseInnerQueryBuilder` reads a query) at the top level of a request's `aggs`, builds each filter as the query it is before the shard opens its point files, runs the filters over the query's live matches with lucene-aggs' `filters` node (the port of `FiltersAggregator`), keeps what `InternalFilters` holds (`aggs::bucket::filters::FiltersResult`), reduces shard results as `InternalFilters.reduce` does (reached through `partial::reduce`, so `oss-coordinator`'s `reduce_shards` serves it), and writes it as `InternalFilters.doXContentBody` does.
 
-Served keys: `filters` (an array, keyed `0`, `1`, ... in request order, or an object, sorted by key as the builder sorts it), `other_bucket` and `other_bucket_key` (default `_other_`; a key given turns the bucket on unless `other_bucket` is false). Sub-aggregations are refused with "not supported by this node yet". The single-filter `filter` aggregation is its own change.
+Served keys: `filters` (an array, keyed `0`, `1`, ... in request order, or an object, sorted by key as the builder sorts it), `other_bucket` and `other_bucket_key` (default `_other_`; a key given turns the bucket on unless `other_bucket` is false). Sub-aggregations are refused with "not supported by this node yet". The single-filter `filter` aggregation is [filter-agg](../filter-agg/SPEC.md).
 
 ## Acceptance criteria
 
