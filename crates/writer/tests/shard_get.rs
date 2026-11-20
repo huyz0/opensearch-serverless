@@ -88,3 +88,16 @@ fn a_realtime_get_of_an_id_the_map_does_not_hold_does_not_refresh() {
     assert!(s.get("b", true).expect("reads").is_none());
     assert!(s.get("a", false).expect("reads").is_none());
 }
+
+#[test]
+fn a_realtime_get_of_a_deleted_id_does_not_refresh() {
+    let dir = ByteBuffersDirectory::new();
+    let mut s = shard(&dir, &Arc::new(AtomicU64::new(0)));
+    put(&mut s, "a", r#"{"n":1}"#);
+    s.refresh().expect("refreshes");
+    put(&mut s, "b", r#"{"n":2}"#);
+    s.delete("a", &Expect::default()).expect("deletes");
+    assert!(s.get("a", true).expect("reads").is_none());
+    // The map answered; `b` is still unrefreshed.
+    assert!(s.get("b", false).expect("reads").is_none());
+}
