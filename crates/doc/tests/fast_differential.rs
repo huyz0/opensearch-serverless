@@ -300,3 +300,18 @@ fn fields_the_plan_reads_with_their_parameters_equal_the_complete_path() {
         );
     }
 }
+
+#[test]
+fn a_null_on_a_name_no_mapping_holds_is_no_value_on_both_paths() {
+    let mapping =
+        r#"{"properties":{"k":{"type":"keyword"},"o":{"properties":{"v":{"type":"long"}}}}}"#;
+    let docs = [
+        r#"{"k":"a","o":{"v":1}}"#,
+        r#"{"k":"b","note":null,"o":{"v":2,"gone":null}}"#,
+        r#"{"gone":null,"k":"c"}"#,
+        r#"{"k":"d","also":null,"o":{"v":3}}"#,
+    ];
+    let taken = run(mapping, &docs);
+    // The first document numbers the fields; the plan reads the rest, nulls and all.
+    assert_eq!(taken, [false, true, true, true]);
+}
