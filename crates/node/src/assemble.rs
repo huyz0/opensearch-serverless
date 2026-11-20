@@ -24,7 +24,8 @@ use crate::index_route::{self, IndexService};
 use crate::pit_route::{self, PitService};
 use crate::search::{self, SearchService};
 use crate::writer::{
-    JanitorPass, JanitorTimer, PassLimits, PublishTimer, Publishing, Routes, WriterRole,
+    JanitorPass, JanitorTimer, PassLimits, PublishTimer, Publishing, Routes, ShardOpener,
+    WriterRole,
 };
 
 /// Buffers the store's bodies stream through, a node's worth.
@@ -100,6 +101,8 @@ pub struct Writer {
     pub committer: Arc<NodeLogCommitter>,
     /// Which indexes exist and who owns a shard this node does not hold.
     pub routes: Arc<dyn Routes>,
+    /// What opens a shard a write names and the node does not hold yet.
+    pub opener: Option<Arc<dyn ShardOpener>>,
 }
 
 /// Why a node was not assembled.
@@ -232,8 +235,11 @@ pub fn assemble(
         Box::new(now_millis),
     );
     // ALLOC: startup only.
-    let role =
-        Arc::new(WriterRole::new(writer.committer, writer.routes).with_publishing(publishing));
+    let mut role = WriterRole::new(writer.committer, writer.routes).with_publishing(publishing);
+    if let Some(opener) = writer.opener {
+        role = role.with_opener(opener);
+    }
+    let role = Arc::new(role);
     let clock: PitClock = Arc::new(now_millis);
     let pits = PointInTimeStore::new(Arc::clone(&store), &config.base, Arc::clone(&clock))
         .map_err(|e| AssembleError::Store(e.to_string()))?;
