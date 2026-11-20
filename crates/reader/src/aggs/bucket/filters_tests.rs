@@ -181,3 +181,18 @@ fn a_keyed_result_names_each_bucket_by_its_key() {
         r#""buckets":{"a\"b":{"doc_count":3},"_other_":{"doc_count":5}}"#
     );
 }
+
+#[test]
+fn a_filters_under_a_terms_is_refused_as_not_supported_yet() {
+    let body = r#"{"aggs":{"t":{"terms":{"field":"tag"},"aggs":{"f":{"filters":{"filters":[{"match_all":{}}]}}}}}}"#;
+    let failure = parse_chunks([body.as_bytes()])
+        .expect_err("refused")
+        .into_failure();
+    assert!(
+        failure
+            .reason
+            .contains("[filters] sub-aggregation of a [terms]"),
+        "{}",
+        failure.reason
+    );
+}

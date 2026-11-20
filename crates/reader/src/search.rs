@@ -299,6 +299,10 @@ pub fn search<S: BlobStore + 'static>(
     let norms: Vec<Option<&HashMap<String, FieldNorms<'_>>>> = owned.iter().map(Some).collect();
     let mut opened = shard.reader.open_segments().map_err(ShardError::engine)?;
     let top_plans = top_hits::plan(&source.aggs, shard, index)?;
+    // The bucket limit holds before any filter is built as a query.
+    for agg in &source.aggs {
+        crate::aggs::bucket::check_limits(agg)?;
+    }
     let filter_plans = filters_collect::plan(&source.aggs, &cx)
         .map_err(|f| ShardError::bad_request(shard_failure(f, index, &meta.uuid)))?;
     let numeric_sort = sort
