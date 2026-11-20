@@ -4,13 +4,14 @@
 #[path = "support/mod.rs"]
 mod support;
 
-use std::net::TcpListener;
+use std::io::{Read, Write};
+use std::net::{TcpListener, TcpStream};
 use std::sync::Arc;
 use std::time::Duration;
 
 use oss_blob::{BlobStore, Emulator};
 use oss_format::{NodeLogEpoch, ShardKey};
-use oss_mem::MemoryBudget;
+use oss_mem::{BudgetConfig, MemoryBudget, Pool};
 use oss_node::doc_route::{DocService, routes};
 use oss_node::writer::{Routes, WriterRole};
 use oss_rest::{Router, Server};
@@ -69,6 +70,18 @@ struct Rig {
 }
 
 fn rig() -> Rig {
+    rig_with(&support::budget_config())
+}
+
+/// A node whose request-body pool holds `bytes`.
+fn rig_pooled(bytes: usize) -> Rig {
+    let config = BudgetConfig::new(64 << 20)
+        .with_pool(Pool::RequestBodies, bytes)
+        .expect("fits");
+    rig_with(&config)
+}
+
+fn rig_with(config: &BudgetConfig) -> Rig {
     let store = Arc::new(Emulator::new(1 << 30, 7));
     let log = NodeLogStore::new(store as Arc<dyn BlobStore>, "", "node-1").expect("names");
     let committer = Arc::new(NodeLogCommitter::new(
@@ -96,7 +109,7 @@ fn rig() -> Rig {
         listener,
         support::server_config(),
         router,
-        &MemoryBudget::new(&support::budget_config()),
+        &MemoryBudget::new(config),
     )
     .expect("starts");
     Rig { server }
@@ -227,4 +240,118 @@ fn a_refused_document_and_an_unknown_index_answer_their_failure() {
     let unknown = call(&r, "PUT", "/nope/_doc/1", Some(r#"{"n":1}"#));
     assert!(unknown.status >= 400, "{}", unknown.text());
     assert!(unknown.text().contains(r#""error":"#), "{}", unknown.text());
+}
+
+/// The status of a `PUT` whose body goes as `sizes`-byte chunks, with no
+/// declared length.
+fn chunked_status(r: &Rig, target: &str, chunks: &[&[u8]]) -> u16 {
+    let mut s = TcpStream::connect(r.server.local_addr()).expect("connects");
+    s.set_read_timeout(Some(Duration::from_secs(30)))
+        .expect("timeout");
+    let head = format!(
+        "PUT {target} HTTP/1.1\r\nhost: test\r\nconnection: close\r\ncontent-type: application/json\r\ntransfer-encoding: chunked\r\n\r\n"
+    );
+    s.write_all(head.as_bytes()).expect("sends head");
+    for chunk in chunks {
+        let _ = s.write_all(format!("{:x}\r\n", chunk.len()).as_bytes());
+        let _ = s.write_all(chunk);
+        let _ = s.write_all(b"\r\n");
+    }
+    let _ = s.write_all(b"0\r\n\r\n");
+    let mut raw = Vec::new();
+    let mut buf = [0u8; 4 << 10];
+    while let Ok(n) = s.read(&mut buf) {
+        if n == 0 {
+            break;
+        }
+        raw.extend_from_slice(&buf[..n]);
+    }
+    String::from_utf8_lossy(&raw)
+        .split(' ')
+        .nth(1)
+        .and_then(|v| v.parse().ok())
+        .expect("a status")
+}
+
+/// What the server itself holds of the request-body pool once started.
+const SERVER_HELD: usize = 2 * 81_936 + 65_536 + 262_144;
+
+/// A JSON document of exactly `len` bytes.
+fn document_of(len: usize) -> String {
+    let pad = len.saturating_sub(r#"{"s":""}"#.len());
+    format!(r#"{{"s":"{}"}}"#, "x".repeat(pad))
+}
+
+/// The millisecond clock a generated id carries: bytes 2 to 5 are bits 16 to
+/// 47 of the timestamp, byte 12 bits 8 to 15 and byte 14 bits 0 to 7.
+// ARITH: four 6-bit values make 24 bits, inside a u32.
+#[allow(clippy::arithmetic_side_effects)]
+fn stamp(id: &str) -> u64 {
+    let value = |c: u8| -> u32 {
+        let at = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+            .iter()
+            .position(|a| *a == c)
+            .expect("a base64url character");
+        u32::try_from(at).expect("under 64")
+    };
+    let mut bytes = Vec::new();
+    for quad in id.as_bytes().chunks(4) {
+        let n = quad.iter().fold(0u32, |n, c| (n << 6) | value(*c));
+        let [_, a, b, c] = n.to_be_bytes();
+        bytes.extend([a, b, c]);
+    }
+    u64::from_be_bytes([
+        0, 0, bytes[5], bytes[4], bytes[3], bytes[2], bytes[12], bytes[14],
+    ])
+}
+
+#[test]
+fn a_generated_id_carries_the_time_of_the_write() {
+    let r = rig();
+    let before = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("after the epoch")
+        .as_millis();
+    let text = call(&r, "POST", "/docs/_doc", Some(r#"{"n":1}"#)).text();
+    let id = text
+        .split(r#""_id":""#)
+        .nth(1)
+        .and_then(|rest| rest.split('"').next())
+        .expect("an id");
+    let millis = u128::from(stamp(id));
+    assert!(
+        millis >= before && millis < before.saturating_add(60_000),
+        "id {id} is stamped {millis}, the write began at {before}"
+    );
+}
+
+#[test]
+fn op_type_create_refuses_a_live_id() {
+    let r = rig();
+    let first = call(&r, "PUT", "/docs/_doc/1?op_type=create", Some(r#"{"n":1}"#));
+    assert_eq!(first.status, 201, "{}", first.text());
+    let again = call(&r, "PUT", "/docs/_doc/1?op_type=create", Some(r#"{"n":2}"#));
+    assert_eq!(again.status, 409, "{}", again.text());
+    let index = call(&r, "PUT", "/docs/_doc/1?op_type=index", Some(r#"{"n":2}"#));
+    assert_eq!(index.status, 200, "{}", index.text());
+}
+
+#[test]
+fn a_document_is_charged_to_the_request_body_pool_once() {
+    let body = document_of(8 << 10);
+    // A pool with room for the document and a little over takes it, so the
+    // document is charged once and not again as it is read.
+    let r = rig_pooled(SERVER_HELD + (8 << 10) + 1024);
+    let ok = call(&r, "PUT", "/docs/_doc/1", Some(&body));
+    assert_eq!(ok.status, 201, "{}", ok.text());
+}
+
+#[test]
+fn a_document_with_no_declared_length_is_charged_as_it_is_read() {
+    let body = document_of(8 << 10);
+    let (a, b) = body.as_bytes().split_at(4 << 10);
+    let small = rig_pooled(SERVER_HELD + (2 << 10));
+    assert_eq!(chunked_status(&small, "/docs/_doc/1", &[a, b]), 429);
+    let large = rig_pooled(SERVER_HELD + (1 << 20));
+    assert_eq!(chunked_status(&large, "/docs/_doc/1", &[a, b]), 201);
 }

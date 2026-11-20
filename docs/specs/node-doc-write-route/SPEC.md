@@ -18,6 +18,9 @@ Parity plan R7.6, node assembly: `PUT|POST /{index}/_doc/{id}`, `POST /{index}/_
 - AC-4: `DELETE /{index}/_doc/{id}` answers 200 `deleted` for a live document and 404 `not_found` for none, both with a version and sequence number.
 - AC-5: `?refresh=true` adds `forced_refresh`, any other refresh value but `false`, `wait_for` or empty is 400, and a stale `if_seq_no` is 409.
 - AC-6: a document the mapping refuses answers its status (400 `mapper_parsing_exception`) as `{"error":{...},"status":400}`, and an index the node has no route for answers the item's failure.
+- AC-7: a generated id carries the write's time, and `?op_type=create` refuses a live id as `_create` does.
+- AC-8: the document is charged to the request-body pool once when its length is declared, and as it is read when it is not (a refusal when the pool is full).
+- AC-9: `doc_status` and `write_doc` in `oss-writer` give each outcome its status (201 created, 200 updated or deleted, 404 not found, a failure its own) and the single-document answer.
 
 ## Test plan
 
