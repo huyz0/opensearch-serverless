@@ -102,9 +102,19 @@ pub struct Node {
     renewal: Option<Renewal>,
     membership: Arc<Membership>,
     node_id: String,
+    /// Whether dropping the node leaves its lease to lapse, as a killed
+    /// process does.
+    crashed: bool,
 }
 
 impl Node {
+    /// Stops the node as a killed process stops: its servers and its
+    /// renewal end, and its lease is not released, so it lapses in one
+    /// lifetime and the other nodes see it die.
+    pub fn crash(mut self) {
+        self.crashed = true;
+    }
+
     /// The address the node's HTTP server listens on.
     pub fn addr(&self) -> std::net::SocketAddr {
         self.running.as_ref().map_or_else(
@@ -129,7 +139,9 @@ impl Drop for Node {
         drop(self.running.take());
         drop(self.transport.take());
         // Best effort: an unreleased lease lapses in one lifetime.
-        let _ = self.membership.release(&self.node_id);
+        if !self.crashed {
+            let _ = self.membership.release(&self.node_id);
+        }
     }
 }
 
@@ -342,10 +354,6 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         Held(Arc::clone(&membership)),
         forwarder,
         &config.node_id,
-        {
-            let clock = Arc::clone(&clock);
-            Box::new(move || clock.now_millis())
-        },
     )
     .with_reads(Arc::new(reads));
     let writer = Writer {
@@ -415,6 +423,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         renewal: Some(renewal),
         membership,
         node_id: config.node_id.clone(),
+        crashed: false,
     })
 }
 

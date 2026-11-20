@@ -83,13 +83,7 @@ fn lease(id: &str, role: &str) -> NodeLease {
 }
 
 fn routes(leases: Vec<NodeLease>, fake: &Arc<Fake>, me: &str) -> impl Routes {
-    ClusterRoutes::new(
-        Indexes,
-        Fixed(leases.into()),
-        Sender(Arc::clone(fake)),
-        me,
-        Box::new(|| NOW),
-    )
+    ClusterRoutes::new(Indexes, Fixed(leases.into()), Sender(Arc::clone(fake)), me)
 }
 
 fn fake(answer: Answer) -> Arc<Fake> {
@@ -151,9 +145,6 @@ fn dead_and_non_ingest_members_are_never_chosen() {
     let mut revoked = lease("revoked", ROLE_INGEST);
     revoked.revoked = true;
     leases.push(revoked);
-    let mut lapsed = lease("lapsed", ROLE_INGEST);
-    lapsed.expires_at_millis = NOW;
-    leases.push(lapsed);
     for shard in 0..32u32 {
         let w = winner(&["n1", "n2", "n3"], i32::try_from(shard).unwrap());
         assert_eq!(
@@ -380,7 +371,6 @@ fn reading(answer: Option<GetResponse>) -> (Arc<Reader>, impl Routes) {
         Fixed(fleet().into()),
         Sender(fake(Answer::Outcomes(Vec::new()))),
         "n1",
-        Box::new(|| NOW),
     )
     .with_reads(Arc::clone(&reader) as Arc<dyn GetSend>);
     (reader, routes)
@@ -436,4 +426,22 @@ fn a_get_of_a_shard_another_node_owns_is_asked_of_that_owner() {
             .is_err(),
         "no reads configured"
     );
+}
+
+// AC-8
+#[test]
+fn a_lease_past_its_stamp_in_the_view_still_takes_writes() {
+    let f = fake(Answer::Outcomes(vec![]));
+    let mut leases = fleet();
+    for l in &mut leases {
+        // The view's copy can be a renewal old; the refresh drops the dead.
+        l.expires_at_millis = NOW - 5_000;
+    }
+    for shard in 0..32u32 {
+        let w = winner(&["n1", "n2", "n3"], i32::try_from(shard).unwrap());
+        assert_eq!(
+            routes(leases.clone(), &f, "n9").owner(&info(), shard),
+            Owner::Node(w)
+        );
+    }
 }

@@ -24,6 +24,7 @@ Parity plan R7.6, node `main`: until now `main` printed the roles. A node with t
 - AC-5: a second node on the same store with another id is seen by the first after a renewal tick (`number_of_nodes` 2).
 - AC-6: dropping a node stops its renewal and releases its lease: the members index lists one member at once, and still one after a renewal tick.
 - AC-8: two nodes on one store: a document written through the node that does not own its shard (with `refresh=true`) is applied and refreshed by the owner, and each document is then readable from exactly one of the two nodes, both holding some.
+- AC-9: `Node::crash` stops the node without releasing its lease: the members index still lists it at once, as after a killed process.
 - AC-7: a node started again on the same store and id reads the epochs its register names before it enrols, keeps them in its lease, and writes in an epoch above them, so a successor still fences what the earlier process wrote.
 
 ## Test plan

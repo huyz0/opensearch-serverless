@@ -49,28 +49,19 @@ pub struct ClusterRoutes<S, L, B> {
     leases: L,
     send: B,
     self_id: String,
-    now: Box<dyn Fn() -> i64 + Send + Sync>,
     reads: Option<Arc<dyn GetSend>>,
 }
 
 impl<S: IndexSource, L: Leases, B: BulkSend> ClusterRoutes<S, L, B> {
     /// Routes for node `self_id`: indexes from `indexes`, members from
-    /// `leases` judged live at `now` (epoch milliseconds), groups sent with
-    /// `send`.
-    pub fn new(
-        indexes: S,
-        leases: L,
-        send: B,
-        self_id: &str,
-        now: Box<dyn Fn() -> i64 + Send + Sync>,
-    ) -> Self {
+    /// `leases`, groups sent with `send`.
+    pub fn new(indexes: S, leases: L, send: B, self_id: &str) -> Self {
         Self {
             indexes,
             leases,
             send,
             // ALLOC: one id, once a node.
             self_id: self_id.to_owned(),
-            now,
             reads: None,
         }
     }
@@ -83,8 +74,12 @@ impl<S: IndexSource, L: Leases, B: BulkSend> ClusterRoutes<S, L, B> {
     }
 }
 
-fn live_writer(lease: &NodeLease, now: i64) -> bool {
-    !lease.revoked && !lease.is_expired_at(now) && has_role(lease, ROLE_INGEST)
+/// Whether a member of the view takes writes. The stamp is not read: a
+/// refresh keeps a lease's copy until it runs out, so a live node's copy
+/// can pass its stamp for up to a renewal before the next refresh reads
+/// the renewed one, and the refresh itself drops a lease that lapsed.
+fn live_writer(lease: &NodeLease) -> bool {
+    !lease.revoked && has_role(lease, ROLE_INGEST)
 }
 
 fn failed_all(
@@ -173,11 +168,10 @@ impl<S: IndexSource, L: Leases, B: BulkSend> Routes for ClusterRoutes<S, L, B> {
 
     fn owner(&self, index: &IndexInfo, shard: u32) -> Owner {
         let leases = self.leases.current();
-        let now = (self.now)();
         let key = ShardKey::new(&index.name, i32::try_from(shard).unwrap_or(i32::MAX));
         let ids = leases
             .iter()
-            .filter(|l| live_writer(l, now))
+            .filter(|l| live_writer(l))
             .map(|l| l.node_id.as_str());
         match owner(key, ids) {
             Some(id) if id != self.self_id => Owner::Node(id.to_owned()),
