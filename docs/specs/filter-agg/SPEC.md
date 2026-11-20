@@ -6,7 +6,7 @@ Roadmap R10.2: OpenSearch's single `filter` bucket aggregation of a single-shard
 
 ## Change
 
-`oss-reader` parses `filter` (as `FilterAggregationBuilder.parse` does at OpenSearch 3.10.0: its body is one query, read as `parseInnerQueryBuilder` reads it) and serves it through the `filters` machinery of [filters-agg](../filters-agg/SPEC.md) as one filter keyed `0` (`FiltersSpec.single`). The shard result keeps what `InternalFilter` holds (one count), reduces as `InternalFilter.reduce` does (the count adds; a single and a multiple result do not reduce together), and is written as `InternalFilter.doXContentBody` does: `"doc_count":n` beside the aggregation's name, with no `buckets`. Sub-aggregations are refused with "not supported by this node yet".
+`oss-reader` parses `filter` (as `FilterAggregationBuilder.parse` does at OpenSearch 3.10.0: its body is one query, read as `parseInnerQueryBuilder` reads it) and serves it through the `filters` machinery of [filters-agg](../filters-agg/SPEC.md) as one filter keyed `0` (`FiltersSpec.single`). The shard result keeps what `InternalFilter` holds (one count), reduces as `InternalFilter.reduce` does (the count adds; a single and a multiple result do not reduce together), and is written as `InternalFilter.doXContentBody` does: `"doc_count":n` beside the aggregation's name, with no `buckets`. Its sub-aggregations are served as [fixed-bucket-subs](../fixed-bucket-subs/SPEC.md) serves them.
 
 ## Acceptance criteria
 

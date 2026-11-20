@@ -2,7 +2,8 @@
 //! (`RangeAggregationBuilder`, `InternalRange` at OpenSearch 3.10.0), and
 //! the reduce of results across shards (`InternalRange.reduce`).
 
-use crate::aggs::partial::Value;
+use crate::aggs::bucket::sub_values::reduce_fixed;
+use crate::aggs::partial::{Format, Value};
 
 /// One range asked for: `from <= value < to`, an unbounded end an infinity
 /// (`RangeAggregator.Range`).
@@ -41,18 +42,24 @@ pub struct RangeBucket {
 }
 
 /// What one shard (or one reduce) holds for a `range`: `InternalRange`.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct RangeResult {
     /// Written as an object keyed by the buckets' keys.
     pub keyed: bool,
     /// One bucket a range of the request, in the sorted order.
     pub buckets: Vec<RangeBucket>,
+    /// The name and format of each sub-aggregation, in request order.
+    pub sub_meta: Vec<(String, Format)>,
+    /// Each bucket's sub-aggregation values, one list a bucket in the order
+    /// of `buckets`; empty when there are no sub-aggregations.
+    pub subs: Vec<Vec<Value>>,
 }
 
 /// Whether `a` and `b` answer the same request: the same `keyed` and, one
 /// for one, the same key and bounds.
 fn same_ranges(a: &RangeResult, b: &RangeResult) -> bool {
     a.keyed == b.keyed
+        && a.sub_meta.len() == b.sub_meta.len()
         && a.buckets.len() == b.buckets.len()
         && a.buckets.iter().zip(&b.buckets).all(|(x, y)| {
             x.key == y.key && x.from.total_cmp(&y.from).is_eq() && x.to.total_cmp(&y.to).is_eq()
@@ -82,6 +89,14 @@ pub fn reduce(parts: &[Value]) -> Option<Value> {
             into.doc_count = into.doc_count.saturating_add(from.doc_count);
         }
     }
+    merged.subs = reduce_fixed(
+        // ALLOC: one reference a shard, as above.
+        &results
+            .iter()
+            .map(|r| r.subs.as_slice())
+            .collect::<Vec<_>>(),
+        merged.buckets.len(),
+    );
     // ALLOC: one box a `range`, bounded by the request's.
     Some(Value::Range(Box::new(merged)))
 }

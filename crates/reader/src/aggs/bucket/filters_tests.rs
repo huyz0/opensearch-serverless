@@ -39,6 +39,7 @@ fn result(keyed: bool, buckets: &[(&str, u64)]) -> FiltersResult {
         keyed,
         single: false,
         buckets: buckets.iter().map(|(k, n)| ((*k).to_owned(), *n)).collect(),
+        ..FiltersResult::default()
     }
 }
 
@@ -118,13 +119,15 @@ fn bad_bodies_fail_as_opensearch_fails_them() {
 }
 
 #[test]
-fn sub_aggregations_are_refused_as_not_supported_yet() {
-    let body = r#"{"aggs":{"f":{"filters":{"filters":[{"match_all":{}}]},"aggs":{"m":{"min":{"field":"n"}}}}}}"#;
+fn a_bucket_sub_aggregation_is_refused_as_not_supported_yet() {
+    let body = r#"{"aggs":{"f":{"filters":{"filters":[{"match_all":{}}]},"aggs":{"h":{"histogram":{"field":"n","interval":5}}}}}}"#;
     let failure = parse_chunks([body.as_bytes()])
         .expect_err("refused")
         .into_failure();
     assert!(
-        failure.reason.contains("sub-aggregations of a [filters]"),
+        failure
+            .reason
+            .contains("[histogram] sub-aggregation of a [filters]"),
         "{}",
         failure.reason
     );
@@ -221,13 +224,15 @@ fn a_malformed_filter_fails_as_a_malformed_query_does() {
 }
 
 #[test]
-fn a_filter_refuses_sub_aggregations_as_not_supported_yet() {
-    let body = r#"{"aggs":{"f":{"filter":{"match_all":{}},"aggs":{"m":{"min":{"field":"n"}}}}}}"#;
+fn a_filter_refuses_a_bucket_sub_aggregation_as_not_supported_yet() {
+    let body = r#"{"aggs":{"f":{"filter":{"match_all":{}},"aggs":{"h":{"histogram":{"field":"n","interval":5}}}}}}"#;
     let failure = parse_chunks([body.as_bytes()])
         .expect_err("refused")
         .into_failure();
     assert!(
-        failure.reason.contains("sub-aggregations of a [filter]"),
+        failure
+            .reason
+            .contains("[histogram] sub-aggregation of a [filter]"),
         "{}",
         failure.reason
     );
@@ -257,4 +262,34 @@ fn a_single_result_writes_only_its_count() {
     let mut r = result(false, &[("0", 7)]);
     r.single = true;
     assert_eq!(written(&r), r#""doc_count":7"#);
+}
+
+// AC-6
+#[test]
+fn a_buckets_sub_aggregations_follow_its_count() {
+    use crate::aggs::partial::Format;
+    let mut r = result(true, &[("a", 3), ("b", 0)]);
+    r.sub_meta = vec![("m".to_owned(), Format::Raw)];
+    r.subs = vec![vec![Value::Max(9.0)], vec![Value::Max(f64::NEG_INFINITY)]];
+    assert_eq!(
+        written(&r),
+        r#""buckets":{"a":{"doc_count":3,"m":{"value":9.0}},"b":{"doc_count":0,"m":{"value":null}}}"#
+    );
+    r.keyed = false;
+    r.single = true;
+    r.buckets.truncate(1);
+    assert_eq!(written(&r), r#""doc_count":3,"m":{"value":9.0}"#);
+}
+
+// AC-5
+#[test]
+fn a_reduce_keeps_no_sub_aggregation_when_no_shard_has_one() {
+    let Some(Value::Filters(r)) = reduce(&[
+        Value::Filters(Box::new(result(false, &[("0", 1)]))),
+        Value::Filters(Box::new(result(false, &[("0", 2)]))),
+    ]) else {
+        panic!("no reduce");
+    };
+    assert!(r.subs.is_empty());
+    assert_eq!(r.buckets, [("0".to_owned(), 3)]);
 }

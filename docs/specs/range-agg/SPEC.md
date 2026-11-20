@@ -8,7 +8,7 @@ Roadmap R10.2: OpenSearch's `range` on a long, integer or date field of a single
 
 `oss-reader` parses `range` (as `RangeAggregationBuilder`'s `ObjectParser` and `RangeAggregator.Range.PARSER` do at OpenSearch 3.10.0) at the top level of a request's `aggs`, sorts its ranges as `AbstractRangeBuilder.sortRanges` does, runs it over the query's live matches with lucene-aggs' `range` node (the port of `RangeAggregator`), keeps what `InternalRange` holds (`aggs::bucket::range::RangeResult`), reduces shard results as `InternalRange.reduce` does (`aggs::bucket::range::reduce`, reached through `partial::reduce`, so `oss-coordinator`'s `reduce_shards` serves it), and writes it as `InternalRange.doXContentBody` does.
 
-Served keys: `field`, `keyed` and `ranges`, each range with `key`, `from` and `to` (a number or null; an absent end is open). Not in this change, each refused with "not supported by this node yet": `missing`, `value_type`, `format`, `script`, a `from` or `to` given as text, and sub-aggregations.
+Served keys: `field`, `keyed` and `ranges`, each range with `key`, `from` and `to` (a number or null; an absent end is open). Not in this change, each refused with "not supported by this node yet": `missing`, `value_type`, `format`, `script`, and a `from` or `to` given as text. Its sub-aggregations are served as [fixed-bucket-subs](../fixed-bucket-subs/SPEC.md) serves them.
 
 ## Acceptance criteria
 

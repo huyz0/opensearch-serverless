@@ -101,5 +101,6 @@ pub fn value(agg: &MetricAgg, docs: &[u64]) -> Value {
         single: spec.single,
         keyed: spec.keyed,
         buckets,
+        ..FiltersResult::default()
     }))
 }

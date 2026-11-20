@@ -1,0 +1,117 @@
+//! The sub-aggregations of a `range`, `filters` or `filter` on one shard:
+//! their engine nodes under the bucket aggregation's node, each bucket's
+//! values from the engine's fixed buckets, and the memory they hold. A
+//! sub-aggregation is a single-value or stats metric, or a keyword `terms`.
+
+use std::collections::HashMap;
+
+use lucene_aggs::bucket_aggs::{AggNode, AggResult};
+use lucene_search::global_ords::GlobalOrds;
+use oss_blob::BlobStore;
+
+use crate::OpenShard;
+use crate::aggs::bucket::keyword_collect::{Parent, SUB_COPIES};
+use crate::aggs::bucket::{filters_collect, keyword_subs, range_collect};
+use crate::aggs::metric::{Metric, MetricAgg};
+use crate::aggs::partial::Value;
+use crate::search::ShardError;
+
+/// Whether `agg` counts documents in a fixed list of buckets.
+pub fn is_fixed(agg: &MetricAgg) -> bool {
+    matches!(agg.metric, Metric::Range | Metric::Filters | Metric::Filter)
+}
+
+/// Puts the nodes of `agg`'s sub-aggregations under `node`, the engine's
+/// node for `agg`, building the ordinals of every keyword field they read
+/// into `ords`.
+pub fn attach<S: BlobStore + 'static>(
+    node: &mut AggNode,
+    agg: &MetricAgg,
+    shard: &OpenShard<S>,
+    ords: &mut HashMap<String, std::sync::Arc<GlobalOrds>>,
+) -> Result<(), ShardError> {
+    if let AggNode::Range { subs, .. } | AggNode::Filters { subs, .. } = node {
+        *subs = keyword_subs::sub_nodes(agg, shard, ords)?;
+    }
+    Ok(())
+}
+
+/// How many buckets `agg` makes.
+fn width(agg: &MetricAgg) -> usize {
+    match (agg.range.as_deref(), agg.filters.as_deref()) {
+        (Some(range), _) => range.ranges.len(),
+        (_, Some(filters)) => filters_collect::bucket_count(filters),
+        _ => 0,
+    }
+}
+
+/// The shard-level result of the `range`, `filters` or `filter` `agg` from
+/// the engine's `result` (none for an unmapped field), with every bucket's
+/// sub-aggregation values.
+pub fn value<S: BlobStore + 'static>(
+    agg: &MetricAgg,
+    shard: &OpenShard<S>,
+    result: Option<AggResult>,
+) -> Result<Value, ShardError> {
+    let (docs, subs) = match result {
+        Some(AggResult::Fixed { docs, subs, .. }) => (docs, subs),
+        // ALLOC: empty.
+        None => (Vec::new(), Vec::new()),
+        Some(_) => {
+            return Err(ShardError {
+                status: 500,
+                failure: crate::failure::Failure::opensearch(
+                    "exception",
+                    // ALLOC: error path; one message.
+                    "an aggregation result of another kind".to_owned(),
+                ),
+            });
+        }
+    };
+    let mut made = if agg.filters.is_some() {
+        filters_collect::value(agg, &docs)
+    } else {
+        range_collect::value(agg, &docs)
+    };
+    if agg.subs.is_empty() {
+        return Ok(made);
+    }
+    let (meta, lists) = keyword_subs::sub_values(agg, shard, subs, width(agg))?;
+    match &mut made {
+        Value::Range(r) => {
+            r.sub_meta = meta;
+            r.subs = lists;
+        }
+        Value::Filters(f) => {
+            f.sub_meta = meta;
+            f.subs = lists;
+        }
+        _ => {}
+    }
+    Ok(made)
+}
+
+/// The most bytes the sub-aggregations of the fixed buckets of every
+/// aggregation in `aggs` hold on `shard`: each bucket's engine states and
+/// values (the engine's, the shard's and a reduce's), and a nested `terms`'
+/// own under the buckets.
+pub fn reserved<S: BlobStore + 'static>(shard: &OpenShard<S>, aggs: &[MetricAgg]) -> usize {
+    aggs.iter()
+        .filter(|a| is_fixed(a) && !a.subs.is_empty())
+        .fold(0usize, |total, agg| {
+            let buckets = width(agg).min(crate::aggs::bucket::BUCKET_LIMIT);
+            let parent = Parent {
+                cells: buckets,
+                kept: buckets,
+            };
+            let per_value = std::mem::size_of::<lucene_aggs::metric_aggs::MetricState>()
+                .saturating_add(SUB_COPIES.saturating_mul(std::mem::size_of::<Value>()));
+            agg.subs.iter().fold(total, |total, sub| {
+                total.saturating_add(if sub.metric == Metric::Terms {
+                    keyword_subs::reserved(shard, sub, parent)
+                } else {
+                    buckets.saturating_mul(per_value)
+                })
+            })
+        })
+}
