@@ -93,6 +93,10 @@ name = "forward"
 required-features = ["writer"]
 
 [[test]]
+name = "read_forward"
+required-features = ["writer"]
+
+[[test]]
 name = "writer_publish_timer"
 required-features = ["writer"]
 
