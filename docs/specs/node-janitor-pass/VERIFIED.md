@@ -7,3 +7,4 @@
 - AC-5: `a_new_commit_makes_the_shard_due_again` in crates/node/tests/writer_janitor.rs
 - AC-6: `a_pass_with_no_memory_for_its_buffer_sweeps_nothing` in crates/node/tests/writer_janitor.rs
 - AC-7: `a_shard_pinned_whole_is_swept_again_once_the_pin_is_gone` in crates/node/tests/writer_janitor.rs
+- AC-8: `the_timer_runs_a_pass_on_its_interval_reading_the_config_each_time_until_dropped` in crates/node/tests/writer_janitor.rs

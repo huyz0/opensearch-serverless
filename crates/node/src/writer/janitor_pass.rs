@@ -15,7 +15,21 @@ use oss_janitor::gc::{Collector, Config, Memory, Outcome, PointInTimePins};
 use oss_mem::{MemoryBudget, Pool};
 use oss_meta::PointInTimeStore;
 
-use super::{HeldShard, WriterRole};
+use super::WriterRole;
+
+/// A shard this node holds: its index's name and uuid, its number, and the
+/// commit it last published.
+#[derive(Debug, Clone)]
+pub struct HeldShard {
+    /// The index's name.
+    pub name: String,
+    /// The index's uuid.
+    pub uuid: String,
+    /// The shard number.
+    pub shard: u32,
+    /// The commit manifest the shard last published, if it has.
+    pub newest: Option<Arc<[u8]>>,
+}
 
 /// What one pass did.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]

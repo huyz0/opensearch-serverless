@@ -6,7 +6,7 @@ Parity plan R7.6, node assembly: the janitor crate sweeps one shard at a time, a
 
 ## Change
 
-`oss-node`, with the `writer` feature, gains `JanitorPass` and `JanitorReport`, and `WriterRole::held_shards`.
+`oss-node`, with the `writer` feature, gains `JanitorPass`, `JanitorReport`, `JanitorTimer` and `WriterRole::held_shards`.
 
 - A pass sweeps a held shard only when it published a commit the last sweep did not see, when a blob of it is still being watched for the second sighting, or when its last sweep was pinned whole or found no commit. A held shard nothing happens to makes no request, so the cost scales with publishes and blobs, never with time.
 - One pass reads the live points in time once and answers every shard it sweeps from that snapshot.
@@ -22,6 +22,7 @@ Parity plan R7.6, node assembly: the janitor crate sweeps one shard at a time, a
 - AC-5: a new published commit makes the shard due again.
 - AC-6: a pass with no memory for its buffer sweeps nothing and says so.
 - AC-7: a shard pinned whole by a capture is reported pinned, is swept again at the next pass once the capture is gone, and then follows AC-2.
+- AC-8: `JanitorTimer` runs a pass every interval, reading the sweep's config at the start of each, and runs none once dropped.
 
 ## Test plan
 

@@ -13,6 +13,7 @@
 mod heads;
 mod incarnation;
 mod janitor_pass;
+mod janitor_timer;
 mod lease;
 mod publish_timer;
 mod publishing;
@@ -36,7 +37,8 @@ use slot::ShardSlot;
 
 pub use heads::{HeadAdmission, ShardNames};
 pub use incarnation::{DescriptorIncarnation, FENCE_WINDOW, Incarnation};
-pub use janitor_pass::{JanitorPass, JanitorReport, PassLimits};
+pub use janitor_pass::{HeldShard, JanitorPass, JanitorReport, PassLimits};
+pub use janitor_timer::{JanitorTimer, SweepConfig};
 pub use lease::MembershipLeaseWrite;
 pub use publish_timer::PublishTimer;
 pub use publishing::{PublishPass, Publishing};
@@ -68,20 +70,6 @@ enum Failure {
     Refused(Refused),
     /// The write could not be made durable or the shard is not held.
     Unavailable(String),
-}
-
-/// A shard this node holds: its index's name and uuid, its number, and the
-/// commit it last published.
-#[derive(Debug, Clone)]
-pub struct HeldShard {
-    /// The index's name.
-    pub name: String,
-    /// The index's uuid.
-    pub uuid: String,
-    /// The shard number.
-    pub shard: u32,
-    /// The commit manifest the shard last published, if it has.
-    pub newest: Option<Arc<[u8]>>,
 }
 
 /// The shards held, by index uuid and shard number.

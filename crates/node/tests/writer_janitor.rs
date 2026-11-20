@@ -6,6 +6,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
+use std::time::Instant;
 
 use oss_blob::{BlobStore, Emulator, S3Op, SliceSource};
 use oss_format::{NodeLogEpoch, PitFile, PitShard, PointInTime, ShardKey};
@@ -13,7 +14,8 @@ use oss_janitor::gc::Config;
 use oss_mem::{BudgetConfig, MemoryBudget, Pool};
 use oss_meta::PointInTimeStore;
 use oss_node::writer::{
-    JanitorPass, JanitorReport, PassLimits, Publishing, RoleTarget, Routes, WriterRole,
+    JanitorPass, JanitorReport, JanitorTimer, PassLimits, Publishing, RoleTarget, Routes,
+    WriterRole,
 };
 use oss_writer::bulk::{
     Bulk, BulkBudget, Defaults, IdGenerator, IndexInfo, ItemResult, Owner, Planned, StreamConfig,
@@ -318,4 +320,35 @@ fn a_shard_pinned_whole_is_swept_again_once_the_pin_is_gone() {
     let second = r.pass.run(LIVE);
     assert_eq!(second.deleted, 1, "{second:?}");
     assert!(!exists(&r, &key));
+}
+
+#[test]
+fn the_timer_runs_a_pass_on_its_interval_reading_the_config_each_time_until_dropped() {
+    let r = rig();
+    let reads = Arc::new(AtomicU64::new(0));
+    let counted = Arc::clone(&reads);
+    let timer = JanitorTimer::spawn(
+        Arc::new(r.pass),
+        Duration::from_millis(5),
+        Box::new(move || {
+            counted.fetch_add(1, Ordering::SeqCst);
+            LIVE
+        }),
+    );
+    let started = Instant::now();
+    while reads.load(Ordering::SeqCst) < 3 {
+        assert!(
+            started.elapsed() < Duration::from_secs(10),
+            "too few passes"
+        );
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    drop(timer);
+    let stopped = reads.load(Ordering::SeqCst);
+    std::thread::sleep(Duration::from_millis(60));
+    assert_eq!(
+        reads.load(Ordering::SeqCst),
+        stopped,
+        "a dropped timer runs no pass"
+    );
 }
