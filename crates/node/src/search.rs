@@ -274,6 +274,7 @@ pub fn routes<S: BlobStore + 'static>(
     let any_post = Arc::clone(&service);
     let counting = Arc::clone(&service);
     let caps = Arc::clone(&service);
+    let multi = Arc::clone(&service);
     router
         .route(
             Method::Get,
@@ -301,6 +302,7 @@ pub fn routes<S: BlobStore + 'static>(
         )
         .and_then(|router| count::routes(router, counting))
         .and_then(|router| field_caps::routes(router, caps))
+        .and_then(|router| msearch::routes(router, multi))
 }
 
 #[path = "search_count.rs"]
@@ -309,6 +311,8 @@ mod count;
 mod field_caps;
 #[path = "search_frozen.rs"]
 mod frozen;
+#[path = "search_msearch.rs"]
+mod msearch;
 #[path = "search_open.rs"]
 pub(crate) mod open_shard;
 #[path = "search_shard.rs"]

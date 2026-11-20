@@ -82,3 +82,4 @@ src/search_count.rs	port	server/src/main/java/org/opensearch/rest/action/search/
 src/writer/dead_logs.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/shard/ShardSettlement.java	collectNodeLog reads: the fenced epochs, the shard names in the headers, the commit checkpoint
 src/search_field_caps.rs	port	server/src/main/java/org/opensearch/rest/action/admin/indices/RestFieldCapabilitiesAction.java	_field_caps over named indices: type, searchable and aggregatable per field, merged by type
 src/writer/dead_log_pass.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/reconcile/BackgroundReconciler.java	which dead nodes a node reaps, the collection pass over them and the wait that backs off
+src/search_msearch.rs	port	server/src/main/java/org/opensearch/rest/action/search/RestMultiSearchAction.java	_msearch: header and body lines streamed, each search run as its line ends, items written as they finish
