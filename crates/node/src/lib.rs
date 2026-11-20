@@ -31,6 +31,8 @@ pub mod handlers;
 #[cfg(feature = "writer")]
 pub mod health_route;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
+pub mod index_delete;
+#[cfg(all(feature = "writer", feature = "coordinator"))]
 pub mod index_route;
 #[cfg(feature = "writer")]
 pub mod newest;

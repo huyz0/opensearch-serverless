@@ -176,6 +176,10 @@ name = "bulk_route"
 required-features = ["reader", "writer"]
 
 [[test]]
+name = "index_delete"
+required-features = ["writer", "coordinator"]
+
+[[test]]
 name = "cluster_owner"
 required-features = ["writer"]
 

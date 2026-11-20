@@ -1,0 +1,178 @@
+//! `DELETE /{index}` and the reclaim drain, over `oss-meta`'s lifecycle with
+//! the real shard heads and pins (ADR 0012).
+//!
+//! Ported from `IndexAdminHandler`'s delete route. A shard no writer held is
+//! purged inside the request; a shard a writer held waits for its reclaim
+//! intent, which [`DeleteService::drain`] takes once due.
+
+mod heads;
+mod pins;
+mod timer;
+
+use std::sync::Arc;
+use std::time::Duration;
+
+use oss_blob::BlobStore;
+use oss_coordinator::indices::admin::{check_name, delete_ack, delete_failed, no_such_index};
+use oss_coordinator::route::resolve::Refusal;
+use oss_meta::{
+    AliasClock, AliasMutations, DescriptorStore, IndexLifecycle, MetaError, PitClock,
+    PointInTimeStore, ReclaimQueue,
+};
+use oss_rest::{Exception, JSON, Method, Request, Response, RestError, RouteError, Router};
+
+pub use heads::NodeHeads;
+pub use pins::{NoSnapshots, NodePins, SnapshotPins};
+pub use timer::DrainTimer;
+
+/// The lifetime of an alias reservation a delete's detach takes.
+const ALIAS_TTL_MILLIS: i64 = 30_000;
+
+/// Buffers a delete holds: the lifecycle's, its alias mutations' three, and
+/// the pins' one.
+const BUFFERS: usize = 5;
+
+/// The query parameters a delete accepts and has nothing to do for.
+const PARAMS: &[&str] = &["timeout", "master_timeout", "cluster_manager_timeout"];
+
+fn refuse(status: u16, kind: &'static str, reason: impl Into<String>) -> RestError {
+    RestError::exception(status, Exception::new(kind, reason))
+}
+
+fn refusal(r: Refusal) -> RestError {
+    refuse(r.status, r.kind, r.reason)
+}
+
+/// Deletes indexes and finishes the deletes whose intents fell due.
+pub struct DeleteService {
+    descriptors: DescriptorStore,
+    queue: ReclaimQueue,
+    heads: NodeHeads,
+    pins: NodePins,
+    clock: PitClock,
+    buffer_bytes: usize,
+}
+
+impl DeleteService {
+    /// A service over `store` under `base`. Each request holds
+    /// [`BUFFERS`] buffers of `buffer_bytes`, charged to the request-body pool.
+    ///
+    /// # Errors
+    ///
+    /// [`MetaError`] when the store refuses the base.
+    pub fn new(
+        store: &Arc<dyn BlobStore>,
+        base: &str,
+        mode: oss_meta::DeleteMode,
+        clock: PitClock,
+        snapshots: Arc<dyn SnapshotPins>,
+        buffer_bytes: usize,
+    ) -> Result<Self, MetaError> {
+        let pits = PointInTimeStore::new(Arc::clone(store), base, Arc::clone(&clock))?;
+        Ok(Self {
+            descriptors: DescriptorStore::new(Arc::clone(store), base, mode)?,
+            queue: ReclaimQueue::new(Arc::clone(store), base)?,
+            heads: NodeHeads::new(Arc::clone(store), base)?,
+            pins: NodePins::new(pits, snapshots, buffer_bytes),
+            clock,
+            buffer_bytes,
+        })
+    }
+
+    fn now(&self) -> i64 {
+        i64::try_from((self.clock)()).unwrap_or(i64::MAX)
+    }
+
+    fn lifecycle<'a>(
+        &'a self,
+        now: &'a dyn Fn() -> i64,
+        pause: &'a dyn Fn(Duration),
+    ) -> IndexLifecycle<'a> {
+        let aliases = AliasMutations::new(
+            &self.descriptors,
+            AliasClock {
+                now_millis: now,
+                pause,
+            },
+            ALIAS_TTL_MILLIS,
+            self.buffer_bytes,
+        );
+        IndexLifecycle::new(
+            &self.descriptors,
+            aliases,
+            &self.queue,
+            &self.heads,
+            &self.pins,
+            self.buffer_bytes,
+        )
+    }
+
+    /// `DELETE /{index}`.
+    pub fn delete(&self, req: &mut Request<'_>, resp: &mut Response<'_>) -> Result<(), RestError> {
+        let index = req
+            .path_param("index")
+            .ok_or_else(|| RestError::illegal_argument("an index is required"))?;
+        check_name(&index, false).map_err(refusal)?;
+        if index.contains(['*', ',']) || index == "_all" {
+            return Err(refuse(
+                400,
+                "illegal_argument_exception",
+                "deleting more than one index in a request is not supported: name one index",
+            ));
+        }
+        req.body()
+            .reserve(self.buffer_bytes.saturating_mul(BUFFERS))?;
+        let now = || self.now();
+        let pause = |d: Duration| std::thread::sleep(d);
+        let deleted = self
+            .lifecycle(&now, &pause)
+            .delete_index(&index, None, self.now())
+            .map_err(|e| refuse(500, "index_delete_failure", e.to_string()))?;
+        match deleted {
+            Some(_) => resp.send(200, JSON, delete_ack(&index).as_bytes()),
+            // The pass found no index, or a change to it won the race.
+            None => Err(refusal(if self.exists(&index) {
+                delete_failed(&index, true)
+            } else {
+                no_such_index(&index)
+            })),
+        }
+    }
+
+    fn exists(&self, index: &str) -> bool {
+        // ALLOC: one buffer, only on a delete that found nothing to delete.
+        let mut buf = vec![0u8; self.buffer_bytes];
+        self.descriptors
+            .get(index, &mut buf)
+            .is_ok_and(|r| r.is_some())
+    }
+
+    /// Takes the reclaim intents that are due and finishes their deletes,
+    /// answering how many it took. One LIST when nothing is due.
+    ///
+    /// # Errors
+    ///
+    /// [`MetaError`] when the queue cannot be listed.
+    pub fn drain(&self) -> Result<usize, MetaError> {
+        let now = || self.now();
+        let pause = |d: Duration| std::thread::sleep(d);
+        let mut lifecycle = self.lifecycle(&now, &pause);
+        self.queue.drain(self.now(), &|_| true, &mut |intent| {
+            lifecycle.reclaim(intent)
+        })
+    }
+}
+
+/// The delete route added to `router`.
+///
+/// # Errors
+///
+/// A route registered twice.
+pub fn routes(router: Router, service: Arc<DeleteService>) -> Result<Router, RouteError> {
+    router.route(
+        Method::Delete,
+        "/{index}",
+        PARAMS,
+        move |req: &mut Request<'_>, resp: &mut Response<'_>| service.delete(req, resp),
+    )
+}

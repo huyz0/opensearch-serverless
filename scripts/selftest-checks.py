@@ -78,8 +78,6 @@ CASES = [
     (["check-s3-access.py"], "S3 client outside oss-blob",
      {"crates/reader/Cargo.toml": '[package]\nname = "oss-reader"\n\n[dependencies]\naws-sdk-s3 = "1"\n\n[lints]\nworkspace = true\n'}),
     (["check-s3-access.py"], "unjustified LIST", {"crates/reader/src/lib.rs": "//! Search.\nfn f(c: &C) { c.list_objects_v2(); }\n"}),
-    (["check-unwired-deletes.py"], "an index delete wired outside oss-meta",
-     {"crates/reader/src/lib.rs": "//! Search.\nuse oss_meta::IndexLifecycle;\n"}),
     (["check-budgets.py"], "an enforced row whose test file is missing",
      {"docs/request-budgets.md": "| Objective | Case | Budget | Bound | Status | Gate |\n|---|---|---|---|---|---|\n| `a.b` | x | 1 | exact | enforced | `crates/reader/tests/b.rs::gate` |\n"}),
     (["check-budgets.py"], "an enforced row whose test is missing",

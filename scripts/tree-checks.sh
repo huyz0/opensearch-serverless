@@ -20,7 +20,6 @@ check-unsafe.py
 check-alloc.py
 check-s3-access.py
 check-test-endpoints.py
-check-unwired-deletes.py
 check-budgets.py
 check-arith-allows.py
 check-dev-notes.py

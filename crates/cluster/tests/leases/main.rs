@@ -9,6 +9,7 @@
 mod budget;
 mod early;
 mod early_bounds;
+mod head_registers;
 mod heads;
 mod java;
 mod refresh;
