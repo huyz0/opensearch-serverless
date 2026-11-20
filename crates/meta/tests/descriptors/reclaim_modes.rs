@@ -132,3 +132,41 @@ fn a_shards_blobs_are_deleted_in_one_request() {
         assert_eq!(deletes, Some(expected), "{:?} {n:?}", b.kind);
     }
 }
+
+/// The `had_writer` of the intents filed so far, taking them.
+fn filed(q: &oss_meta::ReclaimQueue) -> Vec<bool> {
+    let mut seen = Vec::new();
+    q.drain(NOW + 180_000, &|_| true, &mut |i| {
+        seen.push(i.had_writer);
+        Ok(())
+    })
+    .unwrap();
+    seen
+}
+
+#[test]
+fn a_delete_files_one_intent_and_only_a_pin_files_another() {
+    for b in all() {
+        let d = b.descriptors(DeleteMode::Conditional);
+        for (pins, repurge, expect) in [
+            (&NO_PINS, true, false),
+            (&Pins(Some(vec![0])), false, false),
+            (&Pins(Some(vec![0])), true, true),
+        ] {
+            let q = queue(&b.store);
+            let name = format!("i{}{}", repurge, expect);
+            let mut l = lifecycle(&d, &q, &NoHeads, pins).with_repurge_pinned(repurge);
+            l.create_index(&IndexRecord::new(&name, "u1", 1), NOW)
+                .unwrap();
+            shard_blob(&*b.store, &name, "u1", 0, "manifest");
+            l.delete_index(&name, None, NOW).unwrap().unwrap();
+            assert_eq!(
+                filed(&q),
+                [expect],
+                "{:?} repurge {repurge} pinned {}",
+                b.kind,
+                pins.0.is_some()
+            );
+        }
+    }
+}
