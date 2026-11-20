@@ -23,6 +23,7 @@ reader = [
     "dep:oss-transport",
     "dep:oss-format",
     "dep:oss-meta",
+    "dep:oss-doc",
 ]
 writer = [
     "dep:oss-writer",
