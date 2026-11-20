@@ -111,7 +111,10 @@ pub fn restore(
 }
 
 /// The register's value and generation; `None` when there is none.
-fn read_manifest(store: &dyn BlobStore, key: &str) -> Result<Option<(Vec<u8>, u64)>, RestoreError> {
+pub(super) fn read_manifest(
+    store: &dyn BlobStore,
+    key: &str,
+) -> Result<Option<(Vec<u8>, u64)>, RestoreError> {
     for size in [READ_FIRST, READ_MOST] {
         // ALLOC: one buffer a restore's register read, at most manifest-sized.
         let mut buf = vec![0u8; size];

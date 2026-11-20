@@ -9,12 +9,14 @@
 //! returned.
 
 mod adopt;
+mod checkpoint;
 mod engine;
 mod head;
 mod predecessors;
 mod restore;
 
 pub use adopt::{AdoptError, Adopted, Engine, adopt};
+pub use checkpoint::commit_checkpoint;
 pub use engine::ShardEngine;
 pub use head::{HeadWriters, Settled};
 pub use predecessors::{Predecessors, PredecessorsFactory};

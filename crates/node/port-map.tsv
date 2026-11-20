@@ -78,3 +78,4 @@ src/by_query/response.rs	new		the answer of a delete by query
 src/by_query/search.rs	new		the by-query search answered by the node's own reader, sorted by sequence number
 src/writer/publish_age.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/reconcile/BackgroundReconciler.java	the per-index publish age: refresh_interval bounds the oldest unpublished write; -1 leaves it to the operation count
 src/search_count.rs	port	server/src/main/java/org/opensearch/rest/action/search/RestCountAction.java	_count as the exact total of a size-0 search of the query
+src/writer/dead_logs.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/shard/ShardSettlement.java	collectNodeLog reads: the fenced epochs, the shard names in the headers, the commit checkpoint
