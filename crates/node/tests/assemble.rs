@@ -1,0 +1,209 @@
+//! docs/specs/node-assembly: a node assembled from its roles.
+
+#![cfg(all(feature = "reader", feature = "writer"))]
+
+#[path = "support/mod.rs"]
+mod support;
+
+use std::net::TcpListener;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+
+use oss_blob::{BlobStore, Emulator};
+use oss_format::{MAX_POINT_IN_TIME_BYTES, NodeLogEpoch, ShardKey};
+use oss_mem::{BudgetConfig, MemoryBudget, Pool};
+use oss_node::assemble::{AssembleError, Config, Running, Writer, assemble};
+use oss_node::writer::Routes;
+use oss_writer::bulk::{IndexInfo, ItemResult, Owner, Planned};
+use oss_writer::log::{
+    CommitterConfig, EpochLease, NodeLogCommitter, NodeLogStore, Refusal, ShardAdmission,
+};
+use oss_writer::mapping::Mapping;
+
+struct Lease;
+
+impl EpochLease for Lease {
+    fn record(&self, _: &[NodeLogEpoch]) -> Result<(), Refusal> {
+        Ok(())
+    }
+}
+
+struct Admit;
+
+impl ShardAdmission for Admit {
+    fn admit(&self, _: &ShardKey, _: i64, _: u64) -> Result<(), Refusal> {
+        Ok(())
+    }
+}
+
+struct Local;
+
+fn info() -> IndexInfo {
+    IndexInfo {
+        name: "docs".into(),
+        uuid: "docs-uuid".into(),
+        shards: 1,
+        partition_size: 1,
+        routing_shards: 1,
+        routing_required: false,
+    }
+}
+
+impl Routes for Local {
+    fn index(&self, name: &str) -> Option<IndexInfo> {
+        (name == "docs").then(info)
+    }
+
+    fn owner(&self, _: &IndexInfo, _: u32) -> Owner {
+        Owner::Local
+    }
+
+    fn forward(&self, _: &str, _: &IndexInfo, _: u32, _: &[Planned<'_>]) -> Vec<ItemResult> {
+        Vec::new()
+    }
+}
+
+fn budget(request_bodies: usize, open_indexes: usize) -> MemoryBudget {
+    MemoryBudget::new(
+        &BudgetConfig::new(512 << 20)
+            .with_pool(Pool::RequestBodies, request_bodies)
+            .and_then(|c| c.with_pool(Pool::OpenIndexes, open_indexes))
+            .and_then(|c| c.with_pool(Pool::Transport, 8 << 20))
+            .expect("fits"),
+    )
+}
+
+fn config() -> Config {
+    Config {
+        publish_every: Duration::from_millis(10),
+        publish_age_millis: 0,
+        ..Config::new("", "node-1", [0; 6])
+    }
+}
+
+fn writer(store: &Arc<Emulator>) -> Writer {
+    let log =
+        NodeLogStore::new(Arc::clone(store) as Arc<dyn BlobStore>, "", "node-1").expect("names");
+    Writer {
+        committer: Arc::new(NodeLogCommitter::new(
+            log,
+            7,
+            Box::new(Arc::new(Lease)),
+            Box::new(Arc::new(Admit)),
+            CommitterConfig {
+                window: Duration::from_millis(0),
+                ..CommitterConfig::default()
+            },
+        )),
+        routes: Arc::new(Local),
+    }
+}
+
+fn start(request_bodies: usize) -> (Running, Arc<Emulator>) {
+    let store = Arc::new(Emulator::new(1 << 28, 9));
+    let budget = budget(request_bodies, 16 << 20);
+    let node = assemble(
+        &config(),
+        Arc::clone(&store) as Arc<dyn BlobStore>,
+        &budget,
+        writer(&store),
+    )
+    .expect("assembles");
+    node.role
+        .open_shard(
+            &info(),
+            0,
+            3,
+            Mapping::parse(br#"{"properties":{"n":{"type":"integer"}}}"#).expect("mapping"),
+        )
+        .expect("opens");
+    let running = node
+        .start(
+            TcpListener::bind("127.0.0.1:0").expect("binds"),
+            support::server_config(),
+            &budget,
+        )
+        .expect("starts");
+    (running, store)
+}
+
+fn call(r: &Running, method: &str, target: &str, body: Option<&str>) -> support::Reply {
+    support::request(r.addr(), method, target, body.map(str::as_bytes))
+}
+
+#[test]
+fn every_route_family_is_registered_on_the_one_listener() {
+    let (r, _) = start(256 << 20);
+    let wrote = call(&r, "PUT", "/docs/_doc/1", Some(r#"{"n":1}"#));
+    assert_eq!(wrote.status, 201, "{}", wrote.text());
+    let bulk = call(
+        &r,
+        "POST",
+        "/docs/_bulk",
+        Some("{\"index\":{\"_id\":\"2\"}}\n{\"n\":2}\n"),
+    );
+    assert_eq!(bulk.status, 200, "{}", bulk.text());
+    let search = call(&r, "POST", "/docs/_search", Some("{}"));
+    assert_eq!(search.status, 404, "{}", search.text());
+    assert!(
+        search.text().contains("index_not_found"),
+        "{}",
+        search.text()
+    );
+    let pit = call(&r, "POST", "/docs/_pit", None);
+    assert_eq!(pit.status, 404, "{}", pit.text());
+    assert!(pit.text().contains("index_not_found"), "{}", pit.text());
+    let list = call(&r, "GET", "/_search/point_in_time/_all", None);
+    assert_eq!(list.status, 200, "{}", list.text());
+    let unregistered = call(&r, "GET", "/_nothing/here/at/all", None);
+    assert_ne!(unregistered.status, 200);
+}
+
+#[test]
+fn the_role_is_the_one_the_routes_write_through_and_the_timer_publishes_it() {
+    let (r, _) = start(256 << 20);
+    assert!(r.role.held("docs-uuid", 0));
+    assert!(r.role.newest_commit("docs-uuid", 0).is_none());
+    assert_eq!(
+        call(&r, "PUT", "/docs/_doc/1", Some(r#"{"n":1}"#)).status,
+        201
+    );
+    let started = Instant::now();
+    while r.role.newest_commit("docs-uuid", 0).is_none() {
+        assert!(
+            started.elapsed() < Duration::from_secs(10),
+            "the timer published nothing"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+#[test]
+fn the_pit_buffer_is_charged_to_the_request_body_pool() {
+    assert_eq!(
+        Config::new("", "n", [0; 6]).pit_buffer_bytes,
+        MAX_POINT_IN_TIME_BYTES
+    );
+    // A pool that cannot hold one view's buffer refuses the create at once.
+    let (r, store) = start(MAX_POINT_IN_TIME_BYTES / 2);
+    let before = store.meter().count(oss_blob::S3Op::Put);
+    let refused = call(&r, "POST", "/docs/_pit", None);
+    assert_eq!(refused.status, 429, "{}", refused.text());
+    assert_eq!(
+        store.meter().count(oss_blob::S3Op::Put),
+        before,
+        "nothing written"
+    );
+}
+
+#[test]
+fn a_budget_with_no_open_indexes_is_refused() {
+    let store = Arc::new(Emulator::new(1 << 20, 1));
+    let refused = assemble(
+        &config(),
+        Arc::clone(&store) as Arc<dyn BlobStore>,
+        &budget(64 << 20, 0),
+        writer(&store),
+    );
+    assert!(matches!(refused, Err(AssembleError::NoOpenIndexes)));
+}

@@ -38,3 +38,4 @@ src/writer/publish_timer.rs	new		one thread running the publish pass on an inter
 src/doc_route.rs	new		the _doc, _create and delete routes over the writer role, each one item through the bulk path; the Java has the REST actions in OpenSearch core
 src/pit_route/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/PointInTimeHandler.java@429b4cbc	routes, refusals and answer shapes for create, delete and list; the node actions and the closing of frozen readers are not here
 src/pit_route/params.rs	port	server/src/main/java/org/opensearch/common/unit/TimeValue.java@3.10.0	parseTimeValue for the keep-alive units, and DeletePitRequest.fromXContent for the pit_id body
+src/assemble.rs	new		the composition root: services, routes and the publish timer over one shared store; the Java assembles in ServerlessNode through plugin wiring
