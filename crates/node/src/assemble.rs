@@ -20,6 +20,8 @@ use oss_writer::publish::lazy::Policy;
 use crate::bulk_route::{self, BulkService};
 use crate::doc_route::{self, DocService};
 #[cfg(feature = "coordinator")]
+use crate::index_delete::{self, DeleteService, DrainTimer, NoSnapshots};
+#[cfg(feature = "coordinator")]
 use crate::index_route::{self, IndexService};
 use crate::pit_route::{self, PitService};
 use crate::search::{self, SearchService};
@@ -61,6 +63,8 @@ pub struct Config {
     pub janitor_every: Duration,
     /// How a janitor sweep behaves; it starts as a dry run.
     pub sweep: gc::Config,
+    /// How often this node drains the reclaim queue.
+    pub reclaim_every: Duration,
     /// The most points in time that may be live for a janitor pass to run.
     pub janitor_max_views: usize,
 }
@@ -89,9 +93,34 @@ impl Config {
                 max_watched: 100_000,
                 max_pinned: 100_000,
             },
+            reclaim_every: Duration::from_secs(60),
             janitor_max_views: 10_000,
         }
     }
+}
+
+/// The reclaim drain, present when the node serves index admin.
+#[cfg(feature = "coordinator")]
+type Drain = Option<DrainTimer>;
+#[cfg(not(feature = "coordinator"))]
+type Drain = Option<()>;
+
+#[cfg(feature = "coordinator")]
+fn delete_service(
+    config: &Config,
+    store: &Arc<dyn BlobStore>,
+    clock: &PitClock,
+) -> Result<Arc<DeleteService>, AssembleError> {
+    DeleteService::new(
+        store,
+        &config.base,
+        config.delete_mode,
+        Arc::clone(clock),
+        Arc::new(NoSnapshots),
+        config.pit_buffer_bytes,
+    )
+    .map(Arc::new)
+    .map_err(|e| AssembleError::Store(e.to_string()))
 }
 
 /// What the writer role is built on.
@@ -141,6 +170,7 @@ pub struct Assembled {
     pub role: Arc<WriterRole>,
     timer: PublishTimer,
     janitor: JanitorTimer,
+    drain: Drain,
 }
 
 /// A node listening.
@@ -152,6 +182,7 @@ pub struct Running {
     pub role: Arc<WriterRole>,
     _timer: PublishTimer,
     _janitor: JanitorTimer,
+    _drain: Drain,
 }
 
 impl Running {
@@ -182,6 +213,7 @@ impl Assembled {
             role: self.role,
             _timer: self.timer,
             _janitor: self.janitor,
+            _drain: self.drain,
         })
     }
 }
@@ -263,7 +295,7 @@ pub fn assemble(
     let router = doc_route::routes(router, docs).map_err(AssembleError::Route)?;
     let router = pit_route::routes(router, pit).map_err(AssembleError::Route)?;
     #[cfg(feature = "coordinator")]
-    let router = {
+    let (router, drain) = {
         let descriptors =
             DescriptorStore::new(Arc::clone(&store), &config.base, config.delete_mode)
                 .map_err(|e| AssembleError::Store(e.to_string()))?;
@@ -272,8 +304,15 @@ pub fn assemble(
             Arc::clone(&clock),
             config.pit_buffer_bytes,
         ));
-        index_route::routes(router, indices).map_err(AssembleError::Route)?
+        let router = index_route::routes(router, indices).map_err(AssembleError::Route)?;
+        let deletes = delete_service(config, &store, &clock)?;
+        let drain = DrainTimer::spawn(Arc::clone(&deletes), config.reclaim_every);
+        let router = index_delete::routes(router, deletes).map_err(AssembleError::Route)?;
+        (router, Some(drain))
     };
+    #[cfg(not(feature = "coordinator"))]
+    let drain: Option<()> = None;
+
     let timer = PublishTimer::spawn(Arc::clone(&role), config.publish_every);
     let pass = Arc::new(JanitorPass::new(
         Arc::clone(&store),
@@ -295,5 +334,6 @@ pub fn assemble(
         role,
         timer,
         janitor,
+        drain,
     })
 }

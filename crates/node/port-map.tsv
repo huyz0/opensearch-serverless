@@ -44,3 +44,7 @@ src/writer/janitor_timer.rs	new		one thread running the janitor pass on an inter
 src/time_value.rs	port	server/src/main/java/org/opensearch/common/unit/TimeValue.java@3.10.0	parseTimeValue for the keep-alive units, and the default and longest keep-alive
 src/search_frozen.rs	new		the search of a point in time over a view's frozen shard, split from search.rs; the Java opens the context its PIT id names in the engine
 src/index_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/indexadmin/IndexAdminHandler.java	the create and exists routes over the descriptor store; delete, GET, mapping and settings routes are not here yet
+src/index_delete/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/indexadmin/IndexAdminHandler.java	the delete route over IndexLifecycle, and the reclaim drain
+src/index_delete/heads.rs	new		ShardHeads over the shard head registers
+src/index_delete/pins.rs	new		ShardPins over the live points in time, with a snapshot source hook
+src/index_delete/timer.rs	new		the thread that drains the reclaim queue each interval
