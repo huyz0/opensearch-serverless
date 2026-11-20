@@ -447,3 +447,15 @@ fn fields_the_plan_reads_with_their_parameters_equal_the_complete_path() {
         run(&mapping, &[doc.as_str(); 5]);
     }
 }
+
+#[test]
+fn a_source_over_the_size_bound_stays_with_the_complete_path() {
+    let words = |n: usize| "word ".repeat(n / 5);
+    let small = format!(r#"{{"message":"{}"}}"#, words(900_000));
+    let large = format!(r#"{{"message":"{}"}}"#, words(1_100_000));
+    let mapping = r#"{"properties":{"message":{"type":"text"}}}"#;
+    let taken = run(mapping, &[&small, &small, &large, &large]);
+    // The first numbers the field; the second is under the bound and read by the plan; the
+    // large ones are too big for the plan, whose memory is about twice the source's.
+    assert_eq!(taken, [false, true, false, false]);
+}

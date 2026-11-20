@@ -22,6 +22,11 @@ use crate::mapping::Mapping;
 /// this many compiled by one shard the fast path stops compiling and declines.
 const MAX_COMPILES: u32 = 4096;
 
+/// Sources over this many bytes stay with the complete path. At 1, 8 and 32 MB of text the plan
+/// builds the document in the same time, and holds about twice the source's bytes more at its
+/// peak (provisional; `tests/fast_large_source.rs`), so a large source gains nothing from it.
+const MAX_SOURCE: usize = 1 << 20;
+
 /// A shard's fast path: the plan compiled for its mapping and the fields numbered so far.
 #[derive(Default)]
 pub struct FastIngest {
@@ -87,6 +92,9 @@ impl FastIngest {
         source: &[u8],
         key: &[u8],
     ) -> Option<Fast> {
+        if source.len() > MAX_SOURCE {
+            return None;
+        }
         if self.stale || self.numbered != indexer.numbered_len() {
             if self.compiles >= MAX_COMPILES {
                 return None;

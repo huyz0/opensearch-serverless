@@ -26,6 +26,7 @@ Not changed: sequence numbers, versions, deletes, soft deletes, tombstones, the 
 - AC-7: `Shard::index` on the 100,000-document log corpus is at least 1.4x the complete path's MB/s, and its p99 per call is no worse than 105% of the complete path's (the same loop with the plan declining every source).
 - AC-8: the writer's replay and takeover tests pass unchanged with the plan in front.
 - AC-9: a 10,000-document `_bulk` issues the same number of PUT-class and GET-class requests, and the same sequential depth, as before (the request meter).
+- AC-10: a source over 1 MiB stays with the complete path: at 1, 8 and 32 MB of text the plan builds the document in the same time and holds about twice the source's bytes more at its peak, so it gains nothing there and costs memory.
 
 ## Test plan
 
