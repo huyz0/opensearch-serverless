@@ -34,6 +34,7 @@ pub struct Publishing {
     clock: Box<dyn Fn() -> u64 + Send + Sync>,
     lazy: Mutex<LazyPublish<Key>>,
     publishers: Mutex<HashMap<Key, ShardPublisher>>,
+    ages: Mutex<HashMap<Key, PublishAge>>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -59,6 +60,8 @@ impl Publishing {
             lazy: Mutex::new(LazyPublish::new(policy)),
             // ALLOC: one publisher a shard this node has published.
             publishers: Mutex::new(HashMap::new()),
+            // ALLOC: one entry a shard of an index that sets a refresh interval.
+            ages: Mutex::new(HashMap::new()),
         }
     }
 
@@ -72,12 +75,28 @@ impl Publishing {
     pub(super) fn forget(&self, key: &Key) {
         lock(&self.lazy).forget(key);
         lock(&self.publishers).remove(key);
+        lock(&self.ages).remove(key);
+    }
+
+    /// How long `key`'s index lets a write wait, from its settings.
+    pub(super) fn set_age(&self, key: &Key, age: PublishAge) {
+        let mut ages = lock(&self.ages);
+        if age == PublishAge::Node {
+            ages.remove(key);
+        } else {
+            // ALLOC: one entry a shard.
+            ages.insert(key.clone(), age);
+        }
     }
 
     /// Whether `key`, written through `max_seq_no`, is due now.
     pub(super) fn due(&self, key: &Key, max_seq_no: i64) -> bool {
         let now = (self.clock)();
-        lock(&self.lazy).due(key, max_seq_no, PublishAge::Node, now)
+        let age = lock(&self.ages)
+            .get(key)
+            .copied()
+            .unwrap_or(PublishAge::Node);
+        lock(&self.lazy).due(key, max_seq_no, age, now)
     }
 
     /// `key` was published through `max_seq_no`.

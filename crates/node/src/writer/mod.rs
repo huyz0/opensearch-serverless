@@ -19,6 +19,7 @@ mod lease;
 mod newest_commit;
 mod opener;
 mod predecessors;
+mod publish_age;
 mod publish_timer;
 mod publishing;
 mod refresh;
@@ -36,6 +37,7 @@ use oss_rest::{Exception, Meta};
 use oss_writer::bulk::{IndexInfo, ItemResult, Kind, Owner, Planned, item_result};
 use oss_writer::index::{Fetched, Refused, Written};
 use oss_writer::log::NodeLogCommitter;
+use oss_writer::publish::lazy::PublishAge;
 
 use incarnation::Fenced;
 use publishing::Key;
@@ -47,6 +49,7 @@ pub use janitor_pass::{HeldShard, JanitorPass, JanitorReport, PassLimits};
 pub use janitor_timer::{JanitorTimer, SweepConfig};
 pub use lease::MembershipLeaseWrite;
 pub use opener::{HeadOpener, ShardOpener};
+pub use publish_age::publish_age_of;
 pub use publish_timer::PublishTimer;
 pub use publishing::{PublishPass, Publishing};
 pub use tail::TailSink;
@@ -194,6 +197,16 @@ impl WriterRole {
     pub fn with_publishing(mut self, publishing: Publishing) -> Self {
         self.publishing = Some(publishing);
         self
+    }
+
+    /// Sets how long a write to `shard` of the index `uuid` may wait to be
+    /// published: its index's `refresh_interval`. Nothing is recorded for a
+    /// role that does not publish.
+    pub fn set_publish_age(&self, uuid: &str, shard: u32, age: PublishAge) {
+        if let Some(publishing) = &self.publishing {
+            // ALLOC: one key, once a shard opened.
+            publishing.set_age(&(uuid.to_owned(), shard), age);
+        }
     }
 
     /// Publishes each held shard the lazy policy finds due, remembering the

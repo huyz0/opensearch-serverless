@@ -1,7 +1,7 @@
 //! docs/specs/node-shard-opener: a writer opens a shard on its first write.
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::time::Duration;
 
 use oss_blob::{BlobStore, Emulator};
@@ -11,13 +11,14 @@ use oss_format::{FileLocation, IndexRecord, ManifestEntry, NodeLease, ShardRef, 
 use oss_meta::{DeleteMode, DescriptorStore};
 use oss_node::descriptor_routes::DescriptorRoutes;
 use oss_node::writer::{
-    DescriptorIncarnation, HeadAdmission, HeadOpener, MembershipLeaseWrite, RoleTarget, ShardNames,
-    ShardOpener, WriterRole,
+    DescriptorIncarnation, HeadAdmission, HeadOpener, MembershipLeaseWrite, Publishing, RoleTarget,
+    ShardNames, ShardOpener, WriterRole,
 };
 use oss_writer::bulk::{
     Bulk, BulkBudget, Defaults, IdGenerator, IndexInfo, ItemResult, StreamConfig, stream,
 };
 use oss_writer::log::{CommitterConfig, LeaseKeeper, NodeLogCommitter, NodeLogStore};
+use oss_writer::publish::lazy::Policy;
 
 const MAPPING: &str = r#"{"properties":{"n":{"type":"integer"}}}"#;
 
@@ -40,6 +41,7 @@ struct Rig {
     role: Arc<WriterRole>,
     heads: Arc<ShardHeadStore>,
     descriptors: Arc<DescriptorStore>,
+    clock: Arc<AtomicU64>,
 }
 
 fn rig(opener: bool) -> Rig {
@@ -108,7 +110,16 @@ fn rig(opener: bool) -> Rig {
         1 << 16,
     ));
     let calls = Arc::new(AtomicUsize::new(0));
+    let clock = Arc::new(AtomicU64::new(0));
+    let ticking = Arc::clone(&clock);
     let mut role = WriterRole::new(committer, routes)
+        .with_publishing(Publishing::new(
+            Arc::clone(&dynstore),
+            "",
+            "node-1",
+            Policy::new(1_000, 0, 250),
+            Box::new(move || ticking.load(Ordering::SeqCst)),
+        ))
         .with_names(names)
         .with_incarnation(
             Arc::new(DescriptorIncarnation::new(Arc::clone(&descriptors))),
@@ -134,11 +145,17 @@ fn rig(opener: bool) -> Rig {
         role: Arc::new(role),
         heads,
         descriptors,
+        clock,
     }
 }
 
 fn create(r: &Rig, name: &str, uuid: &str) {
+    create_with(r, name, uuid, b"{}");
+}
+
+fn create_with(r: &Rig, name: &str, uuid: &str, settings: &[u8]) {
     let mut record = IndexRecord::new(name, uuid, 1);
+    record.settings = settings;
     record.mapping = Some(std::borrow::Cow::Borrowed(MAPPING));
     r.descriptors
         .create(&record, 1, &mut vec![0u8; 1 << 16])
@@ -318,4 +335,40 @@ fn a_role_without_an_opener_says_the_shard_is_not_open() {
     let (status, reason) = failed(&write(&r.role, "logs", "1"));
     assert_eq!(status, 503);
     assert!(reason.contains("not open on this node"), "{reason}");
+}
+
+/// How many shards a pass published once the clock reads `now`.
+fn published_at(r: &Rig, now: u64) -> usize {
+    r.clock.store(now, Ordering::SeqCst);
+    r.role.publish_due().published
+}
+
+#[test]
+fn an_indexs_refresh_interval_sets_how_long_its_shards_wait_to_publish() {
+    for (settings, waits_past_the_nodes_age, name) in [
+        (&b"{}"[..], false, "plain"),
+        (&br#"{"index":{"refresh_interval":"1h"}}"#[..], true, "hour"),
+        (&br#"{"index.refresh_interval":"-1"}"#[..], true, "never"),
+    ] {
+        let r = rig(true);
+        create_with(
+            &r,
+            name,
+            "u1",
+            Box::leak(settings.to_vec().into_boxed_slice()),
+        );
+        assert!(matches!(
+            write(&r.role, name, "1"),
+            ItemResult::Written { .. }
+        ));
+        // The first pass publishes a new shard whatever its interval.
+        assert_eq!(published_at(&r, 0), 1, "{name}");
+        assert!(matches!(
+            write(&r.role, name, "2"),
+            ItemResult::Written { .. }
+        ));
+        // Past the node's one second, and well short of an hour.
+        let due = published_at(&r, 2_000) == 1;
+        assert_eq!(due, !waits_past_the_nodes_age, "{name}");
+    }
 }
