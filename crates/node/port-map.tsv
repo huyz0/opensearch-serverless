@@ -58,3 +58,4 @@ src/writer/newest_commit.rs	new		the newest-commit memory split from writer/mod.
 src/writer/tail.rs	new		the seam the write path tells the tail overlay through; the Java calls TailPush from its write path directly
 src/writer/opener.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/ShardReconciler.java	the open of a shard no writer has published yet: win its head, open under its term; a shard with a history is refused until takeover lands
 src/writer/refresh.rs	new		a refresh that publishes the commit it makes visible; the Java shell refreshes and publishes on separate paths
+src/cluster_owner.rs	new		owner by rendezvous over the held leases and the forward of a group as one BulkRequest; the Java splits this across FleetPlacement and ForwardedBulkAction

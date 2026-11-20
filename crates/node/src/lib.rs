@@ -13,6 +13,8 @@ pub mod bulk_route;
 #[cfg(feature = "writer")]
 pub mod cat_route;
 #[cfg(feature = "writer")]
+pub mod cluster_owner;
+#[cfg(feature = "writer")]
 pub mod cluster_route;
 #[cfg(feature = "writer")]
 pub mod descriptor_routes;

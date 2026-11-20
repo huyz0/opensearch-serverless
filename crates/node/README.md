@@ -19,6 +19,8 @@ With `writer`, `writer::WriterRole` holds the shards this node writes and applie
 
 With `writer`, `forward::BulkForwarder` sends a shard's bulk to its owner, signed, and is the one call site of `EarlyRevoke::on_refused` for a refused connect (`serverless.lease.early_revoke`, off by default). Contract: [docs/specs/forward/SPEC.md](../../docs/specs/forward/SPEC.md).
 
+With `writer`, `cluster_owner::ClusterRoutes` is the cluster half of `writer::Routes`: the owner of a shard by rendezvous over the held leases, and a group forwarded as one bulk through `BulkSend`. Contract: [docs/specs/node-cluster-routing/SPEC.md](../../docs/specs/node-cluster-routing/SPEC.md).
+
 With `writer`, `WriterRole::staged` remembers the manifest a shard's last publish produced and `newest::NewestHandler` answers a reader's `internal:serverless/commit/newest` ask with it, from memory. Contract: [docs/specs/writer-newest/SPEC.md](../../docs/specs/writer-newest/SPEC.md).
 
 With `reader`, `newest_ask::TransportNewestAsk` is a `NewestSource` a cold open asks for the newer commit a staging writer holds (`SearchService::set_newest_source`; setting `serverless.reader.newest_commit_ask`, off by default; `newest_ask::install`). Contract: [docs/specs/reader-newest-ask/SPEC.md](../../docs/specs/reader-newest-ask/SPEC.md).

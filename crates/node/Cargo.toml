@@ -176,7 +176,7 @@ name = "bulk_route"
 required-features = ["reader", "writer"]
 
 [[test]]
-name = "cluster_routes"
+name = "cluster_owner"
 required-features = ["writer"]
 
 [[test]]
