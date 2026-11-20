@@ -83,7 +83,7 @@ Since [ADR 0002](adr/0002-runtime-dependencies.md), hsearch and pstore are refer
 | docs/invariants.md with each invariant linked to its tests, links checked | `scripts/check-invariants.py` |
 | proptest, incremental cargo-mutants, coverage floor; differential tests against Java and lucene-rust fixtures arrive with the reader | `crates/blob/src/meter.rs`, `scripts/mutants.sh` |
 | High-risk paths get the `needs-huy` label. Changed by the owner on 2026-11-14: it flags the change for review after merge and does not block it | `scripts/risk-paths.txt`, `.github/workflows/ci.yml` |
-| `Spec:` commit trailer, checked in the hook and CI (no session-link trailer and no AI attribution, by the owner's choice) | `scripts/check-commit-msg.sh` |
+| `Spec:` commit trailer, checked in the hook; in CI on the PR title and body, because PRs are squash-merged and per-commit rules cost force-pushes (changed 2026-11-20: CI checks attribution per commit, skips merge commits, and checks subject and `Spec:` on the PR; no session-link trailer and no AI attribution, by the owner's choice) | `scripts/check-commit-msg.sh`, `scripts/check-pr.py` |
 | Short root AGENTS.md plus one per crate; reviews bounded at two rounds; harness work kept near 20% | `AGENTS.md`, `crates/*/AGENTS.md` |
 
 Later: code tours, simulation and fuzz tests, Kani on CAS and fencing, a monthly docs-only agent quiz, newcomer metrics.
