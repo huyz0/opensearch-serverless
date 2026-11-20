@@ -58,7 +58,7 @@ impl WriterRole {
         fill: impl FnOnce(&ByteBuffersDirectory) -> Result<(), String>,
         settle: impl FnOnce(&mut ShardSlot) -> Result<Option<Published>, String>,
     ) -> Result<Option<Published>, String> {
-        let key = ShardKey::new(index.uuid.as_str(), shard, None::<&str>);
+        let key = ShardKey::new(index.uuid.as_str(), shard, Some(index.name.as_str()));
         let mut slot = ShardSlot::open(key, term, mapping, now_millis, fill)?;
         let done = settle(&mut slot)?;
         self.names.insert(&index.uuid, &index.name);

@@ -17,7 +17,7 @@ const LEASE_BYTES: usize = 1 << 16;
 
 /// The epochs the lease register of `node` names now; `None` when it has no
 /// register.
-fn lease_epochs(
+pub(super) fn lease_epochs(
     store: &dyn BlobStore,
     base: &str,
     node: &str,

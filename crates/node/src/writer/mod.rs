@@ -10,6 +10,7 @@
 //! an operation the log does not, so it reopens from the log. A bulk group
 //! is applied item by item and staged with one commit.
 
+mod dead_logs;
 mod get;
 mod heads;
 mod incarnation;
@@ -43,6 +44,7 @@ use incarnation::Fenced;
 use publishing::Key;
 use slot::ShardSlot;
 
+pub use dead_logs::{StoreCommits, StoreNodeLogs};
 pub use heads::{HeadAdmission, ShardNames};
 pub use incarnation::{DescriptorIncarnation, FENCE_WINDOW, Incarnation};
 pub use janitor_pass::{HeldShard, JanitorPass, JanitorReport, PassLimits};
