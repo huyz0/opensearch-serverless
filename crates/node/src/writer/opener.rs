@@ -217,3 +217,15 @@ impl WriterRole {
         self.slot(&index.uuid, shard).ok_or_else(not_open)
     }
 }
+
+impl WriterRole {
+    /// Holds `shard` of `index`, opening it through the opener when it is
+    /// not held: the take a write would make, made without one.
+    ///
+    /// # Errors
+    ///
+    /// Why the shard cannot be held here.
+    pub fn hold(&self, index: &IndexInfo, shard: u32) -> Result<(), String> {
+        self.slot_or_open(index, shard).map(|_| ())
+    }
+}

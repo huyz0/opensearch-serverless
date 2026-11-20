@@ -22,6 +22,8 @@ fn providers() -> Vec<&'static [&'static Setting]> {
         oss_cluster::early_revoke::SETTINGS,
         #[cfg(feature = "writer")]
         oss_writer::publish::lazy::SETTINGS,
+        #[cfg(feature = "writer")]
+        crate::writer::PROACTIVE_SETTINGS,
     ]
 }
 
@@ -53,7 +55,7 @@ mod tests {
             let reader = cfg!(feature = "reader");
             assert_eq!(
                 keys.len(),
-                6 + 5 * usize::from(reader) + if writer { 8 } else { 0 }
+                6 + 5 * usize::from(reader) + if writer { 12 } else { 0 }
             );
             assert_eq!(
                 keys.contains(&"serverless.reader.newest_commit_ask"),
@@ -81,6 +83,14 @@ mod tests {
                 writer
             );
             assert_eq!(keys.contains(&"serverless.wal.node_log.idle_flush"), writer);
+            for key in [
+                "serverless.takeover.proactive.enabled",
+                "serverless.takeover.proactive.reapers",
+                "serverless.takeover.proactive.max_concurrent",
+                "serverless.takeover.proactive.pass_millis",
+            ] {
+                assert_eq!(keys.contains(&key), writer, "{key}");
+            }
         } else {
             assert!(keys.is_empty());
         }

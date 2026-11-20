@@ -92,3 +92,4 @@ src/tail_subscription.rs	port	serverless/shell/src/main/java/org/opensearch/serv
 src/tail_fresh.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/transport/TailOverlays.java@429b4cbc	ensureFresh in everywhere mode: under a grant answer, else ask the writer, else compare the commit with its claim
 src/boot/tail.rs	new		the tail actions listed on the transport server before it binds, and their handlers given once the node is assembled
 src/writer/snapshot.rs	new		the files of a commit held apart from the engine directory so a publish uploads them after the shard lock is let go; the shell publishes from the Lucene commit's immutable files
+src/writer/proactive.rs	new		the take of the shards a dead node's write log names, by designated reapers, before a write asks (ADR 0021); the shell finds them by listing a per-node claims folder
