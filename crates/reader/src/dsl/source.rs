@@ -15,7 +15,7 @@ use crate::dsl::query::{Query, parse_inner};
 use crate::dsl::search_after::{AfterValue, parse_search_after};
 use crate::dsl::sort::{SortKey, parse_sort};
 use crate::dsl::tokens::{Kind, Parser, Recorder};
-use crate::dsl::values::{bool_value, int_value};
+use crate::dsl::values::{bool_value, float_value, int_value};
 use crate::fetch::docvalue_fields::{DocValueField, parse_docvalue_fields};
 use crate::fetch::highlight_parse::{HighlightSpec, parse_highlight};
 use crate::fetch::source_filter::{SourceFilter, parse_source};
@@ -27,7 +27,6 @@ pub const DEFAULT_SIZE: usize = 10;
 const VALUE_KEYS: &[&str] = &[
     "timeout",
     "terminate_after",
-    "min_score",
     "track_scores",
     "include_named_queries_score",
     "track_total_hits",
@@ -92,6 +91,8 @@ pub struct SearchSource {
     pub docvalue_fields: Vec<DocValueField>,
     /// `explain`: whether each hit carries the explanation of its score.
     pub explain: bool,
+    /// `min_score`: only matches scoring at least this are hits and counted.
+    pub min_score: Option<f32>,
     /// `version`: whether each hit carries its `_version`.
     pub version: bool,
     /// `seq_no_primary_term`: whether each hit carries its `_seq_no` and
@@ -120,6 +121,7 @@ impl Default for SearchSource {
             // ALLOC: empty; parsing pushes one an entry.
             docvalue_fields: Vec::new(),
             explain: false,
+            min_score: None,
             version: false,
             seq_no_primary_term: false,
             highlight: None,
@@ -197,7 +199,12 @@ impl SearchSource {
             "size" => self.size = non_negative("size", int_value(p)?)?,
             "sort" => self.sort = parse_sort(&mut p.clone())?,
             // `SearchSourceBuilder`'s value branch takes no null.
-            "_source" | "track_total_hits" | "explain" | "version" | "seq_no_primary_term"
+            "_source"
+            | "track_total_hits"
+            | "explain"
+            | "version"
+            | "seq_no_primary_term"
+            | "min_score"
                 if kind == Kind::Null =>
             {
                 return Err(unknown_key(p, kind, name));
@@ -205,6 +212,7 @@ impl SearchSource {
             "_source" => self.source = parse_source(&mut p.clone(), name)?,
             "track_total_hits" => self.track_total_hits = track_total_hits(p)?,
             "explain" => self.explain = bool_value(p)?,
+            "min_score" => self.min_score = Some(float_value(p)?),
             "version" => self.version = bool_value(p)?,
             "seq_no_primary_term" => self.seq_no_primary_term = bool_value(p)?,
             known if VALUE_KEYS.contains(&known) => return Err(unsupported(known)),

@@ -19,4 +19,5 @@ mod frozen_search;
 mod msearch;
 mod open_prefetch;
 mod search;
+mod search_hits;
 mod shards;
