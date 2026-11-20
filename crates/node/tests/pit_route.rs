@@ -100,13 +100,6 @@ fn what_cannot_be_frozen_is_refused_with_the_javas_status() {
             &mut vec![0u8; BUF],
         )
         .expect("alias");
-    let bucketed = IndexRecord {
-        bucket: Some("b1".into()),
-        ..IndexRecord::new("small", "u2", 1)
-    };
-    r.descriptors
-        .create(&bucketed, 1, &mut vec![0u8; BUF])
-        .expect("created");
     r.descriptors
         .create(&IndexRecord::new("empty", "u3", 1), 1, &mut vec![0u8; BUF])
         .expect("created");
@@ -122,11 +115,6 @@ fn what_cannot_be_frozen_is_refused_with_the_javas_status() {
             "unsupported_point_in_time",
         ),
         ("/a/_search/point_in_time", 501, "unsupported_point_in_time"),
-        (
-            "/small/_search/point_in_time",
-            501,
-            "unsupported_point_in_time",
-        ),
         (
             "/logs/_search/point_in_time?routing=x",
             501,

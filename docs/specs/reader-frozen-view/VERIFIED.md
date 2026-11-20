@@ -9,3 +9,4 @@ Run on 2026-11-19 in a Linux sandbox, emulator numbers provisional: `cargo test 
 - AC-5: `a_file_without_a_length_or_a_followable_location_is_refused`.
 - AC-6: `a_missing_index_is_not_found_after_one_get`.
 - Shared cache (Risks): `a_frozen_open_costs_what_a_second_live_open_does_on_a_shared_cache`.
+- AC-7: `a_bucketed_views_node_packed_files_resolve_with_one_get` and `a_bucketed_view_with_a_file_outside_the_node_packs_is_refused` (`crates/reader/tests/it/frozen_bucket.rs`).

@@ -10,7 +10,10 @@
 use std::fmt;
 
 use oss_blob::BlobError;
-use oss_format::{CommitManifest, PitFile, PitShard, PointInTime, ShardRef, UnitLayoutRecord};
+use oss_format::{
+    CommitManifest, FileLocation, PitFile, PitShard, PointInTime, ShardRef, UnitLayoutRecord,
+    bucket_manifest_key, parse_bucket_member,
+};
 
 use super::PointInTimeStore;
 use crate::descriptors::{DescriptorStore, Target};
@@ -23,8 +26,8 @@ pub enum CaptureError {
     NoSuchIndex,
     /// The name is an alias, which freezes only index by index.
     IsAlias,
-    /// The index is one this slice cannot freeze: bucketed, its commits being
-    /// in its bucket's manifest.
+    /// The index is one this slice cannot freeze: a bucketed commit holding
+    /// a file outside the node packs.
     Unsupported(&'static str),
     /// A shard has published nothing, so there is no commit to freeze, and a
     /// view of the rest would silently cover part of the index.
@@ -128,7 +131,9 @@ impl PointInTimeStore {
     /// for the keep-alive.
     ///
     /// `buf` holds one record or manifest at a time and must hold the
-    /// largest. Cost: 1 GET for the descriptor and 1 to check it again, a
+    /// largest; for a bucketed index that is the whole bucket's manifest
+    /// register, every member's commit, which a bucket too large for it
+    /// fails as a store error with nothing left pinned. Cost: 1 GET for the descriptor and 1 to check it again, a
     /// create's 1 HEAD and 2 PUT, 1 GET a shard, and a finish's 1 GET and 1
     /// PUT: the shards and a constant, once a capture.
     ///
@@ -142,16 +147,21 @@ impl PointInTimeStore {
         keep_alive_millis: u64,
         buf: &mut [u8],
     ) -> Result<PointInTime, CaptureError> {
-        let (uuid, shards) = match descriptors.resolve(index, buf)?.target {
+        let (uuid, shards, bucket) = match descriptors.resolve(index, buf)?.target {
             Target::Index(record) => {
-                if record.bucket.is_some() {
-                    return Err(CaptureError::Unsupported(
-                        "a point in time over a bucketed index is not supported yet",
-                    ));
-                }
-                let units = live_units(record.unit_layout, record.number_of_shards)?;
-                // ALLOC: the uuid, once a capture.
-                (record.uuid.into_owned(), units)
+                // A bucketed index is one shard, whose commit is in its bucket.
+                let units = if record.bucket.is_some() {
+                    // ALLOC: the one shard, once a capture.
+                    vec![0]
+                } else {
+                    live_units(record.unit_layout, record.number_of_shards)?
+                };
+                // ALLOC: the uuid and bucket, once a capture.
+                (
+                    record.uuid.into_owned(),
+                    units,
+                    record.bucket.map(std::borrow::Cow::into_owned),
+                )
             }
             Target::Alias(_) => return Err(CaptureError::IsAlias),
             Target::Absent => return Err(CaptureError::NoSuchIndex),
@@ -169,7 +179,7 @@ impl PointInTimeStore {
             shards: Vec::new(),
         };
         self.create(&marker, buf)?;
-        match self.freeze(descriptors, &marker, shards, buf) {
+        match self.freeze(descriptors, &marker, shards, bucket.as_deref(), buf) {
             Ok(view) => Ok(view),
             Err(failure) => {
                 // Best effort: the failure being reported is the first.
@@ -184,11 +194,13 @@ impl PointInTimeStore {
         descriptors: &DescriptorStore,
         marker: &PointInTime,
         shards: Vec<u32>,
+        bucket: Option<&str>,
         buf: &mut [u8],
     ) -> Result<PointInTime, CaptureError> {
         let uuid = marker.index_uuid.as_deref().unwrap_or_default();
         let still = match descriptors.resolve(&marker.index, buf)?.target {
-            Target::Index(record) => record.uuid == uuid,
+            // The bucket too: a member moved to another bucket is not the commit read from this one.
+            Target::Index(record) => record.uuid == uuid && record.bucket.as_deref() == bucket,
             Target::Alias(_) | Target::Absent => false,
         };
         if !still {
@@ -197,36 +209,11 @@ impl PointInTimeStore {
         // ALLOC: one entry a shard, at most the index record's shard count.
         let mut frozen: Vec<PitShard> = Vec::new();
         for shard in shards {
-            let at = ShardRef {
-                index: &marker.index,
-                uuid,
-                shard,
+            let frozen_shard = match bucket {
+                Some(bucket) => self.freeze_member(bucket, uuid, shard, buf)?,
+                None => self.freeze_shard(&marker.index, uuid, shard, buf)?,
             };
-            let key = at.manifest_key(&self.base).map_err(MetaError::Format)?;
-            let Some(read) = self
-                .store
-                .read_register(&key, buf)
-                .map_err(MetaError::Blob)?
-            else {
-                return Err(CaptureError::NothingPublished(shard));
-            };
-            let manifest = CommitManifest::parse(buf.get(..read.len).unwrap_or_default())
-                .map_err(MetaError::Format)?;
-            frozen.push(PitShard {
-                shard,
-                term: manifest.term,
-                files: manifest
-                    .files()
-                    .iter()
-                    .map(|file| PitFile {
-                        // ALLOC: one entry a file, at most MAX_FILES.
-                        name: file.name.to_string(),
-                        location: file.location.encode(),
-                        length: file.length,
-                    })
-                    // ALLOC: the entries counted above.
-                    .collect(),
-            });
+            frozen.push(frozen_shard);
         }
         // ALLOC: the finished view, once a capture.
         let view = PointInTime {
@@ -236,6 +223,90 @@ impl PointInTimeStore {
         };
         self.finish(&view, buf)?;
         Ok(view)
+    }
+}
+
+impl PointInTimeStore {
+    /// One shard's own commit register, read and frozen.
+    fn freeze_shard(
+        &self,
+        index: &str,
+        uuid: &str,
+        shard: u32,
+        buf: &mut [u8],
+    ) -> Result<PitShard, CaptureError> {
+        let at = ShardRef { index, uuid, shard };
+        let key = at.manifest_key(&self.base).map_err(MetaError::Format)?;
+        let Some(read) = self
+            .store
+            .read_register(&key, buf)
+            .map_err(MetaError::Blob)?
+        else {
+            return Err(CaptureError::NothingPublished(shard));
+        };
+        let manifest = CommitManifest::parse(buf.get(..read.len).unwrap_or_default())
+            .map_err(MetaError::Format)?;
+        Ok(pit_shard(shard, &manifest))
+    }
+
+    /// A bucketed member's commit, from its bucket's manifest register: the
+    /// one GET a shard's register would cost. A member whose files are not
+    /// all in node packs is refused: only those resolve without a shard's
+    /// own storage.
+    fn freeze_member(
+        &self,
+        bucket: &str,
+        uuid: &str,
+        shard: u32,
+        buf: &mut [u8],
+    ) -> Result<PitShard, CaptureError> {
+        let key = bucket_manifest_key(&self.base, bucket).map_err(MetaError::Format)?;
+        let Some(read) = self
+            .store
+            .read_register(&key, buf)
+            .map_err(MetaError::Blob)?
+        else {
+            return Err(CaptureError::NothingPublished(shard));
+        };
+        // ALLOC: the member's name and commit, at most the register's size, once a capture.
+        let entry = parse_bucket_member(buf.get(..read.len).unwrap_or_default(), uuid)
+            .map_err(MetaError::Format)?;
+        // The member moved to another bucket or out of one: the index is not as resolved.
+        let Some(member) = entry.member.filter(|_| entry.bucket == bucket) else {
+            return Err(CaptureError::Replaced);
+        };
+        let Some(commit) = member.commit else {
+            return Err(CaptureError::NothingPublished(shard));
+        };
+        let manifest = CommitManifest::parse(&commit).map_err(MetaError::Format)?;
+        if manifest
+            .files()
+            .iter()
+            .any(|f| !matches!(f.location, FileLocation::NodePacked { .. }))
+        {
+            return Err(CaptureError::Unsupported(
+                "a bucketed commit holds a file outside the node packs",
+            ));
+        }
+        Ok(pit_shard(shard, &manifest))
+    }
+}
+
+fn pit_shard(shard: u32, manifest: &CommitManifest<'_>) -> PitShard {
+    PitShard {
+        shard,
+        term: manifest.term,
+        files: manifest
+            .files()
+            .iter()
+            .map(|file| PitFile {
+                // ALLOC: one entry a file, at most MAX_FILES.
+                name: file.name.to_string(),
+                location: file.location.encode(),
+                length: file.length,
+            })
+            // ALLOC: the entries counted above.
+            .collect(),
     }
 }
 
