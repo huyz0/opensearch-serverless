@@ -4,7 +4,8 @@
 
 use std::cmp::Ordering;
 
-use crate::aggs::partial::Value;
+use crate::aggs::bucket::sub_values::reduce_fixed;
+use crate::aggs::partial::{Format, Value};
 use crate::dsl::Query;
 
 /// The key of the bucket for documents matching no filter, unless asked.
@@ -32,7 +33,7 @@ pub fn compare_keys(a: &str, b: &str) -> Ordering {
 }
 
 /// What one shard (or one reduce) holds for a `filters`: `InternalFilters`.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct FiltersResult {
     /// A `filter`'s result: one bucket, written as its document count alone.
     pub single: bool,
@@ -40,6 +41,11 @@ pub struct FiltersResult {
     pub keyed: bool,
     /// `(key, doc count)`: one a filter, then the other bucket if asked.
     pub buckets: Vec<(String, u64)>,
+    /// The name and format of each sub-aggregation, in request order.
+    pub sub_meta: Vec<(String, Format)>,
+    /// Each bucket's sub-aggregation values, one list a bucket in the order
+    /// of `buckets`; empty when there are no sub-aggregations.
+    pub subs: Vec<Vec<Value>>,
 }
 
 /// `InternalFilters.reduce`: each bucket's counts add. `None` unless there
@@ -59,6 +65,7 @@ pub fn reduce(parts: &[Value]) -> Option<Value> {
     let same = |r: &&FiltersResult| {
         r.keyed == first.keyed
             && r.single == first.single
+            && r.sub_meta.len() == first.sub_meta.len()
             && r.buckets.len() == first.buckets.len()
             && r.buckets
                 .iter()
@@ -74,6 +81,14 @@ pub fn reduce(parts: &[Value]) -> Option<Value> {
             into.1 = into.1.saturating_add(from.1);
         }
     }
+    merged.subs = reduce_fixed(
+        // ALLOC: one reference a shard, as above.
+        &results
+            .iter()
+            .map(|r| r.subs.as_slice())
+            .collect::<Vec<_>>(),
+        merged.buckets.len(),
+    );
     // ALLOC: one box a `filters`, bounded by the request's.
     Some(Value::Filters(Box::new(merged)))
 }

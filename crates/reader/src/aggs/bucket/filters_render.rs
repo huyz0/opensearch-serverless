@@ -7,6 +7,7 @@ use std::io::{self, Write};
 use oss_rest::write_json_str;
 
 use crate::aggs::bucket::filters::FiltersResult;
+use crate::aggs::bucket::sub_values::write_subs;
 
 /// Writes the body of a `filters`: its buckets, in an array or, when keyed,
 /// an object named by the keys.
@@ -14,7 +15,8 @@ pub fn write_filters(out: &mut dyn Write, result: &FiltersResult) -> io::Result<
     // `InternalFilter.doXContentBody`: the count, with no buckets around it.
     if result.single {
         let count = result.buckets.first().map_or(0, |b| b.1);
-        return write!(out, "\"doc_count\":{count}");
+        write!(out, "\"doc_count\":{count}")?;
+        return write_subs(out, &result.sub_meta, result.subs.first());
     }
     out.write_all(if result.keyed {
         b"\"buckets\":{"
@@ -29,7 +31,9 @@ pub fn write_filters(out: &mut dyn Write, result: &FiltersResult) -> io::Result<
             write_json_str(out, key)?;
             out.write_all(b":")?;
         }
-        write!(out, "{{\"doc_count\":{count}}}")?;
+        write!(out, "{{\"doc_count\":{count}")?;
+        write_subs(out, &result.sub_meta, result.subs.get(i))?;
+        out.write_all(b"}")?;
     }
     out.write_all(if result.keyed { b"}" } else { b"]" })
 }

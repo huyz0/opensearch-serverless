@@ -146,4 +146,7 @@ src/aggs/bucket/filters_collect.rs	port	server/src/main/java/org/opensearch/sear
 src/aggs/bucket/filters_render.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/filter/InternalFilters.java@3.10.0	InternalFilters.InternalBucket.toXContent and doXContentBody; InternalFilter.doXContentBody (the single filter's doc_count)
 src/aggs/bucket/filters_collect_tests.rs	new		tests of filters on a real index
 src/aggs/bucket/filters_tests.rs	new		tests of filters parsing, reduce and writing
+src/aggs/bucket/sub_values.rs	port	server/src/main/java/org/opensearch/search/aggregations/InternalAggregations.java@3.10.0	each bucket's sub-aggregation values reduced shard by shard (InternalAggregations.reduce) and written in Aggregations.toXContentInternal's order
+src/aggs/bucket/fixed_subs.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/BucketsAggregator.java@3.10.0	the sub-aggregations of the fixed buckets of range, filters and filter (BucketsAggregator.buildSubAggsForBuckets) over lucene-aggs' nodes
+src/aggs/bucket/fixed_subs_tests.rs	new		tests of sub-aggregations of range, filters and filter on a real index
 src/aggs/bucket/parse_arms.rs	new		parses the body of each bucket aggregation into its MetricAgg
