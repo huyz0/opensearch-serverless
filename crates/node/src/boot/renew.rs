@@ -13,14 +13,20 @@ pub struct Renewal {
 
 impl Renewal {
     /// Starts the thread: `tick` every `every`.
-    pub fn spawn(
+    pub fn spawn(every: Duration, tick: impl FnMut() + Send + 'static) -> std::io::Result<Self> {
+        Self::spawn_named("lease-renewal", every, tick)
+    }
+
+    /// Starts a thread called `name`: `tick` every `every`.
+    pub fn spawn_named(
+        name: &str,
         every: Duration,
         mut tick: impl FnMut() + Send + 'static,
     ) -> std::io::Result<Self> {
         let stop = Arc::new((Mutex::new(false), Condvar::new()));
         let signal = Arc::clone(&stop);
         let thread = std::thread::Builder::new()
-            .name("lease-renewal".to_owned())
+            .name(name.to_owned())
             .spawn(move || {
                 let (flag, wake) = &*signal;
                 loop {

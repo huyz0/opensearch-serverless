@@ -230,3 +230,7 @@ required-features = ["reader", "writer", "coordinator"]
 [[test]]
 name = "dead_logs"
 required-features = ["writer"]
+
+[[test]]
+name = "dead_log_pass"
+required-features = ["writer"]
