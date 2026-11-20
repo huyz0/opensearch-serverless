@@ -4,20 +4,47 @@
 use lucene_aggs::bucket_aggs::AggNode;
 use lucene_aggs::metric_aggs::ValueKind;
 
+use crate::aggs::bucket::BUCKET_LIMIT;
 use crate::aggs::bucket::range::{RangeBucket, RangeResult, RangeSpec};
+use crate::aggs::bucket::terms_collect::too_many_buckets;
+use crate::aggs::metric::MetricAgg;
+use crate::aggs::partial::Value;
+use crate::search::ShardError;
 
-/// The engine's node for a `range` of the long (or date) field `field`.
-pub fn node(field: &str, spec: &RangeSpec) -> AggNode {
+/// `agg`'s `range` options (every `range` has them).
+fn spec_of(agg: &MetricAgg) -> RangeSpec {
+    agg.range.as_deref().cloned().unwrap_or_default()
+}
+
+/// The engine's node for a `range` of the long (or date) field `agg` reads.
+pub fn node(agg: &MetricAgg) -> AggNode {
     AggNode::Range {
         // ALLOC: one field name an aggregation, bounded by the request's.
-        field: field.to_owned(),
+        field: agg.field.clone(),
         missing: None,
         kind: ValueKind::Long,
         // ALLOC: one pair a range, which the shard bounds before it runs.
-        ranges: spec.ranges.iter().map(|r| (r.from, r.to)).collect(),
+        ranges: spec_of(agg).ranges.iter().map(|r| (r.from, r.to)).collect(),
         // ALLOC: empty; sub-aggregations are refused.
         subs: Vec::new(),
     }
+}
+
+/// `MultiBucketConsumerService`: more ranges than the bucket limit fail the
+/// shard.
+pub fn check_limit(agg: &MetricAgg) -> Result<(), ShardError> {
+    match agg.range.as_deref() {
+        Some(spec) if spec.ranges.len() > BUCKET_LIMIT => {
+            Err(too_many_buckets(spec.ranges.len(), BUCKET_LIMIT))
+        }
+        _ => Ok(()),
+    }
+}
+
+/// `agg`'s result with the document count of range `i` taken from `docs[i]`.
+pub fn value(agg: &MetricAgg, docs: &[u64]) -> Value {
+    // ALLOC: one box a `range`, bounded by the request's.
+    Value::Range(Box::new(from_counts(&spec_of(agg), docs)))
 }
 
 /// The result with the document count of range `i` taken from `docs[i]`,

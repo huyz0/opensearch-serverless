@@ -30,7 +30,6 @@ use crate::aggs::bucket::date_histogram_collect;
 use crate::aggs::bucket::histogram::{HistogramSpec, reduce_results};
 use crate::aggs::bucket::histogram_collect;
 use crate::aggs::bucket::keyword_subs;
-use crate::aggs::bucket::range::RangeSpec;
 use crate::aggs::bucket::range_collect;
 use crate::aggs::bucket::terms::TermsSpec;
 use crate::aggs::bucket::terms_collect;
@@ -187,11 +186,6 @@ fn date_histogram_spec(agg: &MetricAgg) -> DateHistogramSpec {
     agg.date_histogram.as_deref().copied().unwrap_or_default()
 }
 
-/// `agg`'s `range` options (every `range` has them).
-fn range_spec(agg: &MetricAgg) -> RangeSpec {
-    agg.range.as_deref().cloned().unwrap_or_default()
-}
-
 /// What `avg` reads: the sum and the count.
 const AVG_NEEDS: u8 = NEED_SUM | NEED_COUNT;
 
@@ -247,8 +241,7 @@ pub(crate) fn value_of(agg: &MetricAgg, state: &MetricState) -> Value {
         Metric::DateHistogram => Value::DateHistogram(Box::new(date_histogram_collect::empty(
             &date_histogram_spec(agg),
         ))),
-        // ALLOC: one box a `range`, bounded by the request's.
-        Metric::Range => Value::Range(Box::new(range_collect::from_counts(&range_spec(agg), &[]))),
+        Metric::Range => range_collect::value(agg, &[]),
         // Filled in by the search once the hits are collected.
         // ALLOC: one box a `top_hits`, bounded by the request's.
         Metric::TopHits => Value::TopHits(Box::new(TopHitsResult::empty())),
@@ -296,7 +289,7 @@ pub(crate) fn node(agg: &MetricAgg, precision: u32) -> AggNode {
         Metric::DateHistogram => {
             date_histogram_collect::node(&agg.field, &date_histogram_spec(agg))
         }
-        Metric::Range => range_collect::node(&agg.field, &range_spec(agg)),
+        Metric::Range => range_collect::node(agg),
         Metric::Cardinality => AggNode::Cardinality {
             field,
             kind: CardinalityKind::Numeric(ValueKind::Long),
@@ -387,13 +380,7 @@ fn value_from(agg: &MetricAgg, result: Option<AggResult>) -> Result<Value, Shard
             Ok(Value::DateHistogram(Box::new(result)))
         }
         // Only a `range` node answers with fixed buckets.
-        Some(AggResult::Fixed { docs, .. }) => {
-            // ALLOC: one box a `range`, bounded by the request's.
-            Ok(Value::Range(Box::new(range_collect::from_counts(
-                &range_spec(agg),
-                &docs,
-            ))))
-        }
+        Some(AggResult::Fixed { docs, .. }) => Ok(range_collect::value(agg, &docs)),
         _ => Err(engine_error(&"an aggregation result of another kind")),
     }
 }
@@ -425,16 +412,7 @@ pub fn collect<S: BlobStore + 'static>(
             return Err(refusal);
         }
         resolved.push(resolve(agg, shard)?);
-        if let Some(spec) = agg
-            .range
-            .as_deref()
-            .filter(|s| s.ranges.len() > BUCKET_LIMIT)
-        {
-            return Err(terms_collect::too_many_buckets(
-                spec.ranges.len(),
-                BUCKET_LIMIT,
-            ));
-        }
+        range_collect::check_limit(agg)?;
         if agg.metric == Metric::Cardinality {
             check_execution_hint(agg)?;
         }
