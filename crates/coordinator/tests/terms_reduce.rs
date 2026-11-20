@@ -19,6 +19,7 @@ fn shard(other: u64, buckets: &[(i64, u64)]) -> Vec<(String, Value)> {
             other_doc_count: other,
             doc_count_error: 0,
             buckets: buckets.to_vec(),
+            ..TermsResult::default()
         })),
     )]
 }

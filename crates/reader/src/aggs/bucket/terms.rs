@@ -5,6 +5,7 @@
 pub use lucene_aggs::bucket_aggs::TermsOrder;
 
 use crate::aggs::bucket::keyword_options::KeywordOptions;
+use crate::aggs::bucket::sub_values::{BucketSubs, reduce_keyed};
 use crate::aggs::partial::Value;
 
 /// `BucketUtils.suggestShardSideQueueSize`: the shard size when none is
@@ -42,7 +43,7 @@ impl Default for TermsSpec {
 }
 
 /// What one shard (or one reduce) holds for a `terms`: `LongTerms`.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct TermsResult {
     /// What the aggregation asked for.
     pub spec: TermsSpec,
@@ -53,6 +54,8 @@ pub struct TermsResult {
     /// `(key, doc count)`: by key as the order lists keys (ascending unless
     /// ordered by key descending) from a shard, by the order from a reduce.
     pub buckets: Vec<(i64, u64)>,
+    /// The buckets' sub-aggregations.
+    pub subs: BucketSubs,
 }
 
 /// `InternalTerms.reduce` as a final reduce: `None` unless there is a part
@@ -144,10 +147,25 @@ pub fn reduce_results(parts: &[&TermsResult]) -> TermsResult {
     } else {
         0
     };
+    // ALLOC: one key a kept bucket, at most `size`.
+    let keys: Vec<i64> = kept.iter().map(|b| b.0).collect();
+    // ALLOC: one key list a shard, bounded by the shards that answered.
+    let held: Vec<Vec<i64>> = parts
+        .iter()
+        .map(|p| p.buckets.iter().map(|b| b.0).collect())
+        // ALLOC: as above.
+        .collect();
+    let pairs: Vec<(&[i64], &BucketSubs)> = held
+        .iter()
+        .zip(parts)
+        .map(|(k, p)| (k.as_slice(), &p.subs))
+        // ALLOC: as above.
+        .collect();
     TermsResult {
         spec,
         other_doc_count: other,
         doc_count_error,
+        subs: reduce_keyed(&pairs, &keys),
         buckets: kept,
     }
 }

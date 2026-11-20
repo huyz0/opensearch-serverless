@@ -153,3 +153,4 @@ src/aggs/bucket/keyed_subs.rs	port	server/src/main/java/org/opensearch/search/ag
 src/aggs/bucket/keyed_subs_tests.rs	new		tests of sub-aggregations of histogram and date_histogram on a real index and across shards
 src/aggs/bucket/with_subs.rs	new		picks the fixed-bucket or keyed-bucket sub-aggregation code for a bucket aggregation
 src/aggs/bucket/parse_arms.rs	new		parses the body of each bucket aggregation into its MetricAgg
+src/aggs/bucket/terms_subs_tests.rs	new		tests of sub-aggregations of a numeric terms on a real index and across shards

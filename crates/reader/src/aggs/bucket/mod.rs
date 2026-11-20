@@ -97,4 +97,6 @@ mod range_collect_tests;
 #[cfg(test)]
 mod range_tests;
 #[cfg(test)]
+mod terms_subs_tests;
+#[cfg(test)]
 mod terms_tests;
