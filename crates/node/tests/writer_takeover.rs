@@ -323,3 +323,34 @@ fn a_shard_whose_predecessor_log_cannot_be_read_is_not_held_and_is_tried_again()
     }
     assert_eq!(calls.load(Ordering::SeqCst), 2, "asked again, not held");
 }
+
+#[test]
+fn a_successor_reads_the_predecessor_log_from_its_lease() {
+    let c = cluster();
+    let _one = first_writer(&c);
+    let two = node(
+        &c,
+        "node-2",
+        2,
+        true,
+        Some(Takeover::from_leases(
+            c.store.clone(),
+            "",
+            "node-2",
+            2,
+            1 << 20,
+        )),
+    );
+    assert_eq!(seq(&write(&two.role, "c")), 2, "after a and b");
+    assert_eq!(registered_term(&c), 2, "b was published under the new term");
+}
+
+#[test]
+fn a_predecessor_with_no_lease_register_has_no_log_to_read() {
+    let c = cluster();
+    let takeover = Takeover::from_leases(c.store.clone(), "", "node-2", 2, 1 << 20);
+    let ghost = takeover.predecessors.of("node-9").expect("asked");
+    assert!(ghost.is_none(), "no register, no log");
+    let known = takeover.predecessors.of("node-1").expect("asked");
+    assert!(known.is_some(), "node-1 was enrolled with a lease");
+}
