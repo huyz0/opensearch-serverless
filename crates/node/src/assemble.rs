@@ -385,6 +385,13 @@ pub fn assemble(
         let deletes = delete_service(config, &store, &clock)?;
         let drain = DrainTimer::spawn(Arc::clone(&deletes), config.reclaim_every);
         let router = index_delete::routes(router, deletes).map_err(AssembleError::Route)?;
+        let by_query = Arc::new(crate::by_query::ByQueryService::new(
+            Arc::clone(&role),
+            Arc::new(crate::by_query::SearchMatches::new(Arc::clone(&search))),
+            BulkBudget::new(config.bulk_bytes, config.bulk_holders),
+            config.address,
+        ));
+        let router = crate::by_query::routes(router, by_query).map_err(AssembleError::Route)?;
         (router, Some(drain))
     };
     #[cfg(not(feature = "coordinator"))]

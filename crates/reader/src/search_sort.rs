@@ -60,6 +60,11 @@ fn field_sort<S: BlobStore + 'static>(
         f.reverse = reverse;
         return Ok((f, KeyKind::Numeric));
     }
+    if name == "_seq_no" {
+        let mut f = SortField::numeric(name, SortType::Long, reverse);
+        f.missing = if reverse { i64::MIN } else { i64::MAX };
+        return Ok((f, KeyKind::Numeric));
+    }
     let Some(field) = shard.meta.mapping.get(name) else {
         return Err(ShardError::bad_request(
             Failure::opensearch(
