@@ -75,3 +75,4 @@ src/by_query/mod.rs	new		delete-by-query over a writer role, the search behind a
 src/by_query/change.rs	new		the conditional delete a by-query walk makes, through the bulk machinery
 src/by_query/params.rs	new		the request body and parameters of a delete by query
 src/by_query/response.rs	new		the answer of a delete by query
+src/writer/publish_age.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/reconcile/BackgroundReconciler.java	the per-index publish age: refresh_interval bounds the oldest unpublished write; -1 leaves it to the operation count
