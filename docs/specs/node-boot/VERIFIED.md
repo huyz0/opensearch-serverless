@@ -7,3 +7,4 @@
 - AC-5: `a_second_node_is_seen_and_a_dropped_one_is_released` in crates/node/tests/boot.rs
 - AC-6: `a_second_node_is_seen_and_a_dropped_one_is_released` in crates/node/tests/boot.rs
 - AC-7: `a_restarted_node_writes_above_the_epochs_it_left` in crates/node/tests/boot.rs
+- AC-8: `a_write_through_one_node_reaches_the_node_that_owns_the_shard` in crates/node/tests/boot.rs

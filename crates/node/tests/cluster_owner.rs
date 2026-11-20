@@ -55,7 +55,7 @@ impl BulkSend for Sender {
             Some(Answer::Outcomes(outcomes)) => Ok(BulkResponse {
                 owner_node_id: node.to_owned(),
                 outcomes,
-                refreshed: false,
+                refreshed: request.refresh,
             }),
             Some(Answer::Fail(e)) => Err(e()),
             None => Err(ForwardError::NoPeer),
@@ -336,4 +336,24 @@ fn an_update_or_bad_utf8_fails_alone_and_is_not_sent() {
     let r = routes(fleet(), &f, "n1").forward("n2", &info(), 0, &only);
     assert!(f.seen.lock().expect("lock").is_empty());
     assert!(matches!(r[0], ItemResult::Failed { status: 400, .. }));
+}
+
+// AC-7
+#[test]
+fn a_refresh_of_a_shard_another_node_owns_is_asked_of_that_owner() {
+    let f = fake(Answer::Outcomes(Vec::new()));
+    let r = routes(fleet(), &f, "n1");
+    assert_eq!(r.refresh_remote("n2", &info(), 3), Ok(()));
+    let seen = f.seen.lock().expect("lock");
+    let (node, request) = seen.first().expect("one request");
+    assert_eq!(node, "n2");
+    assert!(request.refresh && request.operations.is_empty());
+    assert_eq!((request.shard, request.index.as_str()), (3, "logs"));
+    drop(seen);
+    let f = fake(Answer::Fail(|| ForwardError::Gone));
+    assert!(
+        routes(fleet(), &f, "n1")
+            .refresh_remote("n2", &info(), 3)
+            .is_err()
+    );
 }

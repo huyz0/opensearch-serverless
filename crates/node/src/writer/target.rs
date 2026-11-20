@@ -58,7 +58,10 @@ impl Target for RoleTarget<'_> {
     }
 
     fn refresh(&mut self, index: &IndexInfo, shard: u32) -> Result<(), String> {
-        self.role.refresh(index, shard)
+        match self.role.owner(index, shard) {
+            Owner::Local => self.role.refresh(index, shard),
+            Owner::Node(node) => self.role.routes.refresh_remote(&node, index, shard),
+        }
     }
 
     fn forward(

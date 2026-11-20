@@ -71,6 +71,12 @@ pub trait Routes: Send + Sync {
         shard: u32,
         group: &[Planned<'_>],
     ) -> Vec<ItemResult>;
+
+    /// Asks the node that owns `shard` to refresh it. A route that never
+    /// names another owner has nothing to ask.
+    fn refresh_remote(&self, _node: &str, _index: &IndexInfo, _shard: u32) -> Result<(), String> {
+        Err("the shard is held by another node".to_owned())
+    }
 }
 
 /// Why an item did not go ahead.

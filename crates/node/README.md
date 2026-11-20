@@ -19,6 +19,8 @@ With `writer`, `writer::WriterRole` holds the shards this node writes and applie
 
 With `writer`, `forward::BulkForwarder` sends a shard's bulk to its owner, signed, and is the one call site of `EarlyRevoke::on_refused` for a refused connect (`serverless.lease.early_revoke`, off by default). Contract: [docs/specs/forward/SPEC.md](../../docs/specs/forward/SPEC.md).
 
+With `writer`, `bulk_handler::BulkHandler` is what an owner runs for a forwarded bulk: it applies the group to its shard with `WriterRole::apply_group` and answers each item's outcome. Contract: [docs/specs/node-bulk-handler/SPEC.md](../../docs/specs/node-bulk-handler/SPEC.md).
+
 With `writer`, `cluster_owner::ClusterRoutes` is the cluster half of `writer::Routes`: the owner of a shard by rendezvous over the held leases, and a group forwarded as one bulk through `BulkSend`. Contract: [docs/specs/node-cluster-routing/SPEC.md](../../docs/specs/node-cluster-routing/SPEC.md).
 
 With `writer`, `WriterRole::staged` remembers the manifest a shard's last publish produced and `newest::NewestHandler` answers a reader's `internal:serverless/commit/newest` ask with it, from memory. Contract: [docs/specs/writer-newest/SPEC.md](../../docs/specs/writer-newest/SPEC.md).
@@ -45,4 +47,4 @@ With `writer`, `cluster_route`, `health_route` and `cat_route` serve `GET`/`PUT 
 
 With `reader` and `writer`, `Assembled::wire_tail` turns the tail overlay on under `serverless.search.tail_overlay.enabled` (off by default): `tail_node::wire` builds the keep, serve, push and flush timer, installs the overlay builder, sets the writer role's `TailSink` and returns the `handlers::Registry` holding the tail fetch and push actions. `tail_node::LeaseWriters` is the `LiveWriters` over the node's leases. Contract: [docs/specs/node-tail-wiring/SPEC.md](../../docs/specs/node-tail-wiring/SPEC.md).
 
-With `reader` and `writer`, `boot::start` starts a node from `OSS_*` environment configuration (`boot::NodeConfig`): it opens the store, enrols and renews the node's lease, builds the write log over the shard heads, assembles the roles and the health routes, and listens; `main` calls it. Without the transport server every shard is written by the node that receives the write. Contract: [docs/specs/node-boot/SPEC.md](../../docs/specs/node-boot/SPEC.md).
+With `reader` and `writer`, `boot::start` starts a node from `OSS_*` environment configuration (`boot::NodeConfig`): it opens the store, enrols and renews the node's lease, builds the write log over the shard heads, assembles the roles and the health routes, and listens; `main` calls it. It also serves the native transport and routes each write to the node that owns its shard. Contract: [docs/specs/node-boot/SPEC.md](../../docs/specs/node-boot/SPEC.md).

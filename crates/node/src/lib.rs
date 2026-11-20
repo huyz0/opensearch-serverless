@@ -11,6 +11,8 @@ pub mod assemble;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod boot;
 #[cfg(feature = "writer")]
+pub mod bulk_handler;
+#[cfg(feature = "writer")]
 pub mod bulk_route;
 #[cfg(feature = "writer")]
 pub mod cat_route;
