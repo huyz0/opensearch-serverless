@@ -14,4 +14,4 @@ pub mod mapping_growth;
 pub mod publish;
 pub mod takeover;
 
-pub use oss_doc::{document, lucene, mapping};
+pub use oss_doc::{document, fast, lucene, mapping};

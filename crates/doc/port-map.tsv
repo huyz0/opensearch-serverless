@@ -20,3 +20,5 @@ src/lucene/mod.rs	port	server/src/main/java/org/opensearch/index/mapper/TextFiel
 src/lucene/fields.rs	port	server/src/main/java/org/opensearch/index/mapper/KeywordFieldMapper.java@429b4cbc	the Lucene FieldType each mapper builds, as the FieldInfo IndexingChain registers (norms only for indexed fields); DateFieldMapper.isSkiplistDefaultEnabled for @timestamp
 src/lucene/invert.rs	port	lucene/core/src/java/org/apache/lucene/index/IndexingChain.java@10.5.1	PerField.invertTokenStream positions, offsets, position and offset gaps, length and overlap; BM25Similarity.computeNorm (unique terms for DOCS)
 src/lucene/encode.rs	port	server/src/main/java/org/opensearch/index/mapper/Uid.java@429b4cbc	encodeId (numeric, URL-safe base64 with escape, UTF-8); Lucene SmallFloat.intToByte4 and NumericUtils sortable encodings
+src/fast/mod.rs	new		the plan-based fast path in front of the complete one: per-shard FastIngest over lucene-engine ingest
+src/fast/plan.rs	new		a mapping compiled to the ingest plan blob, naming only fields the indexer has numbered
