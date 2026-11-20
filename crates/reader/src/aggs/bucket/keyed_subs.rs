@@ -18,9 +18,13 @@ use crate::aggs::metric::{Metric, MetricAgg};
 use crate::aggs::partial::Value;
 use crate::search::ShardError;
 
-/// Whether `agg` is a `histogram` or a `date_histogram`.
+/// Whether `agg` is a `histogram`, a `date_histogram` or a `terms` (of a
+/// numeric field, where this runs it): buckets made by the data's keys.
 pub fn is_keyed(agg: &MetricAgg) -> bool {
-    matches!(agg.metric, Metric::Histogram | Metric::DateHistogram)
+    matches!(
+        agg.metric,
+        Metric::Histogram | Metric::DateHistogram | Metric::Terms
+    )
 }
 
 /// Puts the nodes of `agg`'s sub-aggregations under `node`, the engine's
@@ -32,7 +36,10 @@ pub fn attach<S: BlobStore + 'static>(
     shard: &OpenShard<S>,
     ords: &mut HashMap<String, std::sync::Arc<GlobalOrds>>,
 ) -> Result<(), ShardError> {
-    if let AggNode::Histogram { subs, .. } | AggNode::DateHistogram { subs, .. } = node {
+    if let AggNode::Histogram { subs, .. }
+    | AggNode::DateHistogram { subs, .. }
+    | AggNode::NumericTerms { subs, .. } = node
+    {
         *subs = keyword_subs::sub_nodes(agg, shard, ords)?;
     }
     Ok(())
@@ -71,6 +78,18 @@ pub fn value<S: BlobStore + 'static>(
                 count,
             )
         }
+        Some(AggResult::NumericTerms { buckets, subs }) => {
+            let count = buckets.first().map_or(0, |b| b.1.len());
+            (
+                Some(AggResult::NumericTerms {
+                    buckets,
+                    // ALLOC: empty.
+                    subs: Vec::new(),
+                }),
+                subs,
+                count,
+            )
+        }
         // ALLOC: empty.
         other => (other, Vec::new(), 0),
     };
@@ -90,6 +109,7 @@ pub fn value<S: BlobStore + 'static>(
     match &mut made {
         Value::Histogram(h) => h.subs = subs,
         Value::DateHistogram(h) => h.subs = subs,
+        Value::Terms(t) => t.subs = subs,
         _ => {}
     }
     Ok(made)
@@ -129,7 +149,11 @@ pub fn reserved<S: BlobStore + 'static>(shard: &OpenShard<S>, aggs: &[MetricAgg]
     aggs.iter()
         .filter(|a| is_keyed(a) && !a.subs.is_empty())
         .fold(0usize, |total, agg| {
-            let buckets = values(shard, &agg.field).min(BUCKET_LIMIT);
-            total.saturating_add(fixed_subs::subs_bytes(shard, agg, buckets))
+            // A keyword field holds no numeric value: its `terms` reserves
+            // in `keyword_subs`.
+            match values(shard, &agg.field).min(BUCKET_LIMIT) {
+                0 => total,
+                buckets => total.saturating_add(fixed_subs::subs_bytes(shard, agg, buckets)),
+            }
         })
 }

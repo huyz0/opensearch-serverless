@@ -92,8 +92,8 @@ fn sub_aggregations_that_are_not_served_are_refused() {
             "a [histogram] sub-aggregation",
         ),
         (
-            r#"{"aggs":{"t":{"terms":{"field":"n"},"aggs":{"x":{"sum":{"field":"n"}}}}}}"#,
-            "sub-aggregations of a numeric",
+            r#"{"aggs":{"t":{"terms":{"field":"n"},"aggs":{"x":{"terms":{"field":"n"}}}}}}"#,
+            "sub-aggregation of the numeric field",
         ),
         (
             r#"{"aggs":{"t":{"terms":{"field":"tag"},"aggs":{"x":{"min":{"field":"k0"}}}}}}"#,

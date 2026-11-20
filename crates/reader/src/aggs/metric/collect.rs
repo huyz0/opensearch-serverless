@@ -164,22 +164,6 @@ pub(crate) fn resolve<S: BlobStore + 'static>(
             ),
         )));
     }
-    // A `range` runs its sub-aggregations; a numeric `terms` does not yet.
-    if !agg.subs.is_empty()
-        && !matches!(
-            agg.metric,
-            Metric::Range | Metric::Histogram | Metric::DateHistogram
-        )
-    {
-        return Err(bad_request(Failure::plain(
-            "illegal_argument_exception",
-            // ALLOC: error path; one message.
-            format!(
-                "sub-aggregations of a numeric [terms] on [{}] are not supported by this node yet",
-                agg.field
-            ),
-        )));
-    }
     Ok(Resolved::Numeric(format))
 }
 
