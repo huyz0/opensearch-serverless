@@ -38,8 +38,13 @@ fn a_cold_search_with_metric_aggregations_then_a_warm_one() {
                 br#"{"query":{"term":{"title":"brown"}},"aggs":{"y":{"stats":{"field":"year"}},
                     "p":{"max":{"field":"published"}},
                     "t":{"terms":{"field":"year"}},
-                    "r":{"range":{"field":"year","ranges":[{"to":2000},{"from":2000}]}},
-                    "f":{"filters":{"other_bucket":true,"filters":{"old":{"range":{"year":{"lt":2005}}},"new":{"term":{"tag":"manual"}}}}}}}"#,
+                    "h":{"histogram":{"field":"year","interval":10},
+                        "aggs":{"m":{"max":{"field":"published"}}}},
+                    "r":{"range":{"field":"year","ranges":[{"to":2000},{"from":2000}]},
+                        "aggs":{"m":{"max":{"field":"published"}},
+                                "g":{"terms":{"field":"tag"}}}},
+                    "f":{"filters":{"other_bucket":true,"filters":{"old":{"range":{"year":{"lt":2005}}},"new":{"term":{"tag":"manual"}}}},
+                        "aggs":{"c":{"value_count":{"field":"year"}}}}}}"#,
             ),
         );
         assert_eq!(r.status, 200, "{}", r.text());

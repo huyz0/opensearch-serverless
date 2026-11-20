@@ -154,7 +154,7 @@ fn parse_level(p: &mut Parser<'_>, level: usize) -> Result<Vec<MetricAgg>, DslEr
         };
         let mut agg = agg;
         if !definition.subs.is_empty() {
-            if agg.metric != Metric::Terms {
+            if !holds_subs(agg.metric) {
                 return Err(sub_refusal(&agg, name));
             }
             if let Some(sub) = definition
@@ -164,8 +164,9 @@ fn parse_level(p: &mut Parser<'_>, level: usize) -> Result<Vec<MetricAgg>, DslEr
             {
                 // ALLOC: error path; one message.
                 return Err(DslError::unsupported(&format!(
-                    "a [{}] sub-aggregation of a [terms] aggregation",
-                    sub.metric.name()
+                    "a [{}] sub-aggregation of a [{}] aggregation",
+                    sub.metric.name(),
+                    agg.metric.name()
                 )));
             }
             if level >= MAX_NESTING {
@@ -187,6 +188,20 @@ fn parse_level(p: &mut Parser<'_>, level: usize) -> Result<Vec<MetricAgg>, DslEr
     Ok(aggs)
 }
 
+/// Whether `metric` is a bucket aggregation this node runs sub-aggregations
+/// under.
+fn holds_subs(metric: Metric) -> bool {
+    matches!(
+        metric,
+        Metric::Terms
+            | Metric::Range
+            | Metric::Filters
+            | Metric::Filter
+            | Metric::Histogram
+            | Metric::DateHistogram
+    )
+}
+
 /// Whether `metric` is a single-value or stats metric, one of the
 /// sub-aggregations of a `terms` this node runs (a `terms` is the other).
 fn is_scalar(metric: Metric) -> bool {
@@ -198,16 +213,6 @@ fn is_scalar(metric: Metric) -> bool {
 
 /// The refusal of sub-aggregations under `agg`, which holds none here.
 fn sub_refusal(agg: &MetricAgg, name: &str) -> DslError {
-    if matches!(
-        agg.metric,
-        Metric::Histogram | Metric::DateHistogram | Metric::Range | Metric::Filters
-    ) {
-        // ALLOC: error path; one message.
-        return DslError::unsupported(&format!(
-            "sub-aggregations of a [{}] aggregation",
-            agg.metric.name()
-        ));
-    }
     DslError::Failure(Failure::opensearch(
         "aggregation_initialization_exception",
         // ALLOC: error path; one message.

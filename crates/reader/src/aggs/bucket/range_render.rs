@@ -6,6 +6,7 @@ use std::io::{self, Write};
 use oss_rest::write_json_str;
 
 use crate::aggs::bucket::range::{RangeBucket, RangeResult};
+use crate::aggs::bucket::sub_values::write_subs;
 use crate::aggs::metric::date_text::write_date_of_double;
 use crate::aggs::metric::double::write_java_double;
 use crate::aggs::partial::Format;
@@ -100,7 +101,9 @@ pub fn write_range(out: &mut dyn Write, format: Format, result: &RangeResult) ->
             write_end(out, &mut first, format, "to", bucket.to)?;
         }
         separate(out, &mut first)?;
-        write!(out, "\"doc_count\":{}}}", bucket.doc_count)?;
+        write!(out, "\"doc_count\":{}", bucket.doc_count)?;
+        write_subs(out, &result.sub_meta, result.subs.get(i))?;
+        out.write_all(b"}")?;
     }
     out.write_all(if result.keyed { b"}" } else { b"]" })
 }

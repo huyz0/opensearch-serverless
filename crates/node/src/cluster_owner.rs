@@ -6,15 +6,19 @@
 //! owner, and the shard head's conditional write is what makes one node the
 //! owner in fact.
 
+use std::sync::Arc;
+
 use oss_cluster::placement::{ROLE_INGEST, ShardKey, has_role, owner};
 use oss_format::NodeLease;
 use oss_rest::{Exception, Meta};
+use oss_transport::actions::read::GetRequest;
 use oss_transport::actions::write::{BulkOperation, BulkOutcome, BulkRequest, BulkResponse};
 use oss_writer::bulk::{IndexInfo, ItemResult, Kind, Owner, Planned};
-use oss_writer::index::{Outcome, Written};
+use oss_writer::index::{Fetched, Outcome, Written};
 
 use crate::forward::{BulkForwarder, ForwardError};
 use crate::push_link::Leases;
+use crate::read_forward::GetSend;
 use crate::writer::Routes;
 
 /// Which indexes exist.
@@ -45,33 +49,37 @@ pub struct ClusterRoutes<S, L, B> {
     leases: L,
     send: B,
     self_id: String,
-    now: Box<dyn Fn() -> i64 + Send + Sync>,
+    reads: Option<Arc<dyn GetSend>>,
 }
 
 impl<S: IndexSource, L: Leases, B: BulkSend> ClusterRoutes<S, L, B> {
     /// Routes for node `self_id`: indexes from `indexes`, members from
-    /// `leases` judged live at `now` (epoch milliseconds), groups sent with
-    /// `send`.
-    pub fn new(
-        indexes: S,
-        leases: L,
-        send: B,
-        self_id: &str,
-        now: Box<dyn Fn() -> i64 + Send + Sync>,
-    ) -> Self {
+    /// `leases`, groups sent with `send`.
+    pub fn new(indexes: S, leases: L, send: B, self_id: &str) -> Self {
         Self {
             indexes,
             leases,
             send,
             // ALLOC: one id, once a node.
             self_id: self_id.to_owned(),
-            now,
+            reads: None,
         }
+    }
+
+    /// The same, forwarding a get of a shard another node owns with `reads`.
+    #[must_use]
+    pub fn with_reads(mut self, reads: Arc<dyn GetSend>) -> Self {
+        self.reads = Some(reads);
+        self
     }
 }
 
-fn live_writer(lease: &NodeLease, now: i64) -> bool {
-    !lease.revoked && !lease.is_expired_at(now) && has_role(lease, ROLE_INGEST)
+/// Whether a member of the view takes writes. The stamp is not read: a
+/// refresh keeps a lease's copy until it runs out, so a live node's copy
+/// can pass its stamp for up to a renewal before the next refresh reads
+/// the renewed one, and the refresh itself drops a lease that lapsed.
+fn live_writer(lease: &NodeLease) -> bool {
+    !lease.revoked && has_role(lease, ROLE_INGEST)
 }
 
 fn failed_all(
@@ -160,16 +168,65 @@ impl<S: IndexSource, L: Leases, B: BulkSend> Routes for ClusterRoutes<S, L, B> {
 
     fn owner(&self, index: &IndexInfo, shard: u32) -> Owner {
         let leases = self.leases.current();
-        let now = (self.now)();
         let key = ShardKey::new(&index.name, i32::try_from(shard).unwrap_or(i32::MAX));
         let ids = leases
             .iter()
-            .filter(|l| live_writer(l, now))
+            .filter(|l| live_writer(l))
             .map(|l| l.node_id.as_str());
         match owner(key, ids) {
             Some(id) if id != self.self_id => Owner::Node(id.to_owned()),
             _ => Owner::Local,
         }
+    }
+
+    fn refresh_remote(&self, node: &str, index: &IndexInfo, shard: u32) -> Result<(), String> {
+        // No operations: the owner refreshes the shard and answers.
+        let request = BulkRequest {
+            index: index.name.clone(),
+            shard: i32::try_from(shard).unwrap_or(i32::MAX),
+            index_uuid: Some(index.uuid.clone()),
+            refresh: true,
+            ..BulkRequest::default()
+        };
+        match self.send.bulk(node, &request) {
+            Ok(response) if response.refreshed => Ok(()),
+            Ok(_) => Err("the owner did not refresh the shard".to_owned()),
+            Err(e) => Err(format!("the owner could not be asked to refresh: {e:?}")),
+        }
+    }
+
+    fn get_remote(
+        &self,
+        node: &str,
+        index: &IndexInfo,
+        shard: u32,
+        id: &str,
+    ) -> Result<Option<Fetched>, String> {
+        let reads = self
+            .reads
+            .as_ref()
+            .ok_or_else(|| "this node does not forward reads".to_owned())?;
+        let request = GetRequest {
+            // ALLOC: one request's strings.
+            index: index.name.clone(),
+            index_uuid: Some(index.uuid.clone()),
+            shard: i32::try_from(shard).unwrap_or(i32::MAX),
+            id: id.to_owned(),
+            ..GetRequest::default()
+        };
+        // ALLOC: error path; one message.
+        let answer = reads
+            .get(node, &request)
+            .map_err(|e| format!("the owner could not be asked for the document: {e}"))?;
+        if !answer.found {
+            return Ok(None);
+        }
+        Ok(Some(Fetched {
+            version: answer.version,
+            seq_no: answer.seq_no,
+            primary_term: answer.primary_term,
+            source: answer.source.unwrap_or_default().into_bytes(),
+        }))
     }
 
     fn forward(

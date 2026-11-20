@@ -12,10 +12,12 @@ pub mod filters;
 pub mod filters_collect;
 pub mod filters_parse;
 pub mod filters_render;
+pub mod fixed_subs;
 pub mod histogram;
 pub mod histogram_collect;
 pub mod histogram_parse;
 pub mod histogram_render;
+pub mod keyed_subs;
 pub mod keyword_collect;
 pub mod keyword_options;
 pub mod keyword_subs;
@@ -25,10 +27,12 @@ pub mod range;
 pub mod range_collect;
 pub mod range_parse;
 pub mod range_render;
+pub mod sub_values;
 pub mod terms;
 pub mod terms_collect;
 pub mod terms_parse;
 pub mod terms_render;
+pub mod with_subs;
 
 /// `search.max_buckets`'s default: the most distinct values one shard holds
 /// for a `terms` before it refuses, which bounds the memory a high
@@ -42,17 +46,24 @@ pub fn check_limits(agg: &crate::aggs::metric::MetricAgg) -> Result<(), crate::s
     filters_collect::check_limit(agg)
 }
 
-/// The shard-level result of `agg`, a `range` or a `filters`, from the
-/// engine's fixed buckets `docs`.
-pub fn fixed_value(
-    agg: &crate::aggs::metric::MetricAgg,
-    docs: &[u64],
-) -> crate::aggs::partial::Value {
-    if agg.filters.is_some() {
-        filters_collect::value(agg, docs)
-    } else {
-        range_collect::value(agg, docs)
-    }
+use crate::aggs::metric::MetricAgg;
+use date_histogram::DateHistogramSpec;
+use histogram::HistogramSpec;
+use terms::TermsSpec;
+
+/// `agg`'s `terms` options (every `terms` has them).
+pub(crate) fn terms_spec(agg: &MetricAgg) -> TermsSpec {
+    agg.terms.as_deref().cloned().unwrap_or_default()
+}
+
+/// `agg`'s `histogram` options (every `histogram` has them).
+pub(crate) fn histogram_spec(agg: &MetricAgg) -> HistogramSpec {
+    agg.histogram.as_deref().cloned().unwrap_or_default()
+}
+
+/// `agg`'s `date_histogram` options (every `date_histogram` has them).
+pub(crate) fn date_histogram_spec(agg: &MetricAgg) -> DateHistogramSpec {
+    agg.date_histogram.as_deref().copied().unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -66,9 +77,13 @@ mod filters_collect_tests;
 #[cfg(test)]
 mod filters_tests;
 #[cfg(test)]
+mod fixed_subs_tests;
+#[cfg(test)]
 mod histogram_collect_tests;
 #[cfg(test)]
 mod histogram_tests;
+#[cfg(test)]
+mod keyed_subs_tests;
 #[cfg(test)]
 mod keyword_collect_tests;
 #[cfg(test)]

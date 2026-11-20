@@ -98,7 +98,9 @@ pub fn value(agg: &MetricAgg, docs: &[u64]) -> Value {
         .collect();
     // ALLOC: one box a `filters`, bounded by the request's.
     Value::Filters(Box::new(FiltersResult {
+        single: spec.single,
         keyed: spec.keyed,
         buckets,
+        ..FiltersResult::default()
     }))
 }

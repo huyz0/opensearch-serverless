@@ -11,7 +11,11 @@ pub mod assemble;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod boot;
 #[cfg(feature = "writer")]
+pub mod bulk_handler;
+#[cfg(feature = "writer")]
 pub mod bulk_route;
+#[cfg(all(feature = "writer", feature = "coordinator"))]
+pub mod by_query;
 #[cfg(feature = "writer")]
 pub mod cat_route;
 #[cfg(feature = "writer")]
@@ -50,6 +54,8 @@ pub mod push;
 pub mod push_link;
 #[cfg(feature = "writer")]
 pub mod push_sender;
+#[cfg(feature = "writer")]
+pub mod read_forward;
 #[cfg(feature = "writer")]
 pub mod refresh_route;
 #[cfg(feature = "writer")]

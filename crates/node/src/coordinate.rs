@@ -197,6 +197,20 @@ impl<S: BlobStore + 'static> SearchService<S> {
         source: &SearchSource,
         started: Instant,
     ) -> Result<(), RestError> {
+        self.handle_sharded_with(resp, index, shards, source, started, &|bytes| bytes)
+    }
+
+    /// [`Self::handle_sharded`], writing what `convert` makes of the merged
+    /// response.
+    pub(super) fn handle_sharded_with(
+        &self,
+        resp: &mut Response<'_>,
+        index: &str,
+        shards: usize,
+        source: &SearchSource,
+        started: Instant,
+        convert: &dyn Fn(Vec<u8>) -> Vec<u8>,
+    ) -> Result<(), RestError> {
         // The buffers each shard's hits take and its renders read into are
         // held until the response is written.
         let held_buffers: Mutex<Vec<Reservation>> = Mutex::new(Vec::new());
@@ -217,6 +231,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
         let answer = self.coordinate(index, shards, source, took, &reserve);
         match answer {
             Ok(bytes) => {
+                let bytes = convert(bytes);
                 let mut out = resp.start(200, Some(JSON), Length::Chunked, &[])?;
                 out.write_all(&bytes)?;
                 out.flush()?;

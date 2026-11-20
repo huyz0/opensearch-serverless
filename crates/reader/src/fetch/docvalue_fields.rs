@@ -12,7 +12,7 @@
 //! each in doc-values order. A field asked for twice writes its values
 //! twice. The hit's `fields` object comes out in `java.util.HashMap` order,
 //! as the hit's document fields do. A `format` other than
-//! `use_field_mapping`, a metadata field, and a pattern that could match one
+//! `use_field_mapping`, a metadata field other than `_seq_no` and `_primary_term`, and a pattern that could match one
 //! are not served yet.
 
 use std::io::{self, Write};
@@ -188,7 +188,7 @@ pub fn resolve(fields: &[DocValueField], mapping: &Mapping) -> Result<Vec<HitFie
             return Err(unsupported("a [docvalue_fields] format"));
         }
         let name = entry.field.as_str();
-        if name.starts_with(['_', '*']) {
+        if name.starts_with(['_', '*']) && !is_sequence_field(name) {
             // ALLOC: error path; one message.
             return Err(unsupported(&format!(
                 "[docvalue_fields] of [{name}], which can name a metadata field,"
@@ -199,8 +199,9 @@ pub fn resolve(fields: &[DocValueField], mapping: &Mapping) -> Result<Vec<HitFie
         let names: Vec<&str> = if name.contains('*') {
             mapping.names().filter(|n| simple_match(name, n)).collect()
         } else {
+            let known = is_sequence_field(name) || mapping.get(name).is_some();
             // ALLOC: as above.
-            mapping.get(name).map(|_| name).into_iter().collect()
+            known.then_some(name).into_iter().collect()
         };
         // ALLOC: one index a name, as above.
         let mut order = Vec::new();
@@ -227,8 +228,17 @@ pub fn resolve(fields: &[DocValueField], mapping: &Mapping) -> Result<Vec<HitFie
     Ok(order.iter().filter_map(|&i| out.get(i).cloned()).collect())
 }
 
+/// `_seq_no` and `_primary_term`: the metadata fields whose doc values a hit
+/// may carry, as long fields.
+fn is_sequence_field(name: &str) -> bool {
+    matches!(name, "_seq_no" | "_primary_term")
+}
+
 /// How the mapped field `name` reads, or OpenSearch's refusal.
 fn kind_of(name: &str, mapping: &Mapping) -> Result<ValueKind, ShardError> {
+    if is_sequence_field(name) {
+        return Ok(ValueKind::Long);
+    }
     // Only mapped names are resolved.
     let Some(field) = mapping.get(name) else {
         return Ok(ValueKind::Term);

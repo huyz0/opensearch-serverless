@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
-# Validates one commit message file. Used by .githooks/commit-msg and by CI
-# for every commit in a pull request.
+# Validates one commit message file.
+#
+#   check-commit-msg.sh FILE         every rule below; the commit-msg hook
+#   check-commit-msg.sh --ci FILE    only the attribution rule; CI runs it on
+#                                    each non-merge commit of a pull request
+#
+# Pull requests are squash-merged, so the subject format and the Spec: trailer
+# are checked on the PR title and body by check-pr.py, not on every commit.
 #
 #   - Subject: `type(scope): lowercase description`.
 #   - feat, fix and perf commits carry a `Spec:` trailer naming an existing
@@ -13,6 +19,8 @@
 # Portable: Linux, macOS (bash 3.2) and Windows Git Bash.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
+ci=0
+if [ "${1:-}" = "--ci" ]; then ci=1; shift; fi
 msg_file="$1"
 subject="$(head -n1 "$msg_file")"
 
@@ -21,7 +29,7 @@ if grep -qiE '^Co-Authored-By:.*(claude|anthropic)|^Claude-Session:|Generated wi
   exit 1
 fi
 
-if printf '%s' "$subject" | grep -qE '^(Merge|Revert) '; then
+if [ "$ci" = 1 ] || printf '%s' "$subject" | grep -qE '^(Merge|Revert) '; then
   exit 0
 fi
 

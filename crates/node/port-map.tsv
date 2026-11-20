@@ -66,3 +66,15 @@ src/cluster_owner.rs	new		owner by rendezvous over the held leases and the forwa
 src/boot/mod.rs	new		starts a node from configuration; the Java node is built by the OpenSearch bootstrap and a plugin, with no equivalent single entry
 src/boot/config.rs	new		environment configuration; the Java reads opensearch.yml
 src/boot/renew.rs	new		the lease renewal thread; the Java renews on a scheduled executor
+src/writer/takeover.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/ShardReconciler.java	the writer open of a shard with a history: restore, replay the head's writers, publish, then hold
+src/writer/predecessors.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/ShardReconciler.java	the predecessors of a take: each head writer's log epochs from its lease, fenced and rechecked against the lease
+src/bulk_handler.rs	new		the owner side of a forwarded bulk over WriterRole::apply_group; the Java splits it between ForwardedBulkAction and NodeWritePath
+src/boot/transport.rs	new		the transport server's late-bound handler and the node's discovery description; the Java builds them in the transport module
+src/read_forward.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/forwarding/ForwardedGetRequest.java@429b4cbc	the owner-side handler and the sender of a forwarded get
+src/by_query/mod.rs	new		delete-by-query over a writer role, the search behind a trait; the Java shell runs it in its ops package
+src/by_query/change.rs	new		the conditional delete a by-query walk makes, through the bulk machinery
+src/by_query/params.rs	new		the request body and parameters of a delete by query
+src/by_query/response.rs	new		the answer of a delete by query
+src/by_query/search.rs	new		the by-query search answered by the node's own reader, sorted by sequence number
+src/writer/publish_age.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/reconcile/BackgroundReconciler.java	the per-index publish age: refresh_interval bounds the oldest unpublished write; -1 leaves it to the operation count
+src/search_count.rs	port	server/src/main/java/org/opensearch/rest/action/search/RestCountAction.java	_count as the exact total of a size-0 search of the query

@@ -6,6 +6,7 @@ use lucene_aggs::bucket_aggs::AggNode;
 use lucene_aggs::metric_aggs::ValueKind;
 
 use crate::aggs::bucket::histogram::{HistogramResult, HistogramSpec};
+use crate::aggs::bucket::sub_values::BucketSubs;
 use crate::failure::Failure;
 use crate::search::ShardError;
 
@@ -20,7 +21,7 @@ pub fn node(field: &str, spec: &HistogramSpec) -> AggNode {
         interval: spec.interval,
         offset: spec.offset,
         hard_bounds: spec.hard_bounds,
-        // ALLOC: empty; sub-aggregations are refused.
+        // ALLOC: empty; `keyed_subs` adds the sub-aggregations.
         subs: Vec::new(),
     }
 }
@@ -42,6 +43,7 @@ pub fn from_engine(spec: &HistogramSpec, buckets: &[(f64, u64)]) -> HistogramRes
             // ALLOC: one entry a bucket, at most the bucket limit (the engine
             // counts every key against it).
             .collect(),
+        subs: BucketSubs::default(),
     }
 }
 

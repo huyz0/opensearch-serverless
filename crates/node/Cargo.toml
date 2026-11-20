@@ -39,13 +39,14 @@ writer = [
     "dep:oss-mem",
     "dep:oss-coordinator",
 ]
-coordinator = ["dep:oss-coordinator", "dep:oss-blob", "dep:oss-transport"]
+coordinator = ["dep:oss-coordinator", "dep:oss-blob", "dep:oss-transport", "dep:oss-doc"]
 
 [dependencies]
 oss-types = { workspace = true }
 oss-reader = { workspace = true, optional = true }
 oss-writer = { workspace = true, optional = true }
 oss-coordinator = { workspace = true, optional = true }
+oss-doc = { workspace = true, optional = true }
 oss-rest = { workspace = true, optional = true }
 oss-transport = { workspace = true, optional = true }
 oss-cluster = { workspace = true, optional = true }
@@ -62,6 +63,8 @@ oss-mem = { workspace = true, optional = true }
 
 [dev-dependencies]
 serde_json = "=1.0.145"
+# The suite creates a RustFS bucket with one signed request.
+ureq = { version = "=3.5.2", default-features = false, features = ["rustls"] }
 lucene-store = { workspace = true }
 oss-blob = { workspace = true, features = ["emulator"] }
 oss-mem = { workspace = true }
@@ -90,6 +93,14 @@ required-features = ["writer"]
 
 [[test]]
 name = "forward"
+required-features = ["writer"]
+
+[[test]]
+name = "read_forward"
+required-features = ["writer"]
+
+[[test]]
+name = "publish_age"
 required-features = ["writer"]
 
 [[test]]
@@ -156,6 +167,10 @@ name = "writer_opener"
 required-features = ["writer"]
 
 [[test]]
+name = "writer_takeover"
+required-features = ["writer"]
+
+[[test]]
 name = "descriptor_routes"
 required-features = ["writer"]
 
@@ -197,4 +212,16 @@ required-features = ["reader", "writer"]
 
 [[test]]
 name = "boot"
+required-features = ["reader", "writer", "coordinator"]
+
+[[test]]
+name = "bulk_handler"
+required-features = ["writer"]
+
+[[test]]
+name = "by_query_route"
+required-features = ["writer", "coordinator"]
+
+[[test]]
+name = "cluster_suite"
 required-features = ["reader", "writer", "coordinator"]

@@ -75,6 +75,7 @@ fn part(spec: &DateHistogramSpec, buckets: &[(i64, u64)]) -> DateHistogramResult
     DateHistogramResult {
         spec: *spec,
         buckets: buckets.to_vec(),
+        ..DateHistogramResult::default()
     }
 }
 
@@ -278,13 +279,13 @@ fn unserved_keys_zones_and_orders_are_refused_as_not_supported_yet() {
             "{body}"
         );
     }
-    let body = br#"{"aggs":{"h":{"date_histogram":{"field":"t","calendar_interval":"day"},"aggs":{"m":{"max":{"field":"n"}}}}}}"#;
+    let body = br#"{"aggs":{"h":{"date_histogram":{"field":"t","calendar_interval":"day"},"aggs":{"m":{"range":{"field":"n","ranges":[{"to":5}]}}}}}}"#;
     let e = parse_chunks([&body[..]])
         .expect_err("refused")
         .into_failure();
     assert!(
-        e.reason.contains("sub-aggregations of a [date_histogram]"),
-        "{e:?}"
+        e.reason
+            .contains("[range] sub-aggregation of a [date_histogram]")
     );
 }
 

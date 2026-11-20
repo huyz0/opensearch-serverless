@@ -2,11 +2,24 @@
 //! publishes, the commit that holds them is published before it returns, so
 //! a reader that asks afterwards finds them.
 
-use oss_writer::bulk::IndexInfo;
+use oss_writer::bulk::{IndexInfo, Owner};
 
 use super::{WriterRole, lock};
 
 impl WriterRole {
+    /// Refreshes a shard on this node when it holds it, and otherwise asks
+    /// the node that owns it to.
+    ///
+    /// # Errors
+    ///
+    /// As [`WriterRole::refresh`], or the owner not answering.
+    pub fn refresh_owned(&self, index: &IndexInfo, shard: u32) -> Result<(), String> {
+        match self.owner(index, shard) {
+            Owner::Local => self.refresh(index, shard),
+            Owner::Node(node) => self.routes.refresh_remote(&node, index, shard),
+        }
+    }
+
     /// Refreshes a shard held here and, where the role publishes, publishes
     /// its commit now.
     ///

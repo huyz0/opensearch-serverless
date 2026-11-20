@@ -15,7 +15,8 @@ use oss_writer::mapping::Mapping;
 
 use std::sync::Mutex;
 
-use super::{ShardSlot, WriterRole, lock};
+use super::{ShardSlot, Takeover, WriterRole, lock, publish_age_of};
+use oss_writer::takeover::restore;
 
 /// What a role asks when a write names a shard it does not hold.
 pub trait ShardOpener: Send + Sync {
@@ -36,6 +37,7 @@ pub struct HeadOpener {
     node_id: String,
     ephemeral_id: String,
     buffer_bytes: usize,
+    takeover: Option<Takeover>,
 }
 
 impl HeadOpener {
@@ -59,7 +61,17 @@ impl HeadOpener {
             node_id: node_id.to_owned(),
             ephemeral_id: ephemeral_id.to_owned(),
             buffer_bytes,
+            takeover: None,
         }
+    }
+
+    /// Lets this opener take over shards that have a history: restore the
+    /// published commit and replay the head's writers. Without it such a
+    /// shard is refused.
+    #[must_use]
+    pub fn with_takeover(mut self, takeover: Takeover) -> Self {
+        self.takeover = Some(takeover);
+        self
     }
 }
 
@@ -87,9 +99,6 @@ impl ShardOpener for HeadOpener {
                 ));
             }
         };
-        if !head.writers.is_empty() {
-            return Err(format!("[{}][{shard}]: {TAKEOVER}", index.name));
-        }
         let at = ShardRef {
             index: &index.name,
             uuid: &index.uuid,
@@ -98,12 +107,13 @@ impl ShardOpener for HeadOpener {
         let key = at.manifest_key(&self.base).map_err(|e| e.to_string())?;
         // ALLOC: one buffer a shard opened, buffer_bytes.
         let mut buf = vec![0u8; self.buffer_bytes];
-        if self
+        let committed = self
             .store
             .read_register(&key, &mut buf)
             .map_err(|e| e.to_string())?
-            .is_some()
-        {
+            .is_some();
+        let history = committed || !head.writers.is_empty();
+        if history && self.takeover.is_none() {
             return Err(format!("[{}][{shard}]: {TAKEOVER}", index.name));
         }
         let record = self
@@ -117,7 +127,19 @@ impl ShardOpener for HeadOpener {
             })?;
         let mapping = Mapping::from_descriptor(record.mapping.as_deref())
             .map_err(|e| e.failed_to_parse().to_string())?;
-        role.open_shard(index, shard, head.term, mapping)
+        let age = publish_age_of(record.settings);
+        match self.takeover.as_ref().filter(|_| history) {
+            None => role.open_shard(index, shard, head.term, mapping)?,
+            Some(takeover) => role.open_taken(index, shard, &head, mapping, takeover, |dir| {
+                // ALLOC: one buffer a restore, buffer_bytes.
+                let mut buf = vec![0u8; self.buffer_bytes];
+                restore(self.store.as_ref(), &self.base, &at, dir, &mut buf)
+                    .map(|_| ())
+                    .map_err(|e| e.to_string())
+            })?,
+        }
+        role.set_publish_age(&index.uuid, shard, age);
+        Ok(())
     }
 }
 

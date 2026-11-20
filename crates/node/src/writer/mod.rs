@@ -18,23 +18,26 @@ mod janitor_timer;
 mod lease;
 mod newest_commit;
 mod opener;
+mod predecessors;
+mod publish_age;
 mod publish_timer;
 mod publishing;
 mod refresh;
 mod slot;
 mod tail;
+mod takeover;
 mod target;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use oss_format::{ShardKey, WalRecord};
+use oss_format::WalRecord;
 use oss_rest::{Exception, Meta};
 use oss_writer::bulk::{IndexInfo, ItemResult, Kind, Owner, Planned, item_result};
-use oss_writer::index::{Refused, Written};
+use oss_writer::index::{Fetched, Refused, Written};
 use oss_writer::log::NodeLogCommitter;
-use oss_writer::mapping::Mapping;
+use oss_writer::publish::lazy::PublishAge;
 
 use incarnation::Fenced;
 use publishing::Key;
@@ -46,9 +49,11 @@ pub use janitor_pass::{HeldShard, JanitorPass, JanitorReport, PassLimits};
 pub use janitor_timer::{JanitorTimer, SweepConfig};
 pub use lease::MembershipLeaseWrite;
 pub use opener::{HeadOpener, ShardOpener};
+pub use publish_age::publish_age_of;
 pub use publish_timer::PublishTimer;
 pub use publishing::{PublishPass, Publishing};
 pub use tail::TailSink;
+pub use takeover::Takeover;
 pub use target::RoleTarget;
 
 /// What a writer asks of the rest of the cluster: which indexes exist,
@@ -69,6 +74,24 @@ pub trait Routes: Send + Sync {
         shard: u32,
         group: &[Planned<'_>],
     ) -> Vec<ItemResult>;
+
+    /// Asks the node that owns `shard` to refresh it. A route that never
+    /// names another owner has nothing to ask.
+    fn refresh_remote(&self, _node: &str, _index: &IndexInfo, _shard: u32) -> Result<(), String> {
+        Err("the shard is held by another node".to_owned())
+    }
+
+    /// Asks the node that owns `shard` for the live document `id`. A route
+    /// that never names another owner has nothing to ask.
+    fn get_remote(
+        &self,
+        _node: &str,
+        _index: &IndexInfo,
+        _shard: u32,
+        _id: &str,
+    ) -> Result<Option<Fetched>, String> {
+        Err("the shard is held by another node".to_owned())
+    }
 }
 
 /// Why an item did not go ahead.
@@ -176,6 +199,16 @@ impl WriterRole {
         self
     }
 
+    /// Sets how long a write to `shard` of the index `uuid` may wait to be
+    /// published: its index's `refresh_interval`. Nothing is recorded for a
+    /// role that does not publish.
+    pub fn set_publish_age(&self, uuid: &str, shard: u32, age: PublishAge) {
+        if let Some(publishing) = &self.publishing {
+            // ALLOC: one key, once a shard opened.
+            publishing.set_age(&(uuid.to_owned(), shard), age);
+        }
+    }
+
     /// Publishes each held shard the lazy policy finds due, remembering the
     /// manifest as its newest commit. A shard that fails stays due and the
     /// pass goes on.
@@ -221,36 +254,6 @@ impl WriterRole {
             }
         }
         pass
-    }
-
-    /// Holds shard `shard` of `index`, empty, at `term`, its documents read
-    /// against `mapping`.
-    ///
-    /// # Errors
-    ///
-    /// The engine not opening.
-    pub fn open_shard(
-        &self,
-        index: &IndexInfo,
-        shard: u32,
-        term: i64,
-        mapping: Mapping,
-    ) -> Result<(), String> {
-        let key = ShardKey::new(index.uuid.as_str(), shard, None::<&str>);
-        let slot = ShardSlot::open(key, term, mapping, now_millis)?;
-        self.names.insert(&index.uuid, &index.name);
-        // ALLOC: one key a shard opened.
-        let key = (index.uuid.clone(), shard);
-        // Lock order: shards, then newest, everywhere both are held.
-        let mut shards = lock(&self.shards);
-        // ALLOC: one entry a shard opened.
-        shards.insert(key.clone(), Arc::new(Mutex::new(slot)));
-        // A shard opened again has published nothing yet.
-        lock(&self.newest).remove(&key);
-        if let Some(p) = &self.publishing {
-            p.forget(&key);
-        }
-        Ok(())
     }
 
     /// The shards this node holds that have a name, each with the commit it

@@ -46,7 +46,16 @@ fn bucket(key: Option<&str>, from: f64, to: f64, doc_count: u64) -> RangeBucket 
 
 fn written(format: Format, keyed: bool, buckets: Vec<RangeBucket>) -> String {
     let mut out = Vec::new();
-    write_range(&mut out, format, &RangeResult { keyed, buckets }).expect("writes");
+    write_range(
+        &mut out,
+        format,
+        &RangeResult {
+            keyed,
+            buckets,
+            ..RangeResult::default()
+        },
+    )
+    .expect("writes");
     String::from_utf8(out).expect("utf-8")
 }
 
@@ -136,12 +145,14 @@ fn unserved_options_are_refused_as_not_supported_yet() {
     }
     assert!(reason(r#"{"field":"n","ranges":[{"from":"2020-01-01"}]}"#).contains("given as text"));
     assert!(reason(r#"{"field":"n","ranges":[{"to":"5"}]}"#).contains("[range]'s [to]"));
-    let sub = r#"{"aggs":{"r":{"range":{"field":"n","ranges":[{"to":1}]},"aggs":{"m":{"min":{"field":"n"}}}}}}"#;
+    let sub = r#"{"aggs":{"r":{"range":{"field":"n","ranges":[{"to":1}]},"aggs":{"h":{"range":{"field":"n","ranges":[{"to":5}]}}}}}}"#;
     let failure = parse_chunks([sub.as_bytes()])
         .expect_err("refused")
         .into_failure();
     assert!(
-        failure.reason.contains("sub-aggregations of a [range]"),
+        failure
+            .reason
+            .contains("[range] sub-aggregation of a [range]"),
         "{}",
         failure.reason
     );
@@ -157,6 +168,7 @@ fn counts_add_per_range_across_shards() {
                 bucket(None, -INF, 5.0, counts[0]),
                 bucket(None, 5.0, INF, counts[1]),
             ],
+            ..RangeResult::default()
         }))
     };
     let Some(Value::Range(got)) = reduce(&[part([1, 2]), part([10, 20]), part([100, 200])]) else {
@@ -172,10 +184,12 @@ fn a_reduce_needs_parts_of_one_shape() {
     let one = Value::Range(Box::new(RangeResult {
         keyed: false,
         buckets: vec![bucket(None, 0.0, 1.0, 1)],
+        ..RangeResult::default()
     }));
     let two = Value::Range(Box::new(RangeResult {
         keyed: false,
         buckets: vec![bucket(None, 0.0, 1.0, 1), bucket(None, 1.0, 2.0, 1)],
+        ..RangeResult::default()
     }));
     assert!(reduce(&[]).is_none());
     assert!(reduce(&[one.clone(), two]).is_none());
@@ -184,6 +198,7 @@ fn a_reduce_needs_parts_of_one_shape() {
         Value::Range(Box::new(RangeResult {
             keyed,
             buckets: vec![bucket(key, 0.0, to, 1)],
+            ..RangeResult::default()
         }))
     };
     assert!(reduce(&[one.clone(), other(None, 2.0, false)]).is_none());
@@ -200,6 +215,7 @@ fn the_shared_reduce_dispatches_a_range_to_its_own() {
         Value::Range(Box::new(RangeResult {
             keyed: false,
             buckets: vec![bucket(None, 0.0, 1.0, n)],
+            ..RangeResult::default()
         }))
     };
     let Some(Value::Range(got)) = crate::aggs::partial::reduce(&[part(2), part(3)]) else {
@@ -250,5 +266,27 @@ fn a_date_range_also_writes_its_bounds_as_text() {
             vec![bucket(None, 0.0, 86_400_000.0, 2)]
         ),
         r#""buckets":[{"key":"1970-01-01T00:00:00.000Z-1970-01-02T00:00:00.000Z","from":0.0,"from_as_string":"1970-01-01T00:00:00.000Z","to":8.64E7,"to_as_string":"1970-01-02T00:00:00.000Z","doc_count":2}]"#
+    );
+}
+
+// AC-6
+#[test]
+fn a_ranges_sub_aggregations_follow_its_count() {
+    let mut r = RangeResult {
+        buckets: vec![RangeBucket {
+            key: Some("lo".to_owned()),
+            from: f64::NEG_INFINITY,
+            to: 5.0,
+            doc_count: 2,
+        }],
+        ..RangeResult::default()
+    };
+    r.sub_meta = vec![("s".to_owned(), Format::Raw)];
+    r.subs = vec![vec![Value::Sum(7.0)]];
+    let mut out = Vec::new();
+    write_range(&mut out, Format::Raw, &r).expect("writes");
+    assert_eq!(
+        String::from_utf8(out).expect("utf-8"),
+        r#""buckets":[{"key":"lo","to":5.0,"doc_count":2,"s":{"value":7.0}}]"#
     );
 }

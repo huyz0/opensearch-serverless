@@ -5,6 +5,7 @@
 use lucene_aggs::bucket_aggs::AggNode;
 
 use crate::aggs::bucket::date_histogram::{DateHistogramResult, DateHistogramSpec};
+use crate::aggs::bucket::sub_values::BucketSubs;
 
 /// The engine's node for a `date_histogram` of the date (or long) field
 /// `field`.
@@ -34,5 +35,6 @@ pub fn from_engine(spec: &DateHistogramSpec, buckets: &[(i64, u64)]) -> DateHist
         // ALLOC: one entry a bucket, at most the bucket limit (the engine
         // counts every key against it).
         buckets: buckets.to_vec(),
+        subs: BucketSubs::default(),
     }
 }

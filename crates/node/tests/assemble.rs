@@ -278,3 +278,50 @@ fn a_node_starts_with_its_janitor_as_a_dry_run() {
         "dry run kept it"
     );
 }
+
+#[cfg(feature = "coordinator")]
+#[test]
+fn a_delete_by_query_removes_what_the_reader_finds_through_the_writer() {
+    let (r, store) = start(256 << 20);
+    store
+        .create_register(
+            "indices/docs",
+            br#"{"name":"docs","uuid":"docs-uuid","number_of_shards":1,"mapping":"{\"properties\":{\"n\":{\"type\":\"integer\"}}}","settings":{}}"#,
+        )
+        .expect("descriptor");
+    // One bulk is one commit, so the first publish holds all four.
+    let lines: String = (1..=4)
+        .map(|n| format!("{{\"index\":{{\"_id\":\"{n}\"}}}}\n{{\"n\":{n}}}\n"))
+        .collect();
+    let put = call(&r, "POST", "/docs/_bulk", Some(&lines));
+    assert_eq!(put.status, 200, "{}", put.text());
+    let started = Instant::now();
+    while r.role.newest_commit("docs-uuid", 0).is_none() {
+        assert!(
+            started.elapsed() < Duration::from_secs(10),
+            "the timer published nothing"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let gone = call(
+        &r,
+        "POST",
+        "/docs/_delete_by_query?refresh=true",
+        Some(r#"{"query":{"range":{"n":{"gte":3}}}}"#),
+    );
+    assert_eq!(gone.status, 200, "{}", gone.text());
+    assert!(gone.text().contains("\"deleted\":2"), "{}", gone.text());
+    assert!(gone.text().contains("\"total\":2"), "{}", gone.text());
+    for id in ["1", "2"] {
+        assert_eq!(
+            call(&r, "GET", &format!("/docs/_doc/{id}"), None).status,
+            200
+        );
+    }
+    for id in ["3", "4"] {
+        assert_eq!(
+            call(&r, "GET", &format!("/docs/_doc/{id}"), None).status,
+            404
+        );
+    }
+}

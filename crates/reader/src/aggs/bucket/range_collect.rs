@@ -68,5 +68,6 @@ pub fn from_counts(spec: &RangeSpec, docs: &[u64]) -> RangeResult {
             })
             // ALLOC: as above.
             .collect(),
+        ..RangeResult::default()
     }
 }

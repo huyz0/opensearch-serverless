@@ -22,6 +22,7 @@ mod point_in_time_capture;
 mod point_in_time_races;
 mod probe;
 mod reclaim;
+mod reclaim_modes;
 mod routing;
 mod sweep;
 

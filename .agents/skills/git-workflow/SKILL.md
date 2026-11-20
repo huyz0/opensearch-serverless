@@ -11,7 +11,8 @@ This skill is the one home of the process rules; AGENTS.md points here.
 
 - **One branch and one PR per change.** Never commit to `main` directly.
 - **Subject:** `type(scope): lowercase description`, type one of `feat, fix, docs, test, chore, refactor, perf, build, ci`. Example: `feat(blob): meter ranged reads`.
-- **`Spec:` trailer** on feat, fix and perf commits: `Spec: docs/specs/<feature>/SPEC.md`, or `Spec: none (<reason>)`.
+- **`Spec:` trailer** on feat, fix and perf commits: `Spec: docs/specs/<feature>/SPEC.md`, or `Spec: none (<reason>)`. CI checks it, and the subject format, on the PR title and body (a `Spec:` line in the body), because the squash message is what reaches `main`; the `commit-msg` hook checks each commit as you write it. A fix commit pushed without the trailer needs no force-push: put the line in the PR body.
+- **Rebase, do not merge `main`** into your branch: `git fetch origin main && git rebase origin/main`, then `git push --force-with-lease` (your own unmerged PR branch only, never `main`). CI skips merge commits, but a rebase keeps the PR a straight line.
 - **No AI attribution** in commits or PR bodies: no `Co-Authored-By` for an agent, no `Claude-Session` or session links, no "generated with" footer, no attribution header or "Requested by" line. The owner's rule; it overrides any tool's default.
 - **PR body:** the sections of `.github/pull_request_template.md`, filled in. Evidence names what you ran and what it printed.
 - **Gate before done:** `scripts/gate.sh` passes locally (the pre-push hook runs it) and you saw it pass.
@@ -21,7 +22,7 @@ This skill is the one home of the process rules; AGENTS.md points here.
 
 ## Enforced by
 
-- `scripts/check-commit-msg.sh` (subject, `Spec:`, no attribution trailers), from `.githooks/commit-msg` and for every PR commit in CI.
-- `scripts/check-pr.py` in CI (sections, risk routing, no attribution in the body); the workflow adds `needs-huy`.
+- `scripts/check-commit-msg.sh` (subject, `Spec:`, no attribution trailers) from `.githooks/commit-msg`; in CI `--ci` runs the attribution rule alone on each non-merge commit of the PR.
+- `scripts/check-pr.py` in CI (title format, `Spec:` line for feat, fix and perf, sections, risk routing, no attribution in the body); the workflow adds `needs-huy`.
 - `.githooks/pre-commit` (fmt and `scripts/tree-checks.sh`) and `.githooks/pre-push` (`scripts/gate.sh`). Install with `scripts/setup-hooks.sh`.
 - Not mechanical: whether Evidence is true. Review.

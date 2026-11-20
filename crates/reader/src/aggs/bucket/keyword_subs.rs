@@ -13,6 +13,7 @@ use oss_blob::BlobStore;
 use crate::OpenShard;
 use crate::aggs::bucket::keyword_collect::{self, Parent};
 use crate::aggs::bucket::keyword_terms::KeywordTermsResult;
+use crate::aggs::bucket::sub_values::SubValues;
 use crate::aggs::bucket::terms::TermsSpec;
 use crate::aggs::metric::collect::{Resolved, node as metric_node, resolve, value_of};
 use crate::aggs::metric::{DEFAULT_PRECISION, Metric, MetricAgg};
@@ -87,15 +88,28 @@ pub fn node<S: BlobStore + 'static>(
     };
     let mut engine = keyword_collect::node(&agg.field, &spec, accepted);
     if let AggNode::Terms { subs, .. } = &mut engine {
-        for (sub, r) in agg.subs.iter().zip(resolved(agg, shard)?) {
-            match r {
-                Resolved::Numeric(_) => subs.push(metric_node(sub, DEFAULT_PRECISION)),
-                Resolved::Keyword => subs.push(node(sub, shard, ords)?),
-                Resolved::Unmapped | Resolved::Queries => {}
-            }
-        }
+        *subs = sub_nodes(agg, shard, ords)?;
     }
     Ok(engine)
+}
+
+/// The engine's node for each sub-aggregation of `agg`, in request order;
+/// an unmapped field's has none.
+pub fn sub_nodes<S: BlobStore + 'static>(
+    agg: &MetricAgg,
+    shard: &OpenShard<S>,
+    ords: &mut HashMap<String, std::sync::Arc<GlobalOrds>>,
+) -> Result<Vec<AggNode>, ShardError> {
+    // ALLOC: one node a sub-aggregation, bounded by the request's.
+    let mut subs = Vec::with_capacity(agg.subs.len());
+    for (sub, r) in agg.subs.iter().zip(resolved(agg, shard)?) {
+        match r {
+            Resolved::Numeric(_) => subs.push(metric_node(sub, DEFAULT_PRECISION)),
+            Resolved::Keyword => subs.push(node(sub, shard, ords)?),
+            Resolved::Unmapped | Resolved::Queries => {}
+        }
+    }
+    Ok(subs)
 }
 
 /// The most bytes the keyword `terms` `agg` holds on `shard` counting under
@@ -122,6 +136,36 @@ pub fn reserved<S: BlobStore + 'static>(
     nested.fold(own, |total, sub| {
         total.saturating_add(reserved(shard, sub, under))
     })
+}
+
+/// Each sub-aggregation of `agg` over its `total` owning buckets, from the
+/// engine's `subs` (one result a sub-aggregation with an engine node):
+/// their names and formats, and one list of values an owning bucket.
+pub fn sub_values<S: BlobStore + 'static>(
+    agg: &MetricAgg,
+    shard: &OpenShard<S>,
+    subs: Vec<AggResult>,
+    total: usize,
+) -> Result<SubValues, ShardError> {
+    let mut engine = subs.into_iter();
+    // ALLOC: one list a kept bucket, bounded by the buckets.
+    let mut values: Vec<Vec<Value>> = vec![Vec::new(); total];
+    // ALLOC: one entry a sub-aggregation, bounded by the request's.
+    let mut meta = Vec::with_capacity(agg.subs.len());
+    for (sub, r) in agg.subs.iter().zip(resolved(agg, shard)?) {
+        let (format, result) = match r {
+            Resolved::Numeric(format) => (format, engine.next()),
+            Resolved::Keyword => (Format::Raw, engine.next()),
+            Resolved::Unmapped | Resolved::Queries => (Format::Raw, None),
+        };
+        let made = build(sub, shard, result, total)?;
+        for (list, value) in values.iter_mut().zip(made) {
+            list.push(value);
+        }
+        // ALLOC: one name a sub-aggregation, bounded by the request's.
+        meta.push((sub.name.clone(), format));
+    }
+    Ok((meta, values))
 }
 
 /// One value an owning bucket for `agg` from the engine's `result`, which
@@ -161,23 +205,10 @@ fn build<S: BlobStore + 'static>(
         // ALLOC: as above.
         .collect();
     let total: usize = results.iter().map(|r| r.buckets.len()).sum();
-    let mut engine = subs.into_iter();
-    // ALLOC: one list a kept bucket, bounded as above.
-    let mut values: Vec<Vec<Value>> = vec![Vec::new(); total];
-    for (sub, r) in agg.subs.iter().zip(resolved(agg, shard)?) {
-        let (format, result) = match r {
-            Resolved::Numeric(format) => (format, engine.next()),
-            Resolved::Keyword => (Format::Raw, engine.next()),
-            Resolved::Unmapped | Resolved::Queries => (Format::Raw, None),
-        };
-        let made = build(sub, shard, result, total)?;
-        for (list, value) in values.iter_mut().zip(made) {
-            list.push(value);
-        }
-        for r in &mut results {
-            // ALLOC: one entry a sub-aggregation, bounded by the request's.
-            r.sub_meta.push((sub.name.clone(), format));
-        }
+    let (meta, values) = sub_values(agg, shard, subs, total)?;
+    for r in &mut results {
+        // ALLOC: one entry a sub-aggregation, bounded by the request's.
+        r.sub_meta.clone_from(&meta);
     }
     let mut lists = values.into_iter();
     for r in &mut results {
@@ -190,6 +221,20 @@ fn build<S: BlobStore + 'static>(
         .map(|r| Value::KeywordTerms(Box::new(r)))
         // ALLOC: one box an owning bucket, as above.
         .collect())
+}
+
+/// What each sub-aggregation of `agg` holds for a bucket with no document.
+pub fn empty_values<S: BlobStore + 'static>(
+    agg: &MetricAgg,
+    shard: &OpenShard<S>,
+) -> Result<Vec<Value>, ShardError> {
+    // ALLOC: one value a sub-aggregation, bounded by the request's.
+    let mut out = Vec::with_capacity(agg.subs.len());
+    for sub in &agg.subs {
+        let made = build(sub, shard, None, 1)?;
+        out.push(made.into_iter().next().unwrap_or(Value::ValueCount(0)));
+    }
+    Ok(out)
 }
 
 /// The shard-level result of the keyword `terms` `agg` from the engine's

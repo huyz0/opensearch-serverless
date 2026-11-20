@@ -69,6 +69,9 @@ pub struct Config {
     pub janitor_every: Duration,
     /// How a janitor sweep behaves; it starts as a dry run.
     pub sweep: gc::Config,
+    /// The most shards an index may have to be purged inside its delete;
+    /// a larger one is purged at the reclaim.
+    pub inline_purge_max_shards: u32,
     /// How often this node drains the reclaim queue.
     pub reclaim_every: Duration,
     /// The most points in time that may be live for a janitor pass to run.
@@ -99,6 +102,7 @@ impl Config {
                 max_watched: 100_000,
                 max_pinned: 100_000,
             },
+            inline_purge_max_shards: 16,
             reclaim_every: Duration::from_secs(60),
             janitor_max_views: 10_000,
         }
@@ -124,6 +128,7 @@ fn delete_service(
         Arc::clone(clock),
         Arc::new(NoSnapshots),
         config.pit_buffer_bytes,
+        config.inline_purge_max_shards,
     )
     .map(Arc::new)
     .map_err(|e| AssembleError::Store(e.to_string()))
@@ -380,6 +385,13 @@ pub fn assemble(
         let deletes = delete_service(config, &store, &clock)?;
         let drain = DrainTimer::spawn(Arc::clone(&deletes), config.reclaim_every);
         let router = index_delete::routes(router, deletes).map_err(AssembleError::Route)?;
+        let by_query = Arc::new(crate::by_query::ByQueryService::new(
+            Arc::clone(&role),
+            Arc::new(crate::by_query::SearchMatches::new(Arc::clone(&search))),
+            BulkBudget::new(config.bulk_bytes, config.bulk_holders),
+            config.address,
+        ));
+        let router = crate::by_query::routes(router, by_query).map_err(AssembleError::Route)?;
         (router, Some(drain))
     };
     #[cfg(not(feature = "coordinator"))]

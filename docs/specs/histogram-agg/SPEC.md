@@ -8,7 +8,7 @@ Roadmap R10.2, second bucket aggregation: OpenSearch's `histogram` on a long, in
 
 `oss-reader` parses `histogram` (as `HistogramAggregationBuilder`'s `ObjectParser` and `DoubleBounds` do at OpenSearch 3.10.0) at the top level of a request's `aggs`, runs it over the query's live matches with lucene-aggs' `histogram` node (the port of `NumericHistogramAggregator`), keeps what `InternalHistogram` holds (`aggs::bucket::histogram::HistogramResult`), reduces shard results as `InternalHistogram.reduce` does as a final reduce (`aggs::bucket::histogram::reduce`, reached through `partial::reduce`, so `oss-coordinator`'s `reduce_shards` serves it), and writes it as `InternalHistogram.doXContentBody` does. A single-shard search answers the reduce of its one result, as OpenSearch does.
 
-Served keys: `field`, `interval`, `offset`, `keyed`, `min_doc_count`, `extended_bounds`, `hard_bounds` and `order` (`_count` or `_key`, `asc` or `desc`, one criterion). Not in this change, each refused with "not supported by this node yet": `missing`, `value_type`, `format`, `script`, sub-aggregations and `order` by a sub-aggregation or with several criteria. `date_histogram` is its own change.
+Served keys: `field`, `interval`, `offset`, `keyed`, `min_doc_count`, `extended_bounds`, `hard_bounds` and `order` (`_count` or `_key`, `asc` or `desc`, one criterion). Not in this change, each refused with "not supported by this node yet": `missing`, `value_type`, `format`, `script` and `order` by a sub-aggregation or with several criteria. Its sub-aggregations are served as [keyed-bucket-subs](../keyed-bucket-subs/SPEC.md) serves them. `date_histogram` is its own change.
 
 ## Acceptance criteria
 

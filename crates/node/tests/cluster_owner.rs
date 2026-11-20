@@ -9,7 +9,9 @@ use oss_format::NodeLease;
 use oss_node::cluster_owner::{BulkSend, ClusterRoutes, IndexSource};
 use oss_node::forward::ForwardError;
 use oss_node::push_link::Leases;
+use oss_node::read_forward::GetSend;
 use oss_node::writer::Routes;
+use oss_transport::actions::read::{GetRequest, GetResponse};
 use oss_transport::actions::write::{BulkOutcome, BulkRequest, BulkResponse};
 use oss_writer::bulk::{Action, IndexInfo, ItemResult, Kind, Op, Owner, Planned};
 use oss_writer::index::{Expect, Outcome};
@@ -55,7 +57,7 @@ impl BulkSend for Sender {
             Some(Answer::Outcomes(outcomes)) => Ok(BulkResponse {
                 owner_node_id: node.to_owned(),
                 outcomes,
-                refreshed: false,
+                refreshed: request.refresh,
             }),
             Some(Answer::Fail(e)) => Err(e()),
             None => Err(ForwardError::NoPeer),
@@ -81,13 +83,7 @@ fn lease(id: &str, role: &str) -> NodeLease {
 }
 
 fn routes(leases: Vec<NodeLease>, fake: &Arc<Fake>, me: &str) -> impl Routes {
-    ClusterRoutes::new(
-        Indexes,
-        Fixed(leases.into()),
-        Sender(Arc::clone(fake)),
-        me,
-        Box::new(|| NOW),
-    )
+    ClusterRoutes::new(Indexes, Fixed(leases.into()), Sender(Arc::clone(fake)), me)
 }
 
 fn fake(answer: Answer) -> Arc<Fake> {
@@ -149,9 +145,6 @@ fn dead_and_non_ingest_members_are_never_chosen() {
     let mut revoked = lease("revoked", ROLE_INGEST);
     revoked.revoked = true;
     leases.push(revoked);
-    let mut lapsed = lease("lapsed", ROLE_INGEST);
-    lapsed.expires_at_millis = NOW;
-    leases.push(lapsed);
     for shard in 0..32u32 {
         let w = winner(&["n1", "n2", "n3"], i32::try_from(shard).unwrap());
         assert_eq!(
@@ -336,4 +329,119 @@ fn an_update_or_bad_utf8_fails_alone_and_is_not_sent() {
     let r = routes(fleet(), &f, "n1").forward("n2", &info(), 0, &only);
     assert!(f.seen.lock().expect("lock").is_empty());
     assert!(matches!(r[0], ItemResult::Failed { status: 400, .. }));
+}
+
+// AC-7
+#[test]
+fn a_refresh_of_a_shard_another_node_owns_is_asked_of_that_owner() {
+    let f = fake(Answer::Outcomes(Vec::new()));
+    let r = routes(fleet(), &f, "n1");
+    assert_eq!(r.refresh_remote("n2", &info(), 3), Ok(()));
+    let seen = f.seen.lock().expect("lock");
+    let (node, request) = seen.first().expect("one request");
+    assert_eq!(node, "n2");
+    assert!(request.refresh && request.operations.is_empty());
+    assert_eq!((request.shard, request.index.as_str()), (3, "logs"));
+    drop(seen);
+    let f = fake(Answer::Fail(|| ForwardError::Gone));
+    assert!(
+        routes(fleet(), &f, "n1")
+            .refresh_remote("n2", &info(), 3)
+            .is_err()
+    );
+}
+
+/// Answers a forwarded get from a fixed result.
+struct Reader(Mutex<Vec<(String, GetRequest)>>, Option<GetResponse>);
+
+impl GetSend for Reader {
+    fn get(&self, node: &str, request: &GetRequest) -> Result<GetResponse, ForwardError> {
+        self.0
+            .lock()
+            .expect("lock")
+            .push((node.to_owned(), request.clone()));
+        self.1.clone().ok_or(ForwardError::NoPeer)
+    }
+}
+
+fn reading(answer: Option<GetResponse>) -> (Arc<Reader>, impl Routes) {
+    let reader = Arc::new(Reader(Mutex::default(), answer));
+    let routes = ClusterRoutes::new(
+        Indexes,
+        Fixed(fleet().into()),
+        Sender(fake(Answer::Outcomes(Vec::new()))),
+        "n1",
+    )
+    .with_reads(Arc::clone(&reader) as Arc<dyn GetSend>);
+    (reader, routes)
+}
+
+#[test]
+fn a_get_of_a_shard_another_node_owns_is_asked_of_that_owner() {
+    let found = GetResponse {
+        owner_node_id: "n2".into(),
+        id: "a".into(),
+        found: true,
+        source: Some(r#"{"x":1}"#.into()),
+        seq_no: 5,
+        primary_term: 2,
+        version: 3,
+        routing: None,
+    };
+    let (reader, r) = reading(Some(found));
+    let doc = r
+        .get_remote("n2", &info(), 3, "a")
+        .expect("asked")
+        .expect("found");
+    assert_eq!(
+        (
+            doc.version,
+            doc.seq_no,
+            doc.primary_term,
+            doc.source.as_slice()
+        ),
+        (3, 5, 2, br#"{"x":1}"#.as_slice())
+    );
+    let seen = reader.0.lock().expect("lock");
+    let (node, request) = seen.first().expect("one request");
+    assert_eq!(node, "n2");
+    assert_eq!(
+        (request.index.as_str(), request.shard, request.id.as_str()),
+        ("logs", 3, "a")
+    );
+    assert_eq!(request.index_uuid.as_deref(), Some("u1"));
+    drop(seen);
+
+    let (_, r) = reading(Some(GetResponse::default()));
+    assert!(
+        r.get_remote("n2", &info(), 3, "a")
+            .expect("asked")
+            .is_none()
+    );
+    let (_, r) = reading(None);
+    assert!(r.get_remote("n2", &info(), 3, "a").is_err());
+    assert!(
+        routes(fleet(), &fake(Answer::Outcomes(Vec::new())), "n1")
+            .get_remote("n2", &info(), 3, "a")
+            .is_err(),
+        "no reads configured"
+    );
+}
+
+// AC-8
+#[test]
+fn a_lease_past_its_stamp_in_the_view_still_takes_writes() {
+    let f = fake(Answer::Outcomes(vec![]));
+    let mut leases = fleet();
+    for l in &mut leases {
+        // The view's copy can be a renewal old; the refresh drops the dead.
+        l.expires_at_millis = NOW - 5_000;
+    }
+    for shard in 0..32u32 {
+        let w = winner(&["n1", "n2", "n3"], i32::try_from(shard).unwrap());
+        assert_eq!(
+            routes(leases.clone(), &f, "n9").owner(&info(), shard),
+            Owner::Node(w)
+        );
+    }
 }

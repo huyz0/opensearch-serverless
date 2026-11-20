@@ -6,6 +6,7 @@ use std::cmp::Ordering;
 
 use crate::aggs::bucket::BUCKET_LIMIT;
 use crate::aggs::bucket::count_order::sort_by_count;
+use crate::aggs::bucket::sub_values::{BucketSubs, reduce_keyed};
 use crate::aggs::partial::Value;
 
 /// How a `histogram`'s buckets are ordered.
@@ -60,13 +61,15 @@ impl Default for HistogramSpec {
 }
 
 /// What one shard (or one reduce) holds for a `histogram`: `InternalHistogram`.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct HistogramResult {
     /// What the aggregation asked for.
     pub spec: HistogramSpec,
     /// `(key, doc count)` by key ascending from a shard, in `order` from a
     /// reduce.
     pub buckets: Vec<(f64, u64)>,
+    /// The buckets' sub-aggregations.
+    pub subs: BucketSubs,
 }
 
 /// `Double.compare`: `-0.0` below `0.0`, every NaN equal and above all else.
@@ -81,7 +84,7 @@ pub fn java_compare(a: f64, b: f64) -> Ordering {
 }
 
 /// `Double.doubleToLongBits` read as a signed long: one NaN.
-fn canonical_bits(d: f64) -> i64 {
+pub(crate) fn canonical_bits(d: f64) -> i64 {
     if d.is_nan() {
         0x7ff8_0000_0000_0000
     } else {
@@ -230,5 +233,26 @@ pub fn reduce_results(parts: &[&HistogramResult], limit: usize) -> Result<Histog
             sort_by_count(&mut buckets, spec.order == HistogramOrder::CountAsc);
         }
     }
-    Ok(HistogramResult { spec, buckets })
+    let subs = {
+        // ALLOC: one key a bucket, bounded by the bucket limit.
+        let keys: Vec<i64> = buckets.iter().map(|b| canonical_bits(b.0)).collect();
+        // ALLOC: one key list a shard, bounded by the shards that answered.
+        let held: Vec<Vec<i64>> = parts
+            .iter()
+            .map(|p| p.buckets.iter().map(|b| canonical_bits(b.0)).collect())
+            // ALLOC: as above.
+            .collect();
+        let pairs: Vec<(&[i64], &BucketSubs)> = held
+            .iter()
+            .zip(parts)
+            .map(|(k, p)| (k.as_slice(), &p.subs))
+            // ALLOC: as above.
+            .collect();
+        reduce_keyed(&pairs, &keys)
+    };
+    Ok(HistogramResult {
+        spec,
+        buckets,
+        subs,
+    })
 }
