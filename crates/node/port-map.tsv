@@ -36,6 +36,9 @@ src/open_prefetch.rs	new		whether a cold open prefetches (index, cluster, node, 
 src/writer/publishing.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/BackgroundReconciler.java	the publish pass: lazyPublishDue then SegmentPublisher.publish, the manifest remembered as the newest commit; the timer, per-index refresh_interval age and log ordinal are not ported yet
 src/writer/publish_timer.rs	new		one thread running the publish pass on an interval; the Java reconciler is a scheduled executor task
 src/doc_route.rs	new		the _doc, _create and delete routes over the writer role, each one item through the bulk path; the Java has the REST actions in OpenSearch core
+src/get_route.rs	new		the _doc and _source get routes over the writer role; the Java has the REST actions in OpenSearch core
+src/refresh_route.rs	new		the _refresh route over the writer role's shards; the Java has the REST action in OpenSearch core
+src/writer/get.rs	new		the role's get of a shard it holds and its index lookup
 src/pit_route/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/PointInTimeHandler.java@429b4cbc	routes, refusals and answer shapes for create, delete and list; the node actions and the closing of frozen readers are not here
 src/pit_route/params.rs	port	server/src/main/java/org/opensearch/action/search/DeletePitRequest.java@3.10.0	fromXContent for the pit_id body
 src/assemble.rs	new		the composition root: services, routes and the publish timer over one shared store; the Java assembles in ServerlessNode through plugin wiring

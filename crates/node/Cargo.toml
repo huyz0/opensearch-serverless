@@ -61,6 +61,7 @@ self_cell = { workspace = true, optional = true }
 oss-mem = { workspace = true, optional = true }
 
 [dev-dependencies]
+serde_json = "=1.0.145"
 lucene-store = { workspace = true }
 oss-blob = { workspace = true, features = ["emulator"] }
 oss-mem = { workspace = true }
@@ -144,6 +145,10 @@ required-features = ["reader", "writer"]
 
 [[test]]
 name = "doc_route"
+required-features = ["writer"]
+
+[[test]]
+name = "get_route"
 required-features = ["writer"]
 
 [[test]]

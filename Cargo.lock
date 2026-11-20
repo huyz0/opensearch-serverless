@@ -772,6 +772,7 @@ dependencies = [
  "oss-types",
  "oss-writer",
  "self_cell",
+ "serde_json",
 ]
 
 [[package]]
