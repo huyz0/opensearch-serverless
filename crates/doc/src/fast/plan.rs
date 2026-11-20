@@ -90,6 +90,21 @@ fn index_options_ordinal(o: IndexOptions) -> Option<u8> {
     })
 }
 
+/// The plan blob's "no field number" and "no parent": the engine reads a negative as absent.
+const NONE: i32 = -1;
+
+/// The entry's flag bits: bit 0 indexed (terms or points), bit 1 doc values.
+fn flags(indexed: bool, doc_values: bool) -> u8 {
+    let mut bits = 0_u8;
+    if indexed {
+        bits = bits.saturating_add(1);
+    }
+    if doc_values {
+        bits = bits.saturating_add(2);
+    }
+    bits
+}
+
 struct Entry {
     name: String,
     kind: u8,
@@ -121,13 +136,13 @@ fn entry(name: &str, leaf: &Leaf, spec: Spec, number: i32) -> Option<Entry> {
     let mut e = Entry {
         name: name.to_owned(),
         kind: 0,
-        flags: u8::from(spec.inverted() || spec.points) | (u8::from(spec.doc_values) << 1),
+        flags: flags(spec.inverted() || spec.points, spec.doc_values),
         number,
         ignore_above: i32::MAX,
         analyzer: 0,
         options: 0,
         norm: 0,
-        parent: -1,
+        parent: NONE,
     };
     match spec.shape {
         Shape::Keyword => {
@@ -270,16 +285,16 @@ pub(super) fn compile(indexer: &Indexer, mapping: &Mapping) -> Option<Arc<Plan>>
         put_bytes(&mut blob, o.as_bytes());
         blob.push(ingest::OBJECT);
         blob.push(0);
-        put_i32(&mut blob, -1);
+        put_i32(&mut blob, NONE);
         put_i32(&mut blob, i32::MAX);
         put_i32(&mut blob, 0);
         blob.push(0);
         blob.push(0);
-        put_i32(&mut blob, -1);
+        put_i32(&mut blob, NONE);
         put_i32(&mut blob, 0);
     }
     put_i32(&mut blob, NESTED_LIMIT);
-    for n in [id, seq_no, primary_term, version, source, -1] {
+    for n in [id, seq_no, primary_term, version, source, NONE] {
         put_i32(&mut blob, n);
     }
     // `_seq_no` is a point as well as a doc value, as `Indexer::document` writes it.
