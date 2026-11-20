@@ -35,3 +35,5 @@ src/bulk_route.rs	new		the _bulk route over the node's writer role: streamed sli
 src/open_prefetch.rs	new		whether a cold open prefetches (index, cluster, node, default) and the open_indexes bytes it holds meanwhile
 src/writer/publishing.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/BackgroundReconciler.java	the publish pass: lazyPublishDue then SegmentPublisher.publish, the manifest remembered as the newest commit; the timer, per-index refresh_interval age and log ordinal are not ported yet
 src/writer/publish_timer.rs	new		one thread running the publish pass on an interval; the Java reconciler is a scheduled executor task
+src/pit_route/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/PointInTimeHandler.java@429b4cbc	routes, refusals and answer shapes for create, delete and list; the node actions and the closing of frozen readers are not here
+src/pit_route/params.rs	port	server/src/main/java/org/opensearch/common/unit/TimeValue.java@3.10.0	parseTimeValue for the keep-alive units, and DeletePitRequest.fromXContent for the pit_id body

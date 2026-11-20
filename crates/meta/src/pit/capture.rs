@@ -19,9 +19,10 @@ use crate::error::MetaError;
 /// Why an index could not be frozen.
 #[derive(Debug)]
 pub enum CaptureError {
-    /// The name is no index: nothing is registered under it, or it is
-    /// an alias, which freezes only index by index.
+    /// Nothing is registered under the name.
     NoSuchIndex,
+    /// The name is an alias, which freezes only index by index.
+    IsAlias,
     /// The index is one this slice cannot freeze: bucketed, its commits being
     /// in its bucket's manifest.
     Unsupported(&'static str),
@@ -38,6 +39,7 @@ impl fmt::Display for CaptureError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NoSuchIndex => f.write_str("no such index"),
+            Self::IsAlias => f.write_str("the name is an alias, not one index"),
             Self::Unsupported(why) => f.write_str(why),
             Self::NothingPublished(shard) => write!(
                 f,
@@ -151,7 +153,8 @@ impl PointInTimeStore {
                 // ALLOC: the uuid, once a capture.
                 (record.uuid.into_owned(), units)
             }
-            Target::Alias(_) | Target::Absent => return Err(CaptureError::NoSuchIndex),
+            Target::Alias(_) => return Err(CaptureError::IsAlias),
+            Target::Absent => return Err(CaptureError::NoSuchIndex),
         };
         let id = new_id().map_err(MetaError::Blob)?;
         let expires = (self.clock)().saturating_add(keep_alive_millis);
@@ -244,6 +247,7 @@ mod tests {
     #[test]
     fn each_refusal_says_what_it_is() {
         assert_eq!(CaptureError::NoSuchIndex.to_string(), "no such index");
+        assert!(CaptureError::IsAlias.to_string().contains("alias"));
         assert_eq!(CaptureError::Unsupported("why").to_string(), "why");
         assert!(
             CaptureError::NothingPublished(3)

@@ -131,7 +131,7 @@ fn a_name_that_is_no_concrete_index_cannot_be_frozen() {
             .unwrap();
         assert!(matches!(
             p.capture(&d, "a", KEEP_ALIVE, &mut buf()),
-            Err(CaptureError::NoSuchIndex)
+            Err(CaptureError::IsAlias)
         ));
     }
 }
