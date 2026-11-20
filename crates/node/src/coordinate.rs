@@ -153,7 +153,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
 }
 
 /// What a search that failed answers.
-fn refusal(failure: SearchFailure<ShardError>) -> Box<SearchError> {
+pub(super) fn refusal(failure: SearchFailure<ShardError>) -> Box<SearchError> {
     let (status, failure) = match failure {
         SearchFailure::AllFailed { error } => return error.into_inner(),
         SearchFailure::Merge(e) => (
@@ -198,6 +198,33 @@ impl<S: BlobStore + 'static> SearchService<S> {
         started: Instant,
     ) -> Result<(), RestError> {
         self.handle_sharded_with(resp, index, shards, source, started, &|bytes| bytes)
+    }
+
+    /// The merged response of `source` over the shards of `index`, as bytes.
+    pub(super) fn coordinate_bytes(
+        &self,
+        index: &str,
+        source: &SearchSource,
+        started: Instant,
+    ) -> Result<Vec<u8>, super::Answer> {
+        let shards = self.shard_count(index)?;
+        let held_buffers: Mutex<Vec<Reservation>> = Mutex::new(Vec::new());
+        let reserve = |n: usize| {
+            let grant = self
+                .budget
+                .try_reserve(Pool::RequestBodies, n)
+                // ALLOC: error path; one box.
+                .map_err(|_| io::Error::other("the request-body pool is full"))?;
+            held_buffers
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                // ALLOC: one entry a render.
+                .push(grant);
+            Ok(())
+        };
+        let took = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
+        self.coordinate(index, shards, source, took, &reserve)
+            .map_err(|failure| super::Answer::Search(refusal(failure)))
     }
 
     /// [`Self::handle_sharded`], writing what `convert` makes of the merged

@@ -15,6 +15,7 @@ mod coordinate;
 mod count;
 mod field_caps;
 mod frozen_search;
+mod msearch;
 mod open_prefetch;
 mod search;
 mod shards;
