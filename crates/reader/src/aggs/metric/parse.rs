@@ -193,7 +193,12 @@ fn parse_level(p: &mut Parser<'_>, level: usize) -> Result<Vec<MetricAgg>, DslEr
 fn holds_subs(metric: Metric) -> bool {
     matches!(
         metric,
-        Metric::Terms | Metric::Range | Metric::Filters | Metric::Filter
+        Metric::Terms
+            | Metric::Range
+            | Metric::Filters
+            | Metric::Filter
+            | Metric::Histogram
+            | Metric::DateHistogram
     )
 }
 
@@ -208,20 +213,6 @@ fn is_scalar(metric: Metric) -> bool {
 
 /// The refusal of sub-aggregations under `agg`, which holds none here.
 fn sub_refusal(agg: &MetricAgg, name: &str) -> DslError {
-    if matches!(
-        agg.metric,
-        Metric::Histogram
-            | Metric::DateHistogram
-            | Metric::Range
-            | Metric::Filters
-            | Metric::Filter
-    ) {
-        // ALLOC: error path; one message.
-        return DslError::unsupported(&format!(
-            "sub-aggregations of a [{}] aggregation",
-            agg.metric.name()
-        ));
-    }
     DslError::Failure(Failure::opensearch(
         "aggregation_initialization_exception",
         // ALLOC: error path; one message.

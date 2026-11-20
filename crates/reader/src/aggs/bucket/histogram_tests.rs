@@ -47,6 +47,7 @@ fn shard_result(spec: &HistogramSpec, buckets: &[(f64, u64)]) -> HistogramResult
     HistogramResult {
         spec: spec.clone(),
         buckets: buckets.to_vec(),
+        ..HistogramResult::default()
     }
 }
 
@@ -149,12 +150,13 @@ fn unserved_keys_and_orders_are_refused_as_not_supported_yet() {
             "{body}"
         );
     }
-    let body = br#"{"aggs":{"h":{"histogram":{"field":"n","interval":1},"aggs":{"m":{"max":{"field":"n"}}}}}}"#;
+    let body = br#"{"aggs":{"h":{"histogram":{"field":"n","interval":1},"aggs":{"m":{"range":{"field":"n","ranges":[{"to":5}]}}}}}}"#;
     let e = parse_chunks([&body[..]])
         .expect_err("refused")
         .into_failure();
     assert!(
-        e.reason.contains("sub-aggregations of a [histogram]"),
+        e.reason
+            .contains("[range] sub-aggregation of a [histogram]"),
         "{e:?}"
     );
 }

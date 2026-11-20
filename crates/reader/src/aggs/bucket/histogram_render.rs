@@ -3,6 +3,8 @@
 
 use std::io::{self, Write};
 
+use crate::aggs::bucket::sub_values::write_subs;
+
 use crate::aggs::bucket::BUCKET_LIMIT;
 use crate::aggs::bucket::histogram::{HistogramResult, reduce_results};
 use crate::aggs::metric::date_text::write_date_of_double;
@@ -43,7 +45,9 @@ pub fn write_histogram(
         }
         out.write_all(b"\"key\":")?;
         write_java_double(out, *key)?;
-        write!(out, ",\"doc_count\":{count}}}")?;
+        write!(out, ",\"doc_count\":{count}")?;
+        write_subs(out, &reduced.subs.meta, reduced.subs.lists.get(i))?;
+        out.write_all(b"}")?;
     }
     out.write_all(if keyed { b"}" } else { b"]" })
 }

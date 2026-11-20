@@ -17,6 +17,7 @@ pub mod histogram;
 pub mod histogram_collect;
 pub mod histogram_parse;
 pub mod histogram_render;
+pub mod keyed_subs;
 pub mod keyword_collect;
 pub mod keyword_options;
 pub mod keyword_subs;
@@ -31,6 +32,7 @@ pub mod terms;
 pub mod terms_collect;
 pub mod terms_parse;
 pub mod terms_render;
+pub mod with_subs;
 
 /// `search.max_buckets`'s default: the most distinct values one shard holds
 /// for a `terms` before it refuses, which bounds the memory a high
@@ -80,6 +82,8 @@ mod fixed_subs_tests;
 mod histogram_collect_tests;
 #[cfg(test)]
 mod histogram_tests;
+#[cfg(test)]
+mod keyed_subs_tests;
 #[cfg(test)]
 mod keyword_collect_tests;
 #[cfg(test)]
