@@ -132,9 +132,9 @@ fn clear(store: &dyn BlobStore, path: &str) -> Result<(), MetaError> {
             // ALLOC: one key a listed blob, bounded by the page.
             keys.push(key.to_owned());
         })?;
-        for key in &keys {
-            store.delete(key)?;
-        }
+        // ALLOC: one reference a key of the page, at most MAX_LIST_KEYS.
+        let batch: Vec<&str> = keys.iter().map(String::as_str).collect();
+        store.delete_many(&batch)?;
         if !page.truncated {
             return Ok(());
         }

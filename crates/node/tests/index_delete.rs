@@ -40,6 +40,7 @@ fn rig() -> Rig {
             pit_clock,
             Arc::new(NoSnapshots),
             BUF,
+            2,
         )
         .expect("service"),
     );
@@ -233,4 +234,51 @@ fn a_drain_with_nothing_due_is_one_list() {
     let before = r.store.meter().count(oss_blob::S3Op::List);
     assert_eq!(r.service.drain().expect("drain"), 0);
     assert_eq!(r.store.meter().count(oss_blob::S3Op::List) - before, 1);
+}
+
+#[test]
+fn a_large_index_is_purged_at_the_reclaim_and_a_pinned_shard_when_its_view_ends() {
+    let r = rig();
+    create(&r, "big", "u1", 3);
+    let blobs: Vec<String> = (0..3).map(|s| blob(&r, "big", "u1", s)).collect();
+    assert_eq!(delete(&r, "/big").status, 200);
+    assert!(
+        blobs.iter().all(|k| present(&r, k)),
+        "above the inline limit"
+    );
+    r.clock.fetch_add(10 * 60_000, Ordering::Relaxed);
+    assert_eq!(r.service.drain().expect("drain"), 1);
+    assert!(blobs.iter().all(|k| !present(&r, k)));
+
+    // A view pins shard 0 of a small index: the drain keeps it, then lets go.
+    create(&r, "small", "u2", 1);
+    let kept = blob(&r, "small", "u2", 0);
+    let now = r.clock.load(Ordering::Relaxed);
+    let clock = Arc::clone(&r.clock);
+    let pits = PointInTimeStore::new(
+        r.store.clone() as Arc<dyn BlobStore>,
+        "",
+        Arc::new(move || clock.load(Ordering::Relaxed)),
+    )
+    .expect("pits");
+    let view = PointInTime {
+        id: "DDDDDDDDDDDDDDDDDDDDDD".to_owned(),
+        index: "small".to_owned(),
+        index_uuid: Some("u2".to_owned()),
+        expires_at_millis: now + 20 * 60_000,
+        capturing: false,
+        shards: vec![PitShard {
+            shard: 0,
+            term: 1,
+            files: Vec::new(),
+        }],
+    };
+    pits.create(&view, &mut vec![0u8; BUF]).expect("pit");
+    assert_eq!(delete(&r, "/small").status, 200);
+    r.clock.fetch_add(10 * 60_000, Ordering::Relaxed);
+    r.service.drain().expect("drain");
+    assert!(present(&r, &kept), "still pinned");
+    r.clock.fetch_add(30 * 60_000, Ordering::Relaxed);
+    r.service.drain().expect("drain");
+    assert!(!present(&r, &kept), "purged once the view expired");
 }
