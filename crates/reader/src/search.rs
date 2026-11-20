@@ -23,6 +23,7 @@ use lucene_search::{BooleanQuery, Clause, Explanation};
 use oss_blob::BlobStore;
 
 use crate::OpenShard;
+use crate::aggs::bucket::filters_collect;
 use crate::aggs::bucket::{keyword_collect, keyword_subs};
 use crate::aggs::metric::top_hits;
 use crate::aggs::metric::{self, Partial, state_bytes};
@@ -298,15 +299,17 @@ pub fn search<S: BlobStore + 'static>(
     let norms: Vec<Option<&HashMap<String, FieldNorms<'_>>>> = owned.iter().map(Some).collect();
     let mut opened = shard.reader.open_segments().map_err(ShardError::engine)?;
     let top_plans = top_hits::plan(&source.aggs, shard, index)?;
+    let filter_plans = filters_collect::plan(&source.aggs, &cx)
+        .map_err(|f| ShardError::bad_request(shard_failure(f, index, &meta.uuid)))?;
     let numeric_sort = sort
         .as_ref()
         .is_some_and(|(_, kinds)| kinds.contains(&KeyKind::Numeric))
         || top_plans.iter().any(top_hits::TopHitsPlan::numeric);
-    if numeric_sort || has_points(&query) {
+    if numeric_sort || has_points(&query) || filter_plans.iter().flatten().any(has_points) {
         opened.open_points().map_err(ShardError::engine)?;
     }
     let segments = opened.as_open_segments();
-    let mut aggregations = metric::collect(&source.aggs, shard, &segments, &query)?;
+    let mut aggregations = metric::collect(&source.aggs, shard, &segments, &query, &filter_plans)?;
     top_hits::fill(
         &mut aggregations,
         &source.aggs,

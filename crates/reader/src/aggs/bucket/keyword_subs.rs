@@ -91,7 +91,7 @@ pub fn node<S: BlobStore + 'static>(
             match r {
                 Resolved::Numeric(_) => subs.push(metric_node(sub, DEFAULT_PRECISION)),
                 Resolved::Keyword => subs.push(node(sub, shard, ords)?),
-                Resolved::Unmapped => {}
+                Resolved::Unmapped | Resolved::Queries => {}
             }
         }
     }
@@ -168,7 +168,7 @@ fn build<S: BlobStore + 'static>(
         let (format, result) = match r {
             Resolved::Numeric(format) => (format, engine.next()),
             Resolved::Keyword => (Format::Raw, engine.next()),
-            Resolved::Unmapped => (Format::Raw, None),
+            Resolved::Unmapped | Resolved::Queries => (Format::Raw, None),
         };
         let made = build(sub, shard, result, total)?;
         for (list, value) in values.iter_mut().zip(made) {
