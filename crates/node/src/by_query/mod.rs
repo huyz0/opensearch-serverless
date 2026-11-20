@@ -3,11 +3,14 @@
 //! The walk is [`oss_coordinator::docs::by_query`]; this module supplies its
 //! two halves: the changes, each a delete conditional on the sequence number
 //! and primary term the search saw, run through the `_bulk` machinery, and
-//! the search, behind [`ShardMatches`] until the reader can answer it.
+//! the search, behind [`ShardMatches`], which `SearchMatches` answers from the
+//! node's own reader.
 
 mod change;
 mod params;
 mod response;
+#[cfg(feature = "reader")]
+mod search;
 
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -18,6 +21,8 @@ use oss_writer::bulk::{BulkBudget, Grant, IdGenerator, Target};
 
 pub use change::DeleteChange;
 use params::Params;
+#[cfg(feature = "reader")]
+pub use search::SearchMatches;
 
 use crate::writer::{RoleTarget, WriterRole};
 

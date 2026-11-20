@@ -206,7 +206,7 @@ fn a_field_without_doc_values_fails_as_opensearch_fails() {
                 .to_owned()
         )
     );
-    for unsupported in [&["spot"][..], &["_id"], &["*"], &["_*"]] {
+    for unsupported in [&["spot"][..], &["_id"], &["_seq_no*"], &["*"], &["_*"]] {
         let (status, why) = reason(resolved(unsupported));
         assert_eq!(status, 400);
         assert!(why.ends_with("is not supported by this node yet"), "{why}");
@@ -324,5 +324,16 @@ fn the_fields_resolve_only_when_there_is_a_hit_to_fetch() {
             .failure
             .reason
             .ends_with("is not supported by this node yet")
+    );
+}
+
+#[test]
+fn the_sequence_number_and_primary_term_resolve_as_longs() {
+    assert_eq!(
+        resolved(&["_primary_term", "_seq_no", "_seq_no"]).expect("resolves"),
+        vec![
+            ("_seq_no".to_owned(), ValueKind::Long, 2),
+            ("_primary_term".to_owned(), ValueKind::Long, 1),
+        ]
     );
 }
