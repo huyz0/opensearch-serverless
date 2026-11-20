@@ -8,7 +8,7 @@ use oss_format::{CommitManifest, PitFile, PitShard, PointInTime, Register, Shard
 use oss_meta::{PitClock, PointInTimeStore};
 use oss_reader::ShardFiles;
 
-use crate::support::{Node, counts, request, start};
+use crate::support::{Node, counts, put_shard_copy, put_variant, request, start};
 
 const ID: &str = "AAAAAAAAAAAAAAAAAAAAAA";
 const INDEX: &str = "compat-term";
@@ -20,13 +20,12 @@ fn clock() -> PitClock {
     Arc::new(|| NOW)
 }
 
-/// The view of the index's live commit, as capture would record it.
-fn view(store: &PooledStore<Emulator>, id: &str, shards: usize, expires: u64) -> PointInTime {
-    let (_, meta) = ShardFiles::open_with_meta(store, "", INDEX, 0).expect("open");
+/// The files of shard `shard`'s live commit, as capture would record them.
+fn shard_of_view(store: &PooledStore<Emulator>, uuid: &str, shard: u32) -> PitShard {
     let at = ShardRef {
         index: INDEX,
-        uuid: &meta.uuid,
-        shard: 0,
+        uuid,
+        shard,
     };
     let mut bytes = Vec::new();
     store
@@ -41,15 +40,25 @@ fn view(store: &PooledStore<Emulator>, id: &str, shards: usize, expires: u64) ->
         .expect("read the register");
     let manifest =
         CommitManifest::parse(Register::parse(&bytes).expect("register").value).expect("manifest");
-    let files: Vec<PitFile> = manifest
-        .files()
-        .iter()
-        .map(|f| PitFile {
-            name: f.name.to_string(),
-            location: f.location.encode(),
-            length: f.length,
-        })
-        .collect();
+    PitShard {
+        shard,
+        term: manifest.term,
+        files: manifest
+            .files()
+            .iter()
+            .map(|f| PitFile {
+                name: f.name.to_string(),
+                location: f.location.encode(),
+                length: f.length,
+            })
+            .collect(),
+    }
+}
+
+/// The view of the index's live commits, as capture would record them.
+fn view(store: &PooledStore<Emulator>, id: &str, shards: usize, expires: u64) -> PointInTime {
+    let (_, meta) = ShardFiles::open_with_meta(store, "", INDEX, 0).expect("open");
+    let uuid = meta.uuid.clone();
     PointInTime {
         id: id.to_owned(),
         index: INDEX.to_owned(),
@@ -57,11 +66,7 @@ fn view(store: &PooledStore<Emulator>, id: &str, shards: usize, expires: u64) ->
         expires_at_millis: expires,
         capturing: false,
         shards: (0..shards)
-            .map(|shard| PitShard {
-                shard: u32::try_from(shard).expect("small"),
-                term: manifest.term,
-                files: files.clone(),
-            })
+            .map(|shard| shard_of_view(store, &uuid, u32::try_from(shard).expect("small")))
             .collect(),
     }
 }
@@ -74,6 +79,22 @@ struct Rig {
 /// A node whose point-in-time store is a separate emulator holding one view.
 fn rig(shards: usize, expires: u64) -> Rig {
     let node = start();
+    if shards > 1 {
+        // The index has the shards its view names: its descriptor says so
+        // and each shard past the first holds the first's blobs.
+        let more = format!(r#""number_of_shards":{shards}"#);
+        put_variant(&node.store, INDEX, INDEX, |j| {
+            j.replace(r#""number_of_shards":1"#, &more)
+        });
+        for shard in 1..shards {
+            put_shard_copy(
+                &node.store,
+                INDEX,
+                "compat-term-uuid",
+                u32::try_from(shard).expect("small"),
+            );
+        }
+    }
     let pits = Arc::new(Emulator::new(64 << 20, 1));
     let record = view(&node.store, ID, shards, expires);
     let store = PointInTimeStore::new(Arc::clone(&pits) as _, "", clock()).expect("store");
@@ -232,10 +253,6 @@ fn what_cannot_be_served_is_refused_before_any_read() {
     assert_eq!(counts(&rig.node.store), before);
     assert_eq!(pit_ops(&rig), pit_before);
 
-    let many = self::rig(2, u64::MAX / 2);
-    let r = search_pit(&many.node, ID);
-    assert_eq!(r.status, 400, "two shards: {}", r.text());
-
     let bare = start();
     let r = search_pit(&bare, ID);
     assert_eq!(r.status, 400, "no store: {}", r.text());
@@ -254,4 +271,66 @@ fn a_pool_without_room_for_the_view_buffer_answers_429_first() {
     assert_eq!(r.status, 429, "{}", r.text());
     let spent: u64 = S3Op::ALL.iter().map(|op| pits.meter().count(*op)).sum();
     assert_eq!(spent, 0);
+}
+
+#[test]
+fn a_search_of_a_view_of_two_shards_answers_what_a_live_search_of_them_does() {
+    let rig = rig(2, u64::MAX / 2);
+    let live = request(rig.node.addr(), "POST", "/compat-term/_search", Some(QUERY));
+    assert!(
+        live.text().contains(r#""_shards":{"total":2,"#),
+        "the live index is two shards: {}",
+        live.text()
+    );
+    let frozen = search_pit(&rig.node, ID);
+    assert_eq!(frozen.status, 200, "{}", frozen.text());
+    let text = frozen.text();
+    assert!(
+        text.starts_with(&format!("{{\"pit_id\":\"{ID}\",\"took\":")),
+        "{text}"
+    );
+    let stripped = without_took(&text).replacen(&format!("\"pit_id\":\"{ID}\","), "", 1);
+    assert_eq!(stripped, without_took(&live.text()));
+}
+
+#[test]
+fn a_second_search_of_a_view_of_two_shards_reads_no_index_and_holds_an_entry_each() {
+    let rig = rig(2, u64::MAX / 2);
+    assert_eq!(search_pit(&rig.node, ID).status, 200);
+    let after_first = counts(&rig.node.store);
+    assert_eq!(search_pit(&rig.node, ID).status, 200);
+    assert_eq!(counts(&rig.node.store), after_first, "the shards are open");
+    assert_eq!(rig.node.service.open_indexes(), 2, "one entry a shard");
+}
+
+#[test]
+fn a_view_of_two_shards_does_not_read_the_live_commits() {
+    let rig = rig(2, u64::MAX / 2);
+    for shard in 0..2 {
+        let at = ShardRef {
+            index: INDEX,
+            uuid: "compat-term-uuid",
+            shard,
+        };
+        let key = at.manifest_key("").expect("key");
+        let read = rig
+            .node
+            .store
+            .store()
+            .read_register(&key, &mut vec![0u8; 1 << 20])
+            .expect("read")
+            .expect("there");
+        assert!(
+            rig.node
+                .store
+                .store()
+                .delete_register(&key, read.generation)
+                .expect("delete the register")
+        );
+    }
+    let r = request(rig.node.addr(), "POST", "/compat-term/_search", Some(QUERY));
+    assert_ne!(r.status, 200, "the live search fails: {}", r.text());
+    let r = search_pit(&rig.node, ID);
+    assert_eq!(r.status, 200, "{}", r.text());
+    assert!(r.text().contains(r#""_shards":{"total":2,"successful":2"#));
 }

@@ -13,9 +13,9 @@ R10.6, node wiring: `POST|GET /_search` with `{"pit":{"id":...}}` runs the searc
 - opens the view's frozen shard as a search of an index opens one, charged to the `open_indexes` pool, and keeps it open under the view's id and shard, so a later search of the same view opens nothing and the least recently searched is closed to make room;
 - answers as a live search of the shard does, with the response's `pit_id` the view's id and the index named in each hit the view's index.
 
-Any index in the path with a `pit` is refused (400), a `/_search` with no `pit` is refused as not supported (400), a node that has no point-in-time store refuses a `pit` as not supported (400), and a view of more than one shard is refused as not supported yet (400). The view's buffer is reserved from the request-body pool before it is allocated.
+Any index in the path with a `pit` is refused (400), a `/_search` with no `pit` is refused as not supported (400), a node that has no point-in-time store refuses a `pit` as not supported (400), and a view of more than one shard is searched as [node-frozen-search-shards](../node-frozen-search-shards/SPEC.md) says (a node built without the coordinator role refuses it, 400). The view's buffer is reserved from the request-body pool before it is allocated.
 
-Not here, listed: a search of a view of several shards, and forwarding to the node that holds a view open (any node opens a view from its record: nothing is owned).
+Not here, listed: forwarding to the node that holds a view open (any node opens a view from its record: nothing is owned).
 
 ## Acceptance criteria
 
@@ -24,7 +24,7 @@ Not here, listed: a search of a view of several shards, and forwarding to the no
 - AC-3: a second search of the view makes no request to the index's store: the open shard is kept, held by one entry of the open-indexes pool.
 - AC-4: an id that names no view, a released one and an expired one answer 404 `search_context_missing_exception`.
 - AC-5: `keep_alive` moves the view's deadline to now plus it, and one over an hour is 400.
-- AC-6: an index in the path, a missing `pit`, a node with no point-in-time store and a view of several shards each answer 400, and read no index.
+- AC-6: an index in the path, a missing `pit`, and a node with no point-in-time store each answer 400, and read no index.
 - AC-7: the view's buffer is charged to the request-body pool: a pool without room for it answers 429 before any request.
 
 ## Test plan

@@ -80,8 +80,14 @@ impl<S: BlobStore + 'static> SearchService<S> {
         }
         let view = self.read_view(req, access, &pit.id, keep_alive)?;
         let [frozen] = view.shards.as_slice() else {
+            #[cfg(feature = "coordinator")]
+            return match self.handle_view(resp, &view, &pit.id, source, started) {
+                Ok(()) => Ok(()),
+                Err(e) => Err(Answer::Rest(e)),
+            };
+            #[cfg(not(feature = "coordinator"))]
             return Err(Answer::Rest(RestError::illegal_argument(format!(
-                "searching a point in time of [{}] shards is not supported by this node yet",
+                "searching a point in time of [{}] shards needs the coordinator role",
                 view.shards.len()
             ))));
         };
@@ -171,7 +177,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
     }
 
     /// The open shard `shard` of `view`, opened now if it is not yet.
-    fn open_frozen(
+    pub(super) fn open_frozen(
         &self,
         view: &PointInTime,
         shard: u32,
