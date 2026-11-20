@@ -41,7 +41,7 @@ const MAX_MEMBERS: usize = 1024;
 const READ_BUFFER: usize = 1 << 20;
 
 /// The bytes a takeover's replay buffers before it commits locally.
-const REPLAY_BUFFER: usize = 16 << 20;
+const REPLAY_BUFFER: usize = 16_777_216;
 
 /// The buffer a lease register is read through.
 const LEASE_BUFFER: usize = 1 << 16;
