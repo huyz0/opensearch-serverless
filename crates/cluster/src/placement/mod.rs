@@ -21,7 +21,7 @@ pub use fleet::{
     HAND_OFF_DOWN_TO_MEAN, Holding, MEAN_MATTERS_FROM, ROOM_AT_OR_BELOW, TARGET_UTILISATION,
 };
 pub use hash::{ShardKey, java_hash_code, murmur3};
-pub use rendezvous::{owner, readers_for};
+pub use rendezvous::{owner, readers_for, reapers_for};
 pub use spread::{
     DEFAULT_MAX_READERS, DEFAULT_TARGET_PER_SECOND, HotShardSpread, MAX_TRACKED, Nanos, Running,
     SpreadConfig,
