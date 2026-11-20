@@ -48,3 +48,4 @@ src/takeover/adopt.rs	port	serverless/shell/src/main/java/org/opensearch/serverl
 src/takeover/engine.rs	new		the engine over a shard, its directory and its publisher
 src/takeover/head.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/shard/ShardReconciler.java	NodeLogHooks.replayedAndPublished: clearing the replayed writers from the head by CAS
 src/takeover/predecessors.rs	new		one node-log reader per predecessor, shared by a batch of takes
+src/takeover/restore.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/shard/ShardReconciler.java	the restore of a shard's latest commit into the writer's directory before it replays; one ranged GET a blob
