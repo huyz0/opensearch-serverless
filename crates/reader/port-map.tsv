@@ -154,3 +154,5 @@ src/aggs/bucket/keyed_subs_tests.rs	new		tests of sub-aggregations of histogram 
 src/aggs/bucket/with_subs.rs	new		picks the fixed-bucket or keyed-bucket sub-aggregation code for a bucket aggregation
 src/aggs/bucket/parse_arms.rs	new		parses the body of each bucket aggregation into its MetricAgg
 src/aggs/bucket/terms_subs_tests.rs	new		tests of sub-aggregations of a numeric terms on a real index and across shards
+src/fetch/hit_meta.rs	port	server/src/main/java/org/opensearch/search/fetch/subphase/SeqNoPrimaryTermPhase.java@3.10.0	version and seq_no_primary_term: FetchVersionPhase and SeqNoPrimaryTermPhase read the numeric doc values of a hit; SearchHit.toInnerXContent orders them between _id and _score
+src/fetch/hit_meta_tests.rs	new		tests of hit_meta.rs

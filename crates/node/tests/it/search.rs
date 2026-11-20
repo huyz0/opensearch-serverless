@@ -384,3 +384,52 @@ fn a_node_whose_pool_cannot_hold_the_server_buffers_does_not_start() {
     };
     assert!(e.to_string().starts_with("server: Memory"), "{e}");
 }
+
+/// docs/specs/reader-hit-version AC-1, AC-2 and AC-3.
+#[test]
+fn a_hit_carries_its_version_and_sequence_identity_when_asked() {
+    let node = start();
+    let ask = |options: &str| {
+        let body = format!(
+            r#"{{"query":{{"term":{{"title":"brown"}}}},"sort":[{{"_doc":"asc"}}],"size":1{options}}}"#
+        );
+        let r = request(
+            node.addr(),
+            "POST",
+            "/compat-term/_search",
+            Some(body.as_bytes()),
+        );
+        (r.status, r.text())
+    };
+    let hit_start = r#""hits":[{"_index":"compat-term","_id":"1","#;
+    for (options, carried) in [
+        ("", ""),
+        (r#","version":false,"seq_no_primary_term":false"#, ""),
+        (r#","version":true"#, r#""_version":1,"#),
+        (
+            r#","seq_no_primary_term":true"#,
+            r#""_seq_no":0,"_primary_term":1,"#,
+        ),
+        (
+            r#","version":true,"seq_no_primary_term":true"#,
+            r#""_version":1,"_seq_no":0,"_primary_term":1,"#,
+        ),
+    ] {
+        let (status, body) = ask(options);
+        assert_eq!(status, 200, "{options}: {body}");
+        let want = format!(r#"{hit_start}{carried}"_score":null,"#);
+        assert!(body.contains(&want), "{options}: {body}");
+    }
+    // The values are the doc values a docvalue_fields request reads.
+    let (_, both) =
+        ask(r#","seq_no_primary_term":true,"docvalue_fields":["_seq_no","_primary_term"]"#);
+    assert!(
+        both.contains(r#""fields":{"_seq_no":[0],"_primary_term":[1]}"#),
+        "{both}"
+    );
+    // A null is not a boolean, as for `explain`.
+    for key in ["version", "seq_no_primary_term"] {
+        let (status, body) = ask(&format!(r#","{key}":null"#));
+        assert_eq!(status, 400, "{key}: {body}");
+    }
+}

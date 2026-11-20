@@ -33,6 +33,7 @@ use crate::failure::Failure;
 use crate::fetch::docvalue_fields::{self, HitField};
 use crate::fetch::explain;
 use crate::fetch::highlight::{self, Plan};
+use crate::fetch::hit_meta::HitMeta;
 use crate::fetch::source_filter::SourceFilter;
 use crate::lucene_query::{QueryContext, shard_failure, to_lucene};
 use crate::mapping::FieldType;
@@ -90,6 +91,8 @@ pub struct Hits {
     pub explanations: Vec<Explanation>,
     /// What to highlight in each hit; `None` without `highlight`.
     pub highlight: Option<Plan>,
+    /// Which of each hit's `_version`, `_seq_no` and `_primary_term` to write.
+    pub meta: HitMeta,
 }
 
 impl Hits {
@@ -101,6 +104,7 @@ impl Hits {
             fields: &self.fields,
             explanations: &self.explanations,
             highlight: self.highlight.as_ref(),
+            meta: self.meta,
         }
     }
 }
@@ -351,6 +355,10 @@ pub fn search<S: BlobStore + 'static>(
         // ALLOC: empty; explained below when asked.
         explanations: Vec::new(),
         highlight: None,
+        meta: HitMeta {
+            version: source.version,
+            seq_no: source.seq_no_primary_term,
+        },
     };
     // The fetch phase resolves the fields only when it has a hit to fetch.
     if !hits.hits.is_empty() && !source.docvalue_fields.is_empty() {

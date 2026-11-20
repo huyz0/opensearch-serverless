@@ -28,8 +28,6 @@ const VALUE_KEYS: &[&str] = &[
     "timeout",
     "terminate_after",
     "min_score",
-    "version",
-    "seq_no_primary_term",
     "track_scores",
     "include_named_queries_score",
     "track_total_hits",
@@ -94,6 +92,11 @@ pub struct SearchSource {
     pub docvalue_fields: Vec<DocValueField>,
     /// `explain`: whether each hit carries the explanation of its score.
     pub explain: bool,
+    /// `version`: whether each hit carries its `_version`.
+    pub version: bool,
+    /// `seq_no_primary_term`: whether each hit carries its `_seq_no` and
+    /// `_primary_term`.
+    pub seq_no_primary_term: bool,
     /// `highlight`: the fields whose matches each hit marks.
     pub highlight: Option<HighlightSpec>,
     /// `pit`: the point in time the search runs on.
@@ -117,6 +120,8 @@ impl Default for SearchSource {
             // ALLOC: empty; parsing pushes one an entry.
             docvalue_fields: Vec::new(),
             explain: false,
+            version: false,
+            seq_no_primary_term: false,
             highlight: None,
             pit: None,
         }
@@ -192,12 +197,16 @@ impl SearchSource {
             "size" => self.size = non_negative("size", int_value(p)?)?,
             "sort" => self.sort = parse_sort(&mut p.clone())?,
             // `SearchSourceBuilder`'s value branch takes no null.
-            "_source" | "track_total_hits" | "explain" if kind == Kind::Null => {
+            "_source" | "track_total_hits" | "explain" | "version" | "seq_no_primary_term"
+                if kind == Kind::Null =>
+            {
                 return Err(unknown_key(p, kind, name));
             }
             "_source" => self.source = parse_source(&mut p.clone(), name)?,
             "track_total_hits" => self.track_total_hits = track_total_hits(p)?,
             "explain" => self.explain = bool_value(p)?,
+            "version" => self.version = bool_value(p)?,
+            "seq_no_primary_term" => self.seq_no_primary_term = bool_value(p)?,
             known if VALUE_KEYS.contains(&known) => return Err(unsupported(known)),
             _ => return Err(unknown_key(p, kind, name)),
         }
