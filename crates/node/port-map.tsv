@@ -48,3 +48,4 @@ src/descriptor_routes.rs	port	serverless/shell/src/main/java/org/opensearch/serv
 src/tail_node.rs	new		the assembly of the tail overlay: the shell wires TailPush, TailOverlays and the lease view in its node bootstrap
 src/writer/newest_commit.rs	new		the newest-commit memory split from writer/mod.rs to keep it under the module size limit
 src/writer/tail.rs	new		the seam the write path tells the tail overlay through; the Java calls TailPush from its write path directly
+src/writer/opener.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/ShardReconciler.java	the open of a shard no writer has published yet: win its head, open under its term; a shard with a history is refused until takeover lands

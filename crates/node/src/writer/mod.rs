@@ -16,6 +16,7 @@ mod janitor_pass;
 mod janitor_timer;
 mod lease;
 mod newest_commit;
+mod opener;
 mod publish_timer;
 mod publishing;
 mod slot;
@@ -42,6 +43,7 @@ pub use incarnation::{DescriptorIncarnation, FENCE_WINDOW, Incarnation};
 pub use janitor_pass::{HeldShard, JanitorPass, JanitorReport, PassLimits};
 pub use janitor_timer::{JanitorTimer, SweepConfig};
 pub use lease::MembershipLeaseWrite;
+pub use opener::{HeadOpener, ShardOpener};
 pub use publish_timer::PublishTimer;
 pub use publishing::{PublishPass, Publishing};
 pub use tail::TailSink;
@@ -95,6 +97,10 @@ pub struct WriterRole {
     newest: Mutex<Newest>,
     publishing: Option<Publishing>,
     tail: OnceLock<Arc<dyn TailSink>>,
+    /// What opens a shard a write names and this node does not hold.
+    opener: Option<Arc<dyn ShardOpener>>,
+    /// Held while the opener runs, so racing groups open a shard once.
+    opening: Mutex<()>,
 }
 
 fn now_millis() -> u64 {
@@ -122,6 +128,8 @@ impl WriterRole {
             newest: Mutex::new(HashMap::new()),
             publishing: None,
             tail: OnceLock::new(),
+            opener: None,
+            opening: Mutex::new(()),
         }
     }
 
@@ -310,14 +318,9 @@ impl WriterRole {
         shard: u32,
         group: &[Planned<'_>],
     ) -> Vec<Result<Written, Failure>> {
-        let Some(slot) = self.slot(&index.uuid, shard) else {
-            return unavailable(group.len(), || {
-                // ALLOC: error path; one message.
-                format!(
-                    "cannot index into [{}][{shard}]: not open on this node",
-                    index.name
-                )
-            });
+        let slot = match self.slot_or_open(index, shard) {
+            Ok(slot) => slot,
+            Err(reason) => return unavailable(group.len(), || reason.clone()),
         };
         if let Some(fenced) = &self.incarnation {
             match fenced.ensure(&index.name, &index.uuid) {
