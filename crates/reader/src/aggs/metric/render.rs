@@ -13,6 +13,7 @@ use oss_rest::write_json_str;
 use crate::aggs::bucket::date_histogram_render::write_date_histogram;
 use crate::aggs::bucket::histogram_render::write_histogram;
 use crate::aggs::bucket::keyword_terms::write_keyword_terms;
+use crate::aggs::bucket::range_render::write_range;
 use crate::aggs::bucket::terms_render::write_terms;
 use crate::aggs::metric::date_text::write_date_of_double;
 use crate::aggs::metric::double::write_java_double;
@@ -154,6 +155,7 @@ pub(crate) fn write_body(out: &mut dyn Write, format: Format, value: &Value) -> 
         Value::Histogram(ref result) => write_histogram(out, format, result),
         Value::DateHistogram(ref result) => write_date_histogram(out, format, result),
         Value::KeywordTerms(ref result) => write_keyword_terms(out, result),
+        Value::Range(ref result) => write_range(out, format, result),
         // Written by the caller, which fetches the hits.
         Value::TopHits(_) => Ok(()),
     }

@@ -40,3 +40,5 @@ With `writer`, `cluster_route`, `health_route` and `cat_route` serve `GET`/`PUT 
 `handlers::Registry` holds the transport actions a node serves, each behind the signature check, and refuses a second handler for an action; the assembly adds each role's handler to it ([docs/specs/node-handlers/SPEC.md](../../docs/specs/node-handlers/SPEC.md)).
 
 `SearchService::open(index, shard)` opens any shard of an index, one open shard each in the `open_indexes` pool; the HTTP search still serves indexes of one shard ([docs/specs/node-multi-shard-open/SPEC.md](../../docs/specs/node-multi-shard-open/SPEC.md)).
+
+With `reader` and `writer`, `Assembled::wire_tail` turns the tail overlay on under `serverless.search.tail_overlay.enabled` (off by default): `tail_node::wire` builds the keep, serve, push and flush timer, installs the overlay builder, sets the writer role's `TailSink` and returns the `handlers::Registry` holding the tail fetch and push actions. `tail_node::LeaseWriters` is the `LiveWriters` over the node's leases. Contract: [docs/specs/node-tail-wiring/SPEC.md](../../docs/specs/node-tail-wiring/SPEC.md).
