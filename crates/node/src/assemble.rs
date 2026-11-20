@@ -19,10 +19,12 @@ use oss_writer::publish::lazy::Policy;
 
 use crate::bulk_route::{self, BulkService};
 use crate::doc_route::{self, DocService};
+use crate::handlers::Registry;
 #[cfg(feature = "coordinator")]
 use crate::index_route::{self, IndexService};
 use crate::pit_route::{self, PitService};
 use crate::search::{self, SearchService};
+use crate::tail_node::{self, TailError, TailNode, TailParts};
 use crate::writer::{
     Incarnation, JanitorPass, JanitorTimer, PassLimits, PublishTimer, Publishing, Routes,
     ShardNames, ShardOpener, WriterRole,
@@ -150,6 +152,8 @@ pub struct Assembled {
     pub role: Arc<WriterRole>,
     timer: PublishTimer,
     janitor: JanitorTimer,
+    tail: Option<TailNode>,
+    budget: MemoryBudget,
 }
 
 /// A node listening.
@@ -161,9 +165,15 @@ pub struct Running {
     pub role: Arc<WriterRole>,
     _timer: PublishTimer,
     _janitor: JanitorTimer,
+    _tail: Option<TailNode>,
 }
 
 impl Running {
+    /// What the tail overlay holds, when it is on.
+    pub fn tail(&self) -> Option<&TailNode> {
+        self._tail.as_ref()
+    }
+
     /// The address the node listens on.
     pub fn addr(&self) -> SocketAddr {
         self.server.local_addr()
@@ -171,6 +181,23 @@ impl Running {
 }
 
 impl Assembled {
+    /// Turns the tail overlay on when `parts` say so, and gives the
+    /// transport handlers for it; `None` when it is off or already on.
+    ///
+    /// # Errors
+    ///
+    /// [`TailError`] when a tail action is registered twice.
+    pub fn wire_tail(&mut self, parts: TailParts) -> Result<Option<Registry>, TailError> {
+        if self.tail.is_some() {
+            return Ok(None);
+        }
+        let wired = tail_node::wire(&self.search, &self.role, self.budget.clone(), parts)?;
+        Ok(wired.map(|(node, registry)| {
+            self.tail = Some(node);
+            registry
+        }))
+    }
+
     /// Starts serving on `listener`, the server's buffers charged to
     /// `budget`.
     ///
@@ -191,6 +218,7 @@ impl Assembled {
             role: self.role,
             _timer: self.timer,
             _janitor: self.janitor,
+            _tail: self.tail,
         })
     }
 }
@@ -313,5 +341,7 @@ pub fn assemble(
         role,
         timer,
         janitor,
+        tail: None,
+        budget: budget.clone(),
     })
 }

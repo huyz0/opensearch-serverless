@@ -30,6 +30,7 @@ use crate::aggs::bucket::date_histogram_collect;
 use crate::aggs::bucket::histogram::{HistogramSpec, reduce_results};
 use crate::aggs::bucket::histogram_collect;
 use crate::aggs::bucket::keyword_subs;
+use crate::aggs::bucket::range_collect;
 use crate::aggs::bucket::terms::TermsSpec;
 use crate::aggs::bucket::terms_collect;
 use crate::aggs::metric::hll::Hll;
@@ -207,6 +208,7 @@ fn needs(metric: Metric) -> u8 {
         | Metric::Terms
         | Metric::Histogram
         | Metric::DateHistogram => NEED_COUNT,
+        Metric::Range => NEED_COUNT,
     }
 }
 
@@ -239,6 +241,7 @@ pub(crate) fn value_of(agg: &MetricAgg, state: &MetricState) -> Value {
         Metric::DateHistogram => Value::DateHistogram(Box::new(date_histogram_collect::empty(
             &date_histogram_spec(agg),
         ))),
+        Metric::Range => range_collect::value(agg, &[]),
         // Filled in by the search once the hits are collected.
         // ALLOC: one box a `top_hits`, bounded by the request's.
         Metric::TopHits => Value::TopHits(Box::new(TopHitsResult::empty())),
@@ -286,6 +289,7 @@ pub(crate) fn node(agg: &MetricAgg, precision: u32) -> AggNode {
         Metric::DateHistogram => {
             date_histogram_collect::node(&agg.field, &date_histogram_spec(agg))
         }
+        Metric::Range => range_collect::node(agg),
         Metric::Cardinality => AggNode::Cardinality {
             field,
             kind: CardinalityKind::Numeric(ValueKind::Long),
@@ -375,6 +379,8 @@ fn value_from(agg: &MetricAgg, result: Option<AggResult>) -> Result<Value, Shard
             // ALLOC: one box a `date_histogram`, bounded by the request's.
             Ok(Value::DateHistogram(Box::new(result)))
         }
+        // Only a `range` node answers with fixed buckets.
+        Some(AggResult::Fixed { docs, .. }) => Ok(range_collect::value(agg, &docs)),
         _ => Err(engine_error(&"an aggregation result of another kind")),
     }
 }
@@ -406,6 +412,7 @@ pub fn collect<S: BlobStore + 'static>(
             return Err(refusal);
         }
         resolved.push(resolve(agg, shard)?);
+        range_collect::check_limit(agg)?;
         if agg.metric == Metric::Cardinality {
             check_execution_hint(agg)?;
         }
