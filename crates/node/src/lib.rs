@@ -11,6 +11,8 @@ pub mod bulk_route;
 #[cfg(feature = "writer")]
 pub mod cluster_routes;
 #[cfg(feature = "writer")]
+pub mod descriptor_routes;
+#[cfg(feature = "writer")]
 pub mod doc_route;
 #[cfg(feature = "writer")]
 pub mod forward;
