@@ -1,5 +1,5 @@
-//! What the point-in-time routes read off a request: a time value and the
-//! ids of a delete body.
+//! What the point-in-time routes read off a request: the ids of a delete
+//! body.
 
 use oss_rest::json::{Limits, Token, TokenSink, Tokenizer};
 use oss_rest::{Body, RestError};
@@ -9,42 +9,6 @@ pub(super) const MAX_IDS: usize = 1024;
 
 /// The longest id a delete body names; a longer string is no id.
 const MAX_ID_BYTES: usize = 256;
-
-/// A time value as `TimeValue.parseTimeValue` reads it for the units a
-/// keep-alive uses: whole numbers of `nanos`, `micros`, `ms`, `s`, `m`, `h`
-/// or `d`, and a bare `0`. Milliseconds, rounded down.
-pub(super) fn time_millis(name: &str, value: &str) -> Result<u64, RestError> {
-    let bad = |why: &str| {
-        // ALLOC: error path; the message names the value.
-        RestError::illegal_argument(format!(
-            "failed to parse setting [{name}] with value [{value}] as a time value: {why}"
-        ))
-    };
-    if value == "0" {
-        return Ok(0);
-    }
-    let split = value
-        .find(|c: char| !c.is_ascii_digit())
-        .ok_or_else(|| bad("unit is missing or unrecognized"))?;
-    let (digits, unit) = value.split_at(split);
-    let number: u64 = digits
-        .parse()
-        .map_err(|_| bad("not a whole number of units"))?;
-    let (times, per) = match unit {
-        "nanos" => (1, 1_000_000),
-        "micros" => (1, 1_000),
-        "ms" => (1, 1),
-        "s" => (1_000, 1),
-        "m" => (60_000, 1),
-        "h" => (3_600_000, 1),
-        "d" => (86_400_000, 1),
-        _ => return Err(bad("unit is missing or unrecognized")),
-    };
-    number
-        .checked_mul(times)
-        .and_then(|n| n.checked_div(per))
-        .ok_or_else(|| bad("the value is too large"))
-}
 
 enum At {
     Start,

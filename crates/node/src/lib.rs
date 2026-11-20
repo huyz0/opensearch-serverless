@@ -47,6 +47,8 @@ pub mod tail_push;
 pub mod tail_reader_link;
 #[cfg(feature = "writer")]
 pub mod tail_serve;
+#[cfg(any(feature = "reader", feature = "writer"))]
+pub(crate) mod time_value;
 #[cfg(feature = "writer")]
 pub mod writer;
 
