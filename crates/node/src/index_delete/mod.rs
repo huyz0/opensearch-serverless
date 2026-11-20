@@ -1,9 +1,9 @@
 //! `DELETE /{index}` and the reclaim drain, over `oss-meta`'s lifecycle with
 //! the real shard heads and pins (ADR 0012).
 //!
-//! Ported from `IndexAdminHandler`'s delete route. A shard no writer held is
-//! purged inside the request; a shard a writer held waits for its reclaim
-//! intent, which [`DeleteService::drain`] takes once due.
+//! Ported from `IndexAdminHandler`'s delete route. An index of few shards no
+//! writer held is purged inside the request; a larger one, or a shard a writer held, waits for its
+//! reclaim intent, and so does a shard a point in time pinned, which [`DeleteService::drain`] takes once due.
 
 mod heads;
 mod pins;
@@ -51,6 +51,7 @@ pub struct DeleteService {
     pins: NodePins,
     clock: PitClock,
     buffer_bytes: usize,
+    inline_purge_max_shards: u32,
 }
 
 impl DeleteService {
@@ -67,6 +68,7 @@ impl DeleteService {
         clock: PitClock,
         snapshots: Arc<dyn SnapshotPins>,
         buffer_bytes: usize,
+        inline_purge_max_shards: u32,
     ) -> Result<Self, MetaError> {
         let pits = PointInTimeStore::new(Arc::clone(store), base, Arc::clone(&clock))?;
         Ok(Self {
@@ -76,6 +78,7 @@ impl DeleteService {
             pins: NodePins::new(pits, snapshots, buffer_bytes),
             clock,
             buffer_bytes,
+            inline_purge_max_shards,
         })
     }
 
@@ -105,6 +108,8 @@ impl DeleteService {
             &self.pins,
             self.buffer_bytes,
         )
+        .with_inline_purge_limit(self.inline_purge_max_shards)
+        .with_repurge_pinned(true)
     }
 
     /// `DELETE /{index}`.
@@ -157,8 +162,9 @@ impl DeleteService {
         let now = || self.now();
         let pause = |d: Duration| std::thread::sleep(d);
         let mut lifecycle = self.lifecycle(&now, &pause);
-        self.queue.drain(self.now(), &|_| true, &mut |intent| {
-            lifecycle.reclaim(intent)
+        let at = self.now();
+        self.queue.drain(at, &|_| true, &mut |intent| {
+            lifecycle.reclaim_at(intent, at)
         })
     }
 }

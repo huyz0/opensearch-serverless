@@ -32,3 +32,5 @@ Shard heads and the snapshot and point-in-time pins that must keep a shard's byt
 ## Addendum: heads and pins ported, delete wired
 
 Shard heads (`oss_cluster::heads::HeadRegisters`) and point-in-time pins are ported and `DELETE /{index}` and a reclaim drain on each node are wired ([index-delete spec](../specs/index-delete/SPEC.md)); the unwired-deletes check is retired. The purge runs inside the request for a shard no writer held; a shard a writer held waits for the intent. Snapshot pins are an extension point (`SnapshotPins`) with no source: the Rust node takes no snapshots and snapshot management is out of scope, so a deployment that still has Java shallow snapshots of an index must not delete it from a Rust node until a source is supplied. A view that cannot be read, or a capture in progress, pins every shard.
+
+The purge cost note above is answered by the [purge follow-up](../specs/index-delete-purge/SPEC.md): a page of blobs is one batch delete, an index above `inline_purge_max_shards` (16 on a node) is purged at the reclaim, and a shard a pin kept is filed again until the pin ends.

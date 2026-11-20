@@ -385,7 +385,9 @@ fn a_purge_pages_through_a_large_shard_and_counts_a_failure() {
     }
     let (deleted, n) = counted(store.meter(), || l.delete_index("big", None, NOW));
     assert_eq!(deleted.unwrap().unwrap().purged, Some(Purged::default()));
-    assert_eq!(n, vec![(Get, 1), (Put, 1), (List, 2), (Delete, 1002)]);
+    // The descriptor, then the shard's 1,001 blobs in a batch of 1,000 and
+    // one more: a delete a blob before.
+    assert_eq!(n, vec![(Get, 1), (Put, 1), (List, 2), (Delete, 3)]);
     assert!(keys(&*store, "segments/").is_empty());
 
     // Requests: 1 create, 2 read, 3 intent, 4 delete, 5 the shard's LIST.

@@ -40,4 +40,4 @@ None: a delete is an operator's action and only ever removes. The purge-inline c
 
 - A Java shallow snapshot's blobs are purged: the Rust node cannot read them. Mitigation: `SnapshotPins` hook; recorded in ADR 0012's addendum.
 - A tombstone-mode store reads no heads before the delete (the Java's), so a live writer's shard is purged at once.
-- Known gaps, follow-ups: the purge of an unowned shard runs inside the request, sequentially (ADR 0012's cost note; deferring above a shard count needs a lifecycle change); a shard a view pinned is not purged again when the view expires; every node claims every reclaim bucket (one LIST a tick, as the Java); a failed drain is not counted.
+- Known gaps: every node claims every reclaim bucket (one LIST a tick, as the Java); a failed drain is not counted. The purge cost and pinned shards are in [index-delete-purge](../index-delete-purge/SPEC.md).
