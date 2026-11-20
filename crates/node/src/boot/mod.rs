@@ -40,8 +40,8 @@ use crate::health_route::StoreHealth;
 use crate::push_link::Leases;
 use crate::read_forward::{GetForwarder, GetHandler};
 use crate::writer::{
-    DescriptorIncarnation, HeadAdmission, HeadOpener, MembershipLeaseWrite, Routes, ShardNames,
-    Takeover,
+    DeadLogParts, DeadLogPass, DeadMailbox, DeadSnapshot, DescriptorIncarnation, HeadAdmission,
+    HeadOpener, MembershipLeaseWrite, Routes, ShardNames, Takeover,
 };
 
 pub use config::{MIN_MEMORY_BYTES, NodeConfig, StoreChoice};
@@ -100,6 +100,7 @@ pub struct Node {
     running: Option<Running>,
     transport: Option<TransportServer>,
     renewal: Option<Renewal>,
+    dead_logs: Option<Renewal>,
     membership: Arc<Membership>,
     node_id: String,
     /// Whether dropping the node leaves its lease to lapse, as a killed
@@ -136,6 +137,7 @@ impl Drop for Node {
     fn drop(&mut self) {
         // The renewal stops first, so it cannot write the lease back.
         drop(self.renewal.take());
+        drop(self.dead_logs.take());
         drop(self.running.take());
         drop(self.transport.take());
         // Best effort: an unreleased lease lapses in one lifetime.
@@ -409,18 +411,55 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         .start(listener, ServerConfig::default(), &budget)
         .map_err(BootError::Assemble)?;
 
+    // The dead nodes that still name log epochs come from the refresh each
+    // renewal already makes; a thread of its own collects them, so a slow
+    // collection never delays a lease.
+    let mailbox = Arc::new(DeadMailbox::default());
+    let posting = Arc::clone(&mailbox);
     let renewing = Arc::clone(&membership);
     let renewal = Renewal::spawn(config.renew_every(), move || {
         // A failed tick is retried by the next: the lease only has to land
         // once in a lifetime.
         let _ = keeper.renew(&committer);
-        let _ = renewing.refresh();
+        if let Ok(refreshed) = renewing.refresh() {
+            posting.post(DeadSnapshot {
+                live: refreshed.live,
+                dead: refreshed.dead_with_epochs,
+            });
+        }
     })
     .map_err(|e| BootError::Cluster(format!("lease renewal thread: {e}")))?;
+    let collecting = DeadLogPass::new(
+        DeadLogParts {
+            membership: Arc::clone(&membership),
+            heads: Arc::clone(&heads),
+            descriptors: Arc::clone(&descriptors),
+            store: Arc::clone(&store),
+            base: config.base.clone(),
+            node_id: config.node_id.clone(),
+            term: i64::try_from(first_epoch).unwrap_or(i64::MAX),
+            budget: budget.clone(),
+            buffer_bytes: READ_BUFFER,
+            first_wait_millis: i64::try_from(node_config.janitor_every.as_millis())
+                .unwrap_or(i64::MAX),
+        },
+        {
+            let clock = Arc::clone(&clock);
+            Box::new(move || clock.now_millis())
+        },
+    );
+    let dry_run = node_config.sweep.dry_run;
+    let dead_logs = Renewal::spawn_named("dead-log-pass", node_config.janitor_every, move || {
+        if let Some(snapshot) = mailbox.take() {
+            let _ = collecting.run(&snapshot, dry_run);
+        }
+    })
+    .map_err(|e| BootError::Cluster(format!("dead log thread: {e}")))?;
     Ok(Node {
         transport: Some(transport_server),
         running: Some(running),
         renewal: Some(renewal),
+        dead_logs: Some(dead_logs),
         membership,
         node_id: config.node_id.clone(),
         crashed: false,
