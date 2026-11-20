@@ -6,7 +6,6 @@ use std::io::Write;
 use std::sync::Arc;
 
 use oss_rest::{JSON, Length, Method, Request, Response, RestError, RouteError, Router};
-use oss_writer::bulk::Owner;
 
 use crate::get_route::index_not_found;
 use crate::writer::WriterRole;
@@ -30,10 +29,7 @@ impl RefreshService {
             .ok_or_else(|| index_not_found(&name))?;
         let mut successful: u32 = 0;
         for shard in 0..index.shards {
-            let done = match self.role.owner(&index, shard) {
-                Owner::Local => self.role.refresh(&index, shard).is_ok(),
-                Owner::Node(_) => false,
-            };
+            let done = self.role.refresh_owned(&index, shard).is_ok();
             successful = successful.saturating_add(u32::from(done));
         }
         let mut out = resp.start(200, Some(JSON), Length::Chunked, &[])?;

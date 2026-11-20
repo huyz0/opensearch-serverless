@@ -17,6 +17,7 @@ use oss_node::refresh_route::{RefreshService, routes as refresh_routes};
 use oss_node::writer::{Routes, WriterRole};
 use oss_rest::{Router, Server};
 use oss_writer::bulk::{IndexInfo, ItemResult, Owner, Planned};
+use oss_writer::index::Fetched;
 use oss_writer::log::{
     CommitterConfig, EpochLease, NodeLogCommitter, NodeLogStore, Refusal, ShardAdmission,
 };
@@ -61,6 +62,7 @@ impl Routes for Cluster {
             "wide" => Some(info("wide", 3, false)),
             "routed" => Some(info("routed", 1, true)),
             "remote" => Some(info("remote", 2, false)),
+            "dead" => Some(info("dead", 1, false)),
             _ => None,
         }
     }
@@ -68,8 +70,35 @@ impl Routes for Cluster {
     fn owner(&self, index: &IndexInfo, shard: u32) -> Owner {
         if index.name == "remote" && shard == 1 {
             Owner::Node("node-2".into())
+        } else if index.name == "dead" {
+            Owner::Node("node-3".into())
         } else {
             Owner::Local
+        }
+    }
+
+    fn refresh_remote(&self, node: &str, _: &IndexInfo, _: u32) -> Result<(), String> {
+        (node == "node-2")
+            .then_some(())
+            .ok_or_else(|| "no answer".to_owned())
+    }
+
+    fn get_remote(
+        &self,
+        node: &str,
+        _: &IndexInfo,
+        _: u32,
+        id: &str,
+    ) -> Result<Option<Fetched>, String> {
+        match (node, id) {
+            ("node-2", "0" | "1" | "2" | "3" | "4" | "5") => Ok(Some(Fetched {
+                version: 7,
+                seq_no: 4,
+                primary_term: 2,
+                source: br#"{"far":true}"#.to_vec(),
+            })),
+            ("node-2", _) => Ok(None),
+            _ => Err("no answer".to_owned()),
         }
     }
 
@@ -276,27 +305,52 @@ fn refresh_makes_every_shard_visible_and_counts_them() {
 }
 
 #[test]
-fn a_shard_another_node_owns_is_unavailable_to_a_get_and_failed_in_a_refresh() {
+fn a_get_of_a_shard_another_node_owns_is_answered_by_that_owner() {
+    let r = rig();
+    let replies: Vec<(usize, support::Reply)> = (0..20)
+        .map(|i| (i, call(&r, "GET", &format!("/remote/_doc/{i}"), None)))
+        .collect();
+    let far: Vec<&(usize, support::Reply)> = replies
+        .iter()
+        .filter(|(_, x)| json_of(x).get("_source") == Some(&json!({"far":true})))
+        .collect();
+    assert!(!far.is_empty(), "an id routes to the remote shard");
+    let (i, reply) = far[0];
+    assert_eq!(reply.status, 200, "{}", reply.text());
+    assert_eq!(
+        json_of(reply),
+        json!({"_index":"remote","_id":i.to_string(),"_version":7,"_seq_no":4,
+               "_primary_term":2,"found":true,"_source":{"far":true}})
+    );
+    let source = call(&r, "GET", &format!("/remote/_source/{i}"), None);
+    assert_eq!(json_of(&source), json!({"far":true}));
+    assert!(
+        replies.iter().any(|(_, x)| x.status == 404),
+        "a local id, or one the owner does not hold"
+    );
+}
+
+#[test]
+fn a_remote_refresh_counts_the_owners_shard_and_an_unreachable_owner_fails_it() {
     let r = rig();
     let refresh = json_of(&call(&r, "POST", "/remote/_refresh", None));
     assert_eq!(
         refresh,
-        json!({"_shards":{"total":2,"successful":1,"failed":1}})
+        json!({"_shards":{"total":2,"successful":2,"failed":0}})
     );
-    let replies: Vec<support::Reply> = (0..20)
-        .map(|i| call(&r, "GET", &format!("/remote/_doc/{i}"), None))
-        .collect();
-    let unavailable = replies
-        .iter()
-        .find(|x| x.status == 503)
-        .expect("an id routes to the remote shard");
-    let error = &json_of(unavailable)["error"];
+    let dead = json_of(&call(&r, "POST", "/dead/_refresh", None));
+    assert_eq!(
+        dead,
+        json!({"_shards":{"total":1,"successful":0,"failed":1}})
+    );
+    let unavailable = call(&r, "GET", "/dead/_doc/a", None);
+    assert_eq!(unavailable.status, 503, "{}", unavailable.text());
+    let error = &json_of(&unavailable)["error"];
     assert_eq!(error["type"], "no_shard_available_action_exception");
     assert!(
         error["reason"]
             .as_str()
-            .is_some_and(|m| m.contains("node-2")),
+            .is_some_and(|m| m.contains("node-3") && m.contains("no answer")),
         "{error}"
     );
-    assert!(replies.iter().any(|x| x.status == 404), "a local id");
 }
