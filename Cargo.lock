@@ -711,8 +711,10 @@ dependencies = [
 name = "oss-format"
 version = "0.1.0"
 dependencies = [
+ "miniz_oxide",
  "oss-testkit",
  "oss-types",
+ "zstd-safe",
 ]
 
 [[package]]
