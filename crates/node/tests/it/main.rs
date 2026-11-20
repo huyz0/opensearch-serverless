@@ -12,6 +12,7 @@ mod budgets;
 mod built;
 #[cfg(feature = "coordinator")]
 mod coordinate;
+mod count;
 mod frozen_search;
 mod open_prefetch;
 mod search;
