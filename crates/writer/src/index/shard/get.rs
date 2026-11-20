@@ -86,6 +86,10 @@ impl Shard<'_> {
             .visit_stored_document(found.doc, &mut source)
             // ALLOC: error path; one message.
             .map_err(|e| e.to_string())?;
+        if source.bytes.is_empty() {
+            // ALLOC: error path; one message.
+            return Err(format!("document [{id}] has no stored _source"));
+        }
         Ok(Some(Fetched {
             version: found.current.version,
             seq_no: found.current.seq_no,

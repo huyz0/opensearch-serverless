@@ -9,7 +9,7 @@ Parity plan R7.6, node assembly: `GET|HEAD /{index}/_doc/{id}`, `GET|HEAD /{inde
 - `oss-writer`'s `index::Shard` gains `get(id, realtime)`: the live document of an id, as `InternalEngine.get` reads it. A realtime get of an id written since the last refresh refreshes first, so it sees the write; of an id the version map holds as deleted it answers none; a non-realtime get reads the last refresh. The answer carries the document's `_version`, `_seq_no`, `_primary_term` and stored `_source`.
 - `oss-node`, with the `writer` feature, gains `get_route` (`GetService`, `routes`) and `refresh_route` (`RefreshService`, `routes`), and `WriterRole::get`.
 - Parameters read: get takes `realtime`, `refresh`, `routing` and `_source` (`true`, `false` or empty); refresh takes none. Any other parameter is the router's `unrecognized parameter` 400.
-- Not changed: a shard another node owns (a get answers 503 `shard_not_available_exception`, a refresh counts it failed): forwarding reads needs the transport action; `_source_includes`, `_source_excludes`, `stored_fields`, `version` and `preference`; `_refresh` with no index or a wildcard, which needs the index list; aliases.
+- Not changed: a shard another node owns (a get answers 503 `no_shard_available_action_exception`, a refresh counts it failed): forwarding reads needs the transport action; `_source_includes`, `_source_excludes`, `stored_fields`, `version` and `preference`; `_refresh` with no index or a wildcard, which needs the index list; aliases.
 
 ## Acceptance criteria
 

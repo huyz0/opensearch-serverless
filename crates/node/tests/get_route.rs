@@ -283,9 +283,20 @@ fn a_shard_another_node_owns_is_unavailable_to_a_get_and_failed_in_a_refresh() {
         refresh,
         json!({"_shards":{"total":2,"successful":1,"failed":1}})
     );
-    let statuses: Vec<u16> = (0..20)
-        .map(|i| call(&r, "GET", &format!("/remote/_doc/{i}"), None).status)
+    let replies: Vec<support::Reply> = (0..20)
+        .map(|i| call(&r, "GET", &format!("/remote/_doc/{i}"), None))
         .collect();
-    assert!(statuses.contains(&503), "{statuses:?}");
-    assert!(statuses.contains(&404), "{statuses:?}");
+    let unavailable = replies
+        .iter()
+        .find(|x| x.status == 503)
+        .expect("an id routes to the remote shard");
+    let error = &json_of(unavailable)["error"];
+    assert_eq!(error["type"], "no_shard_available_action_exception");
+    assert!(
+        error["reason"]
+            .as_str()
+            .is_some_and(|m| m.contains("node-2")),
+        "{error}"
+    );
+    assert!(replies.iter().any(|x| x.status == 404), "a local id");
 }
