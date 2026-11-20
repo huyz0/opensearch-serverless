@@ -9,7 +9,7 @@ use std::net::TcpListener;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use oss_blob::{BlobStore, Emulator};
+use oss_blob::{BlobStore, Emulator, S3Op, SliceSource};
 use oss_format::{MAX_POINT_IN_TIME_BYTES, NodeLogEpoch, ShardKey};
 use oss_mem::{BudgetConfig, MemoryBudget, Pool};
 use oss_node::assemble::{AssembleError, Config, Running, Writer, assemble};
@@ -100,10 +100,14 @@ fn writer(store: &Arc<Emulator>) -> Writer {
 }
 
 fn start(request_bodies: usize) -> (Running, Arc<Emulator>) {
+    start_with(config(), request_bodies)
+}
+
+fn start_with(config: Config, request_bodies: usize) -> (Running, Arc<Emulator>) {
     let store = Arc::new(Emulator::new(1 << 28, 9));
     let budget = budget(request_bodies, 16 << 20);
     let node = assemble(
-        &config(),
+        &config,
         Arc::clone(&store) as Arc<dyn BlobStore>,
         &budget,
         writer(&store),
@@ -186,14 +190,10 @@ fn the_pit_buffer_is_charged_to_the_request_body_pool() {
     );
     // A pool that cannot hold one view's buffer refuses the create at once.
     let (r, store) = start(MAX_POINT_IN_TIME_BYTES / 2);
-    let before = store.meter().count(oss_blob::S3Op::Put);
+    let before = store.meter().count(S3Op::Put);
     let refused = call(&r, "POST", "/docs/_pit", None);
     assert_eq!(refused.status, 429, "{}", refused.text());
-    assert_eq!(
-        store.meter().count(oss_blob::S3Op::Put),
-        before,
-        "nothing written"
-    );
+    assert_eq!(store.meter().count(S3Op::Put), before, "nothing written");
 }
 
 #[test]
@@ -206,4 +206,62 @@ fn a_budget_with_no_open_indexes_is_refused() {
         writer(&store),
     );
     assert!(matches!(refused, Err(AssembleError::NoOpenIndexes)));
+}
+
+/// A node whose janitor runs every 10 ms, written to, published, and with a
+/// blob of an older term nothing names.
+fn with_an_orphan(sweep_dry_run: Option<bool>) -> (Running, Arc<Emulator>, String) {
+    let mut config = Config {
+        janitor_every: Duration::from_millis(10),
+        ..config()
+    };
+    config.sweep.minimum_unreferenced_millis = 0;
+    if let Some(dry_run) = sweep_dry_run {
+        config.sweep.dry_run = dry_run;
+    }
+    let (r, store) = start_with(config, 256 << 20);
+    assert_eq!(
+        call(&r, "PUT", "/docs/_doc/1", Some(r#"{"n":1}"#)).status,
+        201
+    );
+    let started = Instant::now();
+    while r.role.newest_commit("docs-uuid", 0).is_none() {
+        assert!(started.elapsed() < Duration::from_secs(10), "not published");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let key = "segments/docs#docs-uuid#0/t=1/orphan".to_owned();
+    store
+        .put(&key, &mut SliceSource::new(b"old"), &mut [0u8; 16])
+        .expect("planted");
+    (r, store, key)
+}
+
+#[test]
+fn the_janitor_timer_sweeps_the_shards_the_node_holds() {
+    let (_r, store, key) = with_an_orphan(Some(false));
+    let started = Instant::now();
+    while store.head(&key).expect("heads").is_some() {
+        assert!(
+            started.elapsed() < Duration::from_secs(10),
+            "the janitor deleted nothing"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+#[test]
+fn a_node_starts_with_its_janitor_as_a_dry_run() {
+    assert!(Config::new("", "n", [0; 6]).sweep.dry_run);
+    let (_r, store, key) = with_an_orphan(None);
+    // Two passes have listed the points in time and the shard each.
+    let lists = store.meter().count(S3Op::List);
+    let started = Instant::now();
+    while store.meter().count(S3Op::List) < lists + 4 {
+        assert!(started.elapsed() < Duration::from_secs(10), "no passes");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert!(
+        store.head(&key).expect("heads").is_some(),
+        "dry run kept it"
+    );
 }

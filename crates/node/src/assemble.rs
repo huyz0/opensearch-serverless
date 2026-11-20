@@ -1,6 +1,6 @@
 //! The composition root of a node with the reader and writer roles: the
 //! services each role serves, their routes on one router, and the publish
-//! timer, over one shared store.
+//! and janitor timers, over one shared store.
 
 use std::net::{SocketAddr, TcpListener};
 use std::sync::Arc;
@@ -9,6 +9,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use lucene_store::page_cache::{PageCache, PageCacheConfig};
 use oss_blob::{BlobStore, PooledStore, Shared};
 use oss_format::MAX_POINT_IN_TIME_BYTES;
+use oss_janitor::gc;
 use oss_mem::{BufferPool, MemoryBudget, Pool, SMALL_BUFFER};
 use oss_meta::{DeleteMode, DescriptorStore, PitClock, PointInTimeStore};
 use oss_rest::{RouteError, Router, Server, ServerConfig};
@@ -20,7 +21,9 @@ use crate::bulk_route::{self, BulkService};
 use crate::doc_route::{self, DocService};
 use crate::pit_route::{self, PitService};
 use crate::search::{self, SearchService};
-use crate::writer::{PublishTimer, Publishing, Routes, WriterRole};
+use crate::writer::{
+    JanitorPass, JanitorTimer, PassLimits, PublishTimer, Publishing, Routes, WriterRole,
+};
 
 /// Buffers the store's bodies stream through, a node's worth.
 const STORE_BUFFERS: usize = 16;
@@ -52,6 +55,12 @@ pub struct Config {
     pub publish_max_operations: u64,
     /// The write log's window, which a due time rounds up to.
     pub publish_tick_millis: u64,
+    /// How often the janitor runs a pass.
+    pub janitor_every: Duration,
+    /// How a janitor sweep behaves; it starts as a dry run.
+    pub sweep: gc::Config,
+    /// The most points in time that may be live for a janitor pass to run.
+    pub janitor_max_views: usize,
 }
 
 impl Config {
@@ -71,6 +80,14 @@ impl Config {
             publish_age_millis: 1_000,
             publish_max_operations: 10_000,
             publish_tick_millis: 250,
+            janitor_every: Duration::from_secs(60),
+            sweep: gc::Config {
+                dry_run: true,
+                minimum_unreferenced_millis: 60_000,
+                max_watched: 100_000,
+                max_pinned: 100_000,
+            },
+            janitor_max_views: 10_000,
         }
     }
 }
@@ -121,6 +138,7 @@ pub struct Assembled {
     /// The role the write routes write through.
     pub role: Arc<WriterRole>,
     timer: PublishTimer,
+    janitor: JanitorTimer,
 }
 
 /// A node listening.
@@ -131,6 +149,7 @@ pub struct Running {
     /// The role the write routes write through.
     pub role: Arc<WriterRole>,
     _timer: PublishTimer,
+    _janitor: JanitorTimer,
 }
 
 impl Running {
@@ -160,6 +179,7 @@ impl Assembled {
             search: self.search,
             role: self.role,
             _timer: self.timer,
+            _janitor: self.janitor,
         })
     }
 }
@@ -215,6 +235,8 @@ pub fn assemble(
     let clock: PitClock = Arc::new(now_millis);
     let pits = PointInTimeStore::new(Arc::clone(&store), &config.base, Arc::clone(&clock))
         .map_err(|e| AssembleError::Store(e.to_string()))?;
+    let janitor_pits = PointInTimeStore::new(Arc::clone(&store), &config.base, Arc::clone(&clock))
+        .map_err(|e| AssembleError::Store(e.to_string()))?;
     let descriptors = DescriptorStore::new(Arc::clone(&store), &config.base, config.delete_mode)
         .map_err(|e| AssembleError::Store(e.to_string()))?;
     let pit = Arc::new(PitService::new(
@@ -236,10 +258,25 @@ pub fn assemble(
     let router = doc_route::routes(router, docs).map_err(AssembleError::Route)?;
     let router = pit_route::routes(router, pit).map_err(AssembleError::Route)?;
     let timer = PublishTimer::spawn(Arc::clone(&role), config.publish_every);
+    let pass = Arc::new(JanitorPass::new(
+        Arc::clone(&store),
+        &config.base,
+        Arc::clone(&role),
+        janitor_pits,
+        budget,
+        PassLimits {
+            buffer_bytes: config.pit_buffer_bytes,
+            max_views: config.janitor_max_views,
+        },
+        Box::new(|| i64::try_from(now_millis()).unwrap_or(i64::MAX)),
+    ));
+    let sweep = config.sweep;
+    let janitor = JanitorTimer::spawn(pass, config.janitor_every, Box::new(move || sweep));
     Ok(Assembled {
         router,
         search,
         role,
         timer,
+        janitor,
     })
 }
