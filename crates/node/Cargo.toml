@@ -130,6 +130,10 @@ name = "handlers"
 required-features = ["writer"]
 
 [[test]]
+name = "doc_route"
+required-features = ["writer"]
+
+[[test]]
 name = "pit_route"
 required-features = ["writer"]
 
