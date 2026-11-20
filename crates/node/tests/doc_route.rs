@@ -355,3 +355,29 @@ fn a_document_with_no_declared_length_is_charged_as_it_is_read() {
     let large = rig_pooled(SERVER_HELD + (1 << 20));
     assert_eq!(chunked_status(&large, "/docs/_doc/1", &[a, b]), 201);
 }
+
+#[test]
+fn require_alias_changes_the_unknown_index_refusal() {
+    let r = rig();
+    let plain = call(&r, "PUT", "/nope/_doc/1", Some(r#"{"n":1}"#)).text();
+    assert!(!plain.contains("require_alias"), "{plain}");
+    let aliased = call(
+        &r,
+        "PUT",
+        "/nope/_doc/1?require_alias=true",
+        Some(r#"{"n":1}"#),
+    )
+    .text();
+    assert!(
+        aliased.contains("[require_alias] request flag is [true]"),
+        "{aliased}"
+    );
+    let off = call(
+        &r,
+        "PUT",
+        "/nope/_doc/1?require_alias=false",
+        Some(r#"{"n":1}"#),
+    )
+    .text();
+    assert!(!off.contains("require_alias"), "{off}");
+}

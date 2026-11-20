@@ -21,6 +21,7 @@ Parity plan R7.6, node assembly: `PUT|POST /{index}/_doc/{id}`, `POST /{index}/_
 - AC-7: a generated id carries the write's time, and `?op_type=create` refuses a live id as `_create` does.
 - AC-8: the document is charged to the request-body pool once when its length is declared, and as it is read when it is not (a refusal when the pool is full).
 - AC-9: `doc_status` and `write_doc` in `oss-writer` give each outcome its status (201 created, 200 updated or deleted, 404 not found, a failure its own) and the single-document answer.
+- AC-10: `?require_alias=true` on an unknown index is refused naming the flag.
 
 ## Test plan
 
