@@ -133,3 +133,4 @@ src/prefetch/tests.rs	new		tests of the open prefetch over a real index on the e
 src/aggs/partial.rs	new		the shared shard-level result and the reduce dispatch, lifted out of aggs/metric/partial.rs
 src/frozen.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/shard/ShardReaders.java@429b4cbc	openFrozenReader: the incarnation check and the view's own manifest for the shard; the files resolve to blob ranges
 src/dsl/pit.rs	port	server/src/main/java/org/opensearch/search/builder/PointInTimeBuilder.java@3.10.0	the parser of a search body's pit: id required, keep_alive kept as written
+src/response_values.rs	port	server/src/main/java/org/opensearch/search/SearchHit.java@3.10.0	Float.toString and Uid.decodeId as the response prints them, split from response.rs

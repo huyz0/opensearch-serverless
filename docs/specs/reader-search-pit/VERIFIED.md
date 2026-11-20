@@ -2,3 +2,4 @@
 
 - AC-1: `a_pit_gives_its_id_and_keep_alive_in_any_chunking` in crates/reader/src/dsl/source_tests.rs
 - AC-2: `a_pit_that_is_not_an_id_and_a_keep_alive_is_refused` in crates/reader/src/dsl/source_tests.rs
+- AC-3: `a_point_in_time_search_names_its_view_first` in crates/reader/src/response_hits_tests.rs

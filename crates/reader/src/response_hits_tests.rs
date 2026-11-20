@@ -15,7 +15,7 @@ use oss_blob::{Emulator, PooledStore, Rounds, SliceSource};
 use oss_mem::{BudgetConfig, BufferPool, MemoryBudget, Pool, SMALL_BUFFER};
 use oss_testkit::index::{Spec, blobs, doc_source};
 
-use super::write_response;
+use super::{write_response, write_response_with};
 use crate::dsl::parse_chunks;
 use crate::fetch::source_filter::scratch_bytes;
 use crate::search::search;
@@ -329,4 +329,33 @@ fn the_hits_of_the_response_and_its_top_hits_are_fetched_in_one_round() {
     let rounds = store.store();
     assert!(rounds.depth() <= 1, "{}", rounds.detail());
     assert!(rounds.calls().len() <= together, "{}", rounds.detail());
+}
+
+#[test]
+fn a_point_in_time_search_names_its_view_first() {
+    let shard = shard();
+    let source = parse_chunks([b"{}".as_slice()]).expect("parses");
+    let hits = search(&shard, "idx", &source, &Analyzer::standard(None)).expect("searches");
+    let mut with = Vec::new();
+    write_response_with(
+        &mut with,
+        &shard,
+        "idx",
+        "node",
+        &hits,
+        0,
+        Some("a\"b"),
+        &mut |_| Ok(()),
+    )
+    .expect("writes");
+    let with = String::from_utf8(with).expect("utf-8");
+    assert!(with.starts_with(r#"{"pit_id":"a\"b","took":0,"#), "{with}");
+    let mut without = Vec::new();
+    write_response(&mut without, &shard, "idx", "node", &hits, 0, &mut |_| {
+        Ok(())
+    })
+    .expect("writes");
+    let without = String::from_utf8(without).expect("utf-8");
+    assert!(without.starts_with(r#"{"took":0,"#), "{without}");
+    assert_eq!(with.replacen(r#""pit_id":"a\"b","#, "", 1), without);
 }
