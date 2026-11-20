@@ -15,7 +15,7 @@ use oss_writer::mapping::Mapping;
 
 use std::sync::Mutex;
 
-use super::{ShardSlot, Takeover, WriterRole, lock};
+use super::{ShardSlot, Takeover, WriterRole, lock, publish_age_of};
 use oss_writer::takeover::restore;
 
 /// What a role asks when a write names a shard it does not hold.
@@ -127,16 +127,19 @@ impl ShardOpener for HeadOpener {
             })?;
         let mapping = Mapping::from_descriptor(record.mapping.as_deref())
             .map_err(|e| e.failed_to_parse().to_string())?;
-        let Some(takeover) = self.takeover.as_ref().filter(|_| history) else {
-            return role.open_shard(index, shard, head.term, mapping);
-        };
-        role.open_taken(index, shard, &head, mapping, takeover, |dir| {
-            // ALLOC: one buffer a restore, buffer_bytes.
-            let mut buf = vec![0u8; self.buffer_bytes];
-            restore(self.store.as_ref(), &self.base, &at, dir, &mut buf)
-                .map(|_| ())
-                .map_err(|e| e.to_string())
-        })
+        let age = publish_age_of(record.settings);
+        match self.takeover.as_ref().filter(|_| history) {
+            None => role.open_shard(index, shard, head.term, mapping)?,
+            Some(takeover) => role.open_taken(index, shard, &head, mapping, takeover, |dir| {
+                // ALLOC: one buffer a restore, buffer_bytes.
+                let mut buf = vec![0u8; self.buffer_bytes];
+                restore(self.store.as_ref(), &self.base, &at, dir, &mut buf)
+                    .map(|_| ())
+                    .map_err(|e| e.to_string())
+            })?,
+        }
+        role.set_publish_age(&index.uuid, shard, age);
+        Ok(())
     }
 }
 
