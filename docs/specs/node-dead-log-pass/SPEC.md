@@ -18,10 +18,11 @@ R8 janitor: a dead node's write log is deleted once nothing in it is unpublished
 - AC-2: a reaper whose log is still needed does not try it again until its wait has passed, and the wait doubles; a waiting log costs no request.
 - AC-3: once a successor has published everything the log held, a dry run reports it collectable and a real pass collects it, with no LIST.
 - AC-4: the mailbox hands the pass the latest snapshot, once.
+- AC-5: a booted node reaps the log of a node that died: with `OSS_JANITOR_EVERY_MS` short, its pass fences the dead node's log once the lease has lapsed.
 
 ## Test plan
 
-`crates/node/tests/dead_log_pass.rs`: two nodes over one emulator, the first dead by a clock an hour on; the request meter counts what each pass spends.
+`crates/node/tests/boot.rs` (AC-5, over a file store and real sockets) and `crates/node/tests/dead_log_pass.rs`: two nodes over one emulator, the first dead by a clock an hour on; the request meter counts what each pass spends.
 
 ## S3 request budget
 

@@ -44,6 +44,15 @@ fn enrolled(root: &std::path::Path) -> Vec<String> {
 }
 
 fn config(root: &std::path::Path, id: &str, ttl: &str) -> NodeConfig {
+    config_with(root, id, ttl, None)
+}
+
+fn config_with(
+    root: &std::path::Path,
+    id: &str,
+    ttl: &str,
+    janitor_ms: Option<&str>,
+) -> NodeConfig {
     let root = root.display().to_string();
     let lookup = |key: &str| {
         Some(
@@ -55,6 +64,7 @@ fn config(root: &std::path::Path, id: &str, ttl: &str) -> NodeConfig {
                 "OSS_TRANSPORT_ADDR" => "127.0.0.1:0",
                 // A third of it is the renewal tick.
                 "OSS_LEASE_TTL_MS" => ttl,
+                "OSS_JANITOR_EVERY_MS" => return janitor_ms.map(str::to_owned),
                 _ => return None,
             }
             .to_owned(),
@@ -235,4 +245,44 @@ fn a_restarted_node_writes_above_the_epochs_it_left() {
         after.iter().max() > before.iter().max(),
         "the new process wrote in a new epoch: {after:?}"
     );
+}
+
+/// How many blobs a node's write log holds, over every epoch it names.
+fn log_blobs(root: &std::path::Path, id: &str) -> usize {
+    fn count(dir: &std::path::Path) -> usize {
+        std::fs::read_dir(dir).map_or(0, |entries| {
+            entries
+                .flatten()
+                .map(|e| {
+                    if e.path().is_dir() {
+                        count(&e.path())
+                    } else {
+                        1
+                    }
+                })
+                .sum()
+        })
+    }
+    count(&root.join("nodelog").join(id))
+}
+
+// docs/specs/node-dead-log-pass AC-5
+#[test]
+fn a_booted_node_reaps_the_log_of_a_node_that_died() {
+    let dir = TempDir::new("boot-dead-log");
+    let first = start(&config(dir.path(), "n1", "3000")).expect("starts");
+    assert_eq!(call(&first, "PUT", "/logs", None).status, 200);
+    let wrote = call(&first, "PUT", "/logs/_doc/1", Some(r#"{"n":1}"#));
+    assert_eq!(wrote.status, 201, "{}", wrote.text());
+    first.crash();
+    let before = log_blobs(dir.path(), "n1");
+    assert!(before > 0, "the first node wrote a log");
+    // The second node's pass runs every 100 ms; once the first lease has
+    // lapsed it fences the log, which adds a blob to it. Nothing takes the
+    // shard over, so the log is still needed and is not deleted.
+    let second = start(&config_with(dir.path(), "n2", "3000", Some("100"))).expect("starts");
+    wait_for("the dead node's log was never fenced", || {
+        log_blobs(dir.path(), "n1") > before
+    });
+    drop(second);
 }

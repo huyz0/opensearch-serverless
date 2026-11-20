@@ -83,6 +83,9 @@ pub struct NodeConfig {
     /// How long a writer trusts an index it read before confirming it by
     /// the change stripes; zero reads the descriptor on every lookup.
     pub index_confirm_millis: u64,
+    /// How often the janitor sweeps and the dead-log pass runs; it is also
+    /// the first wait before a dead node's log is tried again.
+    pub janitor_every_millis: u64,
 }
 
 impl NodeConfig {
@@ -140,6 +143,12 @@ impl NodeConfig {
         let index_confirm_millis: u64 = or("OSS_INDEX_CONFIRM_MS", "5000")
             .parse()
             .map_err(|e| format!("OSS_INDEX_CONFIRM_MS: {e}"))?;
+        let janitor_every_millis: u64 = or("OSS_JANITOR_EVERY_MS", "60000")
+            .parse()
+            .map_err(|e| format!("OSS_JANITOR_EVERY_MS: {e}"))?;
+        if janitor_every_millis == 0 {
+            return Err("OSS_JANITOR_EVERY_MS is below 1".to_owned());
+        }
         Ok(Self {
             node_id,
             cluster: or("OSS_CLUSTER", "opensearch-serverless"),
@@ -153,6 +162,7 @@ impl NodeConfig {
             memory_bytes,
             lease_ttl_millis,
             index_confirm_millis,
+            janitor_every_millis,
         })
     }
 
@@ -215,6 +225,7 @@ mod tests {
         assert_eq!(c.memory_bytes, 1 << 30);
         assert_eq!(c.lease_ttl_millis, 30_000);
         assert_eq!(c.index_confirm_millis, 5_000);
+        assert_eq!(c.janitor_every_millis, 60_000);
         assert_eq!(c.renew_every(), Duration::from_secs(10));
         assert_eq!(
             c.store,
@@ -265,6 +276,14 @@ mod tests {
         refused(&with(&[("OSS_MEMORY_BYTES", "1000")]), "OSS_MEMORY_BYTES");
         refused(&with(&[("OSS_LEASE_TTL_MS", "y")]), "OSS_LEASE_TTL_MS");
         refused(&with(&[("OSS_LEASE_TTL_MS", "2")]), "OSS_LEASE_TTL_MS");
+        refused(
+            &with(&[("OSS_JANITOR_EVERY_MS", "0")]),
+            "OSS_JANITOR_EVERY_MS",
+        );
+        refused(
+            &with(&[("OSS_JANITOR_EVERY_MS", "x")]),
+            "OSS_JANITOR_EVERY_MS",
+        );
     }
 
     #[test]
