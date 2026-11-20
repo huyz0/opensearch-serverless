@@ -32,6 +32,7 @@ pub use render::{write_aggregations, write_aggregations_with};
 pub use top_hits::{TopHitsResult, TopHitsSpec};
 
 use crate::aggs::bucket::date_histogram::DateHistogramSpec;
+use crate::aggs::bucket::filters::FiltersSpec;
 use crate::aggs::bucket::histogram::HistogramSpec;
 use crate::aggs::bucket::range::RangeSpec;
 use crate::aggs::bucket::terms::TermsSpec;
@@ -73,11 +74,13 @@ pub enum Metric {
     /// `range`: the documents counted in each of given ranges of a numeric
     /// field.
     Range,
+    /// `filters`: the documents counted by each of given queries they match.
+    Filters,
 }
 
 impl Metric {
     /// Every metric served, by its aggregation type name.
-    pub const ALL: [Metric; 14] = [
+    pub const ALL: [Metric; 15] = [
         Metric::Min,
         Metric::Max,
         Metric::Sum,
@@ -92,6 +95,7 @@ impl Metric {
         Metric::Histogram,
         Metric::DateHistogram,
         Metric::Range,
+        Metric::Filters,
     ];
 
     /// The aggregation type name.
@@ -111,6 +115,7 @@ impl Metric {
             Metric::Histogram => "histogram",
             Metric::DateHistogram => "date_histogram",
             Metric::Range => "range",
+            Metric::Filters => "filters",
         }
     }
 
@@ -148,6 +153,8 @@ pub struct MetricAgg {
     pub subs: Vec<MetricAgg>,
     /// A `range`'s options; `None` for every other aggregation.
     pub range: Option<Box<RangeSpec>>,
+    /// A `filters`' options; `None` for every other aggregation.
+    pub filters: Option<Box<FiltersSpec>>,
 }
 
 /// What a `cardinality` aggregation sets besides its field.
@@ -215,6 +222,10 @@ pub fn state_bytes(aggs: &[MetricAgg]) -> usize {
                     .saturating_mul(per_range)
                     .saturating_add(keys)
             }),
+            Metric::Filters => agg
+                .filters
+                .as_deref()
+                .map_or(0, crate::aggs::bucket::filters_collect::state_bytes),
             Metric::Percentiles | Metric::PercentileRanks => {
                 tdigest::digest_bytes(agg.percentiles.compression).saturating_add(
                     agg.percentiles
