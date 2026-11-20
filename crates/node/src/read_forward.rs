@@ -6,18 +6,18 @@
 //! shell's forwarded get does. The owner is found in the leases this node
 //! already holds, so a forward makes no request to the store.
 
-use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use oss_transport::actions::read::{GET_ACTION, GetRequest, GetResponse};
-use oss_transport::auth::{Authenticator, MAC_HEADER, identity};
-use oss_transport::client::{Call, Client, PeerId};
+use oss_transport::auth::Authenticator;
+use oss_transport::client::Client;
 use oss_transport::exception::RemoteException;
 use oss_transport::server::{Handler, Request};
 use oss_transport::stream::{Input, Output};
 
-use crate::forward::{ForwardError, MAX_FORWARD_BYTES};
+use crate::forward::ForwardError;
+use crate::forward_call::{owner_of, signed_call};
 use crate::push_link::Leases;
 use crate::writer::WriterRole;
 
@@ -143,45 +143,15 @@ impl<L: Leases> GetForwarder<L> {
     ///
     /// [`ForwardError`]: nothing sent, or the call failed.
     pub fn get(&self, node_id: &str, request: &GetRequest) -> Result<GetResponse, ForwardError> {
-        let leases = self.leases.current();
-        let lease = leases
-            .iter()
-            .find(|l| l.node_id == node_id && !l.revoked)
-            .ok_or(ForwardError::NoPeer)?;
-        let address: SocketAddr = lease.address.parse().map_err(|_| ForwardError::NoPeer)?;
-        // ALLOC: one small request message.
-        let mut message = Vec::new();
-        request
-            .write(&mut Output::new(&mut message, MAX_FORWARD_BYTES))
-            .map_err(|_| ForwardError::TooLarge)?;
-        let mac = self
-            .auth
-            .sign(
-                GET_ACTION,
-                &message,
-                &identity(&lease.node_id, &lease.ephemeral_id),
-                &[],
-            )
-            .ok_or(ForwardError::NoPeer)?;
-        // ALLOC: the MAC header, one entry.
-        let headers = [(MAC_HEADER.to_owned(), mac)];
-        let peer = PeerId {
-            address,
-            // ALLOC: one ephemeral id a call.
-            ephemeral_id: Some(lease.ephemeral_id.clone()),
-        };
-        let call = Call {
-            action: GET_ACTION,
-            headers: &headers,
-            compress: false,
-            deadline: Instant::now()
-                .checked_add(self.timeout)
-                .ok_or(ForwardError::NoPeer)?,
-        };
-        match self.client.call(&peer, call, |out| out.bytes(&message)) {
-            Ok(answer) => GetResponse::read(&mut Input::new(answer.message()))
-                .map_err(|_| ForwardError::BadAnswer),
-            Err(e) => Err(ForwardError::Failed(e)),
-        }
+        let (lease, address) = owner_of(&self.leases, node_id)?;
+        let answer = signed_call(
+            &self.client,
+            &self.auth,
+            GET_ACTION,
+            (&lease, address),
+            self.timeout,
+            |out| request.write(out),
+        )?;
+        GetResponse::read(&mut Input::new(answer.message())).map_err(|_| ForwardError::BadAnswer)
     }
 }

@@ -6,16 +6,16 @@
 //! store. A connect refused (nothing listens on the owner's port) is the
 //! signal `serverless.lease.early_revoke` acts on; any other failure is not.
 
-use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use oss_cluster::{EarlyRevoke, LeaseClock, Verdict};
 use oss_transport::actions::write::{BULK_ACTION, BulkRequest, BulkResponse};
-use oss_transport::auth::{Authenticator, MAC_HEADER, identity};
-use oss_transport::client::{Call, CallError, Client, PeerId};
-use oss_transport::stream::{Input, Output};
+use oss_transport::auth::Authenticator;
+use oss_transport::client::{CallError, Client};
+use oss_transport::stream::Input;
 
+use crate::forward_call::{owner_of, signed_call};
 use crate::push_link::Leases;
 
 /// How long a forwarded bulk waits for its owner.
@@ -101,45 +101,18 @@ impl<L: Leases> BulkForwarder<L> {
     ///
     /// [`ForwardError`]: nothing sent, the owner gone, or the call failed.
     pub fn bulk(&self, node_id: &str, request: &BulkRequest) -> Result<BulkResponse, ForwardError> {
-        let leases = self.leases.current();
-        let lease = leases
-            .iter()
-            .find(|l| l.node_id == node_id && !l.revoked)
-            .ok_or(ForwardError::NoPeer)?;
-        let address: SocketAddr = lease.address.parse().map_err(|_| ForwardError::NoPeer)?;
-        // ALLOC: one request message, at most MAX_FORWARD_BYTES.
-        let mut message = Vec::new();
-        request
-            .write(&mut Output::new(&mut message, MAX_FORWARD_BYTES))
-            .map_err(|_| ForwardError::TooLarge)?;
-        let mac = self
-            .auth
-            .sign(
-                BULK_ACTION,
-                &message,
-                &identity(&lease.node_id, &lease.ephemeral_id),
-                &[],
-            )
-            .ok_or(ForwardError::NoPeer)?;
-        // ALLOC: the MAC header, one entry.
-        let headers = [(MAC_HEADER.to_owned(), mac)];
-        let peer = PeerId {
-            address,
-            // ALLOC: one ephemeral id a call.
-            ephemeral_id: Some(lease.ephemeral_id.clone()),
-        };
-        let call = Call {
-            action: BULK_ACTION,
-            headers: &headers,
-            compress: false,
-            deadline: Instant::now()
-                .checked_add(self.timeout)
-                .ok_or(ForwardError::NoPeer)?,
-        };
-        match self.client.call(&peer, call, |out| out.bytes(&message)) {
+        let (lease, address) = owner_of(&self.leases, node_id)?;
+        match signed_call(
+            &self.client,
+            &self.auth,
+            BULK_ACTION,
+            (&lease, address),
+            self.timeout,
+            |out| request.write(out),
+        ) {
             Ok(answer) => BulkResponse::read(&mut Input::new(answer.message()))
                 .map_err(|_| ForwardError::BadAnswer),
-            Err(CallError::Refused) => {
+            Err(ForwardError::Failed(CallError::Refused)) => {
                 let refused_at = self.clock.now_millis();
                 match self.early.on_refused(
                     &lease.node_id,
@@ -153,7 +126,7 @@ impl<L: Leases> BulkForwarder<L> {
                     }
                 }
             }
-            Err(e) => Err(ForwardError::Failed(e)),
+            Err(e) => Err(e),
         }
     }
 }

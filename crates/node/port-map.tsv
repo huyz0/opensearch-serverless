@@ -86,3 +86,4 @@ src/search_msearch.rs	port	server/src/main/java/org/opensearch/rest/action/searc
 src/search_analyze.rs	port	server/src/main/java/org/opensearch/action/admin/indices/analyze/TransportAnalyzeAction.java	_analyze: simpleAnalyze over the standard and keyword analyzers, positions and offsets across texts
 src/index_cache.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/metadata/ServerlessIndexResolver.java	the routing cache of an index, confirmed by the change stripes
 src/boot/support.rs	new		the store a configuration names, the epochs an earlier process left and the id bytes of a node
+src/forward_call.rs	new		the signed call both forwarders share: owner lease lookup, encode, sign, send; the Java signs inside each forwarded action
