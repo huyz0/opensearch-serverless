@@ -23,18 +23,18 @@ mod publishing;
 mod refresh;
 mod slot;
 mod tail;
+mod takeover;
 mod target;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use oss_format::{ShardKey, WalRecord};
+use oss_format::WalRecord;
 use oss_rest::{Exception, Meta};
 use oss_writer::bulk::{IndexInfo, ItemResult, Kind, Owner, Planned, item_result};
 use oss_writer::index::{Refused, Written};
 use oss_writer::log::NodeLogCommitter;
-use oss_writer::mapping::Mapping;
 
 use incarnation::Fenced;
 use publishing::Key;
@@ -49,6 +49,7 @@ pub use opener::{HeadOpener, ShardOpener};
 pub use publish_timer::PublishTimer;
 pub use publishing::{PublishPass, Publishing};
 pub use tail::TailSink;
+pub use takeover::Takeover;
 pub use target::RoleTarget;
 
 /// What a writer asks of the rest of the cluster: which indexes exist,
@@ -221,36 +222,6 @@ impl WriterRole {
             }
         }
         pass
-    }
-
-    /// Holds shard `shard` of `index`, empty, at `term`, its documents read
-    /// against `mapping`.
-    ///
-    /// # Errors
-    ///
-    /// The engine not opening.
-    pub fn open_shard(
-        &self,
-        index: &IndexInfo,
-        shard: u32,
-        term: i64,
-        mapping: Mapping,
-    ) -> Result<(), String> {
-        let key = ShardKey::new(index.uuid.as_str(), shard, None::<&str>);
-        let slot = ShardSlot::open(key, term, mapping, now_millis)?;
-        self.names.insert(&index.uuid, &index.name);
-        // ALLOC: one key a shard opened.
-        let key = (index.uuid.clone(), shard);
-        // Lock order: shards, then newest, everywhere both are held.
-        let mut shards = lock(&self.shards);
-        // ALLOC: one entry a shard opened.
-        shards.insert(key.clone(), Arc::new(Mutex::new(slot)));
-        // A shard opened again has published nothing yet.
-        lock(&self.newest).remove(&key);
-        if let Some(p) = &self.publishing {
-            p.forget(&key);
-        }
-        Ok(())
     }
 
     /// The shards this node holds that have a name, each with the commit it

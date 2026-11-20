@@ -156,6 +156,10 @@ name = "writer_opener"
 required-features = ["writer"]
 
 [[test]]
+name = "writer_takeover"
+required-features = ["writer"]
+
+[[test]]
 name = "descriptor_routes"
 required-features = ["writer"]
 
