@@ -112,7 +112,7 @@ pub fn java_parse_double(text: &str) -> Option<f64> {
 }
 
 /// `parser.doubleValue()`, the parser on a number or a string.
-fn double_value(kind: Kind, text: &str) -> Result<f64, DslError> {
+pub(crate) fn double_value(kind: Kind, text: &str) -> Result<f64, DslError> {
     let value = match kind {
         Kind::Number => text.parse::<f64>().ok(),
         Kind::String => java_parse_double(text),

@@ -9,6 +9,8 @@ pub mod assemble;
 #[cfg(feature = "writer")]
 pub mod bulk_route;
 #[cfg(feature = "writer")]
+pub mod descriptor_routes;
+#[cfg(feature = "writer")]
 pub mod doc_route;
 #[cfg(feature = "writer")]
 pub mod forward;
@@ -43,6 +45,8 @@ pub mod tail_held;
 pub mod tail_keep;
 #[cfg(feature = "writer")]
 pub mod tail_link;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod tail_node;
 #[cfg(feature = "reader")]
 pub mod tail_overlay;
 #[cfg(feature = "writer")]

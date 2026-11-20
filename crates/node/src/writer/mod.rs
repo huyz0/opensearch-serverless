@@ -15,13 +15,17 @@ mod incarnation;
 mod janitor_pass;
 mod janitor_timer;
 mod lease;
+mod newest_commit;
+mod opener;
 mod publish_timer;
 mod publishing;
+mod refresh;
 mod slot;
+mod tail;
 mod target;
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use oss_format::{ShardKey, WalRecord};
@@ -40,8 +44,10 @@ pub use incarnation::{DescriptorIncarnation, FENCE_WINDOW, Incarnation};
 pub use janitor_pass::{HeldShard, JanitorPass, JanitorReport, PassLimits};
 pub use janitor_timer::{JanitorTimer, SweepConfig};
 pub use lease::MembershipLeaseWrite;
+pub use opener::{HeadOpener, ShardOpener};
 pub use publish_timer::PublishTimer;
 pub use publishing::{PublishPass, Publishing};
+pub use tail::TailSink;
 pub use target::RoleTarget;
 
 /// What a writer asks of the rest of the cluster: which indexes exist,
@@ -91,6 +97,11 @@ pub struct WriterRole {
     shards: Mutex<Held>,
     newest: Mutex<Newest>,
     publishing: Option<Publishing>,
+    tail: OnceLock<Arc<dyn TailSink>>,
+    /// What opens a shard a write names and this node does not hold.
+    opener: Option<Arc<dyn ShardOpener>>,
+    /// Held while the opener runs, so racing groups open a shard once.
+    opening: Mutex<()>,
 }
 
 fn now_millis() -> u64 {
@@ -117,7 +128,23 @@ impl WriterRole {
             // ALLOC: empty; at most one manifest a held shard, MAX_NEWEST_BYTES each.
             newest: Mutex::new(HashMap::new()),
             publishing: None,
+            tail: OnceLock::new(),
+            opener: None,
+            opening: Mutex::new(()),
         }
+    }
+
+    /// Sends what is acknowledged, published and released to `sink`. False,
+    /// and nothing changed, when a sink is set already.
+    pub fn set_tail_sink(&self, sink: Arc<dyn TailSink>) -> bool {
+        self.tail.set(sink).is_ok()
+    }
+
+    /// The highest sequence number the shard holds, or -1 when it is not
+    /// held here.
+    pub fn max_seq_no(&self, uuid: &str, shard: u32) -> i64 {
+        self.slot(uuid, shard)
+            .map_or(-1, |slot| lock(&slot).max_seq_no())
     }
 
     /// The names of held indexes are kept in `names`, which admission
@@ -180,6 +207,9 @@ impl WriterRole {
                 Ok(done) => {
                     publishing.published(&key, max_seq_no);
                     drop(slot);
+                    if let Some(t) = self.tail.get() {
+                        t.published(&key.0, key.1, max_seq_no);
+                    }
                     self.staged(&key.0, key.1, &done.manifest);
                     pass.published = pass.published.saturating_add(1);
                 }
@@ -220,37 +250,6 @@ impl WriterRole {
             p.forget(&key);
         }
         Ok(())
-    }
-
-    /// Remembers `manifest`, the commit a publish of the shard produced,
-    /// for readers that ask. False, and nothing remembered, when the shard
-    /// is not held or the manifest is over [`MAX_NEWEST_BYTES`].
-    pub fn staged(&self, index_uuid: &str, shard: u32, manifest: &[u8]) -> bool {
-        if manifest.len() > MAX_NEWEST_BYTES {
-            return false;
-        }
-        // ALLOC: one key a call.
-        let key = (index_uuid.to_owned(), shard);
-        // Held across the insert, so a release between the check and the
-        // insert cannot leave a manifest for a shard no longer held.
-        let shards = lock(&self.shards);
-        if !shards.contains_key(&key) {
-            return false;
-        }
-        // ALLOC: one manifest a held shard, at most MAX_NEWEST_BYTES.
-        lock(&self.newest).insert(key, Arc::from(manifest));
-        true
-    }
-
-    /// The commit the shard last published, if it is held and has.
-    pub fn newest_commit(&self, index_uuid: &str, shard: u32) -> Option<Arc<[u8]>> {
-        // ALLOC: one key a lookup.
-        let key = (index_uuid.to_owned(), shard);
-        let shards = lock(&self.shards);
-        if !shards.contains_key(&key) {
-            return None;
-        }
-        lock(&self.newest).get(&key).cloned()
     }
 
     /// The shards this node holds that have a name, each with the commit it
@@ -296,6 +295,9 @@ impl WriterRole {
             if let Some(p) = &self.publishing {
                 p.forget(&key);
             }
+            if let Some(t) = self.tail.get() {
+                t.released(uuid, shard);
+            }
         }
     }
 
@@ -317,14 +319,9 @@ impl WriterRole {
         shard: u32,
         group: &[Planned<'_>],
     ) -> Vec<Result<Written, Failure>> {
-        let Some(slot) = self.slot(&index.uuid, shard) else {
-            return unavailable(group.len(), || {
-                // ALLOC: error path; one message.
-                format!(
-                    "cannot index into [{}][{shard}]: not open on this node",
-                    index.name
-                )
-            });
+        let slot = match self.slot_or_open(index, shard) {
+            Ok(slot) => slot,
+            Err(reason) => return unavailable(group.len(), || reason.clone()),
         };
         if let Some(fenced) = &self.incarnation {
             match fenced.ensure(&index.name, &index.uuid) {
@@ -419,6 +416,12 @@ impl WriterRole {
             // ALLOC: one key a staged group.
             p.written(&(index.uuid.clone(), shard));
         }
+        if let (Ok(_), Some(t)) = (&committed, self.tail.get()) {
+            // ALLOC: one owned copy an acknowledged record, the keep's.
+            let owned: Vec<WalRecord<'static>> =
+                records.iter().cloned().map(WalRecord::into_owned).collect();
+            t.acked(&index.name, &index.uuid, shard, &owned);
+        }
         if let Err(e) = committed {
             // The engine holds writes the log does not: the shard reopens
             // from the log, and these writes are refused.
@@ -460,22 +463,6 @@ impl WriterRole {
                 },
             })
             .collect()
-    }
-
-    /// Refreshes a shard held here.
-    ///
-    /// # Errors
-    ///
-    /// The shard not held, or the engine's.
-    pub fn refresh(&self, index: &IndexInfo, shard: u32) -> Result<(), String> {
-        match self.slot(&index.uuid, shard) {
-            Some(slot) => lock(&slot).refresh(),
-            // ALLOC: error path; one message.
-            None => Err(format!(
-                "[{}][{shard}] is not open on this node",
-                index.name
-            )),
-        }
     }
 }
 
