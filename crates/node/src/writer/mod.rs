@@ -23,6 +23,7 @@ mod predecessors;
 mod publish_age;
 mod publish_timer;
 mod publishing;
+mod redirect;
 mod refresh;
 mod slot;
 mod tail;
@@ -34,14 +35,14 @@ use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use oss_format::WalRecord;
-use oss_rest::{Exception, Meta};
-use oss_writer::bulk::{IndexInfo, ItemResult, Kind, Owner, Planned, item_result};
+use oss_writer::bulk::{IndexInfo, ItemResult, Kind, Owner, Planned};
 use oss_writer::index::{Fetched, Refused, Written};
 use oss_writer::log::NodeLogCommitter;
 use oss_writer::publish::lazy::PublishAge;
 
 use incarnation::Fenced;
 use publishing::Key;
+use redirect::Redirects;
 use slot::ShardSlot;
 
 pub use dead_logs::{StoreCommits, StoreNodeLogs};
@@ -50,7 +51,7 @@ pub use incarnation::{DescriptorIncarnation, FENCE_WINDOW, Incarnation};
 pub use janitor_pass::{HeldShard, JanitorPass, JanitorReport, PassLimits};
 pub use janitor_timer::{JanitorTimer, SweepConfig};
 pub use lease::MembershipLeaseWrite;
-pub use opener::{HeadOpener, ShardOpener};
+pub use opener::{HeadOpener, OpenRefused, ShardOpener};
 pub use publish_age::publish_age_of;
 pub use publish_timer::PublishTimer;
 pub use publishing::{PublishPass, Publishing};
@@ -128,6 +129,8 @@ pub struct WriterRole {
     opener: Option<Arc<dyn ShardOpener>>,
     /// Held while the opener runs, so racing groups open a shard once.
     opening: Mutex<()>,
+    /// The live node whose head holds a shard this node was asked to write.
+    redirects: Mutex<Redirects>,
 }
 
 fn now_millis() -> u64 {
@@ -157,6 +160,8 @@ impl WriterRole {
             tail: OnceLock::new(),
             opener: None,
             opening: Mutex::new(()),
+            // ALLOC: one entry a shard another node holds that this node was asked to write.
+            redirects: Mutex::new(HashMap::new()),
         }
     }
 
@@ -311,6 +316,8 @@ impl WriterRole {
     pub(crate) fn owner(&self, index: &IndexInfo, shard: u32) -> Owner {
         if self.held(&index.uuid, shard) {
             Owner::Local
+        } else if let Some(holder) = self.redirect(&index.uuid, shard) {
+            Owner::Node(holder)
         } else {
             self.routes.owner(index, shard)
         }
@@ -325,10 +332,20 @@ impl WriterRole {
         shard: u32,
         group: &[Planned<'_>],
     ) -> Vec<Result<Written, Failure>> {
-        let slot = match self.slot_or_open(index, shard) {
-            Ok(slot) => slot,
-            Err(reason) => return unavailable(group.len(), || reason.clone()),
-        };
+        match self.slot_or_open(index, shard) {
+            Ok(slot) => self.group_on(slot, index, shard, group),
+            Err(refused) => unavailable(group.len(), || refused.reason.clone()),
+        }
+    }
+
+    /// Applies a group to the opened `slot` of the shard.
+    fn group_on(
+        &self,
+        slot: Arc<Mutex<ShardSlot>>,
+        index: &IndexInfo,
+        shard: u32,
+        group: &[Planned<'_>],
+    ) -> Vec<Result<Written, Failure>> {
         if let Some(fenced) = &self.incarnation {
             match fenced.ensure(&index.name, &index.uuid) {
                 Ok(true) => {}
@@ -444,31 +461,6 @@ impl WriterRole {
             }
         }
         outcomes
-    }
-
-    /// Applies a group to a shard held here, staged and acknowledged as a
-    /// bulk answers its items.
-    pub fn apply_group(
-        &self,
-        index: &IndexInfo,
-        shard: u32,
-        group: &[Planned<'_>],
-    ) -> Vec<ItemResult> {
-        self.group(index, shard, group)
-            .into_iter()
-            .map(|outcome| match outcome {
-                Ok(w) => item_result(Ok(w), index, shard),
-                Err(Failure::Refused(r)) => item_result(Err(r), index, shard),
-                Err(Failure::Unavailable(reason)) => ItemResult::Failed {
-                    status: 503,
-                    error: Exception::new("node_log_exception", reason)
-                        // ALLOC: three short fields an item that failed.
-                        .with_meta("index", Meta::Str(index.name.clone()))
-                        .with_meta("shard", Meta::Str(shard.to_string()))
-                        .with_meta("index_uuid", Meta::Str(index.uuid.clone())),
-                },
-            })
-            .collect()
     }
 }
 

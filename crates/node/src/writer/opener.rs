@@ -18,14 +18,39 @@ use std::sync::Mutex;
 use super::{ShardSlot, Takeover, WriterRole, lock, publish_age_of};
 use oss_writer::takeover::restore;
 
+/// Why a shard cannot be opened here.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OpenRefused {
+    /// Why, as a message.
+    pub reason: String,
+    /// The live node whose head holds the shard, when that is why.
+    pub holder: Option<String>,
+}
+
+impl std::fmt::Display for OpenRefused {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.reason)
+    }
+}
+
+impl From<String> for OpenRefused {
+    fn from(reason: String) -> Self {
+        Self {
+            reason,
+            holder: None,
+        }
+    }
+}
+
 /// What a role asks when a write names a shard it does not hold.
 pub trait ShardOpener: Send + Sync {
     /// Opens `shard` of `index` on `role`.
     ///
     /// # Errors
     ///
-    /// Why the shard cannot be held here, as a message.
-    fn open(&self, role: &WriterRole, index: &IndexInfo, shard: u32) -> Result<(), String>;
+    /// Why the shard cannot be held here, with the holder when another live
+    /// node holds it.
+    fn open(&self, role: &WriterRole, index: &IndexInfo, shard: u32) -> Result<(), OpenRefused>;
 }
 
 /// Opens shards whose head this process wins and which hold no commit yet.
@@ -78,7 +103,18 @@ impl HeadOpener {
 const TAKEOVER: &str = "takeover of a shard with a history is not supported by this node yet";
 
 impl ShardOpener for HeadOpener {
-    fn open(&self, role: &WriterRole, index: &IndexInfo, shard: u32) -> Result<(), String> {
+    fn open(&self, role: &WriterRole, index: &IndexInfo, shard: u32) -> Result<(), OpenRefused> {
+        self.open_shard(role, index, shard)
+    }
+}
+
+impl HeadOpener {
+    fn open_shard(
+        &self,
+        role: &WriterRole,
+        index: &IndexInfo,
+        shard: u32,
+    ) -> Result<(), OpenRefused> {
         let won = self
             .heads
             .acquire(
@@ -88,15 +124,18 @@ impl ShardOpener for HeadOpener {
                 &self.ephemeral_id,
                 Some(&index.uuid),
             )
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| OpenRefused::from(e.to_string()))?;
         let head = match won {
             Acquisition::Won { head, .. } => head,
             Acquisition::HeldByAnother(other) => {
-                return Err(format!(
-                    "[{}][{shard}] is owned by node [{}]",
-                    index.name,
-                    other.owner_node_id.as_deref().unwrap_or("unknown")
-                ));
+                return Err(OpenRefused {
+                    reason: format!(
+                        "[{}][{shard}] is owned by node [{}]",
+                        index.name,
+                        other.owner_node_id.as_deref().unwrap_or("unknown")
+                    ),
+                    holder: other.owner_node_id.filter(|n| *n != self.node_id),
+                });
             }
         };
         let at = ShardRef {
@@ -114,7 +153,7 @@ impl ShardOpener for HeadOpener {
             .is_some();
         let history = committed || !head.writers.is_empty();
         if history && self.takeover.is_none() {
-            return Err(format!("[{}][{shard}]: {TAKEOVER}", index.name));
+            return Err(format!("[{}][{shard}]: {TAKEOVER}", index.name).into());
         }
         let record = self
             .descriptors
@@ -157,16 +196,16 @@ impl WriterRole {
         &self,
         index: &IndexInfo,
         shard: u32,
-    ) -> Result<Arc<Mutex<ShardSlot>>, String> {
+    ) -> Result<Arc<Mutex<ShardSlot>>, OpenRefused> {
         if let Some(slot) = self.slot(&index.uuid, shard) {
             return Ok(slot);
         }
         let not_open = || {
-            // ALLOC: error path; one message.
-            format!(
+            OpenRefused::from(format!(
+                // ALLOC: error path; one message.
                 "cannot index into [{}][{shard}]: not open on this node",
                 index.name
-            )
+            ))
         };
         let opener = self.opener.as_ref().ok_or_else(not_open)?;
         let _opening = lock(&self.opening);

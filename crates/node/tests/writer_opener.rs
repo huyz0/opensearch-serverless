@@ -1,7 +1,8 @@
 //! docs/specs/node-shard-opener: a writer opens a shard on its first write.
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::time::Duration;
 
 use oss_blob::{BlobStore, Emulator};
@@ -11,12 +12,15 @@ use oss_format::{FileLocation, IndexRecord, ManifestEntry, NodeLease, ShardRef, 
 use oss_meta::{DeleteMode, DescriptorStore};
 use oss_node::descriptor_routes::DescriptorRoutes;
 use oss_node::writer::{
-    DescriptorIncarnation, HeadAdmission, HeadOpener, MembershipLeaseWrite, Publishing, RoleTarget,
-    ShardNames, ShardOpener, WriterRole,
+    DescriptorIncarnation, HeadAdmission, HeadOpener, MembershipLeaseWrite, OpenRefused,
+    Publishing, RoleTarget, Routes, ShardNames, ShardOpener, WriterRole,
 };
+use oss_rest::Exception;
 use oss_writer::bulk::{
-    Bulk, BulkBudget, Defaults, IdGenerator, IndexInfo, ItemResult, StreamConfig, stream,
+    Bulk, BulkBudget, Defaults, IdGenerator, IndexInfo, ItemResult, Owner, Planned, StreamConfig,
+    stream,
 };
+use oss_writer::index::{Outcome, Written};
 use oss_writer::log::{CommitterConfig, LeaseKeeper, NodeLogCommitter, NodeLogStore};
 use oss_writer::publish::lazy::Policy;
 
@@ -29,13 +33,57 @@ struct Counting {
 }
 
 impl ShardOpener for Counting {
-    fn open(&self, role: &WriterRole, index: &IndexInfo, shard: u32) -> Result<(), String> {
+    fn open(&self, role: &WriterRole, index: &IndexInfo, shard: u32) -> Result<(), OpenRefused> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         self.inner.open(role, index, shard)
     }
 }
 
+/// Routes that place every shard here and answer a forward as `answer` says,
+/// counting the forwards and naming where each went.
+struct Forwarding {
+    inner: DescriptorRoutes,
+    sent: Mutex<Vec<String>>,
+    fail: AtomicBool,
+}
+
+impl Routes for Forwarding {
+    fn index(&self, name: &str) -> Option<IndexInfo> {
+        self.inner.index(name)
+    }
+
+    fn owner(&self, index: &IndexInfo, shard: u32) -> Owner {
+        self.inner.owner(index, shard)
+    }
+
+    fn forward(&self, node: &str, _: &IndexInfo, _: u32, group: &[Planned<'_>]) -> Vec<ItemResult> {
+        self.sent.lock().expect("lock").push(node.to_owned());
+        group
+            .iter()
+            .map(|_| {
+                if self.fail.load(Ordering::SeqCst) {
+                    ItemResult::Failed {
+                        status: 503,
+                        error: Exception::new("unavailable_shards_exception", "the holder is gone"),
+                    }
+                } else {
+                    ItemResult::Written {
+                        written: Written {
+                            outcome: Outcome::Created,
+                            version: 1,
+                            seq_no: 0,
+                            primary_term: 1,
+                        },
+                        forced_refresh: false,
+                    }
+                }
+            })
+            .collect()
+    }
+}
+
 struct Rig {
+    forwards: Arc<Forwarding>,
     calls: Arc<AtomicUsize>,
     store: Arc<Emulator>,
     role: Arc<WriterRole>,
@@ -105,10 +153,15 @@ fn rig(opener: bool) -> Rig {
             ..CommitterConfig::default()
         },
     ));
-    let routes = Arc::new(DescriptorRoutes::new(
-        DescriptorStore::new(Arc::clone(&dynstore), "", DeleteMode::Tombstone).expect("names"),
-        1 << 16,
-    ));
+    let forwards = Arc::new(Forwarding {
+        inner: DescriptorRoutes::new(
+            DescriptorStore::new(Arc::clone(&dynstore), "", DeleteMode::Tombstone).expect("names"),
+            1 << 16,
+        ),
+        sent: Mutex::new(Vec::new()),
+        fail: AtomicBool::new(false),
+    });
+    let routes = Arc::clone(&forwards);
     let calls = Arc::new(AtomicUsize::new(0));
     let clock = Arc::new(AtomicU64::new(0));
     let ticking = Arc::clone(&clock);
@@ -140,6 +193,7 @@ fn rig(opener: bool) -> Rig {
         }));
     }
     Rig {
+        forwards,
         calls,
         store,
         role: Arc::new(role),
@@ -233,10 +287,8 @@ fn groups_racing_for_an_unheld_shard_open_it_once() {
     assert_eq!(r.calls.load(Ordering::SeqCst), 1);
 }
 
-#[test]
-fn a_shard_a_live_node_owns_is_not_opened() {
-    let r = rig(true);
-    create(&r, "logs", "u1");
+/// A head `node-2` holds, live.
+fn held_by_node_2(r: &Rig) {
     let Acquisition::Won { .. } = r
         .heads
         .acquire("logs", 0, "node-2", "e2", Some("u1"))
@@ -244,9 +296,55 @@ fn a_shard_a_live_node_owns_is_not_opened() {
     else {
         panic!("the take");
     };
-    let (status, reason) = failed(&write(&r.role, "logs", "1"));
+}
+
+#[test]
+fn a_shard_a_live_node_holds_is_not_opened_here_and_its_write_goes_to_that_node() {
+    let r = rig(true);
+    create(&r, "logs", "u1");
+    held_by_node_2(&r);
+    let result = write(&r.role, "logs", "1");
+    assert!(matches!(result, ItemResult::Written { .. }), "{result:?}");
+    assert_eq!(*r.forwards.sent.lock().expect("lock"), ["node-2"]);
+    let head = r.heads.read("logs", 0).expect("read").expect("head");
+    assert_eq!(head.owner_node_id.as_deref(), Some("node-2"), "not taken");
+    assert!(!r.role.held("u1", 0));
+}
+
+#[test]
+fn a_second_write_goes_to_the_holder_without_reading_the_head() {
+    let r = rig(true);
+    create(&r, "logs", "u1");
+    held_by_node_2(&r);
+    write(&r.role, "logs", "1");
+    let before = r.store.meter().total();
+    let result = write(&r.role, "logs", "2");
+    assert!(matches!(result, ItemResult::Written { .. }), "{result:?}");
+    assert_eq!(*r.forwards.sent.lock().expect("lock"), ["node-2", "node-2"]);
+    assert_eq!(
+        r.calls.load(Ordering::SeqCst),
+        1,
+        "the opener is asked once"
+    );
+    let after = r.store.meter().total();
+    // The one request is the descriptor read that resolves the index name;
+    // the head is not read.
+    assert_eq!(after - before, 1, "only the index lookup");
+}
+
+#[test]
+fn a_holder_that_fails_is_asked_again_through_the_head() {
+    let r = rig(true);
+    create(&r, "logs", "u1");
+    held_by_node_2(&r);
+    write(&r.role, "logs", "1");
+    r.forwards.fail.store(true, Ordering::SeqCst);
+    let (status, _) = failed(&write(&r.role, "logs", "2"));
     assert_eq!(status, 503);
-    assert!(reason.contains("node-2"), "{reason}");
+    r.forwards.fail.store(false, Ordering::SeqCst);
+    let result = write(&r.role, "logs", "3");
+    assert!(matches!(result, ItemResult::Written { .. }), "{result:?}");
+    assert_eq!(r.calls.load(Ordering::SeqCst), 2, "the head is read again");
 }
 
 #[test]
@@ -325,7 +423,7 @@ fn an_index_recreated_since_the_group_was_planned_is_not_opened() {
         1 << 16,
     );
     let err = opener.open(&r.role, &stale, 0).expect_err("stale");
-    assert!(err.contains("no longer the index"), "{err}");
+    assert!(err.reason.contains("no longer the index"), "{err}");
 }
 
 #[test]
