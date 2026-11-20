@@ -6,7 +6,6 @@
 
 mod suite_rig;
 
-use std::collections::BTreeSet;
 use std::time::Duration;
 
 use suite_rig::{Cluster, wait_for};
@@ -65,9 +64,9 @@ fn bulk(cluster: &Cluster, slot: usize, index: &str, ids: std::ops::Range<u32>) 
     }
 }
 
-/// The slots of the live nodes that hold `id` (a node that does not hold
-/// the shard answers 503: reads are not forwarded).
-fn holders(cluster: &Cluster, index: &str, id: u32) -> Vec<usize> {
+/// The slots of the live nodes whose get finds `id`: a node that does not
+/// hold the shard asks the one that does.
+fn finders(cluster: &Cluster, index: &str, id: u32) -> Vec<usize> {
     cluster
         .live()
         .into_iter()
@@ -118,16 +117,9 @@ fn a_bulk_through_any_node_lands_on_the_node_that_owns_each_shard() {
     for (slot, ids) in [(0, 0..20), (1, 20..40), (2, 40..60)] {
         bulk(&cluster, slot, "logs", ids);
     }
-    let mut serving = BTreeSet::new();
     for id in 0..60 {
-        let held = holders(&cluster, "logs", id);
-        assert_eq!(held.len(), 1, "doc {id} is on {held:?}");
-        serving.extend(held);
+        assert_eq!(finders(&cluster, "logs", id), [0, 1, 2], "doc {id}");
     }
-    assert!(
-        serving.len() >= 2,
-        "one node holds every shard: {serving:?}"
-    );
 }
 
 // AC-3
@@ -161,8 +153,7 @@ fn takeover(cluster: Cluster) {
     bulk(&cluster, 1, "logs", 100..160);
     bulk(&cluster, 2, "logs", 160..180);
     for id in (0..60).chain(100..180) {
-        let held = holders(&cluster, "logs", id);
-        assert_eq!(held.len(), 1, "doc {id} is on {held:?}");
+        assert_eq!(finders(&cluster, "logs", id), [1, 2], "doc {id}");
     }
 }
 
