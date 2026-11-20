@@ -13,6 +13,7 @@ Parity plan R7.6, node assembly: the reader wants its store inside a `PooledStor
 - AC-1: what is written through a `Shared` reads back through the store it wraps and the other way round, for objects and for registers (create, read, swap, delete).
 - AC-2: a `Shared` makes exactly the requests the wrapped store would: the meter it answers is the wrapped store's, a batch delete is one request a batch, and a listing is one page.
 - AC-3: `validate_key` is the wrapped store's rule, not the default.
+- AC-4: a handle prints as `Shared` in a debug print.
 
 ## Test plan
 

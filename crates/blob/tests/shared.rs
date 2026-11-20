@@ -99,3 +99,9 @@ fn the_key_rule_is_the_wrapped_stores() {
     assert!(oss_blob::store::check_key("a/../b").is_ok());
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn a_handle_is_named_in_a_debug_print() {
+    let (_, shared) = rig();
+    assert_eq!(format!("{shared:?}"), "Shared");
+}
