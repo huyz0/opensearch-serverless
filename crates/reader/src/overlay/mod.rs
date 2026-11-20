@@ -18,6 +18,7 @@ use lucene_index::segment_info::LuceneVersion;
 use lucene_search::directory_reader::DirectoryReader;
 use lucene_store::ByteBuffersDirectory;
 use oss_doc::document;
+use oss_doc::fast::FastIngest;
 use oss_doc::lucene::{Indexer, Meta};
 use oss_doc::mapping::Mapping;
 use oss_format::WalRecord;
@@ -194,6 +195,7 @@ impl Overlay {
                 IndexWriter::open(&directory, Vec::new(), "Lucene104", VERSION).map_err(engine)?;
             writer.enable_explicit_documents().map_err(engine)?;
             let mut indexer = Indexer::new();
+            let mut fast = FastIngest::new();
             // ALLOC: one document a kept index record, at most MAX_IDS.
             let mut docs = Vec::new();
             for r in kept.iter().filter(|r| !r.is_deletion()) {
@@ -202,20 +204,34 @@ impl Overlay {
                     id: r.id().to_owned(),
                     reason,
                 };
-                let parsed = document::parse(mapping, r.id(), r.source().as_bytes())
-                    // ALLOC: one message on a failed build.
-                    .map_err(|e| refuse(format!("{e:?}")))?;
-                let meta = Meta {
-                    id: r.id(),
-                    seq_no: r.seq_no(),
-                    primary_term: r.primary_term(),
-                    version: r.version(),
-                    source: r.source().as_bytes(),
+                let source = r.source().as_bytes();
+                // The plan reads what it can; whatever it declines is the complete path's.
+                let read = oss_doc::lucene::uid(r.id())
+                    .ok()
+                    .and_then(|key| fast.prepare(&indexer, mapping, source, &key));
+                let doc = match read {
+                    Some(f) => f
+                        .finish(r.seq_no(), r.primary_term(), r.version())
+                        .pop()
+                        // ALLOC: one message on a failed build.
+                        .ok_or_else(|| refuse("no document read".to_owned()))?,
+                    None => {
+                        let parsed = document::parse(mapping, r.id(), source)
+                            // ALLOC: one message on a failed build.
+                            .map_err(|e| refuse(format!("{e:?}")))?;
+                        let meta = Meta {
+                            id: r.id(),
+                            seq_no: r.seq_no(),
+                            primary_term: r.primary_term(),
+                            version: r.version(),
+                            source,
+                        };
+                        indexer
+                            .document(&mut writer, mapping, &parsed, &meta)
+                            // ALLOC: one message on a failed build.
+                            .map_err(|e| refuse(format!("{e:?}")))?
+                    }
                 };
-                let doc = indexer
-                    .document(&mut writer, mapping, &parsed, &meta)
-                    // ALLOC: one message on a failed build.
-                    .map_err(|e| refuse(format!("{e:?}")))?;
                 docs.push(doc);
                 doc_count = doc_count.saturating_add(1);
             }

@@ -93,6 +93,7 @@ fn stored_json(name: &str, v: &FieldValue) -> Value {
     match v {
         FieldValue::Binary(b) => json!([name, "binary", bytes(b)]),
         FieldValue::String(s) => json!([name, "string", s]),
+        FieldValue::Shared(s) => json!([name, "string", s.as_str()]),
         FieldValue::Int(i) => json!([name, "int", i]),
         FieldValue::Long(l) => json!([name, "long", l]),
         FieldValue::Float(f) => json!([name, "float", java_float(*f)]),

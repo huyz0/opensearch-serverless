@@ -9,8 +9,8 @@
 //! 3.10), and `IndexingChain.invert`'s positions, offsets and lengths.
 
 mod encode;
-mod fields;
-mod invert;
+pub(crate) mod fields;
+pub(crate) mod invert;
 
 use std::collections::HashMap;
 
@@ -25,7 +25,7 @@ use crate::document::{FieldValue, ParsedDocument, hash_order};
 use crate::mapping::{Leaf, Mapper, Mapping, MappingError, Num, Object};
 
 use encode::{double_to_sortable_long, encode_id, float_to_sortable_int, int_point, long_point};
-use fields::{MetaField, Shape, Spec};
+pub(crate) use fields::{MetaField, Shape, Spec};
 use invert::Inverted;
 
 /// A document's metadata, given by the index request and the engine.
@@ -107,6 +107,24 @@ impl Indexer {
             // ALLOC: one entry a field of the index, at most the mapping's total fields limit plus the metadata fields.
             slots: HashMap::new(),
         }
+    }
+
+    /// Every field numbered so far, with the spec it was registered with (`None` for a metadata
+    /// field): what the fast ingest plan may name without changing the engine's numbering.
+    pub(crate) fn numbered(&self) -> impl Iterator<Item = (&str, i32, Option<Spec>)> {
+        self.slots
+            .iter()
+            .map(|(n, s)| (n.as_str(), s.number, s.spec))
+    }
+
+    /// How many fields have been numbered, which only grows.
+    pub(crate) fn numbered_len(&self) -> usize {
+        self.slots.len()
+    }
+
+    /// The number of the metadata field `field`, once a document has registered it.
+    pub(crate) fn meta_number(&self, field: MetaField) -> Option<i32> {
+        self.slots.get(field.name()).map(|s| s.number)
     }
 
     /// The number of `name`, registering it with `numbers` the first time

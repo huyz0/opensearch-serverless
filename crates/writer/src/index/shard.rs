@@ -8,6 +8,7 @@ use lucene_search::directory_reader::DirectoryReader;
 use lucene_store::Directory;
 
 use crate::document;
+use crate::fast::FastIngest;
 use crate::lucene::{Indexer, Meta, uid};
 use crate::mapping::{Mapping, MappingError};
 
@@ -84,6 +85,7 @@ pub struct Shard<'d> {
     dir: &'d dyn Directory,
     writer: IndexWriter<'d>,
     indexer: Indexer,
+    fast: FastIngest,
     mapping: Mapping,
     versions: VersionMap,
     reader: Option<DirectoryReader>,
@@ -124,6 +126,7 @@ impl<'d> Shard<'d> {
             dir,
             writer,
             indexer: Indexer::new(),
+            fast: FastIngest::new(),
             mapping,
             versions: VersionMap::default(),
             reader: None,
@@ -273,13 +276,22 @@ impl<'d> Shard<'d> {
         } else {
             *expect
         };
-        let parsed = document::parse(&self.mapping, id, source).map_err(Refused::Mapping)?;
+        // The plan reads the source when it can; whatever it declines, and every error, is the
+        // complete path's. An empty id has no key, and takes the complete path's error order.
+        let fast = uid(id)
+            .ok()
+            .and_then(|k| self.fast.prepare(&self.indexer, &self.mapping, source, &k));
+        let parsed = match fast {
+            Some(_) => None,
+            None => Some(document::parse(&self.mapping, id, source).map_err(Refused::Mapping)?),
+        };
         let key = uid(id).map_err(Refused::Mapping)?;
         // The Java publishes a document's mapping update before the engine
         // plans it, so the update holds even when the write conflicts.
-        if let Some(grown) = &parsed.grown {
+        if let Some(grown) = parsed.as_ref().and_then(|p| p.grown.as_ref()) {
             // ALLOC: the grown mapping, bounded by the total fields limit.
             self.mapping = grown.clone();
+            self.fast.invalidate();
         }
         let current = self.current(id, &key)?;
         let p = plan(id, current, &expect).map_err(Refused::Conflict)?;
@@ -301,10 +313,21 @@ impl<'d> Shard<'d> {
                     .map_err(Refused::Mapping)?,
             )
         };
-        let doc = self
-            .indexer
-            .document(&mut self.writer, mapping, &parsed, &meta)
-            .map_err(Refused::Mapping)?;
+        let doc = match (fast, &parsed) {
+            (Some(f), _) => f
+                .finish(seq_no, self.primary_term, p.version)
+                .pop()
+                .ok_or_else(|| Refused::Mapping(MappingError::illegal_state("no document read")))?,
+            (None, Some(parsed)) => self
+                .indexer
+                .document(&mut self.writer, mapping, parsed, &meta)
+                .map_err(Refused::Mapping)?,
+            (None, None) => {
+                return Err(Refused::Mapping(MappingError::illegal_state(
+                    "no document read",
+                )));
+            }
+        };
         // ALLOC: one document a write.
         let docs = vec![doc];
         match soft {
