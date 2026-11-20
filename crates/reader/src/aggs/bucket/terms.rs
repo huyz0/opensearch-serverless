@@ -149,7 +149,7 @@ pub fn reduce_results(parts: &[&TermsResult]) -> TermsResult {
     };
     // ALLOC: one key a kept bucket, at most `size`.
     let keys: Vec<i64> = kept.iter().map(|b| b.0).collect();
-    // ALLOC: one key list a shard, bounded by the shards that answered.
+    // ALLOC: one key list a shard, each at most `shard_size` keys: shards x shard_size.
     let held: Vec<Vec<i64>> = parts
         .iter()
         .map(|p| p.buckets.iter().map(|b| b.0).collect())

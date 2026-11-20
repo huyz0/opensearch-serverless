@@ -113,6 +113,10 @@ fn a_numeric_terms_under_a_numeric_terms_is_refused() {
     )
     .expect_err("refused");
     assert_eq!(err.status, 400);
+    assert!(
+        format!("{err:?}").contains("sub-aggregation of the numeric field"),
+        "{err:?}"
+    );
 }
 
 // AC-5
