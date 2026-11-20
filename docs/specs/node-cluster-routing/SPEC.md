@@ -19,7 +19,7 @@ Parity plan R7.6, node assembly: `Routes::owner` and `Routes::forward` over the 
 - AC-2: a revoked, expired or non-ingest member is never chosen; with no live ingest member the answer is `Local`.
 - AC-3: `forward` sends one `BulkRequest` for the group carrying the index name and uuid, the shard, and per item its id, source, deletion, `if_seq_no`, `if_primary_term`, `require_absent` (a `create`) and routing.
 - AC-4: each outcome becomes the item's result in the group's order: a created or updated index as `Written` with its version, sequence number and term; a delete as `Deleted` or `NotFound`; a conflict as 409 `version_conflict_engine_exception`; a retryable failure as 429; any other failure as 500.
-- AC-5: when the owner is gone or unknown every item fails 503, when the request is too large every item fails 413, and when the answer holds fewer outcomes than items the missing items fail 502; no item is reported written without an outcome.
+- AC-5: when the owner is gone or unknown every item fails 503, when the request is too large every item fails 413, when the answer holds fewer outcomes than items the missing items fail 502, and more outcomes than items fails the whole group 502; no item is reported written without an outcome.
 - AC-6: an `update` action, or a source that is not UTF-8 (other than a delete), fails its item alone and is not sent.
 
 ## Test plan
@@ -33,3 +33,7 @@ Zero: leases are read from the membership's held copy, and the forward is a tran
 ## Bounds
 
 One request message per group, built by `BulkForwarder` within `MAX_FORWARD_BYTES`; the group's items are already counted by the bulk budget.
+
+## Risks
+
+- A call that fails after the owner applied the group (a timeout, a reset) reports 503 for every item although some may be written; a retried `create` then answers 409. The failure is retryable and ambiguous, as the shell's forward is.

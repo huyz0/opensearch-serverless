@@ -298,6 +298,9 @@ fn a_gone_owner_a_large_request_and_a_short_answer_fail_their_items() {
     let f = fake(Answer::Outcomes(vec![ok(true)]));
     let r = routes(fleet(), &f, "n1").forward("n2", &info(), 0, &group);
     assert_eq!(r.iter().map(status).collect::<Vec<_>>(), [0, 502]);
+    let f = fake(Answer::Outcomes(vec![ok(true), ok(true), ok(true)]));
+    let r = routes(fleet(), &f, "n1").forward("n2", &info(), 0, &group);
+    assert_eq!(r.iter().map(status).collect::<Vec<_>>(), [502, 502]);
 }
 
 // AC-6

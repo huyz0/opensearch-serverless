@@ -188,6 +188,7 @@ impl<S: IndexSource, L: Leases, B: BulkSend> Routes for ClusterRoutes<S, L, B> {
                 Err(why) => refused.push(Some(why)),
             }
         }
+        let sent = operations.len();
         let mut outcomes = Vec::new();
         if !operations.is_empty() {
             let request = BulkRequest {
@@ -198,6 +199,14 @@ impl<S: IndexSource, L: Leases, B: BulkSend> Routes for ClusterRoutes<S, L, B> {
                 ..BulkRequest::default()
             };
             match self.send.bulk(node, &request) {
+                Ok(response) if response.outcomes.len() > sent => {
+                    return failed_all(
+                        group,
+                        502,
+                        "forwarded_write_exception",
+                        "the owner answered more outcomes than items",
+                    );
+                }
                 Ok(response) => outcomes = response.outcomes,
                 Err(ForwardError::TooLarge) => {
                     return failed_all(
