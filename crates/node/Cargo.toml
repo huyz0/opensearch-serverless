@@ -146,6 +146,10 @@ name = "doc_route"
 required-features = ["writer"]
 
 [[test]]
+name = "index_route"
+required-features = ["writer", "coordinator"]
+
+[[test]]
 name = "pit_route"
 required-features = ["writer"]
 

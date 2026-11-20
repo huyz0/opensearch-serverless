@@ -14,6 +14,8 @@ pub mod doc_route;
 pub mod forward;
 #[cfg(any(feature = "reader", feature = "writer", feature = "coordinator"))]
 pub mod handlers;
+#[cfg(all(feature = "writer", feature = "coordinator"))]
+pub mod index_route;
 #[cfg(feature = "writer")]
 pub mod newest;
 #[cfg(feature = "reader")]
