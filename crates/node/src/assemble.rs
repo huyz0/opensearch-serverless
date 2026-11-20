@@ -19,7 +19,9 @@ use oss_writer::publish::lazy::Policy;
 
 use crate::bulk_route::{self, BulkService};
 use crate::doc_route::{self, DocService};
+use crate::get_route::{self, GetService};
 use crate::pit_route::{self, PitService};
+use crate::refresh_route::{self, RefreshService};
 use crate::search::{self, SearchService};
 use crate::writer::{
     JanitorPass, JanitorTimer, PassLimits, PublishTimer, Publishing, Routes, WriterRole,
@@ -259,6 +261,10 @@ pub fn assemble(
         search::routes(Router::new(), Arc::clone(&search)).map_err(AssembleError::Route)?;
     let router = bulk_route::routes(router, bulk).map_err(AssembleError::Route)?;
     let router = doc_route::routes(router, docs).map_err(AssembleError::Route)?;
+    let router = get_route::routes(router, Arc::new(GetService::new(Arc::clone(&role))))
+        .map_err(AssembleError::Route)?;
+    let router = refresh_route::routes(router, Arc::new(RefreshService::new(Arc::clone(&role))))
+        .map_err(AssembleError::Route)?;
     let router = pit_route::routes(router, pit).map_err(AssembleError::Route)?;
     let timer = PublishTimer::spawn(Arc::clone(&role), config.publish_every);
     let pass = Arc::new(JanitorPass::new(

@@ -12,6 +12,8 @@ pub mod bulk_route;
 pub mod doc_route;
 #[cfg(feature = "writer")]
 pub mod forward;
+#[cfg(feature = "writer")]
+pub mod get_route;
 #[cfg(any(feature = "reader", feature = "writer", feature = "coordinator"))]
 pub mod handlers;
 #[cfg(feature = "writer")]
@@ -30,6 +32,8 @@ pub mod push;
 pub mod push_link;
 #[cfg(feature = "writer")]
 pub mod push_sender;
+#[cfg(feature = "writer")]
+pub mod refresh_route;
 #[cfg(feature = "reader")]
 pub mod search;
 pub mod settings;
