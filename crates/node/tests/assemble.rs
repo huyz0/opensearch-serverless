@@ -96,6 +96,9 @@ fn writer(store: &Arc<Emulator>) -> Writer {
             },
         )),
         routes: Arc::new(Local),
+        opener: None,
+        names: None,
+        incarnation: None,
     }
 }
 
@@ -159,6 +162,13 @@ fn every_route_family_is_registered_on_the_one_listener() {
     assert!(pit.text().contains("index_not_found"), "{}", pit.text());
     let list = call(&r, "GET", "/_search/point_in_time/_all", None);
     assert_eq!(list.status, 200, "{}", list.text());
+    #[cfg(feature = "coordinator")]
+    {
+        let made = call(&r, "PUT", "/fresh", None);
+        assert_eq!(made.status, 200, "{}", made.text());
+        assert_eq!(call(&r, "HEAD", "/fresh", None).status, 200);
+        assert_eq!(call(&r, "HEAD", "/never", None).status, 404);
+    }
     let unregistered = call(&r, "GET", "/_nothing/here/at/all", None);
     assert_ne!(unregistered.status, 200);
 }

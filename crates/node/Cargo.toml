@@ -151,6 +151,18 @@ name = "get_route"
 required-features = ["writer"]
 
 [[test]]
+name = "writer_opener"
+required-features = ["writer"]
+
+[[test]]
+name = "descriptor_routes"
+required-features = ["writer"]
+
+[[test]]
+name = "index_route"
+required-features = ["writer", "coordinator"]
+
+[[test]]
 name = "pit_route"
 required-features = ["writer"]
 
