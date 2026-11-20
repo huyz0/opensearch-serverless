@@ -19,6 +19,7 @@ use oss_writer::publish::lazy::Policy;
 
 use crate::bulk_route::{self, BulkService};
 use crate::doc_route::{self, DocService};
+use crate::health_route::{self, HealthService, HealthSource};
 use crate::pit_route::{self, PitService};
 use crate::search::{self, SearchService};
 use crate::writer::{
@@ -160,6 +161,24 @@ impl Running {
 }
 
 impl Assembled {
+    /// Registers `GET /_cluster/health[/{index}]` and `GET /_cat/health` over
+    /// `source`, answering as the cluster named `cluster`. The assembly does
+    /// not make a source: it needs the node's membership, which the caller
+    /// has once it has enrolled.
+    ///
+    /// # Errors
+    ///
+    /// [`AssembleError::Route`] when a health route is registered twice.
+    pub fn with_health(
+        mut self,
+        source: Arc<dyn HealthSource>,
+        cluster: &str,
+    ) -> Result<Self, AssembleError> {
+        let service = Arc::new(HealthService::new(source, cluster));
+        self.router = health_route::routes(self.router, service).map_err(AssembleError::Route)?;
+        Ok(self)
+    }
+
     /// Starts serving on `listener`, the server's buffers charged to
     /// `budget`.
     ///
@@ -260,6 +279,7 @@ pub fn assemble(
     let router = bulk_route::routes(router, bulk).map_err(AssembleError::Route)?;
     let router = doc_route::routes(router, docs).map_err(AssembleError::Route)?;
     let router = pit_route::routes(router, pit).map_err(AssembleError::Route)?;
+    let router = crate::admin_assemble::register(router, &store, config)?;
     let timer = PublishTimer::spawn(Arc::clone(&role), config.publish_every);
     let pass = Arc::new(JanitorPass::new(
         Arc::clone(&store),

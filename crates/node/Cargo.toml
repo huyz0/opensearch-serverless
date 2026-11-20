@@ -37,6 +37,7 @@ writer = [
     "dep:oss-meta",
     "dep:oss-janitor",
     "dep:oss-mem",
+    "dep:oss-coordinator",
 ]
 coordinator = ["dep:oss-coordinator", "dep:oss-blob", "dep:oss-transport"]
 
@@ -155,4 +156,20 @@ required-features = ["writer"]
 
 [[test]]
 name = "bulk_route"
+required-features = ["reader", "writer"]
+
+[[test]]
+name = "cluster_routes"
+required-features = ["writer"]
+
+[[test]]
+name = "cat_routes"
+required-features = ["writer"]
+
+[[test]]
+name = "health_store"
+required-features = ["writer"]
+
+[[test]]
+name = "cluster_assemble"
 required-features = ["reader", "writer"]
