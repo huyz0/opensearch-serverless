@@ -196,3 +196,27 @@ fn a_pool_without_room_for_the_buffer_answers_429_and_writes_nothing() {
     assert_eq!(reply.status, 429, "{}", reply.text());
     assert!(ops(&r).is_empty(), "{:?}", ops(&r));
 }
+
+#[test]
+fn a_body_of_one_mebibyte_is_read_and_one_byte_more_is_refused() {
+    let r = rig_with(&MemoryBudget::new(&support::budget_config()), 2 << 20);
+    let mut exact = String::from(MAPPING);
+    exact.push_str(&" ".repeat((1 << 20) - MAPPING.len()));
+    assert_eq!(exact.len(), 1 << 20);
+    let reply = call(&r, "PUT", "/exact", Some(&exact));
+    assert_eq!(reply.status, 200, "{}", reply.text());
+    let over = format!("{exact} ");
+    let reply = call(&r, "PUT", "/over", Some(&over));
+    assert_eq!(reply.status, 400, "{}", reply.text());
+    assert!(record(&r, "over").is_none());
+}
+
+#[test]
+fn a_descriptor_that_does_not_fit_its_buffer_is_refused_not_failed() {
+    let r = rig();
+    let mut big = String::from(MAPPING);
+    big.push_str(&" ".repeat(BUF));
+    let reply = call(&r, "PUT", "/big", Some(&big));
+    assert_eq!(reply.status, 400, "{}", reply.text());
+    assert!(record(&r, "big").is_none());
+}

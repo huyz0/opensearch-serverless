@@ -67,9 +67,7 @@ impl IndexService {
                 .len()
                 .saturating_add(chunk)
                 .saturating_sub(body.reserved());
-            if more > 0 {
-                body.reserve(more)?;
-            }
+            body.reserve(more)?;
             let Some(next) = body.next_chunk()? else {
                 break;
             };
@@ -158,6 +156,8 @@ fn create_failure(index: &str, uuid: &str, e: &MetaError) -> RestError {
             "resource_already_exists_exception",
             format!("index [{index}/{uuid}] already exists"),
         ),
+        // ALLOC: error path; one message.
+        MetaError::Format(f) => refuse(400, "illegal_argument_exception", f.to_string()),
         MetaError::BeingReclaimed => refuse(409, "name_being_reclaimed_exception", e.to_string()),
         MetaError::InvalidName(_) => {
             // ALLOC: error path; one message.

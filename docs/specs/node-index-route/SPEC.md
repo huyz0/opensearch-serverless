@@ -22,6 +22,8 @@ Refused with 501 `unsupported_index_option`: settings other than the shard and r
 - AC-5: HEAD answers 200 for an index, 200 for a published alias and 404 for a name nothing holds, with an empty body.
 - AC-6: a create of a new name costs one conditional create of the register; a HEAD costs one read; LIST 0.
 - AC-7: the descriptor buffer is charged to the request-body pool: a pool without room for it answers 429 and writes nothing.
+- AC-8: a body of exactly 1 MiB is read and one byte more is 400, writing nothing.
+- AC-9: a descriptor that does not fit the buffer is 400 `illegal_argument_exception`, not a failure, and writes nothing.
 
 ## Test plan
 
