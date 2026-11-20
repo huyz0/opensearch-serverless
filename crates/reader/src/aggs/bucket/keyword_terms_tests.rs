@@ -8,7 +8,7 @@
 
 use super::keyword_terms::{KeywordTermsResult, reduce, reduce_results, write_keyword_terms};
 use super::terms::{TermsOrder, TermsResult, TermsSpec};
-use crate::aggs::partial::Value;
+use crate::aggs::partial::{Format, Value};
 
 fn spec(size: usize, shard_size: usize, min: u64, order: TermsOrder) -> TermsSpec {
     TermsSpec {
@@ -16,6 +16,7 @@ fn spec(size: usize, shard_size: usize, min: u64, order: TermsOrder) -> TermsSpe
         shard_size,
         min_doc_count: min,
         order,
+        keyword: Default::default(),
     }
 }
 
@@ -25,6 +26,8 @@ fn shard(spec: &TermsSpec, other: u64, buckets: &[(&str, u64)]) -> KeywordTermsR
         other_doc_count: other,
         doc_count_error: 0,
         buckets: buckets.iter().map(|&(k, c)| (k.to_owned(), c)).collect(),
+        sub_meta: Vec::new(),
+        subs: Vec::new(),
     }
 }
 
@@ -165,5 +168,92 @@ fn a_single_shard_result_is_written_reduced() {
     assert_eq!(
         written(&shard(&s, 0, &[("a", 5), ("b", 3)])),
         r#""doc_count_error_upper_bound":0,"sum_other_doc_count":3,"buckets":[{"key":"a","doc_count":5}]"#
+    );
+}
+
+/// A shard result whose buckets each carry a `sum` and a `max`.
+fn with_subs(buckets: &[(&str, u64, f64, f64)]) -> KeywordTermsResult {
+    let mut r = shard(
+        &spec(10, 10, 1, TermsOrder::CountDesc),
+        0,
+        &buckets.iter().map(|b| (b.0, b.1)).collect::<Vec<_>>(),
+    );
+    r.sub_meta = vec![("s".to_owned(), Format::Raw), ("m".to_owned(), Format::Raw)];
+    r.subs = buckets
+        .iter()
+        .map(|b| vec![Value::Sum(b.2), Value::Max(b.3)])
+        .collect();
+    r
+}
+
+// AC-11
+#[test]
+fn equal_keys_reduce_their_sub_aggregations_and_the_cut_buckets_take_theirs() {
+    let mut a = with_subs(&[("x", 5, 10.0, 4.0), ("y", 3, 1.0, 9.0)]);
+    let mut b = with_subs(&[("x", 4, 20.0, 7.0), ("z", 1, 2.0, 2.0)]);
+    a.spec.size = 2;
+    b.spec.size = 2;
+    let got = reduced(&[a, b]);
+    assert_eq!(keys(&got), [("x", 9), ("y", 3)]);
+    assert_eq!(
+        got.subs,
+        [
+            vec![Value::Sum(30.0), Value::Max(7.0)],
+            vec![Value::Sum(1.0), Value::Max(9.0)]
+        ]
+    );
+    assert_eq!(got.sub_meta.len(), 2);
+}
+
+// AC-12
+#[test]
+fn a_bucket_writes_its_sub_aggregations_after_doc_count() {
+    let got = written(&with_subs(&[("x", 5, 10.0, 4.0)]));
+    // `s` and `m` list in the order `hash_map_order` gives, which is not
+    // the request's.
+    let (s, m) = (
+        got.find("\"s\":{").expect("s"),
+        got.find("\"m\":{").expect("m"),
+    );
+    // Java's HashMap (16 slots) puts `s` (115) in slot 3 and `m` (109) in 13.
+    assert!(s < m, "{got}");
+    assert!(got.contains("\"doc_count\":5,"), "{got}");
+    assert!(m > got.find("doc_count").expect("count"), "{got}");
+    assert!(got.contains("\"s\":{\"value\":10.0}"), "{got}");
+    assert!(got.contains("\"m\":{\"value\":4.0}"), "{got}");
+    assert!(got.ends_with("}}]"), "{got}");
+}
+
+// AC-15
+#[test]
+fn nested_results_reduce_and_write_inside_their_buckets() {
+    let inner = |a: u64, b: u64| {
+        let mut r = shard(
+            &spec(10, 10, 1, TermsOrder::CountDesc),
+            1,
+            &[("p", a), ("q", b)],
+        );
+        r.doc_count_error = 0;
+        Value::KeywordTerms(Box::new(r))
+    };
+    let outer = |count: u64, a: u64, b: u64| {
+        let mut r = shard(&spec(10, 10, 1, TermsOrder::CountDesc), 0, &[("x", count)]);
+        r.sub_meta = vec![("n".to_owned(), Format::Raw)];
+        r.subs = vec![vec![inner(a, b)]];
+        r
+    };
+    let got = reduced(&[outer(5, 2, 3), outer(4, 4, 1)]);
+    assert_eq!(keys(&got), [("x", 9)]);
+    let Value::KeywordTerms(n) = &got.subs[0][0] else {
+        panic!("{:?}", got.subs);
+    };
+    assert_eq!(keys(n), [("p", 6), ("q", 4)]);
+    assert_eq!(n.other_doc_count, 2);
+    let out = written(&got);
+    assert!(
+        out.contains(
+            "\"doc_count\":9,\"n\":{\"doc_count_error_upper_bound\":0,\"sum_other_doc_count\":2,\"buckets\":[{\"key\":\"p\",\"doc_count\":6},{\"key\":\"q\",\"doc_count\":4}]}}"
+        ),
+        "{out}"
     );
 }

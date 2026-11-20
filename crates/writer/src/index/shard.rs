@@ -11,6 +11,8 @@ use crate::document;
 use crate::lucene::{Indexer, Meta, uid};
 use crate::mapping::{Mapping, MappingError};
 
+mod replay;
+
 use super::lookup;
 use super::plan::{Current, Expect, plan};
 use super::versions::{GC_DELETES_MILLIS, VersionMap};

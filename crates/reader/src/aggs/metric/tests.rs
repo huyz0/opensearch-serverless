@@ -26,6 +26,8 @@ fn agg(name: &str, metric: Metric, field: &str) -> MetricAgg {
         top_hits: None,
         terms: None,
         histogram: None,
+        date_histogram: None,
+        subs: Vec::new(),
         name: name.to_owned(),
         metric,
         field: field.to_owned(),

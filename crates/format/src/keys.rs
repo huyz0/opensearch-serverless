@@ -83,6 +83,60 @@ pub fn change_stripe_key(base: &str, stripe: usize) -> Result<String, FormatErro
     Ok(key)
 }
 
+/// Where under a deployment's base a point in time's inventory entry is filed
+/// (`RegisterMap.pointsInTime`): one blob an id.
+pub const POINTS_IN_TIME_PREFIX: &str = "pits/";
+
+/// Where under a deployment's base a point in time's authoritative state
+/// register is (`RegisterMap.pointInTimeStates`): one register an id, kept
+/// for good so a released id cannot be brought back.
+pub const POINT_IN_TIME_STATES_PREFIX: &str = "pit-states/";
+
+/// Whether `name` could be a point in time's id: 22 characters of
+/// `A-Z a-z 0-9 - _` (`Names.looksLikeAnId`).
+pub fn looks_like_an_id(name: &str) -> bool {
+    name.len() == 22
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+}
+
+/// The key of a point in time's inventory entry (`pits/<id>`).
+///
+/// # Errors
+///
+/// [`FormatError::Corrupt`] for a base that is not empty and does not end in
+/// `/`, or an id that is not [`looks_like_an_id`].
+pub fn point_in_time_key(base: &str, id: &str) -> Result<String, FormatError> {
+    check_base(base)?;
+    check_id(id)?;
+    // ALLOC: one key, the length of its parts.
+    Ok([base, POINTS_IN_TIME_PREFIX, id].concat())
+}
+
+/// The key of a point in time's state register (`pit-states/<id>`).
+///
+/// # Errors
+///
+/// As [`point_in_time_key`].
+pub fn point_in_time_state_key(base: &str, id: &str) -> Result<String, FormatError> {
+    check_base(base)?;
+    check_id(id)?;
+    // ALLOC: one key, the length of its parts.
+    Ok([base, POINT_IN_TIME_STATES_PREFIX, id].concat())
+}
+
+fn check_id(id: &str) -> Result<(), FormatError> {
+    if looks_like_an_id(id) {
+        Ok(())
+    } else {
+        Err(corrupt(
+            WHAT,
+            "a point in time's id is 22 URL-safe characters",
+        ))
+    }
+}
+
 /// The cluster config register's key under a base: the Java's
 /// `RegisterMap.clusterConfig` container and its `settings` blob.
 pub const CLUSTER_CONFIG_KEY: &str = "cluster/config/settings";
@@ -214,37 +268,7 @@ impl ShardRef<'_> {
         // ALLOC: one entry a manifest file, at most manifest::MAX_FILES.
         let mut out = Vec::with_capacity(manifest.files().len());
         for file in manifest.files() {
-            // ALLOC: one key a file, at most manifest::MAX_FILES of them.
-            let mut key = String::new();
-            let offset = match file.location {
-                FileLocation::Whole { term_dir } => {
-                    check_segment(term_dir)?;
-                    check_segment(&file.name)?;
-                    let _ = write!(key, "{shard_base}{term_dir}/{}", file.name);
-                    0
-                }
-                FileLocation::Packed {
-                    term_dir,
-                    blob,
-                    offset,
-                    ..
-                } => {
-                    check_segment(term_dir)?;
-                    check_relative(blob)?;
-                    let _ = write!(key, "{shard_base}{term_dir}/{blob}");
-                    offset
-                }
-                FileLocation::NodePacked {
-                    node,
-                    epoch,
-                    ordinal,
-                    offset,
-                    ..
-                } => {
-                    key = node_pack_key(base, node, epoch, ordinal)?;
-                    offset
-                }
-            };
+            let (key, offset) = locate(base, &shard_base, &file.name, &file.location)?;
             out.push(FileExtent {
                 name: file.name.clone(),
                 key,
@@ -254,6 +278,64 @@ impl ShardRef<'_> {
         }
         Ok(out)
     }
+
+    /// The key of the blob a file recorded at `location` is in, and where
+    /// in it the file starts: what [`ShardRef::resolve`] derives for one
+    /// file, for a record that keeps locations as text.
+    ///
+    /// # Errors
+    ///
+    /// As [`ShardRef::resolve`].
+    pub fn blob_key(
+        &self,
+        base: &str,
+        name: &str,
+        location: &FileLocation<'_>,
+    ) -> Result<(String, u64), FormatError> {
+        locate(base, &self.base_path(base)?, name, location)
+    }
+}
+
+/// One file's blob key and offset, in the shard whose storage path is
+/// `shard_base`.
+fn locate(
+    base: &str,
+    shard_base: &str,
+    name: &str,
+    location: &FileLocation<'_>,
+) -> Result<(String, u64), FormatError> {
+    // ALLOC: one key, the length of its parts.
+    let mut key = String::new();
+    let offset = match *location {
+        FileLocation::Whole { term_dir } => {
+            check_segment(term_dir)?;
+            check_segment(name)?;
+            let _ = write!(key, "{shard_base}{term_dir}/{name}");
+            0
+        }
+        FileLocation::Packed {
+            term_dir,
+            blob,
+            offset,
+            ..
+        } => {
+            check_segment(term_dir)?;
+            check_relative(blob)?;
+            let _ = write!(key, "{shard_base}{term_dir}/{blob}");
+            offset
+        }
+        FileLocation::NodePacked {
+            node,
+            epoch,
+            ordinal,
+            offset,
+            ..
+        } => {
+            key = node_pack_key(base, node, epoch, ordinal)?;
+            offset
+        }
+    };
+    Ok((key, offset))
 }
 
 /// The key of a node pack.

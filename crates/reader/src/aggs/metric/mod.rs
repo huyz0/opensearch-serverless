@@ -16,6 +16,7 @@ pub mod date_text;
 pub mod double;
 pub mod hash_order;
 pub mod hll;
+pub mod long_value;
 pub mod parse;
 pub mod partial;
 pub mod percentiles;
@@ -30,6 +31,7 @@ pub use percentiles::PercentilesOptions;
 pub use render::{write_aggregations, write_aggregations_with};
 pub use top_hits::{TopHitsResult, TopHitsSpec};
 
+use crate::aggs::bucket::date_histogram::DateHistogramSpec;
 use crate::aggs::bucket::histogram::HistogramSpec;
 use crate::aggs::bucket::terms::TermsSpec;
 
@@ -64,11 +66,14 @@ pub enum Metric {
     /// `histogram`: the documents counted by the interval of a numeric
     /// field's values they fall in.
     Histogram,
+    /// `date_histogram`: the documents counted by the calendar or fixed
+    /// interval of a date field's values they fall in.
+    DateHistogram,
 }
 
 impl Metric {
     /// Every metric served, by its aggregation type name.
-    pub const ALL: [Metric; 12] = [
+    pub const ALL: [Metric; 13] = [
         Metric::Min,
         Metric::Max,
         Metric::Sum,
@@ -81,6 +86,7 @@ impl Metric {
         Metric::TopHits,
         Metric::Terms,
         Metric::Histogram,
+        Metric::DateHistogram,
     ];
 
     /// The aggregation type name.
@@ -98,6 +104,7 @@ impl Metric {
             Metric::TopHits => "top_hits",
             Metric::Terms => "terms",
             Metric::Histogram => "histogram",
+            Metric::DateHistogram => "date_histogram",
         }
     }
 
@@ -128,6 +135,11 @@ pub struct MetricAgg {
     pub terms: Option<Box<TermsSpec>>,
     /// A `histogram`'s options; `None` for every other aggregation.
     pub histogram: Option<Box<HistogramSpec>>,
+    /// A `date_histogram`'s options; `None` for every other aggregation.
+    pub date_histogram: Option<Box<DateHistogramSpec>>,
+    /// The sub-aggregations of a keyword `terms`, in request order; empty
+    /// for every other aggregation.
+    pub subs: Vec<MetricAgg>,
 }
 
 /// What a `cardinality` aggregation sets besides its field.
@@ -177,7 +189,7 @@ pub fn state_bytes(aggs: &[MetricAgg]) -> usize {
             }),
             // The engine counts every key against the bucket limit, so a
             // shard holds at most that many.
-            Metric::Histogram => {
+            Metric::Histogram | Metric::DateHistogram => {
                 crate::aggs::bucket::BUCKET_LIMIT.saturating_mul(HISTOGRAM_BUCKET_BYTES)
             }
             Metric::Percentiles | Metric::PercentileRanks => {
@@ -195,6 +207,7 @@ pub fn state_bytes(aggs: &[MetricAgg]) -> usize {
             .saturating_add(sketch)
             .saturating_add(agg.name.len())
             .saturating_add(agg.field.len())
+            .saturating_add(state_bytes(&agg.subs))
     })
 }
 

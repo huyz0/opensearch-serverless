@@ -5,6 +5,7 @@
 //! from them. Metric values reduce in [`crate::aggs::metric::partial`],
 //! bucket values in [`crate::aggs::bucket`]; [`reduce`] picks by kind.
 
+use crate::aggs::bucket::date_histogram::{self, DateHistogramResult};
 use crate::aggs::bucket::histogram::{self, HistogramResult};
 use crate::aggs::bucket::keyword_terms::{self, KeywordTermsResult};
 use crate::aggs::bucket::terms::{self, TermsResult};
@@ -75,6 +76,8 @@ pub enum Value {
     Terms(Box<TermsResult>),
     /// `InternalHistogram`: a numeric `histogram`'s buckets.
     Histogram(Box<HistogramResult>),
+    /// `InternalDateHistogram`: a `date_histogram`'s buckets.
+    DateHistogram(Box<DateHistogramResult>),
     /// `StringTerms`: a keyword `terms`' buckets.
     KeywordTerms(Box<KeywordTermsResult>),
 }
@@ -99,6 +102,7 @@ pub fn reduce(parts: &[Value]) -> Option<Value> {
         Value::Percentiles { .. } => reduce_percentiles(parts),
         Value::Terms(_) => terms::reduce(parts),
         Value::Histogram(_) => histogram::reduce(parts),
+        Value::DateHistogram(_) => date_histogram::reduce(parts),
         Value::KeywordTerms(_) => keyword_terms::reduce(parts),
         // A `top_hits` has no reduce here: merging hits needs them fetched
         // and their shard known, so `reduce_scalar` answers `None` for it.

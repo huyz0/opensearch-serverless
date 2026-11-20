@@ -15,6 +15,7 @@ pub mod engine_store;
 pub mod error;
 pub mod failure;
 pub mod fetch;
+mod frozen;
 pub mod lucene_query;
 pub mod mapping;
 pub mod numbers;
@@ -84,6 +85,20 @@ pub fn open_shard_pushed<S: BlobStore + 'static>(
     pushed: &[u8],
 ) -> Result<OpenShard<S>, ReaderError> {
     let (files, meta) = ShardFiles::open_pushed_with_meta(&store, base, index, shard, pushed)?;
+    open_located(store, cache, base, index, shard, files, meta)
+}
+
+/// [`open_shard`] for the commit `view` froze of shard `shard`: one GET (the
+/// descriptor), and the commit register is never read.
+pub fn open_frozen_shard<S: BlobStore + 'static>(
+    store: Arc<PooledStore<S>>,
+    cache: Arc<PageCache>,
+    base: &str,
+    index: &str,
+    view: &oss_format::PointInTime,
+    shard: u32,
+) -> Result<OpenShard<S>, ReaderError> {
+    let (files, meta) = ShardFiles::open_frozen(&store, base, index, view, shard)?;
     open_located(store, cache, base, index, shard, files, meta)
 }
 

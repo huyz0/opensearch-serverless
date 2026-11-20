@@ -11,6 +11,8 @@ Opening published commits, the page cache over ranged segment reads, tail-record
 ## Entry points
 `open_shard(store, cache, base, index, shard)` opens a shard's latest published commit, or in two steps `ShardFiles::open_with_meta` then `open_located`, with `open_cost::open_bytes` between them estimating what the open keeps in the heap ([ADR 0014](../../docs/adr/0014-open-indexes-pool.md)); `ShardFiles::open` finds its files with two GETs; `EngineStore` is lucene-rust's `BlobStore` over a commit. Contract: [docs/specs/reader-open-commit/SPEC.md](../../docs/specs/reader-open-commit/SPEC.md).
 
+`open_frozen_shard(store, cache, base, index, view, shard)` opens the commit a point in time froze of a shard (`ShardFiles::open_frozen`: one GET, the commit register never read). Contract: [docs/specs/reader-frozen-view/SPEC.md](../../docs/specs/reader-frozen-view/SPEC.md).
+
 `dsl::source::tokenizer` and `dsl::Recorder` read a body a chunk at a time; `SearchSource::parse` gives the request; `search::search` runs it over an `OpenShard`; `response::write_response` writes it as hits are fetched (the hits of every `top_hits` announced with them, one fetch round), then the aggregations; `aggs::metric::partial::reduce` reduces their shard results. Contract: [docs/specs/reader-search/SPEC.md](../../docs/specs/reader-search/SPEC.md).
 
 `overlay::Overlay::build` makes one in-memory segment from the writes a writer pushed above a commit's checkpoint (latest version of each id, the ids it replaces or deletes), and `overlay::estimate_bytes` bounds its heap for the pool charge ([ADR 0018](../../docs/adr/0018-tail-overlay-in-the-reader.md)). Contract: [docs/specs/reader-overlay-segment/SPEC.md](../../docs/specs/reader-overlay-segment/SPEC.md).
