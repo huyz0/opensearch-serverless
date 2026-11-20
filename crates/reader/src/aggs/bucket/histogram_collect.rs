@@ -15,6 +15,7 @@ pub fn node(field: &str, spec: &HistogramSpec) -> AggNode {
         // ALLOC: one field name an aggregation, bounded by the request's.
         field: field.to_owned(),
         missing: None,
+        script: None,
         kind: ValueKind::Long,
         interval: spec.interval,
         offset: spec.offset,

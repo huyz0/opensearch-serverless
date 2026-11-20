@@ -14,6 +14,7 @@ pub fn node(field: &str, spec: &TermsSpec) -> AggNode {
         // ALLOC: one field name an aggregation, bounded by the request's.
         field: field.to_owned(),
         missing: None,
+        script: None,
         kind: ValueKind::Long,
         shard_size: spec.shard_size,
         order: spec.order,

@@ -13,6 +13,7 @@ pub fn node(field: &str, spec: &DateHistogramSpec) -> AggNode {
         // ALLOC: one field name an aggregation, bounded by the request's.
         field: field.to_owned(),
         missing: None,
+        script: None,
         rounding: spec.rounding,
         hard_bounds: spec.hard_bounds,
         // ALLOC: empty; sub-aggregations are refused.
