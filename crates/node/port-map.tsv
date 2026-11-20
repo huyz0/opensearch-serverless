@@ -46,3 +46,4 @@ src/search_frozen.rs	new		the search of a point in time over a view's frozen sha
 src/index_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/indexadmin/IndexAdminHandler.java	the create and exists routes over the descriptor store; delete, GET, mapping and settings routes are not here yet
 src/descriptor_routes.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/metadata/ServerlessIndexResolver.java	the routing partition size, routing shards and _routing.required a write reads from an index descriptor; every shard is local until the cluster half lands
 src/writer/opener.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/ShardReconciler.java	the open of a shard no writer has published yet: win its head, open under its term; a shard with a history is refused until takeover lands
+src/writer/refresh.rs	new	a refresh that publishes the commit it makes visible; the Java shell refreshes and publishes on separate paths
