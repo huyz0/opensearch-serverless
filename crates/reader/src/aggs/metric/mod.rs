@@ -32,7 +32,9 @@ pub use render::{write_aggregations, write_aggregations_with};
 pub use top_hits::{TopHitsResult, TopHitsSpec};
 
 use crate::aggs::bucket::date_histogram::DateHistogramSpec;
+use crate::aggs::bucket::filters::FiltersSpec;
 use crate::aggs::bucket::histogram::HistogramSpec;
+use crate::aggs::bucket::range::RangeSpec;
 use crate::aggs::bucket::terms::TermsSpec;
 
 /// Which metric an aggregation computes.
@@ -69,11 +71,16 @@ pub enum Metric {
     /// `date_histogram`: the documents counted by the calendar or fixed
     /// interval of a date field's values they fall in.
     DateHistogram,
+    /// `range`: the documents counted in each of given ranges of a numeric
+    /// field.
+    Range,
+    /// `filters`: the documents counted by each of given queries they match.
+    Filters,
 }
 
 impl Metric {
     /// Every metric served, by its aggregation type name.
-    pub const ALL: [Metric; 13] = [
+    pub const ALL: [Metric; 15] = [
         Metric::Min,
         Metric::Max,
         Metric::Sum,
@@ -87,6 +94,8 @@ impl Metric {
         Metric::Terms,
         Metric::Histogram,
         Metric::DateHistogram,
+        Metric::Range,
+        Metric::Filters,
     ];
 
     /// The aggregation type name.
@@ -105,6 +114,8 @@ impl Metric {
             Metric::Terms => "terms",
             Metric::Histogram => "histogram",
             Metric::DateHistogram => "date_histogram",
+            Metric::Range => "range",
+            Metric::Filters => "filters",
         }
     }
 
@@ -140,6 +151,10 @@ pub struct MetricAgg {
     /// The sub-aggregations of a keyword `terms`, in request order; empty
     /// for every other aggregation.
     pub subs: Vec<MetricAgg>,
+    /// A `range`'s options; `None` for every other aggregation.
+    pub range: Option<Box<RangeSpec>>,
+    /// A `filters`' options; `None` for every other aggregation.
+    pub filters: Option<Box<FiltersSpec>>,
 }
 
 /// What a `cardinality` aggregation sets besides its field.
@@ -192,6 +207,25 @@ pub fn state_bytes(aggs: &[MetricAgg]) -> usize {
             Metric::Histogram | Metric::DateHistogram => {
                 crate::aggs::bucket::BUCKET_LIMIT.saturating_mul(HISTOGRAM_BUCKET_BYTES)
             }
+            // A bucket, the engine's bounds and count, and each key, kept
+            // by the request and by the result.
+            Metric::Range => agg.range.as_ref().map_or(0, |r| {
+                let per_range = std::mem::size_of::<crate::aggs::bucket::range::RangeBucket>()
+                    .saturating_add(std::mem::size_of::<[f64; 2]>())
+                    .saturating_add(std::mem::size_of::<u64>());
+                let keys = r.ranges.iter().fold(0usize, |n, d| {
+                    n.saturating_add(d.key.as_ref().map_or(0, String::len).saturating_mul(2))
+                });
+                r.ranges
+                    .len()
+                    .min(crate::aggs::bucket::BUCKET_LIMIT)
+                    .saturating_mul(per_range)
+                    .saturating_add(keys)
+            }),
+            Metric::Filters => agg
+                .filters
+                .as_deref()
+                .map_or(0, crate::aggs::bucket::filters_collect::state_bytes),
             Metric::Percentiles | Metric::PercentileRanks => {
                 tdigest::digest_bytes(agg.percentiles.compression).saturating_add(
                     agg.percentiles

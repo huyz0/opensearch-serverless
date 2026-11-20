@@ -134,3 +134,16 @@ src/aggs/partial.rs	new		the shared shard-level result and the reduce dispatch, 
 src/frozen.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/shard/ShardReaders.java@429b4cbc	openFrozenReader: the incarnation check and the view's own manifest for the shard; the files resolve to blob ranges
 src/dsl/pit.rs	port	server/src/main/java/org/opensearch/search/builder/PointInTimeBuilder.java@3.10.0	the parser of a search body's pit: id required, keep_alive kept as written
 src/response_values.rs	port	server/src/main/java/org/opensearch/search/SearchHit.java@3.10.0	Float.toString and Uid.decodeId as the response prints them, split from response.rs
+src/aggs/bucket/range.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/range/InternalRange.java@3.10.0	RangeAggregator.Range's bounds, InternalRange.Bucket and InternalRange.reduce
+src/aggs/bucket/range_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/range/RangeAggregationBuilder.java@3.10.0	the ObjectParser keys, RangeAggregator.Range.PARSER and AbstractRangeBuilder.sortRanges
+src/aggs/bucket/range_collect.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/range/RangeAggregator.java@3.10.0	the range node over lucene-aggs and its buckets
+src/aggs/bucket/range_render.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/range/InternalRange.java@3.10.0	InternalRange.Bucket.toXContent, generateKey and doXContentBody
+src/aggs/bucket/range_collect_tests.rs	new		tests of range on a real index
+src/aggs/bucket/range_tests.rs	new		tests of range parsing, reduce and writing
+src/aggs/bucket/filters.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/filter/InternalFilters.java@3.10.0	FiltersAggregationBuilder's keyed filters and InternalFilters.reduce
+src/aggs/bucket/filters_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/filter/FiltersAggregationBuilder.java@3.10.0	FiltersAggregationBuilder.parse and the sort of keyed filters
+src/aggs/bucket/filters_collect.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/filter/FiltersAggregatorFactory.java@3.10.0	the filters built as queries, FiltersAggregator's node over lucene-aggs and its buckets
+src/aggs/bucket/filters_render.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/filter/InternalFilters.java@3.10.0	InternalFilters.InternalBucket.toXContent and doXContentBody
+src/aggs/bucket/filters_collect_tests.rs	new		tests of filters on a real index
+src/aggs/bucket/filters_tests.rs	new		tests of filters parsing, reduce and writing
+src/aggs/bucket/parse_arms.rs	new		parses the body of each bucket aggregation into its MetricAgg

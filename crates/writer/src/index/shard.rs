@@ -12,7 +12,10 @@ use crate::fast::FastIngest;
 use crate::lucene::{Indexer, Meta, uid};
 use crate::mapping::{Mapping, MappingError};
 
+mod get;
 mod replay;
+
+pub use get::Fetched;
 
 use super::lookup;
 use super::plan::{Current, Expect, plan};

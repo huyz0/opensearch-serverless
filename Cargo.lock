@@ -699,9 +699,13 @@ name = "oss-compat"
 version = "0.1.0"
 dependencies = [
  "oss-blob",
+ "oss-cluster",
+ "oss-format",
  "oss-mem",
+ "oss-meta",
  "oss-node",
  "oss-rest",
+ "oss-writer",
  "serde_json",
 ]
 
@@ -793,6 +797,7 @@ dependencies = [
  "oss-types",
  "oss-writer",
  "self_cell",
+ "serde_json",
 ]
 
 [[package]]

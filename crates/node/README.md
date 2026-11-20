@@ -19,6 +19,8 @@ With `writer`, `writer::WriterRole` holds the shards this node writes and applie
 
 With `writer`, `forward::BulkForwarder` sends a shard's bulk to its owner, signed, and is the one call site of `EarlyRevoke::on_refused` for a refused connect (`serverless.lease.early_revoke`, off by default). Contract: [docs/specs/forward/SPEC.md](../../docs/specs/forward/SPEC.md).
 
+With `writer`, `cluster_owner::ClusterRoutes` is the cluster half of `writer::Routes`: the owner of a shard by rendezvous over the held leases, and a group forwarded as one bulk through `BulkSend`. Contract: [docs/specs/node-cluster-routing/SPEC.md](../../docs/specs/node-cluster-routing/SPEC.md).
+
 With `writer`, `WriterRole::staged` remembers the manifest a shard's last publish produced and `newest::NewestHandler` answers a reader's `internal:serverless/commit/newest` ask with it, from memory. Contract: [docs/specs/writer-newest/SPEC.md](../../docs/specs/writer-newest/SPEC.md).
 
 With `reader`, `newest_ask::TransportNewestAsk` is a `NewestSource` a cold open asks for the newer commit a staging writer holds (`SearchService::set_newest_source`; setting `serverless.reader.newest_commit_ask`, off by default; `newest_ask::install`). Contract: [docs/specs/reader-newest-ask/SPEC.md](../../docs/specs/reader-newest-ask/SPEC.md).
@@ -35,8 +37,12 @@ With `reader`, `tail_held::TailHeld` holds the writes a writer pushed a reader (
 
 The tail's transport (docs/specs/node-tail-links/SPEC.md): with `writer`, `tail_link::TransportTailLink` sends a tail push to a reader a lease names and `TailFetchHandler` answers a fetch from `TailServe`; with `reader`, `tail_reader_link::TailPushHandler` gives a push to `TailHeld` and `TransportTailFetch` asks a live writer for the records past a commit. Nothing registers the handlers yet.
 
+With `writer`, `cluster_route`, `health_route` and `cat_route` serve `GET`/`PUT /_cluster/settings`, `GET /_cluster/health[/{index}]`, `GET /_cat/health` and `GET /_cat/indices` and `/_list/indices` over the registers and the decisions in `oss-coordinator`; the assembly registers the settings and the index tables, and `Assembled::with_health` the health routes over a `HealthSource` (`StoreHealth` reads the membership and the shard heads). Contract: [docs/specs/node-cluster-routes/SPEC.md](../../docs/specs/node-cluster-routes/SPEC.md).
+
 `handlers::Registry` holds the transport actions a node serves, each behind the signature check, and refuses a second handler for an action; the assembly adds each role's handler to it ([docs/specs/node-handlers/SPEC.md](../../docs/specs/node-handlers/SPEC.md)).
 
 `SearchService::open(index, shard)` opens any shard of an index, one open shard each in the `open_indexes` pool; the HTTP search still serves indexes of one shard ([docs/specs/node-multi-shard-open/SPEC.md](../../docs/specs/node-multi-shard-open/SPEC.md)).
 
 With `reader` and `writer`, `Assembled::wire_tail` turns the tail overlay on under `serverless.search.tail_overlay.enabled` (off by default): `tail_node::wire` builds the keep, serve, push and flush timer, installs the overlay builder, sets the writer role's `TailSink` and returns the `handlers::Registry` holding the tail fetch and push actions. `tail_node::LeaseWriters` is the `LiveWriters` over the node's leases. Contract: [docs/specs/node-tail-wiring/SPEC.md](../../docs/specs/node-tail-wiring/SPEC.md).
+
+With `reader` and `writer`, `boot::start` starts a node from `OSS_*` environment configuration (`boot::NodeConfig`): it opens the store, enrols and renews the node's lease, builds the write log over the shard heads, assembles the roles and the health routes, and listens; `main` calls it. Without the transport server every shard is written by the node that receives the write. Contract: [docs/specs/node-boot/SPEC.md](../../docs/specs/node-boot/SPEC.md).

@@ -19,15 +19,20 @@ use oss_writer::publish::lazy::Policy;
 
 use crate::bulk_route::{self, BulkService};
 use crate::doc_route::{self, DocService};
+use crate::get_route::{self, GetService};
 use crate::handlers::Registry;
+use crate::health_route::{self, HealthService, HealthSource};
+#[cfg(feature = "coordinator")]
+use crate::index_delete::{self, DeleteService, DrainTimer, NoSnapshots};
 #[cfg(feature = "coordinator")]
 use crate::index_route::{self, IndexService};
 use crate::pit_route::{self, PitService};
+use crate::refresh_route::{self, RefreshService};
 use crate::search::{self, SearchService};
 use crate::tail_node::{self, TailError, TailNode, TailParts};
 use crate::writer::{
-    JanitorPass, JanitorTimer, PassLimits, PublishTimer, Publishing, Routes, ShardOpener,
-    WriterRole,
+    Incarnation, JanitorPass, JanitorTimer, PassLimits, PublishTimer, Publishing, Routes,
+    ShardNames, ShardOpener, WriterRole,
 };
 
 /// Buffers the store's bodies stream through, a node's worth.
@@ -64,6 +69,8 @@ pub struct Config {
     pub janitor_every: Duration,
     /// How a janitor sweep behaves; it starts as a dry run.
     pub sweep: gc::Config,
+    /// How often this node drains the reclaim queue.
+    pub reclaim_every: Duration,
     /// The most points in time that may be live for a janitor pass to run.
     pub janitor_max_views: usize,
 }
@@ -92,9 +99,34 @@ impl Config {
                 max_watched: 100_000,
                 max_pinned: 100_000,
             },
+            reclaim_every: Duration::from_secs(60),
             janitor_max_views: 10_000,
         }
     }
+}
+
+/// The reclaim drain, present when the node serves index admin.
+#[cfg(feature = "coordinator")]
+type Drain = Option<DrainTimer>;
+#[cfg(not(feature = "coordinator"))]
+type Drain = Option<()>;
+
+#[cfg(feature = "coordinator")]
+fn delete_service(
+    config: &Config,
+    store: &Arc<dyn BlobStore>,
+    clock: &PitClock,
+) -> Result<Arc<DeleteService>, AssembleError> {
+    DeleteService::new(
+        store,
+        &config.base,
+        config.delete_mode,
+        Arc::clone(clock),
+        Arc::new(NoSnapshots),
+        config.pit_buffer_bytes,
+    )
+    .map(Arc::new)
+    .map_err(|e| AssembleError::Store(e.to_string()))
 }
 
 /// What the writer role is built on.
@@ -105,6 +137,12 @@ pub struct Writer {
     pub routes: Arc<dyn Routes>,
     /// What opens a shard a write names and the node does not hold yet.
     pub opener: Option<Arc<dyn ShardOpener>>,
+    /// The names the committer's admission finds a shard's head by, shared
+    /// with it; none, and the role keeps its own.
+    pub names: Option<Arc<ShardNames>>,
+    /// Confirms an open shard's index is still the incarnation it was
+    /// opened for, at most once a window.
+    pub incarnation: Option<(Arc<dyn Incarnation>, Duration)>,
 }
 
 /// Why a node was not assembled.
@@ -146,6 +184,7 @@ pub struct Assembled {
     pub role: Arc<WriterRole>,
     timer: PublishTimer,
     janitor: JanitorTimer,
+    drain: Drain,
     tail: Option<TailNode>,
     budget: MemoryBudget,
 }
@@ -159,6 +198,7 @@ pub struct Running {
     pub role: Arc<WriterRole>,
     _timer: PublishTimer,
     _janitor: JanitorTimer,
+    _drain: Drain,
     _tail: Option<TailNode>,
 }
 
@@ -175,6 +215,24 @@ impl Running {
 }
 
 impl Assembled {
+    /// Registers `GET /_cluster/health[/{index}]` and `GET /_cat/health` over
+    /// `source`, answering as the cluster named `cluster`. The assembly does
+    /// not make a source: it needs the node's membership, which the caller
+    /// has once it has enrolled.
+    ///
+    /// # Errors
+    ///
+    /// [`AssembleError::Route`] when a health route is registered twice.
+    pub fn with_health(
+        mut self,
+        source: Arc<dyn HealthSource>,
+        cluster: &str,
+    ) -> Result<Self, AssembleError> {
+        let service = Arc::new(HealthService::new(source, cluster));
+        self.router = health_route::routes(self.router, service).map_err(AssembleError::Route)?;
+        Ok(self)
+    }
+
     /// Turns the tail overlay on when `parts` say so, and gives the
     /// transport handlers for it; `None` when it is off or already on.
     ///
@@ -212,6 +270,7 @@ impl Assembled {
             role: self.role,
             _timer: self.timer,
             _janitor: self.janitor,
+            _drain: self.drain,
             _tail: self.tail,
         })
     }
@@ -267,6 +326,12 @@ pub fn assemble(
     if let Some(opener) = writer.opener {
         role = role.with_opener(opener);
     }
+    if let Some(names) = writer.names {
+        role = role.with_names(names);
+    }
+    if let Some((check, window)) = writer.incarnation {
+        role = role.with_incarnation(check, window);
+    }
     let role = Arc::new(role);
     let clock: PitClock = Arc::new(now_millis);
     let pits = PointInTimeStore::new(Arc::clone(&store), &config.base, Arc::clone(&clock))
@@ -295,9 +360,14 @@ pub fn assemble(
         search::routes(Router::new(), Arc::clone(&search)).map_err(AssembleError::Route)?;
     let router = bulk_route::routes(router, bulk).map_err(AssembleError::Route)?;
     let router = doc_route::routes(router, docs).map_err(AssembleError::Route)?;
+    let router = get_route::routes(router, Arc::new(GetService::new(Arc::clone(&role))))
+        .map_err(AssembleError::Route)?;
+    let router = refresh_route::routes(router, Arc::new(RefreshService::new(Arc::clone(&role))))
+        .map_err(AssembleError::Route)?;
     let router = pit_route::routes(router, pit).map_err(AssembleError::Route)?;
+    let router = crate::admin_assemble::register(router, &store, config)?;
     #[cfg(feature = "coordinator")]
-    let router = {
+    let (router, drain) = {
         let descriptors =
             DescriptorStore::new(Arc::clone(&store), &config.base, config.delete_mode)
                 .map_err(|e| AssembleError::Store(e.to_string()))?;
@@ -306,8 +376,15 @@ pub fn assemble(
             Arc::clone(&clock),
             config.pit_buffer_bytes,
         ));
-        index_route::routes(router, indices).map_err(AssembleError::Route)?
+        let router = index_route::routes(router, indices).map_err(AssembleError::Route)?;
+        let deletes = delete_service(config, &store, &clock)?;
+        let drain = DrainTimer::spawn(Arc::clone(&deletes), config.reclaim_every);
+        let router = index_delete::routes(router, deletes).map_err(AssembleError::Route)?;
+        (router, Some(drain))
     };
+    #[cfg(not(feature = "coordinator"))]
+    let drain: Option<()> = None;
+
     let timer = PublishTimer::spawn(Arc::clone(&role), config.publish_every);
     let pass = Arc::new(JanitorPass::new(
         Arc::clone(&store),
@@ -329,6 +406,7 @@ pub fn assemble(
         role,
         timer,
         janitor,
+        drain,
         tail: None,
         budget: budget.clone(),
     })

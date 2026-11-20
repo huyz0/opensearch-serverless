@@ -134,6 +134,8 @@ fn assembled(id: &str) -> oss_node::assemble::Assembled {
         )),
         routes: Arc::new(Local),
         opener: None,
+        names: None,
+        incarnation: None,
     };
     let config = Config {
         // Publishes only when the test asks.

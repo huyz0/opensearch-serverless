@@ -12,8 +12,10 @@ mod adopt;
 mod engine;
 mod head;
 mod predecessors;
+mod restore;
 
 pub use adopt::{AdoptError, Adopted, Engine, adopt};
 pub use engine::ShardEngine;
 pub use head::{HeadWriters, Settled};
 pub use predecessors::{Predecessors, PredecessorsFactory};
+pub use restore::{RestoreError, Restored, restore};
