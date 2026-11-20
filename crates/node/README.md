@@ -35,6 +35,8 @@ With `reader`, `tail_held::TailHeld` holds the writes a writer pushed a reader (
 
 The tail's transport (docs/specs/node-tail-links/SPEC.md): with `writer`, `tail_link::TransportTailLink` sends a tail push to a reader a lease names and `TailFetchHandler` answers a fetch from `TailServe`; with `reader`, `tail_reader_link::TailPushHandler` gives a push to `TailHeld` and `TransportTailFetch` asks a live writer for the records past a commit. Nothing registers the handlers yet.
 
+With `writer`, `cluster_route`, `health_route` and `cat_route` serve `GET`/`PUT /_cluster/settings`, `GET /_cluster/health[/{index}]`, `GET /_cat/health` and `GET /_cat/indices` and `/_list/indices` over the registers and the decisions in `oss-coordinator`; the assembly registers the settings and the index tables, and `Assembled::with_health` the health routes over a `HealthSource` (`StoreHealth` reads the membership and the shard heads). Contract: [docs/specs/node-cluster-routes/SPEC.md](../../docs/specs/node-cluster-routes/SPEC.md).
+
 `handlers::Registry` holds the transport actions a node serves, each behind the signature check, and refuses a second handler for an action; the assembly adds each role's handler to it ([docs/specs/node-handlers/SPEC.md](../../docs/specs/node-handlers/SPEC.md)).
 
 `SearchService::open(index, shard)` opens any shard of an index, one open shard each in the `open_indexes` pool; the HTTP search still serves indexes of one shard ([docs/specs/node-multi-shard-open/SPEC.md](../../docs/specs/node-multi-shard-open/SPEC.md)).

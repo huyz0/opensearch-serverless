@@ -20,6 +20,7 @@ use oss_writer::publish::lazy::Policy;
 use crate::bulk_route::{self, BulkService};
 use crate::doc_route::{self, DocService};
 use crate::handlers::Registry;
+use crate::health_route::{self, HealthService, HealthSource};
 #[cfg(feature = "coordinator")]
 use crate::index_route::{self, IndexService};
 use crate::pit_route::{self, PitService};
@@ -181,6 +182,24 @@ impl Running {
 }
 
 impl Assembled {
+    /// Registers `GET /_cluster/health[/{index}]` and `GET /_cat/health` over
+    /// `source`, answering as the cluster named `cluster`. The assembly does
+    /// not make a source: it needs the node's membership, which the caller
+    /// has once it has enrolled.
+    ///
+    /// # Errors
+    ///
+    /// [`AssembleError::Route`] when a health route is registered twice.
+    pub fn with_health(
+        mut self,
+        source: Arc<dyn HealthSource>,
+        cluster: &str,
+    ) -> Result<Self, AssembleError> {
+        let service = Arc::new(HealthService::new(source, cluster));
+        self.router = health_route::routes(self.router, service).map_err(AssembleError::Route)?;
+        Ok(self)
+    }
+
     /// Turns the tail overlay on when `parts` say so, and gives the
     /// transport handlers for it; `None` when it is off or already on.
     ///
@@ -308,6 +327,7 @@ pub fn assemble(
     let router = bulk_route::routes(router, bulk).map_err(AssembleError::Route)?;
     let router = doc_route::routes(router, docs).map_err(AssembleError::Route)?;
     let router = pit_route::routes(router, pit).map_err(AssembleError::Route)?;
+    let router = crate::admin_assemble::register(router, &store, config)?;
     #[cfg(feature = "coordinator")]
     let router = {
         let descriptors =
