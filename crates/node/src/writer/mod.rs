@@ -18,6 +18,7 @@ mod janitor_timer;
 mod lease;
 mod newest_commit;
 mod opener;
+mod predecessors;
 mod publish_timer;
 mod publishing;
 mod refresh;

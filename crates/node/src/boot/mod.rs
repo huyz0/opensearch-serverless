@@ -25,7 +25,7 @@ use crate::assemble::{self, AssembleError, Config, Running, Writer};
 use crate::descriptor_routes::DescriptorRoutes;
 use crate::health_route::StoreHealth;
 use crate::writer::{
-    DescriptorIncarnation, HeadAdmission, HeadOpener, MembershipLeaseWrite, ShardNames,
+    DescriptorIncarnation, HeadAdmission, HeadOpener, MembershipLeaseWrite, ShardNames, Takeover,
 };
 
 pub use config::{MIN_MEMORY_BYTES, NodeConfig, StoreChoice};
@@ -39,6 +39,9 @@ const MAX_MEMBERS: usize = 1024;
 
 /// The buffer a descriptor, a head or a lease is read through.
 const READ_BUFFER: usize = 1 << 20;
+
+/// The bytes a takeover's replay buffers before it commits locally.
+const REPLAY_BUFFER: usize = 16 << 20;
 
 /// The buffer a lease register is read through.
 const LEASE_BUFFER: usize = 1 << 16;
@@ -213,7 +216,14 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         &config.node_id,
         &ephemeral,
         READ_BUFFER,
-    );
+    )
+    .with_takeover(Takeover::from_leases(
+        Arc::clone(&store),
+        &config.base,
+        &config.node_id,
+        i64::try_from(first_epoch).unwrap_or(i64::MAX),
+        REPLAY_BUFFER,
+    ));
     let routes = DescriptorRoutes::new(
         DescriptorStore::new(Arc::clone(&store), &config.base, DeleteMode::Tombstone)
             .map_err(cluster)?,
