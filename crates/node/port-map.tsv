@@ -70,3 +70,4 @@ src/writer/takeover.rs	port	serverless/shell/src/main/java/org/opensearch/server
 src/writer/predecessors.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/ShardReconciler.java	the predecessors of a take: each head writer's log epochs from its lease, fenced and rechecked against the lease
 src/bulk_handler.rs	new		the owner side of a forwarded bulk over WriterRole::apply_group; the Java splits it between ForwardedBulkAction and NodeWritePath
 src/boot/transport.rs	new		the transport server's late-bound handler and the node's discovery description; the Java builds them in the transport module
+src/read_forward.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/forwarding/ForwardedGetRequest.java@429b4cbc	the owner-side handler and the sender of a forwarded get
