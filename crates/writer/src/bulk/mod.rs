@@ -20,9 +20,7 @@ pub use action::{Action, Defaults, Kind};
 pub use budget::{BulkBudget, Grant};
 pub use ids::IdGenerator;
 pub use reader::{BodyReader, Op};
-pub use response::{
-    Item, ItemResult, doc_status, shard_failure, write as write_response, write_doc,
-};
+pub use response::{Item, ItemResult, doc_status, write as write_response, write_doc};
 pub use run::{Bulk, IndexInfo, Owner, Planned, Target, item_result};
 pub use validate::MAX_ID_BYTES;
 

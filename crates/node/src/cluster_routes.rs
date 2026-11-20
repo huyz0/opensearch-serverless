@@ -8,9 +8,9 @@
 
 use oss_cluster::placement::{ROLE_INGEST, ShardKey, has_role, owner};
 use oss_format::NodeLease;
-use oss_rest::Exception;
+use oss_rest::{Exception, Meta};
 use oss_transport::actions::write::{BulkOperation, BulkOutcome, BulkRequest, BulkResponse};
-use oss_writer::bulk::{IndexInfo, ItemResult, Kind, Owner, Planned, shard_failure};
+use oss_writer::bulk::{IndexInfo, ItemResult, Kind, Owner, Planned};
 use oss_writer::index::{Outcome, Written};
 
 use crate::forward::{BulkForwarder, ForwardError};
@@ -129,7 +129,11 @@ fn result_of(outcome: &BulkOutcome, index: &IndexInfo, shard: u32) -> ItemResult
         };
         return ItemResult::Failed {
             status,
-            error: shard_failure(kind, reason.clone(), &index.name, shard, &index.uuid),
+            error: Exception::new(kind, reason.clone())
+                // ALLOC: three short fields an item that failed.
+                .with_meta("index", Meta::Str(index.name.clone()))
+                .with_meta("shard", Meta::Str(shard.to_string()))
+                .with_meta("index_uuid", Meta::Str(index.uuid.clone())),
         };
     }
     let kind = match (outcome.deletion, outcome.found, outcome.created) {
