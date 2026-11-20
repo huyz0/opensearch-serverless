@@ -15,7 +15,7 @@ use std::time::Duration;
 use oss_blob::{BlobStore, Credentials, FsStore, S3Config, S3Store};
 use oss_cluster::heads::ShardHeadStore;
 use oss_cluster::{LeaseClock, LeaseConfig, LivenessOracle, Membership, SystemClock};
-use oss_format::NodeLease;
+use oss_format::{NodeLease, NodeLogEpoch};
 use oss_mem::MemoryBudget;
 use oss_meta::{DeleteMode, DescriptorStore};
 use oss_rest::ServerConfig;
@@ -39,6 +39,9 @@ const MAX_MEMBERS: usize = 1024;
 
 /// The buffer a descriptor, a head or a lease is read through.
 const READ_BUFFER: usize = 1 << 20;
+
+/// The buffer a lease register is read through.
+const LEASE_BUFFER: usize = 1 << 16;
 
 /// How long a held shard's index incarnation is trusted before it is read again.
 const INCARNATION_WINDOW: Duration = Duration::from_secs(600);
@@ -152,15 +155,11 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     );
     let ephemeral = format!("{:x}-{:x}", clock.now_millis(), std::process::id());
 
-    // The epochs an earlier process of this node left: this one writes above
-    // them and names them in every lease, so a successor still fences them.
-    let _ = membership.refresh();
-    let inherited = membership
-        .current()
-        .iter()
-        .find(|l| l.node_id == config.node_id)
-        .map(|l| l.node_log.clone())
-        .unwrap_or_default();
+    // The epochs an earlier process of this node left, read from its own
+    // lease register whether or not it is still listed or has expired: this
+    // process writes above them and names them in every lease, so a
+    // successor still fences them.
+    let inherited = earlier_epochs(store.as_ref(), &config.base, &config.node_id)?;
     let first_epoch = inherited
         .iter()
         .map(|e| u64::try_from(e.epoch).unwrap_or(0))
@@ -266,13 +265,33 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         // once in a lifetime.
         let _ = keeper.renew(&committer);
         let _ = renewing.refresh();
-    });
+    })
+    .map_err(|e| BootError::Cluster(format!("lease renewal thread: {e}")))?;
     Ok(Node {
         running: Some(running),
         renewal: Some(renewal),
         membership,
         node_id: config.node_id.clone(),
     })
+}
+
+/// The write-log epochs the lease register of `node_id` names; none when
+/// there is no register.
+fn earlier_epochs(
+    store: &dyn BlobStore,
+    base: &str,
+    node_id: &str,
+) -> Result<Vec<NodeLogEpoch>, BootError> {
+    let key = oss_format::lease_key(base, node_id).map_err(cluster)?;
+    // ALLOC: one buffer, once a node.
+    let mut buf = vec![0u8; LEASE_BUFFER];
+    let Some(read) = store.read_register(&key, &mut buf).map_err(cluster)? else {
+        return Ok(Vec::new());
+    };
+    let bytes = buf.get(..read.len).unwrap_or_default();
+    NodeLease::parse(bytes)
+        .map(|lease| lease.node_log)
+        .map_err(cluster)
 }
 
 /// The six bytes time-based ids are made with: from the node id, so two

@@ -10,10 +10,23 @@ use std::time::{Duration, Instant};
 
 use std::sync::Arc;
 
-use oss_blob::FsStore;
+use oss_blob::{BlobStore, FsStore};
 use oss_cluster::{LeaseClock, LeaseConfig, Membership, SystemClock};
 use oss_node::boot::{Node, NodeConfig, start};
 use oss_testkit::TempDir;
+
+/// The write-log epochs a node's lease names, read from its register.
+fn epochs(root: &std::path::Path, id: &str) -> Vec<i64> {
+    let store = FsStore::new(root).expect("store");
+    let key = oss_format::lease_key("", id).expect("key");
+    let mut buf = vec![0u8; 1 << 16];
+    let read = store
+        .read_register(&key, &mut buf)
+        .expect("reads")
+        .expect("present");
+    let lease = oss_format::NodeLease::parse(&buf[..read.len]).expect("parses");
+    lease.node_log.iter().map(|e| e.epoch).collect()
+}
 
 /// The ids on the members index, read by a peer that is not a member.
 fn enrolled(root: &std::path::Path) -> Vec<String> {
@@ -116,7 +129,48 @@ fn a_second_node_is_seen_and_a_dropped_one_is_released() {
     drop(second);
     // Released, not lapsed: the lease lasts 3 s and the index is read at once.
     assert_eq!(enrolled(dir.path()), ["n1"]);
+    // And nothing renews it again: a tick (1 s) passes and it is still gone.
+    std::thread::sleep(Duration::from_millis(1_300));
+    assert_eq!(enrolled(dir.path()), ["n1"]);
+    assert_eq!(nodes_seen(&first), 1);
     wait_for("the first never saw the second leave", || {
         nodes_seen(&first) == 1
     });
+}
+
+// AC-7
+#[test]
+fn a_restarted_node_writes_above_the_epochs_it_left() {
+    let dir = TempDir::new("boot-restart");
+    let write = |node: &Node, index: &str| {
+        let r = call(node, "PUT", &format!("/{index}/_doc/1"), Some(r#"{"n":1}"#));
+        assert_eq!(r.status, 201, "{}", r.text());
+    };
+    let first = start(&config(dir.path(), "n1", "30000")).expect("starts");
+    assert_eq!(call(&first, "PUT", "/logs", None).status, 200);
+    write(&first, "logs");
+    let before = epochs(dir.path(), "n1");
+    assert!(!before.is_empty(), "the first write opened an epoch");
+    drop(first);
+    // Released: off the members index, but its register still names the epochs.
+    assert_eq!(enrolled(dir.path()), Vec::<String>::new());
+    let second = start(&config(dir.path(), "n1", "30000")).expect("starts");
+    assert_eq!(
+        epochs(dir.path(), "n1"),
+        before,
+        "enrolling kept the epochs"
+    );
+    // A shard with a history cannot be taken over yet, so the new process
+    // writes a shard of its own.
+    assert_eq!(call(&second, "PUT", "/fresh", None).status, 200);
+    write(&second, "fresh");
+    let after = epochs(dir.path(), "n1");
+    assert!(
+        before.iter().all(|e| after.contains(e)),
+        "{before:?} not all in {after:?}"
+    );
+    assert!(
+        after.iter().max() > before.iter().max(),
+        "the new process wrote in a new epoch: {after:?}"
+    );
 }

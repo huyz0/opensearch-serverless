@@ -13,7 +13,10 @@ pub struct Renewal {
 
 impl Renewal {
     /// Starts the thread: `tick` every `every`.
-    pub fn spawn(every: Duration, mut tick: impl FnMut() + Send + 'static) -> Self {
+    pub fn spawn(
+        every: Duration,
+        mut tick: impl FnMut() + Send + 'static,
+    ) -> std::io::Result<Self> {
         let stop = Arc::new((Mutex::new(false), Condvar::new()));
         let signal = Arc::clone(&stop);
         let thread = std::thread::Builder::new()
@@ -31,9 +34,11 @@ impl Renewal {
                     drop(stopped);
                     tick();
                 }
-            })
-            .ok();
-        Self { stop, thread }
+            })?;
+        Ok(Self {
+            stop,
+            thread: Some(thread),
+        })
     }
 }
 
@@ -61,7 +66,8 @@ mod tests {
         let seen = Arc::clone(&ticks);
         let renewal = Renewal::spawn(Duration::from_millis(5), move || {
             seen.fetch_add(1, Ordering::SeqCst);
-        });
+        })
+        .expect("spawns");
         let start = Instant::now();
         while ticks.load(Ordering::SeqCst) < 3 {
             assert!(start.elapsed() < Duration::from_secs(10), "no ticks");

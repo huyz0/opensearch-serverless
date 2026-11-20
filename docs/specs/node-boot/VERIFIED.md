@@ -6,3 +6,4 @@
 - AC-4: `a_started_node_writes_and_reads_a_document` in crates/node/tests/boot.rs
 - AC-5: `a_second_node_is_seen_and_a_dropped_one_is_released` in crates/node/tests/boot.rs
 - AC-6: `a_second_node_is_seen_and_a_dropped_one_is_released` in crates/node/tests/boot.rs
+- AC-7: `a_restarted_node_writes_above_the_epochs_it_left` in crates/node/tests/boot.rs

@@ -21,7 +21,8 @@ Parity plan R7.6, node `main`: until now `main` printed the roles. A node with t
 - AC-3: a node started on a file store answers `GET /_cluster/health` with one node, and its lease register exists in the store before it listens.
 - AC-4: through that node, `PUT /{index}`, `PUT /{index}/_doc/{id}`, a refresh and `GET /{index}/_doc/{id}` write and read a document: the shard opened through the head opener.
 - AC-5: a second node on the same store with another id is seen by the first after a renewal tick (`number_of_nodes` 2).
-- AC-6: dropping a node stops its renewal and releases its lease: the other node sees one member again.
+- AC-6: dropping a node stops its renewal and releases its lease: the members index lists one member at once, and still one after a renewal tick.
+- AC-7: a node started again on the same store and id reads the epochs its register names before it enrols, keeps them in its lease, and writes in an epoch above them, so a successor still fences what the earlier process wrote.
 
 ## Test plan
 
@@ -29,7 +30,7 @@ Parity plan R7.6, node `main`: until now `main` printed the roles. A node with t
 
 ## S3 request budget
 
-Start: one membership read, one lease create, one head-opener read a write. Steady: one lease swap and one membership refresh every `lease_ttl / 3` per node; an idle index makes none.
+Start: one read of the node's own lease register, then its enrolment. Steady: one lease renewal and one membership refresh every `lease_ttl / 3` per node, at the per-node cost the `lease.*` rows of the request budgets price ([node leases](../node-leases/SPEC.md)); no request scales with indexes. A failed tick is retried by the next.
 
 ## Risks
 
