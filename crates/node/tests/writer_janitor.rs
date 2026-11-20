@@ -352,3 +352,30 @@ fn the_timer_runs_a_pass_on_its_interval_reading_the_config_each_time_until_drop
         "a dropped timer runs no pass"
     );
 }
+
+#[test]
+fn the_timer_waits_its_interval_before_the_first_pass_and_stops_promptly() {
+    let r = rig();
+    let reads = Arc::new(AtomicU64::new(0));
+    let counted = Arc::clone(&reads);
+    let timer = JanitorTimer::spawn(
+        Arc::new(r.pass),
+        Duration::from_secs(30),
+        Box::new(move || {
+            counted.fetch_add(1, Ordering::SeqCst);
+            LIVE
+        }),
+    );
+    std::thread::sleep(Duration::from_millis(50));
+    assert_eq!(
+        reads.load(Ordering::SeqCst),
+        0,
+        "no pass before the interval"
+    );
+    let started = Instant::now();
+    drop(timer);
+    assert!(
+        started.elapsed() < Duration::from_secs(5),
+        "a sleeping timer is woken to stop"
+    );
+}

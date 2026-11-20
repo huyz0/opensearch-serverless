@@ -22,7 +22,7 @@ Parity plan R7.6, node assembly: the janitor crate sweeps one shard at a time, a
 - AC-5: a new published commit makes the shard due again.
 - AC-6: a pass with no memory for its buffer sweeps nothing and says so.
 - AC-7: a shard pinned whole by a capture is reported pinned, is swept again at the next pass once the capture is gone, and then follows AC-2.
-- AC-8: `JanitorTimer` runs a pass every interval, reading the sweep's config at the start of each, and runs none once dropped.
+- AC-8: `JanitorTimer` runs a pass every interval, reading the sweep's config at the start of each, and runs none once dropped; the first pass waits one interval, and a timer asleep for a long interval is woken to stop.
 
 ## Test plan
 

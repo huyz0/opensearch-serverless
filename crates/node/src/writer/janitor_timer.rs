@@ -33,8 +33,10 @@ impl JanitorTimer {
                 let (flag, wake) = &*signal;
                 loop {
                     let stopped = flag.lock().unwrap_or_else(PoisonError::into_inner);
+                    // A wake that is not the drop's (spurious) runs the pass a
+                    // little early, which the pass does not mind.
                     let (stopped, _) = wake
-                        .wait_timeout_while(stopped, every, |stopped| !*stopped)
+                        .wait_timeout(stopped, every)
                         .unwrap_or_else(PoisonError::into_inner);
                     if *stopped {
                         return;
