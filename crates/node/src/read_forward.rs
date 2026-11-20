@@ -94,6 +94,22 @@ impl Handler for GetHandler {
     }
 }
 
+/// The call a forwarded get makes to an owner.
+pub trait GetSend: Send + Sync {
+    /// Sends `request` to node `node_id` and reads its answer.
+    ///
+    /// # Errors
+    ///
+    /// [`ForwardError`]: nothing sent, or the call failed.
+    fn get(&self, node_id: &str, request: &GetRequest) -> Result<GetResponse, ForwardError>;
+}
+
+impl<L: Leases> GetSend for GetForwarder<L> {
+    fn get(&self, node_id: &str, request: &GetRequest) -> Result<GetResponse, ForwardError> {
+        GetForwarder::get(self, node_id, request)
+    }
+}
+
 /// Sends gets to shard owners over the transport client, signed.
 pub struct GetForwarder<L> {
     client: Arc<Client>,

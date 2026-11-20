@@ -19,7 +19,7 @@ Parity plan R7.6, node assembly: `GET|HEAD /{index}/_doc/{id}`, `GET|HEAD /{inde
 - AC-4: `GET /{index}/_source/{id}` answers the stored source alone, 404 for none.
 - AC-5: a get of an unknown index is 404 `index_not_found_exception`; with `routing` it picks the shard stock's routing picks, and an index whose mapping requires routing refuses a get without one as 400 `routing_missing_exception`.
 - AC-6: `_refresh` of an index makes every shard's writes visible to a non-realtime get and answers `{"_shards":{"total":N,"successful":N,"failed":0}}`; of an unknown index it is 404.
-- AC-7: a shard another node owns answers a get 503, and counts one failed in `_refresh`'s `_shards`.
+- AC-7: a shard another node owns is asked of its owner, as [read routing](../node-read-routing/SPEC.md) says; with a route that cannot name an owner's answer it answers a get 503 and counts one failed in `_refresh`'s `_shards`.
 - AC-8: `Shard::get` and the lookup it uses: the shard-level cases of AC-1 and AC-2, over a shard that was refreshed, one that never was, and one whose newest write is a delete.
 
 ## Test plan

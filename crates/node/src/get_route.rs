@@ -10,7 +10,7 @@ use oss_rest::{
     Exception, JSON, Length, Meta, Method, Request, Response, RestError, RouteError, Router,
     write_json_str,
 };
-use oss_writer::bulk::{IndexInfo, Owner};
+use oss_writer::bulk::IndexInfo;
 
 use crate::bulk_route::refresh;
 use crate::writer::WriterRole;
@@ -119,28 +119,20 @@ impl GetService {
             .index_info(&name)
             .ok_or_else(|| index_not_found(&name))?;
         let shard = shard_of(&index, &id, req.param("routing").as_deref())?;
-        if let Owner::Node(node) = self.role.owner(&index, shard) {
-            return Err(RestError::exception(
-                503,
-                // ALLOC: error path; one message.
-                Exception::new(
-                    "no_shard_available_action_exception",
-                    format!(
-                        "[{}][{shard}] is held by [{node}]; this node does not forward reads",
-                        index.name
-                    ),
-                ),
-            ));
-        }
         if refresh {
             self.role
-                .refresh(&index, shard)
+                .refresh_owned(&index, shard)
                 .map_err(|e| RestError::simple(500, e))?;
         }
         let found = self
             .role
-            .get(&index, shard, &id, realtime)
-            .map_err(|e| RestError::simple(500, e))?;
+            .get_owned(&index, shard, &id, realtime)
+            .map_err(|reason| {
+                RestError::exception(
+                    503,
+                    Exception::new("no_shard_available_action_exception", reason),
+                )
+            })?;
         match (api, found) {
             (Api::Doc, found) => {
                 let status = if found.is_some() { 200 } else { 404 };

@@ -167,30 +167,27 @@ fn a_write_through_one_node_reaches_the_node_that_owns_the_shard() {
         );
         assert_eq!(wrote.status, 201, "id {id}: {}", wrote.text());
     }
-    // A read is served by the node that holds the shard (reads are not
-    // forwarded): each document is on exactly one of the two, and both
-    // hold some, so the first took writes the second received.
-    let mut on_first = 0;
-    let mut on_second = 0;
+    // A read through either node finds every document: the shards a node
+    // does not hold are asked of their owner.
     for id in 0..24 {
-        // Not realtime: only a refresh makes it visible.
-        let target = format!("/fwd/_doc/{id}?realtime=false");
-        let one = call(&first, "GET", &target, None);
-        let two = call(&second, "GET", &target, None);
-        assert_eq!(
-            [one.status, two.status]
-                .iter()
-                .filter(|s| **s == 200)
-                .count(),
-            1,
-            "id {id}: {} / {}",
-            one.text(),
-            two.text()
-        );
-        on_first += usize::from(one.status == 200);
-        on_second += usize::from(two.status == 200);
+        let target = format!("/fwd/_doc/{id}");
+        for node in [&first, &second] {
+            let found = call(node, "GET", &target, None);
+            assert_eq!(found.status, 200, "id {id}: {}", found.text());
+            assert!(found.text().contains(r#""found":true"#), "{}", found.text());
+        }
     }
-    assert!(on_first > 0 && on_second > 0, "{on_first} / {on_second}");
+    for node in [&first, &second] {
+        let missing = call(node, "GET", "/fwd/_doc/nope", None);
+        assert_eq!(missing.status, 404, "{}", missing.text());
+    }
+    // A refresh through one node reaches the shards the other holds.
+    let refresh = call(&first, "POST", "/fwd/_refresh", None);
+    assert!(
+        refresh.text().contains(r#""failed":0"#),
+        "{}",
+        refresh.text()
+    );
 }
 
 // AC-7

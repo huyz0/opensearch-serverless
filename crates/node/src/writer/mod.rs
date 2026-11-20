@@ -34,7 +34,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use oss_format::WalRecord;
 use oss_rest::{Exception, Meta};
 use oss_writer::bulk::{IndexInfo, ItemResult, Kind, Owner, Planned, item_result};
-use oss_writer::index::{Refused, Written};
+use oss_writer::index::{Fetched, Refused, Written};
 use oss_writer::log::NodeLogCommitter;
 
 use incarnation::Fenced;
@@ -75,6 +75,18 @@ pub trait Routes: Send + Sync {
     /// Asks the node that owns `shard` to refresh it. A route that never
     /// names another owner has nothing to ask.
     fn refresh_remote(&self, _node: &str, _index: &IndexInfo, _shard: u32) -> Result<(), String> {
+        Err("the shard is held by another node".to_owned())
+    }
+
+    /// Asks the node that owns `shard` for the live document `id`. A route
+    /// that never names another owner has nothing to ask.
+    fn get_remote(
+        &self,
+        _node: &str,
+        _index: &IndexInfo,
+        _shard: u32,
+        _id: &str,
+    ) -> Result<Option<Fetched>, String> {
         Err("the shard is held by another node".to_owned())
     }
 }

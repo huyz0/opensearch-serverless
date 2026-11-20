@@ -6,15 +6,19 @@
 //! owner, and the shard head's conditional write is what makes one node the
 //! owner in fact.
 
+use std::sync::Arc;
+
 use oss_cluster::placement::{ROLE_INGEST, ShardKey, has_role, owner};
 use oss_format::NodeLease;
 use oss_rest::{Exception, Meta};
+use oss_transport::actions::read::GetRequest;
 use oss_transport::actions::write::{BulkOperation, BulkOutcome, BulkRequest, BulkResponse};
 use oss_writer::bulk::{IndexInfo, ItemResult, Kind, Owner, Planned};
-use oss_writer::index::{Outcome, Written};
+use oss_writer::index::{Fetched, Outcome, Written};
 
 use crate::forward::{BulkForwarder, ForwardError};
 use crate::push_link::Leases;
+use crate::read_forward::GetSend;
 use crate::writer::Routes;
 
 /// Which indexes exist.
@@ -46,6 +50,7 @@ pub struct ClusterRoutes<S, L, B> {
     send: B,
     self_id: String,
     now: Box<dyn Fn() -> i64 + Send + Sync>,
+    reads: Option<Arc<dyn GetSend>>,
 }
 
 impl<S: IndexSource, L: Leases, B: BulkSend> ClusterRoutes<S, L, B> {
@@ -66,7 +71,15 @@ impl<S: IndexSource, L: Leases, B: BulkSend> ClusterRoutes<S, L, B> {
             // ALLOC: one id, once a node.
             self_id: self_id.to_owned(),
             now,
+            reads: None,
         }
+    }
+
+    /// The same, forwarding a get of a shard another node owns with `reads`.
+    #[must_use]
+    pub fn with_reads(mut self, reads: Arc<dyn GetSend>) -> Self {
+        self.reads = Some(reads);
+        self
     }
 }
 
@@ -186,6 +199,40 @@ impl<S: IndexSource, L: Leases, B: BulkSend> Routes for ClusterRoutes<S, L, B> {
             Ok(_) => Err("the owner did not refresh the shard".to_owned()),
             Err(e) => Err(format!("the owner could not be asked to refresh: {e:?}")),
         }
+    }
+
+    fn get_remote(
+        &self,
+        node: &str,
+        index: &IndexInfo,
+        shard: u32,
+        id: &str,
+    ) -> Result<Option<Fetched>, String> {
+        let reads = self
+            .reads
+            .as_ref()
+            .ok_or_else(|| "this node does not forward reads".to_owned())?;
+        let request = GetRequest {
+            // ALLOC: one request's strings.
+            index: index.name.clone(),
+            index_uuid: Some(index.uuid.clone()),
+            shard: i32::try_from(shard).unwrap_or(i32::MAX),
+            id: id.to_owned(),
+            ..GetRequest::default()
+        };
+        // ALLOC: error path; one message.
+        let answer = reads
+            .get(node, &request)
+            .map_err(|e| format!("the owner could not be asked for the document: {e}"))?;
+        if !answer.found {
+            return Ok(None);
+        }
+        Ok(Some(Fetched {
+            version: answer.version,
+            seq_no: answer.seq_no,
+            primary_term: answer.primary_term,
+            source: answer.source.unwrap_or_default().into_bytes(),
+        }))
     }
 
     fn forward(

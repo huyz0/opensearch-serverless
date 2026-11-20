@@ -23,6 +23,7 @@ use oss_format::{NodeLease, NodeLogEpoch};
 use oss_mem::MemoryBudget;
 use oss_meta::{DeleteMode, DescriptorStore};
 use oss_rest::ServerConfig;
+use oss_transport::actions::read::GET_ACTION;
 use oss_transport::actions::write::BULK_ACTION;
 use oss_transport::auth::{AuthConfig, Authenticator};
 use oss_transport::client::{Client, ClientConfig};
@@ -37,6 +38,7 @@ use crate::forward::BulkForwarder;
 use crate::handlers::Registry;
 use crate::health_route::StoreHealth;
 use crate::push_link::Leases;
+use crate::read_forward::{GetForwarder, GetHandler};
 use crate::writer::{
     DescriptorIncarnation, HeadAdmission, HeadOpener, MembershipLeaseWrite, Routes, ShardNames,
     Takeover,
@@ -233,9 +235,14 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     ));
     let late = transport::Late::default();
     let late_slot = late.slot();
+    let late_get = transport::Late::default();
+    let late_get_slot = late_get.slot();
     let mut registry = Registry::new(Arc::clone(&auth));
     registry
         .add(BULK_ACTION, late)
+        .map_err(|e| BootError::Cluster(e.to_string()))?;
+    registry
+        .add(GET_ACTION, late_get)
         .map_err(|e| BootError::Cluster(e.to_string()))?;
     let transport_server = TransportServer::bind(
         config.transport,
@@ -317,8 +324,9 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     };
     // A write another node owns goes to it over the transport. Early
     // revoke stays off: it is a setting this node does not read yet.
+    let client = Arc::new(Client::new(ClientConfig::default(), budget.clone()));
     let forwarder = BulkForwarder::new(
-        Arc::new(Client::new(ClientConfig::default(), budget.clone())),
+        Arc::clone(&client),
         Arc::clone(&auth),
         Held(Arc::clone(&membership)),
         Arc::new(EarlyRevoke::new(
@@ -328,6 +336,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         )),
         Arc::clone(&clock),
     );
+    let reads = GetForwarder::new(client, Arc::clone(&auth), Held(Arc::clone(&membership)));
     let routes = ClusterRoutes::new(
         descriptor_routes()?,
         Held(Arc::clone(&membership)),
@@ -337,7 +346,8 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
             let clock = Arc::clone(&clock);
             Box::new(move || clock.now_millis())
         },
-    );
+    )
+    .with_reads(Arc::new(reads));
     let writer = Writer {
         committer: Arc::clone(&committer),
         routes: Arc::new(routes),
@@ -378,6 +388,11 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         &config.node_id,
     ));
     late_slot.set(handler).ok();
+    let get_handler: Arc<dyn oss_transport::server::Handler> = Arc::new(GetHandler::new(
+        Arc::clone(&assembled.role),
+        &config.node_id,
+    ));
+    late_get_slot.set(get_handler).ok();
     // Enrolled last: a peer that sees the lease can reach everything it names.
     membership.renew(&lease_for_enrolment).map_err(cluster)?;
     let listener = TcpListener::bind(config.http)

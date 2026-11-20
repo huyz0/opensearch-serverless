@@ -9,7 +9,9 @@ use oss_format::NodeLease;
 use oss_node::cluster_owner::{BulkSend, ClusterRoutes, IndexSource};
 use oss_node::forward::ForwardError;
 use oss_node::push_link::Leases;
+use oss_node::read_forward::GetSend;
 use oss_node::writer::Routes;
+use oss_transport::actions::read::{GetRequest, GetResponse};
 use oss_transport::actions::write::{BulkOutcome, BulkRequest, BulkResponse};
 use oss_writer::bulk::{Action, IndexInfo, ItemResult, Kind, Op, Owner, Planned};
 use oss_writer::index::{Expect, Outcome};
@@ -355,5 +357,83 @@ fn a_refresh_of_a_shard_another_node_owns_is_asked_of_that_owner() {
         routes(fleet(), &f, "n1")
             .refresh_remote("n2", &info(), 3)
             .is_err()
+    );
+}
+
+/// Answers a forwarded get from a fixed result.
+struct Reader(Mutex<Vec<(String, GetRequest)>>, Option<GetResponse>);
+
+impl GetSend for Reader {
+    fn get(&self, node: &str, request: &GetRequest) -> Result<GetResponse, ForwardError> {
+        self.0
+            .lock()
+            .expect("lock")
+            .push((node.to_owned(), request.clone()));
+        self.1.clone().ok_or(ForwardError::NoPeer)
+    }
+}
+
+fn reading(answer: Option<GetResponse>) -> (Arc<Reader>, impl Routes) {
+    let reader = Arc::new(Reader(Mutex::default(), answer));
+    let routes = ClusterRoutes::new(
+        Indexes,
+        Fixed(fleet().into()),
+        Sender(fake(Answer::Outcomes(Vec::new()))),
+        "n1",
+        Box::new(|| NOW),
+    )
+    .with_reads(Arc::clone(&reader) as Arc<dyn GetSend>);
+    (reader, routes)
+}
+
+#[test]
+fn a_get_of_a_shard_another_node_owns_is_asked_of_that_owner() {
+    let found = GetResponse {
+        owner_node_id: "n2".into(),
+        id: "a".into(),
+        found: true,
+        source: Some(r#"{"x":1}"#.into()),
+        seq_no: 5,
+        primary_term: 2,
+        version: 3,
+        routing: None,
+    };
+    let (reader, r) = reading(Some(found));
+    let doc = r
+        .get_remote("n2", &info(), 3, "a")
+        .expect("asked")
+        .expect("found");
+    assert_eq!(
+        (
+            doc.version,
+            doc.seq_no,
+            doc.primary_term,
+            doc.source.as_slice()
+        ),
+        (3, 5, 2, br#"{"x":1}"#.as_slice())
+    );
+    let seen = reader.0.lock().expect("lock");
+    let (node, request) = seen.first().expect("one request");
+    assert_eq!(node, "n2");
+    assert_eq!(
+        (request.index.as_str(), request.shard, request.id.as_str()),
+        ("logs", 3, "a")
+    );
+    assert_eq!(request.index_uuid.as_deref(), Some("u1"));
+    drop(seen);
+
+    let (_, r) = reading(Some(GetResponse::default()));
+    assert!(
+        r.get_remote("n2", &info(), 3, "a")
+            .expect("asked")
+            .is_none()
+    );
+    let (_, r) = reading(None);
+    assert!(r.get_remote("n2", &info(), 3, "a").is_err());
+    assert!(
+        routes(fleet(), &fake(Answer::Outcomes(Vec::new())), "n1")
+            .get_remote("n2", &info(), 3, "a")
+            .is_err(),
+        "no reads configured"
     );
 }
