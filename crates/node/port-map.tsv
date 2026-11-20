@@ -71,3 +71,7 @@ src/writer/predecessors.rs	port	serverless/shell/src/main/java/org/opensearch/se
 src/bulk_handler.rs	new		the owner side of a forwarded bulk over WriterRole::apply_group; the Java splits it between ForwardedBulkAction and NodeWritePath
 src/boot/transport.rs	new		the transport server's late-bound handler and the node's discovery description; the Java builds them in the transport module
 src/read_forward.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/forwarding/ForwardedGetRequest.java@429b4cbc	the owner-side handler and the sender of a forwarded get
+src/by_query/mod.rs	new		delete-by-query over a writer role, the search behind a trait; the Java shell runs it in its ops package
+src/by_query/change.rs	new		the conditional delete a by-query walk makes, through the bulk machinery
+src/by_query/params.rs	new		the request body and parameters of a delete by query
+src/by_query/response.rs	new		the answer of a delete by query

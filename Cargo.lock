@@ -761,6 +761,7 @@ dependencies = [
  "oss-blob",
  "oss-cluster",
  "oss-coordinator",
+ "oss-doc",
  "oss-format",
  "oss-janitor",
  "oss-mem",
