@@ -45,6 +45,8 @@ pub struct IndexLifecycle<'a> {
     heads: &'a dyn ShardHeads,
     pins: &'a dyn ShardPins,
     buf: Vec<u8>,
+    inline_purge_max_shards: u32,
+    repurge_pinned: bool,
 }
 
 /// An index's identity, copied out of the buffer it was read through.
@@ -76,7 +78,30 @@ impl<'a> IndexLifecycle<'a> {
             pins,
             // ALLOC: one register buffer a lifecycle, once.
             buf: vec![0; register_bytes],
+            inline_purge_max_shards: u32::MAX,
+            repurge_pinned: false,
         }
+    }
+
+    /// Purges inside a delete only an index of at most `shards` shards: a
+    /// larger one files its intent as if a writer held it, so the purge,
+    /// which lists and deletes every shard one after another, runs at the
+    /// reclaim and not while a request waits. The default has no limit, as
+    /// the Java.
+    #[must_use]
+    pub fn with_inline_purge_limit(mut self, shards: u32) -> Self {
+        self.inline_purge_max_shards = shards;
+        self
+    }
+
+    /// Files an intent again when a purge leaves shards a pin names, so
+    /// their bytes go once the pin ends ([`Self::reclaim_at`] for a reclaim,
+    /// a delete for its own purge). Each retry costs the pins' read, until
+    /// the pin expires. Off by default, as the Java leaves them.
+    #[must_use]
+    pub fn with_repurge_pinned(mut self, on: bool) -> Self {
+        self.repurge_pinned = on;
+        self
     }
 
     /// Creates the index `record` describes and answers its descriptor's
@@ -153,6 +178,8 @@ impl<'a> IndexLifecycle<'a> {
             Vec::new()
         };
         let had_writer = owned.iter().any(|head| head.owned);
+        // A purge deferred to the reclaim is filed as a writer's.
+        let had_writer = had_writer || (conditional && read.shards > self.inline_purge_max_shards);
         if conditional {
             let intent = ReclaimIntent {
                 name: Cow::Borrowed(name),
@@ -179,7 +206,11 @@ impl<'a> IndexLifecycle<'a> {
         let purged = if had_writer {
             None
         } else {
-            Some(self.purge(name, &read.uuid, read.shards)?)
+            let purged = self.purge(name, &read.uuid, read.shards)?;
+            if conditional && self.repurge_pinned && purged.pinned > 0 {
+                self.refile(name, &read.uuid, read.shards, now_millis)?;
+            }
+            Some(purged)
         };
         Ok(Some(Deleted {
             aliases_left,
@@ -198,19 +229,63 @@ impl<'a> IndexLifecycle<'a> {
     /// [`MetaError`] when the store fails; the intent is kept and tried
     /// again.
     pub fn reclaim(&mut self, intent: &ReclaimIntent<'_>) -> Result<(), MetaError> {
+        self.reclaim_inner(intent).map(|_| ())
+    }
+
+    /// As [`Self::reclaim`], and with [`Self::with_repurge_pinned`] on, files
+    /// the intent again as of `now_millis` when a pin kept shards, so the
+    /// next reclaim purges them.
+    ///
+    /// # Errors
+    ///
+    /// [`MetaError`] when the store fails; the intent is kept and tried
+    /// again.
+    pub fn reclaim_at(
+        &mut self,
+        intent: &ReclaimIntent<'_>,
+        now_millis: i64,
+    ) -> Result<(), MetaError> {
+        let purged = self.reclaim_inner(intent)?;
+        if self.repurge_pinned && purged.is_some_and(|p| p.pinned > 0) {
+            self.refile(&intent.name, &intent.uuid, intent.shards, now_millis)?;
+        }
+        Ok(())
+    }
+
+    fn refile(
+        &self,
+        name: &str,
+        uuid: &str,
+        shards: u32,
+        now_millis: i64,
+    ) -> Result<(), MetaError> {
+        self.queue.enqueue(
+            &ReclaimIntent {
+                name: Cow::Borrowed(name),
+                uuid: Cow::Borrowed(uuid),
+                shards,
+                had_writer: true,
+            },
+            now_millis,
+        )
+    }
+
+    fn reclaim_inner(&mut self, intent: &ReclaimIntent<'_>) -> Result<Option<Purged>, MetaError> {
         if self
             .read(&intent.name)?
             .is_some_and(|read| read.uuid == intent.uuid)
         {
-            return Ok(());
+            return Ok(None);
         }
         let reappeared = self
             .heads
             .delete_all_of(&intent.name, intent.shards, &intent.uuid)?;
         if intent.had_writer || reappeared > 0 {
-            self.purge(&intent.name, &intent.uuid, intent.shards)?;
+            return self
+                .purge(&intent.name, &intent.uuid, intent.shards)
+                .map(Some);
         }
-        Ok(())
+        Ok(None)
     }
 
     /// The index `name` names, copied out, or `None` for no index.
