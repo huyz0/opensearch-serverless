@@ -15,6 +15,7 @@ use oss_cluster::early_revoke::MIN_RENEWED_AGO_MILLIS;
 use oss_cluster::{ConnectProbe, EarlyRevoke, LeaseClock, LeaseConfig, Membership};
 use oss_format::NodeLease;
 use oss_mem::{BudgetConfig, MemoryBudget, Pool};
+use oss_node::cluster_routes::BulkSend;
 use oss_node::forward::{BulkForwarder, ForwardError, MAX_FORWARD_BYTES};
 use oss_node::push_link::Leases;
 use oss_transport::actions::write::{
@@ -419,4 +420,16 @@ fn every_error_says_what_happened() {
     ] {
         assert!(error.to_string().contains(says), "{error}");
     }
+}
+
+#[test]
+fn the_forwarder_is_the_send_a_cluster_route_makes() {
+    let (server, taken) = owner();
+    let world = world(&server.address().to_string(), true, settled());
+    let response = BulkSend::bulk(&world.forwarder, "owner", &request()).expect("answered");
+    assert_eq!(response.owner_node_id, "owner");
+    assert_eq!(response.outcomes.len(), 1);
+    assert_eq!(taken.lock().expect("lock").len(), 1);
+    let missing = BulkSend::bulk(&world.forwarder, "nobody", &request()).unwrap_err();
+    assert!(matches!(missing, ForwardError::NoPeer));
 }
