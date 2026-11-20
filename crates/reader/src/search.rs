@@ -24,7 +24,7 @@ use oss_blob::BlobStore;
 
 use crate::OpenShard;
 use crate::aggs::bucket::filters_collect;
-use crate::aggs::bucket::{fixed_subs, keyword_collect, keyword_subs};
+use crate::aggs::bucket::{fixed_subs, keyed_subs, keyword_collect, keyword_subs};
 use crate::aggs::metric::top_hits;
 use crate::aggs::metric::{self, Partial, state_bytes};
 use crate::dsl::search_after::{AfterKey, field_doc};
@@ -188,6 +188,7 @@ pub fn hits_bytes<S: BlobStore + 'static>(source: &SearchSource, shard: &OpenSha
         .saturating_add(inner)
         .saturating_add(counted)
         .saturating_add(fixed_subs::reserved(shard, &source.aggs))
+        .saturating_add(keyed_subs::reserved(shard, &source.aggs))
         .saturating_add(state_bytes(&source.aggs))
 }
 

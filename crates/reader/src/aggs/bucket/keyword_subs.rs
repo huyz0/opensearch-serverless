@@ -223,6 +223,20 @@ fn build<S: BlobStore + 'static>(
         .collect())
 }
 
+/// What each sub-aggregation of `agg` holds for a bucket with no document.
+pub fn empty_values<S: BlobStore + 'static>(
+    agg: &MetricAgg,
+    shard: &OpenShard<S>,
+) -> Result<Vec<Value>, ShardError> {
+    // ALLOC: one value a sub-aggregation, bounded by the request's.
+    let mut out = Vec::with_capacity(agg.subs.len());
+    for sub in &agg.subs {
+        let made = build(sub, shard, None, 1)?;
+        out.push(made.into_iter().next().unwrap_or(Value::ValueCount(0)));
+    }
+    Ok(out)
+}
+
 /// The shard-level result of the keyword `terms` `agg` from the engine's
 /// `result`, with every kept bucket's sub-aggregation values.
 pub fn value<S: BlobStore + 'static>(

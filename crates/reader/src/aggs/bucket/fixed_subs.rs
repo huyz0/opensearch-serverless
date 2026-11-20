@@ -92,26 +92,35 @@ pub fn value<S: BlobStore + 'static>(
 }
 
 /// The most bytes the sub-aggregations of the fixed buckets of every
-/// aggregation in `aggs` hold on `shard`: each bucket's engine states and
-/// values (the engine's, the shard's and a reduce's), and a nested `terms`'
-/// own under the buckets.
+/// aggregation in `aggs` hold on `shard`: see [`subs_bytes`].
 pub fn reserved<S: BlobStore + 'static>(shard: &OpenShard<S>, aggs: &[MetricAgg]) -> usize {
     aggs.iter()
         .filter(|a| is_fixed(a) && !a.subs.is_empty())
         .fold(0usize, |total, agg| {
-            let buckets = width(agg).min(crate::aggs::bucket::BUCKET_LIMIT);
-            let parent = Parent {
-                cells: buckets,
-                kept: buckets,
-            };
-            let per_value = std::mem::size_of::<lucene_aggs::metric_aggs::MetricState>()
-                .saturating_add(SUB_COPIES.saturating_mul(std::mem::size_of::<Value>()));
-            agg.subs.iter().fold(total, |total, sub| {
-                total.saturating_add(if sub.metric == Metric::Terms {
-                    keyword_subs::reserved(shard, sub, parent)
-                } else {
-                    buckets.saturating_mul(per_value)
-                })
-            })
+            total.saturating_add(subs_bytes(shard, agg, width(agg)))
         })
+}
+
+/// The most bytes the sub-aggregations of `agg`'s `buckets` buckets hold on
+/// `shard`: each bucket's engine states and values (the engine's, the
+/// shard's and a reduce's), and a nested `terms`' own under the buckets.
+pub fn subs_bytes<S: BlobStore + 'static>(
+    shard: &OpenShard<S>,
+    agg: &MetricAgg,
+    buckets: usize,
+) -> usize {
+    let buckets = buckets.min(crate::aggs::bucket::BUCKET_LIMIT);
+    let parent = Parent {
+        cells: buckets,
+        kept: buckets,
+    };
+    let per_value = std::mem::size_of::<lucene_aggs::metric_aggs::MetricState>()
+        .saturating_add(SUB_COPIES.saturating_mul(std::mem::size_of::<Value>()));
+    agg.subs.iter().fold(0usize, |total, sub| {
+        total.saturating_add(if sub.metric == Metric::Terms {
+            keyword_subs::reserved(shard, sub, parent)
+        } else {
+            buckets.saturating_mul(per_value)
+        })
+    })
 }

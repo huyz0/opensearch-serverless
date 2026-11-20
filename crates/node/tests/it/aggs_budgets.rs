@@ -38,6 +38,8 @@ fn a_cold_search_with_metric_aggregations_then_a_warm_one() {
                 br#"{"query":{"term":{"title":"brown"}},"aggs":{"y":{"stats":{"field":"year"}},
                     "p":{"max":{"field":"published"}},
                     "t":{"terms":{"field":"year"}},
+                    "h":{"histogram":{"field":"year","interval":10},
+                        "aggs":{"m":{"max":{"field":"published"}}}},
                     "r":{"range":{"field":"year","ranges":[{"to":2000},{"from":2000}]},
                         "aggs":{"m":{"max":{"field":"published"}},
                                 "g":{"terms":{"field":"tag"}}}},

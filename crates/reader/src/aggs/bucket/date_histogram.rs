@@ -8,6 +8,7 @@ pub use lucene_aggs::bucket_aggs::{DateRounding, DateUnit, RoundingKind};
 use crate::aggs::bucket::BUCKET_LIMIT;
 use crate::aggs::bucket::count_order::sort_by_count;
 use crate::aggs::bucket::histogram::HistogramOrder;
+use crate::aggs::bucket::sub_values::{BucketSubs, reduce_keyed};
 use crate::aggs::partial::Value;
 
 /// What a `date_histogram` aggregation asks for.
@@ -52,13 +53,15 @@ impl Default for DateHistogramSpec {
 
 /// What one shard (or one reduce) holds for a `date_histogram`:
 /// `InternalDateHistogram`.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct DateHistogramResult {
     /// What the aggregation asked for.
     pub spec: DateHistogramSpec,
     /// `(key in epoch milliseconds, doc count)` by key ascending from a
     /// shard, in `order` from a reduce.
     pub buckets: Vec<(i64, u64)>,
+    /// The buckets' sub-aggregations.
+    pub subs: BucketSubs,
 }
 
 /// `InternalDateHistogram.reduce` as a final reduce: `None` unless there is
@@ -224,5 +227,26 @@ pub fn reduce_results(
             sort_by_count(&mut buckets, spec.order == HistogramOrder::CountAsc);
         }
     }
-    Ok(DateHistogramResult { spec, buckets })
+    let subs = {
+        // ALLOC: one key a bucket, bounded by the bucket limit.
+        let keys: Vec<i64> = buckets.iter().map(|b| b.0).collect();
+        // ALLOC: one key list a shard, bounded by the shards that answered.
+        let held: Vec<Vec<i64>> = parts
+            .iter()
+            .map(|p| p.buckets.iter().map(|b| b.0).collect())
+            // ALLOC: as above.
+            .collect();
+        let pairs: Vec<(&[i64], &BucketSubs)> = held
+            .iter()
+            .zip(parts)
+            .map(|(k, p)| (k.as_slice(), &p.subs))
+            // ALLOC: as above.
+            .collect();
+        reduce_keyed(&pairs, &keys)
+    };
+    Ok(DateHistogramResult {
+        spec,
+        buckets,
+        subs,
+    })
 }
