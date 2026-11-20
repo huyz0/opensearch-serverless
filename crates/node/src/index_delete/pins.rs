@@ -34,7 +34,8 @@ pub struct NodePins {
 
 impl NodePins {
     /// Pins read from `pits` through a buffer of `buffer_bytes` (the largest
-    /// view record; a longer one reads as pinning everything).
+    /// view record). A view that cannot be read stands in as one pinning
+    /// every shard; a listing that fails refuses the purge.
     pub fn new(
         pits: PointInTimeStore,
         snapshots: Arc<dyn SnapshotPins>,

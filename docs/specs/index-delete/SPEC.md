@@ -17,7 +17,7 @@ R7 node assembly; [ADR 0012](../../adr/0012-index-deletes-and-reclaim.md), whose
 - AC-2: `delete_if_unchanged` removes a head only at the generation read; a head moved since stays.
 - AC-3: `delete_all_of` removes only heads naming the uuid and answers how many; another incarnation's head stays.
 - AC-4: `release_all_of` clears the owner of a matching head and keeps its term.
-- AC-5: a point in time of the index and uuid pins the shards it names; an unreadable view or a capture pins every shard; a view of another index or uuid pins none.
+- AC-5: a point in time of the index and uuid pins the shards it names; an unreadable view or a capture pins every shard, and a failed listing refuses the purge; a view of another index or uuid pins none.
 - AC-6: `DELETE /{index}` of an index answers 200 `{"acknowledged":true}`, the descriptor is gone, its heads are gone and an unowned shard's blobs are purged.
 - AC-7: a shard a live point in time names keeps its blobs after the delete.
 - AC-8: a delete of an index with an owned head files its intent with `had_writer` true, purges nothing inline, and the drain, once the intent is due, purges it and removes the intent.
@@ -40,3 +40,4 @@ None: a delete is an operator's action and only ever removes. The purge-inline c
 
 - A Java shallow snapshot's blobs are purged: the Rust node cannot read them. Mitigation: `SnapshotPins` hook; recorded in ADR 0012's addendum.
 - A tombstone-mode store reads no heads before the delete (the Java's), so a live writer's shard is purged at once.
+- Known gaps, follow-ups: the purge of an unowned shard runs inside the request, sequentially (ADR 0012's cost note; deferring above a shard count needs a lifecycle change); a shard a view pinned is not purged again when the view expires; every node claims every reclaim bucket (one LIST a tick, as the Java); a failed drain is not counted.

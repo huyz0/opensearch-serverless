@@ -226,3 +226,11 @@ fn a_view_of_another_index_pins_nothing() {
     assert_eq!(delete(&r, "/logs").status, 200);
     assert!(!present(&r, &b0));
 }
+
+#[test]
+fn a_drain_with_nothing_due_is_one_list() {
+    let r = rig();
+    let before = r.store.meter().count(oss_blob::S3Op::List);
+    assert_eq!(r.service.drain().expect("drain"), 0);
+    assert_eq!(r.store.meter().count(oss_blob::S3Op::List) - before, 1);
+}

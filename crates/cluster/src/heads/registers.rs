@@ -129,7 +129,8 @@ impl HeadRegisters {
     /// Removes every head naming incarnation `uuid` of `index`, conditionally,
     /// and answers how many there were: one found after a delete was
     /// re-created by a writer that missed it. A head of another incarnation,
-    /// or naming none, stays.
+    /// or naming none, stays: by then the name may be a new index's, and a
+    /// head with no uuid cannot be told apart from its head.
     ///
     /// # Errors
     ///
