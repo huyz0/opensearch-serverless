@@ -95,18 +95,41 @@ pub fn value<S: BlobStore + 'static>(
     Ok(made)
 }
 
+/// How many values `field` holds across `shard`'s segments, from their
+/// metadata: a document with several values lands in a bucket for each.
+fn values<S: BlobStore + 'static>(shard: &OpenShard<S>, field: &str) -> usize {
+    let mut total = 0usize;
+    for segment in shard.reader.segment_readers() {
+        let Some(info) = segment
+            .field_infos()
+            .fields
+            .iter()
+            .find(|i| i.name == field)
+        else {
+            continue;
+        };
+        let Some((meta, _)) = segment.doc_values_for_field(info.number) else {
+            continue;
+        };
+        let entry = meta
+            .numeric_entry(info.number)
+            .or_else(|| meta.sorted_numeric_entry(info.number).map(|e| &e.numeric));
+        if let Some(entry) = entry {
+            total = total.saturating_add(usize::try_from(entry.num_values).unwrap_or(0));
+        }
+    }
+    total
+}
+
 /// The most bytes the sub-aggregations of every `histogram` and
-/// `date_histogram` in `aggs` hold on `shard`, which holds `docs` documents:
-/// a bucket holds a document at least, so there are at most that many,
-/// and no more than the bucket limit.
-pub fn reserved<S: BlobStore + 'static>(
-    shard: &OpenShard<S>,
-    aggs: &[MetricAgg],
-    docs: usize,
-) -> usize {
+/// `date_histogram` in `aggs` hold on `shard`: a bucket holds a value of its
+/// field at least, so there are at most as many buckets as the field's values
+/// (the segments state how many), and no more than the bucket limit.
+pub fn reserved<S: BlobStore + 'static>(shard: &OpenShard<S>, aggs: &[MetricAgg]) -> usize {
     aggs.iter()
         .filter(|a| is_keyed(a) && !a.subs.is_empty())
         .fold(0usize, |total, agg| {
-            total.saturating_add(fixed_subs::subs_bytes(shard, agg, docs.min(BUCKET_LIMIT)))
+            let buckets = values(shard, &agg.field).min(BUCKET_LIMIT);
+            total.saturating_add(fixed_subs::subs_bytes(shard, agg, buckets))
         })
 }

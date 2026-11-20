@@ -16,7 +16,7 @@ Roadmap R10.2: sub-aggregations under the bucket aggregations whose buckets come
 - AC-4: a sub-aggregation of a kind this node does not run under a bucket aggregation fails with a 400 naming it, never silently dropped.
 - AC-5: shard results reduce each key's values as the metrics and `terms` reduce at the top level, keep them with their bucket under any order, and fill the gaps with the empty values; the coordinator's `reduce_shards` serves them unchanged.
 - AC-6: the response writes each bucket's sub-aggregations after its `doc_count`, in the order OpenSearch lists them.
-- AC-7: a search reserves the sub-aggregations' states and values from the request-body pool with its hits: a bucket holds a document at least, so at most the shard's documents and the bucket limit of them.
+- AC-7: a search reserves the sub-aggregations' states and values from the request-body pool with its hits: a bucket holds a value of its field at least (a document with several values lands in several buckets), so at most the field's values, which the segments state, and the bucket limit of them.
 - AC-8: no request is added (the row of [request-budgets.md](../../request-budgets.md) for the term search with aggregations, whose request now holds a `histogram` with a sub-aggregation).
 
 ## Test plan
@@ -32,5 +32,7 @@ Unchanged (AC-8): LIST 0, HEAD 0, PUT 0; an idle index makes none.
 None: a request with sub-aggregations under these was refused before, and one without is unchanged.
 
 ## Risks
+
+The coordinator's reduce holds each key's values from every shard and clones the empty values into the buckets it fills, at most the shards times the bucket limit; it is not reserved, as the reduce of the buckets themselves is not.
 
 No stock 3.10.0 recording backs these steps. A reduce clones the empty values into each bucket it fills, at most the bucket limit of them, as the buckets themselves are. The `date_histogram` has no test of its own over a date-typed field's text keys beside the sub-aggregations (its keys render as before).

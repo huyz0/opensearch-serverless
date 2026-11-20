@@ -188,7 +188,7 @@ pub fn hits_bytes<S: BlobStore + 'static>(source: &SearchSource, shard: &OpenSha
         .saturating_add(inner)
         .saturating_add(counted)
         .saturating_add(fixed_subs::reserved(shard, &source.aggs))
-        .saturating_add(keyed_subs::reserved(shard, &source.aggs, docs))
+        .saturating_add(keyed_subs::reserved(shard, &source.aggs))
         .saturating_add(state_bytes(&source.aggs))
 }
 

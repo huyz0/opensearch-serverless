@@ -236,30 +236,43 @@ fn a_buckets_sub_aggregations_follow_its_count_in_the_response() {
 
 // AC-7
 #[test]
-fn a_histograms_sub_aggregations_reserve_for_the_documents_and_stop_at_the_bucket_limit() {
-    use crate::aggs::bucket::{BUCKET_LIMIT, keyed_subs};
+fn a_histograms_sub_aggregations_reserve_for_the_fields_values() {
+    use crate::aggs::bucket::keyed_subs;
     let shard = shard("keyed-reserved");
-    let aggs = parse_chunks([br#"{"aggs":{"h":{"histogram":{"field":"n","interval":5},
-        "aggs":{"m":{"min":{"field":"n"}}}}}}"#
-        .as_slice()])
-    .expect("parses")
-    .aggs;
+    let aggs = |body: &str| parse_chunks([body.as_bytes()]).expect("parses").aggs;
+    let with = aggs(
+        r#"{"aggs":{"h":{"histogram":{"field":"n","interval":5},
+            "aggs":{"m":{"min":{"field":"n"}}}}}}"#,
+    );
     let per_bucket = std::mem::size_of::<lucene_aggs::metric_aggs::MetricState>()
         + 3 * std::mem::size_of::<Value>();
-    assert_eq!(keyed_subs::reserved(&shard, &aggs, 7), 7 * per_bucket);
-    assert_eq!(
-        keyed_subs::reserved(&shard, &aggs, BUCKET_LIMIT + 5),
-        BUCKET_LIMIT * per_bucket
+    // `n` holds one value in each of the 200 documents.
+    assert_eq!(keyed_subs::reserved(&shard, &with), DOCS * per_bucket);
+    let plain = aggs(r#"{"aggs":{"h":{"histogram":{"field":"n","interval":5}}}}"#);
+    assert_eq!(keyed_subs::reserved(&shard, &plain), 0);
+    let unmapped = aggs(
+        r#"{"aggs":{"h":{"histogram":{"field":"nope","interval":5},
+            "aggs":{"m":{"min":{"field":"n"}}}}}}"#,
     );
-    let plain =
-        parse_chunks([br#"{"aggs":{"h":{"histogram":{"field":"n","interval":5}}}}"#.as_slice()])
-            .expect("parses")
-            .aggs;
-    assert_eq!(keyed_subs::reserved(&shard, &plain, 7), 0);
-    let fixed = parse_chunks([br#"{"aggs":{"f":{"filters":{"filters":[{"match_all":{}}]},
-        "aggs":{"m":{"min":{"field":"n"}}}}}}"#
-        .as_slice()])
-    .expect("parses")
-    .aggs;
-    assert_eq!(keyed_subs::reserved(&shard, &fixed, 7), 0);
+    assert_eq!(keyed_subs::reserved(&shard, &unmapped), 0);
+    let fixed = aggs(
+        r#"{"aggs":{"f":{"filters":{"filters":[{"match_all":{}}]},
+            "aggs":{"m":{"min":{"field":"n"}}}}}}"#,
+    );
+    assert_eq!(keyed_subs::reserved(&shard, &fixed), 0);
+}
+
+#[test]
+fn the_search_reserves_a_histograms_sub_aggregations_with_its_hits() {
+    let shard = shard("keyed-hits");
+    let bytes = |body: &str| {
+        let source = parse_chunks([body.as_bytes()]).expect("parses");
+        crate::search::hits_bytes(&source, &shard)
+    };
+    let plain = bytes(r#"{"aggs":{"h":{"histogram":{"field":"n","interval":5}}}}"#);
+    let with = bytes(
+        r#"{"aggs":{"h":{"histogram":{"field":"n","interval":5},
+            "aggs":{"m":{"min":{"field":"n"}}}}}}"#,
+    );
+    assert!(with > plain);
 }
