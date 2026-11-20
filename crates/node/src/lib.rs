@@ -34,6 +34,8 @@ pub mod get_route;
 pub mod handlers;
 #[cfg(feature = "writer")]
 pub mod health_route;
+#[cfg(feature = "writer")]
+pub mod index_cache;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub mod index_delete;
 #[cfg(all(feature = "writer", feature = "coordinator"))]

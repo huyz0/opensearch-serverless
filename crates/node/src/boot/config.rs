@@ -80,6 +80,9 @@ pub struct NodeConfig {
     pub memory_bytes: usize,
     /// How far ahead a lease renewal stamps its expiry.
     pub lease_ttl_millis: i64,
+    /// How long a writer trusts an index it read before confirming it by
+    /// the change stripes; zero reads the descriptor on every lookup.
+    pub index_confirm_millis: u64,
 }
 
 impl NodeConfig {
@@ -134,6 +137,9 @@ impl NodeConfig {
         if lease_ttl_millis < 3 {
             return Err(format!("OSS_LEASE_TTL_MS [{lease_ttl_millis}] is below 3"));
         }
+        let index_confirm_millis: u64 = or("OSS_INDEX_CONFIRM_MS", "5000")
+            .parse()
+            .map_err(|e| format!("OSS_INDEX_CONFIRM_MS: {e}"))?;
         Ok(Self {
             node_id,
             cluster: or("OSS_CLUSTER", "opensearch-serverless"),
@@ -146,6 +152,7 @@ impl NodeConfig {
             advertise: get("OSS_ADVERTISE_ADDR").filter(|v| !v.is_empty()),
             memory_bytes,
             lease_ttl_millis,
+            index_confirm_millis,
         })
     }
 
@@ -207,6 +214,7 @@ mod tests {
         assert_eq!(c.advertise, None);
         assert_eq!(c.memory_bytes, 1 << 30);
         assert_eq!(c.lease_ttl_millis, 30_000);
+        assert_eq!(c.index_confirm_millis, 5_000);
         assert_eq!(c.renew_every(), Duration::from_secs(10));
         assert_eq!(
             c.store,

@@ -234,3 +234,7 @@ required-features = ["writer"]
 [[test]]
 name = "dead_log_pass"
 required-features = ["writer"]
+
+[[test]]
+name = "index_cache"
+required-features = ["writer"]

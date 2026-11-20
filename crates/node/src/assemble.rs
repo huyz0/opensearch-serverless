@@ -380,9 +380,14 @@ pub fn assemble(
     let router = crate::admin_assemble::register(router, &store, config)?;
     #[cfg(feature = "coordinator")]
     let (router, drain) = {
+        // Every update and delete is recorded in the change stripes, which
+        // is what lets a writer confirm an index it kept without reading it.
+        let stripes = oss_meta::ChangeStripes::new(Arc::clone(&store), &config.base)
+            .map_err(|e| AssembleError::Store(e.to_string()))?;
         let descriptors =
             DescriptorStore::new(Arc::clone(&store), &config.base, config.delete_mode)
-                .map_err(|e| AssembleError::Store(e.to_string()))?;
+                .map_err(|e| AssembleError::Store(e.to_string()))?
+                .record_changes_in(stripes);
         let indices = Arc::new(IndexService::new(
             descriptors,
             Arc::clone(&clock),

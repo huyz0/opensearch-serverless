@@ -7,21 +7,21 @@
 
 mod config;
 mod renew;
+mod support;
 mod transport;
 
 use std::net::TcpListener;
 use std::sync::Arc;
 use std::time::Duration;
 
-use oss_blob::{BlobStore, Credentials, FsStore, S3Config, S3Store};
 use oss_cluster::heads::ShardHeadStore;
 use oss_cluster::transport_secret::{CachedTransportSecrets, TransportSecretStore};
 use oss_cluster::{
     EarlyRevoke, LeaseClock, LeaseConfig, LivenessOracle, Membership, SystemClock, TcpProbe,
 };
-use oss_format::{NodeLease, NodeLogEpoch};
+use oss_format::NodeLease;
 use oss_mem::MemoryBudget;
-use oss_meta::{DeleteMode, DescriptorStore};
+use oss_meta::{ChangeStripes, DeleteMode, DescriptorStore};
 use oss_rest::ServerConfig;
 use oss_transport::actions::read::GET_ACTION;
 use oss_transport::actions::write::BULK_ACTION;
@@ -37,6 +37,7 @@ use crate::descriptor_routes::DescriptorRoutes;
 use crate::forward::BulkForwarder;
 use crate::handlers::Registry;
 use crate::health_route::StoreHealth;
+use crate::index_cache::IndexCache;
 use crate::push_link::Leases;
 use crate::read_forward::{GetForwarder, GetHandler};
 use crate::writer::{
@@ -46,6 +47,7 @@ use crate::writer::{
 
 pub use config::{MIN_MEMORY_BYTES, NodeConfig, StoreChoice};
 use renew::Renewal;
+use support::{address_bytes, earlier_epochs, store_of};
 
 /// The roles a node's lease names.
 const ROLES: [&str; 2] = ["ingest", "search"];
@@ -61,9 +63,6 @@ const REPLAY_BUFFER: usize = 16_777_216;
 
 /// The most request nonces the transport remembers.
 const REPLAY_CAPACITY: usize = 65_536;
-
-/// The buffer a lease register is read through.
-const LEASE_BUFFER: usize = 1 << 16;
 
 /// How long a held shard's index incarnation is trusted before it is read again.
 const INCARNATION_WINDOW: Duration = Duration::from_secs(600);
@@ -159,28 +158,6 @@ impl Leases for Held {
 impl IndexSource for DescriptorRoutes {
     fn index(&self, name: &str) -> Option<oss_writer::bulk::IndexInfo> {
         Routes::index(self, name)
-    }
-}
-
-fn store_of(choice: &StoreChoice) -> Result<Arc<dyn BlobStore>, BootError> {
-    match choice {
-        StoreChoice::Fs { root } => FsStore::new(root)
-            .map(|s| Arc::new(s) as Arc<dyn BlobStore>)
-            .map_err(|e| BootError::Config(format!("store: {e}"))),
-        StoreChoice::S3 {
-            endpoint,
-            bucket,
-            region,
-            access_key,
-            secret_key,
-        } => S3Store::new(S3Config::new(
-            endpoint,
-            bucket,
-            region,
-            Credentials::new(access_key, secret_key),
-        ))
-        .map(|s| Arc::new(s) as Arc<dyn BlobStore>)
-        .map_err(|e| BootError::Config(format!("store: {e}"))),
     }
 }
 
@@ -329,12 +306,28 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         i64::try_from(first_epoch).unwrap_or(i64::MAX),
         REPLAY_BUFFER,
     ));
+    // One cache of the indexes this node reads, shared by every route that
+    // resolves one; its confirmations are the change stripes every node
+    // records its descriptor changes in.
+    let index_cache = if config.index_confirm_millis == 0 {
+        None
+    } else {
+        Some(Arc::new(IndexCache::new(
+            ChangeStripes::new(Arc::clone(&store), &config.base).map_err(cluster)?,
+            Duration::from_millis(config.index_confirm_millis),
+            Box::new(std::time::Instant::now),
+        )))
+    };
     let descriptor_routes = || -> Result<DescriptorRoutes, BootError> {
-        Ok(DescriptorRoutes::new(
+        let routes = DescriptorRoutes::new(
             DescriptorStore::new(Arc::clone(&store), &config.base, DeleteMode::Tombstone)
                 .map_err(cluster)?,
             READ_BUFFER,
-        ))
+        );
+        Ok(match &index_cache {
+            Some(cache) => routes.with_cache(Arc::clone(cache)),
+            None => routes,
+        })
     };
     // A write another node owns goes to it over the transport. Early
     // revoke stays off: it is a setting this node does not read yet.
@@ -464,31 +457,4 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         node_id: config.node_id.clone(),
         crashed: false,
     })
-}
-
-/// The write-log epochs the lease register of `node_id` names; none when
-/// there is no register.
-fn earlier_epochs(
-    store: &dyn BlobStore,
-    base: &str,
-    node_id: &str,
-) -> Result<Vec<NodeLogEpoch>, BootError> {
-    let key = oss_format::lease_key(base, node_id).map_err(cluster)?;
-    // ALLOC: one buffer, once a node.
-    let mut buf = vec![0u8; LEASE_BUFFER];
-    let Some(read) = store.read_register(&key, &mut buf).map_err(cluster)? else {
-        return Ok(Vec::new());
-    };
-    let bytes = buf.get(..read.len).unwrap_or_default();
-    NodeLease::parse(bytes)
-        .map(|lease| lease.node_log)
-        .map_err(cluster)
-}
-
-/// The six bytes time-based ids are made with: from the node id, so two
-/// nodes do not make one id.
-fn address_bytes(node_id: &str) -> [u8; 6] {
-    let h = oss_cluster::placement::murmur3(&[node_id]).to_be_bytes();
-    let g = oss_cluster::placement::murmur3(&[node_id, "#"]).to_be_bytes();
-    [h[0], h[1], h[2], h[3], g[0], g[1]]
 }
