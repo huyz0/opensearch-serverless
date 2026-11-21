@@ -18,6 +18,8 @@ use crate::fanout::{self, TaskError};
 use crate::reduce::aggs::{AggsError, reduce_shards};
 use crate::reduce::hits::{MergeError, Merger, Relation, ShardAnswer, ShardHit, SortSpec};
 use crate::reduce::top_hits::{RenderError, fetch_page, reduce_top_hits, render_page};
+use crate::search_nested;
+use oss_reader::aggs::metric::top_hits::TopHitsResult;
 use oss_reader::aggs::partial::Value;
 
 /// The shards of one search.
@@ -62,7 +64,9 @@ pub trait Shards: Sync {
         None
     }
 
-    /// As [`Self::render`], for the hits of the `top_hits` named `name`.
+    /// As [`Self::render`], for the hits of a `top_hits` `result` that
+    /// `shard` produced (the aggregation's or one bucket's), at `positions`
+    /// counted over its `before` then its `hits`.
     ///
     /// # Errors
     ///
@@ -71,7 +75,7 @@ pub trait Shards: Sync {
         &self,
         shard: usize,
         query: &Self::Query,
-        name: &str,
+        result: &TopHitsResult,
         positions: &[usize],
     ) -> Result<Vec<Vec<u8>>, Self::Error>;
 }
@@ -280,7 +284,7 @@ fn reduce_aggregations<T: Shards>(
     let answers: Vec<&Hits> = answering.iter().map(|(_, q)| t.hits(q)).collect();
     // ALLOC: bounded by the shards, the page or the request's aggregations.
     let mut tops: Vec<TopBody> = Vec::new();
-    let values: Vec<Vec<_>> = answers
+    let mut values: Vec<Vec<_>> = answers
         .iter()
         .map(|h| {
             h.aggregations
@@ -294,7 +298,24 @@ fn reduce_aggregations<T: Shards>(
         })
         // ALLOC: bounded by the shards, the page or the request's aggregations.
         .collect();
+    for (list, (shard, _)) in values.iter_mut().zip(&answering) {
+        for (_, value) in list {
+            search_nested::tag_origins(value, *shard);
+        }
+    }
     let mut reduced = reduce_shards(&values).map_err(SearchFailure::Aggs)?;
+    for (_, value) in &mut reduced {
+        search_nested::finish(
+            value,
+            p.concurrency,
+            &|name| t.top_hits_window(name),
+            &|shard, result, positions| match queries.get(shard).and_then(Option::as_ref) {
+                Some(query) => t.render_top_hits(shard, query, result, positions),
+                // ALLOC: empty.
+                None => Ok(Vec::new()),
+            },
+        )?;
+    }
     let first = answers.first().map(|h| &h.aggregations);
     // ALLOC: bounded by the shards, the page or the request's aggregations.
     let mut names: Vec<&str> = Vec::new();
@@ -333,7 +354,11 @@ fn reduce_aggregations<T: Shards>(
         let body = render_page(&merged, p.concurrency, |at, positions| {
             let shard = owners.get(at).copied().unwrap_or(usize::MAX);
             match queries.get(shard).and_then(Option::as_ref) {
-                Some(query) => t.render_top_hits(shard, query, name, positions),
+                Some(query) => match results.get(at) {
+                    Some(result) => t.render_top_hits(shard, query, result, positions),
+                    // ALLOC: empty.
+                    None => Ok(Vec::new()),
+                },
                 // ALLOC: error path only.
                 None => Ok(Vec::new()),
             }

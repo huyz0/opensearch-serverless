@@ -28,6 +28,7 @@ pub fn reduce_sub(parts: &[Value]) -> Value {
                 Value::TopHits(top) => Some((**top).clone()),
                 _ => None,
             })
+            // ALLOC: one result a shard that holds the bucket.
             .collect();
         return Value::TopHitsParts(all);
     }

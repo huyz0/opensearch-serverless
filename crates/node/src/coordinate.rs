@@ -100,13 +100,7 @@ impl<S: BlobStore + 'static> Shards for Local<'_, S> {
     }
 
     fn top_hits_window(&self, name: &str) -> Option<TopHitsWindow> {
-        let spec = self
-            .source
-            .aggs
-            .iter()
-            .find(|a| a.name == name)?
-            .top_hits
-            .as_deref()?;
+        let spec = find_top_hits(&self.source.aggs, name)?;
         Some(TopHitsWindow {
             from: spec.from,
             size: spec.size,
@@ -118,15 +112,28 @@ impl<S: BlobStore + 'static> Shards for Local<'_, S> {
         &self,
         _shard: usize,
         query: &ShardQuery<S>,
-        name: &str,
+        result: &oss_reader::aggs::metric::top_hits::TopHitsResult,
         positions: &[usize],
     ) -> Result<Vec<Vec<u8>>, ShardError> {
         query
-            .render_top_hits(&self.service.node_id, name, positions, &mut |n| {
+            .render_top_hits(&self.service.node_id, result, positions, &mut |n| {
                 (self.reserve)(n)
             })
             .map_err(render_error)
     }
+}
+
+/// The first `top_hits` named `name` among `aggs` or beneath them.
+fn find_top_hits<'a>(
+    aggs: &'a [oss_reader::aggs::metric::MetricAgg],
+    name: &str,
+) -> Option<&'a oss_reader::aggs::metric::TopHitsSpec> {
+    aggs.iter().find_map(|a| {
+        a.top_hits
+            .as_deref()
+            .filter(|_| a.name == name)
+            .or_else(|| find_top_hits(&a.subs, name))
+    })
 }
 
 fn render_error(e: io::Error) -> ShardError {

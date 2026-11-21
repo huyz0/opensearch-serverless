@@ -88,7 +88,7 @@ impl Shards for Fake {
         &self,
         _shard: usize,
         _query: &Hits,
-        _name: &str,
+        _result: &oss_reader::aggs::metric::top_hits::TopHitsResult,
         _positions: &[usize],
     ) -> Result<Vec<Vec<u8>>, String> {
         Err("no top_hits in this fake".into())
