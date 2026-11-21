@@ -74,8 +74,7 @@ pub(super) fn all(bytes: &[u8]) -> Result<Whole, FormatError> {
             actual: len64(count),
         });
     }
-    // Each member takes two bytes at least: a uuid's count and an entry length.
-    if count > cursor.remaining() / 2 {
+    if count > cursor.remaining() / MIN_MEMBER_BYTES {
         return Err(corrupt(WHAT, "more members than the body holds"));
     }
     // ALLOC: one uuid and entry length a member, at most MAX_BUCKET_MEMBERS.
@@ -99,6 +98,10 @@ pub(super) fn all(bytes: &[u8]) -> Result<Whole, FormatError> {
         members,
     })
 }
+
+/// The least a member takes of a body: an empty uuid and an entry length in
+/// the index, and in the entry an empty index name, a version and a commit flag.
+const MIN_MEMBER_BYTES: usize = 5;
 
 /// A compact manifest read whole.
 pub(super) struct Whole {
@@ -368,4 +371,60 @@ fn commit_json(
     }
     out.push(b'}');
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::compact_write::{push_string, push_vlong};
+    use super::*;
+
+    /// A body of `count` members, each as small as one can be, with the
+    /// count the index claims.
+    fn body_of(count: usize, claimed: usize) -> Vec<u8> {
+        let mut body = Vec::new();
+        push_string(&mut body, "b").unwrap();
+        push_vlong(&mut body, 1);
+        push_vlong(&mut body, 0);
+        push_vlong(&mut body, claimed as u64);
+        for _ in 0..count {
+            push_string(&mut body, "").unwrap();
+            push_vlong(&mut body, 3);
+        }
+        for _ in 0..count {
+            push_string(&mut body, "").unwrap();
+            push_vlong(&mut body, 0);
+            body.push(0);
+        }
+        body
+    }
+
+    fn framed(body: &[u8]) -> Vec<u8> {
+        let mut out = MAGIC.to_vec();
+        out.extend([FORMAT, 0]);
+        out.extend(u32::try_from(body.len()).unwrap().to_be_bytes());
+        out.extend(body);
+        out
+    }
+
+    #[test]
+    fn members_as_small_as_they_can_be_are_all_read() {
+        for count in [0, 1, 3, MAX_BUCKET_MEMBERS] {
+            let whole = all(&framed(&body_of(count, count))).unwrap();
+            assert_eq!(whole.members.len(), count);
+        }
+    }
+
+    #[test]
+    fn a_count_past_the_ceiling_is_too_large_and_past_the_body_is_corrupt() {
+        let over = MAX_BUCKET_MEMBERS + 1;
+        assert!(matches!(
+            all(&framed(&body_of(over, over))),
+            Err(FormatError::TooLarge { .. })
+        ));
+        // 1,000 members claimed, three present.
+        assert!(matches!(
+            all(&framed(&body_of(3, 1000))),
+            Err(FormatError::Corrupt { .. })
+        ));
+    }
 }

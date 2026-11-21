@@ -294,7 +294,7 @@ fn commit(json: &[u8], strings: &mut Strings, out: &mut Vec<u8>) -> Result<(), F
     Ok(())
 }
 
-fn push_vlong(out: &mut Vec<u8>, mut value: u64) {
+pub(super) fn push_vlong(out: &mut Vec<u8>, mut value: u64) {
     while value >= 0x80 {
         out.push(u8::try_from(value & 0x7F).unwrap_or(0) | 0x80);
         value >>= 7;
@@ -310,7 +310,7 @@ fn push_zlong(out: &mut Vec<u8>, value: i64) {
 
 /// A `writeString`: the character count, then each UTF-16 unit as one, two
 /// or three bytes.
-fn push_string(out: &mut Vec<u8>, text: &str) -> Result<(), FormatError> {
+pub(super) fn push_string(out: &mut Vec<u8>, text: &str) -> Result<(), FormatError> {
     check_length(text)?;
     push_vlong(out, len64(text.encode_utf16().count()));
     for unit in text.encode_utf16() {

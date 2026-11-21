@@ -223,3 +223,52 @@ fn a_string_past_1024_characters_is_refused_on_write() {
         .unwrap();
     assert!(manifest.encode_compact(ManifestCodec::None).is_ok());
 }
+
+/// 31 members with the longest name each, and one more whose name length
+/// sets the body's length.
+fn manifest_with_last_name(len: usize) -> BucketManifest {
+    let mut manifest = BucketManifest::empty("b").unwrap();
+    for i in 0..31 {
+        let member = BucketMember::first(&"x".repeat(1024), None).unwrap();
+        manifest = manifest.with_member(&format!("u{i:02}"), member).unwrap();
+    }
+    let last = BucketMember::first(&"x".repeat(len), None).unwrap();
+    manifest.with_member("zlast", last).unwrap()
+}
+
+fn body_len(manifest: &BucketManifest) -> usize {
+    manifest.encode_compact(ManifestCodec::None).unwrap().len() - 10
+}
+
+#[test]
+fn auto_compresses_from_exactly_32_kib_of_body() {
+    let at = |len: usize| body_len(&manifest_with_last_name(len));
+    let len = (0..=1024)
+        .find(|len| at(*len) == 32 * 1024)
+        .expect("a length hits it");
+    let codec_byte = |m: &BucketManifest| m.encode_compact_auto(ManifestCodec::Zstd).unwrap()[5];
+    assert_eq!(
+        codec_byte(&manifest_with_last_name(len)),
+        2,
+        "at the threshold"
+    );
+    assert_eq!(
+        codec_byte(&manifest_with_last_name(len - 1)),
+        0,
+        "one byte under"
+    );
+}
+
+#[test]
+fn a_body_of_a_few_kib_is_never_compressed_by_auto() {
+    let mut manifest = BucketManifest::empty("b").unwrap();
+    for i in 0..6 {
+        let member = BucketMember::first(&"x".repeat(1000), None).unwrap();
+        manifest = manifest.with_member(&format!("u{i}"), member).unwrap();
+    }
+    assert!(body_len(&manifest) > 1056 && body_len(&manifest) < 32 * 1024);
+    assert_eq!(
+        manifest.encode_compact_auto(ManifestCodec::Zstd).unwrap()[5],
+        0
+    );
+}
