@@ -213,3 +213,50 @@ fn track_scores_scores_the_hits_of_a_field_sort_and_tracks_the_best() {
     );
     assert_eq!(r.status, 400, "{}", r.text());
 }
+
+/// docs/specs/reader-terminate-after AC-1 to AC-4.
+#[test]
+fn terminate_after_collects_the_first_matches_and_says_so() {
+    let node = start();
+    let ask = |options: &str| {
+        let body = format!(r#"{{"query":{{"match":{{"title":"brown fox"}}}}{options}}}"#);
+        let r = request(
+            node.addr(),
+            "POST",
+            "/compat-term/_search",
+            Some(body.as_bytes()),
+        );
+        (r.status, r.text())
+    };
+    let (_, plain) = ask("");
+    let truth = id_scores(&plain);
+    assert!(truth.len() >= 2, "{plain}");
+    assert!(!plain.contains("terminated_early"), "{plain}");
+    // One match let through: the search stops early, with one hit and a total of one.
+    let (status, cut) = ask(r#","terminate_after":1"#);
+    assert_eq!(status, 200, "{cut}");
+    assert!(
+        cut.contains(r#""timed_out":false,"terminated_early":true,"_shards""#),
+        "{cut}"
+    );
+    assert_eq!(id_scores(&cut).len(), 1, "{cut}");
+    assert!(
+        cut.contains(r#""total":{"value":1,"relation":"eq"}"#),
+        "{cut}"
+    );
+    // More than there are matches: all of them, and no early stop.
+    let (_, all) = ask(r#","terminate_after":1000"#);
+    assert!(all.contains(r#""terminated_early":false"#), "{all}");
+    assert_eq!(id_scores(&all), truth, "{all}");
+    // Zero is off; a negative or null value and a size of 0 are refused.
+    let (_, off) = ask(r#","terminate_after":0"#);
+    assert!(!off.contains("terminated_early"), "{off}");
+    for options in [
+        r#","terminate_after":-1"#,
+        r#","terminate_after":null"#,
+        r#","terminate_after":1,"size":0"#,
+    ] {
+        let (status, body) = ask(options);
+        assert_eq!(status, 400, "{options}: {body}");
+    }
+}

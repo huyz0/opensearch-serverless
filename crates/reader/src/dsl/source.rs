@@ -26,7 +26,6 @@ pub const DEFAULT_SIZE: usize = 10;
 /// The top-level keys OpenSearch reads whose value is a scalar.
 const VALUE_KEYS: &[&str] = &[
     "timeout",
-    "terminate_after",
     "include_named_queries_score",
     "track_total_hits",
     "_source",
@@ -92,6 +91,9 @@ pub struct SearchSource {
     pub explain: bool,
     /// `min_score`: only matches scoring at least this are hits and counted.
     pub min_score: Option<f32>,
+    /// `terminate_after`: collect only the first this many matches of the
+    /// shard; 0 is off.
+    pub terminate_after: u64,
     /// `track_scores`: whether a field sort still scores each hit and tracks
     /// the best score of every match.
     pub track_scores: bool,
@@ -124,6 +126,7 @@ impl Default for SearchSource {
             docvalue_fields: Vec::new(),
             explain: false,
             min_score: None,
+            terminate_after: 0,
             track_scores: false,
             version: false,
             seq_no_primary_term: false,
@@ -208,6 +211,7 @@ impl SearchSource {
             | "version"
             | "seq_no_primary_term"
             | "min_score"
+            | "terminate_after"
             | "track_scores"
                 if kind == Kind::Null =>
             {
@@ -217,6 +221,13 @@ impl SearchSource {
             "track_total_hits" => self.track_total_hits = track_total_hits(p)?,
             "explain" => self.explain = bool_value(p)?,
             "min_score" => self.min_score = Some(float_value(p)?),
+            "terminate_after" => {
+                let n = int_value(p)?;
+                self.terminate_after = u64::try_from(n).map_err(|_| {
+                    // ALLOC: error path; one message.
+                    DslError::illegal("terminateAfter must be > 0".to_owned())
+                })?;
+            }
             "track_scores" => self.track_scores = bool_value(p)?,
             "version" => self.version = bool_value(p)?,
             "seq_no_primary_term" => self.seq_no_primary_term = bool_value(p)?,

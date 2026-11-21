@@ -36,6 +36,7 @@ fn hits(total: u64, scored: &[f32], aggs: Vec<Partial>) -> Hits {
         explanations: Vec::new(),
         highlight: None,
         meta: oss_reader::fetch::hit_meta::HitMeta::default(),
+        terminated_early: None,
     }
 }
 
@@ -144,6 +145,30 @@ fn the_response_envelope_is_written_exactly() {
     let f = fake(vec![Ok(hits(0, &[], vec![]))]);
     let body = text(search(&f, 1, &params(0, 10)).expect("searches"));
     assert!(body.contains(r#""max_score":null,"hits":[]"#), "{body}");
+}
+
+#[test]
+fn terminated_early_follows_timed_out_when_a_shard_says_and_is_or_of_the_shards() {
+    let said = |early: Option<bool>| {
+        let mut h = hits(1, &[2.5], vec![]);
+        h.terminated_early = early;
+        Ok(h)
+    };
+    let body = |shards: Vec<Result<Hits, String>>| {
+        let n = shards.len();
+        text(search(&fake(shards), n, &params(0, 10)).expect("searches"))
+    };
+    let head = |early: &str, n: usize| {
+        format!(
+            r#"{{"took":7,"timed_out":false,"terminated_early":{early},"_shards":{{"total":{n},"#
+        )
+    };
+    assert!(body(vec![said(Some(true))]).starts_with(&head("true", 1)));
+    assert!(body(vec![said(Some(false))]).starts_with(&head("false", 1)));
+    assert!(body(vec![said(Some(false)), said(Some(true))]).starts_with(&head("true", 2)));
+    assert!(body(vec![said(None), said(Some(false))]).starts_with(&head("false", 2)));
+    // No shard says: no key.
+    assert!(!body(vec![said(None), said(None)]).contains("terminated_early"));
 }
 
 #[test]

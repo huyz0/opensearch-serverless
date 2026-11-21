@@ -210,3 +210,88 @@ fn track_scores_parses_as_a_boolean() {
     assert!(!off.track_scores);
     assert!(parse_chunks([br#"{"track_scores":null}"#.as_slice()]).is_err());
 }
+
+#[test]
+fn terminate_after_keeps_the_first_matches_in_index_order() {
+    let shard = text_shard();
+    let plain = run(&shard, "").expect("searches");
+    assert_eq!(plain.terminated_early, None);
+    let mut by_doc: Vec<_> = plain.hits.iter().map(|h| (h.doc, h.score)).collect();
+    by_doc.sort_by_key(|(doc, _)| *doc);
+    let first_two = &by_doc[..2];
+    let cut = run(&shard, r#","terminate_after":2"#).expect("searches");
+    assert_eq!(cut.terminated_early, Some(true));
+    assert_eq!((cut.total, cut.exact), (2, true));
+    let mut kept: Vec<_> = cut.hits.iter().map(|h| (h.doc, h.score)).collect();
+    kept.sort_by_key(|(doc, _)| *doc);
+    assert_eq!(kept, first_two);
+    // Ranked by score as an ordinary search ranks them, with no sort values.
+    assert!(cut.hits.windows(2).all(|w| w[0].score >= w[1].score));
+    assert!(cut.hits.iter().all(|h| h.sort.is_empty()));
+    assert_eq!(cut.max_score, cut.hits[0].score);
+}
+
+#[test]
+fn terminate_after_past_the_matches_collects_them_all_and_does_not_stop() {
+    let shard = text_shard();
+    let plain = run(&shard, "").expect("searches");
+    let all = run(&shard, r#","terminate_after":1000"#).expect("searches");
+    assert_eq!(all.terminated_early, Some(false));
+    assert_eq!(all.total, plain.total);
+    let docs = |h: &Hits| h.hits.iter().map(|h| (h.doc, h.score)).collect::<Vec<_>>();
+    assert_eq!(docs(&all), docs(&plain));
+    // Zero is off, as OpenSearch's default.
+    let off = run(&shard, r#","terminate_after":0"#).expect("searches");
+    assert_eq!(off.terminated_early, None);
+    assert_eq!(docs(&off), docs(&plain));
+}
+
+#[test]
+fn terminate_after_parses_a_non_negative_number() {
+    let n = parse_chunks([br#"{"terminate_after":"7"}"#.as_slice()]).expect("parses");
+    assert_eq!(n.terminate_after, 7);
+    assert_eq!(SearchSource::default().terminate_after, 0);
+    let e = parse_chunks([br#"{"terminate_after":-1}"#.as_slice()]).expect_err("negative");
+    assert!(
+        format!("{e:?}").contains("terminateAfter must be > 0"),
+        "{e:?}"
+    );
+    assert!(parse_chunks([br#"{"terminate_after":null}"#.as_slice()]).is_err());
+}
+
+#[test]
+fn terminate_after_is_refused_where_it_cannot_be_served() {
+    let shard = text_shard();
+    for (rest, what) in [
+        (r#","terminate_after":2,"size":0"#, "size"),
+        (r#","terminate_after":2,"min_score":0.1"#, "min_score"),
+        (
+            r#","terminate_after":2,"track_scores":true"#,
+            "track_scores",
+        ),
+        (r#","terminate_after":2,"sort":[{"n":"asc"}]"#, "sort"),
+        (
+            r#","terminate_after":2,"track_total_hits":1"#,
+            "track_total_hits",
+        ),
+        (
+            r#","terminate_after":2,"aggs":{"a":{"max":{"field":"n"}}}"#,
+            "aggregations",
+        ),
+    ] {
+        let reason = refused(run(&shard, rest));
+        assert!(
+            reason.contains("[terminate_after]") && reason.contains(what),
+            "{rest}: {reason}"
+        );
+    }
+    for query in [
+        r#"{"match_all":{}}"#,
+        r#"{"bool":{"filter":[{"term":{"x0":"w1"}}]}}"#,
+    ] {
+        let body = format!(r#"{{"query":{query},"terminate_after":2}}"#);
+        let source = parse_chunks([body.as_bytes()]).expect("parses");
+        let reason = refused(search(&shard, "idx", &source, &Analyzer::standard(None)));
+        assert!(reason.contains("[terminate_after]"), "{query}: {reason}");
+    }
+}
