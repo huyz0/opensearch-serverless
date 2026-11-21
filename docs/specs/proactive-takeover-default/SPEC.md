@@ -13,6 +13,8 @@
 - AC-1: a node configured with no proactive setting boots with the pass on.
 - AC-2: a node with `OSS_PROACTIVE_TAKEOVER=false` leaves a dead node's shard untaken until a write asks.
 - AC-3: with the switch on and nothing dead, a refresh makes no request.
+- AC-5: a search after a pass makes the same requests as a search after a lazy take.
+- AC-6: search p99 after a take, and during a pass, is within 5% of the lazy take / no pass, at S3-like latency (by hand, `--ignored`).
 - AC-4: the proactive-takeover-faults criteria hold (crash, race, stale, deadline, cap, routing, budget).
 
 ## S3 request budget
