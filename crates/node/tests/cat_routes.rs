@@ -5,6 +5,9 @@ mod cluster_support;
 
 use cluster_support::{call, get, index, rig, sent};
 use oss_blob::S3Op;
+use oss_format::AliasRecord;
+use oss_meta::{DeleteMode, DescriptorStore};
+use std::sync::Arc;
 
 #[test]
 fn cat_indices_answers_names_lists_and_prefixes_and_refuses_paging() {
@@ -170,4 +173,62 @@ fn requests_are_what_the_spec_says() {
     assert!(unscoped.is_empty(), "{unscoped:?}");
     let (_, named) = sent(&r, || get(&r, "/_cat/indices/logs,docs"));
     assert_eq!(named, [(S3Op::Get, 2)], "a cat of two names");
+}
+
+#[test]
+fn an_alias_stands_for_its_members_each_listed_once() {
+    let r = rig();
+    for name in ["logs-a", "logs-b", "other"] {
+        index(&r, name, 1);
+    }
+    r.descriptors
+        .create_alias(
+            &AliasRecord::new("al", &["logs-a", "logs-b"]),
+            1,
+            &mut vec![0u8; cluster_support::BUF],
+        )
+        .expect("alias");
+    let row = |n: &str| format!("{n} {n}-uuid 1 0 open 1\n");
+    let names = |target: &str| {
+        get(&r, target)
+            .text()
+            .lines()
+            .map(|l| l.split(' ').next().unwrap_or_default().to_owned())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(names("/_cat/indices/al"), ["logs-a", "logs-b"]);
+    // A member also named is one row, the name's own, so the alias adds only the rest.
+    assert_eq!(names("/_cat/indices/al,logs-a"), ["logs-b", "logs-a"]);
+    assert_eq!(names("/_cat/indices/logs-b,al"), ["logs-b", "logs-a"]);
+    assert_eq!(names("/_cat/indices/al,al"), ["logs-a", "logs-b"]);
+    assert!(
+        get(&r, "/_cat/indices/logs-b,al")
+            .text()
+            .contains(&row("logs-a"))
+    );
+}
+
+#[test]
+fn a_pattern_skips_a_deleted_name_and_a_name_asked_for_is_refused() {
+    let r = rig();
+    index(&r, "gone", 1);
+    index(&r, "gone-too", 1);
+    let marking = DescriptorStore::new(Arc::clone(&r.store), "", DeleteMode::Tombstone)
+        .expect("tombstoning store");
+    let mut buf = vec![0u8; cluster_support::BUF];
+    let generation = marking
+        .resolve("gone", &mut buf)
+        .expect("resolved")
+        .generation;
+    assert!(
+        marking
+            .delete_if_unchanged("gone", generation, 1_000)
+            .expect("deleted")
+    );
+    // The tombstone is listed under the prefix but is no index: the pattern drops it.
+    let by_pattern = get(&r, "/_cat/indices/gone*");
+    assert_eq!(by_pattern.status, 200, "{}", by_pattern.text());
+    assert_eq!(by_pattern.text(), "gone-too gone-too-uuid 1 0 open 1\n");
+    let by_name = get(&r, "/_cat/indices/gone");
+    assert_eq!(by_name.status, 404, "{}", by_name.text());
 }
