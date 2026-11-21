@@ -9,7 +9,7 @@ Parity plan R9.3 (refresh semantics), reader half: the `ensureFresh` of the shel
 `oss-node` (feature `reader`):
 
 - `TailHeld` remembers the subscription its grant is under, and gains `subscription_to_ask(uuid, shard, writer)`: the subscription held to renew, a new one (`NEW`) when none is held from that writer, or `CHECK` when no engine can use a subscription (no engine, a shard refusing for want of room, or an engine that left a record out).
-- `tail_fresh::TailFresh::ensure_fresh(index, uuid, shard, writer, commit_checkpoint, apply_pending)` says whether the shard may answer a search that started before the call. With grants off it always may. Under a grant from the writer it may, after the engine took what is held. Without one it asks the writer once for every search that finds none meanwhile (a renewal, a subscription anew, or a `CHECK`), takes the answer's grant, and if it still holds none it may answer only when its commit's checkpoint is at or above the claim the writer reported. A writer that does not answer is treated as dead: it may answer from its commit (counted as unreachable).
+- `tail_fresh::TailFresh::ensure_fresh(index, uuid, shard, writer, commit_checkpoint, apply_pending)` says whether the shard may answer a search that started before the call. With grants off it always may. Under a grant from the writer it may, after the engine took what is held. Without one it asks the writer once for every search that finds none meanwhile (a renewal, a subscription anew, or a `CHECK`), takes the answer's grant, and if it still holds none it may answer only when its commit's checkpoint is at or above the claim the writer reported. A writer that does not answer, or that this node's leases do not show live, is treated as dead for that search: it may answer from its commit (counted as unreachable), without a second ask.
 - `counts()` gives the asks made, the refusals and the unreachable writers.
 
 Nothing calls it yet.
@@ -20,7 +20,7 @@ Nothing calls it yet.
 - AC-2: under a grant a search asks nothing, and the engine takes what is held first.
 - AC-3: without a grant the writer is asked for a subscription anew, then for a renewal of the one it holds once the grant has run out, and each answer's grant is taken.
 - AC-4: a shard with no engine asks `CHECK` and takes no grant; its commit may answer only at or above the claim.
-- AC-5: a writer that does not answer is asked twice (the grant, then a `CHECK`) and counted unreachable, and the search may answer.
+- AC-5: a writer that does not answer the grant ask is asked nothing more for that search, counted unreachable, and the search may answer; an answer to a second ask a moment later (a stale lease view refreshed in between) cannot refuse it.
 - AC-6: an answer that leaves no grant (not complete) is compared with its claim without a second ask.
 - AC-7: what is asked follows the engine and the subscription held (`CHECK`, `NEW`, the held id; another writer's grant is none; a skipped record or a refusing shard asks `CHECK`).
 

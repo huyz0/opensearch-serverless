@@ -133,6 +133,7 @@ impl TailFresh {
         }
         let mut claimed_through = i64::MAX;
         let mut asked = false;
+        let mut unanswered = false;
         let gate = Arc::clone(
             self.asking
                 .lock()
@@ -155,11 +156,22 @@ impl TailFresh {
                         self.held
                             .answered(uuid, shard, writer, subscription, sent_at, &answer);
                     }
+                } else {
+                    unanswered = true;
                 }
             }
         }
         apply_pending();
         if self.granted(uuid, shard, writer) {
+            return true;
+        }
+        if unanswered {
+            // The writer did not answer, or this node's leases show it gone:
+            // treated as dead for the whole search. Asking again for how far
+            // its writes went could find it alive a moment later (a lease
+            // view that was stale and has since been refreshed) and refuse a
+            // search that the first answer let through.
+            self.unreachable.fetch_add(1, Ordering::Relaxed);
             return true;
         }
         if !asked {
