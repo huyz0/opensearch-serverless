@@ -88,6 +88,15 @@ pub struct NodeConfig {
     /// How often the janitor sweeps and the dead-log pass runs; it is also
     /// the first wait before a dead node's log is tried again.
     pub janitor_every_millis: u64,
+    /// `serverless.takeover.proactive.enabled`: whether this node takes the
+    /// shards a dead node's log names before a write asks.
+    pub proactive_takeover: bool,
+    /// `serverless.takeover.proactive.reapers`.
+    pub proactive_reapers: usize,
+    /// `serverless.takeover.proactive.max_concurrent`.
+    pub proactive_max_concurrent: usize,
+    /// `serverless.takeover.proactive.pass_millis`.
+    pub proactive_pass_millis: u64,
     /// `serverless.search.tail_overlay.enabled`: whether writers push their
     /// acknowledged writes to readers and searches see them.
     pub tail_overlay: bool,
@@ -162,6 +171,28 @@ impl NodeConfig {
             "false" => false,
             other => return Err(format!("OSS_TAIL_OVERLAY is [{other}], not true or false")),
         };
+        let proactive_takeover = match or("OSS_PROACTIVE_TAKEOVER", "false").as_str() {
+            "true" => true,
+            "false" => false,
+            other => {
+                return Err(format!(
+                    "OSS_PROACTIVE_TAKEOVER is [{other}], not true or false"
+                ));
+            }
+        };
+        let bounded = |key: &str, default: &str, low: u64, high: u64| -> Result<u64, String> {
+            let value: u64 = or(key, default)
+                .parse()
+                .map_err(|e| format!("{key}: {e}"))?;
+            if (low..=high).contains(&value) {
+                Ok(value)
+            } else {
+                Err(format!("{key} [{value}] is not within {low} to {high}"))
+            }
+        };
+        let proactive_reapers = bounded("OSS_PROACTIVE_REAPERS", "2", 1, 16)?;
+        let proactive_max_concurrent = bounded("OSS_PROACTIVE_MAX_CONCURRENT", "4", 1, 64)?;
+        let proactive_pass_millis = bounded("OSS_PROACTIVE_PASS_MS", "30000", 1, 3_600_000)?;
         let refresh_visibility = REFRESH_VISIBILITY
             .parse(&or("OSS_REFRESH_VISIBILITY", REFRESH_VISIBILITY.default()))
             .map_err(|e| format!("OSS_REFRESH_VISIBILITY: {e}"))?;
@@ -179,6 +210,10 @@ impl NodeConfig {
             lease_ttl_millis,
             index_confirm_millis,
             janitor_every_millis,
+            proactive_takeover,
+            proactive_reapers: usize::try_from(proactive_reapers).unwrap_or(2),
+            proactive_max_concurrent: usize::try_from(proactive_max_concurrent).unwrap_or(4),
+            proactive_pass_millis,
             tail_overlay,
             refresh_visibility,
         })
@@ -251,6 +286,53 @@ mod tests {
                 root: "/data".into()
             }
         );
+    }
+
+    #[test]
+    fn proactive_takeover_is_off_with_the_settings_defaults_and_each_is_read() {
+        let c = NodeConfig::from_lookup(lookup(FS)).expect("valid");
+        assert!(!c.proactive_takeover);
+        assert_eq!(
+            (
+                c.proactive_reapers,
+                c.proactive_max_concurrent,
+                c.proactive_pass_millis
+            ),
+            (2, 4, 30_000)
+        );
+        let on = NodeConfig::from_lookup(lookup(&with(&[
+            ("OSS_PROACTIVE_TAKEOVER", "true"),
+            ("OSS_PROACTIVE_REAPERS", "3"),
+            ("OSS_PROACTIVE_MAX_CONCURRENT", "8"),
+            ("OSS_PROACTIVE_PASS_MS", "5000"),
+        ])))
+        .expect("valid");
+        assert!(on.proactive_takeover);
+        assert_eq!(
+            (
+                on.proactive_reapers,
+                on.proactive_max_concurrent,
+                on.proactive_pass_millis
+            ),
+            (3, 8, 5_000)
+        );
+    }
+
+    #[test]
+    fn a_proactive_setting_out_of_its_bounds_is_refused() {
+        for (key, bad) in [
+            ("OSS_PROACTIVE_TAKEOVER", "yes"),
+            ("OSS_PROACTIVE_REAPERS", "0"),
+            ("OSS_PROACTIVE_REAPERS", "17"),
+            ("OSS_PROACTIVE_MAX_CONCURRENT", "0"),
+            ("OSS_PROACTIVE_MAX_CONCURRENT", "65"),
+            ("OSS_PROACTIVE_PASS_MS", "0"),
+            ("OSS_PROACTIVE_PASS_MS", "3600001"),
+            ("OSS_PROACTIVE_PASS_MS", "x"),
+        ] {
+            let err = NodeConfig::from_lookup(lookup(&with(&[(key, bad)]))).expect_err(key);
+            assert!(err.contains(key), "{err}");
+        }
     }
 
     #[test]
