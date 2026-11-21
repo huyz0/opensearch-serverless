@@ -3,6 +3,8 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, PoisonError};
 
+use oss_format::NodeLogEpoch;
+
 use crate::log::{NodeLogTakeover, TakeoverError};
 
 /// Makes the reader of one node's log: it reads the node's lease, so it is
@@ -45,4 +47,44 @@ impl Predecessors {
         made.insert(writer.to_owned(), log.clone());
         Ok(log)
     }
+
+    /// The log of `writer` as its lease names it now: the one made before
+    /// when it was made from the same epochs, else a new one, so a node that
+    /// died, came back under the same id with new epochs and died again is
+    /// not read as it was.
+    ///
+    /// # Errors
+    ///
+    /// As [`Predecessors::of`].
+    pub fn of_naming(
+        &self,
+        writer: &str,
+        epochs: &[NodeLogEpoch],
+    ) -> Result<Option<Arc<NodeLogTakeover>>, TakeoverError> {
+        let stale = {
+            let made = self.made.lock().unwrap_or_else(PoisonError::into_inner);
+            made.get(writer)
+                .and_then(Option::as_ref)
+                .is_some_and(|log| !same_epochs(log.epochs(), epochs))
+        };
+        if stale {
+            self.forget(writer);
+        }
+        self.of(writer)
+    }
+
+    /// Drops what was made of `writer`'s log: the next ask reads its lease
+    /// and fences again. For a log that was collected.
+    pub fn forget(&self, writer: &str) {
+        self.made
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(writer);
+    }
+}
+
+/// Whether two lease views name the same epochs; a later trim point or
+/// landed hint of the same epoch is the same log.
+fn same_epochs(a: &[NodeLogEpoch], b: &[NodeLogEpoch]) -> bool {
+    a.len() == b.len() && a.iter().zip(b).all(|(x, y)| x.epoch == y.epoch)
 }

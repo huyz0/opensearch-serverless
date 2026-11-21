@@ -436,12 +436,11 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         .map_err(BootError::Assemble)?;
 
     // The dead nodes that still name log epochs come from the refresh each
-    // renewal already makes; a thread of its own collects them, so a slow
-    // collection never delays a lease.
+    // renewal makes; a thread of its own collects them, never delaying a lease.
     let mailbox = Arc::new(DeadMailbox::default());
     let posting = Arc::clone(&mailbox);
     let renewing = Arc::clone(&membership);
-    let proactive = support::proactive_takeover(config, role, predecessors);
+    let proactive = support::proactive_takeover(config, role, Arc::clone(&predecessors));
     let taking_clock = Arc::clone(&clock);
     let mut cadence = Cadence::new(config.renew_every(), config.refresh_every(), Instant::now());
     let renewal = Renewal::spawn(cadence.tick_every(), move || {
@@ -474,6 +473,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
             buffer_bytes: READ_BUFFER,
             first_wait_millis: i64::try_from(node_config.janitor_every.as_millis())
                 .unwrap_or(i64::MAX),
+            predecessors: Some(predecessors),
         },
         {
             let clock = Arc::clone(&clock);
