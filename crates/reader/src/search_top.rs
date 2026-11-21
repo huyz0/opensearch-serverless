@@ -4,10 +4,11 @@
 
 use std::collections::HashMap;
 
-use lucene_search::collector::TopDocsCollector;
+use lucene_search::collector::{TopDocsCollector, TotalHitsRelation};
 use lucene_search::field_norms::FieldNorms;
 use lucene_search::index_searcher::IndexSearcher;
 use lucene_search::multi_segment::{OpenSegment, search_boolean_query_multi_segment_min_score};
+use lucene_search::terminate::search_sorted_until;
 use lucene_search::top_field::{FieldDoc, SortField, search_sorted_min_score};
 use lucene_search::{BooleanQuery, ScoreDoc, TotalHits};
 use oss_blob::BlobStore;
@@ -22,6 +23,8 @@ pub(crate) struct Top {
     pub total: u64,
     /// Whether `total` is exact rather than a lower bound.
     pub exact: bool,
+    /// Whether `terminate_after` ended the collection; `None` without it.
+    pub terminated: Option<bool>,
     /// The best score of the window; `None` when sorted by fields.
     pub max_score: Option<f32>,
     /// The hits after `from`, at most the window less `from`.
@@ -35,6 +38,9 @@ pub(crate) struct TopOptions {
     pub min_score: Option<f32>,
     /// `track_scores`: a `MaxScoreCollector` beside a field sort's collector.
     pub track_scores: bool,
+    /// `terminate_after`: `EarlyTerminatingCollector` in front of the
+    /// collectors; 0 is off.
+    pub terminate_after: u64,
 }
 
 /// Collects the top `window` documents of `query` in `sort` (by score when
@@ -53,6 +59,16 @@ pub(crate) fn collect_top<S: BlobStore + 'static>(
     after: Option<&FieldDoc>,
     options: TopOptions,
 ) -> Result<Top, ShardError> {
+    if options.terminate_after > 0 {
+        return collect_terminated(
+            segments,
+            shard,
+            norms,
+            query,
+            (window, from, limit),
+            options.terminate_after,
+        );
+    }
     match sort {
         Some((keys, kinds)) if window > 0 => {
             let top = search_sorted_min_score(
@@ -83,6 +99,7 @@ pub(crate) fn collect_top<S: BlobStore + 'static>(
             Ok(Top {
                 total,
                 exact,
+                terminated: None,
                 max_score,
                 hits,
             })
@@ -112,6 +129,7 @@ pub(crate) fn collect_top<S: BlobStore + 'static>(
             Ok(Top {
                 total,
                 exact,
+                terminated: None,
                 max_score: top.first().map(|h| h.score),
                 hits: top
                     .iter()
@@ -127,6 +145,53 @@ pub(crate) fn collect_top<S: BlobStore + 'static>(
             })
         }
     }
+}
+
+/// The top `window` of the first `n` matches in index order, by score:
+/// `terminate_after`'s collector chain. The caller has refused what it does
+/// not serve (a sort, `min_score`, a window of 0, a total below `n`).
+fn collect_terminated<S: BlobStore + 'static>(
+    segments: &[OpenSegment<'_>],
+    shard: &OpenShard<S>,
+    norms: &[Option<&HashMap<String, FieldNorms<'_>>>],
+    query: &BooleanQuery,
+    (window, from, limit): (usize, usize, u64),
+    n: u64,
+) -> Result<Top, ShardError> {
+    let keys = [SortField::score()];
+    let (top, cut) = search_sorted_until(
+        segments,
+        shard.reader.segment_readers(),
+        query,
+        norms,
+        &keys,
+        window,
+        None,
+        false,
+        n,
+    )
+    .map_err(ShardError::engine)?;
+    let scored: Vec<Hit> = top
+        .hits
+        .iter()
+        .map(|h| {
+            let mut hit = sorted_hit(h, &[KeyKind::Score], Some(0));
+            // ALLOC: empty; a search by score carries no sort values.
+            hit.sort = Vec::new();
+            hit
+        })
+        // ALLOC: one hit a result, at most MAX_RESULT_WINDOW.
+        .collect();
+    let max_score = scored.first().and_then(|h| h.score);
+    let hits = scored.into_iter().skip(from).collect();
+    let (total, exact) = reported(cut.collected, TotalHitsRelation::EqualTo, limit);
+    Ok(Top {
+        total,
+        exact,
+        terminated: Some(cut.terminated),
+        max_score,
+        hits,
+    })
 }
 
 fn sorted_hit(h: &FieldDoc, kinds: &[KeyKind], score_at: Option<usize>) -> Hit {

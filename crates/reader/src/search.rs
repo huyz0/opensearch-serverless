@@ -38,6 +38,7 @@ use crate::fetch::source_filter::SourceFilter;
 use crate::lucene_query::{QueryContext, shard_failure, to_lucene};
 use crate::mapping::FieldType;
 use crate::search_sort::{KeyKind, sort_fields};
+use crate::search_terminate;
 use crate::search_top::{TopOptions, collect_top};
 
 /// `index.max_result_window`'s default: the most `from + size` may reach.
@@ -93,6 +94,9 @@ pub struct Hits {
     pub highlight: Option<Plan>,
     /// Which of each hit's `_version`, `_seq_no` and `_primary_term` to write.
     pub meta: HitMeta,
+    /// Whether `terminate_after` ended the shard's collection; `None` when it
+    /// was not asked.
+    pub terminated_early: Option<bool>,
 }
 
 impl Hits {
@@ -284,6 +288,9 @@ pub fn search<S: BlobStore + 'static>(
         )));
     }
     let sort = sort_fields(&source.sort, shard, index)?;
+    if source.terminate_after > 0 {
+        search_terminate::refusal(source, &query, sort.is_some())?;
+    }
     if source.track_scores
         && let Some((_, kinds)) = &sort
     {
@@ -370,6 +377,7 @@ pub fn search<S: BlobStore + 'static>(
         TopOptions {
             min_score: source.min_score,
             track_scores: source.track_scores,
+            terminate_after: source.terminate_after,
         },
     )?;
     if let Some((_, kinds)) = sort.as_ref().filter(|_| source.track_scores)
@@ -402,6 +410,7 @@ pub fn search<S: BlobStore + 'static>(
             version: source.version,
             seq_no: source.seq_no_primary_term,
         },
+        terminated_early: top.terminated,
     };
     // The fetch phase resolves the fields only when it has a hit to fetch.
     if !hits.hits.is_empty() && !source.docvalue_fields.is_empty() {

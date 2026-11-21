@@ -125,9 +125,13 @@ pub fn write_response_with<S: BlobStore + 'static>(
         write_json_str(out, id)?;
         out.write_all(b",")?;
     }
+    write!(out, "\"took\":{took_ms},\"timed_out\":false")?;
+    if let Some(early) = hits.terminated_early {
+        write!(out, ",\"terminated_early\":{early}")?;
+    }
     write!(
         out,
-        "\"took\":{took_ms},\"timed_out\":false,\"_shards\":{{\"total\":1,\"successful\":1,\
+        ",\"_shards\":{{\"total\":1,\"successful\":1,\
          \"skipped\":0,\"failed\":0}},\"hits\":{{"
     )?;
     if hits.tracked {

@@ -25,6 +25,7 @@ pub mod prefetch;
 pub mod response;
 pub mod search;
 mod search_sort;
+mod search_terminate;
 mod search_top;
 pub mod shard_files;
 
