@@ -22,6 +22,56 @@ const DEFLATE: u8 = 1;
 const ZSTD: u8 = 2;
 const LZ4_FAST: u8 = 3;
 
+/// A codec a manifest is written with. LZ4 is read, not written.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ManifestCodec {
+    /// The body as it is.
+    None,
+    /// Deflate without framing.
+    Deflate,
+    /// Zstandard.
+    Zstd,
+}
+
+impl ManifestCodec {
+    pub(super) const fn id(self) -> u8 {
+        match self {
+            Self::None => NONE,
+            Self::Deflate => DEFLATE,
+            Self::Zstd => ZSTD,
+        }
+    }
+}
+
+/// Refuses a body the reader would refuse.
+pub(super) fn check_body_length(length: usize) -> Result<(), FormatError> {
+    if length > MAX_BODY_BYTES {
+        return Err(FormatError::TooLarge {
+            what: WHAT,
+            limit: len64(MAX_BODY_BYTES),
+            actual: len64(length),
+        });
+    }
+    Ok(())
+}
+
+/// Compresses a body with a codec.
+pub(super) fn compress(codec: ManifestCodec, raw: &[u8]) -> Result<Vec<u8>, FormatError> {
+    match codec {
+        // ALLOC: a copy of the body, at most MAX_BODY_BYTES (checked by the caller).
+        ManifestCodec::None => Ok(raw.to_vec()),
+        ManifestCodec::Deflate => Ok(miniz_oxide::deflate::compress_to_vec(raw, 6)),
+        ManifestCodec::Zstd => {
+            // ALLOC: the compressed body, at most the compressor's bound for a body under MAX_BODY_BYTES.
+            let mut out = vec![0u8; zstd_safe::compress_bound(raw.len())];
+            let written = zstd_safe::compress(out.as_mut_slice(), raw, 3)
+                .map_err(|_| corrupt(WHAT, "a zstd body could not be compressed"))?;
+            out.truncate(written);
+            Ok(out)
+        }
+    }
+}
+
 /// The body a header's codec and length describe. Uncompressed bodies are
 /// borrowed where they lie.
 pub(super) fn body(

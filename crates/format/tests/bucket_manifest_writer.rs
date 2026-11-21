@@ -126,11 +126,8 @@ fn data_bytes_sums_recorded_lengths() {
 
 #[test]
 fn refusals_are_errors() {
-    // A compact register.
-    assert!(matches!(
-        BucketManifest::parse(b"OSBM\x02\x00\x00\x00\x00\x00"),
-        Err(FormatError::Unsupported { .. })
-    ));
+    // A compact header with no body.
+    assert!(BucketManifest::parse(b"OSBM\x02\x00\x00\x00\x00\x00").is_err());
     // Too many members.
     let mut manifest = BucketManifest::empty("b").unwrap();
     for i in 0..MAX_BUCKET_MEMBERS {

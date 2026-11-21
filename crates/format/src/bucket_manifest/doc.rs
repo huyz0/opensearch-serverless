@@ -217,18 +217,45 @@ impl BucketManifest {
         Ok(out)
     }
 
-    /// Parses a register's JSON value whole.
+    /// Writes the compact encoding (`OSBM`) with `codec`, whatever it saves.
     ///
     /// # Errors
     ///
-    /// [`FormatError::Unsupported`] for the compact encoding (not read whole
-    /// yet); otherwise as [`parse_member`](super::parse_member).
+    /// [`FormatError`] for a commit that no longer parses, a string past
+    /// 1,024 characters or a body past 64 MiB.
+    pub fn encode_compact(&self, codec: super::ManifestCodec) -> Result<Vec<u8>, FormatError> {
+        super::compact_write::encode(self, codec, false)
+    }
+
+    /// Writes the compact encoding, compressed with `codec` only when that
+    /// pays: from 32 KiB of body, and only when the result is at most four
+    /// fifths of it. Otherwise the body is written as it is.
+    ///
+    /// # Errors
+    ///
+    /// As [`encode_compact`](Self::encode_compact).
+    pub fn encode_compact_auto(&self, codec: super::ManifestCodec) -> Result<Vec<u8>, FormatError> {
+        super::compact_write::encode(self, codec, true)
+    }
+
+    /// Parses a register's value whole, in either encoding.
+    ///
+    /// # Errors
+    ///
+    /// As [`parse_member`](super::parse_member), plus
+    /// [`FormatError::TooLarge`] past [`MAX_BUCKET_MEMBERS`].
     pub fn parse(value: &[u8]) -> Result<Self, FormatError> {
         if value.starts_with(super::compact::MAGIC) {
-            return Err(FormatError::Unsupported {
-                what: WHAT,
-                version: 2,
-            });
+            let whole = super::compact::all(value)?;
+            check_term(whole.term)?;
+            let mut manifest = Self::empty(&whole.bucket)?.at_term(whole.term)?;
+            for (uuid, member) in whole.members {
+                if let Some(commit) = &member.commit {
+                    CommitManifest::parse(commit)?;
+                }
+                manifest = manifest.with_member(&uuid, member)?;
+            }
+            return Ok(manifest);
         }
         let mut json = Reader::new(value, WHAT);
         json.start_object("expected an object")?;
