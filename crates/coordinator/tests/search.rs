@@ -83,6 +83,16 @@ impl Shards for Fake {
             .map(|p| format!("{{\"h\":\"s{shard}p{p}\"}}").into_bytes())
             .collect())
     }
+
+    fn render_top_hits(
+        &self,
+        _shard: usize,
+        _query: &Hits,
+        _name: &str,
+        _positions: &[usize],
+    ) -> Result<Vec<Vec<u8>>, String> {
+        Err("no top_hits in this fake".into())
+    }
 }
 
 fn params(from: usize, size: usize) -> Params {
