@@ -28,6 +28,7 @@ pub mod descriptor_routes;
 pub mod doc_route;
 #[cfg(feature = "writer")]
 pub mod forward;
+#[cfg(feature = "writer")]
 mod forward_call;
 #[cfg(feature = "writer")]
 pub mod get_route;
