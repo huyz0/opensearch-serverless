@@ -17,6 +17,16 @@ Parity plan R9.4 and the lease view's correctness: a node reads the other nodes'
 - AC-3: with equal periods every tick renews and reads; a shorter read period ticks at it and renews on its own period; a longer one ticks at the renewal and reads at the first tick past its period.
 - AC-4: a read that failed is due again at the next tick; a renewal is due once a period whether or not it succeeded.
 - AC-5: the default does not change: the meter at the default and the node's idle requests are what they were before this change.
+- AC-6: the announce message (`internal:serverless/lease/announce`, the joiner's node id) round-trips and a truncated or empty one is refused.
+- AC-7: a node that receives an announce for a node it does not know reads the fleet's leases once and answers that it did; for a node it already holds live, it reads nothing and answers that it did not.
+- AC-8: announces are bounded: an unknown announce within `ANNOUNCE_GAP` of a read is answered without one and queues a single read for when the gap ends (which covers every announce in it), so a fleet starting together costs each node at most one read a gap and no join waits for the read period.
+- AC-9: a node announces itself once after it joins, to at most `MAX_ANNOUNCE` live peers other than itself, each call under `SEND_TIMEOUT`; a peer that is unreachable, or that does not know the action (a Java node), costs nothing but the call.
+- AC-10: the announce is signed as every transport call is; an unsigned one is refused before the handler reads anything.
+- AC-11: a booted node reads the fleet once at start-up, so it knows its peers before the first period passes, and a booted peer learns of a joiner within a second without the read period being shortened (the lease poll meter, join pickup, at the default period).
+
+## Joiner announces itself
+
+A join otherwise goes unseen for up to the read period (10 s at the default). A node that has enrolled its lease sends each live peer it knows one small signed message naming itself; a peer that does not hold that node reads the fleet's leases once. The steady state is unchanged (no extra read while nothing joins), a join costs one read a peer, and a fleet that starts together is held to one read a gap a node. The announce is advisory: a peer that misses it picks the join up at its next period, and nothing that decides ownership consults the view.
 
 ## Test plan
 

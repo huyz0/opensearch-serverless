@@ -6,6 +6,7 @@
 //! cost a handover and never a write.
 
 mod config;
+mod join;
 mod renew;
 mod support;
 mod tail;
@@ -243,6 +244,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     registry
         .add(GET_ACTION, late_get)
         .map_err(|e| BootError::Cluster(e.to_string()))?;
+    join::register(&mut registry, &membership).map_err(|e| BootError::Cluster(e.to_string()))?;
     let mut handlers = registry.into_handlers();
     let tail_slots = tail::Slots::list(&mut handlers);
     let transport_server = TransportServer::bind(
@@ -409,7 +411,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         &mut assembled,
         config,
         &tail_slots,
-        client,
+        Arc::clone(&client),
         Arc::clone(&auth),
         &membership,
         Arc::clone(&clock),
@@ -427,6 +429,8 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     late_get_slot.set(get_handler).ok();
     // Enrolled last: a peer that sees the lease can reach everything it names.
     membership.renew(&lease_for_enrolment).map_err(cluster)?;
+    join::announce(&membership, client, &auth, &config.node_id, &ephemeral)
+        .map_err(|e| BootError::Cluster(format!("lease announce thread: {e}")))?;
     let listener = TcpListener::bind(config.http)
         .map_err(|e| BootError::Bind(format!("{}: {e}", config.http)))?;
     let running = assembled
