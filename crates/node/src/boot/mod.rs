@@ -434,9 +434,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     let running = assembled
         .start(listener, ServerConfig::default(), &budget)
         .map_err(BootError::Assemble)?;
-
-    // The dead nodes that still name log epochs come from the refresh each
-    // renewal makes; a thread of its own collects them, never delaying a lease.
+    // Dead nodes naming log epochs come from each renewal's refresh; a thread of its own collects them.
     let mailbox = Arc::new(DeadMailbox::default());
     let posting = Arc::clone(&mailbox);
     let renewing = Arc::clone(&membership);
@@ -481,9 +479,11 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         },
     );
     let dry_run = node_config.sweep.dry_run;
+    let tombstones = support::tombstone_pass(config, &store, &budget, Arc::clone(&clock));
     let dead_logs = Renewal::spawn_named("dead-log-pass", node_config.janitor_every, move || {
         if let Some(snapshot) = mailbox.take() {
             let _ = collecting.run(&snapshot, dry_run);
+            let _ = tombstones.run(&snapshot.live);
         }
     })
     .map_err(|e| BootError::Cluster(format!("dead log thread: {e}")))?;

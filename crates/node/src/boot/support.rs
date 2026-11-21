@@ -13,7 +13,12 @@ use super::{BootError, NodeConfig, StoreChoice, cluster};
 use crate::cluster_owner::IndexSource;
 use crate::descriptor_routes::DescriptorRoutes;
 use crate::push_link::Leases;
-use crate::writer::{ProactiveConfig, ProactiveTakeover, Routes, WriterRole};
+use crate::writer::{
+    ProactiveConfig, ProactiveTakeover, Routes, TombstoneParts, TombstonePass, WriterRole,
+};
+use oss_cluster::LeaseClock;
+use oss_mem::MemoryBudget;
+use oss_meta::DeleteMode;
 
 /// The buffer a lease register is read through.
 const LEASE_BUFFER: usize = 1 << 16;
@@ -89,6 +94,30 @@ pub(super) fn proactive_takeover(
         role,
         predecessors,
     ))
+}
+
+/// The pass that removes the tombstones of deleted indexes, which the one
+/// node ranked to sweep runs once every `OSS_TOMBSTONE_SWEEP_MS`.
+pub(super) fn tombstone_pass(
+    config: &NodeConfig,
+    store: &Arc<dyn BlobStore>,
+    budget: &MemoryBudget,
+    clock: Arc<dyn LeaseClock>,
+) -> TombstonePass {
+    let proving = Arc::clone(store);
+    let base = config.base.clone();
+    TombstonePass::new(
+        TombstoneParts {
+            store: Arc::clone(store),
+            base: config.base.clone(),
+            node_id: config.node_id.clone(),
+            budget: budget.clone(),
+            buffer_bytes: LEASE_BUFFER,
+            every_millis: i64::try_from(config.tombstone_sweep_millis).unwrap_or(i64::MAX),
+            probe: Box::new(move || DeleteMode::probe(proving.as_ref(), &base)),
+        },
+        Box::new(move || clock.now_millis()),
+    )
 }
 
 /// The leases this node holds, for the forwarder.
