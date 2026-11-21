@@ -10,6 +10,7 @@ use lucene_search::global_ords::GlobalOrds;
 use oss_blob::BlobStore;
 
 use crate::OpenShard;
+use crate::aggs::bucket::filters_collect::Queries;
 use crate::aggs::bucket::keyword_collect::{Parent, SUB_COPIES};
 use crate::aggs::bucket::{filters_collect, keyed_subs, keyword_subs, nested_subs, range_collect};
 use crate::aggs::metric::{Metric, MetricAgg};
@@ -29,9 +30,10 @@ pub fn attach<S: BlobStore + 'static>(
     agg: &MetricAgg,
     shard: &OpenShard<S>,
     ords: &mut HashMap<String, std::sync::Arc<GlobalOrds>>,
+    queries: &mut Queries<'_>,
 ) -> Result<(), ShardError> {
     if let AggNode::Range { subs, .. } | AggNode::Filters { subs, .. } = node {
-        *subs = keyword_subs::sub_nodes(agg, shard, ords, false)?;
+        *subs = keyword_subs::sub_nodes(agg, shard, ords, queries, false)?;
     }
     Ok(())
 }

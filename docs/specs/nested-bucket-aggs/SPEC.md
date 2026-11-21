@@ -19,14 +19,14 @@ A keyword `terms` as the parent of a bucket aggregation stays refused until a la
 
 Those of step 1; each later step adds its own here with its evidence.
 
-- AC-1: a `range`, `histogram`, `date_histogram` or numeric `terms` under a `range`, `filters`, `filter`, `histogram`, `date_histogram` or numeric `terms` bucket counts that bucket's documents.
+- AC-1: a `range`, `filters`, `filter`, `histogram`, `date_histogram` or numeric `terms` under a `range`, `filters`, `filter`, `histogram`, `date_histogram` or numeric `terms` bucket counts that bucket's documents.
 - AC-2: a nested reduce counts every bucket it merges or fills in one running total; over the bucket limit it fails with `too_many_buckets_exception` (the status the shard's own refusal uses), and a fill past the limit is that failure, not a mismatch.
 - AC-3: a search reserves for each nested level's buckets, `B_k`, at the per-bucket bytes times `SUB_COPIES`: a data-keyed level holds at most its field's values times the buckets one document can land in above it (the width of each `range` or `filters` above, the bucket limit above a multi-valued field, else one), a `range` its width times its parents, never past the bucket limit.
 - AC-4: a keyword `terms` with a bucket aggregation or a numeric `terms` under it is still refused with a 400 naming it.
 - AC-5: a nested numeric `terms` whose (parent, value) pairs pass the bucket limit fails with `too_many_buckets_exception` instead of running.
 - AC-6: a cold search with a bucket aggregation nested to four levels adds no request to the same search without the nesting.
 
-Still to come: `filters` and `filter` as nested sub-aggregations (they need their compiled queries at a nested node).
+The compiled queries of nested `filters` and `filter` are planned beside the top-level ones in one depth-first list a top-level aggregation (`filters_collect::Queries`).
 
 ## Test plan
 

@@ -95,6 +95,8 @@ mod keyword_subs_tests;
 #[cfg(test)]
 mod keyword_terms_tests;
 #[cfg(test)]
+mod nested_filters_tests;
+#[cfg(test)]
 mod nested_terms_tests;
 #[cfg(test)]
 mod nested_tests;

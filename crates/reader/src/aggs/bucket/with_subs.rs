@@ -9,6 +9,7 @@ use lucene_search::global_ords::GlobalOrds;
 use oss_blob::BlobStore;
 
 use crate::OpenShard;
+use crate::aggs::bucket::filters_collect::Queries;
 use crate::aggs::bucket::{fixed_subs, keyed_subs};
 use crate::aggs::metric::MetricAgg;
 use crate::aggs::partial::Value;
@@ -26,9 +27,10 @@ pub fn attach<S: BlobStore + 'static>(
     agg: &MetricAgg,
     shard: &OpenShard<S>,
     ords: &mut HashMap<String, std::sync::Arc<GlobalOrds>>,
+    queries: &mut Queries<'_>,
 ) -> Result<(), ShardError> {
-    fixed_subs::attach(node, agg, shard, ords)?;
-    keyed_subs::attach(node, agg, shard, ords)
+    fixed_subs::attach(node, agg, shard, ords, queries)?;
+    keyed_subs::attach(node, agg, shard, ords, queries)
 }
 
 /// The shard-level result of the bucket aggregation `agg` ([`is_bucket`])

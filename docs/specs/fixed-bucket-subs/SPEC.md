@@ -13,7 +13,7 @@ Roadmap R10.2: sub-aggregations under the bucket aggregations whose buckets are 
 - AC-1: each bucket of a `filters` holds the metric sub-aggregations of the documents it counts, the other bucket those of the documents matching no filter; a `range`'s buckets and a `filter`'s one bucket likewise.
 - AC-2: a keyword `terms` under a bucket counts that bucket's documents.
 - AC-3: a bucket aggregation over an unmapped field has every bucket's sub-aggregations empty, as a metric over no value is.
-- AC-4: a sub-aggregation of a kind this node does not run under a bucket aggregation fails with a 400 naming it, never silently dropped (a numeric `terms` and a `range`, `histogram` or `date_histogram` are served since [nested-bucket-aggs](../nested-bucket-aggs/SPEC.md); `filters` and `filter` still fail).
+- AC-4: a sub-aggregation of a kind this node does not run under a bucket aggregation fails with a 400 naming it, never silently dropped (a bucket aggregation and a numeric `terms` are served since [nested-bucket-aggs](../nested-bucket-aggs/SPEC.md); a `percentiles` still fails).
 - AC-5: shard results reduce each bucket's sub-aggregation values as the metrics and `terms` reduce at the top level; the coordinator's `reduce_shards` serves them unchanged.
 - AC-6: the response writes each bucket's sub-aggregations after its `doc_count` (`range` after its `to`), and a `filter` writes them beside `doc_count`, in the order OpenSearch lists them.
 - AC-7: a search reserves the sub-aggregations' states and values from the request-body pool with its hits: each bucket's, and a nested `terms`' under the buckets; the number of buckets stays bounded by the bucket limit.

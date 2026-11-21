@@ -12,8 +12,9 @@ use crate::OpenShard;
 use crate::aggs::bucket::keyword_collect::SUB_COPIES;
 use crate::aggs::bucket::sub_values::{BucketSubs, SubValues};
 use crate::aggs::bucket::{
-    BUCKET_LIMIT, date_histogram_collect, date_histogram_spec, fixed_subs, histogram_collect,
-    histogram_spec, keyed_subs, keyword_subs, range_collect, terms_collect, terms_spec,
+    BUCKET_LIMIT, date_histogram_collect, date_histogram_spec, filters_collect, fixed_subs,
+    histogram_collect, histogram_spec, keyed_subs, keyword_subs, range_collect, terms_collect,
+    terms_spec,
 };
 use crate::aggs::metric::{Metric, MetricAgg};
 use crate::aggs::partial::Value;
@@ -24,7 +25,11 @@ use crate::search::ShardError;
 pub fn is_nested(agg: &MetricAgg) -> bool {
     matches!(
         agg.metric,
-        Metric::Range | Metric::Histogram | Metric::DateHistogram
+        Metric::Range
+            | Metric::Filters
+            | Metric::Filter
+            | Metric::Histogram
+            | Metric::DateHistogram
     )
 }
 
@@ -64,7 +69,7 @@ pub fn build<S: BlobStore + 'static>(
     owners: usize,
 ) -> Result<Vec<Value>, ShardError> {
     match agg.metric {
-        Metric::Range => fixed(agg, shard, result, owners),
+        Metric::Range | Metric::Filters | Metric::Filter => fixed(agg, shard, result, owners),
         Metric::Histogram => histogram(agg, shard, result, owners),
         _ => date_histogram(agg, shard, result, owners),
     }
@@ -77,7 +82,7 @@ fn fixed<S: BlobStore + 'static>(
     owners: usize,
 ) -> Result<Vec<Value>, ShardError> {
     let spec = agg.range.as_deref().cloned().unwrap_or_default();
-    let width = spec.ranges.len();
+    let width = fixed_subs::width(agg);
     let (docs, subs) = match result {
         Some(AggResult::Fixed { docs, subs, .. }) => (docs, subs),
         // ALLOC: empty.
@@ -91,15 +96,30 @@ fn fixed<S: BlobStore + 'static>(
     for owner in 0..owners {
         let from = owner.saturating_mul(width);
         let mine = docs.get(from..from.saturating_add(width)).unwrap_or(&[]);
-        let mut made = range_collect::from_counts(&spec, mine);
+        let mut made = if agg.filters.is_some() {
+            filters_collect::value(agg, mine)
+        } else {
+            // ALLOC: one box an owning bucket, bounded by the buckets above.
+            Value::Range(Box::new(range_collect::from_counts(&spec, mine)))
+        };
         if !agg.subs.is_empty() {
-            // ALLOC: one entry a sub-aggregation, bounded by the request's.
-            made.sub_meta.clone_from(&meta);
-            // ALLOC: one list a range, bounded by the request's ranges.
-            made.subs = lists.by_ref().take(width).collect();
+            // ALLOC: one list a bucket, bounded by the request's.
+            let held: Vec<Vec<Value>> = lists.by_ref().take(width).collect();
+            match &mut made {
+                Value::Range(r) => {
+                    // ALLOC: one entry a sub-aggregation, bounded by the request's.
+                    r.sub_meta.clone_from(&meta);
+                    r.subs = held;
+                }
+                Value::Filters(f) => {
+                    // ALLOC: as above.
+                    f.sub_meta.clone_from(&meta);
+                    f.subs = held;
+                }
+                _ => {}
+            }
         }
-        // ALLOC: one box an owning bucket, as above.
-        out.push(Value::Range(Box::new(made)));
+        out.push(made);
     }
     Ok(out)
 }
@@ -194,7 +214,9 @@ pub fn reserved<S: BlobStore + 'static>(
     fanout: usize,
 ) -> usize {
     let own = match agg.metric {
-        Metric::Range => fixed_subs::width(agg).saturating_mul(parents),
+        Metric::Range | Metric::Filters | Metric::Filter => {
+            fixed_subs::width(agg).saturating_mul(parents)
+        }
         _ => keyed_subs::values(shard, &agg.field).saturating_mul(fanout),
     }
     .min(BUCKET_LIMIT);

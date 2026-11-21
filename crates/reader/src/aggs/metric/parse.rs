@@ -209,7 +209,11 @@ fn holds_subs(metric: Metric) -> bool {
 fn nests_under(sub: Metric, parent: Metric) -> bool {
     matches!(
         sub,
-        Metric::Range | Metric::Histogram | Metric::DateHistogram
+        Metric::Range
+            | Metric::Filters
+            | Metric::Filter
+            | Metric::Histogram
+            | Metric::DateHistogram
     ) && matches!(
         parent,
         Metric::Range

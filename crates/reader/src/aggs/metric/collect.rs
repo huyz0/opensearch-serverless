@@ -410,16 +410,17 @@ pub fn collect<S: BlobStore + 'static>(
                 .map_err(|m| bad_request(Failure::plain("illegal_argument_exception", m)))?,
             _ => DEFAULT_PRECISION,
         };
+        let mut queries = filters_collect::Queries::new(filters.get(i));
         match r {
             Resolved::Numeric(_) => {
                 let mut made = node(agg, precision);
-                with_subs::attach(&mut made, agg, shard, &mut ords)?;
+                with_subs::attach(&mut made, agg, shard, &mut ords, &mut queries)?;
                 nodes.push(made);
             }
             Resolved::Keyword => nodes.push(keyword_subs::node(agg, shard, &mut ords)?),
             Resolved::Queries => {
-                let mut made = filters_collect::node(agg, filters.get(i));
-                with_subs::attach(&mut made, agg, shard, &mut ords)?;
+                let mut made = filters_collect::node(agg, queries.take_own(agg));
+                with_subs::attach(&mut made, agg, shard, &mut ords, &mut queries)?;
                 nodes.push(made);
             }
             Resolved::Unmapped => {}
