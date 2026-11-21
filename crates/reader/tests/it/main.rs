@@ -5,6 +5,8 @@
 // test, which fails it as it should.
 #![allow(clippy::arithmetic_side_effects, clippy::disallowed_methods)]
 
+mod frozen;
+mod frozen_bucket;
 mod open;
 mod push;
 

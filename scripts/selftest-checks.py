@@ -35,6 +35,7 @@ CLEAN = {
     "scripts/tree-checks.sh": "check-demo.py\n",
     "scripts/check-demo.py": "",
     "msg.txt": "docs(x): explain a thing\n",
+    "title.txt": "docs(x): explain a thing\n",
     "crates/reader/src/lib.rs": "//! Search.\n",
     "README.md": "See [types](crates/types/README.md).\n",
     "docs/invariants.md": "| Id | Invariant | Evidence |\n|---|---|---|\n| I-1 | ids differ | `ids_are_distinct` |\n| I-2 | later | NOT-YET: no code |\n",
@@ -50,7 +51,8 @@ CLEAN = {
 }
 
 MSG = ["check-commit-msg.sh", "msg.txt"]
-PR = ["check-pr.py", "--body", "body.md", "--changed", "changed.txt", "--added", "added.txt"]
+MSG_CI = ["check-commit-msg.sh", "--ci", "msg.txt"]
+PR = ["check-pr.py", "--title", "title.txt", "--body", "body.md", "--changed", "changed.txt", "--added", "added.txt"]
 
 # (check argv, description, files to overwrite or add; None deletes)
 CASES = [
@@ -78,8 +80,6 @@ CASES = [
     (["check-s3-access.py"], "S3 client outside oss-blob",
      {"crates/reader/Cargo.toml": '[package]\nname = "oss-reader"\n\n[dependencies]\naws-sdk-s3 = "1"\n\n[lints]\nworkspace = true\n'}),
     (["check-s3-access.py"], "unjustified LIST", {"crates/reader/src/lib.rs": "//! Search.\nfn f(c: &C) { c.list_objects_v2(); }\n"}),
-    (["check-unwired-deletes.py"], "an index delete wired outside oss-meta",
-     {"crates/reader/src/lib.rs": "//! Search.\nuse oss_meta::IndexLifecycle;\n"}),
     (["check-budgets.py"], "an enforced row whose test file is missing",
      {"docs/request-budgets.md": "| Objective | Case | Budget | Bound | Status | Gate |\n|---|---|---|---|---|---|\n| `a.b` | x | 1 | exact | enforced | `crates/reader/tests/b.rs::gate` |\n"}),
     (["check-budgets.py"], "an enforced row whose test is missing",
@@ -157,6 +157,13 @@ CASES = [
      {"msg.txt": "Revert \"docs(x): explain\"\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n"}),
     (MSG, "Generated-with footer", {"msg.txt": "docs(x): explain a thing\n\nGenerated with [Claude Code](https://claude.com/claude-code)\n"}),
     (MSG, "subject not in type(scope) form", {"msg.txt": "Explain a thing\n"}),
+    (MSG, "fix commit without Spec", {"msg.txt": "fix(x): repair a thing\n"}),
+    (MSG_CI, "ci mode still refuses attribution",
+     {"msg.txt": "fix(x): repair a thing\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n"}),
+    (PR, "PR title not in type(scope) form", {"title.txt": "Explain a thing\n"}),
+    (PR, "fix PR without a Spec line", {"title.txt": "fix(x): repair a thing\n"}),
+    (PR, "fix PR naming a missing spec",
+     {"title.txt": "fix(x): repair a thing\n", "body.md": CLEAN_BODY + "\nSpec: docs/specs/gone/SPEC.md\n"}),
     (PR, "PR body with an attribution footer",
      {"body.md": CLEAN_BODY + "\nGenerated with [Claude Code](https://claude.com/claude-code)\n"}),
     (PR, "PR body with a session link", {"body.md": CLEAN_BODY + "\nhttps://claude.ai/code/session_01abc\n"}),
@@ -166,6 +173,15 @@ CASES = [
     (PR, "new workspace crate without an ADR",
      {"changed.txt": "crates/extra/Cargo.toml\n", "added.txt": "crates/extra/Cargo.toml\n"}),
     (PR, "high-risk path without label or ADR", {"changed.txt": "crates/blob/src/store.rs\n"}),
+]
+
+# (argv, description, overrides) that must pass: a rule moved, not dropped.
+OK_CASES = [
+    (MSG_CI, "ci mode accepts a fix with no Spec and a free-form subject", {"msg.txt": "Repair a thing\n"}),
+    (PR, "docs PR title needs no Spec", {}),
+    (PR, "fix PR with Spec: none", {"title.txt": "fix(x): repair a thing\n", "body.md": CLEAN_BODY + "\nSpec: none (typo)\n"}),
+    (PR, "fix PR naming an existing spec",
+     {"title.txt": "fix(x): repair a thing\n", "body.md": CLEAN_BODY + "\nSpec: docs/specs/ids/SPEC.md\n"}),
 ]
 
 
@@ -205,11 +221,17 @@ def main():
             build(tmp, overrides)
             if run(tmp, argv) == 0:
                 failures.append(f"{argv[0]}: passed on planted violation: {desc}")
+    for argv, desc, overrides in OK_CASES:
+        with tempfile.TemporaryDirectory() as d:
+            tmp = pathlib.Path(d)
+            build(tmp, overrides)
+            if run(tmp, argv) != 0:
+                failures.append(f"{argv[0]}: failed a case that must pass: {desc}")
     if failures:
         print("\n".join(failures))
         print(f"selftest-checks: {len(failures)} problem(s)")
         return 1
-    print(f"selftest-checks: ok ({len(checks)} checks pass clean, {len(CASES)} planted violations caught)")
+    print(f"selftest-checks: ok ({len(checks)} checks pass clean, {len(CASES)} planted violations caught, {len(OK_CASES)} allowed cases pass)")
     return 0
 
 

@@ -32,7 +32,7 @@ impl ShardNames {
             .insert(uuid.to_owned(), name.to_owned());
     }
 
-    fn name_of(&self, uuid: &str) -> Option<String> {
+    pub(super) fn name_of(&self, uuid: &str) -> Option<String> {
         self.names
             .lock()
             .unwrap_or_else(PoisonError::into_inner)

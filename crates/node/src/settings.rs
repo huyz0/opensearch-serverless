@@ -13,11 +13,17 @@ fn providers() -> Vec<&'static [&'static Setting]> {
         #[cfg(feature = "reader")]
         crate::newest_ask::SETTINGS,
         #[cfg(feature = "reader")]
+        crate::search::open_prefetch::SETTINGS,
+        #[cfg(feature = "reader")]
         crate::tail_overlay::SETTINGS,
         #[cfg(feature = "writer")]
         oss_writer::log::settings::SETTINGS,
         #[cfg(feature = "writer")]
         oss_cluster::early_revoke::SETTINGS,
+        #[cfg(feature = "writer")]
+        oss_writer::publish::lazy::SETTINGS,
+        #[cfg(feature = "writer")]
+        crate::writer::PROACTIVE_SETTINGS,
     ]
 }
 
@@ -49,7 +55,7 @@ mod tests {
             let reader = cfg!(feature = "reader");
             assert_eq!(
                 keys.len(),
-                6 + 2 * usize::from(reader) + if writer { 6 } else { 0 }
+                6 + 5 * usize::from(reader) + if writer { 12 } else { 0 }
             );
             assert_eq!(
                 keys.contains(&"serverless.reader.newest_commit_ask"),
@@ -59,8 +65,32 @@ mod tests {
                 keys.contains(&"serverless.search.tail_overlay.enabled"),
                 reader
             );
+            assert_eq!(
+                keys.contains(&"serverless.reader.open_prefetch.enabled"),
+                reader
+            );
+            assert_eq!(
+                keys.contains(&"index.serverless.reader.open_prefetch.enabled"),
+                reader
+            );
             assert_eq!(keys.contains(&"serverless.lease.early_revoke"), writer);
+            assert_eq!(
+                keys.contains(&"serverless.wal.node_log.publish_max_age_millis"),
+                writer
+            );
+            assert_eq!(
+                keys.contains(&"serverless.publish.max_unpublished_operations"),
+                writer
+            );
             assert_eq!(keys.contains(&"serverless.wal.node_log.idle_flush"), writer);
+            for key in [
+                "serverless.takeover.proactive.enabled",
+                "serverless.takeover.proactive.reapers",
+                "serverless.takeover.proactive.max_concurrent",
+                "serverless.takeover.proactive.pass_millis",
+            ] {
+                assert_eq!(keys.contains(&key), writer, "{key}");
+            }
         } else {
             assert!(keys.is_empty());
         }

@@ -15,7 +15,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use oss_blob::{BlobStore, ByteRange, PooledStore};
-use oss_format::{CommitManifest, DescriptorRecord, Register, descriptor_key};
+use oss_format::{CommitManifest, DescriptorRecord, IndexDescriptor, Register, descriptor_key};
 
 use crate::commit_push::{NewestSource, Stage, newer_commit};
 use crate::error::ReaderError;
@@ -49,6 +49,9 @@ pub struct IndexMeta {
     /// The mapping's JSON source as the document builder reads it; empty when
     /// the descriptor holds none.
     pub mapping_json: Arc<str>,
+    /// The index's settings, flat by dotted key; empty when the descriptor
+    /// holds none.
+    pub settings: oss_format::ClusterSettings,
 }
 
 /// Every file of one shard's latest published commit, by Lucene file name.
@@ -118,25 +121,8 @@ impl ShardFiles {
     ) -> Result<(Self, IndexMeta), ReaderError> {
         let descriptor_bytes =
             read_register(store, &descriptor_key(base, index)?, MAX_REGISTER_BYTES)?;
-        let descriptor = match DescriptorRecord::parse(Register::parse(&descriptor_bytes)?.value)? {
-            DescriptorRecord::Index(d) => d,
-            DescriptorRecord::Tombstone => return Err(ReaderError::Deleted),
-            DescriptorRecord::Alias => return Err(ReaderError::Alias),
-        };
-        let (mapping, mapping_json) = match descriptor.mapping_escaped {
-            Some(escaped) => {
-                let json = Mapping::unescape(escaped)?;
-                (Mapping::from_json(&json)?, Arc::<str>::from(json))
-            }
-            None => (Mapping::default(), Arc::<str>::from("")),
-        };
-        let meta = IndexMeta {
-            // ALLOC: one uuid an open index.
-            uuid: descriptor.uuid.to_string(),
-            number_of_shards: descriptor.number_of_shards,
-            mapping,
-            mapping_json,
-        };
+        let descriptor = index_of(&descriptor_bytes)?;
+        let meta = meta_of(&descriptor)?;
         let shard_ref = descriptor.shard(shard)?;
         let register_bytes;
         let value = match pushed {
@@ -186,6 +172,11 @@ impl ShardFiles {
         ))
     }
 
+    /// A commit assembled from `term` and its resolved `files`.
+    pub(crate) fn assembled(term: u64, stage: Stage, files: BTreeMap<String, FileRange>) -> Self {
+        Self { term, stage, files }
+    }
+
     /// A commit of `files`, for tests.
     #[cfg(test)]
     pub(crate) fn of(term: u64, files: BTreeMap<String, FileRange>) -> Self {
@@ -223,8 +214,40 @@ impl ShardFiles {
     }
 }
 
+/// The index a descriptor register holds.
+pub(crate) fn index_of(register: &[u8]) -> Result<IndexDescriptor<'_>, ReaderError> {
+    match DescriptorRecord::parse(Register::parse(register)?.value)? {
+        DescriptorRecord::Index(d) => Ok(d),
+        DescriptorRecord::Tombstone => Err(ReaderError::Deleted),
+        DescriptorRecord::Alias => Err(ReaderError::Alias),
+    }
+}
+
+/// What a search needs of the index `descriptor` describes.
+pub(crate) fn meta_of(descriptor: &IndexDescriptor<'_>) -> Result<IndexMeta, ReaderError> {
+    let (mapping, mapping_json) = match descriptor.mapping_escaped {
+        Some(escaped) => {
+            let json = Mapping::unescape(escaped)?;
+            (Mapping::from_json(&json)?, Arc::<str>::from(json))
+        }
+        None => (Mapping::default(), Arc::<str>::from("")),
+    };
+    let settings = match descriptor.settings {
+        Some(bytes) => oss_format::ClusterSettings::parse(bytes)?,
+        None => oss_format::ClusterSettings::default(),
+    };
+    Ok(IndexMeta {
+        // ALLOC: one uuid an open index.
+        uuid: descriptor.uuid.to_string(),
+        number_of_shards: descriptor.number_of_shards,
+        mapping,
+        mapping_json,
+        settings,
+    })
+}
+
 /// Reads a whole register blob, refusing one over `max` bytes.
-fn read_register<S: BlobStore>(
+pub(crate) fn read_register<S: BlobStore>(
     store: &PooledStore<S>,
     key: &str,
     max: usize,

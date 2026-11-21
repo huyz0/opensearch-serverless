@@ -10,11 +10,12 @@ use std::sync::Arc;
 
 use lucene_analysis::Analyzer;
 use oss_blob::BlobStore;
+use oss_format::PointInTime;
 use oss_reader::OpenShard;
 use oss_reader::dsl::SearchSource;
-use oss_reader::failure::{SearchError, ShardFailure};
+use oss_reader::failure::{Failure, SearchError, ShardFailure};
 use oss_reader::response::render_selected_result_hits;
-use oss_reader::search::{Hits, search};
+use oss_reader::search::{Hits, hits_bytes, search};
 
 use super::open_shard::into_error;
 use super::{Held, SearchService};
@@ -61,8 +62,73 @@ impl<S: BlobStore + 'static> SearchService<S> {
         shard: u32,
         source: &SearchSource,
     ) -> Result<ShardQuery<S>, Box<SearchError>> {
+        self.query_shard_reserving(index, shard, source, &|_| Ok(()))
+    }
+
+    /// As [`Self::query_shard`], first asking `reserve` for the bytes this
+    /// shard's hits take; a refusal fails the shard before it searches.
+    ///
+    /// # Errors
+    ///
+    /// The search error an open, the reservation or the query answers,
+    /// naming the shard.
+    pub fn query_shard_reserving(
+        &self,
+        index: &str,
+        shard: u32,
+        source: &SearchSource,
+        reserve: &dyn Fn(usize) -> std::io::Result<()>,
+    ) -> Result<ShardQuery<S>, Box<SearchError>> {
         let held = self.open_shard(index, shard, false).map_err(into_error)?;
-        let view = self.overlay_view(&held);
+        self.query_held(held, index, shard, source, reserve, true)
+    }
+
+    /// As [`Self::query_shard_reserving`], over shard `shard` of the view
+    /// `id` froze, opened now if it is not yet. A frozen shard has no
+    /// overlay: it is the commit the view named, and no later write.
+    ///
+    /// # Errors
+    ///
+    /// The search error an open, the reservation or the query answers,
+    /// naming the shard.
+    pub fn query_frozen_reserving(
+        &self,
+        view: &PointInTime,
+        id: &str,
+        shard: u32,
+        source: &SearchSource,
+        reserve: &dyn Fn(usize) -> std::io::Result<()>,
+    ) -> Result<ShardQuery<S>, Box<SearchError>> {
+        let held = self.open_frozen(view, shard, id).map_err(into_error)?;
+        self.query_held(held, &view.index, shard, source, reserve, false)
+    }
+
+    fn query_held(
+        &self,
+        held: Arc<Held<S>>,
+        index: &str,
+        shard: u32,
+        source: &SearchSource,
+        reserve: &dyn Fn(usize) -> std::io::Result<()>,
+        overlay: bool,
+    ) -> Result<ShardQuery<S>, Box<SearchError>> {
+        reserve(hits_bytes(source, &held.shard)).map_err(|e| {
+            // ALLOC: error path; one box and the names.
+            Box::new(SearchError::on_shard(
+                429,
+                Failure::plain("circuit_breaking_exception", e.to_string()),
+                ShardFailure {
+                    index: index.to_owned(),
+                    shard,
+                    node: self.node_id.clone(),
+                },
+            ))
+        })?;
+        let view = if overlay {
+            self.fresh_view(&held)?
+        } else {
+            None
+        };
         let analyzer = Analyzer::standard(None);
         let hits = {
             let open = view.as_deref().unwrap_or(&held.shard);

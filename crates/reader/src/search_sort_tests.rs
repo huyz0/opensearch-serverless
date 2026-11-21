@@ -48,3 +48,16 @@ fn a_keyword_sorts_its_missing_values_last_in_either_direction() {
     let (desc, _) = field_sort("tag", true, &shard, "so").expect("sorts");
     assert_eq!((desc.missing, desc.reverse), (0, true));
 }
+
+#[test]
+fn a_seq_no_sort_is_a_long_sort_with_missing_values_last() {
+    let shard = shard();
+    let (asc, kind) = field_sort("_seq_no", false, &shard, "so").expect("sorts");
+    assert_eq!(kind, KeyKind::Numeric);
+    assert_eq!(
+        (asc.ty, asc.reverse, asc.missing),
+        (SortType::Long, false, i64::MAX)
+    );
+    let (desc, _) = field_sort("_seq_no", true, &shard, "so").expect("sorts");
+    assert_eq!((desc.reverse, desc.missing), (true, i64::MIN));
+}

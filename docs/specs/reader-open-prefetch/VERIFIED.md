@@ -8,3 +8,4 @@ Run on 2026-11-19 (Linux cloud container, emulator store behind `Rounds` with a 
 - AC-4: `prefetch::tests::a_range_the_store_refuses_is_left_to_the_engine` and `an_open_whose_prefetch_is_refused_still_opens_and_reads_every_document` (a two-buffer pool refuses some of the concurrent ranges).
 - AC-5: `prefetch::tests::what_was_fetched_is_released_when_the_open_returns`.
 - AC-6: `docs/request-budgets.md` rows `search.cold.*` and `search.metric_aggs.cold.*` at 3, enforced by `crates/node/tests/it/budgets.rs` and `aggs_budgets.rs`; the compat replay and reader tests pass.
+- AC-7: `the_shell_s_layout_opens_in_fewer_requests_and_the_same_bytes`: compat-bool, errors, match, match-all, range and term 6 to 3 requests, paging-sort 9 to 4, depth 6 to 3 on all seven, bytes identical (for example 6,665 and 5,247). Emulator, provisional.

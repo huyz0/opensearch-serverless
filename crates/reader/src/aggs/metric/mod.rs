@@ -16,6 +16,7 @@ pub mod date_text;
 pub mod double;
 pub mod hash_order;
 pub mod hll;
+pub mod long_value;
 pub mod parse;
 pub mod partial;
 pub mod percentiles;
@@ -30,6 +31,10 @@ pub use percentiles::PercentilesOptions;
 pub use render::{write_aggregations, write_aggregations_with};
 pub use top_hits::{TopHitsResult, TopHitsSpec};
 
+use crate::aggs::bucket::date_histogram::DateHistogramSpec;
+use crate::aggs::bucket::filters::FiltersSpec;
+use crate::aggs::bucket::histogram::HistogramSpec;
+use crate::aggs::bucket::range::RangeSpec;
 use crate::aggs::bucket::terms::TermsSpec;
 
 /// Which metric an aggregation computes.
@@ -60,11 +65,24 @@ pub enum Metric {
     /// `terms`: the documents counted by each value of a numeric field (a
     /// bucket aggregation, held here as `top_hits` is).
     Terms,
+    /// `histogram`: the documents counted by the interval of a numeric
+    /// field's values they fall in.
+    Histogram,
+    /// `date_histogram`: the documents counted by the calendar or fixed
+    /// interval of a date field's values they fall in.
+    DateHistogram,
+    /// `range`: the documents counted in each of given ranges of a numeric
+    /// field.
+    Range,
+    /// `filters`: the documents counted by each of given queries they match.
+    Filters,
+    /// `filter`: the documents counted that match one query.
+    Filter,
 }
 
 impl Metric {
     /// Every metric served, by its aggregation type name.
-    pub const ALL: [Metric; 11] = [
+    pub const ALL: [Metric; 16] = [
         Metric::Min,
         Metric::Max,
         Metric::Sum,
@@ -76,6 +94,11 @@ impl Metric {
         Metric::PercentileRanks,
         Metric::TopHits,
         Metric::Terms,
+        Metric::Histogram,
+        Metric::DateHistogram,
+        Metric::Range,
+        Metric::Filters,
+        Metric::Filter,
     ];
 
     /// The aggregation type name.
@@ -92,6 +115,11 @@ impl Metric {
             Metric::PercentileRanks => "percentile_ranks",
             Metric::TopHits => "top_hits",
             Metric::Terms => "terms",
+            Metric::Histogram => "histogram",
+            Metric::DateHistogram => "date_histogram",
+            Metric::Range => "range",
+            Metric::Filters => "filters",
+            Metric::Filter => "filter",
         }
     }
 
@@ -120,6 +148,17 @@ pub struct MetricAgg {
     pub top_hits: Option<Box<TopHitsSpec>>,
     /// A `terms`' options; `None` for every other aggregation.
     pub terms: Option<Box<TermsSpec>>,
+    /// A `histogram`'s options; `None` for every other aggregation.
+    pub histogram: Option<Box<HistogramSpec>>,
+    /// A `date_histogram`'s options; `None` for every other aggregation.
+    pub date_histogram: Option<Box<DateHistogramSpec>>,
+    /// The sub-aggregations of a keyword `terms`, in request order; empty
+    /// for every other aggregation.
+    pub subs: Vec<MetricAgg>,
+    /// A `range`'s options; `None` for every other aggregation.
+    pub range: Option<Box<RangeSpec>>,
+    /// A `filters`' options; `None` for every other aggregation.
+    pub filters: Option<Box<FiltersSpec>>,
 }
 
 /// What a `cardinality` aggregation sets besides its field.
@@ -140,6 +179,10 @@ impl CardinalityOptions {
             .map_or(Ok(DEFAULT_PRECISION), hll::precision_from_threshold)
     }
 }
+
+/// What one bucket of a `histogram` holds while collecting: its key, its
+/// count and the engine's hash entry and ordinal.
+const HISTOGRAM_BUCKET_BYTES: usize = 64;
 
 /// `HyperLogLogPlusPlus.DEFAULT_PRECISION`.
 pub const DEFAULT_PRECISION: u32 = 14;
@@ -163,6 +206,30 @@ pub fn state_bytes(aggs: &[MetricAgg]) -> usize {
                     .min(crate::aggs::bucket::BUCKET_LIMIT)
                     .saturating_mul(std::mem::size_of::<(i64, u64)>())
             }),
+            // The engine counts every key against the bucket limit, so a
+            // shard holds at most that many.
+            Metric::Histogram | Metric::DateHistogram => {
+                crate::aggs::bucket::BUCKET_LIMIT.saturating_mul(HISTOGRAM_BUCKET_BYTES)
+            }
+            // A bucket, the engine's bounds and count, and each key, kept
+            // by the request and by the result.
+            Metric::Range => agg.range.as_ref().map_or(0, |r| {
+                let per_range = std::mem::size_of::<crate::aggs::bucket::range::RangeBucket>()
+                    .saturating_add(std::mem::size_of::<[f64; 2]>())
+                    .saturating_add(std::mem::size_of::<u64>());
+                let keys = r.ranges.iter().fold(0usize, |n, d| {
+                    n.saturating_add(d.key.as_ref().map_or(0, String::len).saturating_mul(2))
+                });
+                r.ranges
+                    .len()
+                    .min(crate::aggs::bucket::BUCKET_LIMIT)
+                    .saturating_mul(per_range)
+                    .saturating_add(keys)
+            }),
+            Metric::Filters | Metric::Filter => agg
+                .filters
+                .as_deref()
+                .map_or(0, crate::aggs::bucket::filters_collect::state_bytes),
             Metric::Percentiles | Metric::PercentileRanks => {
                 tdigest::digest_bytes(agg.percentiles.compression).saturating_add(
                     agg.percentiles
@@ -178,6 +245,7 @@ pub fn state_bytes(aggs: &[MetricAgg]) -> usize {
             .saturating_add(sketch)
             .saturating_add(agg.name.len())
             .saturating_add(agg.field.len())
+            .saturating_add(state_bytes(&agg.subs))
     })
 }
 

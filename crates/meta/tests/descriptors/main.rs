@@ -16,8 +16,13 @@ mod counts;
 mod index_lifecycle;
 mod lifecycle;
 mod listing;
+mod point_in_time;
+mod point_in_time_bucket;
+mod point_in_time_capture;
+mod point_in_time_races;
 mod probe;
 mod reclaim;
+mod reclaim_modes;
 mod routing;
 mod sweep;
 

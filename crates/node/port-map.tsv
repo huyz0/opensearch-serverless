@@ -32,3 +32,64 @@ src/search_open.rs	new		the open of a shard for a search (pool charge, commit, e
 src/search_shard.rs	new		one shard's query and the selected hits of its result, for a coordinator in the same process; the Java runs the query phase and the fetch phase in the engine
 src/coordinate.rs	new		one search over an index's shards run by this node's readers through the coordinator's merge
 src/bulk_route.rs	new		the _bulk route over the node's writer role: streamed slices charged to the bulk budget
+src/open_prefetch.rs	new		whether a cold open prefetches (index, cluster, node, default) and the open_indexes bytes it holds meanwhile
+src/writer/publishing.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/BackgroundReconciler.java	the publish pass: lazyPublishDue then SegmentPublisher.publish, the manifest remembered as the newest commit; the timer, per-index refresh_interval age and log ordinal are not ported yet
+src/writer/publish_timer.rs	new		one thread running the publish pass on an interval; the Java reconciler is a scheduled executor task
+src/doc_route.rs	new		the _doc, _create and delete routes over the writer role, each one item through the bulk path; the Java has the REST actions in OpenSearch core
+src/get_route.rs	new		the _doc and _source get routes over the writer role; the Java has the REST actions in OpenSearch core
+src/refresh_route.rs	new		the _refresh route over the writer role's shards; the Java has the REST action in OpenSearch core
+src/writer/get.rs	new		the role's get of a shard it holds and its index lookup
+src/pit_route/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/PointInTimeHandler.java@429b4cbc	routes, refusals and answer shapes for create, delete and list; the node actions and the closing of frozen readers are not here
+src/pit_route/params.rs	port	server/src/main/java/org/opensearch/action/search/DeletePitRequest.java@3.10.0	fromXContent for the pit_id body
+src/assemble.rs	new		the composition root: services, routes and the publish timer over one shared store; the Java assembles in ServerlessNode through plugin wiring
+src/writer/janitor_pass.rs	new		the janitor's sweep over the held shards that published or are being watched, on one snapshot of the points in time; the shell's reconciler sweeps every shard each pass
+src/writer/janitor_timer.rs	new		one thread running the janitor pass on an interval, the sweep config read each pass; the Java reconciler is a scheduled executor task
+src/time_value.rs	port	server/src/main/java/org/opensearch/common/unit/TimeValue.java@3.10.0	parseTimeValue for the keep-alive units, and the default and longest keep-alive
+src/search_frozen.rs	new		the search of a point in time over a view's frozen shard, split from search.rs; the Java opens the context its PIT id names in the engine
+src/admin_assemble.rs	new		registers the settings and index table routes every node serves, over the registers under the base
+src/cat_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/ListIndicesHandler.java@429b4cbc	_cat/indices and _list/indices over the descriptors: the walk, the named resolution and the pattern cap; no system-index test, as no plugin owns an index here
+src/cluster_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/ClusterSettingsHandler.java@429b4cbc	the register read and write; the plugin check and the node-local apply are not here
+src/health_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/ClusterHealthHandler.java@429b4cbc	the route, the wait loop and the answer; the judging is oss-coordinator; the source reads the membership and heads
+src/route_util.rs	new		a refusal as the edge error, a flag, a table sent: shared by the cluster, health and cat routes
+src/index_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/indexadmin/IndexAdminHandler.java	the create and exists routes over the descriptor store; delete, GET, mapping and settings routes are not here yet
+src/index_delete/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/indexadmin/IndexAdminHandler.java	the delete route over IndexLifecycle, and the reclaim drain
+src/index_delete/heads.rs	new		ShardHeads over the shard head registers
+src/index_delete/pins.rs	new		ShardPins over the live points in time, with a snapshot source hook
+src/index_delete/timer.rs	new		the thread that drains the reclaim queue each interval
+src/descriptor_routes.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/metadata/ServerlessIndexResolver.java	the routing partition size, routing shards and _routing.required a write reads from an index descriptor; every shard is local until the cluster half lands
+src/tail_node.rs	new		the assembly of the tail overlay: the shell wires TailPush, TailOverlays and the lease view in its node bootstrap
+src/writer/newest_commit.rs	new		the newest-commit memory split from writer/mod.rs to keep it under the module size limit
+src/writer/tail.rs	new		the seam the write path tells the tail overlay through; the Java calls TailPush from its write path directly
+src/writer/opener.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/ShardReconciler.java	the open of a shard no writer has published yet: win its head, open under its term; a shard with a history is refused until takeover lands
+src/writer/refresh.rs	new		a refresh that publishes the commit it makes visible; the Java shell refreshes and publishes on separate paths
+src/cluster_owner.rs	new		owner by rendezvous over the held leases and the forward of a group as one BulkRequest; the Java splits this across FleetPlacement and ForwardedBulkAction
+src/boot/mod.rs	new		starts a node from configuration; the Java node is built by the OpenSearch bootstrap and a plugin, with no equivalent single entry
+src/boot/config.rs	new		environment configuration; the Java reads opensearch.yml
+src/boot/renew.rs	new		the lease renewal thread; the Java renews on a scheduled executor
+src/writer/takeover.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/ShardReconciler.java	the writer open of a shard with a history: restore, replay the head's writers, publish, then hold
+src/writer/predecessors.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/ShardReconciler.java	the predecessors of a take: each head writer's log epochs from its lease, fenced and rechecked against the lease
+src/writer/redirect.rs	new		forwards a write to the live node whose shard head holds the shard; the shell fails the write
+src/bulk_handler.rs	new		the owner side of a forwarded bulk over WriterRole::apply_group; the Java splits it between ForwardedBulkAction and NodeWritePath
+src/boot/transport.rs	new		the transport server's late-bound handler and the node's discovery description; the Java builds them in the transport module
+src/read_forward.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/forwarding/ForwardedGetRequest.java@429b4cbc	the owner-side handler and the sender of a forwarded get
+src/by_query/mod.rs	new		delete-by-query over a writer role, the search behind a trait; the Java shell runs it in its ops package
+src/by_query/change.rs	new		the conditional delete a by-query walk makes, through the bulk machinery
+src/by_query/params.rs	new		the request body and parameters of a delete by query
+src/by_query/response.rs	new		the answer of a delete by query
+src/by_query/search.rs	new		the by-query search answered by the node's own reader, sorted by sequence number
+src/writer/publish_age.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/reconcile/BackgroundReconciler.java	the per-index publish age: refresh_interval bounds the oldest unpublished write; -1 leaves it to the operation count
+src/search_count.rs	port	server/src/main/java/org/opensearch/rest/action/search/RestCountAction.java	_count as the exact total of a size-0 search of the query
+src/writer/dead_logs.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/shard/ShardSettlement.java	collectNodeLog reads: the fenced epochs, the shard names in the headers, the commit checkpoint
+src/search_field_caps.rs	port	server/src/main/java/org/opensearch/rest/action/admin/indices/RestFieldCapabilitiesAction.java	_field_caps over named indices: type, searchable and aggregatable per field, merged by type
+src/writer/dead_log_pass.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/reconcile/BackgroundReconciler.java	which dead nodes a node reaps, the collection pass over them and the wait that backs off
+src/search_msearch.rs	port	server/src/main/java/org/opensearch/rest/action/search/RestMultiSearchAction.java	_msearch: header and body lines streamed, each search run as its line ends, items written as they finish
+src/search_analyze.rs	port	server/src/main/java/org/opensearch/action/admin/indices/analyze/TransportAnalyzeAction.java	_analyze: simpleAnalyze over the standard and keyword analyzers, positions and offsets across texts
+src/index_cache.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/metadata/ServerlessIndexResolver.java	the routing cache of an index, confirmed by the change stripes
+src/boot/support.rs	new		the store a configuration names, the epochs an earlier process left and the id bytes of a node
+src/forward_call.rs	new		the signed call both forwarders share: owner lease lookup, encode, sign, send; the Java signs inside each forwarded action
+src/tail_await.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/transport/TailPush.java@429b4cbc	awaitSearchNodes: wait for the pushed-to nodes, then out the grants of the ones lost
+src/tail_subscription.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/transport/TailPush.java@429b4cbc	Subscription and Serving: one reader subscription, its push numbering and confirmation
+src/tail_fresh.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/transport/TailOverlays.java@429b4cbc	ensureFresh in everywhere mode: under a grant answer, else ask the writer, else compare the commit with its claim
+src/boot/tail.rs	new		the tail actions listed on the transport server before it binds, and their handlers given once the node is assembled
+src/writer/snapshot.rs	new		the files of a commit held apart from the engine directory so a publish uploads them after the shard lock is let go; the shell publishes from the Lucene commit's immutable files
+src/writer/proactive.rs	new		the take of the shards a dead node's write log names, by designated reapers, before a write asks (ADR 0021); the shell finds them by listing a per-node claims folder

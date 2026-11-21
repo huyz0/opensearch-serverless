@@ -8,7 +8,7 @@ use oss_mem::{Pool, Reservation};
 use oss_reader::commit_push::ShardKey;
 use oss_reader::failure::{Failure, Meta, SearchError};
 use oss_reader::open_cost::open_bytes;
-use oss_reader::{ReaderError, ShardFiles, open_located};
+use oss_reader::{ReaderError, ShardFiles, open_located_with};
 use oss_rest::RestError;
 
 use super::{Answer, Held, SearchService, lock_pushed};
@@ -106,6 +106,21 @@ impl<S: BlobStore + 'static> SearchService<S> {
         if shard >= meta.number_of_shards {
             return Err(out_of_range(index, shard));
         }
+        let held = self.open_held(index, shard, files, meta, true)?;
+        Ok(lead.opened(held))
+    }
+
+    /// Charges `files`' open to the `open_indexes` pool and opens them as
+    /// shard `shard` of `index`; `overlays` says whether a search of it
+    /// reads the writer's overlay.
+    pub(super) fn open_held(
+        &self,
+        index: &str,
+        shard: u32,
+        files: ShardFiles,
+        meta: oss_reader::IndexMeta,
+        overlays: bool,
+    ) -> Result<Arc<Held<S>>, Answer> {
         let stage = files.stage().clone();
         let bytes = open_bytes(&files, &meta, &self.cache);
         let charge = self.charge(bytes).map_err(|e| {
@@ -116,7 +131,9 @@ impl<S: BlobStore + 'static> SearchService<S> {
                 never_fits(&e),
             ))
         })?;
-        let opened = open_located(
+        // The prefetch's bytes are held for the open alone.
+        let (prefetch, _prefetch_held) = self.open_prefetch(&files, &meta);
+        let opened = open_located_with(
             Arc::clone(&self.store),
             Arc::clone(&self.cache),
             &self.base,
@@ -124,10 +141,11 @@ impl<S: BlobStore + 'static> SearchService<S> {
             shard,
             files,
             meta,
+            &prefetch,
         )
         .map_err(|e| open_failure(index, e))?;
         // ALLOC: one open shard; the pool bounds them.
-        Ok(lead.opened(Arc::new(Held {
+        Ok(Arc::new(Held {
             shard: opened,
             view: Mutex::new(None),
             stage,
@@ -135,9 +153,13 @@ impl<S: BlobStore + 'static> SearchService<S> {
             index: index.to_owned(),
             shard_no: shard,
             charge,
-            source: self.overlay.get().cloned(),
+            source: if overlays {
+                self.overlay.get().cloned()
+            } else {
+                None
+            },
             epoch: self.epoch,
-        })))
+        }))
     }
 
     /// The latest commit of shard `shard` of `index`: the one its writer pushed
@@ -232,7 +254,7 @@ fn out_of_range(index: &str, shard: u32) -> Answer {
 }
 
 /// What a failed locate or open answers.
-fn open_failure(index: &str, e: ReaderError) -> Answer {
+pub(super) fn open_failure(index: &str, e: ReaderError) -> Answer {
     match e {
         ReaderError::Blob(BlobError::NotFound) | ReaderError::Deleted => {
             // ALLOC: error path; one box.

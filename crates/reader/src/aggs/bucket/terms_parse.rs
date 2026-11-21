@@ -3,6 +3,7 @@
 //! its setters' checks, at OpenSearch 3.10.0, and `TermsAggregatorFactory`'s
 //! shard size.
 
+use crate::aggs::bucket::keyword_options::{KeywordOptions, parse_filter};
 use crate::aggs::bucket::terms::{TermsOrder, TermsSpec, suggested_shard_size};
 use crate::aggs::metric::parse::long_value;
 use crate::dsl::error::DslError;
@@ -35,6 +36,7 @@ pub fn parse_terms_body(p: &mut Parser<'_>, name: &str) -> Result<(String, Terms
     let mut shard_size: Option<usize> = None;
     let mut min_doc_count = 1u64;
     let mut order = TermsOrder::CountDesc;
+    let mut keyword = KeywordOptions::default();
     let mut key = "";
     let mut key_at = p.location();
     loop {
@@ -57,7 +59,14 @@ pub fn parse_terms_body(p: &mut Parser<'_>, name: &str) -> Result<(String, Terms
         }
         let served = matches!(
             key,
-            "field" | "size" | "shard_size" | "min_doc_count" | "order"
+            "field"
+                | "size"
+                | "shard_size"
+                | "min_doc_count"
+                | "order"
+                | "include"
+                | "exclude"
+                | "missing"
         );
         if !served {
             // ALLOC: error path; one message.
@@ -68,6 +77,8 @@ pub fn parse_terms_body(p: &mut Parser<'_>, name: &str) -> Result<(String, Terms
         let accepted = match key {
             "field" => kind == Kind::String,
             "order" => matches!(kind, Kind::StartObject | Kind::StartArray),
+            "include" | "exclude" => true,
+            "missing" => matches!(kind, Kind::String | Kind::Number | Kind::Bool),
             _ => matches!(kind, Kind::Number | Kind::String),
         };
         if !accepted {
@@ -125,6 +136,26 @@ pub fn parse_terms_body(p: &mut Parser<'_>, name: &str) -> Result<(String, Terms
                     )
                 })?;
             }
+            "include" | "exclude" => {
+                let filter = parse_filter(p, kind, key).map_err(|e| failed(p, e))?;
+                keyword
+                    .check_merge(key, &filter)
+                    .map_err(|e| failed(p, e))?;
+                if key == "include" {
+                    keyword.include = Some(filter);
+                } else {
+                    keyword.exclude = Some(filter);
+                }
+            }
+            "missing" => {
+                if kind != Kind::String {
+                    return Err(DslError::unsupported(
+                        "a [missing] that is not a string in a [terms] aggregation",
+                    ));
+                }
+                // ALLOC: one term an aggregation, bounded by the body's recording.
+                keyword.missing = Some(p.text().to_owned());
+            }
             _ => {
                 if kind == Kind::StartArray {
                     return Err(DslError::unsupported(
@@ -156,6 +187,7 @@ pub fn parse_terms_body(p: &mut Parser<'_>, name: &str) -> Result<(String, Terms
             shard_size,
             min_doc_count,
             order,
+            keyword,
         },
     ))
 }

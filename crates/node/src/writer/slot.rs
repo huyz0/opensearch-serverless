@@ -4,10 +4,15 @@
 use lucene_index::index_writer::IndexWriter;
 use lucene_index::segment_info::LuceneVersion;
 use lucene_store::ByteBuffersDirectory;
-use oss_format::ShardKey;
+use oss_format::{ShardHead, ShardKey};
 use oss_writer::bulk::Kind;
-use oss_writer::index::{Expect, Refused, Shard, Written};
+use oss_writer::index::{Expect, Fetched, Refused, Shard, Written};
 use oss_writer::mapping::Mapping;
+use oss_writer::publish::ShardPublisher;
+use oss_writer::takeover::{Adopted, ShardEngine, adopt};
+
+use super::Takeover;
+use super::snapshot::Snapshot;
 
 /// The Lucene version the writer's segments are written as.
 const VERSION: LuceneVersion = LuceneVersion {
@@ -34,15 +39,19 @@ pub(super) struct ShardSlot {
 }
 
 impl ShardSlot {
-    /// Opens an empty shard of `key` under `term`, its documents read
-    /// against `mapping`.
+    /// Opens a shard of `key` under `term`, its documents read against
+    /// `mapping`, over the files `fill` puts in its directory first: none
+    /// for an empty shard, a commit's for a shard taken over.
     pub(super) fn open(
         key: ShardKey,
         term: i64,
         mapping: Mapping,
         clock: fn() -> u64,
+        fill: impl FnOnce(&ByteBuffersDirectory) -> Result<(), String>,
     ) -> Result<Self, String> {
-        let cell = Cell::try_new(ByteBuffersDirectory::new(), |dir| {
+        let owner = ByteBuffersDirectory::new();
+        fill(&owner)?;
+        let cell = Cell::try_new(owner, |dir| {
             let mut w = IndexWriter::open(dir, Vec::new(), "Lucene104", VERSION)
                 .map_err(|e| e.to_string())?;
             w.enable_explicit_documents().map_err(|e| e.to_string())?;
@@ -83,12 +92,61 @@ impl ShardSlot {
         kind: Kind,
         id: &str,
         source: &[u8],
+        routing: Option<&str>,
         create: bool,
         expect: &Expect,
     ) -> Result<Written, Refused> {
         self.cell.with_dependent_mut(|_, shard| match kind {
             Kind::Delete => shard.delete(id, expect),
-            _ => shard.index(id, source, create, expect),
+            _ => shard.index_routed(id, source, routing, create, expect),
+        })
+    }
+
+    /// The highest sequence number the engine assigned, negative for none.
+    pub(super) fn max_seq_no(&self) -> i64 {
+        self.cell.with_dependent(|_, shard| shard.max_seq_no())
+    }
+
+    /// Commits the engine and takes the files of that commit, with the term
+    /// to publish them under, so the upload can go on without this slot.
+    pub(super) fn snapshot(&mut self) -> Result<(Snapshot, u64), String> {
+        let term = u64::try_from(self.term).map_err(|e| e.to_string())?;
+        self.cell.with_dependent_mut(|dir, shard| {
+            shard.refresh()?;
+            let files = shard.committed_files()?;
+            Ok((Snapshot::of(dir, &files)?, term))
+        })
+    }
+
+    /// The live document of `id`; see [`Shard::get`].
+    pub(super) fn get(&mut self, id: &str, realtime: bool) -> Result<Option<Fetched>, String> {
+        self.cell
+            .with_dependent_mut(|_, shard| shard.get(id, realtime))
+    }
+
+    /// Brings the shard to a published commit under the head `won`: replays
+    /// what the head's writers logged and did not publish, publishes it
+    /// through `publisher`, and clears those writers from the head.
+    pub(super) fn adopt(
+        &mut self,
+        publisher: &mut ShardPublisher,
+        writer: &str,
+        now_millis: u64,
+        takeover: &Takeover,
+        won: &ShardHead,
+    ) -> Result<Adopted, String> {
+        let key = self.key.clone();
+        self.cell.with_dependent_mut(|dir, shard| {
+            let mut engine = ShardEngine::new(shard, dir, publisher, writer, now_millis);
+            adopt(
+                &key,
+                won,
+                &takeover.predecessors,
+                &mut engine,
+                &takeover.heads,
+                takeover.max_buffer_bytes,
+            )
+            .map_err(|e| e.to_string())
         })
     }
 

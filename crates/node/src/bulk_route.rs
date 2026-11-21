@@ -57,7 +57,7 @@ fn now_millis() -> u64 {
 }
 
 /// `?refresh`: whether the shards written are refreshed before the answer.
-fn refresh(value: Option<&str>) -> Result<bool, RestError> {
+pub(crate) fn refresh(value: Option<&str>) -> Result<bool, RestError> {
     match value {
         None | Some("false") => Ok(false),
         Some("" | "true" | "wait_for") => Ok(true),

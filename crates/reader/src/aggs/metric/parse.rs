@@ -8,7 +8,8 @@
 //! `field` and each metric's own options are served
 //! ([`parse_percentiles_body`] for the two percentile metrics).
 
-use crate::aggs::bucket::terms_parse::parse_terms_body;
+use crate::aggs::bucket::parse_arms::parse_bucket;
+pub(crate) use crate::aggs::metric::long_value::long_value;
 use crate::aggs::metric::percentiles::parse_percentiles_body;
 use crate::aggs::metric::top_hits::parse_top_hits_body;
 use crate::aggs::metric::{CardinalityOptions, Metric, MetricAgg, PercentilesOptions};
@@ -90,10 +91,14 @@ pub fn parse_aggregations(p: &mut Parser<'_>) -> Result<Vec<MetricAgg>, DslError
     parse_level(p, 0)
 }
 
+/// The deepest an aggregation holding sub-aggregations may sit (the top level
+/// is 0): four levels of aggregations.
+const MAX_NESTING: usize = 3;
+
 /// What one aggregation's definition held.
 struct Definition {
     agg: Option<MetricAgg>,
-    has_subs: bool,
+    subs: Vec<MetricAgg>,
 }
 
 fn parse_level(p: &mut Parser<'_>, level: usize) -> Result<Vec<MetricAgg>, DslError> {
@@ -147,20 +152,30 @@ fn parse_level(p: &mut Parser<'_>, level: usize) -> Result<Vec<MetricAgg>, DslEr
                 format!("Missing definition for aggregation [{name}]"),
             ));
         };
-        if definition.has_subs && agg.metric == Metric::Terms {
-            return Err(DslError::unsupported(
-                "sub-aggregations of a [terms] aggregation",
-            ));
-        }
-        if definition.has_subs {
-            return Err(DslError::Failure(Failure::opensearch(
-                "aggregation_initialization_exception",
+        let mut agg = agg;
+        if !definition.subs.is_empty() {
+            if !holds_subs(agg.metric) {
+                return Err(sub_refusal(&agg, name));
+            }
+            if let Some(sub) = definition
+                .subs
+                .iter()
+                .find(|s| !is_scalar(s.metric) && s.metric != Metric::Terms)
+            {
                 // ALLOC: error path; one message.
-                format!(
-                    "Aggregator [{name}] of type [{}] cannot accept sub-aggregations",
+                return Err(DslError::unsupported(&format!(
+                    "a [{}] sub-aggregation of a [{}] aggregation",
+                    sub.metric.name(),
                     agg.metric.name()
-                ),
-            )));
+                )));
+            }
+            if level >= MAX_NESTING {
+                // ALLOC: error path; one message.
+                return Err(DslError::unsupported(&format!(
+                    "aggregations nested more than {MAX_NESTING} levels under [{name}]"
+                )));
+            }
+            agg.subs = definition.subs;
         }
         if aggs.iter().any(|a| a.name == agg.name) {
             return Err(DslError::illegal(
@@ -173,11 +188,47 @@ fn parse_level(p: &mut Parser<'_>, level: usize) -> Result<Vec<MetricAgg>, DslEr
     Ok(aggs)
 }
 
+/// Whether `metric` is a bucket aggregation this node runs sub-aggregations
+/// under.
+fn holds_subs(metric: Metric) -> bool {
+    matches!(
+        metric,
+        Metric::Terms
+            | Metric::Range
+            | Metric::Filters
+            | Metric::Filter
+            | Metric::Histogram
+            | Metric::DateHistogram
+    )
+}
+
+/// Whether `metric` is a single-value or stats metric, one of the
+/// sub-aggregations of a `terms` this node runs (a `terms` is the other).
+fn is_scalar(metric: Metric) -> bool {
+    matches!(
+        metric,
+        Metric::Min | Metric::Max | Metric::Sum | Metric::Avg | Metric::Stats | Metric::ValueCount
+    )
+}
+
+/// The refusal of sub-aggregations under `agg`, which holds none here.
+fn sub_refusal(agg: &MetricAgg, name: &str) -> DslError {
+    DslError::Failure(Failure::opensearch(
+        "aggregation_initialization_exception",
+        // ALLOC: error path; one message.
+        format!(
+            "Aggregator [{name}] of type [{}] cannot accept sub-aggregations",
+            agg.metric.name()
+        ),
+    ))
+}
+
 /// One aggregation's object, the parser on its start.
 fn parse_definition(p: &mut Parser<'_>, name: &str, level: usize) -> Result<Definition, DslError> {
     let mut definition = Definition {
         agg: None,
-        has_subs: false,
+        // ALLOC: empty; the definition's `aggs` fill it.
+        subs: Vec::new(),
     };
     let mut subs_seen = false;
     loop {
@@ -220,7 +271,7 @@ fn parse_definition(p: &mut Parser<'_>, name: &str, level: usize) -> Result<Defi
                 }
                 subs_seen = true;
                 // `parseAggregators` gives no factories for an empty object.
-                definition.has_subs = !parse_level(p, level.saturating_add(1))?.is_empty();
+                definition.subs = parse_level(p, level.saturating_add(1))?;
             }
             ty => {
                 if let Some(agg) = &definition.agg {
@@ -258,48 +309,40 @@ fn parse_definition(p: &mut Parser<'_>, name: &str, level: usize) -> Result<Defi
                         .caused_by(cause),
                     ));
                 };
-                let mut top_hits = None;
-                let mut terms = None;
-                let (field, cardinality, percentiles) = match metric {
-                    Metric::Percentiles | Metric::PercentileRanks => {
-                        let (field, options) = parse_percentiles_body(p, metric, name)?;
-                        (field, CardinalityOptions::default(), options)
-                    }
-                    Metric::TopHits => {
-                        // ALLOC: one box a `top_hits`, bounded by the body's recording.
-                        top_hits = Some(Box::new(parse_top_hits_body(p, name)?));
-                        (
-                            // ALLOC: empty; a `top_hits` reads no field.
-                            String::new(),
-                            CardinalityOptions::default(),
-                            PercentilesOptions::default(),
-                        )
-                    }
-                    Metric::Terms => {
-                        let (field, spec) = parse_terms_body(p, name)?;
-                        // ALLOC: one box a `terms`, bounded by the body's recording.
-                        terms = Some(Box::new(spec));
-                        (
-                            field,
-                            CardinalityOptions::default(),
-                            PercentilesOptions::default(),
-                        )
-                    }
-                    _ => {
-                        let (field, options) = parse_metric_body(p, metric, name)?;
-                        (field, options, PercentilesOptions::default())
-                    }
-                };
-                definition.agg = Some(MetricAgg {
+                let mut agg = MetricAgg {
                     // ALLOC: one name an aggregation, bounded by the body's recording.
                     name: name.to_owned(),
                     metric,
-                    field,
-                    cardinality,
-                    percentiles,
-                    top_hits,
-                    terms,
-                });
+                    // ALLOC: empty; filled by the parse of its body.
+                    field: String::new(),
+                    cardinality: CardinalityOptions::default(),
+                    percentiles: PercentilesOptions::default(),
+                    top_hits: None,
+                    terms: None,
+                    histogram: None,
+                    date_histogram: None,
+                    range: None,
+                    filters: None,
+                    // ALLOC: empty; the definition's `aggs` fill it.
+                    subs: Vec::new(),
+                };
+                if !parse_bucket(p, &mut agg)? {
+                    match metric {
+                        Metric::Percentiles | Metric::PercentileRanks => {
+                            let (field, options) = parse_percentiles_body(p, metric, name)?;
+                            (agg.field, agg.percentiles) = (field, options);
+                        }
+                        Metric::TopHits => {
+                            // ALLOC: one box a `top_hits`, bounded by the body's recording.
+                            agg.top_hits = Some(Box::new(parse_top_hits_body(p, name)?));
+                        }
+                        _ => {
+                            let (field, options) = parse_metric_body(p, metric, name)?;
+                            (agg.field, agg.cardinality) = (field, options);
+                        }
+                    }
+                }
+                definition.agg = Some(agg);
             }
         }
     }
@@ -413,74 +456,4 @@ fn parse_metric_body(
         DslError::illegal("Required one of fields [field, script], but none were specified. ")
     })?;
     Ok((field, options))
-}
-
-/// `parser.longValue()` with coercion, the parser on a number or a string:
-/// a number as Jackson reads it (a fraction truncated), a string as
-/// `Numbers.toLong(text, true)` reads it.
-pub(crate) fn long_value(kind: Kind, text: &str) -> Result<i64, DslError> {
-    if let Ok(n) = text.parse::<i64>() {
-        return Ok(n);
-    }
-    // 2^63, exact as a double.
-    const LIMIT: f64 = 9_223_372_036_854_775_808.0;
-    let decimal = is_big_decimal(text);
-    let value = if decimal {
-        text.parse::<f64>().ok()
-    } else {
-        None
-    };
-    if kind == Kind::Number {
-        return match value {
-            // ARITH: none; `as` truncates, and the value is inside a long.
-            #[allow(clippy::cast_possible_truncation)]
-            Some(v) if text.contains(['.', 'e', 'E']) && (-LIMIT..=LIMIT).contains(&v) => {
-                Ok(v as i64)
-            }
-            _ => Err(DslError::Failure(Failure::plain(
-                "input_coercion_exception",
-                // ALLOC: error path; one message.
-                format!(
-                    "Numeric value ({text}) out of range of `long` (-9223372036854775808 - \
-                     9223372036854775807)"
-                ),
-            ))),
-        };
-    }
-    match value {
-        // ARITH: none; `as` truncates toward zero as `toBigInteger` does,
-        // and the value is inside a long.
-        #[allow(clippy::cast_possible_truncation)]
-        Some(v) if v > -LIMIT - 1.0 && v < LIMIT => Ok(v as i64),
-        Some(_) => Err(DslError::illegal(
-            // ALLOC: error path; one message.
-            format!("Value [{text}] is out of range for a long"),
-        )),
-        // ALLOC: error path; one message.
-        None => Err(DslError::illegal(format!("For input string: \"{text}\""))),
-    }
-}
-
-/// Whether `new BigDecimal(text)` reads `text`: a sign, digits with at most
-/// one point and at least one digit, and an exponent.
-fn is_big_decimal(text: &str) -> bool {
-    let body = text.strip_prefix(['+', '-']).unwrap_or(text);
-    let (mantissa, exponent) = match body.find(['e', 'E']) {
-        Some(at) => (
-            body.get(..at).unwrap_or_default(),
-            body.get(at.saturating_add(1)..),
-        ),
-        None => (body, None),
-    };
-    let mut parts = mantissa.splitn(2, '.');
-    let whole = parts.next().unwrap_or_default();
-    let fraction = parts.next().unwrap_or_default();
-    let digits = |s: &str| s.bytes().all(|b| b.is_ascii_digit());
-    let mantissa_ok =
-        digits(whole) && digits(fraction) && !(whole.is_empty() && fraction.is_empty());
-    let exponent_ok = exponent.is_none_or(|e| {
-        let e = e.strip_prefix(['+', '-']).unwrap_or(e);
-        !e.is_empty() && digits(e)
-    });
-    mantissa_ok && exponent_ok
 }

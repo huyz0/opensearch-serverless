@@ -8,25 +8,24 @@
 //! `FieldNamesFieldMapper` and `IgnoredFieldMapper` (server, OpenSearch
 //! 3.10), and `IndexingChain.invert`'s positions, offsets and lengths.
 
+mod builder;
 mod encode;
-mod fields;
-mod invert;
+pub(crate) mod fields;
+pub(crate) mod invert;
 
 use std::collections::HashMap;
 
 use lucene_analysis::Analyzer;
 use lucene_codecs::field_infos::FieldInfo;
 use lucene_codecs::stored_fields::{FieldValue as Stored, StoredField};
-use lucene_index::index_writer::{
-    Error as EngineError, ExplicitDocument, ExplicitFields, IndexWriter,
-};
+use lucene_index::index_writer::{Error as EngineError, ExplicitDocument, IndexWriter};
 
 use crate::document::{FieldValue, ParsedDocument, hash_order};
 use crate::mapping::{Leaf, Mapper, Mapping, MappingError, Num, Object};
 
+use builder::Builder;
 use encode::{double_to_sortable_long, encode_id, float_to_sortable_int, int_point, long_point};
-use fields::{MetaField, Shape, Spec};
-use invert::Inverted;
+pub(crate) use fields::{MetaField, Shape, Spec};
 
 /// A document's metadata, given by the index request and the engine.
 #[derive(Clone, Copy, Debug)]
@@ -107,6 +106,24 @@ impl Indexer {
             // ALLOC: one entry a field of the index, at most the mapping's total fields limit plus the metadata fields.
             slots: HashMap::new(),
         }
+    }
+
+    /// Every field numbered so far, with the spec it was registered with (`None` for a metadata
+    /// field): what the fast ingest plan may name without changing the engine's numbering.
+    pub(crate) fn numbered(&self) -> impl Iterator<Item = (&str, i32, Option<Spec>)> {
+        self.slots
+            .iter()
+            .map(|(n, s)| (n.as_str(), s.number, s.spec))
+    }
+
+    /// How many fields have been numbered, which only grows.
+    pub(crate) fn numbered_len(&self) -> usize {
+        self.slots.len()
+    }
+
+    /// The number of the metadata field `field`, once a document has registered it.
+    pub(crate) fn meta_number(&self, field: MetaField) -> Option<i32> {
+        self.slots.get(field.name()).map(|s| s.number)
     }
 
     /// The number of `name`, registering it with `numbers` the first time
@@ -205,12 +222,36 @@ impl Indexer {
         doc: &ParsedDocument,
         meta: &Meta<'_>,
     ) -> Result<ExplicitDocument, MappingError> {
+        self.document_routed(numbers, mapping, doc, meta, None)
+    }
+
+    /// As [`Indexer::document`], for a document indexed with a custom
+    /// routing value: `_routing` is one term and the stored string
+    /// (`RoutingFieldMapper.preParse`).
+    ///
+    /// # Errors
+    ///
+    /// As [`Indexer::document`].
+    pub fn document_routed(
+        &mut self,
+        numbers: &mut dyn FieldNumbers,
+        mapping: &Mapping,
+        doc: &ParsedDocument,
+        meta: &Meta<'_>,
+        routing: Option<&str>,
+    ) -> Result<ExplicitDocument, MappingError> {
         // ALLOC: one document's Lucene fields, bounded by the document's bytes (the HTTP body bound).
         let mut out = Builder::default();
         let id = encode_id(meta.id)?;
         let n = self.meta(numbers, MetaField::Id)?;
         out.term(n, &id);
         out.stored(n, Stored::Binary(id));
+        if let Some(routing) = routing {
+            let n = self.meta(numbers, MetaField::Routing)?;
+            out.term(n, routing.as_bytes());
+            // ALLOC: the routing value, one a routed document; bounded by the request's bytes.
+            out.stored(n, Stored::String(routing.to_owned()));
+        }
         let n = self.meta(numbers, MetaField::SeqNo)?;
         out.point(n, long_point(meta.seq_no));
         out.doc_value(n, meta.seq_no);
@@ -377,106 +418,6 @@ fn leaf<'m>(root: &'m Object, full: &str) -> Option<&'m Leaf> {
                     .map(|(_, m)| m);
             }
             (Mapper::Object(_), None) => return None,
-        }
-    }
-}
-
-/// One Lucene document as it is built: stored values in order, each
-/// field's postings, doc values and points.
-#[derive(Default)]
-struct Builder {
-    stored: Vec<StoredField>,
-    /// Fields with postings, in the order first added.
-    inverted: Vec<Inverted>,
-    /// Where each field number's postings sit in `inverted`.
-    inverted_at: HashMap<i32, usize>,
-    doc_values: Vec<StoredField>,
-    points: Vec<StoredField>,
-}
-
-impl Builder {
-    fn stored(&mut self, number: i32, value: Stored) {
-        // ALLOC: one stored value, bounded by the document's bytes.
-        self.stored.push(StoredField {
-            field_number: number,
-            value,
-        });
-    }
-
-    fn doc_value(&mut self, number: i32, value: i64) {
-        // ALLOC: one doc value, at most one a value of the document.
-        self.doc_values.push(StoredField {
-            field_number: number,
-            value: Stored::Long(value),
-        });
-    }
-
-    fn point(&mut self, number: i32, packed: Vec<u8>) {
-        // ALLOC: one point, at most one a value of the document.
-        self.points.push(StoredField {
-            field_number: number,
-            value: Stored::Binary(packed),
-        });
-    }
-
-    fn number(&mut self, number: i32, spec: &Spec, point: Vec<u8>, doc_value: i64, stored: Stored) {
-        if spec.points {
-            self.point(number, point);
-        }
-        if spec.doc_values {
-            self.doc_value(number, doc_value);
-        }
-        if spec.store {
-            self.stored(number, stored);
-        }
-    }
-
-    /// The postings of field `number`, created on its first value.
-    fn inverted(&mut self, number: i32, spec: &Spec) -> &mut Inverted {
-        let len = self.inverted.len();
-        // ALLOC: one entry an indexed field of the document.
-        let i = *self.inverted_at.entry(number).or_insert(len);
-        if i == len {
-            // ALLOC: as above.
-            self.inverted
-                .push(Inverted::new(number, spec.index_options, spec.norms));
-        }
-        &mut self.inverted[i]
-    }
-
-    /// A metadata field's one untokenized term.
-    fn term(&mut self, number: i32, term: &[u8]) {
-        let spec = Spec {
-            shape: Shape::Keyword,
-            index_options: lucene_codecs::field_infos::IndexOptions::Docs,
-            points: false,
-            norms: false,
-            doc_values: false,
-            store: false,
-        };
-        self.inverted(number, &spec).keyword(term);
-    }
-
-    fn finish(self) -> ExplicitDocument {
-        // ALLOC: one entry an indexed field of the document.
-        let mut inverted = Vec::with_capacity(self.inverted.len());
-        // ALLOC: one entry a field whose values gave no token.
-        let mut registered = Vec::new();
-        for field in self.inverted {
-            match field.finish() {
-                Ok(f) => inverted.push(f),
-                Err(number) => registered.push(number),
-            }
-        }
-        ExplicitDocument {
-            stored: self.stored,
-            fields: ExplicitFields {
-                inverted,
-                doc_values: self.doc_values,
-                points: self.points,
-                registered,
-                ..ExplicitFields::default()
-            },
         }
     }
 }

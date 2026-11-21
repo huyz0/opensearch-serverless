@@ -5,5 +5,6 @@ pub mod docvalue_fields;
 pub mod explain;
 pub mod highlight;
 pub mod highlight_parse;
+pub mod hit_meta;
 pub mod source_filter;
 mod source_map;

@@ -395,3 +395,66 @@ fn a_lower_member_gone_a_lifetime_past_its_lease_no_longer_holds_the_digest() {
         assert_eq!(digest() != before, writes, "{late}");
     }
 }
+
+fn logged(id: &str) -> oss_format::NodeLease {
+    let mut l = lease(id);
+    l.node_log = vec![NodeLogEpoch {
+        epoch: 7,
+        trim: 0,
+        landed: 0,
+    }];
+    l
+}
+
+#[test]
+fn a_dead_member_naming_epochs_is_reported_on_every_refresh_with_no_extra_read() {
+    let fleet = Fleet::new();
+    let nodes = three(&fleet);
+    nodes[2].renew(&logged("n3")).unwrap();
+    nodes[1].refresh().unwrap();
+    fleet.clock.advance(TTL + 1);
+    for (node, id) in nodes.iter().zip(["n1", "n2"]) {
+        node.renew(&lease(id)).unwrap();
+    }
+    let first = nodes[1].refresh().unwrap();
+    assert_eq!(ids(&first.dead_with_epochs), ["n3"]);
+    assert_eq!(first.dead_with_epochs[0].node_log.len(), 1);
+    // A node that never saw it live sees it too, and it is not a delta.
+    let late = fleet.node();
+    late.renew(&lease("n4")).unwrap();
+    let seen = late.refresh().unwrap();
+    assert_eq!(ids(&seen.dead_with_epochs), ["n3"]);
+    // Reported again at the next refresh, from the read the refresh already makes.
+    let before = fleet.count(S3Op::Get);
+    let again = nodes[1].refresh().unwrap();
+    assert_eq!(ids(&again.dead_with_epochs), ["n3"]);
+    let reads = fleet.count(S3Op::Get) - before;
+    assert!(reads <= 3, "{reads}");
+}
+
+#[test]
+fn a_dead_member_naming_no_epochs_or_a_live_one_is_not_reported() {
+    let fleet = Fleet::new();
+    let nodes = three(&fleet);
+    nodes[2].renew(&logged("n3")).unwrap();
+    fleet.clock.advance(TTL + 1);
+    nodes[0].renew(&lease("n1")).unwrap();
+    // n2 expired with no epochs, n3 expired naming one.
+    let seen = nodes[0].refresh().unwrap();
+    assert_eq!(ids(&seen.dead_with_epochs), ["n3"]);
+    assert_eq!(ids(&seen.live), ["n1"]);
+}
+
+#[test]
+fn a_revoked_member_naming_epochs_is_reported_as_revoked() {
+    let fleet = Fleet::new();
+    let nodes = three(&fleet);
+    nodes[2].renew(&logged("n3")).unwrap();
+    fleet.clock.advance(TTL + 1);
+    nodes[0].renew(&lease("n1")).unwrap();
+    assert!(nodes[0].revoke("n3", None));
+    let seen = nodes[0].refresh().unwrap();
+    assert_eq!(ids(&seen.dead_with_epochs), ["n3"]);
+    assert!(seen.dead_with_epochs[0].revoked);
+    assert!(!seen.live.iter().any(|l| l.node_id == "n3"));
+}

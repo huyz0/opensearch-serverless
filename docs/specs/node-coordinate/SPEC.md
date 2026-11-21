@@ -27,3 +27,4 @@ Each shard opens once as for any search (the descriptor and the commit); the mer
 ## Route
 
 - AC-6: with the `coordinator` feature, `_search` on an index of more than one shard is answered through `coordinate`, the shard count read from shard 0's descriptor as it opens (no request beyond opening each shard once), and a warm search reads nothing from the store; an index of one shard is answered as before.
+- AC-7: each shard reserves the bytes its own hits take, through the same `reserve`, before it searches; a refusal fails that shard (429 `circuit_breaking_exception`, naming it) and no other. The route no longer reserves shard 0's size once per shard.

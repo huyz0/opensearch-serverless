@@ -82,7 +82,7 @@ fn keys_opensearch_does_not_know_fail_with_their_token() {
 fn keys_opensearch_knows_are_refused_as_not_served() {
     for body in [
         r#"{"highlight":{"fields":{"t":{"fragmenter":"span"}}}}"#,
-        r#"{"aggs":{"t":{"histogram":{"field":"tag"}}}}"#,
+        r#"{"aggs":{"t":{"adjacency_matrix":{"filters":{}}}}}"#,
         r#"{"stored_fields":["a"]}"#,
     ] {
         assert!(
@@ -217,4 +217,51 @@ fn the_source_filter_is_read_from_a_value_an_object_or_an_array() {
         reason(r#"{"_source":null}"#),
         "Unknown key for a VALUE_NULL in [_source]."
     );
+}
+
+#[test]
+fn a_pit_gives_its_id_and_keep_alive_in_any_chunking() {
+    let body = br#"{"pit":{"id":"AAAAAAAAAAAAAAAAAAAAAA","keep_alive":"1m"},"size":3}"#;
+    let whole = parse_chunks([&body[..]]).expect("parses");
+    assert_eq!(
+        whole.pit,
+        Some(PitRef {
+            id: "AAAAAAAAAAAAAAAAAAAAAA".into(),
+            keep_alive: Some("1m".into()),
+        })
+    );
+    assert_eq!(whole.size, 3);
+    for cut in 1..body.len() {
+        let (a, b) = body.split_at(cut);
+        assert_eq!(parse_chunks([a, b]).expect("parses"), whole, "cut at {cut}");
+    }
+    let bare = source(r#"{"pit":{"id":"X","keep_alive":null}}"#).expect("parses");
+    assert_eq!(
+        bare.pit,
+        Some(PitRef {
+            id: "X".into(),
+            keep_alive: None
+        })
+    );
+    assert_eq!(source("{}").expect("parses").pit, None);
+}
+
+#[test]
+fn a_pit_that_is_not_an_id_and_a_keep_alive_is_refused() {
+    for body in [
+        r#"{"pit":{}}"#,
+        r#"{"pit":{"keep_alive":"1m"}}"#,
+        r#"{"pit":{"id":7}}"#,
+        r#"{"pit":{"id":"X","extra":1}}"#,
+        r#"{"pit":{"id":"X","keep_alive":5}}"#,
+        r#"{"pit":"X"}"#,
+        r#"{"pit":["X"]}"#,
+    ] {
+        match source(body) {
+            Err(e) => assert_eq!(e.status(), 400, "{body}"),
+            Ok(s) => panic!("{body} parsed as {s:?}"),
+        }
+    }
+    assert!(reason(r#"{"pit":{"id":"X","extra":1}}"#).contains("[pit] unknown field [extra]"));
+    assert!(reason(r#"{"pit":{}}"#).contains("[pit] Required [id]"));
 }

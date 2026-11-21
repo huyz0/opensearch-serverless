@@ -1,0 +1,117 @@
+//! One Lucene document as it is built: stored values in order, each
+//! field's postings, doc values and points.
+
+use std::collections::HashMap;
+
+use lucene_codecs::field_infos::IndexOptions;
+use lucene_codecs::stored_fields::{FieldValue as Stored, StoredField};
+use lucene_index::index_writer::{ExplicitDocument, ExplicitFields};
+
+use super::fields::{Shape, Spec};
+use super::invert::Inverted;
+
+/// A Lucene document under construction.
+#[derive(Default)]
+pub(super) struct Builder {
+    stored: Vec<StoredField>,
+    /// Fields with postings, in the order first added.
+    inverted: Vec<Inverted>,
+    /// Where each field number's postings sit in `inverted`.
+    inverted_at: HashMap<i32, usize>,
+    pub(super) doc_values: Vec<StoredField>,
+    points: Vec<StoredField>,
+}
+
+impl Builder {
+    pub(super) fn stored(&mut self, number: i32, value: Stored) {
+        // ALLOC: one stored value, bounded by the document's bytes.
+        self.stored.push(StoredField {
+            field_number: number,
+            value,
+        });
+    }
+
+    pub(super) fn doc_value(&mut self, number: i32, value: i64) {
+        // ALLOC: one doc value, at most one a value of the document.
+        self.doc_values.push(StoredField {
+            field_number: number,
+            value: Stored::Long(value),
+        });
+    }
+
+    pub(super) fn point(&mut self, number: i32, packed: Vec<u8>) {
+        // ALLOC: one point, at most one a value of the document.
+        self.points.push(StoredField {
+            field_number: number,
+            value: Stored::Binary(packed),
+        });
+    }
+
+    pub(super) fn number(
+        &mut self,
+        number: i32,
+        spec: &Spec,
+        point: Vec<u8>,
+        doc_value: i64,
+        stored: Stored,
+    ) {
+        if spec.points {
+            self.point(number, point);
+        }
+        if spec.doc_values {
+            self.doc_value(number, doc_value);
+        }
+        if spec.store {
+            self.stored(number, stored);
+        }
+    }
+
+    /// The postings of field `number`, created on its first value.
+    pub(super) fn inverted(&mut self, number: i32, spec: &Spec) -> &mut Inverted {
+        let len = self.inverted.len();
+        // ALLOC: one entry an indexed field of the document.
+        let i = *self.inverted_at.entry(number).or_insert(len);
+        if i == len {
+            // ALLOC: as above.
+            self.inverted
+                .push(Inverted::new(number, spec.index_options, spec.norms));
+        }
+        &mut self.inverted[i]
+    }
+
+    /// A metadata field's one untokenized term.
+    pub(super) fn term(&mut self, number: i32, term: &[u8]) {
+        let spec = Spec {
+            shape: Shape::Keyword,
+            index_options: IndexOptions::Docs,
+            points: false,
+            norms: false,
+            doc_values: false,
+            store: false,
+        };
+        self.inverted(number, &spec).keyword(term);
+    }
+
+    pub(super) fn finish(self) -> ExplicitDocument {
+        // ALLOC: one entry an indexed field of the document.
+        let mut inverted = Vec::with_capacity(self.inverted.len());
+        // ALLOC: one entry a field whose values gave no token.
+        let mut registered = Vec::new();
+        for field in self.inverted {
+            match field.finish() {
+                Ok(f) => inverted.push(f),
+                Err(number) => registered.push(number),
+            }
+        }
+        ExplicitDocument {
+            stored: self.stored,
+            fields: ExplicitFields {
+                inverted,
+                doc_values: self.doc_values,
+                points: self.points,
+                registered,
+                ..ExplicitFields::default()
+            },
+        }
+    }
+}

@@ -14,10 +14,12 @@ fn shard(other: u64, buckets: &[(i64, u64)]) -> Vec<(String, Value)> {
                 shard_size: 13,
                 min_doc_count: 1,
                 order: TermsOrder::CountDesc,
+                keyword: Default::default(),
             },
             other_doc_count: other,
             doc_count_error: 0,
             buckets: buckets.to_vec(),
+            ..TermsResult::default()
         })),
     )]
 }

@@ -19,7 +19,11 @@ workspace = true
 [dev-dependencies]
 # The node under test, reader role, serving the compat indexes from the
 # in-process emulator.
-oss-node = { path = "../node", features = ["reader"] }
+oss-node = { path = "../node", features = ["reader", "writer", "coordinator"] }
+oss-cluster = { workspace = true }
+oss-meta = { workspace = true }
+oss-format = { workspace = true }
+oss-writer = { workspace = true }
 oss-blob = { workspace = true, features = ["emulator"] }
 oss-mem = { workspace = true }
 oss-rest = { workspace = true }

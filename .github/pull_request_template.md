@@ -1,6 +1,6 @@
 ## Intent
 
-<!-- One or two sentences: what this changes and why. Link the spec (docs/specs/...) if there is one. -->
+<!-- One or two sentences: what this changes and why. Link the spec (docs/specs/...) if there is one. For a feat, fix or perf PR also add a line `Spec: docs/specs/<feature>/SPEC.md`, or `Spec: none (<reason>)`; CI checks it, and the PR title's `type(scope): lowercase` form, because the squash message is built from them. -->
 
 ## Alternatives rejected
 

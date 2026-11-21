@@ -23,6 +23,7 @@ Parity plan R8.5, the request-cost goal of one write log per node: a publish cos
 - AC-7: with age 0 (eager), whatever the index's interval, every shard with an unpublished write is due and one with none is not.
 - AC-8: `forget` drops a shard's state, so a reopened shard is due once again.
 - AC-9: the two settings form a valid registry with the Java's defaults.
+- AC-11: with the `writer` feature the node's settings registry holds both settings (`the_nodes_settings_form_a_valid_registry`).
 - AC-10: a lazy publisher over the emulator, writing every 250 ms to 20 shards for 10 s at age 1 s, makes 2 PUT and 0 LIST per publish and 8 publishes per shard (at 0, 1.25, 2.5 ... 8.75 s) where an eager loop makes 40.
 
 ## Test plan

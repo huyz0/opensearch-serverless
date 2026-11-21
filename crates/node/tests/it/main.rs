@@ -8,9 +8,17 @@
 mod support;
 
 mod aggs_budgets;
+mod analyze;
 mod budgets;
 mod built;
 #[cfg(feature = "coordinator")]
 mod coordinate;
+mod count;
+mod field_caps;
+mod frozen_search;
+mod msearch;
+mod open_prefetch;
+mod open_prefetch_layout;
 mod search;
+mod search_hits;
 mod shards;

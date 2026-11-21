@@ -8,13 +8,16 @@
 //! Memory only; the transport handler, the push to subscribers and waiting
 //! for them are separate pieces.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
+use std::time::Duration;
 
 use oss_cluster::lease::LeaseClock;
 use oss_transport::actions::tail::{CHECK, FetchRequest, FetchResponse, NONE, Record};
 
 use crate::tail_keep::TailKeep;
+pub use crate::tail_subscription::Sent;
+use crate::tail_subscription::{Serving, Subscription};
 
 /// How long a subscription's grant lasts, as the writer counts it: the
 /// shell's `GRANT_MILLIS` (500) and `GRANT_MARGIN_MILLIS` (100), so the
@@ -34,68 +37,33 @@ pub trait ShardFacts: Send + Sync {
     fn max_seq_no(&self, uuid: &str, shard: u32) -> i64;
 }
 
-struct Subscription {
-    id: i64,
-    /// When the grant runs out, in milliseconds on the clock.
-    grant_until: i64,
-    /// The shard's position through which the node has every record.
-    confirmed: u64,
-    /// The number the next push of this shard to the node takes.
-    next_send: u64,
-    /// The lowest push number not yet answered.
-    next_to_confirm: u64,
-    /// Pushes sent and not yet counted, by number: the position each reaches.
-    sent: BTreeMap<u64, u64>,
-    /// Pushes answered out of order, waiting for an earlier one.
-    answered: BTreeSet<u64>,
+/// A refreshing write waiting for the nodes a shard is pushed to.
+struct Waiter {
+    key: (String, u32),
+    /// The position every node must be confirmed through.
+    target: u64,
+    pending: HashSet<String>,
+    /// A node the write waited for may still be serving without it.
+    lost: bool,
+    /// Set when no node is waited for any more: whether all were reached.
+    done: Option<bool>,
 }
 
-impl Subscription {
-    fn new(id: i64, grant_until: i64, confirmed: u64) -> Self {
-        Self {
-            id,
-            grant_until,
-            confirmed,
-            next_send: 0,
-            next_to_confirm: 0,
-            sent: BTreeMap::new(),
-            answered: BTreeSet::new(),
-        }
-    }
-
-    fn answered_push(&mut self, number: u64) {
-        // A push already counted, or never sent, is not in `sent`.
-        if !self.sent.contains_key(&number) {
-            return;
-        }
-        self.answered.insert(number);
-        while self.answered.remove(&self.next_to_confirm) {
-            if let Some(reached) = self.sent.remove(&self.next_to_confirm) {
-                self.confirmed = self.confirmed.max(reached);
-            }
-            self.next_to_confirm = self.next_to_confirm.saturating_add(1);
-        }
-    }
-}
-
-/// A push's place in the subscription it was sent under.
+/// A wait opened with [`TailServe::open_wait`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Sent {
-    /// The subscription's id.
-    pub id: i64,
-    /// The push's number within it.
-    pub number: u64,
-}
-
-#[derive(Default)]
-struct Serving {
-    by_node: HashMap<String, Subscription>,
-    next_id: i64,
-}
+pub struct WaitId(u64);
 
 #[derive(Default)]
 struct State {
     serving: HashMap<(String, u32), Serving>,
+    waiters: BTreeMap<u64, Waiter>,
+    next_waiter: u64,
+    /// Nodes no longer pushed to that may still answer under a grant, and
+    /// when it runs out.
+    lapsing: HashMap<(String, u32), HashMap<String, i64>>,
+    /// When the node began keeping each shard: a grant an earlier writer
+    /// handed out before then may still be running.
+    created: HashMap<(String, u32), i64>,
     /// How far each shard's refreshing writes may have been answered as
     /// refreshed.
     claimed: HashMap<(String, u32), i64>,
@@ -107,6 +75,8 @@ pub struct TailServe {
     facts: Arc<dyn ShardFacts>,
     clock: Arc<dyn LeaseClock>,
     state: Mutex<State>,
+    /// Signalled when a waiter may have settled.
+    settled: Condvar,
 }
 
 fn key(uuid: &str, shard: u32) -> (String, u32) {
@@ -137,6 +107,7 @@ impl TailServe {
             facts,
             clock,
             state: Mutex::new(State::default()),
+            settled: Condvar::new(),
         }
     }
 
@@ -187,9 +158,80 @@ impl TailServe {
 
     /// Stops pushing the shard to a node.
     pub fn unsubscribe(&self, uuid: &str, shard: u32, node: &str) {
-        if let Some(serving) = self.lock().serving.get_mut(&key(uuid, shard)) {
-            serving.by_node.remove(node);
+        self.drop_node(uuid, shard, node, None, false, false);
+    }
+
+    /// Stops pushing the shard to a node, and settles the writes waiting for
+    /// it. `sent` names the subscription a push was sent under: a node that
+    /// fetched again has a new one, which what became of an older push says
+    /// nothing about, so it is left. `may_still_serve` says the node may
+    /// answer searches from what it holds without the writes waited for (a
+    /// lost push, not an answer saying it has no overlay); `lapses` that it
+    /// may go on answering under its grant, which refreshing writes then
+    /// wait out.
+    pub fn drop_node(
+        &self,
+        uuid: &str,
+        shard: u32,
+        node: &str,
+        sent: Option<Sent>,
+        may_still_serve: bool,
+        lapses: bool,
+    ) {
+        let k = key(uuid, shard);
+        let mut state = self.lock();
+        let Some(serving) = state.serving.get_mut(&k) else {
+            return;
+        };
+        if let Some(sent) = sent
+            && serving
+                .by_node
+                .get(node)
+                .is_none_or(|held| held.id != sent.id)
+        {
+            return;
         }
+        let Some(dropped) = serving.by_node.remove(node) else {
+            return;
+        };
+        if lapses {
+            let until = state.lapsing.entry(k.clone()).or_default();
+            let at = until.entry(node.to_owned()).or_insert(dropped.grant_until);
+            *at = (*at).max(dropped.grant_until);
+        }
+        for waiter in state.waiters.values_mut().filter(|w| w.key == k) {
+            if waiter.pending.remove(node) && may_still_serve {
+                waiter.lost = true;
+            }
+        }
+        Self::settle(&mut state);
+        self.settled.notify_all();
+    }
+
+    /// Settles each waiter that no longer waits for any node.
+    fn settle(state: &mut State) {
+        let State {
+            serving, waiters, ..
+        } = state;
+        for waiter in waiters.values_mut().filter(|w| w.done.is_none()) {
+            let held = serving.get(&waiter.key);
+            waiter.pending.retain(|node| {
+                !held
+                    .and_then(|s| s.by_node.get(node))
+                    .is_some_and(|s| s.confirmed >= waiter.target)
+            });
+            if waiter.pending.is_empty() {
+                waiter.done = Some(!waiter.lost);
+            }
+        }
+    }
+
+    /// Ends every wait of a shard as not reached.
+    fn fail_waiters(&self, state: &mut State, k: &(String, u32)) {
+        for waiter in state.waiters.values_mut().filter(|w| &w.key == k) {
+            waiter.done = Some(false);
+        }
+        self.settled.notify_all();
     }
 
     /// Numbers a push reaching position `end` for each node the shard is
@@ -222,14 +264,16 @@ impl TailServe {
     /// Counts a push the node answered, if the node still holds the
     /// subscription it was sent under.
     pub fn confirm(&self, uuid: &str, shard: u32, node: &str, sent: Sent) {
-        if let Some(held) = self
-            .lock()
+        let mut state = self.lock();
+        if let Some(held) = state
             .serving
             .get_mut(&key(uuid, shard))
             .and_then(|serving| serving.by_node.get_mut(node))
             && held.id == sent.id
         {
             held.answered_push(sent.number);
+            Self::settle(&mut state);
+            self.settled.notify_all();
         }
     }
 
@@ -237,14 +281,7 @@ impl TailServe {
     /// the push was sent under: a node that fetched again has a new one,
     /// which what became of an older push says nothing about.
     pub fn drop_sent(&self, uuid: &str, shard: u32, node: &str, sent: Sent) {
-        if let Some(serving) = self.lock().serving.get_mut(&key(uuid, shard))
-            && serving
-                .by_node
-                .get(node)
-                .is_some_and(|held| held.id == sent.id)
-        {
-            serving.by_node.remove(node);
-        }
+        self.drop_node(uuid, shard, node, Some(sent), false, false);
     }
 
     /// The position through which a node is confirmed to have the shard's
@@ -258,26 +295,135 @@ impl TailServe {
             .map(|held| held.confirmed)
     }
 
-    /// Stops pushing a shard to every node it is pushed to.
+    /// Stops pushing a shard to every node it is pushed to; the writes
+    /// waiting for them end as not reached.
     pub fn unsubscribe_all(&self, uuid: &str, shard: u32) {
-        if let Some(serving) = self.lock().serving.get_mut(&key(uuid, shard)) {
+        let k = key(uuid, shard);
+        let mut state = self.lock();
+        if let Some(serving) = state.serving.get_mut(&k) {
             serving.by_node.clear();
         }
+        self.fail_waiters(&mut state, &k);
     }
 
     /// Stops keeping and pushing a shard; its claim stays.
     pub fn stop(&self, uuid: &str, shard: u32) {
-        self.lock().serving.remove(&key(uuid, shard));
+        let k = key(uuid, shard);
+        let mut state = self.lock();
+        state.serving.remove(&k);
+        state.created.remove(&k);
+        self.fail_waiters(&mut state, &k);
+        drop(state);
         self.keep.released(uuid, shard);
     }
 
     /// Forgets a shard this node no longer writes: its subscribers, its claim
     /// and what is kept for it.
     pub fn released(&self, uuid: &str, shard: u32) {
+        let k = key(uuid, shard);
         let mut state = self.lock();
-        state.serving.remove(&key(uuid, shard));
-        state.claimed.remove(&key(uuid, shard));
+        state.serving.remove(&k);
+        state.claimed.remove(&k);
+        state.created.remove(&k);
+        state.lapsing.remove(&k);
+        self.fail_waiters(&mut state, &k);
+        drop(state);
         self.keep.released(uuid, shard);
+    }
+
+    /// Notes that this node began keeping a shard now.
+    pub fn note_kept(&self, uuid: &str, shard: u32) {
+        let now = self.clock.now_millis();
+        self.lock().created.entry(key(uuid, shard)).or_insert(now);
+    }
+
+    /// Opens a wait for the nodes the shard is pushed to to be confirmed
+    /// through `target`; `None` when none is behind.
+    pub fn open_wait(&self, uuid: &str, shard: u32, target: u64) -> Option<WaitId> {
+        let k = key(uuid, shard);
+        let mut state = self.lock();
+        let pending: HashSet<String> = state
+            .serving
+            .get(&k)?
+            .by_node
+            .iter()
+            .filter(|(_, held)| held.confirmed < target)
+            .map(|(node, _)| node.clone())
+            .collect();
+        if pending.is_empty() {
+            return None;
+        }
+        let id = state.next_waiter;
+        state.next_waiter = id.saturating_add(1);
+        state.waiters.insert(
+            id,
+            Waiter {
+                key: k,
+                target,
+                pending,
+                lost: false,
+                done: None,
+            },
+        );
+        Some(WaitId(id))
+    }
+
+    /// Waits at most `timeout` for a wait to settle, and ends it: whether
+    /// every node was reached.
+    pub fn wait(&self, id: WaitId, timeout: Duration) -> bool {
+        let mut state = self.lock();
+        let deadline = std::time::Instant::now().checked_add(timeout);
+        let reached = loop {
+            let Some(waiter) = state.waiters.get(&id.0) else {
+                break false;
+            };
+            if let Some(done) = waiter.done {
+                break done;
+            }
+            let left = deadline.map_or(timeout, |d| {
+                d.saturating_duration_since(std::time::Instant::now())
+            });
+            if left.is_zero() {
+                break false;
+            }
+            state = self
+                .settled
+                .wait_timeout(state, left)
+                .unwrap_or_else(PoisonError::into_inner)
+                .0;
+        };
+        state.waiters.remove(&id.0);
+        reached
+    }
+
+    /// The moment, on the clock, by which every grant this node can no longer
+    /// reach has run out: those of nodes it stopped pushing to, and any an
+    /// earlier writer handed out before this node began keeping the shard.
+    pub fn lapse_deadline(&self, uuid: &str, shard: u32) -> i64 {
+        let k = key(uuid, shard);
+        let now = self.clock.now_millis();
+        let mut state = self.lock();
+        let began = *state.created.entry(k.clone()).or_insert(now);
+        let mut at = began.saturating_add(GRANT_MILLIS);
+        if let Some(lapsing) = state.lapsing.get_mut(&k) {
+            lapsing.retain(|_, until| *until > now);
+            at = lapsing.values().copied().fold(at, i64::max);
+        }
+        at
+    }
+
+    /// Waits on the clock until `at`.
+    pub fn pause_until(&self, at: i64) {
+        loop {
+            let left = at.saturating_sub(self.clock.now_millis());
+            let Ok(millis) = u64::try_from(left) else {
+                return;
+            };
+            if millis == 0 {
+                return;
+            }
+            self.clock.pause(Duration::from_millis(millis));
+        }
     }
 
     /// The answer to a fetch.
@@ -306,6 +452,8 @@ impl TailServe {
         }
         if !self.keep.keeps(uuid, shard) {
             self.keep.begin(uuid, shard, highest);
+            let now = self.clock.now_millis();
+            state.created.entry(key(uuid, shard)).or_insert(now);
             let claimed = state.claimed.entry(key(uuid, shard)).or_insert(highest);
             *claimed = (*claimed).max(highest);
         }

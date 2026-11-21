@@ -4,6 +4,7 @@
 use lucene_aggs::bucket_aggs::AggNode;
 use lucene_aggs::metric_aggs::ValueKind;
 
+use crate::aggs::bucket::sub_values::BucketSubs;
 use crate::aggs::bucket::terms::{TermsResult, TermsSpec};
 use crate::failure::Failure;
 use crate::search::ShardError;
@@ -14,10 +15,11 @@ pub fn node(field: &str, spec: &TermsSpec) -> AggNode {
         // ALLOC: one field name an aggregation, bounded by the request's.
         field: field.to_owned(),
         missing: None,
+        script: None,
         kind: ValueKind::Long,
         shard_size: spec.shard_size,
         order: spec.order,
-        // ALLOC: empty; sub-aggregations are refused.
+        // ALLOC: empty; `keyed_subs` adds the sub-aggregations.
         subs: Vec::new(),
     }
 }
@@ -38,6 +40,7 @@ pub fn from_engine(spec: &TermsSpec, other: u64, buckets: Vec<(i64, u64)>) -> Te
         other_doc_count: other,
         doc_count_error: 0,
         buckets,
+        subs: BucketSubs::default(),
     }
 }
 

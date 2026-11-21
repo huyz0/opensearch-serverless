@@ -41,6 +41,7 @@ fn spec(size: usize, shard_size: usize, min: u64, order: TermsOrder) -> TermsSpe
         shard_size,
         min_doc_count: min,
         order,
+        keyword: Default::default(),
     }
 }
 
@@ -50,6 +51,7 @@ fn shard(spec: &TermsSpec, other: u64, buckets: &[(i64, u64)]) -> TermsResult {
         other_doc_count: other,
         doc_count_error: 0,
         buckets: buckets.to_vec(),
+        ..TermsResult::default()
     }
 }
 
@@ -159,8 +161,6 @@ fn bad_options_fail_as_opensearch_fails_them() {
 #[test]
 fn unserved_options_are_refused_as_not_supported_yet() {
     for key in [
-        r#""include":"a.*""#,
-        r#""exclude":"a.*""#,
         r#""missing":0"#,
         r#""script":{"source":"1"}"#,
         r#""value_type":"long""#,
@@ -182,7 +182,9 @@ fn unserved_options_are_refused_as_not_supported_yet() {
 
 #[test]
 fn sub_aggregations_are_refused_as_not_supported_yet() {
-    let body = r#"{"aggs":{"t":{"terms":{"field":"n"},"aggs":{"m":{"max":{"field":"n"}}}}}}"#;
+    // A metric sub-aggregation parses (the shard refuses it under a numeric
+    // field); one of another kind is refused here.
+    let body = r#"{"aggs":{"t":{"terms":{"field":"n"},"aggs":{"m":{"histogram":{"field":"n","interval":5}}}}}}"#;
     let r = parse_chunks([body.as_bytes()])
         .expect_err("refused")
         .into_failure()

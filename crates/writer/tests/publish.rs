@@ -431,3 +431,32 @@ fn a_publisher_that_remembers_a_commit_publishes_again_over_the_winner_once() {
     assert!(!out.superseded);
     assert_eq!(out.manifest, register);
 }
+
+#[test]
+fn a_commit_with_no_fresh_segment_still_publishes_its_commit_point() {
+    let dir = ByteBuffersDirectory::new();
+    let mut s = shard(&dir);
+    let st = store();
+    let mut p = publisher(&st);
+    let files = commit(&mut s, "a");
+    p.publish(&dir, &files, 3, "node-1", 0, 1).expect("first");
+    let puts = count(&st, S3Op::Put);
+    let reads = count(&st, S3Op::Get) + count(&st, S3Op::GetRange) + count(&st, S3Op::Head);
+    // A refresh with nothing to flush still writes a new commit point.
+    s.refresh().expect("refresh");
+    let files = s.committed_files().expect("files");
+    let out = p.publish(&dir, &files, 3, "node-1", 1, 2).expect("second");
+    let m = CommitManifest::parse(&out.manifest).expect("parses");
+    let mut named: Vec<&str> = m.files().iter().map(|f| f.name.as_ref()).collect();
+    named.sort_unstable();
+    let mut want: Vec<&str> = files.iter().map(String::as_str).collect();
+    want.sort_unstable();
+    assert_eq!(named, want, "the manifest names the whole commit");
+    assert!(named.iter().any(|n| n.starts_with("segments_")));
+    assert_eq!(count(&st, S3Op::Put), puts + 2, "one blob PUT and one swap");
+    assert_eq!(
+        count(&st, S3Op::Get) + count(&st, S3Op::GetRange) + count(&st, S3Op::Head),
+        reads
+    );
+    assert_eq!(count(&st, S3Op::List), 0);
+}

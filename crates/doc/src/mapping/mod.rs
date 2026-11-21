@@ -35,7 +35,8 @@ pub use params::Value;
 pub use types::{DEFAULT_DATE_FORMAT, FieldType, POSITION_INCREMENT_GAP_USE_ANALYZER};
 
 use json::Json;
-use object::{join, remaining};
+pub(crate) use object::join;
+use object::remaining;
 use params::{named_bool, parse_bool};
 
 /// `index.mapping.total_fields.limit`'s default.

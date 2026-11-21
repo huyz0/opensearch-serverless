@@ -69,3 +69,37 @@ pub fn readers_for<'a>(
     // ALLOC: at most `limit` ids.
     best.into_iter().map(|(_, id)| id).collect()
 }
+
+/// The `limit` live ingest writers that reap the dead node `dead_id`, best
+/// first: the members that rank highest by rendezvous on the dead node's id.
+/// Every node computes the same answer from the same members; capacity and
+/// load are ignored, and a member that is revoked or is `dead_id` is not a
+/// candidate.
+pub fn reapers_for<'a>(
+    dead_id: &str,
+    members: impl IntoIterator<Item = &'a NodeLease>,
+    limit: usize,
+) -> Vec<&'a str> {
+    if limit == 0 {
+        // ALLOC: none.
+        return Vec::new();
+    }
+    // ALLOC: at most `limit` entries, the reaper count (two by default).
+    let mut best: Vec<(i32, &'a str)> = Vec::with_capacity(limit.min(16));
+    for lease in members {
+        let id = lease.node_id.as_str();
+        if lease.revoked || id == dead_id || !super::has_role(lease, super::ROLE_INGEST) {
+            continue;
+        }
+        let w = murmur3(&["reap", "/", dead_id, "/", id]);
+        let at = best.partition_point(|(bw, b)| before(*bw, b, w, id));
+        if at < limit {
+            if best.len() == limit {
+                best.pop();
+            }
+            best.insert(at, (w, id));
+        }
+    }
+    // ALLOC: at most `limit` ids.
+    best.into_iter().map(|(_, id)| id).collect()
+}

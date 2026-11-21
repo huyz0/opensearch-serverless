@@ -1,6 +1,6 @@
 //! Reducing each named metric aggregation across the shards that answered.
 
-use oss_reader::aggs::partial::{Value, reduce};
+use oss_reader::aggs::partial::{Value, reduce_total};
 
 /// Why a named aggregation could not be reduced.
 #[derive(Clone, Debug, PartialEq)]
@@ -15,6 +15,12 @@ pub enum AggsError {
     TopHits {
         /// The aggregation's name.
         name: String,
+    },
+    /// The reduce made more buckets, over every level of one aggregation,
+    /// than `search.max_buckets` allows.
+    TooManyBuckets {
+        /// The bucket count reached.
+        made: usize,
     },
 }
 
@@ -43,7 +49,9 @@ pub fn reduce_shards(shards: &[Vec<(String, Value)>]) -> Result<Vec<(String, Val
         if parts.iter().any(|v| matches!(v, Value::TopHits(_))) {
             return Err(AggsError::TopHits { name: name.into() });
         }
-        let value = reduce(&parts).ok_or_else(|| AggsError::Mismatched { name: name.into() })?;
+        let value = reduce_total(&parts)
+            .map_err(|made| AggsError::TooManyBuckets { made })?
+            .ok_or_else(|| AggsError::Mismatched { name: name.into() })?;
         out.push((name.into(), value));
     }
     Ok(out)

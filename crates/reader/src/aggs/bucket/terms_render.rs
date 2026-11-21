@@ -3,6 +3,7 @@
 
 use std::io::{self, Write};
 
+use crate::aggs::bucket::sub_values::write_subs;
 use crate::aggs::bucket::terms::{TermsResult, reduce_results};
 use crate::aggs::metric::date_text::write_date;
 use crate::aggs::partial::Format;
@@ -27,7 +28,9 @@ pub fn write_terms(out: &mut dyn Write, format: Format, result: &TermsResult) ->
             write_date(out, *key)?;
             out.write_all(b"\"")?;
         }
-        write!(out, ",\"doc_count\":{count}}}")?;
+        write!(out, ",\"doc_count\":{count}")?;
+        write_subs(out, &reduced.subs.meta, reduced.subs.lists.get(i))?;
+        out.write_all(b"}")?;
     }
     out.write_all(b"]")
 }

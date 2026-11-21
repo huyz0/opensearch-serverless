@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use oss_reader::overlay::OverlaySource;
-use oss_types::settings::{BoolSetting, Scope, Setting};
+use oss_types::settings::{BoolSetting, ChoiceSetting, Scope, Setting};
 
 /// `serverless.search.tail_overlay.enabled`: whether a search is served over
 /// the commit and an overlay of the writes pushed above it. Default `false`
@@ -19,8 +19,22 @@ pub const TAIL_OVERLAY_ENABLED: BoolSetting = BoolSetting::new(
      on top of it, before they are published.",
 );
 
+/// `serverless.search.refresh_visibility`: which copies of a shard answer a
+/// search only while they hold every write the writer answered as refreshed
+/// (the shell's `RefreshVisibility`). Only `everywhere` makes a reader check
+/// with the writer before it answers; the writer-side wait of `owner` and
+/// `serving` is not wired yet, so both leave a search as it is.
+pub const REFRESH_VISIBILITY: ChoiceSetting = ChoiceSetting::new(
+    "serverless.search.refresh_visibility",
+    "everywhere",
+    &["owner", "serving", "everywhere"],
+    Scope::Node,
+    "Which copies of a shard answer a search only once they hold every write \
+     acknowledged as refreshed: owner, serving or everywhere.",
+);
+
 /// Every setting this module defines, for the node's registry.
-pub static SETTINGS: &[&Setting] = &[TAIL_OVERLAY_ENABLED.setting()];
+pub static SETTINGS: &[&Setting] = &[TAIL_OVERLAY_ENABLED.setting(), REFRESH_VISIBILITY.setting()];
 
 /// Installs `source` on `service` when the setting is on (`enabled`); off,
 /// a search is answered from the commit alone. Gives whether the source was

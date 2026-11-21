@@ -22,6 +22,8 @@ reader = [
     "dep:oss-mem",
     "dep:oss-transport",
     "dep:oss-format",
+    "dep:oss-meta",
+    "dep:oss-doc",
 ]
 writer = [
     "dep:oss-writer",
@@ -34,18 +36,23 @@ writer = [
     "dep:self_cell",
     "dep:oss-rest",
     "dep:oss-meta",
+    "dep:oss-janitor",
+    "dep:oss-mem",
+    "dep:oss-coordinator",
 ]
-coordinator = ["dep:oss-coordinator", "dep:oss-blob", "dep:oss-transport"]
+coordinator = ["dep:oss-coordinator", "dep:oss-blob", "dep:oss-transport", "dep:oss-doc"]
 
 [dependencies]
 oss-types = { workspace = true }
 oss-reader = { workspace = true, optional = true }
 oss-writer = { workspace = true, optional = true }
 oss-coordinator = { workspace = true, optional = true }
+oss-doc = { workspace = true, optional = true }
 oss-rest = { workspace = true, optional = true }
 oss-transport = { workspace = true, optional = true }
 oss-cluster = { workspace = true, optional = true }
 oss-meta = { workspace = true, optional = true }
+oss-janitor = { workspace = true, optional = true }
 oss-format = { workspace = true, optional = true }
 oss-blob = { workspace = true, optional = true }
 lucene-store = { workspace = true, optional = true }
@@ -56,6 +63,9 @@ self_cell = { workspace = true, optional = true }
 oss-mem = { workspace = true, optional = true }
 
 [dev-dependencies]
+serde_json = "=1.0.145"
+# The suite creates a RustFS bucket with one signed request.
+ureq = { version = "=3.5.2", default-features = false, features = ["rustls"] }
 lucene-store = { workspace = true }
 oss-blob = { workspace = true, features = ["emulator"] }
 oss-mem = { workspace = true }
@@ -79,7 +89,27 @@ name = "it"
 path = "tests/it/main.rs"
 
 [[test]]
+name = "writer_janitor"
+required-features = ["writer"]
+
+[[test]]
 name = "forward"
+required-features = ["writer"]
+
+[[test]]
+name = "read_forward"
+required-features = ["writer"]
+
+[[test]]
+name = "publish_age"
+required-features = ["writer"]
+
+[[test]]
+name = "writer_publish_timer"
+required-features = ["writer"]
+
+[[test]]
+name = "writer_publish"
 required-features = ["writer"]
 
 [[test]]
@@ -122,5 +152,89 @@ name = "handlers"
 required-features = ["writer"]
 
 [[test]]
+name = "assemble"
+required-features = ["reader", "writer"]
+
+[[test]]
+name = "doc_route"
+required-features = ["writer"]
+
+[[test]]
+name = "get_route"
+required-features = ["writer"]
+
+[[test]]
+name = "writer_opener"
+required-features = ["writer"]
+
+[[test]]
+name = "writer_takeover"
+required-features = ["writer"]
+
+[[test]]
+name = "descriptor_routes"
+required-features = ["writer"]
+
+[[test]]
+name = "index_route"
+required-features = ["writer", "coordinator"]
+
+[[test]]
+name = "pit_route"
+required-features = ["writer"]
+
+[[test]]
+name = "pit_route_limits"
+required-features = ["writer"]
+
+[[test]]
 name = "bulk_route"
 required-features = ["reader", "writer"]
+
+[[test]]
+name = "index_delete"
+required-features = ["writer", "coordinator"]
+
+[[test]]
+name = "cluster_owner"
+required-features = ["writer"]
+
+[[test]]
+name = "cat_routes"
+required-features = ["writer"]
+
+[[test]]
+name = "health_store"
+required-features = ["writer"]
+
+[[test]]
+name = "cluster_assemble"
+required-features = ["reader", "writer"]
+
+[[test]]
+name = "boot"
+required-features = ["reader", "writer", "coordinator"]
+
+[[test]]
+name = "bulk_handler"
+required-features = ["writer"]
+
+[[test]]
+name = "by_query_route"
+required-features = ["writer", "coordinator"]
+
+[[test]]
+name = "cluster_suite"
+required-features = ["reader", "writer", "coordinator"]
+
+[[test]]
+name = "dead_logs"
+required-features = ["writer"]
+
+[[test]]
+name = "dead_log_pass"
+required-features = ["writer"]
+
+[[test]]
+name = "index_cache"
+required-features = ["writer"]

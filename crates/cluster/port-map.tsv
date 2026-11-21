@@ -40,3 +40,4 @@ tests/leases/early.rs	new		every decline, the revocation and its requests, the n
 tests/leases/early_bounds.rs	new		early revocation's single flight, memory bound and TCP probe
 src/heads/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/metadata/RegisterMap.java@429b4cbc	shardHeadBlob: the head's key, the low byte of the Java's murmur3 of `<index>#<shard>` in two hex digits
 src/heads/store.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/metadata/ShardHeadStore.java@429b4cbc	read and acquire of an unbucketed shard; bucket heads, renew, release and delete are later pieces
+src/heads/registers.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/metadata/ShardHeadStore.java@429b4cbc	readAllOf, deleteIfUnchanged, releaseAllOf and deleteAllOf of an unbucketed shard

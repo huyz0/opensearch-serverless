@@ -76,9 +76,10 @@ pub fn build_ready(
     let checkpoint = local_checkpoint(commit);
     let ids = candidate_ids(records, checkpoint)?;
     let copies = find_copies(commit, &ids)?;
-    let mapping = Mapping::parse(mapping_json.as_bytes())
-        // ALLOC: one message on a failed build.
-        .map_err(|e| BuildError::Engine(format!("mapping: {e:?}")))?;
+    let mapping =
+        Mapping::from_descriptor((!mapping_json.trim().is_empty()).then_some(mapping_json))
+            // ALLOC: one message on a failed build.
+            .map_err(|e| BuildError::Engine(format!("mapping: {e:?}")))?;
     let overlay = Overlay::build_over(&mapping, records, checkpoint, max_bytes, &copies)?;
     Ok(Ready::new(overlay, copies))
 }
@@ -109,6 +110,20 @@ pub trait OverlaySource: Send + Sync {
         commit: &Arc<dyn CommitAccess>,
         now_millis: u64,
     ) -> Option<Arc<Ready>>;
+
+    /// Has the overlay of shard `shard` of `index_uuid` cover every record
+    /// held for it now, before this returns, so a search that follows
+    /// serves them. A source that cannot (no room, a record the engine
+    /// refuses) marks the shard so it holds no grant. Nothing by default:
+    /// [`Self::ready`] answers with what is finished.
+    fn apply_pending(
+        &self,
+        _index_uuid: &str,
+        _shard: u32,
+        _stage: &Stage,
+        _commit: &Arc<dyn CommitAccess>,
+    ) {
+    }
 
     /// The engine open on shard `shard` of `index_uuid` at `stage` let go:
     /// what the source kept for that engine can go too. Nothing by default.

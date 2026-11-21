@@ -8,8 +8,14 @@ use lucene_search::directory_reader::DirectoryReader;
 use lucene_store::Directory;
 
 use crate::document;
+use crate::fast::FastIngest;
 use crate::lucene::{Indexer, Meta, uid};
 use crate::mapping::{Mapping, MappingError};
+
+mod get;
+mod replay;
+
+pub use get::Fetched;
 
 use super::lookup;
 use super::plan::{Current, Expect, plan};
@@ -79,6 +85,7 @@ pub struct Shard<'d> {
     dir: &'d dyn Directory,
     writer: IndexWriter<'d>,
     indexer: Indexer,
+    fast: FastIngest,
     mapping: Mapping,
     versions: VersionMap,
     reader: Option<DirectoryReader>,
@@ -119,6 +126,7 @@ impl<'d> Shard<'d> {
             dir,
             writer,
             indexer: Indexer::new(),
+            fast: FastIngest::new(),
             mapping,
             versions: VersionMap::default(),
             reader: None,
@@ -259,6 +267,23 @@ impl<'d> Shard<'d> {
         create: bool,
         expect: &Expect,
     ) -> Result<Written, Refused> {
+        self.index_routed(id, source, None, create, expect)
+    }
+
+    /// As [`Shard::index`], keeping the custom `routing` value so a get
+    /// returns it. A routed document takes the complete path.
+    ///
+    /// # Errors
+    ///
+    /// As [`Shard::index`].
+    pub fn index_routed(
+        &mut self,
+        id: &str,
+        source: &[u8],
+        routing: Option<&str>,
+        create: bool,
+        expect: &Expect,
+    ) -> Result<Written, Refused> {
         let expect = if create {
             Expect {
                 version: super::version::MATCH_DELETED,
@@ -268,13 +293,23 @@ impl<'d> Shard<'d> {
         } else {
             *expect
         };
-        let parsed = document::parse(&self.mapping, id, source).map_err(Refused::Mapping)?;
+        // The plan reads the source when it can; whatever it declines, and every error, is the
+        // complete path's. An empty id has no key, and takes the complete path's error order.
+        let fast = uid(id)
+            .ok()
+            .filter(|_| routing.is_none())
+            .and_then(|k| self.fast.prepare(&self.indexer, &self.mapping, source, &k));
+        let parsed = match fast {
+            Some(_) => None,
+            None => Some(document::parse(&self.mapping, id, source).map_err(Refused::Mapping)?),
+        };
         let key = uid(id).map_err(Refused::Mapping)?;
         // The Java publishes a document's mapping update before the engine
         // plans it, so the update holds even when the write conflicts.
-        if let Some(grown) = &parsed.grown {
+        if let Some(grown) = parsed.as_ref().and_then(|p| p.grown.as_ref()) {
             // ALLOC: the grown mapping, bounded by the total fields limit.
             self.mapping = grown.clone();
+            self.fast.invalidate();
         }
         let current = self.current(id, &key)?;
         let p = plan(id, current, &expect).map_err(Refused::Conflict)?;
@@ -296,10 +331,21 @@ impl<'d> Shard<'d> {
                     .map_err(Refused::Mapping)?,
             )
         };
-        let doc = self
-            .indexer
-            .document(&mut self.writer, mapping, &parsed, &meta)
-            .map_err(Refused::Mapping)?;
+        let doc = match (fast, &parsed) {
+            (Some(f), _) => f
+                .finish(seq_no, self.primary_term, p.version)
+                .pop()
+                .ok_or_else(|| Refused::Mapping(MappingError::illegal_state("no document read")))?,
+            (None, Some(parsed)) => self
+                .indexer
+                .document_routed(&mut self.writer, mapping, parsed, &meta, routing)
+                .map_err(Refused::Mapping)?,
+            (None, None) => {
+                return Err(Refused::Mapping(MappingError::illegal_state(
+                    "no document read",
+                )));
+            }
+        };
         // ALLOC: one document a write.
         let docs = vec![doc];
         match soft {

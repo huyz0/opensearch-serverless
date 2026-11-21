@@ -4,6 +4,7 @@
 //! hold them, fans the request out, and merges the shard results into one
 //! response. It is the last role built (docs/roadmap.md).
 
+pub mod cat;
 pub mod cluster;
 pub mod docs;
 pub mod fanout;
