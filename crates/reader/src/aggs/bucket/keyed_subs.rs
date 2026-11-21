@@ -153,7 +153,7 @@ pub fn reserved<S: BlobStore + 'static>(shard: &OpenShard<S>, aggs: &[MetricAgg]
             // in `keyword_subs`.
             match values(shard, &agg.field).min(BUCKET_LIMIT) {
                 0 => total,
-                buckets => total.saturating_add(fixed_subs::subs_bytes(shard, agg, buckets)),
+                buckets => total.saturating_add(fixed_subs::subs_bytes(shard, agg, buckets, 1)),
             }
         })
 }

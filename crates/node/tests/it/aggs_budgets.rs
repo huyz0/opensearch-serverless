@@ -163,3 +163,32 @@ fn a_nested_keyword_terms_adds_no_request_to_a_cold_search() {
     println!("plain {plain} nested {nested}");
     assert_eq!(nested, plain);
 }
+
+// docs/specs/nested-bucket-aggs: a bucket aggregation under a bucket, at
+// every nesting the node serves, adds no request to a cold search.
+#[test]
+fn a_nested_bucket_aggregation_adds_no_request_to_a_cold_search() {
+    let plain = cold_gets(
+        br#"{"size":0,"aggs":{"o":{"range":{"field":"n","ranges":[{"to":1000},{"from":1000}]}}}}"#,
+    );
+    let nested = cold_gets(
+        br#"{"size":0,"aggs":{"o":{"range":{"field":"n","ranges":[{"to":1000},{"from":1000}]},
+            "aggs":{"h":{"histogram":{"field":"n","interval":100},
+                "aggs":{"r":{"range":{"field":"n","ranges":[{"to":500}]}}}}}}}}"#,
+    );
+    let with_terms = cold_gets(
+        br#"{"size":0,"aggs":{"o":{"range":{"field":"n","ranges":[{"to":1000},{"from":1000}]},
+            "aggs":{"t":{"terms":{"field":"n","size":3},
+                "aggs":{"d":{"date_histogram":{"field":"n","fixed_interval":"100ms"}}}}}}}}"#,
+    );
+    let deep = cold_gets(
+        br#"{"size":0,"aggs":{"o":{"range":{"field":"n","ranges":[{"to":1000},{"from":1000}]},
+            "aggs":{"h":{"histogram":{"field":"n","interval":100},
+                "aggs":{"t":{"terms":{"field":"n","size":3},
+                    "aggs":{"r":{"range":{"field":"n","ranges":[{"to":500}]}}}}}}}}}}"#,
+    );
+    println!("plain {plain} nested {nested} with terms {with_terms} deep {deep}");
+    assert_eq!(deep, plain);
+    assert_eq!(with_terms, plain);
+    assert_eq!(nested, plain);
+}
