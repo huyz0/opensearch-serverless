@@ -157,6 +157,21 @@ impl NodeLogStore {
         epoch: u64,
         ordinal: u64,
     ) -> Result<Option<NodeLogEntry<'static>>, LogError> {
+        self.read_entry_within(epoch, ordinal, None)
+    }
+
+    /// As [`NodeLogStore::read_entry`], refusing a header longer than
+    /// `cap` bytes before reading more than the probe of it.
+    ///
+    /// # Errors
+    ///
+    /// As [`NodeLogStore::read_entry`], and [`LogError::HeaderTooLarge`].
+    pub fn read_entry_within(
+        &self,
+        epoch: u64,
+        ordinal: u64,
+        cap: Option<u64>,
+    ) -> Result<Option<NodeLogEntry<'static>>, LogError> {
         let key = self.key(epoch, ordinal)?;
         let leading = match self.read_range(&key, 0, HEADER_PROBE_BYTES) {
             Err(LogError::Blob(BlobError::NotFound)) => return Ok(None),
@@ -166,6 +181,12 @@ impl NodeLogStore {
             expected: len64(PREFIX_BYTES),
             actual: len64(leading.len()),
         })?;
+        if let Some(cap) = cap.filter(|cap| len64(end) > *cap) {
+            return Err(LogError::HeaderTooLarge {
+                bytes: len64(end),
+                cap,
+            });
+        }
         if len64(end) <= len64(leading.len()) {
             return Ok(Some(owned(decode(&leading)?)));
         }
@@ -193,8 +214,26 @@ impl NodeLogStore {
         below: u64,
         floor: u64,
     ) -> Result<Option<NodeLogHeader<'static>>, LogError> {
+        self.last_header_below_within(epoch, below, floor, None)
+    }
+
+    /// As [`NodeLogStore::last_header_below`], refusing a header longer
+    /// than `cap` bytes.
+    ///
+    /// # Errors
+    ///
+    /// As [`NodeLogStore::read_entry_within`].
+    pub fn last_header_below_within(
+        &self,
+        epoch: u64,
+        below: u64,
+        floor: u64,
+        cap: Option<u64>,
+    ) -> Result<Option<NodeLogHeader<'static>>, LogError> {
         for ordinal in (floor..below).rev() {
-            if let Some(NodeLogEntry::Records(header)) = self.read_entry(epoch, ordinal)? {
+            if let Some(NodeLogEntry::Records(header)) =
+                self.read_entry_within(epoch, ordinal, cap)?
+            {
                 return Ok(Some(header));
             }
         }

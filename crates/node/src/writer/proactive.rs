@@ -19,9 +19,11 @@ use oss_cluster::Refreshed;
 use oss_cluster::placement::reapers_for;
 use oss_format::{NodeLease, NodeLogEpoch};
 use oss_types::settings::{BoolSetting, LongSetting, Scope, Setting};
+use oss_writer::bulk::IndexInfo;
+use oss_writer::log::{LogError, TakeoverError};
 use oss_writer::takeover::Predecessors;
 
-use super::{WriterRole, lock};
+use super::{OpenRefused, WriterRole, lock};
 
 /// `serverless.takeover.proactive.enabled`: take the shards a dead node's
 /// log names before a write asks. Default `false`.
@@ -68,6 +70,10 @@ pub const PASS_MILLIS: LongSetting = LongSetting::new(
      did not reach are taken by a later pass or by the next write.",
 );
 
+/// The longest log header a pass reads: a header over it is refused from its
+/// prefix and its shards are left to the lazy path.
+pub const MAX_HEADER_BYTES: u64 = 8 << 20;
+
 /// Every setting this module defines, for the node's registry.
 pub static SETTINGS: &[&Setting] = &[
     ENABLED.setting(),
@@ -100,11 +106,40 @@ pub struct Report {
     /// Shards this node now holds because of the pass.
     pub taken: usize,
     /// Shards left alone: no index name in the header, an index since
-    /// deleted or recreated, or a shard number past the index's.
+    /// deleted or recreated, a shard number past the index's, or a shard a
+    /// live node holds.
     pub skipped: usize,
     /// Shards whose take failed or was not started before the deadline: a
     /// later pass or the next write takes them.
     pub deferred: usize,
+    /// Whether the log's last header was over the cap and left unread: its
+    /// shards are all lazy.
+    pub header_refused: bool,
+}
+
+/// How one take ended.
+enum Taken {
+    /// This node holds the shard.
+    Held,
+    /// A live node holds it: nothing here to take, now or on a later pass.
+    Elsewhere,
+    /// The take failed or found no room; a later pass or a write retries.
+    Failed,
+}
+
+impl Taken {
+    /// A refusal naming the dead node itself is a failed take (its claim
+    /// had not lapsed for the head, or the swap was lost), not a live holder.
+    fn of(result: Result<(), OpenRefused>, dead: &str) -> Self {
+        match result {
+            Ok(()) => Self::Held,
+            Err(OpenRefused {
+                holder: Some(holder),
+                ..
+            }) if holder != dead => Self::Elsewhere,
+            Err(_) => Self::Failed,
+        }
+    }
 }
 
 /// The proactive take of a dead node's shards.
@@ -116,6 +151,7 @@ pub struct ProactiveTakeover {
     /// The epochs of each dead node a pass finished, so a later refresh
     /// does not start it again.
     done: Mutex<HashMap<String, Vec<NodeLogEpoch>>>,
+    max_header_bytes: u64,
     running: AtomicBool,
 }
 
@@ -138,8 +174,17 @@ impl ProactiveTakeover {
             predecessors,
             // ALLOC: one entry a dead node a pass finished, bounded by the fleet.
             done: Mutex::new(HashMap::new()),
+            max_header_bytes: MAX_HEADER_BYTES,
             running: AtomicBool::new(false),
         }
+    }
+
+    /// Refuses a log header over `bytes` instead of the default
+    /// [`MAX_HEADER_BYTES`].
+    #[must_use]
+    pub fn with_max_header_bytes(mut self, bytes: u64) -> Self {
+        self.max_header_bytes = bytes;
+        self
     }
 
     /// The dead nodes of `refreshed` this node acts for at `now_millis`:
@@ -155,6 +200,10 @@ impl ProactiveTakeover {
             .dead_with_epochs
             .iter()
             .filter(|dead| {
+                // A lease naming no epochs has nothing to take.
+                if dead.node_log.is_empty() {
+                    return false;
+                }
                 let reapers =
                     reapers_for(&dead.node_id, refreshed.live.iter(), self.config.reapers);
                 let Some(rank) = reapers.iter().position(|id| *id == self.node_id) else {
@@ -210,19 +259,34 @@ impl ProactiveTakeover {
         let Ok(Some(log)) = self.predecessors.of(&dead.node_id) else {
             return report;
         };
-        let Ok(named) = log.named() else {
-            return report;
+        let named = match log.named_within(Some(self.max_header_bytes)) {
+            Ok(named) => named,
+            Err(TakeoverError::Log(LogError::HeaderTooLarge { .. })) => {
+                // Reading it again would be refused again: finished, and
+                // every shard it names is taken when a write asks.
+                report.header_refused = true;
+                // ALLOC: the epochs of one dead node, once.
+                lock(&self.done).insert(dead.node_id.clone(), dead.node_log.clone());
+                return report;
+            }
+            Err(_) => return report,
         };
         let deadline = Instant::now().checked_add(self.config.pass);
         // ALLOC: the shards the header names that this node can take, at most
         // the shards the dead node held unpublished.
         let mut work = Vec::new();
+        // One descriptor read an index the log names, not a shard.
+        // ALLOC: one entry an index the header names.
+        let mut indices: HashMap<&str, Option<IndexInfo>> = HashMap::new();
         for key in &named {
             report.named = report.named.saturating_add(1);
-            let info = key
-                .index_name
-                .as_deref()
-                .and_then(|name| self.role.index_info(name))
+            let info = key.index_name.as_deref().and_then(|name| {
+                indices
+                    .entry(name)
+                    .or_insert_with(|| self.role.index_info(name))
+                    .clone()
+            });
+            let info = info
                 .filter(|info| info.uuid.as_str() == &*key.index_uuid && key.shard < info.shards);
             match info {
                 Some(info) => work.push((info, key.shard)),
@@ -234,24 +298,27 @@ impl ProactiveTakeover {
                 report.deferred = report.deferred.saturating_add(chunk.len());
                 continue;
             }
-            let taken: Vec<bool> = std::thread::scope(|scope| {
+            let taken: Vec<Taken> = std::thread::scope(|scope| {
                 // ALLOC: one handle a take in the chunk, at most max_concurrent.
                 let handles: Vec<_> = chunk
                     .iter()
-                    .map(|(info, shard)| scope.spawn(move || self.role.hold(info, *shard).is_ok()))
+                    .map(|(info, shard)| {
+                        scope.spawn(move || Taken::of(self.role.hold(info, *shard), &dead.node_id))
+                    })
                     .collect();
                 handles
                     .into_iter()
-                    .map(|h| h.join().unwrap_or(false))
-                    // ALLOC: one flag a take in the chunk.
+                    .map(|h| h.join().unwrap_or(Taken::Failed))
+                    // ALLOC: one outcome a take in the chunk.
                     .collect()
             });
-            for ok in taken {
-                if ok {
-                    report.taken = report.taken.saturating_add(1);
-                } else {
-                    report.deferred = report.deferred.saturating_add(1);
-                }
+            for outcome in taken {
+                let count = match outcome {
+                    Taken::Held => &mut report.taken,
+                    Taken::Elsewhere => &mut report.skipped,
+                    Taken::Failed => &mut report.deferred,
+                };
+                *count = count.saturating_add(1);
             }
         }
         if report.deferred == 0 {

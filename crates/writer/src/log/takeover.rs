@@ -192,8 +192,26 @@ impl NodeLogTakeover {
     }
 
     pub(crate) fn fenced(&self) -> Result<Arc<Fenced>, TakeoverError> {
+        self.fenced_within(None)
+    }
+
+    /// As `fenced`, refusing a last header over `cap` bytes; nothing is
+    /// kept then, so a reader without the cap starts over.
+    pub(crate) fn fenced_within(&self, cap: Option<u64>) -> Result<Arc<Fenced>, TakeoverError> {
         let mut held = self.lock();
         if let Some(fenced) = held.as_ref() {
+            let over = cap.and_then(|cap| {
+                fenced
+                    .last_headers
+                    .values()
+                    .flatten()
+                    .map(|h| h.body_offset)
+                    .find(|len| *len > cap)
+                    .map(|bytes| (bytes, cap))
+            });
+            if let Some((bytes, cap)) = over {
+                return Err(LogError::HeaderTooLarge { bytes, cap }.into());
+            }
             return Ok(Arc::clone(fenced));
         }
         // ALLOC: one entry an epoch the lease names, a handful.
@@ -233,7 +251,7 @@ impl NodeLogTakeover {
         let mut last_headers = BTreeMap::new();
         for (&epoch, &end) in &ends {
             let floor = floors.get(&epoch).copied().unwrap_or(0);
-            let last = self.log.last_header_below(epoch, end, floor)?;
+            let last = self.log.last_header_below_within(epoch, end, floor, cap)?;
             last_headers.insert(epoch, last.map(Arc::new));
         }
         let fenced = Arc::new(Fenced { ends, last_headers });
@@ -266,7 +284,18 @@ impl NodeLogTakeover {
     ///
     /// As [`NodeLogTakeover::fence_all`].
     pub fn named(&self) -> Result<BTreeSet<ShardKey>, TakeoverError> {
-        let fenced = self.fenced()?;
+        self.named_within(None)
+    }
+
+    /// As [`NodeLogTakeover::named`], refusing a last header longer than
+    /// `cap` bytes, which is [`LogError::HeaderTooLarge`] and leaves the
+    /// shards to the takes that read the header unbounded.
+    ///
+    /// # Errors
+    ///
+    /// As [`NodeLogTakeover::fence_all`], or a header over `cap`.
+    pub fn named_within(&self, cap: Option<u64>) -> Result<BTreeSet<ShardKey>, TakeoverError> {
+        let fenced = self.fenced_within(cap)?;
         Ok(fenced
             .last_headers
             .values()

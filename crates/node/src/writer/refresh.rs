@@ -86,14 +86,20 @@ impl WriterRole {
         only_if_due: bool,
     ) -> Result<Option<(Published, i64)>, String> {
         let _gate = publishing.gate();
-        let (snapshot, term, max_seq_no) = {
+        let (snapshot, term, max_seq_no, logged) = {
             let mut held = lock(slot);
             let max_seq_no = held.max_seq_no();
             if only_if_due && (held.released() || !publishing.due(key, max_seq_no)) {
                 return Ok(None);
             }
+            // Every write is logged while the slot is held, so what the log
+            // holds of this shard now is in the commit the snapshot takes.
+            let logged = self
+                .committer
+                .last_position(held.key())
+                .map(|at| (held.key().clone(), at));
             let (snapshot, term) = held.snapshot()?;
-            (snapshot, term, max_seq_no)
+            (snapshot, term, max_seq_no, logged)
         };
         let done = publishing.with_publisher(key, index, |publisher, node, now| {
             publisher
@@ -101,6 +107,11 @@ impl WriterRole {
                 .map_err(|e| e.to_string())
         })?;
         publishing.published(key, max_seq_no);
+        if let Some((shard, at)) = logged {
+            // The log no longer needs these records: its lease stops naming
+            // epochs that hold nothing else, and a successor has less to take.
+            self.committer.on_published(&shard, at);
+        }
         Ok(Some((done, max_seq_no)))
     }
 }
