@@ -1,10 +1,10 @@
 # 0026: Bucket manifest values in the writer: the shell's JSON form, a 1,024-member ceiling, compact refused
 
-**Status:** Proposed
+**Status:** Accepted after independent review, 2026-11-21
 
 ## Context
 
-The shell groups small indices into buckets: one register `buckets/<id>/manifest` holds every member's latest commit ([bucket-manifest-reader](../specs/bucket-manifest-reader/SPEC.md)). Rust reads it and nothing writes it. The shell writes the compact `OSBM` form by default (`serverless.buckets.manifest_codec` is `auto`) and JSON when set to `json`; both are read by every node. Its limits are node settings: `serverless.buckets.max_members` (default 1,024, a hard ceiling), `target_bytes` (about 1 GB, where the stripe opens the next bucket) and `max_manifest_bytes` (2 MB, a stored-size cutoff for admitting members). This change adds only a value type with no request: `BucketManifest`, to build, edit one member, size and encode, and parse whole ([spec](../specs/bucket-manifest-writer/SPEC.md)).
+The shell groups small indices into buckets: one register `buckets/<id>/manifest` holds every member's latest commit ([bucket-manifest-reader](../specs/bucket-manifest-reader/SPEC.md)). Rust reads it and nothing writes it. The shell writes the compact `OSBM` form by default (`serverless.buckets.manifest_codec` is `auto`) and JSON when set to `json`; both are read by every node. Its limits are node settings: `serverless.buckets.max_members` (default 1,024, a node setting), `target_bytes` (about 1 GB, where a bucket counts as full) and `max_manifest_bytes` (2 MB, a stored-size cutoff for admitting members). This change adds only a value type with no request: `BucketManifest`, to build, edit one member, size and encode, and parse whole ([spec](../specs/bucket-manifest-writer/SPEC.md)).
 
 ## Decision
 
