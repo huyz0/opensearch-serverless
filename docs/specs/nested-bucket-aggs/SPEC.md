@@ -19,12 +19,13 @@ A keyword `terms` as the parent of a bucket aggregation stays refused until a la
 
 Those of step 1; each later step adds its own here with its evidence.
 
-- AC-1: a `range`, `histogram` or `date_histogram` under a `range`, `filters` or `filter` bucket counts that bucket's documents.
+- AC-1: a `range`, `histogram`, `date_histogram` or numeric `terms` under a `range`, `filters`, `filter`, `histogram`, `date_histogram` or numeric `terms` bucket counts that bucket's documents.
 - AC-2: a nested reduce counts every bucket it merges or fills in one running total; over the bucket limit it fails with `too_many_buckets_exception` (the status the shard's own refusal uses), and a fill past the limit is that failure, not a mismatch.
 - AC-3: a search reserves for each nested level's buckets, `B_k`, at the per-bucket bytes times `SUB_COPIES`.
-- AC-4: a keyword `terms` with a bucket aggregation under it is still refused, naming it.
+- AC-4: a keyword `terms` with a bucket aggregation or a numeric `terms` under it is still refused with a 400 naming it.
+- AC-5: a nested numeric `terms` whose (parent, value) pairs pass the bucket limit fails with `too_many_buckets_exception` instead of running.
 
-Still to come, by step: the same under a `histogram` or `date_histogram` (2) and a numeric `terms` (3); a nested numeric `terms` past the bucket limit failing without holding more than the limit's keys (3); no request added, against the budget rows (4).
+Still to come: `filters` and `filter` as nested sub-aggregations (they need their compiled queries at a nested node); no request added, against the budget rows (step 4).
 
 ## Test plan
 

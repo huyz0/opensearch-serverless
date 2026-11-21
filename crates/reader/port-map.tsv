@@ -163,3 +163,4 @@ src/aggs/bucket/running.rs	port	server/src/main/java/org/opensearch/search/aggre
 src/aggs/bucket/running_tests.rs	new		tests of the running bucket total and of a reduce that passes it
 src/aggs/bucket/nested_subs.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/BucketsAggregator.java@3.10.0	a bucket aggregation under a bucket: each owning bucket's value from the engine's flattened result (BucketsAggregator.buildSubAggsForBuckets) and its reservation
 src/aggs/bucket/nested_tests.rs	new		tests of a bucket aggregation under a bucket on a real index
+src/aggs/bucket/nested_terms_tests.rs	new		tests of a numeric terms nested under a bucket, and of the bucket limit for one

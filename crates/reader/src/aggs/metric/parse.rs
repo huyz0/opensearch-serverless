@@ -204,12 +204,21 @@ fn holds_subs(metric: Metric) -> bool {
 
 /// Whether a bucket aggregation `sub` may sit under the bucket aggregation
 /// `parent`: a `range`, `histogram` or `date_histogram` under a `range`,
-/// `filters` or `filter` so far.
+/// `filters`, `filter`, `histogram`, `date_histogram` or `terms` (which the
+/// shard refuses for a keyword field) so far.
 fn nests_under(sub: Metric, parent: Metric) -> bool {
     matches!(
         sub,
         Metric::Range | Metric::Histogram | Metric::DateHistogram
-    ) && matches!(parent, Metric::Range | Metric::Filters | Metric::Filter)
+    ) && matches!(
+        parent,
+        Metric::Range
+            | Metric::Filters
+            | Metric::Filter
+            | Metric::Histogram
+            | Metric::DateHistogram
+            | Metric::Terms
+    )
 }
 
 /// Whether `metric` is a single-value or stats metric, one of the

@@ -279,13 +279,13 @@ fn unserved_keys_zones_and_orders_are_refused_as_not_supported_yet() {
             "{body}"
         );
     }
-    let body = br#"{"aggs":{"h":{"date_histogram":{"field":"t","calendar_interval":"day"},"aggs":{"m":{"range":{"field":"n","ranges":[{"to":5}]}}}}}}"#;
+    let body = br#"{"aggs":{"h":{"date_histogram":{"field":"t","calendar_interval":"day"},"aggs":{"m":{"filters":{"filters":[{"match_all":{}}]}}}}}}"#;
     let e = parse_chunks([&body[..]])
         .expect_err("refused")
         .into_failure();
     assert!(
         e.reason
-            .contains("[range] sub-aggregation of a [date_histogram]")
+            .contains("[filters] sub-aggregation of a [date_histogram]")
     );
 }
 
