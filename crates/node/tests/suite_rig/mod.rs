@@ -49,6 +49,7 @@ pub struct Cluster {
     endpoint: String,
     ttl: u64,
     nodes: Vec<Option<Node>>,
+    settings: Vec<(String, String)>,
     _backing: Backing,
 }
 
@@ -149,6 +150,7 @@ impl Cluster {
                 endpoint,
                 ttl: ttl_ms,
                 nodes: Vec::new(),
+                settings: Vec::new(),
                 _backing: backing,
             });
         }
@@ -160,6 +162,7 @@ impl Cluster {
             endpoint: server.endpoint(),
             ttl: ttl_ms,
             nodes: Vec::new(),
+            settings: Vec::new(),
             _backing: Backing::Emulated(server),
         })
     }
@@ -167,6 +170,9 @@ impl Cluster {
     fn config(&self, id: &str) -> NodeConfig {
         let ttl = self.ttl.to_string();
         let lookup = |key: &str| {
+            if let Some((_, value)) = self.settings.iter().find(|(k, _)| k == key) {
+                return Some(value.clone());
+            }
             Some(
                 match key {
                     "OSS_NODE_ID" => id,
@@ -187,6 +193,12 @@ impl Cluster {
         NodeConfig::from_lookup(lookup).expect("a valid configuration")
     }
 
+    /// Sets `key` (an `OSS_*` variable) for the nodes started after this.
+    pub fn set(&mut self, key: &str, value: &str) {
+        self.settings.retain(|(k, _)| k != key);
+        self.settings.push((key.to_owned(), value.to_owned()));
+    }
+
     /// Starts the node `id` and returns its slot.
     pub fn add(&mut self, id: &str) -> usize {
         let node = start(&self.config(id)).expect("the node starts");
@@ -197,6 +209,15 @@ impl Cluster {
     /// The node in `slot`.
     pub fn node(&self, slot: usize) -> &Node {
         self.nodes[slot].as_ref().expect("the node is running")
+    }
+
+    /// How many `op` requests the emulator has counted.
+    pub fn sent(&self, op: S3Op) -> u64 {
+        use oss_blob::BlobStore;
+        match &self._backing {
+            Backing::Emulated(server) => server.store().meter().count(op),
+            Backing::RustFs(..) => panic!("RustFS has no meter"),
+        }
     }
 
     /// The slots whose node runs.
