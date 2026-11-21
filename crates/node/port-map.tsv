@@ -89,3 +89,4 @@ src/boot/support.rs	new		the store a configuration names, the epochs an earlier 
 src/forward_call.rs	new		the signed call both forwarders share: owner lease lookup, encode, sign, send; the Java signs inside each forwarded action
 src/tail_await.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/transport/TailPush.java@429b4cbc	awaitSearchNodes: wait for the pushed-to nodes, then out the grants of the ones lost
 src/tail_subscription.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/transport/TailPush.java@429b4cbc	Subscription and Serving: one reader subscription, its push numbering and confirmation
+src/tail_fresh.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/transport/TailOverlays.java@429b4cbc	ensureFresh in everywhere mode: under a grant answer, else ask the writer, else compare the commit with its claim

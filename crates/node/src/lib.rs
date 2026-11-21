@@ -69,6 +69,8 @@ pub mod settings;
 #[cfg(feature = "writer")]
 pub mod tail_await;
 #[cfg(feature = "reader")]
+pub mod tail_fresh;
+#[cfg(feature = "reader")]
 pub mod tail_held;
 #[cfg(feature = "writer")]
 pub mod tail_keep;
