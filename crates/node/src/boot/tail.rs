@@ -14,6 +14,7 @@ use oss_transport::server::{Handler, Handlers};
 use super::{BootError, Held, NodeConfig, transport::Late};
 use crate::assemble::Assembled;
 use crate::tail_node::TailParts;
+use crate::writer::RefreshVisibility;
 
 type Slot = Arc<OnceLock<Arc<dyn Handler>>>;
 
@@ -59,7 +60,7 @@ pub(super) fn wire(
         Held(Arc::clone(membership)),
         clock,
     )
-    .with_grants(grants(config.refresh_visibility));
+    .with_visibility(visibility(config.refresh_visibility));
     let Some(registry) = assembled
         .wire_tail(parts)
         .map_err(|e| BootError::Cluster(format!("tail overlay: {e:?}")))?
@@ -70,10 +71,9 @@ pub(super) fn wire(
     Ok(())
 }
 
-/// Whether a reader checks with the writer before it answers: only in the
-/// `everywhere` visibility.
-fn grants(visibility: &str) -> bool {
-    visibility == "everywhere"
+/// The visibility mode `word` names; the default, `owner`, for any other.
+fn visibility(word: &str) -> RefreshVisibility {
+    RefreshVisibility::parse(word).unwrap_or_default()
 }
 
 impl Slots {
@@ -122,10 +122,12 @@ mod tests {
     }
 
     #[test]
-    fn only_the_everywhere_visibility_makes_a_reader_check_with_the_writer() {
-        assert!(grants("everywhere"));
-        assert!(!grants("serving"));
-        assert!(!grants("owner"));
+    fn the_visibility_names_pick_their_mode_and_only_everywhere_makes_a_reader_check() {
+        assert!(visibility("everywhere").grants());
+        assert!(!visibility("serving").grants());
+        assert!(visibility("serving").waits());
+        assert!(!visibility("owner").waits());
+        assert_eq!(visibility("nonsense"), RefreshVisibility::Owner);
     }
 
     #[test]
