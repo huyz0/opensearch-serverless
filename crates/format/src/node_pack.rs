@@ -234,6 +234,108 @@ impl<'a> NodePackHeader<'a> {
     }
 }
 
+/// One block a pack will hold, before its offset is known.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlannedBlock<'a> {
+    /// The index's uuid.
+    pub index_uuid: &'a str,
+    /// The index's name, which with the uuid locates the shard's manifest.
+    pub index_name: &'a str,
+    /// The shard.
+    pub shard: u32,
+    /// The segment blob's name as the shard would have named it.
+    pub name: &'a str,
+    /// The blob's length.
+    pub length: u64,
+}
+
+/// A laid-out pack's leading bytes, and where each block then starts.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EncodedPack {
+    /// The prefix and header; the blocks follow in the order planned.
+    pub bytes: Vec<u8>,
+    /// Where each block starts from the pack's first byte, in planned order.
+    pub offsets: Vec<u64>,
+}
+
+/// Lays out a pack as `NodePackBlob.encode` does (version 2): the prefix and
+/// header that go before the blocks, and each block's offset.
+///
+/// # Errors
+///
+/// [`FormatError::Corrupt`] for no block, an empty uuid or name, an epoch,
+/// ordinal or range past `i64`, or a string past `writeUTF`'s 65,535 bytes;
+/// [`FormatError::TooLarge`] for a header past [`MAX_HEADER_BYTES`].
+pub fn encode(
+    node: &str,
+    epoch: u64,
+    ordinal: u64,
+    planned: &[PlannedBlock<'_>],
+) -> Result<EncodedPack, FormatError> {
+    if planned.is_empty() {
+        return Err(corrupt(WHAT, "a pack holds at least one block"));
+    }
+    let signed = |v: u64| i64::try_from(v).map_err(|_| corrupt(WHAT, "a number past i64"));
+    let count = i32::try_from(planned.len()).map_err(|_| corrupt(WHAT, "too many blocks"))?;
+    // ALLOC: the header, at most MAX_HEADER_BYTES (checked below), once a pack.
+    let mut header: Vec<u8> = Vec::new();
+    let utf = |text: &str, out: &mut Vec<u8>| {
+        mutf8::write(text, out).ok_or(corrupt(WHAT, "a string past writeUTF's length"))
+    };
+    utf(node, &mut header)?;
+    header.extend_from_slice(&signed(epoch)?.to_be_bytes());
+    header.extend_from_slice(&signed(ordinal)?.to_be_bytes());
+    header.extend_from_slice(&count.to_be_bytes());
+    // The prefix and header length are not known until every block is
+    // written; the offsets are fixed-width, so they are patched after.
+    // ALLOC: one slot a block, at most MAX_HEADER_BYTES / MIN_BLOCK_BYTES.
+    let mut patches = Vec::with_capacity(planned.len());
+    for block in planned {
+        if block.index_uuid.is_empty() || block.name.is_empty() {
+            return Err(corrupt(WHAT, "a block has no index uuid or no name"));
+        }
+        signed(block.length)?;
+        let shard = i32::try_from(block.shard).map_err(|_| corrupt(WHAT, "shard past i32"))?;
+        utf(block.index_uuid, &mut header)?;
+        utf(block.index_name, &mut header)?;
+        header.extend_from_slice(&shard.to_be_bytes());
+        utf(block.name, &mut header)?;
+        patches.push(header.len());
+        header.extend_from_slice(&[0; 8]);
+        header.extend_from_slice(&signed(block.length)?.to_be_bytes());
+    }
+    let size = u32::try_from(header.len()).unwrap_or(u32::MAX);
+    if size > MAX_HEADER_BYTES {
+        return Err(FormatError::TooLarge {
+            what: WHAT,
+            limit: MAX_HEADER_BYTES.into(),
+            actual: len64(header.len()),
+        });
+    }
+    let body_start = len64(PREFIX_BYTES.saturating_add(header.len()));
+    // ALLOC: one offset a block, bounded as the slots are.
+    let mut offsets = Vec::with_capacity(planned.len());
+    let mut next = body_start;
+    for (block, at) in planned.iter().zip(patches) {
+        offsets.push(next);
+        let slot = header
+            .get_mut(at..at.saturating_add(8))
+            .ok_or(corrupt(WHAT, "an offset slot is out of range"))?;
+        slot.copy_from_slice(&signed(next)?.to_be_bytes());
+        next = next
+            .checked_add(block.length)
+            .ok_or(corrupt(WHAT, "a block's range overflows"))?;
+    }
+    signed(next)?;
+    // ALLOC: the prefix and header, at most MAX_HEADER_BYTES, once a pack.
+    let mut bytes = Vec::with_capacity(PREFIX_BYTES.saturating_add(header.len()));
+    bytes.extend_from_slice(&MAGIC.to_be_bytes());
+    bytes.push(VERSION);
+    bytes.extend_from_slice(&size.to_be_bytes());
+    bytes.extend_from_slice(&header);
+    Ok(EncodedPack { bytes, offsets })
+}
+
 /// Big-endian reads over the header, each refusing to run past its end.
 struct Cursor<'a> {
     bytes: &'a [u8],

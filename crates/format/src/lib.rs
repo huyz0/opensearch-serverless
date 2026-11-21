@@ -52,6 +52,7 @@ mod mutf8;
 mod node_lease;
 mod node_log;
 mod node_pack;
+mod node_pack_ledger;
 mod point_in_time;
 mod reclaim_intent;
 mod register;
@@ -93,7 +94,8 @@ pub use node_log::{
     EncodedNodeLog, NodeLogEntry, NodeLogFence, NodeLogHeader, OrdinalRange, ShardBatch, ShardKey,
     Slice, SliceRecords, slice_records, trim_below, with_ordinal,
 };
-pub use node_pack::{Block, NodePackHeader};
+pub use node_pack::{Block, EncodedPack, NodePackHeader, PlannedBlock, encode as encode_node_pack};
+pub use node_pack_ledger::{NodePackLedger, PackEpoch, encode as encode_pack_ledger};
 pub use point_in_time::{MAX_POINT_IN_TIME_BYTES, PitFile, PitShard, PointInTime, RELEASED};
 pub use reclaim_intent::{
     MAX_RECLAIM_INTENT_BYTES, ReclaimIntent, reclaim_bucket, reclaim_bucket_start,
