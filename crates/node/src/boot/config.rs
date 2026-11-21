@@ -10,6 +10,8 @@ use std::time::Duration;
 
 use oss_mem::{BudgetConfig, ConfigError as BudgetError, Pool};
 
+use crate::tail_overlay::REFRESH_VISIBILITY;
+
 /// The smallest memory total the pools' shares make workable.
 pub const MIN_MEMORY_BYTES: usize = 512 << 20;
 
@@ -86,6 +88,12 @@ pub struct NodeConfig {
     /// How often the janitor sweeps and the dead-log pass runs; it is also
     /// the first wait before a dead node's log is tried again.
     pub janitor_every_millis: u64,
+    /// `serverless.search.tail_overlay.enabled`: whether writers push their
+    /// acknowledged writes to readers and searches see them.
+    pub tail_overlay: bool,
+    /// `serverless.search.refresh_visibility`: `owner`, `serving` or
+    /// `everywhere`.
+    pub refresh_visibility: &'static str,
 }
 
 impl NodeConfig {
@@ -149,6 +157,14 @@ impl NodeConfig {
         if janitor_every_millis == 0 {
             return Err("OSS_JANITOR_EVERY_MS is below 1".to_owned());
         }
+        let tail_overlay = match or("OSS_TAIL_OVERLAY", "false").as_str() {
+            "true" => true,
+            "false" => false,
+            other => return Err(format!("OSS_TAIL_OVERLAY is [{other}], not true or false")),
+        };
+        let refresh_visibility = REFRESH_VISIBILITY
+            .parse(&or("OSS_REFRESH_VISIBILITY", REFRESH_VISIBILITY.default()))
+            .map_err(|e| format!("OSS_REFRESH_VISIBILITY: {e}"))?;
         Ok(Self {
             node_id,
             cluster: or("OSS_CLUSTER", "opensearch-serverless"),
@@ -163,6 +179,8 @@ impl NodeConfig {
             lease_ttl_millis,
             index_confirm_millis,
             janitor_every_millis,
+            tail_overlay,
+            refresh_visibility,
         })
     }
 
@@ -284,6 +302,24 @@ mod tests {
             &with(&[("OSS_JANITOR_EVERY_MS", "x")]),
             "OSS_JANITOR_EVERY_MS",
         );
+        refused(&with(&[("OSS_TAIL_OVERLAY", "yes")]), "OSS_TAIL_OVERLAY");
+        refused(
+            &with(&[("OSS_REFRESH_VISIBILITY", "all")]),
+            "OSS_REFRESH_VISIBILITY",
+        );
+    }
+
+    #[test]
+    fn the_tail_overlay_is_off_and_visibility_everywhere_unless_set() {
+        let c = NodeConfig::from_lookup(lookup(FS)).expect("valid");
+        assert!(!c.tail_overlay);
+        assert_eq!(c.refresh_visibility, "everywhere");
+        let mut pairs = FS.to_vec();
+        pairs.push(("OSS_TAIL_OVERLAY", "true"));
+        pairs.push(("OSS_REFRESH_VISIBILITY", "serving"));
+        let c = NodeConfig::from_lookup(lookup(&pairs)).expect("valid");
+        assert!(c.tail_overlay);
+        assert_eq!(c.refresh_visibility, "serving");
     }
 
     #[test]
