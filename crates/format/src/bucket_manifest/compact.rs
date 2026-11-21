@@ -9,7 +9,7 @@
 
 use super::codec;
 use super::cursor::{Cursor, string_at};
-use super::{BucketEntry, BucketMember, check_bucket_id};
+use super::{BucketEntry, BucketMember, MAX_BUCKET_MEMBERS, check_bucket_id};
 use crate::error::{FormatError, corrupt, len64};
 use crate::json_write::{push_string, push_u64};
 use crate::manifest::MAX_FILES;
@@ -18,8 +18,8 @@ const WHAT: &str = "bucket manifest";
 
 /// What starts a compact manifest.
 pub(super) const MAGIC: &[u8; 4] = b"OSBM";
-const FORMAT: u8 = 2;
-const HEADER: usize = 10;
+pub(super) const FORMAT: u8 = 2;
+pub(super) const HEADER: usize = 10;
 
 /// The most bytes of file names and locations one commit decodes to.
 const MAX_COMMIT_TEXT_BYTES: usize = 8 << 20;
@@ -29,8 +29,8 @@ const LENGTH_NONE: usize = 0;
 const LENGTH_OF_RANGE: usize = 1;
 const LENGTH_GIVEN: usize = 2;
 
-/// One member's entry from a compact manifest.
-pub(super) fn member(bytes: &[u8], uuid: &str) -> Result<BucketEntry, FormatError> {
+/// The body a compact manifest's header describes, decompressed.
+fn open(bytes: &[u8]) -> Result<std::borrow::Cow<'_, [u8]>, FormatError> {
     let (Some(&format), Some(&codec_id), Some(length)) =
         (bytes.get(4), bytes.get(5), bytes.get(6..HEADER))
     else {
@@ -49,8 +49,62 @@ pub(super) fn member(bytes: &[u8], uuid: &str) -> Result<BucketEntry, FormatErro
     let raw_length = u32::from_be_bytes(length.try_into().unwrap_or_default());
     let raw_length = usize::try_from(raw_length).unwrap_or(usize::MAX);
     let packed = bytes.get(HEADER..).unwrap_or_default();
-    let body = codec::body(codec_id, packed, raw_length)?;
-    read_body(&body, uuid)
+    codec::body(codec_id, packed, raw_length)
+}
+
+/// One member's entry from a compact manifest.
+pub(super) fn member(bytes: &[u8], uuid: &str) -> Result<BucketEntry, FormatError> {
+    read_body(&open(bytes)?, uuid)
+}
+
+/// Every member of a compact manifest, in uuid order of the index, with the
+/// bucket and its term.
+pub(super) fn all(bytes: &[u8]) -> Result<Whole, FormatError> {
+    let body = open(bytes)?;
+    let mut cursor = Cursor::new(&body);
+    let bucket = cursor.string()?;
+    check_bucket_id(&bucket)?;
+    let term = cursor.vlong()?;
+    let strings = Strings::read(&mut cursor, &body)?;
+    let count = cursor.vint()?;
+    if count > MAX_BUCKET_MEMBERS {
+        return Err(FormatError::TooLarge {
+            what: WHAT,
+            limit: len64(MAX_BUCKET_MEMBERS),
+            actual: len64(count),
+        });
+    }
+    // Each member takes two bytes at least: a uuid's count and an entry length.
+    if count > cursor.remaining() / 2 {
+        return Err(corrupt(WHAT, "more members than the body holds"));
+    }
+    // ALLOC: one uuid and entry length a member, at most MAX_BUCKET_MEMBERS.
+    let mut index: Vec<(String, usize)> = Vec::with_capacity(count);
+    for _ in 0..count {
+        let uuid = cursor.string()?;
+        index.push((uuid, cursor.vint()?));
+    }
+    // ALLOC: one entry a member, at most MAX_BUCKET_MEMBERS.
+    let mut members = Vec::with_capacity(count);
+    for (uuid, length) in index {
+        let entry = cursor.take(length)?;
+        members.push((uuid, read_member(entry, &strings)?));
+    }
+    if cursor.remaining() != 0 {
+        return Err(corrupt(WHAT, "a body has bytes past its last member"));
+    }
+    Ok(Whole {
+        bucket,
+        term,
+        members,
+    })
+}
+
+/// A compact manifest read whole.
+pub(super) struct Whole {
+    pub(super) bucket: String,
+    pub(super) term: u64,
+    pub(super) members: Vec<(String, BucketMember)>,
 }
 
 fn read_body(body: &[u8], uuid: &str) -> Result<BucketEntry, FormatError> {

@@ -11,9 +11,11 @@
 
 mod codec;
 mod compact;
+mod compact_write;
 mod cursor;
 mod doc;
 
+pub use codec::ManifestCodec;
 pub use doc::{BucketManifest, MAX_BUCKET_MEMBERS};
 
 use crate::error::{FormatError, corrupt};
