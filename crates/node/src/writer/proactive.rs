@@ -26,10 +26,10 @@ use oss_writer::takeover::Predecessors;
 use super::{OpenRefused, WriterRole, lock};
 
 /// `serverless.takeover.proactive.enabled`: take the shards a dead node's
-/// log names before a write asks. Default `false`.
+/// log names before a write asks. Default `true`.
 pub const ENABLED: BoolSetting = BoolSetting::new(
     "serverless.takeover.proactive.enabled",
-    false,
+    true,
     Scope::Node,
     "Take the shards a dead node's write log still holds unpublished records for as soon as \
      its lease is seen to have lapsed, instead of when a write reaches them.",
