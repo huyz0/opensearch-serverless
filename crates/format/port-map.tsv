@@ -33,3 +33,4 @@ src/bucket_manifest/mod.rs	port	serverless/shell/src/main/java/org/opensearch/se
 src/bucket_manifest/compact.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/bucket/CompactManifestFormat.java@429b4cbc	decode and decodeMember; a member's commit is handed on as the JSON a shard register holds
 src/bucket_manifest/codec.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/bucket/ManifestCodec.java@429b4cbc	decompress for none, deflate, zstd and Lucene LZ4
 src/bucket_manifest/cursor.rs	new		the StreamInput primitives the compact body uses, over a slice
+src/node_pack_ledger.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/NodePackLedger.java@49f238ed	encode and decode of the per-node ledger register; stricter on bytes left over
