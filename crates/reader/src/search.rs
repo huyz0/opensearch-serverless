@@ -37,8 +37,9 @@ use crate::fetch::hit_meta::HitMeta;
 use crate::fetch::source_filter::SourceFilter;
 use crate::lucene_query::{QueryContext, shard_failure, to_lucene};
 use crate::mapping::FieldType;
+use crate::search_options;
+use crate::search_post_filter;
 use crate::search_sort::{KeyKind, sort_fields};
-use crate::search_terminate;
 use crate::search_top::{TopOptions, collect_top};
 
 /// `index.max_result_window`'s default: the most `from + size` may reach.
@@ -280,36 +281,12 @@ pub fn search<S: BlobStore + 'static>(
             format!("explain of {what} is not supported by this node yet"),
         )));
     }
-    if source.min_score.is_some() && !source.aggs.is_empty() {
-        // The collector wraps the aggregations' too; this node's do not.
-        return Err(ShardError::bad_request(Failure::plain(
-            "illegal_argument_exception",
-            "[min_score] with aggregations is not supported by this node yet",
-        )));
-    }
     let sort = sort_fields(&source.sort, shard, index)?;
-    if source.terminate_after > 0 {
-        search_terminate::refusal(source, &query, sort.is_some())?;
-    }
-    if source.track_scores
-        && let Some((_, kinds)) = &sort
-    {
-        if kinds.first() == Some(&KeyKind::Score) {
-            return Err(ShardError::bad_request(Failure::plain(
-                "illegal_argument_exception",
-                "[track_scores] with a sort led by the score is not supported by this node yet",
-            )));
-        }
-        if !kinds.contains(&KeyKind::Score)
-            && let Some(what) = explain::refusal(&query)
-        {
-            return Err(ShardError::bad_request(Failure::plain(
-                "illegal_argument_exception",
-                // ALLOC: error path; one message.
-                format!("[track_scores] of {what} is not supported by this node yet"),
-            )));
-        }
-    }
+    search_options::check(
+        source,
+        &query,
+        sort.as_ref().map(|(_, kinds)| kinds.as_slice()),
+    )?;
     docvalue_fields::check_count(&source.docvalue_fields)?;
     let after = if source.search_after.is_empty() {
         None
@@ -364,11 +341,19 @@ pub fn search<S: BlobStore + 'static>(
     )?;
     // A total turned off counts nothing past the hits.
     let limit = source.track_total_hits.unwrap_or(0);
+    let narrowed = match &source.post_filter {
+        Some(filter) => Some(search_post_filter::narrowed(
+            &query,
+            to_lucene(filter, &cx)
+                .map_err(|f| ShardError::bad_request(shard_failure(f, index, &meta.uuid)))?,
+        )),
+        None => None,
+    };
     let mut top = collect_top(
         &segments,
         shard,
         &norms,
-        &query,
+        narrowed.as_ref().unwrap_or(&query),
         sort.as_ref(),
         window,
         source.from,
