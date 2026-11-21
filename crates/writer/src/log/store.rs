@@ -31,6 +31,7 @@ pub struct NodeLogStore {
     base: String,
     node_id: String,
     max_read: u64,
+    max_header: u64,
 }
 
 impl std::fmt::Debug for NodeLogStore {
@@ -60,6 +61,7 @@ impl NodeLogStore {
             base: base.into(),
             node_id: node_id.into(),
             max_read: MAX_READ_BYTES,
+            max_header: MAX_READ_BYTES,
         };
         log.key(0, 0)?;
         Ok(log)
@@ -71,6 +73,16 @@ impl NodeLogStore {
     #[must_use]
     pub fn with_max_read(mut self, max_read: u64) -> Self {
         self.max_read = max_read.min(MAX_READ_BYTES);
+        self
+    }
+
+    /// Bounds a blob's header at `max_header` bytes: one the blob says is
+    /// longer is refused whole, before its body is fetched, so a reader that
+    /// keeps every header in memory (a successor reading what a dead node
+    /// left unpublished) is not sized by what a blob claims.
+    #[must_use]
+    pub fn with_max_header(mut self, max_header: u64) -> Self {
+        self.max_header = max_header.min(MAX_READ_BYTES);
         self
     }
 
@@ -166,6 +178,9 @@ impl NodeLogStore {
             expected: len64(PREFIX_BYTES),
             actual: len64(leading.len()),
         })?;
+        if len64(end) > self.max_header {
+            return Err(LogError::OutOfRange("header longer than the store's bound"));
+        }
         if len64(end) <= len64(leading.len()) {
             return Ok(Some(owned(decode(&leading)?)));
         }

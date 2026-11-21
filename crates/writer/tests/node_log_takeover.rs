@@ -258,3 +258,24 @@ fn a_fence_moved_once_reads_the_lease_twice() {
         "once to find the hole, once to see the new fence is safe"
     );
 }
+
+// docs/specs/proactive-takeover AC-20
+#[test]
+fn a_header_over_the_stores_header_bound_is_refused_and_one_under_it_is_read() {
+    let r = rig(window(0));
+    for n in 1..=3 {
+        commit(&r, n, &format!("h{n}"), 1).expect("lands");
+    }
+    let lease = r.committer.positions();
+    let tight = r.log.clone().with_max_header(40);
+    let refused = NodeLogTakeover::new(tight, lease.clone(), "node-2", 2);
+    assert!(
+        matches!(
+            refused.named(),
+            Err(TakeoverError::Log(oss_writer::log::LogError::OutOfRange(_)))
+        ),
+        "a header past the bound is not read"
+    );
+    let roomy = NodeLogTakeover::new(r.log.clone().with_max_header(1 << 20), lease, "node-3", 2);
+    assert_eq!(roomy.named().expect("read").len(), 3);
+}
