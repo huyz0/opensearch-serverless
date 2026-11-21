@@ -227,3 +227,37 @@ fn a_top_hits_is_merged_across_the_shards_and_its_hits_come_from_them() {
         .expect("a year");
     assert!(years[0] >= first, "{years:?} vs {first}");
 }
+
+#[test]
+fn a_top_hits_under_a_bucket_is_merged_across_the_shards() {
+    let node = two("compat-paging-sort", "compat-paging-sort-uuid", "buckets");
+    let body = run(
+        &node,
+        "buckets",
+        2,
+        r#"{"size":0,"aggs":{"y":{"terms":{"field":"year","size":100},"aggs":{"best":{"top_hits":{"size":2,"_source":false}}}}}}"#,
+        &grant,
+    )
+    .expect("searches");
+    let (_, agg) = body.split_once(r#""aggregations":"#).expect("aggregations");
+    let buckets: Vec<&str> = agg.split(r#"{"key":"#).skip(1).collect();
+    assert!(!buckets.is_empty(), "{agg}");
+    let mut hits = 0;
+    for bucket in buckets {
+        let count: usize = bucket
+            .split(r#""doc_count":"#)
+            .nth(1)
+            .and_then(|r| r.split([',', '}']).next()?.parse().ok())
+            .expect("a count");
+        let total: usize = bucket
+            .split(r#""hits":{"total":{"value":"#)
+            .nth(1)
+            .and_then(|r| r.split(',').next()?.parse().ok())
+            .expect("a total");
+        assert_eq!(total, count, "{bucket}");
+        let written = bucket.matches(r#""_id":"#).count();
+        assert_eq!(written, count.min(2), "{bucket}");
+        hits += written;
+    }
+    assert!(hits > 0);
+}

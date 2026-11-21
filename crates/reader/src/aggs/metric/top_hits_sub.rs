@@ -199,3 +199,33 @@ pub(crate) fn sub_values<S: BlobStore + 'static>(
     }
     Ok(out)
 }
+
+/// The most bytes the `top_hits` beneath `aggs` hold on `shard` of `docs`
+/// documents: each owning bucket keeps up to its window, and every bucket
+/// of every sub-aggregation holds at most a few copies of a document.
+pub(crate) fn reserved<S: BlobStore + 'static>(
+    aggs: &[MetricAgg],
+    shard: &OpenShard<S>,
+    docs: usize,
+) -> usize {
+    use crate::aggs::bucket::BUCKET_LIMIT;
+    use crate::aggs::bucket::keyword_collect::SUB_COPIES;
+    aggs.iter().fold(0usize, |total, agg| {
+        let own = agg.subs.iter().fold(0usize, |n, sub| {
+            let Some(spec) = sub.top_hits.as_deref() else {
+                return n;
+            };
+            let window = spec
+                .from
+                .saturating_add(spec.size)
+                .min(super::top_hits::MAX_INNER_RESULT_WINDOW);
+            let hits = window
+                .saturating_mul(BUCKET_LIMIT)
+                .min(docs.saturating_mul(SUB_COPIES));
+            n.saturating_add(crate::search::window_bytes(hits, &spec.sort, shard))
+        });
+        total
+            .saturating_add(own)
+            .saturating_add(reserved(&agg.subs, shard, docs))
+    })
+}

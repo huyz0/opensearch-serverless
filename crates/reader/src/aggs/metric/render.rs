@@ -159,7 +159,9 @@ pub(crate) fn write_body(out: &mut dyn Write, format: Format, value: &Value) -> 
         Value::Range(ref result) => write_range(out, format, result),
         Value::Filters(ref result) => write_filters(out, result),
         // Written by the caller, which fetches the hits.
-        Value::TopHits(_) => Ok(()),
+        Value::TopHits(_) | Value::TopHitsParts(_) => Ok(()),
+        // Written already: the hits were fetched when it was made.
+        Value::Rendered(ref body) => out.write_all(body),
     }
 }
 

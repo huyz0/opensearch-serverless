@@ -18,6 +18,20 @@ pub type SubValues = (Vec<(String, Format)>, Vec<Vec<Value>>);
 /// The reduce of one sub-aggregation's `parts`, one value a shard that
 /// holds the bucket.
 pub fn reduce_sub(parts: &[Value]) -> Value {
+    if parts.iter().any(|p| matches!(p, Value::TopHits(_))) {
+        // Merging hits needs them fetched and their shard known: the
+        // coordinator takes every shard's result for the bucket.
+        // ALLOC: one result a shard that holds the bucket, bounded by the shards.
+        let all = parts
+            .iter()
+            .filter_map(|p| match p {
+                Value::TopHits(top) => Some((**top).clone()),
+                _ => None,
+            })
+            // ALLOC: one result a shard that holds the bucket.
+            .collect();
+        return Value::TopHitsParts(all);
+    }
     partial::reduce(parts)
         .or_else(|| parts.first().cloned())
         .unwrap_or(Value::ValueCount(0))

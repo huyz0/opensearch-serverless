@@ -34,6 +34,7 @@ pub mod terms;
 pub mod terms_collect;
 pub mod terms_parse;
 pub mod terms_render;
+pub mod walk;
 pub mod with_subs;
 
 /// `search.max_buckets`'s default: the most distinct values one shard holds

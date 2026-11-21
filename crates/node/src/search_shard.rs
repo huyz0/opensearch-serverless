@@ -48,35 +48,25 @@ impl<S: BlobStore + 'static> ShardQuery<S> {
         render_selected_result_hits(shard, &self.index, node_id, &self.hits, positions, reserve)
     }
 
-    /// As [`Self::render`], for the hits of the `top_hits` aggregation
-    /// `name`.
+    /// As [`Self::render`], for the hits of a `top_hits` `result` this
+    /// shard produced.
     ///
     /// # Errors
     ///
-    /// As [`Self::render`], and when the shard has no such aggregation.
+    /// As [`Self::render`].
     pub fn render_top_hits(
         &self,
         node_id: &str,
-        name: &str,
+        result: &oss_reader::aggs::metric::top_hits::TopHitsResult,
         positions: &[usize],
         reserve: &mut dyn FnMut(usize) -> io::Result<()>,
     ) -> io::Result<Vec<Vec<u8>>> {
-        let top = self
-            .hits
-            .aggregations
-            .iter()
-            .find(|p| p.name == name)
-            .and_then(|p| match &p.value {
-                oss_reader::aggs::partial::Value::TopHits(top) => Some(top),
-                _ => None,
-            })
-            .ok_or_else(|| io::Error::other("the shard has no such top_hits"))?;
         let shard = self.view.as_deref().unwrap_or(&self.held.shard);
         oss_reader::response::render_selected_hits(
             shard,
             &self.index,
             node_id,
-            top,
+            result,
             positions,
             reserve,
         )

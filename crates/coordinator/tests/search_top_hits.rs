@@ -88,13 +88,14 @@ impl Shards for Fake {
         &self,
         shard: usize,
         _: &Hits,
-        name: &str,
+        result: &TopHitsResult,
         positions: &[usize],
     ) -> Result<Vec<Vec<u8>>, String> {
+        let _ = result;
         self.asked
             .lock()
             .expect("lock")
-            .push((shard, name.to_owned(), positions.to_vec()));
+            .push((shard, "best".to_owned(), positions.to_vec()));
         Ok(positions
             .iter()
             .map(|p| format!("{{\"h\":\"s{shard}p{p}\"}}").into_bytes())
@@ -166,4 +167,74 @@ fn a_top_hits_the_request_does_not_describe_is_refused_as_before() {
             name: "best".into()
         })
     );
+}
+
+mod under_a_bucket {
+    use super::*;
+    use oss_reader::aggs::bucket::keyword_terms::KeywordTermsResult;
+    use oss_reader::aggs::bucket::terms::TermsSpec;
+
+    /// A shard whose `t` terms holds the bucket `key`, with a `top_hits`
+    /// named `best` of `scores` in it.
+    fn bucketed(key: &str, scores: &[f32]) -> Hits {
+        let mut hits = shard(&[]);
+        hits.aggregations = vec![Partial {
+            name: "t".into(),
+            format: Format::Raw,
+            value: Value::KeywordTerms(Box::new(KeywordTermsResult {
+                spec: TermsSpec::default(),
+                other_doc_count: 0,
+                doc_count_error: 0,
+                buckets: vec![(key.to_owned(), scores.len() as u64)],
+                sub_meta: vec![("best".to_owned(), Format::Raw)],
+                subs: vec![vec![Value::TopHits(Box::new(top(scores)))]],
+            })),
+        }];
+        hits
+    }
+
+    #[test]
+    fn a_bucket_two_shards_hold_has_its_hits_merged_and_written_by_their_shards() {
+        let f = Fake {
+            shards: vec![bucketed("a", &[3.0, 1.0]), bucketed("a", &[2.0, 1.5])],
+            window: Some(TopHitsWindow {
+                from: 0,
+                size: 3,
+                sorts: None,
+            }),
+            asked: Mutex::new(Vec::new()),
+        };
+        let body = String::from_utf8(search(&f, 2, &params()).expect("searches")).expect("utf-8");
+        assert!(
+            body.contains(
+                r#""best":{"hits":{"total":{"value":4,"relation":"eq"},"max_score":3.0,"hits":[{"h":"s0p0"},{"h":"s1p0"},{"h":"s1p1"}]}}"#
+            ),
+            "{body}"
+        );
+    }
+
+    #[test]
+    fn a_bucket_one_shard_holds_is_written_from_that_shard() {
+        let f = Fake {
+            shards: vec![bucketed("a", &[3.0]), bucketed("b", &[2.0])],
+            window: Some(TopHitsWindow {
+                from: 0,
+                size: 2,
+                sorts: None,
+            }),
+            asked: Mutex::new(Vec::new()),
+        };
+        let body = String::from_utf8(search(&f, 2, &params()).expect("searches")).expect("utf-8");
+        assert!(
+            body.contains(r#"{"h":"s0p0"}"#) && body.contains(r#"{"h":"s1p0"}"#),
+            "{body}"
+        );
+        let mut asked = f.asked.lock().expect("lock").clone();
+        asked.sort();
+        assert_eq!(
+            asked.iter().map(|a| a.0).collect::<Vec<_>>(),
+            [0, 1],
+            "each shard is asked once, for its own bucket"
+        );
+    }
 }

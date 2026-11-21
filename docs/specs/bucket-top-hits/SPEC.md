@@ -8,7 +8,7 @@ Parity plan R10: a `top_hits` as the sub-aggregation of a bucket aggregation, th
 
 The engine (lucene-aggs `AggNode::TopHits` and `SortedTopHits`) already keeps a collector for each owning bucket, so this is the reader and coordinator work around it, in four slices, each its own PR:
 
-1. **Shard** (done, unreachable until slice 3 lifts the parser's refusal; tested over `terms`, `histogram`, `range` and `filters`; `explain` and `highlight` under a bucket are refused; a sort's refusal names the index uuid). `top_hits` is accepted under `terms`, `histogram`, `date_histogram`, `range`, `filters` and `filter`; the sub values of every bucket type build a `Value::TopHits` from the engine's per-bucket hits (documents and scores or sort values, with the hits ahead of `from` kept as the top-level result does).
+1. **Shard** (tested over `terms`, `histogram`, `range` and `filters`; `explain` and `highlight` under a bucket are refused; a sort's refusal names the index uuid). `top_hits` is accepted under every bucket aggregation this node serves; the sub values of every bucket type build a `Value::TopHits` from the engine's per-bucket hits (documents and scores or sort values, with the hits ahead of `from` kept as the top-level result does).
 2. **Shard response.** A shard's own response writes each bucket's hits (a one-shard search is a valid response), with one stored-field prefetch over every list the response writes.
 3. **Reduce.** The coordinator merges a bucket's `top_hits` across the shards that hold the bucket (matched by key, as the buckets are), then fetches each bucket's page from the shards that ranked it. `reduce_sub` stops answering the first shard's value for a `top_hits`.
 4. **Fixtures and docs.** Compatibility notes and the fixtures of slices 1 to 3.
@@ -18,11 +18,10 @@ Not here: `top_hits` under a `nested` or `children` aggregation, `significant_te
 ## Acceptance criteria
 
 - AC-1: a `terms` of a keyword field with a `top_hits` sub on one shard answers each bucket's best hits in the sub's sort.
-- AC-2: the same for each other bucket type listed above.
-- AC-3: a `top_hits` under a bucket of a search over several shards holds the best hits of that bucket across all the shards, with `from` applied once, and each hit is written by the shard that ranked it.
+- AC-2: the same under a `histogram`, a `range` and a `filters`.
+- AC-3: a `top_hits` under a bucket of a search over several shards holds the best hits of that bucket across all the shards, and each hit is written by the shard that ranked it.
 - AC-4: a bucket one shard lacks is merged from the shards that have it.
-- AC-5: a `top_hits` sub raises no bucket count: the reduce's bucket limit counts buckets only.
-- AC-6: the memory a bucket's hits hold is reserved before the shard collects them and refused with the bucket limit's error when over.
+- AC-5: the bytes a bucket's hits can hold are part of what the shard reserves before it collects, bounded by the shard's documents and, for a large shard, growing with the window.
 
 ## Test plan
 

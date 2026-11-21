@@ -174,6 +174,7 @@ pub fn hits_bytes<S: BlobStore + 'static>(source: &SearchSource, shard: &OpenSha
                 .min(docs);
             total.saturating_add(window_bytes(window, &spec.sort, shard))
         });
+    let inner = inner.saturating_add(top_hits_sub::reserved(&source.aggs, shard, docs));
     // A numeric `terms` counts each distinct value its matches hold: at most
     // one per document of the shard. A keyword one counts into the global
     // ordinals of its field, whose size the segments state.
@@ -206,7 +207,7 @@ pub fn hits_bytes<S: BlobStore + 'static>(source: &SearchSource, shard: &OpenSha
 pub const TERMS_BYTES_PER_VALUE: usize = 64;
 
 /// The bytes `window` hits sorted by `sort` hold: see [`hits_bytes`].
-fn window_bytes<S: BlobStore + 'static>(
+pub(crate) fn window_bytes<S: BlobStore + 'static>(
     window: usize,
     sort: &[SortKey],
     shard: &OpenShard<S>,
