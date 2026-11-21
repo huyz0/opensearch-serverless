@@ -39,6 +39,20 @@ impl WriterRole {
         let Some(publishing) = &self.publishing else {
             return Ok(());
         };
+        let visibility = self.refresh_visibility();
+        if visibility.waits() {
+            // Outside the shard lock: the wait is for readers, and writes
+            // go on meanwhile.
+            drop(held);
+            let confirmed = self
+                .tail
+                .get()
+                .is_some_and(|sink| sink.await_visible(&index.uuid, shard, visibility.grants()));
+            if confirmed {
+                return Ok(());
+            }
+            held = lock(&slot);
+        }
         // ALLOC: one key a refresh.
         let key = (index.uuid.clone(), shard);
         let max_seq_no = held.max_seq_no();

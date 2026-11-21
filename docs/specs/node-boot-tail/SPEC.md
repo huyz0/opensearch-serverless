@@ -7,7 +7,7 @@ Parity plan R9.3 and R7.6: the tail overlay was built and wired by `Assembled::w
 ## Change
 
 - `OSS_TAIL_OVERLAY` (`true` or `false`, default `false`, the setting `serverless.search.tail_overlay.enabled`) and `OSS_REFRESH_VISIBILITY` (`owner`, `serving` or `everywhere`, default `everywhere`) are read by `NodeConfig::from_lookup`, and refused with the variable's name when unusable.
-- `serverless.search.refresh_visibility` is a registered node setting. Only `everywhere` makes a reader check with the writer before it answers (`TailParts::grants`); the writer-side wait of `owner` and `serving` is not wired, so both leave a search as it is.
+- `serverless.search.refresh_visibility` is a registered node setting. The mode is `TailParts::visibility`: only `everywhere` makes a reader check with the writer before it answers, and `serving` and `everywhere` make a refresh wait for the search nodes ([node-refresh-wait](../node-refresh-wait/SPEC.md)).
 - The tail fetch and push actions are listed on the transport server before it binds, refusing until the roles exist, and given their handlers once the node is assembled. Off, they keep refusing, as an action nobody registered does.
 - `Node::tail_on` says whether the overlay is on.
 
@@ -16,7 +16,7 @@ Parity plan R9.3 and R7.6: the tail overlay was built and wired by `Assembled::w
 - AC-1: a node booted with the overlay on, in each visibility, starts, enrols and serves a write and a read, and reports the overlay on.
 - AC-2: a node with the setting unset or `false` starts with the overlay off.
 - AC-3: the config refuses an unusable value by name, and defaults to off and `everywhere`.
-- AC-5: only the `everywhere` visibility makes a reader check with the writer.
+- AC-5: each visibility name picks its mode, and only `everywhere` makes a reader check with the writer.
 - AC-4: both tail actions are listed and refuse until their handlers are given; a handler given later answers.
 
 ## Test plan

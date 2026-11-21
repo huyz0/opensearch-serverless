@@ -73,10 +73,10 @@ pub struct TailParts {
     pub in_doubt: Arc<dyn Fn() -> bool + Send + Sync>,
     /// How often queued pushes are flushed.
     pub flush_every: Duration,
-    /// Whether a search answers only under a grant from the shard's writer
-    /// (`serverless.search.refresh_visibility` of `everywhere`). Off, a
-    /// search answers from what it holds.
-    pub grants: bool,
+    /// `serverless.search.refresh_visibility`: whether a refresh waits for
+    /// search nodes, and whether a search answers only under a grant from
+    /// the shard's writer (`everywhere`).
+    pub visibility: crate::writer::RefreshVisibility,
 }
 
 impl TailParts {
@@ -103,14 +103,14 @@ impl TailParts {
             clock,
             in_doubt: Arc::new(|| false),
             flush_every: Duration::from_millis(10),
-            grants: false,
+            visibility: crate::writer::RefreshVisibility::Owner,
         }
     }
 
-    /// These parts with searches answering only under a grant.
+    /// These parts under `visibility`.
     #[must_use]
-    pub fn with_grants(mut self, grants: bool) -> Self {
-        self.grants = grants;
+    pub fn with_visibility(mut self, visibility: crate::writer::RefreshVisibility) -> Self {
+        self.visibility = visibility;
         self
     }
 }
@@ -156,6 +156,11 @@ impl TailSink for Sink {
 
     fn released(&self, uuid: &str, shard: u32) {
         self.serve.released(uuid, shard);
+    }
+
+    fn await_visible(&self, uuid: &str, shard: u32, grants: bool) -> bool {
+        self.push
+            .await_search_nodes(uuid, shard, crate::tail_await::WAIT, grants)
     }
 }
 
@@ -251,7 +256,7 @@ pub fn wire<S: oss_blob::BlobStore + 'static>(
         parts.fetcher,
         parts.node_id,
         Arc::clone(&reader_clock),
-        parts.grants,
+        parts.visibility.grants(),
     )));
     let keep = Arc::new(TailKeep::new());
     let facts: Arc<dyn ShardFacts> = Arc::new(RoleFacts {
@@ -279,6 +284,7 @@ pub fn wire<S: oss_blob::BlobStore + 'static>(
             crate::tail_reader_link::TailPushHandler::new(Arc::clone(&wired.held), reader_clock),
         )
         .map_err(TailError::Handler)?;
+    role.set_refresh_visibility(parts.visibility);
     role.set_tail_sink(Arc::new(Sink {
         serve,
         keep: Arc::clone(&keep),

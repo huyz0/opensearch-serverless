@@ -32,6 +32,7 @@ mod takeover;
 mod target;
 
 use std::collections::HashMap;
+use std::sync::atomic::AtomicU8;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -59,7 +60,7 @@ pub use opener::{HeadOpener, OpenRefused, ShardOpener};
 pub use publish_age::publish_age_of;
 pub use publish_timer::PublishTimer;
 pub use publishing::{PublishPass, Publishing};
-pub use tail::TailSink;
+pub use tail::{RefreshVisibility, TailSink};
 pub use takeover::Takeover;
 pub use target::RoleTarget;
 
@@ -142,6 +143,9 @@ pub struct WriterRole {
     newest: Mutex<Newest>,
     publishing: Option<Publishing>,
     tail: OnceLock<Arc<dyn TailSink>>,
+    /// How far a refresh is made visible before it returns; the code of a
+    /// [`RefreshVisibility`].
+    visibility: AtomicU8,
     /// What opens a shard a write names and this node does not hold.
     opener: Option<Arc<dyn ShardOpener>>,
     /// Held while the opener runs, so racing groups open a shard once.
@@ -175,17 +179,12 @@ impl WriterRole {
             newest: Mutex::new(HashMap::new()),
             publishing: None,
             tail: OnceLock::new(),
+            visibility: AtomicU8::new(0),
             opener: None,
             opening: Mutex::new(()),
             // ALLOC: one entry a shard another node holds that this node was asked to write.
             redirects: Mutex::new(HashMap::new()),
         }
-    }
-
-    /// Sends what is acknowledged, published and released to `sink`. False,
-    /// and nothing changed, when a sink is set already.
-    pub fn set_tail_sink(&self, sink: Arc<dyn TailSink>) -> bool {
-        self.tail.set(sink).is_ok()
     }
 
     /// The highest sequence number the shard holds, or -1 when it is not
