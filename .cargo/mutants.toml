@@ -28,6 +28,9 @@ exclude_re = [
     # As the inflate chunk: the discard buffer's size only sets how often
     # the loop turns.
     "crates/transport/src/channel.rs:.*replace \\* with \\+$",
+    # A \u escape's four hex digits join a value shifted left by four with a
+    # nibble below 16: disjoint bits, where `|` and `^` give the same number.
+    "crates/format/src/json/strings.rs:.*replace \\| with \\^ in Reader<'a>::hex4",
     # A hex pair joins a high nibble shifted past a low one: disjoint bits.
     "crates/transport/src/auth.rs:.*replace \\| with \\^ in unhex",
     # `Instant` deltas against the probe interval: `<` and `<=` differ for

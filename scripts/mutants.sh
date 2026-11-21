@@ -41,9 +41,21 @@ if [ "${MUTANTS_IN_PLACE:-}" = "1" ]; then
     common=(--workspace --all-features --exclude 'crates/*/src/main.rs' --in-place --baseline skip --timeout 60)
   fi
 fi
+# cargo-mutants exits 3 when mutants only timed out (none missed, exit 2): a
+# mutant that hangs the tests is detected by them, so it counts as caught.
+run_mutants() {
+  local rc=0
+  cargo mutants "$@" || rc=$?
+  if [ "$rc" -eq 3 ]; then
+    echo "::warning::mutants: some mutants timed out; a mutant that hangs the tests is detected"
+    return 0
+  fi
+  return "$rc"
+}
 if [ "${1:-}" = "--all" ]; then
   shift
-  exec cargo mutants "${common[@]}" "$@"
+  run_mutants "${common[@]}" "$@"
+  exit $?
 fi
 mode=diff
 if [ "${1:-}" = "--pr" ]; then mode=pr; shift; fi
@@ -58,7 +70,8 @@ if [ ! -s "$diff_file" ]; then
   exit 0
 fi
 if [ "$mode" = diff ]; then
-  exec cargo mutants "${common[@]}" --in-diff "$diff_file" "$@"
+  run_mutants "${common[@]}" --in-diff "$diff_file" "$@"
+  exit $?
 fi
 
 count=$(cargo mutants "${common[@]}" --in-diff "$diff_file" --list | grep -c . || true)
@@ -70,6 +83,7 @@ fi
 echo "mutants: $count in the diff; testing shard $shard (budget ${MUTANTS_BUDGET:-40})"
 rc=0
 timeout "${MUTANTS_TIME:-7m}" cargo mutants "${common[@]}" --in-diff "$diff_file" --shard "$shard" "$@" || rc=$?
+[ "$rc" -eq 3 ] && { echo "::warning::mutants: some mutants timed out; a mutant that hangs the tests is detected"; rc=0; }
 if [ "$rc" -eq 124 ]; then
   echo "::warning::mutants: shard $shard ran out of time; the nightly sweep covers every mutant"
   exit 0
