@@ -66,6 +66,8 @@ pub(crate) mod route_util;
 #[cfg(feature = "reader")]
 pub mod search;
 pub mod settings;
+#[cfg(feature = "writer")]
+pub mod tail_await;
 #[cfg(feature = "reader")]
 pub mod tail_held;
 #[cfg(feature = "writer")]
@@ -82,6 +84,8 @@ pub mod tail_push;
 pub mod tail_reader_link;
 #[cfg(feature = "writer")]
 pub mod tail_serve;
+#[cfg(feature = "writer")]
+mod tail_subscription;
 #[cfg(any(feature = "reader", feature = "writer"))]
 pub(crate) mod time_value;
 #[cfg(feature = "writer")]
