@@ -1,6 +1,6 @@
 # 0024: Node packs in the writer: one PUT for the segments a node publishes together
 
-**Status:** Proposed
+**Status:** Accepted after independent review, 2026-11-21 (for the writer half; the collector needs its own decision before the switch can be on)
 
 ## Context
 
