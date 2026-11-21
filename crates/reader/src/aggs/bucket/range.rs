@@ -2,6 +2,7 @@
 //! (`RangeAggregationBuilder`, `InternalRange` at OpenSearch 3.10.0), and
 //! the reduce of results across shards (`InternalRange.reduce`).
 
+use crate::aggs::bucket::running;
 use crate::aggs::bucket::sub_values::reduce_fixed;
 use crate::aggs::partial::{Format, Value};
 
@@ -97,6 +98,9 @@ pub fn reduce(parts: &[Value]) -> Option<Value> {
             .collect::<Vec<_>>(),
         merged.buckets.len(),
     );
+    if !running::add(merged.buckets.len()) {
+        return None;
+    }
     // ALLOC: one box a `range`, bounded by the request's.
     Some(Value::Range(Box::new(merged)))
 }

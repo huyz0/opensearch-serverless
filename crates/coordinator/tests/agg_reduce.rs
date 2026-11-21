@@ -78,3 +78,19 @@ fn no_shards_or_no_aggregations_give_none() {
     assert_eq!(reduce_shards(&[]), Ok(Vec::new()));
     assert_eq!(reduce_shards(&[Vec::new(), Vec::new()]), Ok(Vec::new()));
 }
+
+#[test]
+fn a_histogram_filled_past_the_bucket_limit_is_too_many_buckets_not_a_mismatch() {
+    use oss_reader::aggs::bucket::histogram::{HistogramResult, HistogramSpec};
+    let spec = HistogramSpec {
+        interval: 1.0,
+        ..HistogramSpec::default()
+    };
+    let gap = Value::Histogram(Box::new(HistogramResult {
+        spec,
+        buckets: vec![(0.0, 1), (1_000_000.0, 1)],
+        subs: Default::default(),
+    }));
+    let err = reduce_shards(&[vec![named("h", gap)]]).expect_err("too many buckets");
+    assert!(matches!(err, AggsError::TooManyBuckets { made } if made > 65_535));
+}
