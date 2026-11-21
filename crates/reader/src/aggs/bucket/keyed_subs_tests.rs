@@ -150,14 +150,14 @@ fn a_histogram_over_an_unmapped_field_has_no_bucket_and_the_empty_values() {
 #[test]
 fn a_bucket_sub_aggregation_under_a_histogram_is_refused() {
     let body = r#"{"aggs":{"h":{"histogram":{"field":"n","interval":5},
-        "aggs":{"r":{"filters":{"filters":[{"match_all":{}}]}}}}}}"#;
+        "aggs":{"r":{"percentiles":{"field":"n"}}}}}}"#;
     let failure = parse_chunks([body.as_bytes()])
         .expect_err("refused")
         .into_failure();
     assert!(
         failure
             .reason
-            .contains("[filters] sub-aggregation of a [histogram]"),
+            .contains("[percentiles] sub-aggregation of a [histogram]"),
         "{}",
         failure.reason
     );

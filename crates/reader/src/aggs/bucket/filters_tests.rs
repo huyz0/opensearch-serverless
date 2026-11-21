@@ -120,14 +120,14 @@ fn bad_bodies_fail_as_opensearch_fails_them() {
 
 #[test]
 fn a_bucket_sub_aggregation_is_refused_as_not_supported_yet() {
-    let body = r#"{"aggs":{"f":{"filters":{"filters":[{"match_all":{}}]},"aggs":{"h":{"filters":{"filters":[{"match_all":{}}]}}}}}}"#;
+    let body = r#"{"aggs":{"f":{"filters":{"filters":[{"match_all":{}}]},"aggs":{"h":{"percentiles":{"field":"n"}}}}}}"#;
     let failure = parse_chunks([body.as_bytes()])
         .expect_err("refused")
         .into_failure();
     assert!(
         failure
             .reason
-            .contains("[filters] sub-aggregation of a [filters]"),
+            .contains("[percentiles] sub-aggregation of a [filters]"),
         "{}",
         failure.reason
     );
@@ -188,14 +188,15 @@ fn a_keyed_result_names_each_bucket_by_its_key() {
 
 #[test]
 fn a_filters_under_a_terms_is_refused_as_not_supported_yet() {
-    let body = r#"{"aggs":{"t":{"terms":{"field":"tag"},"aggs":{"f":{"filters":{"filters":[{"match_all":{}}]}}}}}}"#;
+    let body =
+        r#"{"aggs":{"t":{"terms":{"field":"tag"},"aggs":{"f":{"percentiles":{"field":"n"}}}}}}"#;
     let failure = parse_chunks([body.as_bytes()])
         .expect_err("refused")
         .into_failure();
     assert!(
         failure
             .reason
-            .contains("[filters] sub-aggregation of a [terms]"),
+            .contains("[percentiles] sub-aggregation of a [terms]"),
         "{}",
         failure.reason
     );
@@ -225,14 +226,15 @@ fn a_malformed_filter_fails_as_a_malformed_query_does() {
 
 #[test]
 fn a_filter_refuses_a_bucket_sub_aggregation_as_not_supported_yet() {
-    let body = r#"{"aggs":{"f":{"filter":{"match_all":{}},"aggs":{"h":{"filters":{"filters":[{"match_all":{}}]}}}}}}"#;
+    let body =
+        r#"{"aggs":{"f":{"filter":{"match_all":{}},"aggs":{"h":{"percentiles":{"field":"n"}}}}}}"#;
     let failure = parse_chunks([body.as_bytes()])
         .expect_err("refused")
         .into_failure();
     assert!(
         failure
             .reason
-            .contains("[filters] sub-aggregation of a [filter]"),
+            .contains("[percentiles] sub-aggregation of a [filter]"),
         "{}",
         failure.reason
     );
