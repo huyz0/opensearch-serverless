@@ -65,8 +65,8 @@ mod wal_record;
 
 pub use alias_record::{ALIAS_DISCRIMINATOR, AliasMutation, AliasRecord};
 pub use bucket_manifest::{
-    BUCKETS_PREFIX, BucketEntry, BucketMember, MAX_BUCKET_ID_LENGTH, bucket_manifest_key,
-    parse_member as parse_bucket_member,
+    BUCKETS_PREFIX, BucketEntry, BucketManifest, BucketMember, MAX_BUCKET_ID_LENGTH,
+    MAX_BUCKET_MEMBERS, bucket_manifest_key, parse_member as parse_bucket_member,
 };
 pub use change_stripe::{
     ChangeKind, ChangeStripe, KEPT, KEPT_PENDING, MAX_CHANGE_STRIPE_BYTES, MAX_ENTRY_NAME_BYTES,
