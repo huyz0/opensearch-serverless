@@ -10,7 +10,7 @@
 //! trip.
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use oss_transport::actions::tail::{CHECK, FetchRequest, FetchResponse, ShardRef};
@@ -30,11 +30,11 @@ pub struct TailFresh {
     clock: Clock,
     /// Whether grants are in force (`everywhere`); off, every search may
     /// answer.
-    grants: bool,
+    grants: AtomicBool,
     /// Whether a search has the engine take what is held for it before it
     /// answers without a grant (`serving`): the writer waited for these
     /// records to be taken, so they must be searchable.
-    applies: bool,
+    applies: AtomicBool,
     /// Held while the writer is asked for a grant, so searches that find
     /// none ask once between them.
     asking: Mutex<HashMap<Key, Arc<Mutex<()>>>>,
@@ -57,8 +57,8 @@ impl TailFresh {
             fetcher,
             subscriber,
             clock,
-            grants,
-            applies: false,
+            grants: AtomicBool::new(grants),
+            applies: AtomicBool::new(false),
             asking: Mutex::new(HashMap::new()),
             checks: AtomicU64::new(0),
             refusals: AtomicU64::new(0),
@@ -69,9 +69,25 @@ impl TailFresh {
     /// This check with a search taking what is held for it first even where
     /// no grant is asked.
     #[must_use]
-    pub fn applying(mut self, applies: bool) -> Self {
-        self.applies = applies;
+    pub fn applying(self, applies: bool) -> Self {
+        self.applies.store(applies, Ordering::Relaxed);
         self
+    }
+
+    /// Changes the mode a running check is in: whether grants are in force
+    /// and whether a search takes what is held for it first. Searches that
+    /// began judge by the mode they found.
+    pub fn set_mode(&self, grants: bool, applies: bool) {
+        self.grants.store(grants, Ordering::Relaxed);
+        self.applies.store(applies, Ordering::Relaxed);
+    }
+
+    /// The mode in force: grants, then applies.
+    pub fn mode(&self) -> (bool, bool) {
+        (
+            self.grants.load(Ordering::Relaxed),
+            self.applies.load(Ordering::Relaxed),
+        )
     }
 
     /// Round trips made to a writer for a grant before a search, searches
@@ -135,8 +151,9 @@ impl TailFresh {
         commit_checkpoint: i64,
         apply_pending: &dyn Fn(),
     ) -> bool {
-        if !self.grants {
-            if self.applies {
+        let (grants, applies) = self.mode();
+        if !grants {
+            if applies {
                 apply_pending();
             }
             return true;

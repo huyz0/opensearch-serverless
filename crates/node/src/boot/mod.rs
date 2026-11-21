@@ -6,6 +6,7 @@
 //! cost a handover and never a write.
 
 mod config;
+mod follow;
 mod join;
 mod renew;
 mod support;
@@ -34,7 +35,7 @@ use oss_writer::log::{CommitterConfig, LeaseKeeper, NodeLogCommitter, NodeLogSto
 
 use crate::assemble::{self, AssembleError, Config, Running, Writer};
 use crate::bulk_handler::BulkHandler;
-use crate::cluster_owner::{ClusterRoutes, IndexSource};
+use crate::cluster_owner::ClusterRoutes;
 use crate::descriptor_routes::DescriptorRoutes;
 use crate::forward::BulkForwarder;
 use crate::handlers::Registry;
@@ -43,7 +44,7 @@ use crate::index_cache::IndexCache;
 use crate::read_forward::{GetForwarder, GetHandler};
 use crate::writer::{
     DeadLogParts, DeadLogPass, DeadMailbox, DeadSnapshot, DescriptorIncarnation, HeadAdmission,
-    HeadOpener, MembershipLeaseWrite, Routes, ShardNames, Takeover,
+    HeadOpener, MembershipLeaseWrite, ShardNames, Takeover,
 };
 
 pub use config::{MIN_MEMORY_BYTES, NodeConfig, StoreChoice};
@@ -101,6 +102,7 @@ pub struct Node {
     transport: Option<TransportServer>,
     renewal: Option<Renewal>,
     dead_logs: Option<Renewal>,
+    following: Option<follow::Following>,
     membership: Arc<Membership>,
     node_id: String,
     /// Whether dropping the node leaves its lease to lapse, as a killed
@@ -130,6 +132,12 @@ impl Node {
         self.running.as_ref().is_some_and(|r| r.tail().is_some())
     }
 
+    /// The refresh visibility the node is in, which follows the cluster
+    /// register; `None` while the tail overlay is off.
+    pub fn refresh_visibility(&self) -> Option<crate::writer::RefreshVisibility> {
+        self.following.as_ref().map(follow::Following::mode)
+    }
+
     /// The address the node's transport server listens on.
     pub fn transport_addr(&self) -> std::net::SocketAddr {
         self.transport.as_ref().map_or_else(
@@ -144,18 +152,13 @@ impl Drop for Node {
         // The renewal stops first, so it cannot write the lease back.
         drop(self.renewal.take());
         drop(self.dead_logs.take());
+        drop(self.following.take());
         drop(self.running.take());
         drop(self.transport.take());
         // Best effort: an unreleased lease lapses in one lifetime.
         if !self.crashed {
             let _ = self.membership.release(&self.node_id);
         }
-    }
-}
-
-impl IndexSource for DescriptorRoutes {
-    fn index(&self, name: &str) -> Option<oss_writer::bulk::IndexInfo> {
-        Routes::index(self, name)
     }
 }
 
@@ -409,6 +412,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         &membership,
         Arc::clone(&clock),
     )?;
+    let following = follow::start(assembled.tail_visibility(), Arc::clone(&store), config)?;
     let handler: Arc<dyn oss_transport::server::Handler> = Arc::new(BulkHandler::new(
         Arc::clone(&assembled.role),
         Arc::new(descriptor_routes()?),
@@ -488,6 +492,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         running: Some(running),
         renewal: Some(renewal),
         dead_logs: Some(dead_logs),
+        following,
         membership,
         node_id: config.node_id.clone(),
         crashed: false,

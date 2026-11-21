@@ -106,6 +106,9 @@ pub struct NodeConfig {
     /// `serverless.search.refresh_visibility`: `owner`, `serving` or
     /// `everywhere`.
     pub refresh_visibility: &'static str,
+    /// `OSS_CLUSTER_SETTINGS_POLL_MS`: how often a node with the tail overlay
+    /// on reads the cluster settings register, in milliseconds.
+    pub cluster_settings_poll_millis: u64,
 }
 
 impl NodeConfig {
@@ -208,6 +211,8 @@ impl NodeConfig {
         let proactive_reapers = bounded("OSS_PROACTIVE_REAPERS", "2", 1, 16)?;
         let proactive_max_concurrent = bounded("OSS_PROACTIVE_MAX_CONCURRENT", "4", 1, 64)?;
         let proactive_pass_millis = bounded("OSS_PROACTIVE_PASS_MS", "30000", 1, 3_600_000)?;
+        let cluster_settings_poll_millis =
+            bounded("OSS_CLUSTER_SETTINGS_POLL_MS", "30000", 1, 3_600_000)?;
         let refresh_visibility = REFRESH_VISIBILITY
             .parse(&or("OSS_REFRESH_VISIBILITY", REFRESH_VISIBILITY.default()))
             .map_err(|e| format!("OSS_REFRESH_VISIBILITY: {e}"))?;
@@ -232,6 +237,7 @@ impl NodeConfig {
             proactive_pass_millis,
             tail_overlay,
             refresh_visibility,
+            cluster_settings_poll_millis,
         })
     }
 
@@ -313,6 +319,7 @@ mod tests {
         assert_eq!(c.memory_bytes, 1 << 30);
         assert_eq!(c.lease_ttl_millis, 30_000);
         assert_eq!(c.lease_refresh_millis, None);
+        assert_eq!(c.cluster_settings_poll_millis, 30_000);
         assert_eq!(c.refresh_every(), c.renew_every(), "as often as renewed");
         assert_eq!(c.index_confirm_millis, 5_000);
         assert_eq!(c.janitor_every_millis, 60_000);
@@ -419,6 +426,14 @@ mod tests {
         refused(
             &with(&[("OSS_LEASE_REFRESH_MS", "0")]),
             "OSS_LEASE_REFRESH_MS",
+        );
+        refused(
+            &with(&[("OSS_CLUSTER_SETTINGS_POLL_MS", "0")]),
+            "OSS_CLUSTER_SETTINGS_POLL_MS",
+        );
+        refused(
+            &with(&[("OSS_CLUSTER_SETTINGS_POLL_MS", "soon")]),
+            "OSS_CLUSTER_SETTINGS_POLL_MS",
         );
         refused(&with(&[("OSS_LEASE_TTL_MS", "2")]), "OSS_LEASE_TTL_MS");
         refused(

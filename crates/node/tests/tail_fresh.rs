@@ -238,3 +238,35 @@ fn what_to_ask_follows_the_engine_and_the_subscription_held() {
     assert_eq!(held.take(U, 0, &full, 1_000), None);
     assert_eq!(held.subscription_to_ask(U, 0, W), CHECK);
 }
+
+// docs/specs/node-cluster-visibility AC-3
+#[test]
+fn a_running_check_follows_the_mode_set_last() {
+    let r = rig(false);
+    assert_eq!(r.fresh.mode(), (false, false));
+    assert_eq!(
+        ensure(&r, 5),
+        (true, 0),
+        "owner: nothing applied, nothing asked"
+    );
+    r.fresh.set_mode(false, true);
+    assert_eq!(r.fresh.mode(), (false, true));
+    assert_eq!(
+        ensure(&r, 5),
+        (true, 1),
+        "serving: held records taken first"
+    );
+    assert!(r.fetcher.asked.lock().unwrap().is_empty());
+    r.fresh.set_mode(true, true);
+    assert_eq!(r.fresh.mode(), (true, true));
+    // Everywhere asks the writer (the fake answers nothing: treated as gone).
+    let _ = ensure(&r, 5);
+    assert!(
+        !r.fetcher.asked.lock().unwrap().is_empty(),
+        "everywhere asks"
+    );
+    r.fresh.set_mode(false, false);
+    let before = r.fetcher.asked.lock().unwrap().len();
+    assert_eq!(ensure(&r, 5), (true, 0), "back to owner");
+    assert_eq!(r.fetcher.asked.lock().unwrap().len(), before);
+}

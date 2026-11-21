@@ -207,8 +207,36 @@ impl Drop for FlushTimer {
     }
 }
 
+/// Changes the refresh visibility of a node that is running: the writer's
+/// wait for search nodes and the reader's check for a grant, together.
+#[derive(Clone)]
+pub struct VisibilityHandle {
+    role: Arc<WriterRole>,
+    fresh: Arc<crate::tail_fresh::TailFresh>,
+}
+
+impl VisibilityHandle {
+    /// Puts `visibility` in force on both sides.
+    pub fn set(&self, visibility: crate::writer::RefreshVisibility) {
+        self.role.set_refresh_visibility(visibility);
+        self.fresh.set_mode(visibility.grants(), visibility.waits());
+    }
+
+    /// The writer's mode.
+    pub fn writer_mode(&self) -> crate::writer::RefreshVisibility {
+        self.role.refresh_visibility()
+    }
+
+    /// The reader's mode: grants, then applies.
+    pub fn reader_mode(&self) -> (bool, bool) {
+        self.fresh.mode()
+    }
+}
+
 /// What a node holds while the tail overlay is on.
 pub struct TailNode {
+    /// Changes the visibility while the node runs.
+    pub visibility: VisibilityHandle,
     /// The reader side: held records, the builder and its push handler.
     pub wired: crate::tail_overlay::Wired,
     /// The writer's keep.
@@ -251,7 +279,7 @@ pub fn wire<S: oss_blob::BlobStore + 'static>(
     ) else {
         return Ok(None);
     };
-    service.set_tail_fresh(Arc::new(
+    let fresh = Arc::new(
         crate::tail_fresh::TailFresh::new(
             Arc::clone(&wired.held),
             parts.fetcher,
@@ -260,7 +288,8 @@ pub fn wire<S: oss_blob::BlobStore + 'static>(
             parts.visibility.grants(),
         )
         .applying(parts.visibility.waits()),
-    ));
+    );
+    service.set_tail_fresh(Arc::clone(&fresh));
     let keep = Arc::new(TailKeep::new());
     let facts: Arc<dyn ShardFacts> = Arc::new(RoleFacts {
         role: Arc::clone(role),
@@ -294,8 +323,13 @@ pub fn wire<S: oss_blob::BlobStore + 'static>(
         push: Arc::clone(&push),
     }));
     let timer = FlushTimer::spawn(push, parts.flush_every);
+    let visibility = VisibilityHandle {
+        role: Arc::clone(role),
+        fresh,
+    };
     Ok(Some((
         TailNode {
+            visibility,
             wired,
             keep,
             _timer: timer,

@@ -10,8 +10,10 @@ use oss_format::{NodeLease, NodeLogEpoch};
 use oss_writer::takeover::Predecessors;
 
 use super::{BootError, NodeConfig, StoreChoice, cluster};
+use crate::cluster_owner::IndexSource;
+use crate::descriptor_routes::DescriptorRoutes;
 use crate::push_link::Leases;
-use crate::writer::{ProactiveConfig, ProactiveTakeover, WriterRole};
+use crate::writer::{ProactiveConfig, ProactiveTakeover, Routes, WriterRole};
 
 /// The buffer a lease register is read through.
 const LEASE_BUFFER: usize = 1 << 16;
@@ -96,5 +98,11 @@ pub(super) struct Held(pub(super) Arc<Membership>);
 impl Leases for Held {
     fn current(&self) -> Arc<[NodeLease]> {
         self.0.current()
+    }
+}
+
+impl IndexSource for DescriptorRoutes {
+    fn index(&self, name: &str) -> Option<oss_writer::bulk::IndexInfo> {
+        Routes::index(self, name)
     }
 }
