@@ -226,6 +226,8 @@ impl WriterRole {
     ///
     /// Why the shard cannot be held here.
     pub fn hold(&self, index: &IndexInfo, shard: u32) -> Result<(), String> {
-        self.slot_or_open(index, shard).map(|_| ())
+        self.slot_or_open(index, shard)
+            .map(|_| ())
+            .map_err(|refused| refused.reason)
     }
 }
