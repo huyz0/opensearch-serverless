@@ -183,3 +183,37 @@ fn a_histogram_a_range_and_a_filters_hold_each_buckets_best_hit() {
     };
     assert_eq!(bests(&f.subs), [199, 9]);
 }
+
+#[test]
+fn the_shards_response_writes_each_buckets_hits() {
+    let shard = shard("kw-th-write", DOCS);
+    let body = r#"{"size":0,"aggs":{"t":{"terms":{"field":"tag","include":["t3","t4"]}},
+        "th":{"top_hits":{"size":2,"sort":[{"n":"desc"}],"_source":false}}}}"#;
+    let mut source = parse_chunks([body.as_bytes()]).expect("parses");
+    let th = source.aggs.remove(1);
+    source.aggs[0].subs.push(th);
+    let hits = search(&shard, "idx", &source, &Analyzer::standard(None)).expect("searches");
+    let mut out = Vec::new();
+    crate::response::write_response(&mut out, &shard, "idx", "node", &hits, 1, &mut |_| Ok(()))
+        .expect("writes");
+    let text = String::from_utf8(out).expect("utf-8");
+    let agg = text.split_once(r#""aggregations":"#).expect("aggregations").1;
+    // t3's best two n are 195 and 179; t4's are 196 and 180.
+    for (key, first, second) in [("t3", 195, 179), ("t4", 196, 180)] {
+        let bucket = agg
+            .split(&format!(r#"{{"key":"{key}""#))
+            .nth(1)
+            .expect("bucket");
+        assert!(
+            bucket.contains(r#""th":{"hits":{"total":{"value":13,"relation":"eq"},"max_score":null,"hits":["#),
+            "{bucket}"
+        );
+        let sorts: Vec<&str> = bucket
+            .split(r#""sort":["#)
+            .skip(1)
+            .take(2)
+            .map(|s| s.split(']').next().expect("a value"))
+            .collect();
+        assert_eq!(sorts, [first.to_string(), second.to_string()], "{key}");
+    }
+}

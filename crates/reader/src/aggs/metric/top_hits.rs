@@ -103,6 +103,9 @@ pub struct TopHitsResult {
     pub before_explanations: Vec<Explanation>,
     /// What to highlight in each hit; `None` without `highlight`.
     pub highlight: Option<HighlightPlan>,
+    /// The shard this result came from among a search's shards, for the
+    /// coordinator that merges it; zero until tagged.
+    pub origin: usize,
 }
 
 impl TopHitsResult {
@@ -124,6 +127,7 @@ impl TopHitsResult {
             // ALLOC: empty.
             before_explanations: Vec::new(),
             highlight: None,
+            origin: 0,
         }
     }
 
@@ -314,6 +318,7 @@ pub(crate) fn fill<S: BlobStore + 'static>(
             // ALLOC: empty; explained below when asked.
             before_explanations: Vec::new(),
             highlight: None,
+            origin: 0,
         };
         if spec.explain
             && let Some(what) = explain::refusal(query)
