@@ -105,16 +105,16 @@ fn a_numeric_terms_over_an_unmapped_field_has_no_bucket_and_the_empty_values() {
 
 // AC-4
 #[test]
-fn a_numeric_terms_under_a_numeric_terms_is_refused() {
+fn a_numeric_terms_under_a_keyword_terms_is_refused() {
     let shard = shard("terms-subs-refused");
     let err = run(
         &shard,
-        r#"{"aggs":{"t":{"terms":{"field":"n"},"aggs":{"u":{"terms":{"field":"n"}}}}}}"#,
+        r#"{"aggs":{"t":{"terms":{"field":"tag"},"aggs":{"u":{"terms":{"field":"n"}}}}}}"#,
     )
     .expect_err("refused");
     assert_eq!(err.status, 400);
     assert!(
-        format!("{err:?}").contains("sub-aggregation of the numeric field"),
+        format!("{err:?}").contains("sub-aggregation of a keyword [terms]"),
         "{err:?}"
     );
 }

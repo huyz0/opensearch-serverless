@@ -164,15 +164,17 @@ fn a_range_over_an_unmapped_field_gives_each_bucket_the_empty_value() {
 
 // AC-4
 #[test]
-fn a_sub_aggregation_of_a_numeric_terms_under_a_bucket_is_refused() {
+fn a_numeric_terms_under_a_filters_bucket_counts_its_documents() {
     let shard = shard("fixed-numeric-terms");
-    let err = run(
+    let (_, subs) = filters_subs(first(
         &shard,
-        r#"{"aggs":{"f":{"filters":{"filters":[{"match_all":{}}]},
-            "aggs":{"t":{"terms":{"field":"n"}}}}}}"#,
-    )
-    .expect_err("refused");
-    assert_eq!(err.status, 400);
+        r#"{"aggs":{"f":{"filters":{"filters":[{"range":{"n":{"lt":2}}}]},
+            "aggs":{"t":{"terms":{"field":"n","order":{"_key":"asc"}}}}}}}"#,
+    ));
+    let Value::Terms(t) = &subs[0][0] else {
+        panic!("not a numeric terms: {subs:?}");
+    };
+    assert_eq!(t.buckets, [(0, 1), (1, 1)]);
 }
 
 // AC-7

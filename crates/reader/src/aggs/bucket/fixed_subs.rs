@@ -11,7 +11,7 @@ use oss_blob::BlobStore;
 
 use crate::OpenShard;
 use crate::aggs::bucket::keyword_collect::{Parent, SUB_COPIES};
-use crate::aggs::bucket::{filters_collect, keyword_subs, nested_subs, range_collect};
+use crate::aggs::bucket::{filters_collect, keyed_subs, keyword_subs, nested_subs, range_collect};
 use crate::aggs::metric::{Metric, MetricAgg};
 use crate::aggs::partial::Value;
 use crate::search::ShardError;
@@ -31,7 +31,7 @@ pub fn attach<S: BlobStore + 'static>(
     ords: &mut HashMap<String, std::sync::Arc<GlobalOrds>>,
 ) -> Result<(), ShardError> {
     if let AggNode::Range { subs, .. } | AggNode::Filters { subs, .. } = node {
-        *subs = keyword_subs::sub_nodes(agg, shard, ords)?;
+        *subs = keyword_subs::sub_nodes(agg, shard, ords, false)?;
     }
     Ok(())
 }
@@ -76,7 +76,7 @@ pub fn value<S: BlobStore + 'static>(
     if agg.subs.is_empty() {
         return Ok(made);
     }
-    let (meta, lists) = keyword_subs::sub_values(agg, shard, subs, width(agg))?;
+    let (meta, lists) = keyword_subs::sub_values(agg, shard, subs, width(agg), false)?;
     match &mut made {
         Value::Range(r) => {
             r.sub_meta = meta;
@@ -117,9 +117,12 @@ pub fn subs_bytes<S: BlobStore + 'static>(
     let per_value = std::mem::size_of::<lucene_aggs::metric_aggs::MetricState>()
         .saturating_add(SUB_COPIES.saturating_mul(std::mem::size_of::<Value>()));
     agg.subs.iter().fold(0usize, |total, sub| {
-        total.saturating_add(if sub.metric == Metric::Terms {
+        // A numeric field holds numeric values; a keyword field none.
+        let numeric_terms =
+            sub.metric == Metric::Terms && keyed_subs::values(shard, &sub.field) > 0;
+        total.saturating_add(if sub.metric == Metric::Terms && !numeric_terms {
             keyword_subs::reserved(shard, sub, parent)
-        } else if nested_subs::is_nested(sub) {
+        } else if nested_subs::is_nested(sub) || numeric_terms {
             nested_subs::reserved(shard, sub, buckets)
         } else {
             buckets.saturating_mul(per_value)
