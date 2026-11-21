@@ -8,7 +8,7 @@ A publish writes one blob per new segment of one shard ([segment publish](../spe
 
 ## Decision
 
-Port the Java's pack writer, as-is on the wire, in `oss-writer::pack`, in pieces: the format writers ([node-pack-format](../specs/node-pack-format/SPEC.md)), the store, batching writer and ledger ([node-pack-writer](../specs/node-pack-writer/SPEC.md)), the publisher's placement, and the collector.
+Port the Java's pack writer, as-is on the wire, in `oss-writer::pack`, in pieces: the format writers ([node-pack-format](../specs/node-pack-format/SPEC.md)), the store, batching writer and ledger (`node-pack-writer` spec), the publisher's placement, and the collector.
 
 - **One pack per window.** A publish hands its small segment blobs (at most `max_blob_bytes`, default 8 MiB; larger blobs keep their own PUT) to the node's one pack writer. The first blob into an empty batch becomes the leader, waits up to `linger` (default 50 ms) or until the batch holds 64 MiB, then writes the batch as one blob with create-if-absent. No thread of its own; a node whose publishes never overlap pays the PUT it paid without packs.
 - **Fenced by reachability, not by lock.** A pack is created once under `packs/<node>/e=<epoch>/<ordinal>` and never changed. It becomes reachable only through a shard's manifest swap, itself fenced by the register's term. A stale writer's pack is therefore inert. A swap made more than `SWAP_DEADLINE` (5 minutes) after its pack landed is refused, which is what lets collection delete a pack nothing names once it is three deadlines old.
