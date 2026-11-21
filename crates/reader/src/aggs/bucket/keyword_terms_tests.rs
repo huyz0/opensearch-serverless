@@ -17,6 +17,7 @@ fn spec(size: usize, shard_size: usize, min: u64, order: TermsOrder) -> TermsSpe
         min_doc_count: min,
         order,
         keyword: Default::default(),
+        show_error: false,
     }
 }
 
@@ -26,6 +27,7 @@ fn shard(spec: &TermsSpec, other: u64, buckets: &[(&str, u64)]) -> KeywordTermsR
         other_doc_count: other,
         doc_count_error: 0,
         buckets: buckets.iter().map(|&(k, c)| (k.to_owned(), c)).collect(),
+        bucket_errors: Vec::new(),
         sub_meta: Vec::new(),
         subs: Vec::new(),
     }
@@ -256,5 +258,25 @@ fn nested_results_reduce_and_write_inside_their_buckets() {
             "\"doc_count\":9,\"n\":{\"doc_count_error_upper_bound\":0,\"sum_other_doc_count\":2,\"buckets\":[{\"key\":\"p\",\"doc_count\":6},{\"key\":\"q\",\"doc_count\":4}]}}"
         ),
         "{out}"
+    );
+}
+
+#[test]
+fn a_keyword_bucket_writes_the_error_of_the_shards_that_lack_it() {
+    let s = TermsSpec {
+        show_error: true,
+        ..spec(2, 2, 1, TermsOrder::CountDesc)
+    };
+    let a = shard(&s, 0, &[("a", 10), ("b", 4)]);
+    let b = shard(&s, 0, &[("b", 6), ("c", 5)]);
+    let r = reduced(&[a, b]);
+    assert_eq!(keys(&r), [("a", 10), ("b", 10)]);
+    assert_eq!(r.bucket_errors, [5, 0]);
+    let mut out = Vec::new();
+    write_keyword_terms(&mut out, &r).expect("writes");
+    let text = String::from_utf8(out).expect("utf-8");
+    assert!(
+        text.contains(r#"{"key":"a","doc_count":10,"doc_count_error_upper_bound":5}"#),
+        "{text}"
     );
 }

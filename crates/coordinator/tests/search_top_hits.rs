@@ -186,6 +186,7 @@ mod under_a_bucket {
                 other_doc_count: 0,
                 doc_count_error: 0,
                 buckets: vec![(key.to_owned(), scores.len() as u64)],
+                bucket_errors: Vec::new(),
                 sub_meta: vec![("best".to_owned(), Format::Raw)],
                 subs: vec![vec![Value::TopHits(Box::new(top(scores)))]],
             })),

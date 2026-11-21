@@ -8,7 +8,7 @@ use crate::aggs::bucket::terms::{TermsOrder, TermsSpec, suggested_shard_size};
 use crate::aggs::metric::parse::long_value;
 use crate::dsl::error::DslError;
 use crate::dsl::tokens::{Kind, Parser};
-use crate::dsl::values::{int_value, suggest};
+use crate::dsl::values::{bool_value, int_value, suggest};
 
 /// Every key `terms` declares.
 const KEYS: &[&str] = &[
@@ -37,6 +37,7 @@ pub fn parse_terms_body(p: &mut Parser<'_>, name: &str) -> Result<(String, Terms
     let mut min_doc_count = 1u64;
     let mut order = TermsOrder::CountDesc;
     let mut keyword = KeywordOptions::default();
+    let mut show_error = false;
     let mut key = "";
     let mut key_at = p.location();
     loop {
@@ -67,6 +68,7 @@ pub fn parse_terms_body(p: &mut Parser<'_>, name: &str) -> Result<(String, Terms
                 | "include"
                 | "exclude"
                 | "missing"
+                | "show_term_doc_count_error"
         );
         if !served {
             // ALLOC: error path; one message.
@@ -79,6 +81,7 @@ pub fn parse_terms_body(p: &mut Parser<'_>, name: &str) -> Result<(String, Terms
             "order" => matches!(kind, Kind::StartObject | Kind::StartArray),
             "include" | "exclude" => true,
             "missing" => matches!(kind, Kind::String | Kind::Number | Kind::Bool),
+            "show_term_doc_count_error" => matches!(kind, Kind::Bool | Kind::String),
             _ => matches!(kind, Kind::Number | Kind::String),
         };
         if !accepted {
@@ -136,6 +139,7 @@ pub fn parse_terms_body(p: &mut Parser<'_>, name: &str) -> Result<(String, Terms
                     )
                 })?;
             }
+            "show_term_doc_count_error" => show_error = bool_value(p).map_err(|e| failed(p, e))?,
             "include" | "exclude" => {
                 let filter = parse_filter(p, kind, key).map_err(|e| failed(p, e))?;
                 keyword
@@ -188,6 +192,7 @@ pub fn parse_terms_body(p: &mut Parser<'_>, name: &str) -> Result<(String, Terms
             min_doc_count,
             order,
             keyword,
+            show_error,
         },
     ))
 }
