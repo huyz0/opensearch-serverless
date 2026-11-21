@@ -34,6 +34,9 @@ pub struct Publishing {
     clock: Box<dyn Fn() -> u64 + Send + Sync>,
     lazy: Mutex<LazyPublish<Key>>,
     publishers: Mutex<HashMap<Key, ShardPublisher>>,
+    /// Held from taking a commit's snapshot to its publish, so commits are
+    /// published in the order they were taken.
+    gate: Mutex<()>,
     ages: Mutex<HashMap<Key, PublishAge>>,
 }
 
@@ -60,9 +63,15 @@ impl Publishing {
             lazy: Mutex::new(LazyPublish::new(policy)),
             // ALLOC: one publisher a shard this node has published.
             publishers: Mutex::new(HashMap::new()),
+            gate: Mutex::new(()),
             // ALLOC: one entry a shard of an index that sets a refresh interval.
             ages: Mutex::new(HashMap::new()),
         }
+    }
+
+    /// Held across taking a snapshot and publishing it.
+    pub(super) fn gate(&self) -> MutexGuard<'_, ()> {
+        lock(&self.gate)
     }
 
     /// A write reached `key`.

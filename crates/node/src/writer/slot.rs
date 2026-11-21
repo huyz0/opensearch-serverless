@@ -8,10 +8,11 @@ use oss_format::{ShardHead, ShardKey};
 use oss_writer::bulk::Kind;
 use oss_writer::index::{Expect, Fetched, Refused, Shard, Written};
 use oss_writer::mapping::Mapping;
-use oss_writer::publish::{Published, ShardPublisher};
+use oss_writer::publish::ShardPublisher;
 use oss_writer::takeover::{Adopted, ShardEngine, adopt};
 
 use super::Takeover;
+use super::snapshot::Snapshot;
 
 /// The Lucene version the writer's segments are written as.
 const VERSION: LuceneVersion = LuceneVersion {
@@ -106,20 +107,14 @@ impl ShardSlot {
         self.cell.with_dependent(|_, shard| shard.max_seq_no())
     }
 
-    /// Commits the engine and publishes that commit through `publisher`.
-    pub(super) fn publish(
-        &mut self,
-        publisher: &mut ShardPublisher,
-        writer: &str,
-        now_millis: u64,
-    ) -> Result<Published, String> {
+    /// Commits the engine and takes the files of that commit, with the term
+    /// to publish them under, so the upload can go on without this slot.
+    pub(super) fn snapshot(&mut self) -> Result<(Snapshot, u64), String> {
         let term = u64::try_from(self.term).map_err(|e| e.to_string())?;
         self.cell.with_dependent_mut(|dir, shard| {
             shard.refresh()?;
             let files = shard.committed_files()?;
-            publisher
-                .publish(dir, &files, term, writer, -1, now_millis)
-                .map_err(|e| e.to_string())
+            Ok((Snapshot::of(dir, &files)?, term))
         })
     }
 

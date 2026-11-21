@@ -27,6 +27,7 @@ mod publishing;
 mod redirect;
 mod refresh;
 mod slot;
+mod snapshot;
 mod tail;
 mod takeover;
 mod target;
@@ -246,24 +247,12 @@ impl WriterRole {
             .map(|(k, v)| (k.clone(), Arc::clone(v)))
             .collect();
         for (key, slot) in held {
-            let mut slot = lock(&slot);
-            if slot.released() {
-                continue;
-            }
-            let max_seq_no = slot.max_seq_no();
-            if !publishing.due(&key, max_seq_no) {
-                continue;
-            }
             let Some(index) = self.names.name_of(&key.0) else {
                 continue;
             };
-            let outcome = publishing.with_publisher(&key, &index, |publisher, node, now| {
-                slot.publish(publisher, node, now)
-            });
-            match outcome {
-                Ok(done) => {
-                    publishing.published(&key, max_seq_no);
-                    drop(slot);
+            match self.publish_shard(publishing, &key, &index, &slot, true) {
+                Ok(None) => {}
+                Ok(Some((done, max_seq_no))) => {
                     if let Some(t) = self.tail.get() {
                         t.published(&key.0, key.1, max_seq_no);
                     }

@@ -11,6 +11,8 @@ Parity plan R9.3: the shell's `NodeWritePath.refresh` refreshes the engine and t
 - `Sink::await_visible` in the booted node is `TailPush::await_search_nodes` for `WAIT` (500 ms), covering unreachable grants under `everywhere`.
 - `boot` sets the mode from `serverless.search.refresh_visibility`; the reader's grant check is the same mode's `grants()`.
 
+- A publish takes its commit's files as a snapshot under the shard's lock (a reference to each file's bytes, no copy) and uploads after the lock is let go, so a refresh or write is not held behind the lazy publish's blob uploads (100-300 ms on the latency profile). A gate held from the snapshot to the end of the upload publishes commits in the order they were taken. Without it a confirmed refresh, which no longer publishes, met the lazy publish's lock in about one refresh of six and the `refresh=true` visible p99 passed the freshness meter's bar (705-766 ms against 555).
+
 ## Acceptance criteria
 
 - AC-1: under `serving`, a refresh the sink confirms publishes no commit (no PUT, no staged manifest), the engine refreshed, and the sink was asked once for the shard without grants.
@@ -19,9 +21,12 @@ Parity plan R9.3: the shell's `NodeWritePath.refresh` refreshes the engine and t
 - AC-4: under `owner` the sink is never asked and the refresh publishes.
 - AC-5: with no sink installed, a waiting visibility publishes.
 
+- AC-6: a refresh made while a publish is uploading returns without waiting for the upload, and the publish still completes.
+- AC-7: a snapshot lists, opens and measures exactly the files it was taken of, keeps a file the engine deletes afterwards, and refuses every write.
+
 ## Test plan
 
-`crates/node/tests/refresh_wait.rs`, a role over the blob emulator with a fake sink.
+`crates/node/tests/refresh_wait.rs`, a role over the blob emulator with a fake sink (AC-6 slows the emulator's PUTs), and the unit tests in `crates/node/src/writer/snapshot.rs`; the freshness meter (`crates/node/tests/freshness_meter.rs`, slow tier) is the end-to-end check.
 
 ## S3 request budget
 
