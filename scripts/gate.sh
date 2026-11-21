@@ -20,6 +20,13 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 step "cargo clippy, default features (the shipped reader-only build)"
 cargo clippy --workspace --all-targets -- -D warnings
 
+# A workspace build unifies features, so another crate switching a role on
+# hides a module that only builds with its role's other features.
+step "cargo check -p oss-node, each role alone (features are not unified)"
+for features in "" "writer" "coordinator" "reader,writer" "writer,coordinator"; do
+  cargo check -p oss-node --no-default-features --features "$features"
+done
+
 step "tree checks (scripts/tree-checks.sh; each one: docs/mechanical-gates.md)"
 scripts/tree-checks.sh
 
