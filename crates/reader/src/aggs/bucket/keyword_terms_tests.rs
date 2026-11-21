@@ -128,6 +128,7 @@ fn a_keyword_and_a_numeric_terms_do_not_reduce() {
         other_doc_count: 0,
         doc_count_error: 0,
         buckets: vec![(1, 1)],
+        ..TermsResult::default()
     }));
     assert!(reduce(&[keyword.clone(), numeric.clone()]).is_none());
     assert!(reduce(&[numeric, keyword.clone()]).is_none());

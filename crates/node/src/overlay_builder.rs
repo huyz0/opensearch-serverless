@@ -289,6 +289,43 @@ impl OverlaySource for OverlayBuilder {
         slot.built.as_ref().map(|b| Arc::clone(&b.ready))
     }
 
+    fn apply_pending(
+        &self,
+        index_uuid: &str,
+        shard: u32,
+        stage: &Stage,
+        commit: &Arc<dyn CommitAccess>,
+    ) {
+        let inner = &self.inner;
+        let next = inner.held.next_ordinal(index_uuid, shard);
+        // ALLOC: one key a shard asked about, bounded by the open indexes.
+        let key = (index_uuid.to_owned(), shard);
+        let covers = |slots: &HashMap<Key, Slot>| {
+            slots.get(&key).and_then(|slot| {
+                (slot.stage == *stage).then(|| {
+                    slot.built
+                        .as_ref()
+                        .is_some_and(|built| built.through >= next)
+                })
+            })
+        };
+        // A shard no engine tracks here, or at another stage, is not ours.
+        if next == 0 || covers(&lock(&inner.slots)) != Some(false) {
+            return;
+        }
+        inner.build(&Job {
+            key: key.clone(),
+            stage: stage.clone(),
+            commit: Arc::clone(commit),
+            fetch: false,
+        });
+        if covers(&lock(&inner.slots)) == Some(false) {
+            // The overlay could not take every record: whoever answers must
+            // not claim it holds them.
+            inner.held.skipped(index_uuid, shard);
+        }
+    }
+
     fn closed(&self, index_uuid: &str, shard: u32, stage: &Stage, now_millis: u64) {
         let now = i64::try_from(now_millis).unwrap_or(i64::MAX);
         let key = (index_uuid.to_owned(), shard);

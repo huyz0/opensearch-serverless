@@ -77,6 +77,11 @@ pub struct Refreshed {
     pub live: Arc<[NodeLease]>,
     /// Who joined and left since the last refresh.
     pub delta: MembershipDelta,
+    /// Members whose lease has run out or been revoked and still names
+    /// write-log epochs, whether or not this node ever saw them live: the
+    /// dead nodes whose shards a successor may still have to take. Read from
+    /// the leases the refresh already reads.
+    pub dead_with_epochs: Vec<NodeLease>,
 }
 
 impl Membership {
@@ -148,6 +153,8 @@ impl Membership {
         let mut live: Vec<NodeLease> = Vec::new();
         // ALLOC: one entry a lease pruned, at most max_members.
         let mut prunable: Vec<(String, u64)> = Vec::new();
+        // ALLOC: the dead members that name epochs, at most max_members.
+        let mut dead: Vec<NodeLease> = Vec::new();
         for id in &ids {
             if !writing_digest
                 && let Some(known) = view.last_read.get(id)
@@ -167,6 +174,11 @@ impl Membership {
                     view.last_read.remove(id);
                     // ALLOC: as above.
                     prunable.push((id.clone(), generation));
+                }
+                Ok(Member::Dead(lease)) => {
+                    view.last_read.remove(id);
+                    // ALLOC: as above.
+                    dead.push(*lease);
                 }
                 Ok(Member::Kept) | Err(_) => {
                     view.last_read.remove(id);
@@ -200,7 +212,11 @@ impl Membership {
             // ALLOC: the members that left, at most max_members.
             left: left.collect(),
         };
-        Ok(Refreshed { live, delta })
+        Ok(Refreshed {
+            live,
+            delta,
+            dead_with_epochs: dead,
+        })
     }
 
     /// Reads one listed member's lease.
@@ -235,7 +251,11 @@ impl Membership {
         let long_dead = dead_for >= DEAD_LEASE_PRUNE_TTLS.saturating_mul(self.config.ttl_millis);
         // Never one that names write-log epochs: it is the only place a
         // successor finds them.
-        if !indexed || !long_dead || !lease.node_log.is_empty() {
+        if !lease.node_log.is_empty() {
+            // ALLOC: one lease a dead member that names epochs.
+            return Ok(Member::Dead(Box::new(lease)));
+        }
+        if !indexed || !long_dead {
             return Ok(Member::Kept);
         }
         // The same value swapped, so the generation moves and a renewal
@@ -377,6 +397,8 @@ enum Member {
     Live(Box<NodeLease>),
     /// Claimed for pruning at this generation.
     Prunable(u64),
+    /// Expired or revoked, naming write-log epochs: kept, and reported.
+    Dead(Box<NodeLease>),
     /// Expired but kept, or not claimed.
     Kept,
 }

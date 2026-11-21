@@ -42,10 +42,10 @@ struct Queued {
 
 /// Pushes acknowledged writes to a shard's subscribers.
 pub struct TailPush {
-    keep: Arc<TailKeep>,
-    serve: Arc<TailServe>,
+    pub(crate) keep: Arc<TailKeep>,
+    pub(crate) serve: Arc<TailServe>,
     link: Arc<dyn TailLink>,
-    facts: Arc<dyn ShardFacts>,
+    pub(crate) facts: Arc<dyn ShardFacts>,
     queue: Mutex<Vec<Queued>>,
     /// Held while a flush drains, numbers and sends, so each node's pushes of
     /// a shard are numbered and sent in queue order.
@@ -101,6 +101,9 @@ impl TailPush {
         // onto the queue, so positions follow the queue's order. Nothing takes
         // the keep's lock and then the queue's.
         let mut queue = self.queue();
+        if !self.keep.keeps(uuid, shard) {
+            self.serve.note_kept(uuid, shard);
+        }
         let Some(end) = self.keep.acked(uuid, shard, records, push) else {
             return;
         };
@@ -170,7 +173,10 @@ impl TailPush {
                         request.shards.iter().zip(&numbered)
                     {
                         if answer.unwanted.contains(shard_ref) {
-                            self.serve.drop_sent(uuid, *shard, &node, *sent);
+                            // No overlay for the shard: it answers no search
+                            // under a grant from what it was pushed.
+                            self.serve
+                                .drop_node(uuid, *shard, &node, Some(*sent), false, false);
                         } else {
                             self.serve.confirm(uuid, *shard, &node, *sent);
                         }
@@ -181,7 +187,8 @@ impl TailPush {
                     // holds, so it is pushed nothing more; it subscribes
                     // again when it next opens the shard on a commit.
                     for (uuid, shard, sent) in &numbered {
-                        self.serve.drop_sent(uuid, *shard, &node, *sent);
+                        self.serve
+                            .drop_node(uuid, *shard, &node, Some(*sent), true, true);
                     }
                 }
             }

@@ -10,11 +10,12 @@ use oss_rest::json::{Limits, Tokenizer};
 
 use crate::aggs::metric::{MetricAgg, parse_aggregations};
 use crate::dsl::error::DslError;
+use crate::dsl::pit::{PitRef, parse_pit};
 use crate::dsl::query::{Query, parse_inner};
 use crate::dsl::search_after::{AfterValue, parse_search_after};
 use crate::dsl::sort::{SortKey, parse_sort};
 use crate::dsl::tokens::{Kind, Parser, Recorder};
-use crate::dsl::values::{bool_value, int_value};
+use crate::dsl::values::{bool_value, float_value, int_value};
 use crate::fetch::docvalue_fields::{DocValueField, parse_docvalue_fields};
 use crate::fetch::highlight_parse::{HighlightSpec, parse_highlight};
 use crate::fetch::source_filter::{SourceFilter, parse_source};
@@ -25,11 +26,6 @@ pub const DEFAULT_SIZE: usize = 10;
 /// The top-level keys OpenSearch reads whose value is a scalar.
 const VALUE_KEYS: &[&str] = &[
     "timeout",
-    "terminate_after",
-    "min_score",
-    "version",
-    "seq_no_primary_term",
-    "track_scores",
     "include_named_queries_score",
     "track_total_hits",
     "_source",
@@ -41,7 +37,6 @@ const VALUE_KEYS: &[&str] = &[
 
 /// The top-level keys OpenSearch reads whose value is an object.
 const OBJECT_KEYS: &[&str] = &[
-    "post_filter",
     "_source",
     "script_fields",
     "indices_boost",
@@ -52,7 +47,6 @@ const OBJECT_KEYS: &[&str] = &[
     "ext",
     "slice",
     "collapse",
-    "pit",
     "search_pipeline",
     "derived",
 ];
@@ -94,8 +88,26 @@ pub struct SearchSource {
     pub docvalue_fields: Vec<DocValueField>,
     /// `explain`: whether each hit carries the explanation of its score.
     pub explain: bool,
+    /// `min_score`: only matches scoring at least this are hits and counted.
+    pub min_score: Option<f32>,
+    /// `post_filter`: narrows the hits and their total after the
+    /// aggregations have seen every match of the query.
+    pub post_filter: Option<Query>,
+    /// `terminate_after`: collect only the first this many matches of the
+    /// shard; 0 is off.
+    pub terminate_after: u64,
+    /// `track_scores`: whether a field sort still scores each hit and tracks
+    /// the best score of every match.
+    pub track_scores: bool,
+    /// `version`: whether each hit carries its `_version`.
+    pub version: bool,
+    /// `seq_no_primary_term`: whether each hit carries its `_seq_no` and
+    /// `_primary_term`.
+    pub seq_no_primary_term: bool,
     /// `highlight`: the fields whose matches each hit marks.
     pub highlight: Option<HighlightSpec>,
+    /// `pit`: the point in time the search runs on.
+    pub pit: Option<PitRef>,
 }
 
 impl Default for SearchSource {
@@ -115,7 +127,14 @@ impl Default for SearchSource {
             // ALLOC: empty; parsing pushes one an entry.
             docvalue_fields: Vec::new(),
             explain: false,
+            min_score: None,
+            post_filter: None,
+            terminate_after: 0,
+            track_scores: false,
+            version: false,
+            seq_no_primary_term: false,
             highlight: None,
+            pit: None,
         }
     }
 }
@@ -189,12 +208,32 @@ impl SearchSource {
             "size" => self.size = non_negative("size", int_value(p)?)?,
             "sort" => self.sort = parse_sort(&mut p.clone())?,
             // `SearchSourceBuilder`'s value branch takes no null.
-            "_source" | "track_total_hits" | "explain" if kind == Kind::Null => {
+            "_source"
+            | "track_total_hits"
+            | "explain"
+            | "version"
+            | "seq_no_primary_term"
+            | "min_score"
+            | "terminate_after"
+            | "track_scores"
+                if kind == Kind::Null =>
+            {
                 return Err(unknown_key(p, kind, name));
             }
             "_source" => self.source = parse_source(&mut p.clone(), name)?,
             "track_total_hits" => self.track_total_hits = track_total_hits(p)?,
             "explain" => self.explain = bool_value(p)?,
+            "min_score" => self.min_score = Some(float_value(p)?),
+            "terminate_after" => {
+                let n = int_value(p)?;
+                self.terminate_after = u64::try_from(n).map_err(|_| {
+                    // ALLOC: error path; one message.
+                    DslError::illegal("terminateAfter must be > 0".to_owned())
+                })?;
+            }
+            "track_scores" => self.track_scores = bool_value(p)?,
+            "version" => self.version = bool_value(p)?,
+            "seq_no_primary_term" => self.seq_no_primary_term = bool_value(p)?,
             known if VALUE_KEYS.contains(&known) => return Err(unsupported(known)),
             _ => return Err(unknown_key(p, kind, name)),
         }
@@ -208,6 +247,8 @@ impl SearchSource {
             "aggregations" | "aggs" => self.aggs = parse_aggregations(p)?,
             "_source" => self.source = parse_source(p, name)?,
             "highlight" => self.highlight = Some(parse_highlight(p)?),
+            "post_filter" => self.post_filter = Some(parse_inner(p)?),
+            "pit" => self.pit = Some(parse_pit(p)?),
             known if OBJECT_KEYS.contains(&known) => return Err(unsupported(known)),
             _ => return Err(unknown_key(p, Kind::StartObject, name)),
         }

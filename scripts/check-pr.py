@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
 """Checks a pull request's description and risk routing.
 
-  check-pr.py --body FILE --labels "a,b" --changed FILE --added FILE
+  check-pr.py [--title FILE] --body FILE --labels "a,b" --changed FILE --added FILE
 
+- The title (the squash commit's subject) is `type(scope): lowercase
+  description`. For feat, fix and perf the body has a line
+  `Spec: docs/specs/<feature>/SPEC.md` naming an existing file, or
+  `Spec: none (<reason>)`. Commits inside the PR are not checked for either:
+  they never reach main.
 - The body has every section of .github/pull_request_template.md, each with
   text beyond the template's comments.
 - A PR is high-risk when a changed path matches scripts/risk-paths.txt, it
@@ -31,6 +36,7 @@ SECTIONS = ["Intent", "Alternatives rejected", "Invariants", "Evidence", "Risk t
 ATTRIBUTION = re.compile(
     r"Generated with \[?Claude|claude\.ai/code/session|claude-projects-attribution|^_?Requested by \*\*",
     re.I | re.M)
+SUBJECT = re.compile(r"(feat|fix|docs|test|chore|refactor|perf|build|ci)(\([a-z0-9-]+\))?: [a-z].*")
 LABEL = "needs-huy"  # a review flag, not a merge block
 
 
@@ -40,6 +46,20 @@ def sections(body):
     for m in re.finditer(r"^## (.+?)\s*\n(.*?)(?=^## |\Z)", body, re.M | re.S):
         found[m.group(1).strip()] = m.group(2).strip()
     return found
+
+
+def spec_hits(title, body):
+    if not SUBJECT.fullmatch(title):
+        return [f"PR title: must be 'type(scope): lowercase description', got: {title}"]
+    if not re.match(r"(feat|fix|perf)\b", title):
+        return []
+    m = re.search(r"^Spec: (.+?)\s*$", body, re.M)
+    if not m:
+        return ["PR body: feat, fix and perf need a line 'Spec: docs/specs/<feature>/SPEC.md' or 'Spec: none (<reason>)'"]
+    spec = m.group(1)
+    if not re.fullmatch(r"none \(.+\)", spec) and not (ROOT / spec).is_file():
+        return [f"PR body: Spec '{spec}' is not an existing file or 'none (<reason>)'"]
+    return []
 
 
 def risk_rules():
@@ -76,6 +96,7 @@ def lines_of(path):
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--title")
     ap.add_argument("--body", required=True)
     ap.add_argument("--labels", default="")
     ap.add_argument("--changed")
@@ -87,6 +108,10 @@ def main():
     changed, added = lines_of(args.changed), lines_of(args.added)
 
     hits = []
+    if args.title:
+        with open(args.title, encoding="utf-8") as f:
+            title = f.readline().strip()
+        hits += spec_hits(title, body)
     found = sections(body)
     for sec in SECTIONS:
         if sec not in found:

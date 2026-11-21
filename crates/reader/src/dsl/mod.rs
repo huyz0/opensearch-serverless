@@ -9,6 +9,7 @@
 
 pub mod bool_query;
 pub mod error;
+pub mod pit;
 pub mod queries;
 pub mod query;
 pub mod registered;

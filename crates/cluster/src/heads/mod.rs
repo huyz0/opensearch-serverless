@@ -7,8 +7,10 @@
 //! `shards/<2 hex digits>-<index>#<shard>`, the digits the low byte of the
 //! murmur3 of `<index>#<shard>`, so heads spread over a bucket's key space.
 
+mod registers;
 mod store;
 
+pub use registers::{HeadAt, HeadRegisters};
 pub use store::{Acquisition, ShardHeadStore};
 
 use crate::placement::murmur3;

@@ -7,6 +7,7 @@ use oss_format::WalRecord;
 
 use super::{Current, Refused, Shard, document, soft_delete, uid};
 use crate::lucene::Meta;
+use crate::mapping::MappingError;
 
 impl Shard<'_> {
     /// Applies `record` as the predecessor wrote it, keeping its sequence
@@ -69,11 +70,22 @@ impl Shard<'_> {
             }
             .map_err(|e| Self::engine(&e))?;
         } else {
-            let parsed = document::parse(&self.mapping, id, record.source().as_bytes())
-                .map_err(Refused::Mapping)?;
-            if let Some(grown) = &parsed.grown {
+            let source = record.source().as_bytes();
+            let routing = record.routing();
+            let fast = if routing.is_some() {
+                None
+            } else {
+                self.fast
+                    .prepare(&self.indexer, &self.mapping, source, &key)
+            };
+            let parsed = match fast {
+                Some(_) => None,
+                None => Some(document::parse(&self.mapping, id, source).map_err(Refused::Mapping)?),
+            };
+            if let Some(grown) = parsed.as_ref().and_then(|p| p.grown.as_ref()) {
                 // ALLOC: the grown mapping, bounded by the total fields limit.
                 self.mapping = grown.clone();
+                self.fast.invalidate();
             }
             let soft = if live {
                 Some(
@@ -89,12 +101,25 @@ impl Shard<'_> {
                 seq_no,
                 primary_term,
                 version,
-                source: record.source().as_bytes(),
+                source,
             };
-            let doc = self
-                .indexer
-                .document(&mut self.writer, &self.mapping, &parsed, &meta)
-                .map_err(Refused::Mapping)?;
+            let doc = match (fast, &parsed) {
+                (Some(f), _) => f
+                    .finish(seq_no, primary_term, version)
+                    .pop()
+                    .ok_or_else(|| {
+                        Refused::Mapping(MappingError::illegal_state("no document read"))
+                    })?,
+                (None, Some(parsed)) => self
+                    .indexer
+                    .document_routed(&mut self.writer, &self.mapping, parsed, &meta, routing)
+                    .map_err(Refused::Mapping)?,
+                (None, None) => {
+                    return Err(Refused::Mapping(MappingError::illegal_state(
+                        "no document read",
+                    )));
+                }
+            };
             // ALLOC: one document a replayed index.
             let docs = vec![doc];
             match soft {

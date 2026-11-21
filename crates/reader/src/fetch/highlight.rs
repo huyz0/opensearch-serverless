@@ -174,6 +174,7 @@ impl<'p> Highlighters<'p> {
                 // ALLOC: one name a field, as above.
                 field: f.name.clone(),
                 offset_source: OffsetSource::Analysis,
+                thai: false,
                 breaks,
                 max_passages,
                 no_match_size: o.no_match_size,

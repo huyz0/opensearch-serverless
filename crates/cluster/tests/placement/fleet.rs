@@ -267,3 +267,66 @@ fn a_writer_at_its_cap_has_no_room_for_writes_or_takeovers() {
     };
     assert!(view.writer_for(ShardKey::new("logs", 0)).is_some());
 }
+
+#[test]
+fn reapers_are_the_same_on_every_node_and_a_departure_moves_only_its_own() {
+    let leases = crate::fleet();
+    let ingest: Vec<&oss_format::NodeLease> = leases
+        .iter()
+        .filter(|l| oss_cluster::placement::has_role(l, "ingest"))
+        .collect();
+    assert!(ingest.len() >= 3);
+    let two = oss_cluster::placement::reapers_for("dead-1", ingest.iter().copied(), 2);
+    assert_eq!(two.len(), 2);
+    let mut reversed = ingest.clone();
+    reversed.reverse();
+    assert_eq!(
+        two,
+        oss_cluster::placement::reapers_for("dead-1", reversed.iter().copied(), 2)
+    );
+    // One fewer candidate: the other reaper stays, the next one joins.
+    let gone = two[0];
+    let rest = ingest.iter().copied().filter(|l| l.node_id != gone);
+    let after = oss_cluster::placement::reapers_for("dead-1", rest, 2);
+    assert_eq!(after[0], two[1]);
+    assert!(oss_cluster::placement::reapers_for("dead-1", ingest.iter().copied(), 0).is_empty());
+    // A node that is not an ingest writer is never a reaper.
+    assert!(
+        leases
+            .iter()
+            .filter(|l| !oss_cluster::placement::has_role(l, "ingest"))
+            .all(|l| !two.contains(&l.node_id.as_str()))
+    );
+    // Different dead nodes spread over the fleet.
+    let firsts: std::collections::HashSet<&str> = (0..40)
+        .map(|i| {
+            let id = format!("dead-{i}");
+            oss_cluster::placement::reapers_for(&id, ingest.iter().copied(), 1)[0]
+        })
+        .collect();
+    assert!(firsts.len() > 1);
+}
+
+#[test]
+fn a_revoked_member_the_dead_node_itself_and_a_non_writer_are_each_never_a_reaper() {
+    let ingest = |id: &str| {
+        let mut l = oss_format::NodeLease::new(id, "e", "a", 0);
+        l.set_roles(["ingest".to_owned()]);
+        l
+    };
+    let mut revoked = ingest("revoked");
+    revoked.revoked = true;
+    let mut reader = oss_format::NodeLease::new("reader", "e", "a", 0);
+    reader.set_roles(["search".to_owned()]);
+    let members = [revoked, ingest("dead"), reader, ingest("ok")];
+    // Each excluded member alone with one good one: only the good one.
+    for bad in 0..3 {
+        let pair = [members[bad].clone(), members[3].clone()];
+        assert_eq!(
+            oss_cluster::placement::reapers_for("dead", pair.iter(), 2),
+            ["ok"],
+            "{}",
+            members[bad].node_id
+        );
+    }
+}

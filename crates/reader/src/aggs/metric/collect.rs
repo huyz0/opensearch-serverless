@@ -25,13 +25,15 @@ use oss_blob::BlobStore;
 
 use crate::OpenShard;
 use crate::aggs::bucket::BUCKET_LIMIT;
-use crate::aggs::bucket::date_histogram::{DateHistogramSpec, reduce_results as reduce_dates};
+use crate::aggs::bucket::date_histogram::reduce_results as reduce_dates;
 use crate::aggs::bucket::date_histogram_collect;
-use crate::aggs::bucket::histogram::{HistogramSpec, reduce_results};
+use crate::aggs::bucket::histogram::reduce_results;
 use crate::aggs::bucket::histogram_collect;
-use crate::aggs::bucket::keyword_subs;
-use crate::aggs::bucket::terms::TermsSpec;
 use crate::aggs::bucket::terms_collect;
+use crate::aggs::bucket::{
+    date_histogram_spec, histogram_spec, keyword_subs, terms_spec, with_subs,
+};
+use crate::aggs::bucket::{filters_collect, range_collect};
 use crate::aggs::metric::hll::Hll;
 use crate::aggs::metric::tdigest::Digest;
 use crate::aggs::metric::top_hits::TopHitsResult;
@@ -49,6 +51,8 @@ pub(crate) enum Resolved {
     Numeric(Format),
     /// A keyword field's global ordinals, for a `terms`.
     Keyword,
+    /// No field: a `filters` reads queries.
+    Queries,
 }
 
 /// The text of `Field [<name>] of type [<type>]`'s type.
@@ -90,6 +94,9 @@ pub(crate) fn resolve<S: BlobStore + 'static>(
     agg: &MetricAgg,
     shard: &OpenShard<S>,
 ) -> Result<Resolved, ShardError> {
+    if agg.filters.is_some() {
+        return Ok(Resolved::Queries);
+    }
     let Some(field) = shard.meta.mapping.get(&agg.field) else {
         return Ok(Resolved::Unmapped);
     };
@@ -157,32 +164,7 @@ pub(crate) fn resolve<S: BlobStore + 'static>(
             ),
         )));
     }
-    if !agg.subs.is_empty() {
-        return Err(bad_request(Failure::plain(
-            "illegal_argument_exception",
-            // ALLOC: error path; one message.
-            format!(
-                "sub-aggregations of a numeric [terms] on [{}] are not supported by this node yet",
-                agg.field
-            ),
-        )));
-    }
     Ok(Resolved::Numeric(format))
-}
-
-/// `agg`'s `terms` options (every `terms` has them).
-fn terms_spec(agg: &MetricAgg) -> TermsSpec {
-    agg.terms.as_deref().cloned().unwrap_or_default()
-}
-
-/// `agg`'s `histogram` options (every `histogram` has them).
-fn histogram_spec(agg: &MetricAgg) -> HistogramSpec {
-    agg.histogram.as_deref().cloned().unwrap_or_default()
-}
-
-/// `agg`'s `date_histogram` options (every `date_histogram` has them).
-fn date_histogram_spec(agg: &MetricAgg) -> DateHistogramSpec {
-    agg.date_histogram.as_deref().copied().unwrap_or_default()
 }
 
 /// What `avg` reads: the sum and the count.
@@ -207,6 +189,7 @@ fn needs(metric: Metric) -> u8 {
         | Metric::Terms
         | Metric::Histogram
         | Metric::DateHistogram => NEED_COUNT,
+        Metric::Range | Metric::Filters | Metric::Filter => NEED_COUNT,
     }
 }
 
@@ -239,6 +222,8 @@ pub(crate) fn value_of(agg: &MetricAgg, state: &MetricState) -> Value {
         Metric::DateHistogram => Value::DateHistogram(Box::new(date_histogram_collect::empty(
             &date_histogram_spec(agg),
         ))),
+        Metric::Range => range_collect::value(agg, &[]),
+        Metric::Filters | Metric::Filter => filters_collect::value(agg, &[]),
         // Filled in by the search once the hits are collected.
         // ALLOC: one box a `top_hits`, bounded by the request's.
         Metric::TopHits => Value::TopHits(Box::new(TopHitsResult::empty())),
@@ -286,6 +271,7 @@ pub(crate) fn node(agg: &MetricAgg, precision: u32) -> AggNode {
         Metric::DateHistogram => {
             date_histogram_collect::node(&agg.field, &date_histogram_spec(agg))
         }
+        Metric::Range => range_collect::node(agg),
         Metric::Cardinality => AggNode::Cardinality {
             field,
             kind: CardinalityKind::Numeric(ValueKind::Long),
@@ -318,7 +304,7 @@ fn engine_error(e: &dyn std::fmt::Display) -> ShardError {
 }
 
 /// The shard-level result of `agg` from the engine's `result`.
-fn value_from(agg: &MetricAgg, result: Option<AggResult>) -> Result<Value, ShardError> {
+pub(crate) fn value_from(agg: &MetricAgg, result: Option<AggResult>) -> Result<Value, ShardError> {
     match result {
         Some(AggResult::Metric(states)) => Ok(value_of(
             agg,
@@ -390,6 +376,7 @@ pub fn collect<S: BlobStore + 'static>(
     shard: &OpenShard<S>,
     segments: &[OpenSegment<'_>],
     query: &BooleanQuery,
+    filters: &[Vec<BooleanQuery>],
 ) -> Result<Vec<Partial>, ShardError> {
     if aggs.is_empty() {
         // ALLOC: empty.
@@ -406,6 +393,7 @@ pub fn collect<S: BlobStore + 'static>(
             return Err(refusal);
         }
         resolved.push(resolve(agg, shard)?);
+        crate::aggs::bucket::check_limits(agg)?;
         if agg.metric == Metric::Cardinality {
             check_execution_hint(agg)?;
         }
@@ -414,7 +402,7 @@ pub fn collect<S: BlobStore + 'static>(
     let mut nodes = Vec::with_capacity(aggs.len());
     // ALLOC: one entry a keyword `terms`, bounded by the request's.
     let mut ords = HashMap::new();
-    for (agg, r) in aggs.iter().zip(&resolved) {
+    for (i, (agg, r)) in aggs.iter().zip(&resolved).enumerate() {
         let precision = match agg.metric {
             Metric::Cardinality => agg
                 .cardinality
@@ -423,8 +411,17 @@ pub fn collect<S: BlobStore + 'static>(
             _ => DEFAULT_PRECISION,
         };
         match r {
-            Resolved::Numeric(_) => nodes.push(node(agg, precision)),
+            Resolved::Numeric(_) => {
+                let mut made = node(agg, precision);
+                with_subs::attach(&mut made, agg, shard, &mut ords)?;
+                nodes.push(made);
+            }
             Resolved::Keyword => nodes.push(keyword_subs::node(agg, shard, &mut ords)?),
+            Resolved::Queries => {
+                let mut made = filters_collect::node(agg, filters.get(i));
+                with_subs::attach(&mut made, agg, shard, &mut ords)?;
+                nodes.push(made);
+            }
             Resolved::Unmapped => {}
         }
     }
@@ -458,8 +455,15 @@ pub fn collect<S: BlobStore + 'static>(
     let mut parts = Vec::with_capacity(aggs.len());
     for (agg, r) in aggs.iter().zip(resolved) {
         let (format, value) = match r {
+            Resolved::Unmapped if with_subs::is_bucket(agg) => {
+                (Format::Raw, with_subs::value(agg, shard, None)?)
+            }
             Resolved::Unmapped => (Format::Raw, value_of(agg, &MetricState::default())),
+            Resolved::Numeric(format) if with_subs::is_bucket(agg) => {
+                (format, with_subs::value(agg, shard, results.next())?)
+            }
             Resolved::Numeric(format) => (format, value_from(agg, results.next())?),
+            Resolved::Queries => (Format::Raw, with_subs::value(agg, shard, results.next())?),
             Resolved::Keyword => (
                 Format::Raw,
                 keyword_subs::value(agg, shard, results.next())?,

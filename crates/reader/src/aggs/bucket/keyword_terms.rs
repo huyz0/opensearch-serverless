@@ -4,10 +4,9 @@
 
 use std::io::{self, Write};
 
+use crate::aggs::bucket::sub_values::{reduce_sub, write_subs};
 use crate::aggs::bucket::terms::{TermsSpec, compare, shard_error};
-use crate::aggs::metric::hash_order::hash_map_order;
-use crate::aggs::metric::render::write_body;
-use crate::aggs::partial::{self, Format, Value};
+use crate::aggs::partial::{Format, Value};
 
 /// What one shard (or one reduce) holds for a keyword `terms`.
 #[derive(Clone, Debug, PartialEq)]
@@ -28,14 +27,6 @@ pub struct KeywordTermsResult {
     /// of `buckets`, each in the order of `sub_meta`; empty lists when there
     /// are no sub-aggregations.
     pub subs: Vec<Vec<Value>>,
-}
-
-/// The reduce of one sub-aggregation's `parts`, one value a shard that
-/// holds the bucket.
-fn reduce_sub(parts: &[Value]) -> Value {
-    partial::reduce(parts)
-        .or_else(|| parts.first().cloned())
-        .unwrap_or(Value::ValueCount(0))
 }
 
 /// `InternalTerms.reduce` as a final reduce: `None` unless there is a part
@@ -151,29 +142,8 @@ pub fn write_keyword_terms(out: &mut dyn Write, result: &KeywordTermsResult) -> 
         out.write_all(b"{\"key\":")?;
         oss_rest::write_json_str(out, term)?;
         write!(out, ",\"doc_count\":{count}")?;
-        write_subs(out, &reduced, i)?;
+        write_subs(out, &reduced.sub_meta, reduced.subs.get(i))?;
         out.write_all(b"}")?;
     }
     out.write_all(b"]")
-}
-
-/// The sub-aggregations of bucket `at`, each as `,"name":{..}`, in the order
-/// `Aggregations.toXContent` lists them.
-fn write_subs(out: &mut dyn Write, result: &KeywordTermsResult, at: usize) -> io::Result<()> {
-    let Some(values) = result.subs.get(at) else {
-        return Ok(());
-    };
-    // ALLOC: one name a sub-aggregation, bounded by the request's.
-    let names: Vec<&str> = result.sub_meta.iter().map(|(n, _)| n.as_str()).collect();
-    for i in hash_map_order(&names) {
-        let (Some((name, format)), Some(value)) = (result.sub_meta.get(i), values.get(i)) else {
-            continue;
-        };
-        out.write_all(b",")?;
-        oss_rest::write_json_str(out, name)?;
-        out.write_all(b":{")?;
-        write_body(out, *format, value)?;
-        out.write_all(b"}")?;
-    }
-    Ok(())
 }

@@ -53,7 +53,7 @@ mod tests {
             let reader = cfg!(feature = "reader");
             assert_eq!(
                 keys.len(),
-                6 + 4 * usize::from(reader) + if writer { 8 } else { 0 }
+                6 + 5 * usize::from(reader) + if writer { 8 } else { 0 }
             );
             assert_eq!(
                 keys.contains(&"serverless.reader.newest_commit_ask"),

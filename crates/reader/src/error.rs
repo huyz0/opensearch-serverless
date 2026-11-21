@@ -27,6 +27,10 @@ pub enum ReaderError {
     UnknownLength(String),
     /// The descriptor's mapping could not be read.
     Mapping(crate::mapping::MappingError),
+    /// The point in time was taken over an earlier index of this name.
+    NotHeld,
+    /// The point in time has no finished freeze of the shard.
+    NotFrozen(u32),
 }
 
 impl fmt::Display for ReaderError {
@@ -41,6 +45,12 @@ impl fmt::Display for ReaderError {
             ReaderError::RegisterTooLarge => f.write_str("register blob larger than its limit"),
             ReaderError::UnknownLength(name) => write!(f, "manifest gives no length for {name}"),
             ReaderError::Mapping(e) => write!(f, "{e}"),
+            ReaderError::NotHeld => f.write_str(
+                "the point in time was taken over an earlier index of this name that has since been deleted",
+            ),
+            ReaderError::NotFrozen(shard) => {
+                write!(f, "the point in time did not freeze shard {shard}")
+            }
         }
     }
 }

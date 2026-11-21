@@ -26,6 +26,7 @@ fn shard(buckets: &[(i64, u64)]) -> Vec<(String, Value)> {
         Value::DateHistogram(Box::new(DateHistogramResult {
             spec: spec(),
             buckets: buckets.to_vec(),
+            ..DateHistogramResult::default()
         })),
     )]
 }

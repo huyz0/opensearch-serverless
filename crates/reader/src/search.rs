@@ -23,7 +23,8 @@ use lucene_search::{BooleanQuery, Clause, Explanation};
 use oss_blob::BlobStore;
 
 use crate::OpenShard;
-use crate::aggs::bucket::{keyword_collect, keyword_subs};
+use crate::aggs::bucket::filters_collect;
+use crate::aggs::bucket::{fixed_subs, keyed_subs, keyword_collect, keyword_subs};
 use crate::aggs::metric::top_hits;
 use crate::aggs::metric::{self, Partial, state_bytes};
 use crate::dsl::search_after::{AfterKey, field_doc};
@@ -32,11 +33,14 @@ use crate::failure::Failure;
 use crate::fetch::docvalue_fields::{self, HitField};
 use crate::fetch::explain;
 use crate::fetch::highlight::{self, Plan};
+use crate::fetch::hit_meta::HitMeta;
 use crate::fetch::source_filter::SourceFilter;
 use crate::lucene_query::{QueryContext, shard_failure, to_lucene};
 use crate::mapping::FieldType;
+use crate::search_options;
+use crate::search_post_filter;
 use crate::search_sort::{KeyKind, sort_fields};
-use crate::search_top::collect_top;
+use crate::search_top::{TopOptions, collect_top};
 
 /// `index.max_result_window`'s default: the most `from + size` may reach.
 pub const MAX_RESULT_WINDOW: usize = 10_000;
@@ -89,6 +93,11 @@ pub struct Hits {
     pub explanations: Vec<Explanation>,
     /// What to highlight in each hit; `None` without `highlight`.
     pub highlight: Option<Plan>,
+    /// Which of each hit's `_version`, `_seq_no` and `_primary_term` to write.
+    pub meta: HitMeta,
+    /// Whether `terminate_after` ended the shard's collection; `None` when it
+    /// was not asked.
+    pub terminated_early: Option<bool>,
 }
 
 impl Hits {
@@ -100,6 +109,7 @@ impl Hits {
             fields: &self.fields,
             explanations: &self.explanations,
             highlight: self.highlight.as_ref(),
+            meta: self.meta,
         }
     }
 }
@@ -186,6 +196,8 @@ pub fn hits_bytes<S: BlobStore + 'static>(source: &SearchSource, shard: &OpenSha
     window_bytes(window, &source.sort, shard)
         .saturating_add(inner)
         .saturating_add(counted)
+        .saturating_add(fixed_subs::reserved(shard, &source.aggs))
+        .saturating_add(keyed_subs::reserved(shard, &source.aggs))
         .saturating_add(state_bytes(&source.aggs))
 }
 
@@ -270,6 +282,11 @@ pub fn search<S: BlobStore + 'static>(
         )));
     }
     let sort = sort_fields(&source.sort, shard, index)?;
+    search_options::check(
+        source,
+        &query,
+        sort.as_ref().map(|(_, kinds)| kinds.as_slice()),
+    )?;
     docvalue_fields::check_count(&source.docvalue_fields)?;
     let after = if source.search_after.is_empty() {
         None
@@ -298,15 +315,21 @@ pub fn search<S: BlobStore + 'static>(
     let norms: Vec<Option<&HashMap<String, FieldNorms<'_>>>> = owned.iter().map(Some).collect();
     let mut opened = shard.reader.open_segments().map_err(ShardError::engine)?;
     let top_plans = top_hits::plan(&source.aggs, shard, index)?;
+    // The bucket limit holds before any filter is built as a query.
+    for agg in &source.aggs {
+        crate::aggs::bucket::check_limits(agg)?;
+    }
+    let filter_plans = filters_collect::plan(&source.aggs, &cx)
+        .map_err(|f| ShardError::bad_request(shard_failure(f, index, &meta.uuid)))?;
     let numeric_sort = sort
         .as_ref()
         .is_some_and(|(_, kinds)| kinds.contains(&KeyKind::Numeric))
         || top_plans.iter().any(top_hits::TopHitsPlan::numeric);
-    if numeric_sort || has_points(&query) {
+    if numeric_sort || has_points(&query) || filter_plans.iter().flatten().any(has_points) {
         opened.open_points().map_err(ShardError::engine)?;
     }
     let segments = opened.as_open_segments();
-    let mut aggregations = metric::collect(&source.aggs, shard, &segments, &query)?;
+    let mut aggregations = metric::collect(&source.aggs, shard, &segments, &query, &filter_plans)?;
     top_hits::fill(
         &mut aggregations,
         &source.aggs,
@@ -318,17 +341,43 @@ pub fn search<S: BlobStore + 'static>(
     )?;
     // A total turned off counts nothing past the hits.
     let limit = source.track_total_hits.unwrap_or(0);
-    let top = collect_top(
+    let narrowed = match &source.post_filter {
+        Some(filter) => Some(search_post_filter::narrowed(
+            &query,
+            to_lucene(filter, &cx)
+                .map_err(|f| ShardError::bad_request(shard_failure(f, index, &meta.uuid)))?,
+        )),
+        None => None,
+    };
+    let mut top = collect_top(
         &segments,
         shard,
         &norms,
-        &query,
+        narrowed.as_ref().unwrap_or(&query),
         sort.as_ref(),
         window,
         source.from,
         limit,
         after.as_ref(),
+        TopOptions {
+            min_score: source.min_score,
+            track_scores: source.track_scores,
+            terminate_after: source.terminate_after,
+        },
     )?;
+    if let Some((_, kinds)) = sort.as_ref().filter(|_| source.track_scores)
+        && !kinds.contains(&KeyKind::Score)
+        && !top.hits.is_empty()
+    {
+        // A field sort's hits carry no score; `track_scores` has each one
+        // scored, as `TopFieldCollector.populateScores` does.
+        let searcher = IndexSearcher::new(&segments, &norms).map_err(ShardError::engine)?;
+        let scored =
+            explain::explain_hits(&searcher, &query, &top.hits).map_err(ShardError::engine)?;
+        for (hit, e) in top.hits.iter_mut().zip(&scored) {
+            hit.score = Some(e.value);
+        }
+    }
     let mut hits = Hits {
         total: top.total,
         exact: top.exact,
@@ -342,6 +391,11 @@ pub fn search<S: BlobStore + 'static>(
         // ALLOC: empty; explained below when asked.
         explanations: Vec::new(),
         highlight: None,
+        meta: HitMeta {
+            version: source.version,
+            seq_no: source.seq_no_primary_term,
+        },
+        terminated_early: top.terminated,
     };
     // The fetch phase resolves the fields only when it has a hit to fetch.
     if !hits.hits.is_empty() && !source.docvalue_fields.is_empty() {

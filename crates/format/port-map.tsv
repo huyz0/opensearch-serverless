@@ -29,3 +29,7 @@ src/node_log/encode.rs	port	serverless/shell/src/main/java/org/opensearch/server
 src/json_write.rs	new		the JSON a writer of these formats emits: compact and escaped as the shell's XContentBuilder writes it
 src/shard_head.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/metadata/ShardHead.java@429b4cbc	toBytes, fromStream, isHeldAt and withWriter; stricter on value types the Java coerces and trailing bytes; fixtures/shard-heads written by the shell class itself
 src/point_in_time.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/metadata/PointInTime.java@429b4cbc	toBytes, fromStream, pins, expiredAt, withExpiry, isCapturing and the capture marker PointInTimeStore writes; the transport wire form is not ported; bounded at 16 MiB and 16384 files a shard; refuses numbers written as strings
+src/bucket_manifest/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/bucket/BucketManifest.java@429b4cbc	read side only (parse, parseMember, fromStream); BucketIds.validate and BucketStore.ROOT/MANIFEST for the key
+src/bucket_manifest/compact.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/bucket/CompactManifestFormat.java@429b4cbc	decode and decodeMember; a member's commit is handed on as the JSON a shard register holds
+src/bucket_manifest/codec.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/bucket/ManifestCodec.java@429b4cbc	decompress for none, deflate, zstd and Lucene LZ4
+src/bucket_manifest/cursor.rs	new		the StreamInput primitives the compact body uses, over a slice

@@ -13,6 +13,7 @@ use crate::OpenShard;
 use crate::aggs::metric::top_hits::TopHitsResult;
 use crate::fetch::docvalue_fields::HitField;
 use crate::fetch::highlight::Plan;
+use crate::fetch::hit_meta::HitMeta;
 use crate::fetch::source_filter::SourceFilter;
 use crate::search::{Hit, Hits};
 
@@ -65,7 +66,12 @@ pub fn render_selected_hits<S: BlobStore + 'static>(
         node_id,
         &hits,
         &explanations,
-        (&result.source, &result.fields, result.highlight.as_ref()),
+        (
+            &result.source,
+            &result.fields,
+            result.highlight.as_ref(),
+            HitMeta::default(),
+        ),
         reserve,
     )
 }
@@ -116,14 +122,19 @@ pub fn render_selected_result_hits<S: BlobStore + 'static>(
         node_id,
         &picked,
         &explanations,
-        (&hits.source, &hits.fields, hits.highlight.as_ref()),
+        (
+            &hits.source,
+            &hits.fields,
+            hits.highlight.as_ref(),
+            hits.meta,
+        ),
         reserve,
     )
 }
 
 /// What each picked hit is written with: its `_source` filter, its fields
 /// and its highlight plan.
-type Writing<'a> = (&'a SourceFilter, &'a [HitField], Option<&'a Plan>);
+type Writing<'a> = (&'a SourceFilter, &'a [HitField], Option<&'a Plan>, HitMeta);
 
 /// Writes each of `hits`, whose explanations are `explanations` when asked.
 fn render_picked<S: BlobStore + 'static>(
@@ -132,7 +143,7 @@ fn render_picked<S: BlobStore + 'static>(
     node_id: &str,
     hits: &[Hit],
     explanations: &[Explanation],
-    (source, fields, highlight): Writing<'_>,
+    (source, fields, highlight, meta): Writing<'_>,
     reserve: &mut dyn FnMut(usize) -> io::Result<()>,
 ) -> io::Result<Vec<Vec<u8>>> {
     prefetch(shard, &[hits])?;
@@ -149,6 +160,7 @@ fn render_picked<S: BlobStore + 'static>(
             fields,
             explanations: explanations.get(i..=i).unwrap_or_default(),
             highlight,
+            meta,
         };
         // ALLOC: the hit's JSON, bounded by its source.
         let mut out = Vec::new();

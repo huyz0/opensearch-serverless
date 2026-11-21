@@ -5,7 +5,8 @@ use std::sync::Arc;
 use lucene_search::directory_reader::DirectoryReader;
 use oss_blob::BlobStore;
 use oss_reader::OpenShard;
-use oss_reader::overlay::{CommitAccess, OverlaySource, Ready};
+use oss_reader::failure::{Failure, SearchError, ShardFailure};
+use oss_reader::overlay::{CommitAccess, OverlaySource, Ready, local_checkpoint};
 
 use super::{Held, SearchService};
 
@@ -23,6 +24,75 @@ impl<S: BlobStore + 'static> SearchService<S> {
     /// False when one is installed already.
     pub fn set_overlay_source(&self, source: Arc<dyn OverlaySource>) -> bool {
         self.overlay.set(source).is_ok()
+    }
+
+    /// Installs the check that a shard may answer only while it holds every
+    /// write its writer answered as refreshed. False when one is installed
+    /// already.
+    pub fn set_tail_fresh(&self, fresh: Arc<crate::tail_fresh::TailFresh>) -> bool {
+        self.fresh.set(fresh).is_ok()
+    }
+
+    /// The view [`Self::overlay_view`] gives, once the shard is known to
+    /// hold what its writer answered as refreshed.
+    ///
+    /// # Errors
+    ///
+    /// A 503 naming the shard when it may not answer: the search asks the
+    /// next copy.
+    pub(super) fn fresh_view(
+        &self,
+        held: &Arc<Held<S>>,
+    ) -> Result<Option<Arc<OpenShard<S>>>, Box<SearchError>> {
+        self.fresh_check(held)?;
+        Ok(self.overlay_view(held))
+    }
+
+    fn fresh_check(&self, held: &Arc<Held<S>>) -> Result<(), Box<SearchError>> {
+        let Some(fresh) = self.fresh.get() else {
+            return Ok(());
+        };
+        // A shard its own node writes holds every write.
+        let Some(writer) = held.stage.writer().filter(|w| *w != self.node_id) else {
+            return Ok(());
+        };
+        let uuid = &held.shard.meta.uuid;
+        // The engine is known to the source before the writer is asked for
+        // a subscription: a shard opened after refreshed writes would
+        // otherwise ask only how far they went, and never hold them.
+        if let Some(source) = self.overlay.get() {
+            let commit: Arc<dyn CommitAccess> = Arc::clone(held) as _;
+            let _ = source.ready(uuid, held.shard_no, &held.stage, &commit, self.now_millis());
+        }
+        let take = || {
+            if let Some(source) = self.overlay.get() {
+                let commit: Arc<dyn CommitAccess> = Arc::clone(held) as _;
+                source.apply_pending(uuid, held.shard_no, &held.stage, &commit);
+            }
+        };
+        if fresh.ensure_fresh(
+            &held.index,
+            uuid,
+            held.shard_no,
+            writer,
+            local_checkpoint(&held.shard.reader),
+            &take,
+        ) {
+            return Ok(());
+        }
+        // ALLOC: error path; one box and the names.
+        Err(Box::new(SearchError::on_shard(
+            503,
+            Failure::plain(
+                "shard_behind_exception",
+                "the shard is behind the writes its writer answered as refreshed",
+            ),
+            ShardFailure {
+                index: held.index.clone(),
+                shard: held.shard_no,
+                node: self.node_id.clone(),
+            },
+        )))
     }
 
     /// `held`'s shard with the overlay the source has finished on top, or

@@ -6,8 +6,10 @@
 //! bucket values in [`crate::aggs::bucket`]; [`reduce`] picks by kind.
 
 use crate::aggs::bucket::date_histogram::{self, DateHistogramResult};
+use crate::aggs::bucket::filters::{self, FiltersResult};
 use crate::aggs::bucket::histogram::{self, HistogramResult};
 use crate::aggs::bucket::keyword_terms::{self, KeywordTermsResult};
+use crate::aggs::bucket::range::{self, RangeResult};
 use crate::aggs::bucket::terms::{self, TermsResult};
 use crate::aggs::metric::hll::Hll;
 use crate::aggs::metric::partial::{reduce_cardinality, reduce_percentiles, reduce_scalar};
@@ -80,6 +82,10 @@ pub enum Value {
     DateHistogram(Box<DateHistogramResult>),
     /// `StringTerms`: a keyword `terms`' buckets.
     KeywordTerms(Box<KeywordTermsResult>),
+    /// `InternalRange`: a `range`'s buckets.
+    Range(Box<RangeResult>),
+    /// `InternalFilters`: a `filters`' buckets.
+    Filters(Box<FiltersResult>),
 }
 
 /// One aggregation's shard-level result.
@@ -104,6 +110,8 @@ pub fn reduce(parts: &[Value]) -> Option<Value> {
         Value::Histogram(_) => histogram::reduce(parts),
         Value::DateHistogram(_) => date_histogram::reduce(parts),
         Value::KeywordTerms(_) => keyword_terms::reduce(parts),
+        Value::Range(_) => range::reduce(parts),
+        Value::Filters(_) => filters::reduce(parts),
         // A `top_hits` has no reduce here: merging hits needs them fetched
         // and their shard known, so `reduce_scalar` answers `None` for it.
         _ => reduce_scalar(parts),

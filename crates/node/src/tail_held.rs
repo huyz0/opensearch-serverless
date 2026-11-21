@@ -11,7 +11,9 @@
 use std::collections::{BTreeMap, HashMap};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
-use oss_transport::actions::tail::{FetchResponse, NONE, PushRequest, PushResponse, Record};
+use oss_transport::actions::tail::{
+    CHECK, FetchResponse, NEW, NONE, PushRequest, PushResponse, Record,
+};
 
 /// Records held for one shard: the shell's `MAX_DOCUMENTS * 2`.
 pub const MAX_RECORDS: usize = 100_000;
@@ -36,6 +38,8 @@ struct Held {
     /// write; cleared by a new engine.
     skipped: bool,
     grant_writer: Option<String>,
+    /// The subscription the grant is under, or [`NONE`].
+    subscription: i64,
     /// Whether what the grant's fetch answered, with the commit, held every
     /// write its writer acknowledged.
     complete: bool,
@@ -53,6 +57,7 @@ impl Held {
             refusing: false,
             skipped: false,
             grant_writer: None,
+            subscription: NONE,
             complete: false,
             grant_until: 0,
         }
@@ -201,6 +206,7 @@ impl TailHeld {
         if answer.subscription == NONE {
             if held.grant_writer.as_deref() == Some(writer) {
                 held.grant_writer = None;
+                held.subscription = NONE;
                 held.complete = false;
             }
             return;
@@ -212,6 +218,7 @@ impl TailHeld {
             // A subscription anew: the records it answered, with the commit,
             // are all there is to go on.
             held.grant_writer = Some(writer.to_owned());
+            held.subscription = answer.subscription;
             held.complete = answer.complete && taken.is_some();
             held.grant_until = sent_at;
         }
@@ -219,6 +226,22 @@ impl TailHeld {
         if until > held.grant_until {
             held.grant_until = until;
         }
+    }
+
+    /// What to ask `writer` for a grant: the subscription held to renew, a
+    /// new one, or only how far its refreshing writes went ([`CHECK`]) when
+    /// no engine could use a subscription.
+    pub fn subscription_to_ask(&self, uuid: &str, shard: u32, writer: &str) -> i64 {
+        self.lock()
+            .get(&key(uuid, shard))
+            .filter(|held| held.engines > 0 && !held.refusing && !held.skipped)
+            .map_or(CHECK, |held| {
+                if held.grant_writer.as_deref() == Some(writer) && held.subscription >= 0 {
+                    held.subscription
+                } else {
+                    NEW
+                }
+            })
     }
 
     /// Whether the shard may answer a search under a grant from `writer`.

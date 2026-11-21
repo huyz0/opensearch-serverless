@@ -66,7 +66,7 @@ pub use oss_format::{
     AliasMutation, AliasRecord, ChangeKind, ClusterSettings, MAX_CLUSTER_SETTINGS_BYTES, PitFile,
     PitShard, PointInTime, RELEASED, ReclaimIntent, STRIPES, Setting, SettingsRefused,
 };
-pub use pit::{PitClock, PointInTimeStore};
+pub use pit::{CaptureError, PitClock, PointInTimeStore, new_id};
 pub use probe::PROBE_PREFIX;
 pub use routing::{
     DEFAULT_ROUTING_CACHE_BYTES, DEFAULT_ROUTING_CACHE_MILLIS, DEFAULT_ROUTING_CACHE_PRUNE_ABOVE,

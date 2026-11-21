@@ -77,8 +77,14 @@ pub struct SearchService<S: BlobStore + 'static> {
     /// Where a search finds the overlay of the shard it serves; none, and a
     /// search is answered from the commit.
     overlay: OnceLock<Arc<dyn OverlaySource>>,
+    /// Whether the shard a search serves holds what its writer answered as
+    /// refreshed; none, and it is taken to.
+    fresh: OnceLock<Arc<crate::tail_fresh::TailFresh>>,
     /// The layers a setting resolves through above an index's own.
     layers: OnceLock<open_prefetch::Layered>,
+    /// Where a search of a point in time reads its view; none, and it is
+    /// refused.
+    pits: OnceLock<frozen::PitAccess>,
 }
 
 impl<S: BlobStore + 'static> SearchService<S> {
@@ -105,7 +111,9 @@ impl<S: BlobStore + 'static> SearchService<S> {
             epoch: Instant::now(),
             newest: OnceLock::new(),
             overlay: OnceLock::new(),
+            fresh: OnceLock::new(),
             layers: OnceLock::new(),
+            pits: OnceLock::new(),
         }
     }
 
@@ -133,14 +141,23 @@ impl<S: BlobStore + 'static> SearchService<S> {
     /// Handles one `_search`.
     pub fn handle(&self, req: &mut Request<'_>, resp: &mut Response<'_>) -> Result<(), RestError> {
         let started = Instant::now();
-        let Some(index) = req.path_param("index") else {
-            return Err(RestError::illegal_argument("no index"));
-        };
         let source = match read_source(req) {
             Ok(source) => source,
             Err(Answer::Rest(e)) => return Err(e),
             Err(Answer::Search(e)) => return send(resp, &e),
         };
+        let Some(index) = req.path_param("index") else {
+            return match self.handle_pit(req, resp, &source, started) {
+                Ok(()) => Ok(()),
+                Err(Answer::Rest(e)) => Err(e),
+                Err(Answer::Search(e)) => send(resp, &e),
+            };
+        };
+        if source.pit.is_some() {
+            return Err(RestError::illegal_argument(
+                "a search of a point in time names no index: the view holds it",
+            ));
+        }
         #[cfg(feature = "coordinator")]
         match self.shard_count(&index) {
             Ok(shards) if shards > 1 => {
@@ -155,7 +172,10 @@ impl<S: BlobStore + 'static> SearchService<S> {
             Err(Answer::Rest(e)) => return Err(e),
             Err(Answer::Search(e)) => return send(resp, &e),
         };
-        let view = self.overlay_view(&held);
+        let view = match self.fresh_view(&held) {
+            Ok(view) => view,
+            Err(e) => return send(resp, &e),
+        };
         let shard = view.as_deref().unwrap_or(&held.shard);
         req.body().reserve(hits_bytes(&source, shard))?;
         let analyzer = Analyzer::standard(None);
@@ -210,8 +230,8 @@ fn bad_request(e: DslError) -> Answer {
     Answer::Search(Box::new(SearchError::request(e.status(), e.into_failure())))
 }
 
-/// The body, streamed through the recorder, and the URL parameters.
-fn read_source(req: &mut Request<'_>) -> Result<SearchSource, Answer> {
+/// The body streamed through the recorder, its growth reserved first.
+fn record_body(req: &mut Request<'_>) -> Result<Recorder, Answer> {
     let mut rec = Recorder::new(MAX_RECORDED_BYTES);
     let mut tokenizer = source::tokenizer();
     let body = req.body();
@@ -233,6 +253,12 @@ fn read_source(req: &mut Request<'_>) -> Result<SearchSource, Answer> {
         tokenizer.feed(chunk, &mut rec).map_err(bad_request)?;
     }
     tokenizer.finish(&mut rec).map_err(bad_request)?;
+    Ok(rec)
+}
+
+/// The body, streamed through the recorder, and the URL parameters.
+fn read_source(req: &mut Request<'_>) -> Result<SearchSource, Answer> {
+    let rec = record_body(req)?;
     let mut source = SearchSource::parse(&rec).map_err(bad_request)?;
     let from = req.param("from");
     let size = req.param("size");
@@ -240,6 +266,11 @@ fn read_source(req: &mut Request<'_>) -> Result<SearchSource, Answer> {
         .apply_params(from.as_deref(), size.as_deref())
         .map_err(bad_request)?;
     Ok(source)
+}
+
+fn search_error(e: SearchError) -> Answer {
+    // ALLOC: error path; one box.
+    Answer::Search(Box::new(e))
 }
 
 fn send(resp: &mut Response<'_>, e: &SearchError) -> Result<(), RestError> {
@@ -252,7 +283,25 @@ pub fn routes<S: BlobStore + 'static>(
     service: Arc<SearchService<S>>,
 ) -> Result<Router, RouteError> {
     let get = Arc::clone(&service);
+    let any_get = Arc::clone(&service);
+    let any_post = Arc::clone(&service);
+    let counting = Arc::clone(&service);
+    let caps = Arc::clone(&service);
+    let multi = Arc::clone(&service);
+    let analysis = Arc::clone(&service);
     router
+        .route(
+            Method::Get,
+            "/_search",
+            SEARCH_PARAMS,
+            move |req: &mut Request<'_>, resp: &mut Response<'_>| any_get.handle(req, resp),
+        )?
+        .route(
+            Method::Post,
+            "/_search",
+            SEARCH_PARAMS,
+            move |req: &mut Request<'_>, resp: &mut Response<'_>| any_post.handle(req, resp),
+        )?
         .route(
             Method::Get,
             "/{index}/_search",
@@ -265,8 +314,22 @@ pub fn routes<S: BlobStore + 'static>(
             SEARCH_PARAMS,
             move |req: &mut Request<'_>, resp: &mut Response<'_>| service.handle(req, resp),
         )
+        .and_then(|router| count::routes(router, counting))
+        .and_then(|router| field_caps::routes(router, caps))
+        .and_then(|router| msearch::routes(router, multi))
+        .and_then(|router| analyze::routes(router, analysis))
 }
 
+#[path = "search_analyze.rs"]
+mod analyze;
+#[path = "search_count.rs"]
+mod count;
+#[path = "search_field_caps.rs"]
+mod field_caps;
+#[path = "search_frozen.rs"]
+mod frozen;
+#[path = "search_msearch.rs"]
+mod msearch;
 #[path = "search_open.rs"]
 pub(crate) mod open_shard;
 #[path = "search_shard.rs"]

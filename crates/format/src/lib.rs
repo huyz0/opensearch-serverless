@@ -31,10 +31,12 @@
 //! [`WalRecord`]s out as one blob, [`node_log_format::decode`] reads a
 //! slot's header or fence, and [`slice_records`] reads one shard's records.
 //!
-//! Bucketed indices, whose commits are in a bucket's manifest, are not read
-//! yet ([`FormatError::NotFollowable`]).
+//! A bucketed index's commit is in its bucket's manifest register: [`parse_bucket_member`]
+//! reads one member's entry from it. A shard's own reader does not follow a
+//! bucketed descriptor yet ([`FormatError::NotFollowable`]).
 
 mod alias_record;
+mod bucket_manifest;
 mod change_stripe;
 mod cluster_settings;
 mod descriptor;
@@ -61,6 +63,10 @@ mod unit_layout;
 mod wal_record;
 
 pub use alias_record::{ALIAS_DISCRIMINATOR, AliasMutation, AliasRecord};
+pub use bucket_manifest::{
+    BUCKETS_PREFIX, BucketEntry, BucketMember, MAX_BUCKET_ID_LENGTH, bucket_manifest_key,
+    parse_member as parse_bucket_member,
+};
 pub use change_stripe::{
     ChangeKind, ChangeStripe, KEPT, KEPT_PENDING, MAX_CHANGE_STRIPE_BYTES, MAX_ENTRY_NAME_BYTES,
     STRIPES, StripeEntry, stripe_of,

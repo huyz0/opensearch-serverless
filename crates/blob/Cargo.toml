@@ -49,6 +49,10 @@ required-features = ["emulator"]
 name = "fs_streaming_peak"
 
 [[test]]
+name = "shared"
+required-features = ["emulator"]
+
+[[test]]
 name = "rounds"
 required-features = ["emulator"]
 

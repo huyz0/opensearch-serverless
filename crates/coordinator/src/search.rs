@@ -164,7 +164,7 @@ pub fn search<T: Shards>(
                 max_score: found.max_score,
                 hits,
                 timed_out: false,
-                terminated_early: None,
+                terminated_early: found.terminated_early,
             })
             .map_err(SearchFailure::Merge)?;
     }
@@ -260,10 +260,13 @@ fn write_envelope<T: Shards>(
     t: &T,
     parts: &[Partial],
 ) -> std::io::Result<()> {
+    write!(out, "{{\"took\":{},\"timed_out\":false", p.took_ms,)?;
+    if let Some(early) = merged.terminated_early {
+        write!(out, ",\"terminated_early\":{early}")?;
+    }
     write!(
         out,
-        "{{\"took\":{},\"timed_out\":false,\"_shards\":{{\"total\":{shards},\"successful\":{answered},\"skipped\":0,\"failed\":{}",
-        p.took_ms,
+        ",\"_shards\":{{\"total\":{shards},\"successful\":{answered},\"skipped\":0,\"failed\":{}",
         failures.len()
     )?;
     if !failures.is_empty() {

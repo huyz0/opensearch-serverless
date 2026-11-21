@@ -6,5 +6,6 @@
 //! [ADR 0019]: https://github.com/huyz0/opensearch-serverless/blob/main/docs/adr/0019-document-indexing-crate-below-reader-and-writer.md
 
 pub mod document;
+pub mod fast;
 pub mod lucene;
 pub mod mapping;

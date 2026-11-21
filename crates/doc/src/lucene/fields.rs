@@ -200,6 +200,9 @@ impl Spec {
 pub enum MetaField {
     /// `_id`: one term and its stored bytes.
     Id,
+    /// `_routing`: one term and its stored string, only on a document
+    /// indexed with a custom routing value.
+    Routing,
     /// `_seq_no`: a long point and numeric doc values.
     SeqNo,
     /// `_primary_term`: numeric doc values.
@@ -224,6 +227,7 @@ impl MetaField {
     pub fn name(self) -> &'static str {
         match self {
             MetaField::Id => "_id",
+            MetaField::Routing => "_routing",
             MetaField::SeqNo => "_seq_no",
             MetaField::PrimaryTerm => "_primary_term",
             MetaField::Source => "_source",
@@ -242,7 +246,7 @@ impl MetaField {
             i.with_doc_values(DocValuesType::Numeric, DocValuesSkipIndexType::None, -1)
         };
         match self {
-            MetaField::Id | MetaField::FieldNames | MetaField::Ignored => info
+            MetaField::Id | MetaField::Routing | MetaField::FieldNames | MetaField::Ignored => info
                 .with_index_options(IndexOptions::Docs)
                 .with_omit_norms(true),
             MetaField::SeqNo => numeric(info).with_points(1, 1, 8),

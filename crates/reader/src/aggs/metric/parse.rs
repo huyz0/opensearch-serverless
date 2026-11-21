@@ -8,9 +8,7 @@
 //! `field` and each metric's own options are served
 //! ([`parse_percentiles_body`] for the two percentile metrics).
 
-use crate::aggs::bucket::date_histogram_parse::parse_date_histogram_body;
-use crate::aggs::bucket::histogram_parse::parse_histogram_body;
-use crate::aggs::bucket::terms_parse::parse_terms_body;
+use crate::aggs::bucket::parse_arms::parse_bucket;
 pub(crate) use crate::aggs::metric::long_value::long_value;
 use crate::aggs::metric::percentiles::parse_percentiles_body;
 use crate::aggs::metric::top_hits::parse_top_hits_body;
@@ -156,7 +154,7 @@ fn parse_level(p: &mut Parser<'_>, level: usize) -> Result<Vec<MetricAgg>, DslEr
         };
         let mut agg = agg;
         if !definition.subs.is_empty() {
-            if agg.metric != Metric::Terms {
+            if !holds_subs(agg.metric) {
                 return Err(sub_refusal(&agg, name));
             }
             if let Some(sub) = definition
@@ -166,8 +164,9 @@ fn parse_level(p: &mut Parser<'_>, level: usize) -> Result<Vec<MetricAgg>, DslEr
             {
                 // ALLOC: error path; one message.
                 return Err(DslError::unsupported(&format!(
-                    "a [{}] sub-aggregation of a [terms] aggregation",
-                    sub.metric.name()
+                    "a [{}] sub-aggregation of a [{}] aggregation",
+                    sub.metric.name(),
+                    agg.metric.name()
                 )));
             }
             if level >= MAX_NESTING {
@@ -189,6 +188,20 @@ fn parse_level(p: &mut Parser<'_>, level: usize) -> Result<Vec<MetricAgg>, DslEr
     Ok(aggs)
 }
 
+/// Whether `metric` is a bucket aggregation this node runs sub-aggregations
+/// under.
+fn holds_subs(metric: Metric) -> bool {
+    matches!(
+        metric,
+        Metric::Terms
+            | Metric::Range
+            | Metric::Filters
+            | Metric::Filter
+            | Metric::Histogram
+            | Metric::DateHistogram
+    )
+}
+
 /// Whether `metric` is a single-value or stats metric, one of the
 /// sub-aggregations of a `terms` this node runs (a `terms` is the other).
 fn is_scalar(metric: Metric) -> bool {
@@ -200,13 +213,6 @@ fn is_scalar(metric: Metric) -> bool {
 
 /// The refusal of sub-aggregations under `agg`, which holds none here.
 fn sub_refusal(agg: &MetricAgg, name: &str) -> DslError {
-    if matches!(agg.metric, Metric::Histogram | Metric::DateHistogram) {
-        // ALLOC: error path; one message.
-        return DslError::unsupported(&format!(
-            "sub-aggregations of a [{}] aggregation",
-            agg.metric.name()
-        ));
-    }
     DslError::Failure(Failure::opensearch(
         "aggregation_initialization_exception",
         // ALLOC: error path; one message.
@@ -303,72 +309,40 @@ fn parse_definition(p: &mut Parser<'_>, name: &str, level: usize) -> Result<Defi
                         .caused_by(cause),
                     ));
                 };
-                let mut top_hits = None;
-                let (mut terms, mut histogram, mut date_histogram) = (None, None, None);
-                let (field, cardinality, percentiles) = match metric {
-                    Metric::Percentiles | Metric::PercentileRanks => {
-                        let (field, options) = parse_percentiles_body(p, metric, name)?;
-                        (field, CardinalityOptions::default(), options)
-                    }
-                    Metric::TopHits => {
-                        // ALLOC: one box a `top_hits`, bounded by the body's recording.
-                        top_hits = Some(Box::new(parse_top_hits_body(p, name)?));
-                        (
-                            // ALLOC: empty; a `top_hits` reads no field.
-                            String::new(),
-                            CardinalityOptions::default(),
-                            PercentilesOptions::default(),
-                        )
-                    }
-                    Metric::Terms => {
-                        let (field, spec) = parse_terms_body(p, name)?;
-                        // ALLOC: one box a `terms`, bounded by the body's recording.
-                        terms = Some(Box::new(spec));
-                        (
-                            field,
-                            CardinalityOptions::default(),
-                            PercentilesOptions::default(),
-                        )
-                    }
-                    Metric::Histogram => {
-                        let (field, spec) = parse_histogram_body(p, name)?;
-                        // ALLOC: one box a `histogram`, bounded by the body's recording.
-                        histogram = Some(Box::new(spec));
-                        (
-                            field,
-                            CardinalityOptions::default(),
-                            PercentilesOptions::default(),
-                        )
-                    }
-                    Metric::DateHistogram => {
-                        let (field, spec) = parse_date_histogram_body(p, name)?;
-                        // ALLOC: one box a `date_histogram`, bounded by the body's recording.
-                        date_histogram = Some(Box::new(spec));
-                        (
-                            field,
-                            CardinalityOptions::default(),
-                            PercentilesOptions::default(),
-                        )
-                    }
-                    _ => {
-                        let (field, options) = parse_metric_body(p, metric, name)?;
-                        (field, options, PercentilesOptions::default())
-                    }
-                };
-                definition.agg = Some(MetricAgg {
+                let mut agg = MetricAgg {
                     // ALLOC: one name an aggregation, bounded by the body's recording.
                     name: name.to_owned(),
                     metric,
-                    field,
-                    cardinality,
-                    percentiles,
-                    top_hits,
-                    terms,
-                    histogram,
-                    date_histogram,
+                    // ALLOC: empty; filled by the parse of its body.
+                    field: String::new(),
+                    cardinality: CardinalityOptions::default(),
+                    percentiles: PercentilesOptions::default(),
+                    top_hits: None,
+                    terms: None,
+                    histogram: None,
+                    date_histogram: None,
+                    range: None,
+                    filters: None,
                     // ALLOC: empty; the definition's `aggs` fill it.
                     subs: Vec::new(),
-                });
+                };
+                if !parse_bucket(p, &mut agg)? {
+                    match metric {
+                        Metric::Percentiles | Metric::PercentileRanks => {
+                            let (field, options) = parse_percentiles_body(p, metric, name)?;
+                            (agg.field, agg.percentiles) = (field, options);
+                        }
+                        Metric::TopHits => {
+                            // ALLOC: one box a `top_hits`, bounded by the body's recording.
+                            agg.top_hits = Some(Box::new(parse_top_hits_body(p, name)?));
+                        }
+                        _ => {
+                            let (field, options) = parse_metric_body(p, metric, name)?;
+                            (agg.field, agg.cardinality) = (field, options);
+                        }
+                    }
+                }
+                definition.agg = Some(agg);
             }
         }
     }
