@@ -79,13 +79,13 @@ pub static SETTINGS: &[&Setting] = &[
 /// The pass's settings, as the node read them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Config {
-    /// [`ENABLED`].
+    /// The `ENABLED` setting.
     pub enabled: bool,
-    /// [`REAPERS`].
+    /// The `REAPERS` setting.
     pub reapers: usize,
-    /// [`MAX_CONCURRENT`].
+    /// The `MAX_CONCURRENT` setting.
     pub max_concurrent: usize,
-    /// [`PASS_MILLIS`].
+    /// The `PASS_MILLIS` setting.
     pub pass: Duration,
     /// How long each reaper after the first waits past the lease's expiry:
     /// one refresh interval, per rank.
