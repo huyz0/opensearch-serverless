@@ -13,7 +13,7 @@ mod transport;
 
 use std::net::TcpListener;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use oss_cluster::heads::ShardHeadStore;
 use oss_cluster::transport_secret::{CachedTransportSecrets, TransportSecretStore};
@@ -47,7 +47,7 @@ use crate::writer::{
 };
 
 pub use config::{MIN_MEMORY_BYTES, NodeConfig, StoreChoice};
-use renew::Renewal;
+use renew::{Cadence, Renewal};
 use support::{address_bytes, earlier_epochs, store_of};
 
 /// The roles a node's lease names.
@@ -439,11 +439,16 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     let mailbox = Arc::new(DeadMailbox::default());
     let posting = Arc::clone(&mailbox);
     let renewing = Arc::clone(&membership);
-    let renewal = Renewal::spawn(config.renew_every(), move || {
-        // A failed tick is retried by the next: the lease only has to land
-        // once in a lifetime.
-        let _ = keeper.renew(&committer);
-        if let Ok(refreshed) = renewing.refresh() {
+    let mut cadence = Cadence::new(config.renew_every(), config.refresh_every(), Instant::now());
+    let renewal = Renewal::spawn(cadence.tick_every(), move || {
+        let now = Instant::now();
+        if cadence.renew_due(now) {
+            let _ = keeper.renew(&committer);
+        }
+        if cadence.refresh_due(now)
+            && let Ok(refreshed) = renewing.refresh()
+        {
+            cadence.refreshed(now);
             posting.post(DeadSnapshot {
                 live: refreshed.live,
                 dead: refreshed.dead_with_epochs,

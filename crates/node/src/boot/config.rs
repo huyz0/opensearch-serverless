@@ -82,6 +82,9 @@ pub struct NodeConfig {
     pub memory_bytes: usize,
     /// How far ahead a lease renewal stamps its expiry.
     pub lease_ttl_millis: i64,
+    /// How often the node reads the fleet's leases again; unset, the same
+    /// as the lease is renewed (a third of its lifetime).
+    pub lease_refresh_millis: Option<u64>,
     /// How long a writer trusts an index it read before confirming it by
     /// the change stripes; zero reads the descriptor on every lookup.
     pub index_confirm_millis: u64,
@@ -148,6 +151,18 @@ impl NodeConfig {
         if lease_ttl_millis < 3 {
             return Err(format!("OSS_LEASE_TTL_MS [{lease_ttl_millis}] is below 3"));
         }
+        let lease_refresh_millis = match get("OSS_LEASE_REFRESH_MS").filter(|v| !v.is_empty()) {
+            None => None,
+            Some(v) => {
+                let millis: u64 = v
+                    .parse()
+                    .map_err(|e| format!("OSS_LEASE_REFRESH_MS: {e}"))?;
+                if millis == 0 {
+                    return Err("OSS_LEASE_REFRESH_MS is below 1".to_owned());
+                }
+                Some(millis)
+            }
+        };
         let index_confirm_millis: u64 = or("OSS_INDEX_CONFIRM_MS", "5000")
             .parse()
             .map_err(|e| format!("OSS_INDEX_CONFIRM_MS: {e}"))?;
@@ -177,6 +192,7 @@ impl NodeConfig {
             advertise: get("OSS_ADVERTISE_ADDR").filter(|v| !v.is_empty()),
             memory_bytes,
             lease_ttl_millis,
+            lease_refresh_millis,
             index_confirm_millis,
             janitor_every_millis,
             tail_overlay,
@@ -187,6 +203,13 @@ impl NodeConfig {
     /// How often the lease is renewed: a third of its lifetime.
     pub fn renew_every(&self) -> Duration {
         Duration::from_millis(u64::try_from(self.lease_ttl_millis / 3).unwrap_or(1).max(1))
+    }
+
+    /// How often the fleet's leases are read again: `OSS_LEASE_REFRESH_MS`,
+    /// or as often as the lease is renewed.
+    pub fn refresh_every(&self) -> Duration {
+        self.lease_refresh_millis
+            .map_or_else(|| self.renew_every(), Duration::from_millis)
     }
 
     /// The node's memory split into pools by fixed shares.
@@ -232,6 +255,18 @@ mod tests {
     }
 
     #[test]
+    fn the_lease_refresh_interval_is_set_apart_from_the_renewal() {
+        let c = NodeConfig::from_lookup(lookup(&with(&[("OSS_LEASE_REFRESH_MS", "2000")])))
+            .expect("valid");
+        assert_eq!(c.refresh_every(), Duration::from_secs(2));
+        assert_eq!(
+            c.renew_every(),
+            Duration::from_secs(10),
+            "the renewal stays"
+        );
+    }
+
+    #[test]
     fn a_file_store_node_takes_the_defaults() {
         let c = NodeConfig::from_lookup(lookup(FS)).expect("valid");
         assert_eq!(c.node_id, "n1");
@@ -242,6 +277,8 @@ mod tests {
         assert_eq!(c.advertise, None);
         assert_eq!(c.memory_bytes, 1 << 30);
         assert_eq!(c.lease_ttl_millis, 30_000);
+        assert_eq!(c.lease_refresh_millis, None);
+        assert_eq!(c.refresh_every(), c.renew_every(), "as often as renewed");
         assert_eq!(c.index_confirm_millis, 5_000);
         assert_eq!(c.janitor_every_millis, 60_000);
         assert_eq!(c.renew_every(), Duration::from_secs(10));
@@ -293,6 +330,14 @@ mod tests {
         refused(&with(&[("OSS_MEMORY_BYTES", "x")]), "OSS_MEMORY_BYTES");
         refused(&with(&[("OSS_MEMORY_BYTES", "1000")]), "OSS_MEMORY_BYTES");
         refused(&with(&[("OSS_LEASE_TTL_MS", "y")]), "OSS_LEASE_TTL_MS");
+        refused(
+            &with(&[("OSS_LEASE_REFRESH_MS", "y")]),
+            "OSS_LEASE_REFRESH_MS",
+        );
+        refused(
+            &with(&[("OSS_LEASE_REFRESH_MS", "0")]),
+            "OSS_LEASE_REFRESH_MS",
+        );
         refused(&with(&[("OSS_LEASE_TTL_MS", "2")]), "OSS_LEASE_TTL_MS");
         refused(
             &with(&[("OSS_JANITOR_EVERY_MS", "0")]),
