@@ -185,3 +185,45 @@ fn the_search_route_answers_an_index_of_two_shards_through_the_coordinator() {
     );
     assert!(again.iter().sum::<u64>() > before.iter().sum::<u64>());
 }
+
+#[test]
+fn a_top_hits_is_merged_across_the_shards_and_its_hits_come_from_them() {
+    let node = two("compat-paging-sort", "compat-paging-sort-uuid", "tops");
+    let body = run(
+        &node,
+        "tops",
+        2,
+        r#"{"size":0,"aggs":{"best":{"top_hits":{"size":3,"sort":[{"year":"desc"},{"_doc":"asc"}]}}}}"#,
+        &grant,
+    )
+    .expect("searches");
+    let (_, agg) = body.split_once(r#""aggregations":"#).expect("aggregations");
+    assert!(
+        agg.starts_with(r#"{"best":{"hits":{"total":{"value":"#),
+        "{agg}"
+    );
+    assert_eq!(agg.matches(r#""_id":"#).count(), 3, "{agg}");
+    let years: Vec<i64> = agg
+        .split(r#""sort":["#)
+        .skip(1)
+        .filter_map(|rest| rest.split([',', ']']).next()?.parse().ok())
+        .collect();
+    assert_eq!(years.len(), 3, "{agg}");
+    assert!(years.windows(2).all(|w| w[0] >= w[1]), "{years:?}");
+    // The merged best is the best of both shards, so asking one shard for
+    // the same window cannot beat it.
+    let one = run(
+        &node,
+        "tops",
+        1,
+        r#"{"size":0,"aggs":{"best":{"top_hits":{"size":1,"sort":[{"year":"desc"},{"_doc":"asc"}]}}}}"#,
+        &grant,
+    )
+    .expect("one shard");
+    let first: i64 = one
+        .split(r#""sort":["#)
+        .nth(1)
+        .and_then(|r| r.split([',', ']']).next()?.parse().ok())
+        .expect("a year");
+    assert!(years[0] >= first, "{years:?} vs {first}");
+}

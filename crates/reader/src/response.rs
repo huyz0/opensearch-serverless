@@ -158,7 +158,7 @@ pub fn write_response_with<S: BlobStore + 'static>(
     };
     write_hit_list(out, shard, index, node_id, &hits.view(), &mut fetch)?;
     out.write_all(b"]}")?;
-    write_aggregations_with(out, &hits.aggregations, &mut |out, top| {
+    write_aggregations_with(out, &hits.aggregations, &mut |out, _, top| {
         write!(
             out,
             "\"hits\":{{\"total\":{{\"value\":{},\"relation\":\"eq\"}},\"max_score\":",

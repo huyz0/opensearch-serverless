@@ -17,7 +17,8 @@ use oss_reader::search::Hits;
 use crate::fanout::{self, TaskError};
 use crate::reduce::aggs::{AggsError, reduce_shards};
 use crate::reduce::hits::{MergeError, Merger, Relation, ShardAnswer, ShardHit, SortSpec};
-use crate::reduce::top_hits::{RenderError, fetch_page};
+use crate::reduce::top_hits::{RenderError, fetch_page, reduce_top_hits, render_page};
+use oss_reader::aggs::partial::Value;
 
 /// The shards of one search.
 pub trait Shards: Sync {
@@ -51,6 +52,39 @@ pub trait Shards: Sync {
         query: &Self::Query,
         positions: &[usize],
     ) -> Result<Vec<Vec<u8>>, Self::Error>;
+
+    /// The window and sort of the request's top-level `top_hits` named
+    /// `name`: `from`, `size` and the sort's directions (by score when
+    /// `None`). `None` when the request has no such aggregation, which a
+    /// merge of its shards' hits then refuses.
+    fn top_hits_window(&self, name: &str) -> Option<TopHitsWindow> {
+        let _ = name;
+        None
+    }
+
+    /// As [`Self::render`], for the hits of the `top_hits` named `name`.
+    ///
+    /// # Errors
+    ///
+    /// Whatever kept the shard from rendering.
+    fn render_top_hits(
+        &self,
+        shard: usize,
+        query: &Self::Query,
+        name: &str,
+        positions: &[usize],
+    ) -> Result<Vec<Vec<u8>>, Self::Error>;
+}
+
+/// What a `top_hits` asks of the merge of its shards' hits.
+#[derive(Clone, Debug)]
+pub struct TopHitsWindow {
+    /// Hits skipped before the page.
+    pub from: usize,
+    /// Hits in the page.
+    pub size: usize,
+    /// The sort keys' directions; by score when `None`.
+    pub sorts: Option<Vec<SortSpec>>,
 }
 
 /// What a search asks of the merge and the response.
@@ -181,12 +215,21 @@ pub fn search<T: Shards>(
         }
     })
     .map_err(|e| fetch_failure(&e))?;
-    let parts = reduce_aggregations(t, &queries)?;
+    let (parts, top_bodies) = reduce_aggregations(t, &queries, p)?;
     // ALLOC: the response, bounded by the page's rendered hits.
     let mut out = Vec::new();
     // Writing to a vector cannot fail.
     let _ = write_envelope(
-        &mut out, p, &merged, &rendered, &failures, shards, answered, t, &parts,
+        &mut out,
+        p,
+        &merged,
+        &rendered,
+        &failures,
+        shards,
+        answered,
+        t,
+        &parts,
+        &top_bodies,
     );
     Ok(out)
 }
@@ -212,28 +255,102 @@ fn fetch_failure<E: Display, T>(e: &RenderError<E>) -> SearchFailure<T> {
     }
 }
 
+/// A `top_hits` reduced: its name and its written `"hits":{..}` body.
+type TopBody = (String, Vec<u8>);
+
+/// The reduced aggregations and the `top_hits` bodies written with them.
+type Reduced = (Vec<Partial>, Vec<TopBody>);
+
 /// The answering shards' aggregations reduced, as the first shard's
-/// partials hold their names and formats.
+/// partials hold their names and formats, and the body of each top-level
+/// `top_hits` merged across the shards and fetched from the ones that
+/// ranked its page.
 fn reduce_aggregations<T: Shards>(
     t: &T,
     queries: &[Option<T::Query>],
-) -> Result<Vec<Partial>, SearchFailure<T::Error>> {
-    // ALLOC: one entry an answering shard.
-    let answers: Vec<&Hits> = queries.iter().flatten().map(|q| t.hits(q)).collect();
+    p: &Params,
+) -> Result<Reduced, SearchFailure<T::Error>> {
+    let answering: Vec<(usize, &T::Query)> = queries
+        .iter()
+        .enumerate()
+        .filter_map(|(shard, q)| q.as_ref().map(|q| (shard, q)))
+        // ALLOC: one entry an answering shard.
+        .collect();
+    // ALLOC: bounded by the shards, the page or the request's aggregations.
+    let answers: Vec<&Hits> = answering.iter().map(|(_, q)| t.hits(q)).collect();
+    // ALLOC: bounded by the shards, the page or the request's aggregations.
+    let mut tops: Vec<TopBody> = Vec::new();
     let values: Vec<Vec<_>> = answers
         .iter()
         .map(|h| {
             h.aggregations
                 .iter()
+                .filter(|a| {
+                    !matches!(a.value, Value::TopHits(_)) || t.top_hits_window(&a.name).is_none()
+                })
                 // ALLOC: one entry an aggregation of the request.
                 .map(|a| (a.name.clone(), a.value.clone()))
                 .collect()
         })
         // ALLOC: bounded by the shards, the page or the request's aggregations.
         .collect();
-    let reduced = reduce_shards(&values).map_err(SearchFailure::Aggs)?;
+    let mut reduced = reduce_shards(&values).map_err(SearchFailure::Aggs)?;
     let first = answers.first().map(|h| &h.aggregations);
-    Ok(reduced
+    // ALLOC: bounded by the shards, the page or the request's aggregations.
+    let mut names: Vec<&str> = Vec::new();
+    for h in &answers {
+        for a in &h.aggregations {
+            if matches!(a.value, Value::TopHits(_))
+                && t.top_hits_window(&a.name).is_some()
+                && !names.contains(&a.name.as_str())
+            {
+                names.push(&a.name);
+            }
+        }
+    }
+    for name in names {
+        let Some(window) = t.top_hits_window(name) else {
+            continue;
+        };
+        // The answering shards that hold this aggregation, with their results.
+        // ALLOC: bounded by the shards, the page or the request's aggregations.
+        let mut owners: Vec<usize> = Vec::new();
+        // ALLOC: bounded by the shards, the page or the request's aggregations.
+        let mut results = Vec::new();
+        for ((shard, _), h) in answering.iter().zip(&answers) {
+            if let Some(Value::TopHits(top)) = h
+                .aggregations
+                .iter()
+                .find(|a| a.name == name)
+                .map(|a| &a.value)
+            {
+                owners.push(*shard);
+                results.push((**top).clone());
+            }
+        }
+        let merged = reduce_top_hits(&results, window.from, window.size, window.sorts)
+            .map_err(SearchFailure::Merge)?;
+        let body = render_page(&merged, p.concurrency, |at, positions| {
+            let shard = owners.get(at).copied().unwrap_or(usize::MAX);
+            match queries.get(shard).and_then(Option::as_ref) {
+                Some(query) => t.render_top_hits(shard, query, name, positions),
+                // ALLOC: error path only.
+                None => Ok(Vec::new()),
+            }
+        })
+        .map_err(|e| fetch_failure(&e))?;
+        // The writer takes the body by name; the value only marks the kind.
+        // ALLOC: bounded by the shards, the page or the request's aggregations.
+        reduced.push((
+            name.to_owned(),
+            Value::TopHits(Box::new(
+                oss_reader::aggs::metric::top_hits::TopHitsResult::empty(),
+            )),
+        ));
+        // ALLOC: bounded by the shards, the page or the request's aggregations.
+        tops.push((name.to_owned(), body));
+    }
+    let parts = reduced
         .into_iter()
         .map(|(name, value)| Partial {
             format: first
@@ -244,7 +361,8 @@ fn reduce_aggregations<T: Shards>(
             value,
         })
         // ALLOC: one entry an aggregation of the request.
-        .collect())
+        .collect();
+    Ok((parts, tops))
 }
 
 /// Writes the response body.
@@ -259,6 +377,7 @@ fn write_envelope<T: Shards>(
     answered: usize,
     t: &T,
     parts: &[Partial],
+    top_bodies: &[(String, Vec<u8>)],
 ) -> std::io::Result<()> {
     write!(out, "{{\"took\":{},\"timed_out\":false", p.took_ms,)?;
     if let Some(early) = merged.terminated_early {
@@ -312,6 +431,12 @@ fn write_envelope<T: Shards>(
         out.write_all(hit)?;
     }
     out.write_all(b"]}")?;
-    write_aggregations_with(out, parts, &mut |_, _| Ok(()))?;
+    write_aggregations_with(out, parts, &mut |out, name, _| match top_bodies
+        .iter()
+        .find(|(n, _)| n == name)
+    {
+        Some((_, body)) => out.write_all(body),
+        None => Ok(()),
+    })?;
     out.write_all(b"}")
 }
