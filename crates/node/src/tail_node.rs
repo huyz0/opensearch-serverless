@@ -73,6 +73,10 @@ pub struct TailParts {
     pub in_doubt: Arc<dyn Fn() -> bool + Send + Sync>,
     /// How often queued pushes are flushed.
     pub flush_every: Duration,
+    /// Whether a search answers only under a grant from the shard's writer
+    /// (`serverless.search.refresh_visibility` of `everywhere`). Off, a
+    /// search answers from what it holds.
+    pub grants: bool,
 }
 
 impl TailParts {
@@ -99,7 +103,15 @@ impl TailParts {
             clock,
             in_doubt: Arc::new(|| false),
             flush_every: Duration::from_millis(10),
+            grants: false,
         }
+    }
+
+    /// These parts with searches answering only under a grant.
+    #[must_use]
+    pub fn with_grants(mut self, grants: bool) -> Self {
+        self.grants = grants;
+        self
     }
 }
 
@@ -227,12 +239,20 @@ pub fn wire<S: oss_blob::BlobStore + 'static>(
         service,
         true,
         budget,
-        parts.fetcher,
-        parts.node_id,
+        Arc::clone(&parts.fetcher),
+        // ALLOC: one id, once.
+        parts.node_id.clone(),
         Arc::clone(&reader_clock),
     ) else {
         return Ok(None);
     };
+    service.set_tail_fresh(Arc::new(crate::tail_fresh::TailFresh::new(
+        Arc::clone(&wired.held),
+        parts.fetcher,
+        parts.node_id,
+        Arc::clone(&reader_clock),
+        parts.grants,
+    )));
     let keep = Arc::new(TailKeep::new());
     let facts: Arc<dyn ShardFacts> = Arc::new(RoleFacts {
         role: Arc::clone(role),

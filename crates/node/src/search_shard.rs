@@ -125,7 +125,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
             ))
         })?;
         let view = if overlay {
-            self.overlay_view(&held)
+            self.fresh_view(&held)?
         } else {
             None
         };
