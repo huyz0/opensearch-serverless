@@ -16,6 +16,7 @@ Parity plan R9.3 and R7.6: the tail overlay was built and wired by `Assembled::w
 - AC-1: a node booted with the overlay on, in each visibility, starts, enrols and serves a write and a read, and reports the overlay on.
 - AC-2: a node with the setting unset or `false` starts with the overlay off.
 - AC-3: the config refuses an unusable value by name, and defaults to off and `everywhere`.
+- AC-5: only the `everywhere` visibility makes a reader check with the writer.
 - AC-4: both tail actions are listed and refuse until their handlers are given; a handler given later answers.
 
 ## Test plan

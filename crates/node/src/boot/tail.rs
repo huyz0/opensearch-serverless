@@ -59,7 +59,7 @@ pub(super) fn wire(
         Held(Arc::clone(membership)),
         clock,
     )
-    .with_grants(config.refresh_visibility == "everywhere");
+    .with_grants(grants(config.refresh_visibility));
     let Some(registry) = assembled
         .wire_tail(parts)
         .map_err(|e| BootError::Cluster(format!("tail overlay: {e:?}")))?
@@ -68,6 +68,12 @@ pub(super) fn wire(
     };
     slots.fill(registry.into_handlers());
     Ok(())
+}
+
+/// Whether a reader checks with the writer before it answers: only in the
+/// `everywhere` visibility.
+fn grants(visibility: &str) -> bool {
+    visibility == "everywhere"
 }
 
 impl Slots {
@@ -113,6 +119,13 @@ mod tests {
         let mut sink = Vec::new();
         handlers[action].handle(&request, &mut Output::new(&mut sink, 16))?;
         Ok(sink)
+    }
+
+    #[test]
+    fn only_the_everywhere_visibility_makes_a_reader_check_with_the_writer() {
+        assert!(grants("everywhere"));
+        assert!(!grants("serving"));
+        assert!(!grants("owner"));
     }
 
     #[test]
