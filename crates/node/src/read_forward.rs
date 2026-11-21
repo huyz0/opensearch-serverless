@@ -79,7 +79,7 @@ impl Handler for GetHandler {
                 seq_no: doc.seq_no,
                 primary_term: doc.primary_term,
                 version: doc.version,
-                routing: None,
+                routing: doc.routing,
             },
             None => GetResponse {
                 // ALLOC: as above.

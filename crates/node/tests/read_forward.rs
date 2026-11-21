@@ -326,3 +326,36 @@ fn a_get_to_a_peer_that_is_not_of_this_project_is_sent_the_java_layout_and_reads
         );
     }
 }
+
+#[test]
+fn a_forwarded_get_returns_the_routing_the_document_was_indexed_with() {
+    let owner = owning();
+    let routing = (0..50)
+        .map(|i| format!("r{i}"))
+        .find(|r| {
+            oss_cluster::routing::DocumentRouting::legacy_scaled(2, 1, 2)
+                .and_then(|d| d.shard_for("a", Some(r)))
+                .is_ok_and(|shard| shard == 0)
+        })
+        .expect("a routing for shard 0");
+    let reply = support::request(
+        owner.rest.local_addr(),
+        "PUT",
+        &format!("/docs/_doc/a?routing={routing}"),
+        Some(br#"{"n":1}"#),
+    );
+    assert!(reply.status < 300, "{}", reply.text());
+    let f = forwarder(&owner, "coordinator");
+    let a = f
+        .get("owner", &get("docs", Some("docs-uuid"), 0, "a"))
+        .expect("answers");
+    assert_eq!(a.routing.as_deref(), Some(routing.as_str()));
+    // The next version, written without one, has none.
+    put(&owner, "a", r#"{"n":2}"#);
+    assert_eq!(
+        f.get("owner", &get("docs", Some("docs-uuid"), 0, "a"))
+            .expect("answers")
+            .routing,
+        None
+    );
+}

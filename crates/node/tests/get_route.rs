@@ -96,6 +96,7 @@ impl Routes for Cluster {
                 seq_no: 4,
                 primary_term: 2,
                 source: br#"{"far":true}"#.to_vec(),
+                routing: None,
             })),
             ("node-2", _) => Ok(None),
             _ => Err("no answer".to_owned()),
@@ -353,4 +354,18 @@ fn a_remote_refresh_counts_the_owners_shard_and_an_unreachable_owner_fails_it() 
             .is_some_and(|m| m.contains("node-3") && m.contains("no answer")),
         "{error}"
     );
+}
+
+#[test]
+fn a_get_returns_the_routing_a_document_was_indexed_with() {
+    let r = rig();
+    put(&r, "/wide/_doc/a?routing=x", r#"{"n":1}"#);
+    put(&r, "/docs/_doc/plain", r#"{"n":2}"#);
+    assert_eq!(
+        json_of(&call(&r, "GET", "/wide/_doc/a?routing=x", None)),
+        json!({"_index":"wide","_id":"a","_version":1,"_seq_no":0,"_primary_term":3,
+               "_routing":"x","found":true,"_source":{"n":1}})
+    );
+    let plain = json_of(&call(&r, "GET", "/docs/_doc/plain", None));
+    assert!(plain.get("_routing").is_none(), "{plain}");
 }

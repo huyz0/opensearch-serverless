@@ -71,9 +71,13 @@ impl Shard<'_> {
             .map_err(|e| Self::engine(&e))?;
         } else {
             let source = record.source().as_bytes();
-            let fast = self
-                .fast
-                .prepare(&self.indexer, &self.mapping, source, &key);
+            let routing = record.routing();
+            let fast = if routing.is_some() {
+                None
+            } else {
+                self.fast
+                    .prepare(&self.indexer, &self.mapping, source, &key)
+            };
             let parsed = match fast {
                 Some(_) => None,
                 None => Some(document::parse(&self.mapping, id, source).map_err(Refused::Mapping)?),
@@ -108,7 +112,7 @@ impl Shard<'_> {
                     })?,
                 (None, Some(parsed)) => self
                     .indexer
-                    .document(&mut self.writer, &self.mapping, parsed, &meta)
+                    .document_routed(&mut self.writer, &self.mapping, parsed, &meta, routing)
                     .map_err(Refused::Mapping)?,
                 (None, None) => {
                     return Err(Refused::Mapping(MappingError::illegal_state(

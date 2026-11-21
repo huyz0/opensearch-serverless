@@ -91,12 +91,13 @@ impl ShardSlot {
         kind: Kind,
         id: &str,
         source: &[u8],
+        routing: Option<&str>,
         create: bool,
         expect: &Expect,
     ) -> Result<Written, Refused> {
         self.cell.with_dependent_mut(|_, shard| match kind {
             Kind::Delete => shard.delete(id, expect),
-            _ => shard.index(id, source, create, expect),
+            _ => shard.index_routed(id, source, routing, create, expect),
         })
     }
 

@@ -101,3 +101,63 @@ fn a_realtime_get_of_a_deleted_id_does_not_refresh() {
     // The map answered; `b` is still unrefreshed.
     assert!(s.get("b", false).expect("reads").is_none());
 }
+
+#[test]
+fn a_routed_document_returns_its_routing_and_one_indexed_without_clears_it() {
+    let dir = ByteBuffersDirectory::new();
+    let mut s = shard(&dir, &Arc::new(AtomicU64::new(0)));
+    s.index_routed("a", br#"{"n":1}"#, Some("r1"), false, &Expect::default())
+        .expect("indexes");
+    put(&mut s, "b", r#"{"n":2}"#);
+    let a = s.get("a", true).expect("reads").expect("found");
+    assert_eq!(a.routing.as_deref(), Some("r1"));
+    assert_eq!(a.source, br#"{"n":1}"#, "the source is untouched");
+    assert_eq!(
+        s.get("b", true).expect("reads").expect("found").routing,
+        None
+    );
+    // Still there after a refresh, from the segment.
+    s.refresh().expect("refreshes");
+    assert_eq!(
+        s.get("a", false)
+            .expect("reads")
+            .expect("found")
+            .routing
+            .as_deref(),
+        Some("r1")
+    );
+    // A new version without routing has none; with another, the new one.
+    put(&mut s, "a", r#"{"n":3}"#);
+    assert_eq!(
+        s.get("a", true).expect("reads").expect("found").routing,
+        None
+    );
+    s.index_routed("a", br#"{"n":4}"#, Some("r2"), false, &Expect::default())
+        .expect("indexes");
+    assert_eq!(
+        s.get("a", true)
+            .expect("reads")
+            .expect("found")
+            .routing
+            .as_deref(),
+        Some("r2")
+    );
+}
+
+#[test]
+fn a_replayed_record_keeps_its_routing() {
+    let dir = ByteBuffersDirectory::new();
+    let mut s = shard(&dir, &Arc::new(AtomicU64::new(0)));
+    let record = oss_format::WalRecord::index("a".to_owned(), r#"{"n":1}"#.to_owned(), 0, 3, 1)
+        .with_routing(Some("r1"))
+        .expect("routing");
+    assert!(s.replay(&record).expect("replays"));
+    assert_eq!(
+        s.get("a", true)
+            .expect("reads")
+            .expect("found")
+            .routing
+            .as_deref(),
+        Some("r1")
+    );
+}

@@ -267,6 +267,23 @@ impl<'d> Shard<'d> {
         create: bool,
         expect: &Expect,
     ) -> Result<Written, Refused> {
+        self.index_routed(id, source, None, create, expect)
+    }
+
+    /// As [`Shard::index`], keeping the custom `routing` value so a get
+    /// returns it. A routed document takes the complete path.
+    ///
+    /// # Errors
+    ///
+    /// As [`Shard::index`].
+    pub fn index_routed(
+        &mut self,
+        id: &str,
+        source: &[u8],
+        routing: Option<&str>,
+        create: bool,
+        expect: &Expect,
+    ) -> Result<Written, Refused> {
         let expect = if create {
             Expect {
                 version: super::version::MATCH_DELETED,
@@ -280,6 +297,7 @@ impl<'d> Shard<'d> {
         // complete path's. An empty id has no key, and takes the complete path's error order.
         let fast = uid(id)
             .ok()
+            .filter(|_| routing.is_none())
             .and_then(|k| self.fast.prepare(&self.indexer, &self.mapping, source, &k));
         let parsed = match fast {
             Some(_) => None,
@@ -320,7 +338,7 @@ impl<'d> Shard<'d> {
                 .ok_or_else(|| Refused::Mapping(MappingError::illegal_state("no document read")))?,
             (None, Some(parsed)) => self
                 .indexer
-                .document(&mut self.writer, mapping, parsed, &meta)
+                .document_routed(&mut self.writer, mapping, parsed, &meta, routing)
                 .map_err(Refused::Mapping)?,
             (None, None) => {
                 return Err(Refused::Mapping(MappingError::illegal_state(
