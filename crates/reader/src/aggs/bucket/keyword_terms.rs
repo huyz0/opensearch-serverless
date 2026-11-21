@@ -4,6 +4,7 @@
 
 use std::io::{self, Write};
 
+use crate::aggs::bucket::sub_order;
 use crate::aggs::bucket::sub_values::{reduce_sub, write_subs};
 use crate::aggs::bucket::terms::{TermsSpec, compare, shard_error};
 use crate::aggs::partial::{Format, Value};
@@ -92,7 +93,43 @@ pub fn reduce_results(parts: &[&KeywordTermsResult]) -> KeywordTermsResult {
         .map(|(term, (count, lists))| (term, count, lists))
         // ALLOC: as above.
         .collect();
-    kept.sort_by(|a, b| compare(spec.order, (&a.0, a.1), (&b.0, b.1)));
+    if let Some(order) = &spec.sub_order {
+        let target = sub_order::target(
+            order,
+            parts
+                .first()
+                .into_iter()
+                .flat_map(|p| p.sub_meta.iter().map(|m| m.0.as_str())),
+        );
+        // ALLOC: one value a bucket, bounded by the buckets.
+        let values: Vec<f64> = kept
+            .iter()
+            .map(|(_, _, lists)| {
+                target
+                    .as_ref()
+                    .and_then(|(at, key)| {
+                        lists
+                            .get(*at)
+                            .map(|l| sub_order::sort_value(&reduce_sub(l), key.as_deref()))
+                    })
+                    .unwrap_or(f64::NAN)
+            })
+            // ALLOC: as above.
+            .collect();
+        // ALLOC: one reference a bucket, as above.
+        let terms: Vec<&str> = kept.iter().map(|k| k.0).collect();
+        let rank = sub_order::ranked(order, &values, &terms);
+        // ALLOC: one slot a bucket, as above.
+        let mut slots: Vec<Option<_>> = kept.into_iter().map(Some).collect();
+        // ALLOC: one entry a bucket, as above.
+        kept = rank
+            .into_iter()
+            .filter_map(|at| slots.get_mut(at).and_then(Option::take))
+            // ALLOC: as above.
+            .collect();
+    } else {
+        kept.sort_by(|a, b| compare(spec.order, (&a.0, a.1), (&b.0, b.1)));
+    }
     for &(_, count, _) in kept.iter().skip(spec.size) {
         other = other.saturating_add(count);
     }

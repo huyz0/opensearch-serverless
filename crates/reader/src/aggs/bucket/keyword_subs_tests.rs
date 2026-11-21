@@ -10,9 +10,9 @@ use super::keyword_collect_tests::{keys, shard, terms};
 use crate::aggs::bucket::keyword_terms::KeywordTermsResult;
 use crate::aggs::partial::Value;
 
-const DOCS: usize = 200;
+pub(super) const DOCS: usize = 200;
 
-fn only(r: &KeywordTermsResult, term: &str) -> Vec<Value> {
+pub(super) fn only(r: &KeywordTermsResult, term: &str) -> Vec<Value> {
     let at = r.buckets.iter().position(|b| b.0 == term).expect("term");
     r.subs[at].clone()
 }
@@ -134,7 +134,7 @@ fn sub_aggregations_reserve_their_states_with_the_terms() {
     );
 }
 
-fn inner(r: &KeywordTermsResult, term: &str, at: usize) -> KeywordTermsResult {
+pub(super) fn inner(r: &KeywordTermsResult, term: &str, at: usize) -> KeywordTermsResult {
     match &only(r, term)[at] {
         Value::KeywordTerms(t) => (**t).clone(),
         other => panic!("not a keyword terms: {other:?}"),

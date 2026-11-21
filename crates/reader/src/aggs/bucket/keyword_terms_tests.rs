@@ -7,6 +7,7 @@
 #![allow(clippy::arithmetic_side_effects)]
 
 use super::keyword_terms::{KeywordTermsResult, reduce, reduce_results, write_keyword_terms};
+use super::sub_order::SubOrder;
 use super::terms::{TermsOrder, TermsResult, TermsSpec};
 use crate::aggs::partial::{Format, Value};
 
@@ -17,6 +18,7 @@ fn spec(size: usize, shard_size: usize, min: u64, order: TermsOrder) -> TermsSpe
         min_doc_count: min,
         order,
         keyword: Default::default(),
+        sub_order: None,
     }
 }
 
@@ -257,4 +259,47 @@ fn nested_results_reduce_and_write_inside_their_buckets() {
         ),
         "{out}"
     );
+}
+
+// AC-17
+#[test]
+fn a_reduce_orders_by_the_reduced_sub_aggregation() {
+    let ordered = |size: usize| {
+        let mut s = spec(size, 4, 1, TermsOrder::CountDesc);
+        s.sub_order = Some(SubOrder {
+            path: "m".to_owned(),
+            ascending: false,
+        });
+        s
+    };
+    let part = |buckets: &[(&str, u64, f64)]| {
+        let mut r = shard(
+            &ordered(2),
+            0,
+            &buckets.iter().map(|b| (b.0, b.1)).collect::<Vec<_>>(),
+        );
+        r.sub_meta = vec![("m".to_owned(), Format::Raw)];
+        r.subs = buckets.iter().map(|b| vec![Value::Max(b.2)]).collect();
+        r
+    };
+    // `a` has the most documents and `c` the largest metric on one shard;
+    // the reduce takes the larger of `b`'s two.
+    let got = reduced(&[
+        part(&[("a", 9, 1.0), ("b", 2, 5.0), ("c", 1, 7.0)]),
+        part(&[("b", 1, 8.0), ("d", 4, 2.0)]),
+    ]);
+    assert_eq!(keys(&got), [("b", 3), ("c", 1)]);
+    assert_eq!(got.subs, [vec![Value::Max(8.0)], vec![Value::Max(7.0)]]);
+    // The cut buckets' documents are other.
+    assert_eq!(got.other_doc_count, 13);
+    // Both shards hold fewer than `shard_size` 4: no bucket was cut.
+    assert_eq!(got.doc_count_error, 0);
+    let full = part(&[("a", 9, 1.0), ("b", 2, 5.0), ("c", 1, 7.0), ("d", 4, 2.0)]);
+    // A full shard may have cut buckets the order would keep: unbounded.
+    assert_eq!(reduced(&[full]).doc_count_error, -1);
+    let two = reduced(&[
+        part(&[("a", 9, 1.0), ("b", 2, 5.0), ("c", 1, 7.0), ("d", 4, 2.0)]),
+        part(&[("b", 1, 8.0)]),
+    ]);
+    assert_eq!(two.doc_count_error, -1);
 }

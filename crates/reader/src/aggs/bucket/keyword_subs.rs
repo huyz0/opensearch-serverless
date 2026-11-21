@@ -13,6 +13,7 @@ use oss_blob::BlobStore;
 use crate::OpenShard;
 use crate::aggs::bucket::keyword_collect::{self, Parent};
 use crate::aggs::bucket::keyword_terms::KeywordTermsResult;
+use crate::aggs::bucket::sub_order;
 use crate::aggs::bucket::sub_values::SubValues;
 use crate::aggs::bucket::terms::TermsSpec;
 use crate::aggs::metric::collect::{Resolved, node as metric_node, resolve, value_of};
@@ -35,6 +36,7 @@ fn resolved<S: BlobStore + 'static>(
     // ALLOC: one entry a sub-aggregation, bounded by the request's.
     let mut out = Vec::with_capacity(agg.subs.len());
     for sub in &agg.subs {
+        check_order(sub)?;
         let r = resolve(sub, shard)?;
         if sub.metric == Metric::Terms && matches!(r, Resolved::Numeric(_)) {
             return Err(ShardError {
@@ -130,7 +132,7 @@ pub fn reserved<S: BlobStore + 'static>(
         cells: parent.cells(terms),
         kept: parent
             .kept
-            .saturating_mul(spec.shard_size.min(terms))
+            .saturating_mul(keyword_collect::keeps(&spec, terms))
             .min(crate::aggs::bucket::BUCKET_LIMIT),
     };
     nested.fold(own, |total, sub| {
@@ -214,6 +216,7 @@ fn build<S: BlobStore + 'static>(
     for r in &mut results {
         // ALLOC: one list a kept bucket, as above.
         r.subs = lists.by_ref().take(r.buckets.len()).collect();
+        order_by_sub(r);
     }
     // ALLOC: one box an owning bucket, bounded as above.
     Ok(results
@@ -221,6 +224,69 @@ fn build<S: BlobStore + 'static>(
         .map(|r| Value::KeywordTerms(Box::new(r)))
         // ALLOC: one box an owning bucket, as above.
         .collect())
+}
+
+/// Orders `r`'s buckets by the sub-aggregation its spec names, keeps the best
+/// `shard_size` and counts the others' documents as other
+/// (`BucketSelectionStrategy`): the engine has kept every bucket.
+fn order_by_sub(r: &mut KeywordTermsResult) {
+    let Some(order) = r.spec.sub_order.clone() else {
+        return;
+    };
+    let target = sub_order::target(&order, r.sub_meta.iter().map(|m| m.0.as_str()));
+    // ALLOC: one value a bucket, bounded by the buckets.
+    let values: Vec<f64> = r
+        .subs
+        .iter()
+        .map(|list| {
+            target
+                .as_ref()
+                .and_then(|(at, key)| {
+                    list.get(*at)
+                        .map(|v| sub_order::sort_value(v, key.as_deref()))
+                })
+                .unwrap_or(f64::NAN)
+        })
+        // ALLOC: as above.
+        .collect();
+    // ALLOC: one reference a bucket, as above.
+    let terms: Vec<&str> = r.buckets.iter().map(|b| b.0.as_str()).collect();
+    let rank = sub_order::ranked(&order, &values, &terms);
+    let keep = r.spec.shard_size.min(rank.len());
+    let mut buckets = std::mem::take(&mut r.buckets);
+    let mut subs = std::mem::take(&mut r.subs);
+    // ALLOC: one entry a kept bucket, at most the shard size.
+    let mut kept_buckets = Vec::with_capacity(keep);
+    // ALLOC: as above.
+    let mut kept_subs = Vec::with_capacity(keep);
+    for (rank_at, at) in rank.into_iter().enumerate() {
+        let (Some(bucket), Some(list)) = (buckets.get_mut(at), subs.get_mut(at)) else {
+            continue;
+        };
+        let bucket = std::mem::take(bucket);
+        let list = std::mem::take(list);
+        if rank_at < keep {
+            kept_buckets.push(bucket);
+            kept_subs.push(list);
+        } else {
+            r.other_doc_count = r.other_doc_count.saturating_add(bucket.1);
+        }
+    }
+    r.buckets = kept_buckets;
+    r.subs = kept_subs;
+}
+
+/// Checks the order of the keyword `terms` `agg` by a sub-aggregation, if it
+/// has one, as the shard does when it builds the aggregator, whatever its
+/// field: an `AggregationExecutionException`.
+pub fn check_order(agg: &MetricAgg) -> Result<(), ShardError> {
+    let Some(order) = agg.terms.as_deref().and_then(|t| t.sub_order.as_ref()) else {
+        return Ok(());
+    };
+    sub_order::validate(order, &agg.subs).map_err(|message| ShardError {
+        status: 500,
+        failure: Failure::opensearch("aggregation_execution_exception", message),
+    })
 }
 
 /// What each sub-aggregation of `agg` holds for a bucket with no document.

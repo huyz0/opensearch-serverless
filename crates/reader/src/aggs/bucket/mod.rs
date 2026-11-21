@@ -27,6 +27,7 @@ pub mod range;
 pub mod range_collect;
 pub mod range_parse;
 pub mod range_render;
+pub mod sub_order;
 pub mod sub_values;
 pub mod terms;
 pub mod terms_collect;
@@ -89,6 +90,8 @@ mod keyword_collect_tests;
 #[cfg(test)]
 mod keyword_options_tests;
 #[cfg(test)]
+mod keyword_order_tests;
+#[cfg(test)]
 mod keyword_subs_tests;
 #[cfg(test)]
 mod keyword_terms_tests;
@@ -96,6 +99,8 @@ mod keyword_terms_tests;
 mod range_collect_tests;
 #[cfg(test)]
 mod range_tests;
+#[cfg(test)]
+mod sub_order_tests;
 #[cfg(test)]
 mod terms_subs_tests;
 #[cfg(test)]
