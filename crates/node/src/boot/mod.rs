@@ -436,8 +436,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         .map_err(BootError::Assemble)?;
 
     // The dead nodes that still name log epochs come from the refresh each
-    // renewal already makes; a thread of its own collects them, so a slow
-    // collection never delays a lease.
+    // renewal makes; a thread of its own collects them, never delaying a lease.
     let mailbox = Arc::new(DeadMailbox::default());
     let posting = Arc::clone(&mailbox);
     let renewing = Arc::clone(&membership);
