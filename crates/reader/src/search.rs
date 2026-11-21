@@ -284,6 +284,25 @@ pub fn search<S: BlobStore + 'static>(
         )));
     }
     let sort = sort_fields(&source.sort, shard, index)?;
+    if source.track_scores
+        && let Some((_, kinds)) = &sort
+    {
+        if kinds.first() == Some(&KeyKind::Score) {
+            return Err(ShardError::bad_request(Failure::plain(
+                "illegal_argument_exception",
+                "[track_scores] with a sort led by the score is not supported by this node yet",
+            )));
+        }
+        if !kinds.contains(&KeyKind::Score)
+            && let Some(what) = explain::refusal(&query)
+        {
+            return Err(ShardError::bad_request(Failure::plain(
+                "illegal_argument_exception",
+                // ALLOC: error path; one message.
+                format!("[track_scores] of {what} is not supported by this node yet"),
+            )));
+        }
+    }
     docvalue_fields::check_count(&source.docvalue_fields)?;
     let after = if source.search_after.is_empty() {
         None
@@ -338,7 +357,7 @@ pub fn search<S: BlobStore + 'static>(
     )?;
     // A total turned off counts nothing past the hits.
     let limit = source.track_total_hits.unwrap_or(0);
-    let top = collect_top(
+    let mut top = collect_top(
         &segments,
         shard,
         &norms,
@@ -350,8 +369,22 @@ pub fn search<S: BlobStore + 'static>(
         after.as_ref(),
         TopOptions {
             min_score: source.min_score,
+            track_scores: source.track_scores,
         },
     )?;
+    if let Some((_, kinds)) = sort.as_ref().filter(|_| source.track_scores)
+        && !kinds.contains(&KeyKind::Score)
+        && !top.hits.is_empty()
+    {
+        // A field sort's hits carry no score; `track_scores` has each one
+        // scored, as `TopFieldCollector.populateScores` does.
+        let searcher = IndexSearcher::new(&segments, &norms).map_err(ShardError::engine)?;
+        let scored =
+            explain::explain_hits(&searcher, &query, &top.hits).map_err(ShardError::engine)?;
+        for (hit, e) in top.hits.iter_mut().zip(&scored) {
+            hit.score = Some(e.value);
+        }
+    }
     let mut hits = Hits {
         total: top.total,
         exact: top.exact,

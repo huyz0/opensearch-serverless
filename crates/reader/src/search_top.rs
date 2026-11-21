@@ -33,6 +33,8 @@ pub(crate) struct Top {
 pub(crate) struct TopOptions {
     /// `min_score`: `MinimumScoreCollector` around the collectors.
     pub min_score: Option<f32>,
+    /// `track_scores`: a `MaxScoreCollector` beside a field sort's collector.
+    pub track_scores: bool,
 }
 
 /// Collects the top `window` documents of `query` in `sort` (by score when
@@ -62,11 +64,13 @@ pub(crate) fn collect_top<S: BlobStore + 'static>(
                 window,
                 limit,
                 after,
-                false,
+                options.track_scores,
                 &[],
                 options.min_score,
             )
             .map_err(ShardError::engine)?;
+            let max_score =
+                (options.track_scores && !top.max_score.is_nan()).then_some(top.max_score);
             let score_at = kinds.iter().position(|k| *k == KeyKind::Score);
             let hits = top
                 .hits
@@ -79,7 +83,7 @@ pub(crate) fn collect_top<S: BlobStore + 'static>(
             Ok(Top {
                 total,
                 exact,
-                max_score: None,
+                max_score,
                 hits,
             })
         }

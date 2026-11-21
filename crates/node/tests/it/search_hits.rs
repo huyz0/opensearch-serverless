@@ -137,3 +137,79 @@ fn min_score_keeps_and_counts_only_the_matches_scoring_that_much() {
         assert_eq!(status, 400, "{options}: {body}");
     }
 }
+
+/// Each hit's `_id` and `_score` text, in order.
+fn id_scores(body: &str) -> Vec<(String, String)> {
+    body.split("\"_id\":\"")
+        .skip(1)
+        .map(|rest| {
+            let id: String = rest.chars().take_while(|c| *c != '"').collect();
+            let (_, after) = rest.split_once("\"_score\":").expect("a score");
+            let score: String = after
+                .chars()
+                .take_while(|c| c.is_ascii_digit() || c.is_alphabetic() || *c == '.')
+                .collect();
+            (id, score)
+        })
+        .collect()
+}
+
+/// docs/specs/reader-track-scores AC-1 to AC-4.
+#[test]
+fn track_scores_scores_the_hits_of_a_field_sort_and_tracks_the_best() {
+    let node = start();
+    let ask = |options: &str| {
+        let body = format!(r#"{{"query":{{"match":{{"title":"brown fox"}}}}{options}}}"#);
+        let r = request(
+            node.addr(),
+            "POST",
+            "/compat-term/_search",
+            Some(body.as_bytes()),
+        );
+        (r.status, r.text())
+    };
+    let (_, plain) = ask("");
+    let truth = id_scores(&plain);
+    assert!(truth.len() >= 2, "{plain}");
+    let best = truth[0].1.clone();
+    let sorted = r#","sort":[{"year":"asc"}]"#;
+    // Without the key a field sort scores nothing.
+    let (status, untracked) = ask(sorted);
+    assert_eq!(status, 200, "{untracked}");
+    assert!(id_scores(&untracked).iter().all(|(_, s)| s == "null"));
+    assert!(untracked.contains(r#""max_score":null"#), "{untracked}");
+    // With it each hit has its score of the plain search, and the best is tracked.
+    let (status, tracked) = ask(&format!(r#"{sorted},"track_scores":true"#));
+    assert_eq!(status, 200, "{tracked}");
+    let hits = id_scores(&tracked);
+    assert_eq!(hits.len(), truth.len(), "{tracked}");
+    for (id, score) in &hits {
+        let want = truth.iter().find(|(i, _)| i == id).expect("a plain hit");
+        assert_eq!(score, &want.1, "{id}: {tracked}");
+    }
+    assert!(
+        tracked.contains(&format!(r#""max_score":{best},"hits""#)),
+        "{tracked}"
+    );
+    // False is the plain field sort; an unsorted search is unchanged.
+    let (_, off) = ask(&format!(r#"{sorted},"track_scores":false"#));
+    assert_eq!(id_scores(&off), id_scores(&untracked), "{off}");
+    assert!(off.contains(r#""max_score":null"#), "{off}");
+    let (_, unsorted) = ask(r#","track_scores":true"#);
+    assert_eq!(id_scores(&unsorted), truth, "{unsorted}");
+    // A sort led by the score, a null, and a query this node cannot explain are refused.
+    for options in [
+        r#","sort":["_score",{"year":"asc"}],"track_scores":true"#.to_owned(),
+        format!(r#"{sorted},"track_scores":null"#),
+    ] {
+        let (status, body) = ask(&options);
+        assert_eq!(status, 400, "{options}: {body}");
+    }
+    let r = request(
+        node.addr(),
+        "POST",
+        "/compat-term/_search",
+        Some(br#"{"query":{"range":{"year":{"gte":1}}},"sort":[{"year":"asc"}],"track_scores":true}"#),
+    );
+    assert_eq!(r.status, 400, "{}", r.text());
+}
