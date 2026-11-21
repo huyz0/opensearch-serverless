@@ -229,3 +229,29 @@ fn with_no_sink_a_waiting_visibility_publishes() {
     r.role.refresh(&info(), 0).expect("refreshes");
     assert!(r.role.newest_commit("logs-uuid", 0).is_some());
 }
+
+#[test]
+fn a_refresh_does_not_wait_for_the_upload_of_a_publish_in_progress() {
+    use oss_blob::emulator::faults::Latency;
+    let sink = Sink::new(true);
+    let r = rig(RefreshVisibility::Serving, Some(Arc::clone(&sink)));
+    write(&r.role);
+    r.store
+        .set_latency(S3Op::Put, Latency::fixed(Duration::from_millis(600)));
+    std::thread::scope(|scope| {
+        let publishing = scope.spawn(|| r.role.publish_due().published);
+        // The pass has the commit and is in its first upload.
+        std::thread::sleep(Duration::from_millis(200));
+        write(&r.role);
+        let start = std::time::Instant::now();
+        r.role.refresh(&info(), 0).expect("refreshes");
+        assert!(
+            start.elapsed() < Duration::from_millis(300),
+            "{:?}",
+            start.elapsed()
+        );
+        assert!(!publishing.is_finished(), "still uploading");
+        assert_eq!(publishing.join().expect("joins"), 1);
+    });
+    assert!(r.role.newest_commit("logs-uuid", 0).is_some());
+}
