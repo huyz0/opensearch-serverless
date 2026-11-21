@@ -24,6 +24,7 @@ Not changed: the mapping a search translates queries against (the shard's at ope
 - AC-4: in a booted three-node cluster, an index created with no mappings is searched on another node and counts a write within 3 s of its ack, well before the 10 s publish age, so it was served by the overlay.
 - AC-6: a reader whose first search of a shard comes after its writer has answered writes the commit lacks registers the shard with the overlay source before the writer is asked, so it subscribes, takes the kept records and answers; before, it asked only how far the writes went and refused every search (`shard_behind_exception`) for as long as the writes stayed unpublished. AC-4's fixture reproduces it: three writes land before the readers open.
 - AC-7: a `refresh=true` write to that index is counted by the first search of each other node after its ack.
+- AC-8: the first search of the node that owns the shard counts that `refresh=true` write as well: a search of a shard its own node writes takes the records the overlay holds for it before it answers (`apply_pending`), as a serving reader does, instead of waiting for the builder (about 100 ms), which a confirmed refresh wait does not cover because the owner never subscribes to itself. It makes no request and no ask. Red: the nightly `slow-tests` failed on it (issue 266) and the fixture failed 6 of 6 runs at the owner.
 - AC-5: the build makes no store request: it takes no store, and AC-4's index sends no more requests per write than an index with an explicit mapping, within 10%.
 
 ## Test plan

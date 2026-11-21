@@ -52,10 +52,19 @@ impl<S: BlobStore + 'static> SearchService<S> {
         let Some(fresh) = self.fresh.get() else {
             return Ok(());
         };
-        // A shard its own node writes holds every write.
-        let Some(writer) = held.stage.writer().filter(|w| *w != self.node_id) else {
+        let Some(writer) = held.stage.writer() else {
             return Ok(());
         };
+        if writer == self.node_id {
+            // A shard its own node writes holds every write; the records it
+            // holds for the overlay are taken now, as a serving reader's are,
+            // rather than when the builder gets to them.
+            if let Some(source) = self.overlay.get() {
+                let commit: Arc<dyn CommitAccess> = Arc::clone(held) as _;
+                source.apply_pending(&held.shard.meta.uuid, held.shard_no, &held.stage, &commit);
+            }
+            return Ok(());
+        }
         let uuid = &held.shard.meta.uuid;
         // The engine is known to the source before the writer is asked for
         // a subscription: a shard opened after refreshed writes would
