@@ -99,6 +99,19 @@ pub trait Routes: Send + Sync {
     ) -> Result<Option<Fetched>, String> {
         Err("the shard is held by another node".to_owned())
     }
+
+    /// As [`Routes::get_remote`], reading what is not yet refreshed only
+    /// when `realtime`. A route that cannot say asks for the realtime read.
+    fn get_remote_as(
+        &self,
+        node: &str,
+        index: &IndexInfo,
+        shard: u32,
+        id: &str,
+        _realtime: bool,
+    ) -> Result<Option<Fetched>, String> {
+        self.get_remote(node, index, shard, id)
+    }
 }
 
 /// Why an item did not go ahead.

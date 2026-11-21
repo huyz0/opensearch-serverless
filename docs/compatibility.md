@@ -59,3 +59,7 @@ Invariant I-13 in [invariants.md](invariants.md) holds the suite to this: `crate
 | A `tdigest` compression of NaN, infinity or above 10,000 | served up to what the heap holds; NaN fails the shard with `arithmetic_exception` "/ by zero", and infinity exhausts the heap | refused as not supported | a digest's arrays, and the sort keys lucene-aggs keeps per thread after it, grow with the compression; up to 10,000 they are reserved before searching, about 8 MB (ADR 0004) |
 | `took` | the shard's time | the node's time, parse to last hit chosen | normalised in the fixtures |
 
+
+## `realtime=false` on a forwarded get
+
+A get of a shard another node owns is forwarded to its owner. The Java `ForwardedGetRequest` has no `realtime` field and its owner always reads realtime, and a Java peer refuses a message it did not read whole, so a `realtime=false` get cannot be sent to one with a new field. A node of this project publishes the build version `oss-rust/<version>` in its lease; to a peer whose lease says that, a get that is not realtime carries one trailing byte and is answered from refreshed data only. To any other peer the get is sent in the Java layout, and the owner reads realtime: the answer may then include a write not yet refreshed. A get served on the node that owns the shard honours `realtime` either way.

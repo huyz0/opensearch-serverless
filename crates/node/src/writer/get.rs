@@ -24,7 +24,7 @@ impl WriterRole {
             Owner::Local => self.get(index, shard, id, realtime),
             Owner::Node(node) => self
                 .routes
-                .get_remote(&node, index, shard, id)
+                .get_remote_as(&node, index, shard, id, realtime)
                 // ALLOC: error path; one message.
                 .map_err(|e| format!("[{}][{shard}] is held by [{node}]: {e}", index.name)),
         }
