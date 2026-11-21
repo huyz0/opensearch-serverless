@@ -53,6 +53,18 @@ fn config_with(
     ttl: &str,
     janitor_ms: Option<&str>,
 ) -> NodeConfig {
+    config_tail(root, id, ttl, janitor_ms, None)
+}
+
+/// As `config_with`, with the tail overlay setting and the refresh
+/// visibility named.
+fn config_tail(
+    root: &std::path::Path,
+    id: &str,
+    ttl: &str,
+    janitor_ms: Option<&str>,
+    tail: Option<(&str, &str)>,
+) -> NodeConfig {
     let root = root.display().to_string();
     let lookup = |key: &str| {
         Some(
@@ -65,6 +77,8 @@ fn config_with(
                 // A third of it is the renewal tick.
                 "OSS_LEASE_TTL_MS" => ttl,
                 "OSS_JANITOR_EVERY_MS" => return janitor_ms.map(str::to_owned),
+                "OSS_TAIL_OVERLAY" => return tail.map(|(on, _)| on.to_owned()),
+                "OSS_REFRESH_VISIBILITY" => return tail.map(|(_, v)| v.to_owned()),
                 _ => return None,
             }
             .to_owned(),
@@ -285,4 +299,50 @@ fn a_booted_node_reaps_the_log_of_a_node_that_died() {
         log_blobs(dir.path(), "n1") > before
     });
     drop(second);
+}
+
+// docs/specs/node-boot-tail AC-1
+#[test]
+fn a_node_with_the_tail_overlay_on_starts_and_serves_in_every_visibility() {
+    for visibility in ["everywhere", "serving", "owner"] {
+        let dir = TempDir::new("boot-tail");
+        let node = start(&config_tail(
+            dir.path(),
+            "n1",
+            "30000",
+            None,
+            Some(("true", visibility)),
+        ))
+        .expect("starts");
+        assert_eq!(nodes_seen(&node), 1, "{visibility}");
+        assert!(node.tail_on(), "{visibility}");
+        assert_eq!(
+            call(&node, "PUT", "/logs", None).status,
+            200,
+            "{visibility}"
+        );
+        let wrote = call(&node, "PUT", "/logs/_doc/1", Some(r#"{"n":1}"#));
+        assert_eq!(wrote.status, 201, "{visibility}: {}", wrote.text());
+        assert_eq!(call(&node, "POST", "/logs/_refresh", None).status, 200);
+        let got = call(&node, "GET", "/logs/_doc/1", None);
+        assert_eq!(got.status, 200, "{visibility}: {}", got.text());
+    }
+}
+
+// docs/specs/node-boot-tail AC-2
+#[test]
+fn a_node_starts_with_the_tail_overlay_off_unless_the_setting_is_on() {
+    let dir = TempDir::new("boot-tail-off");
+    let node = start(&config(dir.path(), "n1", "30000")).expect("starts");
+    assert!(!node.tail_on());
+    let dir = TempDir::new("boot-tail-false");
+    let node = start(&config_tail(
+        dir.path(),
+        "n1",
+        "30000",
+        None,
+        Some(("false", "everywhere")),
+    ))
+    .expect("starts");
+    assert!(!node.tail_on());
 }

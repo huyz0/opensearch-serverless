@@ -8,6 +8,7 @@
 mod config;
 mod renew;
 mod support;
+mod tail;
 mod transport;
 
 use std::net::TcpListener;
@@ -123,6 +124,12 @@ impl Node {
         )
     }
 
+    /// Whether the tail overlay is on: writers push to this node's reader
+    /// side and its searches see what they pushed.
+    pub fn tail_on(&self) -> bool {
+        self.running.as_ref().is_some_and(|r| r.tail().is_some())
+    }
+
     /// The address the node's transport server listens on.
     pub fn transport_addr(&self) -> std::net::SocketAddr {
         self.transport.as_ref().map_or_else(
@@ -147,6 +154,7 @@ impl Drop for Node {
 }
 
 /// The leases this node holds, for the forwarder.
+#[derive(Clone)]
 struct Held(Arc<Membership>);
 
 impl Leases for Held {
@@ -235,6 +243,8 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     registry
         .add(GET_ACTION, late_get)
         .map_err(|e| BootError::Cluster(e.to_string()))?;
+    let mut handlers = registry.into_handlers();
+    let tail_slots = tail::Slots::list(&mut handlers);
     let transport_server = TransportServer::bind(
         config.transport,
         TransportConfig::new(
@@ -243,7 +253,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
             MAX_MEMBERS,
         ),
         budget.clone(),
-        registry.into_handlers(),
+        handlers,
     )
     .map_err(|e| BootError::Bind(format!("{}: {e}", config.transport)))?;
     let advertise = config
@@ -348,7 +358,11 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         )),
         Arc::clone(&clock),
     );
-    let reads = GetForwarder::new(client, Arc::clone(&auth), Held(Arc::clone(&membership)));
+    let reads = GetForwarder::new(
+        Arc::clone(&client),
+        Arc::clone(&auth),
+        Held(Arc::clone(&membership)),
+    );
     let routes = ClusterRoutes::new(
         descriptor_routes()?,
         Held(Arc::clone(&membership)),
@@ -388,9 +402,18 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
             .map_err(cluster)?,
         Arc::clone(&clock),
     ));
-    let assembled = assemble::assemble(&node_config, Arc::clone(&store), &budget, writer)
+    let mut assembled = assemble::assemble(&node_config, Arc::clone(&store), &budget, writer)
         .and_then(|a| a.with_health(health, &config.cluster))
         .map_err(BootError::Assemble)?;
+    tail::wire(
+        &mut assembled,
+        config,
+        &tail_slots,
+        client,
+        Arc::clone(&auth),
+        &membership,
+        Arc::clone(&clock),
+    )?;
     let handler: Arc<dyn oss_transport::server::Handler> = Arc::new(BulkHandler::new(
         Arc::clone(&assembled.role),
         Arc::new(descriptor_routes()?),
