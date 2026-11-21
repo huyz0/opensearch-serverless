@@ -198,6 +198,8 @@ impl Overlay {
             let mut fast = FastIngest::new();
             // ALLOC: one document a kept index record, at most MAX_IDS.
             let mut docs = Vec::new();
+            // The mapping as dynamic mapping has grown it over the records so far.
+            let mut grown: Option<Mapping> = None;
             for r in kept.iter().filter(|r| !r.is_deletion()) {
                 // ALLOC: one id and message on a failed build.
                 let refuse = |reason: String| BuildError::Record {
@@ -206,9 +208,10 @@ impl Overlay {
                 };
                 let source = r.source().as_bytes();
                 // The plan reads what it can; whatever it declines is the complete path's.
+                let current = grown.as_ref().unwrap_or(mapping);
                 let read = oss_doc::lucene::uid(r.id())
                     .ok()
-                    .and_then(|key| fast.prepare(&indexer, mapping, source, &key));
+                    .and_then(|key| fast.prepare(&indexer, current, source, &key));
                 let doc = match read {
                     Some(f) => f
                         .finish(r.seq_no(), r.primary_term(), r.version())
@@ -216,7 +219,7 @@ impl Overlay {
                         // ALLOC: one message on a failed build.
                         .ok_or_else(|| refuse("no document read".to_owned()))?,
                     None => {
-                        let parsed = document::parse(mapping, r.id(), source)
+                        let parsed = document::parse(current, r.id(), source)
                             // ALLOC: one message on a failed build.
                             .map_err(|e| refuse(format!("{e:?}")))?;
                         let meta = Meta {
@@ -226,10 +229,20 @@ impl Overlay {
                             version: r.version(),
                             source,
                         };
-                        indexer
-                            .document(&mut writer, mapping, &parsed, &meta)
+                        let mut parsed = parsed;
+                        let doc = indexer
+                            .document(
+                                &mut writer,
+                                parsed.grown.as_ref().unwrap_or(current),
+                                &parsed,
+                                &meta,
+                            )
                             // ALLOC: one message on a failed build.
-                            .map_err(|e| refuse(format!("{e:?}")))?
+                            .map_err(|e| refuse(format!("{e:?}")))?;
+                        if let Some(next) = parsed.grown.take() {
+                            grown = Some(next);
+                        }
+                        doc
                     }
                 };
                 docs.push(doc);

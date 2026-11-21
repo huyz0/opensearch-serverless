@@ -57,6 +57,13 @@ impl<S: BlobStore + 'static> SearchService<S> {
             return Ok(());
         };
         let uuid = &held.shard.meta.uuid;
+        // The engine is known to the source before the writer is asked for
+        // a subscription: a shard opened after refreshed writes would
+        // otherwise ask only how far they went, and never hold them.
+        if let Some(source) = self.overlay.get() {
+            let commit: Arc<dyn CommitAccess> = Arc::clone(held) as _;
+            let _ = source.ready(uuid, held.shard_no, &held.stage, &commit, self.now_millis());
+        }
         let take = || {
             if let Some(source) = self.overlay.get() {
                 let commit: Arc<dyn CommitAccess> = Arc::clone(held) as _;

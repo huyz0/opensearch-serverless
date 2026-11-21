@@ -76,9 +76,10 @@ pub fn build_ready(
     let checkpoint = local_checkpoint(commit);
     let ids = candidate_ids(records, checkpoint)?;
     let copies = find_copies(commit, &ids)?;
-    let mapping = Mapping::parse(mapping_json.as_bytes())
-        // ALLOC: one message on a failed build.
-        .map_err(|e| BuildError::Engine(format!("mapping: {e:?}")))?;
+    let mapping =
+        Mapping::from_descriptor((!mapping_json.trim().is_empty()).then_some(mapping_json))
+            // ALLOC: one message on a failed build.
+            .map_err(|e| BuildError::Engine(format!("mapping: {e:?}")))?;
     let overlay = Overlay::build_over(&mapping, records, checkpoint, max_bytes, &copies)?;
     Ok(Ready::new(overlay, copies))
 }
