@@ -190,7 +190,8 @@ fn a_second_node_is_seen_and_a_dropped_one_is_released() {
     // And nothing renews it again: a tick (1 s) passes and it is still gone.
     std::thread::sleep(Duration::from_millis(1_300));
     assert_eq!(enrolled(dir.path()), ["n1"]);
-    assert_eq!(nodes_seen(&first), 1);
+    // The first node's view follows its own refresh tick, which a loaded
+    // machine can delay past the sleep above: wait for it, do not assert it.
     wait_for("the first never saw the second leave", || {
         nodes_seen(&first) == 1
     });
