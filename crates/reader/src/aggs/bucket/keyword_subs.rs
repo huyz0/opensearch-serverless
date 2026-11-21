@@ -18,7 +18,7 @@ use crate::aggs::bucket::sub_values::SubValues;
 use crate::aggs::bucket::terms::TermsSpec;
 use crate::aggs::bucket::{nested_subs, with_subs};
 use crate::aggs::metric::collect::{Resolved, node as metric_node, resolve, value_of};
-use crate::aggs::metric::{DEFAULT_PRECISION, Metric, MetricAgg};
+use crate::aggs::metric::{DEFAULT_PRECISION, Metric, MetricAgg, top_hits_sub};
 use crate::aggs::partial::{Format, Value};
 use crate::failure::Failure;
 use crate::search::ShardError;
@@ -124,6 +124,7 @@ pub fn sub_nodes<S: BlobStore + 'static>(
                 with_subs::attach(&mut made, sub, shard, ords, queries)?;
                 subs.push(made);
             }
+            Resolved::Hits => subs.push(top_hits_sub::sub_node(sub, shard)?),
             Resolved::Unmapped => queries.skip_tree(sub),
         }
     }
@@ -176,7 +177,7 @@ pub fn sub_values<S: BlobStore + 'static>(
         let (format, result) = match r {
             Resolved::Numeric(format) => (format, engine.next()),
             Resolved::Keyword => (Format::Raw, engine.next()),
-            Resolved::Queries => (Format::Raw, engine.next()),
+            Resolved::Queries | Resolved::Hits => (Format::Raw, engine.next()),
             Resolved::Unmapped => (Format::Raw, None),
         };
         let made = if numeric_terms {
@@ -204,6 +205,9 @@ fn build<S: BlobStore + 'static>(
 ) -> Result<Vec<Value>, ShardError> {
     if nested_subs::is_nested(agg) {
         return nested_subs::build(agg, shard, result, owners);
+    }
+    if agg.top_hits.is_some() {
+        return top_hits_sub::sub_values(agg, shard, result, owners);
     }
     if agg.metric != Metric::Terms {
         let states = match result {

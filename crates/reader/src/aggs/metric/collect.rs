@@ -20,7 +20,9 @@ use lucene_aggs::metric_aggs::{
     MetricState, NEED_COUNT, NEED_MAX, NEED_MIN, NEED_MIN_MAX, NEED_SUM, Source, ValueKind,
 };
 use lucene_search::BooleanQuery;
+use lucene_search::field_norms::FieldNorms;
 use lucene_search::multi_segment::OpenSegment;
+use lucene_search::segment_match::MinScore;
 use oss_blob::BlobStore;
 
 use crate::OpenShard;
@@ -53,6 +55,8 @@ pub(crate) enum Resolved {
     Keyword,
     /// No field: a `filters` reads queries.
     Queries,
+    /// No field: a `top_hits` reads the matches of its bucket.
+    Hits,
 }
 
 /// The text of `Field [<name>] of type [<type>]`'s type.
@@ -96,6 +100,9 @@ pub(crate) fn resolve<S: BlobStore + 'static>(
 ) -> Result<Resolved, ShardError> {
     if agg.filters.is_some() {
         return Ok(Resolved::Queries);
+    }
+    if agg.top_hits.is_some() {
+        return Ok(Resolved::Hits);
     }
     let Some(field) = shard.meta.mapping.get(&agg.field) else {
         return Ok(Resolved::Unmapped);
@@ -377,6 +384,7 @@ pub fn collect<S: BlobStore + 'static>(
     segments: &[OpenSegment<'_>],
     query: &BooleanQuery,
     filters: &[Vec<BooleanQuery>],
+    norms: &[Option<&HashMap<String, FieldNorms<'_>>>],
 ) -> Result<Vec<Partial>, ShardError> {
     if aggs.is_empty() {
         // ALLOC: empty.
@@ -423,7 +431,7 @@ pub fn collect<S: BlobStore + 'static>(
                 with_subs::attach(&mut made, agg, shard, &mut ords, &mut queries)?;
                 nodes.push(made);
             }
-            Resolved::Unmapped => {}
+            Resolved::Unmapped | Resolved::Hits => {}
         }
     }
     let mut results = if nodes.is_empty() {
@@ -432,6 +440,11 @@ pub fn collect<S: BlobStore + 'static>(
     } else {
         // ALLOC: one index a segment: one slice, the whole shard in order.
         let slices = [(0..segments.len()).collect::<Vec<usize>>()];
+        // A `top_hits` under a bucket scores the query, behind no `min_score`.
+        let scoring = MinScore {
+            min: f32::NEG_INFINITY,
+            norms,
+        };
         aggregate_tree(
             segments,
             shard.reader.segment_readers(),
@@ -439,7 +452,7 @@ pub fn collect<S: BlobStore + 'static>(
             &nodes,
             &Globals::new(&ords).with_bucket_limit(BUCKET_LIMIT),
             &slices,
-            None,
+            nodes.iter().any(AggNode::needs_scores).then_some(&scoring),
         )
         .map_err(|e| match e {
             lucene_search::Error::TooManyBuckets(made, limit) => {
@@ -459,7 +472,9 @@ pub fn collect<S: BlobStore + 'static>(
             Resolved::Unmapped if with_subs::is_bucket(agg) => {
                 (Format::Raw, with_subs::value(agg, shard, None)?)
             }
-            Resolved::Unmapped => (Format::Raw, value_of(agg, &MetricState::default())),
+            Resolved::Unmapped | Resolved::Hits => {
+                (Format::Raw, value_of(agg, &MetricState::default()))
+            }
             Resolved::Numeric(format) if with_subs::is_bucket(agg) => {
                 (format, with_subs::value(agg, shard, results.next())?)
             }

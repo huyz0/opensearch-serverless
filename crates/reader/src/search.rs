@@ -25,8 +25,8 @@ use oss_blob::BlobStore;
 use crate::OpenShard;
 use crate::aggs::bucket::filters_collect;
 use crate::aggs::bucket::{fixed_subs, keyed_subs, keyword_collect, keyword_subs};
-use crate::aggs::metric::top_hits;
 use crate::aggs::metric::{self, Partial, state_bytes};
+use crate::aggs::metric::{top_hits, top_hits_sub};
 use crate::dsl::search_after::{AfterKey, field_doc};
 use crate::dsl::{SearchSource, SortKey};
 use crate::failure::Failure;
@@ -324,12 +324,20 @@ pub fn search<S: BlobStore + 'static>(
     let numeric_sort = sort
         .as_ref()
         .is_some_and(|(_, kinds)| kinds.contains(&KeyKind::Numeric))
-        || top_plans.iter().any(top_hits::TopHitsPlan::numeric);
+        || top_plans.iter().any(top_hits::TopHitsPlan::numeric)
+        || top_hits_sub::any_numeric_sub(&source.aggs, shard);
     if numeric_sort || has_points(&query) || filter_plans.iter().flatten().any(has_points) {
         opened.open_points().map_err(ShardError::engine)?;
     }
     let segments = opened.as_open_segments();
-    let mut aggregations = metric::collect(&source.aggs, shard, &segments, &query, &filter_plans)?;
+    let mut aggregations = metric::collect(
+        &source.aggs,
+        shard,
+        &segments,
+        &query,
+        &filter_plans,
+        &norms,
+    )?;
     top_hits::fill(
         &mut aggregations,
         &source.aggs,

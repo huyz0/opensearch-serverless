@@ -204,8 +204,8 @@ pub fn parse_top_hits_body(p: &mut Parser<'_>, name: &str) -> Result<TopHitsSpec
 
 /// What a shard checks and resolves of a `top_hits` before it searches.
 pub(crate) struct TopHitsPlan {
-    sort: Sort,
-    window: usize,
+    pub(super) sort: Sort,
+    pub(super) window: usize,
 }
 
 impl TopHitsPlan {

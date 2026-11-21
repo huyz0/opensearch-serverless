@@ -110,3 +110,5 @@ mod running_tests;
 mod terms_subs_tests;
 #[cfg(test)]
 mod terms_tests;
+#[cfg(test)]
+mod top_hits_sub_tests;
