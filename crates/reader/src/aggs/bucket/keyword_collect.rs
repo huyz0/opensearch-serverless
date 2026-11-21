@@ -387,6 +387,8 @@ pub fn from_engine(
             .map(|(term, count)| (String::from_utf8_lossy(&term).into_owned(), count))
             // ALLOC: the kept buckets, as above.
             .collect(),
+        // ALLOC: empty; a shard's bucket errors are 0.
+        bucket_errors: Vec::new(),
         // ALLOC: empty; `keyword_subs` fills them.
         sub_meta: Vec::new(),
         // ALLOC: empty, as above.
