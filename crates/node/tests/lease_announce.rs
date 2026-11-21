@@ -26,16 +26,9 @@ fn a_joiner_is_seen_by_every_node_inside_the_read_period() {
     let first = started.elapsed();
     let joined = Instant::now();
     cluster.add("n3");
-    let mut seen_at = [None; 3];
     wait_for("all see three", 60, || {
-        for s in 0..3 {
-            if seen_at[s].is_none() && cluster.nodes_seen(s) == 3 {
-                seen_at[s] = Some(joined.elapsed());
-            }
-        }
-        seen_at.iter().all(Option::is_some)
+        (0..3).all(|s| cluster.nodes_seen(s) == 3)
     });
-    eprintln!("SEEN {seen_at:?}");
     let second = joined.elapsed();
     assert!(
         second < PICKUP,
