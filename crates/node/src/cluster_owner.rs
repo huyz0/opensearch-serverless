@@ -202,6 +202,17 @@ impl<S: IndexSource, L: Leases, B: BulkSend> Routes for ClusterRoutes<S, L, B> {
         shard: u32,
         id: &str,
     ) -> Result<Option<Fetched>, String> {
+        self.get_remote_as(node, index, shard, id, true)
+    }
+
+    fn get_remote_as(
+        &self,
+        node: &str,
+        index: &IndexInfo,
+        shard: u32,
+        id: &str,
+        realtime: bool,
+    ) -> Result<Option<Fetched>, String> {
         let reads = self
             .reads
             .as_ref()
@@ -212,6 +223,7 @@ impl<S: IndexSource, L: Leases, B: BulkSend> Routes for ClusterRoutes<S, L, B> {
             index_uuid: Some(index.uuid.clone()),
             shard: i32::try_from(shard).unwrap_or(i32::MAX),
             id: id.to_owned(),
+            realtime,
             ..GetRequest::default()
         };
         // ALLOC: error path; one message.

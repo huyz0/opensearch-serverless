@@ -251,6 +251,11 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         .clone()
         .unwrap_or_else(|| transport_server.address().to_string());
     let mut lease = NodeLease::new(&config.node_id, &ephemeral, &advertise, 0);
+    lease.version = Some(format!(
+        "{}{}",
+        crate::read_forward::BUILD_PREFIX,
+        env!("CARGO_PKG_VERSION")
+    ));
     lease.set_roles(ROLES.map(str::to_owned));
     lease.node_log = inherited.clone();
 

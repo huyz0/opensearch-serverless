@@ -61,7 +61,7 @@ impl Handler for GetHandler {
             })?;
         let found = self
             .role
-            .get(&index, shard, &get.id, true)
+            .get(&index, shard, &get.id, get.realtime)
             // ALLOC: error path; one status name.
             .map_err(|e| RemoteException::status(&e, "SERVICE_UNAVAILABLE"))?;
         let answer = match found {
@@ -92,6 +92,19 @@ impl Handler for GetHandler {
             RemoteException::status("the answer is too large to send", "INTERNAL_SERVER_ERROR")
         })
     }
+}
+
+/// The prefix of the build version a node of this project publishes in its
+/// lease. Only such a peer reads the trailing `realtime` byte of a forwarded
+/// get; a Java peer refuses a message it did not read whole, so it is sent
+/// the Java layout, which reads realtime.
+pub const BUILD_PREFIX: &str = "oss-rust/";
+
+fn peer_reads_realtime(lease: &oss_format::NodeLease) -> bool {
+    lease
+        .version
+        .as_deref()
+        .is_some_and(|v| v.starts_with(BUILD_PREFIX))
 }
 
 /// The call a forwarded get makes to an owner.
@@ -150,7 +163,13 @@ impl<L: Leases> GetForwarder<L> {
             GET_ACTION,
             (&lease, address),
             self.timeout,
-            |out| request.write(out),
+            |out| {
+                if peer_reads_realtime(&lease) {
+                    request.write_extended(out)
+                } else {
+                    request.write(out)
+                }
+            },
         )?;
         GetResponse::read(&mut Input::new(answer.message())).map_err(|_| ForwardError::BadAnswer)
     }

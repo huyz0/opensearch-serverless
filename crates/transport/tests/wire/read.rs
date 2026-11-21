@@ -36,6 +36,7 @@ fn a_get_request_is_the_task_id_index_uuid_shard_and_id() {
         index_uuid: None,
         shard: 2,
         id: "a".into(),
+        realtime: true,
     };
     let bytes = encode(|o| request.write(o));
     // The empty task id; "logs"; no uuid; vint 2; "a".
@@ -56,6 +57,7 @@ fn a_get_request_names_its_incarnation_and_parent() {
         index_uuid: Some("u1".into()),
         shard: 0,
         id: "b".into(),
+        realtime: true,
     };
     let bytes = encode(|o| request.write(o));
     assert_eq!(read_whole(&bytes, GetRequest::read), request);
@@ -98,4 +100,41 @@ fn a_get_response_for_a_missing_document_carries_the_unassigned_identity() {
     };
     let bytes = encode(|o| response.write(o));
     assert_eq!(read_whole(&bytes, GetResponse::read), response);
+}
+
+#[test]
+fn a_get_request_that_is_not_realtime_adds_one_trailing_byte_for_a_peer_that_reads_it() {
+    let java = GetRequest {
+        parent: TaskId::EMPTY,
+        index: "logs".into(),
+        index_uuid: None,
+        shard: 2,
+        id: "a".into(),
+        realtime: true,
+    };
+    let plain = encode(|o| java.write(o));
+    assert_eq!(
+        encode(|o| java.write_extended(o)),
+        plain,
+        "realtime is Java's layout"
+    );
+    assert!(read_whole(&plain, GetRequest::read).realtime);
+
+    let request = GetRequest {
+        realtime: false,
+        ..java
+    };
+    assert_eq!(
+        encode(|o| request.write(o)),
+        plain,
+        "write is always Java's layout"
+    );
+    let extended = encode(|o| request.write_extended(o));
+    assert_eq!(extended[..plain.len()], plain[..]);
+    assert_eq!(extended[plain.len()..], [0x00]);
+    assert!(read_whole(&extended[..plain.len()], GetRequest::read).realtime);
+    let mut input = Input::new(&extended);
+    let read = GetRequest::read(&mut input).unwrap();
+    assert!(!read.realtime);
+    assert_eq!(input.remaining(), 0);
 }

@@ -192,6 +192,11 @@ fn owning() -> Owning {
 }
 
 fn forwarder(owner: &Owning, signer: &str) -> GetForwarder<Fixed> {
+    forwarder_of(owner, signer, None)
+}
+
+/// A forwarder whose lease for the owner publishes build version `version`.
+fn forwarder_of(owner: &Owning, signer: &str, version: Option<&str>) -> GetForwarder<Fixed> {
     let address = owner.server.address().to_string();
     let budget = MemoryBudget::new(
         &BudgetConfig::new(64 << 20)
@@ -201,7 +206,11 @@ fn forwarder(owner: &Owning, signer: &str) -> GetForwarder<Fixed> {
     GetForwarder::new(
         Arc::new(Client::new(ClientConfig::default(), budget)),
         auth(signer),
-        Fixed(vec![NodeLease::new("owner", "eph", &address, 2_000_000)].into()),
+        Fixed({
+            let mut lease = NodeLease::new("owner", "eph", &address, 2_000_000);
+            lease.version = version.map(str::to_owned);
+            vec![lease].into()
+        }),
     )
 }
 
@@ -283,4 +292,37 @@ fn a_get_to_a_node_no_lease_names_sends_nothing() {
         .get("elsewhere", &get("docs", None, 0, "a"))
         .expect_err("no peer");
     assert!(matches!(err, oss_node::forward::ForwardError::NoPeer));
+}
+
+fn not_realtime(id: &str) -> GetRequest {
+    GetRequest {
+        realtime: false,
+        ..get("docs", Some("docs-uuid"), 0, id)
+    }
+}
+
+#[test]
+fn a_get_that_is_not_realtime_does_not_see_an_unrefreshed_write_on_a_peer_of_this_project() {
+    let owner = owning();
+    put(&owner, "a", r#"{"n":1}"#);
+    let f = forwarder_of(&owner, "coordinator", Some("oss-rust/0.1.0"));
+    assert!(!f.get("owner", &not_realtime("a")).expect("answers").found);
+    assert!(
+        f.get("owner", &get("docs", Some("docs-uuid"), 0, "a"))
+            .expect("answers")
+            .found
+    );
+}
+
+#[test]
+fn a_get_to_a_peer_that_is_not_of_this_project_is_sent_the_java_layout_and_reads_realtime() {
+    let owner = owning();
+    put(&owner, "a", r#"{"n":1}"#);
+    for version in [None, Some("3.10.0")] {
+        let f = forwarder_of(&owner, "coordinator", version);
+        assert!(
+            f.get("owner", &not_realtime("a")).expect("answers").found,
+            "{version:?}"
+        );
+    }
 }

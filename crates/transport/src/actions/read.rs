@@ -12,7 +12,7 @@ use crate::stream::{Input, Output, TaskId};
 pub const GET_ACTION: &str = "internal:serverless/document/get";
 
 /// One document read, forwarded to the shard's owner (`ForwardedGetRequest`).
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GetRequest {
     /// The parent task.
     pub parent: TaskId,
@@ -24,10 +24,30 @@ pub struct GetRequest {
     pub shard: i32,
     /// The document id.
     pub id: String,
+    /// Whether the read sees writes not yet refreshed. The Java request has
+    /// no such field and always reads realtime; this one travels as a
+    /// trailing byte, written only by [`GetRequest::write_extended`].
+    pub realtime: bool,
+}
+
+impl Default for GetRequest {
+    fn default() -> Self {
+        Self {
+            parent: TaskId::default(),
+            // ALLOC: empty, holds no memory.
+            index: String::new(),
+            index_uuid: None,
+            shard: 0,
+            // ALLOC: empty, holds no memory.
+            id: String::new(),
+            realtime: true,
+        }
+    }
 }
 
 impl GetRequest {
-    /// `writeTo`.
+    /// `writeTo`: the Java layout, which has no `realtime`; a request that
+    /// is not realtime is sent as one.
     ///
     /// # Errors
     ///
@@ -38,6 +58,23 @@ impl GetRequest {
         out.optional_string(self.index_uuid.as_deref())?;
         out.vint(self.shard)?;
         out.string(&self.id)
+    }
+
+    /// The Java layout and, when the read is not realtime, a trailing byte
+    /// saying so. Only a peer that reads it may be sent this: a Java peer
+    /// refuses a message it did not read whole. A realtime read is the Java
+    /// layout exactly.
+    ///
+    /// # Errors
+    ///
+    /// [`WireError::TooLarge`] past the writer's limit.
+    pub fn write_extended(&self, out: &mut Output<'_>) -> Result<(), WireError> {
+        self.write(out)?;
+        if self.realtime {
+            Ok(())
+        } else {
+            out.bool(false)
+        }
     }
 
     /// The `StreamInput` constructor.
@@ -53,6 +90,7 @@ impl GetRequest {
             index_uuid: input.optional_string(WHAT)?,
             shard: input.vint(WHAT)?,
             id: input.string(WHAT)?,
+            realtime: input.remaining() == 0 || input.bool(WHAT)?,
         })
     }
 }
