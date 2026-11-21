@@ -5,6 +5,8 @@ use std::fmt;
 use oss_blob::BlobError;
 use oss_format::FormatError;
 
+use crate::pack::PackError;
+
 /// A publish that did not complete.
 #[derive(Debug)]
 pub enum PublishError {
@@ -33,6 +35,12 @@ pub enum PublishError {
     Blob(BlobError),
     /// A manifest or header could not be read or written.
     Format(FormatError),
+    /// A node pack could not be written.
+    Pack(PackError),
+    /// The publish's node pack landed longer ago than the swap deadline, so
+    /// collection may already have judged it unreferenced; the next publish
+    /// packs the files anew.
+    PackExpired,
     /// A file of the commit could not be read from its directory.
     Directory(String),
     /// A published manifest this writer cannot build on.
@@ -62,6 +70,10 @@ impl fmt::Display for PublishError {
             ),
             Self::Blob(e) => write!(f, "{e}"),
             Self::Format(e) => write!(f, "{e}"),
+            Self::Pack(e) => write!(f, "{e}"),
+            Self::PackExpired => {
+                write!(f, "the node pack landed too long before the manifest swap")
+            }
             Self::Directory(e) => write!(f, "{e}"),
             Self::Unusable(why) => write!(f, "the published commit cannot be built on: {why}"),
         }
@@ -73,6 +85,12 @@ impl std::error::Error for PublishError {}
 impl From<BlobError> for PublishError {
     fn from(e: BlobError) -> Self {
         Self::Blob(e)
+    }
+}
+
+impl From<PackError> for PublishError {
+    fn from(e: PackError) -> Self {
+        Self::Pack(e)
     }
 }
 
