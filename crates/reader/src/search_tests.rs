@@ -295,3 +295,81 @@ fn terminate_after_is_refused_where_it_cannot_be_served() {
         assert!(reason.contains("[terminate_after]"), "{query}: {reason}");
     }
 }
+
+fn search_body(shard: &OpenShard<Emulator>, body: &str) -> Result<Hits, ShardError> {
+    let source = parse_chunks([body.as_bytes()]).expect("parses");
+    search(shard, "idx", &source, &Analyzer::standard(None))
+}
+
+fn docs_and_scores(h: &Hits) -> Vec<(i32, Option<f32>)> {
+    h.hits.iter().map(|h| (h.doc, h.score)).collect()
+}
+
+#[test]
+fn post_filter_narrows_the_hits_and_total_without_changing_scores() {
+    let shard = text_shard();
+    let plain = run(&shard, "").expect("searches");
+    let filtered = run(&shard, r#","post_filter":{"match":{"x0":"w1"}}"#).expect("searches");
+    let as_filter = search_body(
+        &shard,
+        r#"{"query":{"bool":{"must":{"match":{"x0":"w1 u1"}},"filter":{"match":{"x0":"w1"}}}}}"#,
+    )
+    .expect("searches");
+    // The same hits, scores and total as the query with the filter inside it.
+    assert_eq!(docs_and_scores(&filtered), docs_and_scores(&as_filter));
+    assert_eq!((filtered.total, filtered.exact), (as_filter.total, true));
+    assert_eq!(filtered.max_score, as_filter.max_score);
+    // It narrows, and what it keeps scored as in the plain search.
+    assert!(!filtered.hits.is_empty());
+    assert!(filtered.hits.len() < plain.hits.len());
+    for hit in &filtered.hits {
+        let at = plain.hits.iter().find(|p| p.doc == hit.doc).expect("a hit");
+        assert_eq!(hit.score, at.score);
+    }
+    // A filter nothing satisfies leaves nothing.
+    let none = run(&shard, r#","post_filter":{"match":{"x0":"nosuchword"}}"#).expect("searches");
+    assert!(none.hits.is_empty());
+    assert_eq!(none.total, 0);
+}
+
+#[test]
+fn post_filter_leaves_the_aggregations_to_the_whole_query() {
+    let shard = text_shard();
+    let aggs = r#","aggs":{"top":{"max":{"field":"n"}},"n":{"value_count":{"field":"n"}}}"#;
+    let plain = run(&shard, aggs).expect("searches");
+    let filtered = run(
+        &shard,
+        &format!(r#"{aggs},"post_filter":{{"match":{{"x0":"w1"}}}}"#),
+    )
+    .expect("searches");
+    assert!(filtered.hits.len() < plain.hits.len());
+    assert_eq!(
+        format!("{:?}", filtered.aggregations),
+        format!("{:?}", plain.aggregations)
+    );
+}
+
+#[test]
+fn post_filter_parses_one_query_and_is_refused_where_it_cannot_be_served() {
+    let on = parse_chunks([br#"{"post_filter":{"match_all":{}}}"#.as_slice()]).expect("parses");
+    assert!(on.post_filter.is_some());
+    assert!(SearchSource::default().post_filter.is_none());
+    assert!(parse_chunks([br#"{"post_filter":{"nosuch":{}}}"#.as_slice()]).is_err());
+    let shard = text_shard();
+    let filter = r#","post_filter":{"match_all":{}}"#;
+    for (rest, what) in [
+        (r#","min_score":0.1"#, "min_score"),
+        (r#","terminate_after":2"#, "terminate_after"),
+        (r#","explain":true"#, "explain"),
+        (
+            r#","track_scores":true,"sort":[{"n":"asc"}]"#,
+            "track_scores",
+        ),
+    ] {
+        let reason = refused(run(&shard, &format!("{rest}{filter}")));
+        assert!(
+            reason.contains("[post_filter]") && reason.contains(what),
+            "{rest}: {reason}"
+        );
+    }
+}

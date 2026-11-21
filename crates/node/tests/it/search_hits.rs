@@ -260,3 +260,42 @@ fn terminate_after_collects_the_first_matches_and_says_so() {
         assert_eq!(status, 400, "{options}: {body}");
     }
 }
+
+/// docs/specs/reader-post-filter AC-1 to AC-3.
+#[test]
+fn post_filter_narrows_the_hits_as_a_filter_inside_the_query_does() {
+    let node = start();
+    let ask = |body: &str| {
+        let r = request(
+            node.addr(),
+            "POST",
+            "/compat-term/_search",
+            Some(body.as_bytes()),
+        );
+        (r.status, r.text())
+    };
+    let main = r#"{"match":{"title":"brown fox"}}"#;
+    let filter = r#"{"term":{"title":"fox"}}"#;
+    let (_, plain) = ask(&format!(r#"{{"query":{main}}}"#));
+    let (status, post) = ask(&format!(r#"{{"query":{main},"post_filter":{filter}}}"#));
+    assert_eq!(status, 200, "{post}");
+    let (_, inside) = ask(&format!(
+        r#"{{"query":{{"bool":{{"must":{main},"filter":{filter}}}}}}}"#
+    ));
+    assert_eq!(id_scores(&post), id_scores(&inside), "{post}");
+    assert!(!id_scores(&post).is_empty(), "{post}");
+    assert!(id_scores(&post).len() < id_scores(&plain).len(), "{post}");
+    let total = |body: &str| {
+        body.split_once(r#""total":"#)
+            .map(|(_, r)| r[..30].to_owned())
+    };
+    assert_eq!(total(&post), total(&inside), "{post} {inside}");
+    // Refused beside min_score; a filter that is not a query is a parse error.
+    for options in [
+        format!(r#","post_filter":{filter},"min_score":0.1"#),
+        r#","post_filter":{"nosuch":{}}"#.to_owned(),
+    ] {
+        let (status, body) = ask(&format!(r#"{{"query":{main}{options}}}"#));
+        assert_eq!(status, 400, "{options}: {body}");
+    }
+}

@@ -157,3 +157,5 @@ src/aggs/bucket/terms_subs_tests.rs	new		tests of sub-aggregations of a numeric 
 src/fetch/hit_meta.rs	port	server/src/main/java/org/opensearch/search/fetch/subphase/SeqNoPrimaryTermPhase.java@3.10.0	version and seq_no_primary_term: FetchVersionPhase and SeqNoPrimaryTermPhase read the numeric doc values of a hit; SearchHit.toInnerXContent orders them between _id and _score
 src/fetch/hit_meta_tests.rs	new		tests of hit_meta.rs
 src/search_terminate.rs	port	server/src/main/java/org/opensearch/search/query/QueryPhase.java@3.10.0	which terminate_after searches this node serves; the rest is refused
+src/search_options.rs	new		the search options this node serves only in some combinations, refused as one rule set
+src/search_post_filter.rs	port	server/src/main/java/org/opensearch/search/query/QueryPhase.java@3.10.0	post_filter: the hits query holds the filter unscored, the aggregations keep the query

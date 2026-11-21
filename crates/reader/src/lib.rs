@@ -24,6 +24,8 @@ pub mod overlay;
 pub mod prefetch;
 pub mod response;
 pub mod search;
+mod search_options;
+mod search_post_filter;
 mod search_sort;
 mod search_terminate;
 mod search_top;

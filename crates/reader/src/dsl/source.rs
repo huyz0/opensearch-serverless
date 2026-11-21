@@ -37,7 +37,6 @@ const VALUE_KEYS: &[&str] = &[
 
 /// The top-level keys OpenSearch reads whose value is an object.
 const OBJECT_KEYS: &[&str] = &[
-    "post_filter",
     "_source",
     "script_fields",
     "indices_boost",
@@ -91,6 +90,9 @@ pub struct SearchSource {
     pub explain: bool,
     /// `min_score`: only matches scoring at least this are hits and counted.
     pub min_score: Option<f32>,
+    /// `post_filter`: narrows the hits and their total after the
+    /// aggregations have seen every match of the query.
+    pub post_filter: Option<Query>,
     /// `terminate_after`: collect only the first this many matches of the
     /// shard; 0 is off.
     pub terminate_after: u64,
@@ -126,6 +128,7 @@ impl Default for SearchSource {
             docvalue_fields: Vec::new(),
             explain: false,
             min_score: None,
+            post_filter: None,
             terminate_after: 0,
             track_scores: false,
             version: false,
@@ -244,6 +247,7 @@ impl SearchSource {
             "aggregations" | "aggs" => self.aggs = parse_aggregations(p)?,
             "_source" => self.source = parse_source(p, name)?,
             "highlight" => self.highlight = Some(parse_highlight(p)?),
+            "post_filter" => self.post_filter = Some(parse_inner(p)?),
             "pit" => self.pit = Some(parse_pit(p)?),
             known if OBJECT_KEYS.contains(&known) => return Err(unsupported(known)),
             _ => return Err(unknown_key(p, Kind::StartObject, name)),
