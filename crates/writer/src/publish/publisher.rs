@@ -3,28 +3,25 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use lucene_store::Directory;
-use oss_blob::register::ABSENT_GENERATION;
-use oss_blob::{BlobError, BlobStore, CreateOutcome, SwapOutcome};
+use oss_blob::{BlobStore, CreateOutcome, SwapOutcome};
 use oss_format::{
-    CommitManifest, FileLocation, ManifestEntry, ShardRef, encode_manifest, encode_segment_header,
+    FileLocation, ManifestEntry, ShardRef, encode_manifest, encode_segment_header,
     segment_blob_order,
 };
 
 use super::PublishError;
 use super::blob::SegmentBlob;
 use super::names::segment_name;
+use super::packed::{PackPlacement, Packable};
+use super::register::{Known, Last, fence};
 use crate::bulk::IdGenerator;
+use crate::pack::{Part, SWAP_DEADLINE_MILLIS};
 
 /// The buffer a blob's PUT streams through.
 const IO_BUF_BYTES: usize = 64 * 1024;
-
-/// What a register read first has room for: well over a thousand files.
-const MANIFEST_READ_FIRST: usize = 256 << 10;
-
-/// The most a manifest read keeps: 16,384 files at well under 200 bytes.
-const MANIFEST_READ_BYTES: usize = 4 << 20;
 
 /// What a publish did.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -41,30 +38,15 @@ pub struct Published {
     pub superseded: bool,
 }
 
-/// A file the register already names: where it is and how long it is.
-#[derive(Clone, Debug)]
-struct Known {
-    location: String,
-    length: u64,
-}
-
-/// The manifest this publisher last wrote, and the generation it wrote it
-/// at, so the next publish reads no register.
-#[derive(Clone, Debug)]
-struct Last {
-    generation: u64,
-    term: u64,
-    writer: Option<String>,
-    files: BTreeMap<String, Known>,
-}
-
 /// One shard's publisher. Callers serialise its publishes.
 pub struct ShardPublisher {
-    store: Arc<dyn BlobStore>,
+    pub(super) store: Arc<dyn BlobStore>,
     base: String,
-    manifest_key: String,
-    ids: IdGenerator,
+    pub(super) manifest_key: String,
+    pub(super) ids: IdGenerator,
     last: Option<Last>,
+    pub(super) packs: Option<PackPlacement>,
+    swap_deadline: Duration,
 }
 
 impl std::fmt::Debug for ShardPublisher {
@@ -95,7 +77,22 @@ impl ShardPublisher {
             manifest_key: shard.manifest_key(base)?,
             ids: IdGenerator::random(),
             last: None,
+            packs: None,
+            swap_deadline: Duration::from_millis(SWAP_DEADLINE_MILLIS),
         })
+    }
+
+    /// Sends this shard's next publishes' small segment blobs to node packs
+    /// (`Some`), or to blobs of their own (`None`, the default). Decided per
+    /// publish, so a switch of the setting takes effect at the next one.
+    pub fn use_packs(&mut self, placement: Option<PackPlacement>) {
+        self.packs = placement;
+    }
+
+    /// How long a publish may take from its pack landing to its manifest
+    /// swap; [`SWAP_DEADLINE_MILLIS`] unless a test shortens it.
+    pub fn set_swap_deadline(&mut self, deadline: Duration) {
+        self.swap_deadline = deadline;
     }
 
     /// Publishes the commit whose files are `files` in `dir`, as `writer` of
@@ -125,6 +122,9 @@ impl ShardPublisher {
         let mut uploaded: BTreeMap<String, Known> = BTreeMap::new();
         // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
         let mut blobs: Vec<String> = Vec::new();
+        // When this publish asked for its pack, the earliest, so the swap's
+        // age check never undercounts how long ago a pack landed.
+        let mut packed_at: Option<Instant> = None;
         // At most two rounds: a swap lost over a remembered generation is
         // tried once more over what the register holds.
         for round in 0..2 {
@@ -147,6 +147,7 @@ impl ShardPublisher {
                 &known,
                 &mut uploaded,
                 &mut blobs,
+                &mut packed_at,
                 now_millis,
             )?;
             let refs: Vec<ManifestEntry<'_>> = entries
@@ -159,6 +160,12 @@ impl ShardPublisher {
                 // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
                 .collect();
             let manifest = encode_manifest(term, Some(writer), &refs, wal_ordinal, -1)?;
+            // Collection deletes a pack no manifest names once it is old
+            // enough; a swap this late could name one already gone.
+            if packed_at.is_some_and(|at| at.elapsed() > self.swap_deadline) {
+                self.last = None;
+                return Err(PublishError::PackExpired);
+            }
             match self
                 .store
                 .swap_register(&self.manifest_key, generation, &manifest)?
@@ -217,72 +224,6 @@ impl ShardPublisher {
         })
     }
 
-    fn read_register(&self) -> Result<(Last, u64), PublishError> {
-        match self.read_register_bytes() {
-            Ok((last, generation, _)) => Ok((last, generation)),
-            Err(PublishError::Unusable("no commit published")) => Ok((
-                Last {
-                    generation: ABSENT_GENERATION,
-                    term: 0,
-                    writer: None,
-                    // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
-                    files: BTreeMap::new(),
-                },
-                ABSENT_GENERATION,
-            )),
-            Err(e) => Err(e),
-        }
-    }
-
-    /// The register as it is: its manifest, generation and manifest bytes.
-    /// An absent register is [`PublishError::Unusable`] "no commit
-    /// published".
-    fn read_register_bytes(&self) -> Result<(Last, u64, Vec<u8>), PublishError> {
-        let mut found = None;
-        for size in [MANIFEST_READ_FIRST, MANIFEST_READ_BYTES] {
-            // ALLOC: one buffer a register read, at most manifest-sized: a publisher's first, or after a lost swap.
-            let mut buf = vec![0u8; size];
-            match self.store.read_register(&self.manifest_key, &mut buf) {
-                Ok(Some(read)) => {
-                    found = Some((buf, read));
-                    break;
-                }
-                Ok(None) => return Err(PublishError::Unusable("no commit published")),
-                // A larger manifest than this buffer: once more with room for the most.
-                Err(BlobError::InvalidArgument(_)) => {}
-                Err(e) => return Err(e.into()),
-            }
-        }
-        let Some((buf, read)) = found else {
-            return Err(PublishError::Unusable("a manifest too large to read"));
-        };
-        let value = buf.get(..read.len).unwrap_or_default();
-        let manifest = CommitManifest::parse(value)?;
-        // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
-        let mut files = BTreeMap::new();
-        for file in manifest.files() {
-            let Some(length) = file.length else {
-                return Err(PublishError::Unusable("a file has no recorded length"));
-            };
-            // ALLOC: one entry a published file, at most manifest::MAX_FILES.
-            files.insert(
-                file.name.to_string(),
-                Known {
-                    location: file.location.encode(),
-                    length,
-                },
-            );
-        }
-        let last = Last {
-            generation: read.generation,
-            term: manifest.term,
-            writer: manifest.writer.as_deref().map(str::to_owned),
-            files,
-        };
-        // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
-        Ok((last, read.generation, value.to_vec()))
-    }
-
     /// Uploads what `known` does not hold, returning every file of the
     /// commit with its location.
     #[allow(clippy::too_many_arguments)]
@@ -294,6 +235,7 @@ impl ShardPublisher {
         known: &BTreeMap<String, Known>,
         uploaded: &mut BTreeMap<String, Known>,
         blobs: &mut Vec<String>,
+        packed_at: &mut Option<Instant>,
         now_millis: u64,
     ) -> Result<BTreeMap<String, Known>, PublishError> {
         // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
@@ -342,6 +284,8 @@ impl ShardPublisher {
             // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
             .collect();
         let last = by_segment.keys().next_back().copied();
+        // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
+        let mut packable: Vec<(Packable, Part)> = Vec::new();
         for (segment, mut group) in by_segment {
             if Some(segment) == last {
                 group.extend(commit_points.iter().copied());
@@ -349,6 +293,12 @@ impl ShardPublisher {
             // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
             let plain = format!("{segment}.seg");
             let taken = published_segments.contains(segment);
+            if let Some(found) =
+                self.pack_candidate(dir, segment, &plain, taken, &mut group, now_millis)?
+            {
+                packable.push(found);
+                continue;
+            }
             self.put_segment(
                 dir,
                 &term_dir,
@@ -362,6 +312,7 @@ impl ShardPublisher {
                 blobs,
             )?;
         }
+        self.put_packed(packable, packed_at, uploaded, &mut entries)?;
         Ok(entries)
     }
 
@@ -463,30 +414,4 @@ impl ShardPublisher {
         blobs.push(blob);
         Ok(())
     }
-}
-
-/// The register's manifest against this publish: a newer term is a stale
-/// writer, and this term from another node is a second writer.
-fn fence(base: &Last, term: u64, writer: &str) -> Result<(), PublishError> {
-    if base.generation == ABSENT_GENERATION {
-        return Ok(());
-    }
-    if base.term > term {
-        return Err(PublishError::Stale {
-            term,
-            found: Some(base.term),
-        });
-    }
-    if base.term == term
-        && let Some(existing) = &base.writer
-        && existing != writer
-    {
-        return Err(PublishError::Foreign {
-            term,
-            existing: existing.clone(),
-            // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
-            ours: writer.to_owned(),
-        });
-    }
-    Ok(())
 }
