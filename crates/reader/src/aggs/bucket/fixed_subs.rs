@@ -10,6 +10,7 @@ use lucene_search::global_ords::GlobalOrds;
 use oss_blob::BlobStore;
 
 use crate::OpenShard;
+use crate::aggs::bucket::filters_collect::Queries;
 use crate::aggs::bucket::keyword_collect::{Parent, SUB_COPIES};
 use crate::aggs::bucket::{filters_collect, keyed_subs, keyword_subs, nested_subs, range_collect};
 use crate::aggs::metric::{Metric, MetricAgg};
@@ -29,9 +30,10 @@ pub fn attach<S: BlobStore + 'static>(
     agg: &MetricAgg,
     shard: &OpenShard<S>,
     ords: &mut HashMap<String, std::sync::Arc<GlobalOrds>>,
+    queries: &mut Queries<'_>,
 ) -> Result<(), ShardError> {
     if let AggNode::Range { subs, .. } | AggNode::Filters { subs, .. } = node {
-        *subs = keyword_subs::sub_nodes(agg, shard, ords, false)?;
+        *subs = keyword_subs::sub_nodes(agg, shard, ords, queries, false)?;
     }
     Ok(())
 }
@@ -97,17 +99,35 @@ pub fn reserved<S: BlobStore + 'static>(shard: &OpenShard<S>, aggs: &[MetricAgg]
     aggs.iter()
         .filter(|a| is_fixed(a) && !a.subs.is_empty())
         .fold(0usize, |total, agg| {
-            total.saturating_add(subs_bytes(shard, agg, width(agg)))
+            total.saturating_add(subs_bytes(shard, agg, width(agg), 1))
         })
+}
+
+/// How many of `agg`'s buckets one document can land in: every range or
+/// filter that holds it for a fixed kind, the bucket limit for a data-keyed
+/// kind over a multi-valued field, else one.
+fn own_fanout<S: BlobStore + 'static>(shard: &OpenShard<S>, agg: &MetricAgg) -> usize {
+    if is_fixed(agg) {
+        return width(agg).max(1);
+    }
+    let docs = usize::try_from(shard.reader.max_doc()).unwrap_or(usize::MAX);
+    if keyed_subs::values(shard, &agg.field) > docs {
+        crate::aggs::bucket::BUCKET_LIMIT
+    } else {
+        1
+    }
 }
 
 /// The most bytes the sub-aggregations of `agg`'s `buckets` buckets hold on
 /// `shard`: each bucket's engine states and values (the engine's, the
 /// shard's and a reduce's), and a nested `terms`' own under the buckets.
+/// `fanout` is how many of `agg`'s own parents' buckets one document can land
+/// in (1 at the top level), which a nested level's buckets multiply by.
 pub fn subs_bytes<S: BlobStore + 'static>(
     shard: &OpenShard<S>,
     agg: &MetricAgg,
     buckets: usize,
+    fanout: usize,
 ) -> usize {
     let buckets = buckets.min(crate::aggs::bucket::BUCKET_LIMIT);
     let parent = Parent {
@@ -123,7 +143,12 @@ pub fn subs_bytes<S: BlobStore + 'static>(
         total.saturating_add(if sub.metric == Metric::Terms && !numeric_terms {
             keyword_subs::reserved(shard, sub, parent)
         } else if nested_subs::is_nested(sub) || numeric_terms {
-            nested_subs::reserved(shard, sub, buckets)
+            nested_subs::reserved(
+                shard,
+                sub,
+                buckets,
+                fanout.saturating_mul(own_fanout(shard, agg)),
+            )
         } else {
             buckets.saturating_mul(per_value)
         })

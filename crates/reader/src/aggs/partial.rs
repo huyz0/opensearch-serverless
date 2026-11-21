@@ -74,6 +74,11 @@ pub enum Value {
     /// `InternalTopHits`: the shard's top hits, which a coordinator merges
     /// by their sort once it has fetched them.
     TopHits(Box<TopHitsResult>),
+    /// A bucket's `top_hits` as each shard that holds the bucket answered
+    /// it, kept until the coordinator merges them with the shards known.
+    TopHitsParts(Vec<TopHitsResult>),
+    /// A `top_hits` already written: the `"hits":{..}` body.
+    Rendered(Vec<u8>),
     /// `LongTerms`: a numeric `terms`' buckets.
     Terms(Box<TermsResult>),
     /// `InternalHistogram`: a numeric `histogram`'s buckets.

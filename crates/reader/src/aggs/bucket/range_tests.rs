@@ -145,14 +145,14 @@ fn unserved_options_are_refused_as_not_supported_yet() {
     }
     assert!(reason(r#"{"field":"n","ranges":[{"from":"2020-01-01"}]}"#).contains("given as text"));
     assert!(reason(r#"{"field":"n","ranges":[{"to":"5"}]}"#).contains("[range]'s [to]"));
-    let sub = r#"{"aggs":{"r":{"range":{"field":"n","ranges":[{"to":1}]},"aggs":{"h":{"filters":{"filters":[{"match_all":{}}]}}}}}}"#;
+    let sub = r#"{"aggs":{"r":{"range":{"field":"n","ranges":[{"to":1}]},"aggs":{"h":{"percentiles":{"field":"n"}}}}}}"#;
     let failure = parse_chunks([sub.as_bytes()])
         .expect_err("refused")
         .into_failure();
     assert!(
         failure
             .reason
-            .contains("[filters] sub-aggregation of a [range]"),
+            .contains("[percentiles] sub-aggregation of a [range]"),
         "{}",
         failure.reason
     );

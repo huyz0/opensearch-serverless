@@ -164,3 +164,8 @@ src/aggs/bucket/running_tests.rs	new		tests of the running bucket total and of a
 src/aggs/bucket/nested_subs.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/BucketsAggregator.java@3.10.0	a bucket aggregation under a bucket: each owning bucket's value from the engine's flattened result (BucketsAggregator.buildSubAggsForBuckets) and its reservation
 src/aggs/bucket/nested_tests.rs	new		tests of a bucket aggregation under a bucket on a real index
 src/aggs/bucket/nested_terms_tests.rs	new		tests of a numeric terms nested under a bucket, and of the bucket limit for one
+src/aggs/bucket/nested_filters_tests.rs	new		tests of filters and filter nested under a bucket
+src/aggs/metric/top_hits_sub.rs	port	server/src/main/java/org/opensearch/search/aggregations/metrics/TopHitsAggregator.java@3.10.0	a top_hits as the sub-aggregation of a bucket: a collector for each owning bucket, and each bucket's result from it
+src/aggs/bucket/top_hits_sub_tests.rs	new		tests of a top_hits under a keyword terms, a histogram, a range and a filters on a four-segment index
+src/aggs/bucket/walk.rs	new		a walk over the sub-aggregation values of a result's buckets, at any depth
+src/aggs/metric/keyword_cardinality.rs	port	server/src/main/java/org/opensearch/search/aggregations/metrics/CardinalityAggregator.java@3.10.0	OrdinalsCollector: the global ordinals of a keyword field hashed into the sketch, and their reserved memory

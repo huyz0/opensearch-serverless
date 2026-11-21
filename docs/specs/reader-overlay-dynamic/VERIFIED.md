@@ -7,5 +7,6 @@
 - AC-5: `an_index_without_a_mapping_is_served_by_the_overlay_at_the_cost_of_one_with` in crates/node/tests/overlay_dynamic.rs
 - AC-6: `an_index_without_a_mapping_is_served_by_the_overlay_at_the_cost_of_one_with` in crates/node/tests/overlay_dynamic.rs
 - AC-7: `an_index_without_a_mapping_is_served_by_the_overlay_at_the_cost_of_one_with` in crates/node/tests/overlay_dynamic.rs
+- AC-8: `an_index_without_a_mapping_is_served_by_the_overlay_at_the_cost_of_one_with` in crates/node/tests/overlay_dynamic.rs (searches nodes 0, 1 and 2; the owner is one of them), 0 of 6 runs green before the change and 3 of 3 after
 
 Provisional (emulator, divisor 4): 20 writes cost 96 requests on the mapped index and 100 on the unmapped one, both served on two other nodes within 3 s.

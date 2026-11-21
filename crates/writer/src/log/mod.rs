@@ -70,6 +70,14 @@ pub enum LogError {
     FenceExhausted,
     /// A slot or range past what the log can name.
     OutOfRange(&'static str),
+    /// A header longer than the reader accepts, found from its prefix
+    /// before the rest was read.
+    HeaderTooLarge {
+        /// The header's length.
+        bytes: u64,
+        /// What the reader accepts.
+        cap: u64,
+    },
 }
 
 impl fmt::Display for LogError {
@@ -85,6 +93,9 @@ impl fmt::Display for LogError {
                 f.write_str("could not fence the epoch: its writer kept taking the next slot")
             }
             Self::OutOfRange(what) => write!(f, "node-log {what} out of range"),
+            Self::HeaderTooLarge { bytes, cap } => {
+                write!(f, "node-log header of {bytes} bytes is over the {cap} cap")
+            }
         }
     }
 }

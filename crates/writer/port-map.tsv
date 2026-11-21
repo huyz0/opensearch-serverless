@@ -51,3 +51,10 @@ src/takeover/head.rs	port	serverless/shell/src/main/java/org/opensearch/serverle
 src/takeover/predecessors.rs	new		one node-log reader per predecessor, shared by a batch of takes
 src/takeover/restore.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/shard/ShardReconciler.java	the restore of a shard's latest commit into the writer's directory before it replays; one ranged GET a blob
 src/takeover/checkpoint.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/shard/ShardSettlement.java	the local checkpoint of a shard's published commit, read from its segments file
+src/pack/mod.rs	new		module root and re-exports
+src/pack/error.rs	new		the pack failures as one Rust enum
+src/pack/ledger.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/NodePackLedger.java@49f238ed	node packs
+src/pack/store.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/NodePackStore.java@49f238ed	node packs
+src/pack/writer.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/NodePackWriter.java@49f238ed	node packs
+src/publish/packed.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/SegmentPublisher.java@49f238ed	writeSegmentBlobs and writeToNodePack: small blobs go into the node pack
+src/publish/register.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/SegmentPublisher.java@49f238ed	the register read and fence of publishCommit, split from publisher.rs

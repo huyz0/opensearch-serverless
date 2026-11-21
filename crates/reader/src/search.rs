@@ -25,8 +25,8 @@ use oss_blob::BlobStore;
 use crate::OpenShard;
 use crate::aggs::bucket::filters_collect;
 use crate::aggs::bucket::{fixed_subs, keyed_subs, keyword_collect, keyword_subs};
-use crate::aggs::metric::top_hits;
 use crate::aggs::metric::{self, Partial, state_bytes};
+use crate::aggs::metric::{top_hits, top_hits_sub};
 use crate::dsl::search_after::{AfterKey, field_doc};
 use crate::dsl::{SearchSource, SortKey};
 use crate::failure::Failure;
@@ -174,6 +174,7 @@ pub fn hits_bytes<S: BlobStore + 'static>(source: &SearchSource, shard: &OpenSha
                 .min(docs);
             total.saturating_add(window_bytes(window, &spec.sort, shard))
         });
+    let inner = inner.saturating_add(top_hits_sub::reserved(&source.aggs, shard, docs));
     // A numeric `terms` counts each distinct value its matches hold: at most
     // one per document of the shard. A keyword one counts into the global
     // ordinals of its field, whose size the segments state.
@@ -196,6 +197,10 @@ pub fn hits_bytes<S: BlobStore + 'static>(source: &SearchSource, shard: &OpenSha
     window_bytes(window, &source.sort, shard)
         .saturating_add(inner)
         .saturating_add(counted)
+        .saturating_add(crate::aggs::metric::keyword_cardinality::reserved(
+            &source.aggs,
+            shard,
+        ))
         .saturating_add(fixed_subs::reserved(shard, &source.aggs))
         .saturating_add(keyed_subs::reserved(shard, &source.aggs))
         .saturating_add(state_bytes(&source.aggs))
@@ -206,7 +211,7 @@ pub fn hits_bytes<S: BlobStore + 'static>(source: &SearchSource, shard: &OpenSha
 pub const TERMS_BYTES_PER_VALUE: usize = 64;
 
 /// The bytes `window` hits sorted by `sort` hold: see [`hits_bytes`].
-fn window_bytes<S: BlobStore + 'static>(
+pub(crate) fn window_bytes<S: BlobStore + 'static>(
     window: usize,
     sort: &[SortKey],
     shard: &OpenShard<S>,
@@ -324,12 +329,20 @@ pub fn search<S: BlobStore + 'static>(
     let numeric_sort = sort
         .as_ref()
         .is_some_and(|(_, kinds)| kinds.contains(&KeyKind::Numeric))
-        || top_plans.iter().any(top_hits::TopHitsPlan::numeric);
+        || top_plans.iter().any(top_hits::TopHitsPlan::numeric)
+        || top_hits_sub::any_numeric_sub(&source.aggs, shard);
     if numeric_sort || has_points(&query) || filter_plans.iter().flatten().any(has_points) {
         opened.open_points().map_err(ShardError::engine)?;
     }
     let segments = opened.as_open_segments();
-    let mut aggregations = metric::collect(&source.aggs, shard, &segments, &query, &filter_plans)?;
+    let mut aggregations = metric::collect(
+        &source.aggs,
+        shard,
+        &segments,
+        &query,
+        &filter_plans,
+        &norms,
+    )?;
     top_hits::fill(
         &mut aggregations,
         &source.aggs,

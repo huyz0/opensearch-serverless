@@ -86,6 +86,7 @@ fn rig(collector: &str) -> Rig {
             ),
             buffer_bytes: 1 << 16,
             first_wait_millis: FIRST_WAIT,
+            predecessors: None,
         },
         Box::new(move || clock.load(Ordering::SeqCst)),
     );

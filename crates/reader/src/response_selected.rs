@@ -169,3 +169,69 @@ fn render_picked<S: BlobStore + 'static>(
     }
     Ok(rendered)
 }
+
+/// `parts` with every `top_hits` under a bucket fetched and written as
+/// `Value::Rendered`, for a response of one shard; `None` when no bucket
+/// holds one.
+///
+/// # Errors
+///
+/// An error when a hit cannot be fetched or written.
+pub(crate) fn render_nested<S: BlobStore + 'static>(
+    shard: &OpenShard<S>,
+    index: &str,
+    node_id: &str,
+    parts: &[crate::aggs::metric::Partial],
+    reserve: &mut dyn FnMut(usize) -> io::Result<()>,
+) -> io::Result<Option<Vec<crate::aggs::metric::Partial>>> {
+    use crate::aggs::bucket::walk::{any_sub, walk_subs_mut};
+    use crate::aggs::partial::Value;
+    let top = |v: &Value| matches!(v, Value::TopHits(_));
+    if !parts.iter().any(|p| any_sub(&p.value, &top)) {
+        return Ok(None);
+    }
+    // ALLOC: one copy of the aggregations a response holds, once.
+    let mut owned = parts.to_vec();
+    for part in &mut owned {
+        walk_subs_mut::<io::Error>(&mut part.value, &mut |_, value| {
+            let Value::TopHits(result) = value else {
+                return Ok(());
+            };
+            let ahead = result.before.len();
+            // ALLOC: one position a hit of the bucket, at most the inner result window.
+            let positions: Vec<usize> = (ahead..ahead.saturating_add(result.hits.len())).collect();
+            let hits = if positions.is_empty() {
+                // ALLOC: empty.
+                Vec::new()
+            } else {
+                render_selected_hits(shard, index, node_id, result, &positions, reserve)?
+            };
+            *value = Value::Rendered(top_hits_body(result.total, result.max_score, &hits));
+            Ok(())
+        })?;
+    }
+    Ok(Some(owned))
+}
+
+/// The aggregation's `"hits":{..}` body from its total, best score and
+/// written hits, as a shard writes it.
+pub(crate) fn top_hits_body(total: u64, max_score: Option<f32>, hits: &[Vec<u8>]) -> Vec<u8> {
+    use std::io::Write;
+    // ALLOC: the body, bounded by the bucket's rendered hits.
+    let mut out = Vec::new();
+    // Writing to a vector cannot fail.
+    let _ = write!(
+        out,
+        "\"hits\":{{\"total\":{{\"value\":{total},\"relation\":\"eq\"}},\"max_score\":"
+    );
+    let _ = super::write_score(&mut out, max_score);
+    out.extend_from_slice(b",\"hits\":[");
+    for (i, hit) in hits.iter().enumerate() {
+        if i > 0 {
+            out.push(b',');
+        }
+        out.extend_from_slice(hit);
+    }
+    out.extend_from_slice(b"]}");
+    out
+}

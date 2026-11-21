@@ -259,6 +259,12 @@ impl Assembled {
         }))
     }
 
+    /// Changes the refresh visibility of this node; `None` while the tail
+    /// overlay is off.
+    pub fn tail_visibility(&self) -> Option<tail_node::VisibilityHandle> {
+        self.tail.as_ref().map(|t| t.visibility.clone())
+    }
+
     /// Starts serving on `listener`, the server's buffers charged to
     /// `budget`.
     ///

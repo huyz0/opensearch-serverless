@@ -24,12 +24,12 @@ use crate::aggs::metric::top_hits::TopHitsResult;
 use crate::aggs::partial::{Format, Partial, Value};
 
 /// Writes a `top_hits` result's body: `"hits":{..}`, with its hits fetched.
-pub type HitsWriter<'a> = dyn FnMut(&mut dyn Write, &TopHitsResult) -> io::Result<()> + 'a;
+pub type HitsWriter<'a> = dyn FnMut(&mut dyn Write, &str, &TopHitsResult) -> io::Result<()> + 'a;
 
 /// Writes `,"aggregations":{..}` for `parts`, or nothing when there are none,
 /// for results that hold no `top_hits`.
 pub fn write_aggregations(out: &mut dyn Write, parts: &[Partial]) -> io::Result<()> {
-    write_aggregations_with(out, parts, &mut |_, _| {
+    write_aggregations_with(out, parts, &mut |_, _, _| {
         Err(io::Error::other(
             "a top_hits result written without its hits",
         ))
@@ -37,7 +37,7 @@ pub fn write_aggregations(out: &mut dyn Write, parts: &[Partial]) -> io::Result<
 }
 
 /// Writes `,"aggregations":{..}` for `parts`, or nothing when there are none;
-/// a `top_hits` result's body is `hits`' to write.
+/// a `top_hits` result's body is `hits`' to write, given its name.
 pub fn write_aggregations_with(
     out: &mut dyn Write,
     parts: &[Partial],
@@ -57,7 +57,7 @@ pub fn write_aggregations_with(
         write_json_str(out, &part.name)?;
         out.write_all(b":{")?;
         match &part.value {
-            Value::TopHits(top) => hits(out, top)?,
+            Value::TopHits(top) => hits(out, &part.name, top)?,
             value => write_body(out, part.format, value)?,
         }
         out.write_all(b"}")?;
@@ -159,7 +159,9 @@ pub(crate) fn write_body(out: &mut dyn Write, format: Format, value: &Value) -> 
         Value::Range(ref result) => write_range(out, format, result),
         Value::Filters(ref result) => write_filters(out, result),
         // Written by the caller, which fetches the hits.
-        Value::TopHits(_) => Ok(()),
+        Value::TopHits(_) | Value::TopHitsParts(_) => Ok(()),
+        // Written already: the hits were fetched when it was made.
+        Value::Rendered(ref body) => out.write_all(body),
     }
 }
 

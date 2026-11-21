@@ -160,6 +160,7 @@ fn parse_level(p: &mut Parser<'_>, level: usize) -> Result<Vec<MetricAgg>, DslEr
             if let Some(sub) = definition.subs.iter().find(|s| {
                 !is_scalar(s.metric)
                     && s.metric != Metric::Terms
+                    && s.metric != Metric::TopHits
                     && !nests_under(s.metric, agg.metric)
             }) {
                 // ALLOC: error path; one message.
@@ -209,7 +210,11 @@ fn holds_subs(metric: Metric) -> bool {
 fn nests_under(sub: Metric, parent: Metric) -> bool {
     matches!(
         sub,
-        Metric::Range | Metric::Histogram | Metric::DateHistogram
+        Metric::Range
+            | Metric::Filters
+            | Metric::Filter
+            | Metric::Histogram
+            | Metric::DateHistogram
     ) && matches!(
         parent,
         Metric::Range

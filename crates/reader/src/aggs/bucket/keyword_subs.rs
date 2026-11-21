@@ -11,13 +11,16 @@ use lucene_search::global_ords::GlobalOrds;
 use oss_blob::BlobStore;
 
 use crate::OpenShard;
+use crate::aggs::bucket::filters_collect::{self, Queries};
 use crate::aggs::bucket::keyword_collect::{self, Parent};
 use crate::aggs::bucket::keyword_terms::KeywordTermsResult;
 use crate::aggs::bucket::sub_values::SubValues;
 use crate::aggs::bucket::terms::TermsSpec;
 use crate::aggs::bucket::{nested_subs, with_subs};
 use crate::aggs::metric::collect::{Resolved, node as metric_node, resolve, value_of};
-use crate::aggs::metric::{DEFAULT_PRECISION, Metric, MetricAgg};
+use crate::aggs::metric::{
+    DEFAULT_PRECISION, Metric, MetricAgg, keyword_cardinality, top_hits_sub,
+};
 use crate::aggs::partial::{Format, Value};
 use crate::failure::Failure;
 use crate::search::ShardError;
@@ -76,6 +79,9 @@ pub fn node<S: BlobStore + 'static>(
     shard: &OpenShard<S>,
     ords: &mut HashMap<String, std::sync::Arc<GlobalOrds>>,
 ) -> Result<AggNode, ShardError> {
+    if agg.metric == Metric::Cardinality {
+        return keyword_cardinality::node(agg, shard, ords);
+    }
     if !ords.contains_key(&agg.field) {
         let built = shard
             .reader
@@ -92,7 +98,7 @@ pub fn node<S: BlobStore + 'static>(
     };
     let mut engine = keyword_collect::node(&agg.field, &spec, accepted);
     if let AggNode::Terms { subs, .. } = &mut engine {
-        *subs = sub_nodes(agg, shard, ords, true)?;
+        *subs = sub_nodes(agg, shard, ords, &mut Queries::new(None), true)?;
     }
     Ok(engine)
 }
@@ -104,6 +110,7 @@ pub fn sub_nodes<S: BlobStore + 'static>(
     agg: &MetricAgg,
     shard: &OpenShard<S>,
     ords: &mut HashMap<String, std::sync::Arc<GlobalOrds>>,
+    queries: &mut Queries<'_>,
     keyword_parent: bool,
 ) -> Result<Vec<AggNode>, ShardError> {
     // ALLOC: one node a sub-aggregation, bounded by the request's.
@@ -113,11 +120,17 @@ pub fn sub_nodes<S: BlobStore + 'static>(
             Resolved::Numeric(_) => {
                 let mut made = metric_node(sub, DEFAULT_PRECISION);
                 // A bucket aggregation carries its own sub-aggregations.
-                with_subs::attach(&mut made, sub, shard, ords)?;
+                with_subs::attach(&mut made, sub, shard, ords, queries)?;
                 subs.push(made);
             }
             Resolved::Keyword => subs.push(node(sub, shard, ords)?),
-            Resolved::Unmapped | Resolved::Queries => {}
+            Resolved::Queries => {
+                let mut made = filters_collect::node(sub, queries.take_own(sub));
+                with_subs::attach(&mut made, sub, shard, ords, queries)?;
+                subs.push(made);
+            }
+            Resolved::Hits => subs.push(top_hits_sub::sub_node(sub, shard)?),
+            Resolved::Unmapped => queries.skip_tree(sub),
         }
     }
     Ok(subs)
@@ -169,7 +182,8 @@ pub fn sub_values<S: BlobStore + 'static>(
         let (format, result) = match r {
             Resolved::Numeric(format) => (format, engine.next()),
             Resolved::Keyword => (Format::Raw, engine.next()),
-            Resolved::Unmapped | Resolved::Queries => (Format::Raw, None),
+            Resolved::Queries | Resolved::Hits => (Format::Raw, engine.next()),
+            Resolved::Unmapped => (Format::Raw, None),
         };
         let made = if numeric_terms {
             nested_subs::numeric_terms(sub, shard, result, total)?
@@ -196,6 +210,9 @@ fn build<S: BlobStore + 'static>(
 ) -> Result<Vec<Value>, ShardError> {
     if nested_subs::is_nested(agg) {
         return nested_subs::build(agg, shard, result, owners);
+    }
+    if agg.top_hits.is_some() {
+        return top_hits_sub::sub_values(agg, shard, result, owners);
     }
     if agg.metric != Metric::Terms {
         let states = match result {
@@ -270,6 +287,9 @@ pub fn value<S: BlobStore + 'static>(
     shard: &OpenShard<S>,
     result: Option<AggResult>,
 ) -> Result<Value, ShardError> {
+    if agg.metric == Metric::Cardinality {
+        return crate::aggs::metric::collect::value_from(agg, result);
+    }
     if agg.subs.is_empty() {
         return keyword_collect::value(&spec_of(agg), result);
     }

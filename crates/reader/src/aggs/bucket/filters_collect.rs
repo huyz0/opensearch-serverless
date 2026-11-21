@@ -20,28 +20,84 @@ fn spec_of(agg: &MetricAgg) -> FiltersSpec {
 }
 
 /// The queries of each aggregation's filters, one list an aggregation in
-/// request order, empty for any that is not a `filters`.
+/// request order: those of the aggregation itself, then of every `filters`
+/// and `filter` beneath it, depth first in request order (see [`Queries`]).
 pub fn plan(aggs: &[MetricAgg], cx: &QueryContext<'_>) -> Result<Vec<Vec<BooleanQuery>>, Failure> {
     // ALLOC: one list an aggregation, bounded by the request's.
     let mut plans = Vec::with_capacity(aggs.len());
     for agg in aggs {
         // ALLOC: one query a filter, bounded by the body's recording.
         let mut queries = Vec::new();
-        if let Some(spec) = agg.filters.as_deref() {
-            for (_, filter) in &spec.filters {
-                queries.push(to_lucene(filter, cx)?);
-            }
-        }
+        collect_queries(agg, cx, &mut queries)?;
         plans.push(queries);
     }
     Ok(plans)
 }
 
+fn collect_queries(
+    agg: &MetricAgg,
+    cx: &QueryContext<'_>,
+    out: &mut Vec<BooleanQuery>,
+) -> Result<(), Failure> {
+    if let Some(spec) = agg.filters.as_deref() {
+        for (_, filter) in &spec.filters {
+            out.push(to_lucene(filter, cx)?);
+        }
+    }
+    for sub in &agg.subs {
+        collect_queries(sub, cx, out)?;
+    }
+    Ok(())
+}
+
+/// How many queries the filters of `agg` and its sub-aggregations hold.
+fn tree_queries(agg: &MetricAgg) -> usize {
+    agg.subs.iter().fold(own_queries(agg), |n, sub| {
+        n.saturating_add(tree_queries(sub))
+    })
+}
+
+fn own_queries(agg: &MetricAgg) -> usize {
+    agg.filters.as_deref().map_or(0, |spec| spec.filters.len())
+}
+
+/// The compiled queries of one top-level aggregation's tree ([`plan`]'s
+/// list), taken in the order the engine's nodes are built.
+#[derive(Debug)]
+pub struct Queries<'a> {
+    rest: &'a [BooleanQuery],
+}
+
+impl<'a> Queries<'a> {
+    /// The queries `plan` made for one aggregation (none for an unplanned one).
+    pub fn new(list: Option<&'a Vec<BooleanQuery>>) -> Self {
+        Self {
+            rest: list.map_or(&[], Vec::as_slice),
+        }
+    }
+
+    /// The queries of `agg`'s own filters.
+    pub fn take_own(&mut self, agg: &MetricAgg) -> &'a [BooleanQuery] {
+        self.take(own_queries(agg))
+    }
+
+    /// Passes the queries of `agg`'s whole tree (a sub-aggregation with no node).
+    pub fn skip_tree(&mut self, agg: &MetricAgg) {
+        self.take(tree_queries(agg));
+    }
+
+    fn take(&mut self, n: usize) -> &'a [BooleanQuery] {
+        let (taken, rest) = self.rest.split_at(n.min(self.rest.len()));
+        self.rest = rest;
+        taken
+    }
+}
+
 /// The engine's node for a `filters` of `queries`, one a filter.
-pub fn node(agg: &MetricAgg, queries: Option<&Vec<BooleanQuery>>) -> AggNode {
+pub fn node(agg: &MetricAgg, queries: &[BooleanQuery]) -> AggNode {
     AggNode::Filters {
         // ALLOC: one query a filter, bounded by the body's recording.
-        filters: queries.cloned().unwrap_or_default(),
+        filters: queries.to_vec(),
         other: spec_of(agg).other_key.is_some(),
         // ALLOC: empty; sub-aggregations are refused.
         subs: Vec::new(),

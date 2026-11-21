@@ -151,6 +151,11 @@ pub fn write_response_with<S: BlobStore + 'static>(
         Value::TopHits(top) => Some(top.hits.as_slice()),
         _ => None,
     }));
+    // A `top_hits` under a bucket is fetched and written before the list
+    // of hits, through its own prefetch.
+    let nested = selected::render_nested(shard, index, node_id, &hits.aggregations, reserve)?;
+    let aggregations: &[crate::aggs::metric::Partial] =
+        nested.as_deref().unwrap_or(&hits.aggregations);
     prefetch(shard, &lists)?;
     let mut fetch = Fetch {
         stored: Stored::new(reserve),
@@ -158,7 +163,7 @@ pub fn write_response_with<S: BlobStore + 'static>(
     };
     write_hit_list(out, shard, index, node_id, &hits.view(), &mut fetch)?;
     out.write_all(b"]}")?;
-    write_aggregations_with(out, &hits.aggregations, &mut |out, top| {
+    write_aggregations_with(out, aggregations, &mut |out, _, top| {
         write!(
             out,
             "\"hits\":{{\"total\":{{\"value\":{},\"relation\":\"eq\"}},\"max_score\":",

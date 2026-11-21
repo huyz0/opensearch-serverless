@@ -16,6 +16,7 @@ pub mod date_text;
 pub mod double;
 pub mod hash_order;
 pub mod hll;
+pub mod keyword_cardinality;
 pub mod long_value;
 pub mod parse;
 pub mod partial;
@@ -23,6 +24,7 @@ pub mod percentiles;
 pub mod render;
 pub mod tdigest;
 pub mod top_hits;
+pub mod top_hits_sub;
 
 pub use crate::aggs::partial::{Format, Partial, Value};
 pub use collect::collect;

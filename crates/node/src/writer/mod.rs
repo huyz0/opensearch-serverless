@@ -32,6 +32,7 @@ mod snapshot;
 mod tail;
 mod takeover;
 mod target;
+mod tombstone_pass;
 
 use std::collections::HashMap;
 use std::sync::atomic::AtomicU8;
@@ -69,6 +70,7 @@ pub use publishing::{PublishPass, Publishing};
 pub use tail::{RefreshVisibility, TailSink};
 pub use takeover::Takeover;
 pub use target::RoleTarget;
+pub use tombstone_pass::{DeleteProbe, TombstoneParts, TombstonePass, TombstoneReport};
 
 /// What a writer asks of the rest of the cluster: which indexes exist,
 /// who owns a shard it does not hold, and how to send that owner a group.

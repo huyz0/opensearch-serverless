@@ -11,6 +11,7 @@ use lucene_search::global_ords::GlobalOrds;
 use oss_blob::BlobStore;
 
 use crate::OpenShard;
+use crate::aggs::bucket::filters_collect::Queries;
 use crate::aggs::bucket::sub_values::BucketSubs;
 use crate::aggs::bucket::{BUCKET_LIMIT, fixed_subs, keyword_subs};
 use crate::aggs::metric::collect::{value_from, value_of};
@@ -35,12 +36,13 @@ pub fn attach<S: BlobStore + 'static>(
     agg: &MetricAgg,
     shard: &OpenShard<S>,
     ords: &mut HashMap<String, std::sync::Arc<GlobalOrds>>,
+    queries: &mut Queries<'_>,
 ) -> Result<(), ShardError> {
     if let AggNode::Histogram { subs, .. }
     | AggNode::DateHistogram { subs, .. }
     | AggNode::NumericTerms { subs, .. } = node
     {
-        *subs = keyword_subs::sub_nodes(agg, shard, ords, false)?;
+        *subs = keyword_subs::sub_nodes(agg, shard, ords, queries, false)?;
     }
     Ok(())
 }
@@ -153,7 +155,7 @@ pub fn reserved<S: BlobStore + 'static>(shard: &OpenShard<S>, aggs: &[MetricAgg]
             // in `keyword_subs`.
             match values(shard, &agg.field).min(BUCKET_LIMIT) {
                 0 => total,
-                buckets => total.saturating_add(fixed_subs::subs_bytes(shard, agg, buckets)),
+                buckets => total.saturating_add(fixed_subs::subs_bytes(shard, agg, buckets, 1)),
             }
         })
 }

@@ -20,20 +20,19 @@ use lucene_aggs::metric_aggs::{
     MetricState, NEED_COUNT, NEED_MAX, NEED_MIN, NEED_MIN_MAX, NEED_SUM, Source, ValueKind,
 };
 use lucene_search::BooleanQuery;
+use lucene_search::field_norms::FieldNorms;
 use lucene_search::multi_segment::OpenSegment;
+use lucene_search::segment_match::MinScore;
 use oss_blob::BlobStore;
 
 use crate::OpenShard;
 use crate::aggs::bucket::BUCKET_LIMIT;
 use crate::aggs::bucket::date_histogram::reduce_results as reduce_dates;
-use crate::aggs::bucket::date_histogram_collect;
 use crate::aggs::bucket::histogram::reduce_results;
-use crate::aggs::bucket::histogram_collect;
-use crate::aggs::bucket::terms_collect;
 use crate::aggs::bucket::{
-    date_histogram_spec, histogram_spec, keyword_subs, terms_spec, with_subs,
+    date_histogram_collect, date_histogram_spec, filters_collect, histogram_collect,
+    histogram_spec, keyword_subs, range_collect, terms_collect, terms_spec, with_subs,
 };
-use crate::aggs::bucket::{filters_collect, range_collect};
 use crate::aggs::metric::hll::Hll;
 use crate::aggs::metric::tdigest::Digest;
 use crate::aggs::metric::top_hits::TopHitsResult;
@@ -53,6 +52,8 @@ pub(crate) enum Resolved {
     Keyword,
     /// No field: a `filters` reads queries.
     Queries,
+    /// No field: a `top_hits` reads the matches of its bucket.
+    Hits,
 }
 
 /// The text of `Field [<name>] of type [<type>]`'s type.
@@ -97,6 +98,9 @@ pub(crate) fn resolve<S: BlobStore + 'static>(
     if agg.filters.is_some() {
         return Ok(Resolved::Queries);
     }
+    if agg.top_hits.is_some() {
+        return Ok(Resolved::Hits);
+    }
     let Some(field) = shard.meta.mapping.get(&agg.field) else {
         return Ok(Resolved::Unmapped);
     };
@@ -104,8 +108,10 @@ pub(crate) fn resolve<S: BlobStore + 'static>(
         FieldType::Int { .. } | FieldType::Long => Format::Raw,
         FieldType::Date => Format::Date,
         FieldType::Text => return Err(text_fielddata(&agg.field)),
-        FieldType::Keyword if agg.metric == Metric::Terms => Format::Raw,
-        FieldType::Keyword if matches!(agg.metric, Metric::ValueCount | Metric::Cardinality) => {
+        FieldType::Keyword if matches!(agg.metric, Metric::Terms | Metric::Cardinality) => {
+            Format::Raw
+        }
+        FieldType::Keyword if agg.metric == Metric::ValueCount => {
             return Err(bad_request(Failure::plain(
                 "illegal_argument_exception",
                 // ALLOC: error path; one message.
@@ -377,6 +383,7 @@ pub fn collect<S: BlobStore + 'static>(
     segments: &[OpenSegment<'_>],
     query: &BooleanQuery,
     filters: &[Vec<BooleanQuery>],
+    norms: &[Option<&HashMap<String, FieldNorms<'_>>>],
 ) -> Result<Vec<Partial>, ShardError> {
     if aggs.is_empty() {
         // ALLOC: empty.
@@ -410,19 +417,20 @@ pub fn collect<S: BlobStore + 'static>(
                 .map_err(|m| bad_request(Failure::plain("illegal_argument_exception", m)))?,
             _ => DEFAULT_PRECISION,
         };
+        let mut queries = filters_collect::Queries::new(filters.get(i));
         match r {
             Resolved::Numeric(_) => {
                 let mut made = node(agg, precision);
-                with_subs::attach(&mut made, agg, shard, &mut ords)?;
+                with_subs::attach(&mut made, agg, shard, &mut ords, &mut queries)?;
                 nodes.push(made);
             }
             Resolved::Keyword => nodes.push(keyword_subs::node(agg, shard, &mut ords)?),
             Resolved::Queries => {
-                let mut made = filters_collect::node(agg, filters.get(i));
-                with_subs::attach(&mut made, agg, shard, &mut ords)?;
+                let mut made = filters_collect::node(agg, queries.take_own(agg));
+                with_subs::attach(&mut made, agg, shard, &mut ords, &mut queries)?;
                 nodes.push(made);
             }
-            Resolved::Unmapped => {}
+            Resolved::Unmapped | Resolved::Hits => {}
         }
     }
     let mut results = if nodes.is_empty() {
@@ -431,6 +439,11 @@ pub fn collect<S: BlobStore + 'static>(
     } else {
         // ALLOC: one index a segment: one slice, the whole shard in order.
         let slices = [(0..segments.len()).collect::<Vec<usize>>()];
+        // A `top_hits` under a bucket scores the query, behind no `min_score`.
+        let scoring = MinScore {
+            min: f32::NEG_INFINITY,
+            norms,
+        };
         aggregate_tree(
             segments,
             shard.reader.segment_readers(),
@@ -438,7 +451,7 @@ pub fn collect<S: BlobStore + 'static>(
             &nodes,
             &Globals::new(&ords).with_bucket_limit(BUCKET_LIMIT),
             &slices,
-            None,
+            nodes.iter().any(AggNode::needs_scores).then_some(&scoring),
         )
         .map_err(|e| match e {
             lucene_search::Error::TooManyBuckets(made, limit) => {
@@ -458,7 +471,9 @@ pub fn collect<S: BlobStore + 'static>(
             Resolved::Unmapped if with_subs::is_bucket(agg) => {
                 (Format::Raw, with_subs::value(agg, shard, None)?)
             }
-            Resolved::Unmapped => (Format::Raw, value_of(agg, &MetricState::default())),
+            Resolved::Unmapped | Resolved::Hits => {
+                (Format::Raw, value_of(agg, &MetricState::default()))
+            }
             Resolved::Numeric(format) if with_subs::is_bucket(agg) => {
                 (format, with_subs::value(agg, shard, results.next())?)
             }

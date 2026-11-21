@@ -56,8 +56,14 @@ fn config_with(
     config_tail(root, id, ttl, janitor_ms, None)
 }
 
-/// As `config_with`, with proactive takeover switched on.
-fn config_proactive(root: &std::path::Path, id: &str, ttl: &str, janitor_ms: &str) -> NodeConfig {
+/// As `config_with`, with proactive takeover set explicitly.
+fn config_proactive(
+    root: &std::path::Path,
+    id: &str,
+    ttl: &str,
+    janitor_ms: &str,
+    on: bool,
+) -> NodeConfig {
     let root = root.display().to_string();
     let lookup = |key: &str| {
         Some(
@@ -69,7 +75,13 @@ fn config_proactive(root: &std::path::Path, id: &str, ttl: &str, janitor_ms: &st
                 "OSS_TRANSPORT_ADDR" => "127.0.0.1:0",
                 "OSS_LEASE_TTL_MS" => ttl,
                 "OSS_JANITOR_EVERY_MS" => janitor_ms,
-                "OSS_PROACTIVE_TAKEOVER" => "true",
+                "OSS_PROACTIVE_TAKEOVER" => {
+                    if on {
+                        "true"
+                    } else {
+                        "false"
+                    }
+                }
                 _ => return None,
             }
             .to_owned(),
@@ -110,6 +122,7 @@ fn config_tail(
                 // A third of it is the renewal tick.
                 "OSS_LEASE_TTL_MS" => ttl,
                 "OSS_JANITOR_EVERY_MS" => return janitor_ms.map(str::to_owned),
+                "OSS_CLUSTER_SETTINGS_POLL_MS" => "50",
                 "OSS_TAIL_OVERLAY" => return tail.map(|(on, _)| on.to_owned()),
                 "OSS_REFRESH_VISIBILITY" => return tail.map(|(_, v)| v.to_owned()),
                 _ => return None,
@@ -346,12 +359,7 @@ fn a_booted_node_takes_a_dead_nodes_shard_before_any_write_only_when_the_setting
         assert_eq!(wrote.status, 201, "{}", wrote.text());
         assert_eq!(head_owner(dir.path()).as_deref(), Some("n1"));
         first.crash();
-        let second = if on {
-            config_proactive(dir.path(), "n2", "3000", "100")
-        } else {
-            config_with(dir.path(), "n2", "3000", Some("100"))
-        };
-        let second = start(&second).expect("starts");
+        let second = start(&config_proactive(dir.path(), "n2", "3000", "100", on)).expect("starts");
         if on {
             wait_for("n2 never took the shard", || {
                 head_owner(dir.path()).as_deref() == Some("n2")
@@ -413,4 +421,42 @@ fn a_node_starts_with_the_tail_overlay_off_unless_the_setting_is_on() {
     ))
     .expect("starts");
     assert!(!node.tail_on());
+}
+
+// docs/specs/node-cluster-visibility AC-6 and AC-7
+#[test]
+fn a_booted_node_follows_the_cluster_registers_refresh_visibility() {
+    use oss_node::writer::RefreshVisibility::{Everywhere, Owner, Serving};
+    let dir = TempDir::new("boot-follow");
+    let node = start(&config_tail(
+        dir.path(),
+        "n1",
+        "30000",
+        None,
+        Some(("true", "owner")),
+    ))
+    .expect("starts");
+    assert_eq!(node.refresh_visibility(), Some(Owner));
+    let put = |value: &str| {
+        let body =
+            format!(r#"{{"persistent":{{"serverless.search.refresh_visibility":{value}}}}}"#);
+        let r = call(&node, "PUT", "/_cluster/settings", Some(&body));
+        assert_eq!(r.status, 200, "{}", r.text());
+    };
+    put(r#""everywhere""#);
+    wait_for("the cluster's mode is in force", || {
+        node.refresh_visibility() == Some(Everywhere)
+    });
+    put(r#""serving""#);
+    wait_for("the next mode is in force", || {
+        node.refresh_visibility() == Some(Serving)
+    });
+    put("null");
+    wait_for("removing it returns to the node's", || {
+        node.refresh_visibility() == Some(Owner)
+    });
+    // Off, there is nothing to follow and nothing is read.
+    let dir = TempDir::new("boot-follow-off");
+    let node = start(&config(dir.path(), "n1", "30000")).expect("starts");
+    assert_eq!(node.refresh_visibility(), None);
 }
