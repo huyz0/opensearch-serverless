@@ -16,6 +16,7 @@ pub mod date_text;
 pub mod double;
 pub mod hash_order;
 pub mod hll;
+pub mod keyword_cardinality;
 pub mod long_value;
 pub mod parse;
 pub mod partial;

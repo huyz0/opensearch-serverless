@@ -8,7 +8,7 @@ Roadmap R10.3, the reader half, continued from [metric-aggs](../metric-aggs/SPEC
 
 `oss-reader` parses `cardinality` as `CardinalityAggregationBuilder`'s `ObjectParser` does at OpenSearch 3.10.0 (`field`, `precision_threshold` coerced as Jackson and `Numbers.toLong` coerce it, `execution_hint`, `rehash` read and ignored, no `format`), and serves it on integer, long and date fields at the top level. lucene-aggs builds the `HyperLogLogPlusPlus` sketch of the matches' `mix64` hashes and writes it as `AbstractHyperLogLogPlusPlus.writeTo` does; `aggs::metric::hll` reads it, estimates it (`AbstractLinearCounting` and `AbstractHyperLogLog.cardinality` with OpenSearch's bias tables) and merges it (`HyperLogLogPlusPlus.merge`, for `InternalCardinality.reduce`). Every metric of a request is now computed in one `aggregate_tree` pass. The shard fails as OpenSearch's does for an unknown `execution_hint` and for a threshold whose precision overflows, in OpenSearch's order.
 
-Not in this change: `cardinality` of a keyword field (it needs global ordinals, whose memory is not yet reserved), `missing`, `script`, `value_type`, and the coordinator's reduce (R7). Each is refused with "not supported by this node yet".
+Not in this change: `cardinality` of a keyword field ([keyword-cardinality](../keyword-cardinality/SPEC.md) serves it), `missing`, `script`, `value_type`, and the coordinator's reduce (R7). Each is refused with "not supported by this node yet".
 
 ## Acceptance criteria
 

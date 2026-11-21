@@ -28,14 +28,11 @@ use oss_blob::BlobStore;
 use crate::OpenShard;
 use crate::aggs::bucket::BUCKET_LIMIT;
 use crate::aggs::bucket::date_histogram::reduce_results as reduce_dates;
-use crate::aggs::bucket::date_histogram_collect;
 use crate::aggs::bucket::histogram::reduce_results;
-use crate::aggs::bucket::histogram_collect;
-use crate::aggs::bucket::terms_collect;
 use crate::aggs::bucket::{
-    date_histogram_spec, histogram_spec, keyword_subs, terms_spec, with_subs,
+    date_histogram_collect, date_histogram_spec, filters_collect, histogram_collect,
+    histogram_spec, keyword_subs, range_collect, terms_collect, terms_spec, with_subs,
 };
-use crate::aggs::bucket::{filters_collect, range_collect};
 use crate::aggs::metric::hll::Hll;
 use crate::aggs::metric::tdigest::Digest;
 use crate::aggs::metric::top_hits::TopHitsResult;
@@ -111,8 +108,10 @@ pub(crate) fn resolve<S: BlobStore + 'static>(
         FieldType::Int { .. } | FieldType::Long => Format::Raw,
         FieldType::Date => Format::Date,
         FieldType::Text => return Err(text_fielddata(&agg.field)),
-        FieldType::Keyword if agg.metric == Metric::Terms => Format::Raw,
-        FieldType::Keyword if matches!(agg.metric, Metric::ValueCount | Metric::Cardinality) => {
+        FieldType::Keyword if matches!(agg.metric, Metric::Terms | Metric::Cardinality) => {
+            Format::Raw
+        }
+        FieldType::Keyword if agg.metric == Metric::ValueCount => {
             return Err(bad_request(Failure::plain(
                 "illegal_argument_exception",
                 // ALLOC: error path; one message.
