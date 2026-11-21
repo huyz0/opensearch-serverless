@@ -18,7 +18,9 @@ use crate::aggs::bucket::sub_values::SubValues;
 use crate::aggs::bucket::terms::TermsSpec;
 use crate::aggs::bucket::{nested_subs, with_subs};
 use crate::aggs::metric::collect::{Resolved, node as metric_node, resolve, value_of};
-use crate::aggs::metric::{DEFAULT_PRECISION, Metric, MetricAgg, top_hits_sub};
+use crate::aggs::metric::{
+    DEFAULT_PRECISION, Metric, MetricAgg, keyword_cardinality, top_hits_sub,
+};
 use crate::aggs::partial::{Format, Value};
 use crate::failure::Failure;
 use crate::search::ShardError;
@@ -77,6 +79,9 @@ pub fn node<S: BlobStore + 'static>(
     shard: &OpenShard<S>,
     ords: &mut HashMap<String, std::sync::Arc<GlobalOrds>>,
 ) -> Result<AggNode, ShardError> {
+    if agg.metric == Metric::Cardinality {
+        return keyword_cardinality::node(agg, shard, ords);
+    }
     if !ords.contains_key(&agg.field) {
         let built = shard
             .reader
@@ -282,6 +287,9 @@ pub fn value<S: BlobStore + 'static>(
     shard: &OpenShard<S>,
     result: Option<AggResult>,
 ) -> Result<Value, ShardError> {
+    if agg.metric == Metric::Cardinality {
+        return crate::aggs::metric::collect::value_from(agg, result);
+    }
     if agg.subs.is_empty() {
         return keyword_collect::value(&spec_of(agg), result);
     }

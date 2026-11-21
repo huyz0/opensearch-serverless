@@ -197,6 +197,10 @@ pub fn hits_bytes<S: BlobStore + 'static>(source: &SearchSource, shard: &OpenSha
     window_bytes(window, &source.sort, shard)
         .saturating_add(inner)
         .saturating_add(counted)
+        .saturating_add(crate::aggs::metric::keyword_cardinality::reserved(
+            &source.aggs,
+            shard,
+        ))
         .saturating_add(fixed_subs::reserved(shard, &source.aggs))
         .saturating_add(keyed_subs::reserved(shard, &source.aggs))
         .saturating_add(state_bytes(&source.aggs))
