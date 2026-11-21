@@ -129,7 +129,7 @@ fn series(cluster: &Cluster, refresh: bool) -> (Vec<Sample>, Vec<(oss_blob::S3Op
     (samples, sent)
 }
 
-fn report(refresh: bool, samples: &[Sample], sent: &[(oss_blob::S3Op, u64)]) -> f64 {
+fn report(refresh: bool, samples: &[Sample], sent: &[(oss_blob::S3Op, u64)]) -> (f64, usize) {
     let col = |f: fn(&Sample) -> f64| samples.iter().map(f).collect::<Vec<_>>();
     let (ack, visible) = (col(|s| s.ack), col(|s| s.visible));
     let misses: usize = samples.iter().map(|s| s.misses).sum();
@@ -148,7 +148,7 @@ fn report(refresh: bool, samples: &[Sample], sent: &[(oss_blob::S3Op, u64)]) -> 
         samples.len() * 2,
         per_write.join(" ")
     );
-    percentile(&visible, 99)
+    (percentile(&visible, 99), misses)
 }
 
 // AC-1, AC-3, AC-4
@@ -156,7 +156,12 @@ fn report(refresh: bool, samples: &[Sample], sent: &[(oss_blob::S3Op, u64)]) -> 
 #[ignore = "slow"]
 fn a_write_is_visible_on_the_other_nodes_within_the_shells_bar() {
     let mut cluster = Cluster::new(TTL_MS, 1, false).expect("emulated");
+    // `METER_TAIL`: the refresh visibility (`owner`, `serving` or
+    // `everywhere`, the default) the overlay is on under.
+    let tail = std::env::var("METER_TAIL").unwrap_or_else(|_| "everywhere".to_owned());
+    println!("FRESHMETER|visibility={tail}");
     cluster.set("OSS_TAIL_OVERLAY", "true");
+    cluster.set("OSS_REFRESH_VISIBILITY", &tail);
     for id in ["n1", "n2", "n3"] {
         cluster.add(id);
     }
@@ -175,7 +180,12 @@ fn a_write_is_visible_on_the_other_nodes_within_the_shells_bar() {
     let bar = JAVA_P99_MS * TOLERANCE;
     for refresh in [false, true] {
         let (samples, sent) = series(&cluster, refresh);
-        let p99 = report(refresh, &samples, &sent);
+        let (p99, misses) = report(refresh, &samples, &sent);
+        // A write that waits for its readers is never missed by them.
+        assert!(
+            !(refresh && tail != "owner") || misses == 0,
+            "refresh=true under {tail}: {misses} misses"
+        );
         assert!(
             p99 <= bar,
             "refresh={refresh}: visible p99 {p99:.1} ms > {bar:.1}"

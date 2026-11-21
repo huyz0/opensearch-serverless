@@ -93,6 +93,26 @@ fn without_grants_every_search_may_answer_and_nothing_is_asked() {
 }
 
 #[test]
+fn a_serving_reader_takes_what_is_held_before_it_answers_and_asks_nothing() {
+    let r = rig(false);
+    // Without the setting a search does not even apply what is held.
+    assert_eq!(ensure(&r, 5), (true, 0));
+    let held = Arc::new(TailHeld::new());
+    let serving = TailFresh::new(
+        held,
+        r.fetcher.clone(),
+        "me".to_owned(),
+        Arc::new(|| 1_000_i64) as oss_node::tail_reader_link::Clock,
+        false,
+    )
+    .applying(true);
+    let applied = Cell::new(0_u32);
+    assert!(serving.ensure_fresh("logs", U, 0, W, 5, &|| applied.set(applied.get() + 1)));
+    assert_eq!(applied.get(), 1);
+    assert!(r.fetcher.asked.lock().unwrap().is_empty());
+}
+
+#[test]
 fn under_a_grant_a_search_answers_without_asking() {
     let r = rig(true);
     r.held.track(U, 0, 5);
