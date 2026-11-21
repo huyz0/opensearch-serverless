@@ -73,7 +73,7 @@ pub(super) fn wire(
 }
 
 /// The visibility mode `word` names; the default, `owner`, for any other.
-fn visibility(word: &str) -> RefreshVisibility {
+pub(super) fn visibility(word: &str) -> RefreshVisibility {
     RefreshVisibility::parse(word).unwrap_or_default()
 }
 

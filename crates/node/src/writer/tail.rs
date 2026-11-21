@@ -99,7 +99,8 @@ impl WriterRole {
             .store(visibility.to_code(), Ordering::Relaxed);
     }
 
-    pub(super) fn refresh_visibility(&self) -> RefreshVisibility {
+    /// The mode a refresh is in.
+    pub fn refresh_visibility(&self) -> RefreshVisibility {
         RefreshVisibility::from_code(self.visibility.load(Ordering::Relaxed))
     }
 }

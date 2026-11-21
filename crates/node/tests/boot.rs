@@ -110,6 +110,7 @@ fn config_tail(
                 // A third of it is the renewal tick.
                 "OSS_LEASE_TTL_MS" => ttl,
                 "OSS_JANITOR_EVERY_MS" => return janitor_ms.map(str::to_owned),
+                "OSS_CLUSTER_SETTINGS_POLL_MS" => "50",
                 "OSS_TAIL_OVERLAY" => return tail.map(|(on, _)| on.to_owned()),
                 "OSS_REFRESH_VISIBILITY" => return tail.map(|(_, v)| v.to_owned()),
                 _ => return None,
@@ -413,4 +414,42 @@ fn a_node_starts_with_the_tail_overlay_off_unless_the_setting_is_on() {
     ))
     .expect("starts");
     assert!(!node.tail_on());
+}
+
+// docs/specs/node-cluster-visibility AC-6 and AC-7
+#[test]
+fn a_booted_node_follows_the_cluster_registers_refresh_visibility() {
+    use oss_node::writer::RefreshVisibility::{Everywhere, Owner, Serving};
+    let dir = TempDir::new("boot-follow");
+    let node = start(&config_tail(
+        dir.path(),
+        "n1",
+        "30000",
+        None,
+        Some(("true", "owner")),
+    ))
+    .expect("starts");
+    assert_eq!(node.refresh_visibility(), Some(Owner));
+    let put = |value: &str| {
+        let body =
+            format!(r#"{{"persistent":{{"serverless.search.refresh_visibility":{value}}}}}"#);
+        let r = call(&node, "PUT", "/_cluster/settings", Some(&body));
+        assert_eq!(r.status, 200, "{}", r.text());
+    };
+    put(r#""everywhere""#);
+    wait_for("the cluster's mode is in force", || {
+        node.refresh_visibility() == Some(Everywhere)
+    });
+    put(r#""serving""#);
+    wait_for("the next mode is in force", || {
+        node.refresh_visibility() == Some(Serving)
+    });
+    put("null");
+    wait_for("removing it returns to the node's", || {
+        node.refresh_visibility() == Some(Owner)
+    });
+    // Off, there is nothing to follow and nothing is read.
+    let dir = TempDir::new("boot-follow-off");
+    let node = start(&config(dir.path(), "n1", "30000")).expect("starts");
+    assert_eq!(node.refresh_visibility(), None);
 }

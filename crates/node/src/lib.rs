@@ -18,6 +18,8 @@ pub mod bulk_route;
 pub mod by_query;
 #[cfg(feature = "writer")]
 pub mod cat_route;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod cluster_live;
 #[cfg(feature = "writer")]
 pub mod cluster_owner;
 #[cfg(feature = "writer")]
