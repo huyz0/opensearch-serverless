@@ -167,3 +167,39 @@ fn a_search_reserves_for_a_nested_numeric_terms() {
     let terms = reserved(r#"{"terms":{"field":"n"}}"#);
     assert!(terms > scalar, "{terms} <= {scalar}");
 }
+
+// AC-3
+#[test]
+fn a_single_valued_level_reserves_for_the_fields_values_not_their_product_with_its_parents() {
+    let shard = shard("nested-reserved-tight");
+    let aggs = parse_chunks([
+        br#"{"aggs":{"o":{"range":{"field":"n","ranges":[{"to":100},{"from":100}]},
+        "aggs":{"t":{"terms":{"field":"n","size":3},
+            "aggs":{"d":{"date_histogram":{"field":"n","fixed_interval":"100ms"}}}}}}}}"#
+            .as_slice(),
+    ])
+    .expect("parses")
+    .aggs;
+    // 200 values: each is in one range bucket, one terms bucket and one
+    // date bucket, so no level can hold more than a few hundred buckets,
+    // not the bucket limit.
+    let bytes = super::fixed_subs::reserved(&shard, &aggs);
+    assert!(bytes < 1 << 20, "{bytes}");
+}
+
+#[test]
+fn a_range_parent_multiplies_a_data_keyed_levels_buckets_by_its_width() {
+    let shard = shard("nested-reserved-fanout");
+    let reserved = |ranges: &str| {
+        let body = format!(
+            r#"{{"aggs":{{"o":{{"range":{{"field":"n","ranges":{ranges}}},
+                "aggs":{{"t":{{"terms":{{"field":"n"}}}}}}}}}}}}"#
+        );
+        let aggs = parse_chunks([body.as_bytes()]).expect("parses").aggs;
+        super::fixed_subs::reserved(&shard, &aggs)
+    };
+    // Overlapping ranges put a document in each, so more ranges, more buckets.
+    let two = reserved(r#"[{"to":100},{"to":150}]"#);
+    let four = reserved(r#"[{"to":100},{"to":150},{"to":160},{"to":170}]"#);
+    assert!(four > two, "{four} <= {two}");
+}

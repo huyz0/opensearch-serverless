@@ -181,24 +181,26 @@ fn date_histogram<S: BlobStore + 'static>(
 }
 
 /// The most bytes the nested bucket aggregation `agg` and everything under
-/// it hold on `shard` when `parents` buckets own it: its own buckets (a
-/// value of its field at least, in each parent bucket for a `histogram`, a
-/// bucket a range in each for a `range`; never past the bucket limit, which
-/// the engine's key cap enforces), each with the states and values of its
-/// sub-aggregations, and theirs beneath.
+/// it hold on `shard` when `parents` buckets own it and a document can land
+/// in `fanout` of them: its own buckets (a bucket a range in each parent
+/// bucket for a `range`; for a data-keyed kind a value of its field at least
+/// for each of the `fanout` parent buckets the document is in; never past the
+/// bucket limit, which the engine's key cap enforces), each with the states
+/// and values of its sub-aggregations, and theirs beneath.
 pub fn reserved<S: BlobStore + 'static>(
     shard: &OpenShard<S>,
     agg: &MetricAgg,
     parents: usize,
+    fanout: usize,
 ) -> usize {
     let own = match agg.metric {
         Metric::Range => fixed_subs::width(agg).saturating_mul(parents),
-        _ => keyed_subs::values(shard, &agg.field).saturating_mul(parents),
+        _ => keyed_subs::values(shard, &agg.field).saturating_mul(fanout),
     }
     .min(BUCKET_LIMIT);
     let per_bucket = std::mem::size_of::<Value>().saturating_mul(SUB_COPIES);
     own.saturating_mul(per_bucket)
-        .saturating_add(fixed_subs::subs_bytes(shard, agg, own))
+        .saturating_add(fixed_subs::subs_bytes(shard, agg, own, fanout))
 }
 
 /// One value an owning bucket for the numeric `terms` `agg` from the
