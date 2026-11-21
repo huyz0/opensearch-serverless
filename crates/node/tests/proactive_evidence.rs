@@ -260,3 +260,161 @@ fn a_reader_sees_the_same_documents_after_a_pass_as_after_a_write_takes_the_shar
     assert_eq!(seen[0].0, seen[1].0);
     assert!(seen[0].1 >= seen[1].1, "{seen:?}");
 }
+
+/// One search the way a reader node makes it: open the shard's latest
+/// commit, run `match_all` for ten hits. Returns how long it took and the
+/// requests it made.
+fn one_search(c: &Cluster, index: &str) -> (Duration, u64) {
+    use lucene_analysis::Analyzer;
+    use lucene_store::page_cache::{PageCache, PageCacheConfig};
+    use oss_blob::PooledStore;
+    use oss_mem::{BudgetConfig, BufferPool, MemoryBudget, Pool, SMALL_BUFFER};
+    use oss_reader::dsl::{MAX_RECORDED_BYTES, Recorder, SearchSource, source};
+    use oss_reader::search::search;
+    let config = BudgetConfig::new(8 << 20)
+        .with_pool(Pool::Transport, 8 << 20)
+        .expect("fits");
+    let budget = MemoryBudget::new(&config);
+    let buffers = BufferPool::new(&budget, Pool::Transport, SMALL_BUFFER, 4).expect("fits");
+    let before = total(c);
+    let start = Instant::now();
+    let store = Arc::new(PooledStore::new(
+        oss_blob::Shared::new(c.store.clone()),
+        buffers,
+    ));
+    let cache = Arc::new(PageCache::new(PageCacheConfig::default()).expect("cache"));
+    let open = oss_reader::open_shard(store, cache, "", index, 0).expect("opens");
+    let mut rec = Recorder::new(MAX_RECORDED_BYTES);
+    let mut tokenizer = source::tokenizer();
+    tokenizer
+        .feed(br#"{"query":{"match_all":{}},"size":10}"#, &mut rec)
+        .expect("feeds");
+    tokenizer.finish(&mut rec).expect("ends");
+    let source = SearchSource::parse(&rec).expect("parses");
+    let hits = search(&open, index, &source, &Analyzer::standard(None)).expect("searches");
+    drop(hits);
+    (start.elapsed(), total(c) - before)
+}
+
+fn s3_latency(c: &Cluster) {
+    for (op, base, jitter) in [
+        (S3Op::Get, 20, 10),
+        (S3Op::GetRange, 20, 10),
+        (S3Op::Head, 20, 10),
+        (S3Op::Put, 40, 20),
+    ] {
+        c.store.set_latency(
+            op,
+            Latency {
+                base: Duration::from_millis(base),
+                jitter: Duration::from_millis(jitter),
+            },
+        );
+    }
+}
+
+/// Searches of shard 0 of `logs` after node-2 has taken it, the same state
+/// whether by a pass or by the first write: each search's time and requests.
+fn searches_after_a_take(proactively: bool, count: usize) -> Vec<(Duration, u64)> {
+    let c = cluster();
+    let one = first_writer(&c);
+    let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let take = takeover(&c, &one, &calls);
+    let predecessors = Arc::clone(&take.predecessors);
+    let two = node(&c, "node-2", 2, true, Some(take));
+    if proactively {
+        let pass =
+            ProactiveTakeover::new("node-2", config(true), Arc::clone(&two.role), predecessors);
+        assert_eq!(pass.pass(&dead(&one)).taken, 1);
+    }
+    write_id(&two.role, "c");
+    two.role.refresh(&info(), 0).expect("published");
+    s3_latency(&c);
+    (0..count).map(|_| one_search(&c, "logs")).collect()
+}
+
+#[test]
+fn a_search_after_a_pass_makes_the_requests_of_a_search_after_a_lazy_take() {
+    let lazy: Vec<u64> = searches_after_a_take(false, 5)
+        .iter()
+        .map(|s| s.1)
+        .collect();
+    let proactive: Vec<u64> = searches_after_a_take(true, 5).iter().map(|s| s.1).collect();
+    assert_eq!(lazy, proactive);
+}
+
+/// Searches of a live index published by node-3, while a pass runs on
+/// node-2 over a dead node's four shards, or not.
+fn searches_during_a_pass(pass_running: bool, count: usize) -> Vec<(Duration, u64)> {
+    let c = cluster();
+    create_n(&c, "logs", "u1", 4);
+    create(&c, "idx", "u9");
+    let one = node(&c, "node-1", 1, false, None);
+    for ids in ids_by_shard(4, 1) {
+        write_id(&one.role, &ids[0]);
+    }
+    let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let take = takeover(&c, &one, &calls);
+    let predecessors = Arc::clone(&take.predecessors);
+    let two = node(&c, "node-2", 2, true, Some(take));
+    let three = node(&c, "node-3", 3, false, None);
+    for n in 0..20 {
+        write_in(&three.role, "idx", &format!("i{n}"));
+    }
+    let mut idx = info();
+    idx.name = "idx".into();
+    idx.uuid = "u9".into();
+    three.role.refresh(&idx, 0).expect("published");
+    s3_latency(&c);
+    let pass = ProactiveTakeover::new("node-2", config(true), Arc::clone(&two.role), predecessors);
+    let lease = dead(&one);
+    std::thread::scope(|s| {
+        if pass_running {
+            s.spawn(|| pass.pass(&lease));
+        }
+        (0..count).map(|_| one_search(&c, "idx")).collect()
+    })
+}
+
+fn p(all: &mut [Duration], q: f64) -> Duration {
+    all.sort();
+    percentile(all, q)
+}
+
+#[test]
+#[ignore = "evidence for the switch's default: run by hand with --nocapture"]
+fn search_latency_after_a_take_and_while_a_pass_runs() {
+    let mut rows = Vec::new();
+    for proactively in [false, true] {
+        let mut all: Vec<Duration> = (0..5)
+            .flat_map(|_| searches_after_a_take(proactively, 30))
+            .map(|s| s.0)
+            .collect();
+        let (p50, p99) = (p(&mut all, 0.5), p(&mut all, 0.99));
+        eprintln!(
+            "after a take, pass {proactively}: p50 {p50:?} p99 {p99:?} ({} searches)",
+            all.len()
+        );
+        rows.push(p99);
+    }
+    let after = rows[1].as_secs_f64() / rows[0].as_secs_f64();
+    let mut rows = Vec::new();
+    for running in [false, true] {
+        let mut all: Vec<Duration> = (0..5)
+            .flat_map(|_| searches_during_a_pass(running, 30))
+            .map(|s| s.0)
+            .collect();
+        let (p50, p99) = (p(&mut all, 0.5), p(&mut all, 0.99));
+        eprintln!(
+            "during, pass running {running}: p50 {p50:?} p99 {p99:?} ({} searches)",
+            all.len()
+        );
+        rows.push(p99);
+    }
+    let during = rows[1].as_secs_f64() / rows[0].as_secs_f64();
+    eprintln!("search p99 ratio: after a take {after:.3}, during a pass {during:.3}");
+    assert!(
+        after <= 1.05 && during <= 1.05,
+        "after {after:.3}, during {during:.3}"
+    );
+}

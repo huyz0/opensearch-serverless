@@ -189,7 +189,7 @@ impl NodeConfig {
             "false" => false,
             other => return Err(format!("OSS_TAIL_OVERLAY is [{other}], not true or false")),
         };
-        let proactive_takeover = match or("OSS_PROACTIVE_TAKEOVER", "false").as_str() {
+        let proactive_takeover = match or("OSS_PROACTIVE_TAKEOVER", "true").as_str() {
             "true" => true,
             "false" => false,
             other => {
@@ -333,9 +333,12 @@ mod tests {
     }
 
     #[test]
-    fn proactive_takeover_is_off_with_the_settings_defaults_and_each_is_read() {
+    fn proactive_takeover_is_on_with_the_settings_defaults_and_each_is_read() {
         let c = NodeConfig::from_lookup(lookup(FS)).expect("valid");
-        assert!(!c.proactive_takeover);
+        assert!(c.proactive_takeover);
+        let off = NodeConfig::from_lookup(lookup(&with(&[("OSS_PROACTIVE_TAKEOVER", "false")])))
+            .expect("valid");
+        assert!(!off.proactive_takeover);
         assert_eq!(
             (
                 c.proactive_reapers,

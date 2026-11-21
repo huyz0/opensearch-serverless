@@ -56,8 +56,14 @@ fn config_with(
     config_tail(root, id, ttl, janitor_ms, None)
 }
 
-/// As `config_with`, with proactive takeover switched on.
-fn config_proactive(root: &std::path::Path, id: &str, ttl: &str, janitor_ms: &str) -> NodeConfig {
+/// As `config_with`, with proactive takeover set explicitly.
+fn config_proactive(
+    root: &std::path::Path,
+    id: &str,
+    ttl: &str,
+    janitor_ms: &str,
+    on: bool,
+) -> NodeConfig {
     let root = root.display().to_string();
     let lookup = |key: &str| {
         Some(
@@ -69,7 +75,13 @@ fn config_proactive(root: &std::path::Path, id: &str, ttl: &str, janitor_ms: &st
                 "OSS_TRANSPORT_ADDR" => "127.0.0.1:0",
                 "OSS_LEASE_TTL_MS" => ttl,
                 "OSS_JANITOR_EVERY_MS" => janitor_ms,
-                "OSS_PROACTIVE_TAKEOVER" => "true",
+                "OSS_PROACTIVE_TAKEOVER" => {
+                    if on {
+                        "true"
+                    } else {
+                        "false"
+                    }
+                }
                 _ => return None,
             }
             .to_owned(),
@@ -347,12 +359,7 @@ fn a_booted_node_takes_a_dead_nodes_shard_before_any_write_only_when_the_setting
         assert_eq!(wrote.status, 201, "{}", wrote.text());
         assert_eq!(head_owner(dir.path()).as_deref(), Some("n1"));
         first.crash();
-        let second = if on {
-            config_proactive(dir.path(), "n2", "3000", "100")
-        } else {
-            config_with(dir.path(), "n2", "3000", Some("100"))
-        };
-        let second = start(&second).expect("starts");
+        let second = start(&config_proactive(dir.path(), "n2", "3000", "100", on)).expect("starts");
         if on {
             wait_for("n2 never took the shard", || {
                 head_owner(dir.path()).as_deref() == Some("n2")
