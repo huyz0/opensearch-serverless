@@ -15,6 +15,7 @@ use oss_blob::BlobStore;
 use oss_blob::S3Op;
 use oss_blob::emulator::faults::Latency;
 use oss_node::writer::ProactiveTakeover;
+use oss_testkit::budget;
 use oss_writer::takeover::Predecessors;
 use support::*;
 
@@ -164,4 +165,98 @@ fn write_latency_of_a_live_node_while_a_pass_runs() {
     let ratio = rows[1].1.as_secs_f64() / rows[0].1.as_secs_f64();
     eprintln!("p99 ratio on/off {ratio:.3}");
     assert!(ratio <= 1.05, "write p99 {ratio:.3}x with the pass running");
+}
+
+/// The requests of one pass over a dead node's log naming `shards` unpublished
+/// shards: the fence, the header, a descriptor read, and each take.
+fn pass_requests(shards: u32) -> (u64, u64) {
+    let c = cluster();
+    create_n(&c, "logs", "u1", shards);
+    let one = node(&c, "node-1", 1, false, None);
+    for ids in ids_by_shard(shards, 1) {
+        write_id(&one.role, &ids[0]);
+    }
+    let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let take = takeover(&c, &one, &calls);
+    let predecessors = Arc::clone(&take.predecessors);
+    let two = node(&c, "node-2", 2, true, Some(take));
+    let pass = ProactiveTakeover::new("node-2", config(true), Arc::clone(&two.role), predecessors);
+    let before = (total(&c), c.store.meter().count(S3Op::List));
+    let report = pass.pass(&dead(&one));
+    assert_eq!(report.taken, shards as usize, "{report:?}");
+    (
+        total(&c) - before.0,
+        c.store.meter().count(S3Op::List) - before.1,
+    )
+}
+
+#[test]
+fn a_pass_costs_what_the_table_says() {
+    let (one, lists_one) = pass_requests(1);
+    let (four, lists_four) = pass_requests(4);
+    budget::check(
+        "takeover.proactive.one_shard.requests",
+        one,
+        "a pass over one named shard",
+    );
+    budget::check(
+        "takeover.proactive.four_shards.requests",
+        four,
+        "a pass over four named shards",
+    );
+    budget::check(
+        "takeover.proactive.lists",
+        lists_one + lists_four,
+        "LISTs of both passes",
+    );
+}
+
+/// What a reader opens of shard 0 of `logs` now: its live documents.
+fn documents_a_reader_sees(c: &Cluster) -> u64 {
+    use lucene_store::page_cache::{PageCache, PageCacheConfig};
+    use oss_blob::PooledStore;
+    use oss_mem::{BudgetConfig, BufferPool, MemoryBudget, Pool, SMALL_BUFFER};
+    let config = BudgetConfig::new(8 << 20)
+        .with_pool(Pool::Transport, 8 << 20)
+        .expect("fits");
+    let budget = MemoryBudget::new(&config);
+    let buffers = BufferPool::new(&budget, Pool::Transport, SMALL_BUFFER, 4).expect("fits");
+    let store = Arc::new(PooledStore::new(
+        oss_blob::Shared::new(c.store.clone()),
+        buffers,
+    ));
+    let cache = Arc::new(PageCache::new(PageCacheConfig::default()).expect("cache"));
+    let open = oss_reader::open_shard(store, cache, "", "logs", 0).expect("opens");
+    let live = open
+        .reader
+        .soft_deletes_wrapper("__soft_deletes")
+        .expect("wrapped");
+    u64::try_from(live.num_docs()).expect("count")
+}
+
+#[test]
+fn a_reader_sees_the_same_documents_after_a_pass_as_after_a_write_takes_the_shard() {
+    let mut seen = Vec::new();
+    for proactively in [false, true] {
+        let c = cluster();
+        let one = first_writer(&c);
+        let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let take = takeover(&c, &one, &calls);
+        let predecessors = Arc::clone(&take.predecessors);
+        let two = node(&c, "node-2", 2, true, Some(take));
+        if proactively {
+            let pass =
+                ProactiveTakeover::new("node-2", config(true), Arc::clone(&two.role), predecessors);
+            assert_eq!(pass.pass(&dead(&one)).taken, 1);
+        } else {
+            write_id(&two.role, "c");
+            two.role.refresh(&info(), 0).expect("published");
+        }
+        seen.push((registered_term(&c), documents_a_reader_sees(&c)));
+    }
+    // a was published by the dead node, b only logged: both are searchable once
+    // the shard is taken, and the pass publishes without a write to ask for it.
+    assert_eq!(seen[1], (2, 2), "{seen:?}");
+    assert_eq!(seen[0].0, seen[1].0);
+    assert!(seen[0].1 >= seen[1].1, "{seen:?}");
 }

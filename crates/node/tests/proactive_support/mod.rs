@@ -86,6 +86,19 @@ pub fn cluster() -> Cluster {
 /// A node `id`; one that is `later` judges leases and head claims an hour on,
 /// so it sees every other node as dead.
 pub fn node(c: &Cluster, id: &str, term: u64, later: bool, takeover: Option<Takeover>) -> Node {
+    node_routed(c, id, term, later, takeover, |routes| Arc::new(routes))
+}
+
+/// As [`node`], with the role's routes made from the descriptor routes by
+/// `wrap`: a test's own owners and forwards.
+pub fn node_routed(
+    c: &Cluster,
+    id: &str,
+    term: u64,
+    later: bool,
+    takeover: Option<Takeover>,
+    wrap: impl FnOnce(DescriptorRoutes) -> Arc<dyn oss_node::writer::Routes>,
+) -> Node {
     let clock: Arc<dyn LeaseClock> = if later {
         Arc::new(Later)
     } else {
@@ -140,7 +153,7 @@ pub fn node(c: &Cluster, id: &str, term: u64, later: bool, takeover: Option<Take
             ..CommitterConfig::default()
         },
     ));
-    let routes = Arc::new(DescriptorRoutes::new(
+    let routes = wrap(DescriptorRoutes::new(
         DescriptorStore::new(Arc::clone(&dynstore), "", DeleteMode::Tombstone).expect("names"),
         1 << 16,
     ));

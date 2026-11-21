@@ -2,6 +2,9 @@
 //! faults a fleet meets: a take that fails, two reapers racing, a stale
 //! index, a deadline, a cap on concurrency.
 
+// ARITH: test arithmetic on counts and durations; an overflow panics the test.
+#![allow(clippy::arithmetic_side_effects)]
+
 #[path = "proactive_support/mod.rs"]
 mod support;
 
@@ -10,8 +13,8 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::{Arc, Barrier};
 use std::time::{Duration, Instant};
 
-use oss_blob::S3Op;
 use oss_blob::emulator::faults::{Faults, Latency};
+use oss_blob::{BlobStore as _, S3Op};
 use oss_node::writer::{ProactiveConfig, ProactiveTakeover};
 use support::*;
 
@@ -387,4 +390,75 @@ fn a_node_that_died_returned_and_died_again_is_read_by_its_new_epochs() {
         .of_naming("node-1", &again)
         .expect("remade");
     assert_eq!(made(), 3);
+}
+
+/// Routes that place every shard on this node, so a shard another node holds
+/// is the opener's to find, and that record the forwards it makes.
+struct Forwarding {
+    inner: oss_node::descriptor_routes::DescriptorRoutes,
+    sent: std::sync::Mutex<Vec<String>>,
+}
+
+impl oss_node::writer::Routes for Forwarding {
+    fn index(&self, name: &str) -> Option<oss_writer::bulk::IndexInfo> {
+        self.inner.index(name)
+    }
+
+    fn owner(&self, index: &oss_writer::bulk::IndexInfo, shard: u32) -> oss_writer::bulk::Owner {
+        self.inner.owner(index, shard)
+    }
+
+    fn forward(
+        &self,
+        node: &str,
+        _: &oss_writer::bulk::IndexInfo,
+        _: u32,
+        group: &[oss_writer::bulk::Planned<'_>],
+    ) -> Vec<oss_writer::bulk::ItemResult> {
+        self.sent.lock().expect("lock").push(node.to_owned());
+        group
+            .iter()
+            .map(|_| oss_writer::bulk::ItemResult::Written {
+                written: oss_writer::index::Written {
+                    outcome: oss_writer::index::Outcome::Created,
+                    version: 1,
+                    seq_no: 0,
+                    primary_term: 1,
+                },
+                forced_refresh: false,
+            })
+            .collect()
+    }
+}
+
+#[test]
+fn a_write_placed_on_another_node_reaches_the_reaper_that_took_the_shard() {
+    let c = cluster();
+    let one = first_writer(&c);
+    let (two, pass, _) = reaper(&c, &one, "node-2", 2, config(true));
+    assert_eq!(pass.pass(&dead(&one)).taken, 1);
+    let routes = Arc::new(Forwarding {
+        inner: oss_node::descriptor_routes::DescriptorRoutes::new(
+            oss_meta::DescriptorStore::new(c.store.clone(), "", oss_meta::DeleteMode::Tombstone)
+                .expect("names"),
+            1 << 16,
+        ),
+        sent: std::sync::Mutex::new(Vec::new()),
+    });
+    let kept = Arc::clone(&routes);
+    let three = node_routed(&c, "node-3", 3, true, None, move |_| kept);
+    // The first write finds the head owned by node-2 (live), and goes there.
+    let first = write(&three.role, "x");
+    assert!(
+        matches!(first, oss_writer::bulk::ItemResult::Written { .. }),
+        "{first:?}"
+    );
+    assert_eq!(*routes.sent.lock().expect("lock"), ["node-2"]);
+    assert!(!three.role.held("u1", 0), "not taken from the reaper");
+    // The next one costs only the index lookup: the holder is remembered.
+    let before = c.store.meter().total();
+    write(&three.role, "y");
+    assert_eq!(*routes.sent.lock().expect("lock"), ["node-2", "node-2"]);
+    assert_eq!(c.store.meter().total() - before, 1, "the index lookup only");
+    assert!(two.role.held("u1", 0));
 }

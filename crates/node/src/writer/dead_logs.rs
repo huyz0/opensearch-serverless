@@ -98,11 +98,11 @@ impl NodeLogs for StoreNodeLogs {
         node: &str,
         epochs: &[NodeLogEpoch],
     ) -> Result<Box<dyn FencedLog + '_>, JanitorError> {
-        if let Some(shared) = &self.shared {
-            if let Some(takeover) = shared.of_naming(node, epochs).map_err(log_error)? {
-                takeover.fence_all().map_err(log_error)?;
-                return Ok(Box::new(Fenced(takeover)));
-            }
+        if let Some(shared) = &self.shared
+            && let Some(takeover) = shared.of_naming(node, epochs).map_err(log_error)?
+        {
+            takeover.fence_all().map_err(log_error)?;
+            return Ok(Box::new(Fenced(takeover)));
         }
         let store = Arc::clone(&self.store);
         let base = self.base.clone();

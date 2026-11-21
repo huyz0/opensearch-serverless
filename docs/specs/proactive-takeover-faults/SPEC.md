@@ -13,6 +13,8 @@ Parity plan R8.6 and [ADR 0021](../../adr/0021-proactive-takeover-from-the-node-
   - The 8 MiB header cap of the ADR did not exist. `NodeLogTakeover::named_within` refuses a header over a cap from its prefix; the pass records that dead node's epochs as finished (its shards stay lazy) instead of reading the header on every refresh.
   - The pass read one descriptor per named shard; it reads one per index.
   - A dead lease naming no epochs started a pass.
+  - The dead-log pass fenced a log the proactive pass had already fenced. Both now read it through the node's shared `Predecessors` (`DeadLogParts::predecessors`), and a collected log is forgotten.
+  - `Predecessors` kept a dead node's log for the process's life: a node that died, came back under the same id and died again was read by its old epochs. `of_naming` rebuilds the reader when the epochs differ.
 - Not changed: the head, log and register formats, lazy takeover, the switch's default (off).
 
 ## Acceptance criteria
@@ -29,6 +31,11 @@ Parity plan R8.6 and [ADR 0021](../../adr/0021-proactive-takeover-from-the-node-
 - AC-10: no more shards are taken at once than `max_concurrent` (a time floor of requests in sequence).
 - AC-11: a header over the cap is refused, nothing is taken, the pass is not run again, and each shard is still taken by its first write.
 - AC-12: serving four shards by a pass then a write each costs at most one request more than the four writes alone (one descriptor read), and no LIST.
+- AC-14: the dead-log pass after a proactive pass reuses its fence: collecting costs fewer requests than through its own reader (15 against 8 measured), and still collects.
+- AC-15: a log read by `Predecessors` is kept while the lease names the same epochs (a later trim point included), rebuilt when it names others, and forgotten on request.
+- AC-16: a write placed on a node that does not hold the shard goes to the reaper that took it, without taking it, and the next costs one request (the index lookup).
+- AC-17: a pass costs the request-budget rows `takeover.proactive.*`: 19 for one named shard, 61 for four, no LIST.
+- AC-18: a reader opens the shard after a pass and sees the documents a lazy take publishes, with no write to ask for the take.
 - AC-13: a live node's write p99 with a pass running is within 5% of without, at S3-like latency (run by hand, `--ignored`).
 
 ## Test plan
@@ -45,4 +52,4 @@ None added; `serverless.takeover.proactive.enabled` is unchanged and still off.
 
 ## Risks
 
-- Not covered here and needed before the switch flips: the janitor's collect reuses the reaper's fence (proactive-takeover AC-19), a write routed to a shard a reaper holds (AC-18), and a request-budget row for the pass (AC-16). `Predecessors` caches a dead node's log for the process's life, so a pass over a node that died, returned under the same id and died again would read its old epochs.
+- The revoked-versus-expired distinction of the refresh surface (proactive-takeover AC-19, second half) is not built; nothing reads it yet.
