@@ -17,21 +17,39 @@ pub struct Fetched {
     pub primary_term: i64,
     /// The stored `_source`, as it was indexed.
     pub source: Vec<u8>,
+    /// The custom `_routing` it was indexed with, `None` when it has none.
+    pub routing: Option<String>,
 }
 
-/// Copies the `_source` field of one document.
+/// Copies the `_source` and `_routing` fields of one document.
 struct Source {
     field: Option<i32>,
+    routing_field: Option<i32>,
+    routing: Option<String>,
     bytes: Vec<u8>,
 }
 
 impl StoredFieldVisitor for Source {
     fn needs_field(&mut self, number: i32) -> lucene_codecs::stored_fields::Result<VisitStatus> {
-        Ok(if Some(number) == self.field {
-            VisitStatus::Yes
-        } else {
-            VisitStatus::No
-        })
+        Ok(
+            if Some(number) == self.field || Some(number) == self.routing_field {
+                VisitStatus::Yes
+            } else {
+                VisitStatus::No
+            },
+        )
+    }
+
+    fn string_field(
+        &mut self,
+        number: i32,
+        value: &str,
+    ) -> lucene_codecs::stored_fields::Result<()> {
+        if Some(number) == self.routing_field {
+            // ALLOC: the routing value, one a get; bounded by the request it was written under.
+            self.routing = Some(value.to_owned());
+        }
+        Ok(())
     }
 
     fn binary_field(
@@ -79,6 +97,11 @@ impl Shard<'_> {
                 .field_infos()
                 .field_by_name("_source")
                 .map(|f| f.number),
+            routing_field: segment
+                .field_infos()
+                .field_by_name("_routing")
+                .map(|f| f.number),
+            routing: None,
             // ALLOC: empty until the visitor copies the one document's source.
             bytes: Vec::new(),
         };
@@ -95,6 +118,7 @@ impl Shard<'_> {
             seq_no: found.current.seq_no,
             primary_term: found.current.term,
             source: source.bytes,
+            routing: source.routing,
         }))
     }
 }

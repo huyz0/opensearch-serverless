@@ -238,6 +238,7 @@ impl<S: IndexSource, L: Leases, B: BulkSend> Routes for ClusterRoutes<S, L, B> {
             seq_no: answer.seq_no,
             primary_term: answer.primary_term,
             source: answer.source.unwrap_or_default().into_bytes(),
+            routing: answer.routing,
         }))
     }
 

@@ -144,9 +144,14 @@ impl GetService {
                 if let Some(doc) = found {
                     write!(
                         out,
-                        ",\"_version\":{},\"_seq_no\":{},\"_primary_term\":{},\"found\":true",
+                        ",\"_version\":{},\"_seq_no\":{},\"_primary_term\":{}",
                         doc.version, doc.seq_no, doc.primary_term
                     )?;
+                    if let Some(routing) = &doc.routing {
+                        out.write_all(b",\"_routing\":")?;
+                        write_json_str(&mut out, routing)?;
+                    }
+                    out.write_all(b",\"found\":true")?;
                     if source {
                         out.write_all(b",\"_source\":")?;
                         out.write_all(&doc.source)?;

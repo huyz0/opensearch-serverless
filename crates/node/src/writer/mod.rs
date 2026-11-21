@@ -416,7 +416,14 @@ impl WriterRole {
                 outcomes.push(Err(Failure::Unavailable(e.to_string())));
                 continue;
             }
-            match slot.apply(a.kind, item.id, &item.op.source, a.create, &a.expect) {
+            match slot.apply(
+                a.kind,
+                item.id,
+                &item.op.source,
+                routing,
+                a.create,
+                &a.expect,
+            ) {
                 Ok(written) => {
                     let record = if a.kind == Kind::Delete {
                         WalRecord::deletion(
