@@ -149,14 +149,28 @@ fn a_shard_with_no_engine_only_asks_how_far_refreshing_writes_went() {
 fn a_writer_that_does_not_answer_is_treated_as_dead() {
     let r = rig(true);
     r.held.track(U, 0, 5);
-    // Nothing answers either ask: the reader serves its commit.
+    // Nothing answers the ask: the reader serves its commit.
     assert!(ensure(&r, 5).0);
-    assert_eq!(
-        r.fetcher.asked.lock().unwrap().len(),
-        2,
-        "the grant ask, then a CHECK"
-    );
+    assert_eq!(r.fetcher.asked.lock().unwrap().len(), 1, "no second ask");
     assert_eq!(r.fresh.counts(), (1, 0, 1));
+}
+
+#[test]
+fn a_writer_that_did_not_answer_is_not_asked_again_for_the_same_search() {
+    let r = rig(true);
+    r.held.track(U, 0, 5);
+    // The writer shows gone to the grant ask and alive a moment later (a
+    // lease view refreshed between the two): the second ask would claim
+    // writes above the commit and refuse a search the first let through.
+    r.fetcher.answers.lock().unwrap().push(None);
+    r.fetcher
+        .answers
+        .lock()
+        .unwrap()
+        .push(answer(NONE, false, 9));
+    assert!(ensure(&r, 5).0);
+    assert_eq!(r.fetcher.asked.lock().unwrap().len(), 1);
+    assert_eq!(r.fresh.counts(), (1, 0, 1), "no refusal");
 }
 
 #[test]
