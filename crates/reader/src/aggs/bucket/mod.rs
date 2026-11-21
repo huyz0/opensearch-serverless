@@ -22,6 +22,7 @@ pub mod keyword_collect;
 pub mod keyword_options;
 pub mod keyword_subs;
 pub mod keyword_terms;
+pub mod nested_subs;
 pub mod parse_arms;
 pub mod range;
 pub mod range_collect;
@@ -93,6 +94,8 @@ mod keyword_options_tests;
 mod keyword_subs_tests;
 #[cfg(test)]
 mod keyword_terms_tests;
+#[cfg(test)]
+mod nested_tests;
 #[cfg(test)]
 mod range_collect_tests;
 #[cfg(test)]

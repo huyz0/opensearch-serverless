@@ -11,7 +11,7 @@ use oss_blob::BlobStore;
 
 use crate::OpenShard;
 use crate::aggs::bucket::keyword_collect::{Parent, SUB_COPIES};
-use crate::aggs::bucket::{filters_collect, keyword_subs, range_collect};
+use crate::aggs::bucket::{filters_collect, keyword_subs, nested_subs, range_collect};
 use crate::aggs::metric::{Metric, MetricAgg};
 use crate::aggs::partial::Value;
 use crate::search::ShardError;
@@ -37,7 +37,7 @@ pub fn attach<S: BlobStore + 'static>(
 }
 
 /// How many buckets `agg` makes.
-fn width(agg: &MetricAgg) -> usize {
+pub(super) fn width(agg: &MetricAgg) -> usize {
     match (agg.range.as_deref(), agg.filters.as_deref()) {
         (Some(range), _) => range.ranges.len(),
         (_, Some(filters)) => filters_collect::bucket_count(filters),
@@ -119,6 +119,8 @@ pub fn subs_bytes<S: BlobStore + 'static>(
     agg.subs.iter().fold(0usize, |total, sub| {
         total.saturating_add(if sub.metric == Metric::Terms {
             keyword_subs::reserved(shard, sub, parent)
+        } else if nested_subs::is_nested(sub) {
+            nested_subs::reserved(shard, sub, buckets)
         } else {
             buckets.saturating_mul(per_value)
         })
