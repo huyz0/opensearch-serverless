@@ -319,3 +319,46 @@ fn an_overlay_is_charged_its_estimate_and_the_masks_of_the_commit() {
     assert!(exact.builder.settle());
     assert_eq!(exact.builder.builds(), 1, "fits exactly");
 }
+
+/// docs/specs/node-overlay-apply AC-1 and AC-2.
+#[test]
+fn applying_pending_builds_what_is_held_before_it_returns() {
+    let fx = fixture(16 << 20);
+    fx.push(&[index("d", 8, 100)]);
+    // Nothing was built yet; apply builds in the caller.
+    fx.builder.apply_pending("u1", 0, &stage(1), &fx.commit);
+    assert_eq!(fx.builder.builds(), 1);
+    let first = fx.ready().expect("covers what is held");
+    assert_eq!(first.overlay().ids(), ["d"]);
+    // Nothing new is held: nothing more to build.
+    fx.builder.apply_pending("u1", 0, &stage(1), &fx.commit);
+    assert_eq!(fx.builder.builds(), 1);
+    // A record pushed since is covered when apply returns.
+    fx.held.take("u1", 0, &[index("e", 9, 101)], 1_000);
+    fx.builder.apply_pending("u1", 0, &stage(1), &fx.commit);
+    let second = fx.ready().expect("covers both");
+    assert_eq!(second.overlay().ids(), ["d", "e"]);
+    // A shard nothing tracks, and a stage it was not asked for, are left alone.
+    fx.builder.apply_pending("other", 0, &stage(1), &fx.commit);
+    fx.builder.apply_pending("u1", 0, &stage(2), &fx.commit);
+    assert_eq!(fx.builder.builds(), 2);
+}
+
+#[test]
+fn a_record_that_cannot_be_applied_marks_the_shard_skipped_so_it_holds_no_grant() {
+    use oss_transport::actions::tail::{FetchResponse, NEW};
+    let fx = fixture(1_000);
+    fx.push(&[index("d", 8, 100)]);
+    let answer = FetchResponse {
+        records: Vec::new(),
+        subscription: 3,
+        complete: true,
+        claimed_through: 100,
+    };
+    fx.held.answered("u1", 0, "w", NEW, 1_000, &answer);
+    assert!(fx.held.granted("u1", 0, "w", 1_000));
+    // The pool has no room for the overlay: the record is left out.
+    fx.builder.apply_pending("u1", 0, &stage(1), &fx.commit);
+    assert_eq!(fx.builder.builds(), 0);
+    assert!(!fx.held.granted("u1", 0, "w", 1_000), "no grant without it");
+}
