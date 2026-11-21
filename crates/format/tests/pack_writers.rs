@@ -201,3 +201,22 @@ fn a_ledger_refuses_what_it_cannot_follow() {
         .is_err()
     );
 }
+
+/// AC-3, at the edge: a header of exactly the limit is written, one byte more is refused.
+#[test]
+fn a_header_of_exactly_the_limit_is_written() {
+    let block = PlannedBlock {
+        index_uuid: "u",
+        index_name: "i",
+        shard: 0,
+        name: "a",
+        length: 1,
+    };
+    let blocks = vec![block; 144_000];
+    // 22 bytes of node string and counters, 29 a block: 22 + 18_282 + 29 * 144_000 = 4 MiB.
+    let at_limit = "n".repeat(18_282);
+    let encoded = encode_node_pack(&at_limit, 0, 0, &blocks).unwrap();
+    assert_eq!(encoded.bytes.len(), 9 + (4 << 20));
+    let over = "n".repeat(18_283);
+    assert!(encode_node_pack(&over, 0, 0, &blocks).is_err());
+}
