@@ -77,6 +77,9 @@ pub struct SearchService<S: BlobStore + 'static> {
     /// Where a search finds the overlay of the shard it serves; none, and a
     /// search is answered from the commit.
     overlay: OnceLock<Arc<dyn OverlaySource>>,
+    /// Whether the shard a search serves holds what its writer answered as
+    /// refreshed; none, and it is taken to.
+    fresh: OnceLock<Arc<crate::tail_fresh::TailFresh>>,
     /// The layers a setting resolves through above an index's own.
     layers: OnceLock<open_prefetch::Layered>,
     /// Where a search of a point in time reads its view; none, and it is
@@ -108,6 +111,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
             epoch: Instant::now(),
             newest: OnceLock::new(),
             overlay: OnceLock::new(),
+            fresh: OnceLock::new(),
             layers: OnceLock::new(),
             pits: OnceLock::new(),
         }
@@ -168,7 +172,10 @@ impl<S: BlobStore + 'static> SearchService<S> {
             Err(Answer::Rest(e)) => return Err(e),
             Err(Answer::Search(e)) => return send(resp, &e),
         };
-        let view = self.overlay_view(&held);
+        let view = match self.fresh_view(&held) {
+            Ok(view) => view,
+            Err(e) => return send(resp, &e),
+        };
         let shard = view.as_deref().unwrap_or(&held.shard);
         req.body().reserve(hits_bytes(&source, shard))?;
         let analyzer = Analyzer::standard(None);
