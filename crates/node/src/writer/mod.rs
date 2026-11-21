@@ -21,6 +21,7 @@ mod lease;
 mod newest_commit;
 mod opener;
 mod predecessors;
+mod proactive;
 mod publish_age;
 mod publish_timer;
 mod publishing;
@@ -58,6 +59,10 @@ pub use janitor_pass::{HeldShard, JanitorPass, JanitorReport, PassLimits};
 pub use janitor_timer::{JanitorTimer, SweepConfig};
 pub use lease::MembershipLeaseWrite;
 pub use opener::{HeadOpener, OpenRefused, ShardOpener};
+pub use proactive::{
+    Config as ProactiveConfig, ProactiveTakeover, Report as ProactiveReport,
+    SETTINGS as PROACTIVE_SETTINGS,
+};
 pub use publish_age::publish_age_of;
 pub use publish_timer::PublishTimer;
 pub use publishing::{PublishPass, Publishing};
