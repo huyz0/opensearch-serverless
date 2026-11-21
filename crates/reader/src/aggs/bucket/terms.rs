@@ -5,6 +5,7 @@
 pub use lucene_aggs::bucket_aggs::TermsOrder;
 
 use crate::aggs::bucket::keyword_options::KeywordOptions;
+use crate::aggs::bucket::running;
 use crate::aggs::bucket::sub_order::SubOrder;
 use crate::aggs::bucket::sub_values::{BucketSubs, reduce_keyed};
 use crate::aggs::partial::Value;
@@ -79,8 +80,12 @@ pub fn reduce(parts: &[Value]) -> Option<Value> {
     if results.is_empty() {
         return None;
     }
+    let reduced = reduce_results(&results);
+    if !running::add(reduced.buckets.len()) {
+        return None;
+    }
     // ALLOC: one box a `terms`, bounded by the request's.
-    Some(Value::Terms(Box::new(reduce_results(&results))))
+    Some(Value::Terms(Box::new(reduced)))
 }
 
 /// `InternalTerms.getDocCountError` of one shard's `terms`: what it may have

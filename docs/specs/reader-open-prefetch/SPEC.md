@@ -19,12 +19,14 @@ Not changed: the descriptor and commit register reads, the search path, and any 
 - AC-3: the plan merges files of one blob whose gap is at most `gap_bytes`, never merges across blobs, never picks a file the engine would page (large, unpinned), and never reads more than `max_bytes`, gaps included.
 - AC-4: a prefetch that fails (the store refuses a range) leaves the open succeeding with the engine's own reads, and the search answer unchanged.
 - AC-5: after the open returns the fetched bytes are no longer held.
+- AC-7: over the layout the Java shell writes (a segment is one blob), a cold open of each of the seven compat indexes makes fewer requests, fewer round trips and the same bytes with the prefetch on as off.
 - AC-6: the search answers of every compat replay step are unchanged, and `docs/request-budgets.md` rows `search.cold.*` and `search.metric_aggs.cold.*` are the new, lower numbers, enforced.
 
 ## Test plan
 
 - AC-1, AC-2, AC-4, AC-5: `prefetch::tests` in `oss-reader`, over the emulator behind `Rounds`; seen red against the unchanged open.
 - AC-3: `prefetch::plan` unit tests with a hand-built file table.
+- AC-7: `crates/node/tests/it/open_prefetch_layout.rs`.
 - AC-6: `crates/node/tests/it/budgets.rs`, `aggs_budgets.rs`, and the compat replay.
 
 ## S3 request budget

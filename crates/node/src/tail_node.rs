@@ -251,13 +251,16 @@ pub fn wire<S: oss_blob::BlobStore + 'static>(
     ) else {
         return Ok(None);
     };
-    service.set_tail_fresh(Arc::new(crate::tail_fresh::TailFresh::new(
-        Arc::clone(&wired.held),
-        parts.fetcher,
-        parts.node_id,
-        Arc::clone(&reader_clock),
-        parts.visibility.grants(),
-    )));
+    service.set_tail_fresh(Arc::new(
+        crate::tail_fresh::TailFresh::new(
+            Arc::clone(&wired.held),
+            parts.fetcher,
+            parts.node_id,
+            Arc::clone(&reader_clock),
+            parts.visibility.grants(),
+        )
+        .applying(parts.visibility.waits()),
+    ));
     let keep = Arc::new(TailKeep::new());
     let facts: Arc<dyn ShardFacts> = Arc::new(RoleFacts {
         role: Arc::clone(role),

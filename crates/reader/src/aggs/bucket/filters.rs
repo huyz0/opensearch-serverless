@@ -4,6 +4,7 @@
 
 use std::cmp::Ordering;
 
+use crate::aggs::bucket::running;
 use crate::aggs::bucket::sub_values::reduce_fixed;
 use crate::aggs::partial::{Format, Value};
 use crate::dsl::Query;
@@ -89,6 +90,9 @@ pub fn reduce(parts: &[Value]) -> Option<Value> {
             .collect::<Vec<_>>(),
         merged.buckets.len(),
     );
+    if !running::add(merged.buckets.len()) {
+        return None;
+    }
     // ALLOC: one box a `filters`, bounded by the request's.
     Some(Value::Filters(Box::new(merged)))
 }

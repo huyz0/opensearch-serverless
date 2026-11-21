@@ -31,6 +31,10 @@ pub struct TailFresh {
     /// Whether grants are in force (`everywhere`); off, every search may
     /// answer.
     grants: bool,
+    /// Whether a search has the engine take what is held for it before it
+    /// answers without a grant (`serving`): the writer waited for these
+    /// records to be taken, so they must be searchable.
+    applies: bool,
     /// Held while the writer is asked for a grant, so searches that find
     /// none ask once between them.
     asking: Mutex<HashMap<Key, Arc<Mutex<()>>>>,
@@ -54,11 +58,20 @@ impl TailFresh {
             subscriber,
             clock,
             grants,
+            applies: false,
             asking: Mutex::new(HashMap::new()),
             checks: AtomicU64::new(0),
             refusals: AtomicU64::new(0),
             unreachable: AtomicU64::new(0),
         }
+    }
+
+    /// This check with a search taking what is held for it first even where
+    /// no grant is asked.
+    #[must_use]
+    pub fn applying(mut self, applies: bool) -> Self {
+        self.applies = applies;
+        self
     }
 
     /// Round trips made to a writer for a grant before a search, searches
@@ -123,6 +136,9 @@ impl TailFresh {
         apply_pending: &dyn Fn(),
     ) -> bool {
         if !self.grants {
+            if self.applies {
+                apply_pending();
+            }
             return true;
         }
         if self.granted(uuid, shard, writer) {
