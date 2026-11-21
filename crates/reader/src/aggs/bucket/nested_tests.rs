@@ -22,7 +22,7 @@ use crate::{OpenShard, open_shard};
 
 const DOCS: usize = 200;
 
-fn shard(name: &str) -> OpenShard<Emulator> {
+pub(super) fn shard(name: &str) -> OpenShard<Emulator> {
     let config = BudgetConfig::new(4 << 20)
         .with_pool(Pool::Transport, 4 << 20)
         .expect("fits");
@@ -36,22 +36,22 @@ fn shard(name: &str) -> OpenShard<Emulator> {
     open_shard(Arc::new(store), cache, "", name, 0).expect("opens")
 }
 
-fn run(shard: &OpenShard<Emulator>, body: &str) -> Result<Vec<Partial>, ShardError> {
+pub(super) fn run(shard: &OpenShard<Emulator>, body: &str) -> Result<Vec<Partial>, ShardError> {
     let source = parse_chunks([body.as_bytes()]).expect("parses");
     search(shard, "idx", &source, &Analyzer::standard(None)).map(|h| h.aggregations)
 }
 
-fn first(shard: &OpenShard<Emulator>, body: &str) -> Value {
+pub(super) fn first(shard: &OpenShard<Emulator>, body: &str) -> Value {
     run(shard, body).expect("searches").remove(0).value
 }
 
-fn written(parts: &[Partial]) -> String {
+pub(super) fn written(parts: &[Partial]) -> String {
     let mut out = Vec::new();
     write_aggregations(&mut out, parts).expect("writes");
     String::from_utf8(out).expect("utf-8")
 }
 
-fn range_of(value: &Value) -> &super::range::RangeResult {
+pub(super) fn range_of(value: &Value) -> &super::range::RangeResult {
     match value {
         Value::Range(r) => r,
         other => panic!("not a range: {other:?}"),
@@ -139,19 +139,22 @@ fn a_nested_range_over_an_unmapped_field_has_the_empty_buckets() {
     assert_eq!(inner.buckets[0].doc_count, 0);
 }
 
-// AC-8
+// AC-4
 #[test]
 fn a_bucket_aggregation_under_a_keyword_terms_is_still_refused() {
-    let err = parse_chunks([
-        br#"{"aggs":{"t":{"terms":{"field":"tag"},"aggs":{"i":{"range":{"field":"n","ranges":[{"to":5}]}}}}}}"#
-            .as_slice(),
-    ])
-    .expect_err("refused")
-    .into_failure();
+    let shard = shard("nested-range-under-keyword");
+    let err = run(
+        &shard,
+        r#"{"aggs":{"t":{"terms":{"field":"tag"},"aggs":{"i":{"range":{"field":"n","ranges":[{"to":5}]}}}}}}"#,
+    )
+    .expect_err("refused");
+    assert_eq!(err.status, 400);
     assert!(
-        err.reason.contains("[range] sub-aggregation"),
+        err.failure
+            .reason
+            .contains("[range] sub-aggregation of a keyword [terms]"),
         "{}",
-        err.reason
+        err.failure.reason
     );
 }
 
@@ -256,7 +259,7 @@ fn a_search_reserves_for_the_buckets_of_each_nested_level() {
     assert!(histogram > ranges, "{histogram} <= {ranges}");
 }
 
-fn histogram_of(value: &Value) -> &super::histogram::HistogramResult {
+pub(super) fn histogram_of(value: &Value) -> &super::histogram::HistogramResult {
     match value {
         Value::Histogram(h) => h,
         other => panic!("not a histogram: {other:?}"),

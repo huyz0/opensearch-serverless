@@ -184,7 +184,7 @@ fn unserved_options_are_refused_as_not_supported_yet() {
 fn sub_aggregations_are_refused_as_not_supported_yet() {
     // A metric sub-aggregation parses (the shard refuses it under a numeric
     // field); one of another kind is refused here.
-    let body = r#"{"aggs":{"t":{"terms":{"field":"n"},"aggs":{"m":{"histogram":{"field":"n","interval":5}}}}}}"#;
+    let body = r#"{"aggs":{"t":{"terms":{"field":"n"},"aggs":{"m":{"filters":{"filters":[{"match_all":{}}]}}}}}}"#;
     let r = parse_chunks([body.as_bytes()])
         .expect_err("refused")
         .into_failure()

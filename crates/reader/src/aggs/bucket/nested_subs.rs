@@ -13,7 +13,7 @@ use crate::aggs::bucket::keyword_collect::SUB_COPIES;
 use crate::aggs::bucket::sub_values::{BucketSubs, SubValues};
 use crate::aggs::bucket::{
     BUCKET_LIMIT, date_histogram_collect, date_histogram_spec, fixed_subs, histogram_collect,
-    histogram_spec, keyed_subs, keyword_subs, range_collect,
+    histogram_spec, keyed_subs, keyword_subs, range_collect, terms_collect, terms_spec,
 };
 use crate::aggs::metric::{Metric, MetricAgg};
 use crate::aggs::partial::Value;
@@ -51,7 +51,7 @@ fn inner<S: BlobStore + 'static>(
         // ALLOC: empty.
         return Ok((Vec::new(), Vec::new()));
     }
-    keyword_subs::sub_values(agg, shard, subs, total)
+    keyword_subs::sub_values(agg, shard, subs, total, false)
 }
 
 /// One value an owning bucket for the nested bucket aggregation `agg` from
@@ -199,4 +199,47 @@ pub fn reserved<S: BlobStore + 'static>(
     let per_bucket = std::mem::size_of::<Value>().saturating_mul(SUB_COPIES);
     own.saturating_mul(per_bucket)
         .saturating_add(fixed_subs::subs_bytes(shard, agg, own))
+}
+
+/// One value an owning bucket for the numeric `terms` `agg` from the
+/// engine's `result` (none for an unmapped field), which holds `owners`
+/// owning buckets: each owner's kept buckets, with their own
+/// sub-aggregations beneath.
+pub fn numeric_terms<S: BlobStore + 'static>(
+    agg: &MetricAgg,
+    shard: &OpenShard<S>,
+    result: Option<AggResult>,
+    owners: usize,
+) -> Result<Vec<Value>, ShardError> {
+    let spec = terms_spec(agg);
+    let (mut buckets, subs) = match result {
+        Some(AggResult::NumericTerms { buckets, subs }) => (buckets, subs),
+        // ALLOC: empty.
+        None => (Vec::new(), Vec::new()),
+        Some(_) => return Err(other_kind()),
+    };
+    buckets.resize_with(owners, Default::default);
+    let total = buckets.iter().map(|b| b.1.len()).sum();
+    let (meta, lists) = inner(agg, shard, subs, total)?;
+    let empty = keyword_subs::empty_values(agg, shard)?;
+    let mut lists = lists.into_iter();
+    // ALLOC: one value an owning bucket, bounded by the buckets above.
+    let mut out = Vec::with_capacity(owners);
+    for (other, kept) in buckets {
+        let kept_buckets = kept.len();
+        let mut made = terms_collect::from_engine(&spec, other, kept);
+        if !agg.subs.is_empty() {
+            made.subs = BucketSubs {
+                // ALLOC: one entry a sub-aggregation, bounded by the request's.
+                meta: meta.clone(),
+                // ALLOC: as above.
+                empty: empty.clone(),
+                // ALLOC: one list a kept bucket, bounded by the key cap.
+                lists: lists.by_ref().take(kept_buckets).collect(),
+            };
+        }
+        // ALLOC: one box an owning bucket, as above.
+        out.push(Value::Terms(Box::new(made)));
+    }
+    Ok(out)
 }

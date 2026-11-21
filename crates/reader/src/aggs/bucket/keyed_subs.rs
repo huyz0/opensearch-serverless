@@ -40,7 +40,7 @@ pub fn attach<S: BlobStore + 'static>(
     | AggNode::DateHistogram { subs, .. }
     | AggNode::NumericTerms { subs, .. } = node
     {
-        *subs = keyword_subs::sub_nodes(agg, shard, ords)?;
+        *subs = keyword_subs::sub_nodes(agg, shard, ords, false)?;
     }
     Ok(())
 }
@@ -100,7 +100,7 @@ pub fn value<S: BlobStore + 'static>(
     if agg.subs.is_empty() {
         return Ok(made);
     }
-    let (meta, lists) = keyword_subs::sub_values(agg, shard, subs, count)?;
+    let (meta, lists) = keyword_subs::sub_values(agg, shard, subs, count, false)?;
     let subs = BucketSubs {
         meta,
         empty: keyword_subs::empty_values(agg, shard)?,
