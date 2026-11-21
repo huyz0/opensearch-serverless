@@ -255,3 +255,98 @@ fn a_search_reserves_for_the_buckets_of_each_nested_level() {
     // A histogram can make a bucket for each of the field's values in each.
     assert!(histogram > ranges, "{histogram} <= {ranges}");
 }
+
+fn histogram_of(value: &Value) -> &super::histogram::HistogramResult {
+    match value {
+        Value::Histogram(h) => h,
+        other => panic!("not a histogram: {other:?}"),
+    }
+}
+
+#[test]
+fn a_range_under_a_histogram_counts_each_buckets_documents() {
+    let shard = shard("nested-under-histogram");
+    let outer = first(
+        &shard,
+        r#"{"aggs":{"h":{"histogram":{"field":"n","interval":100},
+            "aggs":{"r":{"range":{"field":"n","ranges":[{"to":50},{"from":50}]}}}}}}"#,
+    );
+    let outer = histogram_of(&outer);
+    assert_eq!(outer.buckets, [(0.0, 100), (100.0, 100)]);
+    let inner: Vec<Vec<u64>> = outer
+        .subs
+        .lists
+        .iter()
+        .map(|list| {
+            range_of(&list[0])
+                .buckets
+                .iter()
+                .map(|b| b.doc_count)
+                .collect()
+        })
+        .collect();
+    assert_eq!(inner, [vec![50, 50], vec![0, 100]]);
+}
+
+#[test]
+fn a_histogram_under_a_date_histogram_has_its_own_buckets_in_each() {
+    let shard = shard("nested-under-date-histogram");
+    let outer = first(
+        &shard,
+        r#"{"aggs":{"d":{"date_histogram":{"field":"n","fixed_interval":"100ms"},
+            "aggs":{"h":{"histogram":{"field":"n","interval":50}}}}}}"#,
+    );
+    let Value::DateHistogram(outer) = outer else {
+        panic!("not a date histogram");
+    };
+    let inner: Vec<Vec<(f64, u64)>> = outer
+        .subs
+        .lists
+        .iter()
+        .map(|list| histogram_of(&list[0]).buckets.clone())
+        .collect();
+    assert_eq!(
+        inner,
+        [vec![(0.0, 50), (50.0, 50)], vec![(100.0, 50), (150.0, 50)]]
+    );
+}
+
+#[test]
+fn a_nested_bucket_aggregation_under_a_histogram_reduces_across_shards() {
+    let a = shard("nested-histogram-reduce-a");
+    let b = shard("nested-histogram-reduce-b");
+    let body = r#"{"aggs":{"h":{"histogram":{"field":"n","interval":100},
+        "aggs":{"r":{"range":{"field":"n","ranges":[{"to":50},{"from":50}]}}}}}}"#;
+    let parts = [first(&a, body), first(&b, body)];
+    let merged = crate::aggs::partial::reduce_total(&parts)
+        .expect("within the limit")
+        .expect("reduces");
+    let inner: Vec<Vec<u64>> = histogram_of(&merged)
+        .subs
+        .lists
+        .iter()
+        .map(|list| {
+            range_of(&list[0])
+                .buckets
+                .iter()
+                .map(|b| b.doc_count)
+                .collect()
+        })
+        .collect();
+    assert_eq!(inner, [vec![100, 100], vec![0, 200]]);
+}
+
+#[test]
+fn a_histogram_parent_reserves_for_its_nested_levels_too() {
+    let shard = shard("nested-histogram-reserved");
+    let reserved = |inner: &str| {
+        let body = format!(
+            r#"{{"aggs":{{"h":{{"histogram":{{"field":"n","interval":100}},"aggs":{{"i":{inner}}}}}}}}}"#
+        );
+        let aggs = parse_chunks([body.as_bytes()]).expect("parses").aggs;
+        super::keyed_subs::reserved(&shard, &aggs)
+    };
+    let scalar = reserved(r#"{"sum":{"field":"n"}}"#);
+    let range = reserved(r#"{"range":{"field":"n","ranges":[{"to":50},{"from":50}]}}"#);
+    assert!(range > scalar, "{range} <= {scalar}");
+}
