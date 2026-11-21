@@ -65,9 +65,9 @@ pub struct TombstoneReport {
 
 struct State {
     last: i64,
-    /// What the probe found, once made: the descriptors to sweep, or none
-    /// when the store does not honour a conditional delete.
-    descriptors: Option<Option<DescriptorStore>>,
+    /// The descriptors to sweep, once the probe proved the store's
+    /// conditional delete.
+    descriptors: Option<DescriptorStore>,
 }
 
 /// Sweeps tombstones on behalf of one node.
@@ -116,21 +116,18 @@ impl TombstonePass {
             report.skipped = Some("no memory for the sweep's buffer".to_owned());
             return report;
         };
-        state.descriptors.get_or_insert_with(|| {
-            let mode = (self.parts.probe)();
-            (mode == DeleteMode::Conditional)
-                .then(|| {
-                    DescriptorStore::new(
-                        Arc::clone(&self.parts.store),
-                        &self.parts.base,
-                        DeleteMode::Conditional,
-                    )
-                    .ok()
-                })
-                .flatten()
-        });
         state.last = now;
-        let Some(descriptors) = state.descriptors.as_ref().and_then(Option::as_ref) else {
+        // Only a proved conditional delete is kept: a failed probe reads as
+        // "not honoured", so it is tried again at the next interval.
+        if state.descriptors.is_none() && (self.parts.probe)() == DeleteMode::Conditional {
+            state.descriptors = DescriptorStore::new(
+                Arc::clone(&self.parts.store),
+                &self.parts.base,
+                DeleteMode::Conditional,
+            )
+            .ok();
+        }
+        let Some(descriptors) = state.descriptors.as_ref() else {
             return report;
         };
         // ALLOC: one buffer a sweep, buffer_bytes, reserved above.

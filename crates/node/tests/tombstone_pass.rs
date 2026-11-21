@@ -6,7 +6,7 @@
 #![cfg(feature = "writer")]
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::atomic::{AtomicI64, AtomicUsize, Ordering};
 
 use oss_blob::{BlobStore, Emulator, S3Op};
 use oss_format::{IndexRecord, NodeLease};
@@ -23,6 +23,8 @@ struct Rig {
     store: Arc<Emulator>,
     now: Arc<AtomicI64>,
     live: Vec<NodeLease>,
+    /// How many times a pass asked whether the store honours a conditional delete.
+    probes: Arc<AtomicUsize>,
 }
 
 fn lease(id: &str) -> NodeLease {
@@ -42,6 +44,7 @@ fn rig(ids: &[&str]) -> Rig {
         store: Arc::new(Emulator::new(64 << 20, 1)),
         now: Arc::new(AtomicI64::new(T0 + DEFAULT_QUARANTINE_MILLIS + 2 * EVERY)),
         live: ids.iter().map(|id| lease(id)).collect(),
+        probes: Arc::new(AtomicUsize::new(0)),
     }
 }
 
@@ -53,6 +56,7 @@ impl Rig {
     fn pass_probing(&self, node: &str, every: i64, pool: usize, mode: DeleteMode) -> TombstonePass {
         let store: Arc<dyn BlobStore> = self.store.clone();
         let clock = Arc::clone(&self.now);
+        let probes = Arc::clone(&self.probes);
         TombstonePass::new(
             TombstoneParts {
                 store,
@@ -65,7 +69,10 @@ impl Rig {
                 ),
                 buffer_bytes: 1 << 16,
                 every_millis: every,
-                probe: Box::new(move || mode),
+                probe: Box::new(move || {
+                    probes.fetch_add(1, Ordering::SeqCst);
+                    mode
+                }),
             },
             Box::new(move || clock.load(Ordering::SeqCst)),
         )
@@ -259,4 +266,75 @@ fn the_role_moves_to_the_next_node_when_the_sweeper_leaves() {
     let report = next.run(&r.live);
     assert!(report.designated && report.swept, "{report:?}");
     assert_eq!(report.removed, 1);
+}
+
+#[test]
+fn the_probe_runs_only_when_a_sweep_is_due_here_and_once_it_proves_the_delete() {
+    let ids = ["node-1", "node-2"];
+    let me = sweeper(&ids);
+    let other = ids.iter().copied().find(|id| *id != me).expect("another");
+    let r = rig(&ids);
+    // Off, not the sweeper, not yet due: no probe, however many passes.
+    let off = r.pass(&me, 0, 64 << 20);
+    let not_me = r.pass(other, EVERY, 64 << 20);
+    let pass = r.pass(&me, EVERY, 64 << 20);
+    for _ in 0..3 {
+        off.run(&r.live);
+        r.advance(EVERY);
+        not_me.run(&r.live);
+    }
+    assert_eq!(r.probes.load(Ordering::SeqCst), 0);
+    let fresh = r.pass(&me, EVERY, 64 << 20);
+    assert!(!fresh.run(&r.live).due);
+    assert_eq!(r.probes.load(Ordering::SeqCst), 0);
+    // Due twice: proved at the first, so asked once.
+    r.advance(EVERY);
+    assert!(fresh.run(&r.live).swept);
+    r.advance(EVERY);
+    assert!(fresh.run(&r.live).swept);
+    assert_eq!(r.probes.load(Ordering::SeqCst), 1);
+    drop(pass);
+}
+
+#[test]
+fn a_store_that_did_not_prove_the_delete_is_probed_again_next_interval() {
+    let ids = ["node-1", "node-2"];
+    let r = rig(&ids);
+    let pass = r.pass_probing(&sweeper(&ids), EVERY, 64 << 20, DeleteMode::Tombstone);
+    for n in 1..=3 {
+        r.advance(EVERY);
+        assert!(!pass.run(&r.live).swept);
+        assert_eq!(r.probes.load(Ordering::SeqCst), n);
+    }
+}
+
+#[test]
+fn the_probe_the_node_runs_costs_what_the_table_says() {
+    let store = Emulator::new(64 << 20, 1);
+    let before = [
+        S3Op::Get,
+        S3Op::GetRange,
+        S3Op::Put,
+        S3Op::List,
+        S3Op::Delete,
+    ]
+    .into_iter()
+    .map(|op| store.meter().count(op))
+    .sum::<u64>();
+    assert_eq!(DeleteMode::probe(&store, ""), DeleteMode::Conditional);
+    let after = [
+        S3Op::Get,
+        S3Op::GetRange,
+        S3Op::Put,
+        S3Op::List,
+        S3Op::Delete,
+    ]
+    .into_iter()
+    .map(|op| store.meter().count(op))
+    .sum::<u64>();
+    budget::check(
+        "janitor.tombstone_sweep.probe.requests",
+        after - before,
+        "the conditional-delete probe, paid once by the sweeper",
+    );
 }
