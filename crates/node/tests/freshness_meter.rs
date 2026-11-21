@@ -162,6 +162,12 @@ fn a_write_is_visible_on_the_other_nodes_within_the_shells_bar() {
     println!("FRESHMETER|visibility={tail}");
     cluster.set("OSS_TAIL_OVERLAY", "true");
     cluster.set("OSS_REFRESH_VISIBILITY", &tail);
+    // `METER_REFRESH_MS`: how often each node reads the fleet's leases;
+    // unset, a third of the lease lifetime.
+    if let Ok(ms) = std::env::var("METER_REFRESH_MS") {
+        println!("FRESHMETER|lease refresh={ms} ms");
+        cluster.set("OSS_LEASE_REFRESH_MS", &ms);
+    }
     for id in ["n1", "n2", "n3"] {
         cluster.add(id);
     }

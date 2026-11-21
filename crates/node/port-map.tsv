@@ -93,3 +93,5 @@ src/tail_fresh.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/
 src/boot/tail.rs	new		the tail actions listed on the transport server before it binds, and their handlers given once the node is assembled
 src/writer/snapshot.rs	new		the files of a commit held apart from the engine directory so a publish uploads them after the shard lock is let go; the shell publishes from the Lucene commit's immutable files
 src/writer/proactive.rs	new		the take of the shards a dead node's write log names, by designated reapers, before a write asks (ADR 0021); the shell finds them by listing a per-node claims folder
+src/boot/join.rs	new		what a node does once enrolled: read the fleet, then announce itself; the Java learns of a join at its next lease read
+src/lease_announce.rs	new		the joiner announces itself and a peer reads the fleet once; the Java has no such action

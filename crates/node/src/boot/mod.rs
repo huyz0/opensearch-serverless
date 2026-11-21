@@ -6,6 +6,7 @@
 //! cost a handover and never a write.
 
 mod config;
+mod join;
 mod renew;
 mod support;
 mod tail;
@@ -13,7 +14,7 @@ mod transport;
 
 use std::net::TcpListener;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use oss_cluster::heads::ShardHeadStore;
 use oss_cluster::transport_secret::{CachedTransportSecrets, TransportSecretStore};
@@ -39,7 +40,6 @@ use crate::forward::BulkForwarder;
 use crate::handlers::Registry;
 use crate::health_route::StoreHealth;
 use crate::index_cache::IndexCache;
-use crate::push_link::Leases;
 use crate::read_forward::{GetForwarder, GetHandler};
 use crate::writer::{
     DeadLogParts, DeadLogPass, DeadMailbox, DeadSnapshot, DescriptorIncarnation, HeadAdmission,
@@ -47,8 +47,8 @@ use crate::writer::{
 };
 
 pub use config::{MIN_MEMORY_BYTES, NodeConfig, StoreChoice};
-use renew::Renewal;
-use support::{address_bytes, earlier_epochs, store_of};
+use renew::{Cadence, Renewal};
+use support::{Held, address_bytes, earlier_epochs, store_of};
 
 /// The roles a node's lease names.
 const ROLES: [&str; 2] = ["ingest", "search"];
@@ -153,16 +153,6 @@ impl Drop for Node {
     }
 }
 
-/// The leases this node holds, for the forwarder.
-#[derive(Clone)]
-struct Held(Arc<Membership>);
-
-impl Leases for Held {
-    fn current(&self) -> Arc<[NodeLease]> {
-        self.0.current()
-    }
-}
-
 impl IndexSource for DescriptorRoutes {
     fn index(&self, name: &str) -> Option<oss_writer::bulk::IndexInfo> {
         Routes::index(self, name)
@@ -243,6 +233,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     registry
         .add(GET_ACTION, late_get)
         .map_err(|e| BootError::Cluster(e.to_string()))?;
+    join::register(&mut registry, &membership).map_err(|e| BootError::Cluster(e.to_string()))?;
     let mut handlers = registry.into_handlers();
     let tail_slots = tail::Slots::list(&mut handlers);
     let transport_server = TransportServer::bind(
@@ -413,7 +404,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         &mut assembled,
         config,
         &tail_slots,
-        client,
+        Arc::clone(&client),
         Arc::clone(&auth),
         &membership,
         Arc::clone(&clock),
@@ -431,6 +422,8 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     late_get_slot.set(get_handler).ok();
     // Enrolled last: a peer that sees the lease can reach everything it names.
     membership.renew(&lease_for_enrolment).map_err(cluster)?;
+    join::announce(&membership, client, &auth, &config.node_id, &ephemeral)
+        .map_err(|e| BootError::Cluster(format!("lease announce thread: {e}")))?;
     let listener = TcpListener::bind(config.http)
         .map_err(|e| BootError::Bind(format!("{}: {e}", config.http)))?;
     let role = Arc::clone(&assembled.role);
@@ -446,11 +439,16 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     let renewing = Arc::clone(&membership);
     let proactive = support::proactive_takeover(config, role, predecessors);
     let taking_clock = Arc::clone(&clock);
-    let renewal = Renewal::spawn(config.renew_every(), move || {
-        // A failed tick is retried by the next: the lease only has to land
-        // once in a lifetime.
-        let _ = keeper.renew(&committer);
-        if let Ok(refreshed) = renewing.refresh() {
+    let mut cadence = Cadence::new(config.renew_every(), config.refresh_every(), Instant::now());
+    let renewal = Renewal::spawn(cadence.tick_every(), move || {
+        let now = Instant::now();
+        if cadence.renew_due(now) {
+            let _ = keeper.renew(&committer);
+        }
+        if cadence.refresh_due(now)
+            && let Ok(refreshed) = renewing.refresh()
+        {
+            cadence.refreshed(now);
             proactive.on_refresh(&refreshed, taking_clock.now_millis());
             posting.post(DeadSnapshot {
                 live: refreshed.live,

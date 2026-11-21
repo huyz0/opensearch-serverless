@@ -4,11 +4,13 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use oss_blob::{BlobStore, Credentials, FsStore, S3Config, S3Store};
+use oss_cluster::lease::Membership;
 use oss_format::{NodeLease, NodeLogEpoch};
 
 use oss_writer::takeover::Predecessors;
 
 use super::{BootError, NodeConfig, StoreChoice, cluster};
+use crate::push_link::Leases;
 use crate::writer::{ProactiveConfig, ProactiveTakeover, WriterRole};
 
 /// The buffer a lease register is read through.
@@ -85,4 +87,14 @@ pub(super) fn proactive_takeover(
         role,
         predecessors,
     ))
+}
+
+/// The leases this node holds, for the forwarder.
+#[derive(Clone)]
+pub(super) struct Held(pub(super) Arc<Membership>);
+
+impl Leases for Held {
+    fn current(&self) -> Arc<[NodeLease]> {
+        self.0.current()
+    }
 }
