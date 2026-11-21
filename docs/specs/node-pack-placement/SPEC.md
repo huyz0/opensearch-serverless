@@ -8,7 +8,7 @@ Parity plan R11 (node packs), [ADR 0024](../../adr/0024-node-packs-in-the-writer
 
 - `ShardPublisher::use_packs(Some(PackPlacement))` sends a publish's small segment blobs (header plus files at most `max_blob_bytes`) to the node's `PackWriter`, all of one publish in the same pack, and records each file's manifest location as `@<node>/e=<epoch>/<ordinal>#<offset>:<length>`. `None`, the default, is the publisher as before. The choice is made per publish, so a later switch of a setting acts at the next publish.
 - Larger blobs, empty files and everything when packs are off keep their own blobs as before.
-- **Swap deadline:** a publish whose pack was asked for more than `SWAP_DEADLINE` (5 minutes) before its register swap is refused with `PublishError::PackExpired` before the swap, writing no register; the next publish packs the files anew. The age counts from before the pack was asked for, on the monotonic clock, so it never undercounts.
+- **Swap deadline:** a publish whose pack was asked for more than `SWAP_DEADLINE` (5 minutes) before its register swap is refused with `PublishError::PackExpired` before the swap, writing no register; the next publish packs the files anew. The age counts from before the pack was asked for, on `Instant` (`CLOCK_MONOTONIC`, which does not advance while a VM or container is suspended, so across a freeze it can undercount); [ADR 0025](../../adr/0025-node-pack-collection.md) moves the check to a suspend-aware clock and bounds the swap call itself before the switch can be on.
 - Not changed: no setting yet (the node's wiring and the settings come next, off by default), no collector ([ADR 0024](../../adr/0024-node-packs-in-the-writer.md) keeps the switch off until its own ADR), and no change to any publish without a placement.
 
 ## Acceptance criteria
@@ -33,4 +33,4 @@ A publish of `n` small segments of one shard with packs on: 1 pack PUT (shared w
 
 ## Risks
 
-A pack deleted before its manifest is swapped: the deadline check bounds the age but has a residual window while a writer is paused between the check and the swap; the collector's ADR must close it. A reader that cannot follow a node-packed location: AC-5 and the Java-pack fixtures in `crates/format` hold it.
+A pack deleted before its manifest is swapped: the deadline check bounds the age but has a residual window while a writer is paused between the check and the swap; [ADR 0025](../../adr/0025-node-pack-collection.md) states the bounded-pause assumption it rests on; no lease fences a paused writer here. A reader that cannot follow a node-packed location: AC-5 and the Java-pack fixtures in `crates/format` hold it.
