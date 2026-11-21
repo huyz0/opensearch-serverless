@@ -5,9 +5,9 @@
 
 pub use lucene_aggs::bucket_aggs::{DateRounding, DateUnit, RoundingKind};
 
-use crate::aggs::bucket::BUCKET_LIMIT;
 use crate::aggs::bucket::count_order::sort_by_count;
 use crate::aggs::bucket::histogram::HistogramOrder;
+use crate::aggs::bucket::running;
 use crate::aggs::bucket::sub_values::{BucketSubs, reduce_keyed};
 use crate::aggs::partial::Value;
 
@@ -81,7 +81,16 @@ pub fn reduce(parts: &[Value]) -> Option<Value> {
     if results.is_empty() {
         return None;
     }
-    let reduced = reduce_results(&results, BUCKET_LIMIT).ok()?;
+    let reduced = match reduce_results(&results, running::remaining()) {
+        Ok(reduced) => reduced,
+        Err(made) => {
+            running::add(made);
+            return None;
+        }
+    };
+    if !running::add(reduced.buckets.len()) {
+        return None;
+    }
     // ALLOC: one box a `date_histogram`, bounded by the request's.
     Some(Value::DateHistogram(Box::new(reduced)))
 }

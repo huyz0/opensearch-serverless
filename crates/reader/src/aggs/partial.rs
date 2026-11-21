@@ -103,6 +103,20 @@ pub struct Partial {
 /// when there are none, they are not all the same kind, or two sketches'
 /// precisions differ (which OpenSearch refuses).
 pub fn reduce(parts: &[Value]) -> Option<Value> {
+    // The reduce of one value; `reduce_total` is the entry that counts a tree.
+    reduce_one(parts)
+}
+
+/// The reduce of the shard results `parts` of one aggregation with a running
+/// bucket total over its whole tree: `Err` holds the bucket count reached when
+/// a level passed `search.max_buckets`, `Ok(None)` is what [`reduce`] answers
+/// `None` for.
+pub fn reduce_total(parts: &[Value]) -> Result<Option<Value>, usize> {
+    let (reduced, over) = super::bucket::running::scoped(|| reduce_one(parts));
+    over.map_or(Ok(reduced), Err)
+}
+
+fn reduce_one(parts: &[Value]) -> Option<Value> {
     match parts.first()? {
         Value::Cardinality(_) => reduce_cardinality(parts),
         Value::Percentiles { .. } => reduce_percentiles(parts),

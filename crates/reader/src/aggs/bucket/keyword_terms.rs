@@ -4,6 +4,7 @@
 
 use std::io::{self, Write};
 
+use crate::aggs::bucket::running;
 use crate::aggs::bucket::sub_values::{reduce_sub, write_subs};
 use crate::aggs::bucket::terms::{TermsSpec, compare, shard_error};
 use crate::aggs::partial::{Format, Value};
@@ -45,8 +46,12 @@ pub fn reduce(parts: &[Value]) -> Option<Value> {
     if results.is_empty() {
         return None;
     }
+    let reduced = reduce_results(&results);
+    if !running::add(reduced.buckets.len()) {
+        return None;
+    }
     // ALLOC: one box a `terms`, bounded by the request's.
-    Some(Value::KeywordTerms(Box::new(reduce_results(&results))))
+    Some(Value::KeywordTerms(Box::new(reduced)))
 }
 
 /// The final reduce of `parts`, which are not empty, of one aggregation:

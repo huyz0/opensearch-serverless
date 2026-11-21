@@ -11,10 +11,13 @@ use std::sync::Mutex;
 use std::time::Instant;
 
 use oss_blob::BlobStore;
+use oss_coordinator::reduce::aggs::AggsError;
 use oss_coordinator::reduce::hits::SortSpec;
 use oss_coordinator::search::{Params, SearchFailure, Shards, search};
 use oss_format::PointInTime;
 use oss_mem::{Pool, Reservation};
+use oss_reader::aggs::bucket::BUCKET_LIMIT;
+use oss_reader::aggs::bucket::terms_collect::too_many_buckets;
 use oss_reader::dsl::{SearchSource, SortKey};
 use oss_reader::failure::{Failure, SearchError};
 use oss_reader::search::Hits;
@@ -212,6 +215,10 @@ pub(super) fn refusal(failure: SearchFailure<ShardError>) -> Box<SearchError> {
             400,
             Failure::plain("illegal_argument_exception", e.to_string()),
         ),
+        SearchFailure::Aggs(AggsError::TooManyBuckets { made }) => {
+            let refused = too_many_buckets(made, BUCKET_LIMIT);
+            (refused.status, refused.failure)
+        }
         SearchFailure::Aggs(e) => (
             501,
             // ALLOC: error path; one message.

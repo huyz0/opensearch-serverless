@@ -4,8 +4,8 @@
 
 use std::cmp::Ordering;
 
-use crate::aggs::bucket::BUCKET_LIMIT;
 use crate::aggs::bucket::count_order::sort_by_count;
+use crate::aggs::bucket::running;
 use crate::aggs::bucket::sub_values::{BucketSubs, reduce_keyed};
 use crate::aggs::partial::Value;
 
@@ -112,7 +112,16 @@ pub fn reduce(parts: &[Value]) -> Option<Value> {
     if results.is_empty() {
         return None;
     }
-    let reduced = reduce_results(&results, BUCKET_LIMIT).ok()?;
+    let reduced = match reduce_results(&results, running::remaining()) {
+        Ok(reduced) => reduced,
+        Err(made) => {
+            running::add(made);
+            return None;
+        }
+    };
+    if !running::add(reduced.buckets.len()) {
+        return None;
+    }
     // ALLOC: one box a `histogram`, bounded by the request's.
     Some(Value::Histogram(Box::new(reduced)))
 }
