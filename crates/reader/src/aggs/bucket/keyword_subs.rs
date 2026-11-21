@@ -15,6 +15,7 @@ use crate::aggs::bucket::keyword_collect::{self, Parent};
 use crate::aggs::bucket::keyword_terms::KeywordTermsResult;
 use crate::aggs::bucket::sub_values::SubValues;
 use crate::aggs::bucket::terms::TermsSpec;
+use crate::aggs::bucket::{nested_subs, with_subs};
 use crate::aggs::metric::collect::{Resolved, node as metric_node, resolve, value_of};
 use crate::aggs::metric::{DEFAULT_PRECISION, Metric, MetricAgg};
 use crate::aggs::partial::{Format, Value};
@@ -104,7 +105,12 @@ pub fn sub_nodes<S: BlobStore + 'static>(
     let mut subs = Vec::with_capacity(agg.subs.len());
     for (sub, r) in agg.subs.iter().zip(resolved(agg, shard)?) {
         match r {
-            Resolved::Numeric(_) => subs.push(metric_node(sub, DEFAULT_PRECISION)),
+            Resolved::Numeric(_) => {
+                let mut made = metric_node(sub, DEFAULT_PRECISION);
+                // A bucket aggregation carries its own sub-aggregations.
+                with_subs::attach(&mut made, sub, shard, ords)?;
+                subs.push(made);
+            }
             Resolved::Keyword => subs.push(node(sub, shard, ords)?),
             Resolved::Unmapped | Resolved::Queries => {}
         }
@@ -177,6 +183,9 @@ fn build<S: BlobStore + 'static>(
     result: Option<AggResult>,
     owners: usize,
 ) -> Result<Vec<Value>, ShardError> {
+    if nested_subs::is_nested(agg) {
+        return nested_subs::build(agg, shard, result, owners);
+    }
     if agg.metric != Metric::Terms {
         let states = match result {
             Some(AggResult::Metric(states)) => states,

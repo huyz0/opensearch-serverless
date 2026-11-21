@@ -161,3 +161,5 @@ src/search_options.rs	new		the search options this node serves only in some comb
 src/search_post_filter.rs	port	server/src/main/java/org/opensearch/search/query/QueryPhase.java@3.10.0	post_filter: the hits query holds the filter unscored, the aggregations keep the query
 src/aggs/bucket/running.rs	port	server/src/main/java/org/opensearch/search/aggregations/MultiBucketConsumerService.java@3.10.0	the running bucket count of one reduce against search.max_buckets (MultiBucketConsumer.accept), over every level of a nested aggregation
 src/aggs/bucket/running_tests.rs	new		tests of the running bucket total and of a reduce that passes it
+src/aggs/bucket/nested_subs.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/BucketsAggregator.java@3.10.0	a bucket aggregation under a bucket: each owning bucket's value from the engine's flattened result (BucketsAggregator.buildSubAggsForBuckets) and its reservation
+src/aggs/bucket/nested_tests.rs	new		tests of a bucket aggregation under a bucket on a real index
