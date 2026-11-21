@@ -23,6 +23,7 @@ pub mod percentiles;
 pub mod render;
 pub mod tdigest;
 pub mod top_hits;
+pub mod top_hits_sub;
 
 pub use crate::aggs::partial::{Format, Partial, Value};
 pub use collect::collect;

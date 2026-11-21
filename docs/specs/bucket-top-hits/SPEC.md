@@ -8,7 +8,7 @@ Parity plan R10: a `top_hits` as the sub-aggregation of a bucket aggregation, th
 
 The engine (lucene-aggs `AggNode::TopHits` and `SortedTopHits`) already keeps a collector for each owning bucket, so this is the reader and coordinator work around it, in four slices, each its own PR:
 
-1. **Shard.** `top_hits` is accepted under `terms`, `histogram`, `date_histogram`, `range`, `filters` and `filter`; the sub values of every bucket type build a `Value::TopHits` from the engine's per-bucket hits (documents and scores or sort values, with the hits ahead of `from` kept as the top-level result does).
+1. **Shard** (done, unreachable until slice 3 lifts the parser's refusal; tested over `terms`, `histogram`, `range` and `filters`; `explain` and `highlight` under a bucket are refused; a sort's refusal names the index uuid). `top_hits` is accepted under `terms`, `histogram`, `date_histogram`, `range`, `filters` and `filter`; the sub values of every bucket type build a `Value::TopHits` from the engine's per-bucket hits (documents and scores or sort values, with the hits ahead of `from` kept as the top-level result does).
 2. **Shard response.** A shard's own response writes each bucket's hits (a one-shard search is a valid response), with one stored-field prefetch over every list the response writes.
 3. **Reduce.** The coordinator merges a bucket's `top_hits` across the shards that hold the bucket (matched by key, as the buckets are), then fetches each bucket's page from the shards that ranked it. `reduce_sub` stops answering the first shard's value for a `top_hits`.
 4. **Fixtures and docs.** Compatibility notes and the fixtures of slices 1 to 3.

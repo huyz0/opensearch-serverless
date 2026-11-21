@@ -194,7 +194,7 @@ fn collect_terminated<S: BlobStore + 'static>(
     })
 }
 
-fn sorted_hit(h: &FieldDoc, kinds: &[KeyKind], score_at: Option<usize>) -> Hit {
+pub(crate) fn sorted_hit(h: &FieldDoc, kinds: &[KeyKind], score_at: Option<usize>) -> Hit {
     let value = |i: usize| h.values.get(i).copied().unwrap_or(0);
     let score_of = |i: usize| f32::from_bits(u32::try_from(value(i)).unwrap_or(0));
     let sort = kinds
