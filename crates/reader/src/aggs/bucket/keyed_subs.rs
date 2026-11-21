@@ -117,7 +117,7 @@ pub fn value<S: BlobStore + 'static>(
 
 /// How many values `field` holds across `shard`'s segments, from their
 /// metadata: a document with several values lands in a bucket for each.
-fn values<S: BlobStore + 'static>(shard: &OpenShard<S>, field: &str) -> usize {
+pub(super) fn values<S: BlobStore + 'static>(shard: &OpenShard<S>, field: &str) -> usize {
     let mut total = 0usize;
     for segment in shard.reader.segment_readers() {
         let Some(info) = segment
