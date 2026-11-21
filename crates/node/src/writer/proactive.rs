@@ -179,8 +179,7 @@ impl ProactiveTakeover {
         }
     }
 
-    /// Refuses a log header over `bytes` instead of the default
-    /// [`MAX_HEADER_BYTES`].
+    /// Refuses a log header over `bytes` instead of the default 8 MiB.
     #[must_use]
     pub fn with_max_header_bytes(mut self, bytes: u64) -> Self {
         self.max_header_bytes = bytes;
