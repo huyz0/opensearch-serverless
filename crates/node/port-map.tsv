@@ -87,3 +87,5 @@ src/search_analyze.rs	port	server/src/main/java/org/opensearch/action/admin/indi
 src/index_cache.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/metadata/ServerlessIndexResolver.java	the routing cache of an index, confirmed by the change stripes
 src/boot/support.rs	new		the store a configuration names, the epochs an earlier process left and the id bytes of a node
 src/forward_call.rs	new		the signed call both forwarders share: owner lease lookup, encode, sign, send; the Java signs inside each forwarded action
+src/tail_await.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/transport/TailPush.java@429b4cbc	awaitSearchNodes: wait for the pushed-to nodes, then out the grants of the ones lost
+src/tail_subscription.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/transport/TailPush.java@429b4cbc	Subscription and Serving: one reader subscription, its push numbering and confirmation
