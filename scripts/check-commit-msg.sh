@@ -6,8 +6,6 @@
 #   - feat, fix and perf commits carry a `Spec:` trailer naming an existing
 #     docs/specs/<feature>/SPEC.md, or `Spec: none (<reason>)` for a change
 #     too small to need one.
-#   - A subject starting `Merge ` or `Revert ` (any case) skips the subject and
-#     Spec rules; CI also skips merge commits entirely (`rev-list --no-merges`).
 #   - No AI attribution: no Co-Authored-By naming Claude or Anthropic, no
 #     Claude-Session trailer, no "Generated with Claude" footer (the owner's
 #     rule for every repository in the project).
@@ -23,7 +21,7 @@ if grep -qiE '^Co-Authored-By:.*(claude|anthropic)|^Claude-Session:|Generated wi
   exit 1
 fi
 
-if printf '%s' "$subject" | grep -qiE '^(merge|revert) '; then
+if printf '%s' "$subject" | grep -qE '^(Merge|Revert) '; then
   exit 0
 fi
 
