@@ -24,6 +24,8 @@ Nothing calls it yet.
 - AC-6: an answer that leaves no grant (not complete) is compared with its claim without a second ask.
 - AC-7: what is asked follows the engine and the subscription held (`CHECK`, `NEW`, the held id; another writer's grant is none; a skipped record or a refusing shard asks `CHECK`).
 
+- AC-8: with grants off, a search takes what is held first only when the check is set to apply (the `serving` visibility, whose writer waits for those records to be taken), and asks nothing; otherwise it does neither.
+
 ## Test plan
 
 `crates/node/tests/tail_fresh.rs` with a scripted fetcher and a clock set by the test.

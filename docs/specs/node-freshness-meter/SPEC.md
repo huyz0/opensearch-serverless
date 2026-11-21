@@ -2,7 +2,7 @@
 
 ## Serves
 
-Parity plan R9.4 (freshness meter): ack-to-visible p99 within 5% of the Java shell. Builds on the tail overlay in a booted node ([node-boot-tail](../node-boot-tail/SPEC.md)) and the `OSS_TAIL_OVERLAY` setting. Not here: the write route waiting for readers on `refresh=true`, which another piece owns.
+Parity plan R9.4 (freshness meter): ack-to-visible p99 within 5% of the Java shell. Builds on the tail overlay in a booted node ([node-boot-tail](../node-boot-tail/SPEC.md)) and the `OSS_TAIL_OVERLAY` setting. The write route's wait is [node-refresh-wait](../node-refresh-wait/SPEC.md).
 
 ## Change
 
@@ -20,7 +20,7 @@ The Java reference is the shell's `REFRESHMETER` run of 2026-11-12 on the same l
 - AC-1: the meter indexes N documents per series through one node and counts each by a search on each of the two other nodes; a document not counted by both nodes within 10 s fails the test.
 - AC-2: the printed percentiles are nearest-rank over the samples taken: p99 of 100 samples is the 99th smallest.
 - AC-3: `refresh=false` documents are visible within the bar: visible p99 <= 1.05 x 528.9 ms.
-- AC-4: `refresh=true` documents are visible within the same bar, and the line reports the misses; the miss count is printed, and a nonzero count fails the test once the write route waits (until then it is reported, never hidden, in the line and in VERIFIED.md).
+- AC-4: `refresh=true` documents are visible within the same bar, and the line reports the misses; the miss count is printed, and under `serving` and `everywhere` (where the write route waits for its readers) a nonzero count fails the test. `METER_TAIL` picks the refresh visibility the cluster boots with (default `everywhere`); under `owner` the misses are reported, not asserted.
 - AC-5: the meter writes only through the REST routes and reads only through them; it adds no hook to a node.
 
 ## Test plan
@@ -38,5 +38,4 @@ None: a test only. The overlay it runs with is `OSS_TAIL_OVERLAY`, off by defaul
 ## Risks
 
 - The emulator's tail (no 1-in-50 slow requests) is thinner than the shell's meter, so p99 here is flattering; every number is provisional (emulator, not RustFS).
-- `refresh=true` has no read-your-writes wait on the overlay yet; its misses are real and reported as measured.
 - The index is created with an explicit mapping. A booted node's overlay cannot build over an index whose fields are all dynamic: the commit carries no mapping, so the build refuses (`no mapper for field`) and readers see only published commits. The meter does not cover that case; it is a gap in the overlay builder, reported to the coordinator, not hidden here.
