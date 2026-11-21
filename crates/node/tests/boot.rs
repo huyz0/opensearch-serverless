@@ -56,6 +56,39 @@ fn config_with(
     config_tail(root, id, ttl, janitor_ms, None)
 }
 
+/// As `config_with`, with proactive takeover switched on.
+fn config_proactive(root: &std::path::Path, id: &str, ttl: &str, janitor_ms: &str) -> NodeConfig {
+    let root = root.display().to_string();
+    let lookup = |key: &str| {
+        Some(
+            match key {
+                "OSS_NODE_ID" => id,
+                "OSS_STORE" => "fs",
+                "OSS_FS_ROOT" => root.as_str(),
+                "OSS_HTTP_ADDR" => "127.0.0.1:0",
+                "OSS_TRANSPORT_ADDR" => "127.0.0.1:0",
+                "OSS_LEASE_TTL_MS" => ttl,
+                "OSS_JANITOR_EVERY_MS" => janitor_ms,
+                "OSS_PROACTIVE_TAKEOVER" => "true",
+                _ => return None,
+            }
+            .to_owned(),
+        )
+    };
+    NodeConfig::from_lookup(lookup).expect("valid")
+}
+
+/// The node the shard head of `logs` shard 0 names as its owner.
+fn head_owner(root: &std::path::Path) -> Option<String> {
+    let store = FsStore::new(root).expect("store");
+    let key = oss_cluster::heads::shard_head_key("", "logs", 0);
+    let mut buf = vec![0u8; 1 << 16];
+    let read = store.read_register(&key, &mut buf).expect("reads")?;
+    oss_format::ShardHead::parse(buf.get(..read.len)?)
+        .expect("parses")
+        .owner_node_id
+}
+
 /// As `config_with`, with the tail overlay setting and the refresh
 /// visibility named.
 fn config_tail(
@@ -299,6 +332,40 @@ fn a_booted_node_reaps_the_log_of_a_node_that_died() {
         log_blobs(dir.path(), "n1") > before
     });
     drop(second);
+}
+
+// docs/specs/proactive-takeover AC-2 and AC-1
+#[test]
+fn a_booted_node_takes_a_dead_nodes_shard_before_any_write_only_when_the_setting_is_on() {
+    for on in [false, true] {
+        let dir = TempDir::new("boot-proactive");
+        let first = start(&config(dir.path(), "n1", "3000")).expect("starts");
+        assert_eq!(call(&first, "PUT", "/logs", None).status, 200);
+        let wrote = call(&first, "PUT", "/logs/_doc/1", Some(r#"{"n":1}"#));
+        assert_eq!(wrote.status, 201, "{}", wrote.text());
+        assert_eq!(head_owner(dir.path()).as_deref(), Some("n1"));
+        first.crash();
+        let second = if on {
+            config_proactive(dir.path(), "n2", "3000", "100")
+        } else {
+            config_with(dir.path(), "n2", "3000", Some("100"))
+        };
+        let second = start(&second).expect("starts");
+        if on {
+            wait_for("n2 never took the shard", || {
+                head_owner(dir.path()).as_deref() == Some("n2")
+            });
+        } else {
+            // Long enough for the lease to lapse and a pass to have run.
+            std::thread::sleep(Duration::from_secs(5));
+            assert_eq!(
+                head_owner(dir.path()).as_deref(),
+                Some("n1"),
+                "off: untaken"
+            );
+        }
+        drop(second);
+    }
 }
 
 // docs/specs/node-boot-tail AC-1

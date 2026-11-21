@@ -305,6 +305,16 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         )),
         CommitterConfig::default(),
     ));
+    let takeover = Takeover::from_leases(
+        Arc::clone(&store),
+        &config.base,
+        &config.node_id,
+        i64::try_from(first_epoch).unwrap_or(i64::MAX),
+        REPLAY_BUFFER,
+    );
+    // The take pass reads a dead node's log through the same predecessors the
+    // opener uses, so a log is fenced once however a shard is taken.
+    let predecessors = Arc::clone(&takeover.predecessors);
     let opener = HeadOpener::new(
         Arc::clone(&heads),
         Arc::clone(&descriptors),
@@ -314,13 +324,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         &ephemeral,
         READ_BUFFER,
     )
-    .with_takeover(Takeover::from_leases(
-        Arc::clone(&store),
-        &config.base,
-        &config.node_id,
-        i64::try_from(first_epoch).unwrap_or(i64::MAX),
-        REPLAY_BUFFER,
-    ));
+    .with_takeover(takeover);
     // One cache of the indexes this node reads, shared by every route that
     // resolves one; its confirmations are the change stripes every node
     // records its descriptor changes in.
@@ -429,6 +433,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     membership.renew(&lease_for_enrolment).map_err(cluster)?;
     let listener = TcpListener::bind(config.http)
         .map_err(|e| BootError::Bind(format!("{}: {e}", config.http)))?;
+    let role = Arc::clone(&assembled.role);
     let running = assembled
         .start(listener, ServerConfig::default(), &budget)
         .map_err(BootError::Assemble)?;
@@ -439,11 +444,14 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     let mailbox = Arc::new(DeadMailbox::default());
     let posting = Arc::clone(&mailbox);
     let renewing = Arc::clone(&membership);
+    let proactive = support::proactive_takeover(config, role, predecessors);
+    let taking_clock = Arc::clone(&clock);
     let renewal = Renewal::spawn(config.renew_every(), move || {
         // A failed tick is retried by the next: the lease only has to land
         // once in a lifetime.
         let _ = keeper.renew(&committer);
         if let Ok(refreshed) = renewing.refresh() {
+            proactive.on_refresh(&refreshed, taking_clock.now_millis());
             posting.post(DeadSnapshot {
                 live: refreshed.live,
                 dead: refreshed.dead_with_epochs,
