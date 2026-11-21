@@ -12,6 +12,11 @@ use oss_writer::takeover::{HeadWriters, Predecessors};
 
 use super::Takeover;
 
+/// The most a dead node's log header may be, in bytes: a successor keeps
+/// every header it fences in memory, so a blob that claims more is refused
+/// and its shards are left to the lazy take.
+pub const MAX_HEADER_BYTES: u64 = 8 << 20;
+
 /// The most a lease register holds.
 const LEASE_BYTES: usize = 1 << 16;
 
@@ -62,7 +67,8 @@ impl Takeover {
                 return Ok(None);
             };
             let log = NodeLogStore::new(Arc::clone(&make_store), base.clone(), writer)
-                .map_err(TakeoverError::Log)?;
+                .map_err(TakeoverError::Log)?
+                .with_max_header(MAX_HEADER_BYTES);
             let again = Arc::clone(&make_store);
             let again_base = base.clone();
             // ALLOC: one name, once a predecessor a batch.
