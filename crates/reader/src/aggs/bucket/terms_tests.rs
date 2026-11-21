@@ -42,6 +42,7 @@ fn spec(size: usize, shard_size: usize, min: u64, order: TermsOrder) -> TermsSpe
         min_doc_count: min,
         order,
         keyword: Default::default(),
+        sub_order: None,
     }
 }
 
@@ -158,6 +159,27 @@ fn bad_options_fail_as_opensearch_fails_them() {
     );
 }
 
+// An order by a path is a sub-aggregation's: the shard checks the path.
+#[test]
+fn an_order_by_a_path_is_a_sub_aggregations() {
+    let (_, s) = spec_of(r#"{"field":"n","order":{"m.max":"asc"}}"#);
+    let order = s.sub_order.expect("by a sub-aggregation");
+    assert_eq!((order.path.as_str(), order.ascending), ("m.max", true));
+    let (_, s) = spec_of(r#"{"field":"n","order":{"_key":"desc"}}"#);
+    assert!(s.sub_order.is_none());
+    // The shard size is suggested, as for a count order.
+    let (_, s) = spec_of(r#"{"field":"n","size":4,"order":{"m":"desc"}}"#);
+    assert_eq!(s.shard_size, 16);
+    let body = r#"{"aggs":{"t":{"terms":{"field":"n","order":{"":"desc"}}}}}"#;
+    let e = parse_chunks([body.as_bytes()])
+        .expect_err("refused")
+        .into_failure();
+    assert_eq!(e.reason, "Invalid path []");
+    assert_eq!(e.kind, "illegal_argument_exception");
+    let r = reason(r#"{"field":"n","order":{"m[":"desc"}}"#);
+    assert!(r.contains("Invalid path element [m[] in path [m[]"), "{r}");
+}
+
 #[test]
 fn unserved_options_are_refused_as_not_supported_yet() {
     for key in [
@@ -170,7 +192,6 @@ fn unserved_options_are_refused_as_not_supported_yet() {
         r#""show_term_doc_count_error":true"#,
         r#""shard_min_doc_count":2"#,
         r#""order":[{"_count":"asc"},{"_key":"asc"}]"#,
-        r#""order":{"sub":"asc"}"#,
     ] {
         let r = reason(&format!(r#"{{"field":"n",{key}}}"#));
         assert!(

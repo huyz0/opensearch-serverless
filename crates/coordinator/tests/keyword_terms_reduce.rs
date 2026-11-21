@@ -16,6 +16,7 @@ fn shard(other: u64, buckets: &[(&str, u64)]) -> Vec<(String, Value)> {
                 min_doc_count: 1,
                 order: TermsOrder::CountDesc,
                 keyword: Default::default(),
+                sub_order: None,
             },
             other_doc_count: other,
             doc_count_error: 0,

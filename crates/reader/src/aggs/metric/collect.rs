@@ -164,6 +164,17 @@ pub(crate) fn resolve<S: BlobStore + 'static>(
             ),
         )));
     }
+    if agg.terms.as_ref().is_some_and(|t| t.sub_order.is_some()) {
+        return Err(bad_request(Failure::plain(
+            "illegal_argument_exception",
+            // ALLOC: error path; one message.
+            format!(
+                "an [order] by a sub-aggregation of the numeric field [{}] is not supported by \
+                 this node yet",
+                agg.field
+            ),
+        )));
+    }
     Ok(Resolved::Numeric(format))
 }
 
@@ -392,6 +403,7 @@ pub fn collect<S: BlobStore + 'static>(
         {
             return Err(refusal);
         }
+        keyword_subs::check_order(agg)?;
         resolved.push(resolve(agg, shard)?);
         crate::aggs::bucket::check_limits(agg)?;
         if agg.metric == Metric::Cardinality {
