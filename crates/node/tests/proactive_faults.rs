@@ -270,3 +270,121 @@ fn a_header_over_the_cap_is_refused_and_its_shards_stay_lazy() {
     }
     assert_eq!(two.role.held_shards().len(), 3);
 }
+
+/// After node-2's pass took the dead node's shard, node-2's dead-log pass
+/// collects the log: through the pass's readers or through its own. Returns
+/// the requests and the report of that collection.
+fn collect_after_a_pass(shared: bool) -> (u64, oss_node::writer::DeadLogReport) {
+    use oss_blob::BlobStore;
+    use oss_cluster::heads::ShardHeadStore;
+    use oss_cluster::{LeaseConfig, LivenessOracle, Membership, SystemClock};
+    use oss_mem::{BudgetConfig, MemoryBudget, Pool};
+    use oss_node::writer::{DeadLogParts, DeadLogPass, DeadSnapshot};
+
+    let c = cluster();
+    let one = first_writer(&c);
+    let (two, pass, predecessors) = reaper(&c, &one, "node-2", 2, config(true));
+    let lease = dead(&one);
+    assert_eq!(pass.pass(&lease).taken, 1);
+    // Everything the log held is published past.
+    two.role.refresh(&info(), 0).expect("published");
+    let dynstore: Arc<dyn BlobStore> = c.store.clone();
+    let membership = Arc::new(
+        Membership::new(
+            Arc::clone(&dynstore),
+            "",
+            Arc::new(Later),
+            LeaseConfig {
+                ttl_millis: 30_000,
+                max_members: 16,
+                conditional_deletes: false,
+            },
+        )
+        .expect("membership"),
+    );
+    let heads = Arc::new(
+        ShardHeadStore::new(
+            Arc::clone(&dynstore),
+            "",
+            Arc::new(Later),
+            30_000,
+            Arc::new(LivenessOracle::new(Arc::clone(&membership))),
+        )
+        .expect("heads"),
+    );
+    let _ = SystemClock;
+    let collecting = DeadLogPass::new(
+        DeadLogParts {
+            membership,
+            heads,
+            descriptors: Arc::clone(&c.descriptors),
+            store: dynstore,
+            base: String::new(),
+            node_id: "node-2".to_owned(),
+            term: 2,
+            budget: MemoryBudget::new(
+                &BudgetConfig::new(256 << 20)
+                    .with_pool(Pool::RequestBodies, 64 << 20)
+                    .expect("pool"),
+            ),
+            buffer_bytes: 1 << 16,
+            first_wait_millis: 1_000,
+            predecessors: shared.then_some(predecessors),
+        },
+        Box::new(|| i64::MAX / 2),
+    );
+    let snapshot = DeadSnapshot {
+        live: refreshed(&["node-2"], lease.clone()).live,
+        dead: vec![lease],
+    };
+    let before = c.store.meter().total();
+    let report = collecting.run(&snapshot, false);
+    (c.store.meter().total() - before, report)
+}
+
+#[test]
+fn the_dead_log_pass_reuses_the_fence_the_proactive_pass_placed() {
+    let (own, own_report) = collect_after_a_pass(false);
+    let (shared, shared_report) = collect_after_a_pass(true);
+    assert_eq!(own_report.collected, 1, "{own_report:?}");
+    assert_eq!(shared_report.collected, 1, "{shared_report:?}");
+    eprintln!("requests to collect: own fence {own}, shared {shared}");
+    assert!(shared < own, "sharing saved no fence: {shared} vs {own}");
+}
+
+#[test]
+fn a_node_that_died_returned_and_died_again_is_read_by_its_new_epochs() {
+    let c = cluster();
+    let one = first_writer(&c);
+    let calls = Arc::new(AtomicUsize::new(0));
+    let take = takeover(&c, &one, &calls);
+    let epochs = dead(&one).node_log;
+    let made = || calls.load(std::sync::atomic::Ordering::SeqCst);
+    take.predecessors
+        .of_naming("node-1", &epochs)
+        .expect("made");
+    take.predecessors
+        .of_naming("node-1", &epochs)
+        .expect("kept");
+    assert_eq!(made(), 1, "the same epochs are the same log");
+    // A later trim point of the same epoch is still that log.
+    let mut trimmed = epochs.clone();
+    trimmed[0].trim = trimmed[0].trim.saturating_add(1);
+    take.predecessors
+        .of_naming("node-1", &trimmed)
+        .expect("kept");
+    assert_eq!(made(), 1);
+    // The node came back under the same id with a new epoch.
+    let mut again = epochs.clone();
+    again[0].epoch = again[0].epoch.saturating_add(10);
+    take.predecessors
+        .of_naming("node-1", &again)
+        .expect("remade");
+    assert_eq!(made(), 2);
+    // A collected log is forgotten.
+    take.predecessors.forget("node-1");
+    take.predecessors
+        .of_naming("node-1", &again)
+        .expect("remade");
+    assert_eq!(made(), 3);
+}

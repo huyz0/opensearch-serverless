@@ -441,7 +441,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     let mailbox = Arc::new(DeadMailbox::default());
     let posting = Arc::clone(&mailbox);
     let renewing = Arc::clone(&membership);
-    let proactive = support::proactive_takeover(config, role, predecessors);
+    let proactive = support::proactive_takeover(config, role, Arc::clone(&predecessors));
     let taking_clock = Arc::clone(&clock);
     let mut cadence = Cadence::new(config.renew_every(), config.refresh_every(), Instant::now());
     let renewal = Renewal::spawn(cadence.tick_every(), move || {
@@ -474,6 +474,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
             buffer_bytes: READ_BUFFER,
             first_wait_millis: i64::try_from(node_config.janitor_every.as_millis())
                 .unwrap_or(i64::MAX),
+            predecessors: Some(predecessors),
         },
         {
             let clock = Arc::clone(&clock);

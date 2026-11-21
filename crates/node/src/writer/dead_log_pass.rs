@@ -20,6 +20,7 @@ use oss_format::NodeLease;
 use oss_janitor::node_log::{Collected, Collector};
 use oss_mem::{MemoryBudget, Pool};
 use oss_meta::DescriptorStore;
+use oss_writer::takeover::Predecessors;
 
 use super::{StoreCommits, StoreNodeLogs};
 
@@ -121,18 +122,25 @@ pub struct DeadLogParts {
     pub buffer_bytes: usize,
     /// How long a log that is still needed waits before the first retry.
     pub first_wait_millis: i64,
+    /// The readers the node's takes share, when it takes: a log is then
+    /// fenced once however it is reached.
+    pub predecessors: Option<Arc<Predecessors>>,
 }
 
 impl DeadLogPass {
     /// A pass over `parts`, judging time by `clock`.
     pub fn new(parts: DeadLogParts, clock: Box<dyn Fn() -> i64 + Send + Sync>) -> Self {
+        let mut logs = StoreNodeLogs::new(
+            Arc::clone(&parts.store),
+            &parts.base,
+            &parts.node_id,
+            parts.term,
+        );
+        if let Some(shared) = parts.predecessors {
+            logs = logs.sharing(shared);
+        }
         Self {
-            logs: StoreNodeLogs::new(
-                Arc::clone(&parts.store),
-                &parts.base,
-                &parts.node_id,
-                parts.term,
-            ),
+            logs,
             commits: StoreCommits::new(parts.store, &parts.base),
             membership: parts.membership,
             heads: parts.heads,
@@ -201,6 +209,7 @@ impl DeadLogPass {
             let id = lease.node_id.as_str();
             match collector.collect(id, &mut buf) {
                 Ok(Collected::Collected) => {
+                    self.logs.forget(id);
                     waits.remove(id);
                     report.collected = report.collected.saturating_add(1);
                 }

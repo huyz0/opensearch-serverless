@@ -256,7 +256,7 @@ impl ProactiveTakeover {
     /// shard was taken or skipped.
     pub fn pass(&self, dead: &NodeLease) -> Report {
         let mut report = Report::default();
-        let Ok(Some(log)) = self.predecessors.of(&dead.node_id) else {
+        let Ok(Some(log)) = self.predecessors.of_naming(&dead.node_id, &dead.node_log) else {
             return report;
         };
         let named = match log.named_within(Some(self.max_header_bytes)) {

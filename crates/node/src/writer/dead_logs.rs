@@ -17,7 +17,7 @@ use oss_format::{NodeLogEpoch, ShardKey, ShardRef};
 use oss_janitor::JanitorError;
 use oss_janitor::node_log::{Commits, Committed, FencedLog, NodeLogs};
 use oss_writer::log::{NodeLogStore, NodeLogTakeover};
-use oss_writer::takeover::commit_checkpoint;
+use oss_writer::takeover::{Predecessors, commit_checkpoint};
 
 use super::predecessors::lease_epochs;
 
@@ -32,6 +32,7 @@ pub struct StoreNodeLogs {
     base: String,
     fenced_by: String,
     term: i64,
+    shared: Option<Arc<Predecessors>>,
 }
 
 impl StoreNodeLogs {
@@ -45,6 +46,24 @@ impl StoreNodeLogs {
             base: base.to_owned(),
             fenced_by: fenced_by.to_owned(),
             term,
+            shared: None,
+        }
+    }
+
+    /// Fences through `predecessors`, the readers the node's takes and its
+    /// proactive pass share, so a dead node's log is fenced once however it
+    /// is reached.
+    #[must_use]
+    pub fn sharing(mut self, predecessors: Arc<Predecessors>) -> Self {
+        self.shared = Some(predecessors);
+        self
+    }
+
+    /// Drops the shared reader of `node` once its log is collected, so a
+    /// node that returns under the same id is read afresh.
+    pub fn forget(&self, node: &str) {
+        if let Some(shared) = &self.shared {
+            shared.forget(node);
         }
     }
 
@@ -54,7 +73,7 @@ impl StoreNodeLogs {
 }
 
 /// A fenced log: what the takeover reader found.
-struct Fenced(NodeLogTakeover);
+struct Fenced(Arc<NodeLogTakeover>);
 
 impl FencedLog for Fenced {
     fn named(&self) -> Result<Vec<ShardKey>, JanitorError> {
@@ -79,6 +98,12 @@ impl NodeLogs for StoreNodeLogs {
         node: &str,
         epochs: &[NodeLogEpoch],
     ) -> Result<Box<dyn FencedLog + '_>, JanitorError> {
+        if let Some(shared) = &self.shared {
+            if let Some(takeover) = shared.of_naming(node, epochs).map_err(log_error)? {
+                takeover.fence_all().map_err(log_error)?;
+                return Ok(Box::new(Fenced(takeover)));
+            }
+        }
         let store = Arc::clone(&self.store);
         let base = self.base.clone();
         // ALLOC: one name, once a log fenced.
@@ -91,7 +116,7 @@ impl NodeLogs for StoreNodeLogs {
             Box::new(move || Ok(lease_epochs(store.as_ref(), &base, &again)?.unwrap_or_default())),
         );
         takeover.fence_all().map_err(log_error)?;
-        Ok(Box::new(Fenced(takeover)))
+        Ok(Box::new(Fenced(Arc::new(takeover))))
     }
 
     fn delete_range(&self, node: &str, epoch: u64, from: u64, to: u64) -> Result<(), JanitorError> {
