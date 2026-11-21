@@ -11,7 +11,8 @@ use oss_transport::auth::Authenticator;
 use oss_transport::client::Client;
 use oss_transport::server::{Handler, Handlers};
 
-use super::{BootError, Held, NodeConfig, transport::Late};
+use super::support::Held;
+use super::{BootError, NodeConfig, transport::Late};
 use crate::assemble::Assembled;
 use crate::tail_node::TailParts;
 use crate::writer::RefreshVisibility;

@@ -120,14 +120,14 @@ fn bad_bodies_fail_as_opensearch_fails_them() {
 
 #[test]
 fn a_bucket_sub_aggregation_is_refused_as_not_supported_yet() {
-    let body = r#"{"aggs":{"f":{"filters":{"filters":[{"match_all":{}}]},"aggs":{"h":{"range":{"field":"n","ranges":[{"to":5}]}}}}}}"#;
+    let body = r#"{"aggs":{"f":{"filters":{"filters":[{"match_all":{}}]},"aggs":{"h":{"filters":{"filters":[{"match_all":{}}]}}}}}}"#;
     let failure = parse_chunks([body.as_bytes()])
         .expect_err("refused")
         .into_failure();
     assert!(
         failure
             .reason
-            .contains("[range] sub-aggregation of a [filters]"),
+            .contains("[filters] sub-aggregation of a [filters]"),
         "{}",
         failure.reason
     );
@@ -225,14 +225,14 @@ fn a_malformed_filter_fails_as_a_malformed_query_does() {
 
 #[test]
 fn a_filter_refuses_a_bucket_sub_aggregation_as_not_supported_yet() {
-    let body = r#"{"aggs":{"f":{"filter":{"match_all":{}},"aggs":{"h":{"range":{"field":"n","ranges":[{"to":5}]}}}}}}"#;
+    let body = r#"{"aggs":{"f":{"filter":{"match_all":{}},"aggs":{"h":{"filters":{"filters":[{"match_all":{}}]}}}}}}"#;
     let failure = parse_chunks([body.as_bytes()])
         .expect_err("refused")
         .into_failure();
     assert!(
         failure
             .reason
-            .contains("[range] sub-aggregation of a [filter]"),
+            .contains("[filters] sub-aggregation of a [filter]"),
         "{}",
         failure.reason
     );

@@ -1,11 +1,17 @@
 //! The small reads and conversions a node start leans on.
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use oss_blob::{BlobStore, Credentials, FsStore, S3Config, S3Store};
+use oss_cluster::lease::Membership;
 use oss_format::{NodeLease, NodeLogEpoch};
 
-use super::{BootError, StoreChoice, cluster};
+use oss_writer::takeover::Predecessors;
+
+use super::{BootError, NodeConfig, StoreChoice, cluster};
+use crate::push_link::Leases;
+use crate::writer::{ProactiveConfig, ProactiveTakeover, WriterRole};
 
 /// The buffer a lease register is read through.
 const LEASE_BUFFER: usize = 1 << 16;
@@ -58,4 +64,37 @@ pub(super) fn address_bytes(node_id: &str) -> [u8; 6] {
     let h = oss_cluster::placement::murmur3(&[node_id]).to_be_bytes();
     let g = oss_cluster::placement::murmur3(&[node_id, "#"]).to_be_bytes();
     [h[0], h[1], h[2], h[3], g[0], g[1]]
+}
+
+/// The proactive take of a dead node's shards, off unless the setting is on.
+/// A pass runs on a thread of its own, so a slow take never delays a lease;
+/// it reads each dead log through the opener's `predecessors`, so a log is
+/// fenced once however a shard is taken.
+pub(super) fn proactive_takeover(
+    config: &NodeConfig,
+    role: Arc<WriterRole>,
+    predecessors: Arc<Predecessors>,
+) -> Arc<ProactiveTakeover> {
+    Arc::new(ProactiveTakeover::new(
+        &config.node_id,
+        ProactiveConfig {
+            enabled: config.proactive_takeover,
+            reapers: config.proactive_reapers,
+            max_concurrent: config.proactive_max_concurrent,
+            pass: Duration::from_millis(config.proactive_pass_millis),
+            stagger_millis: i64::try_from(config.renew_every().as_millis()).unwrap_or(i64::MAX),
+        },
+        role,
+        predecessors,
+    ))
+}
+
+/// The leases this node holds, for the forwarder.
+#[derive(Clone)]
+pub(super) struct Held(pub(super) Arc<Membership>);
+
+impl Leases for Held {
+    fn current(&self) -> Arc<[NodeLease]> {
+        self.0.current()
+    }
 }

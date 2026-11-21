@@ -157,11 +157,11 @@ fn parse_level(p: &mut Parser<'_>, level: usize) -> Result<Vec<MetricAgg>, DslEr
             if !holds_subs(agg.metric) {
                 return Err(sub_refusal(&agg, name));
             }
-            if let Some(sub) = definition
-                .subs
-                .iter()
-                .find(|s| !is_scalar(s.metric) && s.metric != Metric::Terms)
-            {
+            if let Some(sub) = definition.subs.iter().find(|s| {
+                !is_scalar(s.metric)
+                    && s.metric != Metric::Terms
+                    && !nests_under(s.metric, agg.metric)
+            }) {
                 // ALLOC: error path; one message.
                 return Err(DslError::unsupported(&format!(
                     "a [{}] sub-aggregation of a [{}] aggregation",
@@ -199,6 +199,25 @@ fn holds_subs(metric: Metric) -> bool {
             | Metric::Filter
             | Metric::Histogram
             | Metric::DateHistogram
+    )
+}
+
+/// Whether a bucket aggregation `sub` may sit under the bucket aggregation
+/// `parent`: a `range`, `histogram` or `date_histogram` under a `range`,
+/// `filters`, `filter`, `histogram`, `date_histogram` or `terms` (which the
+/// shard refuses for a keyword field) so far.
+fn nests_under(sub: Metric, parent: Metric) -> bool {
+    matches!(
+        sub,
+        Metric::Range | Metric::Histogram | Metric::DateHistogram
+    ) && matches!(
+        parent,
+        Metric::Range
+            | Metric::Filters
+            | Metric::Filter
+            | Metric::Histogram
+            | Metric::DateHistogram
+            | Metric::Terms
     )
 }
 

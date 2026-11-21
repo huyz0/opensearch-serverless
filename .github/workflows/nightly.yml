@@ -19,6 +19,7 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: "0"
+  LUCENE_RUST_DATA_CACHE: /home/runner/.cache/lucene-rust-data
   CARGO_PROFILE_DEV_DEBUG: line-tables-only
   CARGO_PROFILE_TEST_DEBUG: "0"
 
@@ -37,6 +38,13 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.job }}
+      # lucene-rust's build script downloads its data jars (hash-pinned) from
+      # Maven Central, which answers 429 to a busy runner pool: keep them.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/lucene-rust-data
+          key: lucene-rust-data-${{ hashFiles('Cargo.lock') }}
+          restore-keys: lucene-rust-data-
       - uses: taiki-e/install-action@v2
         if: matrix.job == 'coverage' || matrix.job == 'mutants' || matrix.job == 'fuzz'
         with:
@@ -55,8 +63,9 @@ jobs:
                             for t in oracle feed; do
                               cargo +nightly-2026-11-13 fuzz run --target x86_64-unknown-linux-gnu "$t" -- -max_total_time=600 || exit 1
                             done ;;
-            # ring's build script needs an aarch64 C compiler and linker.
-            clippy-aarch64) sudo apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu &&
+            # ring's and zstd's build scripts need an aarch64 C compiler, its libc
+            # headers, and a linker.
+            clippy-aarch64) sudo apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu libc6-dev-arm64-cross &&
                             rustup target add aarch64-unknown-linux-gnu &&
                             CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
                             CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
@@ -93,13 +102,20 @@ jobs:
       max-parallel: 4
       matrix:
         lane: [0, 1, 2, 3]
-    timeout-minutes: 65
+    timeout-minutes: 130
     steps:
       - uses: actions/checkout@v4
       - run: rustup show
       - uses: Swatinem/rust-cache@v2
         with:
           key: mutants
+      # lucene-rust's build script downloads its data jars (hash-pinned) from
+      # Maven Central, which answers 429 to a busy runner pool: keep them.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/lucene-rust-data
+          key: lucene-rust-data-${{ hashFiles('Cargo.lock') }}
+          restore-keys: lucene-rust-data-
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-mutants
@@ -110,7 +126,7 @@ jobs:
           slice=$(( (10#$(date -u +%j) * 4 + LANE) % 28 ))
           echo "mutants: slice $slice/28"
           set +e
-          MUTANTS_IN_PLACE=1 MUTANTS_BASELINE=run timeout 58m scripts/mutants.sh --all --shard "$slice/28" 2>&1 | tee "$RUNNER_TEMP/mutants.log"
+          MUTANTS_IN_PLACE=1 MUTANTS_BASELINE=run timeout 120m scripts/mutants.sh --all --shard "$slice/28" 2>&1 | tee "$RUNNER_TEMP/mutants.log"
           rc=${PIPESTATUS[0]}
           set -e
           if [ "$rc" -eq 124 ]; then

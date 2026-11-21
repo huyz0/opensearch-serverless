@@ -6,7 +6,7 @@ use oss_cluster::lease::Membership;
 use oss_transport::auth::Authenticator;
 use oss_transport::client::Client;
 
-use super::Held;
+use super::support::Held;
 use crate::handlers::{Duplicate, Registry};
 use crate::lease_announce::{ANNOUNCE_GAP, AnnounceHandler, Announcer, Fleet};
 

@@ -15,6 +15,7 @@ use crate::aggs::bucket::keyword_collect::{self, Parent};
 use crate::aggs::bucket::keyword_terms::KeywordTermsResult;
 use crate::aggs::bucket::sub_values::SubValues;
 use crate::aggs::bucket::terms::TermsSpec;
+use crate::aggs::bucket::{nested_subs, with_subs};
 use crate::aggs::metric::collect::{Resolved, node as metric_node, resolve, value_of};
 use crate::aggs::metric::{DEFAULT_PRECISION, Metric, MetricAgg};
 use crate::aggs::partial::{Format, Value};
@@ -27,25 +28,28 @@ fn spec_of(agg: &MetricAgg) -> TermsSpec {
 }
 
 /// Resolves each sub-aggregation of `agg` as a top-level one is resolved, so
-/// an unreadable field fails the shard. A numeric `terms` is refused.
+/// an unreadable field fails the shard. Under a keyword `terms`
+/// (`keyword_parent`) a numeric `terms` and a bucket aggregation are refused.
 fn resolved<S: BlobStore + 'static>(
     agg: &MetricAgg,
     shard: &OpenShard<S>,
+    keyword_parent: bool,
 ) -> Result<Vec<Resolved>, ShardError> {
     // ALLOC: one entry a sub-aggregation, bounded by the request's.
     let mut out = Vec::with_capacity(agg.subs.len());
     for sub in &agg.subs {
         let r = resolve(sub, shard)?;
-        if sub.metric == Metric::Terms && matches!(r, Resolved::Numeric(_)) {
+        let numeric_terms = sub.metric == Metric::Terms && matches!(r, Resolved::Numeric(_));
+        if keyword_parent && (numeric_terms || nested_subs::is_nested(sub)) {
             return Err(ShardError {
                 status: 400,
                 failure: Failure::plain(
                     "illegal_argument_exception",
                     // ALLOC: error path; one message.
                     format!(
-                        "a [terms] sub-aggregation of the numeric field [{}] is not supported by \
-                         this node yet",
-                        sub.field
+                        "a [{}] sub-aggregation of a keyword [terms] is not supported by this \
+                         node yet",
+                        sub.metric.name()
                     ),
                 ),
             });
@@ -88,23 +92,30 @@ pub fn node<S: BlobStore + 'static>(
     };
     let mut engine = keyword_collect::node(&agg.field, &spec, accepted);
     if let AggNode::Terms { subs, .. } = &mut engine {
-        *subs = sub_nodes(agg, shard, ords)?;
+        *subs = sub_nodes(agg, shard, ords, true)?;
     }
     Ok(engine)
 }
 
 /// The engine's node for each sub-aggregation of `agg`, in request order;
-/// an unmapped field's has none.
+/// an unmapped field's has none. `keyword_parent` is whether `agg` is a
+/// keyword `terms`.
 pub fn sub_nodes<S: BlobStore + 'static>(
     agg: &MetricAgg,
     shard: &OpenShard<S>,
     ords: &mut HashMap<String, std::sync::Arc<GlobalOrds>>,
+    keyword_parent: bool,
 ) -> Result<Vec<AggNode>, ShardError> {
     // ALLOC: one node a sub-aggregation, bounded by the request's.
     let mut subs = Vec::with_capacity(agg.subs.len());
-    for (sub, r) in agg.subs.iter().zip(resolved(agg, shard)?) {
+    for (sub, r) in agg.subs.iter().zip(resolved(agg, shard, keyword_parent)?) {
         match r {
-            Resolved::Numeric(_) => subs.push(metric_node(sub, DEFAULT_PRECISION)),
+            Resolved::Numeric(_) => {
+                let mut made = metric_node(sub, DEFAULT_PRECISION);
+                // A bucket aggregation carries its own sub-aggregations.
+                with_subs::attach(&mut made, sub, shard, ords)?;
+                subs.push(made);
+            }
             Resolved::Keyword => subs.push(node(sub, shard, ords)?),
             Resolved::Unmapped | Resolved::Queries => {}
         }
@@ -146,19 +157,25 @@ pub fn sub_values<S: BlobStore + 'static>(
     shard: &OpenShard<S>,
     subs: Vec<AggResult>,
     total: usize,
+    keyword_parent: bool,
 ) -> Result<SubValues, ShardError> {
     let mut engine = subs.into_iter();
     // ALLOC: one list a kept bucket, bounded by the buckets.
     let mut values: Vec<Vec<Value>> = vec![Vec::new(); total];
     // ALLOC: one entry a sub-aggregation, bounded by the request's.
     let mut meta = Vec::with_capacity(agg.subs.len());
-    for (sub, r) in agg.subs.iter().zip(resolved(agg, shard)?) {
+    for (sub, r) in agg.subs.iter().zip(resolved(agg, shard, keyword_parent)?) {
+        let numeric_terms = sub.metric == Metric::Terms && matches!(r, Resolved::Numeric(_));
         let (format, result) = match r {
             Resolved::Numeric(format) => (format, engine.next()),
             Resolved::Keyword => (Format::Raw, engine.next()),
             Resolved::Unmapped | Resolved::Queries => (Format::Raw, None),
         };
-        let made = build(sub, shard, result, total)?;
+        let made = if numeric_terms {
+            nested_subs::numeric_terms(sub, shard, result, total)?
+        } else {
+            build(sub, shard, result, total)?
+        };
         for (list, value) in values.iter_mut().zip(made) {
             list.push(value);
         }
@@ -177,6 +194,9 @@ fn build<S: BlobStore + 'static>(
     result: Option<AggResult>,
     owners: usize,
 ) -> Result<Vec<Value>, ShardError> {
+    if nested_subs::is_nested(agg) {
+        return nested_subs::build(agg, shard, result, owners);
+    }
     if agg.metric != Metric::Terms {
         let states = match result {
             Some(AggResult::Metric(states)) => states,
@@ -205,7 +225,7 @@ fn build<S: BlobStore + 'static>(
         // ALLOC: as above.
         .collect();
     let total: usize = results.iter().map(|r| r.buckets.len()).sum();
-    let (meta, values) = sub_values(agg, shard, subs, total)?;
+    let (meta, values) = sub_values(agg, shard, subs, total, true)?;
     for r in &mut results {
         // ALLOC: one entry a sub-aggregation, bounded by the request's.
         r.sub_meta.clone_from(&meta);
@@ -231,7 +251,13 @@ pub fn empty_values<S: BlobStore + 'static>(
     // ALLOC: one value a sub-aggregation, bounded by the request's.
     let mut out = Vec::with_capacity(agg.subs.len());
     for sub in &agg.subs {
-        let made = build(sub, shard, None, 1)?;
+        let made = if sub.metric == Metric::Terms
+            && matches!(resolve(sub, shard)?, Resolved::Numeric(_))
+        {
+            nested_subs::numeric_terms(sub, shard, None, 1)?
+        } else {
+            build(sub, shard, None, 1)?
+        };
         out.push(made.into_iter().next().unwrap_or(Value::ValueCount(0)));
     }
     Ok(out)

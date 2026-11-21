@@ -40,7 +40,6 @@ use crate::forward::BulkForwarder;
 use crate::handlers::Registry;
 use crate::health_route::StoreHealth;
 use crate::index_cache::IndexCache;
-use crate::push_link::Leases;
 use crate::read_forward::{GetForwarder, GetHandler};
 use crate::writer::{
     DeadLogParts, DeadLogPass, DeadMailbox, DeadSnapshot, DescriptorIncarnation, HeadAdmission,
@@ -49,7 +48,7 @@ use crate::writer::{
 
 pub use config::{MIN_MEMORY_BYTES, NodeConfig, StoreChoice};
 use renew::{Cadence, Renewal};
-use support::{address_bytes, earlier_epochs, store_of};
+use support::{Held, address_bytes, earlier_epochs, store_of};
 
 /// The roles a node's lease names.
 const ROLES: [&str; 2] = ["ingest", "search"];
@@ -151,16 +150,6 @@ impl Drop for Node {
         if !self.crashed {
             let _ = self.membership.release(&self.node_id);
         }
-    }
-}
-
-/// The leases this node holds, for the forwarder.
-#[derive(Clone)]
-struct Held(Arc<Membership>);
-
-impl Leases for Held {
-    fn current(&self) -> Arc<[NodeLease]> {
-        self.0.current()
     }
 }
 
@@ -307,6 +296,16 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         )),
         CommitterConfig::default(),
     ));
+    let takeover = Takeover::from_leases(
+        Arc::clone(&store),
+        &config.base,
+        &config.node_id,
+        i64::try_from(first_epoch).unwrap_or(i64::MAX),
+        REPLAY_BUFFER,
+    );
+    // The take pass reads a dead node's log through the same predecessors the
+    // opener uses, so a log is fenced once however a shard is taken.
+    let predecessors = Arc::clone(&takeover.predecessors);
     let opener = HeadOpener::new(
         Arc::clone(&heads),
         Arc::clone(&descriptors),
@@ -316,13 +315,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         &ephemeral,
         READ_BUFFER,
     )
-    .with_takeover(Takeover::from_leases(
-        Arc::clone(&store),
-        &config.base,
-        &config.node_id,
-        i64::try_from(first_epoch).unwrap_or(i64::MAX),
-        REPLAY_BUFFER,
-    ));
+    .with_takeover(takeover);
     // One cache of the indexes this node reads, shared by every route that
     // resolves one; its confirmations are the change stripes every node
     // records its descriptor changes in.
@@ -433,6 +426,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         .map_err(|e| BootError::Cluster(format!("lease announce thread: {e}")))?;
     let listener = TcpListener::bind(config.http)
         .map_err(|e| BootError::Bind(format!("{}: {e}", config.http)))?;
+    let role = Arc::clone(&assembled.role);
     let running = assembled
         .start(listener, ServerConfig::default(), &budget)
         .map_err(BootError::Assemble)?;
@@ -443,6 +437,8 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     let mailbox = Arc::new(DeadMailbox::default());
     let posting = Arc::clone(&mailbox);
     let renewing = Arc::clone(&membership);
+    let proactive = support::proactive_takeover(config, role, predecessors);
+    let taking_clock = Arc::clone(&clock);
     let mut cadence = Cadence::new(config.renew_every(), config.refresh_every(), Instant::now());
     let renewal = Renewal::spawn(cadence.tick_every(), move || {
         let now = Instant::now();
@@ -453,6 +449,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
             && let Ok(refreshed) = renewing.refresh()
         {
             cadence.refreshed(now);
+            proactive.on_refresh(&refreshed, taking_clock.now_millis());
             posting.post(DeadSnapshot {
                 live: refreshed.live,
                 dead: refreshed.dead_with_epochs,
