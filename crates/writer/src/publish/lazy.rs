@@ -166,6 +166,19 @@ impl<K: Ord + Clone> LazyPublish<K> {
         limit > 0 && max_seq_no.saturating_sub(through) >= limit
     }
 
+    /// Whether `shard`, whose highest sequence number is `max_seq_no`, holds
+    /// writes no publish covers: any write at all when it was never
+    /// published, else any beyond what the last publish covered.
+    #[must_use]
+    pub fn unpublished(&self, shard: &K, max_seq_no: i64) -> bool {
+        max_seq_no >= 0
+            && self
+                .shards
+                .get(shard)
+                .and_then(|s| s.published_through)
+                .is_none_or(|through| max_seq_no > through)
+    }
+
     /// A publish of `shard` covering everything to `max_seq_no` completed.
     /// A write marked while it ran lost its stamp with the publish's: it is
     /// aged from the next mark, or from the next ask that finds it.
@@ -191,6 +204,18 @@ mod tests {
 
     fn lazy(age: u64, ops: u64, tick: u64) -> LazyPublish<&'static str> {
         LazyPublish::new(Policy::new(age, ops, tick))
+    }
+
+    #[test]
+    fn a_shard_is_unpublished_while_it_holds_writes_no_publish_covers() {
+        let mut l = lazy(1_000, 0, 250);
+        assert!(!l.unpublished(&"s", -1), "no writes");
+        assert!(l.unpublished(&"s", 0), "never published");
+        l.published("s", 4);
+        assert!(!l.unpublished(&"s", 4), "covered");
+        assert!(l.unpublished(&"s", 5), "one beyond");
+        l.forget(&"s");
+        assert!(l.unpublished(&"s", 4), "forgotten is never published");
     }
 
     /// A tracker whose shard `s` was published through 0 at time 0.

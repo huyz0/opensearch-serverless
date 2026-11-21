@@ -325,3 +325,33 @@ fn a_delete_by_query_removes_what_the_reader_finds_through_the_writer() {
         );
     }
 }
+
+/// Whether the shard `docs` holds is hibernated within a while of its first write.
+fn hibernates_after(hibernate_after_millis: u64) -> bool {
+    let (r, _) = start_with(
+        Config {
+            hibernate_after_millis,
+            ..config()
+        },
+        256 << 20,
+    );
+    assert_eq!(
+        call(&r, "PUT", "/docs/_doc/1", Some(r#"{"n":1}"#)).status,
+        201
+    );
+    let started = Instant::now();
+    while started.elapsed() < Duration::from_millis(1500) {
+        if r.role.asleep("docs-uuid", 0) {
+            return !r.role.held("docs-uuid", 0);
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    false
+}
+
+// docs/specs/writer-hibernation AC-9
+#[test]
+fn the_publish_timer_hibernates_an_idle_published_shard_only_when_the_threshold_is_set() {
+    assert!(hibernates_after(100), "an idle shard sleeps on the timer");
+    assert!(!hibernates_after(0), "unset, a shard is never hibernated");
+}

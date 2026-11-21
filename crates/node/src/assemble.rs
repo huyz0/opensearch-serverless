@@ -68,6 +68,8 @@ pub struct Config {
     pub publish_max_operations: u64,
     /// The write log's window, which a due time rounds up to.
     pub publish_tick_millis: u64,
+    /// How long a writer shard may go unused before it hibernates; 0 never.
+    pub hibernate_after_millis: u64,
     /// How often the janitor runs a pass.
     pub janitor_every: Duration,
     /// How a janitor sweep behaves; it starts as a dry run.
@@ -99,6 +101,7 @@ impl Config {
             publish_age_millis: 1_000,
             publish_max_operations: 10_000,
             publish_tick_millis: 250,
+            hibernate_after_millis: 0,
             janitor_every: Duration::from_secs(60),
             sweep: gc::Config {
                 dry_run: true,
@@ -340,7 +343,9 @@ pub fn assemble(
         Box::new(now_millis),
     );
     // ALLOC: startup only.
-    let mut role = WriterRole::new(writer.committer, writer.routes).with_publishing(publishing);
+    let mut role = WriterRole::new(writer.committer, writer.routes)
+        .with_publishing(publishing)
+        .with_hibernation(config.hibernate_after_millis);
     if let Some(opener) = writer.opener {
         role = role.with_opener(opener);
     }

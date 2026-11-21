@@ -36,6 +36,11 @@ pub(super) struct ShardSlot {
     key: ShardKey,
     term: i64,
     released: bool,
+    /// Closed by hibernation: the engine's memory is freed and every write
+    /// it took is in a published commit.
+    asleep: bool,
+    /// When a write or a read last reached the shard, in milliseconds.
+    used_at: u64,
 }
 
 impl ShardSlot {
@@ -62,6 +67,8 @@ impl ShardSlot {
             key,
             term,
             released: false,
+            asleep: false,
+            used_at: super::now_millis(),
         })
     }
 
@@ -86,6 +93,21 @@ impl ShardSlot {
         self.released
     }
 
+    /// Whether the slot was put to sleep.
+    pub(super) fn asleep(&self) -> bool {
+        self.asleep
+    }
+
+    /// Marks the slot asleep: a write that finds it so wakes the shard.
+    pub(super) fn sleep(&mut self) {
+        self.asleep = true;
+    }
+
+    /// When a write or a read last reached the shard.
+    pub(super) fn used_at(&self) -> u64 {
+        self.used_at
+    }
+
     /// Applies one write to the engine.
     pub(super) fn apply(
         &mut self,
@@ -96,6 +118,7 @@ impl ShardSlot {
         create: bool,
         expect: &Expect,
     ) -> Result<Written, Refused> {
+        self.used_at = super::now_millis();
         self.cell.with_dependent_mut(|_, shard| match kind {
             Kind::Delete => shard.delete(id, expect),
             _ => shard.index_routed(id, source, routing, create, expect),
@@ -120,6 +143,7 @@ impl ShardSlot {
 
     /// The live document of `id`; see [`Shard::get`].
     pub(super) fn get(&mut self, id: &str, realtime: bool) -> Result<Option<Fetched>, String> {
+        self.used_at = super::now_millis();
         self.cell
             .with_dependent_mut(|_, shard| shard.get(id, realtime))
     }

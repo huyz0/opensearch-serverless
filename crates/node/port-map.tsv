@@ -98,3 +98,4 @@ src/lease_announce.rs	new		the joiner announces itself and a peer reads the flee
 src/cluster_live.rs	new		the cluster register read into the node's live settings; the Java shell receives them in the cluster state
 src/boot/follow.rs	new		the node follows the cluster register's refresh visibility; the Java shell is told by the cluster state
 src/writer/tombstone_pass.rs	new		which node runs the tombstone sweep, on a wait, from the live members; the shell's reconciler sweeps from every node on its schedule
+src/writer/hibernate.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/reconcile/ShardHibernation.java	idle writers close their engines and keep their head, woken at the same term; the head give-back after a longer idle is not ported yet

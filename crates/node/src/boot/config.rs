@@ -91,6 +91,8 @@ pub struct NodeConfig {
     /// How often the janitor sweeps and the dead-log pass runs; it is also
     /// the first wait before a dead node's log is tried again.
     pub janitor_every_millis: u64,
+    /// `serverless.activation.hibernate_after_millis`; 0 never hibernates.
+    pub hibernate_after_millis: u64,
     /// How often the one sweeping node removes expired tombstones; 0 is off.
     pub tombstone_sweep_millis: u64,
     /// `serverless.takeover.proactive.enabled`: whether this node takes the
@@ -180,26 +182,6 @@ impl NodeConfig {
         let index_confirm_millis: u64 = or("OSS_INDEX_CONFIRM_MS", "5000")
             .parse()
             .map_err(|e| format!("OSS_INDEX_CONFIRM_MS: {e}"))?;
-        let janitor_every_millis: u64 = or("OSS_JANITOR_EVERY_MS", "60000")
-            .parse()
-            .map_err(|e| format!("OSS_JANITOR_EVERY_MS: {e}"))?;
-        if janitor_every_millis == 0 {
-            return Err("OSS_JANITOR_EVERY_MS is below 1".to_owned());
-        }
-        let tail_overlay = match or("OSS_TAIL_OVERLAY", "false").as_str() {
-            "true" => true,
-            "false" => false,
-            other => return Err(format!("OSS_TAIL_OVERLAY is [{other}], not true or false")),
-        };
-        let proactive_takeover = match or("OSS_PROACTIVE_TAKEOVER", "true").as_str() {
-            "true" => true,
-            "false" => false,
-            other => {
-                return Err(format!(
-                    "OSS_PROACTIVE_TAKEOVER is [{other}], not true or false"
-                ));
-            }
-        };
         let bounded = |key: &str, default: &str, low: u64, high: u64| -> Result<u64, String> {
             let value: u64 = or(key, default)
                 .parse()
@@ -210,6 +192,15 @@ impl NodeConfig {
                 Err(format!("{key} [{value}] is not within {low} to {high}"))
             }
         };
+        let flag = |key: &str, default: &str| match or(key, default).as_str() {
+            "true" => Ok(true),
+            "false" => Ok(false),
+            other => Err(format!("{key} is [{other}], not true or false")),
+        };
+        let janitor_every_millis = bounded("OSS_JANITOR_EVERY_MS", "60000", 1, u64::MAX)?;
+        let tail_overlay = flag("OSS_TAIL_OVERLAY", "false")?;
+        let proactive_takeover = flag("OSS_PROACTIVE_TAKEOVER", "true")?;
+        let hibernate_after_millis = bounded("OSS_HIBERNATE_AFTER_MS", "0", 0, 604_800_000)?;
         let proactive_reapers = bounded("OSS_PROACTIVE_REAPERS", "2", 1, 16)?;
         let proactive_max_concurrent = bounded("OSS_PROACTIVE_MAX_CONCURRENT", "4", 1, 64)?;
         let tombstone_sweep_millis = bounded("OSS_TOMBSTONE_SWEEP_MS", "3600000", 0, 604_800_000)?;
@@ -235,6 +226,7 @@ impl NodeConfig {
             index_confirm_millis,
             janitor_every_millis,
             tombstone_sweep_millis,
+            hibernate_after_millis,
             proactive_takeover,
             proactive_reapers: usize::try_from(proactive_reapers).unwrap_or(2),
             proactive_max_concurrent: usize::try_from(proactive_max_concurrent).unwrap_or(4),

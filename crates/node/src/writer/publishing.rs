@@ -108,6 +108,12 @@ impl Publishing {
         lock(&self.lazy).due(key, max_seq_no, age, now)
     }
 
+    /// Whether `key`, written through `max_seq_no`, holds writes no commit
+    /// of it covers.
+    pub(super) fn unpublished(&self, key: &Key, max_seq_no: i64) -> bool {
+        lock(&self.lazy).unpublished(key, max_seq_no)
+    }
+
     /// `key` was published through `max_seq_no`.
     pub(super) fn published(&self, key: &Key, max_seq_no: i64) {
         lock(&self.lazy).published(key.clone(), max_seq_no);
