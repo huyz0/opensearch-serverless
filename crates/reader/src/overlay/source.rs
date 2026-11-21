@@ -110,6 +110,20 @@ pub trait OverlaySource: Send + Sync {
         now_millis: u64,
     ) -> Option<Arc<Ready>>;
 
+    /// Has the overlay of shard `shard` of `index_uuid` cover every record
+    /// held for it now, before this returns, so a search that follows
+    /// serves them. A source that cannot (no room, a record the engine
+    /// refuses) marks the shard so it holds no grant. Nothing by default:
+    /// [`Self::ready`] answers with what is finished.
+    fn apply_pending(
+        &self,
+        _index_uuid: &str,
+        _shard: u32,
+        _stage: &Stage,
+        _commit: &Arc<dyn CommitAccess>,
+    ) {
+    }
+
     /// The engine open on shard `shard` of `index_uuid` at `stage` let go:
     /// what the source kept for that engine can go too. Nothing by default.
     fn closed(&self, _index_uuid: &str, _shard: u32, _stage: &Stage, _now_millis: u64) {}
