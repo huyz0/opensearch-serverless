@@ -19,10 +19,11 @@ Roadmap R4.1 ([plan](../../roadmap.md)): a Rust node is a member of a fleet, Rus
 - AC-4: `self_valid_at` is true before the first renewal, then exactly until `expiry - ttl / 32`, and `self_lapsed_at` is its complement once a lease was written.
 - AC-5: `revoke` returns true and leaves a revoked lease only for an expired lease of the given process; false for a live one, an unreadable one, or a store error; true without writing for a released lease, an already revoked one, or one of a later process; 8 concurrent revokes of one dead node through `LivenessOracle` make one swap between them.
 - AC-6: in a fleet of 3 on the emulator, a refresh sees every live member; a node that releases is gone from the others' next refresh, delivered as a departure; a node that joins is a join; a renewal alone is neither.
-- AC-7: a refresh reads only the index (1 GET) while every held copy is unexpired; the digest writer (the live member with the lowest id) writes the digest at most once a third of a lifetime; a reader takes leases from the digest instead of reading each.
+- AC-7: a refresh reads only the index (1 GET) while every held copy has half a lifetime left; the digest writer (the live member with the lowest id) writes the digest at most once a third of a lifetime; a reader takes leases from the digest instead of reading each.
 - AC-8: a lease expired for 10 lifetimes and naming no node-log epoch is unlisted from the index (and deleted where conditional deletes are verified); one naming an epoch is kept; one expired for less is kept.
 - AC-9: an idle hour on a simulated clock, 3 nodes renewing and refreshing every 10 s, costs the digest writer at most 720 compare-and-swaps (the Java's number), every node no LIST, and a non-writer node at most 1,080 GETs; the numbers are rows in [request-budgets.md](../../request-budgets.md).
 - AC-10: a Java node's lease, written by the shell's own `NodeLease` on the fs store, is read live by a Rust refresh, and a Rust node's lease is read by the Java's `fromStream`.
+- AC-11: with three nodes renewing and refreshing every third of a lifetime plus a tick, no node's view (`current`) holds an expired member at any instant before its next refresh: a held copy with under half a lifetime left is read again, so an idle hour costs another node 719 GETs (539 before).
 
 ## Test plan
 
@@ -37,7 +38,7 @@ Roadmap R4.1 ([plan](../../roadmap.md)): a Rust node is a member of a fleet, Rus
 |---|---|
 | first renewal | 1 create + 1 GET + 1 swap |
 | renewal | 1 swap |
-| refresh, copies unexpired | 1 GET |
+| refresh, copies with half a lifetime left | 1 GET |
 | refresh, reading the digest | 2 GETs |
 | digest write | +1 GET + 1 swap, once per ttl/3, one node |
 | revoke | 1 GET + 1 swap |

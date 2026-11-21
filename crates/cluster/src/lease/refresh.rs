@@ -158,7 +158,7 @@ impl Membership {
         for id in &ids {
             if !writing_digest
                 && let Some(known) = view.last_read.get(id)
-                && !known.is_expired_at(now)
+                && !self.run_down(known, now)
             {
                 live.push(known.clone());
                 continue;
@@ -217,6 +217,15 @@ impl Membership {
             delta,
             dead_with_epochs: dead,
         })
+    }
+
+    /// Whether a held copy of a lease is due to be read again: it has less
+    /// than half a lifetime left. A node renews every third of a lifetime
+    /// and refreshes as often, a tick late, so a copy kept until it ran out
+    /// would be judged expired by the view for the last tick or two of its
+    /// life while its owner had renewed it more than once.
+    fn run_down(&self, held: &NodeLease, now: i64) -> bool {
+        held.expires_at_millis.saturating_sub(now) < self.config.ttl_millis / 2
     }
 
     /// Reads one listed member's lease.
@@ -333,7 +342,7 @@ impl Membership {
                 && view
                     .last_read
                     .get(id)
-                    .is_none_or(|held| held.is_expired_at(now))
+                    .is_none_or(|held| self.run_down(held, now))
         });
         let recent = view
             .digest_read_at
