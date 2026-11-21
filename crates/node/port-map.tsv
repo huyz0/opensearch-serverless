@@ -97,3 +97,4 @@ src/boot/join.rs	new		what a node does once enrolled: read the fleet, then annou
 src/lease_announce.rs	new		the joiner announces itself and a peer reads the fleet once; the Java has no such action
 src/cluster_live.rs	new		the cluster register read into the node's live settings; the Java shell receives them in the cluster state
 src/boot/follow.rs	new		the node follows the cluster register's refresh visibility; the Java shell is told by the cluster state
+src/writer/tombstone_pass.rs	new		which node runs the tombstone sweep, on a wait, from the live members; the shell's reconciler sweeps from every node on its schedule

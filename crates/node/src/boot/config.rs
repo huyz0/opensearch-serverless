@@ -91,6 +91,8 @@ pub struct NodeConfig {
     /// How often the janitor sweeps and the dead-log pass runs; it is also
     /// the first wait before a dead node's log is tried again.
     pub janitor_every_millis: u64,
+    /// How often the one sweeping node removes expired tombstones; 0 is off.
+    pub tombstone_sweep_millis: u64,
     /// `serverless.takeover.proactive.enabled`: whether this node takes the
     /// shards a dead node's log names before a write asks.
     pub proactive_takeover: bool,
@@ -210,6 +212,7 @@ impl NodeConfig {
         };
         let proactive_reapers = bounded("OSS_PROACTIVE_REAPERS", "2", 1, 16)?;
         let proactive_max_concurrent = bounded("OSS_PROACTIVE_MAX_CONCURRENT", "4", 1, 64)?;
+        let tombstone_sweep_millis = bounded("OSS_TOMBSTONE_SWEEP_MS", "3600000", 0, 604_800_000)?;
         let proactive_pass_millis = bounded("OSS_PROACTIVE_PASS_MS", "30000", 1, 3_600_000)?;
         let cluster_settings_poll_millis =
             bounded("OSS_CLUSTER_SETTINGS_POLL_MS", "30000", 1, 3_600_000)?;
@@ -231,6 +234,7 @@ impl NodeConfig {
             lease_refresh_millis,
             index_confirm_millis,
             janitor_every_millis,
+            tombstone_sweep_millis,
             proactive_takeover,
             proactive_reapers: usize::try_from(proactive_reapers).unwrap_or(2),
             proactive_max_concurrent: usize::try_from(proactive_max_concurrent).unwrap_or(4),
