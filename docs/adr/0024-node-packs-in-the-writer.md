@@ -23,6 +23,6 @@ Port the Java's pack writer, as-is on the wire, in `oss-writer::pack`, in pieces
 - Idle indices make zero requests from the writer: nothing runs without a publish. The collector's cost for an idle shard is decided in its ADR.
 - Latency: a publish waits up to `linger` for its pack (50 ms default), on its own publishing thread.
 - Cost of failure: a failed pack fails every publish in it; each retries on its next publish. A spent ordinal is never reused.
-- Collection is a separate decision and must exist before packs are on anywhere: until then the switch stays off, so no pack is ever written that nothing can delete.
+- Collection is a separate decision ([ADR 0025](0025-node-pack-collection.md), Proposed) and must exist before packs are on anywhere: until then the switch stays off, so no pack is ever written that nothing can delete.
 - A leader that fails while writing must not strand its batch: the followers' answers are dropped with it and they get an error, never a wait (tested with a source that panics).
 - Rules out: a per-shard pack, packs keyed by anything but computed names, a LIST to find packs.

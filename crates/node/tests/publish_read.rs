@@ -14,7 +14,8 @@ use oss_mem::{BudgetConfig, BufferPool, MemoryBudget, Pool, SMALL_BUFFER};
 use oss_testkit::TempDir;
 use oss_writer::index::{Expect, Shard};
 use oss_writer::mapping::Mapping;
-use oss_writer::publish::ShardPublisher;
+use oss_writer::pack::{PackLedger, PackStore, PackWriter};
+use oss_writer::publish::{PackPlacement, ShardPublisher};
 
 const VERSION: LuceneVersion = LuceneVersion {
     major: 10,
@@ -98,4 +99,62 @@ fn the_reader_opens_what_the_writer_published() {
         .soft_deletes_wrapper("__soft_deletes")
         .expect("wrapped");
     assert_eq!(live.num_docs(), 2);
+}
+
+/// With node packs on, the reader opens a commit whose files all live in a
+/// pack: the register, the descriptor and the pack are all it reads.
+#[test]
+fn the_reader_opens_a_commit_published_into_a_node_pack() {
+    let root = TempDir::new("publish-read-pack");
+    let store = Arc::new(FsStore::new(root.path()).expect("store"));
+    let dir = ByteBuffersDirectory::new();
+    let mut w = IndexWriter::open(&dir, Vec::new(), "Lucene104", VERSION).expect("writer");
+    w.enable_explicit_documents().expect("explicit");
+    let mapping = Mapping::parse(br#"{"properties":{"n":{"type":"integer"}}}"#).expect("mapping");
+    let mut shard = Shard::new(&dir, w, mapping, 3, Box::new(|| 0)).expect("shard");
+    store
+        .create_register(
+            "indices/logs",
+            &register(
+                r#"{"name":"logs","uuid":"u1","number_of_shards":1,"mapping":"{\"properties\":{\"n\":{\"type\":\"integer\"}}}","settings":{}}"#,
+            ),
+        )
+        .expect("descriptor");
+    let shard_ref = ShardRef {
+        index: "logs",
+        uuid: "u1",
+        shard: 0,
+    };
+    let dynstore = Arc::clone(&store) as Arc<dyn BlobStore>;
+    let writer = Arc::new(PackWriter::new(
+        PackStore::new(Arc::clone(&dynstore), "", "node-1"),
+        Some(PackLedger::new(Arc::clone(&dynstore), "", "node-1").expect("ledger")),
+        1,
+        std::time::Duration::from_millis(1),
+        64 << 20,
+    ));
+    let mut publisher = ShardPublisher::new(dynstore, "", &shard_ref).expect("publisher");
+    publisher.use_packs(Some(PackPlacement {
+        writer,
+        index_name: "logs".to_owned(),
+        index_uuid: "u1".to_owned(),
+        shard: 0,
+        max_blob_bytes: 8 << 20,
+    }));
+    for id in ["a", "b", "c"] {
+        shard
+            .index(id, br#"{"n":1}"#, false, &Expect::default())
+            .expect("indexed");
+    }
+    shard.refresh().expect("refresh");
+    let files = shard.committed_files().expect("files");
+    let published = publisher
+        .publish(&dir, &files, 3, "node-1", 0, 1)
+        .expect("published");
+    assert!(published.blobs.is_empty(), "every file is in the pack");
+    assert!(
+        root.path().join("packs/node-1").is_dir(),
+        "the pack is under the node's prefix"
+    );
+    assert_eq!(open(root.path()).reader.num_docs(), 3);
 }

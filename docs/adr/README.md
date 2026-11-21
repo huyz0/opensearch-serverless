@@ -34,3 +34,4 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0022](0022-nested-bucket-aggregations.md) | Nested bucket aggregations: one engine tree, a total bucket bound, a product-aware reservation | Accepted |
 | [0023](0023-routing-stored-in-engine-documents.md) | A routed document stores its routing as a `_routing` field in the segment | Accepted |
 | [0024](0024-node-packs-in-the-writer.md) | Node packs in the writer: one PUT for the segments a node publishes together | Accepted |
+| [0025](0025-node-pack-collection.md) | Node pack collection | Proposed |
