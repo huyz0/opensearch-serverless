@@ -11,7 +11,9 @@ use oss_blob::S3Op;
 use oss_format::WalRecord;
 use oss_mem::MemoryBudget;
 use oss_node::overlay_builder::TailFetcher;
-use oss_node::tail_overlay::{TAIL_OVERLAY_ENABLED, install, wire};
+use oss_node::tail_overlay::{
+    SETTINGS, TAIL_OVERLAY_ENABLED, TAIL_OVERLAY_INDEX_ENABLED, install, wire,
+};
 use oss_reader::commit_push::Stage;
 use oss_reader::overlay::{CommitAccess, Overlay, OverlaySource, Ready, find_copies};
 use oss_testkit::TempDir;
@@ -297,4 +299,76 @@ fn with_the_setting_off_nothing_is_wired_and_a_second_wire_is_refused() {
     assert!(wired(&fx, true).is_some());
     assert!(fx.service.has_overlay_source());
     assert!(wired(&fx, true).is_none(), "a source is installed already");
+}
+
+fn with_index_setting(fx: &Fixture<'_>, root: &std::path::Path, value: &str) {
+    let store = oss_blob::FsStore::new(root).expect("store");
+    let descriptor = format!(
+        r#"{{"name":"logs","uuid":"u1","number_of_shards":1,"mapping":"{{\"properties\":{{\"n\":{{\"type\":\"integer\"}}}}}}","settings":{{"index.serverless.search.tail_overlay.enabled":"{value}"}}}}"#
+    );
+    let mut buf = [0u8; 1024];
+    let read = oss_blob::BlobStore::read_register(&store, "indices/logs", &mut buf)
+        .expect("reads")
+        .expect("present");
+    oss_blob::BlobStore::swap_register(
+        &store,
+        "indices/logs",
+        read.generation,
+        descriptor.as_bytes(),
+    )
+    .expect("swaps");
+    let _ = fx;
+}
+
+// AC-1
+#[test]
+fn the_index_setting_is_an_index_scope_switch_on_by_default() {
+    assert_eq!(
+        TAIL_OVERLAY_INDEX_ENABLED.key(),
+        "index.serverless.search.tail_overlay.enabled"
+    );
+    assert!(TAIL_OVERLAY_INDEX_ENABLED.default());
+    assert!(
+        SETTINGS
+            .iter()
+            .any(|s| s.key == TAIL_OVERLAY_INDEX_ENABLED.key())
+    );
+}
+
+// AC-2
+#[test]
+fn an_index_that_turns_the_overlay_off_is_answered_from_the_commit() {
+    let root = TempDir::new("overlay-index-off");
+    let dir = ByteBuffersDirectory::new();
+    let fx = fixture(root.path(), &dir, &["a", "b"]);
+    with_index_setting(&fx, root.path(), "false");
+    assert!(install(&fx.service, true, Source::new(true)));
+    assert_eq!(all(&fx), 2);
+    assert_eq!(n_is(&fx, 1), 2, "a and b are as the commit has them");
+    assert_eq!(n_is(&fx, 7), 0);
+    assert_eq!(n_is(&fx, 9), 0);
+}
+
+// AC-2
+#[test]
+fn an_index_that_turns_it_on_or_says_nothing_gets_the_overlay() {
+    for value in ["true", ""] {
+        let root = TempDir::new("overlay-index-on");
+        let dir = ByteBuffersDirectory::new();
+        let fx = fixture(root.path(), &dir, &["a", "b"]);
+        with_index_setting(&fx, root.path(), value);
+        assert!(install(&fx.service, true, Source::new(true)));
+        assert_eq!(n_is(&fx, 7), 1, "value {value:?}");
+    }
+}
+
+// AC-3
+#[test]
+fn an_unparseable_index_value_counts_as_on() {
+    let root = TempDir::new("overlay-index-junk");
+    let dir = ByteBuffersDirectory::new();
+    let fx = fixture(root.path(), &dir, &["a", "b"]);
+    with_index_setting(&fx, root.path(), "maybe");
+    assert!(install(&fx.service, true, Source::new(true)));
+    assert_eq!(n_is(&fx, 7), 1);
 }
