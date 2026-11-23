@@ -152,7 +152,9 @@ fuzz_target!(|data: &[u8]| {
     if !config.comments && framing == Framing::Single && !config.allow_empty {
         let oracle = serde_json::from_slice::<serde_json::Value>(bytes);
         let skip = matches!(&oracle, Err(e) if e.to_string().contains("number out of range")
-            || e.to_string().contains("recursion limit"));
+            || e.to_string().contains("recursion limit"))
+            // chunkjson's own bound on a number, which serde_json does not have.
+            || matches!(&pulled.1, Err(e) if e.kind() == chunkjson::ErrorKind::NumberTooLong);
         if !skip {
             assert_eq!(pulled.1.is_ok(), oracle.is_ok(), "against serde_json");
         }
