@@ -1,6 +1,6 @@
 # 0027: An idle writer hibernates: engine closed, head kept
 
-**Status:** Proposed
+**Status:** Accepted after independent review, 2026-11-23
 
 ## Context
 
