@@ -92,16 +92,18 @@ jobs:
 
   # The workspace has about 12,900 mutants, far more than one job's hour: a
   # single sweep was cancelled at the limit three nights in four. Each night
-  # four runners each take one of 28 slices, rotating by day of the year, so
-  # every mutant is tested once every seven nights. A slice that runs out of
-  # time still fails on a missed mutant it already found.
+  # eight lanes, four running at a time, each take one of 56 slices, rotating
+  # by day of the year, so every mutant is tested once every seven nights. A
+  # slice is about 230 mutants, what one lane tests in its 2 h (a 28-slice
+  # split left the last half of every slice untested). A slice that runs out
+  # of time still fails on a missed mutant it already found.
   mutants:
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       max-parallel: 4
       matrix:
-        lane: [0, 1, 2, 3]
+        lane: [0, 1, 2, 3, 4, 5, 6, 7]
     timeout-minutes: 130
     steps:
       - uses: actions/checkout@v4
@@ -123,10 +125,10 @@ jobs:
         env:
           LANE: ${{ matrix.lane }}
         run: |
-          slice=$(( (10#$(date -u +%j) * 4 + LANE) % 28 ))
-          echo "mutants: slice $slice/28"
+          slice=$(( (10#$(date -u +%j) * 8 + LANE) % 56 ))
+          echo "mutants: slice $slice/56"
           set +e
-          MUTANTS_IN_PLACE=1 MUTANTS_BASELINE=run timeout 120m scripts/mutants.sh --all --shard "$slice/28" 2>&1 | tee "$RUNNER_TEMP/mutants.log"
+          MUTANTS_IN_PLACE=1 MUTANTS_BASELINE=run timeout 120m scripts/mutants.sh --all --shard "$slice/56" 2>&1 | tee "$RUNNER_TEMP/mutants.log"
           rc=${PIPESTATUS[0]}
           set -e
           if [ "$rc" -eq 124 ]; then
