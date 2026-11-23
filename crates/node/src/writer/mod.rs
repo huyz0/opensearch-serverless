@@ -25,6 +25,7 @@ mod publish_timer;
 mod publishing;
 mod redirect;
 mod refresh;
+mod routes;
 mod slot;
 mod snapshot;
 mod tail;
@@ -38,8 +39,8 @@ use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use oss_format::WalRecord;
-use oss_writer::bulk::{IndexInfo, ItemResult, Kind, Owner, Planned};
-use oss_writer::index::{Fetched, Refused, Written};
+use oss_writer::bulk::{IndexInfo, Kind, Owner, Planned};
+use oss_writer::index::{Refused, Written};
 use oss_writer::log::NodeLogCommitter;
 use oss_writer::publish::lazy::PublishAge;
 
@@ -68,61 +69,11 @@ pub use proactive::{
 pub use publish_age::publish_age_of;
 pub use publish_timer::PublishTimer;
 pub use publishing::{PublishPass, Publishing};
+pub use routes::Routes;
 pub use tail::{RefreshVisibility, TailSink};
 pub use takeover::Takeover;
 pub use target::RoleTarget;
 pub use tombstone_pass::{DeleteProbe, TombstoneParts, TombstonePass, TombstoneReport};
-
-/// What a writer asks of the rest of the cluster: which indexes exist,
-/// who owns a shard it does not hold, and how to send that owner a group.
-pub trait Routes: Send + Sync {
-    /// The index called `name`, if there is one.
-    fn index(&self, name: &str) -> Option<IndexInfo>;
-
-    /// Who owns `shard` of `index`, asked when this node does not hold it.
-    fn owner(&self, index: &IndexInfo, shard: u32) -> Owner;
-
-    /// Sends a group to the node that owns its shard, once, and answers
-    /// each item's outcome in the group's order.
-    fn forward(
-        &self,
-        node: &str,
-        index: &IndexInfo,
-        shard: u32,
-        group: &[Planned<'_>],
-    ) -> Vec<ItemResult>;
-
-    /// Asks the node that owns `shard` to refresh it. A route that never
-    /// names another owner has nothing to ask.
-    fn refresh_remote(&self, _node: &str, _index: &IndexInfo, _shard: u32) -> Result<(), String> {
-        Err("the shard is held by another node".to_owned())
-    }
-
-    /// Asks the node that owns `shard` for the live document `id`. A route
-    /// that never names another owner has nothing to ask.
-    fn get_remote(
-        &self,
-        _node: &str,
-        _index: &IndexInfo,
-        _shard: u32,
-        _id: &str,
-    ) -> Result<Option<Fetched>, String> {
-        Err("the shard is held by another node".to_owned())
-    }
-
-    /// As [`Routes::get_remote`], reading what is not yet refreshed only
-    /// when `realtime`. A route that cannot say asks for the realtime read.
-    fn get_remote_as(
-        &self,
-        node: &str,
-        index: &IndexInfo,
-        shard: u32,
-        id: &str,
-        _realtime: bool,
-    ) -> Result<Option<Fetched>, String> {
-        self.get_remote(node, index, shard, id)
-    }
-}
 
 /// Why an item did not go ahead.
 enum Failure {

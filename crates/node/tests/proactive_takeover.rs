@@ -110,3 +110,44 @@ fn only_the_reapers_act_each_after_its_turn_and_a_finished_pass_is_not_repeated(
     });
     assert_eq!(done.due(&refreshed(&ids, later), i64::MAX).len(), 1);
 }
+
+// docs/specs/proactive-takeover AC-21
+#[test]
+fn a_pass_that_failed_waits_a_stagger_and_then_twice_as_long() {
+    let c = cluster();
+    let one = first_writer(&c);
+    let broken = Takeover {
+        predecessors: Arc::new(Predecessors::new(Box::new(|_| {
+            Err(oss_writer::log::TakeoverError::Lease(Arc::new(
+                std::io::Error::other("no lease"),
+            )))
+        }))),
+        heads: HeadWriters::new(c.store.clone(), ""),
+        max_buffer_bytes: 1 << 20,
+    };
+    let predecessors = Arc::clone(&broken.predecessors);
+    let two = node(&c, "node-2", 2, true, Some(broken));
+    let pass = ProactiveTakeover::new("node-2", config(true), Arc::clone(&two.role), predecessors);
+    let lease = dead(&one);
+    let r = refreshed(&["node-2"], lease.clone());
+    let stagger = 10_000;
+    pass.pass_at(&lease, 100_000);
+    assert!(
+        pass.due(&r, 100_000 + stagger - 1).is_empty(),
+        "waits a stagger"
+    );
+    assert_eq!(pass.due(&r, 100_000 + stagger).len(), 1);
+    pass.pass_at(&lease, 200_000);
+    assert!(
+        pass.due(&r, 200_000 + 2 * stagger - 1).is_empty(),
+        "then twice as long"
+    );
+    assert_eq!(pass.due(&r, 200_000 + 2 * stagger).len(), 1);
+    // The wait stops doubling at 64 staggers.
+    for i in 0..10 {
+        pass.pass_at(&lease, 300_000 + i);
+    }
+    let last = 300_009;
+    assert!(pass.due(&r, last + 64 * stagger - 1).is_empty());
+    assert_eq!(pass.due(&r, last + 64 * stagger).len(), 1);
+}
