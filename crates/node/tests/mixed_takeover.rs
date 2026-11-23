@@ -83,6 +83,60 @@ fn manifest(c: &Cluster) -> (u64, String) {
     (term, String::from_utf8_lossy(value).into_owned())
 }
 
+/// Copies the store to `dir` as the filesystem store lays it out, for the
+/// Java recorder (`fixtures/mixed-takeover`): registers are an 8-byte
+/// generation then the value.
+fn dump(c: &Cluster, dir: &Path) {
+    let mut keys = Vec::new();
+    let mut after: Option<String> = None;
+    loop {
+        let mut page = Vec::new();
+        let done = c
+            .store
+            // LIST: a test copying the whole emulator store out for the recorder.
+            .list_prefix("", after.as_deref(), 1000, &mut |k, _| {
+                page.push(k.to_owned())
+            })
+            .expect("lists");
+        after = page.last().cloned();
+        keys.extend(page);
+        if !done.truncated {
+            break;
+        }
+    }
+    for key in keys {
+        let register =
+            key.starts_with("indices/") || key.starts_with("shards/") || key.ends_with("/manifest");
+        let mut bytes = Vec::new();
+        if register {
+            let mut buf = vec![0u8; 1 << 16];
+            let read = c
+                .store
+                .read_register(&key, &mut buf)
+                .expect("reads")
+                .expect("there");
+            bytes.extend_from_slice(&read.generation.to_be_bytes());
+            bytes.extend_from_slice(&buf[..read.len]);
+        } else {
+            let mut chunk = vec![0u8; 1 << 16];
+            c.store
+                .get(
+                    &key,
+                    oss_blob::ByteRange::Full,
+                    &mut chunk,
+                    &mut |b: &[u8]| {
+                        bytes.extend_from_slice(b);
+                        Ok(())
+                    },
+                )
+                .expect("gets");
+        }
+        let path = dir.join(&key);
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("dirs");
+        std::fs::write(path, bytes).expect("written");
+    }
+}
+
 fn nobody(c: &Cluster) -> Takeover {
     Takeover {
         predecessors: Arc::new(Predecessors::new(Box::new(|_| Ok(None)))),
@@ -137,6 +191,10 @@ fn the_commit_a_rust_writer_publishes_still_names_the_java_blobs() {
     rust.role.refresh(&info(), 0).expect("published");
     let (term, after) = manifest(&c);
     assert_eq!(term, 3);
+    // Set to write the store the Java recorder reads (fixtures/mixed-takeover).
+    if let Some(out) = std::env::var_os("OSS_MIXED_OUT") {
+        dump(&c, Path::new(&out));
+    }
     assert!(
         after.contains("e=00000001794710559389"),
         "the Java node pack: {after}"
