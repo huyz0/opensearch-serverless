@@ -73,6 +73,7 @@ impl TailLink for Link {
 }
 
 struct Rig {
+    keep: Arc<TailKeep>,
     serve: Arc<TailServe>,
     link: Arc<Link>,
     clock: Arc<Clock>,
@@ -85,8 +86,9 @@ fn rig() -> Rig {
     let clock = Arc::new(Clock::default());
     let serve = Arc::new(TailServe::new(keep.clone(), facts.clone(), clock.clone()));
     let link = Arc::new(Link::default());
-    let push = TailPush::new(keep, serve.clone(), link.clone(), facts);
+    let push = TailPush::new(keep.clone(), serve.clone(), link.clone(), facts);
     Rig {
+        keep,
         serve,
         link,
         clock,
@@ -124,6 +126,16 @@ fn a_shard_nothing_is_kept_for_waits_for_nothing() {
     assert!(r.push.await_search_nodes(U, 0, WAIT, false));
     assert_eq!(r.link.sent.load(Ordering::SeqCst), 0);
     assert_eq!(r.clock.now_millis(), 0);
+    // A wait without grants never begins keeping the shard.
+    assert!(!r.keep.keeps(U, 0));
+}
+
+#[test]
+fn a_wait_with_grants_begins_keeping_the_shard_once() {
+    let r = rig();
+    assert!(!r.keep.keeps(U, 0));
+    assert!(r.push.await_search_nodes(U, 0, WAIT, true));
+    assert!(r.keep.keeps(U, 0));
 }
 
 #[test]

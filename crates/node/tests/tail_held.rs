@@ -236,3 +236,26 @@ fn subscription_zero_renews_and_a_lower_checkpoint_never_lowers_the_held_one() {
     );
     assert_eq!(h.take(U, 0, &recs(11..=11), 0), Some(1));
 }
+
+#[test]
+fn an_answer_to_a_renewal_with_another_subscription_is_a_new_subscription() {
+    let h = TailHeld::new();
+    h.track(U, 0, 0);
+    // Held incomplete: subscription 3 from w1.
+    h.answered(U, 0, "w1", -1, 1_000, &answer(3, false, vec![]));
+    assert!(!h.granted(U, 0, "w1", 1_100));
+    // Asked to renew 3, answered 7: a subscription anew, complete.
+    h.answered(U, 0, "w1", 3, 2_000, &answer(7, true, vec![]));
+    assert!(
+        h.granted(U, 0, "w1", 2_100),
+        "the answer's own completeness"
+    );
+    assert_eq!(h.subscription_to_ask(U, 0, "w1"), 7);
+    // Asked to renew from another writer's grant: also anew.
+    h.answered(U, 0, "w2", 7, 3_000, &answer(7, true, vec![]));
+    assert!(h.granted(U, 0, "w2", 3_100));
+    assert!(
+        !h.granted(U, 0, "w1", 3_100),
+        "w1 no longer holds the grant"
+    );
+}

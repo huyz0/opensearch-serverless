@@ -198,3 +198,38 @@ fn object_len(bytes: &[u8]) -> Option<usize> {
     }
     None
 }
+
+#[cfg(all(test, feature = "coordinator"))]
+mod tests {
+    use super::object_len;
+
+    #[test]
+    fn an_object_ends_at_its_matching_brace() {
+        assert_eq!(object_len(b"{}rest"), Some(2));
+        assert_eq!(object_len(br#"{"a":{"b":1},"c":2}tail"#), Some(19));
+        assert_eq!(object_len(b"{"), None);
+        assert_eq!(object_len(b""), None);
+    }
+
+    #[test]
+    fn braces_inside_strings_do_not_count() {
+        let object = br#"{"a":"}{","b":1}"#;
+        let mut bytes = object.to_vec();
+        bytes.extend_from_slice(b"}tail");
+        assert_eq!(object_len(&bytes), Some(object.len()));
+    }
+
+    #[test]
+    fn an_escaped_quote_does_not_end_a_string() {
+        let object = br#"{"a":"x\"}y","b":"\\"}"#;
+        let mut bytes = object.to_vec();
+        bytes.extend_from_slice(b"}tail");
+        assert_eq!(object_len(&bytes), Some(object.len()));
+    }
+
+    #[test]
+    fn an_object_with_no_end_has_no_length() {
+        assert_eq!(object_len(br#"{"a":"}"#), None);
+        assert_eq!(object_len(br#"{"a":{"b":1}"#), None);
+    }
+}
