@@ -221,3 +221,12 @@ fn the_pools_fit_and_every_pool_is_given_bytes() {
     assert!(Pool::ALL.iter().all(|p| b.pool(*p) > 0));
     assert_eq!(b.pool(Pool::OpenIndexes), c.memory_bytes / 100 * 20);
 }
+
+#[test]
+fn the_janitor_deletes_unless_the_variable_makes_it_a_dry_run() {
+    let live = NodeConfig::from_lookup(lookup(FS)).expect("valid");
+    assert!(!live.janitor_dry_run);
+    let dry =
+        NodeConfig::from_lookup(lookup(&with(&[("OSS_JANITOR_DRY_RUN", "true")]))).expect("valid");
+    assert!(dry.janitor_dry_run);
+}

@@ -363,7 +363,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         address_bytes(&config.node_id),
     );
     config::write_limit::apply(config, &mut node_config);
-    node_config.janitor_every = Duration::from_millis(config.janitor_every_millis);
+    support::apply_janitor_and_hibernation(&mut node_config, config);
     let health = Arc::new(StoreHealth::new(
         Arc::clone(&membership),
         oracle,

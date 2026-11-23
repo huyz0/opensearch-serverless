@@ -29,6 +29,10 @@ use oss_writer::log::{
 use oss_writer::publish::lazy::Policy;
 use oss_writer::takeover::{HeadWriters, Predecessors};
 
+mod sweep;
+#[allow(unused_imports)]
+pub use sweep::*;
+
 pub const MAPPING: &str = r#"{"properties":{"n":{"type":"integer"}}}"#;
 
 /// The clock an hour on: every lease node-1 holds has lapsed by it.

@@ -95,6 +95,9 @@ pub struct NodeConfig {
     /// How often the janitor sweeps and the dead-log pass runs; it is also
     /// the first wait before a dead node's log is tried again.
     pub janitor_every_millis: u64,
+    /// `serverless.janitor.dry_run`: count what the janitor would delete and
+    /// delete nothing. Off by default.
+    pub janitor_dry_run: bool,
     /// `serverless.activation.hibernate_after_millis`; 0 never hibernates.
     pub hibernate_after_millis: u64,
     /// `serverless.write.backpressure.*`: what limits the writes waiting on
@@ -210,6 +213,7 @@ impl NodeConfig {
             other => Err(format!("{key} is [{other}], not true or false")),
         };
         let janitor_every_millis = bounded("OSS_JANITOR_EVERY_MS", "60000", 1, u64::MAX)?;
+        let janitor_dry_run = flag("OSS_JANITOR_DRY_RUN", "false")?;
         let tail_overlay = flag("OSS_TAIL_OVERLAY", "false")?;
         let proactive_takeover = flag("OSS_PROACTIVE_TAKEOVER", "true")?;
         let hibernate_after_millis = bounded("OSS_HIBERNATE_AFTER_MS", "0", 0, 604_800_000)?;
@@ -254,6 +258,7 @@ impl NodeConfig {
             write_limit,
             orphan_slice_budget: usize::try_from(orphan_slice_budget).unwrap_or(0),
             orphan_slice_millis: u64::try_from(orphan_slice_millis).unwrap_or(u64::MAX),
+            janitor_dry_run,
             hibernate_after_millis,
             proactive_takeover,
             proactive_reapers: usize::try_from(proactive_reapers).unwrap_or(2),

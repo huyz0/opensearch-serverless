@@ -38,7 +38,7 @@ Per dead node collected: 1 lease GET, per shard named 1 head GET and 1 descripto
 
 ## Switch
 
-The one switch, `serverless.janitor.dry_run`, default on.
+The one switch, `serverless.janitor.dry_run`, default off (the pass deletes; [janitor-default-live](../janitor-default-live/SPEC.md)).
 
 ## Risks
 

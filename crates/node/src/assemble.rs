@@ -107,7 +107,7 @@ impl Config {
             write_limit: oss_writer::admission::LimiterConfig::default(),
             janitor_every: Duration::from_secs(60),
             sweep: gc::Config {
-                dry_run: true,
+                dry_run: false,
                 minimum_unreferenced_millis: 60_000,
                 max_watched: 100_000,
                 max_pinned: 100_000,
