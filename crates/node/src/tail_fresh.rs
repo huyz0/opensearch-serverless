@@ -166,6 +166,7 @@ impl TailFresh {
         }
         let mut claimed_through = i64::MAX;
         let mut asked = false;
+        let mut subscribed = false;
         let mut unanswered = false;
         let gate = Arc::clone(
             self.asking
@@ -186,6 +187,7 @@ impl TailFresh {
                     asked = true;
                     claimed_through = answer.claimed_through;
                     if subscription != CHECK {
+                        subscribed = true;
                         self.held
                             .answered(uuid, shard, writer, subscription, sent_at, &answer);
                     }
@@ -195,7 +197,11 @@ impl TailFresh {
             }
         }
         apply_pending();
-        if self.granted(uuid, shard, writer) {
+        // The grant this search just asked for held every write acknowledged
+        // when it was sent, which is every write this search must see: a slow
+        // ask or build that outlasts the grant's own span does not undo it.
+        if self.granted(uuid, shard, writer) || (subscribed && self.held.holds(uuid, shard, writer))
+        {
             return true;
         }
         if unanswered {
