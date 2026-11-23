@@ -23,10 +23,17 @@ if ! cargo mutants --version >/dev/null 2>&1; then
   echo "mutants: cargo-mutants is not installed: cargo install cargo-mutants --locked" >&2
   exit 1
 fi
+# Tests run under nextest when it is installed: every test is its own process
+# spread across the cores, where `cargo test` runs a crate's test binaries one
+# after another. Measured on oss-node (520 tests, 4 cores): 48 s against 27 s,
+# the longest single test (18 s) being the floor. Doctests are not run by it;
+# the PR's tests step runs them.
+test_tool=()
+if cargo nextest --version >/dev/null 2>&1; then test_tool=(--test-tool nextest); fi
 # A test timeout auto-set from a cached baseline can be a few seconds, which a
 # suite of socket tests with 5 s call deadlines outlasts when a mutant makes
 # every call wait for its deadline: such a mutant is caught, not hung.
-common=(--workspace --all-features --exclude 'crates/*/src/main.rs' --timeout-multiplier 3 --minimum-test-timeout 60)
+common=(--workspace --all-features --exclude 'crates/*/src/main.rs' --timeout-multiplier 3 --minimum-test-timeout 60 "${test_tool[@]}")
 # MUTANTS_IN_PLACE=1 (CI's disposable runner) mutates the working tree itself,
 # so the build the tests step left in target/ is reused instead of rebuilt in a
 # copy, and skips the unmutated baseline, which that step already ran green.
@@ -38,7 +45,7 @@ if [ "${MUTANTS_IN_PLACE:-}" = "1" ]; then
   if [ "${MUTANTS_BASELINE:-skip}" = "run" ]; then
     common+=(--in-place)
   else
-    common=(--workspace --all-features --exclude 'crates/*/src/main.rs' --in-place --baseline skip --timeout 60)
+    common=(--workspace --all-features --exclude 'crates/*/src/main.rs' --in-place --baseline skip --timeout 60 "${test_tool[@]}")
   fi
 fi
 # cargo-mutants exits 3 when mutants only timed out (none missed, exit 2): a

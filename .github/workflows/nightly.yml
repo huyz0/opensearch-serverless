@@ -118,7 +118,7 @@ jobs:
           restore-keys: lucene-rust-data-
       - uses: taiki-e/install-action@v2
         with:
-          tool: cargo-mutants
+          tool: cargo-mutants,cargo-nextest
       - name: run
         env:
           LANE: ${{ matrix.lane }}
