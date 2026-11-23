@@ -9,6 +9,7 @@ mod descriptor_routes;
 mod exit_gate;
 mod forward;
 mod index_cache;
+mod orphan_timer;
 mod publish_age;
 mod publish_read;
 mod tombstone_pass;

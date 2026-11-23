@@ -109,3 +109,29 @@ fn the_tombstone_sweep_is_hourly_unless_set_and_zero_turns_it_off() {
             .is_err()
     );
 }
+
+#[test]
+fn the_orphan_keys_are_read_within_the_settings_bounds() {
+    let config = |extra| NodeConfig::from_lookup(lookup(extra, "/x".to_owned()));
+    let off = config(&[]).expect("valid");
+    assert_eq!(off.orphan_slice_budget, 0);
+    assert_eq!(off.orphan_slice_millis, 3_600_000);
+    let on = config(&[
+        ("OSS_ORPHAN_SLICE_BUDGET", "250"),
+        ("OSS_ORPHAN_SLICE_MS", "60000"),
+    ])
+    .expect("valid");
+    assert_eq!(on.orphan_slice_budget, 250);
+    assert_eq!(on.orphan_slice_millis, 60_000);
+    for (key, value) in [
+        ("OSS_ORPHAN_SLICE_BUDGET", "1001"),
+        ("OSS_ORPHAN_SLICE_BUDGET", "-1"),
+        ("OSS_ORPHAN_SLICE_BUDGET", "many"),
+        ("OSS_ORPHAN_SLICE_MS", "999"),
+        ("OSS_ORPHAN_SLICE_MS", "x"),
+    ] {
+        let pairs: &'static [(&str, &str)] = Box::leak(Box::new([(key, value)]));
+        let e = config(pairs).expect_err(key);
+        assert!(e.contains(key), "{e}");
+    }
+}

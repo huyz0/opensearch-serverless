@@ -14,7 +14,8 @@ use crate::cluster_owner::IndexSource;
 use crate::descriptor_routes::DescriptorRoutes;
 use crate::push_link::Leases;
 use crate::writer::{
-    ProactiveConfig, ProactiveTakeover, Routes, TombstoneParts, TombstonePass, WriterRole,
+    LiveLeases, OrphanParts, OrphanTimer, ProactiveConfig, ProactiveTakeover, Routes,
+    TombstoneParts, TombstonePass, WriterRole,
 };
 use oss_cluster::LeaseClock;
 use oss_mem::MemoryBudget;
@@ -134,4 +135,29 @@ impl IndexSource for DescriptorRoutes {
     fn index(&self, name: &str) -> Option<oss_writer::bulk::IndexInfo> {
         Routes::index(self, name)
     }
+}
+
+/// The orphan-shard sweep, which the one node ranked to sweep runs once every
+/// `OSS_ORPHAN_SLICE_MS`; nothing for a budget of 0.
+pub(super) fn orphan_sweep(
+    config: &NodeConfig,
+    store: &Arc<dyn BlobStore>,
+    budget: &MemoryBudget,
+    clock: Arc<dyn LeaseClock>,
+    live: Arc<LiveLeases>,
+    dry_run: bool,
+) -> Option<OrphanTimer> {
+    OrphanTimer::spawn(
+        OrphanParts {
+            store: Arc::clone(store),
+            base: config.base.clone(),
+            node_id: config.node_id.clone(),
+            budget: budget.clone(),
+            slice: config.orphan_slice_budget,
+            every: Duration::from_millis(config.orphan_slice_millis),
+            dry_run,
+            clock: Arc::new(move || u64::try_from(clock.now_millis()).unwrap_or(0)),
+        },
+        live,
+    )
 }

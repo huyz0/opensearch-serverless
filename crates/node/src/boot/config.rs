@@ -10,6 +10,8 @@ use std::time::Duration;
 
 use oss_mem::{BudgetConfig, ConfigError as BudgetError, Pool};
 
+use oss_janitor::settings::{ORPHAN_SLICE_BUDGET, ORPHAN_SLICE_INTERVAL_MILLIS};
+
 use crate::tail_overlay::REFRESH_VISIBILITY;
 
 pub(super) mod write_limit;
@@ -100,6 +102,11 @@ pub struct NodeConfig {
     pub write_limit: oss_writer::admission::LimiterConfig,
     /// How often the one sweeping node removes expired tombstones; 0 is off.
     pub tombstone_sweep_millis: u64,
+    /// `serverless.janitor.orphan_slice_budget`: the shard containers one
+    /// orphan-sweep slice judges; 0, the default, is off.
+    pub orphan_slice_budget: usize,
+    /// `serverless.janitor.orphan_slice_interval_millis`.
+    pub orphan_slice_millis: u64,
     /// `serverless.takeover.proactive.enabled`: whether this node takes the
     /// shards a dead node's log names before a write asks.
     pub proactive_takeover: bool,
@@ -210,6 +217,18 @@ impl NodeConfig {
         let proactive_reapers = bounded("OSS_PROACTIVE_REAPERS", "2", 1, 16)?;
         let proactive_max_concurrent = bounded("OSS_PROACTIVE_MAX_CONCURRENT", "4", 1, 64)?;
         let tombstone_sweep_millis = bounded("OSS_TOMBSTONE_SWEEP_MS", "3600000", 0, 604_800_000)?;
+        let orphan_slice_budget = ORPHAN_SLICE_BUDGET
+            .parse(&or(
+                "OSS_ORPHAN_SLICE_BUDGET",
+                &ORPHAN_SLICE_BUDGET.default().to_string(),
+            ))
+            .map_err(|e| format!("OSS_ORPHAN_SLICE_BUDGET: {e}"))?;
+        let orphan_slice_millis = ORPHAN_SLICE_INTERVAL_MILLIS
+            .parse(&or(
+                "OSS_ORPHAN_SLICE_MS",
+                &ORPHAN_SLICE_INTERVAL_MILLIS.default().to_string(),
+            ))
+            .map_err(|e| format!("OSS_ORPHAN_SLICE_MS: {e}"))?;
         let proactive_pass_millis = bounded("OSS_PROACTIVE_PASS_MS", "30000", 1, 3_600_000)?;
         let cluster_settings_poll_millis =
             bounded("OSS_CLUSTER_SETTINGS_POLL_MS", "30000", 1, 3_600_000)?;
@@ -233,6 +252,8 @@ impl NodeConfig {
             janitor_every_millis,
             tombstone_sweep_millis,
             write_limit,
+            orphan_slice_budget: usize::try_from(orphan_slice_budget).unwrap_or(0),
+            orphan_slice_millis: u64::try_from(orphan_slice_millis).unwrap_or(u64::MAX),
             hibernate_after_millis,
             proactive_takeover,
             proactive_reapers: usize::try_from(proactive_reapers).unwrap_or(2),
@@ -274,226 +295,4 @@ impl NodeConfig {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn lookup<'a>(pairs: &'a [(&'a str, &'a str)]) -> impl Fn(&str) -> Option<String> + 'a {
-        move |key| {
-            pairs
-                .iter()
-                .find(|(k, _)| *k == key)
-                .map(|(_, v)| (*v).to_owned())
-        }
-    }
-
-    const FS: &[(&str, &str)] = &[
-        ("OSS_NODE_ID", "n1"),
-        ("OSS_STORE", "fs"),
-        ("OSS_FS_ROOT", "/data"),
-    ];
-
-    fn with<'a>(extra: &[(&'a str, &'a str)]) -> Vec<(&'a str, &'a str)> {
-        let mut all: Vec<(&str, &str)> = FS.to_vec();
-        all.extend_from_slice(extra);
-        all
-    }
-
-    #[test]
-    fn the_lease_refresh_interval_is_set_apart_from_the_renewal() {
-        let c = NodeConfig::from_lookup(lookup(&with(&[("OSS_LEASE_REFRESH_MS", "2000")])))
-            .expect("valid");
-        assert_eq!(c.refresh_every(), Duration::from_secs(2));
-        assert_eq!(
-            c.renew_every(),
-            Duration::from_secs(10),
-            "the renewal stays"
-        );
-    }
-
-    #[test]
-    fn a_file_store_node_takes_the_defaults() {
-        let c = NodeConfig::from_lookup(lookup(FS)).expect("valid");
-        assert_eq!(c.node_id, "n1");
-        assert_eq!(c.cluster, "opensearch-serverless");
-        assert_eq!(c.base, "");
-        assert_eq!(c.http, "127.0.0.1:9200".parse().expect("addr"));
-        assert_eq!(c.transport, "127.0.0.1:9300".parse().expect("addr"));
-        assert_eq!(c.advertise, None);
-        assert_eq!(c.memory_bytes, 1 << 30);
-        assert_eq!(c.lease_ttl_millis, 30_000);
-        assert_eq!(c.lease_refresh_millis, None);
-        assert_eq!(c.cluster_settings_poll_millis, 30_000);
-        assert_eq!(c.refresh_every(), c.renew_every(), "as often as renewed");
-        assert_eq!(c.index_confirm_millis, 5_000);
-        assert_eq!(c.janitor_every_millis, 60_000);
-        assert_eq!(c.renew_every(), Duration::from_secs(10));
-        assert_eq!(
-            c.store,
-            StoreChoice::Fs {
-                root: "/data".into()
-            }
-        );
-    }
-
-    #[test]
-    fn proactive_takeover_is_on_with_the_settings_defaults_and_each_is_read() {
-        let c = NodeConfig::from_lookup(lookup(FS)).expect("valid");
-        assert!(c.proactive_takeover);
-        let off = NodeConfig::from_lookup(lookup(&with(&[("OSS_PROACTIVE_TAKEOVER", "false")])))
-            .expect("valid");
-        assert!(!off.proactive_takeover);
-        assert_eq!(
-            (
-                c.proactive_reapers,
-                c.proactive_max_concurrent,
-                c.proactive_pass_millis
-            ),
-            (2, 4, 30_000)
-        );
-        let on = NodeConfig::from_lookup(lookup(&with(&[
-            ("OSS_PROACTIVE_TAKEOVER", "true"),
-            ("OSS_PROACTIVE_REAPERS", "3"),
-            ("OSS_PROACTIVE_MAX_CONCURRENT", "8"),
-            ("OSS_PROACTIVE_PASS_MS", "5000"),
-        ])))
-        .expect("valid");
-        assert!(on.proactive_takeover);
-        assert_eq!(
-            (
-                on.proactive_reapers,
-                on.proactive_max_concurrent,
-                on.proactive_pass_millis
-            ),
-            (3, 8, 5_000)
-        );
-    }
-
-    #[test]
-    fn a_proactive_setting_out_of_its_bounds_is_refused() {
-        for (key, bad) in [
-            ("OSS_PROACTIVE_TAKEOVER", "yes"),
-            ("OSS_PROACTIVE_REAPERS", "0"),
-            ("OSS_PROACTIVE_REAPERS", "17"),
-            ("OSS_PROACTIVE_MAX_CONCURRENT", "0"),
-            ("OSS_PROACTIVE_MAX_CONCURRENT", "65"),
-            ("OSS_PROACTIVE_PASS_MS", "0"),
-            ("OSS_PROACTIVE_PASS_MS", "3600001"),
-            ("OSS_PROACTIVE_PASS_MS", "x"),
-        ] {
-            let err = NodeConfig::from_lookup(lookup(&with(&[(key, bad)]))).expect_err(key);
-            assert!(err.contains(key), "{err}");
-        }
-    }
-
-    #[test]
-    fn an_s3_node_names_its_bucket() {
-        let pairs = [
-            ("OSS_NODE_ID", "n1"),
-            ("OSS_STORE", "s3"),
-            ("OSS_S3_ENDPOINT", "http://127.0.0.1:9000"),
-            ("OSS_S3_BUCKET", "b"),
-            ("OSS_S3_REGION", "r"),
-            ("OSS_S3_ACCESS_KEY", "ak"),
-            ("OSS_S3_SECRET_KEY", "sk"),
-            ("OSS_BASE", "prod/"),
-        ];
-        let c = NodeConfig::from_lookup(lookup(&pairs)).expect("valid");
-        assert_eq!(c.base, "prod/");
-        assert!(matches!(c.store, StoreChoice::S3 { ref bucket, .. } if bucket == "b"));
-    }
-
-    #[test]
-    fn what_cannot_be_used_is_refused_by_name() {
-        let refused = |pairs: &[(&str, &str)], needle: &str| {
-            let e = NodeConfig::from_lookup(lookup(pairs)).expect_err("refused");
-            assert!(e.contains(needle), "{e} lacks {needle}");
-        };
-        refused(&[], "OSS_NODE_ID");
-        refused(&[("OSS_NODE_ID", "n")], "OSS_STORE");
-        refused(&[("OSS_NODE_ID", "n"), ("OSS_STORE", "gcs")], "[gcs]");
-        refused(&[("OSS_NODE_ID", "n"), ("OSS_STORE", "fs")], "OSS_FS_ROOT");
-        refused(
-            &[("OSS_NODE_ID", "n"), ("OSS_STORE", "s3")],
-            "OSS_S3_ENDPOINT",
-        );
-        refused(&with(&[("OSS_BASE", "prod")]), "OSS_BASE");
-        refused(&with(&[("OSS_HTTP_ADDR", "nope")]), "OSS_HTTP_ADDR");
-        refused(
-            &with(&[("OSS_TRANSPORT_ADDR", "nope")]),
-            "OSS_TRANSPORT_ADDR",
-        );
-        refused(&with(&[("OSS_MEMORY_BYTES", "x")]), "OSS_MEMORY_BYTES");
-        refused(&with(&[("OSS_MEMORY_BYTES", "1000")]), "OSS_MEMORY_BYTES");
-        refused(&with(&[("OSS_LEASE_TTL_MS", "y")]), "OSS_LEASE_TTL_MS");
-        refused(
-            &with(&[("OSS_LEASE_REFRESH_MS", "y")]),
-            "OSS_LEASE_REFRESH_MS",
-        );
-        refused(
-            &with(&[("OSS_LEASE_REFRESH_MS", "0")]),
-            "OSS_LEASE_REFRESH_MS",
-        );
-        refused(
-            &with(&[("OSS_CLUSTER_SETTINGS_POLL_MS", "0")]),
-            "OSS_CLUSTER_SETTINGS_POLL_MS",
-        );
-        refused(
-            &with(&[("OSS_CLUSTER_SETTINGS_POLL_MS", "soon")]),
-            "OSS_CLUSTER_SETTINGS_POLL_MS",
-        );
-        refused(&with(&[("OSS_LEASE_TTL_MS", "2")]), "OSS_LEASE_TTL_MS");
-        refused(
-            &with(&[("OSS_JANITOR_EVERY_MS", "0")]),
-            "OSS_JANITOR_EVERY_MS",
-        );
-        refused(
-            &with(&[("OSS_JANITOR_EVERY_MS", "x")]),
-            "OSS_JANITOR_EVERY_MS",
-        );
-        refused(&with(&[("OSS_TAIL_OVERLAY", "yes")]), "OSS_TAIL_OVERLAY");
-        refused(
-            &with(&[("OSS_REFRESH_VISIBILITY", "all")]),
-            "OSS_REFRESH_VISIBILITY",
-        );
-    }
-
-    #[test]
-    fn the_tail_overlay_is_off_and_visibility_everywhere_unless_set() {
-        let c = NodeConfig::from_lookup(lookup(FS)).expect("valid");
-        assert!(!c.tail_overlay);
-        assert_eq!(c.refresh_visibility, "everywhere");
-        let mut pairs = FS.to_vec();
-        pairs.push(("OSS_TAIL_OVERLAY", "true"));
-        pairs.push(("OSS_REFRESH_VISIBILITY", "serving"));
-        let c = NodeConfig::from_lookup(lookup(&pairs)).expect("valid");
-        assert!(c.tail_overlay);
-        assert_eq!(c.refresh_visibility, "serving");
-    }
-
-    #[test]
-    fn the_secret_is_not_printed() {
-        let pairs = [
-            ("OSS_NODE_ID", "n1"),
-            ("OSS_STORE", "s3"),
-            ("OSS_S3_ENDPOINT", "http://e"),
-            ("OSS_S3_BUCKET", "b"),
-            ("OSS_S3_REGION", "r"),
-            ("OSS_S3_ACCESS_KEY", "ak"),
-            ("OSS_S3_SECRET_KEY", "hunter2"),
-        ];
-        let c = NodeConfig::from_lookup(lookup(&pairs)).expect("valid");
-        let shown = format!("{c:?}");
-        assert!(!shown.contains("hunter2"), "{shown}");
-        assert!(shown.contains("ak"));
-    }
-
-    #[test]
-    fn the_pools_fit_and_every_pool_is_given_bytes() {
-        let c = NodeConfig::from_lookup(lookup(FS)).expect("valid");
-        let b = c.budget().expect("fits");
-        let sum: usize = Pool::ALL.iter().map(|p| b.pool(*p)).sum();
-        assert!(sum <= c.memory_bytes);
-        assert!(Pool::ALL.iter().all(|p| b.pool(*p) > 0));
-        assert_eq!(b.pool(Pool::OpenIndexes), c.memory_bytes / 100 * 20);
-    }
-}
+mod tests;
