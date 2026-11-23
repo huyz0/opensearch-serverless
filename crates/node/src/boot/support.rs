@@ -161,3 +161,14 @@ pub(super) fn orphan_sweep(
         live,
     )
 }
+
+/// The janitor's rhythm and switch and the hibernation threshold, from the
+/// node's configuration.
+pub(super) fn apply_janitor_and_hibernation(
+    node: &mut crate::assemble::Config,
+    config: &NodeConfig,
+) {
+    node.hibernate_after_millis = config.hibernate_after_millis;
+    node.janitor_every = Duration::from_millis(config.janitor_every_millis);
+    node.sweep.dry_run = config.janitor_dry_run;
+}

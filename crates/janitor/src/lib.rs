@@ -3,7 +3,7 @@
 //! Ported from the shell's `reconcile` package (`GarbageCollector`,
 //! `JanitorPass`) at `3920dc36`. The janitor deletes, so everything here
 //! errs toward keeping: a blob goes only on the rules in [`gc`], after two
-//! sightings, and a pass starts as a dry run ([`settings::DRY_RUN`]).
+//! sightings, and a pass deletes unless `serverless.janitor.dry_run` ([`settings::DRY_RUN`]) is set.
 //!
 //! - [`gc`]: the sweep of one shard's segment blobs.
 //! - [`settings`]: the janitor's node settings.

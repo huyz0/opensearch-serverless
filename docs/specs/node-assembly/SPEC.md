@@ -21,7 +21,7 @@ Parity plan R7.6, node assembly: until now each route family was built by hand i
 - AC-3: the point-in-time service's buffer is `oss_format::MAX_POINT_IN_TIME_BYTES` by default and is charged to the request-body pool: a pool smaller than that refuses a point-in-time create with 429 before anything is written.
 - AC-4: a budget with no `open_indexes` bytes is refused at assembly, as `start_reader` refuses it.
 - AC-5: the janitor timer sweeps the held shards: a blob of an older term nothing names is deleted without a caller running a pass, when the sweep is live.
-- AC-6: a node starts with its janitor as a dry run: the same blob is kept through passes that would have deleted it.
+- AC-6: a node set to a dry run keeps the blob through passes that would have deleted it; the default is live ([janitor-default-live](../janitor-default-live/SPEC.md)).
 
 ## Test plan
 

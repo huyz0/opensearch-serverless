@@ -262,9 +262,22 @@ fn the_janitor_timer_sweeps_the_shards_the_node_holds() {
 }
 
 #[test]
-fn a_node_starts_with_its_janitor_as_a_dry_run() {
-    assert!(Config::new("", "n", [0; 6]).sweep.dry_run);
+fn a_node_starts_with_its_janitor_live() {
+    assert!(!Config::new("", "n", [0; 6]).sweep.dry_run);
     let (_r, store, key) = with_an_orphan(None);
+    let started = Instant::now();
+    while store.head(&key).expect("heads").is_some() {
+        assert!(
+            started.elapsed() < Duration::from_secs(10),
+            "the janitor deleted nothing"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+#[test]
+fn a_janitor_set_to_a_dry_run_counts_and_deletes_nothing() {
+    let (_r, store, key) = with_an_orphan(Some(true));
     // Two passes have listed the points in time and the shard each.
     let lists = store.meter().count(S3Op::List);
     let started = Instant::now();

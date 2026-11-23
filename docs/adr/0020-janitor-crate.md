@@ -10,7 +10,7 @@ R8.4 ports the shell's `reconcile/JanitorPass`, `GarbageCollector`, the log clea
 
 - **A new crate `oss-janitor`** at layer 3, beside `oss-reader` and `oss-writer`, depending on `oss-types`, `oss-blob`, `oss-format`, `oss-cluster` (leases, shard heads) and `oss-meta` (descriptors), and never on the reader or the writer. It is added to `LAYERS` in `check-layering.py` and to the architecture table; `oss-node` wires it at layer 5.
 - **Deletion rules live there once**: a blob goes only when it is in a term older than the published manifest's, nothing names it (the manifest, a point in time, a snapshot), and two consecutive sweeps saw it unreferenced. The crate ships no "no pins" answer; the pins come from the point-in-time and snapshot work.
-- **Every pass starts as a dry run**: a node setting, `serverless.janitor.dry_run`, default on, flipped when the fault suites prove no live blob is ever counted.
+- **Passes delete by default**: a node setting, `serverless.janitor.dry_run`, flipped off on the evidence in [janitor-default-live](../specs/janitor-default-live/SPEC.md); `OSS_JANITOR_DRY_RUN=true` goes back to counting.
 
 ## Cost, memory, fencing and the Java
 

@@ -3,10 +3,12 @@
 use oss_types::settings::{BoolSetting, LongSetting, Scope, Setting};
 
 /// `serverless.janitor.dry_run`: count what a sweep would delete and delete
-/// nothing. On until the fault suites show no live blob is ever counted.
+/// nothing. Off since the fault suites and the mixed-fleet runs showed no live
+/// blob counted ([spec](../../docs/specs/janitor-default-live/SPEC.md)); a node
+/// reads `OSS_JANITOR_DRY_RUN=true` to go back.
 pub const DRY_RUN: BoolSetting = BoolSetting::new(
     "serverless.janitor.dry_run",
-    true,
+    false,
     Scope::Node,
     "Count the blobs a janitor sweep would delete, and delete none.",
 )
@@ -92,8 +94,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_janitor_starts_as_a_dry_run() {
-        assert!(DRY_RUN.default());
+    fn the_janitor_deletes_by_default() {
+        assert!(!DRY_RUN.default());
     }
 
     #[test]
