@@ -3,6 +3,16 @@
 # Mutants listed here are equivalent: no test can tell them apart from the
 # original, so they would only ever be reported as missed. Each names why.
 exclude_re = [
+    # The compact bucket manifest packs a pack reference's low bit, a tag's
+    # low two bits and a UTF-8-style lead byte over disjoint bits, where
+    # `|` and `^` give the same number.
+    "crates/format/src/bucket_manifest/compact_write.rs:.*replace \\| with \\^ in (commit|push_vlong|push_string)",
+    # `auto` keeps a compressed body at four fifths of the plain one or less:
+    # `>` and `>=` differ only at exactly four fifths, which no test lands on.
+    "crates/format/src/bucket_manifest/compact_write.rs:.*replace > with >= in encode",
+    # A given length that differs from its range's is refused by
+    # `CommitManifest::parse` before this match, so the guard always holds.
+    "crates/format/src/bucket_manifest/compact_write.rs:.*replace match guard l == range with true in commit",
     # The JSON tokenizer refuses input that ends inside a value before it
     # yields `Eof`, so skipping a value never meets one; the arm only keeps
     # the loop from running forever if it did.

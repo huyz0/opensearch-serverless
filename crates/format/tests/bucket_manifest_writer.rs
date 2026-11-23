@@ -1,5 +1,8 @@
 //! docs/specs/bucket-manifest-writer/SPEC.md, AC-1 to AC-7.
 
+// ARITH: test sizes and request counts are small; an overflow panics the test.
+#![allow(clippy::arithmetic_side_effects)]
+
 use oss_format::{
     BucketManifest, BucketMember, FormatError, MAX_BUCKET_MEMBERS, ManifestEntry, encode_manifest,
     parse_bucket_member,
@@ -126,11 +129,8 @@ fn data_bytes_sums_recorded_lengths() {
 
 #[test]
 fn refusals_are_errors() {
-    // A compact register.
-    assert!(matches!(
-        BucketManifest::parse(b"OSBM\x02\x00\x00\x00\x00\x00"),
-        Err(FormatError::Unsupported { .. })
-    ));
+    // A compact header with no body.
+    assert!(BucketManifest::parse(b"OSBM\x02\x00\x00\x00\x00\x00").is_err());
     // Too many members.
     let mut manifest = BucketManifest::empty("b").unwrap();
     for i in 0..MAX_BUCKET_MEMBERS {
@@ -186,4 +186,27 @@ fn len_and_is_empty_count_members() {
     assert!(!manifest.is_empty());
     assert_eq!(manifest.len(), 2);
     assert_eq!(manifest.bucket(), "b-1");
+}
+
+#[test]
+fn json_with_more_than_the_member_ceiling_is_refused_and_at_it_is_read() {
+    let doc = |count: usize| {
+        let members: Vec<String> = (0..count)
+            .map(|i| format!("\"u{i:05}\":{{\"index\":\"i\"}}"))
+            .collect();
+        format!(
+            "{{\"bucket\":\"b\",\"term\":1,\"members\":{{{}}}}}",
+            members.join(",")
+        )
+    };
+    assert_eq!(
+        BucketManifest::parse(doc(MAX_BUCKET_MEMBERS).as_bytes())
+            .unwrap()
+            .len(),
+        MAX_BUCKET_MEMBERS
+    );
+    assert!(matches!(
+        BucketManifest::parse(doc(MAX_BUCKET_MEMBERS + 1).as_bytes()),
+        Err(FormatError::TooLarge { .. })
+    ));
 }

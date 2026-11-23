@@ -9,7 +9,7 @@
 
 use super::codec;
 use super::cursor::{Cursor, string_at};
-use super::{BucketEntry, BucketMember, check_bucket_id};
+use super::{BucketEntry, BucketMember, MAX_BUCKET_MEMBERS, check_bucket_id};
 use crate::error::{FormatError, corrupt, len64};
 use crate::json_write::{push_string, push_u64};
 use crate::manifest::MAX_FILES;
@@ -18,8 +18,8 @@ const WHAT: &str = "bucket manifest";
 
 /// What starts a compact manifest.
 pub(super) const MAGIC: &[u8; 4] = b"OSBM";
-const FORMAT: u8 = 2;
-const HEADER: usize = 10;
+pub(super) const FORMAT: u8 = 2;
+pub(super) const HEADER: usize = 10;
 
 /// The most bytes of file names and locations one commit decodes to.
 const MAX_COMMIT_TEXT_BYTES: usize = 8 << 20;
@@ -29,8 +29,8 @@ const LENGTH_NONE: usize = 0;
 const LENGTH_OF_RANGE: usize = 1;
 const LENGTH_GIVEN: usize = 2;
 
-/// One member's entry from a compact manifest.
-pub(super) fn member(bytes: &[u8], uuid: &str) -> Result<BucketEntry, FormatError> {
+/// The body a compact manifest's header describes, decompressed.
+fn open(bytes: &[u8]) -> Result<std::borrow::Cow<'_, [u8]>, FormatError> {
     let (Some(&format), Some(&codec_id), Some(length)) =
         (bytes.get(4), bytes.get(5), bytes.get(6..HEADER))
     else {
@@ -49,8 +49,65 @@ pub(super) fn member(bytes: &[u8], uuid: &str) -> Result<BucketEntry, FormatErro
     let raw_length = u32::from_be_bytes(length.try_into().unwrap_or_default());
     let raw_length = usize::try_from(raw_length).unwrap_or(usize::MAX);
     let packed = bytes.get(HEADER..).unwrap_or_default();
-    let body = codec::body(codec_id, packed, raw_length)?;
-    read_body(&body, uuid)
+    codec::body(codec_id, packed, raw_length)
+}
+
+/// One member's entry from a compact manifest.
+pub(super) fn member(bytes: &[u8], uuid: &str) -> Result<BucketEntry, FormatError> {
+    read_body(&open(bytes)?, uuid)
+}
+
+/// Every member of a compact manifest, in uuid order of the index, with the
+/// bucket and its term.
+pub(super) fn all(bytes: &[u8]) -> Result<Whole, FormatError> {
+    let body = open(bytes)?;
+    let mut cursor = Cursor::new(&body);
+    let bucket = cursor.string()?;
+    check_bucket_id(&bucket)?;
+    let term = cursor.vlong()?;
+    let strings = Strings::read(&mut cursor, &body)?;
+    let count = cursor.vint()?;
+    if count > MAX_BUCKET_MEMBERS {
+        return Err(FormatError::TooLarge {
+            what: WHAT,
+            limit: len64(MAX_BUCKET_MEMBERS),
+            actual: len64(count),
+        });
+    }
+    if count > cursor.remaining() / MIN_MEMBER_BYTES {
+        return Err(corrupt(WHAT, "more members than the body holds"));
+    }
+    // ALLOC: one uuid and entry length a member, at most MAX_BUCKET_MEMBERS.
+    let mut index: Vec<(String, usize)> = Vec::with_capacity(count);
+    for _ in 0..count {
+        let uuid = cursor.string()?;
+        index.push((uuid, cursor.vint()?));
+    }
+    // ALLOC: one entry a member, at most MAX_BUCKET_MEMBERS.
+    let mut members = Vec::with_capacity(count);
+    for (uuid, length) in index {
+        let entry = cursor.take(length)?;
+        members.push((uuid, read_member(entry, &strings)?));
+    }
+    if cursor.remaining() != 0 {
+        return Err(corrupt(WHAT, "a body has bytes past its last member"));
+    }
+    Ok(Whole {
+        bucket,
+        term,
+        members,
+    })
+}
+
+/// The least a member takes of a body: an empty uuid and an entry length in
+/// the index, and in the entry an empty index name, a version and a commit flag.
+const MIN_MEMBER_BYTES: usize = 5;
+
+/// A compact manifest read whole.
+pub(super) struct Whole {
+    pub(super) bucket: String,
+    pub(super) term: u64,
+    pub(super) members: Vec<(String, BucketMember)>,
 }
 
 fn read_body(body: &[u8], uuid: &str) -> Result<BucketEntry, FormatError> {
@@ -60,8 +117,7 @@ fn read_body(body: &[u8], uuid: &str) -> Result<BucketEntry, FormatError> {
     let term = cursor.vlong()?;
     let strings = Strings::read(&mut cursor, body)?;
     let count = cursor.vint()?;
-    // Each member takes two bytes at least: a uuid's count and an entry length.
-    if count > cursor.remaining() / 2 {
+    if count > cursor.remaining() / MIN_MEMBER_BYTES {
         return Err(corrupt(WHAT, "more members than the body holds"));
     }
     // The first entry for a uuid is the one the Java returns.
@@ -314,4 +370,82 @@ fn commit_json(
     }
     out.push(b'}');
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::compact_write::{push_string, push_vlong};
+    use super::*;
+
+    /// A body of `count` members, each as small as one can be, with the
+    /// count the index claims.
+    fn body_of(count: usize, claimed: usize) -> Vec<u8> {
+        let mut body = Vec::new();
+        push_string(&mut body, "b").unwrap();
+        push_vlong(&mut body, 1);
+        push_vlong(&mut body, 0);
+        push_vlong(&mut body, claimed as u64);
+        for _ in 0..count {
+            push_string(&mut body, "").unwrap();
+            push_vlong(&mut body, 3);
+        }
+        for _ in 0..count {
+            push_string(&mut body, "").unwrap();
+            push_vlong(&mut body, 0);
+            body.push(0);
+        }
+        body
+    }
+
+    fn framed(body: &[u8]) -> Vec<u8> {
+        let mut out = MAGIC.to_vec();
+        out.extend([FORMAT, 0]);
+        out.extend(u32::try_from(body.len()).unwrap().to_be_bytes());
+        out.extend(body);
+        out
+    }
+
+    #[test]
+    fn members_as_small_as_they_can_be_are_all_read() {
+        for count in [0, 1, 3, MAX_BUCKET_MEMBERS] {
+            let whole = all(&framed(&body_of(count, count))).unwrap();
+            assert_eq!(whole.members.len(), count);
+        }
+    }
+
+    #[test]
+    fn the_member_reader_takes_minimal_members_and_refuses_a_count_past_the_body() {
+        for count in [1, 3, 7] {
+            let entry = member(&framed(&body_of(count, count)), "absent").unwrap();
+            assert!(entry.member.is_none());
+        }
+        for claimed in [4, 20, 1000] {
+            assert!(
+                matches!(
+                    member(&framed(&body_of(3, claimed)), "absent"),
+                    Err(FormatError::Corrupt { .. })
+                ),
+                "{claimed} claimed"
+            );
+        }
+    }
+
+    #[test]
+    fn a_count_past_the_ceiling_is_too_large_and_past_the_body_is_corrupt() {
+        let over = MAX_BUCKET_MEMBERS + 1;
+        assert!(matches!(
+            all(&framed(&body_of(over, over))),
+            Err(FormatError::TooLarge { .. })
+        ));
+        // More claimed than the body can hold, by a little and by a lot.
+        for claimed in [20, 1000] {
+            assert!(
+                matches!(
+                    all(&framed(&body_of(3, claimed))),
+                    Err(FormatError::Corrupt { .. })
+                ),
+                "{claimed} claimed"
+            );
+        }
+    }
 }
