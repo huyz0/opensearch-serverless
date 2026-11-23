@@ -33,6 +33,7 @@ Parity plan R8.2 and [ADR 0021](../../adr/0021-proactive-takeover-from-the-node-
 - AC-16: the requests of a pass are exactly the budget row's function of epochs, named shards and shards taken (fence creates and probes, header GETs, a descriptor and a head GET a named shard, plus the lazy take's), checked at 3, 30 and 200 simulated nodes to show the pass costs the same at each; 0 LIST. The pre-check decisions are made on the view at pass start. The row is written with the first test, before the code.
 - AC-18: a write routed by placement to a shard a reaper holds reaches it or hands it off within a request bound stated in the budget row.
 - AC-19: the janitor's collect of the dead node after a pass reuses the reaper's fence (no second fence create) and the new refresh surface distinguishes a revoked member from an expired one.
+- AC-21: a pass that fails or is deferred is not retried every refresh: its next attempt waits one stagger, then twice as long each time, up to 64 staggers.
 - AC-20: a header over `max_header_bytes` is refused and its shards stay lazy.
 - AC-17: the four settings (`enabled`, `reapers`, `max_concurrent`, `pass_millis`) are registered and validated; a java-written node log (the recorded fixtures) is read by the pass.
 
