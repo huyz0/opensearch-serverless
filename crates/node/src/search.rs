@@ -291,6 +291,7 @@ pub fn routes<S: BlobStore + 'static>(
     let analysis = Arc::clone(&service);
     let validating = Arc::clone(&service);
     let templating = Arc::clone(&service);
+    let ranking = Arc::clone(&service);
     router
         .route(
             Method::Get,
@@ -322,6 +323,7 @@ pub fn routes<S: BlobStore + 'static>(
         .and_then(|router| analyze::routes(router, analysis))
         .and_then(|router| validate::routes(router, validating))
         .and_then(|router| template::routes(router, templating))
+        .and_then(|router| rank_eval::routes(router, ranking))
 }
 
 #[path = "search_analyze.rs"]
@@ -336,6 +338,8 @@ mod frozen;
 mod msearch;
 #[path = "search_open.rs"]
 pub(crate) mod open_shard;
+#[path = "search_rank_eval.rs"]
+mod rank_eval;
 #[path = "search_shard.rs"]
 mod shard_query;
 #[path = "search_template.rs"]

@@ -23,7 +23,7 @@ const TEMPLATE_PARAMS: &[&str] = &["size", "from"];
 const RENDER_PARAMS: &[&str] = &[];
 
 /// The most bytes a template may render.
-const MAX_RENDERED_BYTES: usize = MAX_RECORDED_BYTES;
+pub(super) const MAX_RENDERED_BYTES: usize = MAX_RECORDED_BYTES;
 
 /// The routes of both endpoints, by GET and POST.
 pub(super) fn routes<S: BlobStore + 'static>(
@@ -64,7 +64,7 @@ fn not_supported(what: &str) -> RestError {
 }
 
 /// The error a template that did not render gets.
-fn template_error(e: TemplateError, source: &str) -> RestError {
+pub(super) fn template_error(e: TemplateError, source: &str) -> RestError {
     match e {
         TemplateError::Compile(message) => {
             let kind = if message.starts_with("Partial not found") {
@@ -146,7 +146,7 @@ fn render_request(req: &mut Request<'_>) -> Result<Rendered, Answer> {
 }
 
 /// The search body the rendered text is.
-fn rendered_source(text: &str, explain: bool) -> Result<SearchSource, DslError> {
+pub(super) fn rendered_source(text: &str, explain: bool) -> Result<SearchSource, DslError> {
     let mut rec = Recorder::new(MAX_RECORDED_BYTES);
     let mut tokens = tokenizer();
     tokens.feed(text.as_bytes(), &mut rec)?;

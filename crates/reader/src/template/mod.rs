@@ -20,7 +20,7 @@ mod val;
 mod visit;
 
 pub use request::{TemplateRequest, read_val};
-pub use val::Val;
+pub use val::{Val, java_double};
 
 /// Why a template did not render.
 #[derive(Clone, Debug, PartialEq, Eq)]
