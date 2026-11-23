@@ -6,7 +6,7 @@
 //! last sweep did not see, or when a blob of it is still being watched for
 //! the second sighting, so a held shard nothing happens to makes no request.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use oss_blob::BlobStore;
@@ -149,14 +149,51 @@ impl JanitorPass {
             .is_ok_and(|path| state.memory.watching(&path) > 0)
     }
 
+    /// How many shards the pass holds a swept commit for, and how many the
+    /// collector's memory holds a scope for.
+    pub fn remembered(&self) -> (usize, usize) {
+        let state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+        (state.swept.len(), state.memory.scopes())
+    }
+
+    /// Forgets what the pass knows of shards the role no longer holds: a
+    /// shard held again is swept as a new owner's, with nothing carried over.
+    fn evict(&self, state: &mut State, held: &[HeldShard]) {
+        // ALLOC: one key a shard held, once a pass.
+        let keys: HashSet<(&str, u32)> = held
+            .iter()
+            .map(|shard| (shard.uuid.as_str(), shard.shard))
+            .collect();
+        state
+            .swept
+            .retain(|(uuid, shard), _| keys.contains(&(uuid.as_str(), *shard)));
+        state
+            .held
+            .retain(|(uuid, shard), _| keys.contains(&(uuid.as_str(), *shard)));
+        // ALLOC: one path a shard held, once a pass.
+        let paths: HashSet<String> = held
+            .iter()
+            .filter_map(|shard| {
+                ShardRef {
+                    index: &shard.name,
+                    uuid: &shard.uuid,
+                    shard: shard.shard,
+                }
+                .base_path(&self.base)
+                .ok()
+            })
+            .collect();
+        state.memory.retain(|path| paths.contains(path));
+    }
+
     /// Runs one pass under `config`.
     pub fn run(&self, config: Config) -> JanitorReport {
         let mut report = JanitorReport::default();
         let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
         let now = (self.clock)();
-        let due: Vec<HeldShard> = self
-            .role
-            .held_shards()
+        let held = self.role.held_shards();
+        self.evict(&mut state, &held);
+        let due: Vec<HeldShard> = held
             .into_iter()
             .filter(|shard| self.due(&state, shard, now, config.relist_after_millis))
             .collect();

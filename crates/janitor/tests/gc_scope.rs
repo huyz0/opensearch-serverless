@@ -236,3 +236,31 @@ fn the_interval_is_exact_and_a_clock_that_stands_still_does_not_list() {
     rig.now.set(500);
     assert!(rig.sweep(config(HOUR, true)).listed);
 }
+
+#[test]
+fn retain_keeps_what_it_accepts_and_drops_the_rest() {
+    let mut rig = Rig::new();
+    rig.blob("t=1/_0.seg");
+    rig.manifest(2, &[]);
+    rig.sweep(config(HOUR, false));
+    assert_eq!((rig.memory.shards(), rig.memory.scopes()), (1, 1));
+    rig.memory.retain(|path| path == PATH);
+    assert_eq!((rig.memory.shards(), rig.memory.scopes()), (1, 1));
+    rig.memory.retain(|_| false);
+    assert_eq!((rig.memory.shards(), rig.memory.scopes()), (0, 0));
+}
+
+#[test]
+fn an_evicted_shard_is_swept_as_a_new_owners() {
+    let mut rig = Rig::new();
+    rig.blob("t=1/_0.seg");
+    rig.manifest(2, &[]);
+    rig.sweep(config(HOUR, false));
+    rig.memory.retain(|_| false);
+    rig.now.set(2_000);
+    let first = rig.sweep(config(HOUR, false));
+    assert!(first.listed, "no scope: listed");
+    assert!(first.deleted.is_empty(), "first sight deletes nothing");
+    assert!(rig.exists("t=1/_0.seg"));
+    assert_eq!(first.watching, 1);
+}

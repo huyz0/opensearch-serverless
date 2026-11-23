@@ -380,3 +380,33 @@ fn the_timer_waits_its_interval_before_the_first_pass_and_stops_promptly() {
         "a sleeping timer is woken to stop"
     );
 }
+
+#[test]
+fn a_shard_the_role_no_longer_holds_is_forgotten() {
+    let r = rig();
+    let key = published_with_an_orphan(&r);
+    r.pass.run(LIVE);
+    assert!(exists(&r, &key), "seen once: watched");
+    assert_eq!(r.pass.remembered(), (1, 1));
+    // The role lets the shard go: an idle writer closes its engine.
+    assert_eq!(r.role.hibernate_idle(0, 10_000).hibernated, 1);
+    assert!(r.role.held_shards().is_empty());
+    let before = requests(&r);
+    assert_eq!(r.pass.run(LIVE), JanitorReport::default());
+    assert_eq!(requests(&r), before, "forgetting makes no request");
+    assert_eq!(r.pass.remembered(), (0, 0));
+    assert!(exists(&r, &key), "nothing was deleted");
+}
+
+#[test]
+fn a_shard_still_held_keeps_its_entries() {
+    let r = rig();
+    published_with_an_orphan(&r);
+    r.pass.run(LIVE);
+    r.pass.run(LIVE);
+    assert_eq!(r.pass.remembered(), (1, 1));
+    let before = requests(&r);
+    assert_eq!(r.pass.run(LIVE), JanitorReport::default());
+    assert_eq!(requests(&r), before);
+    assert_eq!(r.pass.remembered(), (1, 1));
+}
