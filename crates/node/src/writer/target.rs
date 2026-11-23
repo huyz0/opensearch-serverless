@@ -43,7 +43,9 @@ impl Target for RoleTarget<'_> {
         {
             Some(Ok(written)) => Ok(written),
             Some(Err(Failure::Refused(refused))) => Err(refused),
-            Some(Err(Failure::Unavailable(reason))) => Err(Refused::Conflict(reason)),
+            Some(Err(Failure::Unavailable(reason) | Failure::Throttled(reason))) => {
+                Err(Refused::Conflict(reason))
+            }
             None => Err(Refused::Conflict("no outcome".to_owned())),
         }
     }

@@ -70,6 +70,8 @@ pub struct Config {
     pub publish_tick_millis: u64,
     /// How long a writer shard may go unused before it hibernates; 0 never.
     pub hibernate_after_millis: u64,
+    /// What limits the writes waiting on the log.
+    pub write_limit: oss_writer::admission::LimiterConfig,
     /// How often the janitor runs a pass.
     pub janitor_every: Duration,
     /// How a janitor sweep behaves; it starts as a dry run.
@@ -102,6 +104,7 @@ impl Config {
             publish_max_operations: 10_000,
             publish_tick_millis: 250,
             hibernate_after_millis: 0,
+            write_limit: oss_writer::admission::LimiterConfig::default(),
             janitor_every: Duration::from_secs(60),
             sweep: gc::Config {
                 dry_run: true,
@@ -347,6 +350,7 @@ pub fn assemble(
     let mut role = WriterRole::new(writer.committer, writer.routes)
         .with_publishing(publishing)
         .with_hibernation(config.hibernate_after_millis);
+    role.set_write_limiter(config.write_limit.build());
     if let Some(opener) = writer.opener {
         role = role.with_opener(opener);
     }

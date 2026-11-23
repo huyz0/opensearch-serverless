@@ -101,3 +101,5 @@ src/boot/follow.rs	new		the node follows the cluster register's refresh visibili
 src/writer/tombstone_pass.rs	new		which node runs the tombstone sweep, on a wait, from the live members; the shell's reconciler sweeps from every node on its schedule
 src/writer/hibernate.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/reconcile/ShardHibernation.java	idle writers close their engines and keep their head, woken at the same term; the head give-back after a longer idle is not ported yet
 src/writer/routes.rs	new		the writer's seam to the cluster (index lookup, owner, forward), split out of the writer module to keep it under the size limit
+src/writer/limit.rs	new		the write limiter admits a group before anything is applied and is told how the log append went, split out of the writer module to keep it under the size limit
+src/boot/config/write_limit.rs	new		the OSS_WRITE_* variables of the write limiter, split out of the boot config to keep it under the size limit
