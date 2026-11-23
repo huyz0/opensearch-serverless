@@ -149,3 +149,235 @@ fn a_merge_keeps_the_centroid_arrays_and_grows_only_short_ones() {
     assert!(full.last_used_cell > 1);
     assert_eq!(short.mean.len(), short.last_used_cell);
 }
+
+/// A settled digest of centroids set by hand, as `merge` leaves them.
+fn settled(means: &[f64], weights: &[f64], min: f64, max: f64) -> Digest {
+    let mut d = Digest::new(100.0);
+    d.mean = means.to_vec();
+    d.weight = weights.to_vec();
+    d.last_used_cell = means.len();
+    d.total_weight = weights.iter().sum();
+    d.min = min;
+    d.max = max;
+    d
+}
+
+/// `quantile` of five centroids whose two outer ones weigh more than one,
+/// at every half value of its index in `0..=16` (`q * total`, exact as the
+/// total is 16). The answers are `MergingDigest.quantile`'s formulas worked
+/// out by an independent script: the interpolation toward the smallest
+/// value, the one between centroids, the one toward the largest, and the
+/// edges between them.
+#[test]
+fn quantile_interpolates_at_the_ends_and_between_centroids() {
+    let d = settled(
+        &[10.0, 20.0, 30.0, 40.0, 50.0],
+        &[4.0, 3.0, 2.0, 3.0, 4.0],
+        2.0,
+        58.0,
+    );
+    let expected: [(f64, f64); 33] = [
+        (0.0, 2.0),
+        (0.5, 2.0),
+        (1.0, 2.0),
+        (1.5, 6.0),
+        (2.0, 10.0),
+        (2.5, 11.428571428571429),
+        (3.0, 12.857142857142858),
+        (3.5, 14.285714285714286),
+        (4.0, 15.714285714285714),
+        (4.5, 17.142857142857142),
+        (5.0, 18.571428571428573),
+        (5.5, 20.0),
+        (6.0, 22.0),
+        (6.5, 24.0),
+        (7.0, 26.0),
+        (7.5, 28.0),
+        (8.0, 30.0),
+        (8.5, 32.0),
+        (9.0, 34.0),
+        (9.5, 36.0),
+        (10.0, 38.0),
+        (10.5, 40.0),
+        (11.0, 41.42857142857143),
+        (11.5, 42.857142857142854),
+        (12.0, 44.285714285714285),
+        (12.5, 45.714285714285715),
+        (13.0, 47.142857142857146),
+        (13.5, 48.57142857142857),
+        (14.0, 50.0),
+        (14.5, 54.0),
+        (15.0, 58.0),
+        (15.5, 58.0),
+        (16.0, 58.0),
+    ];
+    for (index, answer) in expected {
+        assert_eq!(d.quantile(index / 16.0), answer, "index {index}");
+    }
+}
+
+#[test]
+fn size_counts_the_merged_and_the_buffered_values() {
+    for n in [3usize, 40, 1000, 3000] {
+        let d = built((0..n).map(|i| i as f64), 100.0);
+        assert_eq!(d.size(), n as u64, "{n}");
+    }
+}
+
+#[test]
+fn adding_a_digest_keeps_the_smallest_and_the_largest_value_like_java() {
+    let mut other = Digest::new(100.0);
+    other.mean = vec![-0.0, 7.0];
+    other.weight = vec![1.0, 1.0];
+    other.last_used_cell = 2;
+    other.total_weight = 2.0;
+    other.min = -0.0;
+    other.max = 7.0;
+    // A tie keeps the value there: `0.0` stays, `-0.0` does not replace it.
+    let mut d = built([0.0, 7.0].into_iter(), 100.0);
+    d.add_digest(&other);
+    assert_eq!(d.min.to_bits(), 0.0f64.to_bits());
+    assert_eq!(d.max, 7.0);
+    let mut d = Digest::new(100.0);
+    d.add_digest(&other);
+    assert_eq!((d.min, d.max), (0.0, 7.0));
+    let mut wide = built([-3.0, 11.0].into_iter(), 100.0);
+    wide.add_digest(&other);
+    assert_eq!((wide.min, wide.max), (-3.0, 11.0));
+}
+
+#[test]
+fn a_merge_runs_only_for_buffered_values_or_when_forced() {
+    let mut empty = Digest::new(100.0);
+    empty.compress();
+    assert_eq!(empty.merge_count, 0);
+    let mut d = built((0..50).map(f64::from), 100.0);
+    d.settle();
+    let after_first = d.merge_count;
+    d.settle();
+    d.settle();
+    assert_eq!(d.merge_count, after_first);
+    d.compress();
+    assert_eq!(d.merge_count, after_first + 1);
+}
+
+#[test]
+fn a_merge_takes_the_smallest_and_largest_from_its_centroids() {
+    let mut d = Digest::new(100.0);
+    for (i, x) in [3.0, 1.0, 2.0].into_iter().enumerate() {
+        d.temp_mean[i] = x;
+        d.temp_weight[i] = 1.0;
+    }
+    d.temp_used = 3;
+    d.unmerged_weight = 3.0;
+    d.settle();
+    assert_eq!((d.min, d.max), (1.0, 3.0));
+}
+
+/// Outer centroids of weight 6, whose half less one is 2, so a divide that multiplies, or takes a remainder, answers otherwise.
+#[test]
+fn quantile_divides_the_ends_by_half_their_weight_less_one() {
+    let d = settled(&[10.0, 20.0, 30.0], &[6.0, 4.0, 6.0], 2.0, 58.0);
+    let expected: [(f64, f64); 33] = [
+        (0.0, 2.0),
+        (0.5, 2.0),
+        (1.0, 2.0),
+        (1.5, 4.0),
+        (2.0, 6.0),
+        (2.5, 8.0),
+        (3.0, 10.0),
+        (3.5, 11.0),
+        (4.0, 12.0),
+        (4.5, 13.0),
+        (5.0, 14.0),
+        (5.5, 15.0),
+        (6.0, 16.0),
+        (6.5, 17.0),
+        (7.0, 18.0),
+        (7.5, 19.0),
+        (8.0, 20.0),
+        (8.5, 21.0),
+        (9.0, 22.0),
+        (9.5, 23.0),
+        (10.0, 24.0),
+        (10.5, 25.0),
+        (11.0, 26.0),
+        (11.5, 27.0),
+        (12.0, 28.0),
+        (12.5, 29.0),
+        (13.0, 30.0),
+        (13.5, 37.0),
+        (14.0, 44.0),
+        (14.5, 51.0),
+        (15.0, 58.0),
+        (15.5, 58.0),
+        (16.0, 58.0),
+    ];
+    for (index, answer) in expected {
+        assert_eq!(d.quantile(index / 16.0), answer, "index {index}");
+    }
+}
+
+/// A last centroid of weight 1: the index `total - 1` is interpolated, not the largest value.
+#[test]
+fn quantile_at_the_last_but_one_value_of_a_singleton_end_is_not_the_largest() {
+    let d = settled(
+        &[10.0, 20.0, 30.0, 40.0, 50.0],
+        &[4.0, 4.0, 3.0, 4.0, 1.0],
+        2.0,
+        58.0,
+    );
+    let expected: [(f64, f64); 33] = [
+        (0.0, 2.0),
+        (0.5, 2.0),
+        (1.0, 2.0),
+        (1.5, 6.0),
+        (2.0, 10.0),
+        (2.5, 11.25),
+        (3.0, 12.5),
+        (3.5, 13.75),
+        (4.0, 15.0),
+        (4.5, 16.25),
+        (5.0, 17.5),
+        (5.5, 18.75),
+        (6.0, 20.0),
+        (6.5, 21.428571428571427),
+        (7.0, 22.857142857142858),
+        (7.5, 24.285714285714285),
+        (8.0, 25.714285714285715),
+        (8.5, 27.142857142857142),
+        (9.0, 28.571428571428573),
+        (9.5, 30.0),
+        (10.0, 31.428571428571427),
+        (10.5, 32.857142857142854),
+        (11.0, 34.285714285714285),
+        (11.5, 35.714285714285715),
+        (12.0, 37.142857142857146),
+        (12.5, 38.57142857142857),
+        (13.0, 40.0),
+        (13.5, 42.5),
+        (14.0, 45.0),
+        (14.5, 47.5),
+        (15.0, 50.0),
+        (15.5, 58.0),
+        (16.0, 58.0),
+    ];
+    for (index, answer) in expected {
+        assert_eq!(d.quantile(index / 16.0), answer, "index {index}");
+    }
+}
+
+#[test]
+fn a_merge_grows_buffers_shorter_than_it_needs() {
+    let v = values("rnd", 400);
+    let mut whole = built(v.iter().copied(), 100.0);
+    whole.settle();
+    let mut short = whole.clone();
+    short.temp_mean.clear();
+    short.temp_weight.clear();
+    whole.compress();
+    short.compress();
+    assert_eq!(short.mean, whole.mean);
+    assert_eq!(short.weight, whole.weight);
+    assert_eq!(short.quantile(0.9).to_bits(), whole.quantile(0.9).to_bits());
+}
