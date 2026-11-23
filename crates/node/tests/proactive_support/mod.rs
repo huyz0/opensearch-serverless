@@ -99,6 +99,29 @@ pub fn node_routed(
     takeover: Option<Takeover>,
     wrap: impl FnOnce(DescriptorRoutes) -> Arc<dyn oss_node::writer::Routes>,
 ) -> Node {
+    let check = Arc::new(DescriptorIncarnation::new(Arc::clone(&c.descriptors)));
+    node_checked(
+        c,
+        id,
+        term,
+        later,
+        takeover,
+        wrap,
+        (check, Duration::from_secs(600)),
+    )
+}
+
+/// As [`node_routed`], with the incarnation check and its window a test's own.
+#[allow(clippy::too_many_arguments)]
+pub fn node_checked(
+    c: &Cluster,
+    id: &str,
+    term: u64,
+    later: bool,
+    takeover: Option<Takeover>,
+    wrap: impl FnOnce(DescriptorRoutes) -> Arc<dyn oss_node::writer::Routes>,
+    incarnation: (Arc<dyn oss_node::writer::Incarnation>, Duration),
+) -> Node {
     let clock: Arc<dyn LeaseClock> = if later {
         Arc::new(Later)
     } else {
@@ -172,10 +195,7 @@ pub fn node_routed(
     let publishing = Publishing::new(dynstore, "", id, Policy::new(0, 0, 250), Box::new(|| 1_000));
     let role = WriterRole::new(Arc::clone(&committer), routes)
         .with_names(names)
-        .with_incarnation(
-            Arc::new(DescriptorIncarnation::new(Arc::clone(&c.descriptors))),
-            Duration::from_secs(600),
-        )
+        .with_incarnation(incarnation.0, incarnation.1)
         .with_publishing(publishing)
         .with_opener(Arc::new(opener));
     Node {

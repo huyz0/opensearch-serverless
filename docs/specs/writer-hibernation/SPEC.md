@@ -12,7 +12,7 @@ Parity plan R8.3 (shard activation and eviction, hibernation of idle writers), i
 - **Only what is all published.** A shard with writes no commit holds is published first (its ordinary publish: the segment blob and the register swap, the log trimmed as after any publish), and sleeps only if no write reached it meanwhile; one that was written to again stays open and is tried at a later pass.
 - **Waking.** A write to a hibernated shard reads the head (one GET). When it names this process at the term the shard slept at, the shard is opened over its published commit at that term and the write proceeds: no head swap, no new term, no replay of this node's log. When the head names anyone else or another term, the ordinary open is made (acquire, restore, replay). Exactly one write wakes it: the opener already runs one at a time.
 - **A write that raced the hibernation** (it took the shard's slot just before it slept) finds the slot asleep, lets it go and wakes the shard, rather than failing.
-- **Reads.** A get or a refresh of a hibernated shard is served from its published commit as for a shard the node never held: a refresh answers ok (nothing is unpublished), a get answers that the shard is not open here.
+- **Reads.** A refresh of a hibernated shard answers ok (nothing is unpublished). A get wakes the shard, as a write does, and answers from it, so a document that read before the shard slept reads after.
 - A node that restarts has a new ephemeral id and no memory of what slept, so a head it left is taken the ordinary way.
 - Not in this change: giving the head back after a longer idle (`serverless.activation.idle_after_millis`), warming the block cache before closing, and the writer mark of rollups.
 
@@ -24,8 +24,8 @@ Parity plan R8.3 (shard activation and eviction, hibernation of idle writers), i
 - AC-4: a shard with writes no commit holds is published by the pass and then sleeps; the documents are all in the published commit a reader opens.
 - AC-5: a write to a hibernated shard wakes it at the same term: every document written before and after is found, the head's term is unchanged, and the wake makes fewer requests than releasing the shard and taking it over would (the numbers are rows of the request budgets).
 - AC-6: when the head names another node by the time a hibernated shard is asked for, the shard is opened the ordinary way (the write is refused with the holder, as for any shard that node holds).
-- AC-7: writes interleaved with passes that put the shard to sleep all land: a write that took the shard's slot just before it slept wakes it rather than failing.
-- AC-8: a refresh of a hibernated shard answers ok and makes no request; a get answers that the shard is not open.
+- AC-7: writes interleaved with passes that put the shard to sleep all land, and every document is in the shard afterwards: a write that took the shard's slot just before it slept wakes it rather than being applied to the closed engine.
+- AC-8: a refresh of a hibernated shard answers ok and makes no request; a get wakes the shard and finds the document.
 - AC-9: an assembled node with the threshold set hibernates an idle, published shard on its publish timer; with it unset no shard is ever hibernated.
 - AC-10: `OSS_HIBERNATE_AFTER_MS` sets the threshold, defaults to 0 (never), and a value that is not a number is refused.
 

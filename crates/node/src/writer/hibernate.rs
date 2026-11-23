@@ -26,7 +26,7 @@ pub const HIBERNATE_AFTER_MILLIS: LongSetting = LongSetting::new(
     "serverless.activation.hibernate_after_millis",
     0,
     0,
-    i64::MAX,
+    604_800_000,
     Scope::Node,
     "How long a writer shard may go unused before its engine is closed and its memory freed, in \
      milliseconds; its head stays this node's and the next write wakes it. 0 never hibernates.",

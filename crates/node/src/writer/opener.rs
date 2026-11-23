@@ -243,8 +243,15 @@ impl WriterRole {
         if let Some(slot) = self.slot(&index.uuid, shard) {
             return Ok(slot);
         }
-        opener.open(self, index, shard)?;
-        self.slot(&index.uuid, shard).ok_or_else(not_open)
+        // A shard woken and put to sleep again before it is looked up is
+        // woken again; a threshold near zero is the only way to see it.
+        for _ in 0..3 {
+            opener.open(self, index, shard)?;
+            if let Some(slot) = self.slot(&index.uuid, shard) {
+                return Ok(slot);
+            }
+        }
+        Err(not_open())
     }
 }
 

@@ -49,6 +49,11 @@ impl WriterRole {
         realtime: bool,
     ) -> Result<Option<Fetched>, String> {
         let Some(slot) = self.slot(&index.uuid, shard) else {
+            if self.asleep(&index.uuid, shard) {
+                // A read of a hibernated shard wakes it, as a write does.
+                let woken = self.slot_or_open(index, shard).map_err(|e| e.reason)?;
+                return lock(&woken).get(id, realtime);
+            }
             // ALLOC: error path; one message.
             return Err(format!(
                 "[{}][{shard}] is not open on this node",

@@ -7,13 +7,14 @@
 #[path = "proactive_support/mod.rs"]
 mod support;
 
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use oss_blob::{BlobStore, S3Op};
 use oss_cluster::heads::shard_head_key;
 use oss_format::ShardHead;
-use oss_node::writer::Takeover;
+use oss_node::writer::{Incarnation, Takeover, WriterRole};
 use oss_testkit::budget;
 use oss_writer::bulk::ItemResult;
 use oss_writer::index::Outcome;
@@ -216,38 +217,98 @@ fn a_shard_whose_head_moved_while_it_slept_is_opened_the_ordinary_way() {
 }
 
 #[test]
-fn a_write_racing_the_hibernation_lands() {
+fn writes_interleaved_with_passes_that_sleep_the_shard_all_land() {
+    const WRITES: usize = 60;
     let (c, one) = writer();
     drop(c);
     let role = Arc::clone(&one.role);
     let writer = std::thread::spawn(move || {
-        for n in 0..40 {
+        for n in 0..WRITES {
             let result = write(&role, &format!("id-{n}"));
-            // Quiet long enough for a pass to put it to sleep, so the next
-            // write wakes it, with the passes running all the while.
-            let until = std::time::Instant::now() + std::time::Duration::from_millis(500);
-            while !role.asleep("u1", 0) && std::time::Instant::now() < until {
-                std::thread::yield_now();
-            }
             assert_eq!(outcome(&result), Outcome::Created, "write {n}: {result:?}");
+            // Published, so a pass need only close the engine: the window a
+            // write can take the slot just before it sleeps.
+            if role.held("u1", 0) {
+                let _ = role.refresh(&info(), 0);
+            }
         }
     });
     let mut slept = 0;
     while !writer.is_finished() {
-        // Idle after 20 ms: a shard just woken is not put straight back.
-        slept += one.role.hibernate_idle(20, real_now()).hibernated;
+        // Idle at once, whatever the clock: every pass tries to sleep it.
+        slept += one.role.hibernate_idle(0, after(0)).hibernated;
     }
     writer.join().expect("every write landed");
     assert!(slept > 0, "the passes did put the shard to sleep");
+    // Every document written is in the shard: a write applied to a slot that
+    // had already closed would be acknowledged and missing.
+    for n in 0..WRITES {
+        let again = write(&one.role, &format!("id-{n}"));
+        assert_eq!(outcome(&again), Outcome::Updated, "document {n} is missing");
+    }
 }
 
 #[test]
-fn a_sleeping_shard_refreshes_without_a_request_and_a_get_says_it_is_not_open() {
+fn a_sleeping_shard_refreshes_without_a_request_and_a_get_wakes_it() {
     let (c, one) = writer();
     assert_eq!(one.role.hibernate_idle(IDLE, after(2 * IDLE)).hibernated, 1);
     let before = requests(&c);
     one.role.refresh(&info(), 0).expect("nothing to publish");
     assert_eq!(requests(&c), before);
-    let err = one.role.get(&info(), 0, "a", true).expect_err("not open");
-    assert!(err.contains("not open"), "{err}");
+    let got = one.role.get(&info(), 0, "a", true).expect("served");
+    assert!(
+        got.is_some(),
+        "an acknowledged document reads after a sleep"
+    );
+    assert!(one.role.held("u1", 0), "the read woke the shard");
+}
+
+/// An incarnation check that, once armed, puts the shard to sleep while a
+/// write is between taking the shard's slot and locking it.
+struct Sleepy {
+    role: OnceLock<Arc<WriterRole>>,
+    armed: AtomicBool,
+}
+
+impl Incarnation for Sleepy {
+    fn live(&self, _: &str, _: &str) -> Result<bool, String> {
+        if self.armed.swap(false, Ordering::SeqCst) {
+            let slept = self.role.get().expect("set").hibernate_idle(0, after(0));
+            assert_eq!(slept.hibernated, 1, "{slept:?}");
+        }
+        Ok(true)
+    }
+}
+
+#[test]
+fn a_write_that_took_the_slot_just_before_it_slept_wakes_the_shard_and_lands() {
+    let c = cluster();
+    create(&c, "logs", "u1");
+    let sleepy = Arc::new(Sleepy {
+        role: OnceLock::new(),
+        armed: AtomicBool::new(false),
+    });
+    let store: Arc<dyn BlobStore> = c.store.clone();
+    let one = node_checked(
+        &c,
+        "node-1",
+        1,
+        false,
+        Some(Takeover::from_leases(store, "", "node-1", 1, 1 << 20)),
+        |routes| Arc::new(routes),
+        (
+            Arc::clone(&sleepy) as Arc<dyn Incarnation>,
+            std::time::Duration::ZERO,
+        ),
+    );
+    sleepy.role.set(Arc::clone(&one.role)).ok();
+    assert_eq!(seq(&write(&one.role, "a")), 0);
+    one.role.refresh(&info(), 0).expect("published");
+    // The next write takes the slot, then the check puts the shard to sleep.
+    sleepy.armed.store(true, Ordering::SeqCst);
+    assert_eq!(outcome(&write(&one.role, "b")), Outcome::Created);
+    assert!(one.role.held("u1", 0), "woken by the write that raced");
+    // Both documents are in the shard, not lost with the closed engine.
+    assert_eq!(outcome(&write(&one.role, "a")), Outcome::Updated);
+    assert_eq!(outcome(&write(&one.role, "b")), Outcome::Updated);
 }
