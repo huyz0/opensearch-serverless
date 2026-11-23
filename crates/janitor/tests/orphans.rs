@@ -366,7 +366,7 @@ fn slices_walk_every_container_in_order_and_the_last_ends_the_cycle() {
     let names: Vec<String> = (0..5).map(|i| name(&format!("i{i}"), U3, 0)).collect();
     for n in &names {
         rig.container(n);
-        rig.live(&n.split('#').next().unwrap().to_owned(), U3);
+        rig.live(n.split('#').next().unwrap(), U3);
     }
     let (pit, snap) = rig.sources();
     let sweeper = rig.sweeper(LIVE, &pit, &snap);
