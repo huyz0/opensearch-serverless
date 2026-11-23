@@ -28,7 +28,7 @@ Not changed, by design and listed: the head (no new field, no new CAS), the take
 
 ## Test plan
 
-`crates/node/tests/writer_opener.rs` over the emulator with the real head store and membership, and a `Routes` that records forwards. Each test seen failing first against the opener's old refusal.
+`crates/node/tests/roles/writer_opener.rs` over the emulator with the real head store and membership, and a `Routes` that records forwards. Each test seen failing first against the opener's old refusal.
 
 ## S3 request budget
 

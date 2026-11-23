@@ -6,7 +6,7 @@ Parity plan R6 exit gate, and the risk in [segment-publish](../segment-publish/S
 
 ## Change
 
-No product code. `fixtures/exit-gate` holds a commit the Rust writer published, the Java check that opens it with the shell's own classes (`CommitManifest.fromStream`, `FileLocation.parse`) and a Lucene reader through the soft-deletes wrapper, and what the Java printed. `crates/node/examples/write_commit.rs` writes the commit; `crates/node/tests/exit_gate.rs` opens the same bytes with the Rust reader.
+No product code. `fixtures/exit-gate` holds a commit the Rust writer published, the Java check that opens it with the shell's own classes (`CommitManifest.fromStream`, `FileLocation.parse`) and a Lucene reader through the soft-deletes wrapper, and what the Java printed. `crates/node/examples/write_commit.rs` writes the commit; `crates/node/tests/roles/exit_gate.rs` opens the same bytes with the Rust reader.
 
 ## Acceptance criteria
 
@@ -17,7 +17,7 @@ No product code. `fixtures/exit-gate` holds a commit the Rust writer published, 
 
 ## Test plan
 
-AC-1 is run by hand (`fixtures/exit-gate/README.md`), because a Java build is not in CI, and its output is the committed `java.txt`; AC-2 is `crates/node/tests/exit_gate.rs`; AC-3 and AC-4 are the existing replays.
+AC-1 is run by hand (`fixtures/exit-gate/README.md`), because a Java build is not in CI, and its output is the committed `java.txt`; AC-2 is `crates/node/tests/roles/exit_gate.rs`; AC-3 and AC-4 are the existing replays.
 
 ## S3 request budget
 

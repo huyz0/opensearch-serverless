@@ -16,7 +16,7 @@ Node assembly: one assembled node creates an index, takes a bulk, refreshes and 
 
 ## Test plan
 
-`crates/node/tests/writer_publish.rs` (AC-1, AC-2); `crates/compat/tests/node_cluster.rs` (AC-3).
+`crates/node/tests/roles/writer_publish.rs` (AC-1, AC-2); `crates/compat/tests/node_cluster.rs` (AC-3).
 
 ## S3 request budget
 

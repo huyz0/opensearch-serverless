@@ -27,7 +27,7 @@ Parity plan R7.6, second piece: the shard-head read the node writer's first writ
 
 ## Test plan
 
-`crates/format/tests/shard_heads.rs` over the recorded fixtures; `crates/cluster/tests/heads.rs` and `crates/node/tests/writer_heads.rs` on the emulator with its meter.
+`crates/format/tests/shard_heads.rs` over the recorded fixtures; `crates/cluster/tests/heads.rs` and `crates/node/tests/roles/writer_heads.rs` on the emulator with its meter.
 
 ## S3 request budget
 

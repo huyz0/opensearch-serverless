@@ -22,7 +22,7 @@ Parity plan R7.6, node assembly: the writer role stages writes in the node log, 
 
 ## Test plan
 
-`crates/node/tests/writer_publish.rs`: a real `WriterRole` on the metered emulator, a manual clock, writes through `RoleTarget`, request counts read from the meter.
+`crates/node/tests/roles/writer_publish.rs`: a real `WriterRole` on the metered emulator, a manual clock, writes through `RoleTarget`, request counts read from the meter.
 
 ## S3 request budget
 

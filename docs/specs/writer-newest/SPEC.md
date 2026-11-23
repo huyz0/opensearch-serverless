@@ -21,7 +21,7 @@ Parity plan R7.6, the carry-over from the push work ([reader-push-wire](../reade
 
 ## Test plan
 
-`crates/node/tests/writer_newest.rs`: a real `WriterRole` on the emulator and the handler called with encoded requests; the meter is read before and after.
+`crates/node/tests/roles/writer_newest.rs`: a real `WriterRole` on the emulator and the handler called with encoded requests; the meter is read before and after.
 
 ## S3 request budget
 

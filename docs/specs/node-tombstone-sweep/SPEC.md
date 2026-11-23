@@ -30,4 +30,4 @@ Parity plan R8.4 (the janitor's tombstone sweep), invariant I-1 (every store cal
 
 ## Test plan
 
-`crates/node/tests/tombstone_pass.rs` over the emulator and a fake clock; AC-10 through `boot::start` over a file store, the tombstone stamped in 2020, and the config test for the variable.
+`crates/node/tests/roles/tombstone_pass.rs` over the emulator and a fake clock; AC-10 through `boot::start` over a file store, the tombstone stamped in 2020, and the config test for the variable.

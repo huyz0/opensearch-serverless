@@ -8,4 +8,4 @@
 - AC-6: `a_newer_term_fences_an_older_one_and_a_second_writer_of_a_term_is_foreign` (writer, `tests/publish.rs`).
 - AC-7: `a_lost_swap_reads_the_register_once_and_publishes_again`, `a_manifest_over_the_first_read_buffer_is_read_whole` (writer, `tests/publish.rs`).
 - AC-8: `a_64_mib_segment_publishes_with_peak_heap_below_2_mib` (writer, `tests/publish_memory.rs`, counting allocator, the segment on disk and mapped).
-- AC-9: `the_reader_opens_what_the_writer_published` (node, `tests/publish_read.rs`).
+- AC-9: `the_reader_opens_what_the_writer_published` (node, `tests/roles/publish_read.rs`).

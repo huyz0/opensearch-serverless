@@ -21,7 +21,7 @@ Parity plan R11 (node packs), [ADR 0024](../../adr/0024-node-packs-in-the-writer
 
 ## Test plan
 
-`crates/writer/tests/publish_packs.rs` over the emulator and its meter (AC-1 to AC-4); `crates/node/tests/publish_read.rs` (AC-5), which has both roles. Seen failing with `use_packs` made a no-op: three of the four writer tests failed.
+`crates/writer/tests/publish_packs.rs` over the emulator and its meter (AC-1 to AC-4); `crates/node/tests/roles/publish_read.rs` (AC-5), which has both roles. Seen failing with `use_packs` made a no-op: three of the four writer tests failed.
 
 ## S3 request budget
 
