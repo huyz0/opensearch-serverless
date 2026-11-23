@@ -42,6 +42,7 @@ fn spec(size: usize, shard_size: usize, min: u64, order: TermsOrder) -> TermsSpe
         min_doc_count: min,
         order,
         keyword: Default::default(),
+        show_error: false,
     }
 }
 
@@ -167,7 +168,6 @@ fn unserved_options_are_refused_as_not_supported_yet() {
         r#""format":"yyyy""#,
         r#""execution_hint":"map""#,
         r#""collect_mode":"depth_first""#,
-        r#""show_term_doc_count_error":true"#,
         r#""shard_min_doc_count":2"#,
         r#""order":[{"_count":"asc"},{"_key":"asc"}]"#,
         r#""order":{"sub":"asc"}"#,
@@ -320,4 +320,59 @@ fn the_reduce_dispatch_reaches_terms() {
     assert_eq!(t.buckets, [(1, 5), (2, 1)]);
     // A terms beside a value of another kind is not a reduce.
     assert!(reduce(&[part(&[(1, 2)]), Value::Min(1.0)]).is_none());
+}
+
+// AC-6
+#[test]
+fn a_bucket_writes_the_error_of_the_shards_that_lack_it() {
+    let s = TermsSpec {
+        show_error: true,
+        ..spec(2, 2, 1, TermsOrder::CountDesc)
+    };
+    // Both shards are full: their errors are their last counts, 4 and 5.
+    let a = shard(&s, 0, &[(1, 10), (2, 4)]);
+    let b = shard(&s, 0, &[(2, 6), (3, 5)]);
+    let r = reduced(&[a.clone(), b]);
+    assert_eq!(r.buckets, [(1, 10), (2, 10)]);
+    assert_eq!(r.doc_count_error, 9);
+    // Key 1 is missing from `b` (5), key 2 is in both (0).
+    assert_eq!(r.bucket_errors, [5, 0]);
+    let text = written(Format::Raw, &r);
+    assert!(
+        text.contains(r#"{"key":1,"doc_count":10,"doc_count_error_upper_bound":5}"#),
+        "{text}"
+    );
+    // One shard holds every bucket: no error.
+    let one = reduced(&[a]);
+    assert_eq!(one.bucket_errors, [0, 0]);
+    // Not asked for: no key, as before.
+    let plain = written(
+        Format::Raw,
+        &shard(&spec(2, 2, 1, TermsOrder::CountDesc), 0, &[(1, 10)]),
+    );
+    assert!(
+        !plain.contains("doc_count_error_upper_bound\":0}"),
+        "{plain}"
+    );
+}
+
+#[test]
+fn an_unbounded_shard_makes_every_bucket_error_unbounded() {
+    let s = TermsSpec {
+        show_error: true,
+        ..spec(2, 2, 1, TermsOrder::CountAsc)
+    };
+    let a = shard(&s, 0, &[(1, 1), (2, 2)]);
+    let b = shard(&s, 0, &[(3, 1), (4, 2)]);
+    let r = reduced(&[a, b]);
+    assert_eq!(r.doc_count_error, -1);
+    assert!(r.bucket_errors.iter().all(|e| *e == -1), "{r:?}");
+}
+
+#[test]
+fn show_term_doc_count_error_parses_as_a_boolean() {
+    let (_, s) = spec_of(r#"{"field":"n","show_term_doc_count_error":true}"#);
+    assert!(s.show_error);
+    let (_, s) = spec_of(r#"{"field":"n","show_term_doc_count_error":false}"#);
+    assert!(!s.show_error);
 }

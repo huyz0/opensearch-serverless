@@ -339,3 +339,49 @@ fn cat_health_is_one_row_in_text_or_json() {
     assert_eq!(get(&r, "/_cat/health?h=status").status, 501);
     assert_eq!(get(&r, "/_cat/health?s=status").status, 501);
 }
+
+/// A valid settings update of exactly `len` bytes: the object, then spaces.
+fn update_of(len: usize) -> String {
+    let mut body = String::from(r#"{"persistent":{"a.b":1}}"#);
+    body.push_str(&" ".repeat(len.saturating_sub(body.len())));
+    body
+}
+
+const MAX_SETTINGS_BODY: usize = 1 << 20;
+
+#[test]
+fn a_settings_body_of_the_limit_is_taken_and_one_byte_over_is_413() {
+    let r = rig();
+    let at = call(
+        &r,
+        "PUT",
+        "/_cluster/settings",
+        Some(&update_of(MAX_SETTINGS_BODY)),
+    );
+    assert_eq!(at.status, 200, "the limit itself is allowed");
+    let over = call(
+        &r,
+        "PUT",
+        "/_cluster/settings",
+        Some(&update_of(MAX_SETTINGS_BODY + 1)),
+    );
+    assert_eq!(over.status, 413, "{}", over.text());
+}
+
+#[test]
+fn a_settings_body_with_no_declared_length_is_bounded_as_it_is_read() {
+    let r = rig();
+    let at = update_of(MAX_SETTINGS_BODY);
+    let (a, b) = at.as_bytes().split_at(MAX_SETTINGS_BODY / 2);
+    assert_eq!(
+        cluster_support::chunked_status(&r, "PUT", "/_cluster/settings", &[a, b]),
+        200,
+        "the limit itself is allowed"
+    );
+    let over = update_of(MAX_SETTINGS_BODY + 1);
+    let (a, b) = over.as_bytes().split_at(MAX_SETTINGS_BODY / 2);
+    assert_eq!(
+        cluster_support::chunked_status(&r, "PUT", "/_cluster/settings", &[a, b]),
+        413
+    );
+}

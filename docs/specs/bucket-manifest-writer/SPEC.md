@@ -8,7 +8,7 @@ R11, small indices grouped in a bucket: the writer side starts with the bucket m
 
 `oss_format::BucketManifest` holds a bucket id, the bucket head term and its members in uuid order, each a `BucketMember` (index name, entry version, commit as the JSON a shard's commit register holds). It parses the JSON encoding whole, edits by value (`with_member`, `without_member`, `at_term`), reports `data_bytes` (the sum of the recorded file lengths of every member's latest commit, what fills a bucket) and writes the JSON encoding `BucketManifest.toBytes()` writes: `{"bucket":…,"term":…,"members":{"<uuid>":{"index":…,"version":…,"commit":{…}}}}`, members by uuid, `version` only when positive, `commit` only when there is one. `BucketMember::first` and `BucketMember::advance` keep the version rule: a member's entry moves one version when its commit is swapped and at no other time.
 
-Not here: the compact (`OSBM`) encoder and its whole-manifest decode (a compact register is refused as unsupported by `BucketManifest::parse` for now), the register swap, bucket heads and assignment.
+Not here: the compact (`OSBM`) encoder and its whole-manifest decode (`BucketManifest::parse` reads it whole since [bucket-manifest-compact-writer](../bucket-manifest-compact-writer/SPEC.md)), the register swap, bucket heads and assignment.
 
 Stricter than the Java, each refused: more than `MAX_BUCKET_MEMBERS` (1,024) members, a member uuid that is empty, a commit that `CommitManifest::parse` refuses, and a term past `i64`.
 
@@ -20,7 +20,7 @@ Stricter than the Java, each refused: more than `MAX_BUCKET_MEMBERS` (1,024) mem
 - AC-4: `with_member` adds or replaces, `without_member` removes (a missing uuid changes nothing), `at_term` changes only the term, each leaving the other members as they were.
 - AC-5: `BucketMember::first(name, None)` is version 0, with a commit version 1, and `advance` is the next version with the new commit; a member whose version and commit disagree is refused.
 - AC-6: `data_bytes` is the sum of the recorded lengths of every member's commit, zero for members with no commit.
-- AC-7: refused with an error, never a panic: a compact register, a manifest of 1,025 members, an empty uuid, a commit that is not a manifest, a bucket id that breaks the id rule, a term past `i64`, and every proper prefix of a written manifest.
+- AC-7: refused with an error, never a panic: a compact header with no body, a manifest of 1,025 members, an empty uuid, a commit that is not a manifest, a bucket id that breaks the id rule, a term past `i64`, and every proper prefix of a written manifest.
 
 ## Tests
 

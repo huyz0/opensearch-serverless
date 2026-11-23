@@ -223,9 +223,7 @@ impl TailHeld {
             held.grant_until = sent_at;
         }
         let until = sent_at.saturating_add(GRANT_MILLIS);
-        if until > held.grant_until {
-            held.grant_until = until;
-        }
+        held.grant_until = held.grant_until.max(until);
     }
 
     /// What to ask `writer` for a grant: the subscription held to renew, a

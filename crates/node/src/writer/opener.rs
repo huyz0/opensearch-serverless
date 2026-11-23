@@ -15,6 +15,7 @@ use oss_writer::mapping::Mapping;
 
 use std::sync::Mutex;
 
+use super::hibernate::Slept;
 use super::{ShardSlot, Takeover, WriterRole, lock, publish_age_of};
 use oss_writer::takeover::restore;
 
@@ -115,16 +116,25 @@ impl HeadOpener {
         index: &IndexInfo,
         shard: u32,
     ) -> Result<(), OpenRefused> {
-        let won = self
-            .heads
-            .acquire(
-                &index.name,
-                shard,
-                &self.node_id,
-                &self.ephemeral_id,
-                Some(&index.uuid),
-            )
-            .map_err(|e| OpenRefused::from(e.to_string()))?;
+        let slept = role.take_asleep(&index.uuid, shard);
+        let ours = self.still_ours(index, shard, slept);
+        let woke = ours.is_some();
+        let won = match ours {
+            Some(head) => Acquisition::Won {
+                head,
+                taken_from: None,
+            },
+            None => self
+                .heads
+                .acquire(
+                    &index.name,
+                    shard,
+                    &self.node_id,
+                    &self.ephemeral_id,
+                    Some(&index.uuid),
+                )
+                .map_err(|e| OpenRefused::from(e.to_string()))?,
+        };
         let head = match won {
             Acquisition::Won { head, .. } => head,
             Acquisition::HeldByAnother(other) => {
@@ -178,7 +188,27 @@ impl HeadOpener {
             })?,
         }
         role.set_publish_age(&index.uuid, shard, age);
+        if woke {
+            role.woke(&index.uuid, shard);
+        }
         Ok(())
+    }
+
+    /// The head of a shard that slept here, when it still names this process
+    /// at the term it slept at: one read, and no new term to take.
+    fn still_ours(
+        &self,
+        index: &IndexInfo,
+        shard: u32,
+        slept: Option<Slept>,
+    ) -> Option<oss_format::ShardHead> {
+        let slept = slept?;
+        let head = self.heads.read(&index.name, shard).ok().flatten()?;
+        (head.term == slept.term
+            && head.owner_node_id.as_deref() == Some(self.node_id.as_str())
+            && head.owner_ephemeral_id.as_deref() == Some(self.ephemeral_id.as_str())
+            && head.index_uuid.as_deref().is_none_or(|u| u == index.uuid))
+        .then_some(head)
     }
 }
 
@@ -213,8 +243,15 @@ impl WriterRole {
         if let Some(slot) = self.slot(&index.uuid, shard) {
             return Ok(slot);
         }
-        opener.open(self, index, shard)?;
-        self.slot(&index.uuid, shard).ok_or_else(not_open)
+        // A shard woken and put to sleep again before it is looked up is
+        // woken again; a threshold near zero is the only way to see it.
+        for _ in 0..3 {
+            opener.open(self, index, shard)?;
+            if let Some(slot) = self.slot(&index.uuid, shard) {
+                return Ok(slot);
+            }
+        }
+        Err(not_open())
     }
 }
 

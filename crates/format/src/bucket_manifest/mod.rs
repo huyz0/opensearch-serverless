@@ -11,10 +11,14 @@
 
 mod codec;
 mod compact;
+mod compact_write;
 mod cursor;
 mod doc;
+mod open;
 
+pub use codec::ManifestCodec;
 pub use doc::{BucketManifest, MAX_BUCKET_MEMBERS};
+pub use open::{BUCKET_OPEN_PREFIX, bucket_open_key, encode_open, parse_open};
 
 use crate::error::{FormatError, corrupt};
 use crate::json::{Reader, Token};

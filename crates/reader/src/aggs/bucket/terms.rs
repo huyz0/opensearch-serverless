@@ -28,6 +28,8 @@ pub struct TermsSpec {
     pub order: TermsOrder,
     /// The options only a keyword field reads.
     pub keyword: KeywordOptions,
+    /// `show_term_doc_count_error`: each bucket writes its error bound.
+    pub show_error: bool,
 }
 
 impl Default for TermsSpec {
@@ -39,6 +41,7 @@ impl Default for TermsSpec {
             min_doc_count: 1,
             order: TermsOrder::CountDesc,
             keyword: KeywordOptions::default(),
+            show_error: false,
         }
     }
 }
@@ -55,6 +58,10 @@ pub struct TermsResult {
     /// `(key, doc count)`: by key as the order lists keys (ascending unless
     /// ordered by key descending) from a shard, by the order from a reduce.
     pub buckets: Vec<(i64, u64)>,
+    /// Each bucket's `doc_count_error_upper_bound` (-1 when unbounded), in
+    /// the order of `buckets`; empty unless the spec shows them, when a
+    /// shard's are all 0.
+    pub bucket_errors: Vec<i64>,
     /// The buckets' sub-aggregations.
     pub subs: BucketSubs,
 }
@@ -101,6 +108,46 @@ pub(super) fn shard_error<K>(spec: &TermsSpec, buckets: &[(K, u64)], reported: i
     }
 }
 
+/// The `doc_count_error_upper_bound` of each of `kept`'s buckets after a
+/// reduce (`InternalTerms.reduce` and `reduceBucket`): a part takes its own
+/// shard error off the error stored in each bucket it holds, and the sum of
+/// every part's error is added back, so a bucket's error is the sum of the
+/// errors of the parts without it. `parts` is each part's keys, stored
+/// errors (empty for 0) and shard error. Empty unless `show`.
+pub(super) fn bucket_errors<K: Ord + Copy>(
+    show: bool,
+    sum_error: i64,
+    parts: &[(Vec<K>, &[i64], i64)],
+    kept: &[K],
+) -> Vec<i64> {
+    if !show {
+        // ALLOC: empty.
+        return Vec::new();
+    }
+    // ALLOC: one entry a distinct key of the parts' buckets.
+    let mut by_key: std::collections::BTreeMap<K, i64> = std::collections::BTreeMap::new();
+    for (keys, stored, error) in parts {
+        for (key, at) in keys.iter().zip(0..) {
+            let held = stored.get(at).copied().unwrap_or(0);
+            let slot = by_key.entry(*key).or_insert(0);
+            *slot = if *slot == -1 || held == -1 {
+                -1
+            } else {
+                slot.saturating_add(held).saturating_sub((*error).max(0))
+            };
+        }
+    }
+    kept.iter()
+        .map(|key| match by_key.get(key) {
+            _ if sum_error == -1 => -1,
+            Some(-1) => -1,
+            Some(held) => held.saturating_add(sum_error),
+            None => sum_error,
+        })
+        // ALLOC: one error a kept bucket, at most `size`.
+        .collect()
+}
+
 /// The order's comparison of two `(key, doc count)` buckets: the better one
 /// is `Less`.
 pub(super) fn compare<K: Ord>(order: TermsOrder, a: (&K, u64), b: (&K, u64)) -> std::cmp::Ordering {
@@ -121,11 +168,14 @@ pub fn reduce_results(parts: &[&TermsResult]) -> TermsResult {
     let spec = parts.first().map(|p| p.spec.clone()).unwrap_or_default();
     let mut other = 0u64;
     let mut sum_error = 0i64;
+    // ALLOC: one error a part, bounded by the shards.
+    let mut part_errors = Vec::with_capacity(parts.len());
     // ALLOC: one entry a distinct key of the shards' buckets.
     let mut merged: std::collections::BTreeMap<i64, u64> = std::collections::BTreeMap::new();
     for part in parts {
         other = other.saturating_add(part.other_doc_count);
         let error = shard_error(&part.spec, &part.buckets, part.doc_count_error);
+        part_errors.push(error);
         sum_error = if sum_error == -1 || error == -1 {
             -1
         } else {
@@ -160,6 +210,14 @@ pub fn reduce_results(parts: &[&TermsResult]) -> TermsResult {
         .map(|p| p.buckets.iter().map(|b| b.0).collect())
         // ALLOC: as above.
         .collect();
+    let shown = parts
+        .iter()
+        .zip(&part_errors)
+        .zip(&held)
+        .map(|((p, e), k)| (k.clone(), p.bucket_errors.as_slice(), *e))
+        // ALLOC: one entry a shard, as above.
+        .collect::<Vec<_>>();
+    let bucket_errors = bucket_errors(spec.show_error, sum_error, &shown, &keys);
     let pairs: Vec<(&[i64], &BucketSubs)> = held
         .iter()
         .zip(parts)
@@ -171,6 +229,7 @@ pub fn reduce_results(parts: &[&TermsResult]) -> TermsResult {
         other_doc_count: other,
         doc_count_error,
         subs: reduce_keyed(&pairs, &keys),
+        bucket_errors,
         buckets: kept,
     }
 }

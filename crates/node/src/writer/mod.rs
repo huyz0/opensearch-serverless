@@ -14,6 +14,7 @@ mod dead_log_pass;
 mod dead_logs;
 mod get;
 mod heads;
+mod hibernate;
 mod incarnation;
 mod janitor_pass;
 mod janitor_timer;
@@ -55,6 +56,7 @@ pub use dead_log_pass::{
 };
 pub use dead_logs::{StoreCommits, StoreNodeLogs};
 pub use heads::{HeadAdmission, ShardNames};
+pub use hibernate::{HIBERNATE_AFTER_MILLIS, HibernatePass, SETTINGS as HIBERNATE_SETTINGS};
 pub use incarnation::{DescriptorIncarnation, FENCE_WINDOW, Incarnation};
 pub use janitor_pass::{HeldShard, JanitorPass, JanitorReport, PassLimits};
 pub use janitor_timer::{JanitorTimer, SweepConfig};
@@ -160,6 +162,7 @@ pub struct WriterRole {
     opening: Mutex<()>,
     /// The live node whose head holds a shard this node was asked to write.
     redirects: Mutex<Redirects>,
+    hibernation: hibernate::Hibernation,
 }
 
 fn now_millis() -> u64 {
@@ -192,6 +195,7 @@ impl WriterRole {
             opening: Mutex::new(()),
             // ALLOC: one entry a shard another node holds that this node was asked to write.
             redirects: Mutex::new(HashMap::new()),
+            hibernation: hibernate::Hibernation::default(),
         }
     }
 
@@ -378,6 +382,11 @@ impl WriterRole {
         }
         let held = Arc::clone(&slot);
         let mut slot = lock(&slot);
+        if slot.asleep() {
+            // Slept after this write took the slot: wake the shard.
+            drop(slot);
+            return self.group(index, shard, group);
+        }
         if slot.released() {
             return unavailable(group.len(), || {
                 // ALLOC: error path; one message.
