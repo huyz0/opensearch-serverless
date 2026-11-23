@@ -25,6 +25,7 @@ Nothing calls it yet.
 - AC-7: what is asked follows the engine and the subscription held (`CHECK`, `NEW`, the held id; another writer's grant is none; a skipped record or a refusing shard asks `CHECK`).
 
 - AC-8: with grants off, a search takes what is held first only when the check is set to apply (the `serving` visibility, whose writer waits for those records to be taken), and asks nothing; otherwise it does neither.
+- AC-9: a search that asked for a grant and took what the writer answered with answers even when its own span (500 ms) ran out meanwhile, as on a loaded node: the answer held every write acknowledged when it was sent, which is every write the search must see. A search that held no grant to begin with and asked for none is refused as before.
 
 ## Test plan
 

@@ -144,6 +144,19 @@ fn without_a_grant_the_writer_is_asked_to_renew_or_to_subscribe_anew() {
 }
 
 #[test]
+fn a_grant_that_ran_out_while_the_search_took_the_records_still_answers() {
+    let r = rig(true);
+    r.held.track(U, 0, 5);
+    r.fetcher.answers.lock().unwrap().push(answer(7, true, 9));
+    // Taking what is held outlasts the grant's span (a loaded node).
+    let fresh = r.fresh.ensure_fresh("logs", U, 0, W, 5, &|| {
+        r.now.store(2_000, Ordering::SeqCst);
+    });
+    assert!(fresh);
+    assert_eq!(r.fresh.counts(), (1, 0, 0), "asked once, refused none");
+}
+
+#[test]
 fn a_shard_with_no_engine_only_asks_how_far_refreshing_writes_went() {
     let r = rig(true);
     // Nothing tracks the shard: a CHECK, which grants nothing.

@@ -244,13 +244,23 @@ impl TailHeld {
 
     /// Whether the shard may answer a search under a grant from `writer`.
     pub fn granted(&self, uuid: &str, shard: u32, writer: &str, now: i64) -> bool {
+        self.holds(uuid, shard, writer)
+            && self
+                .lock()
+                .get(&key(uuid, shard))
+                .is_some_and(|held| held.grant_until.saturating_sub(now) > 0)
+    }
+
+    /// Whether what the shard holds from `writer`'s grant covers every write
+    /// the writer had acknowledged when it granted it, however long ago that
+    /// was: the grant's time is not looked at.
+    pub fn holds(&self, uuid: &str, shard: u32, writer: &str) -> bool {
         self.lock().get(&key(uuid, shard)).is_some_and(|held| {
             held.engines > 0
                 && !held.refusing
                 && !held.skipped
                 && held.complete
                 && held.grant_writer.as_deref() == Some(writer)
-                && held.grant_until.saturating_sub(now) > 0
         })
     }
 
