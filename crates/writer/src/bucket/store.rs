@@ -7,8 +7,8 @@ use std::sync::Arc;
 use oss_blob::register::ABSENT_GENERATION;
 use oss_blob::{BlobError, BlobStore, SwapOutcome};
 use oss_format::{
-    BucketEntry, BucketManifest, FormatError, ManifestCodec, bucket_manifest_key,
-    parse_bucket_member,
+    BucketEntry, BucketManifest, FormatError, ManifestCodec, bucket_manifest_key, bucket_open_key,
+    encode_open, parse_bucket_member, parse_open,
 };
 
 use super::BucketError;
@@ -19,6 +19,9 @@ const READ_FIRST: usize = 256 << 10;
 /// The most a register read keeps: a manifest is at most about 2 MiB when
 /// members are admitted, and a little more as they checkpoint.
 const READ_BYTES: usize = 8 << 20;
+
+/// What an open-bucket register read has room for: a generation in decimal.
+const OPEN_READ_BYTES: usize = 64;
 
 /// How a manifest is written.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -47,6 +50,26 @@ pub struct BucketRead {
     /// The manifest.
     pub manifest: BucketManifest,
     /// The register's generation.
+    pub generation: u64,
+    /// The size of the register's value as stored, in bytes.
+    pub stored_bytes: usize,
+}
+
+/// A manifest as swapped in: its new generation and stored size.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Swapped {
+    /// The register's new generation.
+    pub generation: u64,
+    /// The size of the value written, in bytes.
+    pub stored_bytes: usize,
+}
+
+/// A stripe's open-bucket register as read.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OpenRead {
+    /// The generation of the stripe's buckets that takes new members.
+    pub bucket_generation: u64,
+    /// The register's generation, to swap against.
     pub generation: u64,
 }
 
@@ -117,6 +140,7 @@ impl BucketStore {
         Ok(Some(BucketRead {
             manifest: BucketManifest::parse(&bytes)?,
             generation,
+            stored_bytes: bytes.len(),
         }))
     }
 
@@ -155,7 +179,8 @@ impl BucketStore {
     }
 
     /// Replaces the bucket's manifest if its register is at `generation`:
-    /// the new generation, or `None` when another writer moved it first.
+    /// the new generation and size, or `None` when another writer moved it
+    /// first.
     ///
     /// # Errors
     ///
@@ -165,7 +190,7 @@ impl BucketStore {
         &self,
         manifest: &BucketManifest,
         generation: u64,
-    ) -> Result<Option<u64>, BucketError> {
+    ) -> Result<Option<Swapped>, BucketError> {
         let key = bucket_manifest_key(&self.base, manifest.bucket())?;
         let bytes = self.write.encode(manifest)?;
         let outcome = if generation == ABSENT_GENERATION {
@@ -174,8 +199,62 @@ impl BucketStore {
             self.store.swap_register(&key, generation, &bytes)?
         };
         Ok(match outcome {
-            SwapOutcome::Applied(next) => Some(next),
+            SwapOutcome::Applied(next) => Some(Swapped {
+                generation: next,
+                stored_bytes: bytes.len(),
+            }),
             SwapOutcome::Conflict(_) => None,
         })
+    }
+
+    /// Reads a stripe's open-bucket register, or `None` when it was never
+    /// written (generation 0 of the stripe's buckets is open).
+    ///
+    /// # Errors
+    ///
+    /// The store's failures; [`BucketError::Format`] for a value that is not
+    /// a generation.
+    pub fn read_open(&self, stripe: usize) -> Result<Option<OpenRead>, BucketError> {
+        let key = bucket_open_key(&self.base, stripe)?;
+        // ALLOC: one small buffer, a generation in decimal.
+        let mut buf = vec![0u8; OPEN_READ_BYTES];
+        match self.store.read_register(&key, &mut buf) {
+            Ok(Some(read)) => Ok(Some(OpenRead {
+                bucket_generation: parse_open(buf.get(..read.len).unwrap_or_default())?,
+                generation: read.generation,
+            })),
+            Ok(None) => Ok(None),
+            Err(BlobError::InvalidArgument(_)) => Err(FormatError::TooLarge {
+                what: "open bucket",
+                limit: OPEN_READ_BYTES as u64,
+                actual: 0,
+            }
+            .into()),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    /// Moves a stripe to bucket generation `bucket_generation` if its
+    /// register is at `expected_generation` ([`ABSENT_GENERATION`] for none,
+    /// which creates it): `false` when another writer moved it first.
+    ///
+    /// # Errors
+    ///
+    /// The store's failures.
+    pub fn swap_open(
+        &self,
+        stripe: usize,
+        bucket_generation: u64,
+        expected_generation: u64,
+    ) -> Result<bool, BucketError> {
+        let key = bucket_open_key(&self.base, stripe)?;
+        let bytes = encode_open(bucket_generation);
+        let outcome = if expected_generation == ABSENT_GENERATION {
+            self.store.create_register(&key, &bytes)?
+        } else {
+            self.store
+                .swap_register(&key, expected_generation, &bytes)?
+        };
+        Ok(matches!(outcome, SwapOutcome::Applied(_)))
     }
 }

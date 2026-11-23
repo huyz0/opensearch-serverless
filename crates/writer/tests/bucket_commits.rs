@@ -6,13 +6,9 @@
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::AtomicUsize;
 
-use oss_blob::register::RegisterRead;
-use oss_blob::{
-    BlobResult, BlobStore, ByteRange, ChunkSink, ChunkSource, CreateOutcome, Emulator, GetOutcome,
-    Meter, ObjectMeta, S3Op, SwapOutcome,
-};
+use oss_blob::{BlobStore, Emulator, S3Op};
 use oss_format::{
     BucketManifest, BucketMember, ManifestCodec, ManifestEntry, bucket_manifest_key,
     encode_manifest, parse_bucket_member,
@@ -20,6 +16,10 @@ use oss_format::{
 use oss_writer::bucket::{
     BucketCommits, BucketError, BucketStore, ManifestWrite, MemberOutcome, Swap,
 };
+
+mod bucket_support;
+
+use bucket_support::Racing;
 
 const BUCKET: &str = "bk-1";
 
@@ -168,75 +168,6 @@ fn another_nodes_write_costs_one_read_and_one_retry() {
         "one at first, then the lost one and the retry"
     );
     assert!(puts(&e) - p0 >= 1);
-}
-
-/// A store whose register swaps lose a race first: another writer moves the
-/// register just before the swap is judged.
-struct Racing {
-    inner: Arc<Emulator>,
-    races: AtomicUsize,
-}
-
-impl BlobStore for Racing {
-    fn meter(&self) -> &Meter {
-        self.inner.meter()
-    }
-    fn get(
-        &self,
-        key: &str,
-        range: ByteRange,
-        buf: &mut [u8],
-        sink: &mut dyn ChunkSink,
-    ) -> BlobResult<GetOutcome> {
-        self.inner.get(key, range, buf, sink)
-    }
-    fn put(&self, key: &str, body: &mut dyn ChunkSource, buf: &mut [u8]) -> BlobResult<()> {
-        self.inner.put(key, body, buf)
-    }
-    fn create_if_absent(
-        &self,
-        key: &str,
-        body: &mut dyn ChunkSource,
-        buf: &mut [u8],
-    ) -> BlobResult<CreateOutcome> {
-        self.inner.create_if_absent(key, body, buf)
-    }
-    fn head(&self, key: &str) -> BlobResult<Option<ObjectMeta>> {
-        self.inner.head(key)
-    }
-    fn delete(&self, key: &str) -> BlobResult<()> {
-        self.inner.delete(key)
-    }
-    // LIST: a pass-through of the trait method; no test here lists.
-    fn list_prefix(
-        &self,
-        prefix: &str,
-        start_after: Option<&str>,
-        max_keys: usize,
-        visit: &mut dyn FnMut(&str, u64),
-    ) -> BlobResult<oss_blob::ListPage> {
-        // LIST: the same pass-through.
-        self.inner.list_prefix(prefix, start_after, max_keys, visit)
-    }
-    fn read_register(&self, key: &str, buf: &mut [u8]) -> BlobResult<Option<RegisterRead>> {
-        self.inner.read_register(key, buf)
-    }
-    fn swap_register(&self, key: &str, expected: u64, value: &[u8]) -> BlobResult<SwapOutcome> {
-        if self.races.load(Ordering::SeqCst) > 0 {
-            self.races.fetch_sub(1, Ordering::SeqCst);
-            let mut buf = vec![0u8; 1 << 20];
-            let read = self.inner.read_register(key, &mut buf)?.expect("exists");
-            let same = buf[..read.len].to_vec();
-            self.inner.swap_register(key, read.generation, &same)?;
-        }
-        self.inner.swap_register(key, expected, value)
-    }
-    fn create_register(&self, key: &str, value: &[u8]) -> BlobResult<SwapOutcome> {
-        self.inner.create_register(key, value)
-    }
-    fn delete_register(&self, key: &str, expected: u64) -> BlobResult<bool> {
-        self.inner.delete_register(key, expected)
-    }
 }
 
 /// AC-5

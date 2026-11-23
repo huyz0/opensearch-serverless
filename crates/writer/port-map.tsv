@@ -62,3 +62,4 @@ src/bucket/mod.rs	new		module root
 src/bucket/error.rs	new		BucketError
 src/bucket/store.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/bucket/BucketStore.java@429b4cbc	read, readMember, create, swap over the manifest register; the write form from BucketSettings' manifest_codec
 src/bucket/commits.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/bucket/BucketCommits.java@429b4cbc	swapAll, member, forget, MAX_ATTEMPTS; the per-bucket lock and last-written cache
+src/bucket/assign.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/bucket/BucketAssigner.java@429b4cbc	STRIPES, Limits, stripe, bucketId, join, leave; max_members clamped to the manifest ceiling

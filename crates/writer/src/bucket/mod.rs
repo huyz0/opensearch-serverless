@@ -7,10 +7,12 @@
 //! ready with one compare-and-swap, judging each against its own entry's
 //! version rather than the register's generation.
 
+mod assign;
 mod commits;
 mod error;
 mod store;
 
+pub use assign::{BucketAssigner, Limits, STRIPES};
 pub use commits::{BucketCommits, MemberCommit, MemberOutcome, Swap};
 pub use error::BucketError;
-pub use store::{BucketRead, BucketStore, ManifestWrite};
+pub use store::{BucketRead, BucketStore, ManifestWrite, OpenRead, Swapped};

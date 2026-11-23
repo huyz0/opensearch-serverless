@@ -208,10 +208,11 @@ impl BucketCommits {
                 return Ok(results);
             }
             self.writes.fetch_add(1, Ordering::Relaxed);
-            if let Some(generation) = self.store.swap(&next, current.generation)? {
+            if let Some(swapped) = self.store.swap(&next, current.generation)? {
                 *cached = Some(BucketRead {
                     manifest: next,
-                    generation,
+                    generation: swapped.generation,
+                    stored_bytes: swapped.stored_bytes,
                 });
                 return Ok(results);
             }
