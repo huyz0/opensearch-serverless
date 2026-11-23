@@ -161,11 +161,12 @@ impl IndexResponse {
 
 /// One operation of a forwarded bulk (`BulkOperation` and its `WalRecord`).
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct BulkOperation {
+pub struct BulkOperation<'a> {
     /// The document id.
     pub id: String,
-    /// The source JSON; a deletion's is written and read as empty.
-    pub source: String,
+    /// The source JSON; a deletion's is written and read as empty. Borrowed
+    /// by a request built from items already held, owned by one decoded.
+    pub source: std::borrow::Cow<'a, str>,
     /// A delete rather than an index.
     pub deletion: bool,
     /// The `if_seq_no` condition, [`UNASSIGNED_SEQ_NO`] for none.
@@ -180,7 +181,7 @@ pub struct BulkOperation {
 
 /// A shard's slice of a bulk, forwarded to its owner (`ForwardedBulkRequest`).
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct BulkRequest {
+pub struct BulkRequest<'a> {
     /// The parent task.
     pub parent: TaskId,
     /// The index name.
@@ -188,7 +189,7 @@ pub struct BulkRequest {
     /// The shard.
     pub shard: i32,
     /// The operations, in order.
-    pub operations: Vec<BulkOperation>,
+    pub operations: Vec<BulkOperation<'a>>,
     /// Whether the bulk waits for a refresh.
     pub refresh: bool,
     /// The index's uuid, when the sender knows it.
@@ -199,7 +200,7 @@ pub struct BulkRequest {
     pub tail_push: bool,
 }
 
-impl BulkRequest {
+impl<'a> BulkRequest<'a> {
     /// `writeTo`.
     ///
     /// # Errors
@@ -214,7 +215,7 @@ impl BulkRequest {
             out.string(&op.id)?;
             // The Java rebuilds a deletion without its source and digests
             // what it rebuilt: a source sent with one would fail the MAC.
-            out.string(if op.deletion { "" } else { &op.source })?;
+            out.string(if op.deletion { "" } else { op.source.as_ref() })?;
             out.bool(op.deletion)?;
             out.zlong(op.if_seq_no)?;
             out.vlong(op.if_primary_term)?;
@@ -227,13 +228,63 @@ impl BulkRequest {
         out.bool(self.tail_push)
     }
 
+    /// The same request owning every string, to keep past the items it
+    /// borrowed from.
+    pub fn into_owned(self) -> BulkRequest<'static> {
+        BulkRequest {
+            operations: self
+                .operations
+                .into_iter()
+                .map(|op| BulkOperation {
+                    id: op.id,
+                    source: std::borrow::Cow::Owned(op.source.into_owned()),
+                    deletion: op.deletion,
+                    if_seq_no: op.if_seq_no,
+                    if_primary_term: op.if_primary_term,
+                    require_absent: op.require_absent,
+                    routing: op.routing,
+                })
+                // ALLOC: one entry an operation, the request's own count.
+                .collect(),
+            parent: self.parent,
+            index: self.index,
+            shard: self.shard,
+            refresh: self.refresh,
+            index_uuid: self.index_uuid,
+            steered: self.steered,
+            tail_push: self.tail_push,
+        }
+    }
+
+    /// At least how many bytes [`BulkRequest::write`] writes, so a buffer
+    /// of this capacity is filled without growing.
+    pub fn encoded_size_hint(&self) -> usize {
+        // Per operation: a length for the id and the source (5 each at
+        // most), the three flags and conditions (at most 1 + 10 + 10 + 1),
+        // and the routing's presence byte.
+        const PER_OPERATION: usize = 5 + 5 + 1 + 10 + 10 + 1 + 1;
+        let operations = self.operations.iter().fold(0usize, |n, op| {
+            let source = if op.deletion { 0 } else { op.source.len() };
+            n.saturating_add(PER_OPERATION)
+                .saturating_add(op.id.len())
+                .saturating_add(source)
+                .saturating_add(op.routing.as_ref().map_or(0, |r| r.len().saturating_add(5)))
+        });
+        // The parent, index, uuid and flags are small beside the operations.
+        operations
+            .saturating_add(self.index.len())
+            .saturating_add(self.parent.task.as_ref().map_or(0, |(node, _)| node.len()))
+            .saturating_add(self.index_uuid.as_ref().map_or(0, String::len))
+            .saturating_add(128)
+    }
+
     /// The `StreamInput` constructor.
     ///
     /// # Errors
     ///
     /// As the reads it makes; [`WireError::Truncated`] for a count of
     /// operations the bytes left cannot hold.
-    pub fn read(input: &mut Input<'_>) -> Result<Self, WireError> {
+    pub fn read(input: &mut Input<'_>) -> Result<BulkRequest<'static>, WireError> {
         const WHAT: &str = "a forwarded bulk";
         let parent = TaskId::read(input)?;
         let index = input.string(WHAT)?;
@@ -252,7 +303,7 @@ impl BulkRequest {
                 id,
                 // `WalRecord.deletion(id)`: a deletion has no source.
                 // ALLOC: none; an empty string holds nothing.
-                source: if deletion { String::new() } else { source },
+                source: std::borrow::Cow::Owned(if deletion { String::new() } else { source }),
                 deletion,
                 if_seq_no: input.zlong(WHAT)?,
                 if_primary_term: input.vlong(WHAT)?,
@@ -260,7 +311,7 @@ impl BulkRequest {
                 routing: input.optional_string(WHAT)?,
             });
         }
-        Ok(Self {
+        Ok(BulkRequest {
             parent,
             index,
             shard,

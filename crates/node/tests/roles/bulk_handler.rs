@@ -89,10 +89,10 @@ fn handler() -> (BulkHandler, Arc<WriterRole>) {
     (BulkHandler::new(Arc::clone(&role), routes, "owner-1"), role)
 }
 
-fn op(id: &str, source: &str) -> BulkOperation {
+fn op(id: &str, source: &str) -> BulkOperation<'static> {
     BulkOperation {
         id: id.into(),
-        source: source.into(),
+        source: source.to_owned().into(),
         if_seq_no: -2,
         ..BulkOperation::default()
     }

@@ -163,6 +163,7 @@ impl<L: Leases> GetForwarder<L> {
             GET_ACTION,
             (&lease, address),
             self.timeout,
+            64,
             |out| {
                 if peer_reads_realtime(&lease) {
                     request.write_extended(out)

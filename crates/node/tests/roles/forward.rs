@@ -103,7 +103,7 @@ fn budget() -> MemoryBudget {
     )
 }
 
-fn request() -> BulkRequest {
+fn request() -> BulkRequest<'static> {
     BulkRequest {
         index: "logs".into(),
         shard: 1,
@@ -124,7 +124,7 @@ fn closed() -> SocketAddr {
     address
 }
 
-struct Owner(Arc<Mutex<Vec<BulkRequest>>>);
+struct Owner(Arc<Mutex<Vec<BulkRequest<'static>>>>);
 
 impl Handler for Owner {
     fn handle(&self, request: &Request<'_>, out: &mut Output<'_>) -> Result<(), RemoteException> {
@@ -142,7 +142,7 @@ impl Handler for Owner {
     }
 }
 
-fn owner() -> (Server, Arc<Mutex<Vec<BulkRequest>>>) {
+fn owner() -> (Server, Arc<Mutex<Vec<BulkRequest<'static>>>>) {
     let taken = Arc::new(Mutex::new(Vec::new()));
     (serve(Owner(Arc::clone(&taken))), taken)
 }
@@ -401,7 +401,7 @@ fn a_bulk_too_large_to_send_is_refused_without_a_call() {
     let (server, taken) = owner();
     let world = world_at(&server.address().to_string());
     let mut big = request();
-    big.operations[0].source = "x".repeat(MAX_FORWARD_BYTES + 1);
+    big.operations[0].source = "x".repeat(MAX_FORWARD_BYTES + 1).into();
     assert!(matches!(
         world.forwarder.bulk("owner", &big),
         Err(ForwardError::TooLarge)
