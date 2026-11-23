@@ -17,7 +17,7 @@ R8.5 lazy publish: the publish policy already takes a per-shard age ([publish lo
 
 ## Test plan
 
-`crates/node/tests/publish_age.rs` (AC-1) and `tests/writer_opener.rs` (AC-2, over a role that publishes and an opener over real descriptors and heads; observed failing with the call that sets the age removed). AC-3 is by construction: no store call is added.
+`crates/node/tests/roles/publish_age.rs` (AC-1) and `tests/roles/writer_opener.rs` (AC-2, over a role that publishes and an opener over real descriptors and heads; observed failing with the call that sets the age removed). AC-3 is by construction: no store call is added.
 
 ## S3 request budget
 

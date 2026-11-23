@@ -81,54 +81,11 @@ lucene-search = { workspace = true }
 workspace = true
 
 [[test]]
-name = "publish_read"
-path = "tests/publish_read.rs"
-
-[[test]]
 name = "it"
 path = "tests/it/main.rs"
 
 [[test]]
-name = "writer_janitor"
-required-features = ["writer"]
-
-[[test]]
-name = "forward"
-required-features = ["writer"]
-
-[[test]]
 name = "read_forward"
-required-features = ["writer"]
-
-[[test]]
-name = "publish_age"
-required-features = ["writer"]
-
-[[test]]
-name = "writer_publish_timer"
-required-features = ["writer"]
-
-[[test]]
-name = "writer_publish"
-required-features = ["writer"]
-
-[[test]]
-name = "writer_newest"
-required-features = ["writer"]
-
-[[test]]
-name = "writer_role"
-path = "tests/writer_role.rs"
-required-features = ["writer"]
-
-[[test]]
-name = "writer_first"
-path = "tests/writer_first.rs"
-required-features = ["writer"]
-
-[[test]]
-name = "writer_heads"
-path = "tests/writer_heads.rs"
 required-features = ["writer"]
 
 [[test]]
@@ -164,18 +121,6 @@ name = "get_route"
 required-features = ["writer"]
 
 [[test]]
-name = "writer_opener"
-required-features = ["writer"]
-
-[[test]]
-name = "writer_takeover"
-required-features = ["writer"]
-
-[[test]]
-name = "descriptor_routes"
-required-features = ["writer"]
-
-[[test]]
 name = "index_route"
 required-features = ["writer", "coordinator"]
 
@@ -196,10 +141,6 @@ name = "index_delete"
 required-features = ["writer", "coordinator"]
 
 [[test]]
-name = "cluster_owner"
-required-features = ["writer"]
-
-[[test]]
 name = "cat_routes"
 required-features = ["writer"]
 
@@ -216,10 +157,6 @@ name = "boot"
 required-features = ["reader", "writer", "coordinator"]
 
 [[test]]
-name = "bulk_handler"
-required-features = ["writer"]
-
-[[test]]
 name = "by_query_route"
 required-features = ["writer", "coordinator"]
 
@@ -233,8 +170,4 @@ required-features = ["writer"]
 
 [[test]]
 name = "dead_log_pass"
-required-features = ["writer"]
-
-[[test]]
-name = "index_cache"
 required-features = ["writer"]

@@ -23,7 +23,7 @@ R7/R8 descriptor cache ([descriptor routes](../node-descriptor-routes/SPEC.md) n
 
 ## Test plan
 
-`crates/node/tests/index_cache.rs` over the emulator, with a clock the test moves; observed failing with the confirmation made unconditional.
+`crates/node/tests/roles/index_cache.rs` over the emulator, with a clock the test moves; observed failing with the confirmation made unconditional.
 
 ## S3 request budget
 

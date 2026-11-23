@@ -22,7 +22,7 @@ Parity plan R7.1 (routing) and the carry-over from the transport spec: the one c
 
 ## Test plan
 
-`crates/node/tests/forward.rs`: a real socket for AC-1 and AC-5's remote exception, a closed local port for the refusals, an emulator-backed `Membership` on a manual clock and a counting `ConnectProbe` for AC-2 to AC-4; each test run red before the code.
+`crates/node/tests/roles/forward.rs`: a real socket for AC-1 and AC-5's remote exception, a closed local port for the refusals, an emulator-backed `Membership` on a manual clock and a counting `ConnectProbe` for AC-2 to AC-4; each test run red before the code.
 
 ## S3 request budget
 

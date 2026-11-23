@@ -22,7 +22,7 @@ R8.1 on the node: [shard opener](../node-shard-opener/SPEC.md) refused a shard w
 
 ## Test plan
 
-`crates/node/tests/writer_takeover.rs` over the emulator with two nodes sharing a store: the successor judges leases an hour on, so the first node is dead to it. AC-4 stays in `writer_opener.rs`.
+`crates/node/tests/roles/writer_takeover.rs` over the emulator with two nodes sharing a store: the successor judges leases an hour on, so the first node is dead to it. AC-4 stays in `writer_opener.rs`.
 
 ## S3 request budget
 

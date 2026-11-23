@@ -28,7 +28,7 @@ Parity plan R7.6 (node wiring and roles), first piece; the write path of `NodeWr
 
 ## Test plan
 
-`crates/node/tests/writer_role.rs` on the emulator; each criterion's test is run red before the code.
+`crates/node/tests/roles/writer_role.rs` on the emulator; each criterion's test is run red before the code.
 
 ## S3 request budget
 

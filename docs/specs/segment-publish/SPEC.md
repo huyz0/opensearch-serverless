@@ -27,7 +27,7 @@ Parity plan R6.4 (roadmap stage 3, [roadmap](../../roadmap.md)), invariants I-6 
 
 ## Test plan
 
-`crates/format/tests/writers.rs` re-encodes the Java's headers and manifests (AC-1, AC-2); `crates/writer/tests/publish.rs` over the in-process emulator with a request meter (AC-3 to AC-7); `crates/writer/tests/publish_memory.rs` under the counting allocator (AC-8); `crates/node/tests/publish_read.rs`, which has both roles, indexes through the shard, publishes, and counts through the reader (AC-9).
+`crates/format/tests/writers.rs` re-encodes the Java's headers and manifests (AC-1, AC-2); `crates/writer/tests/publish.rs` over the in-process emulator with a request meter (AC-3 to AC-7); `crates/writer/tests/publish_memory.rs` under the counting allocator (AC-8); `crates/node/tests/roles/publish_read.rs`, which has both roles, indexes through the shard, publishes, and counts through the reader (AC-9).
 
 ## S3 request budget
 

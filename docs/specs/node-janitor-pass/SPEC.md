@@ -26,7 +26,7 @@ Parity plan R7.6, node assembly: the janitor crate sweeps one shard at a time, a
 
 ## Test plan
 
-`crates/node/tests/writer_janitor.rs` over the emulator and a real writer role.
+`crates/node/tests/roles/writer_janitor.rs` over the emulator and a real writer role.
 
 ## S3 request budget
 

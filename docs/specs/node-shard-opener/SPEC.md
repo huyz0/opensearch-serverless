@@ -28,7 +28,7 @@ A write group for a shard the role does not hold calls the opener once (opens of
 
 ## Test plan
 
-`crates/node/tests/writer_opener.rs` over the emulator, real head store and membership.
+`crates/node/tests/roles/writer_opener.rs` over the emulator, real head store and membership.
 
 ## S3 request budget
 

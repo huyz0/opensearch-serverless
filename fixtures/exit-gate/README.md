@@ -14,6 +14,6 @@ javac -proc:none -nowarn -cp "$CP" -sourcepath serverless/shell/src/main/java -d
 java -cp "$CP:out" org.opensearch.serverless.store.JavaOpensRust fixtures/exit-gate/rust-commit
 ```
 
-`rust-commit/java.txt` is what it printed: the term, writer and file count of the manifest, and the live (`num_docs`) and total (`max_doc`) documents. `crates/node/tests/exit_gate.rs` opens the same bytes with the Rust reader and asserts the same numbers. Re-run the example and the Java check together: the segments carry random ids, so the bytes differ run to run.
+`rust-commit/java.txt` is what it printed: the term, writer and file count of the manifest, and the live (`num_docs`) and total (`max_doc`) documents. `crates/node/tests/roles/exit_gate.rs` opens the same bytes with the Rust reader and asserts the same numbers. Re-run the example and the Java check together: the segments carry random ids, so the bytes differ run to run.
 
 The other direction, the Rust reader opening what the Java shell wrote, is `fixtures/compat-blobs` and `fixtures/shell-blobs`, read by `the_reader_node_answers_every_search_fixture_as_opensearch_did` and the reader's open tests.
