@@ -93,6 +93,15 @@ pub fn reserved<S: BlobStore + 'static>(shard: &OpenShard<S>, agg: &MetricAgg) -
     })
 }
 
+/// [`reserved`] summed over the `composite` aggregations of `aggs`.
+pub fn reserved_all<S: BlobStore + 'static>(shard: &OpenShard<S>, aggs: &[MetricAgg]) -> usize {
+    aggs.iter()
+        .filter(|agg| agg.composite.is_some())
+        .fold(0usize, |total, agg| {
+            total.saturating_add(reserved(shard, agg))
+        })
+}
+
 /// A `composite` over more buckets than the bucket limit fails as OpenSearch
 /// fails a reduce that makes them.
 pub fn check_limit(agg: &MetricAgg) -> Result<(), ShardError> {
