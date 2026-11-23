@@ -12,6 +12,8 @@ use oss_mem::{BudgetConfig, ConfigError as BudgetError, Pool};
 
 use crate::tail_overlay::REFRESH_VISIBILITY;
 
+pub(super) mod write_limit;
+
 /// The smallest memory total the pools' shares make workable.
 pub const MIN_MEMORY_BYTES: usize = 512 << 20;
 
@@ -93,6 +95,9 @@ pub struct NodeConfig {
     pub janitor_every_millis: u64,
     /// `serverless.activation.hibernate_after_millis`; 0 never hibernates.
     pub hibernate_after_millis: u64,
+    /// `serverless.write.backpressure.*`: what limits the writes waiting on
+    /// the write log.
+    pub write_limit: oss_writer::admission::LimiterConfig,
     /// How often the one sweeping node removes expired tombstones; 0 is off.
     pub tombstone_sweep_millis: u64,
     /// `serverless.takeover.proactive.enabled`: whether this node takes the
@@ -201,6 +206,7 @@ impl NodeConfig {
         let tail_overlay = flag("OSS_TAIL_OVERLAY", "false")?;
         let proactive_takeover = flag("OSS_PROACTIVE_TAKEOVER", "true")?;
         let hibernate_after_millis = bounded("OSS_HIBERNATE_AFTER_MS", "0", 0, 604_800_000)?;
+        let write_limit = write_limit::read(&bounded)?;
         let proactive_reapers = bounded("OSS_PROACTIVE_REAPERS", "2", 1, 16)?;
         let proactive_max_concurrent = bounded("OSS_PROACTIVE_MAX_CONCURRENT", "4", 1, 64)?;
         let tombstone_sweep_millis = bounded("OSS_TOMBSTONE_SWEEP_MS", "3600000", 0, 604_800_000)?;
@@ -226,6 +232,7 @@ impl NodeConfig {
             index_confirm_millis,
             janitor_every_millis,
             tombstone_sweep_millis,
+            write_limit,
             hibernate_after_millis,
             proactive_takeover,
             proactive_reapers: usize::try_from(proactive_reapers).unwrap_or(2),

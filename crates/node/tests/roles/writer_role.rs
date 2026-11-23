@@ -374,3 +374,75 @@ fn a_write_waiting_on_a_shard_whose_stage_failed_is_refused_too() {
     assert_eq!(acked, 0, "every writer saw the failed shard");
     assert!(!r.role.held("logs-uuid", 0));
 }
+
+fn limited(max: usize) -> (Rig, oss_writer::admission::WriteLimiter) {
+    let r = rig();
+    let limiter = oss_writer::admission::LimiterConfig {
+        min_in_flight: 1,
+        max_in_flight: max,
+        ..Default::default()
+    }
+    .build();
+    assert!(r.role.set_write_limiter(limiter.clone()));
+    assert!(!r.role.set_write_limiter(limiter.clone()), "one limiter");
+    (r, limiter)
+}
+
+// docs/specs/write-backpressure AC-6
+#[test]
+fn a_group_the_limiter_refuses_is_neither_applied_nor_logged_and_answers_429() {
+    let (r, limiter) = limited(1);
+    open(&r, "logs", 1);
+    // Another write holds the one slot.
+    let held = limiter.admit(0).expect("the slot");
+    let before = puts(&r);
+    let items = bulk(
+        &r,
+        "logs",
+        &docs(["a".to_owned(), "b".to_owned()].into_iter()),
+    );
+    assert_eq!(items.len(), 2);
+    for item in &items {
+        let ItemResult::Failed { status, error } = &item.result else {
+            panic!("refused");
+        };
+        assert_eq!(*status, 429);
+        assert!(
+            error.reason().contains("slow to take writes"),
+            "{}",
+            error.reason()
+        );
+    }
+    assert_eq!(puts(&r), before, "nothing logged");
+    assert_eq!(limiter.stats().refused, 1, "one refusal, for the group");
+    drop(held);
+    let items = bulk(&r, "logs", &docs(["c".to_owned()].into_iter()));
+    let ItemResult::Written { written: w, .. } = &items[0].result else {
+        panic!("admitted once the slot is free");
+    };
+    assert_eq!(w.seq_no, 0, "the refused group took no sequence number");
+    assert_eq!(limiter.stats().in_flight, 0, "the slot is given back");
+}
+
+// docs/specs/write-backpressure AC-2
+#[test]
+fn a_failed_log_append_lowers_the_limit_and_a_landed_one_does_not() {
+    let (r, limiter) = limited(100);
+    open(&r, "logs", 1);
+    let items = bulk(&r, "logs", &docs(["a".to_owned()].into_iter()));
+    assert_eq!(written(&items), 1);
+    assert_eq!(limiter.stats().limit, 100, "a fast append never cuts");
+
+    // The first write of a shard records its epoch, which is where the
+    // refusal is raised.
+    let (r, limiter) = limited(100);
+    open(&r, "logs", 1);
+    r.admission
+        .refuse
+        .lock()
+        .expect("lock")
+        .insert("logs-uuid".into());
+    let items = bulk(&r, "logs", &docs(["b".to_owned()].into_iter()));
+    assert_eq!(written(&items), 0);
+    assert_eq!(limiter.stats().limit, 66, "100 cut by a third");
+}

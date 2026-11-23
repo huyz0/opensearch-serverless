@@ -16,6 +16,7 @@ mod incarnation;
 mod janitor_pass;
 mod janitor_timer;
 mod lease;
+mod limit;
 mod newest_commit;
 mod opener;
 mod predecessors;
@@ -36,9 +37,10 @@ mod tombstone_pass;
 use std::collections::HashMap;
 use std::sync::atomic::AtomicU8;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use oss_format::WalRecord;
+use oss_writer::admission::WriteLimiter;
 use oss_writer::bulk::{IndexInfo, Kind, Owner, Planned};
 use oss_writer::index::{Refused, Written};
 use oss_writer::log::NodeLogCommitter;
@@ -81,6 +83,8 @@ enum Failure {
     Refused(Refused),
     /// The write could not be made durable or the shard is not held.
     Unavailable(String),
+    /// The node's write limiter refused it before anything was applied.
+    Throttled(String),
 }
 
 /// The shards held, by index uuid and shard number.
@@ -96,6 +100,11 @@ pub const MAX_NEWEST_BYTES: usize = 4 << 20;
 /// The shards this node writes, and the log their writes are staged in.
 pub struct WriterRole {
     committer: Arc<NodeLogCommitter>,
+    /// What limits the writes waiting on the log; none, and every write is
+    /// admitted.
+    limiter: OnceLock<WriteLimiter>,
+    /// What the limiter's times count from.
+    epoch: Instant,
     routes: Arc<dyn Routes>,
     names: Arc<ShardNames>,
     incarnation: Option<Fenced>,
@@ -131,6 +140,8 @@ impl WriterRole {
     pub fn new(committer: Arc<NodeLogCommitter>, routes: Arc<dyn Routes>) -> Self {
         Self {
             committer,
+            limiter: OnceLock::new(),
+            epoch: Instant::now(),
             routes,
             names: Arc::new(ShardNames::default()),
             incarnation: None,
@@ -304,8 +315,26 @@ impl WriterRole {
         }
     }
 
-    /// Applies a group to the opened `slot` of the shard.
+    /// Applies a group to the opened `slot` of the shard, once the write
+    /// limiter admits it; a group it refuses is neither applied nor logged.
     fn group_on(
+        &self,
+        slot: Arc<Mutex<ShardSlot>>,
+        index: &IndexInfo,
+        shard: u32,
+        group: &[Planned<'_>],
+    ) -> Vec<Result<Written, Failure>> {
+        // Held to the end: the slot is given back once the group's records
+        // have landed or failed.
+        let _admitted = match self.admit_group(group.len()) {
+            Ok(permit) => permit,
+            Err(refused) => return refused,
+        };
+        self.group_admitted(slot, index, shard, group)
+    }
+
+    /// Applies an admitted group to the opened `slot` of the shard.
+    fn group_admitted(
         &self,
         slot: Arc<Mutex<ShardSlot>>,
         index: &IndexInfo,
@@ -412,7 +441,11 @@ impl WriterRole {
                 Err(refused) => outcomes.push(Err(Failure::Refused(refused))),
             }
         }
+        let appended_at = self.limiter_now();
         let committed = self.committer.commit(slot.key(), slot.term(), &records);
+        if !records.is_empty() {
+            self.appended(appended_at, committed.is_ok());
+        }
         if let (Ok(_), Some(p), false) = (&committed, &self.publishing, records.is_empty()) {
             // ALLOC: one key a staged group.
             p.written(&(index.uuid.clone(), shard));

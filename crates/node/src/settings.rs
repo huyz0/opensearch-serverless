@@ -19,6 +19,8 @@ fn providers() -> Vec<&'static [&'static Setting]> {
         #[cfg(feature = "writer")]
         oss_writer::log::settings::SETTINGS,
         #[cfg(feature = "writer")]
+        oss_writer::admission::settings::SETTINGS,
+        #[cfg(feature = "writer")]
         oss_cluster::early_revoke::SETTINGS,
         #[cfg(feature = "writer")]
         oss_writer::publish::lazy::SETTINGS,
@@ -57,7 +59,7 @@ mod tests {
             let reader = cfg!(feature = "reader");
             assert_eq!(
                 keys.len(),
-                6 + 6 * usize::from(reader) + if writer { 13 } else { 0 }
+                6 + 6 * usize::from(reader) + if writer { 17 } else { 0 }
             );
             assert_eq!(
                 keys.contains(&"serverless.reader.newest_commit_ask"),
@@ -85,6 +87,10 @@ mod tests {
                 writer
             );
             assert_eq!(keys.contains(&"serverless.wal.node_log.idle_flush"), writer);
+            assert_eq!(
+                keys.contains(&"serverless.write.backpressure.max_in_flight"),
+                writer
+            );
             for key in [
                 "serverless.takeover.proactive.enabled",
                 "serverless.takeover.proactive.reapers",
