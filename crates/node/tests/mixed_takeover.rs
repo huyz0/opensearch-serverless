@@ -195,6 +195,7 @@ fn a_live_janitor_sweep_after_the_take_deletes_no_blob_the_commit_names() {
         minimum_unreferenced_millis: 0,
         max_watched: 1000,
         max_pinned: 1000,
+        relist_after_millis: 0,
     };
     pass.run(live);
     // A second sweep deletes what the first saw unreferenced.
