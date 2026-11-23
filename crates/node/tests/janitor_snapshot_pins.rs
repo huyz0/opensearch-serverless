@@ -115,3 +115,51 @@ fn reading_the_snapshots_costs_what_the_table_says() {
         "reading no snapshot",
     );
 }
+
+fn total(c: &Cluster) -> u64 {
+    S3Op::ALL.iter().map(|op| c.store.meter().count(*op)).sum()
+}
+
+#[test]
+fn a_shard_a_snapshot_holds_is_not_looked_at_again_until_the_recheck() {
+    let (c, one) = published_with_an_orphan();
+    put(&c, "snapshots/s1", br#"{"indices":{"logs":{"uuid":"u1"}}}"#);
+    let hourly = Config {
+        relist_after_millis: 3_600_000,
+        ..LIVE
+    };
+    let pass = janitor(&c, &one.role);
+    let first = pass.run(hourly);
+    assert_eq!(first.pinned, 1, "{first:?}");
+    let before = total(&c);
+    for _ in 0..3 {
+        let again = pass.run(hourly);
+        assert_eq!(again.swept, 0, "{again:?}");
+    }
+    budget::check(
+        "janitor.pass.snapshot_held.requests",
+        total(&c) - before,
+        "three passes over a shard a snapshot holds",
+    );
+    // Past the recheck, and the snapshot gone, the blob is swept.
+    c.store.delete("snapshots/s1").expect("deleted");
+    pass.run(LIVE);
+    pass.run(LIVE);
+    assert!(!present(&c, ORPHAN));
+}
+
+#[test]
+fn more_snapshots_than_the_pass_may_hold_stop_it_and_delete_nothing() {
+    let (c, one) = published_with_an_orphan();
+    for n in 0..101 {
+        put(
+            &c,
+            &format!("snapshots/s{n:03}"),
+            br#"{"indices":{"other":{"uuid":"x"}}}"#,
+        );
+    }
+    let (deleted, skipped) = sweep(&c, &one);
+    assert_eq!(deleted, 0);
+    assert!(skipped.is_some(), "the cap stops the pass");
+    assert!(present(&c, ORPHAN));
+}
