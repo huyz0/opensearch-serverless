@@ -52,6 +52,19 @@ impl Memory {
         self.shards.remove(path);
     }
 
+    /// How many shards a scope is held for.
+    pub fn scopes(&self) -> usize {
+        self.scopes.len()
+    }
+
+    /// Forgets the shards whose path `keep` refuses: what was seen
+    /// unreferenced and the scope. A shard forgotten is swept again as a new
+    /// owner's, which deletes nothing on its first sweep.
+    pub fn retain(&mut self, mut keep: impl FnMut(&str) -> bool) {
+        self.shards.retain(|path, _| keep(path));
+        self.scopes.retain(|path, _| keep(path));
+    }
+
     pub(super) fn seen(&self, path: &str) -> Option<&BTreeMap<String, i64>> {
         self.shards.get(path)
     }
