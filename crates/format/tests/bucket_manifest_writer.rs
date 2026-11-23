@@ -184,3 +184,26 @@ fn len_and_is_empty_count_members() {
     assert_eq!(manifest.len(), 2);
     assert_eq!(manifest.bucket(), "b-1");
 }
+
+#[test]
+fn json_with_more_than_the_member_ceiling_is_refused_and_at_it_is_read() {
+    let doc = |count: usize| {
+        let members: Vec<String> = (0..count)
+            .map(|i| format!("\"u{i:05}\":{{\"index\":\"i\"}}"))
+            .collect();
+        format!(
+            "{{\"bucket\":\"b\",\"term\":1,\"members\":{{{}}}}}",
+            members.join(",")
+        )
+    };
+    assert_eq!(
+        BucketManifest::parse(doc(MAX_BUCKET_MEMBERS).as_bytes())
+            .unwrap()
+            .len(),
+        MAX_BUCKET_MEMBERS
+    );
+    assert!(matches!(
+        BucketManifest::parse(doc(MAX_BUCKET_MEMBERS + 1).as_bytes()),
+        Err(FormatError::TooLarge { .. })
+    ));
+}

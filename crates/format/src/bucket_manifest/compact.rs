@@ -421,10 +421,15 @@ mod tests {
             all(&framed(&body_of(over, over))),
             Err(FormatError::TooLarge { .. })
         ));
-        // 1,000 members claimed, three present.
-        assert!(matches!(
-            all(&framed(&body_of(3, 1000))),
-            Err(FormatError::Corrupt { .. })
-        ));
+        // More claimed than the body can hold, by a little and by a lot.
+        for claimed in [20, 1000] {
+            assert!(
+                matches!(
+                    all(&framed(&body_of(3, claimed))),
+                    Err(FormatError::Corrupt { .. })
+                ),
+                "{claimed} claimed"
+            );
+        }
     }
 }

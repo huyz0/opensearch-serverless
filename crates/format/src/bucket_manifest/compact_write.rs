@@ -417,6 +417,23 @@ mod tests {
     }
 
     #[test]
+    fn a_string_is_its_unit_count_then_one_two_or_three_bytes_a_unit() {
+        let bytes = |text: &str| {
+            let mut out = Vec::new();
+            push_string(&mut out, text).unwrap();
+            out
+        };
+        assert_eq!(bytes("a"), [1, 0x61]);
+        assert_eq!(bytes("\u{7f}"), [1, 0x7F]);
+        assert_eq!(bytes("\u{80}"), [1, 0xC2, 0x80]);
+        assert_eq!(bytes("\u{7ff}"), [1, 0xDF, 0xBF]);
+        assert_eq!(bytes("\u{800}"), [1, 0xE0, 0xA0, 0x80]);
+        assert_eq!(bytes("\u{ffff}"), [1, 0xEF, 0xBF, 0xBF]);
+        // A character past the plane is two units of three bytes each.
+        assert_eq!(bytes("\u{1f600}"), [2, 0xED, 0xA0, 0xBD, 0xED, 0xB8, 0x80]);
+    }
+
+    #[test]
     fn a_body_past_the_reader_cap_is_refused() {
         assert!(codec::check_body_length(64 << 20).is_ok());
         assert!(matches!(
