@@ -109,6 +109,10 @@ impl<S: BlobStore + 'static> SearchService<S> {
     /// view the engine refused.
     pub(super) fn overlay_view(&self, held: &Arc<Held<S>>) -> Option<Arc<OpenShard<S>>> {
         let source = self.overlay.get()?;
+        // An index that turned the overlay off is served from its commit.
+        if !crate::tail_overlay::index_wants_overlay(&held.shard.meta.settings) {
+            return None;
+        }
         let commit: Arc<dyn CommitAccess> = Arc::clone(held) as _;
         let ready = source.ready(
             &held.shard.meta.uuid,
