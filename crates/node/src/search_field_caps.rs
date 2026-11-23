@@ -251,3 +251,49 @@ impl<S: BlobStore + 'static> SearchService<S> {
         resp.send(200, JSON, body.as_bytes())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn cap(ty: &'static str) -> BTreeMap<String, Cap> {
+        let mut caps = BTreeMap::new();
+        caps.insert(
+            "year".to_owned(),
+            Cap {
+                ty,
+                searchable: true,
+                aggregatable: true,
+            },
+        );
+        caps
+    }
+
+    #[test]
+    fn a_field_two_indices_type_differently_lists_each_type_after_a_comma() {
+        let out = render(
+            &["a".to_owned(), "b".to_owned()],
+            &[cap("integer"), cap("long")],
+        );
+        assert_eq!(
+            out,
+            concat!(
+                r#"{"indices":["a","b"],"fields":{"year":{"#,
+                r#""integer":{"type":"integer","metadata_field":false,"searchable":true,"aggregatable":true,"indices":["a"]},"#,
+                r#""long":{"type":"long","metadata_field":false,"searchable":true,"aggregatable":true,"indices":["b"]}}}}"#,
+            )
+        );
+    }
+
+    #[test]
+    fn a_field_of_one_type_has_no_leading_comma() {
+        let out = render(&["a".to_owned()], &[cap("long")]);
+        assert_eq!(
+            out,
+            concat!(
+                r#"{"indices":["a"],"fields":{"year":{"#,
+                r#""long":{"type":"long","metadata_field":false,"searchable":true,"aggregatable":true}}}}"#,
+            )
+        );
+    }
+}
