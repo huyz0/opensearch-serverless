@@ -24,7 +24,6 @@ fn providers() -> Vec<&'static [&'static Setting]> {
         oss_writer::publish::lazy::SETTINGS,
         #[cfg(feature = "writer")]
         crate::writer::PROACTIVE_SETTINGS,
-        #[cfg(feature = "writer")]
         crate::writer::HIBERNATE_SETTINGS,
     ]
 }
