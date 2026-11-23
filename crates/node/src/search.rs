@@ -328,8 +328,6 @@ mod analyze;
 mod count;
 #[path = "search_field_caps.rs"]
 mod field_caps;
-#[path = "search_validate.rs"]
-mod validate;
 #[path = "search_frozen.rs"]
 mod frozen;
 #[path = "search_msearch.rs"]
@@ -338,6 +336,8 @@ mod msearch;
 pub(crate) mod open_shard;
 #[path = "search_shard.rs"]
 mod shard_query;
+#[path = "search_validate.rs"]
+mod validate;
 pub use shard_query::ShardQuery;
 #[cfg(feature = "coordinator")]
 #[path = "coordinate.rs"]
