@@ -462,3 +462,38 @@ fn a_write_placed_on_another_node_reaches_the_reaper_that_took_the_shard() {
     assert_eq!(c.store.meter().total() - before, 1, "the index lookup only");
     assert!(two.role.held("u1", 0));
 }
+
+#[test]
+fn a_live_sweep_after_a_failed_take_and_after_a_lost_answer_deletes_nothing_the_commit_names() {
+    for lose_answer in [false, true] {
+        let c = cluster();
+        let one = first_writer(&c);
+        let (two, pass, log) = reaper(&c, &one, "node-2", 2, config(true));
+        log.of("node-1")
+            .expect("reads")
+            .expect("log")
+            .named()
+            .expect("fenced");
+        let lease = dead(&one);
+        if lose_answer {
+            c.store.lose_response_next(S3Op::Put, 1);
+        } else {
+            c.store.set_faults(
+                S3Op::Put,
+                Faults {
+                    fail_ppm: 1_000_000,
+                    throttle_ppm: 0,
+                },
+            );
+        }
+        pass.pass(&lease);
+        c.store.set_faults(S3Op::Put, Faults::default());
+        pass.pass(&lease);
+        // The shard is taken now, or by the next write; either way published.
+        assert_eq!(seq(&write(&two.role, "c")), 2);
+        two.role.refresh(&info(), 0).expect("published");
+        let orphan = plant(&c);
+        let sweeper = janitor(&c, &two.role);
+        sweeps_delete_only_what_the_commit_does_not_name(&c, &sweeper, &orphan);
+    }
+}

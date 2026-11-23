@@ -15,8 +15,15 @@
 - AC-1: the setting's default and a node's default are live (not a dry run), and `OSS_JANITOR_DRY_RUN=true` makes a node a dry run that counts and deletes nothing.
 - AC-2: over a writer that publishes repeatedly, and over a successor after a takeover, a sweep deletes no blob the commit names, and deletes a blob of an older term nothing names.
 - AC-3: the per-shard sweep keeps every blob of an index incarnation a snapshot names, a point in time pins, or a Java-written commit names (the evidence of [janitor-snapshot-pins](../janitor-snapshot-pins/SPEC.md), [janitor-point-in-time-pins](../janitor-point-in-time-pins/SPEC.md) and [mixed-takeover](../mixed-takeover/SPEC.md)).
-- AC-4: the proactive-takeover fault suites ([proactive-takeover-faults](../proactive-takeover-faults/SPEC.md)) pass with the live default, so a failed, raced or repeated take leaves nothing the janitor then deletes.
+- AC-4: after a take that fails, and after one whose answer was lost, a live sweep deletes no blob the commit names.
+- AC-5: a shard asleep is not swept; once woken and published again a live sweep deletes only what no commit names.
+- AC-6: a sweep between an acknowledged write and its publish deletes no blob the commit then names.
+- AC-7: the dead-log pass, live, leaves a log still needed and collects it only once a successor has published all of it.
+
+## What this evidence is not
+
+The mixed-fleet requirement of the ADR (R8.7) was met as a recording: the Java side is the shell's own classes run once over the filesystem layout, and its commit is what the Rust sweep is held against ([mixed-takeover](../mixed-takeover/SPEC.md)); no Java node runs live beside a Rust one, and the emulator stands for the bucket. The setting is read from `OSS_JANITOR_DRY_RUN` once at boot, so going back to counting needs a restart of the node.
 
 ## Test plan
 
-`crates/node/tests/janitor_live_evidence.rs` for AC-2; the existing suites named in AC-3 and AC-4 run unchanged against the new default; `crates/node/tests/server/assemble.rs` and the unit tests for AC-1, with the dry-run behaviour kept under its own test.
+`crates/node/tests/janitor_live_evidence.rs` for AC-2, AC-5 and AC-6, `proactive_faults.rs` for AC-4; the existing suites named in AC-3 and AC-4 run unchanged against the new default; `crates/node/tests/server/assemble.rs` and the unit tests for AC-1, with the dry-run behaviour kept under its own test.

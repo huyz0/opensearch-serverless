@@ -11,7 +11,7 @@ Parity plan R7.6, node assembly: until now each route family was built by hand i
 - One store: the caller's `Arc<dyn BlobStore>` is wrapped in `oss_blob::Shared`, so the search service, the writer's publishers and the point-in-time store reach the same store and the same meter ([blob-shared-store](../blob-shared-store/SPEC.md)).
 - Routes on one router: `_search` (through the coordinator when that feature is on), `_bulk`, `_doc`, `_create`, delete, and the point-in-time create, delete and list routes, the point-in-time service holding a 16 MiB buffer a request ([node-pit-route](../node-pit-route/SPEC.md)).
 - The publish timer runs `WriterRole::publish_due` every `publish_every` under the lazy policy ([node-publish-timer](../node-publish-timer/SPEC.md)).
-- The janitor timer runs `JanitorPass::run` every `janitor_every` over the role's shards ([node-janitor-pass](../node-janitor-pass/SPEC.md)); the sweep starts as a dry run, and `Config::sweep` is what each pass is told.
+- The janitor timer runs `JanitorPass::run` every `janitor_every` over the role's shards ([node-janitor-pass](../node-janitor-pass/SPEC.md)); the sweep deletes unless set to a dry run, and `Config::sweep` is what each pass is told.
 - Not here, listed: the transport handlers and links, the dead-node log collector, frozen search forwarding, the index admin routes, and the process entry point.
 
 ## Acceptance criteria
