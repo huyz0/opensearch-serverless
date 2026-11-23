@@ -211,6 +211,42 @@ fn a_pass_costs_what_the_table_says() {
     );
 }
 
+// docs/specs/proactive-takeover AC-16
+#[test]
+fn a_reapers_pass_costs_the_same_in_a_fleet_of_three_thirty_or_two_hundred() {
+    for fleet in [3usize, 30, 200] {
+        let c = cluster();
+        create_n(&c, "logs", "u1", 1);
+        let one = node(&c, "node-1", 1, false, None);
+        for ids in ids_by_shard(1, 1) {
+            write_id(&one.role, &ids[0]);
+        }
+        let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let take = takeover(&c, &one, &calls);
+        let predecessors = Arc::clone(&take.predecessors);
+        let two = node(&c, "node-2", 2, true, Some(take));
+        let names: Vec<String> = std::iter::once("node-2".to_owned())
+            .chain((1..fleet).map(|i| format!("peer-{i}")))
+            .collect();
+        let live: Vec<&str> = names.iter().map(String::as_str).collect();
+        let lease = dead(&one);
+        let view = refreshed(&live, lease.clone());
+        let reaper = oss_cluster::placement::reapers_for("node-1", view.live.iter(), 2)[0];
+        let pass =
+            ProactiveTakeover::new(reaper, config(true), Arc::clone(&two.role), predecessors);
+        let before = (total(&c), c.store.meter().count(S3Op::List));
+        assert_eq!(pass.due(&view, i64::MAX).len(), 1, "fleet {fleet}");
+        let report = pass.pass(&lease);
+        assert_eq!(report.taken, 1, "fleet {fleet}: {report:?}");
+        budget::check(
+            "takeover.proactive.one_shard.requests",
+            total(&c) - before.0,
+            "a reaper's pass in a fleet of 3, 30 and 200",
+        );
+        assert_eq!(c.store.meter().count(S3Op::List) - before.1, 0, "no LIST");
+    }
+}
+
 /// What a reader opens of shard 0 of `logs` now: its live documents.
 fn documents_a_reader_sees(c: &Cluster) -> u64 {
     use lucene_store::page_cache::{PageCache, PageCacheConfig};
