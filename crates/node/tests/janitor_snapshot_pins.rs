@@ -163,3 +163,45 @@ fn more_snapshots_than_the_pass_may_hold_stop_it_and_delete_nothing() {
     assert!(skipped.is_some(), "the cap stops the pass");
     assert!(present(&c, ORPHAN));
 }
+
+#[test]
+fn a_shard_a_point_in_time_pins_is_tried_again_not_held() {
+    use std::sync::Arc;
+
+    use oss_format::PointInTime;
+    use oss_meta::PointInTimeStore;
+
+    let (c, one) = published_with_an_orphan();
+    let pits = PointInTimeStore::new(
+        c.store.clone() as Arc<dyn BlobStore>,
+        "",
+        Arc::new(|| 1_000),
+    )
+    .expect("pits");
+    let id = "AAAAAAAAAAAAAAAAAAAAAA";
+    let buf = &mut vec![0u8; 1 << 16];
+    pits.create(
+        &PointInTime {
+            id: id.to_owned(),
+            index: "logs".to_owned(),
+            index_uuid: Some("u1".to_owned()),
+            expires_at_millis: 9_000_000,
+            capturing: true,
+            shards: Vec::new(),
+        },
+        buf,
+    )
+    .expect("view");
+    let hourly = Config {
+        relist_after_millis: 3_600_000,
+        ..LIVE
+    };
+    let pass = janitor(&c, &one.role);
+    let first = pass.run(hourly);
+    assert_eq!(first.pinned, 1, "{first:?}");
+    // Only a snapshot's hold is remembered: once the view is released the
+    // shard is swept at once, not after the recheck.
+    assert!(pits.release(id, buf).expect("released"));
+    let again = pass.run(hourly);
+    assert_eq!(again.swept, 1, "{again:?}");
+}
