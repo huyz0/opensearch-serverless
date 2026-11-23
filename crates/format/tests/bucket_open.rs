@@ -15,6 +15,8 @@ fn the_value_is_the_generation_in_decimal() {
 #[test]
 fn whitespace_is_trimmed_and_anything_else_is_refused() {
     assert_eq!(parse_open(b" 12\n").unwrap(), 12);
+    assert_eq!(parse_open(b"12 ").unwrap(), 12);
+    assert_eq!(parse_open(b"\t 12  \t").unwrap(), 12);
     for bad in [
         &b""[..],
         b"  ",

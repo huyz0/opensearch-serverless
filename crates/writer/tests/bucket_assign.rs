@@ -278,6 +278,8 @@ fn limits_are_clamped() {
     assert_eq!(Limits::new(5, 5000, 7).max_members(), 1024);
     assert_eq!(Limits::new(5, 1024, 7).max_members(), 1024);
     assert_eq!(Limits::new(5, 17, 7).max_members(), 17);
+    let l = Limits::new(5, 17, 7);
+    assert_eq!((l.target_bytes(), l.max_manifest_bytes()), (5, 7));
     let _ = (BucketMember::first("x", None).unwrap(), ByteRange::Full);
 }
 
