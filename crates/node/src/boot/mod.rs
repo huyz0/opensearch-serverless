@@ -6,6 +6,7 @@
 //! cost a handover and never a write.
 
 mod config;
+mod error;
 mod follow;
 mod join;
 mod renew;
@@ -33,7 +34,7 @@ use oss_transport::client::{Client, ClientConfig};
 use oss_transport::server::{Server as TransportServer, ServerConfig as TransportConfig};
 use oss_writer::log::{CommitterConfig, LeaseKeeper, NodeLogCommitter, NodeLogStore};
 
-use crate::assemble::{self, AssembleError, Config, Running, Writer};
+use crate::assemble::{self, Config, Running, Writer};
 use crate::bulk_handler::BulkHandler;
 use crate::cluster_owner::ClusterRoutes;
 use crate::descriptor_routes::DescriptorRoutes;
@@ -44,10 +45,11 @@ use crate::index_cache::IndexCache;
 use crate::read_forward::{GetForwarder, GetHandler};
 use crate::writer::{
     DeadLogParts, DeadLogPass, DeadMailbox, DeadSnapshot, DescriptorIncarnation, HeadAdmission,
-    HeadOpener, MembershipLeaseWrite, ShardNames, Takeover,
+    HeadOpener, LiveLeases, MembershipLeaseWrite, OrphanTimer, ShardNames, Takeover,
 };
 
 pub use config::{MIN_MEMORY_BYTES, NodeConfig, StoreChoice};
+pub use error::BootError;
 use renew::{Cadence, Renewal};
 use support::{Held, address_bytes, earlier_epochs, store_of};
 
@@ -69,32 +71,6 @@ const REPLAY_CAPACITY: usize = 65_536;
 /// How long a held shard's index incarnation is trusted before it is read again.
 const INCARNATION_WINDOW: Duration = Duration::from_secs(600);
 
-/// Why a node did not start.
-#[derive(Debug)]
-pub enum BootError {
-    /// The configuration does not fit: the budget or the store.
-    Config(String),
-    /// The store, the lease or a head could not be reached.
-    Cluster(String),
-    /// The roles could not be assembled.
-    Assemble(AssembleError),
-    /// The listener could not be bound.
-    Bind(String),
-}
-
-impl std::fmt::Display for BootError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Config(e) => write!(f, "configuration: {e}"),
-            Self::Cluster(e) => write!(f, "cluster: {e}"),
-            Self::Assemble(e) => write!(f, "assembly: {e}"),
-            Self::Bind(e) => write!(f, "bind: {e}"),
-        }
-    }
-}
-
-impl std::error::Error for BootError {}
-
 /// A node running: dropping it stops its lease renewal, its servers, and
 /// releases its lease.
 pub struct Node {
@@ -102,6 +78,8 @@ pub struct Node {
     transport: Option<TransportServer>,
     renewal: Option<Renewal>,
     dead_logs: Option<Renewal>,
+    /// The orphan-shard sweep, present when its budget is above 0.
+    orphan_sweep: Option<OrphanTimer>,
     following: Option<follow::Following>,
     membership: Arc<Membership>,
     node_id: String,
@@ -152,6 +130,7 @@ impl Drop for Node {
         // The renewal stops first, so it cannot write the lease back.
         drop(self.renewal.take());
         drop(self.dead_logs.take());
+        drop(self.orphan_sweep.take());
         drop(self.following.take());
         drop(self.running.take());
         drop(self.transport.take());
@@ -479,9 +458,19 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         },
     );
     let dry_run = node_config.sweep.dry_run;
+    let live_members = Arc::new(LiveLeases::default());
+    let orphan_sweep = support::orphan_sweep(
+        config,
+        &store,
+        &budget,
+        Arc::clone(&clock),
+        Arc::clone(&live_members),
+        dry_run,
+    );
     let tombstones = support::tombstone_pass(config, &store, &budget, Arc::clone(&clock));
     let dead_logs = Renewal::spawn_named("dead-log-pass", node_config.janitor_every, move || {
         if let Some(snapshot) = mailbox.take() {
+            live_members.set(Arc::clone(&snapshot.live));
             let _ = collecting.run(&snapshot, dry_run);
             let _ = tombstones.run(&snapshot.live);
         }
@@ -492,6 +481,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         running: Some(running),
         renewal: Some(renewal),
         dead_logs: Some(dead_logs),
+        orphan_sweep,
         following,
         membership,
         node_id: config.node_id.clone(),
