@@ -49,7 +49,11 @@ pub struct PitService {
     descriptors: DescriptorStore,
     clock: PitClock,
     buffer_bytes: usize,
+    on_release: std::sync::OnceLock<ReleaseHook>,
 }
+
+/// What is told the id of each view a release removed.
+pub type ReleaseHook = Arc<dyn Fn(&str) + Send + Sync>;
 
 impl PitService {
     /// A service over `pits` and `descriptors`, telling the time by `clock`
@@ -67,7 +71,14 @@ impl PitService {
             descriptors,
             clock,
             buffer_bytes,
+            on_release: std::sync::OnceLock::new(),
         }
+    }
+
+    /// Tells `hook` the id of every view a release removes, for what holds
+    /// the view open on this node to close it. False when one is set already.
+    pub fn set_release_hook(&self, hook: ReleaseHook) -> bool {
+        self.on_release.set(hook).is_ok()
     }
 
     fn buffer(&self, req: &mut Request<'_>) -> Result<Vec<u8>, RestError> {
@@ -173,6 +184,9 @@ impl PitService {
             // a failure of the store.
             let existed = looks_like_an_id(&id)
                 && self.pits.release(&id, &mut buf).map_err(|e| failed(&e))?;
+            if existed && let Some(hook) = self.on_release.get() {
+                hook(&id);
+            }
             released.push((id, existed));
         }
         if !all && released.iter().all(|(_, existed)| !existed) {

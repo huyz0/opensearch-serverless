@@ -373,6 +373,12 @@ pub fn assemble(
         Arc::clone(&clock),
         config.pit_buffer_bytes,
     ));
+    {
+        let search = Arc::clone(&search);
+        pit.set_release_hook(Arc::new(move |id| {
+            search.close_view(id);
+        }));
+    }
     let bulk = Arc::new(BulkService::new(
         Arc::clone(&role),
         BulkBudget::new(config.bulk_bytes, config.bulk_holders),

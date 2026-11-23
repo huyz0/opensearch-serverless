@@ -189,6 +189,30 @@ fn a_second_search_of_a_view_reads_no_index_and_holds_one_entry() {
 }
 
 #[test]
+fn closing_a_view_frees_its_shards_and_the_next_search_opens_them_afresh() {
+    let rig = rig(2, u64::MAX / 2);
+    assert_eq!(search_pit(&rig.node, ID).status, 200);
+    assert_eq!(rig.node.service.open_indexes(), 2);
+    assert_eq!(rig.node.service.close_view("not-this-view"), 0);
+    assert_eq!(
+        rig.node.service.open_indexes(),
+        2,
+        "another view's id closes none"
+    );
+    assert_eq!(rig.node.service.close_view(ID), 2);
+    assert_eq!(rig.node.service.open_indexes(), 0, "the charge is freed");
+    assert_eq!(
+        rig.node.service.close_view(ID),
+        0,
+        "closing twice is harmless"
+    );
+    let before = counts(&rig.node.store);
+    assert_eq!(search_pit(&rig.node, ID).status, 200);
+    assert_ne!(counts(&rig.node.store), before, "the shards open again");
+    assert_eq!(rig.node.service.open_indexes(), 2);
+}
+
+#[test]
 fn an_unknown_released_or_expired_view_is_missing() {
     let rig = rig(1, u64::MAX / 2);
     let r = search_pit(&rig.node, "BBBBBBBBBBBBBBBBBBBBBB");
