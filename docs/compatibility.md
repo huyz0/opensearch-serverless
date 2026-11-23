@@ -22,6 +22,10 @@ Invariant I-13 in [invariants.md](invariants.md) holds the suite to this: `crate
 
 `GET|POST /{index}/_count` with a body of `query` alone, or none, answers `count` (the exact total of that query's search) and the search's `_shards`, over one shard or several ([count-api](specs/count-api/SPEC.md)). **Refused:** `/_count` without an index, every URL parameter (`q`, `terminate_after`, `min_score` and the rest), and any body key other than `query`, as 400 `illegal_argument_exception` where OpenSearch answers a `parsing_exception` for an unknown key.
 
+## `_render/template` and `_search/template` on a reader node
+
+`GET|POST /_render/template` and `GET|POST [/{index}]/_search/template` take an inline mustache `source` (or `inline`, `template`) with `params` and `explain`, render it with a port of mustache.java 0.9.14 as lang-mustache runs it, and answer `{"template_output":...}` or the search response ([search-template-api](specs/search-template-api/SPEC.md)). Rendering is checked against the Java engine byte for byte, error messages included. **Refused:** a stored template `id`, `/_render/template/{id}`, `profile`, a `search_pipeline`, partials and extend sections, `_search/template` without an index, and rendered text over 1 MiB or nested over 512 levels. **Differs:** a template that fails while running answers 500 `general_script_exception` with this node's text, not the Java reflection error's.
+
 ## `_validate/query` on a reader node
 
 `GET|POST /{index}/_validate/query` with a body of `query` alone, or none, answers `valid` and `_shards` of `total` 1 (stock validates on one shard of each index) ([validate-query-api](specs/validate-query-api/SPEC.md)). A body that does not parse and a query that fails to build answer 200 `valid: false`, as OpenSearch does. **Refused:** `/_validate/query` without an index, every URL parameter (`explain`, `rewrite`, `all_shards`, `q` and the rest), and a query this node does not support yet (400, never `valid: false`). **Differs:** a body key that parses as a search default (`{"size":10}`) is valid here and invalid in OpenSearch; the index must be one concrete name.

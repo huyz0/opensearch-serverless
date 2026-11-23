@@ -103,3 +103,4 @@ src/writer/hibernate.rs	port	serverless/shell/src/main/java/org/opensearch/serve
 src/writer/routes.rs	new		the writer's seam to the cluster (index lookup, owner, forward), split out of the writer module to keep it under the size limit
 src/writer/limit.rs	new		the write limiter admits a group before anything is applied and is told how the log append went, split out of the writer module to keep it under the size limit
 src/boot/config/write_limit.rs	new		the OSS_WRITE_* variables of the write limiter, split out of the boot config to keep it under the size limit
+src/search_template.rs	port	modules/lang-mustache/src/main/java/org/opensearch/script/mustache/RestSearchTemplateAction.java	_render/template and _search/template: render an inline template, then search the rendered body

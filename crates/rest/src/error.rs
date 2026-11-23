@@ -15,22 +15,23 @@
 //! Error bodies are built on the error path only, so their strings are
 //! allocated; every one is bounded by the request line or a fixed message.
 
+use oss_mem::Exhausted;
 use std::borrow::Cow;
 use std::fmt::Write as _;
 use std::io::{self, Write};
 
-use oss_mem::Exhausted;
-
 use crate::json_out::{write_byte_size, write_str};
 use crate::method::{Method, MethodSet};
 
-/// A metadata value of an exception: a string or a number.
+/// A metadata value of an exception: a string, a number or `[]`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Meta {
     /// A string field.
     Str(String),
     /// An integer field.
     Int(u64),
+    /// `[]`, the `script_stack` of a script error.
+    EmptyList,
 }
 
 /// An OpenSearch exception: its `type`, `reason`, metadata fields written
@@ -103,6 +104,7 @@ impl Exception {
             match value {
                 Meta::Str(s) => write_str(out, s)?,
                 Meta::Int(n) => write!(out, "{n}")?,
+                Meta::EmptyList => out.write_all(b"[]")?,
             }
         }
         if let (true, Some(cause)) = (with_cause, &self.cause) {
