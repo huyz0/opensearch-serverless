@@ -170,3 +170,4 @@ src/aggs/bucket/top_hits_sub_tests.rs	new		tests of a top_hits under a keyword t
 src/aggs/bucket/walk.rs	new		a walk over the sub-aggregation values of a result's buckets, at any depth
 src/aggs/metric/keyword_cardinality.rs	port	server/src/main/java/org/opensearch/search/aggregations/metrics/CardinalityAggregator.java@3.10.0	OrdinalsCollector: the global ordinals of a keyword field hashed into the sketch, and their reserved memory
 src/aggs/metric/collect_kind_tests.rs	new		tests that value_from refuses an engine result of another kind than its aggregation
+src/aggs/bucket/terms_error_tests.rs	new		tests of a terms' shard, bucket and reduce error bounds, and of an empty shard result

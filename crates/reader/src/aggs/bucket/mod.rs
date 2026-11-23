@@ -108,6 +108,8 @@ mod range_tests;
 #[cfg(test)]
 mod running_tests;
 #[cfg(test)]
+mod terms_error_tests;
+#[cfg(test)]
 mod terms_subs_tests;
 #[cfg(test)]
 mod terms_tests;
