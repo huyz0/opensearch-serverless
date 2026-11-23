@@ -1,5 +1,8 @@
 //! docs/specs/bucket-manifest-compact-writer/SPEC.md, AC-1 to AC-6.
 
+// ARITH: test sizes and request counts are small; an overflow panics the test.
+#![allow(clippy::arithmetic_side_effects)]
+
 mod bucket_support;
 
 use bucket_support::{DEFLATE, File, LZ4, Len, Loc, Member, NONE, ZSTD, compact, sample_commit};

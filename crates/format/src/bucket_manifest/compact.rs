@@ -117,8 +117,7 @@ fn read_body(body: &[u8], uuid: &str) -> Result<BucketEntry, FormatError> {
     let term = cursor.vlong()?;
     let strings = Strings::read(&mut cursor, body)?;
     let count = cursor.vint()?;
-    // Each member takes two bytes at least: a uuid's count and an entry length.
-    if count > cursor.remaining() / 2 {
+    if count > cursor.remaining() / MIN_MEMBER_BYTES {
         return Err(corrupt(WHAT, "more members than the body holds"));
     }
     // The first entry for a uuid is the one the Java returns.
@@ -411,6 +410,23 @@ mod tests {
         for count in [0, 1, 3, MAX_BUCKET_MEMBERS] {
             let whole = all(&framed(&body_of(count, count))).unwrap();
             assert_eq!(whole.members.len(), count);
+        }
+    }
+
+    #[test]
+    fn the_member_reader_takes_minimal_members_and_refuses_a_count_past_the_body() {
+        for count in [1, 3, 7] {
+            let entry = member(&framed(&body_of(count, count)), "absent").unwrap();
+            assert!(entry.member.is_none());
+        }
+        for claimed in [4, 20, 1000] {
+            assert!(
+                matches!(
+                    member(&framed(&body_of(3, claimed)), "absent"),
+                    Err(FormatError::Corrupt { .. })
+                ),
+                "{claimed} claimed"
+            );
         }
     }
 

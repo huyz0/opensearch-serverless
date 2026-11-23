@@ -1,5 +1,8 @@
 //! docs/specs/bucket-manifest-writer/SPEC.md, AC-1 to AC-7.
 
+// ARITH: test sizes and request counts are small; an overflow panics the test.
+#![allow(clippy::arithmetic_side_effects)]
+
 use oss_format::{
     BucketManifest, BucketMember, FormatError, MAX_BUCKET_MEMBERS, ManifestEntry, encode_manifest,
     parse_bucket_member,
