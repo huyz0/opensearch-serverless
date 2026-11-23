@@ -392,3 +392,38 @@ pub fn ids_by_shard(shards: u32, per: usize) -> Vec<Vec<String>> {
 pub fn write_id(role: &WriterRole, id: &str) -> i64 {
     seq(&write(role, id))
 }
+
+/// A janitor pass over `role`'s shards in the cluster's store, as a node
+/// builds it, with a clock the pass reads as 5,000 ms.
+pub fn janitor(c: &Cluster, role: &Arc<WriterRole>) -> oss_node::writer::JanitorPass {
+    use std::sync::atomic::AtomicU64;
+
+    use oss_mem::{BudgetConfig, MemoryBudget};
+    use oss_meta::PointInTimeStore;
+    use oss_node::writer::{JanitorPass, PassLimits};
+
+    let clock = Arc::new(AtomicU64::new(1_000));
+    let pits = PointInTimeStore::new(
+        c.store.clone() as Arc<dyn BlobStore>,
+        "",
+        Arc::new(move || clock.load(Ordering::SeqCst)),
+    )
+    .expect("pits");
+    let budget = MemoryBudget::new(
+        &BudgetConfig::new(64 << 20)
+            .with_pool(oss_mem::Pool::RequestBodies, 1 << 20)
+            .expect("fits"),
+    );
+    JanitorPass::new(
+        c.store.clone() as Arc<dyn BlobStore>,
+        "",
+        Arc::clone(role),
+        pits,
+        &budget,
+        PassLimits {
+            buffer_bytes: 1 << 16,
+            max_views: 100,
+        },
+        Box::new(|| 5_000),
+    )
+}

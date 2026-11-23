@@ -11,7 +11,8 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use oss_blob::BlobStore;
 use oss_format::ShardRef;
-use oss_janitor::gc::{Collector, Config, Memory, Outcome, PointInTimePins};
+use oss_janitor::gc::{Collector, Config, Memory, Outcome, PointInTimePins, SnapshotPins};
+use oss_janitor::orphans::{IndexPins, SnapshotSource};
 use oss_mem::{MemoryBudget, Pool};
 use oss_meta::PointInTimeStore;
 
@@ -155,15 +156,29 @@ impl JanitorPass {
         };
         // ALLOC: one buffer a pass, buffer_bytes, reserved above.
         let mut buf = vec![0u8; self.buffer_bytes];
-        let pins = match PointInTimePins::snapshot(&self.pits, &self.base, self.max_views, &mut buf)
-        {
-            Ok(pins) => pins,
-            Err(e) => {
-                // ALLOC: error path; the failure's words.
-                report.skipped = Some(e.to_string());
-                return report;
-            }
-        };
+        let views =
+            match PointInTimePins::snapshot(&self.pits, &self.base, self.max_views, &mut buf) {
+                Ok(pins) => pins,
+                Err(e) => {
+                    // ALLOC: error path; the failure's words.
+                    report.skipped = Some(e.to_string());
+                    return report;
+                }
+            };
+        // A snapshot holds every blob of the index incarnations it names.
+        let mut snapshotted = IndexPins::new(self.max_views);
+        let source = SnapshotSource::new(
+            Arc::clone(&self.store),
+            &self.base,
+            self.max_views,
+            self.buffer_bytes,
+        );
+        if let Err(e) = source.collect_with(&mut snapshotted, &mut buf) {
+            // ALLOC: error path; the failure's words.
+            report.skipped = Some(e.to_string());
+            return report;
+        }
+        let pins = SnapshotPins::new(&views, snapshotted);
         let collector = Collector::new(&*self.store, &self.base, &pins, &*self.clock, config);
         for shard in due {
             let at = ShardRef {

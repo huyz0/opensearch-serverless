@@ -15,12 +15,14 @@
 mod memory;
 mod pins;
 mod point_in_time;
+mod snapshot_pins;
 mod terms;
 
 pub use memory::Memory;
 use memory::Scope;
 pub use pins::{Pinned, Pins};
 pub use point_in_time::PointInTimePins;
+pub use snapshot_pins::SnapshotPins;
 
 use std::collections::{BTreeMap, HashSet};
 
