@@ -28,7 +28,7 @@ Parity plan R7.6, the tail overlay's push half: the `acked`, `flush`, `send` and
 
 ## Test plan
 
-`crates/node/tests/tail_push.rs` with a recording fake link and fake facts; `crates/node/tests/tail_serve.rs` for the numbering and confirm rules; one test per criterion.
+`crates/node/tests/tail/tail_push.rs` with a recording fake link and fake facts; `crates/node/tests/tail/tail_serve.rs` for the numbering and confirm rules; one test per criterion.
 
 ## S3 request budget
 

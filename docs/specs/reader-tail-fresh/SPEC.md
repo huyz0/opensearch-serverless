@@ -29,7 +29,7 @@ Nothing calls it yet.
 
 ## Test plan
 
-`crates/node/tests/tail_fresh.rs` with a scripted fetcher and a clock set by the test.
+`crates/node/tests/tail/tail_fresh.rs` with a scripted fetcher and a clock set by the test.
 
 ## S3 request budget
 
