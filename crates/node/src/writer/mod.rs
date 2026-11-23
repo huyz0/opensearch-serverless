@@ -1,14 +1,11 @@
 //! The writer role of a node: applies a write to the shard's engine, stages
 //! its record in the node's one write log, and acknowledges only once the
-//! log blob holding it landed.
-//!
-//! Ported from the write path of
+//! log blob holding it landed. Ported from the write path of
 //! `serverless/shell/src/main/java/org/opensearch/serverless/node/NodeWritePath.java`
 //! (`indexUnderFence`, `appendOrRelease`): the engine runs first because it
 //! assigns the sequence number the record carries; a stage that fails after
-//! the engine applied the write releases the shard, whose engine now holds
-//! an operation the log does not, so it reopens from the log. A bulk group
-//! is applied item by item and staged with one commit.
+//! the engine applied the write releases the shard, which reopens from the
+//! log. A bulk group is applied item by item and staged with one commit.
 
 mod dead_log_pass;
 mod dead_logs;
@@ -56,7 +53,9 @@ pub use dead_log_pass::{
 };
 pub use dead_logs::{StoreCommits, StoreNodeLogs};
 pub use heads::{HeadAdmission, ShardNames};
-pub use hibernate::{HIBERNATE_AFTER_MILLIS, HibernatePass, SETTINGS as HIBERNATE_SETTINGS};
+pub use hibernate::{
+    HIBERNATE_AFTER_MILLIS, HibernatePass, KEEP_ASLEEP_MILLIS, SETTINGS as HIBERNATE_SETTINGS,
+};
 pub use incarnation::{DescriptorIncarnation, FENCE_WINDOW, Incarnation};
 pub use janitor_pass::{HeldShard, JanitorPass, JanitorReport, PassLimits};
 pub use janitor_timer::{JanitorTimer, SweepConfig};
