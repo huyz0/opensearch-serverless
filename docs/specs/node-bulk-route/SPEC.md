@@ -18,7 +18,7 @@ Parity plan R7.6, node assembly: the HTTP route that takes a `_bulk` body, strea
 
 ## Test plan
 
-`crates/node/tests/bulk_route.rs` over the emulator and a real server socket.
+`crates/node/tests/server/bulk_route.rs` over the emulator and a real server socket.
 
 ## S3 request budget
 

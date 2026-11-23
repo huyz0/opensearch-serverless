@@ -3,8 +3,7 @@
 //! opens on the pushed commit with one GET, where the register path takes
 //! two; and what the writer replaced or deleted is not found.
 
-#[path = "support/mod.rs"]
-mod support;
+use crate::support;
 
 use std::net::TcpListener;
 use std::sync::Arc;

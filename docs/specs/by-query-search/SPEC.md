@@ -19,7 +19,7 @@ R10.7 (delete-by-query), reader half. Completes [node-delete-by-query](../node-d
 
 ## Test plan
 
-Unit tests in `search_sort_tests.rs` and `docvalue_fields_tests.rs`; `crates/node/tests/assemble.rs` runs a delete by query against a real writer role, its publisher and the reader.
+Unit tests in `search_sort_tests.rs` and `docvalue_fields_tests.rs`; `crates/node/tests/server/assemble.rs` runs a delete by query against a real writer role, its publisher and the reader.
 
 ## S3 request budget
 

@@ -2,8 +2,7 @@
 
 #![cfg(all(feature = "reader", feature = "writer"))]
 
-#[path = "support/mod.rs"]
-mod support;
+use crate::support;
 
 use std::net::TcpListener;
 use std::sync::Arc;

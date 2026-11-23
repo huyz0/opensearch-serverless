@@ -23,7 +23,7 @@ Follow-up to [index delete](../index-delete/SPEC.md) and [ADR 0012](../../adr/00
 
 ## Test plan
 
-AC-1..5: `crates/meta/tests/descriptors/reclaim_modes.rs` on emulator, S3 emulation and filesystem. AC-6: `crates/node/tests/index_delete.rs`; seen failing while the drain called `reclaim` and not `reclaim_at`.
+AC-1..5: `crates/meta/tests/descriptors/reclaim_modes.rs` on emulator, S3 emulation and filesystem. AC-6: `crates/node/tests/server/index_delete.rs`; seen failing while the drain called `reclaim` and not `reclaim_at`.
 
 ## S3 request budget
 

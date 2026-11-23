@@ -3,8 +3,7 @@
 
 #![cfg(all(feature = "reader", feature = "writer", feature = "coordinator"))]
 
-#[path = "support/mod.rs"]
-mod support;
+use crate::support;
 
 use std::time::{Duration, Instant};
 

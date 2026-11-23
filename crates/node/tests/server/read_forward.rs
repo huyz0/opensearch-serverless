@@ -4,8 +4,7 @@
 #![cfg(feature = "writer")]
 #![allow(clippy::disallowed_methods)]
 
-#[path = "support/mod.rs"]
-mod support;
+use crate::support;
 
 use std::collections::HashMap;
 use std::net::TcpListener;

@@ -21,7 +21,7 @@ Not changed, by design and listed: the writer's sender, the writer answering new
 
 ## Test plan
 
-`crates/node/tests/push_read.rs` (a real writer publishing, a reader over the same files), `crates/node/src/open_indexes.rs` unit tests, `crates/reader/tests/commit_push.rs`.
+`crates/node/tests/server/push_read.rs` (a real writer publishing, a reader over the same files), `crates/node/src/open_indexes.rs` unit tests, `crates/reader/tests/commit_push.rs`.
 
 ## S3 request budget
 

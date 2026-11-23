@@ -22,7 +22,7 @@ Parity plan R9.3: `serverless.search.refresh_visibility` was read once, from `OS
 
 ## Test plan
 
-AC-1, AC-2: unit tests in `crates/node/src/cluster_live.rs`. AC-3, AC-4: `crates/node/tests/tail/tail_fresh.rs`. AC-5: `crates/node/src/boot/config.rs`. AC-6, AC-7: `crates/node/tests/boot.rs` over a file store with a short poll.
+AC-1, AC-2: unit tests in `crates/node/src/cluster_live.rs`. AC-3, AC-4: `crates/node/tests/tail/tail_fresh.rs`. AC-5: `crates/node/src/boot/config.rs`. AC-6, AC-7: `crates/node/tests/server/boot.rs` over a file store with a short poll.
 
 ## S3 request budget
 

@@ -25,7 +25,7 @@ Parity plan R7.6, node assembly: until now each route family was built by hand i
 
 ## Test plan
 
-`crates/node/tests/assemble.rs` over the emulator and a real server socket.
+`crates/node/tests/server/assemble.rs` over the emulator and a real server socket.
 
 ## S3 request budget
 
