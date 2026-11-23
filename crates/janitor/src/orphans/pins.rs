@@ -152,6 +152,20 @@ impl SnapshotSource {
 impl PinSource for SnapshotSource {
     /// Cost: one LIST page per 1,000 snapshots and a GET each.
     fn collect(&self, into: &mut IndexPins) -> Result<(), JanitorError> {
+        // ALLOC: one record buffer, at most `max_record_bytes`.
+        let mut buf = vec![0u8; self.max_record_bytes];
+        self.collect_with(into, &mut buf)
+    }
+}
+
+impl SnapshotSource {
+    /// As [`PinSource::collect`], reading each record through `buf` (at most
+    /// `max_record_bytes` of a record are kept whatever its size).
+    ///
+    /// # Errors
+    ///
+    /// As [`PinSource::collect`].
+    pub fn collect_with(&self, into: &mut IndexPins, buf: &mut [u8]) -> Result<(), JanitorError> {
         // ALLOC: one key a snapshot, at most `max_records` (checked below).
         let mut keys: Vec<String> = Vec::new();
         let mut after: Option<String> = None;
@@ -176,23 +190,21 @@ impl PinSource for SnapshotSource {
             }
             after = last;
         }
-        // ALLOC: one record buffer, at most `max_record_bytes`.
-        let mut buf = vec![0u8; self.max_record_bytes];
         for key in &keys {
             let mut body: Vec<u8> = Vec::new();
-            let got = self.store.get(
-                key,
-                ByteRange::Full,
-                &mut buf,
-                &mut |chunk: &[u8]| -> Result<(), BlobError> {
+            let got = self
+                .store
+                .get(key, ByteRange::Full, buf, &mut |chunk: &[u8]| -> Result<
+                    (),
+                    BlobError,
+                > {
                     // ALLOC: the record, at most `max_record_bytes` (checked).
                     body.extend_from_slice(chunk);
                     if body.len() > self.max_record_bytes {
                         return Err(BlobError::InvalidArgument("a snapshot record too long"));
                     }
                     Ok(())
-                },
-            );
+                });
             match got {
                 Ok(_) => {}
                 // Deleted since the listing: it pins nothing.

@@ -11,7 +11,8 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use oss_blob::BlobStore;
 use oss_format::ShardRef;
-use oss_janitor::gc::{Collector, Config, Memory, Outcome, PointInTimePins};
+use oss_janitor::gc::{Collector, Config, Memory, Outcome, PointInTimePins, SnapshotPins};
+use oss_janitor::orphans::{IndexPins, SnapshotSource};
 use oss_mem::{MemoryBudget, Pool};
 use oss_meta::PointInTimeStore;
 
@@ -61,11 +62,18 @@ pub struct PassLimits {
     pub max_views: usize,
 }
 
+/// A shard a snapshot holds: the commit it was seen at and when.
+type Held = (Arc<[u8]>, i64);
+
 /// What the pass remembers between runs.
 struct State {
     memory: Memory,
     // The commit each shard was last swept at, by uuid and number.
     swept: HashMap<(String, u32), Arc<[u8]>>,
+    // Shards a snapshot held whole: the commit and when it was seen so. A
+    // snapshot is long-lived, so such a shard is looked at again only after
+    // `relist_after_millis`, not on every pass.
+    held: HashMap<(String, u32), Held>,
 }
 
 /// Runs the janitor's sweeps over a [`WriterRole`]'s shards.
@@ -110,17 +118,25 @@ impl JanitorPass {
                 memory: Memory::new(),
                 // ALLOC: one entry a shard swept, at most the shards held.
                 swept: HashMap::new(),
+                // ALLOC: one entry a shard a snapshot holds, at most the shards held.
+                held: HashMap::new(),
             }),
         }
     }
 
     /// Whether `shard` needs a sweep: it published a commit the last sweep
     /// did not see, or a blob of it is being watched.
-    fn due(&self, state: &State, shard: &HeldShard) -> bool {
+    fn due(&self, state: &State, shard: &HeldShard, now: i64, recheck: i64) -> bool {
         let Some(newest) = &shard.newest else {
             return false;
         };
         let key = (shard.uuid.clone(), shard.shard);
+        if let Some((commit, at)) = state.held.get(&key)
+            && commit == newest
+            && now.saturating_sub(*at) < recheck
+        {
+            return false;
+        }
         if state.swept.get(&key) != Some(newest) {
             return true;
         }
@@ -137,11 +153,12 @@ impl JanitorPass {
     pub fn run(&self, config: Config) -> JanitorReport {
         let mut report = JanitorReport::default();
         let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+        let now = (self.clock)();
         let due: Vec<HeldShard> = self
             .role
             .held_shards()
             .into_iter()
-            .filter(|shard| self.due(&state, shard))
+            .filter(|shard| self.due(&state, shard, now, config.relist_after_millis))
             .collect();
         if due.is_empty() {
             return report;
@@ -155,17 +172,36 @@ impl JanitorPass {
         };
         // ALLOC: one buffer a pass, buffer_bytes, reserved above.
         let mut buf = vec![0u8; self.buffer_bytes];
-        let pins = match PointInTimePins::snapshot(&self.pits, &self.base, self.max_views, &mut buf)
-        {
-            Ok(pins) => pins,
-            Err(e) => {
-                // ALLOC: error path; the failure's words.
-                report.skipped = Some(e.to_string());
-                return report;
-            }
-        };
+        let views =
+            match PointInTimePins::snapshot(&self.pits, &self.base, self.max_views, &mut buf) {
+                Ok(pins) => pins,
+                Err(e) => {
+                    // ALLOC: error path; the failure's words.
+                    report.skipped = Some(e.to_string());
+                    return report;
+                }
+            };
+        // A snapshot holds every blob of the index incarnations it names.
+        let mut snapshotted = IndexPins::new(self.max_views);
+        let source = SnapshotSource::new(
+            Arc::clone(&self.store),
+            &self.base,
+            self.max_views,
+            self.buffer_bytes,
+        );
+        if let Err(e) = source.collect_with(&mut snapshotted, &mut buf) {
+            // ALLOC: error path; the failure's words.
+            report.skipped = Some(e.to_string());
+            return report;
+        }
+        // ALLOC: one flag a due shard.
+        let by_snapshot: Vec<bool> = due
+            .iter()
+            .map(|s| snapshotted.contains(&s.name, &s.uuid))
+            .collect();
+        let pins = SnapshotPins::new(&views, snapshotted);
         let collector = Collector::new(&*self.store, &self.base, &pins, &*self.clock, config);
-        for shard in due {
+        for (shard, by_snapshot) in due.into_iter().zip(by_snapshot) {
             let at = ShardRef {
                 index: &shard.name,
                 uuid: &shard.uuid,
@@ -180,10 +216,19 @@ impl JanitorPass {
                     if sweep.outcome == Outcome::Pinned {
                         report.pinned = report.pinned.saturating_add(1);
                     }
-                    // A shard with no commit yet, or pinned whole, is tried again.
-                    if let (Outcome::Swept, Some(newest)) = (sweep.outcome, shard.newest) {
-                        // ALLOC: one entry a shard swept.
-                        state.swept.insert((shard.uuid, shard.shard), newest);
+                    // A shard with no commit yet, or pinned whole by a view, is
+                    // tried again; one a snapshot holds is looked at again after
+                    // `relist_after_millis`.
+                    match (sweep.outcome, shard.newest) {
+                        (Outcome::Swept, Some(newest)) => {
+                            // ALLOC: one entry a shard swept.
+                            state.swept.insert((shard.uuid, shard.shard), newest);
+                        }
+                        (Outcome::Pinned, Some(newest)) if by_snapshot => {
+                            // ALLOC: one entry a shard a snapshot holds.
+                            state.held.insert((shard.uuid, shard.shard), (newest, now));
+                        }
+                        _ => {}
                     }
                 }
                 Err(e) => {
