@@ -1,8 +1,7 @@
 //! docs/specs/node-doc-read-routes: the document get routes and `_refresh`
 //! over a writer node's own shards.
 
-#[path = "support/mod.rs"]
-mod support;
+use crate::support;
 
 use std::net::TcpListener;
 use std::sync::Arc;

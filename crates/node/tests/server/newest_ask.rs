@@ -2,8 +2,7 @@
 //! its staging writer asks the writer for the newer commit, over the same
 //! two GETs; and the transport source that asks.
 
-#[path = "support/mod.rs"]
-mod support;
+use crate::support;
 
 use std::net::TcpListener;
 use std::sync::{Arc, Mutex};

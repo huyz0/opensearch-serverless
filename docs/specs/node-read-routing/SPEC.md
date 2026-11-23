@@ -21,7 +21,7 @@ R7: `GET|HEAD /{index}/_doc/{id}`, `/{index}/_source/{id}` and `/{index}/_refres
 
 ## Test plan
 
-`crates/node/tests/get_route.rs` (AC-1 to AC-3, with a test `Routes`), `tests/roles/cluster_owner.rs` (AC-4), `tests/boot.rs` (AC-5, real nodes, real transport, signed).
+`crates/node/tests/server/get_route.rs` (AC-1 to AC-3, with a test `Routes`), `tests/roles/cluster_owner.rs` (AC-4), `tests/server/boot.rs` (AC-5, real nodes, real transport, signed).
 
 ## S3 request budget
 

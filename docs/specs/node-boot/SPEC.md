@@ -29,7 +29,7 @@ Parity plan R7.6, node `main`: until now `main` printed the roles. A node with t
 
 ## Test plan
 
-`crates/node/src/boot/config.rs` unit tests for AC-1 and AC-2; `crates/node/tests/boot.rs` over a temp-dir file store and real sockets for AC-3 to AC-8.
+`crates/node/src/boot/config.rs` unit tests for AC-1 and AC-2; `crates/node/tests/server/boot.rs` over a temp-dir file store and real sockets for AC-3 to AC-8.
 
 ## S3 request budget
 

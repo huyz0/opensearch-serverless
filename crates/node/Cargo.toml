@@ -85,28 +85,8 @@ name = "it"
 path = "tests/it/main.rs"
 
 [[test]]
-name = "read_forward"
-required-features = ["writer"]
-
-[[test]]
 name = "handlers"
 required-features = ["writer"]
-
-[[test]]
-name = "assemble"
-required-features = ["reader", "writer"]
-
-[[test]]
-name = "doc_route"
-required-features = ["writer"]
-
-[[test]]
-name = "get_route"
-required-features = ["writer"]
-
-[[test]]
-name = "index_route"
-required-features = ["writer", "coordinator"]
 
 [[test]]
 name = "pit_route"
@@ -117,32 +97,12 @@ name = "pit_route_limits"
 required-features = ["writer"]
 
 [[test]]
-name = "bulk_route"
-required-features = ["reader", "writer"]
-
-[[test]]
-name = "index_delete"
-required-features = ["writer", "coordinator"]
-
-[[test]]
 name = "cat_routes"
 required-features = ["writer"]
 
 [[test]]
 name = "health_store"
 required-features = ["writer"]
-
-[[test]]
-name = "cluster_assemble"
-required-features = ["reader", "writer"]
-
-[[test]]
-name = "boot"
-required-features = ["reader", "writer", "coordinator"]
-
-[[test]]
-name = "by_query_route"
-required-features = ["writer", "coordinator"]
 
 [[test]]
 name = "cluster_suite"

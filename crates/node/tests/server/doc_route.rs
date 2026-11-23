@@ -1,8 +1,7 @@
 //! docs/specs/node-doc-write-route: the single-document write APIs over a
 //! writer node's own shards.
 
-#[path = "support/mod.rs"]
-mod support;
+use crate::support;
 
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};

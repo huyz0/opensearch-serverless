@@ -17,7 +17,7 @@ Not changed, by design and listed: the open-cost estimate, which does not count 
 
 ## Test plan
 
-`a_replaced_or_deleted_document_is_not_found` (`crates/node/tests/push_read.rs`, a real writer publishing to a reader). AC-2 is the existing reader and node suites, which open indexes without the field.
+`a_replaced_or_deleted_document_is_not_found` (`crates/node/tests/server/push_read.rs`, a real writer publishing to a reader). AC-2 is the existing reader and node suites, which open indexes without the field.
 
 ## S3 request budget
 

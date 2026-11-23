@@ -20,7 +20,7 @@ R7 cluster-wide reads: a realtime get of a shard another node holds must reach i
 
 ## Test plan
 
-`crates/node/tests/read_forward.rs`: a real owner (a writer role holding a shard, written through its REST door) behind a real signed transport server, called by a `GetForwarder` over a socket. AC-1 was observed failing with the handler's realtime flag turned off.
+`crates/node/tests/server/read_forward.rs`: a real owner (a writer role holding a shard, written through its REST door) behind a real signed transport server, called by a `GetForwarder` over a socket. AC-1 was observed failing with the handler's realtime flag turned off.
 
 ## S3 request budget
 

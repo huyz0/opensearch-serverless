@@ -20,7 +20,7 @@ Parity plan R7.3, document APIs, third piece: the Java shell's `BulkDispatch.rou
 
 ## Test plan
 
-`crates/coordinator/tests/bulk_route.rs`: an in-memory plane counting lookups; statuses, kinds and words asserted exactly.
+`crates/coordinator/tests/server/bulk_route.rs`: an in-memory plane counting lookups; statuses, kinds and words asserted exactly.
 
 ## S3 request budget
 

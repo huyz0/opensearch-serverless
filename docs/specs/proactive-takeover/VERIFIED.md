@@ -1,6 +1,6 @@
 # Verified: proactive takeover of a dead node's shards
 
-- AC-1: `a_booted_node_takes_a_dead_nodes_shard_before_any_write_only_when_the_setting_is_on` in crates/node/tests/boot.rs
+- AC-1: `a_booted_node_takes_a_dead_nodes_shard_before_any_write_only_when_the_setting_is_on` in crates/node/tests/server/boot.rs
   and `with_the_switch_on_a_fleet_with_no_death_makes_no_request` in crates/node/tests/proactive_evidence.rs
 - AC-2: `a_pass_takes_the_shard_the_dead_log_names_before_any_write` in crates/node/tests/proactive_takeover.rs
   and `every_shard_the_log_names_is_taken_in_one_pass` in crates/node/tests/proactive_faults.rs

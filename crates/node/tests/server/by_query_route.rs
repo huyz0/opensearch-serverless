@@ -4,8 +4,7 @@
 // ARITH: offsets into a reply are small; an overflow panics the test.
 #![allow(clippy::arithmetic_side_effects)]
 
-#[path = "support/mod.rs"]
-mod support;
+use crate::support;
 
 use std::net::TcpListener;
 use std::sync::{Arc, Mutex};

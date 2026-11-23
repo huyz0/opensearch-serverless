@@ -1,7 +1,6 @@
 //! docs/specs/node-bulk-route: `_bulk` over a writer node's own shards.
 
-#[path = "support/mod.rs"]
-mod support;
+use crate::support;
 
 use std::net::TcpListener;
 use std::sync::Arc;

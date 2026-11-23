@@ -22,7 +22,7 @@ R8 janitor: a dead node's write log is deleted once nothing in it is unpublished
 
 ## Test plan
 
-`crates/node/tests/boot.rs` (AC-5, over a file store and real sockets) and `crates/node/tests/dead_log_pass.rs`: two nodes over one emulator, the first dead by a clock an hour on; the request meter counts what each pass spends.
+`crates/node/tests/server/boot.rs` (AC-5, over a file store and real sockets) and `crates/node/tests/dead_log_pass.rs`: two nodes over one emulator, the first dead by a clock an hour on; the request meter counts what each pass spends.
 
 ## S3 request budget
 

@@ -1,7 +1,6 @@
 //! docs/specs/node-index-route: create an index and ask whether one exists.
 
-#[path = "support/mod.rs"]
-mod support;
+use crate::support;
 
 use std::net::TcpListener;
 use std::sync::Arc;

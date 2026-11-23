@@ -25,7 +25,7 @@ Parity plan R7.6, node assembly: `PUT|POST /{index}/_doc/{id}`, `POST /{index}/_
 
 ## Test plan
 
-`crates/node/tests/doc_route.rs` over the emulator and a real server socket, as `bulk_route.rs`.
+`crates/node/tests/server/doc_route.rs` over the emulator and a real server socket, as `bulk_route.rs`.
 
 ## S3 request budget
 

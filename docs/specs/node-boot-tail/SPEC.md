@@ -21,7 +21,7 @@ Parity plan R9.3 and R7.6: the tail overlay was built and wired by `Assembled::w
 
 ## Test plan
 
-`crates/node/tests/boot.rs` (booted nodes over a file store) and the unit tests in `crates/node/src/boot/`.
+`crates/node/tests/server/boot.rs` (booted nodes over a file store) and the unit tests in `crates/node/src/boot/`.
 
 ## S3 request budget
 
