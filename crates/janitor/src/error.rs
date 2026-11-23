@@ -23,6 +23,8 @@ pub enum JanitorError {
     Meta(MetaError),
     /// The node's write log could not be read, fenced or deleted.
     Log(String),
+    /// The caller asked for something a sweep refuses.
+    Refused(&'static str),
 }
 
 impl fmt::Display for JanitorError {
@@ -34,6 +36,7 @@ impl fmt::Display for JanitorError {
             Self::Cluster(e) => e.fmt(f),
             Self::Meta(e) => e.fmt(f),
             Self::Log(why) => write!(f, "the write log: {why}"),
+            Self::Refused(why) => f.write_str(why),
         }
     }
 }

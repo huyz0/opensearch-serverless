@@ -28,8 +28,64 @@ pub const MINIMUM_UNREFERENCED_MILLIS: LongSetting = LongSetting::new(
 )
 .dynamic();
 
+/// `serverless.janitor.orphan_slice_budget`: how many shard containers one
+/// orphan-sweep slice judges. 0, the default, is off: the sweep makes no
+/// request at all ([ADR 0028](../../docs/adr/0028-orphan-shard-sweep.md)).
+pub const ORPHAN_SLICE_BUDGET: LongSetting = LongSetting::new(
+    "serverless.janitor.orphan_slice_budget",
+    0,
+    0,
+    1_000,
+    Scope::Node,
+    "Shard containers one orphan-sweep slice judges; 0 turns the sweep off.",
+)
+.dynamic();
+
+/// `serverless.janitor.orphan_slice_interval_millis`: how often the one node
+/// the rendezvous names runs a slice.
+pub const ORPHAN_SLICE_INTERVAL_MILLIS: LongSetting = LongSetting::new(
+    "serverless.janitor.orphan_slice_interval_millis",
+    3_600_000,
+    1_000,
+    86_400_000,
+    Scope::Node,
+    "How often a node runs one slice of the orphan-shard sweep.",
+)
+.dynamic();
+
+/// `serverless.janitor.orphan_max_pins`: the most index incarnations the
+/// pins of a slice may name before it stops with nothing deleted.
+pub const ORPHAN_MAX_PINS: LongSetting = LongSetting::new(
+    "serverless.janitor.orphan_max_pins",
+    100_000,
+    1,
+    10_000_000,
+    Scope::Node,
+    "The most pinned index incarnations a slice of the orphan sweep holds.",
+)
+.dynamic();
+
+/// `serverless.janitor.orphan_max_pin_records`: the most live points in time
+/// and snapshots a slice reads before it stops with nothing deleted.
+pub const ORPHAN_MAX_PIN_RECORDS: LongSetting = LongSetting::new(
+    "serverless.janitor.orphan_max_pin_records",
+    10_000,
+    1,
+    1_000_000,
+    Scope::Node,
+    "The most point-in-time and snapshot records a slice of the orphan sweep reads.",
+)
+.dynamic();
+
 /// Every setting this crate defines, for the node's registry.
-pub static SETTINGS: &[&Setting] = &[DRY_RUN.setting(), MINIMUM_UNREFERENCED_MILLIS.setting()];
+pub static SETTINGS: &[&Setting] = &[
+    DRY_RUN.setting(),
+    MINIMUM_UNREFERENCED_MILLIS.setting(),
+    ORPHAN_SLICE_BUDGET.setting(),
+    ORPHAN_SLICE_INTERVAL_MILLIS.setting(),
+    ORPHAN_MAX_PINS.setting(),
+    ORPHAN_MAX_PIN_RECORDS.setting(),
+];
 
 #[cfg(test)]
 mod tests {
@@ -38,6 +94,11 @@ mod tests {
     #[test]
     fn the_janitor_starts_as_a_dry_run() {
         assert!(DRY_RUN.default());
+    }
+
+    #[test]
+    fn the_orphan_sweep_is_off_by_default() {
+        assert_eq!(ORPHAN_SLICE_BUDGET.default(), 0);
     }
 
     #[test]

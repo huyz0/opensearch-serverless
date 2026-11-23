@@ -58,6 +58,7 @@ mod reclaim_intent;
 mod register;
 mod segment_blob;
 mod shard_head;
+mod snapshot_pins;
 mod tombstone;
 mod transport_secret;
 mod unit_layout;
@@ -107,6 +108,7 @@ pub use segment_blob::{
     encode_header as encode_segment_header,
 };
 pub use shard_head::{MAX_SHARD_HEAD_BYTES, MAX_WRITERS, ShardHead};
+pub use snapshot_pins::{MAX_SNAPSHOT_RECORD_BYTES, snapshot_pinned_indexes};
 pub use tombstone::{MAX_TOMBSTONE_BYTES, Tombstone, tombstone_bucket, tombstone_bucket_start};
 
 /// Node pack format constants and the header-length probe.
