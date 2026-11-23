@@ -3,7 +3,7 @@ src/lib.rs	new		crate root
 src/gc/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/reconcile/GarbageCollector.java@3920dc36	sweepShard: the older-term and referenced rules, the two-sweep grace, the minimum age; dry run is new
 src/gc/terms.rs	new		the term container test (SweepScope.listOlderTerms keeps the same set)
 src/gc/pins.rs	new		the pin source as a trait; the Java reads PointInTime and SnapshotRecord directly
-src/gc/memory.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/reconcile/GarbageCollector.java@3920dc36	firstSeenUnreferenced and the candidates map
+src/gc/memory.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/reconcile/GarbageCollector.java@3920dc36	firstSeenUnreferenced and the candidates map; the scope of SweepScope
 src/settings.rs	new		serverless.janitor.dry_run
 src/error.rs	new		the sweep error
 src/node_log/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/metadata/ShardSettlement.java@3920dc36	collectNodeLog and publishedPast; dry run is new

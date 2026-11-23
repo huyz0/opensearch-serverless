@@ -1,6 +1,6 @@
 //! What earlier sweeps saw unreferenced: the grace.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// What the sweeps of each shard saw unreferenced, and when each blob was
 /// first seen so, in the sweep's clock.
@@ -15,6 +15,19 @@ pub struct Memory {
     // ALLOC: one entry a shard being watched, and one key a blob seen
     // unreferenced and not yet deleted; an empty shard holds no entry.
     shards: HashMap<String, BTreeMap<String, i64>>,
+    // ALLOC: one entry a shard swept, one key a named or watched older-term blob.
+    scopes: HashMap<String, Scope>,
+}
+
+/// What a sweep knew of a shard's older terms without listing them.
+#[derive(Debug)]
+pub(super) struct Scope {
+    /// The live term the names were taken under.
+    pub(super) term: u64,
+    /// When the shard was last listed, in the sweep's clock.
+    pub(super) listed_at: i64,
+    /// The older-term blobs the manifest or a pin named, and those watched.
+    pub(super) names: HashSet<String>,
 }
 
 impl Memory {
@@ -43,8 +56,14 @@ impl Memory {
         self.shards.get(path)
     }
 
+    pub(super) fn scope(&self, path: &str) -> Option<&Scope> {
+        self.scopes.get(path)
+    }
+
     /// Replaces what is remembered of `path`; nothing, for no entry.
-    pub(super) fn set(&mut self, path: &str, seen: BTreeMap<String, i64>) {
+    pub(super) fn set(&mut self, path: &str, seen: BTreeMap<String, i64>, scope: Scope) {
+        // ALLOC: one key a shard first swept.
+        self.scopes.insert(path.to_owned(), scope);
         if seen.is_empty() {
             self.shards.remove(path);
         } else {

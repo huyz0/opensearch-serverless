@@ -26,6 +26,7 @@ const LIVE: Config = Config {
     minimum_unreferenced_millis: 0,
     max_watched: 100_000,
     max_pinned: 100_000,
+    relist_after_millis: 0,
 };
 
 struct NoPins;
