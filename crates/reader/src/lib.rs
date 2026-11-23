@@ -30,6 +30,7 @@ mod search_sort;
 mod search_terminate;
 mod search_top;
 pub mod shard_files;
+pub mod template;
 
 use std::sync::Arc;
 

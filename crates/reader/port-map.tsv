@@ -171,3 +171,11 @@ src/aggs/bucket/walk.rs	new		a walk over the sub-aggregation values of a result'
 src/aggs/metric/keyword_cardinality.rs	port	server/src/main/java/org/opensearch/search/aggregations/metrics/CardinalityAggregator.java@3.10.0	OrdinalsCollector: the global ordinals of a keyword field hashed into the sketch, and their reserved memory
 src/aggs/metric/collect_kind_tests.rs	new		tests that value_from refuses an engine result of another kind than its aggregation
 src/aggs/bucket/terms_error_tests.rs	new		tests of a terms' shard, bucket and reduce error bounds, and of an empty shard result
+src/template/mod.rs	port	modules/lang-mustache/src/main/java/org/opensearch/script/mustache/MustacheScriptEngine.java@3.10.0	render: compile then execute a mustache template over params, in a byte limit
+src/template/parse.rs	port	com.github.mustachejava.codes (mustache.java 0.9.14) MustacheParser.compile	the compiler: standalone-line whitespace, sections, delimiter changes, partial and extend checks
+src/template/exec.rs	port	com.github.mustachejava.codes (mustache.java 0.9.14) DefaultMustache.execute	the executor: lookup, sections, the toJson, join and url functions, depth and output limits
+src/template/members.rs	port	com.github.mustachejava.reflect.ReflectionObjectHandler	the member names of Java scalars a template could reach, refused
+src/template/val.rs	port	modules/lang-mustache/src/main/java/org/opensearch/script/mustache/CustomMustacheFactory.java@3.10.0	the values of params and their Java string forms
+src/template/request.rs	port	modules/lang-mustache/src/main/java/org/opensearch/script/mustache/SearchTemplateRequest.java@3.10.0	the template request's ObjectParser and params map
+src/template/tests.rs	new		replay of the recorded Java renders, refusals and request parser cases
+src/template/visit.rs	port	modules/lang-mustache/src/main/java/org/opensearch/script/mustache/CustomMustacheFactory.java@3.10.0	the CustomMustacheVisitor codes for toJson, join and url, and the partial check
