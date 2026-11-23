@@ -337,11 +337,9 @@ pub(crate) fn value_from(agg: &MetricAgg, result: Option<AggResult>) -> Result<V
         Some(AggResult::NumericTerms { buckets, .. }) if agg.metric == Metric::Terms => {
             let (other, kept) = buckets.into_iter().next().unwrap_or_default();
             // ALLOC: the kept buckets of one `terms`, at most its shard size.
-            Ok(Value::Terms(Box::new(terms_collect::from_engine(
-                &terms_spec(agg),
-                other,
-                kept,
-            ))))
+            let mut result = terms_collect::from_engine(&terms_spec(agg), other, kept);
+            result.apply_shard_min();
+            Ok(Value::Terms(Box::new(result)))
         }
         Some(AggResult::Histogram { buckets, .. }) if agg.metric == Metric::Histogram => {
             let spec = histogram_spec(agg);
