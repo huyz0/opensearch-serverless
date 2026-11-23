@@ -22,6 +22,10 @@ Invariant I-13 in [invariants.md](invariants.md) holds the suite to this: `crate
 
 `GET|POST /{index}/_count` with a body of `query` alone, or none, answers `count` (the exact total of that query's search) and the search's `_shards`, over one shard or several ([count-api](specs/count-api/SPEC.md)). **Refused:** `/_count` without an index, every URL parameter (`q`, `terminate_after`, `min_score` and the rest), and any body key other than `query`, as 400 `illegal_argument_exception` where OpenSearch answers a `parsing_exception` for an unknown key.
 
+## `_validate/query` on a reader node
+
+`GET|POST /{index}/_validate/query` with a body of `query` alone, or none, answers `valid` and `_shards` of `total` 1 (stock validates on one shard of each index) ([validate-query-api](specs/validate-query-api/SPEC.md)). A body that does not parse and a query that fails to build answer 200 `valid: false`, as OpenSearch does. **Refused:** `/_validate/query` without an index, every URL parameter (`explain`, `rewrite`, `all_shards`, `q` and the rest), and a query this node does not support yet (400, never `valid: false`). **Differs:** a body key that parses as a search default (`{"size":10}`) is valid here and invalid in OpenSearch; the index must be one concrete name.
+
 ## `_field_caps` on a reader node
 
 `GET|POST /{index}/_field_caps?fields=` over comma-separated concrete index names answers each mapped field (multi-fields included) by type with `searchable`, `aggregatable`, and `indices` or `non_*_indices` where the indices differ ([field-caps-api](specs/field-caps-api/SPEC.md)). **Refused:** `/_field_caps` without an index, a wildcard, `_all` or an alias as the index, and the parameters `ignore_unavailable`, `include_unmapped`, `filters`, `types`, `index_filter` and the `fields` body key. **Differs:** the metadata fields (`_id`, `_index`, `_source` and the rest) are not listed, so `fields=*` answers fewer entries than OpenSearch.
