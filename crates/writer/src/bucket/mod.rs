@@ -10,6 +10,7 @@
 mod assign;
 mod commits;
 mod error;
+pub mod settings;
 mod store;
 
 pub use assign::{BucketAssigner, Limits, STRIPES};
