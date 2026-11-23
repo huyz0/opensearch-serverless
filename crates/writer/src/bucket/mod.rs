@@ -10,6 +10,7 @@
 mod assign;
 mod commits;
 mod error;
+pub mod policy;
 pub mod settings;
 mod store;
 
