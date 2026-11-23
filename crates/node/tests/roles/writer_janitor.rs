@@ -79,6 +79,7 @@ const LIVE: Config = Config {
     minimum_unreferenced_millis: 0,
     max_watched: 1000,
     max_pinned: 1000,
+    relist_after_millis: 0,
 };
 
 struct Rig {

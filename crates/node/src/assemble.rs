@@ -108,6 +108,7 @@ impl Config {
                 minimum_unreferenced_millis: 60_000,
                 max_watched: 100_000,
                 max_pinned: 100_000,
+                relist_after_millis: 3_600_000,
             },
             inline_purge_max_shards: 16,
             reclaim_every: Duration::from_secs(60),
