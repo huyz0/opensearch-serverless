@@ -290,17 +290,40 @@ fn a_size_over_the_bucket_limit_fails_as_too_many_buckets() {
 #[test]
 fn a_composite_reserves_its_keys_and_ordinals_with_the_hits() {
     let shard = shard("cp-reserve", DOCS);
-    let bytes = |body: &str| {
+    let bytes = |sources: &str, size: usize| {
+        let body = format!(
+            r#"{{"size":0,"aggs":{{"c":{{"composite":{{"size":{size},"sources":[{sources}]}}}}}}}}"#
+        );
         let source = crate::dsl::parse_chunks([body.as_bytes()]).expect("parses");
         crate::search::hits_bytes(&source, &shard)
     };
-    let none = bytes(r#"{"size":0}"#);
-    let small = bytes(
-        r#"{"size":0,"aggs":{"c":{"composite":{"size":10,"sources":[{"a":{"terms":{"field":"tag"}}}]}}}}"#,
+    let keyword = r#"{"a":{"terms":{"field":"tag"}}}"#;
+    let long = r#"{"a":{"terms":{"field":"n"}}}"#;
+    let agg = |sources: &str, size: usize| {
+        let body = format!(
+            r#"{{"aggs":{{"c":{{"composite":{{"size":{size},"sources":[{sources}]}}}}}}}}"#
+        );
+        let source = crate::dsl::parse_chunks([body.as_bytes()]).expect("parses");
+        source.aggs.into_iter().next().expect("one")
+    };
+    // The keys: exactly `state_bytes`, beside a long source of the same size.
+    let spec = |sources: &str, size: usize| agg(sources, size).composite.expect("spec");
+    let keys = super::composite_collect::state_bytes(&spec(long, 10));
+    assert_eq!(keys, 10 * (48 + 96) * 3);
+    assert_eq!(
+        super::composite_collect::reserved(&shard, &agg(long, 10)),
+        0
     );
-    let big = bytes(
-        r#"{"size":0,"aggs":{"c":{"composite":{"size":1000,"sources":[{"a":{"terms":{"field":"tag"}}},{"b":{"terms":{"field":"n"}}}]}}}}"#,
+    // The ordinals of a keyword source: the dictionary's terms and the
+    // kept keys' terms, on top of the keys.
+    let ordinals = super::composite_collect::reserved(&shard, &agg(keyword, 10));
+    assert!(ordinals >= 16 * 16 + 10 * 3 * 2, "{ordinals}");
+    assert_eq!(
+        bytes(keyword, 10) - bytes(long, 10),
+        ordinals,
+        "the search reserves the ordinals"
     );
-    assert!(small > none, "{small} {none}");
-    assert!(big > small * 10, "{big} {small}");
+    // The most a request may keep.
+    let most = bytes(long, crate::aggs::bucket::BUCKET_LIMIT);
+    assert!(most > bytes(long, 10) + 65_000 * 144 * 3 - 10 * 144 * 3 - 1);
 }

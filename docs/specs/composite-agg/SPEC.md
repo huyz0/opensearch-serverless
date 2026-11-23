@@ -8,7 +8,7 @@ Roadmap R10.2: OpenSearch's `composite` of a single-shard `_search` at the top l
 
 A top-level `composite` with sources of type `terms` (a keyword, long, integer or date field; a date's key is its milliseconds as a long, as OpenSearch writes it) and `histogram` (a numeric field), each with `order`, `missing_bucket` and `missing_order`, and the aggregation's `size` (default 10) and `after`. `Value::Composite` holds the shard's keys and counts; its reduce merges the shards' buckets in key order and cuts at `size`.
 
-Not here, each refused with 400 "... is not supported by this node yet": the `date_histogram` source, a source's `script`, `format` and `value_type`, sub-aggregations of a `composite`, a `composite` under another aggregation, `size` below 1 or over `search.max_buckets`.
+Not here, each refused with 400 "... is not supported by this node yet": the `date_histogram` source, a source's `script`, `format` and `value_type`, sub-aggregations of a `composite`, a `composite` under another aggregation, `size` below 1. A `size` over `search.max_buckets` fails with 503 `too_many_buckets_exception`, as a reduce that makes that many buckets does (AC-6).
 
 ## Acceptance criteria
 
