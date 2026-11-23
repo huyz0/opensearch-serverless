@@ -135,6 +135,14 @@ jobs:
             exit 0
           fi
           exit "$rc"
+      - name: how far the slice got
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json
+          o = json.load(open("mutants.out/outcomes.json"))
+          print({k: v for k, v in o.items() if k != "outcomes"})
+          PY
       - name: report failure
         if: failure()
         env:
