@@ -159,6 +159,27 @@ fn wait_for(what: &str, mut done: impl FnMut() -> bool) {
     }
 }
 
+// docs/specs/writer-hibernation AC-10
+#[test]
+fn hibernation_is_off_unless_the_variable_sets_an_idle_time() {
+    let read = |after: Option<&'static str>| {
+        NodeConfig::from_lookup(move |key| match key {
+            "OSS_NODE_ID" => Some("n1".to_owned()),
+            "OSS_STORE" => Some("fs".to_owned()),
+            "OSS_FS_ROOT" => Some("/x".to_owned()),
+            "OSS_HTTP_ADDR" | "OSS_TRANSPORT_ADDR" => Some("127.0.0.1:0".to_owned()),
+            "OSS_HIBERNATE_AFTER_MS" => after.map(str::to_owned),
+            _ => None,
+        })
+    };
+    assert_eq!(read(None).expect("valid").hibernate_after_millis, 0);
+    assert_eq!(
+        read(Some("5000")).expect("valid").hibernate_after_millis,
+        5000
+    );
+    assert!(read(Some("soon")).is_err());
+}
+
 // AC-3
 #[test]
 fn a_started_node_is_enrolled_and_reports_itself() {

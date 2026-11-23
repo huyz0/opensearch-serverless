@@ -34,6 +34,10 @@ impl WriterRole {
     /// The shard not held, or the engine's or the publish's.
     pub fn refresh(&self, index: &IndexInfo, shard: u32) -> Result<(), String> {
         let Some(slot) = self.slot(&index.uuid, shard) else {
+            if self.asleep(&index.uuid, shard) {
+                // Everything it took is in a published commit.
+                return Ok(());
+            }
             // ALLOC: error path; one message.
             return Err(format!(
                 "[{}][{shard}] is not open on this node",

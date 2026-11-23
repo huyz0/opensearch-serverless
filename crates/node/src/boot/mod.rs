@@ -383,7 +383,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         &config.node_id,
         address_bytes(&config.node_id),
     );
-    node_config.publish_every = Duration::from_millis(250);
+    node_config.hibernate_after_millis = config.hibernate_after_millis;
     node_config.janitor_every = Duration::from_millis(config.janitor_every_millis);
     let health = Arc::new(StoreHealth::new(
         Arc::clone(&membership),

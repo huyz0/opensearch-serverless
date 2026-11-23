@@ -36,3 +36,4 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0024](0024-node-packs-in-the-writer.md) | Node packs in the writer: one PUT for the segments a node publishes together | Accepted |
 | [0025](0025-node-pack-collection.md) | Node pack collection | Proposed |
 | [0026](0026-bucket-manifests-in-the-writer.md) | Bucket manifests in the writer: the shell's register, written as JSON first | Accepted |
+| [0027](0027-hibernating-idle-writers.md) | An idle writer hibernates: engine closed, head kept | Proposed |

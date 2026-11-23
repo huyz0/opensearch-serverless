@@ -34,6 +34,7 @@ impl PublishTimer {
                     }
                     drop(stopped);
                     role.publish_due();
+                    role.hibernate_due(super::now_millis());
                 }
             })
             .ok();

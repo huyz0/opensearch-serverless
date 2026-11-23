@@ -24,6 +24,7 @@ fn providers() -> Vec<&'static [&'static Setting]> {
         oss_writer::publish::lazy::SETTINGS,
         #[cfg(feature = "writer")]
         crate::writer::PROACTIVE_SETTINGS,
+        crate::writer::HIBERNATE_SETTINGS,
     ]
 }
 
@@ -55,7 +56,7 @@ mod tests {
             let reader = cfg!(feature = "reader");
             assert_eq!(
                 keys.len(),
-                6 + 5 * usize::from(reader) + if writer { 12 } else { 0 }
+                6 + 5 * usize::from(reader) + if writer { 13 } else { 0 }
             );
             assert_eq!(
                 keys.contains(&"serverless.reader.newest_commit_ask"),
@@ -88,6 +89,7 @@ mod tests {
                 "serverless.takeover.proactive.reapers",
                 "serverless.takeover.proactive.max_concurrent",
                 "serverless.takeover.proactive.pass_millis",
+                "serverless.activation.hibernate_after_millis",
             ] {
                 assert_eq!(keys.contains(&key), writer, "{key}");
             }
