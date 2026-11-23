@@ -2,7 +2,7 @@
 
 ## Serves
 
-[ADR 0020](../../adr/0020-janitor-crate.md): "a blob goes only when ... nothing names it (the manifest, a point in time, a snapshot)". The per-shard sweep of a node's held shards ([node-janitor-pass](../node-janitor-pass/SPEC.md)) honoured the manifest and the points in time but not snapshots, which the Java shell writes under `snapshots/`. A Rust node that deletes, in a fleet with Java snapshots, could delete a blob a snapshot holds. The orphan-shard sweep already reads them ([janitor-orphan-sweep](../janitor-orphan-sweep/SPEC.md)); this brings the per-shard sweep to the same rule before the janitor's default turns to deleting ([janitor-default-live](../janitor-default-live/SPEC.md)).
+[ADR 0020](../../adr/0020-janitor-crate.md): "a blob goes only when ... nothing names it (the manifest, a point in time, a snapshot)". The per-shard sweep of a node's held shards ([node-janitor-pass](../node-janitor-pass/SPEC.md)) honoured the manifest and the points in time but not snapshots, which the Java shell writes under `snapshots/`. A Rust node that deletes, in a fleet with Java snapshots, could delete a blob a snapshot holds. The orphan-shard sweep already reads them ([janitor-orphan-sweep](../janitor-orphan-sweep/SPEC.md)); this brings the per-shard sweep to the same rule before the janitor's default turns to deleting.
 
 ## Change
 
