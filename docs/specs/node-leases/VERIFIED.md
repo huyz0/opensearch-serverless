@@ -10,6 +10,6 @@
 - AC-8: `a_lease_dead_for_ten_lifetimes_is_unlisted_and_deleted_where_verified`, `a_listed_lease_that_is_gone_is_pruned_and_a_renewal_re_enrols`, `a_live_node_keeps_its_write_log_epochs` (cluster). Planted: pruning an epoch-holding lease fails the first.
 - AC-9: `an_idle_hour_costs_what_the_table_says` and `lease_operations_cost_what_the_table_says` (cluster), against the `lease.*` rows of docs/request-budgets.md: the digest writer 720 swaps and 1,800 GETs, another node 360 swaps and 719 GETs, no LIST.
 - AC-10: `a_java_lease_on_fs_is_read_live` (cluster), over the lease and index the shell's classes wrote, on the filesystem store; the recorder checks the Java reads back each lease it writes, which AC-1 shows are Rust's bytes too.
-- AC-11: `a_view_between_two_refreshes_never_holds_an_expired_member` (cluster, view.rs), seen red before the fix: at the second tick node 1 saw n1, n2 and n3 expired.
+- AC-11: `a_copy_is_read_again_once_under_half_a_lifetime_is_left` (the boundary), `a_view_between_two_refreshes_never_holds_an_expired_member` (cluster, view.rs), seen red before the fix: at the second tick node 1 saw n1, n2 and n3 expired.
 
 Mutants over the diff (`cargo mutants --in-diff`, oss-cluster and oss-format): 336 tested, none missed after the tests above, 2 timeouts (removing the single-flight finish leaves followers waiting, which the joined-revocation test turns into a hang), 2 equivalent mutants excluded in `.cargo/mutants.toml` with the reason.

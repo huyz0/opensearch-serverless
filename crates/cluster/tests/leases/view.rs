@@ -52,3 +52,22 @@ fn a_view_between_two_refreshes_never_holds_an_expired_member() {
         fleet.clock.advance(-(period - 1));
     }
 }
+
+// AC-11
+#[test]
+fn a_copy_is_read_again_once_under_half_a_lifetime_is_left() {
+    use oss_blob::S3Op;
+    let fleet = Fleet::new();
+    let nodes = nodes_of(&fleet);
+    nodes[2].refresh().unwrap();
+    // Exactly half a lifetime left: held, so the refresh reads the index only.
+    fleet.clock.advance(TTL / 2);
+    let before = fleet.count(S3Op::Get);
+    nodes[2].refresh().unwrap();
+    assert_eq!(fleet.count(S3Op::Get) - before, 1);
+    // A millisecond past it the copies are read again.
+    fleet.clock.advance(1);
+    let before = fleet.count(S3Op::Get);
+    nodes[2].refresh().unwrap();
+    assert!(fleet.count(S3Op::Get) - before > 1);
+}
