@@ -458,3 +458,41 @@ fn a_revoked_member_naming_epochs_is_reported_as_revoked() {
     assert!(seen.dead_with_epochs[0].revoked);
     assert!(!seen.live.iter().any(|l| l.node_id == "n3"));
 }
+
+// docs/specs/proactive-takeover AC-11
+#[test]
+fn a_dead_lease_forgotten_after_its_log_is_collected_stops_costing_a_read_each_refresh() {
+    let fleet = Fleet::new();
+    let nodes = three(&fleet);
+    nodes[2].renew(&logged("n3")).unwrap();
+    fleet.clock.advance(TTL + 1);
+    for (node, id) in nodes.iter().zip(["n1", "n2"]) {
+        node.renew(&lease(id)).unwrap();
+    }
+    let reads = |node: &Membership| {
+        let before = fleet.count(S3Op::Get);
+        let seen = node.refresh().unwrap();
+        (fleet.count(S3Op::Get) - before, seen)
+    };
+    let (naming, seen) = reads(&nodes[1]);
+    assert_eq!(ids(&seen.dead_with_epochs), ["n3"]);
+    assert!(
+        nodes[1]
+            .forget_node_log("n3", &seen.dead_with_epochs[0].node_log)
+            .unwrap()
+    );
+    // Long dead, with the live nodes renewed: the lease is pruned.
+    for _ in 0..4 {
+        fleet.clock.advance(1_000 * TTL);
+        for (node, id) in nodes.iter().zip(["n1", "n2"]) {
+            node.renew(&lease(id)).unwrap();
+        }
+        nodes[1].refresh().unwrap();
+    }
+    let (forgotten, seen) = reads(&nodes[1]);
+    assert!(seen.dead_with_epochs.is_empty());
+    assert!(
+        forgotten < naming,
+        "{forgotten} reads after the forget, {naming} before"
+    );
+}
