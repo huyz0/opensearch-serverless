@@ -1,0 +1,7 @@
+term 3 writer node-2 files 23
+files_in_node_pack 3
+files_in_blobs 20
+num_docs 6
+max_doc 6
+head_before term 3 owner node-2 writers [gnPAlf__T_-qxystAAAAAA]
+acquired true term 4 owner java-1 previous node-2 writers [gnPAlf__T_-qxystAAAAAA, node-2]
