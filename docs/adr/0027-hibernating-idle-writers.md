@@ -19,3 +19,4 @@ A node holds every shard it ever wrote, engine in memory, until it stops: nothin
 - The head still names a node holding nothing open; a node holding many such heads takes them all with it if it dies, which the later give-back bounds.
 - A write that finds the shard asleep pays 5 requests the first time after a quiet period. At a threshold of seconds this is rare; at a threshold near zero a just-woken shard can be put back to sleep before its write lands and the write is refused (retry).
 - Rules out waking at a head that moved: the term and process id are checked, so a take by another node while this one slept is seen.
+- The record of a shard asleep for a day is dropped from memory; the head is not given back, because that needs a new head-store release write, which is a decision of its own.

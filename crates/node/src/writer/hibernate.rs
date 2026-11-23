@@ -39,7 +39,16 @@ pub static SETTINGS: &[&Setting] = &[HIBERNATE_AFTER_MILLIS.setting()];
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct Slept {
     pub(super) term: i64,
+    /// When it slept, in the pass's clock: a record older than
+    /// [`KEEP_ASLEEP_MILLIS`] is dropped.
+    at: u64,
 }
+
+/// How long a hibernated shard's record is kept: after a day unused it is
+/// forgotten, so the shard of an index deleted meanwhile does not stay in
+/// memory for ever, and a write that does come takes the shard the ordinary
+/// way. Memory only, no request.
+pub const KEEP_ASLEEP_MILLIS: u64 = 86_400_000;
 
 /// The hibernated shards of a role, and how long one must be idle.
 #[derive(Default)]
@@ -84,6 +93,7 @@ impl WriterRole {
     /// over shards none of which is idle makes no request.
     pub fn hibernate_idle(&self, idle_millis: u64, now_millis: u64) -> HibernatePass {
         let mut pass = HibernatePass::default();
+        self.forget_stale(now_millis);
         let Some(publishing) = &self.publishing else {
             return pass;
         };
@@ -131,11 +141,23 @@ impl WriterRole {
             held.sleep();
             // Recorded before the shard leaves the map, so a write arriving
             // meanwhile finds it asleep and wakes it.
-            lock(&self.hibernation.asleep).insert(key.clone(), Slept { term: held.term() });
+            lock(&self.hibernation.asleep).insert(
+                key.clone(),
+                Slept {
+                    term: held.term(),
+                    at: now_millis,
+                },
+            );
             self.release(&key.0, key.1, &slot);
             pass.hibernated = pass.hibernated.saturating_add(1);
         }
         pass
+    }
+
+    /// Drops the records of shards asleep for [`KEEP_ASLEEP_MILLIS`].
+    fn forget_stale(&self, now_millis: u64) {
+        lock(&self.hibernation.asleep)
+            .retain(|_, slept| now_millis.saturating_sub(slept.at) < KEEP_ASLEEP_MILLIS);
     }
 
     /// Whether the shard is hibernated here.
