@@ -27,7 +27,7 @@ Parity plan R7.6, the tail overlay's reader half, first piece: the receiving sto
 
 ## Test plan
 
-`crates/node/tests/tail_held.rs`; one test per criterion, with the bounds asserted at the real constants.
+`crates/node/tests/tail/tail_held.rs`; one test per criterion, with the bounds asserted at the real constants.
 
 ## S3 request budget
 

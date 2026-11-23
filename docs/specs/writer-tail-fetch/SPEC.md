@@ -28,7 +28,7 @@ Parity plan R7.6, the tail overlay's answering half. The `answerFetch` of the sh
 
 ## Test plan
 
-`crates/node/tests/tail_serve.rs` with a fake `ShardFacts` and a fixed clock; one test per criterion.
+`crates/node/tests/tail/tail_serve.rs` with a fake `ShardFacts` and a fixed clock; one test per criterion.
 
 ## S3 request budget
 
