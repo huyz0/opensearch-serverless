@@ -142,15 +142,43 @@ impl Taken {
     }
 }
 
+/// The longest wait is this many times the first.
+const BACKOFF_CAP: i64 = 64;
+
+/// What became of a pass over one dead node's epochs.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Attempt {
+    /// Every shard the log named was taken or skipped.
+    Finished(Vec<NodeLogEpoch>),
+    /// The log could not be read, or a shard was not taken: tried again no
+    /// sooner than `at`, after a wait that doubles at each failure.
+    Retry {
+        epochs: Vec<NodeLogEpoch>,
+        at: i64,
+        wait: i64,
+    },
+}
+
+impl Attempt {
+    fn blocks(&self, epochs: &[NodeLogEpoch], now_millis: i64) -> bool {
+        match self {
+            Self::Finished(done) => done == epochs,
+            Self::Retry {
+                epochs: tried, at, ..
+            } => tried == epochs && now_millis < *at,
+        }
+    }
+}
+
 /// The proactive take of a dead node's shards.
 pub struct ProactiveTakeover {
     node_id: String,
     config: Config,
     role: Arc<WriterRole>,
     predecessors: Arc<Predecessors>,
-    /// The epochs of each dead node a pass finished, so a later refresh
-    /// does not start it again.
-    done: Mutex<HashMap<String, Vec<NodeLogEpoch>>>,
+    /// What became of the last pass over each dead node, so a later refresh
+    /// does not start it again at once.
+    done: Mutex<HashMap<String, Attempt>>,
     max_header_bytes: u64,
     running: AtomicBool,
 }
@@ -212,7 +240,10 @@ impl ProactiveTakeover {
                 let turn = dead
                     .expires_at_millis
                     .saturating_add(rank.saturating_mul(self.config.stagger_millis));
-                now_millis >= turn && done.get(&dead.node_id) != Some(&dead.node_log)
+                now_millis >= turn
+                    && !done
+                        .get(&dead.node_id)
+                        .is_some_and(|attempt| attempt.blocks(&dead.node_log, now_millis))
             })
             .collect()
     }
@@ -239,7 +270,7 @@ impl ProactiveTakeover {
             .name("proactive-takeover".to_owned())
             .spawn(move || {
                 for dead in &due {
-                    me.pass(dead);
+                    me.pass_at(dead, now_millis);
                 }
                 me.running.store(false, Ordering::Release);
             });
@@ -254,8 +285,18 @@ impl ProactiveTakeover {
     /// dead node's epochs are recorded as finished only when every named
     /// shard was taken or skipped.
     pub fn pass(&self, dead: &NodeLease) -> Report {
+        self.pass_at(dead, 0)
+    }
+
+    /// As [`ProactiveTakeover::pass`], at `now_millis` on the lease clock:
+    /// a pass that leaves anything untaken, or cannot read the log, is
+    /// tried again no sooner than a stagger on, then twice as long each
+    /// time, to 64 staggers, so a log nothing can take costs a bounded
+    /// number of requests an hour.
+    pub fn pass_at(&self, dead: &NodeLease, now_millis: i64) -> Report {
         let mut report = Report::default();
         let Ok(Some(log)) = self.predecessors.of_naming(&dead.node_id, &dead.node_log) else {
+            self.retry_later(dead, now_millis);
             return report;
         };
         let named = match log.named_within(Some(self.max_header_bytes)) {
@@ -265,10 +306,16 @@ impl ProactiveTakeover {
                 // every shard it names is taken when a write asks.
                 report.header_refused = true;
                 // ALLOC: the epochs of one dead node, once.
-                lock(&self.done).insert(dead.node_id.clone(), dead.node_log.clone());
+                lock(&self.done).insert(
+                    dead.node_id.clone(),
+                    Attempt::Finished(dead.node_log.clone()),
+                );
                 return report;
             }
-            Err(_) => return report,
+            Err(_) => {
+                self.retry_later(dead, now_millis);
+                return report;
+            }
         };
         let deadline = Instant::now().checked_add(self.config.pass);
         // ALLOC: the shards the header names that this node can take, at most
@@ -322,8 +369,34 @@ impl ProactiveTakeover {
         }
         if report.deferred == 0 {
             // ALLOC: the epochs of one dead node, once a finished pass.
-            lock(&self.done).insert(dead.node_id.clone(), dead.node_log.clone());
+            lock(&self.done).insert(
+                dead.node_id.clone(),
+                Attempt::Finished(dead.node_log.clone()),
+            );
+        } else {
+            self.retry_later(dead, now_millis);
         }
         report
+    }
+
+    /// Records that the pass over `dead` left work, so the next try waits.
+    fn retry_later(&self, dead: &NodeLease, now_millis: i64) {
+        let base = self.config.stagger_millis.max(1);
+        let mut done = lock(&self.done);
+        let wait = match done.get(&dead.node_id) {
+            Some(Attempt::Retry { epochs, wait, .. }) if *epochs == dead.node_log => {
+                wait.saturating_mul(2).min(base.saturating_mul(BACKOFF_CAP))
+            }
+            _ => base,
+        };
+        // ALLOC: the epochs of one dead node, once a failed pass.
+        done.insert(
+            dead.node_id.clone(),
+            Attempt::Retry {
+                epochs: dead.node_log.clone(),
+                at: now_millis.saturating_add(wait),
+                wait,
+            },
+        );
     }
 }

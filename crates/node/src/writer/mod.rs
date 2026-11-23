@@ -1,14 +1,11 @@
 //! The writer role of a node: applies a write to the shard's engine, stages
 //! its record in the node's one write log, and acknowledges only once the
-//! log blob holding it landed.
-//!
-//! Ported from the write path of
+//! log blob holding it landed. Ported from the write path of
 //! `serverless/shell/src/main/java/org/opensearch/serverless/node/NodeWritePath.java`
 //! (`indexUnderFence`, `appendOrRelease`): the engine runs first because it
 //! assigns the sequence number the record carries; a stage that fails after
-//! the engine applied the write releases the shard, whose engine now holds
-//! an operation the log does not, so it reopens from the log. A bulk group
-//! is applied item by item and staged with one commit.
+//! the engine applied the write releases the shard, which reopens from the
+//! log. A bulk group is applied item by item and staged with one commit.
 
 mod dead_log_pass;
 mod dead_logs;
@@ -28,6 +25,7 @@ mod publish_timer;
 mod publishing;
 mod redirect;
 mod refresh;
+mod routes;
 mod slot;
 mod snapshot;
 mod tail;
@@ -41,8 +39,8 @@ use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use oss_format::WalRecord;
-use oss_writer::bulk::{IndexInfo, ItemResult, Kind, Owner, Planned};
-use oss_writer::index::{Fetched, Refused, Written};
+use oss_writer::bulk::{IndexInfo, Kind, Owner, Planned};
+use oss_writer::index::{Refused, Written};
 use oss_writer::log::NodeLogCommitter;
 use oss_writer::publish::lazy::PublishAge;
 
@@ -56,7 +54,9 @@ pub use dead_log_pass::{
 };
 pub use dead_logs::{StoreCommits, StoreNodeLogs};
 pub use heads::{HeadAdmission, ShardNames};
-pub use hibernate::{HIBERNATE_AFTER_MILLIS, HibernatePass, SETTINGS as HIBERNATE_SETTINGS};
+pub use hibernate::{
+    HIBERNATE_AFTER_MILLIS, HibernatePass, KEEP_ASLEEP_MILLIS, SETTINGS as HIBERNATE_SETTINGS,
+};
 pub use incarnation::{DescriptorIncarnation, FENCE_WINDOW, Incarnation};
 pub use janitor_pass::{HeldShard, JanitorPass, JanitorReport, PassLimits};
 pub use janitor_timer::{JanitorTimer, SweepConfig};
@@ -69,61 +69,11 @@ pub use proactive::{
 pub use publish_age::publish_age_of;
 pub use publish_timer::PublishTimer;
 pub use publishing::{PublishPass, Publishing};
+pub use routes::Routes;
 pub use tail::{RefreshVisibility, TailSink};
 pub use takeover::Takeover;
 pub use target::RoleTarget;
 pub use tombstone_pass::{DeleteProbe, TombstoneParts, TombstonePass, TombstoneReport};
-
-/// What a writer asks of the rest of the cluster: which indexes exist,
-/// who owns a shard it does not hold, and how to send that owner a group.
-pub trait Routes: Send + Sync {
-    /// The index called `name`, if there is one.
-    fn index(&self, name: &str) -> Option<IndexInfo>;
-
-    /// Who owns `shard` of `index`, asked when this node does not hold it.
-    fn owner(&self, index: &IndexInfo, shard: u32) -> Owner;
-
-    /// Sends a group to the node that owns its shard, once, and answers
-    /// each item's outcome in the group's order.
-    fn forward(
-        &self,
-        node: &str,
-        index: &IndexInfo,
-        shard: u32,
-        group: &[Planned<'_>],
-    ) -> Vec<ItemResult>;
-
-    /// Asks the node that owns `shard` to refresh it. A route that never
-    /// names another owner has nothing to ask.
-    fn refresh_remote(&self, _node: &str, _index: &IndexInfo, _shard: u32) -> Result<(), String> {
-        Err("the shard is held by another node".to_owned())
-    }
-
-    /// Asks the node that owns `shard` for the live document `id`. A route
-    /// that never names another owner has nothing to ask.
-    fn get_remote(
-        &self,
-        _node: &str,
-        _index: &IndexInfo,
-        _shard: u32,
-        _id: &str,
-    ) -> Result<Option<Fetched>, String> {
-        Err("the shard is held by another node".to_owned())
-    }
-
-    /// As [`Routes::get_remote`], reading what is not yet refreshed only
-    /// when `realtime`. A route that cannot say asks for the realtime read.
-    fn get_remote_as(
-        &self,
-        node: &str,
-        index: &IndexInfo,
-        shard: u32,
-        id: &str,
-        _realtime: bool,
-    ) -> Result<Option<Fetched>, String> {
-        self.get_remote(node, index, shard, id)
-    }
-}
 
 /// Why an item did not go ahead.
 enum Failure {
