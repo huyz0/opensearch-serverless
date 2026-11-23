@@ -108,4 +108,14 @@ mod tests {
             assert!(snapshot_pinned_indexes(bad).is_err(), "{bad:?}");
         }
     }
+
+    #[test]
+    fn a_record_of_exactly_the_limit_reads_and_one_byte_more_does_not() {
+        let body = br#"{"indices":{"a":{"uuid":"u"}}}"#;
+        let mut at_limit = body.to_vec();
+        at_limit.resize(MAX_SNAPSHOT_RECORD_BYTES, b' ');
+        assert_eq!(snapshot_pinned_indexes(&at_limit).expect("reads").len(), 1);
+        at_limit.push(b' ');
+        assert!(snapshot_pinned_indexes(&at_limit).is_err());
+    }
 }
