@@ -22,3 +22,4 @@ mod open_prefetch_layout;
 mod search;
 mod search_hits;
 mod shards;
+mod validate_query;

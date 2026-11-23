@@ -289,6 +289,7 @@ pub fn routes<S: BlobStore + 'static>(
     let caps = Arc::clone(&service);
     let multi = Arc::clone(&service);
     let analysis = Arc::clone(&service);
+    let validating = Arc::clone(&service);
     router
         .route(
             Method::Get,
@@ -318,6 +319,7 @@ pub fn routes<S: BlobStore + 'static>(
         .and_then(|router| field_caps::routes(router, caps))
         .and_then(|router| msearch::routes(router, multi))
         .and_then(|router| analyze::routes(router, analysis))
+        .and_then(|router| validate::routes(router, validating))
 }
 
 #[path = "search_analyze.rs"]
@@ -326,6 +328,8 @@ mod analyze;
 mod count;
 #[path = "search_field_caps.rs"]
 mod field_caps;
+#[path = "search_validate.rs"]
+mod validate;
 #[path = "search_frozen.rs"]
 mod frozen;
 #[path = "search_msearch.rs"]
