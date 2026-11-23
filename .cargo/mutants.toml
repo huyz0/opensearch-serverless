@@ -165,4 +165,7 @@ exclude_re = [
     "crates/reader/src/aggs/metric/tdigest.rs:275:30: replace < with <=",
     "crates/reader/src/aggs/metric/tdigest.rs:283:15: replace > with >=",
     "crates/reader/src/aggs/metric/tdigest.rs:290:35: replace > with >=",
+    # `drop_below`'s early return only skips building the keep flags: a
+    # shard with no bucket under the minimum drops nothing either way.
+    "crates/reader/src/aggs/bucket/terms.rs:.*replace \\|\\| with && in drop_below",
 ]

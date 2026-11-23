@@ -164,6 +164,7 @@ fn bad_options_fail_as_opensearch_fails_them() {
 fn unserved_options_are_refused_as_not_supported_yet() {
     for key in [
         r#""missing":0"#,
+        r#""missing":true"#,
         r#""script":{"source":"1"}"#,
         r#""value_type":"long""#,
         r#""format":"yyyy""#,
