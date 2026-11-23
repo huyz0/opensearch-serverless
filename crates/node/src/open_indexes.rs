@@ -142,6 +142,26 @@ impl<T> OpenSet<T> {
         self.indexes.remove(&name).map(|(held, _)| held)
     }
 
+    /// Takes every open index whose name starts with `prefix` out of the
+    /// set, held by searches or not, and hands them back for the caller to
+    /// drop once the set's lock is released. Opens in flight are untouched.
+    pub fn release_prefix(&mut self, prefix: &str) -> Vec<Arc<T>> {
+        let names: Vec<Arc<str>> = self
+            .indexes
+            .keys()
+            .filter(|name| name.starts_with(prefix))
+            .cloned()
+            .collect();
+        names
+            .iter()
+            .filter_map(|name| {
+                let (held, tick) = self.indexes.remove(name)?;
+                self.by_use.remove(&tick);
+                Some(held)
+            })
+            .collect()
+    }
+
     /// The open `index`, without counting as a search of it.
     pub fn peek(&self, index: &str) -> Option<&Arc<T>> {
         self.indexes.get(index).map(|(held, _)| held)
@@ -316,6 +336,23 @@ mod tests {
             matches!(set.find("a"), Found::Lead),
             "the next search opens"
         );
+    }
+
+    #[test]
+    fn releasing_a_prefix_takes_every_index_under_it_and_no_other() {
+        let mut set: OpenSet<u8> = OpenSet::default();
+        for (name, v) in [("pit:x#0", 1), ("pit:x#1", 2), ("pit:xy#0", 3), ("a", 4)] {
+            assert!(matches!(set.find(name), Found::Lead));
+            set.finish(name, Some(Arc::new(v)));
+        }
+        let mut taken: Vec<u8> = set.release_prefix("pit:x#").iter().map(|h| **h).collect();
+        taken.sort_unstable();
+        assert_eq!(taken, vec![1, 2]);
+        assert_eq!(set.len(), 2);
+        assert!(set.peek("pit:xy#0").is_some() && set.peek("a").is_some());
+        assert!(set.release_prefix("pit:x#").is_empty());
+        // The use order forgot them: closing the oldest takes what is left.
+        assert_eq!(set.close_oldest().map(|h| *h), Some(3));
     }
 
     #[test]

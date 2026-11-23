@@ -45,6 +45,20 @@ impl<S: BlobStore + 'static> SearchService<S> {
             .is_ok()
     }
 
+    /// Closes the shards of view `id` this node holds open, so a released
+    /// view frees its `open_indexes` charge now rather than when it is the
+    /// least recently searched. A search still running on one finishes on it.
+    /// Returns how many shards were closed.
+    pub fn close_view(&self, id: &str) -> usize {
+        // ALLOC: one prefix a release of a view.
+        let prefix = format!("pit:{id}#");
+        let closed = self.lock().release_prefix(&prefix);
+        let count = closed.len();
+        // Dropped with the set's lock released.
+        drop(closed);
+        count
+    }
+
     /// Handles a `_search` that names no index: it names a view.
     pub(super) fn handle_pit(
         &self,
