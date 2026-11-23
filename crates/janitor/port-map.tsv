@@ -10,3 +10,7 @@ src/node_log/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverles
 src/node_log/seams.rs	new		the writer's log reader and the commit's checkpoint as traits, so the janitor never depends on the writer or reader
 src/gc/point_in_time.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/reconcile/GarbageCollector.java@429b4cbc	the pins from livePointsInTime: PointInTime.pins, referencedBlobs, isCapturing and isPlaceholder, read once a pass
 src/published/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/reconcile/PublishedSweeps.java@3920dc36	sweepPublished and sweepCanFindSomething: the dropped-file gate, the watch list; the driver is new (state held here, not on the pass)
+src/orphans/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/reconcile/GarbageCollector.java@429b4cbc	collectOrphanedShards: the cursor, the claim before the judging, skipping a page that keeps failing
+src/orphans/name.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/reconcile/GarbageCollector.java@429b4cbc	the container name check before a delete
+src/orphans/pins.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/reconcile/GarbageCollector.java@429b4cbc	the pins from live points in time and snapshot records, kept by index incarnation
+src/orphans/purge.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/reconcile/GarbageCollector.java@429b4cbc	deleting a container: its blobs in batches, the manifest register last

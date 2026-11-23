@@ -10,6 +10,7 @@
 
 pub mod gc;
 pub mod node_log;
+pub mod orphans;
 pub mod published;
 pub mod settings;
 
