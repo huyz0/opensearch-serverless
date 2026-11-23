@@ -258,4 +258,7 @@ mod tests;
 mod cardinality_tests;
 
 #[cfg(test)]
+mod collect_kind_tests;
+
+#[cfg(test)]
 mod top_hits_tests;

@@ -174,10 +174,10 @@ pub(crate) fn resolve<S: BlobStore + 'static>(
 }
 
 /// What `avg` reads: the sum and the count.
-const AVG_NEEDS: u8 = NEED_SUM | NEED_COUNT;
+const AVG_NEEDS: u8 = NEED_SUM + NEED_COUNT;
 
 /// What `stats` reads: the count, the sum, the smallest and the largest.
-const STATS_NEEDS: u8 = NEED_COUNT | NEED_SUM | NEED_MIN_MAX;
+const STATS_NEEDS: u8 = NEED_COUNT + NEED_SUM + NEED_MIN_MAX;
 
 /// What a metric reads of its field's state.
 fn needs(metric: Metric) -> u8 {
