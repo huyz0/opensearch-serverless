@@ -195,6 +195,29 @@ fn numbers_longer_than_the_limit_are_refused() {
     assert_eq!((err.kind(), err.offset()), (ErrorKind::NumberTooLong, 9));
 }
 
+/// The nightly `oracle` fuzz target found this: serde_json reads any length of
+/// decimal, chunkjson refuses one past `max_number_len` by design (numbers are
+/// the only token it buffers). Raising the limit gives serde_json's value.
+#[test]
+fn a_long_decimal_is_refused_by_the_limit_and_read_when_it_is_raised() {
+    let long = format!("5500000050.{}5694582206529407773", "0".repeat(1500));
+    let expected: serde_json::Value = serde_json::from_str(&long).expect("serde_json reads it");
+    assert_eq!(expected, serde_json::json!(5500000050.0));
+    assert_eq!(
+        fails(long.as_bytes(), Config::default()),
+        (ErrorKind::NumberTooLong, 1024)
+    );
+    let raised = Config {
+        max_number_len: long.len(),
+        ..Config::default()
+    };
+    for sizes in [&[usize::MAX][..], &[1], &[11]] {
+        let built =
+            parse_chunked(long.as_bytes(), sizes, raised).expect("read under a raised limit");
+        assert_eq!(built.docs, vec![expected.clone()], "chunking {sizes:?}");
+    }
+}
+
 #[test]
 fn every_call_after_an_error_returns_the_same_error() {
     let mut tok = Tokenizer::new(Config::default());
