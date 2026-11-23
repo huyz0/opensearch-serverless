@@ -360,9 +360,9 @@ pub fn value(
         Some(lucene_aggs::bucket_aggs::AggResult::Terms { buckets, .. }) => {
             let (other, kept) = buckets.into_iter().next().unwrap_or_default();
             // ALLOC: the kept buckets of one `terms`, at most its shard size.
-            Ok(crate::aggs::partial::Value::KeywordTerms(Box::new(
-                from_engine(spec, other, kept),
-            )))
+            let mut result = from_engine(spec, other, kept);
+            result.apply_shard_min();
+            Ok(crate::aggs::partial::Value::KeywordTerms(Box::new(result)))
         }
         _ => Err(engine_error(&"an aggregation result of another kind")),
     }

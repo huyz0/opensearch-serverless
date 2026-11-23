@@ -251,6 +251,7 @@ fn build<S: BlobStore + 'static>(
     for r in &mut results {
         // ALLOC: one list a kept bucket, as above.
         r.subs = lists.by_ref().take(r.buckets.len()).collect();
+        r.apply_shard_min();
     }
     // ALLOC: one box an owning bucket, bounded as above.
     Ok(results

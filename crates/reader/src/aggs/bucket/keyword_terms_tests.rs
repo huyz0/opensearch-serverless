@@ -18,6 +18,7 @@ fn spec(size: usize, shard_size: usize, min: u64, order: TermsOrder) -> TermsSpe
         order,
         keyword: Default::default(),
         show_error: false,
+        shard_min_doc_count: 0,
     }
 }
 
@@ -265,6 +266,7 @@ fn nested_results_reduce_and_write_inside_their_buckets() {
 fn a_keyword_bucket_writes_the_error_of_the_shards_that_lack_it() {
     let s = TermsSpec {
         show_error: true,
+        shard_min_doc_count: 0,
         ..spec(2, 2, 1, TermsOrder::CountDesc)
     };
     let a = shard(&s, 0, &[("a", 10), ("b", 4)]);
@@ -278,5 +280,25 @@ fn a_keyword_bucket_writes_the_error_of_the_shards_that_lack_it() {
     assert!(
         text.contains(r#"{"key":"a","doc_count":10,"doc_count_error_upper_bound":5}"#),
         "{text}"
+    );
+}
+
+// AC-3
+#[test]
+fn a_keyword_shard_drops_buckets_under_its_minimum_with_their_sub_lists() {
+    let mut s = spec(10, 25, 1, TermsOrder::CountDesc);
+    s.shard_min_doc_count = 2;
+    let mut r = shard(&s, 1, &[("a", 4), ("b", 1), ("c", 2)]);
+    r.subs = vec![
+        vec![Value::ValueCount(4)],
+        vec![Value::ValueCount(1)],
+        vec![Value::ValueCount(2)],
+    ];
+    r.apply_shard_min();
+    assert_eq!(r.buckets, vec![("a".to_owned(), 4), ("c".to_owned(), 2)]);
+    assert_eq!(r.other_doc_count, 2);
+    assert_eq!(
+        r.subs,
+        vec![vec![Value::ValueCount(4)], vec![Value::ValueCount(2)]]
     );
 }

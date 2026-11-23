@@ -35,6 +35,7 @@ pub fn parse_terms_body(p: &mut Parser<'_>, name: &str) -> Result<(String, Terms
     let mut size = 10usize;
     let mut shard_size: Option<usize> = None;
     let mut min_doc_count = 1u64;
+    let mut shard_min = 0u64;
     let mut order = TermsOrder::CountDesc;
     let mut keyword = KeywordOptions::default();
     let mut show_error = false;
@@ -64,6 +65,7 @@ pub fn parse_terms_body(p: &mut Parser<'_>, name: &str) -> Result<(String, Terms
                 | "size"
                 | "shard_size"
                 | "min_doc_count"
+                | "shard_min_doc_count"
                 | "order"
                 | "include"
                 | "exclude"
@@ -139,6 +141,21 @@ pub fn parse_terms_body(p: &mut Parser<'_>, name: &str) -> Result<(String, Terms
                     )
                 })?;
             }
+            "shard_min_doc_count" => {
+                let n = long_value(kind, p.text()).map_err(|e| failed(p, e))?;
+                shard_min = u64::try_from(n).map_err(|_| {
+                    failed(
+                        p,
+                        DslError::illegal(
+                            // ALLOC: error path; one message.
+                            format!(
+                                "[shardMinDocCount] must be greater than or equal to 0. Found \
+                                 [{n}] in [{name}]"
+                            ),
+                        ),
+                    )
+                })?;
+            }
             "show_term_doc_count_error" => show_error = bool_value(p).map_err(|e| failed(p, e))?,
             "include" | "exclude" => {
                 let filter = parse_filter(p, kind, key).map_err(|e| failed(p, e))?;
@@ -184,12 +201,23 @@ pub fn parse_terms_body(p: &mut Parser<'_>, name: &str) -> Result<(String, Terms
             suggested_shard_size(size)
         })
         .max(size);
+    // `ensureValidity`: a shard never asks for more than the answer does.
+    let shard_min_doc_count = shard_min.min(min_doc_count);
+    if shard_min_doc_count > 0 && order != TermsOrder::CountDesc {
+        // The engine picks a shard's buckets before the minimum applies, which
+        // only matches OpenSearch when the order is by count, descending.
+        return Err(DslError::unsupported(
+            "a [shard_min_doc_count] with an [order] other than [_count] descending in a \
+             [terms] aggregation",
+        ));
+    }
     Ok((
         field,
         TermsSpec {
             size,
             shard_size,
             min_doc_count,
+            shard_min_doc_count,
             order,
             keyword,
             show_error,

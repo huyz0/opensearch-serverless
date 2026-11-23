@@ -24,6 +24,9 @@ pub struct TermsSpec {
     pub shard_size: usize,
     /// The fewest documents a bucket of the answer holds.
     pub min_doc_count: u64,
+    /// The fewest documents a bucket a shard sends holds: `shard_min_doc_count`
+    /// capped at `min_doc_count` (`BucketCountThresholds.ensureValidity`).
+    pub shard_min_doc_count: u64,
     /// How the buckets are ordered.
     pub order: TermsOrder,
     /// The options only a keyword field reads.
@@ -39,6 +42,7 @@ impl Default for TermsSpec {
             size: 10,
             shard_size: suggested_shard_size(10),
             min_doc_count: 1,
+            shard_min_doc_count: 0,
             order: TermsOrder::CountDesc,
             keyword: KeywordOptions::default(),
             show_error: false,
@@ -88,6 +92,39 @@ pub fn reduce(parts: &[Value]) -> Option<Value> {
     }
     // ALLOC: one box a `terms`, bounded by the request's.
     Some(Value::Terms(Box::new(reduced)))
+}
+
+/// A shard's `shard_min_doc_count`: the buckets under `min` go, with the
+/// sub-aggregation lists beside them (`subs` is empty or one list a bucket),
+/// and their documents are returned for `other_doc_count`.
+pub(super) fn drop_below<K, S>(min: u64, buckets: &mut Vec<(K, u64)>, subs: &mut Vec<S>) -> u64 {
+    if min == 0 || buckets.iter().all(|b| b.1 >= min) {
+        return 0;
+    }
+    let aligned = subs.len() == buckets.len();
+    // ALLOC: one flag a shard bucket, at most `shard_size`.
+    let keep: Vec<bool> = buckets.iter().map(|b| b.1 >= min).collect();
+    let dropped = buckets.iter().filter(|b| b.1 < min).map(|b| b.1).sum();
+    let mut flags = keep.iter();
+    buckets.retain(|_| flags.next().copied().unwrap_or(true));
+    if aligned {
+        let mut flags = keep.iter();
+        subs.retain(|_| flags.next().copied().unwrap_or(true));
+    }
+    dropped
+}
+
+impl TermsResult {
+    /// Drops the buckets under the spec's `shard_min_doc_count`, once the
+    /// sub-aggregation lists are in place; their documents join the others.
+    pub fn apply_shard_min(&mut self) {
+        let dropped = drop_below(
+            self.spec.shard_min_doc_count,
+            &mut self.buckets,
+            &mut self.subs.lists,
+        );
+        self.other_doc_count = self.other_doc_count.saturating_add(dropped);
+    }
 }
 
 /// `InternalTerms.getDocCountError` of one shard's `terms`: what it may have

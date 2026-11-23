@@ -33,6 +33,19 @@ pub struct KeywordTermsResult {
     pub subs: Vec<Vec<Value>>,
 }
 
+impl KeywordTermsResult {
+    /// Drops the buckets under the spec's `shard_min_doc_count`, once the
+    /// sub-aggregation lists are in place; their documents join the others.
+    pub fn apply_shard_min(&mut self) {
+        let dropped = super::terms::drop_below(
+            self.spec.shard_min_doc_count,
+            &mut self.buckets,
+            &mut self.subs,
+        );
+        self.other_doc_count = self.other_doc_count.saturating_add(dropped);
+    }
+}
+
 /// `InternalTerms.reduce` as a final reduce: `None` unless there is a part
 /// and every part is a keyword `terms`.
 pub fn reduce(parts: &[Value]) -> Option<Value> {

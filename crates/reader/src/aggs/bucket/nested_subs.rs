@@ -262,6 +262,7 @@ pub fn numeric_terms<S: BlobStore + 'static>(
                 lists: lists.by_ref().take(kept_buckets).collect(),
             };
         }
+        made.apply_shard_min();
         // ALLOC: one box an owning bucket, as above.
         out.push(Value::Terms(Box::new(made)));
     }

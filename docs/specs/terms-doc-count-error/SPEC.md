@@ -10,7 +10,7 @@ Roadmap R10.2, after [terms-agg](../terms-agg/SPEC.md) and [keyword-terms-agg](.
 
 A bucket's bound is what `InternalTerms.reduce` and `reduceBucket` leave: each shard takes its own error (`getDocCountError`, the one already summed into the aggregation's `doc_count_error_upper_bound`) off the bound stored in each bucket it holds, and the sum of every shard's error is added back, so a bucket holds the sum of the errors of the shards that did not return it; -1 when any shard's error is unbounded. A result reduced again keeps its stored bounds. Shard results store none (0 each); results carry a `bucket_errors` list beside `buckets`, empty unless the request asked.
 
-Not in this change: `shard_min_doc_count`, still refused.
+Not in this change: `shard_min_doc_count`, which is [terms-shard-min-doc-count](../terms-shard-min-doc-count/SPEC.md).
 
 ## Acceptance criteria
 

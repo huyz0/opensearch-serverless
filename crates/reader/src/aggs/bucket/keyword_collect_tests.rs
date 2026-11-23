@@ -83,6 +83,19 @@ fn terms_count_across_segments_ordered_by_count_then_term_bytes() {
     assert_eq!(all.other_doc_count, 0);
 }
 
+// AC-3
+#[test]
+fn a_keyword_shard_min_doc_count_drops_the_twelves_into_other() {
+    let shard = shard("kw-shard-min", DOCS);
+    let got = terms(
+        &shard,
+        r#"{"aggs":{"t":{"terms":{"field":"tag","size":16,"shard_size":16,"min_doc_count":13,"shard_min_doc_count":13}}}}"#,
+    );
+    assert_eq!(got.buckets.len(), 8);
+    assert!(got.buckets.iter().all(|b| b.1 == 13));
+    assert_eq!(got.other_doc_count, (DOCS - 8 * 13) as u64);
+}
+
 #[test]
 fn the_shard_keeps_shard_size_buckets_and_counts_the_rest_as_other() {
     let shard = shard("kw-shard", DOCS);
