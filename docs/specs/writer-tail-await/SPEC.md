@@ -26,7 +26,7 @@ Parity plan R9.3 (refresh semantics), writer half: the `awaitSearchNodes` of the
 
 ## Test plan
 
-`crates/node/tests/tail_await.rs`, with a clock that moves only when paused on and a link that fails or refuses as scripted. The tests were written against an API that did not exist (red by compilation).
+`crates/node/tests/tail/tail_await.rs`, with a clock that moves only when paused on and a link that fails or refuses as scripted. The tests were written against an API that did not exist (red by compilation).
 
 ## S3 request budget
 

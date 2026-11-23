@@ -18,7 +18,7 @@ Not changed, by design and listed: wiring the sender into the writer's publish (
 
 ## Test plan
 
-`crates/node/tests/push_link.rs`: a real server on loopback with the guarded handler, and the placement ranking compared with `readers_for`.
+`crates/node/tests/tail/push_link.rs`: a real server on loopback with the guarded handler, and the placement ranking compared with `readers_for`.
 
 ## S3 request budget
 

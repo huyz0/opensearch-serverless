@@ -89,22 +89,6 @@ name = "read_forward"
 required-features = ["writer"]
 
 [[test]]
-name = "tail_keep"
-required-features = ["writer"]
-
-[[test]]
-name = "tail_serve"
-required-features = ["writer"]
-
-[[test]]
-name = "tail_push"
-required-features = ["writer"]
-
-[[test]]
-name = "tail_held"
-required-features = ["reader"]
-
-[[test]]
 name = "handlers"
 required-features = ["writer"]
 

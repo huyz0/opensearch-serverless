@@ -27,7 +27,7 @@ Parity plan R7.6, the tail overlay's writer half. The keeping side of the shell'
 
 ## Test plan
 
-`crates/node/tests/tail_keep.rs`, with limits passed in so the bound tests stay small; each criterion has one test. The bounds are also asserted at the real constants.
+`crates/node/tests/tail/tail_keep.rs`, with limits passed in so the bound tests stay small; each criterion has one test. The bounds are also asserted at the real constants.
 
 ## S3 request budget
 

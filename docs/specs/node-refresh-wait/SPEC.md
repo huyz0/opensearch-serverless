@@ -26,7 +26,7 @@ Parity plan R9.3: the shell's `NodeWritePath.refresh` refreshes the engine and t
 
 ## Test plan
 
-`crates/node/tests/refresh_wait.rs`, a role over the blob emulator with a fake sink (AC-6 slows the emulator's PUTs), and the unit tests in `crates/node/src/writer/snapshot.rs`; the freshness meter (`crates/node/tests/freshness_meter.rs`, slow tier) is the end-to-end check.
+`crates/node/tests/tail/refresh_wait.rs`, a role over the blob emulator with a fake sink (AC-6 slows the emulator's PUTs), and the unit tests in `crates/node/src/writer/snapshot.rs`; the freshness meter (`crates/node/tests/freshness_meter.rs`, slow tier) is the end-to-end check.
 
 ## S3 request budget
 
