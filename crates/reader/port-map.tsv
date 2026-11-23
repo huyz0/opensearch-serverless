@@ -74,7 +74,7 @@ src/aggs/mod.rs	new		module root: aggregations on one shard
 src/aggs/metric/mod.rs	new		module root: the served metrics and the state each holds
 src/aggs/metric/long_value.rs	port	libs/core/src/main/java/org/opensearch/core/xcontent/AbstractXContentParser.java@3.10.0	longValue with coercion (Numbers.toLong)
 src/aggs/metric/parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/AggregatorFactories.java@3.10.0	parseAggregators, and the ObjectParser of ValuesSourceAggregationBuilder.declareFields for the served metrics; SearchModule's registered aggregation names
-src/aggs/metric/collect.rs	port	server/src/main/java/org/opensearch/search/aggregations/support/ValuesSourceConfig.java@3.10.0	resolve and ValuesSourceRegistry.getAggregator's field checks; the values come from lucene-aggs' port of the metric aggregators
+src/aggs/metric/collect.rs	port	server/src/main/java/org/opensearch/search/aggregations/support/ValuesSourceConfig.java@3.10.0	the values come from lucene-aggs' port of the metric aggregators
 src/aggs/metric/partial.rs	port	server/src/main/java/org/opensearch/search/aggregations/metrics/InternalStats.java@3.10.0	the shard-level state of InternalMin, InternalMax, InternalSum, InternalAvg, InternalStats and InternalValueCount, each reduce, and CompensatedSum.add
 src/aggs/metric/render.rs	port	server/src/main/java/org/opensearch/search/aggregations/Aggregations.java@3.10.0	toXContent and each metric's doXContentBody
 src/aggs/metric/hash_order.rs	port	server/src/main/java/org/opensearch/search/aggregations/InternalAggregations.java@3.10.0	reduce's HashMap listing order: String.hashCode, HashMap.hash and its resize rules
@@ -184,3 +184,10 @@ src/rank_eval/metric.rs	port	modules/rank-eval/src/main/java/org/opensearch/inde
 src/rank_eval/spec.rs	port	modules/rank-eval/src/main/java/org/opensearch/index/rankeval/RankEvalSpec.java@3.10.0	the _rank_eval body: rated requests, ratings, metric and templates
 src/rank_eval/order.rs	port	modules/rank-eval/src/main/java/org/opensearch/index/rankeval/RankEvalResponse.java@3.10.0	the iteration order of the Java HashMap and ConcurrentHashMap the response is written from
 src/rank_eval/tests.rs	new		parser and refusal cases
+src/aggs/bucket/composite.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/composite/InternalComposite.java@3.10.0	reduce (merge in key order, cut at size) and the source comparison with missing order
+src/aggs/bucket/composite_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/composite/CompositeAggregationBuilder.java@3.10.0	the parser, validateSources, and the terms and histogram sources' ObjectParsers
+src/aggs/bucket/composite_render.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/composite/CompositeAggregation.java@3.10.0	toXContentFragment: after_key and the buckets
+src/aggs/bucket/composite_collect.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/composite/CompositeAggregationBuilder.java@3.10.0	doBuild's after checks; the engine's CompositeAggregator does the collecting
+src/aggs/bucket/composite_collect_tests.rs	new		tests of composite on a real index
+src/aggs/bucket/composite_tests.rs	new		tests of the composite parser, reduce and writer
+src/aggs/metric/resolve.rs	port	server/src/main/java/org/opensearch/search/aggregations/support/ValuesSourceConfig.java@3.10.0	resolve and ValuesSourceRegistry.getAggregator field checks, moved out of collect.rs

@@ -26,7 +26,7 @@ const KEYS: &[&str] = &[
 ];
 
 /// `parser.doubleValue()`: a number or a string holding one.
-fn double_value(p: &Parser<'_>) -> Result<f64, DslError> {
+pub(crate) fn double_value(p: &Parser<'_>) -> Result<f64, DslError> {
     match p.current_token() {
         Some(Kind::Number | Kind::String) => p.text().trim().parse::<f64>().map_err(|_| {
             DslError::Failure(crate::failure::Failure::plain(

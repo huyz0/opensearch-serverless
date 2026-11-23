@@ -5,6 +5,7 @@
 //! from them. Metric values reduce in [`crate::aggs::metric::partial`],
 //! bucket values in [`crate::aggs::bucket`]; [`reduce`] picks by kind.
 
+use crate::aggs::bucket::composite::{self, CompositeResult};
 use crate::aggs::bucket::date_histogram::{self, DateHistogramResult};
 use crate::aggs::bucket::filters::{self, FiltersResult};
 use crate::aggs::bucket::histogram::{self, HistogramResult};
@@ -91,6 +92,8 @@ pub enum Value {
     Range(Box<RangeResult>),
     /// `InternalFilters`: a `filters`' buckets.
     Filters(Box<FiltersResult>),
+    /// `InternalComposite`: a `composite`'s buckets.
+    Composite(Box<CompositeResult>),
 }
 
 /// One aggregation's shard-level result.
@@ -131,6 +134,7 @@ fn reduce_one(parts: &[Value]) -> Option<Value> {
         Value::KeywordTerms(_) => keyword_terms::reduce(parts),
         Value::Range(_) => range::reduce(parts),
         Value::Filters(_) => filters::reduce(parts),
+        Value::Composite(_) => composite::reduce(parts),
         // A `top_hits` has no reduce here: merging hits needs them fetched
         // and their shard known, so `reduce_scalar` answers `None` for it.
         _ => reduce_scalar(parts),

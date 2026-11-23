@@ -130,7 +130,8 @@ pub fn sub_nodes<S: BlobStore + 'static>(
                 subs.push(made);
             }
             Resolved::Hits => subs.push(top_hits_sub::sub_node(sub, shard)?),
-            Resolved::Unmapped => queries.skip_tree(sub),
+            // The parser refuses a `composite` under another aggregation.
+            Resolved::Unmapped | Resolved::Composite(_) => queries.skip_tree(sub),
         }
     }
     Ok(subs)
@@ -183,7 +184,7 @@ pub fn sub_values<S: BlobStore + 'static>(
             Resolved::Numeric(format) => (format, engine.next()),
             Resolved::Keyword => (Format::Raw, engine.next()),
             Resolved::Queries | Resolved::Hits => (Format::Raw, engine.next()),
-            Resolved::Unmapped => (Format::Raw, None),
+            Resolved::Unmapped | Resolved::Composite(_) => (Format::Raw, None),
         };
         let made = if numeric_terms {
             nested_subs::numeric_terms(sub, shard, result, total)?
