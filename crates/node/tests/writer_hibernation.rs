@@ -14,7 +14,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use oss_blob::{BlobStore, S3Op};
 use oss_cluster::heads::shard_head_key;
 use oss_format::ShardHead;
-use oss_node::writer::{Incarnation, Takeover, WriterRole};
+use oss_node::writer::{Incarnation, KEEP_ASLEEP_MILLIS, Takeover, WriterRole};
 use oss_testkit::budget;
 use oss_writer::bulk::ItemResult;
 use oss_writer::index::Outcome;
@@ -311,4 +311,20 @@ fn a_write_that_took_the_slot_just_before_it_slept_wakes_the_shard_and_lands() {
     // Both documents are in the shard, not lost with the closed engine.
     assert_eq!(outcome(&write(&one.role, "a")), Outcome::Updated);
     assert_eq!(outcome(&write(&one.role, "b")), Outcome::Updated);
+}
+
+#[test]
+fn a_record_of_a_shard_asleep_for_a_day_is_forgotten_without_a_request() {
+    let (c, one) = writer();
+    one.role.refresh(&info(), 0).expect("published");
+    let slept = after(2 * IDLE);
+    assert_eq!(one.role.hibernate_idle(IDLE, slept).hibernated, 1);
+    let before = requests(&c);
+    one.role
+        .hibernate_idle(IDLE, slept + KEEP_ASLEEP_MILLIS - 1);
+    assert!(one.role.asleep("u1", 0), "kept just inside the bound");
+    one.role.hibernate_idle(IDLE, slept + KEEP_ASLEEP_MILLIS);
+    assert!(!one.role.asleep("u1", 0), "forgotten at the bound");
+    assert_eq!(one.role.hibernated(), 0);
+    assert_eq!(requests(&c), before, "forgetting asks nothing");
 }

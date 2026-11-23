@@ -56,7 +56,9 @@ pub use dead_log_pass::{
 };
 pub use dead_logs::{StoreCommits, StoreNodeLogs};
 pub use heads::{HeadAdmission, ShardNames};
-pub use hibernate::{HIBERNATE_AFTER_MILLIS, HibernatePass, SETTINGS as HIBERNATE_SETTINGS};
+pub use hibernate::{
+    HIBERNATE_AFTER_MILLIS, HibernatePass, KEEP_ASLEEP_MILLIS, SETTINGS as HIBERNATE_SETTINGS,
+};
 pub use incarnation::{DescriptorIncarnation, FENCE_WINDOW, Incarnation};
 pub use janitor_pass::{HeldShard, JanitorPass, JanitorReport, PassLimits};
 pub use janitor_timer::{JanitorTimer, SweepConfig};

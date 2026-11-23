@@ -28,6 +28,7 @@ Parity plan R8.3 (shard activation and eviction, hibernation of idle writers), i
 - AC-8: a refresh of a hibernated shard answers ok and makes no request; a get wakes the shard and finds the document.
 - AC-9: an assembled node with the threshold set hibernates an idle, published shard on its publish timer; with it unset no shard is ever hibernated.
 - AC-10: `OSS_HIBERNATE_AFTER_MS` sets the threshold, defaults to 0 (never), and a value that is not a number is refused.
+- AC-11: A hibernated shard's record is forgotten once it has been asleep for a day (`KEEP_ASLEEP_MILLIS`), so the shards of deleted indexes do not stay in memory; forgetting asks nothing, and a write that does come takes the shard the ordinary way.
 
 ## Test plan
 
