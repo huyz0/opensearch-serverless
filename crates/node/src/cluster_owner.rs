@@ -34,11 +34,11 @@ pub trait BulkSend: Send + Sync {
     /// # Errors
     ///
     /// [`ForwardError`]: nothing sent, the owner gone, or the call failed.
-    fn bulk(&self, node_id: &str, request: &BulkRequest) -> Result<BulkResponse, ForwardError>;
+    fn bulk(&self, node_id: &str, request: &BulkRequest<'_>) -> Result<BulkResponse, ForwardError>;
 }
 
 impl<L: Leases> BulkSend for BulkForwarder<L> {
-    fn bulk(&self, node_id: &str, request: &BulkRequest) -> Result<BulkResponse, ForwardError> {
+    fn bulk(&self, node_id: &str, request: &BulkRequest<'_>) -> Result<BulkResponse, ForwardError> {
         BulkForwarder::bulk(self, node_id, request)
     }
 }
@@ -99,20 +99,22 @@ fn failed_all(
 }
 
 /// The wire form of one item, or why it cannot be sent.
-fn operation(item: &Planned<'_>) -> Result<BulkOperation, &'static str> {
+fn operation<'i>(item: &'i Planned<'_>) -> Result<BulkOperation<'i>, &'static str> {
     let a = &item.op.action;
     let deletion = match a.kind {
         Kind::Update => return Err("an update cannot be forwarded"),
         Kind::Delete => true,
         Kind::Index | Kind::Create => false,
     };
+    // Borrowed from the parsed item: the request is encoded before the
+    // item is dropped, so the source is held once.
     let source = if deletion {
-        String::new()
+        std::borrow::Cow::Borrowed("")
     } else {
-        std::str::from_utf8(&item.op.source)
-            .map_err(|_| "the document source is not valid UTF-8")?
-            // ALLOC: one copy an item, bounded by the bulk budget.
-            .to_owned()
+        std::borrow::Cow::Borrowed(
+            std::str::from_utf8(&item.op.source)
+                .map_err(|_| "the document source is not valid UTF-8")?,
+        )
     };
     Ok(BulkOperation {
         // ALLOC: one id an item.

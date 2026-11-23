@@ -91,7 +91,7 @@ fn every_recorded_forwarded_write_is_the_javas_both_ways() {
                             let f: Vec<&str> = op.split('|').collect();
                             BulkOperation {
                                 id: unhex(f[0]),
-                                source: unhex(f[1]),
+                                source: unhex(f[1]).into(),
                                 deletion: flag(f[2]),
                                 if_seq_no: f[3].parse().unwrap(),
                                 if_primary_term: f[4].parse().unwrap(),
@@ -245,7 +245,7 @@ fn a_deletion_travels_without_its_source_as_the_java_rebuilds_it() {
     };
     let encoded = encode(|o| request.write(o));
     let mut expected = request.clone();
-    expected.operations[0].source.clear();
+    expected.operations[0].source = String::new().into();
     assert_eq!(
         encode(|o| expected.write(o)),
         encoded,
@@ -281,4 +281,45 @@ fn no_seq_no_condition_is_the_javas_unassigned_seq_no() {
     // `SequenceNumbers.UNASSIGNED_SEQ_NO`, as a zlong: 3.
     assert_eq!(UNASSIGNED_SEQ_NO, -2);
     assert_eq!(encode(|o| o.zlong(UNASSIGNED_SEQ_NO)), [3]);
+}
+
+#[test]
+fn a_borrowed_request_writes_the_bytes_of_an_owned_one_and_the_hint_covers_them() {
+    use std::borrow::Cow;
+    let sources = [r#"{"a":1}"#.to_owned(), "x".repeat(300), String::new()];
+    let build = |cow: &dyn for<'x> Fn(&'x str) -> Cow<'x, str>| BulkRequest {
+        index: "logs".to_owned(),
+        shard: 3,
+        operations: sources
+            .iter()
+            .enumerate()
+            .map(|(i, source)| BulkOperation {
+                id: format!("id-{i}"),
+                source: cow(source),
+                deletion: i == 2,
+                if_seq_no: UNASSIGNED_SEQ_NO,
+                if_primary_term: 0,
+                require_absent: i == 1,
+                routing: (i == 0).then(|| "r".repeat(200)),
+            })
+            .collect(),
+        index_uuid: Some("u".repeat(22)),
+        parent: TaskId {
+            task: Some(("n".repeat(40), 7)),
+        },
+        refresh: true,
+        ..BulkRequest::default()
+    };
+    let borrowed = build(&|s| Cow::Borrowed(s));
+    let owned = build(&|s| Cow::Owned(s.to_owned()));
+    let encoded = encode(|out| borrowed.write(out));
+    assert_eq!(encoded, encode(|out| owned.write(out)));
+    assert!(
+        borrowed.encoded_size_hint() >= encoded.len(),
+        "{} < {}",
+        borrowed.encoded_size_hint(),
+        encoded.len()
+    );
+    let empty = BulkRequest::default();
+    assert!(empty.encoded_size_hint() >= encode(|out| empty.write(out)).len());
 }

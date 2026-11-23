@@ -40,7 +40,7 @@ enum Answer {
 }
 
 struct Fake {
-    seen: Mutex<Vec<(String, BulkRequest)>>,
+    seen: Mutex<Vec<(String, BulkRequest<'static>)>>,
     answer: Mutex<Option<Answer>>,
 }
 
@@ -52,7 +52,7 @@ impl BulkSend for Sender {
             .seen
             .lock()
             .expect("lock")
-            .push((node.to_owned(), request.clone()));
+            .push((node.to_owned(), request.clone().into_owned()));
         match self.0.answer.lock().expect("lock").take() {
             Some(Answer::Outcomes(outcomes)) => Ok(BulkResponse {
                 owner_node_id: node.to_owned(),
@@ -235,10 +235,7 @@ fn a_group_is_one_request_and_each_outcome_is_the_items() {
     assert_eq!(request.index_uuid.as_deref(), Some("u1"));
     let sent = &request.operations;
     assert_eq!(sent.len(), 7);
-    assert_eq!(
-        (sent[0].id.as_str(), sent[0].source.as_str()),
-        ("1", "{\"a\":1}")
-    );
+    assert_eq!((sent[0].id.as_str(), &*sent[0].source), ("1", "{\"a\":1}"));
     assert_eq!(sent[0].routing.as_deref(), Some("r"));
     assert!(!sent[0].deletion && !sent[0].require_absent);
     assert!(sent[1].require_absent);
