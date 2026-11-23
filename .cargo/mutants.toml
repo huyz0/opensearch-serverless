@@ -141,4 +141,28 @@ exclude_re = [
     # A delete registers the soft-deletes field only to be sure it exists;
     # any earlier index already did, and the update below names it again.
     "crates/writer/src/index/shard.rs:\\d+:\\d+: delete ! in Shard<'d>::delete",
+    # t-digest: a centroid added from another digest is never -0.0 (its mean
+    # is `0 + count * (m - 0) / count`, which is +0.0 for a zero), so a tie
+    # with the smallest or largest value stores the same bits, and `m - 0.0`
+    # and `m + 0.0` agree on every other mean.
+    "crates/reader/src/aggs/metric/tdigest.rs:.*replace < with <= in Digest::add_weighted",
+    "crates/reader/src/aggs/metric/tdigest.rs:.*replace > with >= in Digest::add_weighted",
+    "crates/reader/src/aggs/metric/tdigest.rs:.*replace - with \\+ in Digest::add_digest",
+    # A buffer of exactly the length a merge needs is resized to that length.
+    "crates/reader/src/aggs/metric/tdigest.rs:.*replace < with <= in Digest::merge",
+    # The merge's first and last centroids keep a limit of zero by their own
+    # quantile (q0 is 0 for the second value, q2 is 1 for the last), so with
+    # whole weights the explicit Java check changes nothing; it is kept as
+    # Java has it.
+    "crates/reader/src/aggs/metric/tdigest.rs:.*replace \\|\\| with && in Digest::merge",
+    # A merge only runs with a positive total, so `>` and `>=` agree.
+    "crates/reader/src/aggs/metric/tdigest.rs:.*replace > with >= in Digest::merge",
+    # In `quantile`, a first or last weight of exactly 1 needs an index below
+    # 0.5 (or within 0.5 of the total), which the earlier returns exclude, and
+    # the interpolation is continuous where the branches meet: the two sides
+    # of `<`/`<=` and `>`/`>=` answer the same bits at the boundary index.
+    "crates/reader/src/aggs/metric/tdigest.rs:275:15: replace > with >=",
+    "crates/reader/src/aggs/metric/tdigest.rs:275:30: replace < with <=",
+    "crates/reader/src/aggs/metric/tdigest.rs:283:15: replace > with >=",
+    "crates/reader/src/aggs/metric/tdigest.rs:290:35: replace > with >=",
 ]
