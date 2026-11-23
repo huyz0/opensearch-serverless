@@ -151,3 +151,22 @@ fn a_pass_that_failed_waits_a_stagger_and_then_twice_as_long() {
     assert!(pass.due(&r, last + 64 * stagger - 1).is_empty());
     assert_eq!(pass.due(&r, last + 64 * stagger).len(), 1);
 }
+
+// docs/specs/proactive-takeover AC-10 and AC-14
+#[test]
+fn a_dead_node_whose_lease_names_no_epochs_is_not_due_and_a_pass_makes_no_request() {
+    let c = cluster();
+    let one = first_writer(&c);
+    let calls = Arc::new(AtomicUsize::new(0));
+    let take = takeover(&c, &one, &calls);
+    let predecessors = Arc::clone(&take.predecessors);
+    let two = node(&c, "node-2", 2, true, Some(take));
+    let mut lease = dead(&one);
+    lease.node_log.clear();
+    let ids = ["node-2"];
+    let r = refreshed(&ids, lease);
+    let pass = ProactiveTakeover::new("node-2", config(true), Arc::clone(&two.role), predecessors);
+    assert!(pass.due(&r, i64::MAX).is_empty(), "nothing to take");
+    assert_eq!(calls.load(Ordering::SeqCst), 0, "no lease read for it");
+    assert!(two.role.held_shards().is_empty());
+}
