@@ -224,7 +224,20 @@ fn writes_interleaved_with_passes_that_sleep_the_shard_all_land() {
     let role = Arc::clone(&one.role);
     let writer = std::thread::spawn(move || {
         for n in 0..WRITES {
-            let result = write(&role, &format!("id-{n}"));
+            // A pass at an idle time of 0 puts a woken shard back to sleep at
+            // once, so a write may be refused as not open; it is asked again,
+            // as the ADR says a client does, and any other answer fails.
+            let mut result = write(&role, &format!("id-{n}"));
+            for _ in 0..200 {
+                match &result {
+                    ItemResult::Failed { error, .. }
+                        if error.reason().contains("not open on this node") =>
+                    {
+                        result = write(&role, &format!("id-{n}"));
+                    }
+                    _ => break,
+                }
+            }
             assert_eq!(outcome(&result), Outcome::Created, "write {n}: {result:?}");
             // Published, so a pass need only close the engine: the window a
             // write can take the slot just before it sleeps.
