@@ -5,10 +5,9 @@
 use crate::aggs::bucket::composite::{
     AfterValue, CompositeSpec, MissingOrder, SourceKind, SourceSpec,
 };
-use crate::aggs::bucket::date_histogram::{DateRounding, RoundingKind};
-use crate::aggs::bucket::date_histogram_parse::{
-    calendar_unit, offset_millis, time_value_millis, zone_millis,
-};
+use crate::aggs::bucket::date_histogram::{DateRounding, RegionZone, RoundingKind};
+use crate::aggs::bucket::date_histogram_parse::{calendar_unit, offset_millis, time_value_millis};
+use crate::aggs::bucket::date_histogram_zone::zone_of;
 use crate::aggs::bucket::histogram_parse::double_value;
 use crate::aggs::metric::parse::long_value;
 use crate::dsl::error::DslError;
@@ -248,6 +247,7 @@ fn parse_source_body(
     let mut interval_key: Option<&'static str> = None;
     let mut date_kind: Option<RoundingKind> = None;
     let mut zone_ms = 0i64;
+    let mut region: Option<RegionZone> = None;
     let mut offset = 0i64;
     let mut field: Option<String> = None;
     let mut interval: Option<f64> = None;
@@ -386,12 +386,11 @@ fn parse_source_body(
                 });
             }
             "time_zone" => {
-                zone_ms = if kind == Some(Kind::Number) {
-                    long_value(Kind::Number, p.text())
-                        .map_err(|e| failed(p, e))?
-                        .saturating_mul(3_600_000)
+                (zone_ms, region) = if kind == Some(Kind::Number) {
+                    let hours = long_value(Kind::Number, p.text()).map_err(|e| failed(p, e))?;
+                    (hours.saturating_mul(3_600_000), None)
                 } else {
-                    zone_millis(p.text()).ok_or_else(|| {
+                    zone_of(p.text()).ok_or_else(|| {
                         // ALLOC: error path; one message.
                         DslError::unsupported(&format!(
                             "a composite source's time zone [{}]",
@@ -442,6 +441,7 @@ fn parse_source_body(
                     DslError::illegal("Invalid interval specified, must be non-null and non-empty")
                 })?,
                 zone_ms,
+                region,
                 offset,
             },
         },

@@ -14,6 +14,7 @@ fn spec() -> DateHistogramSpec {
         rounding: DateRounding {
             kind: RoundingKind::Unit(DateUnit::Day),
             zone_ms: 0,
+            region: None,
             offset: 0,
         },
         ..DateHistogramSpec::default()

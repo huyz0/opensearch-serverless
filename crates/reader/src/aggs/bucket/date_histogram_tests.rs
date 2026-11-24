@@ -27,7 +27,7 @@ fn aggs(body: &str) -> Vec<MetricAgg> {
     parse_chunks([body.as_bytes()]).expect("parses").aggs
 }
 
-fn spec_of(body: &str) -> (String, DateHistogramSpec) {
+pub(super) fn spec_of(body: &str) -> (String, DateHistogramSpec) {
     let body = format!(r#"{{"aggs":{{"h":{{"date_histogram":{body}}}}}}}"#);
     let agg = aggs(&body).remove(0);
     (agg.field, *agg.date_histogram.expect("a date_histogram"))
@@ -51,8 +51,7 @@ fn reason(body: &str) -> String {
 fn rounding(kind: RoundingKind) -> DateRounding {
     DateRounding {
         kind,
-        zone_ms: 0,
-        offset: 0,
+        ..DateHistogramSpec::default().rounding
     }
 }
 
@@ -71,7 +70,7 @@ fn month() -> DateHistogramSpec {
     spec(RoundingKind::Unit(DateUnit::Month))
 }
 
-fn part(spec: &DateHistogramSpec, buckets: &[(i64, u64)]) -> DateHistogramResult {
+pub(super) fn part(spec: &DateHistogramSpec, buckets: &[(i64, u64)]) -> DateHistogramResult {
     DateHistogramResult {
         spec: *spec,
         buckets: buckets.to_vec(),
@@ -79,12 +78,12 @@ fn part(spec: &DateHistogramSpec, buckets: &[(i64, u64)]) -> DateHistogramResult
     }
 }
 
-fn reduced(parts: &[DateHistogramResult]) -> DateHistogramResult {
+pub(super) fn reduced(parts: &[DateHistogramResult]) -> DateHistogramResult {
     let refs: Vec<&DateHistogramResult> = parts.iter().collect();
     reduce_results(&refs, BUCKET_LIMIT).expect("within the limit")
 }
 
-fn written(format: Format, result: &DateHistogramResult) -> String {
+pub(super) fn written(format: Format, result: &DateHistogramResult) -> String {
     let mut out = Vec::new();
     write_date_histogram(&mut out, format, result).expect("writes");
     String::from_utf8(out).expect("utf-8")
@@ -270,7 +269,7 @@ fn unserved_keys_zones_and_orders_are_refused_as_not_supported_yet() {
         r#"{"field":"t","interval":"day"}"#,
         r#"{"field":"t","calendar_interval":"day","format":"yyyy"}"#,
         r#"{"field":"t","calendar_interval":"day","missing":"2020-01-01"}"#,
-        r#"{"field":"t","calendar_interval":"day","time_zone":"Europe/Paris"}"#,
+        r#"{"field":"t","calendar_interval":"day","time_zone":"Europe/Nowhere"}"#,
         r#"{"field":"t","calendar_interval":"day","order":{"sub":"asc"}}"#,
         r#"{"field":"t","calendar_interval":"day","order":[{"_key":"asc"},{"_count":"asc"}]}"#,
     ] {

@@ -136,6 +136,7 @@ fn assembled(id: &str) -> oss_node::assemble::Assembled {
         opener: None,
         names: None,
         incarnation: None,
+        buckets: None,
     };
     let config = Config {
         // Publishes only when the test asks.

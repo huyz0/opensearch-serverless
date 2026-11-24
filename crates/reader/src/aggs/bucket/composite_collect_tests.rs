@@ -222,6 +222,18 @@ fn a_date_histogram_source_keys_by_the_rounded_millis_and_pages_with_after() {
     );
 }
 
+// AC-10
+#[test]
+fn a_date_histogram_source_in_a_region_zone_keys_by_its_local_days() {
+    let shard = shard("cp-region", DOCS);
+    // Values 0 to 199 ms are 09:00 on 1970-01-01 in Tokyo (+09:00).
+    let r = composite(
+        &shard,
+        r#"{"sources":[{"d":{"date_histogram":{"field":"n","calendar_interval":"day","time_zone":"Asia/Tokyo"}}}]}"#,
+    );
+    assert_eq!(longs(&r), [(-32_400_000, 200)]);
+}
+
 // AC-4
 #[test]
 fn missing_bucket_on_a_field_every_document_has_adds_no_bucket() {
