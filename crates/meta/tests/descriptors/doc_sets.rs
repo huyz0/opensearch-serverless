@@ -13,15 +13,15 @@ use crate::{BASE, Backend, all, counted};
 
 const KIND: DocKind = DocKind::IndexTemplate;
 
-fn set(b: &Backend) -> DocSet {
+pub(crate) fn set(b: &Backend) -> DocSet {
     DocSet::new(Arc::clone(&b.store), BASE, KIND).unwrap()
 }
 
-fn marker() -> Vec<u8> {
+pub(crate) fn marker() -> Vec<u8> {
     vec![0u8; oss_meta::MAX_DOC_SET_MARKER_BYTES]
 }
 
-fn body() -> Vec<u8> {
+pub(crate) fn body() -> Vec<u8> {
     vec![0u8; 4096]
 }
 
@@ -32,7 +32,7 @@ fn read(s: &DocSet, name: &str) -> Option<String> {
         .map(|n| String::from_utf8(b[..n].to_vec()).unwrap())
 }
 
-fn put(s: &DocSet, name: &str, text: &str) {
+pub(crate) fn put(s: &DocSet, name: &str, text: &str) {
     s.put(name, text.as_bytes(), false, &mut marker()).unwrap();
 }
 
@@ -264,7 +264,7 @@ fn a_put_whose_marker_write_fails_drops_the_bytes_it_wrote() {
 
 /// A set whose marker names a blob that is not there, until a hook, run
 /// before the 2nd request, moves the marker to one that is.
-fn healing() -> (Arc<Quirky>, DocSet) {
+pub(crate) fn healing() -> (Arc<Quirky>, DocSet) {
     let store = Arc::new(Quirky::hooked(|inner| {
         let key = format!("{BASE}templates/index/_version");
         let mut buf = [0u8; 256];

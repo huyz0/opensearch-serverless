@@ -34,8 +34,8 @@ pub struct DocSet {
 }
 
 /// The marker as read, and the generation to swap it from.
-struct Read<'a> {
-    marker: DocSetMarker<'a>,
+pub(crate) struct Read<'a> {
+    pub(crate) marker: DocSetMarker<'a>,
     generation: u64,
 }
 
@@ -56,7 +56,7 @@ impl DocSet {
         })
     }
 
-    fn read<'a>(&self, buf: &'a mut [u8]) -> Result<Read<'a>, MetaError> {
+    pub(crate) fn read<'a>(&self, buf: &'a mut [u8]) -> Result<Read<'a>, MetaError> {
         match self.store.read_register(&self.marker_key, buf)? {
             None => Ok(Read {
                 marker: DocSetMarker::new(0),
@@ -173,7 +173,11 @@ impl DocSet {
         Ok(())
     }
 
-    fn read_content(&self, content: &str, body_buf: &mut [u8]) -> Result<Option<usize>, MetaError> {
+    pub(crate) fn read_content(
+        &self,
+        content: &str,
+        body_buf: &mut [u8],
+    ) -> Result<Option<usize>, MetaError> {
         let key = doc_content_key(&self.base, self.kind, content)?;
         let mut scratch = [0u8; 4096];
         let mut filled = 0usize;
