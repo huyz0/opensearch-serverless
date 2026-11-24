@@ -1,6 +1,6 @@
 //! Reading the shell's snapshot repositories and snapshots.
 //!
-//! Read-only (ADR 0038): nothing here writes a blob. A repository is the
+//! Read-only (ADR 0039): nothing here writes a blob. A repository is the
 //! record `repositories/<name>`; a snapshot name's state is the register
 //! `snapshot-states/<sha256 of "<repo>#<name>">`, with the legacy record
 //! `snapshots/<repo>#<name>` read only when the register is absent.
