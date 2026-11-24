@@ -357,6 +357,7 @@ pub fn assemble(
         ),
         Box::new(now_millis),
     );
+    let bucket_wiring = writer.buckets.clone();
     if let Some(buckets) = writer.buckets {
         publishing = publishing.with_buckets(buckets);
     }
@@ -429,11 +430,14 @@ pub fn assemble(
             DescriptorStore::new(Arc::clone(&store), &config.base, config.delete_mode)
                 .map_err(|e| AssembleError::Store(e.to_string()))?
                 .record_changes_in(stripes);
-        let indices = Arc::new(IndexService::new(
-            descriptors,
-            Arc::clone(&clock),
-            config.pit_buffer_bytes,
-        ));
+        let mut indices =
+            IndexService::new(descriptors, Arc::clone(&clock), config.pit_buffer_bytes);
+        if let Some(buckets) = &bucket_wiring {
+            let buckets = Arc::clone(buckets);
+            indices =
+                indices.with_bucket_join(Arc::new(move |name, uuid| buckets.join(name, uuid)));
+        }
+        let indices = Arc::new(indices);
         let router = index_route::routes(router, indices).map_err(AssembleError::Route)?;
         let deletes = delete_service(config, &store, &clock)?;
         let drain = DrainTimer::spawn(Arc::clone(&deletes), config.reclaim_every);

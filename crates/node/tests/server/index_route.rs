@@ -219,3 +219,52 @@ fn a_descriptor_that_does_not_fit_its_buffer_is_refused_not_failed() {
     assert_eq!(reply.status, 400, "{}", reply.text());
     assert!(record(&r, "big").is_none());
 }
+
+/// A rig whose creates place one-shard indexes in the bucket `b-1`.
+fn bucketed_rig() -> Rig {
+    let store = Arc::new(Emulator::new(1 << 28, 5));
+    let clock: PitClock = Arc::new(|| NOW);
+    let descriptors = || {
+        DescriptorStore::new(
+            Arc::clone(&store) as Arc<dyn BlobStore>,
+            "",
+            DeleteMode::Conditional,
+        )
+        .expect("names")
+    };
+    let service = IndexService::new(descriptors(), clock, BUF)
+        .with_bucket_join(Arc::new(|_, _| Ok("b-1".to_owned())));
+    let budget = MemoryBudget::new(&support::budget_config());
+    let router = routes(Router::new(), Arc::new(service)).expect("routes");
+    let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
+    let server =
+        Server::start(listener, support::server_config(), router, &budget).expect("starts");
+    Rig {
+        server,
+        descriptors: descriptors(),
+        store,
+    }
+}
+
+fn bucket_of(r: &Rig, name: &str) -> Option<String> {
+    let mut buf = vec![0u8; BUF];
+    let rec = r.descriptors.get(name, &mut buf).expect("read")?;
+    rec.bucket.as_deref().map(str::to_owned)
+}
+
+#[test]
+fn a_one_shard_create_joins_a_bucket_and_a_sharded_one_does_not() {
+    let r = bucketed_rig();
+    assert_eq!(call(&r, "PUT", "/small", None).status, 200);
+    assert_eq!(bucket_of(&r, "small").as_deref(), Some("b-1"));
+    let body = r#"{"settings":{"number_of_shards":3}}"#;
+    assert_eq!(call(&r, "PUT", "/wide", Some(body)).status, 200);
+    assert_eq!(bucket_of(&r, "wide"), None);
+}
+
+#[test]
+fn a_create_without_the_join_names_no_bucket() {
+    let r = rig();
+    assert_eq!(call(&r, "PUT", "/plain", None).status, 200);
+    assert_eq!(bucket_of(&r, "plain"), None);
+}

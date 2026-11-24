@@ -252,7 +252,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         DescriptorStore::new(Arc::clone(&store), &config.base, DeleteMode::Tombstone)
             .map_err(cluster)?,
     );
-    let buckets = support::bucket_wiring(config, &store, &descriptors, &clock);
+    let buckets = support::bucket_wiring(config, &store, &descriptors, &clock)?;
     let heads = support::head_store(config, &store, &clock, &oracle, buckets.as_ref())?;
     let names = Arc::new(ShardNames::default());
     let log =

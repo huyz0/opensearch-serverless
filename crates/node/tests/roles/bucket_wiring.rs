@@ -11,7 +11,7 @@ use oss_format::{
 };
 use oss_meta::{DeleteMode, DescriptorStore};
 use oss_node::writer::{BucketWiring, Publishing, RoleTarget, Routes, WriterRole};
-use oss_writer::bucket::{BucketCommits, BucketStore, ManifestWrite};
+use oss_writer::bucket::{BucketCommits, BucketStore, Limits, ManifestWrite};
 use oss_writer::bulk::{
     Bulk, BulkBudget, Defaults, IdGenerator, IndexInfo, ItemResult, Owner, Planned, StreamConfig,
     stream,
@@ -107,6 +107,7 @@ fn rig(index: &str) -> Rig {
         Arc::clone(&descriptors),
         clock,
         write,
+        Limits::new(1 << 20, 8, 1 << 16),
     ));
     let log = NodeLogStore::new(dynstore(), "", "node-1").expect("names");
     let committer = Arc::new(NodeLogCommitter::new(

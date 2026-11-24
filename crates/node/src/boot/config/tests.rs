@@ -318,9 +318,15 @@ fn a_node_with_the_switch_off_has_no_bucket_wiring() {
     };
     let off = NodeConfig::from_lookup(lookup(FS)).expect("valid");
     assert!(
-        crate::boot::support::bucket_wiring(&off, &store, &descriptors(&off), &clock).is_none()
+        crate::boot::support::bucket_wiring(&off, &store, &descriptors(&off), &clock)
+            .expect("builds")
+            .is_none()
     );
     let on =
         NodeConfig::from_lookup(lookup(&with(&[("OSS_BUCKETS_ENABLED", "true")]))).expect("valid");
-    assert!(crate::boot::support::bucket_wiring(&on, &store, &descriptors(&on), &clock).is_some());
+    assert!(
+        crate::boot::support::bucket_wiring(&on, &store, &descriptors(&on), &clock)
+            .expect("builds")
+            .is_some()
+    );
 }
