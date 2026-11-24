@@ -36,4 +36,4 @@ Unchanged in kind: a window is still one PUT. More groups ride one window, so a 
 
 ## Switch
 
-`OSS_WRITE_PIPELINE_DEPTH`, node scope, default 1 until the measurements in VERIFIED.md decide it.
+`OSS_WRITE_PIPELINE_DEPTH`, node scope, default 8 (1 holds the slot lock across the wait as before). The ADR's downsides (a failed window fails the groups in flight; a read can see a write the log refuses; a publish or sleep waits for the groups in flight) are rare and cost nothing at one writer per shard: p99 at one client is within 1% of depth 1, a window is still one PUT, and the node suites pass at the default. Setting it to 1 returns to the old behaviour.
