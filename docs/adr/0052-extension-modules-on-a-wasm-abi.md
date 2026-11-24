@@ -1,0 +1,53 @@
+# 0052: Extension modules are sandboxed WASM on a bytes-in, bytes-out ABI, content-addressed in the store; no point is wired to a request path yet
+
+**Status:** Accepted after independent review (three rounds), 2026-11-24
+
+## Context
+
+The roadmap lists extensions as "C and WASM modules, with an ABI designed here and informed by hsearch's ABI v1, added when the reader needs its first one" ([ADR 0002](0002-runtime-dependencies.md): hsearch is a reference, not a dependency). [How to add an extension point](../how-to/add-an-extension-point.md) fixes the rules a point follows. This ADR decides the runtime: the module form, the ABI, what bounds a call, and how a module is stored and reaches a node. It deliberately does not wire any point into the write or search path. What an index pins, where a point runs, and how a mixed fleet is kept safe depend on the first point's own semantics, and are left to that point's ADR (section "Not decided here").
+
+Forces:
+
+- Nodes are stateless and serve many tenants. A native library in the process can read other tenants' cached data and a crash takes the node down; a WASM module in a sandbox cannot (hsearch's isolation table, `docs/plan/extension-modules.md` section 1).
+- Blob requests scale with nodes and bytes ([principles](../principles.md)); a module costs no request per call, document or search.
+- Memory is reserved before use ([ADR 0004](0004-bounded-memory-and-streaming.md)); every byte a module can hold is a reservation.
+- The index descriptor is a blob format shared with the Java shell and older nodes, which read it and may write it back.
+- Unported Java plugins stay proxied ([ADR 0046](0046-plugin-requests-are-proxied-to-java-nodes.md)); extensions are the Rust-native way to add behaviour.
+
+## Decision
+
+**Form.** A module is a core WebAssembly module run in-process by `wasmtime`, no WASI, importing only `log` and `cancelled`. The wasmtime configuration is pinned and deterministic: threads, relaxed SIMD and a start function are refused, NaNs are canonicalised, only precompiled-free source modules are loaded (never `deserialize`), and the version is pinned in `Cargo.lock`. A native C form is not built; it would put module code in the node's address space, and would be a new ADR, off unless an operator turns it on.
+
+**Crates.** `oss-ext` holds the ABI (version rule, status codes, ceilings, the strict descriptor parser, typed failures) with no runtime dependency. A point's trait arrives with that point, injected into the reader or writer so neither depends on the host. `oss-ext-wasm` holds the host and depends on wasmtime; the node includes it behind the Cargo feature `extensions` (off by default, included in the CI feature matrix so coverage and mutants cover it). The layering check and port-map get entries for both. wasmtime is admitted under ADR 0002's rules (licence, maintenance and `cargo deny` checked when the dependency is added).
+
+**ABI v1 (WASM).** The module exports `oss_abi_version`, `oss_describe` (JSON, at most 16 KiB, unknown keys refused), `oss_input_region`, `oss_output_region` and `oss_call(point, in_len, out_cap) -> i32`. The two regions are guest-owned, `io_bytes` each as the descriptor declares; the host copies the input in, calls, and copies the output out after validating it. Status zero succeeds; failures are negative with hsearch v1's codes. `buffer too small` is final: the call fails, no retry. The export names differ from hsearch's, so a module is rebuilt for this ABI; only the status codes and the descriptor shape are shared. A major mismatch or a newer minor than the host is refused before anything else is called.
+
+**Points.** A point is a name, a version and a wire encoding for a block in and a block out; the registry of points starts empty in this ADR. The first real one (expected `analyzer`) brings its own ADR. Input and output bounds are per point and well below hsearch's 16 MiB ceiling.
+
+**Where a module lives.** A module is the blob `ext/modules/<sha256>.wasm`, named by the SHA-256 of its bytes, written once by conditional create, never replaced, never deleted in v1 (a test holds that the janitor's sweep does not list or delete under `ext/`). Maximum module size is 8 MiB. Upload is an administrator route (all_access, with its action-table row in the first slice, [ADR 0051](0051-authorization-at-the-route-by-action-table.md); it is not an OpenSearch endpoint, so it is listed as a difference in `docs/compatibility.md`), one at a time per node (a second concurrent upload answers 429): it reserves the 8 MiB buffer from the request-body pool, reads the body into it while hashing, rejects anything larger, validates it, then compiles it, and then makes one PUT under the hash key (an existing key is success, so a repeat adds no PUT). **Compile bound.** wasmtime cannot cap or cancel Cranelift, so the bound is made before and around the compile, not inside it: validation refuses a module over fixed limits before any compile (function count, a function's body size and locals, declared memories and tables, imports other than the two), the compile reserves 16 times the module's size from the `Extensions` pool first, and it runs on the bounded extension pool, so concurrent compiles are bounded. Compile time is bounded only by those limits, not by a timeout. A node reads a module with one GET into a reserved buffer, verifies the hash, and compiles by the same rule. Compiled code is charged to the `Extensions` pool and kept in a cache bounded by it; a module in use by a call is never evicted, and a module a point's caller needs is loaded by that caller when it opens whatever uses it, never at call time, and an evicted module is refetched at most once per such load.
+
+**Bounds.** From host configuration, not from the module (a descriptor may ask for less, never more). Host defaults, which a point may only lower: fuel 50 million instructions a call, linear memory 64 MiB, call deadline 500 ms by wasmtime epoch interruption, concurrency 8 a module with at most 2 of the 8 for one tenant (a tenant is always capped, so with fewer than four active tenants capacity can idle), a stack of 1 MiB. Calls run on a bounded blocking pool of `OSS_EXT_WORKERS` threads (default 4) with a bounded queue; a full queue answers 429 `extension_busy`. A new memory pool `Extensions` is named in the budget. The host's call takes the tenant id, which the per-tenant share and the counters use. The wasmtime version is pinned in `Cargo.lock`, because fuel counts can change with a version: an upgrade reruns the hostile and golden vectors. A call reserves `linear memory + 2 x io_bytes + stack` before instantiating, and compiled code is charged to the same pool, so the worst case is the compiled cache plus the sum over concurrent calls, stated in the spec; tables, instance counts and compile memory are capped in the wasmtime configuration. A pool that cannot hold the reservation answers 429. 429 means capacity only; a fuel, deadline or memory trap on one input is a non-retriable 400 `extension_failed` naming the module and the limit. `log` output is capped at 512 bytes a message and 10 messages a second a module, control characters escaped, and counted against the tenant. The host validates every output before use.
+
+**Switch.** The Cargo feature `extensions` builds the runtime; a node built without it ignores the setting and says so in its startup log. `serverless.extensions.enabled`, cluster scope, default false. With it off nothing is loaded, no pool is reserved and the upload route does not exist. It stays off until a soak shows no regression with it on and hostile modules (spin, grow memory, trap, oversized output, many concurrent callers) leave the node serving within its memory budget. Per-call instantiation cost is unmeasured and provisional; a pre-instantiated pool is the first optimisation if it matters.
+
+## Not decided here
+
+The first point's ADR must settle, with the findings of this ADR's review as its checklist:
+
+- Where the point runs and what runs again at replay, recovery and merge (the ingest hook of [ADR 0044](0044-ingest-pipelines-in-the-write-path.md) is a source-to-source transform and does not fit analysis); replay must use limits recorded with the pin, not live configuration, and a failed replay needs a quarantine path rather than a stuck shard.
+- How an index pins a module: at creation only and immutable, in a place Java and older nodes preserve or refuse (the descriptor parser skips unknown fields, so a marker there protects only new Rust nodes; `settings` is kept as raw bytes).
+- How a mixed fleet is kept from serving a pinned index at create and at join: a lease capability needs a format change in `oss-format` with a fixture and byte-identical-when-unset semantics, and a read path that does not cost a GET per member (no LIST).
+- Who enforces refusal at join for a Java node: a Java-shell change, or a Rust-only fleet by deployment; the rollout order of the cluster switch and any lease capability; and that R15.5 tests the gate as a predicate, not only a soak.
+- The write-log format question and the cost of analysing at plan time and again at build or replay, or logging the result.
+- When the module GET happens: at index open, in parallel with the commit-register GETs, single-flight per hash, with a `request-budgets.md` row.
+- Pin shape and authority: name and version matching the module's own descriptor, a cap on pins per index, an ADR 0051 action row for who may pin.
+- What a node without the module, without extensions, or without the capability does with a pinned index: refuse, never fall back.
+
+## Consequences
+
+- No module code runs outside a sandbox; a trap or limit fails that call only, and a deterministic failure is a 400, not a retry.
+- With no point registered the runtime changes no request path, so enabling it changes nothing a client sees; what it adds is tested by hostile modules through a test-only point.
+- Store cost is one PUT per module ever and one GET per module per node, independent of calls.
+- wasmtime is a large dependency, isolated in one crate behind a feature.
+- Out of scope: native modules, signed modules, a separate-process form, pins, module deletion.
+- Acceptance criteria go in `docs/specs/extension-abi/SPEC.md`: the version rule and descriptor parser; hostile-module tests (spin, memory growth, trap, oversized output, regions out of bounds, a huge function and deep nesting at compile); a request-count test (one GET per module per node, none per call); a peak-memory test holding the reservation formula; upload bounds (size, one at a time, no PUT for a repeat); the janitor test. Slices: the ABI crate, the host, the store and upload route.
