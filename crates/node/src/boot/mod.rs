@@ -46,7 +46,7 @@ use crate::read_forward::{GetForwarder, GetHandler};
 use crate::usage_route;
 use crate::writer::{
     DeadLogParts, DeadLogPass, DeadMailbox, DeadSnapshot, DescriptorIncarnation, HeadAdmission,
-    HeadOpener, LiveLeases, MembershipLeaseWrite, OrphanTimer, ShardNames, Takeover,
+    HeadOpener, LiveLeases, MembershipLeaseWrite, OrphanTimer, ShardNames, ShardOpener, Takeover,
 };
 
 pub use config::{MIN_MEMORY_BYTES, NodeConfig, StoreChoice};
@@ -54,9 +54,6 @@ pub use error::BootError;
 use renew::{Cadence, Renewal};
 pub use retire::{Retired, retire_within, within};
 use support::{Held, address_bytes, earlier_epochs, store_of, usage_of};
-
-/// The roles a node's lease names.
-const ROLES: [&str; 2] = ["ingest", "search"];
 
 /// The most members a node's membership view holds.
 const MAX_MEMBERS: usize = 1024;
@@ -348,7 +345,10 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     let writer = Writer {
         committer: Arc::clone(&committer),
         routes: Arc::new(routes),
-        opener: Some(Arc::new(opener)),
+        // A node without `ingest` opens no shard.
+        opener: config
+            .takes_writes()
+            .then(|| Arc::new(opener) as Arc<dyn ShardOpener>),
         names: Some(Arc::clone(&names)),
         incarnation: Some((
             Arc::new(DescriptorIncarnation::new(Arc::clone(&descriptors))),
