@@ -107,6 +107,16 @@ impl BucketWiring {
             .map_err(|e| e.to_string())
     }
 
+    /// A bucket's members as `(uuid, index name)`, `None` for a bucket with
+    /// no manifest.
+    ///
+    /// # Errors
+    ///
+    /// The bucket store's failure, as text.
+    pub fn members(&self, bucket: &str) -> Result<Option<Vec<(String, String)>>, String> {
+        self.assigner.members(bucket).map_err(|e| e.to_string())
+    }
+
     /// Tells the bucket heads that `node_id` holds open what `role` holds,
     /// so giving back a member keeps the bucket while a sibling is open.
     pub fn register_open(&self, node_id: &str, role: Arc<WriterRole>) {

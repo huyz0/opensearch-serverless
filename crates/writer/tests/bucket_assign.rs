@@ -267,6 +267,23 @@ fn leave_removes_only_that_member_and_tolerates_the_absent() {
     assert_eq!(puts(&e), p0);
 }
 
+/// bucket-member-orphans: the members of a bucket, uuid and index name.
+#[test]
+fn members_lists_uuid_and_name_and_an_absent_bucket_has_none() {
+    let e = emulator();
+    let store = dynstore(&e);
+    let a = assigner(&store, roomy());
+    a.join(GROUP, "i0", "u0").unwrap();
+    a.join(GROUP, "i1", "u1").unwrap();
+    let mut found = a.members("s02-0").unwrap().expect("bucket");
+    found.sort();
+    assert_eq!(
+        found,
+        [("u0".into(), "i0".into()), ("u1".into(), "i1".into())]
+    );
+    assert_eq!(a.members("s09-0").unwrap(), None);
+}
+
 /// AC-8
 #[test]
 fn limits_are_clamped() {

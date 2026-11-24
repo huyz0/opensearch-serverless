@@ -6,10 +6,15 @@
 //! the sweeper counts the failures of a page across runs, and runs a slice
 //! once an interval. A budget of 0 starts nothing.
 
+mod bucket_orphans;
+
+pub use bucket_orphans::BucketMemberSweep;
+
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
+use super::BucketWiring;
 use oss_blob::BlobStore;
 use oss_cluster::placement::reapers_for;
 use oss_format::NodeLease;
@@ -63,6 +68,11 @@ pub struct OrphanParts {
     pub dry_run: bool,
     /// The clock the point-in-time records are judged by.
     pub clock: PitClock,
+    /// The bucket wiring, when buckets are on: each slice then also judges a
+    /// few buckets' members.
+    pub buckets: Option<Arc<BucketWiring>>,
+    /// How long a member must stay a candidate before it is taken out.
+    pub bucket_grace_millis: i64,
 }
 
 /// Runs a slice every interval until dropped.
@@ -126,6 +136,19 @@ fn run(parts: &OrphanParts, live: &LiveLeases, signal: &(Mutex<bool>, Condvar)) 
         &point_in_time,
         &snapshots,
     );
+    let bucket_sweep = parts.buckets.as_ref().and_then(|wiring| {
+        let descriptors =
+            DescriptorStore::new(Arc::clone(&parts.store), &parts.base, DeleteMode::Tombstone)
+                .ok()?;
+        Some(BucketMemberSweep::new(
+            Arc::clone(wiring),
+            Arc::clone(&parts.store),
+            descriptors,
+            &parts.base,
+            parts.bucket_grace_millis,
+            parts.dry_run,
+        ))
+    });
     let (flag, wake) = signal;
     loop {
         let stopped = flag.lock().unwrap_or_else(PoisonError::into_inner);
@@ -148,6 +171,10 @@ fn run(parts: &OrphanParts, live: &LiveLeases, signal: &(Mutex<bool>, Condvar)) 
         // A failed slice leaves the cursor where it was and is tried again
         // at the next interval; the sweeper skips a page that keeps failing.
         let _ = sweeper.slice(parts.slice);
+        if let Some(bucket_sweep) = &bucket_sweep {
+            let now = i64::try_from((parts.clock)()).unwrap_or(i64::MAX);
+            let _ = bucket_sweep.slice(now);
+        }
     }
 }
 

@@ -106,6 +106,7 @@ src/writer/limit.rs	new		the write limiter admits a group before anything is app
 src/boot/config/write_limit.rs	new		the OSS_WRITE_* variables of the write limiter, split out of the boot config to keep it under the size limit
 src/search_template.rs	port	modules/lang-mustache/src/main/java/org/opensearch/script/mustache/RestSearchTemplateAction.java	_render/template and _search/template: render an inline template, then search the rendered body
 src/writer/orphan_timer.rs	new		which node runs the orphan-shard sweep, on a timer, from the live members; the shell runs collectOrphanedShards from its reconciler on every janitor node
+src/writer/orphan_timer/bucket_orphans.rs	new		takes out a bucket member whose index is gone, at a second sighting after a grace; the shell leaves a member behind when a node dies between a join and its descriptor, and nothing clears it
 src/boot/error.rs	new		BootError, moved out of boot/mod.rs for its size
 src/boot/config/tests.rs	new		the configuration tests, moved out of boot/config.rs for its size
 src/search_rank_eval.rs	port	modules/rank-eval/src/main/java/org/opensearch/index/rankeval/TransportRankEvalAction.java	_rank_eval: run each rated request as a search and score its hits, with the Java response maps order
