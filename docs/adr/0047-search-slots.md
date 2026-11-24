@@ -32,3 +32,7 @@ This is not a memory bound: a search that runs still reserves from the query-exe
 - The gate orders and delays; it never refuses, so a search is never failed by a lane it did not choose, and the hard bounds stay the worker pool and the memory budget.
 - Acceptance criteria go in `docs/specs/search-slots/SPEC.md`: a search takes and returns a permit on every path; a tenant over its share waits and one within its share does not; the wait ends at the deadline; the waiter cap stops waits piling up; a level-2 tenant in enforce mode waits at half the slots while another tenant is active and in observe mode does not; the counters in the usage route; a limit test with the map at `slots` entries and the waiters at the cap; none of it with the setting at 0.
 - It stays off by default until measured: search p99 with the gate on and off below the slots within 5%, a noisy tenant against a quiet one at saturation, no extra store requests (none are added), and a soak with searches failing mid-wait showing every permit returned.
+
+## Measured (provisional)
+
+On a debug build over a file store with 4 cores the gate showed no p99 gain for a quiet tenant beside a noisy one (43.7 ms off, 42.9 ms on) and a p99 cost below the slots of 2% and 8% in two runs; the default stays off. The tables and the reason are in [the spec's evidence](../specs/search-slots/VERIFIED.md). A store with request latency, where a permit holds a read rather than only CPU, is the measurement still to make.
