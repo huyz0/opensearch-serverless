@@ -50,6 +50,13 @@ fn bulk(cluster: &Cluster, slot: usize, index: &str, round: u32) -> (Duration, u
         if r.status == 200 && r.text().contains("\"errors\":false") {
             return (started.elapsed(), tries);
         }
+        if tries <= 3 {
+            eprintln!(
+                "retry {index} {round}: {} {}",
+                r.status,
+                &r.text()[..r.text().len().min(300)]
+            );
+        }
         assert!(
             started.elapsed().as_secs() < 60,
             "never created: {}",

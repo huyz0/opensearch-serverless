@@ -13,9 +13,11 @@ use std::time::Duration;
 use oss_blob::{BlobStore, S3Op};
 use oss_cluster::heads::shard_head_key;
 use oss_format::{NodeLease, ShardHead};
+use oss_node::descriptor_routes::DescriptorRoutes;
+use oss_node::writer::Routes;
 use oss_node::writer::{RoleTarget, ShardCap, Takeover};
 use oss_writer::bulk::ItemResult;
-use oss_writer::bulk::{Owner, Target};
+use oss_writer::bulk::{IndexInfo, Owner, Planned, Target};
 use support::*;
 
 const TTL: i64 = 30_000;
@@ -40,18 +42,29 @@ fn pause() {
 /// node-1 capped at `max`, over indexes `a` to `d`, each written once with a
 /// pause between so the first written is the idlest.
 fn full(max: usize, held: usize, hand_off: bool) -> (Cluster, Node) {
+    full_with(max, held, hand_off, |routes| Arc::new(routes))
+}
+
+/// [`full`] over routes `wrap` makes.
+fn full_with(
+    max: usize,
+    held: usize,
+    hand_off: bool,
+    wrap: impl FnOnce(DescriptorRoutes) -> Arc<dyn Routes>,
+) -> (Cluster, Node) {
     let c = cluster();
     let names = [("a", "ua"), ("b", "ub"), ("c", "uc"), ("d", "ud")];
     for (name, uuid) in names {
         create(&c, name, uuid);
     }
     let store: Arc<dyn BlobStore> = c.store.clone();
-    let one = node(
+    let one = node_routed(
         &c,
         "node-1",
         1,
         false,
         Some(Takeover::from_leases(store, "", "node-1", 1, 1 << 20)),
+        wrap,
     );
     assert!(one.role.set_shard_cap(ShardCap {
         max,
@@ -201,4 +214,66 @@ fn a_write_is_not_steered_with_the_setting_off_or_a_node_with_room_or_no_member_
         .hand_off(&[peer("node-2", 9, 10)], 0, TTL, "node-1");
     assert_ne!(owner_of(&packed, "e"), Owner::Node("node-2".into()));
     assert_eq!(packed.role.shard_cap_stats().steered, 0);
+}
+
+#[test]
+fn a_steered_shard_keeps_going_to_the_same_member_so_its_refresh_follows_its_write() {
+    let (_c, one) = full(4, 4, true);
+    pass(&one, &[peer("node-2", 1, 10)]);
+    assert!(matches!(
+        write_in(&one.role, "a", "2"),
+        ItemResult::Written { .. }
+    ));
+    assert_eq!(owner_of(&one, "e"), Owner::Node("node-2".into()));
+    // The fleet changes: no member has room now, and node-3 would be picked.
+    one.role.hand_off(
+        &[peer("node-2", 9, 10), peer("node-3", 1, 10)],
+        0,
+        TTL,
+        "node-1",
+    );
+    assert_eq!(owner_of(&one, "e"), Owner::Node("node-2".into()));
+    assert_eq!(one.role.shard_cap_stats().steered, 1, "counted once");
+}
+
+/// Routes that name `node-3` the owner of index `e` and defer to the
+/// descriptors for the rest.
+struct ThreeOwnsE(DescriptorRoutes);
+
+impl Routes for ThreeOwnsE {
+    fn index(&self, name: &str) -> Option<IndexInfo> {
+        self.0.index(name)
+    }
+
+    fn owner(&self, index: &IndexInfo, shard: u32) -> Owner {
+        if index.name == "e" {
+            Owner::Node("node-3".into())
+        } else {
+            self.0.owner(index, shard)
+        }
+    }
+
+    fn forward(
+        &self,
+        node: &str,
+        index: &IndexInfo,
+        shard: u32,
+        group: &[Planned<'_>],
+    ) -> Vec<ItemResult> {
+        self.0.forward(node, index, shard, group)
+    }
+}
+
+// docs/specs/writer-steering AC-5
+#[test]
+fn a_shard_the_routes_give_another_node_is_not_steered() {
+    let (_c, one) = full_with(4, 4, true, |routes| Arc::new(ThreeOwnsE(routes)));
+    pass(&one, &[peer("node-2", 1, 10)]);
+    assert!(matches!(
+        write_in(&one.role, "a", "2"),
+        ItemResult::Written { .. }
+    ));
+    // Nearly full with a member with room, yet the routes' owner stands.
+    assert_eq!(owner_of(&one, "e"), Owner::Node("node-3".into()));
+    assert_eq!(one.role.shard_cap_stats().steered, 0);
 }
