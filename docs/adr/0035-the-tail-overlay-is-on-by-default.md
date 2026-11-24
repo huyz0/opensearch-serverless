@@ -1,4 +1,4 @@
-# 0034: The tail overlay is on by default
+# 0035: The tail overlay is on by default
 
 **Status:** Accepted by the owner's standing decision to ship it on (the shell does), after an independent review whose blocking findings are answered in Not measured; 2026-11-24
 

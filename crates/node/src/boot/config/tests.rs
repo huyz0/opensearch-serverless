@@ -304,6 +304,16 @@ fn the_shard_cap_is_off_by_default_and_set_by_its_variables() {
     assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_EVICT_AFTER_MS", "soon")]))).is_err());
 }
 
+// docs/specs/writer-hand-off AC-8
+#[test]
+fn hand_off_is_off_by_default_and_set_by_its_variable() {
+    let c = NodeConfig::from_lookup(lookup(FS)).expect("valid");
+    assert!(!c.hand_off);
+    let c = NodeConfig::from_lookup(lookup(&with(&[("OSS_HAND_OFF", "true")]))).expect("valid");
+    assert!(c.hand_off);
+    assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_HAND_OFF", "yes")]))).is_err());
+}
+
 #[test]
 fn a_node_with_the_switch_off_has_no_bucket_wiring() {
     use oss_blob::{BlobStore, Emulator};
@@ -321,9 +331,15 @@ fn a_node_with_the_switch_off_has_no_bucket_wiring() {
     };
     let off = NodeConfig::from_lookup(lookup(FS)).expect("valid");
     assert!(
-        crate::boot::support::bucket_wiring(&off, &store, &descriptors(&off), &clock).is_none()
+        crate::boot::support::bucket_wiring(&off, &store, &descriptors(&off), &clock)
+            .expect("builds")
+            .is_none()
     );
     let on =
         NodeConfig::from_lookup(lookup(&with(&[("OSS_BUCKETS_ENABLED", "true")]))).expect("valid");
-    assert!(crate::boot::support::bucket_wiring(&on, &store, &descriptors(&on), &clock).is_some());
+    assert!(
+        crate::boot::support::bucket_wiring(&on, &store, &descriptors(&on), &clock)
+            .expect("builds")
+            .is_some()
+    );
 }

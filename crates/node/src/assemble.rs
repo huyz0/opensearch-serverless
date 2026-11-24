@@ -76,6 +76,8 @@ pub struct Config {
     pub max_shards: usize,
     /// How long a shard must be unused before a node at its cap lets it go; 0 never.
     pub evict_after_millis: u64,
+    /// Whether idle shards are handed to a member with room.
+    pub hand_off: bool,
     /// What limits the writes waiting on the log.
     pub write_limit: oss_writer::admission::LimiterConfig,
     /// How often the janitor runs a pass.
@@ -113,6 +115,7 @@ impl Config {
             give_back_after_millis: 0,
             max_shards: 0,
             evict_after_millis: 60_000,
+            hand_off: false,
             write_limit: oss_writer::admission::LimiterConfig::default(),
             janitor_every: Duration::from_secs(60),
             sweep: gc::Config {
@@ -357,6 +360,7 @@ pub fn assemble(
         ),
         Box::new(now_millis),
     );
+    let bucket_wiring = writer.buckets.clone();
     if let Some(buckets) = writer.buckets {
         publishing = publishing.with_buckets(buckets);
     }
@@ -366,6 +370,7 @@ pub fn assemble(
         .with_hibernation(config.hibernate_after_millis)
         .with_give_back(config.give_back_after_millis);
     role.set_write_limiter(config.write_limit.build());
+    role.set_hand_off(config.hand_off);
     role.set_shard_cap(crate::writer::ShardCap {
         max: config.max_shards,
         evict_after_millis: config.evict_after_millis,
@@ -429,11 +434,14 @@ pub fn assemble(
             DescriptorStore::new(Arc::clone(&store), &config.base, config.delete_mode)
                 .map_err(|e| AssembleError::Store(e.to_string()))?
                 .record_changes_in(stripes);
-        let indices = Arc::new(IndexService::new(
-            descriptors,
-            Arc::clone(&clock),
-            config.pit_buffer_bytes,
-        ));
+        let mut indices =
+            IndexService::new(descriptors, Arc::clone(&clock), config.pit_buffer_bytes);
+        if let Some(buckets) = &bucket_wiring {
+            let buckets = Arc::clone(buckets);
+            indices =
+                indices.with_bucket_join(Arc::new(move |name, uuid| buckets.join(name, uuid)));
+        }
+        let indices = Arc::new(indices);
         let router = index_route::routes(router, indices).map_err(AssembleError::Route)?;
         let deletes = delete_service(config, &store, &clock)?;
         let drain = DrainTimer::spawn(Arc::clone(&deletes), config.reclaim_every);
