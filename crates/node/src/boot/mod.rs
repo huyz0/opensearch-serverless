@@ -46,7 +46,7 @@ use crate::read_forward::{GetForwarder, GetHandler};
 use crate::usage_route;
 use crate::writer::{
     DeadLogParts, DeadLogPass, DeadMailbox, DeadSnapshot, DescriptorIncarnation, HeadAdmission,
-    HeadOpener, LiveLeases, OrphanTimer, ShardNames, ShardOpener, Takeover,
+    HeadOpener, OrphanTimer, ShardNames, ShardOpener, Takeover,
 };
 
 pub use config::{MIN_MEMORY_BYTES, NodeConfig, StoreChoice};
@@ -468,14 +468,13 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         },
     );
     let dry_run = node_config.sweep.dry_run;
-    let live_members = Arc::new(LiveLeases::default());
-    let orphan_sweep = support::orphan_sweep(
+    let (orphan_sweep, live_members) = support::orphan_sweep(
         config,
         &store,
         &budget,
         Arc::clone(&clock),
-        Arc::clone(&live_members),
         dry_run,
+        buckets.clone(),
     );
     let tombstones = support::tombstone_pass(config, &store, &budget, Arc::clone(&clock));
     let dead_logs = Renewal::spawn_named("dead-log-pass", node_config.janitor_every, move || {

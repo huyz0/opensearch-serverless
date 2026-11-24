@@ -108,6 +108,8 @@ impl Rig {
             every: Duration::from_millis(10),
             dry_run,
             clock: Arc::new(move || u64::try_from(now.load(Ordering::SeqCst)).unwrap_or(0)),
+            buckets: None,
+            bucket_grace_millis: 0,
         }
     }
 }

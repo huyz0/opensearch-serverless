@@ -147,6 +147,22 @@ impl BucketAssigner {
         Err(BucketError::Busy { attempts: ATTEMPTS })
     }
 
+    /// A bucket's members as `(uuid, index name)`, or `None` for a bucket
+    /// with no manifest. One GET.
+    ///
+    /// # Errors
+    ///
+    /// The store's failures.
+    pub fn members(&self, bucket: &str) -> Result<Option<Vec<(String, String)>>, BucketError> {
+        Ok(self.store.read(bucket)?.map(|read| {
+            read.manifest
+                .members()
+                // ALLOC: one pair a member, at most the bucket's member limit.
+                .map(|(uuid, m)| (uuid.to_owned(), m.index_name.clone()))
+                .collect()
+        }))
+    }
+
     /// Takes an index back out of a bucket it joined, for a create that
     /// failed after joining. Best effort: a member left behind has no
     /// descriptor naming the bucket, and is never served.
