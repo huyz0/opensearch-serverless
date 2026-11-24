@@ -8,9 +8,8 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use oss_mem::{BudgetConfig, ConfigError as BudgetError, Pool};
-
 use oss_janitor::settings::{ORPHAN_SLICE_BUDGET, ORPHAN_SLICE_INTERVAL_MILLIS};
+use oss_mem::{BudgetConfig, ConfigError as BudgetError, Pool};
 
 use crate::tail_overlay::REFRESH_VISIBILITY;
 
