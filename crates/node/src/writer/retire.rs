@@ -23,10 +23,16 @@ impl WriterRole {
                 total.unfinished = total.unfinished.saturating_add(before);
                 return total;
             }
-            let given = self.give_back_idle(0, now);
+            let given = self.give_back_until(0, now, deadline_millis);
             // A pass takes the record of every shard it examines, given back
             // or not, so the set shrinks and the loop ends.
             let examined = before.saturating_sub(self.hibernated());
+            if now_millis() >= deadline_millis {
+                total.given_back = total.given_back.saturating_add(given);
+                total.busy = total.busy.saturating_add(examined.saturating_sub(given));
+                total.unfinished = total.unfinished.saturating_add(self.hibernated());
+                return total;
+            }
             total.given_back = total.given_back.saturating_add(given);
             total.busy = total.busy.saturating_add(examined.saturating_sub(given));
             if examined == 0 {

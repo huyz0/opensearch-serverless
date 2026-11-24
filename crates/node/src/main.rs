@@ -26,7 +26,15 @@ fn main() -> std::process::ExitCode {
         eprintln!("opensearch-serverless node: {why}");
         return std::process::ExitCode::FAILURE;
     }
-    let report = node.retire(config.retire_timeout_millis);
+    let report = match oss_node::boot::retire_within(node, config.retire_timeout_millis) {
+        oss_node::boot::Retired::Done(report) => report,
+        oss_node::boot::Retired::Overran => {
+            eprintln!(
+                "opensearch-serverless node: retiring outlasted its limit; leaving the shards to the lease"
+            );
+            return std::process::ExitCode::FAILURE;
+        }
+    };
     println!(
         "opensearch-serverless node {} retired: {} shards slept, {} heads given back, {} busy, {} failed, {} unfinished",
         config.node_id,

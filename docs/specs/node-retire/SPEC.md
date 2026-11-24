@@ -25,6 +25,7 @@ Roadmap R12 (ready, drain, join): a node told to stop leaves the cluster in one 
 - AC-10: a retire whose deadline has passed makes no request, leaves every shard held and counts them `unfinished`.
 - AC-6: a retire of a node holding no shard slept and gave back nothing, and still releases the lease.
 - AC-7: the `oss-node` binary, sent `SIGTERM`, retires, prints what it did, exits 0, and the head of a shard it wrote names no owner.
+- AC-11: a retire that blocks (a store call that never returns, a request that never finishes) is given up on at `OSS_RETIRE_TIMEOUT_MS` plus a 5 s grace: the process prints it, leaves the shards to the lease and exits 1. The deadline is counted from before the server's shutdown, and is checked inside a give-back pass, per shard.
 
 ## Test plan
 

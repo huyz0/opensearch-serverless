@@ -52,6 +52,7 @@ use crate::writer::{
 pub use config::{MIN_MEMORY_BYTES, NodeConfig, StoreChoice};
 pub use error::BootError;
 use renew::{Cadence, Renewal};
+pub use retire::{Retired, retire_within, within};
 use support::{Held, address_bytes, earlier_epochs, store_of, usage_of};
 
 /// The roles a node's lease names.

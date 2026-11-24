@@ -176,3 +176,20 @@ fn the_retire_timeout_defaults_to_twenty_five_seconds_and_zero_skips_it() {
         );
     }
 }
+
+// AC-11
+#[test]
+fn a_retire_that_blocks_is_given_up_on_at_its_limit() {
+    use oss_node::boot::within;
+    let started = Instant::now();
+    let slow = within(Duration::from_millis(100), || {
+        std::thread::sleep(Duration::from_secs(5));
+        1
+    });
+    assert_eq!(slow, None);
+    assert!(
+        started.elapsed() < Duration::from_secs(2),
+        "waited for the blocked call"
+    );
+    assert_eq!(within(Duration::from_secs(5), || 7), Some(7));
+}
