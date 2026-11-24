@@ -38,3 +38,52 @@ pub(in crate::boot) fn apply(from: &NodeConfig, to: &mut crate::assemble::Config
     to.system_index_patterns
         .clone_from(&from.snapshots.system_index_patterns);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::NodeConfig;
+    use super::super::tests::{lookup, with};
+
+    fn config(extra: &[(&str, &str)]) -> super::SnapshotConfig {
+        NodeConfig::from_lookup(lookup(&with(extra)))
+            .expect("valid")
+            .snapshots
+    }
+
+    #[test]
+    fn every_switch_is_off_until_it_is_set_and_each_stands_alone() {
+        assert_eq!(config(&[]), super::SnapshotConfig::default());
+        let snaps = config(&[("OSS_SNAPSHOTS_ENABLED", "true")]);
+        assert!(snaps.enabled && !snaps.take && !snaps.restore);
+        let take = config(&[("OSS_SNAPSHOTS_TAKE_ENABLED", "true")]);
+        assert!(take.take && !take.enabled && !take.restore);
+        let restore = config(&[("OSS_SNAPSHOTS_RESTORE_ENABLED", "true")]);
+        assert!(restore.restore && !restore.enabled && !restore.take);
+        assert!(
+            NodeConfig::from_lookup(lookup(&with(&[("OSS_SNAPSHOTS_RESTORE_ENABLED", "yes")])))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn the_system_index_patterns_are_read_as_given() {
+        assert_eq!(config(&[]).system_index_patterns, "");
+        let set = config(&[("OSS_SYSTEM_INDEX_PATTERNS", ".kibana*,.tasks")]);
+        assert_eq!(set.system_index_patterns, ".kibana*,.tasks");
+    }
+
+    #[test]
+    fn what_is_set_reaches_the_assembled_node() {
+        let from = NodeConfig::from_lookup(lookup(&with(&[
+            ("OSS_SNAPSHOTS_ENABLED", "true"),
+            ("OSS_SNAPSHOTS_TAKE_ENABLED", "true"),
+            ("OSS_SNAPSHOTS_RESTORE_ENABLED", "true"),
+            ("OSS_SYSTEM_INDEX_PATTERNS", ".kibana*"),
+        ])))
+        .expect("valid");
+        let mut to = crate::assemble::Config::new("", "n1", [0; 6]);
+        super::apply(&from, &mut to);
+        assert!(to.snapshots && to.snapshots_take && to.snapshots_restore);
+        assert_eq!(to.system_index_patterns, ".kibana*");
+    }
+}

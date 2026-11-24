@@ -22,11 +22,11 @@ impl SystemIndices {
     #[must_use]
     pub fn parse(list: &str) -> Self {
         Self {
-            // ALLOC: one entry a pattern, once a node.
             patterns: list
                 .split(',')
                 .map(str::trim)
                 .filter(|p| !p.is_empty())
+                // ALLOC: one entry a pattern, once a node.
                 .map(str::to_owned)
                 .collect(),
         }

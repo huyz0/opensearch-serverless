@@ -167,6 +167,15 @@ fn security(
     Ok(router.with_guard(Arc::new(guard)))
 }
 
+/// The names a take and a restore refuse, as the node is configured.
+pub(crate) fn system_indices(
+    config: &crate::assemble::Config,
+) -> Arc<oss_coordinator::system_indices::SystemIndices> {
+    Arc::new(oss_coordinator::system_indices::SystemIndices::parse(
+        &config.system_index_patterns,
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use oss_blob::Emulator;
@@ -224,13 +233,4 @@ mod tests {
         let router = register(Router::new(), &store, &config, &budget).expect("registers");
         assert!(!router.has_guard());
     }
-}
-
-/// The names a take and a restore refuse, as the node is configured.
-pub(crate) fn system_indices(
-    config: &crate::assemble::Config,
-) -> Arc<oss_coordinator::system_indices::SystemIndices> {
-    Arc::new(oss_coordinator::system_indices::SystemIndices::parse(
-        &config.system_index_patterns,
-    ))
 }

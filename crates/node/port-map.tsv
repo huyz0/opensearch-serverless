@@ -147,3 +147,4 @@ src/boot/config/apply.rs	new		what the OSS_* variables set on the assembled node
 src/snapshot_restore_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/snapshot/SnapshotOperations.java@bf347adb	restore: the order of a restore and its cleanup
 src/warm_peer.rs	new		what a reader answers a joining reader with: the hot pages of the shards it would serve, and those pages from the cache without fetching
 src/warm_peer/tests.rs	new		tests of the warm-copy peer answers over a real cache with a disk tier
+src/boot/config/snapshots.rs	new		the snapshot switches and system index patterns the OSS_* variables set
