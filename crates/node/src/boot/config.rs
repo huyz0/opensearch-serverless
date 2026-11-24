@@ -9,7 +9,6 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use oss_janitor::settings::{ORPHAN_SLICE_BUDGET, ORPHAN_SLICE_INTERVAL_MILLIS};
-use oss_mem::{BudgetConfig, ConfigError as BudgetError, Pool};
 
 use crate::tail_overlay::REFRESH_VISIBILITY;
 
@@ -146,8 +145,7 @@ pub struct NodeConfig {
     pub security_refresh_millis: u64,
     /// `serverless.knn.enabled`.
     pub knn: bool,
-    /// `OSS_EXTENSIONS_PERCENT`: the share of memory the `extensions` pool takes from the page
-    /// cache; zero (the default) reserves none.
+    /// `OSS_EXTENSIONS_PERCENT`: the page cache's share the `extensions` pool takes; 0 reserves none.
     pub extensions_percent: usize,
     /// `OSS_STORE_USAGE`: count the store's requests and bytes per index
     /// and serve them at `GET /_serverless/usage`.
@@ -475,25 +473,9 @@ impl NodeConfig {
         self.lease_refresh_millis
             .map_or_else(|| self.renew_every(), Duration::from_millis)
     }
-
-    /// The node's memory split into pools by fixed shares.
-    ///
-    /// # Errors
-    ///
-    /// [`BudgetError`] when the shares do not fit the total.
-    pub fn budget(&self) -> Result<BudgetConfig, BudgetError> {
-        let share = |percent: usize| (self.memory_bytes / 100).saturating_mul(percent);
-        BudgetConfig::new(self.memory_bytes)
-            .with_pool(Pool::RequestBodies, share(20))?
-            .with_pool(Pool::QueryExecution, share(15))?
-            .with_pool(Pool::WriteBuffers, share(15))?
-            .with_pool(Pool::PageCache, share(20 - self.extensions_percent))?
-            .with_pool(Pool::Extensions, share(self.extensions_percent))?
-            .with_pool(Pool::Transport, share(10))?
-            .with_pool(Pool::OpenIndexes, share(20))
-    }
 }
 
+mod budget;
 #[cfg(test)]
 mod security_tests;
 #[cfg(test)]

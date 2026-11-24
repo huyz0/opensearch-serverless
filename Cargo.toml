@@ -38,6 +38,7 @@ repository = "https://github.com/huyz0/opensearch-serverless"
 regex = { version = "=1.13.1", default-features = false, features = ["std", "unicode", "perf"] }
 oss-types = { path = "crates/types" }
 oss-ext = { path = "crates/ext" }
+oss-ext-wasm = { path = "crates/ext-wasm" }
 oss-mem = { path = "crates/mem" }
 oss-testkit = { path = "crates/testkit" }
 oss-blob = { path = "crates/blob" }

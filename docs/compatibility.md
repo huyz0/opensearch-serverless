@@ -96,6 +96,10 @@ A get of a shard another node owns is forwarded to its owner. The Java `Forwarde
 
 The Java shell answers a `_bulk` request that carries `Connection: close` with the head of a chunked reply and closes before the body, so the client reads `200` and no body. A Rust node answers it whole (`crates/rest/tests/peak_memory.rs` sends one). Found by the mixed-fleet soak ([mixed-fleet-soak](specs/mixed-fleet-soak/VERIFIED.md)). **Not fixed:** the Java shell is under a code freeze ([ADR 0001](adr/0001-strangler-and-crate-layout.md)), so the soak keeps its connection open; a client of a mixed fleet that cannot keep one open should read the bulk's effect from a later `_count`, not from the body.
 
+## `PUT /_serverless/extensions/modules` on a node
+
+An administrator uploads an extension module (a WebAssembly module of at most 8 MiB) as the request body. The node hashes it, checks that it loads, and stores it under `ext/modules/<sha256>.wasm`; it answers 201 with the id, or 200 when the module was already stored. One upload runs at a time a node (a second answers 429). The route exists only on a node built with the Cargo feature `extensions` and started with `OSS_EXTENSIONS_PERCENT` above 0. **Differs:** this is not an OpenSearch endpoint; no point is wired to a request path yet ([extension-abi](specs/extension-abi/SPEC.md)).
+
 ## `/_serverless/ready` and `/_serverless/drain` on a node
 
 `GET /_serverless/ready` answers 200 while the node takes new work and 503 once it is draining, for a Kubernetes readiness probe. `POST /_serverless/drain`, for a `preStop` hook, starts draining and answers after `OSS_DRAIN_SETTLE_MS` (`serverless.search.drain.settle`, default two thirds of the lease TTL, at most a minute); the node's next lease renewal then carries no `search` role, so no coordinator ranks it as a reader or pushes it a tail, while its `ingest` role and its shards stay. A second drain answers at once. **Differs:** the shell also hands its warm blocks to its peers and can start warming on join (`warm_on_join`); this node does neither yet ([node-ready-drain](specs/node-ready-drain/SPEC.md)).

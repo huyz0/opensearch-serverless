@@ -2,6 +2,7 @@
 
 use super::{FS, lookup, with};
 use crate::boot::config::*;
+use oss_mem::Pool;
 
 #[test]
 fn the_extensions_pool_is_taken_from_the_page_cache() {
