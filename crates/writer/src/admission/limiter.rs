@@ -289,6 +289,9 @@ impl WriteLimiter {
 }
 
 #[cfg(test)]
+mod edges;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
