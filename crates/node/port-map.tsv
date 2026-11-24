@@ -155,3 +155,7 @@ src/search_warm.rs	new		what a node lists for a joining reader: its open shards 
 src/search_warm_tests.rs	new		tests of the listing over a real cache with a disk tier
 src/warm_expect.rs	new		what a joiner accepts from a peer: the plain pages of the open commit, each at its own length
 src/warm_expect/tests.rs	new		tests that every page an open caches is accepted and every other is refused
+src/boot/config/tests/extensions.rs	new		tests for the extensions pool share
+src/extension_route.rs	new		the module upload route; extensions have no Java counterpart in the shell
+src/extension_store.rs	new		modules stored under the hash of their bytes, read once a node
+src/boot/config/budget.rs	new		the node memory budget split into pools by fixed shares

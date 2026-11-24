@@ -34,6 +34,10 @@ pub mod commit_push;
 pub mod descriptor_routes;
 #[cfg(feature = "writer")]
 pub mod doc_route;
+#[cfg(all(feature = "extensions", feature = "writer"))]
+pub mod extension_route;
+#[cfg(all(feature = "extensions", feature = "writer"))]
+pub mod extension_store;
 #[cfg(feature = "writer")]
 pub mod forward;
 #[cfg(feature = "writer")]

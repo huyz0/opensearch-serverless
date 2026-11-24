@@ -1,11 +1,10 @@
-//! docs/specs/mixed-fleet-soak: Java shell nodes and Rust nodes as live
-//! processes on one RustFS bucket, handing a shard over by kill, judged by a
-//! ledger of every acknowledged document. Ignored unless `RUSTFS_BIN`,
-//! `OSS_JAVA_BIN` and `OSS_JAVA_CP` (the shell's classpath) are set.
-
+//! docs/specs/mixed-fleet-soak: Java shell and Rust nodes as live processes on one RustFS
+//! bucket, handing a shard over by kill, judged by a ledger of every acknowledged document.
+//! Ignored unless `RUSTFS_BIN`, `OSS_JAVA_BIN` and `OSS_JAVA_CP` are set.
 #![cfg(all(feature = "reader", feature = "writer", feature = "coordinator"))]
 // ARITH: batch sizes, chunk offsets and durations are small and bounded by the reply read.
 #![allow(clippy::arithmetic_side_effects, clippy::disallowed_methods)]
+
 #[path = "mixed_fleet/snapshots.rs"]
 mod snapshots;
 mod suite_rig;
@@ -19,7 +18,8 @@ use std::time::{Duration, Instant};
 use suite_rig::Cluster;
 
 const TTL_MS: u64 = 4_000;
-/// What a hand-over may take beyond the lease: a poll, then the shard opening.
+/// What a hand-over may take beyond the lease: the successor sees the lease
+/// lapse on its next poll, then opens the shard.
 const HANDOVER_SLACK_SECS: u64 = 60;
 const BATCH: u32 = 100;
 const INDEX: &str = "mixed";

@@ -1,6 +1,7 @@
 //! The node configuration's tests.
 
 use super::*;
+use oss_mem::Pool;
 
 pub(super) fn lookup<'a>(pairs: &'a [(&'a str, &'a str)]) -> impl Fn(&str) -> Option<String> + 'a {
     move |key| {
@@ -221,7 +222,17 @@ fn the_pools_fit_and_every_pool_is_given_bytes() {
     let b = c.budget().expect("fits");
     let sum: usize = Pool::ALL.iter().map(|p| b.pool(*p)).sum();
     assert!(sum <= c.memory_bytes);
-    assert!(Pool::ALL.iter().all(|p| b.pool(*p) > 0));
+    assert!(
+        Pool::ALL
+            .iter()
+            .filter(|p| **p != Pool::Extensions)
+            .all(|p| b.pool(*p) > 0)
+    );
+    assert_eq!(
+        b.pool(Pool::Extensions),
+        0,
+        "no extensions pool unless asked"
+    );
     assert_eq!(b.pool(Pool::OpenIndexes), c.memory_bytes / 100 * 20);
 }
 
@@ -481,3 +492,5 @@ fn tenant_tier_budgets_default_to_twenty_two_hundred_and_two_thousand() {
         assert!(e.contains(needle), "{e} lacks {needle}");
     }
 }
+
+mod extensions;

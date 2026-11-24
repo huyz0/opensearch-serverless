@@ -20,17 +20,21 @@ pub enum Pool {
     Transport,
     /// What open indexes keep in the heap between searches.
     OpenIndexes,
+    /// Compiled extension modules and the calls running them; zero unless
+    /// extensions are on.
+    Extensions,
 }
 
 impl Pool {
     /// Every pool, in a fixed order.
-    pub const ALL: [Pool; 6] = [
+    pub const ALL: [Pool; 7] = [
         Pool::RequestBodies,
         Pool::QueryExecution,
         Pool::WriteBuffers,
         Pool::PageCache,
         Pool::Transport,
         Pool::OpenIndexes,
+        Pool::Extensions,
     ];
 
     /// The pool's position in [`Pool::ALL`].
@@ -42,6 +46,7 @@ impl Pool {
             Pool::PageCache => 3,
             Pool::Transport => 4,
             Pool::OpenIndexes => 5,
+            Pool::Extensions => 6,
         }
     }
 
@@ -54,6 +59,7 @@ impl Pool {
             Pool::PageCache => "page_cache",
             Pool::Transport => "transport",
             Pool::OpenIndexes => "open_indexes",
+            Pool::Extensions => "extensions",
         }
     }
 }

@@ -244,3 +244,18 @@ fn an_index_created_with_an_alias_is_not_made_for_a_user_who_may_only_create() {
     );
     assert!(reply.0 != 200 && reply.0 != 201, "{reply:?}");
 }
+
+// docs/specs/extension-abi: uploading a module is an administrator's act.
+#[cfg(feature = "extensions")]
+#[test]
+fn only_an_administrator_may_upload_a_module() {
+    let r = node_with(LOGS_RW);
+    let target = "/_serverless/extensions/modules";
+    let limited = send(&r, USER, "PUT", target, Some("not a module"));
+    assert_eq!(limited.0, 403, "{limited:?}");
+    let admin = send(&r, ADMIN, "PUT", target, Some("not a module"));
+    assert_eq!(
+        admin.0, 400,
+        "past the check, refused for what it is: {admin:?}"
+    );
+}

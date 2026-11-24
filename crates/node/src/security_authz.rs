@@ -172,6 +172,7 @@ pub const HANDLER: &[&str] = &[
 /// Routes that are `all_access` for every method, each named so that a
 /// route added without a row is seen. See the ADR for why each is here.
 const ALL_ACCESS: &[&str] = &[
+    "/_serverless/extensions/modules",
     "/_analyze",
     "/_field_caps",
     "/_msearch",
