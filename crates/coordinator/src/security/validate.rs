@@ -102,18 +102,18 @@ pub fn validate(kind: Kind, body: &[u8]) -> Result<Json, Answer> {
         // ALLOC: one answer a request, bounded by the 1 MiB body and its key count.
         .collect();
     let one_of = kind == Kind::RolesMapping && !MAPPING_ONE_OF.iter().any(|k| has(k));
-    if !unknown.is_empty() || !missing.is_empty() || one_of {
-        // ALLOC: error path; one message.
-        let mut pieces = Vec::new();
-        if !unknown.is_empty() {
-            pieces.push(("invalid_keys", unknown.join(",")));
-        }
-        if !missing.is_empty() {
-            pieces.push(("missing_mandatory_keys", missing.join(",")));
-        }
-        if one_of {
-            pieces.push(("specify_one_of", MAPPING_ONE_OF.join(",")));
-        }
+    // ALLOC: error path only; the vector allocates on its first push.
+    let mut pieces = Vec::new();
+    if !unknown.is_empty() {
+        pieces.push(("invalid_keys", unknown.join(",")));
+    }
+    if !missing.is_empty() {
+        pieces.push(("missing_mandatory_keys", missing.join(",")));
+    }
+    if one_of {
+        pieces.push(("specify_one_of", MAPPING_ONE_OF.join(",")));
+    }
+    if !pieces.is_empty() {
         return Err(invalid(pieces));
     }
     for (key, value) in members {
