@@ -1,8 +1,9 @@
 //! A cap on the shards this node holds, and making room under it.
 
+use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
-use oss_types::settings::{BoolSetting, LongSetting, Scope, Setting};
+use oss_types::settings::{BoolSetting, LongSetting, Scope, Setting, StrSetting};
 
 use oss_cluster::placement::{FleetView, HAND_OFF_DOWN_TO_MEAN, Holding, ShardKey};
 use oss_format::NodeLease;
@@ -48,6 +49,30 @@ pub const EVICT_AFTER_MILLIS: LongSetting = LongSetting::new(
      another, in milliseconds. 0 never lets one go: the node at its cap refuses.",
 );
 
+/// `serverless.activation.evict_headroom_percent`: how far below the cap
+/// making room clears, as a percent of it. Default 0, one shard.
+pub const EVICT_HEADROOM_PERCENT: LongSetting = LongSetting::new(
+    "serverless.activation.evict_headroom_percent",
+    0,
+    0,
+    100,
+    Scope::Node,
+    "How far below its shard cap a node clears room when it must let a shard go, as a percent of \
+     the cap, at least one shard. A burst of opens at a full node then pays for one victim search \
+     instead of one each. 0 clears exactly the one slot asked for.",
+);
+
+/// `serverless.activation.pinned_indexes`: indexes whose shards this node
+/// never lets go of. Default none.
+pub const PINNED_INDEXES: StrSetting = StrSetting::new(
+    "serverless.activation.pinned_indexes",
+    "",
+    Scope::Node,
+    "Comma-separated index names whose writer shards this node never lets go of, neither to make \
+     room under its cap, to hand off, nor for idleness. A node full of pinned shards refuses new \
+     ones. Empty pins none.",
+);
+
 /// `serverless.activation.hand_off.enabled`: hand idle shards to a member
 /// with room. Default false.
 pub const HAND_OFF_ENABLED: BoolSetting = BoolSetting::new(
@@ -63,6 +88,8 @@ pub const HAND_OFF_ENABLED: BoolSetting = BoolSetting::new(
 pub static SETTINGS: &[&Setting] = &[
     MAX_SHARDS.setting(),
     EVICT_AFTER_MILLIS.setting(),
+    EVICT_HEADROOM_PERCENT.setting(),
+    PINNED_INDEXES.setting(),
     HAND_OFF_ENABLED.setting(),
 ];
 
@@ -102,6 +129,10 @@ pub(super) struct Counters {
     hand_off: AtomicBool,
     /// Writes sent on to a member with room.
     steered: AtomicU64,
+    /// How far below the cap making room clears, as a percent of it.
+    headroom_percent: AtomicU64,
+    /// Names of the indexes whose shards are never let go of.
+    pinned: Mutex<HashSet<String>>,
     /// The fleet as the last refresh saw it.
     fleet: Mutex<Option<Fleet>>,
 }
@@ -131,6 +162,30 @@ impl WriterRole {
             handed_off: self.counters.handed_off.load(Ordering::Relaxed),
             steered: self.counters.steered.load(Ordering::Relaxed),
         }
+    }
+
+    /// How far below the cap making room clears, as a percent of it (at
+    /// least one shard); 0 clears the one slot.
+    pub fn set_evict_headroom_percent(&self, percent: u64) {
+        self.counters
+            .headroom_percent
+            .store(percent.min(100), Ordering::Relaxed);
+    }
+
+    /// Pins the named indexes: their shards are never evicted, handed off
+    /// or hibernated here.
+    pub fn set_pinned_indexes<I: IntoIterator<Item = String>>(&self, names: I) {
+        *lock(&self.counters.pinned) = names.into_iter().collect();
+    }
+
+    /// Whether the shards of the index `uuid` stands for are pinned here.
+    pub(super) fn pinned(&self, uuid: &str) -> bool {
+        let pinned = lock(&self.counters.pinned);
+        !pinned.is_empty()
+            && self
+                .names
+                .name_of(uuid)
+                .is_some_and(|name| pinned.contains(&*name))
     }
 
     /// Whether this node hands idle shards to a member with room.
@@ -253,8 +308,28 @@ impl WriterRole {
     /// Its commit is published first when writes are unpublished, it closes
     /// only if nothing reached it meanwhile, and its head is given back; a
     /// head that cannot be given back stays this node's, the shard asleep.
+    ///
+    /// With a headroom percent set it goes on past that one, down to the
+    /// cap less that share of it (at least one shard), as far as shards are
+    /// idle; the count is every shard let go.
     pub fn make_room(&self, now_millis: u64) -> usize {
-        usize::from(self.evict_one(now_millis, false))
+        if !self.evict_one(now_millis, false) {
+            return 0;
+        }
+        let mut let_go = 1usize;
+        let Some(cap) = self.cap.get().filter(|c| c.max > 0) else {
+            return let_go;
+        };
+        let percent = self.counters.headroom_percent.load(Ordering::Relaxed);
+        let share = cap
+            .max
+            .saturating_mul(usize::try_from(percent).unwrap_or(0))
+            / 100;
+        let floor = cap.max.saturating_sub(share.max(1));
+        while lock(&self.shards).len() > floor && self.evict_one(now_millis, false) {
+            let_go = let_go.saturating_add(1);
+        }
+        let_go
     }
 
     /// [`Self::make_room`] for one shard, counted as handed off when
@@ -332,6 +407,9 @@ impl WriterRole {
             .collect();
         held.into_iter()
             .filter_map(|(key, slot)| {
+                if self.pinned(&key.0) {
+                    return None;
+                }
                 let used = {
                     let s = lock(&slot);
                     if s.asleep() || s.released() {

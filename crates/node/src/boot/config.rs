@@ -114,6 +114,10 @@ pub struct NodeConfig {
     pub max_shards: usize,
     /// `serverless.activation.evict_after_millis`; 0 never evicts.
     pub evict_after_millis: u64,
+    /// `serverless.activation.evict_headroom_percent`.
+    pub evict_headroom_percent: u64,
+    /// `serverless.activation.pinned_indexes`, split at commas.
+    pub pinned_indexes: Vec<String>,
     /// `serverless.activation.hand_off.enabled`.
     pub hand_off: bool,
     /// `serverless.write.backpressure.*`: what limits the writes waiting on
@@ -241,6 +245,13 @@ impl NodeConfig {
         let give_back_after_millis = bounded("OSS_GIVE_BACK_AFTER_MS", "0", 0, 86_400_000)?;
         let max_shards = bounded("OSS_MAX_SHARDS", "0", 0, 1_000_000)?;
         let evict_after_millis = bounded("OSS_EVICT_AFTER_MS", "60000", 0, 604_800_000)?;
+        let evict_headroom_percent = bounded("OSS_EVICT_HEADROOM_PCT", "0", 0, 100)?;
+        let pinned_indexes = or("OSS_PINNED_INDEXES", "")
+            .split(',')
+            .map(str::trim)
+            .filter(|n| !n.is_empty())
+            .map(str::to_owned)
+            .collect();
         let hand_off = flag("OSS_HAND_OFF", "false")?;
         let write_limit = write_limit::read(&bounded)?;
         let proactive_reapers = bounded("OSS_PROACTIVE_REAPERS", "2", 1, 16)?;
@@ -290,6 +301,8 @@ impl NodeConfig {
             give_back_after_millis,
             max_shards: usize::try_from(max_shards).unwrap_or(0),
             evict_after_millis,
+            evict_headroom_percent,
+            pinned_indexes,
             hand_off,
             proactive_takeover,
             proactive_reapers: usize::try_from(proactive_reapers).unwrap_or(2),

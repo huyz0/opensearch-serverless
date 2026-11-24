@@ -207,3 +207,91 @@ fn evicting_a_published_shard_costs_one_put_and_a_shard_with_unpublished_writes_
     assert_eq!(one.role.make_room(u64::MAX), 1);
     assert!(c.store.meter().count(S3Op::Put) - puts > 1);
 }
+
+/// node-1 capped at 4 over indexes `a` to `e`, with `a` to `d` written once
+/// each, a pause between so `a` is idlest.
+fn four_held(percent: u64) -> (Cluster, Node) {
+    let c = cluster();
+    for (name, uuid) in [
+        ("a", "ua"),
+        ("b", "ub"),
+        ("c", "uc"),
+        ("d", "ud"),
+        ("e", "ue"),
+    ] {
+        create(&c, name, uuid);
+    }
+    let store: Arc<dyn BlobStore> = c.store.clone();
+    let one = node(
+        &c,
+        "node-1",
+        1,
+        false,
+        Some(Takeover::from_leases(store, "", "node-1", 1, 1 << 20)),
+    );
+    assert!(one.role.set_shard_cap(ShardCap {
+        max: 4,
+        evict_after_millis: 1,
+    }));
+    one.role.set_evict_headroom_percent(percent);
+    for name in ["a", "b", "c", "d"] {
+        assert!(landed(&write_in(&one.role, name, "1")));
+        pause();
+    }
+    (c, one)
+}
+
+#[test]
+fn headroom_lets_go_of_more_than_the_one_shard_a_burst_needs() {
+    let (_c, one) = four_held(50);
+    assert!(landed(&write_in(&one.role, "e", "1")));
+    // Two let go, one opened: a, b gone; c, d, e held.
+    assert_eq!(one.role.shard_cap_stats().evicted_for_room, 2);
+    assert_eq!(one.role.shard_cap_stats().held, 3);
+}
+
+#[test]
+fn with_no_headroom_one_shard_goes_per_open() {
+    let (_c, one) = four_held(0);
+    assert!(landed(&write_in(&one.role, "e", "1")));
+    assert_eq!(one.role.shard_cap_stats().evicted_for_room, 1);
+    assert_eq!(one.role.shard_cap_stats().held, 4);
+}
+
+#[test]
+fn headroom_stops_at_the_shards_that_can_go() {
+    let (_c, one) = four_held(100);
+    one.role
+        .set_pinned_indexes(["b", "c", "d"].map(str::to_owned));
+    assert_eq!(one.role.make_room(u64::MAX / 2), 1, "only a can go");
+    assert_eq!(one.role.shard_cap_stats().held, 3);
+}
+
+#[test]
+fn a_pinned_shard_is_not_let_go_of_even_when_idlest() {
+    let (_c, one) = four_held(0);
+    one.role.set_pinned_indexes(["a".to_owned()]);
+    assert!(landed(&write_in(&one.role, "e", "1")));
+    assert!(one.role.held("ua", 0), "the idlest is pinned and stays");
+    assert!(!one.role.held("ub", 0), "the next idlest went");
+}
+
+#[test]
+fn a_node_whose_idle_shards_are_all_pinned_refuses_the_open() {
+    let (_c, one) = four_held(0);
+    one.role
+        .set_pinned_indexes(["a", "b", "c", "d"].map(str::to_owned));
+    assert!(!landed(&write_in(&one.role, "e", "1")));
+    assert_eq!(one.role.shard_cap_stats().refused, 1);
+    assert_eq!(one.role.shard_cap_stats().held, 4);
+}
+
+#[test]
+fn a_pinned_shard_does_not_hibernate() {
+    let (_c, one) = four_held(0);
+    one.role.set_pinned_indexes(["a".to_owned()]);
+    let pass = one.role.hibernate_idle(1, u64::MAX / 2);
+    assert!(one.role.held("ua", 0), "pinned stays");
+    assert!(!one.role.held("ub", 0), "unpinned sleeps");
+    assert_eq!(pass.hibernated, 3);
+}

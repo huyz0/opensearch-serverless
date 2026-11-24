@@ -180,6 +180,9 @@ impl WriterRole {
             .map(|(k, v)| (k.clone(), Arc::clone(v)))
             .collect();
         for (key, slot) in held {
+            if self.pinned(&key.0) {
+                continue;
+            }
             let (used, max_seq_no) = {
                 let slot = lock(&slot);
                 (slot.used_at(), slot.max_seq_no())
