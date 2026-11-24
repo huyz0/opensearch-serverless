@@ -6,6 +6,7 @@
 //! values, each read as the text the Java's `String.valueOf` gives it).
 
 use crate::error::{FormatError, corrupt};
+use crate::json::out::Out;
 use crate::json::{Reader, Token};
 
 const WHAT: &str = "repository record";
@@ -79,6 +80,28 @@ impl RepositoryRecord {
         })
     }
 
+    /// Writes the record as the shell's `RepositoryDescriptor.toBytes` does
+    /// (`name`, `type`, `created_at`, `settings`, every setting as text) into
+    /// `buf`: its length.
+    ///
+    /// # Errors
+    ///
+    /// [`FormatError::Corrupt`] when `buf` is too short.
+    pub fn write(&self, buf: &mut [u8]) -> Result<usize, FormatError> {
+        let mut out = Out::new(buf);
+        out.start_object();
+        out.string_field("name", &self.name);
+        out.string_field("type", &self.repo_type);
+        out.int_field("created_at", self.created_at_millis);
+        out.start_object_field("settings");
+        for (key, value) in &self.settings {
+            out.string_field(key, value);
+        }
+        out.end_object();
+        out.end_object();
+        out.finish(WHAT)
+    }
+
     /// Whether snapshots here are shallow unless a request says otherwise.
     #[must_use]
     pub fn shallow_by_default(&self) -> bool {
@@ -145,6 +168,27 @@ mod tests {
             ]
         );
         assert!(r.shallow_by_default());
+    }
+
+    #[test]
+    fn a_record_written_reads_back_equal() {
+        let r = RepositoryRecord {
+            name: "backups".to_owned(),
+            repo_type: "fs".to_owned(),
+            created_at_millis: 1_700_000_000_000,
+            settings: vec![
+                ("location".to_owned(), "a \"b\"".to_owned()),
+                ("max".to_owned(), "5".to_owned()),
+            ],
+        };
+        let mut buf = [0u8; 256];
+        let n = r.write(&mut buf).expect("fits");
+        assert_eq!(
+            std::str::from_utf8(&buf[..n]).expect("text"),
+            r#"{"name":"backups","type":"fs","created_at":1700000000000,"settings":{"location":"a \"b\"","max":"5"}}"#
+        );
+        assert_eq!(RepositoryRecord::parse(&buf[..n]).expect("reads"), r);
+        assert!(r.write(&mut [0u8; 8]).is_err());
     }
 
     #[test]

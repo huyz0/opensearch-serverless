@@ -43,3 +43,4 @@ src/key_owner.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/m
 src/repository_record.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/repository/RepositoryDescriptor.java@bf347adb	fromStream, read-only
 src/snapshot_record.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/repository/SnapshotRecord.java@bf347adb	fromStream and inProgress, as a summary without the files
 src/snapshot_state.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/repository/SnapshotStore.java@bf347adb	decode, the register value of a snapshot name
+src/snapshot_keys.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/repository/SnapshotPaths.java@bf347adb	repository, snapshot state and marker keys
