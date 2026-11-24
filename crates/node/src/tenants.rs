@@ -17,6 +17,9 @@ use oss_blob::usage::{Ledger, NODE, OTHER};
 /// The longest a paced write waits before it is refused.
 const MAX_WAIT_MILLIS: u64 = 5_000;
 
+/// By how much a tenant at level 1 or above has its publish age stretched.
+const PUBLISH_STRETCH: u64 = 4;
+
 /// The most indices whose group is remembered.
 const ROSTER_LIMIT: usize = 100_000;
 
@@ -102,6 +105,24 @@ impl TenantLevels {
             })
             .collect(); // ALLOC: one measure a tenant, a tick.
         self.guard.tick(now, &measures);
+    }
+
+    /// How many times longer `index`'s writes may wait to be published: 4 at
+    /// level 1 or above when levels are enforced, else 1.
+    pub fn publish_stretch(&self, index: &str, now: i64) -> u64 {
+        if self
+            .guard
+            .enforced_at(self.mode, &self.tenant_of(index), 1, now)
+        {
+            PUBLISH_STRETCH
+        } else {
+            1
+        }
+    }
+
+    /// Takes the levels a collector set from outside (`tenant=level,...`).
+    pub fn set_levels(&self, text: &str) {
+        self.guard.set_levels(text);
     }
 
     /// Every tenant this node has seen, by name.

@@ -184,3 +184,18 @@ fn a_bucket_group_is_written_and_read_back_from_descriptor_settings() {
         assert_eq!(bucket_group_of(none), None);
     }
 }
+
+// docs/specs/tenant-publish-stretch AC-2
+#[test]
+fn an_enforced_tenant_at_level_one_publishes_four_times_less_often() {
+    let (ledger, _) = rig();
+    for (mode, want) in [(Mode::Enforce, 4), (Mode::Observe, 1), (Mode::Off, 1)] {
+        let levels = TenantLevels::new(Arc::clone(&ledger), mode, 1);
+        levels.note_group("a", "acme");
+        levels.set_levels("acme=1,other=0");
+        assert_eq!(levels.publish_stretch("a", 0), want, "{mode:?}");
+        assert_eq!(levels.publish_stretch("unrelated", 0), 1, "{mode:?}");
+    }
+    let levels = TenantLevels::new(ledger, Mode::Enforce, 1);
+    assert_eq!(levels.publish_stretch("a", 0), 1, "no level set");
+}

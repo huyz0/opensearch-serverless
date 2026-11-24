@@ -209,6 +209,11 @@ pub fn attach(
         assembled
             .role
             .set_group_sink(Arc::new(move |index, group| noted.note_group(index, group)));
+        let stretched = Arc::clone(&levels);
+        let at = Arc::clone(&now);
+        assembled.role.set_publish_stretch(Arc::new(move |index| {
+            stretched.publish_stretch(index, at())
+        }));
         levels.spawn_ticker(Duration::from_millis(config.tenant_tick_millis), now);
         service = service.with_tenants(levels);
     }

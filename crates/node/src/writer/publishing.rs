@@ -6,7 +6,7 @@
 //! published when the lazy policy says so, not on every write.
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 
 use oss_blob::BlobStore;
 use oss_format::ShardRef;
@@ -41,7 +41,13 @@ pub struct Publishing {
     gate: Mutex<()>,
     ages: Mutex<HashMap<Key, PublishAge>>,
     buckets: Option<Arc<BucketWiring>>,
+    /// How many times longer a shard's writes may wait, by index uuid.
+    stretch: OnceLock<Stretch>,
 }
+
+/// By how much a shard's publish age is stretched: its index uuid in, the
+/// multiplier (1 for none) out.
+pub type Stretch = Arc<dyn Fn(&str) -> u64 + Send + Sync>;
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(PoisonError::into_inner)
@@ -70,6 +76,7 @@ impl Publishing {
             // ALLOC: one entry a shard of an index that sets a refresh interval.
             ages: Mutex::new(HashMap::new()),
             buckets: None,
+            stretch: OnceLock::new(),
         }
     }
 
@@ -79,6 +86,12 @@ impl Publishing {
     pub fn with_buckets(mut self, buckets: Arc<BucketWiring>) -> Self {
         self.buckets = Some(buckets);
         self
+    }
+
+    /// Installs how far a shard's publish age is stretched. False when one
+    /// is installed already.
+    pub(super) fn set_stretch(&self, stretch: Stretch) -> bool {
+        self.stretch.set(stretch).is_ok()
     }
 
     /// Held across taking a snapshot and publishing it.
@@ -117,7 +130,8 @@ impl Publishing {
             .get(key)
             .copied()
             .unwrap_or(PublishAge::Node);
-        lock(&self.lazy).due(key, max_seq_no, age, now)
+        let stretch = self.stretch.get().map_or(1, |f| f(&key.0));
+        lock(&self.lazy).due_stretched(key, max_seq_no, age, stretch, now)
     }
 
     /// Whether `key`, written through `max_seq_no`, holds writes no commit
