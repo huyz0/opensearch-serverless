@@ -4,6 +4,7 @@
 //! `OSS_JAVA_BIN` and `OSS_JAVA_CP` (the shell's production classpath) are set.
 
 #![cfg(all(feature = "reader", feature = "writer", feature = "coordinator"))]
+// ARITH: batch sizes, chunk offsets and durations are small and bounded by the reply read.
 #![allow(clippy::arithmetic_side_effects, clippy::disallowed_methods)]
 
 mod suite_rig;
