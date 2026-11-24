@@ -258,6 +258,7 @@ impl WriterRole {
         if let Some(slot) = self.slot(&index.uuid, shard) {
             return Ok(slot);
         }
+        self.admit_open(index, shard)?;
         // A shard woken and put to sleep again before it is looked up is
         // woken again; a threshold near zero is the only way to see it.
         for _ in 0..3 {

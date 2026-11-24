@@ -108,3 +108,4 @@ src/writer/orphan_timer.rs	new		which node runs the orphan-shard sweep, on a tim
 src/boot/error.rs	new		BootError, moved out of boot/mod.rs for its size
 src/boot/config/tests.rs	new		the configuration tests, moved out of boot/config.rs for its size
 src/search_rank_eval.rs	port	modules/rank-eval/src/main/java/org/opensearch/index/rankeval/TransportRankEvalAction.java	_rank_eval: run each rated request as a search and score its hits, with the Java response maps order
+src/writer/capacity.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/reconcile/ShardEviction.java	the shard cap and making room for one shard (makeRoom); handing off to a member with room, headroom and pinned indexes are not ported yet
