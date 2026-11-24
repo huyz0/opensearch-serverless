@@ -132,41 +132,10 @@ fn list(value: Option<&Json>) -> Vec<&Json> {
     }
 }
 
-/// Whether `pattern` matches all of `name`, `*` standing for any run of
-/// characters and every other character for itself.
-fn glob(pattern: &str, name: &str) -> bool {
-    // ALLOC: the two names as characters, bounded by an index name and a pattern.
-    let (p, n): (Vec<char>, Vec<char>) = (pattern.chars().collect(), name.chars().collect());
-    let (mut pi, mut ni) = (0usize, 0usize);
-    let mut star: Option<(usize, usize)> = None;
-    while ni < n.len() {
-        match p.get(pi) {
-            Some('*') => {
-                star = Some((pi, ni));
-                pi = pi.saturating_add(1);
-            }
-            Some(c) if Some(c) == n.get(ni) => {
-                pi = pi.saturating_add(1);
-                ni = ni.saturating_add(1);
-            }
-            _ => match star {
-                Some((sp, sn)) => {
-                    pi = sp.saturating_add(1);
-                    ni = sn.saturating_add(1);
-                    star = Some((sp, sn.saturating_add(1)));
-                }
-                None => return false,
-            },
-        }
-    }
-    p.get(pi..)
-        .is_some_and(|rest| rest.iter().all(|c| *c == '*'))
-}
-
 fn matches(template: &Json, index: &str) -> bool {
     list(template.get("index_patterns"))
         .into_iter()
-        .any(|pattern| glob(&text_of(pattern), index))
+        .any(|pattern| crate::glob::glob(&text_of(pattern), index))
 }
 
 /// The template's priority as core's `Numbers.toLong(text, true)` reads it:

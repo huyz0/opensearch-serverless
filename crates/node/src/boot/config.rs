@@ -17,6 +17,7 @@ pub(super) mod apply;
 pub(super) mod page_cache;
 pub(super) mod roles;
 pub(super) mod search_slots;
+pub(super) mod snapshots;
 pub(super) mod write_limit;
 
 /// The smallest memory total the pools' shares make workable.
@@ -104,12 +105,8 @@ pub struct NodeConfig {
     /// `serverless.buckets.enabled`: own and publish a shard whose index
     /// descriptor names a bucket through the bucket. Off by default.
     pub buckets_enabled: bool,
-    /// `serverless.snapshots.enabled`: serve the read-only snapshot routes. Off by default.
-    pub snapshots_enabled: bool,
-    /// `serverless.snapshots.take.enabled`: take shallow snapshots, beside the snapshot routes. Off by default.
-    pub snapshots_take_enabled: bool,
-    /// `serverless.snapshots.restore.enabled`: restore shallow snapshots, beside the take. Off by default.
-    pub snapshots_restore_enabled: bool,
+    /// What a node serves of snapshots, and the names it refuses.
+    pub snapshots: snapshots::SnapshotConfig,
     /// `serverless.plugins.upstreams`: `http(s)` bases of Java nodes that serve the plugins not ported; none by default.
     pub plugin_upstreams: Vec<String>,
     /// `serverless.plugins.max_request_bytes`.
@@ -296,9 +293,7 @@ impl NodeConfig {
         let janitor_every_millis = bounded("OSS_JANITOR_EVERY_MS", "60000", 1, u64::MAX)?;
         let janitor_dry_run = flag("OSS_JANITOR_DRY_RUN", "false")?;
         let buckets_enabled = flag("OSS_BUCKETS_ENABLED", "false")?;
-        let snapshots_enabled = flag("OSS_SNAPSHOTS_ENABLED", "false")?;
-        let snapshots_take_enabled = flag("OSS_SNAPSHOTS_TAKE_ENABLED", "false")?;
-        let snapshots_restore_enabled = flag("OSS_SNAPSHOTS_RESTORE_ENABLED", "false")?;
+        let snapshots = snapshots::read(&flag, &or)?;
         let plugin_upstreams = or("OSS_PLUGIN_UPSTREAMS", "")
             .split(',')
             .map(str::trim)
@@ -422,9 +417,7 @@ impl NodeConfig {
             orphan_slice_millis: u64::try_from(orphan_slice_millis).unwrap_or(u64::MAX),
             janitor_dry_run,
             buckets_enabled,
-            snapshots_enabled,
-            snapshots_take_enabled,
-            snapshots_restore_enabled,
+            snapshots,
             plugin_upstreams,
             plugin_max_request_bytes,
             plugin_timeout_millis,

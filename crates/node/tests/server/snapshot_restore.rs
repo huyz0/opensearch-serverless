@@ -30,6 +30,10 @@ struct Rig {
 }
 
 fn rig(restore: bool) -> Rig {
+    rig_with(restore, "")
+}
+
+fn rig_with(restore: bool, system: &str) -> Rig {
     let store = Arc::new(Emulator::new(1 << 28, 5));
     let blobs = Arc::clone(&store) as Arc<dyn BlobStore>;
     let clock: oss_meta::PitClock = Arc::new(|| 1_700_000_000_000);
@@ -59,15 +63,20 @@ fn rig(restore: bool) -> Rig {
         )
         .unwrap(),
     );
-    let restorer = Arc::new(SnapshotRestoreService::new(
-        Arc::clone(&blobs),
-        "",
-        descriptors(),
-        deletes,
-        clock,
-        restore,
-        64,
-    ));
+    let restorer = Arc::new(
+        SnapshotRestoreService::new(
+            Arc::clone(&blobs),
+            "",
+            descriptors(),
+            deletes,
+            clock,
+            restore,
+            64,
+        )
+        .with_system_indices(Arc::new(
+            oss_coordinator::system_indices::SystemIndices::parse(system),
+        )),
+    );
     let router = routes(Router::new(), &service, Some(&taker)).expect("routes");
     let router = restore_routes(router, restorer).expect("restore routes");
     let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
@@ -461,4 +470,53 @@ fn a_snapshot_a_java_node_took_is_restored_by_a_rust_node() {
     let (cfs_to, _) = to.blob_key("", "_0.cfs", &whole).unwrap();
     assert_eq!(read(&r, &si_to), b"0123456789");
     assert_eq!(read(&r, &cfs_to), b"ABCDEF");
+}
+
+#[test]
+fn a_system_index_is_not_restored_and_nothing_is_restored_into_one() {
+    // The snapshot is taken on a rig that names no system index, then read
+    // by one that names `logs` and `.kibana*`.
+    let open = taken(true);
+    let state = {
+        let mut buf = vec![0u8; 1 << 16];
+        let key = oss_format::snapshot_state_key("", "backups", "daily").unwrap();
+        let n = open
+            .store
+            .read_register(&key, &mut buf)
+            .unwrap()
+            .unwrap()
+            .len;
+        buf[..n].to_vec()
+    };
+    let r = rig_with(true, ".kibana*,logs");
+    let body =
+        r#"{"type":"fs","settings":{"location":"x","remote_store_index_shallow_copy":true}}"#;
+    assert_eq!(
+        send(&r, "PUT", "/_snapshot/backups", Some(body)).status,
+        200
+    );
+    r.store
+        .create_register(
+            &oss_format::snapshot_state_key("", "backups", "daily").unwrap(),
+            &state,
+        )
+        .unwrap();
+    let rename = r#"{"rename_pattern":"logs","rename_replacement":"copy"}"#;
+    let source = send(&r, "POST", RESTORE, Some(rename));
+    assert_eq!(
+        source.status,
+        403,
+        "a system index as the source: {}",
+        source.text()
+    );
+    assert!(source.text().contains("system_index"), "{}", source.text());
+    let into = r#"{"rename_pattern":"logs","rename_replacement":".kibana_1"}"#;
+    let into = send(&r, "POST", RESTORE, Some(into));
+    assert_eq!(into.status, 403, "into a system index: {}", into.text());
+    assert!(
+        r.descriptors
+            .get("copy", &mut vec![0u8; 1 << 16])
+            .unwrap()
+            .is_none()
+    );
 }

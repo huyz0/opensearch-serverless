@@ -52,3 +52,5 @@ src/security/authn.rs	new		basic credentials and the authinfo answer
 src/snapshot_restore_admin.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/snapshot/SnapshotRequestBodies.java@bf347adb	the restore branch: body keys and refusals, rename, target names and the failures a restore answers (SnapshotHandler, SnapshotOperations.restore)
 src/snapshot_restore_rename.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/snapshot/SnapshotOperations.java@bf347adb	rename_pattern and rename_replacement: Matcher.replaceAll over the regex crate, refusing what it cannot apply
 src/snapshot_restore_keys.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/snapshot/SnapshotRequestBodies.java@bf347adb	RESTORE_KNOWN_KEYS and RESTORE_REFUSED_KEYS with their reasons
+src/system_indices.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/SystemIndices.java@bf347adb	the declared patterns and contains
+src/glob.rs	new	the simple * match the template resolver already used, shared with the system index patterns

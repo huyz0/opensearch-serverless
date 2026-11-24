@@ -181,9 +181,7 @@ pub(super) fn apply_janitor_and_hibernation(
     node.pinned_indexes.clone_from(&config.pinned_indexes);
     node.janitor_every = Duration::from_millis(config.janitor_every_millis);
     node.sweep.dry_run = config.janitor_dry_run;
-    node.snapshots = config.snapshots_enabled;
-    node.snapshots_take = config.snapshots_take_enabled;
-    node.snapshots_restore = config.snapshots_restore_enabled;
+    super::config::snapshots::apply(config, node);
     node.plugin_upstreams.clone_from(&config.plugin_upstreams);
     node.plugin_max_request_bytes = config.plugin_max_request_bytes;
     node.plugin_timeout = Duration::from_millis(config.plugin_timeout_millis);

@@ -89,7 +89,8 @@ pub(crate) fn restore_routes(
         Arc::clone(clock),
         config.snapshots_take && config.snapshots_restore,
         crate::snapshot_restore_route::COPY_CHUNK_BYTES,
-    );
+    )
+    .with_system_indices(crate::admin_assemble::system_indices(config));
     crate::snapshot_restore_route::routes(router, Arc::new(service))
         .map_err(crate::assemble::AssembleError::Route)
 }

@@ -83,6 +83,8 @@ pub struct Config {
     /// Whether a shallow snapshot can be restored:
     /// `serverless.snapshots.restore.enabled`, beside `snapshots` and `snapshots_take`.
     pub snapshots_restore: bool,
+    /// `serverless.system_indices.patterns`: comma-separated `*` patterns of the names a take and a restore refuse.
+    pub system_index_patterns: String,
     /// `serverless.plugins.upstreams`: Java nodes serving unported plugins; none proxies nothing.
     pub plugin_upstreams: Vec<String>,
     /// `serverless.plugins.max_request_bytes`: the most a proxied body may be.
@@ -154,6 +156,7 @@ impl Config {
             snapshots: false,
             snapshots_take: false,
             snapshots_restore: false,
+            system_index_patterns: String::new(),
             plugin_upstreams: Vec::new(),
             plugin_max_request_bytes: 10 << 20,
             plugin_timeout: Duration::from_secs(30),

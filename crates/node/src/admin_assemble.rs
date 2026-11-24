@@ -48,12 +48,15 @@ pub(crate) fn register(
             let descriptors =
                 DescriptorStore::new(Arc::clone(store), &config.base, config.delete_mode)
                     .map_err(store_error)?;
-            Some(Arc::new(SnapshotTakeService::new(
-                Arc::clone(store),
-                &config.base,
-                descriptors,
-                Arc::new(crate::clock::now_millis),
-            )))
+            Some(Arc::new(
+                SnapshotTakeService::new(
+                    Arc::clone(store),
+                    &config.base,
+                    descriptors,
+                    Arc::new(crate::clock::now_millis),
+                )
+                .with_system_indices(system_indices(config)),
+            ))
         } else {
             None
         };
@@ -221,4 +224,13 @@ mod tests {
         let router = register(Router::new(), &store, &config, &budget).expect("registers");
         assert!(!router.has_guard());
     }
+}
+
+/// The names a take and a restore refuse, as the node is configured.
+pub(crate) fn system_indices(
+    config: &crate::assemble::Config,
+) -> Arc<oss_coordinator::system_indices::SystemIndices> {
+    Arc::new(oss_coordinator::system_indices::SystemIndices::parse(
+        &config.system_index_patterns,
+    ))
 }
