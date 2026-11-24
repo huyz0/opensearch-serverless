@@ -30,3 +30,14 @@ cargo test --release -p oss-node --all-features --test overlay_scale -- --ignore
 - AC-6: NOT-RUN: that a refused build leaves the shard served from its commit is the builder's own test (`a_pool_that_refuses_builds_nothing_and_a_finished_overlay_holds_its_estimate` in crates/node/tests/overlay_builder.rs); what a search then does under each `refresh_visibility` was not run at this scale.
 
 What it shows for the default: nothing in the reader's memory grows without the pool bounding it, but with the tail overlay on, a node needs about 330 KB of `open_indexes` for every shard it follows with any pushed write, or the shards past the pool lose the overlay's freshness. The charge could shrink to the overlay's measured size once built (`Reservation::shrink` exists); that is a change to the pool's accounting and its own piece.
+
+After [tail-overlay-kept-charge](../tail-overlay-kept-charge/SPEC.md) (release, one run each, provisional, same test):
+
+| shards | pool | overlays built | charged | resident growth | time to build all |
+|---|---|---|---|---|---|
+| 100 | 256 MiB | 100 | 7.4 MB | 3.8 MB | 45 ms |
+| 1,000 | 256 MiB | 1,000 | 74 MB | 23 MB | 358 ms |
+| 5,000 | 256 MiB | 3,518 | 262 MB | 91 MB | 1.3 s |
+| 5,000 | 4 MiB | 51 | 3.8 MB | 0.6 MB | 341 ms |
+
+Each overlay is charged about 75 KB and grows the process by about 20 to 35 KB, against about 330 KB charged before: 4.4 times as many overlays fit the 256 MiB pool at 5,000 shards.

@@ -294,7 +294,7 @@ fn a_refused_build_is_tried_again_once_the_pool_has_room() {
 }
 
 #[test]
-fn an_overlay_is_charged_its_estimate_and_the_masks_of_the_commit() {
+fn an_overlay_is_reserved_its_estimate_and_the_masks_of_the_commit_to_build() {
     // One segment of three documents: one 64-bit word of mask.
     let probe = commit(&["a", "b", "c"]);
     assert_eq!(oss_reader::overlay::mask_bytes(probe.reader()), 8);
@@ -305,7 +305,20 @@ fn an_overlay_is_charged_its_estimate_and_the_masks_of_the_commit() {
     roomy.push(&[index("d", 8, 100)]);
     let _ = roomy.ready();
     assert!(roomy.builder.settle());
-    assert_eq!(roomy.budget.in_use(Pool::OpenIndexes), estimate + 8);
+    let built = roomy.ready().expect("built");
+    let kept = oss_reader::overlay::kept_bytes(
+        &[oss_format::WalRecord::index("d", r#"{"n":8}"#, 100, 1, 101)],
+        built.overlay().stored_bytes(),
+    );
+    assert!(
+        kept < estimate,
+        "the finished overlay keeps less than its peak"
+    );
+    assert_eq!(
+        roomy.budget.in_use(Pool::OpenIndexes),
+        kept + 8,
+        "once built, the pool holds what it keeps and the masks"
+    );
 
     // Room for the estimate alone is not room for the overlay.
     let tight = fixture(estimate + 7);
@@ -318,6 +331,39 @@ fn an_overlay_is_charged_its_estimate_and_the_masks_of_the_commit() {
     let _ = exact.ready();
     assert!(exact.builder.settle());
     assert_eq!(exact.builder.builds(), 1, "fits exactly");
+}
+
+// docs/specs/tail-overlay-kept-charge AC-2
+#[test]
+fn a_finished_overlay_frees_its_peak_so_the_next_shard_builds_in_the_same_pool() {
+    let record = oss_format::WalRecord::index("d", r#"{"n":8}"#, 100, 1, 101);
+    let estimate = oss_reader::overlay::estimate_bytes(std::slice::from_ref(&record));
+    let held = Arc::new(TailHeld::new());
+    // Room for one build's peak and one overlay's masks and a little over:
+    // the second shard builds only if the first gave its peak back.
+    let kept_most = estimate / 2;
+    let pool = estimate + 8 + kept_most;
+    let builder = OverlayBuilder::new(Arc::clone(&held), budget(pool));
+    let commit = commit(&["a", "b", "c"]);
+    for shard in 0..2_u32 {
+        assert!(
+            builder
+                .ready("u1", shard, &stage(1), &commit, 1_000)
+                .is_none()
+        );
+        assert!(builder.settle());
+        held.take("u1", shard, &[index("d", 8, 100)], 1_000);
+        let _ = builder.ready("u1", shard, &stage(1), &commit, 1_000);
+        assert!(builder.settle(), "a build never finished");
+    }
+    assert_eq!(builder.builds(), 2, "both shards built");
+    for shard in 0..2_u32 {
+        assert!(
+            builder
+                .ready("u1", shard, &stage(1), &commit, 1_000)
+                .is_some()
+        );
+    }
 }
 
 /// docs/specs/node-overlay-apply AC-1 and AC-2.

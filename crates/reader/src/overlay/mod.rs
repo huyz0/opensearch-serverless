@@ -34,6 +34,12 @@ pub const MAX_IDS: usize = 10_000;
 /// What the segment's fixed parts take whatever the records: segment
 /// metadata, field infos and the writer's own buffers.
 const FIXED_BYTES: usize = 256 << 10;
+/// What a finished overlay keeps whatever the records.
+const KEPT_FIXED_BYTES: usize = 64 << 10;
+/// What a finished overlay keeps for each byte of its segment files.
+const KEPT_PER_STORED: usize = 3;
+/// A finished overlay keeps this part of the source it decoded.
+const KEPT_SOURCE_DIVISOR: usize = 4;
 /// What a record's bytes become at the build's peak: the parsed document, the
 /// writer's buffers and the stored source take a few times its length
 /// (measured by `tests/overlay_heap.rs`, about twice).
@@ -98,6 +104,25 @@ fn engine(e: impl std::fmt::Display) -> BuildError {
 #[must_use]
 pub fn estimate_bytes(records: &[WalRecord<'_>]) -> usize {
     estimate_of(records.iter())
+}
+
+/// What a finished overlay keeps, for the pool charge to fall to once the
+/// build's peak is over: the segment files it holds (`stored`), the readers
+/// over them and the source it decoded, measured by `tests/overlay_heap.rs`
+/// against the heap the finished overlay retains, over small and large
+/// records, compressible and not, and a wide mapping. Never more than the
+/// build's estimate.
+#[must_use]
+pub fn kept_bytes(records: &[WalRecord<'_>], stored: usize) -> usize {
+    let source = records.iter().fold(0_usize, |bytes, r| {
+        bytes
+            .saturating_add(r.id().len())
+            .saturating_add(r.source().len())
+    });
+    KEPT_FIXED_BYTES
+        .saturating_add(stored.saturating_mul(KEPT_PER_STORED))
+        .saturating_add(source / KEPT_SOURCE_DIVISOR)
+        .min(estimate_bytes(records))
 }
 
 fn estimate_kept(kept: &[&WalRecord<'_>]) -> usize {
@@ -291,7 +316,19 @@ impl Overlay {
             .collect()
     }
 
-    /// How many documents the overlay holds.
+    /// The bytes of the overlay's segment files, which its in-memory
+    /// directory holds.
+    #[must_use]
+    pub fn stored_bytes(&self) -> usize {
+        use lucene_store::Directory;
+        let names = self._directory.list_all().unwrap_or_default();
+        names.iter().fold(0_usize, |bytes, name| {
+            let len = self._directory.file_length(name).unwrap_or(0);
+            bytes.saturating_add(usize::try_from(len).unwrap_or(usize::MAX))
+        })
+    }
+
+    /// The documents the overlay holds.
     #[must_use]
     pub fn doc_count(&self) -> i32 {
         self.doc_count

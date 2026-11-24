@@ -15,13 +15,13 @@ Parity plan R7.6, the tail overlay engine, sixth piece ([ADR 0018](../../adr/001
 - AC-1: `ready` returns at once with nothing before a build finishes, and the build is queued once however many searches ask; after the build `ready` returns an overlay that shows the held records over the commit.
 - AC-2: while the held records are unchanged `ready` returns the same `Ready` (pointer-equal) and builds nothing more (`builds()` stays).
 - AC-3: new records held make one new build; until it finishes `ready` returns the previous `Ready` for the same commit.
-- AC-4: a build whose estimate the pool refuses builds nothing, holds no charge and serves the commit; the pool's in-use bytes are what they were before. A finished overlay holds its estimate in the pool until replaced or closed, and then returns it.
+- AC-4: a build whose estimate the pool refuses builds nothing, holds no charge and serves the commit; the pool's in-use bytes are what they were before. A finished overlay holds in the pool what it keeps (`kept_bytes`, see [tail-overlay-kept-charge](../tail-overlay-kept-charge/SPEC.md)), not its build estimate, until replaced or closed, and then returns it.
 - AC-5: a build that fails (a record the mapping refuses) is not retried until the held records change; searches serve the commit. A build the pool refused is tried again once the pool has the refused bytes free, with no record changed.
 - AC-9: a build queued for a stage the shard has since left is dropped with its charge, and the new stage keeps its own.
 - AC-6: the first `ready` for a shard tracks it at the commit's local checkpoint (records at or below it are never held); a different stage tracks it again and drops the old `Ready`; `closed` for its stage untracks it, drops its `Ready` and returns its charge; `closed` for an older stage changes nothing.
 - AC-7: the queue is bounded: with the worker paused and a queue of one, three shards' asks queue at most two builds and return at once; after the worker resumes every shard's overlay is finished by later asks. `pause` and `resume` hold the worker (shutdown uses them too).
 - AC-8 (`oss-reader`): `build_ready` leaves out the records the commit already holds (checkpoint and copies) and keeps newer ones; `local_checkpoint` and `mapping_json` are those of the commit and index it is given.
-- AC-10: an overlay is charged its estimate plus the masks its cached view holds (`mask_bytes`: one bit set of `max_doc` bits for each commit segment); a pool with room for the estimate alone refuses, and one with room for both accepts.
+- AC-10: an overlay is reserved its estimate plus the masks to build its cached view holds (`mask_bytes`: one bit set of `max_doc` bits for each commit segment); a pool with room for the estimate alone refuses, and one with room for both accepts.
 
 ## Test plan
 
