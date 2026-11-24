@@ -40,3 +40,6 @@ src/bucket_manifest/open.rs	port	serverless/shell/src/main/java/org/opensearch/s
 src/snapshot_pins.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/repository/SnapshotRecord.java@bf347adb	fromStream, read for the index names and uuids a snapshot captured; the rest is skipped
 src/doc_set.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/template/TemplateStore.java@feature/serverlessshell	readMarker and writeMarker; RegisterMap's template and pipeline containers; a bare counter is Unsupported
 src/key_owner.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/metadata/RegisterMap.java@feature/serverlessshell	the index each key layout names
+src/repository_record.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/repository/RepositoryDescriptor.java@bf347adb	fromStream, read-only
+src/snapshot_record.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/repository/SnapshotRecord.java@bf347adb	fromStream and inProgress, as a summary without the files
+src/snapshot_state.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/repository/SnapshotStore.java@bf347adb	decode, the register value of a snapshot name
