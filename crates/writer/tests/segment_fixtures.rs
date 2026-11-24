@@ -9,17 +9,18 @@
 // A fixture is a small file the test reads whole.
 #![allow(clippy::arithmetic_side_effects, clippy::disallowed_methods)]
 
+mod segment_dump;
+
+use segment_dump::{document_json, field_json, read_back};
 use std::collections::BTreeMap;
+
 use std::path::{Path, PathBuf};
 
-use lucene_codecs::field_infos::{
-    DocValuesSkipIndexType, DocValuesType, FieldInfo, IndexOptions, VectorSimilarityFunction,
-};
+use lucene_codecs::field_infos::FieldInfo;
 use lucene_codecs::stored_fields::{FieldValue, StoredField};
 use lucene_index::index_writer::{ExplicitDocument, IndexWriter, VectorValue};
 use lucene_index::segment_info::LuceneVersion;
 use lucene_search::directory_reader::DirectoryReader;
-use lucene_search::reader::LeafReader;
 use lucene_store::ByteBuffersDirectory;
 use oss_writer::document;
 use oss_writer::index::{Expect, Shard};
@@ -38,52 +39,6 @@ fn fixtures() -> Vec<PathBuf> {
     out
 }
 
-/// Bytes as `SegmentDump.bytes` writes them.
-fn bytes(b: &[u8]) -> Value {
-    if let Ok(s) = std::str::from_utf8(b)
-        && !s.chars().any(|c| c < ' ' || c == '\u{7f}')
-        && !s.starts_with("hex:")
-    {
-        return json!(s);
-    }
-    let hex: String = b.iter().map(|x| format!("{x:02x}")).collect();
-    json!(format!("hex:{hex}"))
-}
-
-fn index_options(o: IndexOptions) -> &'static str {
-    match o {
-        IndexOptions::None => "NONE",
-        IndexOptions::Docs => "DOCS",
-        IndexOptions::DocsAndFreqs => "DOCS_AND_FREQS",
-        IndexOptions::DocsAndFreqsAndPositions => "DOCS_AND_FREQS_AND_POSITIONS",
-        IndexOptions::DocsAndFreqsAndPositionsAndOffsets => {
-            "DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS"
-        }
-        IndexOptions::DocsAndCustomFreqs => "DOCS_AND_CUSTOM_FREQS",
-    }
-}
-
-fn doc_values(t: DocValuesType) -> &'static str {
-    match t {
-        DocValuesType::None => "NONE",
-        DocValuesType::Numeric => "NUMERIC",
-        DocValuesType::Binary => "BINARY",
-        DocValuesType::Sorted => "SORTED",
-        DocValuesType::SortedNumeric => "SORTED_NUMERIC",
-        DocValuesType::SortedSet => "SORTED_SET",
-    }
-}
-
-/// `VectorSimilarityFunction.toString()`.
-fn similarity(f: VectorSimilarityFunction) -> &'static str {
-    match f {
-        VectorSimilarityFunction::Euclidean => "EUCLIDEAN",
-        VectorSimilarityFunction::DotProduct => "DOT_PRODUCT",
-        VectorSimilarityFunction::Cosine => "COSINE",
-        VectorSimilarityFunction::MaximumInnerProduct => "MAXIMUM_INNER_PRODUCT",
-    }
-}
-
 /// The mapping a fixture creates its index with: a `knn_vector` is read
 /// when its settings turn `index.knn` on.
 fn fixture_mapping(fixture: &Value) -> Mapping {
@@ -96,155 +51,6 @@ fn fixture_mapping(fixture: &Value) -> Mapping {
         Some(m) => Mapping::parse(m.to_string().as_bytes()).expect("mapping"),
         None => Mapping::default(),
     }
-}
-
-fn field_json(f: &FieldInfo) -> Value {
-    let mut out = field_base(f);
-    if f.vector_dimension > 0 {
-        let mut attributes: Vec<_> = f.attributes.clone();
-        attributes.sort();
-        out["vector"] = json!({
-            "dimension": f.vector_dimension,
-            "encoding": "FLOAT32",
-            "similarity": similarity(f.vector_similarity_function),
-            "attributes": attributes.into_iter().collect::<BTreeMap<_, _>>(),
-        });
-    }
-    out
-}
-
-fn field_base(f: &FieldInfo) -> Value {
-    json!({
-        "number": f.number,
-        "name": f.name,
-        "index_options": index_options(f.index_options),
-        "doc_values": doc_values(f.doc_values_type),
-        "skip_index": match f.doc_values_skip_index_type {
-            DocValuesSkipIndexType::None => "NONE",
-            DocValuesSkipIndexType::Range => "RANGE",
-        },
-        "omit_norms": f.omit_norms,
-        "points": [f.point_dimension_count, f.point_index_dimension_count, f.point_num_bytes],
-        "payloads": f.store_payloads,
-        "term_vectors": f.store_term_vectors,
-    })
-}
-
-fn stored_json(name: &str, v: &FieldValue) -> Value {
-    match v {
-        FieldValue::Binary(b) => json!([name, "binary", bytes(b)]),
-        FieldValue::String(s) => json!([name, "string", s]),
-        FieldValue::Shared(s) => json!([name, "string", s.as_str()]),
-        FieldValue::Int(i) => json!([name, "int", i]),
-        FieldValue::Long(l) => json!([name, "long", l]),
-        FieldValue::Float(f) => json!([name, "float", java_float(*f)]),
-        FieldValue::Double(d) => {
-            json!([name, "double", oss_writer::mapping::json::java_double(*d)])
-        }
-    }
-}
-
-fn java_float(f: f32) -> String {
-    oss_writer::mapping::json::java_float(f)
-}
-
-/// One document as `SegmentDump.document` writes it.
-fn document_json(doc: &ExplicitDocument, infos: &BTreeMap<i32, FieldInfo>) -> Value {
-    let name = |n: i32| infos.get(&n).expect("registered").name.clone();
-    let stored: Vec<Value> = doc
-        .stored
-        .iter()
-        .map(|f| stored_json(&name(f.field_number), &f.value))
-        .collect();
-    let mut inverted = serde_json::Map::new();
-    for f in &doc.fields.inverted {
-        let info = &infos[&f.field_number];
-        let positions = info.index_options.subsumes_positions();
-        let offsets = info.index_options.subsumes_offsets();
-        let freqs = !matches!(info.index_options, IndexOptions::None | IndexOptions::Docs);
-        let mut terms: Vec<_> = f.terms.iter().collect();
-        if terms.is_empty() {
-            continue;
-        }
-        terms.sort_by(|a, b| a.term.cmp(b.term));
-        let terms: Vec<Value> = terms
-            .iter()
-            .map(|t| {
-                let mut e = vec![bytes(t.term), json!(if freqs { t.freq } else { 1 })];
-                if positions {
-                    e.push(json!(t.positions));
-                }
-                if offsets {
-                    e.push(json!(
-                        t.offsets.iter().map(|(s, e)| [*s, *e]).collect::<Vec<_>>()
-                    ));
-                }
-                Value::Array(e)
-            })
-            .collect();
-        let norm = f.norm.filter(|n| *n != 0);
-        inverted.insert(name(f.field_number), json!({"norm": norm, "terms": terms}));
-    }
-    let mut dv: BTreeMap<String, Vec<&FieldValue>> = BTreeMap::new();
-    for f in &doc.fields.doc_values {
-        dv.entry(name(f.field_number)).or_default().push(&f.value);
-    }
-    let mut doc_values_out = serde_json::Map::new();
-    for (field, values) in dv {
-        let info = infos.values().find(|i| i.name == field).expect("field");
-        let v = match info.doc_values_type {
-            DocValuesType::Numeric => match values.as_slice() {
-                [FieldValue::Long(l)] => json!(l),
-                other => panic!("{field}: one numeric value, not {other:?}"),
-            },
-            DocValuesType::SortedNumeric => {
-                let mut longs: Vec<i64> = values
-                    .iter()
-                    .map(|v| match v {
-                        FieldValue::Long(l) => *l,
-                        other => panic!("sorted numeric {other:?}"),
-                    })
-                    .collect();
-                longs.sort_unstable();
-                json!(longs)
-            }
-            DocValuesType::SortedSet => {
-                let mut set: Vec<&[u8]> = values
-                    .iter()
-                    .map(|v| match v {
-                        FieldValue::Binary(b) => b.as_slice(),
-                        other => panic!("sorted set {other:?}"),
-                    })
-                    .collect();
-                set.sort_unstable();
-                set.dedup();
-                Value::Array(set.into_iter().map(bytes).collect())
-            }
-            other => panic!("doc values {other:?}"),
-        };
-        doc_values_out.insert(field, v);
-    }
-    let mut points: BTreeMap<String, Vec<Value>> = BTreeMap::new();
-    let mut packed: BTreeMap<String, Vec<Vec<u8>>> = BTreeMap::new();
-    for f in &doc.fields.points {
-        match &f.value {
-            FieldValue::Binary(b) => packed
-                .entry(name(f.field_number))
-                .or_default()
-                .push(b.clone()),
-            other => panic!("point {other:?}"),
-        }
-    }
-    for (field, mut values) in packed {
-        values.sort();
-        points.insert(field, values.iter().map(|v| bytes(v)).collect());
-    }
-    json!({
-        "stored": stored,
-        "inverted": inverted,
-        "doc_values": doc_values_out,
-        "points": points,
-    })
 }
 
 fn recorded_source(fixture: &Value, doc: usize) -> String {
@@ -398,75 +204,6 @@ fn rust_documents_index_as_the_java_indexes_them() {
     }
 }
 
-/// One committed document's stored fields and doc values, read back from
-/// the segment in `SegmentDump.document`'s form.
-fn read_back(segment: &lucene_search::directory_reader::SegmentReader, doc: i32) -> Value {
-    let infos: BTreeMap<i32, FieldInfo> = segment
-        .field_infos()
-        .fields
-        .iter()
-        .map(|f| (f.number, f.clone()))
-        .collect();
-    let stored: Vec<Value> = segment
-        .stored_document(doc)
-        .expect("stored")
-        .map(|d| {
-            d.fields
-                .iter()
-                .map(|f| stored_json(&infos[&f.field_number].name, &f.value))
-                .collect()
-        })
-        .unwrap_or_default();
-    let mut dv = serde_json::Map::new();
-    for info in infos.values() {
-        let v = match info.doc_values_type {
-            DocValuesType::Numeric => {
-                let mut it = segment
-                    .numeric_doc_values(&info.name)
-                    .expect("dv")
-                    .expect("field");
-                it.advance_exact(doc)
-                    .expect("advance")
-                    .then(|| json!(it.long_value()))
-            }
-            DocValuesType::SortedNumeric => {
-                let mut it = segment
-                    .sorted_numeric_doc_values(&info.name)
-                    .expect("dv")
-                    .expect("field");
-                it.advance_exact(doc).expect("advance").then(|| {
-                    let n = it.doc_value_count();
-                    json!(
-                        (0..n)
-                            .map(|_| it.next_value().expect("value"))
-                            .collect::<Vec<_>>()
-                    )
-                })
-            }
-            DocValuesType::SortedSet => {
-                let mut it = segment
-                    .sorted_set_doc_values(&info.name)
-                    .expect("dv")
-                    .expect("field");
-                it.advance_exact(doc).expect("advance").then(|| {
-                    let n = it.doc_value_count();
-                    let ords: Vec<i64> = (0..n).map(|_| it.next_ord().expect("ord")).collect();
-                    Value::Array(
-                        ords.into_iter()
-                            .map(|o| bytes(&it.lookup_ord(o).expect("term")))
-                            .collect(),
-                    )
-                })
-            }
-            _ => None,
-        };
-        if let Some(v) = v {
-            dv.insert(info.name.clone(), v);
-        }
-    }
-    json!({"stored": stored, "doc_values": dv})
-}
-
 /// Replays a fixture with updates and deletes through a shard, and compares
 /// what the committed segment reads back: its field infos, and each
 /// document's stored fields and doc values, `__soft_deletes` among them.
@@ -558,58 +295,4 @@ fn a_stored_field_dump_reads_every_type() {
         document_json(&doc, &infos)["stored"],
         json!([["f", "string", "s"], ["f", "long", 2]])
     );
-}
-
-/// Writes each `knn-*` fixture's documents to a directory of its own under
-/// `KNN_SEGMENT_DIR`, for Lucene's own `CheckIndex` to read:
-///
-/// ```text
-/// KNN_SEGMENT_DIR=/tmp/knn cargo test -p oss-writer --test segment_fixtures -- --ignored
-/// java -cp lucene-core.jar org.apache.lucene.index.CheckIndex /tmp/knn/knn-cosine
-/// ```
-#[test]
-#[ignore = "writes to KNN_SEGMENT_DIR for a Java check"]
-fn knn_segments_are_written_for_java_to_check() {
-    let out = std::env::var("KNN_SEGMENT_DIR").expect("KNN_SEGMENT_DIR");
-    for path in fixtures().iter().filter(|p| {
-        p.file_name()
-            .is_some_and(|n| n.to_string_lossy().starts_with("knn-"))
-    }) {
-        let fixture: Value =
-            serde_json::from_slice(&std::fs::read(path).expect("read")).expect("fixture json");
-        let mapping = fixture_mapping(&fixture);
-        let target = Path::new(&out).join(path.file_stem().expect("stem"));
-        std::fs::create_dir_all(&target).expect("dir");
-        let dir = lucene_store::FsDirectory::open(&target);
-        let mut indexer = Indexer::new();
-        let mut w = IndexWriter::open(&dir, Vec::new(), "Lucene104", VERSION).expect("writer");
-        w.enable_explicit_documents().expect("explicit");
-        for (seq_no, d) in fixture["documents"]
-            .as_array()
-            .expect("documents")
-            .iter()
-            .enumerate()
-        {
-            let id = d["id"].as_str().expect("id");
-            let source = recorded_source(&fixture, seq_no);
-            let parsed = document::parse(&mapping, id, source.as_bytes()).expect("parse");
-            let meta = Meta {
-                id,
-                seq_no: i64::try_from(seq_no).expect("fits"),
-                primary_term: 1,
-                version: 1,
-                source: source.as_bytes(),
-            };
-            let (doc, vectors) = indexer
-                .document_with_vectors(&mut w, &mapping, &parsed, &meta, None)
-                .expect("document");
-            if vectors.is_empty() {
-                w.add_explicit_documents(vec![doc]).expect("add");
-            } else {
-                w.add_explicit_documents_with_vectors(None, vec![doc], vec![vectors])
-                    .expect("add");
-            }
-        }
-        w.commit().expect("commit");
-    }
 }

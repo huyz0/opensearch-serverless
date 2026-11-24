@@ -110,6 +110,7 @@ impl Shard<'_> {
                         .ok_or_else(|| {
                             Refused::Mapping(MappingError::illegal_state("no document read"))
                         })?,
+                    // ALLOC: no vectors, one document.
                     Vec::new(),
                 ),
                 (None, Some(parsed)) => self
@@ -128,6 +129,7 @@ impl Shard<'_> {
                 (None, true) => self.writer.add_explicit_documents(docs),
                 (None, false) => {
                     self.writer
+                        // ALLOC: one vector list a document with vectors, one document.
                         .add_explicit_documents_with_vectors(None, docs, vec![vectors])
                 }
                 (Some(_), true) => self.writer.soft_update_explicit_documents(
@@ -138,6 +140,7 @@ impl Shard<'_> {
                 (Some(_), false) => self.writer.soft_update_explicit_documents_with_vectors(
                     Term::new("_id", key.clone()),
                     docs,
+                    // ALLOC: one vector list a document with vectors, one document.
                     vec![vectors],
                     &[soft_delete(&key)],
                 ),
