@@ -180,6 +180,9 @@ pub(super) fn apply_janitor_and_hibernation(
     node.sweep.dry_run = config.janitor_dry_run;
     node.snapshots = config.snapshots_enabled;
     node.snapshots_take = config.snapshots_take_enabled;
+    node.plugin_upstreams.clone_from(&config.plugin_upstreams);
+    node.plugin_max_request_bytes = config.plugin_max_request_bytes;
+    node.plugin_timeout = Duration::from_millis(config.plugin_timeout_millis);
 }
 
 /// Starts the commit push: this node's writer tells its own reader of each

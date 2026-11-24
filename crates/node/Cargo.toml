@@ -39,6 +39,7 @@ writer = [
     "dep:oss-janitor",
     "dep:oss-mem",
     "dep:oss-coordinator",
+    "dep:ureq",
 ]
 coordinator = ["dep:oss-coordinator", "dep:oss-blob", "dep:oss-transport", "dep:oss-doc"]
 
@@ -61,6 +62,8 @@ lucene-index = { workspace = true, optional = true }
 lucene-search = { workspace = true, optional = true }
 self_cell = { workspace = true, optional = true }
 oss-mem = { workspace = true, optional = true }
+# The plugin proxy's client (docs/adr/0043): plain HTTP(S) to Java nodes.
+ureq = { version = "=3.5.2", default-features = false, features = ["rustls"], optional = true }
 
 [dev-dependencies]
 serde_json = "=1.0.145"
@@ -90,6 +93,10 @@ required-features = ["writer"]
 
 [[test]]
 name = "pit_route"
+required-features = ["writer"]
+
+[[test]]
+name = "plugin_proxy"
 required-features = ["writer"]
 
 [[test]]
