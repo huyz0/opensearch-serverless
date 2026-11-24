@@ -292,7 +292,7 @@ fn an_assembled_node_answers_every_security_management_fixture_as_the_stock_plug
 
 #[test]
 fn an_assembled_node_authenticates_and_authorizes_as_the_stock_plugin_did() {
-    let mut fixtures: Vec<Fixture> = load_dir(&root().join("compat/security"))
+    let fixtures: Vec<Fixture> = load_dir(&root().join("compat/security"))
         .expect("fixtures load")
         .into_iter()
         .filter(|(_, f)| f.name == "security authn and authz")
