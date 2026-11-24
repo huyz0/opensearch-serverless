@@ -211,7 +211,10 @@ pub(crate) fn value_from(agg: &MetricAgg, result: Option<AggResult>) -> Result<V
             let (other, kept) = buckets.into_iter().next().unwrap_or_default();
             // ALLOC: the kept buckets of one `terms`, at most its shard size.
             let mut result = terms_collect::from_engine(&terms_spec(agg), other, kept);
-            result.apply_shard_min();
+            if agg.subs.is_empty() {
+                result.apply_shard_min();
+            }
+            // ALLOC: one box a `terms`, bounded by the request's.
             Ok(Value::Terms(Box::new(result)))
         }
         Some(AggResult::Histogram { buckets, .. }) if agg.metric == Metric::Histogram => {
@@ -270,6 +273,7 @@ pub fn collect<S: BlobStore + 'static>(
         {
             return Err(refusal);
         }
+        keyword_subs::check_order(agg)?;
         resolved.push(resolve(agg, shard)?);
         crate::aggs::bucket::check_limits(agg)?;
         if agg.metric == Metric::Cardinality {
@@ -355,7 +359,7 @@ pub fn collect<S: BlobStore + 'static>(
             }
             Resolved::Composite(true) => (
                 Format::Raw,
-                composite_collect::value_from(agg, results.next())?,
+                composite_collect::value_from(agg, shard, results.next())?,
             ),
             Resolved::Numeric(format) if with_subs::is_bucket(agg) => {
                 (format, with_subs::value(agg, shard, results.next())?)

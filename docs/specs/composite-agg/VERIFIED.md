@@ -11,3 +11,5 @@ Run on 2026-11-23 (Linux cloud container). No stock OpenSearch recording backs t
 - AC-7: `the_body_is_parsed_into_sources_size_and_after`, `a_body_opensearch_refuses_is_refused`, `what_this_node_does_not_serve_is_refused_by_name`, `a_source_the_shard_cannot_read_fails_it`
 - AC-8: `a_composite_reserves_its_keys_and_ordinals_with_the_hits`
 - AC-9: `a_cold_search_with_a_composite_then_a_warm_one`
+- AC-10: `a_date_histogram_source_keys_by_the_rounded_millis_and_pages_with_after`, `a_date_histogram_source_is_parsed_with_its_interval_zone_and_offset`, `a_date_histogram_source_needs_one_valid_interval`
+- AC-11: `scalar_sub_aggregations_run_per_bucket_and_render_after_the_count`, `a_sub_aggregation_is_reserved_with_the_keys`, `what_this_node_does_not_serve_is_refused_by_name`

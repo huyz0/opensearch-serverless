@@ -4,8 +4,11 @@
 
 use std::cmp::Ordering;
 
+use lucene_aggs::bucket_aggs::DateRounding;
+
 use crate::aggs::bucket::histogram::java_compare;
 use crate::aggs::bucket::running;
+use crate::aggs::bucket::sub_values::{BucketSubs, reduce_sub};
 use crate::aggs::partial::Value;
 
 /// What a `composite` source reads.
@@ -17,6 +20,11 @@ pub enum SourceKind {
     Histogram {
         /// The width of a bucket.
         interval: f64,
+    },
+    /// `date_histogram`: a date rounded to its interval's start, as a long.
+    DateHistogram {
+        /// The rounding, in the zone and with the offset asked for.
+        rounding: DateRounding,
     },
 }
 
@@ -90,6 +98,8 @@ pub struct CompositeResult {
     pub spec: CompositeSpec,
     /// `(key, doc count)` in key order.
     pub buckets: Vec<(Vec<KeyPart>, u64)>,
+    /// The buckets' sub-aggregations, one list of values a bucket.
+    pub subs: BucketSubs,
 }
 
 impl SourceSpec {
@@ -164,22 +174,34 @@ pub fn reduce(parts: &[Value]) -> Option<Value> {
 }
 
 /// The reduce of `parts`, which are not empty: equal keys add, the buckets
-/// are in key order and cut at `size`.
+/// are in key order and cut at `size`, and each kept bucket's
+/// sub-aggregations reduce over the shards that hold it.
 pub fn reduce_results(parts: &[&CompositeResult]) -> Option<CompositeResult> {
     let spec = parts.first()?.spec.clone();
     let total: usize = parts.iter().map(|p| p.buckets.len()).sum();
     // ALLOC: one entry a bucket of the shards' results, at most `size` a shard.
-    let mut all: Vec<(&[KeyPart], u64)> = Vec::with_capacity(total);
-    for part in parts {
-        all.extend(part.buckets.iter().map(|(k, c)| (k.as_slice(), *c)));
+    let mut all: Vec<(&[KeyPart], u64, usize, usize)> = Vec::with_capacity(total);
+    for (shard, part) in parts.iter().enumerate() {
+        all.extend(
+            part.buckets
+                .iter()
+                .enumerate()
+                .map(|(at, (k, c))| (k.as_slice(), *c, shard, at)),
+        );
     }
     all.sort_by(|a, b| compare_keys(&spec.sources, a.0, b.0));
     // ALLOC: one entry a bucket of the answer, at most `size`.
     let mut buckets: Vec<(Vec<KeyPart>, u64)> = Vec::with_capacity(spec.size.min(total));
-    for (key, count) in all {
+    // ALLOC: the shards' (shard, bucket) holding each kept bucket, as above.
+    let mut holders: Vec<Vec<(usize, usize)>> = Vec::with_capacity(spec.size.min(total));
+    for (key, count, shard, at) in all {
         match buckets.last_mut() {
             Some(last) if compare_keys(&spec.sources, &last.0, key) == Ordering::Equal => {
                 last.1 = last.1.saturating_add(count);
+                if let Some(h) = holders.last_mut() {
+                    // ALLOC: one entry a shard holding the bucket.
+                    h.push((shard, at));
+                }
             }
             _ => {
                 if buckets.len() >= spec.size {
@@ -187,8 +209,52 @@ pub fn reduce_results(parts: &[&CompositeResult]) -> Option<CompositeResult> {
                 }
                 // ALLOC: one key a bucket of the answer, as above.
                 buckets.push((key.to_vec(), count));
+                // ALLOC: as above.
+                holders.push(vec![(shard, at)]);
             }
         }
     }
-    Some(CompositeResult { spec, buckets })
+    let subs = reduce_subs(parts, &holders);
+    Some(CompositeResult {
+        spec,
+        buckets,
+        subs,
+    })
+}
+
+/// The sub-aggregations of the kept buckets: each reduces the values of the
+/// shards that hold the bucket.
+fn reduce_subs(parts: &[&CompositeResult], holders: &[Vec<(usize, usize)>]) -> BucketSubs {
+    let Some(first) = parts.iter().find(|p| !p.subs.meta.is_empty()) else {
+        return BucketSubs::default();
+    };
+    let wanted = first.subs.meta.len();
+    BucketSubs {
+        // ALLOC: one entry a sub-aggregation, bounded by the request's.
+        meta: first.subs.meta.clone(),
+        // ALLOC: as above.
+        empty: first.subs.empty.clone(),
+        // ALLOC: one list a kept bucket, bounded by `size`.
+        lists: holders
+            .iter()
+            .map(|held| {
+                // ALLOC: one value a sub-aggregation, as above.
+                (0..wanted)
+                    .map(|sub| {
+                        // ALLOC: one value a shard holding the bucket.
+                        let values: Vec<Value> = held
+                            .iter()
+                            .filter_map(|&(shard, at)| {
+                                parts.get(shard)?.subs.lists.get(at)?.get(sub).cloned()
+                            })
+                            // ALLOC: as above.
+                            .collect();
+                        reduce_sub(&values)
+                    })
+                    // ALLOC: as above.
+                    .collect()
+            })
+            // ALLOC: as above.
+            .collect(),
+    }
 }

@@ -72,6 +72,10 @@ pub struct Config {
     pub hibernate_after_millis: u64,
     /// How long a hibernated shard may sleep before its head is given back; 0 never.
     pub give_back_after_millis: u64,
+    /// The most writer shards this node holds; 0 no cap.
+    pub max_shards: usize,
+    /// How long a shard must be unused before a node at its cap lets it go; 0 never.
+    pub evict_after_millis: u64,
     /// What limits the writes waiting on the log.
     pub write_limit: oss_writer::admission::LimiterConfig,
     /// How often the janitor runs a pass.
@@ -107,6 +111,8 @@ impl Config {
             publish_tick_millis: 250,
             hibernate_after_millis: 0,
             give_back_after_millis: 0,
+            max_shards: 0,
+            evict_after_millis: 60_000,
             write_limit: oss_writer::admission::LimiterConfig::default(),
             janitor_every: Duration::from_secs(60),
             sweep: gc::Config {
@@ -355,6 +361,10 @@ pub fn assemble(
         .with_hibernation(config.hibernate_after_millis)
         .with_give_back(config.give_back_after_millis);
     role.set_write_limiter(config.write_limit.build());
+    role.set_shard_cap(crate::writer::ShardCap {
+        max: config.max_shards,
+        evict_after_millis: config.evict_after_millis,
+    });
     if let Some(opener) = writer.opener {
         role = role.with_opener(opener);
     }

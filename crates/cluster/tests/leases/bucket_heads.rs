@@ -12,7 +12,11 @@ use oss_cluster::{ClusterError, LeaseClock, LivenessOracle};
 use crate::{BASE, Fleet, TTL, lease};
 
 /// `index` is a member of `bucket`, under uuid `<index>-uuid`; others are not.
-struct Map(HashMap<&'static str, &'static str>);
+struct Map {
+    members: HashMap<&'static str, &'static str>,
+    /// The members this node holds open.
+    open: std::sync::Mutex<Vec<&'static str>>,
+}
 
 impl BucketHeads for Map {
     fn bucket_of(
@@ -21,7 +25,7 @@ impl BucketHeads for Map {
         _shard: u32,
         index_uuid: Option<&str>,
     ) -> Result<Option<Member>, ClusterError> {
-        let Some(bucket) = self.0.get(index) else {
+        let Some(bucket) = self.members.get(index) else {
             return Ok(None);
         };
         let uuid = format!("{index}-uuid");
@@ -30,10 +34,27 @@ impl BucketHeads for Map {
         }
         Member::new(bucket, &uuid).map(Some)
     }
+
+    fn others_open_on(
+        &self,
+        bucket_id: &str,
+        _node_id: &str,
+        except_index: &str,
+    ) -> Result<bool, ClusterError> {
+        Ok(self
+            .open
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|i| *i != except_index && self.members.get(i) == Some(&bucket_id)))
+    }
 }
 
 fn map(pairs: &[(&'static str, &'static str)]) -> Arc<Map> {
-    Arc::new(Map(pairs.iter().copied().collect()))
+    Arc::new(Map {
+        members: pairs.iter().copied().collect(),
+        open: std::sync::Mutex::default(),
+    })
 }
 
 fn plain(fleet: &Fleet) -> ShardHeadStore {
@@ -255,4 +276,97 @@ fn a_member_names_a_valid_bucket_id() {
     assert!(Member::new(&"x".repeat(64), "u").is_ok());
     let m = Member::new("s02-37", "u").unwrap();
     assert_eq!((m.bucket_id(), m.index_uuid()), ("s02-37", "u"));
+}
+
+fn with_open(fleet: &Fleet, pairs: &[(&'static str, &'static str)]) -> (ShardHeadStore, Arc<Map>) {
+    let map = map(pairs);
+    (plain(fleet).with_bucket_heads(map.clone()), map)
+}
+
+fn stored(fleet: &Fleet, bucket: &str) -> oss_format::ShardHead {
+    let key = shard_head_key(BASE, &bucket_head_index(bucket), 0);
+    let mut buf = vec![0; 4096];
+    let read = fleet.store.read_register(&key, &mut buf).unwrap().unwrap();
+    oss_format::ShardHead::parse(&buf[..read.len]).unwrap()
+}
+
+#[test]
+fn releasing_a_member_with_another_open_makes_no_request() {
+    let fleet = Fleet::new();
+    let (heads, map) = with_open(&fleet, &[("a", "s02-37"), ("b", "s02-37")]);
+    won(heads.acquire("a", 0, "n1", "e1", None).unwrap());
+    won(heads.acquire("b", 0, "n1", "e1", None).unwrap());
+    *map.open.lock().unwrap() = vec!["a", "b"];
+    let before = fleet.total();
+    assert!(heads.release("a", 0, "n1", "e1", 1, "a-uuid").unwrap());
+    assert_eq!(
+        fleet.total(),
+        before,
+        "the head stays, and nothing is asked"
+    );
+    assert!(stored(&fleet, "s02-37").owner_node_id.is_some());
+}
+
+#[test]
+fn releasing_the_last_member_clears_the_owner_and_names_the_releaser() {
+    let fleet = Fleet::new();
+    let (heads, map) = with_open(&fleet, &[("a", "s02-37"), ("b", "s02-37")]);
+    won(heads.acquire("a", 0, "n1", "e1", None).unwrap());
+    *map.open.lock().unwrap() = vec!["a"];
+    let gets = fleet.count(S3Op::Get);
+    let puts = fleet.count(S3Op::Put);
+    assert!(heads.release("a", 0, "n1", "e1", 1, "a-uuid").unwrap());
+    assert_eq!(fleet.count(S3Op::Get) - gets, 1);
+    assert_eq!(fleet.count(S3Op::Put) - puts, 1);
+    let head = stored(&fleet, "s02-37");
+    assert_eq!((head.owner_node_id, head.owner_ephemeral_id), (None, None));
+    assert_eq!((head.term, head.lease_expires_at_millis), (1, 0));
+    assert_eq!(head.writers, ["n1"]);
+    assert_eq!(head.index, "#bucket#s02-37");
+}
+
+#[test]
+fn a_released_bucket_is_taken_at_the_next_term_naming_the_releaser() {
+    let fleet = Fleet::new();
+    let (heads, _) = with_open(&fleet, &[("a", "s02-37"), ("b", "s02-37")]);
+    won(heads.acquire("a", 0, "n1", "e1", None).unwrap());
+    assert!(heads.release("a", 0, "n1", "e1", 1, "a-uuid").unwrap());
+    let (head, taken_from) = won(heads.acquire("b", 0, "n2", "e2", None).unwrap());
+    assert_eq!((head.term, taken_from), (2, None));
+    assert_eq!(head.writers, ["n1"]);
+}
+
+#[test]
+fn a_release_of_a_head_that_moved_is_left() {
+    let fleet = Fleet::new();
+    let (heads, _) = with_open(&fleet, &[("a", "s02-37")]);
+    // absent: one GET
+    let before = fleet.total();
+    assert!(!heads.release("a", 0, "n1", "e1", 1, "a-uuid").unwrap());
+    assert_eq!(fleet.total() - before, 1);
+    won(heads.acquire("a", 0, "n1", "e1", None).unwrap());
+    let puts = fleet.count(S3Op::Put);
+    for (node, eph, term) in [("n2", "e1", 1), ("n1", "e1", 2), ("n1", "other", 1)] {
+        assert!(!heads.release("a", 0, node, eph, term, "a-uuid").unwrap());
+    }
+    assert_eq!(fleet.count(S3Op::Put), puts, "nothing was written");
+    assert!(stored(&fleet, "s02-37").owned_by("n1", "e1"));
+}
+
+#[test]
+fn an_unbucketed_shard_releases_as_before() {
+    let fleet = Fleet::new();
+    let (heads, map) = with_open(&fleet, &[("a", "s02-37")]);
+    *map.open.lock().unwrap() = vec!["a", "z"];
+    won(heads.acquire("logs", 0, "n1", "e1", Some("u")).unwrap());
+    assert!(heads.release("logs", 0, "n1", "e1", 1, "u").unwrap());
+    let key = shard_head_key(BASE, "logs", 0);
+    let mut buf = vec![0; 4096];
+    let read = fleet.store.read_register(&key, &mut buf).unwrap().unwrap();
+    let head = oss_format::ShardHead::parse(&buf[..read.len]).unwrap();
+    assert_eq!(head.owner_node_id, None);
+    assert!(
+        head.writers.is_empty(),
+        "an own head does not name the releaser"
+    );
 }

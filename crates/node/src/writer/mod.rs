@@ -7,6 +7,7 @@
 //! the engine applied the write releases the shard, which reopens from the
 //! log. A bulk group is applied item by item and staged with one commit.
 
+mod capacity;
 mod dead_log_pass;
 mod dead_logs;
 mod get;
@@ -52,6 +53,9 @@ use publishing::Key;
 use redirect::Redirects;
 use slot::ShardSlot;
 
+pub use capacity::{
+    EVICT_AFTER_MILLIS, MAX_SHARDS, SETTINGS as CAPACITY_SETTINGS, ShardCap, ShardCapStats,
+};
 pub use dead_log_pass::{
     DeadLogParts, DeadLogPass, DeadLogReport, DeadMailbox, DeadSnapshot, REAPERS,
 };
@@ -127,6 +131,9 @@ pub struct WriterRole {
     /// The live node whose head holds a shard this node was asked to write.
     redirects: Mutex<Redirects>,
     hibernation: hibernate::Hibernation,
+    /// The most shards held, when set.
+    cap: OnceLock<ShardCap>,
+    counters: capacity::Counters,
 }
 
 fn now_millis() -> u64 {
@@ -163,6 +170,8 @@ impl WriterRole {
             // ALLOC: one entry a shard another node holds that this node was asked to write.
             redirects: Mutex::new(HashMap::new()),
             hibernation: hibernate::Hibernation::default(),
+            cap: OnceLock::new(),
+            counters: capacity::Counters::default(),
         }
     }
 

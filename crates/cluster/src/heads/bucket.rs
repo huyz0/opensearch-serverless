@@ -121,6 +121,20 @@ pub trait BucketHeads: Send + Sync {
         shard: u32,
         index_uuid: Option<&str>,
     ) -> Result<Option<Member>, ClusterError>;
+
+    /// Whether `node_id` holds a member of `bucket_id` other than
+    /// `except_index` open, in which case giving one member back keeps the
+    /// bucket head: it is released only with the bucket's last open member.
+    ///
+    /// # Errors
+    ///
+    /// A member's descriptor cannot be read.
+    fn others_open_on(
+        &self,
+        bucket_id: &str,
+        node_id: &str,
+        except_index: &str,
+    ) -> Result<bool, ClusterError>;
 }
 
 impl ShardHeadStore {
@@ -239,6 +253,47 @@ impl ShardHeadStore {
             }),
             SwapOutcome::Conflict(_) => self.member_winner(member, index, shard),
         }
+    }
+
+    /// Gives a member back: only the bucket's last member open on this node
+    /// gives the head back. The bucket head names the logs of every member,
+    /// so the releasing node is named among its writers.
+    pub(super) fn release_member(
+        &self,
+        member: &Member,
+        index: &str,
+        node_id: &str,
+        ephemeral_id: &str,
+        term: i64,
+    ) -> Result<bool, ClusterError> {
+        if let Some(heads) = &self.buckets
+            && heads.others_open_on(&member.bucket_id, node_id, index)?
+        {
+            return Ok(true);
+        }
+        let key = member.key(&self.base);
+        let Some((generation, current)) = self.read_raw(&key)? else {
+            return Ok(false);
+        };
+        if current.owner_node_id.as_deref() != Some(node_id)
+            || current.term != term
+            || current
+                .owner_ephemeral_id
+                .as_deref()
+                .is_some_and(|e| e != ephemeral_id)
+        {
+            return Ok(false);
+        }
+        let mut released = member.stored(current.term, node_id, ephemeral_id, 0);
+        released.owner_node_id = None;
+        released.owner_ephemeral_id = None;
+        released.writers = current.writers.clone();
+        released = released.with_writer(Some(node_id));
+        Ok(matches!(
+            self.store
+                .swap_register(&key, generation, &released.to_bytes()?)?,
+            SwapOutcome::Applied(_)
+        ))
     }
 
     /// The head a lost race left, shown as the member's.

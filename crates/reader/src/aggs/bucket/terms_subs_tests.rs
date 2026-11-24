@@ -194,3 +194,105 @@ fn a_numeric_terms_reserves_for_the_fields_values_and_a_keyword_one_here_nothing
         aggs(r#"{"aggs":{"t":{"terms":{"field":"tag"},"aggs":{"u":{"terms":{"field":"tag"}}}}}}"#);
     assert_eq!(keyed_subs::reserved(&shard, &keyword), 0);
 }
+
+fn keys_of(r: &TermsResult) -> Vec<(i64, u64)> {
+    r.buckets.clone()
+}
+
+fn reduced(parts: Vec<TermsResult>) -> TermsResult {
+    let values: Vec<Value> = parts
+        .into_iter()
+        .map(|p| Value::Terms(Box::new(p)))
+        .collect();
+    match reduce(&values).expect("reduces") {
+        Value::Terms(t) => *t,
+        other => panic!("not a terms: {other:?}"),
+    }
+}
+
+// AC-9
+#[test]
+fn a_numeric_terms_orders_by_a_metric_sub_aggregation() {
+    let shard = shard("terms-order-sub");
+    let got = terms(
+        &shard,
+        r#"{"aggs":{"t":{"terms":{"field":"n","size":3,"order":{"hi":"desc"}},
+            "aggs":{"hi":{"max":{"field":"n"}}}}}}"#,
+    );
+    // The shard keeps `shard_size` 14 of the 200 keys by the metric: 199 down to 186.
+    assert_eq!(got.buckets.len(), 14);
+    assert_eq!(got.buckets[0].0, 199);
+    assert_eq!(got.other_doc_count, 186);
+    assert_eq!(got.subs.lists[0], [Value::Max(199.0)]);
+    assert_eq!(got.subs.lists[13], [Value::Max(186.0)]);
+    let one = reduced(vec![got]);
+    assert_eq!(keys_of(&one), [(199, 1), (198, 1), (197, 1)]);
+    assert_eq!(one.subs.lists[2], [Value::Max(197.0)]);
+    // Ascending, through the `value` key and through a stats key.
+    for order in [r#"{"hi.value":"asc"}"#, r#"{"st.max":"asc"}"#] {
+        let got = terms(
+            &shard,
+            &format!(
+                r#"{{"aggs":{{"t":{{"terms":{{"field":"n","size":2,"order":{order}}},
+                "aggs":{{"hi":{{"max":{{"field":"n"}}}},"st":{{"stats":{{"field":"n"}}}}}}}}}}}}"#
+            ),
+        );
+        assert_eq!(got.buckets[0].0, 0, "{order}");
+        assert_eq!(keys_of(&reduced(vec![got])), [(0, 1), (1, 1)], "{order}");
+    }
+}
+
+// AC-9
+#[test]
+fn shard_results_ordered_by_a_sub_aggregation_reduce_by_the_reduced_value() {
+    let shard = shard("terms-order-reduce");
+    let part = |query: &str| {
+        terms(
+            &shard,
+            &format!(
+                r#"{{"query":{{"range":{{"n":{query}}}}},"aggs":{{"t":{{"terms":{{"field":"n","size":3,"order":{{"s":"desc"}}}},
+                "aggs":{{"s":{{"sum":{{"field":"n"}}}}}}}}}}}}"#
+            ),
+        )
+    };
+    let low = part(r#"{"lt":100}"#);
+    let high = part(r#"{"gte":100}"#);
+    let both = reduced(vec![low, high]);
+    assert_eq!(keys_of(&both), [(199, 1), (198, 1), (197, 1)]);
+    assert_eq!(
+        both.subs.lists,
+        [
+            [Value::Sum(199.0)],
+            [Value::Sum(198.0)],
+            [Value::Sum(197.0)]
+        ]
+    );
+    // The documents of the buckets cut count as other.
+    assert_eq!(both.other_doc_count, 197);
+}
+
+// AC-9
+#[test]
+fn equal_sub_aggregation_values_list_by_key_ascending() {
+    let shard = shard("terms-order-ties");
+    let got = terms(
+        &shard,
+        r#"{"aggs":{"t":{"terms":{"field":"n","size":3,"order":{"c":"desc"}},
+            "aggs":{"c":{"value_count":{"field":"n"}}}}}}"#,
+    );
+    assert_eq!(keys_of(&reduced(vec![got])), [(0, 1), (1, 1), (2, 1)]);
+}
+
+// AC-9
+#[test]
+fn a_bad_order_path_on_a_numeric_terms_fails_as_opensearch_fails_it() {
+    let shard = shard("terms-order-bad");
+    let e = run(
+        &shard,
+        r#"{"aggs":{"t":{"terms":{"field":"n","order":{"nope":"asc"}},
+            "aggs":{"hi":{"max":{"field":"n"}}}}}}"#,
+    )
+    .expect_err("fails");
+    assert_eq!(e.status, 500);
+    assert_eq!(e.failure.kind, "aggregation_execution_exception");
+}

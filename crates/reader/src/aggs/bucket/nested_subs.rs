@@ -263,6 +263,7 @@ pub fn numeric_terms<S: BlobStore + 'static>(
             };
         }
         made.apply_shard_min();
+        made.order_by_sub();
         // ALLOC: one box an owning bucket, as above.
         out.push(Value::Terms(Box::new(made)));
     }

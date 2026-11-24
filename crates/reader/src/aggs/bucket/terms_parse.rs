@@ -4,11 +4,13 @@
 //! shard size.
 
 use crate::aggs::bucket::keyword_options::{KeywordOptions, parse_filter};
+use crate::aggs::bucket::sub_order::{EMPTY_PATH, SubOrder, parse_path};
 use crate::aggs::bucket::terms::{TermsOrder, TermsSpec, suggested_shard_size};
 use crate::aggs::metric::parse::long_value;
 use crate::dsl::error::DslError;
 use crate::dsl::tokens::{Kind, Parser};
 use crate::dsl::values::{bool_value, int_value, suggest};
+use crate::failure::Failure;
 
 /// Every key `terms` declares.
 const KEYS: &[&str] = &[
@@ -37,6 +39,7 @@ pub fn parse_terms_body(p: &mut Parser<'_>, name: &str) -> Result<(String, Terms
     let mut min_doc_count = 1u64;
     let mut shard_min = 0u64;
     let mut order = TermsOrder::CountDesc;
+    let mut sub_order = None;
     let mut keyword = KeywordOptions::default();
     let mut show_error = false;
     let mut key = "";
@@ -183,14 +186,15 @@ pub fn parse_terms_body(p: &mut Parser<'_>, name: &str) -> Result<(String, Terms
                         "an [order] of several criteria in a [terms] aggregation",
                     ));
                 }
-                order = parse_order(p)?;
+                (order, sub_order) = parse_order(p)?;
             }
         }
     }
     let field = field.ok_or_else(|| {
         DslError::illegal("Required one of fields [field, script], but none were specified. ")
     })?;
-    let key_ordered = matches!(order, TermsOrder::KeyAsc | TermsOrder::KeyDesc);
+    let key_ordered =
+        sub_order.is_none() && matches!(order, TermsOrder::KeyAsc | TermsOrder::KeyDesc);
     // `TermsAggregatorFactory`: no shard size asked for is suggested from
     // the size unless the order is by key, and no shard keeps fewer than
     // the size.
@@ -220,16 +224,18 @@ pub fn parse_terms_body(p: &mut Parser<'_>, name: &str) -> Result<(String, Terms
             shard_min_doc_count,
             order,
             keyword,
+            sub_order,
             show_error,
         },
     ))
 }
 
 /// `InternalOrder.Parser`'s one criterion over an object, the parser on its
-/// start: `_count` or `_key`, `asc` or `desc`. A sub-aggregation's path is
-/// not served.
-fn parse_order(p: &mut Parser<'_>) -> Result<TermsOrder, DslError> {
-    let mut by: Option<&'static str> = None;
+/// start: `_count` or `_key` or the path of a sub-aggregation, `asc` or
+/// `desc`. A path is read as `AggregationPath.parse` reads it, and its
+/// target is checked when the shard runs.
+fn parse_order(p: &mut Parser<'_>) -> Result<(TermsOrder, Option<SubOrder>), DslError> {
+    let mut by: Option<String> = None;
     let mut ascending = false;
     loop {
         match p.next_token() {
@@ -240,15 +246,8 @@ fn parse_order(p: &mut Parser<'_>) -> Result<TermsOrder, DslError> {
                         "an [order] of several criteria in a [terms] aggregation",
                     ));
                 }
-                by = match p.text() {
-                    "_count" => Some("_count"),
-                    "_key" | "_term" => Some("_key"),
-                    _ => {
-                        return Err(DslError::unsupported(
-                            "an [order] by a sub-aggregation in a [terms] aggregation",
-                        ));
-                    }
-                };
+                // ALLOC: one path an order, bounded by the body's recording.
+                by = Some(p.text().to_owned());
             }
             Some(Kind::String) => {
                 ascending = match p.text() {
@@ -273,10 +272,39 @@ fn parse_order(p: &mut Parser<'_>) -> Result<TermsOrder, DslError> {
             }
         }
     }
-    Ok(match (by, ascending) {
-        (Some("_key"), true) => TermsOrder::KeyAsc,
-        (Some("_key"), false) => TermsOrder::KeyDesc,
-        (_, true) => TermsOrder::CountAsc,
-        (_, false) => TermsOrder::CountDesc,
+    Ok(match (by.as_deref(), ascending) {
+        (Some("_key" | "_term"), true) => (TermsOrder::KeyAsc, None),
+        (Some("_key" | "_term"), false) => (TermsOrder::KeyDesc, None),
+        (Some("_count") | None, true) => (TermsOrder::CountAsc, None),
+        (Some("_count") | None, false) => (TermsOrder::CountDesc, None),
+        (Some(path), _) => {
+            sub_path(path)?;
+            // The shard reads the order from the spec's `sub_order`.
+            (
+                TermsOrder::CountDesc,
+                Some(SubOrder {
+                    // ALLOC: one path an order, as above.
+                    path: path.to_owned(),
+                    ascending,
+                }),
+            )
+        }
+    })
+}
+
+/// `AggregationPath.parse`'s refusal of `path`, an
+/// `AggregationExecutionException`.
+fn sub_path(path: &str) -> Result<(), DslError> {
+    parse_path(path).map(|_| ()).map_err(|message| {
+        // No element at all is `AggregationPath`'s own
+        // `IllegalArgumentException`, a bad element the exception of the
+        // aggregation's execution.
+        if message == EMPTY_PATH {
+            return DslError::illegal(message);
+        }
+        DslError::Failure(Failure::opensearch(
+            "aggregation_execution_exception",
+            message,
+        ))
     })
 }

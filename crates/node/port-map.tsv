@@ -110,3 +110,4 @@ src/boot/config/tests.rs	new		the configuration tests, moved out of boot/config.
 src/search_rank_eval.rs	port	modules/rank-eval/src/main/java/org/opensearch/index/rankeval/TransportRankEvalAction.java	_rank_eval: run each rated request as a search and score its hits, with the Java response maps order
 src/commit_push.rs	new		what a booted node does with each commit its writer publishes: its own reader takes it, and the shell sends it to the readers from its CommitPush call site
 src/commit_push/tests.rs	new		tests of the commit sink
+src/writer/capacity.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/reconcile/ShardEviction.java	the shard cap and making room for one shard (makeRoom); handing off to a member with room, headroom and pinned indexes are not ported yet

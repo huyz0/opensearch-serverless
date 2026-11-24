@@ -8,6 +8,7 @@
 
 mod bucket_heads;
 mod budget;
+mod descriptor_heads;
 mod early;
 mod early_bounds;
 mod head_registers;

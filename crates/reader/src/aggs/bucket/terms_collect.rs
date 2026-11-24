@@ -4,6 +4,7 @@
 use lucene_aggs::bucket_aggs::AggNode;
 use lucene_aggs::metric_aggs::ValueKind;
 
+use crate::aggs::bucket::BUCKET_LIMIT;
 use crate::aggs::bucket::sub_values::BucketSubs;
 use crate::aggs::bucket::terms::{TermsResult, TermsSpec};
 use crate::failure::Failure;
@@ -17,8 +18,18 @@ pub fn node(field: &str, spec: &TermsSpec) -> AggNode {
         missing: None,
         script: None,
         kind: ValueKind::Long,
-        shard_size: spec.shard_size,
-        order: spec.order,
+        // Ordered by a sub-aggregation, the engine keeps every bucket (up to
+        // the limit) for the shard to order and cut.
+        shard_size: if spec.sub_order.is_some() {
+            BUCKET_LIMIT
+        } else {
+            spec.shard_size
+        },
+        order: if spec.sub_order.is_some() {
+            lucene_aggs::bucket_aggs::TermsOrder::KeyAsc
+        } else {
+            spec.order
+        },
         // ALLOC: empty; `keyed_subs` adds the sub-aggregations.
         subs: Vec::new(),
     }

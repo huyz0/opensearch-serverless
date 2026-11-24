@@ -12,6 +12,14 @@ pub enum TermFilter {
     Regex(String),
     /// The terms, sorted and without repeats.
     Set(Vec<String>),
+    /// A partition-based `include`: the terms whose hash falls in `partition`
+    /// of `num_partitions`.
+    Partition {
+        /// The zero-based partition asked for.
+        partition: u32,
+        /// How many partitions the terms divide into.
+        num_partitions: u32,
+    },
 }
 
 impl TermFilter {
@@ -20,6 +28,7 @@ impl TermFilter {
         match self {
             TermFilter::Regex(_) => "regex",
             TermFilter::Set(_) => "set",
+            TermFilter::Partition { .. } => "partition",
         }
     }
 }
@@ -72,6 +81,20 @@ impl KeywordOptions {
         } else {
             self.include.as_ref()
         };
+        // The include side of the merge: the new filter when it is the
+        // late `include`, else the earlier one.
+        let include = if late_include { Some(new) } else { earlier };
+        let excluded = if late_include {
+            earlier.is_some()
+        } else {
+            true
+        };
+        if excluded && matches!(include, Some(TermFilter::Partition { .. })) {
+            // ALLOC: error path; one message.
+            return Err(DslError::illegal(
+                "Cannot specify any excludes when using a partition-based include".to_owned(),
+            ));
+        }
         match earlier {
             Some(old) if old.method() != new.method() => {
                 let (include, other) = if late_include {
@@ -91,7 +114,7 @@ impl KeywordOptions {
 
 /// `IncludeExclude.parseInclude` and `parseExclude`, the parser on the
 /// value's first token (of kind `kind`): a string is a regular expression
-/// and an array is a set. A partition-based include is not served.
+/// and an array is a set; an object is a partition-based `include`.
 pub fn parse_filter(p: &mut Parser<'_>, kind: Kind, key: &str) -> Result<TermFilter, DslError> {
     match kind {
         // ALLOC: one pattern an aggregation, bounded by the body's recording.
@@ -123,12 +146,68 @@ pub fn parse_filter(p: &mut Parser<'_>, kind: Kind, key: &str) -> Result<TermFil
             set.dedup();
             Ok(TermFilter::Set(set))
         }
-        Kind::StartObject if key == "include" => Err(DslError::unsupported(
-            "a partition-based [include] in a [terms] aggregation",
-        )),
+        Kind::StartObject if key == "include" => parse_partition(p),
         other => Err(DslError::illegal(
             // ALLOC: error path; one message.
             format!("Unrecognized token for an {key} [{}]", other.name()),
         )),
     }
+}
+
+/// A partition-based `include`'s object: `partition` and `num_partitions`,
+/// both whole numbers, with `IncludeExclude`'s checks.
+fn parse_partition(p: &mut Parser<'_>) -> Result<TermFilter, DslError> {
+    let mut partition: Option<i64> = None;
+    let mut num_partitions: Option<i64> = None;
+    let mut name = "";
+    loop {
+        match p.next_token() {
+            Some(Kind::EndObject) | None => break,
+            Some(Kind::FieldName) => name = p.text(),
+            Some(Kind::Number | Kind::String) => {
+                let slot = match name {
+                    "partition" => &mut partition,
+                    "num_partitions" => &mut num_partitions,
+                    _ => return Err(unknown_parameter(name)),
+                };
+                let value = p.text().trim().parse::<i32>().map_err(|_| {
+                    DslError::unsupported(
+                        "a [partition] or [num_partitions] that is not an integer",
+                    )
+                })?;
+                *slot = Some(i64::from(value));
+            }
+            Some(_) => return Err(unknown_parameter(name)),
+        }
+    }
+    let Some(partition) = partition else {
+        // ALLOC: error path; one message.
+        return Err(DslError::illegal(
+            "Missing [partition] parameter for partition-based include".to_owned(),
+        ));
+    };
+    let Some(num_partitions) = num_partitions else {
+        // ALLOC: error path; one message.
+        return Err(DslError::illegal(
+            "Missing [num_partitions] parameter for partition-based include".to_owned(),
+        ));
+    };
+    if partition < 0 || partition >= num_partitions {
+        // ALLOC: error path; one message.
+        return Err(DslError::illegal(format!(
+            "Partition must be >=0 and < numPartition which is {num_partitions}"
+        )));
+    }
+    Ok(TermFilter::Partition {
+        partition: u32::try_from(partition).unwrap_or(0),
+        num_partitions: u32::try_from(num_partitions).unwrap_or(1),
+    })
+}
+
+fn unknown_parameter(name: &str) -> DslError {
+    DslError::Failure(crate::failure::Failure::opensearch(
+        "parse_exception",
+        // ALLOC: error path; one message.
+        format!("Unknown parameter in Include/Exclude clause: {name}"),
+    ))
 }

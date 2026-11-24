@@ -272,3 +272,18 @@ fn the_commit_push_is_on_unless_the_variable_turns_it_off() {
     assert!(!off.commit_push);
     assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_COMMIT_PUSH", "maybe")]))).is_err());
 }
+
+// docs/specs/writer-shard-cap AC-7
+#[test]
+fn the_shard_cap_is_off_by_default_and_set_by_its_variables() {
+    let c = NodeConfig::from_lookup(lookup(FS)).expect("valid");
+    assert_eq!((c.max_shards, c.evict_after_millis), (0, 60_000));
+    let c = NodeConfig::from_lookup(lookup(&with(&[
+        ("OSS_MAX_SHARDS", "500"),
+        ("OSS_EVICT_AFTER_MS", "0"),
+    ])))
+    .expect("valid");
+    assert_eq!((c.max_shards, c.evict_after_millis), (500, 0));
+    assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_MAX_SHARDS", "many")]))).is_err());
+    assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_EVICT_AFTER_MS", "soon")]))).is_err());
+}

@@ -192,6 +192,36 @@ fn the_buckets_are_those_of_the_querys_matches_and_a_search_writes_them() {
     );
 }
 
+// AC-10
+#[test]
+fn a_date_histogram_source_keys_by_the_rounded_millis_and_pages_with_after() {
+    let shard = shard("cp-date", DOCS);
+    let src = r#""sources":[{"d":{"date_histogram":{"field":"n","fixed_interval":"50ms"}}}]"#;
+    let all = composite(&shard, &format!(r#"{{{src}}}"#));
+    assert_eq!(longs(&all), [(0, 50), (50, 50), (100, 50), (150, 50)]);
+    let next = composite(&shard, &format!(r#"{{"size":1,{src},"after":{{"d":50}}}}"#));
+    assert_eq!(longs(&next), [(100, 50)]);
+    let desc = composite(
+        &shard,
+        r#"{"size":2,"sources":[{"d":{"date_histogram":{"field":"n","fixed_interval":"50ms","order":"desc"}}}]}"#,
+    );
+    assert_eq!(longs(&desc), [(150, 50), (100, 50)]);
+    let one = composite(
+        &shard,
+        r#"{"sources":[{"d":{"date_histogram":{"field":"n","calendar_interval":"minute"}}}]}"#,
+    );
+    assert_eq!(longs(&one), [(0, 200)]);
+    let (status, reason) = refused(
+        &shard,
+        r#"{"sources":[{"d":{"date_histogram":{"field":"tag","fixed_interval":"1d"}}}]}"#,
+    );
+    assert_eq!(status, 400);
+    assert!(
+        reason.contains("not supported for aggregation [date_histogram]"),
+        "{reason}"
+    );
+}
+
 // AC-4
 #[test]
 fn missing_bucket_on_a_field_every_document_has_adds_no_bucket() {
@@ -308,7 +338,7 @@ fn a_composite_reserves_its_keys_and_ordinals_with_the_hits() {
     };
     // The keys: exactly `state_bytes`, beside a long source of the same size.
     let spec = |sources: &str, size: usize| agg(sources, size).composite.expect("spec");
-    let keys = super::composite_collect::state_bytes(&spec(long, 10));
+    let keys = super::composite_collect::state_bytes(&spec(long, 10), 0);
     assert_eq!(keys, 10 * (48 + 96) * 3);
     assert_eq!(
         super::composite_collect::reserved(&shard, &agg(long, 10)),
@@ -326,4 +356,50 @@ fn a_composite_reserves_its_keys_and_ordinals_with_the_hits() {
     // The most a request may keep.
     let most = bytes(long, crate::aggs::bucket::BUCKET_LIMIT);
     assert!(most > bytes(long, 10) + 65_000 * 144 * 3 - 10 * 144 * 3 - 1);
+}
+
+// AC-11
+#[test]
+fn scalar_sub_aggregations_run_per_bucket_and_render_after_the_count() {
+    let shard = shard("cp-subs", DOCS);
+    let body = r#"{"size":0,"aggs":{"c":{"composite":{"size":3,"sources":[{"t":{"terms":{"field":"tag"}}}]},"aggs":{"hi":{"max":{"field":"n"}},"total":{"sum":{"field":"n"}}}}}}"#;
+    let Value::Composite(got) = run(&shard, body).expect("searches").remove(0).value else {
+        panic!("not a composite");
+    };
+    let got = *got;
+    assert_eq!(
+        terms(&got),
+        [
+            ("t0".to_owned(), 13),
+            ("t1".to_owned(), 13),
+            ("t10".to_owned(), 12)
+        ]
+    );
+    let reduced = reduce_results(&[&got, &got]).expect("reduces");
+    let mut out = Vec::new();
+    write_composite(&mut out, &reduced).expect("writes");
+    assert_eq!(
+        String::from_utf8(out).expect("utf-8"),
+        concat!(
+            r#""after_key":{"t":"t10"},"buckets":["#,
+            r#"{"key":{"t":"t0"},"doc_count":26,"hi":{"value":192.0},"total":{"value":2496.0}},"#,
+            r#"{"key":{"t":"t1"},"doc_count":26,"hi":{"value":193.0},"total":{"value":2522.0}},"#,
+            r#"{"key":{"t":"t10"},"doc_count":24,"hi":{"value":186.0},"total":{"value":2352.0}}]"#
+        )
+    );
+}
+
+// AC-11
+#[test]
+fn a_sub_aggregation_is_reserved_with_the_keys() {
+    let state = |subs: &str| {
+        let body = format!(
+            r#"{{"aggs":{{"c":{{"composite":{{"size":10,"sources":[{{"a":{{"terms":{{"field":"n"}}}}}}]}},"aggs":{{{subs}}}}}}}}}"#
+        );
+        let source = crate::dsl::parse_chunks([body.as_bytes()]).expect("parses");
+        crate::aggs::metric::state_bytes(&source.aggs)
+    };
+    let one = state(r#""m":{"max":{"field":"n"}}"#);
+    let two = state(r#""m":{"max":{"field":"n"}},"s":{"sum":{"field":"n"}}"#);
+    assert!(two > one, "{two} > {one}");
 }

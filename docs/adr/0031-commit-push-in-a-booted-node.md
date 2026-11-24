@@ -1,4 +1,4 @@
-# 0030: A booted node pushes commits, and its own reader follows its own writer
+# 0031: A booted node pushes commits, and its own reader follows its own writer
 
 **Status:** Accepted after independent review, 2026-11-24
 

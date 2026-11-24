@@ -237,6 +237,18 @@ impl WriterRole {
             .retain(|_, slept| now_millis.saturating_sub(slept.at) < KEEP_ASLEEP_MILLIS);
     }
 
+    /// Records a shard closed at `term` as asleep, so its next write wakes
+    /// it at the same term.
+    pub(super) fn remember_asleep(&self, key: &Key, term: i64, now_millis: u64) {
+        lock(&self.hibernation.asleep).insert(
+            key.clone(),
+            Slept {
+                term,
+                at: now_millis,
+            },
+        );
+    }
+
     /// Whether the shard is hibernated here.
     pub fn asleep(&self, uuid: &str, shard: u32) -> bool {
         // ALLOC: one key a lookup.
