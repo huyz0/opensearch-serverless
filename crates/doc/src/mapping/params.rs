@@ -32,6 +32,8 @@ pub enum Value {
     Meta(Vec<(String, String)>),
     /// A numeric field's `null_value`, already of the field's type.
     Number(numbers::Num),
+    /// A `knn_vector` field's `method`.
+    Method(super::knn::KnnMethod),
 }
 
 impl Value {
@@ -52,6 +54,7 @@ impl Value {
                 format!("{{{}}}", inner.join(", "))
             }
             Value::Number(n) => n.java_string(),
+            Value::Method(m) => m.name.clone(),
         }
     }
 
@@ -80,6 +83,7 @@ impl Value {
                 out.push('}');
             }
             Value::Number(n) => out.push_str(&n.java_string()),
+            Value::Method(m) => m.write_json(out),
         }
     }
 
@@ -122,6 +126,14 @@ pub enum Kind {
     NullBool,
     /// A numeric `null_value`: a number of the field's type, or null.
     NullNumber,
+    /// A `knn_vector` `dimension`.
+    KnnDimension,
+    /// A `knn_vector` `data_type`.
+    KnnDataType,
+    /// A `knn_vector` `method`.
+    KnnMethod,
+    /// A `knn_vector` top-level `space_type`.
+    KnnSpace,
 }
 
 /// How a parameter is merged.

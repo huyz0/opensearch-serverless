@@ -106,3 +106,7 @@ Neither the gate nor CI runs `record.py`; checking fixtures needs nothing but th
 | [search/errors.json](search/errors.json) | OpenSearch's error bodies for queries, keys and parameters the subset refuses, and the result window |
 
 The mapping fixtures are replayed through the writer's mapping by `crates/writer/tests/mapping_fixtures.rs`; the 3.10.0-SNAPSHOT they were recorded from was built from huyz0/OpenSearch `429b4cbc` (`./gradlew localDistro`). The search fixtures' indices are also written through the Java shell into [fixtures/compat-blobs/](../compat-blobs/README.md), so a reader node replays their `_search` steps.
+
+## k-NN fixtures
+
+`mapping/knn-*.json` and `knn/` are recorded from the stock 3.10.0 release tarball (`artifacts.opensearch.org`, SHA-512 checked against the published sum) with its bundled k-NN plugin, which the 3.10 source build above does not include. Start it as in step 2, with the security plugin directory removed, and use only the Lucene engine: the Faiss library the plugin loads is missing from the tarball and the node exits when a request reaches it.

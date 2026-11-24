@@ -87,6 +87,9 @@ pub fn take(leaf: &Leaf, tok: &Tok, at: At) -> Result<Taken, MappingError> {
         FieldType::Boolean => boolean(leaf, tok, at),
         FieldType::Date => date(leaf, tok, at),
         FieldType::Number(ty) => number(leaf, ty, tok, at),
+        // The vector is not indexed yet; a mapping with the field is only
+        // accepted by a caller that asks for it.
+        FieldType::Knn => Err(MappingError::unsupported("knn_vector values")),
     }
 }
 

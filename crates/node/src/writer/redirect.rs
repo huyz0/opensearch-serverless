@@ -16,13 +16,15 @@ impl WriterRole {
     pub(crate) fn owner(&self, index: &IndexInfo, shard: u32) -> Owner {
         if self.held(&index.uuid, shard) {
             Owner::Local
-        } else if let Some(node) = self
-            .redirect(&index.uuid, shard)
-            .or_else(|| self.steer(index, shard))
-        {
-            Owner::Node(node)
+        } else if let Some(holder) = self.redirect(&index.uuid, shard) {
+            Owner::Node(holder)
         } else {
-            self.routes.owner(index, shard)
+            // Steering only moves a shard the routes would open here: one
+            // another node owns stays where the routes put it.
+            match self.routes.owner(index, shard) {
+                Owner::Local => self.steer(index, shard).map_or(Owner::Local, Owner::Node),
+                owner @ Owner::Node(_) => owner,
+            }
         }
     }
 
@@ -50,6 +52,7 @@ impl WriterRole {
         {
             // ALLOC: one key a failed forward.
             lock(&self.redirects).remove(&(index.uuid.clone(), shard));
+            self.unsteer(&index.uuid, shard);
         }
         results
     }

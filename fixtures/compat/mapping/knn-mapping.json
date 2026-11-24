@@ -1,0 +1,1671 @@
+{
+  "name": "knn_vector mappings",
+  "description": "How a knn_vector field is accepted and written back.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-map-hnsw",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-map-hnswbare",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-map-nospace",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-map-top",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-map-topsame",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-map-l2",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-map-ip",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-map-efonly",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-map-caps",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-map-dimstr",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-map-dimfloat",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-map-datatype",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-map-paramsnull",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-map-paramsempty",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-map-bothparams",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-map-bigparams",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-map-maxdim",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-map-nested",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-map-meta",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-map-metaempty",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-map-two",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "create compat-knn-map-hnsw",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-map-hnsw",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "space_type": "cosinesimil",
+                  "parameters": {
+                    "m": 8,
+                    "ef_construction": 64
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knn-map-hnsw"
+        }
+      }
+    },
+    {
+      "name": "get mapping compat-knn-map-hnsw",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knn-map-hnsw/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knn-map-hnsw": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "lucene",
+                    "space_type": "cosinesimil",
+                    "name": "hnsw",
+                    "parameters": {
+                      "ef_construction": 64,
+                      "m": 8
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-map-hnswbare",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-map-hnswbare",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knn-map-hnswbare"
+        }
+      }
+    },
+    {
+      "name": "get mapping compat-knn-map-hnswbare",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knn-map-hnswbare/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knn-map-hnswbare": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "lucene",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-map-nospace",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-map-nospace",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "parameters": {
+                    "m": 16
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knn-map-nospace"
+        }
+      }
+    },
+    {
+      "name": "get mapping compat-knn-map-nospace",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knn-map-nospace/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knn-map-nospace": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "lucene",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {
+                      "m": 16
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-map-top",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-map-top",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 4,
+                "space_type": "innerproduct",
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knn-map-top"
+        }
+      }
+    },
+    {
+      "name": "get mapping compat-knn-map-top",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knn-map-top/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knn-map-top": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 4,
+                  "method": {
+                    "engine": "lucene",
+                    "space_type": "innerproduct",
+                    "name": "hnsw",
+                    "parameters": {}
+                  },
+                  "space_type": "innerproduct"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-map-topsame",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-map-topsame",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 4,
+                "space_type": "l2",
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "space_type": "l2"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knn-map-topsame"
+        }
+      }
+    },
+    {
+      "name": "get mapping compat-knn-map-topsame",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knn-map-topsame/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knn-map-topsame": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 4,
+                  "method": {
+                    "engine": "lucene",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {}
+                  },
+                  "space_type": "l2"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-map-l2",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-map-l2",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 2,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "space_type": "l2"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knn-map-l2"
+        }
+      }
+    },
+    {
+      "name": "get mapping compat-knn-map-l2",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knn-map-l2/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knn-map-l2": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 2,
+                  "method": {
+                    "engine": "lucene",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-map-ip",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-map-ip",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 2,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "space_type": "innerproduct"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knn-map-ip"
+        }
+      }
+    },
+    {
+      "name": "get mapping compat-knn-map-ip",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knn-map-ip/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knn-map-ip": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 2,
+                  "method": {
+                    "engine": "lucene",
+                    "space_type": "innerproduct",
+                    "name": "hnsw",
+                    "parameters": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-map-efonly",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-map-efonly",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "parameters": {
+                    "ef_construction": 200
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knn-map-efonly"
+        }
+      }
+    },
+    {
+      "name": "get mapping compat-knn-map-efonly",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knn-map-efonly/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knn-map-efonly": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "lucene",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {
+                      "ef_construction": 200
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-map-caps",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-map-caps",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "LUCENE",
+                  "space_type": "L2"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knn-map-caps"
+        }
+      }
+    },
+    {
+      "name": "get mapping compat-knn-map-caps",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knn-map-caps/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knn-map-caps": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "lucene",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-map-dimstr",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-map-dimstr",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": "3",
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knn-map-dimstr"
+        }
+      }
+    },
+    {
+      "name": "get mapping compat-knn-map-dimstr",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knn-map-dimstr/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knn-map-dimstr": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "lucene",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-map-dimfloat",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-map-dimfloat",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3.0,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knn-map-dimfloat"
+        }
+      }
+    },
+    {
+      "name": "get mapping compat-knn-map-dimfloat",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knn-map-dimfloat/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knn-map-dimfloat": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "lucene",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-map-datatype",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-map-datatype",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "data_type": "float",
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knn-map-datatype"
+        }
+      }
+    },
+    {
+      "name": "get mapping compat-knn-map-datatype",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knn-map-datatype/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knn-map-datatype": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "lucene",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-map-paramsnull",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-map-paramsnull",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "parameters": null
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knn-map-paramsnull"
+        }
+      }
+    },
+    {
+      "name": "get mapping compat-knn-map-paramsnull",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knn-map-paramsnull/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knn-map-paramsnull": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "lucene",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": null
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-map-paramsempty",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-map-paramsempty",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "parameters": {}
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knn-map-paramsempty"
+        }
+      }
+    },
+    {
+      "name": "get mapping compat-knn-map-paramsempty",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knn-map-paramsempty/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knn-map-paramsempty": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "lucene",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-map-bothparams",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-map-bothparams",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "parameters": {
+                    "m": 1,
+                    "ef_construction": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knn-map-bothparams"
+        }
+      }
+    },
+    {
+      "name": "get mapping compat-knn-map-bothparams",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knn-map-bothparams/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knn-map-bothparams": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "lucene",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {
+                      "ef_construction": 1,
+                      "m": 1
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-map-bigparams",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-map-bigparams",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "parameters": {
+                    "m": 513,
+                    "ef_construction": 10000
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knn-map-bigparams"
+        }
+      }
+    },
+    {
+      "name": "get mapping compat-knn-map-bigparams",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knn-map-bigparams/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knn-map-bigparams": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "lucene",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {
+                      "ef_construction": 10000,
+                      "m": 513
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-map-maxdim",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-map-maxdim",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 16000,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knn-map-maxdim"
+        }
+      }
+    },
+    {
+      "name": "get mapping compat-knn-map-maxdim",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knn-map-maxdim/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knn-map-maxdim": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 16000,
+                  "method": {
+                    "engine": "lucene",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-map-nested",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-map-nested",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "o": {
+                "properties": {
+                  "v": {
+                    "type": "knn_vector",
+                    "dimension": 3,
+                    "method": {
+                      "name": "hnsw",
+                      "engine": "lucene"
+                    }
+                  }
+                }
+              },
+              "w": {
+                "type": "keyword"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knn-map-nested"
+        }
+      }
+    },
+    {
+      "name": "get mapping compat-knn-map-nested",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knn-map-nested/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knn-map-nested": {
+            "mappings": {
+              "properties": {
+                "o": {
+                  "properties": {
+                    "v": {
+                      "type": "knn_vector",
+                      "dimension": 3,
+                      "method": {
+                        "engine": "lucene",
+                        "space_type": "l2",
+                        "name": "hnsw",
+                        "parameters": {}
+                      }
+                    }
+                  }
+                },
+                "w": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-map-meta",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-map-meta",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene"
+                },
+                "meta": {
+                  "a": "b"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knn-map-meta"
+        }
+      }
+    },
+    {
+      "name": "get mapping compat-knn-map-meta",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knn-map-meta/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knn-map-meta": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "meta": {
+                    "a": "b"
+                  },
+                  "method": {
+                    "engine": "lucene",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-map-metaempty",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-map-metaempty",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene"
+                },
+                "meta": {}
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knn-map-metaempty"
+        }
+      }
+    },
+    {
+      "name": "get mapping compat-knn-map-metaempty",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knn-map-metaempty/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knn-map-metaempty": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "lucene",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-map-two",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-map-two",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "a": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene"
+                }
+              },
+              "b": {
+                "type": "knn_vector",
+                "dimension": 5,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "space_type": "innerproduct"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knn-map-two"
+        }
+      }
+    },
+    {
+      "name": "get mapping compat-knn-map-two",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knn-map-two/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knn-map-two": {
+            "mappings": {
+              "properties": {
+                "a": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "lucene",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {}
+                  }
+                },
+                "b": {
+                  "type": "knn_vector",
+                  "dimension": 5,
+                  "method": {
+                    "engine": "lucene",
+                    "space_type": "innerproduct",
+                    "name": "hnsw",
+                    "parameters": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

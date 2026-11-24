@@ -62,7 +62,13 @@ impl Target for RoleTarget<'_> {
     fn refresh(&mut self, index: &IndexInfo, shard: u32) -> Result<(), String> {
         match self.role.owner(index, shard) {
             Owner::Local => self.role.refresh(index, shard),
-            Owner::Node(node) => self.role.routes.refresh_remote(&node, index, shard),
+            Owner::Node(node) => {
+                let done = self.role.routes.refresh_remote(&node, index, shard);
+                if done.is_err() {
+                    self.role.unsteer(&index.uuid, shard);
+                }
+                done
+            }
         }
     }
 

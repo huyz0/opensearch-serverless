@@ -11,6 +11,8 @@ mod assemble;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod boot;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
+mod boot_buckets;
+#[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod boot_give_back;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod boot_lease_load;

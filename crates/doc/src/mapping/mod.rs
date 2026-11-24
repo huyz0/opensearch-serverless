@@ -21,9 +21,11 @@ mod dates;
 mod error;
 mod field;
 pub mod json;
+mod knn;
 mod numbers;
 mod object;
 mod params;
+mod read;
 mod types;
 
 pub use dates::{Format, Formats};
@@ -68,6 +70,14 @@ impl Default for Mapping {
     }
 }
 
+/// What a caller of [`Mapping::parse_with`] indexes beyond the default.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ParseOptions {
+    /// `None`: `knn_vector` is unsupported (the default). `Some(flag)`: it is
+    /// indexed, on an index whose `index.knn` setting is `flag`.
+    pub knn: Option<bool>,
+}
+
 impl Mapping {
     /// Reads a mapping as a create-index or put-mapping request gives it,
     /// or a descriptor stores it: `{"properties": ...}`, or the same
@@ -78,10 +88,47 @@ impl Mapping {
     /// `Failed to parse mapping [_doc]: ...` caused by the Java's message,
     /// or [`MappingError::unsupported`].
     pub fn parse(text: &[u8]) -> Result<Self, MappingError> {
+        Self::parse_with(text, ParseOptions::default())
+    }
+
+    /// As [`Mapping::parse`], for a caller that indexes what `options` says.
+    ///
+    /// # Errors
+    ///
+    /// As [`Mapping::parse`].
+    pub fn parse_with(text: &[u8], options: ParseOptions) -> Result<Self, MappingError> {
         let mapping = Self::parse_unwrapped(text).map_err(MappingError::failed_to_parse)?;
+        mapping.check_knn(options)?;
         // `MapperService` checks the limits after the parse, unwrapped.
         mapping.check_limits()?;
         Ok(mapping)
+    }
+
+    /// A `knn_vector` field is accepted only by a caller that indexes it,
+    /// and a method only on an index with `index.knn` set
+    /// (`TypeParser.validateFromFlat`).
+    fn check_knn(&self, options: ParseOptions) -> Result<(), MappingError> {
+        for (name, leaf) in self.leaves() {
+            if leaf.ty() != FieldType::Knn {
+                continue;
+            }
+            match options.knn {
+                None => {
+                    // ALLOC: mapping parse, merge or error path; bounded by the mapping text (MAX_MAPPING_BYTES).
+                    return Err(MappingError::unsupported(&format!(
+                        "field type [knn_vector] on field [{name}]"
+                    )));
+                }
+                Some(false) => {
+                    return Err(MappingError::illegal_argument(
+                        "Cannot set modelId or method parameters when index.knn setting is false",
+                    )
+                    .failed_to_parse());
+                }
+                Some(true) => {}
+            }
+        }
+        Ok(())
     }
 
     fn parse_unwrapped(text: &[u8]) -> Result<Self, MappingError> {

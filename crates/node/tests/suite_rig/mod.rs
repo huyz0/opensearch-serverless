@@ -254,6 +254,21 @@ impl Cluster {
         self.ids.iter().position(|id| *id == owner)
     }
 
+    /// The `held` shards a node's lease reports, from the emulated store;
+    /// -1 when it says none or has no lease.
+    pub fn held_of(&self, slot: usize) -> i32 {
+        use oss_blob::BlobStore;
+        let Backing::Emulated(server) = &self._backing else {
+            panic!("the lease is read from the emulator");
+        };
+        let key = oss_format::lease_key("", &self.ids[slot]).expect("a key");
+        let mut buf = vec![0u8; 1 << 16];
+        let Ok(Some(read)) = server.store().read_register(&key, &mut buf) else {
+            return -1;
+        };
+        oss_format::NodeLease::parse(&buf[..read.len]).map_or(-1, |lease| lease.held)
+    }
+
     /// The slots whose node runs.
     pub fn live(&self) -> Vec<usize> {
         (0..self.nodes.len())

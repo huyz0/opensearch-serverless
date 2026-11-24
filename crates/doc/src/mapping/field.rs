@@ -12,10 +12,7 @@ use std::fmt::Write as _;
 
 use super::error::MappingError;
 use super::json::{Json, java_cmp, write_str};
-use super::numbers;
-use super::params::{
-    Def, Default as D, Kind, Merge, Value, parse_bool, parse_float, parse_int, parse_meta,
-};
+use super::params::{Default as D, Kind, Merge, Value};
 pub use super::types::FieldType;
 use super::types::{
     DEFAULT_DATE_FORMAT, DEPRECATED_PARAMS, OTHER_TYPES, POSITION_INCREMENT_GAP_USE_ANALYZER,
@@ -140,7 +137,7 @@ impl Leaf {
                 )));
             };
             let Some(def) = defs.get(i) else { continue };
-            let parsed = parse_value(name, ty, def, value)?;
+            let parsed = super::read::parse_value(name, ty, def, value)?;
             if let Some(slot) = leaf.values.get_mut(i) {
                 *slot = parsed;
             }
@@ -150,7 +147,36 @@ impl Leaf {
         }
         leaf.follow_unset(set);
         leaf.validate(name)?;
+        if ty == FieldType::Knn {
+            leaf.resolve_knn(name)?;
+        }
         Ok(leaf)
+    }
+
+    /// The checks the k-NN plugin's `TypeParser` makes after reading the
+    /// parameters, and the method it keeps: see [`super::knn::resolve`].
+    fn resolve_knn(&mut self, name: &str) -> Result<(), MappingError> {
+        let dimension = match self.get("dimension") {
+            Some(Value::Int(d)) => *d,
+            _ => super::types::KNN_NO_DIMENSION,
+        };
+        let method = match self.get("method") {
+            Some(Value::Method(m)) => Some(m.clone()),
+            _ => None,
+        };
+        let top = self
+            .get("space_type")
+            .and_then(Value::text)
+            .unwrap_or("undefined");
+        let resolved = super::knn::resolve(name, dimension, method.as_ref(), top)?;
+        if let (Some(m), Some(i)) = (
+            resolved,
+            self.ty.defs().iter().position(|d| d.name == "method"),
+        ) && let Some(slot) = self.values.get_mut(i)
+        {
+            *slot = Value::Method(m);
+        }
+        Ok(())
     }
 
     /// A parameter defaulting to another's (`search_analyzer` to
@@ -452,47 +478,4 @@ fn fixed_default(d: D, kind: Kind) -> Value {
         D::Empty => Value::Meta(Vec::new()),
         D::Same(_) => Value::Null,
     }
-}
-
-fn parse_value(name: &str, ty: FieldType, def: &Def, node: &Json) -> Result<Value, MappingError> {
-    let nullable = matches!(
-        def.kind,
-        Kind::NullString | Kind::NullBool | Kind::NullNumber
-    );
-    if *node == Json::Null {
-        if nullable {
-            return Ok(Value::Null);
-        }
-        // ALLOC: mapping parse, merge or error path; bounded by the mapping text (MAX_MAPPING_BYTES).
-        return Err(MappingError::mapper_parsing(&format!(
-            "[{}] on mapper [{name}] of type [{}] must not have a [null] value",
-            def.name,
-            ty.name()
-        )));
-    }
-    Ok(match def.kind {
-        Kind::Bool => Value::Bool(parse_bool(node)?),
-        Kind::Explicit => Value::Explicit(parse_bool(node)?, true),
-        Kind::Int => Value::Int(parse_int(node)?),
-        Kind::Boost => Value::Float(parse_float(node)?),
-        Kind::Str | Kind::Analyzer | Kind::NullString => Value::Str(node.java_string()),
-        Kind::Choice(allowed) => {
-            let v = node.java_string();
-            if !allowed.contains(&v.as_str()) {
-                // ALLOC: mapping parse, merge or error path; bounded by the mapping text (MAX_MAPPING_BYTES).
-                return Err(MappingError::mapper_parsing(&format!(
-                    "Unknown value [{v}] for field [{}] - accepted values are [{}]",
-                    def.name,
-                    allowed.join(", ")
-                )));
-            }
-            Value::Str(v)
-        }
-        Kind::Meta => Value::Meta(parse_meta(name, node)?),
-        Kind::NullBool => Value::Bool(parse_bool(node)?),
-        Kind::NullNumber => match ty {
-            FieldType::Number(n) => Value::Number(numbers::parse(n, node, false)?),
-            _ => Value::Null,
-        },
-    })
 }
