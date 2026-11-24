@@ -955,6 +955,7 @@ dependencies = [
  "lucene-store",
  "lucene-util",
  "oss-blob",
+ "oss-cluster",
  "oss-doc",
  "oss-format",
  "oss-mem",

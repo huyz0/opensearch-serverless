@@ -141,12 +141,24 @@ impl ShardFiles {
         let value = match (pushed, bucket) {
             (Some(value), _) => value,
             (None, Some(bucket)) => {
-                held = member_commit(store, base, bucket, &descriptor.uuid)?;
+                match member_commit(store, base, bucket, &descriptor.uuid)? {
+                    Some(commit) => held = commit,
+                    // The bucket's entry says nothing was ever committed.
+                    None => return Ok((Self::never_written(), meta)),
+                }
                 held.as_slice()
             }
             (None, None) => {
-                register_bytes =
-                    read_register(store, &shard_ref.manifest_key(base)?, MAX_REGISTER_BYTES)?;
+                match read_register(store, &shard_ref.manifest_key(base)?, MAX_REGISTER_BYTES) {
+                    Ok(bytes) => register_bytes = bytes,
+                    // The index was created and nothing was published.
+                    Err(ReaderError::Blob(oss_blob::BlobError::NotFound))
+                        if never_activated(store, base, &descriptor, shard)? =>
+                    {
+                        return Ok((Self::never_written(), meta));
+                    }
+                    Err(e) => return Err(e),
+                }
                 Register::parse(&register_bytes)?.value
             }
         };
@@ -187,6 +199,31 @@ impl ShardFiles {
             },
             meta,
         ))
+    }
+
+    /// The commit of a shard that never held a document: one engine file of
+    /// no segments, held in memory, so a search of it finds no hits and
+    /// reads no object.
+    fn never_written() -> Self {
+        // ALLOC: one entry, the empty commit's file.
+        let mut files = BTreeMap::new();
+        if let Some((name, bytes)) = crate::empty_commit::file() {
+            files.insert(
+                // ALLOC: one name, a first open of a never-written shard.
+                name.clone(),
+                FileRange {
+                    // ALLOC: one key, with the name above.
+                    key: crate::empty_commit::INLINE_KEY.to_owned(),
+                    offset: 0,
+                    length: bytes.len() as u64,
+                },
+            );
+        }
+        Self {
+            term: 0,
+            stage: Stage::new(0, None, -1),
+            files,
+        }
     }
 
     /// A commit assembled from `term` and its resolved `files`.
@@ -270,25 +307,49 @@ fn not_followable(reason: &'static str) -> ReaderError {
     })
 }
 
-/// The commit a bucketed index's entry in its bucket's manifest holds: one
-/// GET of the manifest register.
+/// The commit a bucketed index's entry in its bucket's manifest holds, none
+/// before its first publish: one GET of the manifest register.
 fn member_commit<S: BlobStore>(
     store: &PooledStore<S>,
     base: &str,
     bucket: &str,
     uuid: &str,
-) -> Result<Vec<u8>, ReaderError> {
+) -> Result<Option<Vec<u8>>, ReaderError> {
     let bytes = read_register(
         store,
         &bucket_manifest_key(base, bucket)?,
         MAX_REGISTER_BYTES,
     )?;
     let entry = parse_bucket_member(Register::parse(&bytes)?.value, uuid)?;
-    entry
+    Ok(entry
         .member
         .ok_or_else(|| not_followable("the index is not a member of its bucket"))?
-        .commit
-        .ok_or_else(|| not_followable("the bucket holds no commit of the index yet"))
+        .commit)
+}
+
+/// Whether no writer ever took shard `shard` of the index `descriptor`
+/// describes: its head is absent, or was left by an earlier index of the
+/// name. A shard that was taken and has no commit register lost it, which
+/// is an error, not an empty shard. One GET, only when the register is
+/// missing.
+fn never_activated<S: BlobStore>(
+    store: &PooledStore<S>,
+    base: &str,
+    descriptor: &IndexDescriptor<'_>,
+    shard: u32,
+) -> Result<bool, ReaderError> {
+    let key = oss_cluster::heads::shard_head_key(base, &descriptor.name, shard);
+    match read_register(store, &key, MAX_REGISTER_BYTES) {
+        Ok(bytes) => {
+            let head = oss_format::ShardHead::parse(Register::parse(&bytes)?.value)?;
+            Ok(head
+                .index_uuid
+                .as_deref()
+                .is_some_and(|uuid| uuid != descriptor.uuid))
+        }
+        Err(ReaderError::Blob(oss_blob::BlobError::NotFound)) => Ok(true),
+        Err(e) => Err(e),
+    }
 }
 
 /// Reads a whole register blob, refusing one over `max` bytes.

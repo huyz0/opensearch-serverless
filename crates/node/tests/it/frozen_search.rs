@@ -166,7 +166,13 @@ fn a_search_of_a_view_does_not_read_the_live_commit() {
             .expect("delete the register")
     );
     let live = request(rig.node.addr(), "POST", "/compat-term/_search", Some(QUERY));
-    assert_ne!(live.status, 200, "the live commit is gone");
+    // With its register gone the live shard reads as one nobody wrote to.
+    assert_eq!(live.status, 200, "{}", live.text());
+    assert!(
+        live.text().contains("\"total\":{\"value\":0"),
+        "the live commit is gone: {}",
+        live.text()
+    );
     let frozen = search_pit(&rig.node, ID);
     assert_eq!(frozen.status, 200, "{}", frozen.text());
     assert!(
@@ -353,7 +359,13 @@ fn a_view_of_two_shards_does_not_read_the_live_commits() {
         );
     }
     let r = request(rig.node.addr(), "POST", "/compat-term/_search", Some(QUERY));
-    assert_ne!(r.status, 200, "the live search fails: {}", r.text());
+    // With their registers gone the live shards read as ones nobody wrote to.
+    assert_eq!(r.status, 200, "{}", r.text());
+    assert!(
+        r.text().contains("\"total\":{\"value\":0"),
+        "the live commits are gone: {}",
+        r.text()
+    );
     let r = search_pit(&rig.node, ID);
     assert_eq!(r.status, 200, "{}", r.text());
     assert!(r.text().contains(r#""_shards":{"total":2,"successful":2"#));

@@ -214,7 +214,7 @@ fn an_index_the_node_cannot_serve_is_refused() {
     crate::support::put_variant(&node.store, "compat-term", "corrupt", |_| "{".into());
     let r = request(node.addr(), "GET", "/two-shards/_search", None);
     // Without the coordinator an index of two shards is refused; with it
-    // the second shard, whose blobs are not here, fails alone.
+    // the second shard, which no one wrote to, answers no hits.
     #[cfg(not(feature = "coordinator"))]
     {
         assert_eq!(r.status, 400);
@@ -230,7 +230,7 @@ fn an_index_the_node_cannot_serve_is_refused() {
         assert_eq!(r.status, 200, "{}", r.text());
         assert!(
             r.text()
-                .contains(r#""successful":1,"skipped":0,"failed":1"#)
+                .contains(r#""total":2,"successful":2,"skipped":0,"failed":0"#)
         );
     }
     let r = request(node.addr(), "GET", "/corrupt/_search", None);
@@ -238,7 +238,8 @@ fn an_index_the_node_cannot_serve_is_refused() {
     assert!(r.text().contains(r#""type":"exception""#), "{}", r.text());
     assert_eq!(
         node.service.open_indexes(),
-        usize::from(cfg!(feature = "coordinator"))
+        // Both shards of the two-shard index are open: the second as an empty one.
+        2 * usize::from(cfg!(feature = "coordinator"))
     );
 }
 

@@ -81,6 +81,21 @@ fn engine_error(e: BlobError) -> Error {
     Error::Io(io::Error::new(kind, e))
 }
 
+/// Copies the bytes of the in-memory empty commit's file `name` from
+/// `offset` into `out`.
+fn inline(name: &str, offset: u64, out: &mut [u8]) -> usize {
+    let bytes = crate::empty_commit::file()
+        .filter(|(n, _)| n == name)
+        .map_or(&[][..], |(_, b)| b.as_slice());
+    let from = usize::try_from(offset).unwrap_or(usize::MAX);
+    let rest = bytes.get(from..).unwrap_or(&[]);
+    let n = out.len().min(rest.len());
+    if let (Some(dest), Some(src)) = (out.get_mut(..n), rest.get(..n)) {
+        dest.copy_from_slice(src);
+    }
+    n
+}
+
 fn read_only(name: &str) -> Error {
     // ALLOC: one message on a refused write, which a reader never makes.
     Error::IllegalArgument(format!("the reader's store is read-only: {name}"))
@@ -112,6 +127,9 @@ impl<S: BlobStore> lucene_store::BlobStore for EngineStore<S> {
         let want = u64::try_from(out.len())
             .unwrap_or(u64::MAX)
             .min(file.length.saturating_sub(offset));
+        if file.key == crate::empty_commit::INLINE_KEY {
+            return Ok(inline(name, offset, out));
+        }
         let primed = self
             .primed
             .lock()
