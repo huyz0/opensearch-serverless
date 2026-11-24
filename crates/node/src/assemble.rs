@@ -62,7 +62,7 @@ pub struct Config {
     /// name: one more GET on each create, none when off.
     pub index_templates: bool,
     /// Whether `_ingest/pipeline` stores, reads and removes pipelines. A
-    /// stored pipeline is not yet run by a write.
+    /// stored pipeline is run by the writes that name it.
     pub ingest_pipelines: bool,
     /// `serverless.knn.enabled`: whether a create accepts `knn_vector`.
     pub knn: bool,
@@ -413,13 +413,17 @@ pub fn assemble(
             search.close_view(id);
         }));
     }
-    let bulk = Arc::new(BulkService::new(
-        Arc::clone(&role),
-        BulkBudget::new(config.bulk_bytes, config.bulk_holders),
-        config.bulk,
-        config.address,
-    ));
-    let docs = Arc::new(DocService::new(Arc::clone(&role), config.address));
+    let ingest = crate::index_assemble::ingest_pipelines(config, &store)?;
+    let bulk = Arc::new(
+        BulkService::new(
+            Arc::clone(&role),
+            BulkBudget::new(config.bulk_bytes, config.bulk_holders),
+            config.bulk,
+            config.address,
+        )
+        .with_ingest(ingest.clone()),
+    );
+    let docs = Arc::new(DocService::new(Arc::clone(&role), config.address).with_ingest(ingest));
     let router =
         search::routes(Router::new(), Arc::clone(&search)).map_err(AssembleError::Route)?;
     let router = bulk_route::routes(router, bulk).map_err(AssembleError::Route)?;

@@ -11,6 +11,7 @@ use oss_writer::bulk::{
     Bulk, BulkBudget, Defaults, IdGenerator, StreamConfig, stream, write_response,
 };
 
+use crate::ingest_run::IngestPipelines;
 use crate::writer::{RoleTarget, WriterRole};
 
 /// The request parameters a bulk takes.
@@ -22,6 +23,7 @@ pub struct BulkService {
     budget: BulkBudget,
     config: StreamConfig,
     ids: Mutex<IdGenerator>,
+    ingest: Option<Arc<IngestPipelines>>,
 }
 
 /// A request body as a reader: each chunk is copied out whole, so the buffer
@@ -81,7 +83,16 @@ impl BulkService {
             budget,
             config,
             ids: Mutex::new(IdGenerator::new(0, address)),
+            ingest: None,
         }
+    }
+
+    /// The same service running the pipelines its items name, from `ingest`
+    /// when there is one.
+    #[must_use]
+    pub fn with_ingest(mut self, ingest: Option<Arc<IngestPipelines>>) -> Self {
+        self.ingest = ingest;
+        self
     }
 
     /// Handles one `_bulk`.
@@ -102,7 +113,17 @@ impl BulkService {
             .ids
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut pipelines = match &self.ingest {
+            Some(set) => {
+                req.body().reserve(set.reserve_bytes())?;
+                Some(set.run())
+            }
+            None => None,
+        };
         let mut run = Bulk::new(&mut target, &mut ids, now_millis(), refresh);
+        if let Some(pipelines) = pipelines.as_mut() {
+            run = run.with_ingest(pipelines);
+        }
         let mut body = BodyRead {
             body: req.body(),
             failure: None,

@@ -34,6 +34,8 @@ mod get_route;
 mod index_delete;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod index_route;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod ingest_run;
 #[cfg(feature = "reader")]
 mod newest_ask;
 #[cfg(all(feature = "reader", feature = "writer"))]
