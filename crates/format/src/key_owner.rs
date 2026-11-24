@@ -20,9 +20,6 @@ pub fn index_of_key<'a>(base: &str, key: &'a str) -> Option<&'a str> {
         "shards" => tail.split_once('-')?.1,
         _ => return None,
     };
-    let index = match kind {
-        "indices" | "tombstones" => name,
-        _ => name.split('#').next()?,
-    };
+    let index = name.split('#').next()?;
     (!index.is_empty() && !index.contains('/')).then_some(index)
 }
