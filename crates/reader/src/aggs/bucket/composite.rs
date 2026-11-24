@@ -4,6 +4,8 @@
 
 use std::cmp::Ordering;
 
+use lucene_aggs::bucket_aggs::DateRounding;
+
 use crate::aggs::bucket::histogram::java_compare;
 use crate::aggs::bucket::running;
 use crate::aggs::partial::Value;
@@ -17,6 +19,11 @@ pub enum SourceKind {
     Histogram {
         /// The width of a bucket.
         interval: f64,
+    },
+    /// `date_histogram`: a date rounded to its interval's start, as a long.
+    DateHistogram {
+        /// The rounding, in the zone and with the offset asked for.
+        rounding: DateRounding,
     },
 }
 
