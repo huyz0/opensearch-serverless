@@ -64,6 +64,8 @@ pub struct Config {
     /// Whether `_ingest/pipeline` stores, reads and removes pipelines. A
     /// stored pipeline is not yet run by a write.
     pub ingest_pipelines: bool,
+    /// `serverless.knn.enabled`: whether a create accepts `knn_vector`.
+    pub knn: bool,
     /// Whether the read-only snapshot routes are served: `serverless.snapshots.enabled`.
     pub snapshots: bool,
     /// How a point in time's register is deleted.
@@ -120,6 +122,7 @@ impl Config {
             pit_buffer_bytes: MAX_POINT_IN_TIME_BYTES,
             index_templates: false,
             ingest_pipelines: false,
+            knn: false,
             snapshots: false,
             delete_mode: DeleteMode::Tombstone,
             publish_every: Duration::from_millis(250),

@@ -17,8 +17,11 @@ use std::collections::HashMap;
 
 use lucene_analysis::Analyzer;
 use lucene_codecs::field_infos::FieldInfo;
+use lucene_codecs::per_field_knn_vectors::KnnVectorsFormat;
 use lucene_codecs::stored_fields::{FieldValue as Stored, StoredField};
-use lucene_index::index_writer::{Error as EngineError, ExplicitDocument, IndexWriter};
+use lucene_index::index_writer::{
+    DocumentVector, Error as EngineError, ExplicitDocument, IndexWriter,
+};
 
 use crate::document::{FieldValue, ParsedDocument, hash_order};
 use crate::mapping::{Leaf, Mapper, Mapping, MappingError, Num, Object};
@@ -64,6 +67,10 @@ pub trait FieldNumbers {
     /// The engine's message when the field's schema differs from the one
     /// it was registered with.
     fn number(&mut self, info: FieldInfo) -> Result<i32, String>;
+
+    /// Routes the vector field `name` to an HNSW graph of `m` connections a
+    /// node and `beam_width`, as `PerFieldKnnVectorsFormat` does.
+    fn vector_graph(&mut self, _name: &str, _m: i32, _beam_width: i32) {}
 }
 
 impl FieldNumbers for IndexWriter<'_> {
@@ -73,6 +80,16 @@ impl FieldNumbers for IndexWriter<'_> {
             // ALLOC: error path; one message.
             other => other.to_string(),
         })
+    }
+
+    fn vector_graph(&mut self, name: &str, m: i32, beam_width: i32) {
+        self.set_knn_vectors_format_for_field(
+            name,
+            KnnVectorsFormat::Hnsw {
+                max_conn: m,
+                beam_width,
+            },
+        );
     }
 }
 
@@ -149,6 +166,9 @@ impl Indexer {
         let number = numbers
             .number(info)
             .map_err(|message| MappingError::illegal_argument(&message))?;
+        if let Some(v) = spec.and_then(|s| s.vector) {
+            numbers.vector_graph(name, v.m, v.beam_width);
+        }
         // ALLOC: one entry a new field, bounded as `slots`.
         self.slots.insert(name.to_owned(), Slot { number, spec });
         Ok(number)
@@ -205,7 +225,7 @@ impl Indexer {
         out.doc_value(n, 1);
         let n = self.meta(numbers, MetaField::SoftDeletes)?;
         out.doc_value(n, 1);
-        Ok(out.finish())
+        Ok(out.finish().0)
     }
 
     /// The Lucene document for `doc`, read against `mapping` (the mapping
@@ -240,6 +260,33 @@ impl Indexer {
         meta: &Meta<'_>,
         routing: Option<&str>,
     ) -> Result<ExplicitDocument, MappingError> {
+        let (document, vectors) =
+            self.document_with_vectors(numbers, mapping, doc, meta, routing)?;
+        if vectors.is_empty() {
+            Ok(document)
+        } else {
+            // A caller that hands the engine no vectors would lose them.
+            Err(MappingError::unsupported(
+                "a document with a knn_vector value for a caller that does not index vectors",
+            ))
+        }
+    }
+
+    /// As [`Indexer::document_routed`], with the document's vectors, one
+    /// for each `knn_vector` field it has a value for, to be handed to the
+    /// engine beside it.
+    ///
+    /// # Errors
+    ///
+    /// As [`Indexer::document`].
+    pub fn document_with_vectors(
+        &mut self,
+        numbers: &mut dyn FieldNumbers,
+        mapping: &Mapping,
+        doc: &ParsedDocument,
+        meta: &Meta<'_>,
+        routing: Option<&str>,
+    ) -> Result<(ExplicitDocument, Vec<DocumentVector>), MappingError> {
         // ALLOC: one document's Lucene fields, bounded by the document's bytes (the HTTP body bound).
         let mut out = Builder::default();
         let id = encode_id(meta.id)?;
@@ -274,7 +321,7 @@ impl Indexer {
                 continue;
             }
             let number = self.slot(numbers, name, Some(spec), None)?;
-            self.value(&mut out, number, &spec, value)?;
+            self.value(&mut out, number, name, &spec, value)?;
             if spec.field_names() {
                 let n = self.meta(numbers, MetaField::FieldNames)?;
                 let mut end = 0;
@@ -308,10 +355,12 @@ impl Indexer {
         &self,
         out: &mut Builder,
         number: i32,
+        name: &str,
         spec: &Spec,
         value: &FieldValue,
     ) -> Result<(), MappingError> {
         match (spec.shape, value) {
+            (Shape::Vector, FieldValue::Vector(components)) => out.vector(name, components),
             (Shape::Text { gap }, FieldValue::Text(text)) => {
                 if spec.inverted() {
                     out.inverted(number, spec).text(&self.analyzer, text, gap)?;

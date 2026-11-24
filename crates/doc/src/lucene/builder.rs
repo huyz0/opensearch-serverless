@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use lucene_codecs::field_infos::IndexOptions;
 use lucene_codecs::stored_fields::{FieldValue as Stored, StoredField};
-use lucene_index::index_writer::{ExplicitDocument, ExplicitFields};
+use lucene_index::index_writer::{DocumentVector, ExplicitDocument, ExplicitFields};
 
 use super::fields::{Shape, Spec};
 use super::invert::Inverted;
@@ -20,6 +20,7 @@ pub(super) struct Builder {
     inverted_at: HashMap<i32, usize>,
     pub(super) doc_values: Vec<StoredField>,
     points: Vec<StoredField>,
+    vectors: Vec<DocumentVector>,
 }
 
 impl Builder {
@@ -29,6 +30,12 @@ impl Builder {
             field_number: number,
             value,
         });
+    }
+
+    pub(super) fn vector(&mut self, name: &str, components: &[f32]) {
+        // ALLOC: one vector, at most one a vector field of the document; bounded by the dimension.
+        self.vectors
+            .push(DocumentVector::float32(name, components.to_vec()));
     }
 
     pub(super) fn doc_value(&mut self, number: i32, value: i64) {
@@ -88,11 +95,12 @@ impl Builder {
             norms: false,
             doc_values: false,
             store: false,
+            vector: None,
         };
         self.inverted(number, &spec).keyword(term);
     }
 
-    pub(super) fn finish(self) -> ExplicitDocument {
+    pub(super) fn finish(self) -> (ExplicitDocument, Vec<DocumentVector>) {
         // ALLOC: one entry an indexed field of the document.
         let mut inverted = Vec::with_capacity(self.inverted.len());
         // ALLOC: one entry a field whose values gave no token.
@@ -103,7 +111,7 @@ impl Builder {
                 Err(number) => registered.push(number),
             }
         }
-        ExplicitDocument {
+        let document = ExplicitDocument {
             stored: self.stored,
             fields: ExplicitFields {
                 inverted,
@@ -112,6 +120,7 @@ impl Builder {
                 registered,
                 ..ExplicitFields::default()
             },
-        }
+        };
+        (document, self.vectors)
     }
 }

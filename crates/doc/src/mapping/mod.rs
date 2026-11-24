@@ -180,7 +180,9 @@ impl Mapping {
     }
 
     /// Reads the mapping a descriptor stores, which may be in any member
-    /// order (see the module docs). A missing mapping is the empty one.
+    /// order (see the module docs). A missing mapping is the empty one. A
+    /// stored mapping was checked when it was accepted, so `knn_vector` is
+    /// read here whatever the node's setting is now.
     ///
     /// # Errors
     ///
@@ -188,7 +190,7 @@ impl Mapping {
     pub fn from_descriptor(text: Option<&str>) -> Result<Self, MappingError> {
         match text {
             None => Ok(Mapping::default()),
-            Some(t) => Self::parse(t.as_bytes()),
+            Some(t) => Self::parse_with(t.as_bytes(), ParseOptions { knn: Some(true) }),
         }
     }
 
