@@ -19,6 +19,8 @@ mod boot_lease_load;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod boot_limit;
 mod boot_retire;
+#[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
+mod boot_roles;
 mod boot_search_slots;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod boot_usage;

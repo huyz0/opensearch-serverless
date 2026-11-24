@@ -86,7 +86,7 @@ pub(super) fn proactive_takeover(
     Arc::new(ProactiveTakeover::new(
         &config.node_id,
         ProactiveConfig {
-            enabled: config.proactive_takeover,
+            enabled: config.proactive_takeover && config.takes_writes(),
             reapers: config.proactive_reapers,
             max_concurrent: config.proactive_max_concurrent,
             pass: Duration::from_millis(config.proactive_pass_millis),
@@ -272,7 +272,7 @@ pub(super) fn own_lease(
         crate::read_forward::BUILD_PREFIX,
         env!("CARGO_PKG_VERSION")
     ));
-    lease.set_roles(super::ROLES.map(str::to_owned));
+    lease.set_roles(config.roles.iter().map(|r| (*r).to_owned()));
     lease.node_log = inherited.to_vec();
     lease
 }
