@@ -17,10 +17,11 @@
 - AC-3: the head is read once for searches within 2 s of each other.
 - AC-4: with no head reader wired, the refusal is as before.
 - AC-5: over three real nodes with a cap, a search on an evicted shard answers with every document (by hand, `--ignored`).
+- AC-6: a writer that says it does not hold the shard while the head names another node sends the search to that node: its claim decides, and a commit behind it still refuses.
 
 ## Test plan
 
-`crates/node/tests/tail/tail_fresh.rs` (AC-1 to AC-4); `crates/node/tests/hand_off_evidence.rs` (AC-5).
+`crates/node/tests/tail/tail_fresh.rs` (AC-1 to AC-4, AC-6); `crates/node/tests/hand_off_evidence.rs` (AC-5).
 
 ## S3 request budget
 

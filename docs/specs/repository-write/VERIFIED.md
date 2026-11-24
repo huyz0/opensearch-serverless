@@ -1,0 +1,9 @@
+# Verified
+- AC-1: `a_record_written_reads_back_equal` (crates/format/src/repository_record.rs), `the_java_repository_record_is_read` (Java-written bytes); a Java node reading a Rust-written record in the mixed-fleet run is NOT-RUN
+- AC-2: `a_repository_is_one_put_an_upsert_and_reads_back` (crates/meta/tests/descriptors/repositories.rs, three backends), `a_repository_is_registered_read_back_replaced_and_removed` (crates/node/tests/server/snapshot_route.rs)
+- AC-3: `names_are_refused_in_the_shells_order`, `a_registration_defaults_its_type_and_flattens_settings_to_text`, `a_registration_the_shell_refuses_is_refused` (crates/coordinator/src/repository_admin.rs), `a_registration_the_shell_refuses_is_refused_before_any_write` (crates/node/tests/server/snapshot_route.rs); the 1 MiB body bound and the 429 on a failed reservation are NOT-RUN
+- AC-4: `a_delete_takes_concrete_names_and_validates_all_first` (unit), `a_repository_holding_a_snapshot_is_not_removed_and_a_delete_validates_every_name`, `a_repository_is_registered_read_back_replaced_and_removed` (crates/node/tests/server/snapshot_route.rs)
+- AC-5: `a_held_snapshot_keeps_its_repository_and_a_released_one_does_not`, `a_legacy_marker_and_another_repositorys_marker_are_judged_by_their_record`, `an_unreadable_marker_does_not_hold_a_repository_and_a_flood_of_markers_is_refused` (crates/meta/tests/descriptors/repositories.rs, three backends)
+- AC-6: `verify_answers_this_node_for_a_registered_repository` (crates/node/tests/server/snapshot_route.rs); the 500 for an unparseable record is NOT-RUN
+- AC-7: `the_snapshot_routes_are_served_only_when_snapshots_are_on` (crates/node/tests/server/assemble.rs)
+- AC-8: `repository_writes_cost_what_the_spec_budgets` (crates/node/tests/server/snapshot_route.rs), `a_missing_repository_costs_one_head_and_an_empty_one_four_requests` (three backends)

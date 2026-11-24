@@ -11,6 +11,7 @@ pub mod fanout;
 pub mod indices;
 pub mod pipeline_admin;
 pub mod reduce;
+pub mod repository_admin;
 pub mod route;
 pub mod search;
 pub mod search_nested;

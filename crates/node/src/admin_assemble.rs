@@ -31,7 +31,12 @@ pub(crate) fn register(
     let router = cat_route::routes(router, Arc::new(CatService::new(descriptors)))
         .map_err(AssembleError::Route)?;
     let router = if config.snapshots {
-        let service = Arc::new(SnapshotService::new(Arc::clone(store), &config.base));
+        let service = Arc::new(SnapshotService::new(
+            Arc::clone(store),
+            &config.base,
+            &config.node_id,
+            Arc::new(crate::assemble::now_millis),
+        ));
         snapshot_route::routes(router, &service).map_err(AssembleError::Route)?
     } else {
         router

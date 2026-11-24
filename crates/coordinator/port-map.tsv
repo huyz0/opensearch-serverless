@@ -38,3 +38,4 @@ src/indices/create_inherit.rs	port	serverless/shell/src/main/java/org/opensearch
 src/template_admin.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/TemplateHandler.java	what the template routes decide: validate, select, render; the route is not here yet
 src/pipeline_admin.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/PipelineHandler.java	what the pipeline routes decide: validate against the supported processors, select, render
 src/snapshot_admin.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/snapshot/SnapshotOperations.java@bf347adb	writeSnapshotInfo, the name checks of SnapshotRequestBodies and the repository answer, read-only
+src/repository_admin.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/snapshot/RepositoryHandler.java@bf347adb	the repository write decisions: reserved names, the registration body, delete names, answers
