@@ -13,6 +13,14 @@ impl WriterRole {
         self.limiter.set(limiter).is_ok()
     }
 
+    /// What a refused write is told to wait, in seconds; none when the role
+    /// has no limiter.
+    pub fn retry_after_secs(&self) -> Option<u64> {
+        self.limiter
+            .get()
+            .map(|limiter| limiter.retry_after(self.limiter_now()))
+    }
+
     /// Nanoseconds since this role started: the limiter's clock.
     pub(super) fn limiter_now(&self) -> u64 {
         u64::try_from(self.epoch.elapsed().as_nanos()).unwrap_or(u64::MAX)

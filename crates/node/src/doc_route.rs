@@ -149,7 +149,16 @@ impl DocService {
         let Some(item) = items.first() else {
             return Err(RestError::simple(500, "the write produced no result"));
         };
-        let mut out = resp.start(doc_status(item), Some(JSON), Length::Chunked, &[])?;
+        let status = doc_status(item);
+        let retry_after = (status == 429)
+            .then(|| self.role.retry_after_secs())
+            .flatten()
+            .map(|secs| secs.to_string());
+        let headers: Vec<(&str, &str)> = retry_after
+            .iter()
+            .map(|secs| ("retry-after", secs.as_str()))
+            .collect();
+        let mut out = resp.start(status, Some(JSON), Length::Chunked, &headers)?;
         write_doc(&mut out, item)?;
         out.flush()?;
         out.finish()

@@ -81,6 +81,10 @@ fn rig_pooled(bytes: usize) -> Rig {
 }
 
 fn rig_with(config: &BudgetConfig) -> Rig {
+    rig_limited(config, None)
+}
+
+fn rig_limited(config: &BudgetConfig, limiter: Option<oss_writer::admission::WriteLimiter>) -> Rig {
     let store = Arc::new(Emulator::new(1 << 30, 7));
     let log = NodeLogStore::new(store as Arc<dyn BlobStore>, "", "node-1").expect("names");
     let committer = Arc::new(NodeLogCommitter::new(
@@ -94,6 +98,9 @@ fn rig_with(config: &BudgetConfig) -> Rig {
         },
     ));
     let role = Arc::new(WriterRole::new(committer, Arc::new(Local)));
+    if let Some(limiter) = limiter {
+        assert!(role.set_write_limiter(limiter));
+    }
     role.open_shard(
         &info(),
         0,
@@ -379,4 +386,27 @@ fn require_alias_changes_the_unknown_index_refusal() {
     )
     .text();
     assert!(!off.contains("require_alias"), "{off}");
+}
+
+// docs/specs/write-retry-after AC-1
+#[test]
+fn a_document_the_limiter_refuses_answers_429_with_a_retry_after() {
+    let limiter = oss_writer::admission::LimiterConfig {
+        min_in_flight: 1,
+        max_in_flight: 1,
+        ..Default::default()
+    }
+    .build();
+    let r = rig_limited(&support::budget_config(), Some(limiter.clone()));
+    // Another write holds the one slot.
+    let held = limiter.admit(0).expect("the slot");
+    // Appends have been taking 4 s: the hint is the pressure in whole seconds plus one.
+    limiter.on_append(0, 4_000_000_000, true);
+    let refused = call(&r, "PUT", "/docs/_doc/1", Some(r#"{"n":1}"#));
+    assert_eq!(refused.status, 429, "{}", refused.text());
+    assert_eq!(refused.header("retry-after"), Some("5"));
+    drop(held);
+    let ok = call(&r, "PUT", "/docs/_doc/1", Some(r#"{"n":1}"#));
+    assert_eq!(ok.status, 201, "{}", ok.text());
+    assert_eq!(ok.header("retry-after"), None);
 }
