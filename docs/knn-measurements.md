@@ -61,3 +61,9 @@ A `knn` search makes no request a term search does not, and no LIST. Here the op
 - Requests: no change from a non-vector index in the case measured. RustFS and demand-paged vector files NOT-RUN.
 - Memory: the flush working set above the held segments was 39 to 97 MiB a segment in the three runs; it was not measured against the node's pool.
 - Recall: matches the stock algorithm; falls under 0.65 on uniform random vectors and near 0.95 at 500,000 unmerged clustered vectors.
+
+## Known limits
+
+- **Recall on uniform high-dimensional data is about 0.62 at recall@10 (0.83 at 100).** It is a limit of the algorithm, not of this port: HNSW with beam `k` and no extra fan-out finds fewer true neighbours when points have no cluster structure, and the stock plugin's `lucene` engine does the same. `method_parameters` (a wider beam) is refused as unsupported by the `knn` query, so a caller cannot ask for more depth yet.
+- Recall falls as unmerged segments multiply (each graph is searched with beam `k`): 0.94 to 0.96 at 500,000 vectors in 70 segments, against 0.99 or more at 100,000 in 14.
+- Not measured: a stock node's recall on the same data, RustFS, demand-paged vector files, and segments after a merge.
