@@ -31,6 +31,13 @@ pub const MAX_SEQ_NO_KEY: &str = "max_seq_no";
 /// `SequenceNumbers.LOCAL_CHECKPOINT_KEY`.
 pub const LOCAL_CHECKPOINT_KEY: &str = "local_checkpoint";
 
+/// `Translog.TRANSLOG_UUID_KEY`: the translog a commit belongs to, which
+/// `InternalEngine`'s constructor requires of the commit it opens.
+pub const TRANSLOG_UUID_KEY: &str = "translog_uuid";
+
+/// `Engine.HISTORY_UUID_KEY`.
+pub const HISTORY_UUID_KEY: &str = "history_uuid";
+
 /// What a write did.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Outcome {
@@ -214,6 +221,16 @@ impl<'d> Shard<'d> {
             .collect();
         // ALLOC: one number's text a refresh.
         let seq = self.max_seq_no.to_string();
+        // A shard made from nothing carries the ids `Store.createEmpty` gives,
+        // so a Java writer taking it over finds the translog UUID its engine
+        // requires; a commit that has them keeps them.
+        for key in [TRANSLOG_UUID_KEY, HISTORY_UUID_KEY] {
+            if !data.iter().any(|(k, _)| k == key) {
+                let id = oss_meta::new_id().map_err(|e| message(&e))?;
+                // ALLOC: a key's text, twice on a shard's first commit.
+                data.push((key.to_owned(), id));
+            }
+        }
         // ALLOC: two entries of commit user data a refresh.
         data.push((LOCAL_CHECKPOINT_KEY.to_owned(), seq.clone()));
         data.push((MAX_SEQ_NO_KEY.to_owned(), seq));
