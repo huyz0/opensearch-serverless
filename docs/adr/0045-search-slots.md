@@ -1,4 +1,4 @@
-# 0043: Searches are admitted in order by a slot gate that shapes who waits, behind a setting
+# 0045: Searches are admitted in order by a slot gate that shapes who waits, behind a setting
 
 **Status:** Proposed
 

@@ -52,5 +52,5 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0040](0040-repository-registration.md) | Repositories are registered and removed over REST, the Java's way, before snapshots are taken | Accepted |
 | [0041](0041-tenant-cost-levels.md) | A tenant's cost is held to a budget by levels, in observe mode unless set to enforce | Accepted |
 | [0042](0042-snapshots-taken-shallow-first.md) | Snapshots are taken shallow first, in the Java's protocol, behind the switch | Accepted |
-| [0043](0043-search-slots.md) | Searches take a slot of a bounded gate, and a tenant over its share waits briefly for one, behind a setting | Proposed |
 | [0044](0044-ingest-pipelines-in-the-write-path.md) | Ingest pipelines run in the write path through a per-request hook, behind a switch | Proposed |
+| [0045](0045-search-slots.md) | Searches take a slot of a bounded gate, and a tenant over its share waits briefly for one, behind a setting | Proposed |
