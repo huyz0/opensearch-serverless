@@ -227,14 +227,14 @@ fn an_assembled_node_answers_every_knn_search_fixture_as_the_stock_plugin_did() 
     let fixtures: Vec<Fixture> = load_dir(&root().join("compat/knn-search"))
         .expect("fixtures load")
         .into_iter()
-        .filter(|(_, f)| f.name.starts_with("knn query"))
+        .filter(|(_, f)| f.name.starts_with("knn "))
         .map(|(_, f)| f)
         .map(|mut f| {
             support::normalise_columns(&mut f);
             f
         })
         .collect();
-    assert_eq!(fixtures.len(), 3, "one fixture a space");
+    assert_eq!(fixtures.len(), 6, "a search and a radial fixture a space");
     let failed: Vec<String> = fixtures
         .into_iter()
         .flat_map(|f| replay_with(f, true))

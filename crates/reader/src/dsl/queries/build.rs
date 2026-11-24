@@ -93,10 +93,11 @@ pub fn to_clause(m: &More, cx: &QueryContext<'_>) -> Result<Clause, Failure> {
         More::SimpleQueryString(s, _) => super::simple_string_build::simple_query_string(cx, s),
         More::QueryString(q, _) => super::query_string_build::query_string(cx, q),
         More::FunctionScore(q, _) => super::function_score_build::function_score(cx, q),
-        More::Knn(q) => cx
+        More::Knn(q) if matches!(q.mode, super::knn::Mode::TopK(_)) => cx
             .knn
             .and_then(|r| r.get(q))
             .ok_or_else(|| unsupported("the [knn] query here")),
+        More::Knn(q) => crate::knn::radial(q, cx),
     }
 }
 
