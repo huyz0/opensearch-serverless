@@ -72,6 +72,7 @@ pub mod newest_ask;
 pub mod open_indexes;
 #[cfg(feature = "reader")]
 pub mod overlay_builder;
+mod page_cache_disk;
 #[cfg(feature = "writer")]
 pub mod pipeline_route;
 #[cfg(feature = "writer")]

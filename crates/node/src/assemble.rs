@@ -6,7 +6,6 @@ use std::net::{SocketAddr, TcpListener};
 use std::sync::Arc;
 use std::time::Duration;
 
-use lucene_store::page_cache::{PageCache, PageCacheConfig};
 use oss_blob::{BlobStore, PooledStore, Shared};
 use oss_format::MAX_POINT_IN_TIME_BYTES;
 use oss_janitor::gc;
@@ -124,6 +123,9 @@ pub struct Config {
     pub reclaim_every: Duration,
     /// The most points in time that may be live for a janitor pass to run.
     pub janitor_max_views: usize,
+    /// A disk tier for the page cache: its directory and the most bytes of
+    /// slots it holds; none keeps nothing past a read.
+    pub page_cache_disk: Option<(std::path::PathBuf, u64)>,
 }
 
 impl Config {
@@ -175,6 +177,7 @@ impl Config {
             inline_purge_max_shards: 16,
             reclaim_every: Duration::from_secs(60),
             janitor_max_views: 10_000,
+            page_cache_disk: None,
         }
     }
 }
@@ -215,6 +218,8 @@ pub struct Assembled {
     drain: Drain,
     tail: Option<TailNode>,
     budget: MemoryBudget,
+    /// What the page cache's records are charged, held for the node's life.
+    cache_records: Option<oss_mem::Reservation>,
 }
 
 /// A node listening.
@@ -228,6 +233,7 @@ pub struct Running {
     _janitor: JanitorTimer,
     _drain: Drain,
     _tail: Option<TailNode>,
+    _cache_records: Option<oss_mem::Reservation>,
 }
 
 impl Running {
@@ -306,6 +312,7 @@ impl Assembled {
             _janitor: self.janitor,
             _drain: self.drain,
             _tail: self.tail,
+            _cache_records: self.cache_records,
         })
     }
 }
@@ -331,12 +338,11 @@ pub fn assemble(
         PooledStore::new(Shared::new(Arc::clone(&store)), buffers)
             .with_wait(config.store_buffer_wait),
     );
-    let cache = PageCache::new(PageCacheConfig::default())
-        .map_err(|e| AssembleError::Memory(e.to_string()))?;
+    let (cache, cache_records) = crate::page_cache_disk::build(config, budget)?;
     // ALLOC: startup only.
     let search = Arc::new(SearchService::new(
         pooled,
-        Arc::new(cache),
+        cache,
         &config.base,
         &config.node_id,
         budget,
@@ -475,5 +481,6 @@ pub fn assemble(
         drain,
         tail: None,
         budget: budget.clone(),
+        cache_records,
     })
 }

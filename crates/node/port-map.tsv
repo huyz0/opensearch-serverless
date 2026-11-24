@@ -141,3 +141,6 @@ src/boot/config/security_tests.rs	new		tests for the security settings of the no
 src/lifecycle/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/SearchReadiness.java@e71d4233	ready or draining and the lease roles it advertises; no warming state until the hot-set copy exists
 src/lifecycle/routes.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/ServerlessDrainHandler.java@e71d4233	/_serverless/ready and /_serverless/drain; the drain waits for the lease to lose the role and hands no blocks to peers yet
 src/lifecycle/tests.rs	new		unit tests of the readiness and the lease roles it advertises; the shell has none for SearchReadiness
+src/page_cache_disk.rs	new		the node builds its page cache, with a disk tier when configured; the shell's block cache is its own
+src/boot/config/page_cache.rs	new		the OSS_PAGE_CACHE_* settings of the disk tier
+src/boot/config/apply.rs	new		what the OSS_* variables set on the assembled node, and the drain settle

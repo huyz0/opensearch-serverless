@@ -18,6 +18,7 @@ mod boot_give_back;
 mod boot_lease_load;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod boot_limit;
+mod boot_page_cache;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod boot_ready_drain;
 mod boot_retire;
