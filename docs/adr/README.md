@@ -43,3 +43,4 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0031](0031-document-sets.md) | Templates and pipelines are document sets behind one marker register | Accepted |
 | [0032](0032-commit-push-in-a-booted-node.md) | A booted node pushes commits, and its own reader follows its own writer | Accepted |
 | [0033](0033-retry-after-on-a-refused-write.md) | A refused single-document write carries a Retry-After read from the write limiter | Accepted |
+| [0034](0034-writer-hand-off.md) | A writer node nearly at its cap, or far above the fleet's mean, hands idle shards to a member with room | Accepted |

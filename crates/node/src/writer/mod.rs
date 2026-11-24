@@ -70,7 +70,7 @@ pub use hibernate::{
 pub use incarnation::{DescriptorIncarnation, FENCE_WINDOW, Incarnation};
 pub use janitor_pass::{HeldShard, JanitorPass, JanitorReport, PassLimits};
 pub use janitor_timer::{JanitorTimer, SweepConfig};
-pub use lease::MembershipLeaseWrite;
+pub use lease::{LoadReport, MembershipLeaseWrite};
 pub use opener::{HeadOpener, OpenRefused, ShardOpener};
 pub use orphan_timer::{LiveLeases, OrphanParts, OrphanTimer};
 pub use proactive::{

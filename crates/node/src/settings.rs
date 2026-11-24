@@ -69,7 +69,7 @@ mod tests {
             let reader = cfg!(feature = "reader");
             assert_eq!(
                 keys.len(),
-                6 + 6 * usize::from(reader) + if writer { 34 + usize::from(reader) } else { 0 }
+                6 + 6 * usize::from(reader) + if writer { 35 + usize::from(reader) } else { 0 }
             );
             assert_eq!(
                 keys.contains(&"serverless.reader.newest_commit_ask"),
@@ -110,6 +110,7 @@ mod tests {
                 "serverless.activation.give_back_after_millis",
                 "serverless.activation.max_shards",
                 "serverless.activation.evict_after_millis",
+                "serverless.activation.hand_off.enabled",
             ] {
                 assert_eq!(keys.contains(&key), writer, "{key}");
             }

@@ -114,6 +114,8 @@ pub struct NodeConfig {
     pub max_shards: usize,
     /// `serverless.activation.evict_after_millis`; 0 never evicts.
     pub evict_after_millis: u64,
+    /// `serverless.activation.hand_off.enabled`.
+    pub hand_off: bool,
     /// `serverless.write.backpressure.*`: what limits the writes waiting on
     /// the write log.
     pub write_limit: oss_writer::admission::LimiterConfig,
@@ -239,6 +241,7 @@ impl NodeConfig {
         let give_back_after_millis = bounded("OSS_GIVE_BACK_AFTER_MS", "0", 0, 86_400_000)?;
         let max_shards = bounded("OSS_MAX_SHARDS", "0", 0, 1_000_000)?;
         let evict_after_millis = bounded("OSS_EVICT_AFTER_MS", "60000", 0, 604_800_000)?;
+        let hand_off = flag("OSS_HAND_OFF", "false")?;
         let write_limit = write_limit::read(&bounded)?;
         let proactive_reapers = bounded("OSS_PROACTIVE_REAPERS", "2", 1, 16)?;
         let proactive_max_concurrent = bounded("OSS_PROACTIVE_MAX_CONCURRENT", "4", 1, 64)?;
@@ -287,6 +290,7 @@ impl NodeConfig {
             give_back_after_millis,
             max_shards: usize::try_from(max_shards).unwrap_or(0),
             evict_after_millis,
+            hand_off,
             proactive_takeover,
             proactive_reapers: usize::try_from(proactive_reapers).unwrap_or(2),
             proactive_max_concurrent: usize::try_from(proactive_max_concurrent).unwrap_or(4),
