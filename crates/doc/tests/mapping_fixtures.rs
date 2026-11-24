@@ -15,14 +15,20 @@ use oss_doc::mapping::json::{self, Json};
 use oss_doc::mapping::{Mapping, MappingError, ParseOptions};
 
 fn fixtures() -> Vec<PathBuf> {
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/compat/mapping");
-    let mut out: Vec<PathBuf> = std::fs::read_dir(&dir)
-        .unwrap()
-        .map(|e| e.unwrap().path())
-        .filter(|p| p.extension().is_some_and(|e| e == "json"))
-        .collect();
-    out.sort();
-    assert!(out.len() >= 7, "fixtures in {}", dir.display());
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/compat");
+    let mut out = Vec::new();
+    // The k-NN documents are replayed here too: their reads (`GET _doc`,
+    // `_count`) are the reader's, and are skipped below.
+    for dir in ["mapping", "knn"] {
+        let mut found: Vec<PathBuf> = std::fs::read_dir(root.join(dir))
+            .unwrap()
+            .map(|e| e.unwrap().path())
+            .filter(|p| p.extension().is_some_and(|e| e == "json"))
+            .collect();
+        found.sort();
+        out.extend(found);
+    }
+    assert!(out.len() >= 9, "fixtures in {}", root.display());
     out
 }
 
@@ -196,6 +202,7 @@ fn mapping_steps_replay() {
                         indices.insert(index.to_string(), m);
                     }
                 }
+                ("GET", [_, "_doc", _] | [_, "_count"]) => continue,
                 other => panic!("{file}: no replay for {other:?}"),
             }
             replayed += 1;

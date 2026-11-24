@@ -2,7 +2,7 @@
 
 ## Serves
 
-Parity plan R15, k-NN native, step 2a of four: the mapping is in (`knn-vector-mapping`); this spec reads a document's vector into a value the next steps index; 2b indexes it into the segment, 2c keeps `_source` without it and rebuilds it on fetch, step 3 is the `knn` query. Nothing indexes the field until 2b: a caller that has not opted in is still told the type is unsupported.
+Parity plan R15, k-NN native, step 2a of four: the mapping is in (`knn-vector-mapping`); this spec reads a document's vector into a value the next steps index; 2b indexes it into the segment, 2c keeps `_source` without it and rebuilds it on fetch, step 3 is the `knn` query. Nothing indexes the field until 2b: a mapping parsed without the opt-in still refuses the type as unsupported.
 
 ## Change
 
@@ -17,14 +17,14 @@ Parity plan R15, k-NN native, step 2a of four: the mapping is in (`knn-vector-ma
   - a string value that is not an array is read as base64 first, which is how the plugin refuses `"1,2,3"`: `Invalid base64 encoding for vector field [v]: Illegal base64 character 2c`, caused by `Illegal base64 character 2c`;
   - a cosine field refuses a vector of zeros (`knn-cosine.json`);
   - every refusal is a `mapper_parsing_exception` `failed to parse field [v] of type [knn_vector] in document with id '<id>'. Preview of field's value: '<what the plugin previews>'`, caused by the cause above.
-- The vector is read only for a mapping parsed with `ParseOptions { knn: Some(_) }`, so nothing changes for any caller until 2b.
+- A mapping with the field exists only when parsed with `ParseOptions { knn: Some(_) }`, so no caller reads a vector until 2b.
 - A field's `ignore_malformed` is not a `knn_vector` parameter; a vector the plugin refuses is refused whatever the setting.
 
 ## Acceptance criteria
 
 - AC-1: every `PUT _doc` step of `fixtures/compat/knn/knn-documents.json` and `knn-cosine.json` replays against `Document::parse`: an accepted document yields the vector the plugin would index, a refused one carries the plugin's exception types, messages and preview down its `caused_by` chain.
 - AC-2: a vector in a nested object (`o.v`), and a field next to other fields, parse; the documents' other fields are unchanged.
-- AC-3: a document parsed with a mapping that has not opted in is refused as unsupported, as before.
+- AC-3: a value the plugin accepts in a form this writer does not read (valid base64, a bare boolean, an object inside the array) is refused as unsupported, never invalid, so a router keeps it on a Java writer.
 - AC-4: an accepted vector's components equal what `Float.parseFloat` or Jackson gives for the same text, including `-0.0`, a subnormal and a 17-digit decimal.
 - AC-5: a vector of the mapping's dimension is read without a request to the object store and with memory bounded by the dimension (16,000) times 4 bytes.
 

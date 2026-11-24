@@ -25,3 +25,4 @@ src/fast/plan.rs	new		a mapping compiled to the ingest plan blob, naming only fi
 src/lucene/builder.rs	new		the Lucene document under construction: stored values, postings, doc values and points
 src/mapping/knn.rs	new		the k-NN plugin's knn_vector mapper for a float vector in a Lucene HNSW graph: KNNVectorFieldMapper.TypeParser, KNNMethodContext.parse and the Lucene method validation (opensearch-project/k-NN 3.10.0.0)
 src/mapping/read.rs	port	server/src/main/java/org/opensearch/index/mapper/ParametrizedFieldMapper.java@429b4cbc	the parameter parsers of Parameter (boolParam, intParam, boostParam, stringParam, restrictedStringParam, metaParam) and the k-NN builder's own, split out of field.rs
+src/document/vector.rs	new		the k-NN plugin's reading of a float vector value: KNNVectorFieldMapper.parseCreateField (opensearch-project/k-NN 3.10.0.0)

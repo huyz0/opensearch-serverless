@@ -306,6 +306,9 @@ impl<'m, 'a> Parser<'m, 'a> {
         full: &str,
         tok: Tok,
     ) -> Result<(), MappingError> {
+        if leaf.ty() == FieldType::Knn {
+            return self.vector_value(leaf, full, tok);
+        }
         let at = self.reader.at();
         match take(leaf, &tok, at) {
             // ALLOC: document parse or error path; bounded by the document's bytes (the HTTP body bound).
@@ -359,7 +362,15 @@ impl<'m, 'a> Parser<'m, 'a> {
                 "The depth of the nested array field has exceeded the allowed limit of [{DEPTH_LIMIT}]. This limit can be set by changing the [index.mapping.depth.limit] index level setting."
             )));
         }
-        if get_mapper(scope.obj, parts).is_some() {
+        if let Some(Mapper::Leaf(leaf)) = get_mapper(scope.obj, parts)
+            && leaf.ty() == FieldType::Knn
+        {
+            let n = self.push(parts);
+            let full = self.path_text();
+            let read = self.vector_array(leaf, &full);
+            self.pop(n);
+            read?;
+        } else if get_mapper(scope.obj, parts).is_some() {
             self.non_dynamic_array(scope, key)?;
         } else {
             let name = parts.last().copied().unwrap_or(key);
