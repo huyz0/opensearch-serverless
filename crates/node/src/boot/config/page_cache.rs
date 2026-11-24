@@ -34,7 +34,19 @@ pub struct WarmPeer {
     pub max_bytes: u64,
     /// The most warm requests served at once.
     pub max_concurrent: u64,
+    /// The percent of the bytes named a joining node holds before it is
+    /// ready.
+    pub ready_percent: u64,
+    /// The seconds a joining node waits for that, at most 5 minutes.
+    pub max_wait_secs: u64,
+    /// The most bytes a second a joining node takes.
+    pub bytes_per_second: u64,
+    /// The most peers a joining node takes from at once.
+    pub parallel_peers: u64,
 }
+
+/// The longest a joining node is held out of the readers, in seconds.
+pub const MAX_WAIT_CAP_SECS: u64 = 300;
 
 /// Reads the tier: `dir` is `OSS_PAGE_CACHE_DIR` (empty for none); a
 /// directory needs `OSS_PAGE_CACHE_BYTES`, a size at least one page.
@@ -64,6 +76,11 @@ pub(in crate::boot) fn read(
             max_shards: bounded("OSS_WARM_MAX_SHARDS", "1000", 1, 1_000_000)?,
             max_bytes: bounded("OSS_WARM_MAX_BYTES", "8589934592", 1, MAX_BYTES)?,
             max_concurrent: bounded("OSS_WARM_MAX_CONCURRENT", "2", 1, 64)?,
+            ready_percent: bounded("OSS_WARM_READY_PERCENT", "90", 1, 100)?,
+            max_wait_secs: bounded("OSS_WARM_MAX_WAIT_SECONDS", "60", 1, 86_400)?
+                .min(MAX_WAIT_CAP_SECS),
+            bytes_per_second: bounded("OSS_WARM_BYTES_PER_SECOND", "67108864", 1, MAX_BYTES)?,
+            parallel_peers: bounded("OSS_WARM_PARALLEL_PEERS", "4", 1, 64)?,
         })
     } else {
         None
@@ -122,6 +139,10 @@ mod tests {
                 max_shards: 1000,
                 max_bytes: 8 << 30,
                 max_concurrent: 2,
+                ready_percent: 90,
+                max_wait_secs: 60,
+                bytes_per_second: 64 << 20,
+                parallel_peers: 4,
             })
         );
     }
@@ -135,6 +156,10 @@ mod tests {
             ("OSS_WARM_MAX_SHARDS", "7"),
             ("OSS_WARM_MAX_BYTES", "1000"),
             ("OSS_WARM_MAX_CONCURRENT", "5"),
+            ("OSS_WARM_READY_PERCENT", "75"),
+            ("OSS_WARM_MAX_WAIT_SECONDS", "3600"),
+            ("OSS_WARM_BYTES_PER_SECOND", "1000"),
+            ("OSS_WARM_PARALLEL_PEERS", "3"),
         ]);
         let warm = read_with(&vars).expect("reads").expect("tier").warm;
         assert_eq!(
@@ -144,6 +169,10 @@ mod tests {
                 max_shards: 7,
                 max_bytes: 1000,
                 max_concurrent: 5,
+                ready_percent: 75,
+                max_wait_secs: 300,
+                bytes_per_second: 1000,
+                parallel_peers: 3,
             })
         );
         for (key, bad) in [
@@ -151,6 +180,11 @@ mod tests {
             ("OSS_WARM_MAX_SHARDS", "0"),
             ("OSS_WARM_MAX_BYTES", "0"),
             ("OSS_WARM_MAX_CONCURRENT", "65"),
+            ("OSS_WARM_READY_PERCENT", "0"),
+            ("OSS_WARM_READY_PERCENT", "101"),
+            ("OSS_WARM_MAX_WAIT_SECONDS", "0"),
+            ("OSS_WARM_BYTES_PER_SECOND", "0"),
+            ("OSS_WARM_PARALLEL_PEERS", "65"),
         ] {
             let mut vars = TIER.to_vec();
             vars.extend([("OSS_WARM_ON_JOIN", "true"), (key, bad)]);

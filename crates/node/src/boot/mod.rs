@@ -253,7 +253,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     let lease_for_enrolment = lease.clone();
     // What the lease tells peers this node holds; the renewal thread keeps it.
     let load = Arc::new(crate::writer::LoadReport::default());
-    let readiness = Arc::new(crate::lifecycle::Readiness::new());
+    let readiness = Arc::new(support::readiness_for(config));
     let keeper = Arc::new(LeaseKeeper::new(
         support::lease_writer(&membership, lease, &load, &readiness),
         log.clone(),
@@ -389,7 +389,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         &mut assembled,
         config,
         &tail_slots,
-        (Arc::clone(&client), Arc::clone(&auth)),
+        (&client, &auth, &readiness),
         &membership,
         Arc::clone(&clock),
         Arc::clone(&store),

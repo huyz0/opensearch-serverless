@@ -16,9 +16,14 @@ use super::support::Held;
 use super::{BootError, NodeConfig, transport::Late};
 use crate::assemble::Assembled;
 use crate::handlers::Registry;
+use crate::lifecycle::Readiness;
 use crate::tail_node::TailParts;
 use crate::warm_handlers::{Gate, HotSetHandler, Limits, PagesHandler};
 use crate::writer::RefreshVisibility;
+
+mod joining;
+
+use joining::Joining;
 
 type Slot = Arc<OnceLock<Arc<dyn Handler>>>;
 
@@ -57,12 +62,13 @@ pub(super) fn wire(
     assembled: &mut Assembled,
     config: &NodeConfig,
     slots: &Slots,
-    (client, auth): (Arc<Client>, Arc<Authenticator>),
+    (client, auth, readiness): (&Arc<Client>, &Arc<Authenticator>, &Arc<Readiness>),
     membership: &Arc<Membership>,
     clock: Arc<dyn LeaseClock>,
     store: Arc<dyn oss_blob::BlobStore>,
 ) -> Result<(), BootError> {
-    install_warm(assembled, config, slots, &auth, membership)?;
+    install_warm(assembled, config, slots, auth, membership)?;
+    join_warm(assembled, config, (client, auth), membership, readiness);
     let heads = oss_cluster::heads::ShardHeadStore::new(
         store,
         &config.base,
@@ -76,8 +82,8 @@ pub(super) fn wire(
     let parts = TailParts::over_transport(
         config.tail_overlay,
         &config.node_id,
-        client,
-        auth,
+        Arc::clone(client),
+        Arc::clone(auth),
         Held(Arc::clone(membership)),
         clock,
     )
@@ -143,6 +149,41 @@ fn install_warm(
         .map_err(|e| BootError::Cluster(format!("warm copy: {e:?}")))?;
     slots.fill(registry.into_handlers());
     Ok(())
+}
+
+/// Warms this node from its peers on a thread of its own, then lets it in:
+/// the node answers 503 on ready and holds no `search` role until it holds
+/// `ready_percent` of the bytes its peers named or `max_wait` passes. A node
+/// not asked to warm is already ready.
+fn join_warm(
+    assembled: &Assembled,
+    config: &NodeConfig,
+    (client, auth): (&Arc<Client>, &Arc<Authenticator>),
+    membership: &Arc<Membership>,
+    readiness: &Arc<Readiness>,
+) {
+    let Some(warm) = config.page_cache.as_ref().and_then(|tier| tier.warm) else {
+        return;
+    };
+    let job = Joining {
+        warm,
+        node_id: config.node_id.clone(),
+        client: Arc::clone(client),
+        auth: Arc::clone(auth),
+        membership: Arc::clone(membership),
+        search: Arc::clone(&assembled.search),
+        budget: assembled.budget.clone(),
+        readiness: Arc::clone(readiness),
+    };
+    // A node that cannot start the thread serves cold rather than never
+    // becoming ready.
+    if std::thread::Builder::new()
+        .name("warm-join".to_owned())
+        .spawn(move || job.run())
+        .is_err()
+    {
+        readiness.finish_warming();
+    }
 }
 
 /// The visibility mode `word` names; the default, `owner`, for any other.
