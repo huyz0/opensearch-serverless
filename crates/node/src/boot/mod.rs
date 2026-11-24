@@ -248,20 +248,12 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     lease.node_log = inherited.clone();
 
     let oracle = Arc::new(LivenessOracle::new(Arc::clone(&membership)));
-    let heads = Arc::new(
-        ShardHeadStore::new(
-            Arc::clone(&store),
-            &config.base,
-            Arc::clone(&clock),
-            config.lease_ttl_millis,
-            Arc::clone(&oracle),
-        )
-        .map_err(cluster)?,
-    );
     let descriptors = Arc::new(
         DescriptorStore::new(Arc::clone(&store), &config.base, DeleteMode::Tombstone)
             .map_err(cluster)?,
     );
+    let buckets = support::bucket_wiring(config, &store, &descriptors, &clock);
+    let heads = support::head_store(config, &store, &clock, &oracle, buckets.as_ref())?;
     let names = Arc::new(ShardNames::default());
     let log =
         NodeLogStore::new(Arc::clone(&store), &config.base, &config.node_id).map_err(cluster)?;
@@ -361,6 +353,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
             Arc::new(DescriptorIncarnation::new(Arc::clone(&descriptors))),
             INCARNATION_WINDOW,
         )),
+        buckets,
     };
     let mut node_config = Config::new(
         &config.base,

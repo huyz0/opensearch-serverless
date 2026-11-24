@@ -11,6 +11,8 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use oss_blob::BlobStore;
 use oss_format::ShardRef;
 use oss_writer::publish::ShardPublisher;
+
+use super::BucketWiring;
 use oss_writer::publish::lazy::{LazyPublish, Policy, PublishAge};
 
 /// A shard by index uuid and number.
@@ -38,6 +40,7 @@ pub struct Publishing {
     /// published in the order they were taken.
     gate: Mutex<()>,
     ages: Mutex<HashMap<Key, PublishAge>>,
+    buckets: Option<Arc<BucketWiring>>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -66,7 +69,16 @@ impl Publishing {
             gate: Mutex::new(()),
             // ALLOC: one entry a shard of an index that sets a refresh interval.
             ages: Mutex::new(HashMap::new()),
+            buckets: None,
         }
+    }
+
+    /// Records the commits of the shards whose descriptors name a bucket in
+    /// their bucket's manifest.
+    #[must_use]
+    pub fn with_buckets(mut self, buckets: Arc<BucketWiring>) -> Self {
+        self.buckets = Some(buckets);
+        self
     }
 
     /// Held across taking a snapshot and publishing it.
@@ -137,8 +149,13 @@ impl Publishing {
                 uuid: &key.0,
                 shard: key.1,
             };
-            let made = ShardPublisher::new(Arc::clone(&self.store), &self.base, &shard)
+            let mut made = ShardPublisher::new(Arc::clone(&self.store), &self.base, &shard)
                 .map_err(|e| e.to_string())?;
+            if let Some(buckets) = &self.buckets
+                && let Some(register) = buckets.register(index, key.1, &key.0)?
+            {
+                made.commit_register(register);
+            }
             // ALLOC: one publisher a shard.
             publishers.insert(key.clone(), made);
         }

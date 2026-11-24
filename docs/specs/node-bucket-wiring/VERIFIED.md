@@ -1,0 +1,7 @@
+# Verified
+
+- AC-1: `the_buckets_switch_is_off_by_default_and_reads_a_flag`
+- AC-2: `a_bucketed_index_has_a_member_register_and_others_none`
+- AC-3: `a_member_shards_publish_lands_in_its_bucket_entry`
+- AC-4: `a_shard_of_an_unbucketed_index_publishes_to_its_own_register`
+- AC-5: `a_node_with_the_switch_off_has_no_bucket_wiring`

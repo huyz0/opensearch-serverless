@@ -2,6 +2,7 @@
 //! as its own process under nextest. One binary links once, where twenty linked twenty times.
 
 mod boot_tombstone;
+mod bucket_wiring;
 mod bulk_handler;
 mod cluster_live;
 mod cluster_owner;
