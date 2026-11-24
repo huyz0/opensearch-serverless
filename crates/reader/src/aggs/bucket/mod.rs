@@ -39,6 +39,7 @@ pub mod terms;
 pub mod terms_collect;
 pub mod terms_parse;
 pub mod terms_render;
+pub mod terms_sub_order;
 pub mod walk;
 pub mod with_subs;
 

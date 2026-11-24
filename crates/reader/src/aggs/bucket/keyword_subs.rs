@@ -329,26 +329,6 @@ pub fn check_order(agg: &MetricAgg) -> Result<(), ShardError> {
     })
 }
 
-/// Refuses an order by a sub-aggregation on a numeric `terms` `agg`,
-/// which this node does not serve yet.
-pub fn refuse_numeric_order(agg: &MetricAgg) -> Result<(), ShardError> {
-    if agg.terms.as_ref().is_none_or(|t| t.sub_order.is_none()) {
-        return Ok(());
-    }
-    Err(ShardError {
-        status: 400,
-        failure: Failure::plain(
-            "illegal_argument_exception",
-            // ALLOC: error path; one message.
-            format!(
-                "an [order] by a sub-aggregation of the numeric field [{}] is not supported by \
-                 this node yet",
-                agg.field
-            ),
-        ),
-    })
-}
-
 /// What each sub-aggregation of `agg` holds for a bucket with no document.
 pub fn empty_values<S: BlobStore + 'static>(
     agg: &MetricAgg,

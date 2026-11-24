@@ -8,6 +8,7 @@ use crate::aggs::bucket::keyword_options::KeywordOptions;
 use crate::aggs::bucket::running;
 use crate::aggs::bucket::sub_order::SubOrder;
 use crate::aggs::bucket::sub_values::{BucketSubs, reduce_keyed};
+use crate::aggs::bucket::terms_sub_order::{rank, take_in_order};
 use crate::aggs::partial::Value;
 
 /// `BucketUtils.suggestShardSideQueueSize`: the shard size when none is
@@ -237,7 +238,31 @@ pub fn reduce_results(parts: &[&TermsResult]) -> TermsResult {
         .filter(|&(_, count)| count >= spec.min_doc_count)
         // ALLOC: as above.
         .collect();
-    kept.sort_by(|a, b| compare(spec.order, (&a.0, a.1), (&b.0, b.1)));
+    // ALLOC: one key list a shard, each at most `shard_size` keys: shards x shard_size.
+    let held: Vec<Vec<i64>> = parts
+        .iter()
+        .map(|p| p.buckets.iter().map(|b| b.0).collect())
+        // ALLOC: as above.
+        .collect();
+    let pairs: Vec<(&[i64], &BucketSubs)> = held
+        .iter()
+        .zip(parts)
+        .map(|(k, p)| (k.as_slice(), &p.subs))
+        // ALLOC: one entry a shard, as above.
+        .collect();
+    let mut ordered_subs = None;
+    if let Some(order) = &spec.sub_order {
+        // ALLOC: one key a bucket that passes `min_doc_count`.
+        let all: Vec<i64> = kept.iter().map(|b| b.0).collect();
+        let mut subs = reduce_keyed(&pairs, &all);
+        let at = rank(order, &subs, &all);
+        kept = take_in_order(kept, &at);
+        subs.lists = take_in_order(subs.lists, &at);
+        subs.lists.truncate(spec.size);
+        ordered_subs = Some(subs);
+    } else {
+        kept.sort_by(|a, b| compare(spec.order, (&a.0, a.1), (&b.0, b.1)));
+    }
     for &(_, count) in kept.iter().skip(spec.size) {
         other = other.saturating_add(count);
     }
@@ -249,12 +274,6 @@ pub fn reduce_results(parts: &[&TermsResult]) -> TermsResult {
     };
     // ALLOC: one key a kept bucket, at most `size`.
     let keys: Vec<i64> = kept.iter().map(|b| b.0).collect();
-    // ALLOC: one key list a shard, each at most `shard_size` keys: shards x shard_size.
-    let held: Vec<Vec<i64>> = parts
-        .iter()
-        .map(|p| p.buckets.iter().map(|b| b.0).collect())
-        // ALLOC: as above.
-        .collect();
     let shown = parts
         .iter()
         .zip(&part_errors)
@@ -263,17 +282,11 @@ pub fn reduce_results(parts: &[&TermsResult]) -> TermsResult {
         // ALLOC: one entry a shard, as above.
         .collect::<Vec<_>>();
     let bucket_errors = bucket_errors(spec.show_error, sum_error, &shown, &keys);
-    let pairs: Vec<(&[i64], &BucketSubs)> = held
-        .iter()
-        .zip(parts)
-        .map(|(k, p)| (k.as_slice(), &p.subs))
-        // ALLOC: as above.
-        .collect();
     TermsResult {
         spec,
         other_doc_count: other,
         doc_count_error,
-        subs: reduce_keyed(&pairs, &keys),
+        subs: ordered_subs.unwrap_or_else(|| reduce_keyed(&pairs, &keys)),
         bucket_errors,
         buckets: kept,
     }

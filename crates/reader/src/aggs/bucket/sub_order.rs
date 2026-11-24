@@ -204,7 +204,7 @@ pub fn compare(ascending: bool, a: f64, b: f64) -> Ordering {
 
 /// The indexes of `terms` in the order of `order`: by `values` (one a term),
 /// ties by term ascending (`BucketOrder.compound`'s tie-breaker).
-pub fn ranked(order: &SubOrder, values: &[f64], terms: &[&str]) -> Vec<usize> {
+pub fn ranked<T: Ord>(order: &SubOrder, values: &[f64], terms: &[T]) -> Vec<usize> {
     // ALLOC: one index a bucket, bounded by the buckets.
     let mut at: Vec<usize> = (0..terms.len()).collect();
     at.sort_by(|&a, &b| {

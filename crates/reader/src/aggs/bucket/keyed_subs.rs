@@ -111,7 +111,13 @@ pub fn value<S: BlobStore + 'static>(
     match &mut made {
         Value::Histogram(h) => h.subs = subs,
         Value::DateHistogram(h) => h.subs = subs,
-        Value::Terms(t) => t.subs = subs,
+        Value::Terms(t) => {
+            t.subs = subs;
+            // The minimum and the order by a sub-aggregation wait for the
+            // sub-aggregations' values.
+            t.apply_shard_min();
+            t.order_by_sub();
+        }
         _ => {}
     }
     Ok(made)

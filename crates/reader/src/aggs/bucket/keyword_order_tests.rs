@@ -155,17 +155,6 @@ fn bad_order_paths_fail_as_opensearch_fails_them() {
     );
 }
 
-#[test]
-fn a_numeric_terms_refuses_an_order_by_a_sub_aggregation() {
-    let shard = shard("kw-order-num", DOCS);
-    let e = failure_of(
-        &shard,
-        r#"{"aggs":{"t":{"terms":{"field":"n","order":{"hi":"asc"}},
-            "aggs":{"hi":{"max":{"field":"n"}}}}}}"#,
-    );
-    assert!(e.contains("not supported by this node yet"), "{e}");
-}
-
 // AC-19
 #[test]
 fn an_order_by_a_sub_aggregation_reserves_every_term() {

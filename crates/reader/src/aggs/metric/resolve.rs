@@ -144,6 +144,5 @@ pub(crate) fn resolve<S: BlobStore + 'static>(
             ),
         )));
     }
-    crate::aggs::bucket::keyword_subs::refuse_numeric_order(agg)?;
     Ok(Resolved::Numeric(format))
 }
