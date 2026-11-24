@@ -218,6 +218,9 @@ impl ShardHeadStore {
         term: i64,
         index_uuid: &str,
     ) -> Result<bool, ClusterError> {
+        if let Some(member) = self.member_of(index, shard, Some(index_uuid))? {
+            return self.release_member(&member, index, node_id, ephemeral_id, term);
+        }
         let key = shard_head_key(&self.base, index, shard);
         let Some((generation, current)) = self.read_raw(&key)? else {
             return Ok(false);
