@@ -27,6 +27,7 @@ mod boot_roles;
 mod boot_search_slots;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod boot_snapshots;
+mod boot_templates_ingest;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod boot_usage;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]

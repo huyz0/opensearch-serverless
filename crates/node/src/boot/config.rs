@@ -13,6 +13,7 @@ use oss_janitor::settings::{ORPHAN_SLICE_BUDGET, ORPHAN_SLICE_INTERVAL_MILLIS};
 use crate::tail_overlay::REFRESH_VISIBILITY;
 
 pub(super) mod apply;
+pub(super) mod authoring;
 pub(super) mod page_cache;
 pub(super) mod roles;
 pub(super) mod search_slots;
@@ -104,6 +105,8 @@ pub struct NodeConfig {
     /// `serverless.buckets.enabled`: own and publish a shard whose index
     /// descriptor names a bucket through the bucket. Off by default.
     pub buckets_enabled: bool,
+    /// Whether a node serves index templates and ingest pipelines.
+    pub authoring: authoring::AuthoringConfig,
     /// What a node serves of snapshots, and the names it refuses.
     pub snapshots: snapshots::SnapshotConfig,
     /// `serverless.plugins.upstreams`: `http(s)` bases of Java nodes that serve the plugins not ported; none by default.
@@ -295,6 +298,7 @@ impl NodeConfig {
         let janitor_dry_run = flag("OSS_JANITOR_DRY_RUN", "false")?;
         let buckets_enabled = flag("OSS_BUCKETS_ENABLED", "false")?;
         let snapshots = snapshots::read(&flag, &or)?;
+        let authoring = authoring::read(&flag)?;
         let plugin_upstreams = or("OSS_PLUGIN_UPSTREAMS", "")
             .split(',')
             .map(str::trim)
@@ -421,6 +425,7 @@ impl NodeConfig {
             janitor_dry_run,
             buckets_enabled,
             snapshots,
+            authoring,
             plugin_upstreams,
             plugin_max_request_bytes,
             plugin_timeout_millis,
