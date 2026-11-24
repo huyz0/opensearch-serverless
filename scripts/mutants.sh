@@ -48,16 +48,27 @@ if [ "${MUTANTS_IN_PLACE:-}" = "1" ]; then
     common=(--workspace --all-features --exclude 'crates/*/src/main.rs' --in-place --baseline skip --timeout 60 "${test_tool[@]}")
   fi
 fi
-# cargo-mutants exits 3 when mutants only timed out (none missed, exit 2): a
-# mutant that hangs the tests is detected by them, so it counts as caught.
-run_mutants() {
-  local rc=0
-  cargo mutants "$@" || rc=$?
+# cargo-mutants exits 3 when some mutants timed out, and it does so even when
+# others were missed (a nightly lane with 27 missed and 4 timed out exited 3,
+# and its job went green). A mutant that hangs the tests is detected by them,
+# so a timeout alone counts as caught; a timeout beside a miss is still a miss
+# (mutants.out/missed.txt is not empty), and exits 2.
+settle() {
+  local rc=$1
   if [ "$rc" -eq 3 ]; then
     echo "::warning::mutants: some mutants timed out; a mutant that hangs the tests is detected"
+    if [ -s mutants.out/missed.txt ]; then
+      echo "::error::mutants: missed mutants (see MISSED above) beside the timeouts"
+      return 2
+    fi
     return 0
   fi
   return "$rc"
+}
+run_mutants() {
+  local rc=0
+  cargo mutants "$@" || rc=$?
+  settle "$rc"
 }
 if [ "${1:-}" = "--all" ]; then
   shift
@@ -90,7 +101,7 @@ fi
 echo "mutants: $count in the diff; testing shard $shard (budget ${MUTANTS_BUDGET:-40})"
 rc=0
 timeout "${MUTANTS_TIME:-7m}" cargo mutants "${common[@]}" --in-diff "$diff_file" --shard "$shard" "$@" || rc=$?
-[ "$rc" -eq 3 ] && { echo "::warning::mutants: some mutants timed out; a mutant that hangs the tests is detected"; rc=0; }
+if [ "$rc" -eq 3 ]; then settle 3 && rc=0 || rc=$?; fi
 if [ "$rc" -eq 124 ]; then
   echo "::warning::mutants: shard $shard ran out of time; the nightly sweep covers every mutant"
   exit 0
