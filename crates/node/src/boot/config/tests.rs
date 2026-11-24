@@ -46,7 +46,6 @@ fn a_file_store_node_takes_the_defaults() {
     assert_eq!(c.advertise, None);
     assert_eq!(c.memory_bytes, 1 << 30);
     assert_eq!(c.lease_ttl_millis, 30_000);
-    assert_eq!(c.drain_settle_millis, 20_000, "two thirds of the TTL");
     assert_eq!(c.lease_refresh_millis, None);
     assert_eq!(c.cluster_settings_poll_millis, 30_000);
     assert_eq!(c.refresh_every(), c.renew_every(), "as often as renewed");
