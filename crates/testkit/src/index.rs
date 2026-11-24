@@ -46,8 +46,9 @@ pub fn mapping(spec: &Spec) -> String {
             VectorSimilarityFunction::MaximumInnerProduct => "innerproduct",
             _ => "l2",
         };
+        let dim = spec.vector_dimension;
         out.push_str(&format!(
-            r#","v":{{"type":"knn_vector","dimension":3,"method":{{"name":"hnsw","engine":"lucene","space_type":"{space}"}}}}"#
+            r#","v":{{"type":"knn_vector","dimension":{dim},"method":{{"name":"hnsw","engine":"lucene","space_type":"{space}"}}}}"#
         ));
     }
     out.push_str("}}");
@@ -58,6 +59,26 @@ pub fn mapping(spec: &Spec) -> String {
 /// whole numbers, and none for every fifth document.
 pub fn doc_vector(i: usize) -> Option<[f32; 3]> {
     (i % 5 != 4).then_some([(i % 7) as f32, (i % 5) as f32, (i % 3) as f32])
+}
+
+/// The vector of document `i` of `spec`: [`doc_vector`] for three
+/// dimensions, otherwise `vector_dimension` pseudo-random components drawn
+/// from `i`, and none for every fifth document.
+pub fn spec_vector(spec: &Spec, i: usize) -> Option<Vec<f32>> {
+    if spec.vector_dimension == 3 {
+        return doc_vector(i).map(|v| v.to_vec());
+    }
+    (i % 5 != 4).then(|| {
+        let mut state = (i as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1;
+        (0..spec.vector_dimension)
+            .map(|_| {
+                state ^= state << 13;
+                state ^= state >> 7;
+                state ^= state << 17;
+                (state >> 40) as f32 / (1u64 << 24) as f32
+            })
+            .collect()
+    })
 }
 
 /// How many distinct `tag` values the documents cycle through.
@@ -95,6 +116,8 @@ pub struct Spec {
     pub compound: bool,
     /// The similarity of the `v` vector field ([`doc_vector`]), when there is one.
     pub vectors: Option<VectorSimilarityFunction>,
+    /// The dimension of the `v` vector field: 3 ([`doc_vector`]) unless set.
+    pub vector_dimension: usize,
 }
 
 impl Spec {
@@ -109,6 +132,7 @@ impl Spec {
             keywords: 0,
             texts: 0,
             vectors: None,
+            vector_dimension: 3,
         }
     }
 
@@ -133,6 +157,13 @@ impl Spec {
     /// Adds the 3-dimensional vector field `v`, one document in five without a value.
     pub fn with_vectors(mut self, similarity: VectorSimilarityFunction) -> Self {
         self.vectors = Some(similarity);
+        self
+    }
+
+    /// Gives the vector field `dimension` components, drawn from a fixed
+    /// generator ([`spec_vector`]), for a test that needs a realistic size.
+    pub fn with_vector_dimension(mut self, dimension: usize) -> Self {
+        self.vector_dimension = dimension;
         self
     }
 
@@ -364,7 +395,7 @@ pub fn lucene_files(spec: &Spec) -> Vec<(String, Vec<u8>)> {
         }
         if let Some(similarity) = spec.vectors {
             w.register_field(FieldInfo::new("v", vector_number(spec)).with_vectors(
-                3,
+                i32::try_from(spec.vector_dimension).expect("dimension"),
                 VectorEncoding::Float32,
                 similarity,
             ))
@@ -376,9 +407,9 @@ pub fn lucene_files(spec: &Spec) -> Vec<(String, Vec<u8>)> {
             let docs: Vec<ExplicitDocument> = (start..end).map(|i| document(spec, i)).collect();
             let vectors = (start..end)
                 .map(|i| {
-                    doc_vector(i)
+                    spec_vector(spec, i)
                         .filter(|_| spec.vectors.is_some())
-                        .map(|v| DocumentVector::float32("v", v.to_vec()))
+                        .map(|v| DocumentVector::float32("v", v))
                         .into_iter()
                         .collect()
                 })
