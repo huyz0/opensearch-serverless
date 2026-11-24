@@ -7,7 +7,7 @@ use std::sync::Arc;
 use oss_blob::BlobStore;
 use oss_meta::{DescriptorStore, PitClock};
 
-use crate::index_delete::{DeleteService, NoSnapshots};
+use crate::index_delete::{DeleteService, NoSnapshots, SnapshotPins, StoreSnapshotPins};
 use crate::index_route::IndexService;
 use crate::index_templates::TemplateSets;
 
@@ -42,12 +42,24 @@ pub(crate) fn delete_service(
     store: &Arc<dyn BlobStore>,
     clock: &PitClock,
 ) -> Result<Arc<DeleteService>, crate::assemble::AssembleError> {
+    // With the snapshot routes on, a delete reads the snapshots before it
+    // purges: a shallow snapshot names the index's blobs and copies none.
+    let snapshots: Arc<dyn SnapshotPins> = if config.snapshots {
+        Arc::new(StoreSnapshotPins::new(
+            Arc::clone(store),
+            &config.base,
+            config.janitor_max_views,
+            config.pit_buffer_bytes,
+        ))
+    } else {
+        Arc::new(NoSnapshots)
+    };
     DeleteService::new(
         store,
         &config.base,
         config.delete_mode,
         Arc::clone(clock),
-        Arc::new(NoSnapshots),
+        snapshots,
         config.pit_buffer_bytes,
         config.inline_purge_max_shards,
     )
