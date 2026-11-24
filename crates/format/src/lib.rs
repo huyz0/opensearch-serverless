@@ -59,9 +59,12 @@ mod node_pack_ledger;
 mod point_in_time;
 mod reclaim_intent;
 mod register;
+mod repository_record;
 mod segment_blob;
 mod shard_head;
 mod snapshot_pins;
+mod snapshot_record;
+mod snapshot_state;
 mod tombstone;
 mod transport_secret;
 mod unit_layout;
@@ -111,12 +114,15 @@ pub use reclaim_intent::{
     MAX_RECLAIM_INTENT_BYTES, ReclaimIntent, reclaim_bucket, reclaim_bucket_start,
 };
 pub use register::{GENERATION_BYTES, Register};
+pub use repository_record::{MAX_REPOSITORY_RECORD_BYTES, NATIVE_TYPE, RepositoryRecord};
 pub use segment_blob::{
     SegmentBlobHeader, SegmentFile, blob_order as segment_blob_order,
     encode_header as encode_segment_header,
 };
 pub use shard_head::{MAX_SHARD_HEAD_BYTES, MAX_WRITERS, ShardHead};
 pub use snapshot_pins::{MAX_SNAPSHOT_RECORD_BYTES, snapshot_pinned_indexes};
+pub use snapshot_record::{SnapshotIndex, SnapshotSummary};
+pub use snapshot_state::SnapshotState;
 pub use tombstone::{MAX_TOMBSTONE_BYTES, Tombstone, tombstone_bucket, tombstone_bucket_start};
 
 /// Node pack format constants and the header-length probe.
