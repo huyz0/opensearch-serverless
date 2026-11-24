@@ -36,7 +36,7 @@ mod snapshot;
 mod tail;
 mod takeover;
 mod target;
-mod tenancy;
+pub(crate) mod tenancy;
 mod tenant_hooks;
 mod tombstone_pass;
 

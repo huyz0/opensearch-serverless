@@ -114,13 +114,7 @@ impl IndexService {
             "the body of a create is larger than 1 MiB",
         )?;
         let asked = parse(1, Some(&body)).map_err(refusal)?;
-        let (bucket_off, bucket_group) = bucket_settings(&asked.settings)?;
-        let cost = cost_settings(&asked.settings)?;
-        if asked.settings.iter().any(|(k, _)| !is_bucket_key(k)) {
-            return Err(unsupported(
-                "index settings at create are not supported by this node yet: create the index, then update its settings",
-            ));
-        }
+        crate::create_settings::refuse_others(&asked.settings, is_bucket_key)?;
         if !asked.aliases.is_empty() {
             return Err(unsupported(
                 "aliases at create are not supported by this node yet: create the index, then add them",
@@ -135,15 +129,14 @@ impl IndexService {
                 let asked = templates
                     .apply(&index, asked, &mut marker, &mut doc)
                     .map_err(refusal)?;
-                if !asked.settings.is_empty() {
-                    return Err(unsupported(
-                        "the matching index template carries settings, which this node does not apply at create yet",
-                    ));
-                }
+                crate::create_settings::refuse_others(&asked.settings, is_bucket_key)?;
                 asked
             }
             None => asked,
         };
+        let (bucket_off, bucket_group) = bucket_settings(&asked.settings)?;
+        let cost = cost_settings(&asked.settings)?;
+        let read = crate::create_settings::checked(&asked.settings, asked.shards)?;
         if let Some(text) = asked.mapping.as_deref() {
             // `index.knn` cannot be given at create yet, so the node setting stands for it.
             Mapping::parse_with(
@@ -167,8 +160,8 @@ impl IndexService {
             group: bucket_group.clone(),
             ..cost
         };
-        let tenancy_settings =
-            (!tenancy.is_empty()).then(|| crate::writer::tenancy_settings(&tenancy));
+        let tenancy_settings = (!tenancy.is_empty() || !read.is_empty())
+            .then(|| crate::writer::tenancy::tenancy_settings_with(&tenancy, &read));
         if let Some(settings) = &tenancy_settings {
             record.settings = settings;
         }

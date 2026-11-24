@@ -13,6 +13,8 @@ use oss_node::index_route::{IndexService, routes};
 use oss_node::index_templates::TemplateSets;
 use oss_rest::{Router, Server};
 
+mod create_settings;
+
 const BUF: usize = 1 << 16;
 const NOW: u64 = 1_234_567;
 
@@ -140,7 +142,8 @@ fn a_bad_name_is_refused_before_any_request() {
 fn what_cannot_be_created_writes_nothing() {
     let r = rig();
     for (name, body, status) in [
-        ("a", r#"{"settings":{"refresh_interval":"1s"}}"#, 501),
+        ("a", r#"{"settings":{"codec":"best_compression"}}"#, 501),
+        ("f", r#"{"settings":{"refresh_interval":"fast"}}"#, 400),
         ("b", r#"{"aliases":{"x":{}}}"#, 501),
         ("c", "[1]", 400),
         ("d", r#"{"settings":{"number_of_shards":0}}"#, 400),
@@ -338,8 +341,7 @@ fn a_bad_bucket_policy_is_refused_and_other_settings_still_are() {
     let (r, _) = bucketed_rig();
     let bad = r#"{"settings":{"index.serverless.bucket":"maybe"}}"#;
     assert_eq!(call(&r, "PUT", "/x", Some(bad)).status, 400);
-    let other =
-        r#"{"settings":{"index.serverless.bucket_group":"t","index.refresh_interval":"1s"}}"#;
+    let other = r#"{"settings":{"index.serverless.bucket_group":"t","index.codec":"x"}}"#;
     assert_eq!(call(&r, "PUT", "/y", Some(other)).status, 501);
 }
 
@@ -399,18 +401,6 @@ fn a_create_inherits_the_mapping_and_shards_of_the_matching_template() {
     );
     assert_eq!(call(&r, "PUT", "/other", None).status, 200);
     assert_eq!(record(&r, "other").expect("created").2, None);
-}
-
-#[test]
-fn a_template_that_carries_settings_is_refused_not_dropped() {
-    let r = templated_rig(&[(
-        DocKind::IndexTemplate,
-        "logs",
-        r#"{"index_patterns":["logs-*"],"template":{"settings":{"index":{"refresh_interval":"5s"}}}}"#,
-    )]);
-    let reply = call(&r, "PUT", "/logs-1", None);
-    assert_eq!(reply.status, 501);
-    assert!(record(&r, "logs-1").is_none());
 }
 
 #[test]
