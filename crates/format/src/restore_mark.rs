@@ -90,6 +90,9 @@ mod tests {
         assert!(!is_restoring(br#"{"index.refresh_interval":"5s"}"#));
         assert!(!is_restoring(b"{}"));
         assert!(!is_restoring(b"not json"));
+        assert!(!is_restoring(
+            b"corrupt settings that are longer than the key and name no mark"
+        ));
         assert!(
             is_restoring(br#"{"index.restore.in_progress":"true""#),
             "corrupt but marked"

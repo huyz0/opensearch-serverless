@@ -424,6 +424,47 @@ mod tests {
     }
 
     #[test]
+    fn another_restores_index_under_the_name_is_left_alone_and_so_is_an_unmarked_one() {
+        let (d, source, generation) = marked_index();
+        let marked = mark_restoring(None).unwrap();
+        // Made again by another restore: marked, but not this restore's uuid.
+        d.delete("logs2").unwrap();
+        let mut other = IndexRecord::new("logs2", "U9", 1);
+        other.settings = &marked;
+        d.create(&other, 2, &mut vec![0u8; 4096]).unwrap();
+        let err = SnapshotRestorer::unmark(
+            &d,
+            &source,
+            "logs2",
+            "U2",
+            1,
+            generation,
+            &mut vec![0u8; 4096],
+        )
+        .unwrap_err();
+        assert!(matches!(err, RestoreError::Unsupported(_)), "{err}");
+        let mut buf = vec![0u8; 4096];
+        assert!(oss_format::is_restoring(
+            d.get("logs2", &mut buf).unwrap().unwrap().settings
+        ));
+        // This restore's uuid, but already unmarked by someone: nothing to clear.
+        d.delete("logs2").unwrap();
+        d.create(&IndexRecord::new("logs2", "U2", 1), 3, &mut vec![0u8; 4096])
+            .unwrap();
+        let err = SnapshotRestorer::unmark(
+            &d,
+            &source,
+            "logs2",
+            "U2",
+            1,
+            generation,
+            &mut vec![0u8; 4096],
+        )
+        .unwrap_err();
+        assert!(matches!(err, RestoreError::Unsupported(_)), "{err}");
+    }
+
+    #[test]
     fn an_index_deleted_during_its_restore_is_no_success() {
         let (d, source, generation) = marked_index();
         d.delete("logs2").unwrap();
