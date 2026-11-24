@@ -103,14 +103,16 @@ fn a_shard_at_its_writers_claim_answers() {
 }
 
 #[test]
-fn a_shard_its_own_node_writes_and_a_node_without_grants_ask_nothing() {
+fn a_shard_its_own_node_writes_is_asked_about_like_any_and_a_node_without_grants_asks_nothing() {
     let root = TempDir::new("fresh-own");
     let dir = ByteBuffersDirectory::new();
     // The commit is staged by node-1.
     let fx = fixture_as(root.path(), &dir, &["a", "b"], "node-1");
-    let claims = checked(&fx, i64::MAX, true);
+    let claims = checked(&fx, -1, true);
     assert_eq!(all(&fx), 2);
-    assert_eq!(asked(&claims), 0);
+    // The node that writes a shard follows its own writer's tail as every
+    // reader does: its reader never receives the writes any other way.
+    assert_eq!(asked(&claims), 1);
 
     let root = TempDir::new("fresh-off");
     let dir = ByteBuffersDirectory::new();

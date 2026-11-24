@@ -79,7 +79,7 @@ impl WriterRole {
         }
         drop(shards);
         if let Some(done) = &done {
-            self.staged(&index.uuid, shard, &done.manifest);
+            self.staged_taken(&index.uuid, shard, &done.manifest);
         }
         Ok(done)
     }

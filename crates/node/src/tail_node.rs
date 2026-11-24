@@ -313,7 +313,10 @@ pub fn wire<S: oss_blob::BlobStore + 'static>(
     registry
         .add(
             PUSH_ACTION,
-            crate::tail_reader_link::TailPushHandler::new(Arc::clone(&wired.held), reader_clock),
+            crate::tail_reader_link::TailPushHandler::new(
+                Arc::clone(&wired.held),
+                Arc::clone(&reader_clock),
+            ),
         )
         .map_err(TailError::Handler)?;
     role.set_refresh_visibility(parts.visibility);

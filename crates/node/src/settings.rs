@@ -16,6 +16,8 @@ fn providers() -> Vec<&'static [&'static Setting]> {
         crate::search::open_prefetch::SETTINGS,
         #[cfg(feature = "reader")]
         crate::tail_overlay::SETTINGS,
+        #[cfg(all(feature = "reader", feature = "writer"))]
+        crate::commit_push::SETTINGS,
         #[cfg(feature = "writer")]
         oss_writer::log::settings::SETTINGS,
         #[cfg(feature = "writer")]
@@ -67,7 +69,7 @@ mod tests {
             let reader = cfg!(feature = "reader");
             assert_eq!(
                 keys.len(),
-                6 + 6 * usize::from(reader) + if writer { 34 } else { 0 }
+                6 + 6 * usize::from(reader) + if writer { 34 + usize::from(reader) } else { 0 }
             );
             assert_eq!(
                 keys.contains(&"serverless.reader.newest_commit_ask"),

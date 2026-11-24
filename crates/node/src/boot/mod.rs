@@ -208,7 +208,12 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     let late_slot = late.slot();
     let late_get = transport::Late::default();
     let late_get_slot = late_get.slot();
+    let late_push = transport::Late::default();
+    let late_push_slot = late_push.slot();
     let mut registry = Registry::new(Arc::clone(&auth));
+    registry
+        .add(oss_transport::actions::push::PUSH_ACTION, late_push)
+        .map_err(|e| BootError::Cluster(e.to_string()))?;
     registry
         .add(BULK_ACTION, late)
         .map_err(|e| BootError::Cluster(e.to_string()))?;
@@ -403,6 +408,10 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         &config.node_id,
     ));
     late_get_slot.set(get_handler).ok();
+    let push_handler: Arc<dyn oss_transport::server::Handler> =
+        Arc::new(crate::push::PushHandler::new(Arc::clone(&assembled.search)));
+    late_push_slot.set(push_handler).ok();
+    support::wire_commit_push(&assembled, &client, &auth, &membership, config)?;
     // Enrolled last: a peer that sees the lease can reach everything it names.
     membership.renew(&lease_for_enrolment).map_err(cluster)?;
     join::announce(&membership, client, &auth, &config.node_id, &ephemeral)
