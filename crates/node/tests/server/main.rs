@@ -26,6 +26,8 @@ mod boot_roles;
 mod boot_search_slots;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod boot_usage;
+#[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
+mod boot_write_concurrency;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod bulk_route;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]

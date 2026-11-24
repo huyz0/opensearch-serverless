@@ -44,6 +44,8 @@ pub mod get_route;
 pub mod handlers;
 #[cfg(feature = "writer")]
 pub mod health_route;
+#[cfg(feature = "writer")]
+pub mod id_lanes;
 #[cfg(all(feature = "reader", feature = "writer", feature = "coordinator"))]
 mod index_assemble;
 #[cfg(feature = "writer")]
