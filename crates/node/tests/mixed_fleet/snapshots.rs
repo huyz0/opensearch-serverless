@@ -1,6 +1,6 @@
 //! docs/specs/snapshots-default-on: a Rust node with the take on snapshots an
-//! index a Java node writes, deletes the index, a Java node restores the
-//! snapshot and searches what it captured, and the Rust node deletes it.
+//! index a Java node writes, deletes the index, a Java node and the Rust
+//! node restore the snapshot and find what it captured, and the Rust node deletes it.
 
 use super::*;
 
@@ -49,6 +49,7 @@ fn a_snapshot_taken_beside_a_java_writer_survives_the_index_and_restores_on_java
         return;
     };
     cluster.set("OSS_SNAPSHOTS_TAKE_ENABLED", "true");
+    cluster.set("OSS_SNAPSHOTS_RESTORE_ENABLED", "true");
     let mut ledger = BTreeSet::new();
 
     // A Java node creates the index and writes; a Rust node with the take on reads it.
@@ -113,6 +114,18 @@ fn a_snapshot_taken_beside_a_java_writer_survives_the_index_and_restores_on_java
         u64::from(BATCH),
         "the restore holds what the snapshot captured"
     );
+
+    // The Rust node restores it too, over what the Java writer left, and finds the same.
+    let again = call(
+        rust,
+        "POST",
+        "/_snapshot/backups/s1/_restore?wait_for_completion=true",
+        Some(&format!(
+            "{{\"rename_pattern\":\"{INDEX}\",\"rename_replacement\":\"rustcopy\"}}"
+        )),
+    );
+    assert_eq!(again.status, 200, "{}", again.text());
+    assert_eq!(total_hits(rust, "rustcopy"), u64::from(BATCH));
 
     // The Rust node deletes the snapshot; a Java node reads it as gone.
     let removed = call(rust, "DELETE", "/_snapshot/backups/s1", None);
