@@ -157,6 +157,15 @@ fn parse_level(p: &mut Parser<'_>, level: usize) -> Result<Vec<MetricAgg>, DslEr
             if !holds_subs(agg.metric) {
                 return Err(sub_refusal(&agg, name));
             }
+            if agg.metric == Metric::Composite
+                && let Some(sub) = definition.subs.iter().find(|s| !is_scalar(s.metric))
+            {
+                // ALLOC: error path; one message.
+                return Err(DslError::unsupported(&format!(
+                    "a [{}] sub-aggregation of a [composite] aggregation",
+                    sub.metric.name()
+                )));
+            }
             if let Some(sub) = definition.subs.iter().find(|s| {
                 !is_scalar(s.metric)
                     && s.metric != Metric::Terms
@@ -200,6 +209,7 @@ fn holds_subs(metric: Metric) -> bool {
             | Metric::Filter
             | Metric::Histogram
             | Metric::DateHistogram
+            | Metric::Composite
     )
 }
 

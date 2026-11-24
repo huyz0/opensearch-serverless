@@ -38,6 +38,7 @@ fn result(
             after: None,
         },
         buckets,
+        subs: Default::default(),
     }
 }
 
@@ -322,6 +323,18 @@ fn what_this_node_does_not_serve_is_refused_by_name() {
             "{body}: {got}"
         );
     }
+    // A bucket sub-aggregation of a `composite` is refused.
+    let body = r#"{"aggs":{"c":{"composite":{"sources":[{"a":{"terms":{"field":"n"}}}]},"aggs":{"t":{"terms":{"field":"tag"}}}}}}"#;
+    let failure = parse_chunks([body.as_bytes()])
+        .expect_err("refused")
+        .into_failure();
+    assert!(
+        failure
+            .reason
+            .contains("[terms] sub-aggregation of a [composite]"),
+        "{}",
+        failure.reason
+    );
     // Under another aggregation a `composite` is not served either.
     let body = r#"{"aggs":{"t":{"terms":{"field":"tag"},"aggs":{"c":{"composite":{"sources":[{"a":{"terms":{"field":"n"}}}]}}}}}}"#;
     let failure = parse_chunks([body.as_bytes()])

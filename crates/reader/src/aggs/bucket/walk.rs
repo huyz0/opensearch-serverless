@@ -16,6 +16,7 @@ pub fn walk_subs_mut<E>(
 ) -> Result<(), E> {
     match value {
         Value::Terms(r) => visit(&r.subs.meta, &mut r.subs.lists, f),
+        Value::Composite(r) => visit(&r.subs.meta, &mut r.subs.lists, f),
         Value::Histogram(r) => visit(&r.subs.meta, &mut r.subs.lists, f),
         Value::DateHistogram(r) => visit(&r.subs.meta, &mut r.subs.lists, f),
         Value::KeywordTerms(r) => visit(&r.sub_meta, &mut r.subs, f),
@@ -45,6 +46,7 @@ pub fn any_sub(value: &Value, f: &dyn Fn(&Value) -> bool) -> bool {
     let nested = |lists: &[Vec<Value>]| lists.iter().flatten().any(|v| f(v) || any_sub(v, f));
     match value {
         Value::Terms(r) => nested(&r.subs.lists),
+        Value::Composite(r) => nested(&r.subs.lists),
         Value::Histogram(r) => nested(&r.subs.lists),
         Value::DateHistogram(r) => nested(&r.subs.lists),
         Value::KeywordTerms(r) => nested(&r.subs),
