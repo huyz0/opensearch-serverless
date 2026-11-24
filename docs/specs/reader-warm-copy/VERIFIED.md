@@ -8,4 +8,4 @@
 - AC-6: NOT-RUN: not built yet
 - AC-7: NOT-RUN: not built yet
 - AC-8: NOT-RUN: not built yet
-- AC-9: NOT-RUN: not built yet
+- AC-9: partly: `crates/node/src/warm_expect/tests.rs` (`every_page_an_open_caches_is_one_the_joiner_would_accept_at_its_own_length`, `a_page_outside_what_the_open_commit_stores_is_refused`, `pinned_names_are_never_accepted_and_segments_files_are_pinned`). NOT-RUN: the copy loop applying it to a peer's answer
