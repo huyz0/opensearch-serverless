@@ -299,11 +299,6 @@ fn an_assembled_node_authenticates_and_authorizes_as_the_stock_plugin_did() {
         .map(|(_, f)| f)
         .collect();
     assert_eq!(fixtures.len(), 1);
-    // The stock node answers a search of an index that never held a document
-    // with 200 and no hits; this one answers 404 (docs/compatibility.md). The
-    // step shows what authorization allows, which `a_limited_user_does_what_its_role_grants_and_is_told_what_it_lacks`
-    // in crates/node shows too, so it is left out until that is fixed.
-    fixtures[0].steps.retain(|s| s.name != "search allowed");
     let failed: Vec<String> = fixtures
         .into_iter()
         .flat_map(|f| replay_full(f, false, true))

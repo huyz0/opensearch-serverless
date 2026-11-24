@@ -92,10 +92,6 @@ A get of a shard another node owns is forwarded to its owner. The Java `Forwarde
 
 **Authorization** ([security-authz](specs/security-authz/SPEC.md), [ADR 0051](adr/0051-authorization-at-the-route-by-action-table.md)): roles' cluster and index permissions, action groups (built-in and stored) and the plugin's wildcard rule decide each request, answered with the recorded 403 `security_exception` naming the action. **Differs** (stricter than the plugin, never looser except as noted): names are matched as written, so an alias or a wildcard that would resolve to allowed indices only is refused unless the user is granted the name, and an alias made onto an index reaches it for whoever holds the alias's name; `_bulk`, `_msearch`, `_mget`, `_search` without an index, `_delete_by_query`, aliases, templates, ingest pipelines, snapshots, `_cat`, anything that lists index names and every plugin route need `all_access`; a `terms` lookup in a search body that reads another index is not checked, as in the plugin; tenants, document-level and field-level security and `/regex/` patterns are not enforced.
 
-## A search of an index that never held a document
-
-The stock node answers `POST /{index}/_search` on an index that was created and never written with `200` and no hits. A Rust node answers `404 index_not_found_exception` until the index has a published segment. Found replaying the security access fixture (`search allowed`), which that fixture cannot show on a Rust node. **Not fixed here.**
-
 ## A `_bulk` with `Connection: close` on a Java shell node
 
 The Java shell answers a `_bulk` request that carries `Connection: close` with the head of a chunked reply and closes before the body, so the client reads `200` and no body. A Rust node answers it whole (`crates/rest/tests/peak_memory.rs` sends one). Found by the mixed-fleet soak ([mixed-fleet-soak](specs/mixed-fleet-soak/VERIFIED.md)). **Not fixed:** the Java shell is under a code freeze ([ADR 0001](adr/0001-strangler-and-crate-layout.md)), so the soak keeps its connection open; a client of a mixed fleet that cannot keep one open should read the bulk's effect from a later `_count`, not from the body.
