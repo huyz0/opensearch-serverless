@@ -55,7 +55,10 @@ pub fn plan(
         let Some(file) = files.get(name) else {
             continue;
         };
-        if file.length == 0 || !(pinned(name) || file.length <= page_size) {
+        if file.length == 0
+            || file.key == crate::empty_commit::INLINE_KEY
+            || !(pinned(name) || file.length <= page_size)
+        {
             continue;
         }
         let Some(total) = picked.checked_add(file.length) else {

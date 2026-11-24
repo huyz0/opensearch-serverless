@@ -7,6 +7,7 @@
 
 mod frozen;
 mod frozen_bucket;
+mod never_written;
 mod open;
 mod open_bucket;
 mod push;

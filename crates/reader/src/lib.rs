@@ -11,6 +11,7 @@ pub mod aggs;
 pub mod commit_push;
 pub mod date;
 pub mod dsl;
+mod empty_commit;
 pub mod engine_store;
 pub mod error;
 pub mod failure;
