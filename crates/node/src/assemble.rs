@@ -241,8 +241,7 @@ pub struct Running {
 }
 
 impl Assembled {
-    /// Every route this node registered: its method (none for a prefix
-    /// route, which takes any) and pattern.
+    /// Every route registered: its method (none for a prefix route) and pattern.
     pub fn routes(&self) -> Vec<(Option<oss_rest::Method>, &'static str)> {
         self.router.routes()
     }
