@@ -1,6 +1,6 @@
 # 0048: A node told to stop publishes its shards and gives their heads back, within a deadline
 
-**Status:** Proposed
+**Status:** Accepted after independent review (three rounds), 2026-11-24
 
 ## Context
 
