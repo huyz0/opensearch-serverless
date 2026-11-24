@@ -19,8 +19,11 @@ pub const MAX_CACHED: usize = 4096;
 pub const MAX_FAILURES: u32 = 5;
 /// The failure window.
 pub const FAILURE_WINDOW_MILLIS: u64 = 10_000;
-/// Users whose failures are remembered.
+/// Names whose failures are remembered.
 const MAX_TRACKED: usize = 4096;
+/// The highest bcrypt cost a stored hash may ask for; a higher one is
+/// treated as a wrong password without being run.
+const MAX_COST: u32 = 15;
 
 const TEXT: &str = "text/plain; charset=UTF-8";
 
@@ -45,10 +48,22 @@ pub struct Authenticator {
     keys: RandomState,
     passed: Mutex<HashMap<(String, u64), Passed>>,
     failures: Mutex<HashMap<String, (u64, u32)>>,
+    /// A hash checked in place of a missing user's, so an unknown name costs
+    /// what a known one does.
+    decoy: String,
     running: AtomicUsize,
     slots: usize,
     capacity: usize,
     clock: Clock,
+}
+
+/// The cost a bcrypt hash asks for (`$2b$12$...`); past the cap when it is
+/// not a hash at all.
+fn cost_of(hash: &str) -> u32 {
+    hash.split('$')
+        .nth(2)
+        .and_then(|c| c.parse().ok())
+        .unwrap_or(u32::MAX)
 }
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -72,6 +87,8 @@ impl Authenticator {
             keys: RandomState::new(),
             passed: Mutex::new(HashMap::new()),
             failures: Mutex::new(HashMap::new()),
+            // The hash of a password nobody sends, at the default cost.
+            decoy: bcrypt::hash("decoy", crate::security_route::DEFAULT_COST).unwrap_or_default(),
             running: AtomicUsize::new(0),
             slots: MAX_VERIFICATIONS,
             capacity: MAX_CACHED,
@@ -111,8 +128,14 @@ impl Authenticator {
     fn failed(&self, user: &str, now: u64) {
         let mut failures = lock(&self.failures);
         if failures.len() >= MAX_TRACKED && !failures.contains_key(user) {
-            failures.clear();
+            failures.retain(|_, (since, _)| now.saturating_sub(*since) < FAILURE_WINDOW_MILLIS);
+            if failures.len() >= MAX_TRACKED {
+                // Every tracked name is inside its window: none is dropped,
+                // so no throttle is lost to a flood of new names.
+                return;
+            }
         }
+        // ALLOC: one name, at most MAX_TRACKED of them.
         let entry = failures.entry(user.to_owned()).or_insert((now, 0));
         if now.saturating_sub(entry.0) >= FAILURE_WINDOW_MILLIS {
             *entry = (now, 0);
@@ -133,14 +156,9 @@ impl Authenticator {
     pub fn authenticate(&self, user: &str, password: &str) -> Result<Arc<str>, Refusal> {
         let config = self.state.config().map_err(|_| Refusal::Unavailable)?;
         let now = (self.clock)();
-        let Some(stored) = config.user(user) else {
-            return Err(Refusal::Unauthorized);
-        };
-        if stored.hash.is_empty() {
-            return Err(Refusal::Unauthorized);
-        }
+        let stored = config.user(user).filter(|u| !u.hash.is_empty());
         let key = (user.to_owned(), self.keys.hash_one(password));
-        {
+        if let Some(stored) = stored {
             let mut passed = lock(&self.passed);
             match passed.get(&key) {
                 Some(p) if p.hash == stored.hash => return Ok(Arc::from(user)),
@@ -154,12 +172,19 @@ impl Authenticator {
             return Err(Refusal::Throttled);
         }
         let slot = self.slot().ok_or(Refusal::Throttled)?;
-        let right = bcrypt::verify(password, &stored.hash).unwrap_or(false);
+        // A missing user is checked against the decoy: same cost, never right.
+        let hash = stored.map_or(self.decoy.as_str(), |u| u.hash.as_str());
+        let right = stored.is_some()
+            && cost_of(hash) <= MAX_COST
+            && bcrypt::verify(password, hash).unwrap_or(false);
+        if stored.is_none() {
+            let _ = bcrypt::verify(password, &self.decoy);
+        }
         drop(slot);
-        if !right {
+        let Some(stored) = stored.filter(|_| right) else {
             self.failed(user, now);
             return Err(Refusal::Unauthorized);
-        }
+        };
         let mut passed = lock(&self.passed);
         if passed.len() >= self.capacity {
             passed.clear();

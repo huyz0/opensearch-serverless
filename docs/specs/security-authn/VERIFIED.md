@@ -9,3 +9,5 @@
 - AC-7: `a_deleted_user_stops_authenticating_on_that_node_at_once`, `a_change_on_another_node_is_seen_after_the_interval` and `the_credential_cache_is_bounded` in crates/node/tests/server/security_authn.rs
 - AC-8: `the_snapshot_refreshes_lazily_and_idle_nodes_make_no_requests` in crates/node/tests/server/security_authn.rs
 - AC-9: `security_on_without_an_administrator_does_not_start` and `with_security_off_no_guard_is_installed` in crates/node/src/admin_assemble.rs; `the_administrator_is_a_pair_and_the_refresh_is_bounded` in crates/node/src/boot/config/tests.rs
+- AC-10: `a_clock_that_goes_back_does_not_keep_a_copy_fresh`, `a_change_made_here_does_not_read_the_stores_on_every_request_while_they_are_down` and `a_change_made_here_is_seen_by_the_next_request_even_inside_the_interval` in crates/node/tests/server/security_hardening.rs
+- AC-11: `an_unknown_name_is_throttled_like_a_known_one` in crates/node/tests/server/security_hardening.rs; `security_on_without_an_administrator_does_not_start` in crates/node/src/admin_assemble.rs

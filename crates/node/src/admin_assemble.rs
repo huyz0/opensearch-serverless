@@ -126,12 +126,17 @@ fn security(
                 .to_owned(),
         )
     })?;
+    if bcrypt::verify("", &admin.1).is_err() {
+        return Err(AssembleError::Security(
+            "OSS_SECURITY_ADMIN_HASH is not a bcrypt hash".to_owned(),
+        ));
+    }
     if config.security_refresh_millis < 1000 {
         return Err(AssembleError::Security(
             "the security refresh interval is at least 1 s".to_owned(),
         ));
     }
-    let clock: Clock = Arc::new(crate::clock::now_millis);
+    let clock: Clock = Arc::new(crate::clock::monotonic_millis);
     let state = Arc::new(
         SecurityState::new(
             store,
@@ -188,14 +193,23 @@ mod tests {
             .err()
             .expect("refused");
         assert!(matches!(err, AssembleError::Security(m) if m.contains("administrator")));
-        let too_often = Config {
+        let hash = bcrypt::hash("p", 4).expect("hashes");
+        let not_a_hash = Config {
             security_admin: Some(("a".into(), "h".into())),
+            ..config.clone()
+        };
+        assert!(matches!(
+            register(Router::new(), &store, &not_a_hash, &budget).err(),
+            Some(AssembleError::Security(m)) if m.contains("bcrypt")
+        ));
+        let too_often = Config {
+            security_admin: Some(("a".into(), hash)),
             security_refresh_millis: 999,
             ..config
         };
         assert!(matches!(
             register(Router::new(), &store, &too_often, &budget).err(),
-            Some(AssembleError::Security(_))
+            Some(AssembleError::Security(m)) if m.contains("1 s")
         ));
     }
 

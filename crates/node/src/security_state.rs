@@ -2,8 +2,8 @@
 //! five document sets, refreshed lazily when a request finds it older than
 //! the interval ([ADR 0043](../../../docs/adr/0043-security-configuration-as-document-sets.md)).
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, MutexGuard, RwLock, TryLockError};
 
 use oss_blob::BlobStore;
 use oss_coordinator::security::{Config, Kind};
@@ -31,10 +31,11 @@ pub struct Unavailable;
 struct Held {
     config: Arc<Config>,
     taken: u64,
+    /// The generation counter's value before the read began.
+    generation: u64,
 }
 
 struct Inner {
-    held: Option<Held>,
     retry_at: u64,
     marker: Vec<u8>,
     doc: Vec<u8>,
@@ -43,8 +44,12 @@ struct Inner {
 /// The snapshot and what it takes to refresh it.
 pub struct SecurityState {
     sets: [(Kind, DocSet, DocSetCache); 5],
+    /// The snapshot; read by every request, written by one refresh at a time.
+    held: RwLock<Option<Held>>,
+    /// The refresh's buffers and back-off; held while the stores are read.
     inner: Mutex<Inner>,
-    stale: AtomicBool,
+    /// Moves on every change made through this node.
+    generation: AtomicU64,
     interval: u64,
     admin: (String, String),
     clock: Clock,
@@ -106,15 +111,15 @@ impl SecurityState {
         let [a, b, c, d, e] = sets;
         Ok(Self {
             sets: [a?, b?, c?, d?, e?],
+            held: RwLock::new(None),
             inner: Mutex::new(Inner {
-                held: None,
                 retry_at: 0,
                 // ALLOC: two buffers for the life of the node, buffer_bytes each, reserved above.
                 marker: vec![0u8; buffer_bytes],
                 // ALLOC: see the marker buffer.
                 doc: vec![0u8; buffer_bytes],
             }),
-            stale: AtomicBool::new(false),
+            generation: AtomicU64::new(0),
             interval: interval_millis,
             admin,
             clock,
@@ -131,51 +136,91 @@ impl SecurityState {
     /// Marks the snapshot out of date: the next request reads the sets
     /// again. Called after a change made through this node.
     pub fn invalidate(&self) {
-        self.stale.store(true, Ordering::SeqCst);
+        self.generation.fetch_add(1, Ordering::SeqCst);
     }
 
-    /// The configuration: the held copy while it is within the interval, else
-    /// a fresh read (one marker GET a kind, and a GET for each changed
-    /// document). A failed read keeps the last copy for three intervals and
-    /// is retried by the next request after a second; with no copy younger
-    /// than that the answer is [`Unavailable`], never a permissive default.
+    fn held(&self) -> Option<(Arc<Config>, u64, u64)> {
+        self.held
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .as_ref()
+            .map(|h| (Arc::clone(&h.config), h.taken, h.generation))
+    }
+
+    /// The configuration: the held copy while it is within the interval and
+    /// no change made through this node is newer, else a fresh read (one
+    /// marker GET a kind, and a GET for each changed document). One request
+    /// reads while the others are served the held copy, unless a change
+    /// through this node makes that copy wrong, when they wait for the read.
+    /// A failed read keeps the last copy for three intervals and is retried
+    /// after a second; with no copy younger than that the answer is
+    /// [`Unavailable`], never a permissive default. A clock that has gone
+    /// backwards since the copy was taken counts as the copy being old.
     ///
     /// # Errors
     ///
     /// [`Unavailable`].
     pub fn config(&self) -> Result<Arc<Config>, Unavailable> {
         let now = (self.clock)();
-        let mut inner = self.lock();
-        let forced = self.stale.load(Ordering::SeqCst);
-        if let Some(held) = &inner.held
-            && !forced
-            && now.saturating_sub(held.taken) < self.interval
+        let generation = self.generation.load(Ordering::SeqCst);
+        let age = |taken: u64| now.checked_sub(taken);
+        if let Some((config, taken, held_generation)) = self.held()
+            && held_generation == generation
+            && age(taken).is_some_and(|a| a < self.interval)
         {
-            return Ok(Arc::clone(&held.config));
+            return Ok(config);
         }
-        if now >= inner.retry_at || forced {
+        let mut inner = match self.inner.try_lock() {
+            Ok(inner) => inner,
+            Err(TryLockError::Poisoned(p)) => p.into_inner(),
+            Err(TryLockError::WouldBlock) => {
+                // Another request is reading. A copy still within the stale
+                // bound serves unless a change made here is newer than it.
+                match self.held() {
+                    Some((config, taken, held_generation))
+                        if held_generation == generation
+                            && age(taken).is_some_and(|a| a < self.stale_after()) =>
+                    {
+                        return Ok(config);
+                    }
+                    _ => self.lock(),
+                }
+            }
+        };
+        // Whoever held the lock may have read what this request needs.
+        if let Some((config, taken, held_generation)) = self.held()
+            && held_generation == generation
+            && age(taken).is_some_and(|a| a < self.interval)
+        {
+            return Ok(config);
+        }
+        if now >= inner.retry_at {
             match self.read(&mut inner) {
                 Ok(config) => {
                     let config = Arc::new(config);
-                    inner.held = Some(Held {
+                    *self
+                        .held
+                        .write()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(Held {
                         config: Arc::clone(&config),
                         taken: now,
+                        generation,
                     });
-                    self.stale.store(false, Ordering::SeqCst);
                     return Ok(config);
                 }
                 Err(_) => inner.retry_at = now.saturating_add(RETRY_MILLIS),
             }
         }
-        match &inner.held {
-            Some(held)
-                if now.saturating_sub(held.taken)
-                    < self.interval.saturating_mul(STALE_INTERVALS) =>
-            {
-                Ok(Arc::clone(&held.config))
+        match self.held() {
+            Some((config, taken, _)) if age(taken).is_some_and(|a| a < self.stale_after()) => {
+                Ok(config)
             }
             _ => Err(Unavailable),
         }
+    }
+
+    fn stale_after(&self) -> u64 {
+        self.interval.saturating_mul(STALE_INTERVALS)
     }
 
     fn read(&self, inner: &mut Inner) -> Result<Config, MetaError> {
