@@ -60,7 +60,7 @@ pub(crate) fn clean(raw: &[u8]) -> String {
     printable(raw, MAX_ERROR_DETAIL_BYTES)
 }
 
-/// A module's text made safe to log, cut to `max` bytes: [`clean`] with the
+/// A module's text made safe to log, cut to `max` bytes: the cleaning a failure's detail gets, with the
 /// bound chosen by the caller (a log line is longer than a failure's detail).
 pub fn printable(raw: &[u8], max: usize) -> String {
     let head = raw.get(..max.saturating_mul(4)).unwrap_or(raw);
