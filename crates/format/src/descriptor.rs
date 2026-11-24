@@ -174,7 +174,8 @@ impl IndexDescriptor<'_> {
     /// # Errors
     ///
     /// [`FormatError::NotFollowable`] for a bucketed index, whose commits are
-    /// in its bucket's manifest, which this version does not read; and for a
+    /// in its bucket's manifest, which the reader reads through
+    /// [`parse_bucket_member`](crate::parse_bucket_member); and for a
     /// shard past `number_of_shards` of an index without a unit layout (one
     /// with a layout numbers its storage by unit, which is not checked here).
     pub fn shard(&self, shard: u32) -> Result<ShardRef<'_>, FormatError> {
