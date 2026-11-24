@@ -363,10 +363,9 @@ fn knn_is_off_by_default_and_set_by_its_variable() {
 // docs/specs/security-config AC-7
 #[test]
 fn security_is_off_by_default_and_set_by_its_variable() {
-    let c = NodeConfig::from_lookup(lookup(FS)).expect("valid");
-    assert!(!c.security);
-    let c = NodeConfig::from_lookup(lookup(&with(&[("OSS_SECURITY", "true")]))).expect("valid");
-    assert!(c.security);
+    assert!(!NodeConfig::from_lookup(lookup(FS)).expect("valid").security);
+    let on = NodeConfig::from_lookup(lookup(&with(&[("OSS_SECURITY", "true")])));
+    assert!(on.expect("valid").security);
     assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_SECURITY", "yes")]))).is_err());
 }
 

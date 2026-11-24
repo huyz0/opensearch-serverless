@@ -8,6 +8,7 @@
 mod admin_assemble;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod assemble;
+mod assemble_error;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod boot;
 #[cfg(feature = "writer")]
