@@ -430,6 +430,9 @@ impl<'a> AliasMutations<'a> {
                 // ALLOC: the missing member's name, once, for the error.
                 return Err(MetaError::MissingMember(index.to_owned()));
             };
+            if oss_format::is_restoring(record.settings) {
+                return Err(MetaError::InvalidArgument(oss_format::RESTORING_WHY));
+            }
             let owner = self
                 .descriptors
                 .resolve_raw(&pending.name, &mut self.alias_buf)?;

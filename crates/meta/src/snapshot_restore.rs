@@ -178,15 +178,21 @@ impl SnapshotRestorer {
         {
             return Ok(());
         }
+        // ALLOC: one buffer, only when a change got there first, as large as the record buffer.
+        let mut read = vec![0u8; record_buf.len()];
         for _ in 0..UNMARK_ATTEMPTS {
-            // ALLOC: one buffer, only when a change got there first, as large as the record buffer.
-            let mut read = vec![0u8; record_buf.len()];
             let held = descriptors.resolve(target, &mut read)?;
             let Target::Index(mut current) = held.target else {
                 return Err(RestoreError::Unsupported(
                     "the index was deleted while it was restored",
                 ));
             };
+            // The name may be a new index by now, made after a delete: leave it be.
+            if current.uuid != uuid || !oss_format::is_restoring(current.settings) {
+                return Err(RestoreError::Unsupported(
+                    "the index was replaced while it was restored",
+                ));
+            }
             current.settings = own;
             if descriptors
                 .update(&current, held.generation, record_buf)?
@@ -388,6 +394,32 @@ mod tests {
             got.aliased_by,
             vec![Cow::Borrowed("everything")],
             "the racing change is kept"
+        );
+    }
+
+    #[test]
+    fn an_index_made_again_under_the_name_is_left_alone() {
+        let (d, source, generation) = marked_index();
+        d.delete("logs2").unwrap();
+        let other = IndexRecord::new("logs2", "U9", 3);
+        d.create(&other, 2, &mut vec![0u8; 4096]).unwrap();
+        let err = SnapshotRestorer::unmark(
+            &d,
+            &source,
+            "logs2",
+            "U2",
+            1,
+            generation,
+            &mut vec![0u8; 4096],
+        )
+        .unwrap_err();
+        assert!(matches!(err, RestoreError::Unsupported(_)), "{err}");
+        let mut buf = vec![0u8; 4096];
+        let got = d.get("logs2", &mut buf).unwrap().unwrap();
+        assert_eq!((got.uuid.as_ref(), got.number_of_shards), ("U9", 3));
+        assert_eq!(
+            got.settings, EMPTY_SETTINGS,
+            "the new index's settings are untouched"
         );
     }
 

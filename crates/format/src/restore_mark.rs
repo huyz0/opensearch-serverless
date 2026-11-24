@@ -50,9 +50,14 @@ pub fn mark_restoring(settings: Option<&[u8]>) -> Result<Vec<u8>, FormatError> {
 /// Whether `settings` carry the mark.
 #[must_use]
 pub fn is_restoring(settings: &[u8]) -> bool {
-    ClusterSettings::parse(settings)
-        .ok()
-        .is_some_and(|s| s.get(RESTORING_KEY).is_some())
+    match ClusterSettings::parse(settings) {
+        Ok(parsed) => parsed.get(RESTORING_KEY).is_some(),
+        // Settings that do not parse but name the mark are marked: a corrupt
+        // descriptor does not open an index a restore has not finished.
+        Err(_) => settings
+            .windows(RESTORING_KEY.len())
+            .any(|w| w == RESTORING_KEY.as_bytes()),
+    }
 }
 
 #[cfg(test)]
@@ -85,5 +90,9 @@ mod tests {
         assert!(!is_restoring(br#"{"index.refresh_interval":"5s"}"#));
         assert!(!is_restoring(b"{}"));
         assert!(!is_restoring(b"not json"));
+        assert!(
+            is_restoring(br#"{"index.restore.in_progress":"true""#),
+            "corrupt but marked"
+        );
     }
 }
