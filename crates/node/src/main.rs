@@ -22,7 +22,49 @@ fn main() -> std::process::ExitCode {
         config.node_id,
         node.addr()
     );
-    // Runs until the process is killed; the lease then lapses in one lifetime.
+    wait_for_stop();
+    let report = node.retire();
+    println!(
+        "opensearch-serverless node {} retired: {} shards slept, {} heads given back, {} busy, {} failed",
+        config.node_id,
+        report.hibernated,
+        report.given_back,
+        report.busy,
+        report.failed.len()
+    );
+    for failed in &report.failed {
+        eprintln!("opensearch-serverless node: not published: {failed}");
+    }
+    if report.failed.is_empty() {
+        std::process::ExitCode::SUCCESS
+    } else {
+        std::process::ExitCode::FAILURE
+    }
+}
+
+/// Blocks until the process is told to stop (`SIGTERM`, `SIGINT`); a killed
+/// process leaves its lease to lapse in one lifetime.
+#[cfg(all(unix, feature = "reader", feature = "writer"))]
+fn wait_for_stop() {
+    use signal_hook::consts::{SIGINT, SIGTERM};
+    match signal_hook::iterator::Signals::new([SIGTERM, SIGINT]) {
+        Ok(mut signals) => {
+            let _ = signals.forever().next();
+        }
+        Err(why) => {
+            eprintln!(
+                "opensearch-serverless node: no signal handler ({why}); stop it by killing it"
+            );
+            loop {
+                std::thread::park();
+            }
+        }
+    }
+}
+
+/// Without signals to wait for, runs until the process is killed.
+#[cfg(all(not(unix), feature = "reader", feature = "writer"))]
+fn wait_for_stop() {
     loop {
         std::thread::park();
     }

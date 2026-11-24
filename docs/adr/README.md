@@ -55,3 +55,4 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0044](0044-ingest-pipelines-in-the-write-path.md) | Ingest pipelines run in the write path through a per-request hook, behind a switch | Proposed |
 | [0046](0046-plugin-requests-are-proxied-to-java-nodes.md) | Requests for plugins that are not ported are proxied to Java nodes, behind a setting | Accepted |
 | [0047](0047-search-slots.md) | Searches are admitted in order by a slot gate that shapes who waits, behind a setting | Proposed |
+| [0048](0048-retiring-a-node.md) | A node told to stop publishes its shards and gives their heads back | Proposed |

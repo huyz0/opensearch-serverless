@@ -29,6 +29,7 @@ mod publish_timer;
 mod publishing;
 mod redirect;
 mod refresh;
+mod retire;
 mod routes;
 mod slot;
 mod snapshot;
@@ -145,7 +146,7 @@ pub struct WriterRole {
     counters: capacity::Counters,
 }
 
-fn now_millis() -> u64 {
+pub(crate) fn now_millis() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))

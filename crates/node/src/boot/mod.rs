@@ -10,6 +10,7 @@ mod error;
 mod follow;
 mod join;
 mod renew;
+mod retire;
 mod support;
 mod tail;
 mod transport;
