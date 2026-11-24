@@ -5,6 +5,7 @@ mod deletes;
 mod faults;
 mod listing;
 mod reads;
+mod usage;
 mod writes;
 
 use oss_blob::{BlobResult, BlobStore, ByteRange, Emulator, Meter, S3Op, SliceSource};

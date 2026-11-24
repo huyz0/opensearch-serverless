@@ -46,6 +46,7 @@ mod error;
 mod index_record;
 mod json;
 mod json_write;
+mod key_owner;
 mod keys;
 mod location;
 mod manifest;
@@ -84,6 +85,7 @@ pub use doc_set::{
 };
 pub use error::FormatError;
 pub use index_record::{EMPTY_SETTINGS, IndexRecord, MAX_SHARDS, NameRecord};
+pub use key_owner::index_of_key;
 pub use keys::{
     CHANGES_PREFIX, CLUSTER_CONFIG_KEY, DESCRIPTORS_PREFIX, FileExtent, MANIFEST, MARKERS_PREFIX,
     NODE_LOG_PREFIX, POINT_IN_TIME_STATES_PREFIX, POINTS_IN_TIME_PREFIX, RECLAIM_PREFIX, ShardRef,
