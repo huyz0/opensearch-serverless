@@ -144,6 +144,7 @@ pub(crate) mod time_value;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod usage_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
+pub mod warm_expect;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod warm_handlers;
 #[cfg(all(feature = "reader", feature = "writer"))]

@@ -153,3 +153,5 @@ src/warm_handlers.rs	new		the transport handlers of the warm-copy actions on a r
 src/warm_handlers/tests.rs	new		tests of the warm-copy handlers over a real cache
 src/search_warm.rs	new		what a node lists for a joining reader: its open shards and the prefix their page cache keys start with
 src/search_warm_tests.rs	new		tests of the listing over a real cache with a disk tier
+src/warm_expect.rs	new		what a joiner accepts from a peer: the plain pages of the open commit, each at its own length
+src/warm_expect/tests.rs	new		tests that every page an open caches is accepted and every other is refused
