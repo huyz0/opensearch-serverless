@@ -36,6 +36,8 @@ mod index_delete;
 mod index_route;
 #[cfg(feature = "reader")]
 mod newest_ask;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod pipeline_route;
 #[cfg(feature = "reader")]
 mod push_read;
 #[cfg(all(feature = "reader", feature = "writer"))]

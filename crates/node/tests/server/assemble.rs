@@ -405,3 +405,21 @@ fn the_template_routes_are_served_only_when_templates_are_on() {
     let got = call(&r, "GET", "/_index_template/logs", None);
     assert!(got.text().contains("logs-*"), "{}", got.text());
 }
+
+#[test]
+fn the_pipeline_routes_are_served_only_when_pipelines_are_on() {
+    let (off, _) = start(256 << 20);
+    assert_ne!(call(&off, "GET", "/_ingest/pipeline", None).status, 200);
+    let on = Config {
+        ingest_pipelines: true,
+        ..config()
+    };
+    let (r, _) = start_with(on, 256 << 20);
+    let body = r#"{"processors":[{"trim":{"field":"a"}}]}"#;
+    assert_eq!(
+        call(&r, "PUT", "/_ingest/pipeline/p", Some(body)).status,
+        200
+    );
+    let got = call(&r, "GET", "/_ingest/pipeline/p", None);
+    assert!(got.text().contains("trim"), "{}", got.text());
+}

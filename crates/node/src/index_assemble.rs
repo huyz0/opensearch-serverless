@@ -7,6 +7,7 @@ use std::sync::Arc;
 use oss_blob::BlobStore;
 use oss_meta::{DescriptorStore, PitClock};
 
+use crate::index_delete::{DeleteService, NoSnapshots};
 use crate::index_route::IndexService;
 use crate::index_templates::TemplateSets;
 
@@ -34,4 +35,22 @@ pub(crate) fn index_service(
         indices = indices.with_templates(sets);
     }
     Ok(Arc::new(indices.with_knn(config.knn)))
+}
+
+pub(crate) fn delete_service(
+    config: &crate::assemble::Config,
+    store: &Arc<dyn BlobStore>,
+    clock: &PitClock,
+) -> Result<Arc<DeleteService>, crate::assemble::AssembleError> {
+    DeleteService::new(
+        store,
+        &config.base,
+        config.delete_mode,
+        Arc::clone(clock),
+        Arc::new(NoSnapshots),
+        config.pit_buffer_bytes,
+        config.inline_purge_max_shards,
+    )
+    .map(Arc::new)
+    .map_err(|e| crate::assemble::AssembleError::Store(e.to_string()))
 }
