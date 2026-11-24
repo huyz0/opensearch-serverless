@@ -38,3 +38,5 @@ mod newest_ask;
 mod push_read;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod read_forward;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod template_route;

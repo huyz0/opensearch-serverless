@@ -16,6 +16,7 @@ use oss_rest::{Exception, JSON, Method, Request, Response, RestError, RouteError
 use oss_writer::mapping::Mapping;
 
 use crate::index_templates::TemplateSets;
+use crate::route_util::read_body;
 
 /// The most bytes of a create body.
 const MAX_CREATE_BYTES: usize = 1 << 20;
@@ -89,40 +90,17 @@ impl IndexService {
         self
     }
 
-    /// The body, read as it streams in, its growth reserved first.
-    fn read_body(req: &mut Request<'_>) -> Result<Vec<u8>, RestError> {
-        let body = req.body();
-        let mut out: Vec<u8> = Vec::new();
-        loop {
-            let chunk = body.max_chunk();
-            let more = out
-                .len()
-                .saturating_add(chunk)
-                .saturating_sub(body.reserved());
-            body.reserve(more)?;
-            let Some(next) = body.next_chunk()? else {
-                break;
-            };
-            if out.len().saturating_add(next.len()) > MAX_CREATE_BYTES {
-                return Err(refuse(
-                    400,
-                    "illegal_argument_exception",
-                    "the body of a create is larger than 1 MiB",
-                ));
-            }
-            // ALLOC: the body so far, at most MAX_CREATE_BYTES, reserved above.
-            out.extend_from_slice(next);
-        }
-        Ok(out)
-    }
-
     /// `PUT /{index}`.
     pub fn create(&self, req: &mut Request<'_>, resp: &mut Response<'_>) -> Result<(), RestError> {
         let index = req
             .path_param("index")
             .ok_or_else(|| RestError::illegal_argument("an index is required"))?;
         check_name(&index, true).map_err(refusal)?;
-        let body = Self::read_body(req)?;
+        let body = read_body(
+            req,
+            MAX_CREATE_BYTES,
+            "the body of a create is larger than 1 MiB",
+        )?;
         let asked = parse(1, Some(&body)).map_err(refusal)?;
         if !asked.settings.is_empty() {
             return Err(unsupported(

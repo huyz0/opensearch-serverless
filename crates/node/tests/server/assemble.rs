@@ -368,3 +368,26 @@ fn the_publish_timer_hibernates_an_idle_published_shard_only_when_the_threshold_
     assert!(hibernates_after(100), "an idle shard sleeps on the timer");
     assert!(!hibernates_after(0), "unset, a shard is never hibernated");
 }
+
+#[test]
+fn the_template_routes_are_served_only_when_templates_are_on() {
+    let (off, _) = start(256 << 20);
+    assert_ne!(call(&off, "GET", "/_index_template", None).status, 200);
+    let on = Config {
+        index_templates: true,
+        ..config()
+    };
+    let (r, _) = start_with(on, 256 << 20);
+    let body = r#"{"index_patterns":["logs-*"]}"#;
+    assert_eq!(
+        call(&r, "PUT", "/_index_template/logs", Some(body)).status,
+        200
+    );
+    #[cfg(feature = "coordinator")]
+    {
+        let made = call(&r, "PUT", "/logs-1", None);
+        assert_eq!(made.status, 200, "{}", made.text());
+    }
+    let got = call(&r, "GET", "/_index_template/logs", None);
+    assert!(got.text().contains("logs-*"), "{}", got.text());
+}

@@ -1,4 +1,5 @@
-//! The cluster settings and index table routes a node always serves: they
+//! The cluster settings and index table routes a node always serves, and the
+//! template routes when templates are on: they
 //! read the registers under the deployment's base and need nothing else.
 
 use std::sync::Arc;
@@ -10,6 +11,7 @@ use oss_rest::Router;
 use crate::assemble::{AssembleError, Config};
 use crate::cat_route::{self, CatService};
 use crate::cluster_route::{self, ClusterService};
+use crate::template_route::{self, TemplateService};
 
 /// Registers `GET`/`PUT /_cluster/settings` and the `_cat` and `_list` index
 /// tables on `router`, over `store`.
@@ -24,5 +26,12 @@ pub(crate) fn register(
     let descriptors = DescriptorStore::new(Arc::clone(store), &config.base, config.delete_mode)
         .map_err(store_error)?;
     let router = cluster_route::routes(router, Arc::new(settings)).map_err(AssembleError::Route)?;
-    cat_route::routes(router, Arc::new(CatService::new(descriptors))).map_err(AssembleError::Route)
+    let router = cat_route::routes(router, Arc::new(CatService::new(descriptors)))
+        .map_err(AssembleError::Route)?;
+    if !config.index_templates {
+        return Ok(router);
+    }
+    let templates =
+        TemplateService::new(store, &config.base, config.pit_buffer_bytes).map_err(store_error)?;
+    template_route::routes(router, &Arc::new(templates)).map_err(AssembleError::Route)
 }
