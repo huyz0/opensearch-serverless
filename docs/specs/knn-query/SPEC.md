@@ -25,7 +25,7 @@ Parity plan R15, k-NN native, step 3 of four. Steps 1 to 2c store a vector the w
 
 ## S3 request budget
 
-A search without a `knn` query is unchanged (the existing budget tests stay green). A `knn` search reads the vector files of the field it searches through the same pooled range reads as the segment's other files; their request count is not measured here (the emulator tests run in memory), so it is NOT-RUN until the first measurement over RustFS.
+A search without a `knn` query is unchanged (the existing budget tests stay green). A `knn` search reads the vector files of the field it searches through the same pooled range reads as the segment's other files; their request count on the emulator is measured in [docs/knn-measurements.md](../../knn-measurements.md) (a `knn` search adds none to the open's); over RustFS it is NOT-RUN.
 
 ## Switch
 

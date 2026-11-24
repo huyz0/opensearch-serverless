@@ -4,3 +4,4 @@ src/peak.rs	new		test-only counting allocator and peak assertions; the Java shel
 src/temp.rs	new		test-only temporary directories; the Java tests use LuceneTestCase.createTempDir
 src/budget.rs	port	serverless/testkit/src/test/java/org/opensearch/serverless/testkit/RequestBudgets.java@3920dc36	the table compiled into the test binary rather than read from the classpath; record mode by environment variable rather than system property
 src/index.rs	new		a one-shard index written by lucene-rust and laid out as the shell's blobs; the Java tests index through a node instead
+src/index/tests.rs	new		pins the vector generator and the files of a vector index; the Java tests have no such helper
