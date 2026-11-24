@@ -29,6 +29,8 @@ fn an_index_above_the_inline_limit_is_purged_at_the_reclaim() {
         assert_eq!(
             deleted,
             Some(Deleted {
+                uuid: "u1".into(),
+                bucket: None,
                 aliases_left: 0,
                 purged: None
             }),
