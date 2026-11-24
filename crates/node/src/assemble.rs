@@ -135,7 +135,7 @@ impl Config {
             node_id: node_id.to_owned(),
             address,
             bulk_bytes: 64 << 20,
-            bulk_holders: 4,
+            bulk_holders: 64,
             bulk: StreamConfig::default(),
             store_buffer_wait: Duration::from_secs(5),
             pit_buffer_bytes: MAX_POINT_IN_TIME_BYTES,
