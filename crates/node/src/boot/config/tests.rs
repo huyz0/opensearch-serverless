@@ -253,6 +253,11 @@ fn the_buckets_switch_is_off_by_default_and_reads_a_flag() {
     let take = NodeConfig::from_lookup(lookup(&with(&[("OSS_SNAPSHOTS_TAKE_ENABLED", "true")])))
         .expect("valid");
     assert!(take.snapshots_take_enabled && !take.snapshots_enabled);
+    assert!(!take.snapshots_restore_enabled);
+    let restore =
+        NodeConfig::from_lookup(lookup(&with(&[("OSS_SNAPSHOTS_RESTORE_ENABLED", "true")])))
+            .expect("valid");
+    assert!(restore.snapshots_restore_enabled && !restore.snapshots_take_enabled);
 }
 
 #[test]

@@ -398,3 +398,19 @@ fn a_store_that_fails_while_reading_the_snapshots_refuses_the_purge_as_a_store_e
         Vec::<u32>::new()
     );
 }
+
+#[test]
+fn a_removal_reserves_what_it_holds() {
+    let r = rig();
+    assert_eq!(r.service.remove_bytes(), 6 * BUF);
+}
+
+#[test]
+fn a_removal_deletes_only_the_incarnation_it_names() {
+    let r = rig();
+    create(&r, "logs", "u1", 1);
+    assert!(!r.service.remove("logs", "other").expect("removed"));
+    assert!(!descriptor_gone(&r, "logs"), "another incarnation stays");
+    assert!(r.service.remove("logs", "u1").expect("removed"));
+    assert!(descriptor_gone(&r, "logs"));
+}

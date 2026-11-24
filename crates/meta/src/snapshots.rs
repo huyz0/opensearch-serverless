@@ -67,6 +67,22 @@ pub struct SnapshotRead {
     pub summary: SnapshotSummary,
 }
 
+/// A snapshot's record as a restore reads it.
+#[derive(Debug)]
+pub enum RestoreRead<'b> {
+    /// No snapshot holds the name.
+    Missing,
+    /// Only a legacy record holds it, which a restore does not read.
+    Legacy,
+    /// The name's record, in the caller's buffer.
+    Held {
+        /// The record's JSON.
+        record: &'b [u8],
+        /// What it says: its indices, and whether a capture is still running.
+        summary: SnapshotSummary,
+    },
+}
+
 /// Reads repositories and snapshots from the deployment's store.
 pub struct SnapshotReader {
     store: Arc<dyn BlobStore>,
@@ -241,6 +257,49 @@ impl SnapshotReader {
             // A key an fs store cannot name is no snapshot (a deliberate
             // deviation: the Java lists to find out).
             Err(SnapshotReadError::Blob(BlobError::InvalidArgument(_))) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// The snapshot `repo`/`name` with its record bytes, for a restore.
+    /// Cost: one GET when the name's register holds or released it, two
+    /// when it is absent (the register, then the legacy record).
+    ///
+    /// # Errors
+    ///
+    /// [`SnapshotReadError`].
+    pub fn for_restore<'b>(
+        &self,
+        repo: &str,
+        name: &str,
+        buf: &'b mut [u8],
+    ) -> Result<RestoreRead<'b>, SnapshotReadError> {
+        let state_key = snapshot_state_key(&self.base, repo, name)?;
+        match self.store.read_register(&state_key, buf) {
+            Ok(Some(read)) => {
+                let buf: &'b [u8] = buf;
+                let value = buf.get(..read.len).unwrap_or_default();
+                return match SnapshotState::parse(value)? {
+                    SnapshotState::Released => Ok(RestoreRead::Missing),
+                    SnapshotState::Held { record, .. } => {
+                        let summary = SnapshotSummary::parse(record)?;
+                        if summary.repo != repo || summary.name != name {
+                            return Err(SnapshotReadError::KeyMismatch);
+                        }
+                        Ok(RestoreRead::Held { record, summary })
+                    }
+                };
+            }
+            Ok(None) => {}
+            Err(BlobError::InvalidArgument(_)) => return Err(SnapshotReadError::TooLarge),
+            Err(e) => return Err(e.into()),
+        }
+        let legacy = snapshot_legacy_key(&self.base, repo, name)?;
+        match self.blob(&legacy, buf) {
+            Ok(Some(_)) => Ok(RestoreRead::Legacy),
+            Ok(None) | Err(SnapshotReadError::Blob(BlobError::InvalidArgument(_))) => {
+                Ok(RestoreRead::Missing)
+            }
             Err(e) => Err(e),
         }
     }
