@@ -1,0 +1,290 @@
+stripe	logs	3
+stripe	tenant-1	15
+stripe	tenant-2	12
+stripe	a	9
+stripe		0
+stripe	Ünïcode-Ïndex	15
+stripe	日本語	4
+stripe	xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx	0
+stripe	tenant-1042	3
+stripe	metrics-2026.11.24	7
+bucketid	0	0	s00-0
+bucketid	0	1	s00-1
+bucketid	0	12	s00-12
+bucketid	5	0	s05-0
+bucketid	5	1	s05-1
+bucketid	5	12	s05-12
+bucketid	10	0	s10-0
+bucketid	10	1	s10-1
+bucketid	10	12	s10-12
+bucketid	15	0	s15-0
+bucketid	15	1	s15-1
+bucketid	15	12	s15-12
+rank	s00-0	node-10,node-9,node-4,node-1,node-0,node-5,node-2
+keeps	s00-0	node-0	false
+keeps	s00-0	node-5	false
+keeps	s00-0	node-9	true
+rank	s00-1	node-4,node-0,node-9,node-5,node-1,node-10,node-2
+keeps	s00-1	node-0	true
+keeps	s00-1	node-5	false
+keeps	s00-1	node-9	false
+rank	s00-2	node-10,node-5,node-9,node-0,node-1,node-4,node-2
+keeps	s00-2	node-0	false
+keeps	s00-2	node-5	true
+keeps	s00-2	node-9	false
+rank	s00-3	node-9,node-10,node-0,node-5,node-4,node-1,node-2
+keeps	s00-3	node-0	false
+keeps	s00-3	node-5	false
+keeps	s00-3	node-9	true
+rank	s01-0	node-10,node-4,node-9,node-0,node-5,node-1,node-2
+keeps	s01-0	node-0	false
+keeps	s01-0	node-5	false
+keeps	s01-0	node-9	false
+rank	s01-1	node-1,node-4,node-5,node-9,node-0,node-10,node-2
+keeps	s01-1	node-0	false
+keeps	s01-1	node-5	false
+keeps	s01-1	node-9	false
+rank	s01-2	node-0,node-10,node-9,node-4,node-5,node-1,node-2
+keeps	s01-2	node-0	true
+keeps	s01-2	node-5	false
+keeps	s01-2	node-9	false
+rank	s01-3	node-0,node-4,node-5,node-1,node-10,node-9,node-2
+keeps	s01-3	node-0	true
+keeps	s01-3	node-5	false
+keeps	s01-3	node-9	false
+rank	s02-0	node-10,node-1,node-4,node-0,node-5,node-9,node-2
+keeps	s02-0	node-0	false
+keeps	s02-0	node-5	false
+keeps	s02-0	node-9	false
+rank	s02-1	node-9,node-5,node-0,node-1,node-4,node-10,node-2
+keeps	s02-1	node-0	false
+keeps	s02-1	node-5	true
+keeps	s02-1	node-9	true
+rank	s02-2	node-1,node-4,node-10,node-9,node-0,node-5,node-2
+keeps	s02-2	node-0	false
+keeps	s02-2	node-5	false
+keeps	s02-2	node-9	false
+rank	s02-3	node-1,node-5,node-9,node-0,node-4,node-10,node-2
+keeps	s02-3	node-0	false
+keeps	s02-3	node-5	true
+keeps	s02-3	node-9	false
+rank	s03-0	node-1,node-10,node-0,node-9,node-4,node-5,node-2
+keeps	s03-0	node-0	false
+keeps	s03-0	node-5	false
+keeps	s03-0	node-9	false
+rank	s03-1	node-10,node-9,node-1,node-5,node-4,node-0,node-2
+keeps	s03-1	node-0	false
+keeps	s03-1	node-5	false
+keeps	s03-1	node-9	true
+rank	s03-2	node-4,node-0,node-1,node-5,node-10,node-9,node-2
+keeps	s03-2	node-0	true
+keeps	s03-2	node-5	false
+keeps	s03-2	node-9	false
+rank	s03-3	node-1,node-0,node-5,node-4,node-10,node-9,node-2
+keeps	s03-3	node-0	true
+keeps	s03-3	node-5	false
+keeps	s03-3	node-9	false
+rank	s04-0	node-9,node-5,node-1,node-0,node-4,node-10,node-2
+keeps	s04-0	node-0	false
+keeps	s04-0	node-5	true
+keeps	s04-0	node-9	true
+rank	s04-1	node-9,node-10,node-4,node-1,node-0,node-5,node-2
+keeps	s04-1	node-0	false
+keeps	s04-1	node-5	false
+keeps	s04-1	node-9	true
+rank	s04-2	node-0,node-10,node-4,node-5,node-1,node-9,node-2
+keeps	s04-2	node-0	true
+keeps	s04-2	node-5	false
+keeps	s04-2	node-9	false
+rank	s04-3	node-4,node-5,node-0,node-10,node-9,node-1,node-2
+keeps	s04-3	node-0	false
+keeps	s04-3	node-5	true
+keeps	s04-3	node-9	false
+rank	s05-0	node-10,node-1,node-9,node-4,node-0,node-5,node-2
+keeps	s05-0	node-0	false
+keeps	s05-0	node-5	false
+keeps	s05-0	node-9	false
+rank	s05-1	node-4,node-5,node-0,node-1,node-10,node-9,node-2
+keeps	s05-1	node-0	false
+keeps	s05-1	node-5	true
+keeps	s05-1	node-9	false
+rank	s05-2	node-10,node-1,node-9,node-0,node-5,node-4,node-2
+keeps	s05-2	node-0	false
+keeps	s05-2	node-5	false
+keeps	s05-2	node-9	false
+rank	s05-3	node-5,node-9,node-4,node-1,node-0,node-10,node-2
+keeps	s05-3	node-0	false
+keeps	s05-3	node-5	true
+keeps	s05-3	node-9	true
+rank	s06-0	node-4,node-0,node-1,node-9,node-5,node-10,node-2
+keeps	s06-0	node-0	true
+keeps	s06-0	node-5	false
+keeps	s06-0	node-9	false
+rank	s06-1	node-1,node-0,node-10,node-5,node-4,node-9,node-2
+keeps	s06-1	node-0	true
+keeps	s06-1	node-5	false
+keeps	s06-1	node-9	false
+rank	s06-2	node-0,node-9,node-5,node-1,node-10,node-4,node-2
+keeps	s06-2	node-0	true
+keeps	s06-2	node-5	false
+keeps	s06-2	node-9	true
+rank	s06-3	node-1,node-4,node-10,node-5,node-0,node-9,node-2
+keeps	s06-3	node-0	false
+keeps	s06-3	node-5	false
+keeps	s06-3	node-9	false
+rank	s07-0	node-5,node-0,node-4,node-9,node-1,node-10,node-2
+keeps	s07-0	node-0	true
+keeps	s07-0	node-5	true
+keeps	s07-0	node-9	false
+rank	s07-1	node-0,node-1,node-4,node-10,node-5,node-9,node-2
+keeps	s07-1	node-0	true
+keeps	s07-1	node-5	false
+keeps	s07-1	node-9	false
+rank	s07-2	node-5,node-10,node-1,node-9,node-4,node-0,node-2
+keeps	s07-2	node-0	false
+keeps	s07-2	node-5	true
+keeps	s07-2	node-9	false
+rank	s07-3	node-0,node-5,node-10,node-9,node-4,node-1,node-2
+keeps	s07-3	node-0	true
+keeps	s07-3	node-5	true
+keeps	s07-3	node-9	false
+rank	s08-0	node-5,node-1,node-10,node-0,node-4,node-9,node-2
+keeps	s08-0	node-0	false
+keeps	s08-0	node-5	true
+keeps	s08-0	node-9	false
+rank	s08-1	node-5,node-10,node-0,node-9,node-1,node-4,node-2
+keeps	s08-1	node-0	false
+keeps	s08-1	node-5	true
+keeps	s08-1	node-9	false
+rank	s08-2	node-4,node-10,node-1,node-5,node-0,node-9,node-2
+keeps	s08-2	node-0	false
+keeps	s08-2	node-5	false
+keeps	s08-2	node-9	false
+rank	s08-3	node-4,node-0,node-10,node-1,node-5,node-9,node-2
+keeps	s08-3	node-0	true
+keeps	s08-3	node-5	false
+keeps	s08-3	node-9	false
+rank	s09-0	node-5,node-9,node-1,node-0,node-10,node-4,node-2
+keeps	s09-0	node-0	false
+keeps	s09-0	node-5	true
+keeps	s09-0	node-9	true
+rank	s09-1	node-9,node-1,node-0,node-10,node-5,node-4,node-2
+keeps	s09-1	node-0	false
+keeps	s09-1	node-5	false
+keeps	s09-1	node-9	true
+rank	s09-2	node-0,node-9,node-4,node-10,node-1,node-5,node-2
+keeps	s09-2	node-0	true
+keeps	s09-2	node-5	false
+keeps	s09-2	node-9	true
+rank	s09-3	node-9,node-0,node-4,node-10,node-5,node-1,node-2
+keeps	s09-3	node-0	true
+keeps	s09-3	node-5	false
+keeps	s09-3	node-9	true
+rank	s10-0	node-5,node-10,node-1,node-0,node-9,node-4,node-2
+keeps	s10-0	node-0	false
+keeps	s10-0	node-5	true
+keeps	s10-0	node-9	false
+rank	s10-1	node-10,node-1,node-0,node-9,node-4,node-5,node-2
+keeps	s10-1	node-0	false
+keeps	s10-1	node-5	false
+keeps	s10-1	node-9	false
+rank	s10-2	node-4,node-9,node-5,node-10,node-0,node-1,node-2
+keeps	s10-2	node-0	false
+keeps	s10-2	node-5	false
+keeps	s10-2	node-9	true
+rank	s10-3	node-4,node-1,node-5,node-0,node-9,node-10,node-2
+keeps	s10-3	node-0	false
+keeps	s10-3	node-5	false
+keeps	s10-3	node-9	false
+rank	s11-0	node-4,node-10,node-5,node-0,node-9,node-1,node-2
+keeps	s11-0	node-0	false
+keeps	s11-0	node-5	false
+keeps	s11-0	node-9	false
+rank	s11-1	node-10,node-0,node-9,node-1,node-5,node-4,node-2
+keeps	s11-1	node-0	true
+keeps	s11-1	node-5	false
+keeps	s11-1	node-9	false
+rank	s11-2	node-0,node-5,node-1,node-10,node-4,node-9,node-2
+keeps	s11-2	node-0	true
+keeps	s11-2	node-5	true
+keeps	s11-2	node-9	false
+rank	s11-3	node-4,node-9,node-0,node-5,node-10,node-1,node-2
+keeps	s11-3	node-0	false
+keeps	s11-3	node-5	false
+keeps	s11-3	node-9	true
+rank	s12-0	node-1,node-10,node-9,node-4,node-0,node-5,node-2
+keeps	s12-0	node-0	false
+keeps	s12-0	node-5	false
+keeps	s12-0	node-9	false
+rank	s12-1	node-4,node-1,node-5,node-9,node-0,node-10,node-2
+keeps	s12-1	node-0	false
+keeps	s12-1	node-5	false
+keeps	s12-1	node-9	false
+rank	s12-2	node-1,node-9,node-4,node-5,node-10,node-0,node-2
+keeps	s12-2	node-0	false
+keeps	s12-2	node-5	false
+keeps	s12-2	node-9	true
+rank	s12-3	node-0,node-5,node-9,node-1,node-10,node-4,node-2
+keeps	s12-3	node-0	true
+keeps	s12-3	node-5	true
+keeps	s12-3	node-9	false
+rank	s13-0	node-10,node-0,node-5,node-4,node-9,node-1,node-2
+keeps	s13-0	node-0	true
+keeps	s13-0	node-5	false
+keeps	s13-0	node-9	false
+rank	s13-1	node-1,node-9,node-5,node-0,node-10,node-4,node-2
+keeps	s13-1	node-0	false
+keeps	s13-1	node-5	false
+keeps	s13-1	node-9	true
+rank	s13-2	node-1,node-9,node-0,node-5,node-4,node-10,node-2
+keeps	s13-2	node-0	false
+keeps	s13-2	node-5	false
+keeps	s13-2	node-9	true
+rank	s13-3	node-4,node-10,node-9,node-5,node-1,node-0,node-2
+keeps	s13-3	node-0	false
+keeps	s13-3	node-5	false
+keeps	s13-3	node-9	false
+rank	s14-0	node-4,node-9,node-1,node-10,node-5,node-0,node-2
+keeps	s14-0	node-0	false
+keeps	s14-0	node-5	false
+keeps	s14-0	node-9	true
+rank	s14-1	node-9,node-0,node-10,node-4,node-1,node-5,node-2
+keeps	s14-1	node-0	true
+keeps	s14-1	node-5	false
+keeps	s14-1	node-9	true
+rank	s14-2	node-10,node-0,node-5,node-4,node-1,node-9,node-2
+keeps	s14-2	node-0	true
+keeps	s14-2	node-5	false
+keeps	s14-2	node-9	false
+rank	s14-3	node-4,node-10,node-5,node-9,node-0,node-1,node-2
+keeps	s14-3	node-0	false
+keeps	s14-3	node-5	false
+keeps	s14-3	node-9	false
+rank	s15-0	node-9,node-1,node-5,node-10,node-4,node-0,node-2
+keeps	s15-0	node-0	false
+keeps	s15-0	node-5	false
+keeps	s15-0	node-9	true
+rank	s15-1	node-5,node-9,node-1,node-4,node-0,node-10,node-2
+keeps	s15-1	node-0	false
+keeps	s15-1	node-5	true
+keeps	s15-1	node-9	true
+rank	s15-2	node-4,node-9,node-0,node-5,node-10,node-1,node-2
+keeps	s15-2	node-0	false
+keeps	s15-2	node-5	false
+keeps	s15-2	node-9	true
+rank	s15-3	node-10,node-9,node-4,node-1,node-0,node-5,node-2
+keeps	s15-3	node-0	false
+keeps	s15-3	node-5	false
+keeps	s15-3	node-9	true
+holddown	1000	s00-0	node-1,node-0,node-2
+holddown	1000	s03-1	node-1,node-0,node-2
+holddown	1000	s09-2	node-0,node-1,node-2
+holddown	119999	s00-0	node-1,node-0,node-2
+holddown	119999	s03-1	node-1,node-0,node-2
+holddown	119999	s09-2	node-0,node-1,node-2
+holddown	120000	s00-0	node-1,node-0,node-2
+holddown	120000	s03-1	node-1,node-0,node-2
+holddown	120000	s09-2	node-0,node-1,node-2
+holddown	130000	s00-0	node-1,node-0,node-5,node-2
+holddown	130000	s03-1	node-1,node-5,node-0,node-2
+holddown	130000	s09-2	node-0,node-1,node-5,node-2
