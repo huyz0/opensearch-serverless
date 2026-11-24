@@ -15,7 +15,10 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use oss_blob::{BlobStore, ByteRange, PooledStore};
-use oss_format::{CommitManifest, DescriptorRecord, IndexDescriptor, Register, descriptor_key};
+use oss_format::{
+    CommitManifest, DescriptorRecord, FormatError, IndexDescriptor, Register, ShardRef,
+    bucket_manifest_key, descriptor_key, parse_bucket_member,
+};
 
 use crate::commit_push::{NewestSource, Stage, newer_commit};
 use crate::error::ReaderError;
@@ -123,11 +126,25 @@ impl ShardFiles {
             read_register(store, &descriptor_key(base, index)?, MAX_REGISTER_BYTES)?;
         let descriptor = index_of(&descriptor_bytes)?;
         let meta = meta_of(&descriptor)?;
-        let shard_ref = descriptor.shard(shard)?;
+        let bucket = descriptor.bucket.as_deref();
+        let shard_ref = match bucket {
+            Some(_) if shard != 0 => return Err(not_followable("no such shard")),
+            Some(_) => ShardRef {
+                index: &descriptor.name,
+                uuid: &descriptor.uuid,
+                shard: 0,
+            },
+            None => descriptor.shard(shard)?,
+        };
+        let held;
         let register_bytes;
-        let value = match pushed {
-            Some(value) => value,
-            None => {
+        let value = match (pushed, bucket) {
+            (Some(value), _) => value,
+            (None, Some(bucket)) => {
+                held = member_commit(store, base, bucket, &descriptor.uuid)?;
+                held.as_slice()
+            }
+            (None, None) => {
                 register_bytes =
                     read_register(store, &shard_ref.manifest_key(base)?, MAX_REGISTER_BYTES)?;
                 Register::parse(&register_bytes)?.value
@@ -244,6 +261,34 @@ pub(crate) fn meta_of(descriptor: &IndexDescriptor<'_>) -> Result<IndexMeta, Rea
         mapping_json,
         settings,
     })
+}
+
+fn not_followable(reason: &'static str) -> ReaderError {
+    ReaderError::Format(FormatError::NotFollowable {
+        what: "bucket member",
+        reason,
+    })
+}
+
+/// The commit a bucketed index's entry in its bucket's manifest holds: one
+/// GET of the manifest register.
+fn member_commit<S: BlobStore>(
+    store: &PooledStore<S>,
+    base: &str,
+    bucket: &str,
+    uuid: &str,
+) -> Result<Vec<u8>, ReaderError> {
+    let bytes = read_register(
+        store,
+        &bucket_manifest_key(base, bucket)?,
+        MAX_REGISTER_BYTES,
+    )?;
+    let entry = parse_bucket_member(Register::parse(&bytes)?.value, uuid)?;
+    entry
+        .member
+        .ok_or_else(|| not_followable("the index is not a member of its bucket"))?
+        .commit
+        .ok_or_else(|| not_followable("the bucket holds no commit of the index yet"))
 }
 
 /// Reads a whole register blob, refusing one over `max` bytes.

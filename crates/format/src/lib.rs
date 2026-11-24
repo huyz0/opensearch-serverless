@@ -32,8 +32,9 @@
 //! slot's header or fence, and [`slice_records`] reads one shard's records.
 //!
 //! A bucketed index's commit is in its bucket's manifest register: [`parse_bucket_member`]
-//! reads one member's entry from it. A shard's own reader does not follow a
-//! bucketed descriptor yet ([`FormatError::NotFollowable`]).
+//! reads one member's entry from it. [`IndexDescriptor::shard`] refuses a
+//! bucketed descriptor ([`FormatError::NotFollowable`]); a reader follows it
+//! through the bucket manifest instead.
 
 mod alias_record;
 mod bucket_manifest;
