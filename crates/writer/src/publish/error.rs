@@ -45,6 +45,8 @@ pub enum PublishError {
     Directory(String),
     /// A published manifest this writer cannot build on.
     Unusable(&'static str),
+    /// The bucket a member records its commit in failed.
+    Bucket(crate::bucket::BucketError),
 }
 
 impl fmt::Display for PublishError {
@@ -76,6 +78,7 @@ impl fmt::Display for PublishError {
             }
             Self::Directory(e) => write!(f, "{e}"),
             Self::Unusable(why) => write!(f, "the published commit cannot be built on: {why}"),
+            Self::Bucket(e) => write!(f, "{e}"),
         }
     }
 }
@@ -85,6 +88,12 @@ impl std::error::Error for PublishError {}
 impl From<BlobError> for PublishError {
     fn from(e: BlobError) -> Self {
         Self::Blob(e)
+    }
+}
+
+impl From<crate::bucket::BucketError> for PublishError {
+    fn from(e: crate::bucket::BucketError) -> Self {
+        Self::Bucket(e)
     }
 }
 
