@@ -18,6 +18,7 @@ pub mod search;
 pub mod search_nested;
 pub mod security;
 pub mod snapshot_admin;
+pub mod snapshot_restore_admin;
 pub mod snapshot_take_admin;
 pub mod template_admin;
 pub mod templates;

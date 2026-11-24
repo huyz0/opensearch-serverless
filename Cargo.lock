@@ -849,6 +849,7 @@ dependencies = [
  "oss-reader",
  "oss-types",
  "oss-writer",
+ "regex",
  "serde_json",
 ]
 
