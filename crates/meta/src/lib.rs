@@ -53,6 +53,7 @@ mod listing;
 mod names;
 mod pit;
 mod probe;
+mod repositories;
 mod routing;
 mod snapshots;
 mod sweep;
@@ -79,6 +80,7 @@ pub use oss_format::{
 };
 pub use pit::{CaptureError, PitClock, PointInTimeStore, new_id};
 pub use probe::PROBE_PREFIX;
+pub use repositories::{MAX_SNAPSHOT_MARKERS, Removal, RepositoryWriteError, RepositoryWriter};
 pub use routing::{
     DEFAULT_ROUTING_CACHE_BYTES, DEFAULT_ROUTING_CACHE_MILLIS, DEFAULT_ROUTING_CACHE_PRUNE_ABOVE,
     RoutingCache,
