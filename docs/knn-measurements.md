@@ -46,19 +46,21 @@ The held figure is the in-memory directory, which a node does not keep (segments
 
 ## Requests
 
-`knn_requests` on an index of 100,000 documents of 128 dimensions (47 MB, ten segments) behind the emulator, a cold page cache for each row:
+`knn_requests` on an index of 100,000 documents of 128 dimensions (47 MB), cold page cache for each row, against the in-process emulator and against RustFS 1.0.1 (the server crate from crates.io, built here with Rust 1.98.1; the `RUSTFS_BIN` run of the test starts it on loopback). The two stores gave the same counts:
 
-| step | term search | knn search |
-|---|---|---|
-| open the shard | Get=2, GetRange=61 | Get=2, GetRange=61 |
-| first search | 0 | 0 |
-| second search | 0 | 0 |
+| segments | step | term search | knn search |
+|---|---|---|---|
+| 10 | open the shard | Get=2, GetRange=61 | Get=2, GetRange=61 |
+| 10 | first search | 0 | 0 |
+| 10 | second search | 0 | 0 |
+| 1 | open the shard | Get=2, GetRange=13 | Get=2, GetRange=13 |
+| 1 | first search | 0 | 0 |
 
-A `knn` search makes no request a term search does not, and no LIST. Here the open already read all 47 MB (the segment files are small enough for the page cache to read whole); on a host where a larger segment is demand-paged the first `knn` search may fetch vector pages. That case, and any number over RustFS, is **NOT-RUN**: running the RustFS binary in this sandbox is waiting on the owner's go-ahead.
+A `knn` search makes no request a term search does not, and no LIST. The open reads the whole index (47 MB read at open in both rows, whatever the segment count), so the searches have nothing left to fetch: this is the reader's open prefetch, which does not depend on the vectors. What an index of many gigabytes of vectors costs to open is not measured here, and a host whose page cache spills to disk was not tried.
 
 ## Verdict
 
-- Requests: no change from a non-vector index in the case measured. RustFS and demand-paged vector files NOT-RUN.
+- Requests: no change from a non-vector index, on the emulator and on RustFS 1.0.1. Indexes much larger than 47 MB, and a disk-spilling cache, not measured.
 - Memory: the flush working set above the held segments was 39 to 97 MiB a segment in the three runs; it was not measured against the node's pool.
 - Recall: matches the stock algorithm; falls under 0.65 on uniform random vectors and near 0.95 at 500,000 unmerged clustered vectors.
 
@@ -66,4 +68,4 @@ A `knn` search makes no request a term search does not, and no LIST. Here the op
 
 - **Recall on uniform high-dimensional data is about 0.62 at recall@10 (0.83 at 100).** It is a limit of the algorithm, not of this port: HNSW with beam `k` and no extra fan-out finds fewer true neighbours when points have no cluster structure, and the stock plugin's `lucene` engine does the same. `method_parameters` (a wider beam) is refused as unsupported by the `knn` query, so a caller cannot ask for more depth yet.
 - Recall falls as unmerged segments multiply (each graph is searched with beam `k`): 0.94 to 0.96 at 500,000 vectors in 70 segments, against 0.99 or more at 100,000 in 14.
-- Not measured: a stock node's recall on the same data, RustFS, demand-paged vector files, and segments after a merge.
+- Not measured: a stock node's recall on the same data, RustFS 1.0.6 (only 1.0.1 builds from crates.io), indexes much larger than 47 MB, and segments after a merge.

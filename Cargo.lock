@@ -1405,6 +1405,7 @@ dependencies = [
  "oss-rest",
  "oss-testkit",
  "oss-types",
+ "ureq",
 ]
 
 [[package]]
