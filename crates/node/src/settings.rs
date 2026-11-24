@@ -28,6 +28,7 @@ fn providers() -> Vec<&'static [&'static Setting]> {
         oss_janitor::settings::SETTINGS,
         #[cfg(feature = "writer")]
         oss_writer::bucket::settings::SETTINGS,
+        #[cfg(feature = "writer")]
         oss_writer::bucket::policy::SETTINGS,
         #[cfg(feature = "writer")]
         crate::writer::PROACTIVE_SETTINGS,

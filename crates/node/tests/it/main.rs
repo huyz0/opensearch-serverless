@@ -19,6 +19,7 @@ mod frozen_search;
 mod msearch;
 mod open_prefetch;
 mod open_prefetch_layout;
+mod rank_eval;
 mod search;
 mod search_hits;
 mod search_template;

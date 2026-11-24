@@ -22,6 +22,7 @@ pub mod numbers;
 pub mod open_cost;
 pub mod overlay;
 pub mod prefetch;
+pub mod rank_eval;
 pub mod response;
 pub mod search;
 mod search_options;
