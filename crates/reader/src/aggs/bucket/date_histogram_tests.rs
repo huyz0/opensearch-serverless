@@ -27,7 +27,7 @@ fn aggs(body: &str) -> Vec<MetricAgg> {
     parse_chunks([body.as_bytes()]).expect("parses").aggs
 }
 
-fn spec_of(body: &str) -> (String, DateHistogramSpec) {
+pub(super) fn spec_of(body: &str) -> (String, DateHistogramSpec) {
     let body = format!(r#"{{"aggs":{{"h":{{"date_histogram":{body}}}}}}}"#);
     let agg = aggs(&body).remove(0);
     (agg.field, *agg.date_histogram.expect("a date_histogram"))
@@ -51,9 +51,7 @@ fn reason(body: &str) -> String {
 fn rounding(kind: RoundingKind) -> DateRounding {
     DateRounding {
         kind,
-        zone_ms: 0,
-        region: None,
-        offset: 0,
+        ..DateHistogramSpec::default().rounding
     }
 }
 
@@ -72,7 +70,7 @@ fn month() -> DateHistogramSpec {
     spec(RoundingKind::Unit(DateUnit::Month))
 }
 
-fn part(spec: &DateHistogramSpec, buckets: &[(i64, u64)]) -> DateHistogramResult {
+pub(super) fn part(spec: &DateHistogramSpec, buckets: &[(i64, u64)]) -> DateHistogramResult {
     DateHistogramResult {
         spec: *spec,
         buckets: buckets.to_vec(),
@@ -80,12 +78,12 @@ fn part(spec: &DateHistogramSpec, buckets: &[(i64, u64)]) -> DateHistogramResult
     }
 }
 
-fn reduced(parts: &[DateHistogramResult]) -> DateHistogramResult {
+pub(super) fn reduced(parts: &[DateHistogramResult]) -> DateHistogramResult {
     let refs: Vec<&DateHistogramResult> = parts.iter().collect();
     reduce_results(&refs, BUCKET_LIMIT).expect("within the limit")
 }
 
-fn written(format: Format, result: &DateHistogramResult) -> String {
+pub(super) fn written(format: Format, result: &DateHistogramResult) -> String {
     let mut out = Vec::new();
     write_date_histogram(&mut out, format, result).expect("writes");
     String::from_utf8(out).expect("utf-8")
@@ -272,7 +270,6 @@ fn unserved_keys_zones_and_orders_are_refused_as_not_supported_yet() {
         r#"{"field":"t","calendar_interval":"day","format":"yyyy"}"#,
         r#"{"field":"t","calendar_interval":"day","missing":"2020-01-01"}"#,
         r#"{"field":"t","calendar_interval":"day","time_zone":"Europe/Nowhere"}"#,
-        r#"{"field":"t","calendar_interval":"day","time_zone":"europe/paris"}"#,
         r#"{"field":"t","calendar_interval":"day","order":{"sub":"asc"}}"#,
         r#"{"field":"t","calendar_interval":"day","order":[{"_key":"asc"},{"_count":"asc"}]}"#,
     ] {
@@ -499,69 +496,4 @@ fn a_result_over_the_bucket_limit_fails_to_write() {
     let r = part(&s, &[(0, 1), (DAY * 365, 1)]);
     let mut out = Vec::new();
     assert!(write_date_histogram(&mut out, Format::Date, &r).is_err());
-}
-
-// AC-1
-#[test]
-fn a_region_zone_parses_to_its_rules() {
-    let (_, s) = spec_of(
-        r#"{"field":"t","calendar_interval":"day","time_zone":"Europe/Paris","offset":"+1h"}"#,
-    );
-    let zone = s.rounding.region.expect("a region zone");
-    assert_eq!(zone.id(), "Europe/Paris");
-    assert_eq!((s.rounding.zone_ms, s.rounding.offset), (0, 3_600_000));
-    // A later fixed offset replaces it, and the other way round.
-    let (_, s) = spec_of(
-        r#"{"field":"t","calendar_interval":"day","time_zone":"Europe/Paris","time_zone":"+02:00"}"#,
-    );
-    assert_eq!((s.rounding.region, s.rounding.zone_ms), (None, 7_200_000));
-    let (_, s) = spec_of(
-        r#"{"field":"t","calendar_interval":"day","time_zone":"+02:00","time_zone":"Asia/Tokyo"}"#,
-    );
-    assert_eq!(s.rounding.zone_ms, 0);
-    assert!(s.rounding.region.is_some());
-    // Bounds round down by the zone's days.
-    let (_, s) = spec_of(
-        r#"{"field":"t","calendar_interval":"day","time_zone":"Europe/Paris","hard_bounds":{"min":1616886000001,"max":1616970000000}}"#,
-    );
-    assert_eq!(
-        s.hard_bounds,
-        (Some(1_616_886_000_000), Some(1_616_968_800_000))
-    );
-}
-
-// AC-3
-#[test]
-fn a_region_zones_days_fill_by_their_own_lengths() {
-    // Paris days 2021-03-27 (24 h), 03-28 (23 h, the clocks go forward) and 03-29.
-    let (_, s) = spec_of(r#"{"field":"t","calendar_interval":"day","time_zone":"Europe/Paris"}"#);
-    let (mar27, mar28, mar29) = (1_616_799_600_000, 1_616_886_000_000, 1_616_968_800_000);
-    let a = part(&s, &[(mar27, 1), (mar29, 2)]);
-    assert_eq!(reduced(&[a]).buckets, [(mar27, 1), (mar28, 0), (mar29, 2)]);
-    // Fall back: 2021-10-31 is 25 hours.
-    let (oct30, oct31, nov1) = (1_635_544_800_000, 1_635_631_200_000, 1_635_721_200_000);
-    let a = part(&s, &[(oct30, 1), (nov1, 2)]);
-    assert_eq!(reduced(&[a]).buckets, [(oct30, 1), (oct31, 0), (nov1, 2)]);
-}
-
-// AC-4
-#[test]
-fn keys_print_in_a_region_zones_offset_at_the_key() {
-    let (_, mut s) =
-        spec_of(r#"{"field":"t","calendar_interval":"day","time_zone":"Europe/Paris"}"#);
-    s.keyed = true;
-    let r = part(&s, &[(1_616_799_600_000, 1), (1_616_968_800_000, 2)]);
-    let text = written(Format::Date, &r);
-    assert!(
-        text.contains(r#""key_as_string":"2021-03-27T00:00:00.000+01:00""#),
-        "{text}"
-    );
-    assert!(
-        text.contains(r#""key_as_string":"2021-03-29T00:00:00.000+02:00""#),
-        "{text}"
-    );
-    // London in winter is at a zero offset: printed `Z`.
-    let (_, s) = spec_of(r#"{"field":"t","calendar_interval":"day","time_zone":"Europe/London"}"#);
-    let r = part(&s, &[(JAN_1_2020, 1)]);
-    assert!(written(Format::Date, &r).contains(r#""key_as_string":"2020-01-01T00:00:00.000Z""#));
 }
