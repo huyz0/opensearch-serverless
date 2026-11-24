@@ -146,6 +146,9 @@ pub struct NodeConfig {
     pub security_refresh_millis: u64,
     /// `serverless.knn.enabled`.
     pub knn: bool,
+    /// `OSS_EXTENSIONS_PERCENT`: the share of memory the `extensions` pool takes from the page
+    /// cache; zero (the default) reserves none.
+    pub extensions_percent: usize,
     /// `OSS_STORE_USAGE`: count the store's requests and bytes per index
     /// and serve them at `GET /_serverless/usage`.
     pub store_usage: bool,
@@ -326,6 +329,8 @@ impl NodeConfig {
             .collect();
         let hand_off = flag("OSS_HAND_OFF", "false")?;
         let knn = flag("OSS_KNN", "false")?;
+        let extensions_percent =
+            usize::try_from(bounded("OSS_EXTENSIONS_PERCENT", "0", 0, 20)?).unwrap_or(0);
         let security = flag("OSS_SECURITY", "false")?;
         let security_refresh_millis = bounded("OSS_SECURITY_REFRESH_MS", "10000", 1000, 3_600_000)?;
         let security_admin = match (
@@ -435,6 +440,7 @@ impl NodeConfig {
             security_admin,
             security_refresh_millis,
             knn,
+            extensions_percent,
             store_usage,
             tenant_levels,
             tenant_budget_per_minute,
@@ -481,7 +487,8 @@ impl NodeConfig {
             .with_pool(Pool::RequestBodies, share(20))?
             .with_pool(Pool::QueryExecution, share(15))?
             .with_pool(Pool::WriteBuffers, share(15))?
-            .with_pool(Pool::PageCache, share(20))?
+            .with_pool(Pool::PageCache, share(20 - self.extensions_percent))?
+            .with_pool(Pool::Extensions, share(self.extensions_percent))?
             .with_pool(Pool::Transport, share(10))?
             .with_pool(Pool::OpenIndexes, share(20))
     }
