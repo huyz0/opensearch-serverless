@@ -15,6 +15,8 @@ use oss_meta::{DescriptorStore, MetaError, PitClock, Target, new_id};
 use oss_rest::{Exception, JSON, Method, Request, Response, RestError, RouteError, Router};
 use oss_writer::mapping::Mapping;
 
+use crate::index_templates::TemplateSets;
+
 /// The most bytes of a create body.
 const MAX_CREATE_BYTES: usize = 1 << 20;
 
@@ -48,6 +50,7 @@ pub struct IndexService {
     clock: PitClock,
     buffer_bytes: usize,
     join: Option<BucketJoin>,
+    templates: Option<Arc<TemplateSets>>,
 }
 
 impl IndexService {
@@ -60,6 +63,7 @@ impl IndexService {
             clock,
             buffer_bytes,
             join: None,
+            templates: None,
         }
     }
 
@@ -67,6 +71,14 @@ impl IndexService {
     #[must_use]
     pub fn with_bucket_join(mut self, join: BucketJoin) -> Self {
         self.join = Some(join);
+        self
+    }
+
+    /// Layers the matching index template under each create. Without this
+    /// a create inherits nothing and makes no template request.
+    #[must_use]
+    pub fn with_templates(mut self, templates: Arc<TemplateSets>) -> Self {
+        self.templates = Some(templates);
         self
     }
 
@@ -115,6 +127,24 @@ impl IndexService {
                 "aliases at create are not supported by this node yet: create the index, then add them",
             ));
         }
+        let asked = match &self.templates {
+            Some(templates) => {
+                req.body().reserve(self.buffer_bytes.saturating_mul(2))?;
+                // ALLOC: two scratch buffers a create, buffer_bytes each, reserved above.
+                let mut marker = vec![0u8; self.buffer_bytes];
+                let mut doc = vec![0u8; self.buffer_bytes];
+                let asked = templates
+                    .apply(&index, asked, &mut marker, &mut doc)
+                    .map_err(refusal)?;
+                if !asked.settings.is_empty() {
+                    return Err(unsupported(
+                        "the matching index template carries settings, which this node does not apply at create yet",
+                    ));
+                }
+                asked
+            }
+            None => asked,
+        };
         if let Some(text) = asked.mapping.as_deref() {
             Mapping::parse(text.as_bytes())
                 .map_err(|e| refuse(400, "mapper_parsing_exception", e.failed_to_parse().reason))?;
