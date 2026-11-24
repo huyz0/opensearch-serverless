@@ -293,3 +293,32 @@ fn a_raw_body_must_be_a_string_and_stand_alone() {
     );
     assert_eq!(refusal(both).at, "steps[0].request");
 }
+
+#[test]
+fn a_request_may_name_the_user_it_is_sent_as() {
+    let doc = with(
+        minimal(),
+        "/steps/0/request/auth",
+        json!("alice:s3cret!"),
+    );
+    let f = Fixture::from_value(&doc).unwrap();
+    assert_eq!(f.steps[0].request.auth.as_deref(), Some("alice:s3cret!"));
+    assert_eq!(Fixture::from_value(&minimal()).unwrap().steps[0].request.auth, None);
+}
+
+#[test]
+fn a_request_may_send_no_credentials_and_must_name_a_string() {
+    let f = Fixture::from_value(&with(minimal(), "/steps/0/request/auth", json!(""))).unwrap();
+    assert_eq!(f.steps[0].request.auth.as_deref(), Some(""));
+    let e = refusal(with(minimal(), "/steps/0/request/auth", json!(7)));
+    assert!(e.to_string().contains("auth"), "{e}");
+}
+
+#[test]
+fn a_response_body_may_be_text() {
+    let mut doc = minimal();
+    doc["steps"][0]["response"]["body"] = json!("Unauthorized");
+    let f = Fixture::from_value(&doc).unwrap();
+    assert_eq!(f.steps[0].response.as_ref().unwrap().body,
+        Some(json!("Unauthorized")));
+}

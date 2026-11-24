@@ -1,0 +1,116 @@
+{
+  "name": "security tenants",
+  "description": "Tenants: create, read, update, delete.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/_plugins/_security/api/tenants/compat-sec-a"
+    },
+    {
+      "method": "DELETE",
+      "path": "/_plugins/_security/api/tenants/compat-sec-b"
+    }
+  ],
+  "steps": [
+    {
+      "name": "create",
+      "request": {
+        "body": {
+          "description": "d"
+        },
+        "method": "PUT",
+        "path": "/_plugins/_security/api/tenants/compat-sec-a"
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "CREATED",
+          "message": "'compat-sec-a' created."
+        }
+      }
+    },
+    {
+      "name": "get",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/tenants/compat-sec-a"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-sec-a": {
+            "description": "d",
+            "hidden": false,
+            "reserved": false,
+            "static": false
+          }
+        }
+      }
+    },
+    {
+      "name": "update",
+      "request": {
+        "body": {
+          "description": "e"
+        },
+        "method": "PUT",
+        "path": "/_plugins/_security/api/tenants/compat-sec-a"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "OK",
+          "message": "'compat-sec-a' updated."
+        }
+      }
+    },
+    {
+      "name": "delete",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_security/api/tenants/compat-sec-a"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "OK",
+          "message": "'compat-sec-a' deleted."
+        }
+      }
+    },
+    {
+      "name": "get absent",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/tenants/compat-sec-a"
+      },
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "NOT_FOUND",
+          "message": "tenant 'compat-sec-a' not found."
+        }
+      }
+    }
+  ]
+}

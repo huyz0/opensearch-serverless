@@ -1,0 +1,216 @@
+{
+  "name": "security roles",
+  "description": "Create, read, update, list, delete and refuse a role.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/_plugins/_security/api/roles/compat-sec-a"
+    },
+    {
+      "method": "DELETE",
+      "path": "/_plugins/_security/api/roles/compat-sec-b"
+    }
+  ],
+  "steps": [
+    {
+      "name": "create",
+      "request": {
+        "body": {
+          "cluster_permissions": [
+            "cluster_monitor"
+          ],
+          "index_permissions": [
+            {
+              "allowed_actions": [
+                "read"
+              ],
+              "index_patterns": [
+                "compat-logs-*"
+              ]
+            }
+          ]
+        },
+        "method": "PUT",
+        "path": "/_plugins/_security/api/roles/compat-sec-a"
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "CREATED",
+          "message": "'compat-sec-a' created."
+        }
+      }
+    },
+    {
+      "name": "update",
+      "request": {
+        "body": {
+          "cluster_permissions": [
+            "cluster_monitor"
+          ],
+          "index_permissions": [
+            {
+              "allowed_actions": [
+                "read"
+              ],
+              "index_patterns": [
+                "compat-logs-*"
+              ]
+            }
+          ]
+        },
+        "method": "PUT",
+        "path": "/_plugins/_security/api/roles/compat-sec-a"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "OK",
+          "message": "'compat-sec-a' updated."
+        }
+      }
+    },
+    {
+      "name": "get",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/roles/compat-sec-a"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-sec-a": {
+            "cluster_permissions": [
+              "cluster_monitor"
+            ],
+            "hidden": false,
+            "index_permissions": [
+              {
+                "allowed_actions": [
+                  "read"
+                ],
+                "fls": [],
+                "index_patterns": [
+                  "compat-logs-*"
+                ],
+                "masked_fields": []
+              }
+            ],
+            "reserved": false,
+            "static": false,
+            "tenant_permissions": []
+          }
+        }
+      }
+    },
+    {
+      "name": "get absent",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/roles/compat-sec-b"
+      },
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "NOT_FOUND",
+          "message": "role 'compat-sec-b' not found."
+        }
+      }
+    },
+    {
+      "name": "unknown key",
+      "request": {
+        "body": {
+          "bogus": 1
+        },
+        "method": "PUT",
+        "path": "/_plugins/_security/api/roles/compat-sec-b"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "error",
+          "reason": "Invalid configuration",
+          "invalid_keys": {
+            "keys": "bogus"
+          }
+        }
+      }
+    },
+    {
+      "name": "bad type",
+      "request": {
+        "body": {
+          "cluster_permissions": "x"
+        },
+        "method": "PUT",
+        "path": "/_plugins/_security/api/roles/compat-sec-b"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "error",
+          "reason": "Wrong datatype",
+          "cluster_permissions": "Array expected"
+        }
+      }
+    },
+    {
+      "name": "delete",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_security/api/roles/compat-sec-a"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "OK",
+          "message": "'compat-sec-a' deleted."
+        }
+      }
+    },
+    {
+      "name": "delete absent",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_security/api/roles/compat-sec-a"
+      },
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "NOT_FOUND",
+          "message": "role 'compat-sec-a' not found."
+        }
+      }
+    }
+  ]
+}
