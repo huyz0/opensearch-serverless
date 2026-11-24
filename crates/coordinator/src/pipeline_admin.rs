@@ -3,36 +3,20 @@
 //!
 //! Ported from `serverless/shell/src/main/java/org/opensearch/serverless/rest/PipelineHandler.java`
 //! (`put`, `get`, `concreteId`). The Java validates a pipeline by compiling it
-//! with the node's processor engine; here a pipeline is stored only when
-//! every processor it names, including those under `on_failure`, is one of
-//! [`SUPPORTED`], so a pipeline is never stored that the node cannot run.
+//! with the node's processor engine; so is this: a pipeline is stored only
+//! when [`Pipeline::compile`] accepts it, so a pipeline is never stored that
+//! the node cannot run.
 
 use oss_doc::mapping::json::{Json, parse, write_str};
 
+use crate::ingest::Pipeline;
 use crate::route::resolve::Refusal;
 
 /// The processors a stored pipeline may name.
-pub const SUPPORTED: &[&str] = &[
-    "append",
-    "convert",
-    "lowercase",
-    "remove",
-    "rename",
-    "set",
-    "trim",
-    "uppercase",
-];
-
-/// The deepest `on_failure` nesting a pipeline may carry.
-const MAX_DEPTH: usize = 8;
+pub use crate::ingest::PROCESSORS as SUPPORTED;
 
 fn invalid(reason: impl Into<String>) -> Refusal {
     Refusal::new(400, "invalid_pipeline", reason)
-}
-
-fn available() -> String {
-    // ALLOC: error path; one list.
-    SUPPORTED.join(", ")
 }
 
 /// An id a mutation may act on: one concrete id.
@@ -52,34 +36,6 @@ pub fn concrete_id(id: &str) -> Result<(), Refusal> {
     Ok(())
 }
 
-fn processors(list: &Json, depth: usize) -> Result<(), Refusal> {
-    let Json::Arr(items) = list else {
-        return Err(invalid("[processors] must be an array of processors"));
-    };
-    for item in items {
-        let Json::Obj(members) = item else {
-            return Err(invalid("a processor must be an object of one type"));
-        };
-        let [(kind, config)] = members.as_slice() else {
-            return Err(invalid("a processor must be an object of one type"));
-        };
-        if !SUPPORTED.contains(&kind.as_str()) {
-            // ALLOC: error path; one message.
-            return Err(invalid(format!(
-                "processor type [{kind}] is not supported. Available processors: {}",
-                available()
-            )));
-        }
-        if let Some(handlers) = config.get("on_failure") {
-            if depth >= MAX_DEPTH {
-                return Err(invalid("[on_failure] is nested too deeply"));
-            }
-            processors(handlers, depth.saturating_add(1))?;
-        }
-    }
-    Ok(())
-}
-
 /// Checks a pipeline definition before it is stored.
 ///
 /// # Errors
@@ -88,21 +44,14 @@ fn processors(list: &Json, depth: usize) -> Result<(), Refusal> {
 /// `invalid_pipeline` for a pipeline without `processors`, a processor that
 /// is not an object of one type, or a type not in [`SUPPORTED`].
 pub fn validate(body: &[u8]) -> Result<(), Refusal> {
-    let Ok(parsed @ Json::Obj(_)) = parse(body) else {
+    let Ok(Json::Obj(_)) = parse(body) else {
         return Err(Refusal::new(
             400,
             "malformed_body",
             "could not parse the pipeline: the body is not a JSON object",
         ));
     };
-    let Some(list) = parsed.get("processors") else {
-        return Err(invalid("[processors] required property is missing"));
-    };
-    processors(list, 0)?;
-    if let Some(handlers) = parsed.get("on_failure") {
-        processors(handlers, 1)?;
-    }
-    Ok(())
+    Pipeline::compile(body).map(drop).map_err(invalid)
 }
 
 /// The stored pipelines an id selects: all for `None`, `*` and `_all`, else
