@@ -61,6 +61,8 @@ pub mod knn_setting;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod lease_announce;
 #[cfg(feature = "writer")]
+pub mod lifecycle;
+#[cfg(feature = "writer")]
 pub mod newest;
 #[cfg(feature = "reader")]
 pub mod newest_ask;

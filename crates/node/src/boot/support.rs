@@ -217,6 +217,21 @@ pub(super) fn wire_commit_push(
     Ok(())
 }
 
+/// The writer of the node's lease: it says what the node holds and stops
+/// saying it serves searches once it drains.
+pub(super) fn lease_writer(
+    membership: &Arc<Membership>,
+    lease: NodeLease,
+    load: &Arc<crate::writer::LoadReport>,
+    readiness: &Arc<crate::lifecycle::Readiness>,
+) -> Box<dyn oss_writer::log::LeaseWrite> {
+    Box::new(
+        crate::writer::MembershipLeaseWrite::new(Arc::clone(membership), lease)
+            .with_load(Arc::clone(load))
+            .with_readiness(Arc::clone(readiness)),
+    )
+}
+
 /// What the renewal thread does for the fleet's sake: reports the node's
 /// load in the lease it renews, and hands idle shards off after a refresh.
 pub(super) struct FleetTick {
