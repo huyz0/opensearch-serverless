@@ -443,9 +443,11 @@ pub fn assemble(
         let mut indices =
             IndexService::new(descriptors, Arc::clone(&clock), config.pit_buffer_bytes);
         if let Some(buckets) = &bucket_wiring {
-            let buckets = Arc::clone(buckets);
-            indices =
-                indices.with_bucket_join(Arc::new(move |name, uuid| buckets.join(name, uuid)));
+            let (joiner, leaver) = (Arc::clone(buckets), Arc::clone(buckets));
+            indices = indices.with_bucket_join(
+                Arc::new(move |name, uuid| joiner.join(name, uuid)),
+                Arc::new(move |bucket, uuid| leaver.leave(bucket, uuid)),
+            );
         }
         if config.index_templates {
             let sets = TemplateSets::open(&store, &config.base)
