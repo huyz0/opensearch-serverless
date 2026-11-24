@@ -21,4 +21,5 @@ src/doc_cache.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/t
 src/snapshots.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/repository/RepositoryStore.java@bf347adb	describeRepository, listRepositories, and SnapshotStore.state: read-only
 src/repositories.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/repository/RepositoryStore.java@bf347adb	putRepository and deleteRepository, with SnapshotStore.list as the in-use check
 src/snapshot_take.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/repository/SnapshotStore.java@bf347adb	create, finish and remove: the reservation, protective marker, finish and cleanup of a take
+src/snapshot_remove.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/repository/SnapshotRecords.java@bf347adb	deleteSnapshot for a shallow snapshot: release the name's register, then remove the marker; a standard snapshot is refused (its data prefix needs a LIST)
 src/snapshot_capture.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/snapshot/SnapshotOperations.java@bf347adb	capture: describing an index and reading each shard commit

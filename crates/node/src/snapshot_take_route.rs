@@ -9,7 +9,11 @@
 use std::sync::Arc;
 
 use oss_blob::BlobStore;
-use oss_coordinator::snapshot_admin::{render_snapshot, repository_missing};
+use oss_coordinator::repository_admin::ACKNOWLEDGED as DELETED;
+use oss_coordinator::snapshot_admin::{
+    check_name, is_selector, render_snapshot, repository_missing, snapshot_missing,
+    unsupported_selector,
+};
 use oss_coordinator::snapshot_take_admin::{
     ACCEPTED, already_exists, check_shards, conflict, index_not_found, is_alias, name_too_long,
     nothing_published, record_too_large, request, unsupported_layout, unsupported_storage,
@@ -180,6 +184,59 @@ impl SnapshotTakeService {
         let summary = SnapshotSummary::parse(value.get(..len).unwrap_or_default())
             .map_err(|e| refuse(500, "snapshot_failure", e.to_string()))?;
         resp.send(200, JSON, render_snapshot(&summary).as_bytes())
+    }
+
+    /// `DELETE /_snapshot/{repo}/{name}`: releases the snapshot and removes
+    /// its marker; a snapshot that copied its data is refused.
+    pub(crate) fn delete(
+        &self,
+        req: &mut Request<'_>,
+        resp: &mut Response<'_>,
+    ) -> Result<(), RestError> {
+        let repo = req.path_param("repo").map(|r| r.into_owned());
+        let name = req.path_param("name").map(|n| n.into_owned());
+        let (Some(repo), Some(name)) = (repo, name) else {
+            return Err(RestError::illegal_argument(
+                "a repository and name are required",
+            ));
+        };
+        for (value, what) in [(&repo, "repository"), (&name, "snapshot")] {
+            if is_selector(value) {
+                return Err(refused(unsupported_selector(value)));
+            }
+            check_name(value, what).map_err(refused)?;
+        }
+        req.body().reserve(MAX_SNAPSHOT_RECORD_BYTES)?;
+        // ALLOC: one buffer a request, MAX_SNAPSHOT_RECORD_BYTES, reserved above.
+        let mut value = vec![0u8; MAX_SNAPSHOT_RECORD_BYTES];
+        match self.taker.remove(&repo, &name, &mut value) {
+            Ok(true) => resp.send(200, JSON, DELETED.as_bytes()),
+            Ok(false) => {
+                // A snapshot only a legacy record holds is not ours to delete.
+                let legacy = self
+                    .reader
+                    .snapshot(&repo, &name, &mut value)
+                    .map_err(|e| read_failed(&e))?;
+                if legacy.is_some() {
+                    return Err(refuse(
+                        501,
+                        "unsupported_operation",
+                        // ALLOC: error path; one message.
+                        format!(
+                            "[{repo}/{name}] is a legacy snapshot, which this node does not delete"
+                        ),
+                    ));
+                }
+                Err(refused(snapshot_missing(&repo, &name)))
+            }
+            Err(TakeError::NotShallow) => Err(refuse(
+                501,
+                "unsupported_operation",
+                // ALLOC: error path; one message.
+                format!("[{repo}/{name}] copied its data, which this node does not delete"),
+            )),
+            Err(e) => Err(taken(e, &repo, &name)),
+        }
     }
 
     /// Resolves each named index, skipping a missing one with

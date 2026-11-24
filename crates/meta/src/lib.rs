@@ -56,6 +56,7 @@ mod probe;
 mod repositories;
 mod routing;
 mod snapshot_capture;
+mod snapshot_remove;
 mod snapshot_take;
 mod snapshots;
 mod sweep;

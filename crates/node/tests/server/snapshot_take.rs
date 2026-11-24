@@ -18,10 +18,10 @@ use oss_node::snapshot_take_route::SnapshotTakeService;
 use oss_rest::{Router, Server};
 use oss_testkit::budget;
 
-struct Rig {
-    server: Server,
-    store: Arc<Emulator>,
-    descriptors: DescriptorStore,
+pub(crate) struct Rig {
+    pub(crate) server: Server,
+    pub(crate) store: Arc<Emulator>,
+    pub(crate) descriptors: DescriptorStore,
 }
 
 fn roomy() -> BudgetConfig {
@@ -30,7 +30,7 @@ fn roomy() -> BudgetConfig {
         .expect("fits")
 }
 
-fn rig(take: bool) -> Rig {
+pub(crate) fn rig(take: bool) -> Rig {
     rig_in(take, roomy())
 }
 
@@ -66,7 +66,7 @@ fn rig_in(take: bool, config: BudgetConfig) -> Rig {
     }
 }
 
-fn send(r: &Rig, method: &str, target: &str, body: Option<&str>) -> support::Reply {
+pub(crate) fn send(r: &Rig, method: &str, target: &str, body: Option<&str>) -> support::Reply {
     support::request(
         r.server.local_addr(),
         method,
@@ -75,7 +75,7 @@ fn send(r: &Rig, method: &str, target: &str, body: Option<&str>) -> support::Rep
     )
 }
 
-fn repository(r: &Rig, shallow: bool) {
+pub(crate) fn repository(r: &Rig, shallow: bool) {
     let body = format!(
         r#"{{"type":"fs","settings":{{"location":"x","remote_store_index_shallow_copy":{shallow}}}}}"#
     );
@@ -85,7 +85,7 @@ fn repository(r: &Rig, shallow: bool) {
     );
 }
 
-fn index(r: &Rig, name: &str, uuid: &str, shards: u32) {
+pub(crate) fn index(r: &Rig, name: &str, uuid: &str, shards: u32) {
     r.descriptors
         .create(
             &IndexRecord::new(name, uuid, shards),
@@ -95,7 +95,7 @@ fn index(r: &Rig, name: &str, uuid: &str, shards: u32) {
         .unwrap();
 }
 
-fn publish(r: &Rig, index: &str, uuid: &str, shard: u32) {
+pub(crate) fn publish(r: &Rig, index: &str, uuid: &str, shard: u32) {
     let at = ShardRef { index, uuid, shard };
     let entries = [ManifestEntry {
         name: "_0.si",
@@ -108,11 +108,11 @@ fn publish(r: &Rig, index: &str, uuid: &str, shard: u32) {
         .unwrap();
 }
 
-fn requests(r: &Rig) -> u64 {
+pub(crate) fn requests(r: &Rig) -> u64 {
     S3Op::ALL.iter().map(|op| r.store.meter().count(*op)).sum()
 }
 
-const TAKE: &str = r#"{"indices":"logs"}"#;
+pub(crate) const TAKE: &str = r#"{"indices":"logs"}"#;
 
 #[test]
 fn a_take_is_accepted_and_the_snapshot_reads_back_as_captured() {
@@ -392,7 +392,7 @@ fn a_take_writes_the_register_and_marker_a_java_node_reads() {
 }
 
 /// What the janitor would pin for the deployment's snapshots.
-fn pinned(r: &Rig, index: &str, uuid: &str) -> bool {
+pub(crate) fn pinned(r: &Rig, index: &str, uuid: &str) -> bool {
     let source = oss_janitor::orphans::SnapshotSource::new(
         Arc::clone(&r.store) as Arc<dyn BlobStore>,
         "",
