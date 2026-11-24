@@ -113,13 +113,13 @@ pub struct ShardRef {
 }
 
 impl ShardRef {
-    fn write(&self, out: &mut Output<'_>) -> Result<(), WireError> {
+    pub(crate) fn write(&self, out: &mut Output<'_>) -> Result<(), WireError> {
         out.string(&self.index_name)?;
         out.string(&self.index_uuid)?;
         out.vint(self.shard)
     }
 
-    fn read(input: &mut Input<'_>, what: &'static str) -> Result<Self, WireError> {
+    pub(crate) fn read(input: &mut Input<'_>, what: &'static str) -> Result<Self, WireError> {
         Ok(Self {
             index_name: input.string(what)?,
             index_uuid: input.string(what)?,
