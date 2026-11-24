@@ -407,23 +407,25 @@ fn a_shard_made_from_nothing_commits_the_ids_a_java_engine_opens_on() {
         assert_eq!(found.len(), 1, "{key} appears once in {data:?}");
         found[0].to_owned()
     };
-    let (translog, history) = {
+    {
         let mut s = shard(&dir, &clock);
         s.index("a", br#"{"n":1}"#, false, &Expect::default())
             .unwrap();
         s.refresh().unwrap();
-        let data = commit_data(&dir);
-        (value(&data, "translog_uuid"), value(&data, "history_uuid"))
-    };
+    }
+    let data = commit_data(&dir);
+    let (translog, history) = (value(&data, "translog_uuid"), value(&data, "history_uuid"));
     // InternalEngine's constructor refuses a commit with no translog_uuid.
     assert_eq!(translog.len(), 22, "a base64 UUID: {translog}");
     assert_eq!(history.len(), 22, "a base64 UUID: {history}");
     assert_ne!(translog, history);
     // A later commit, by the same or a reopened shard, keeps them.
-    let mut s = shard(&dir, &clock);
-    s.index("b", br#"{"n":2}"#, false, &Expect::default())
-        .unwrap();
-    s.refresh().unwrap();
+    {
+        let mut s = shard(&dir, &clock);
+        s.index("b", br#"{"n":2}"#, false, &Expect::default())
+            .unwrap();
+        s.refresh().unwrap();
+    }
     let data = commit_data(&dir);
     assert_eq!(value(&data, "translog_uuid"), translog);
     assert_eq!(value(&data, "history_uuid"), history);
