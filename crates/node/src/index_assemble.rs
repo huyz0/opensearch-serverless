@@ -16,8 +16,11 @@ pub(crate) fn index_service(
     store: &Arc<dyn BlobStore>,
     clock: &PitClock,
     bucket_wiring: Option<&Arc<crate::writer::BucketWiring>>,
-    stripes: oss_meta::ChangeStripes,
 ) -> Result<Arc<IndexService>, crate::assemble::AssembleError> {
+    // Every update and delete is recorded in the change stripes, which is
+    // what lets a writer confirm an index it kept without reading it.
+    let stripes = oss_meta::ChangeStripes::new(Arc::clone(store), &config.base)
+        .map_err(|e| crate::assemble::AssembleError::Store(e.to_string()))?;
     let descriptors = DescriptorStore::new(Arc::clone(store), &config.base, config.delete_mode)
         .map_err(|e| crate::assemble::AssembleError::Store(e.to_string()))?
         .record_changes_in(stripes);
@@ -34,13 +37,18 @@ pub(crate) fn index_service(
             .map_err(|e| crate::assemble::AssembleError::Store(e.to_string()))?;
         indices = indices.with_templates(sets);
     }
-    Ok(Arc::new(indices.with_knn(config.knn)))
+    Ok(Arc::new(
+        indices
+            .with_knn(config.knn)
+            .with_pipelines(config.ingest_pipelines),
+    ))
 }
 
 pub(crate) fn delete_service(
     config: &crate::assemble::Config,
     store: &Arc<dyn BlobStore>,
     clock: &PitClock,
+    bucket_wiring: Option<&Arc<crate::writer::BucketWiring>>,
 ) -> Result<Arc<DeleteService>, crate::assemble::AssembleError> {
     // With the snapshot routes on, a delete reads the snapshots before it
     // purges: a shallow snapshot names the index's blobs and copies none.
@@ -63,6 +71,13 @@ pub(crate) fn delete_service(
         config.pit_buffer_bytes,
         config.inline_purge_max_shards,
     )
+    .map(|service| match bucket_wiring {
+        Some(buckets) => {
+            let leaver = Arc::clone(buckets);
+            service.with_bucket_leave(Arc::new(move |bucket, uuid| leaver.leave(bucket, uuid)))
+        }
+        None => service,
+    })
     .map(Arc::new)
     .map_err(|e| crate::assemble::AssembleError::Store(e.to_string()))
 }

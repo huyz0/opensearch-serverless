@@ -30,6 +30,7 @@ mod boot_snapshots;
 mod boot_templates_ingest;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod boot_usage;
+mod boot_warm_join;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod boot_write_concurrency;
 #[cfg(all(feature = "reader", feature = "writer"))]

@@ -57,6 +57,21 @@ fn number(settings: &[(String, Json)], key: &str) -> Option<u32> {
     }
 }
 
+/// The pipeline id `key` names in settings JSON, flat or nested; none when
+/// unset or empty.
+fn text(settings: &[(String, Json)], key: &str) -> Option<String> {
+    let value = settings
+        .iter()
+        .find(|(k, _)| k == key)
+        .map(|(_, v)| v)
+        .or_else(|| nested(settings, key))?;
+    match value {
+        // ALLOC: one id, only for an index that sets one.
+        Json::Str(id) if !id.is_empty() => Some(id.to_string()),
+        _ => None,
+    }
+}
+
 fn nested<'a>(settings: &'a [(String, Json)], key: &str) -> Option<&'a Json> {
     let mut members = settings;
     let mut parts = key.split('.').peekable();
@@ -134,6 +149,8 @@ impl DescriptorRoutes {
             partition_size: number(&settings, "index.routing_partition_size").unwrap_or(1),
             routing_shards: number(&settings, "index.number_of_routing_shards").unwrap_or(shards),
             routing_required,
+            default_pipeline: text(&settings, "index.default_pipeline"),
+            final_pipeline: text(&settings, "index.final_pipeline"),
         })
     }
 }

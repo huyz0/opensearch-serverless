@@ -222,7 +222,7 @@ pub struct Assembled {
     janitor: JanitorTimer,
     drain: Drain,
     tail: Option<TailNode>,
-    budget: MemoryBudget,
+    pub(crate) budget: MemoryBudget,
     /// What the page cache's records are charged, held for the node's life.
     cache_records: Option<oss_mem::Reservation>,
 }
@@ -442,19 +442,11 @@ pub fn assemble(
     let router = crate::admin_assemble::register(router, &store, config, budget)?;
     #[cfg(feature = "coordinator")]
     let (router, drain) = {
-        // Every update and delete is recorded in the change stripes, which
-        // is what lets a writer confirm an index it kept without reading it.
-        let stripes = oss_meta::ChangeStripes::new(Arc::clone(&store), &config.base)
-            .map_err(|e| AssembleError::Store(e.to_string()))?;
-        let indices = crate::index_assemble::index_service(
-            config,
-            &store,
-            &clock,
-            bucket_wiring.as_ref(),
-            stripes,
-        )?;
+        let indices =
+            crate::index_assemble::index_service(config, &store, &clock, bucket_wiring.as_ref())?;
         let router = index_route::routes(router, indices).map_err(AssembleError::Route)?;
-        let deletes = crate::index_assemble::delete_service(config, &store, &clock)?;
+        let deletes =
+            crate::index_assemble::delete_service(config, &store, &clock, bucket_wiring.as_ref())?;
         let router =
             crate::index_assemble::restore_routes(router, config, &store, &clock, &deletes)?;
         let drain = DrainTimer::spawn(Arc::clone(&deletes), config.reclaim_every);

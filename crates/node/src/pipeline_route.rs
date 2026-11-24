@@ -3,12 +3,15 @@
 //!
 //! Ported from `serverless/shell/src/main/java/org/opensearch/serverless/rest/PipelineHandler.java`
 //! (its put, get and delete routes), over `oss-meta`'s [`DocSet`] and
-//! `oss-coordinator`'s `pipeline_admin`. Simulation is not served.
+//! `oss-coordinator`'s `pipeline_admin`; and `_simulate`, which runs a stored
+//! or an inline pipeline over sample documents and stores nothing.
 
 use std::sync::Arc;
 
 use oss_blob::BlobStore;
+use oss_coordinator::ingest::Pipeline;
 use oss_coordinator::pipeline_admin::{concrete_id, render, select, validate};
+use oss_coordinator::pipeline_simulate::{self, read};
 use oss_format::{DocKind, MAX_DOC_BYTES};
 use oss_meta::{DocSet, DocSetCache, MetaError};
 use oss_rest::{JSON, Method, Request, Response, RestError, RouteError, Router};
@@ -17,6 +20,9 @@ use crate::route_util::{read_body, refuse, refused};
 
 /// The query parameters a pipeline request accepts and has nothing to do for.
 const PARAMS: &[&str] = &["master_timeout", "cluster_manager_timeout", "timeout"];
+
+/// The query parameters a simulation accepts: `verbose` is read and refused.
+const SIMULATE_PARAMS: &[&str] = &["verbose"];
 
 const ACKNOWLEDGED: &str = "{\"acknowledged\":true}";
 
@@ -44,6 +50,53 @@ impl PipelineService {
             cache: DocSetCache::new(),
             buffer_bytes,
         })
+    }
+
+    /// `_simulate`: the pipeline of the path's id, or the body's own, over the
+    /// body's documents.
+    fn simulate(&self, req: &mut Request<'_>, resp: &mut Response<'_>) -> Result<(), RestError> {
+        if req.param("verbose").is_some_and(|v| v != "false") {
+            return Err(refuse(
+                501,
+                "not_implemented",
+                "verbose simulation is not supported",
+            ));
+        }
+        let id = req.path_param("id").map(|n| n.into_owned());
+        let body = read_body(req, MAX_DOC_BYTES, "a simulation is larger than 1 MiB")?;
+        if body.is_empty() {
+            return Err(refuse(400, "missing_body", "a simulation body is required"));
+        }
+        let simulation = read(&body, id.is_some()).map_err(refused)?;
+        let compiled = match (&id, &simulation.pipeline) {
+            (_, Some(definition)) => {
+                Pipeline::compile(definition).map_err(|e| refuse(400, "invalid_pipeline", e))?
+            }
+            (Some(id), None) => {
+                req.body().reserve(self.buffer_bytes.saturating_mul(2))?;
+                // ALLOC: two scratch buffers a request, buffer_bytes each, reserved above.
+                let mut marker = vec![0u8; self.buffer_bytes];
+                let mut doc = vec![0u8; self.buffer_bytes];
+                let snapshot = self
+                    .docs
+                    .snapshot(&self.cache, &mut marker, &mut doc)
+                    .map_err(|e| failed(&e))?;
+                let definition = snapshot.get(id).ok_or_else(|| {
+                    // ALLOC: error path; one message.
+                    refuse(
+                        404,
+                        "resource_not_found_exception",
+                        format!("pipeline [{id}] is missing"),
+                    )
+                })?;
+                Pipeline::compile(definition).map_err(|e| refuse(500, "pipeline_failure", e))?
+            }
+            (None, None) => {
+                return Err(refuse(400, "illegal_argument_exception", "no pipeline"));
+            }
+        };
+        let answer = pipeline_simulate::render(&compiled, &simulation.docs);
+        resp.send(200, JSON, answer.as_bytes())
     }
 
     fn handle(&self, req: &mut Request<'_>, resp: &mut Response<'_>) -> Result<(), RestError> {
@@ -126,6 +179,20 @@ pub fn routes(router: Router, service: &Arc<PipelineService>) -> Result<Router, 
             PARAMS,
             move |req: &mut Request<'_>, resp: &mut Response<'_>| service.handle(req, resp),
         )?;
+    }
+    for method in [Method::Post, Method::Get] {
+        for path in [
+            "/_ingest/pipeline/_simulate",
+            "/_ingest/pipeline/{id}/_simulate",
+        ] {
+            let service = Arc::clone(service);
+            router = router.route(
+                method,
+                path,
+                SIMULATE_PARAMS,
+                move |req: &mut Request<'_>, resp: &mut Response<'_>| service.simulate(req, resp),
+            )?;
+        }
     }
     let service = Arc::clone(service);
     router.route(

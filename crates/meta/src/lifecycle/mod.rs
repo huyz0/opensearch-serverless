@@ -27,8 +27,12 @@ use crate::error::MetaError;
 use crate::names::validate_index_or_alias;
 
 /// What a delete did once the descriptor was gone.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Deleted {
+    /// The deleted incarnation's uuid.
+    pub uuid: String,
+    /// The bucket the index was a member of, if its descriptor named one.
+    pub bucket: Option<String>,
     /// Aliases that may still name the index because they kept changing.
     pub aliases_left: usize,
     /// What purging the bytes left, or `None` when a shard had a writer and
@@ -54,6 +58,7 @@ struct Read {
     generation: u64,
     uuid: String,
     shards: u32,
+    bucket: Option<String>,
     aliased_by: Vec<Cow<'static, str>>,
 }
 
@@ -213,6 +218,8 @@ impl<'a> IndexLifecycle<'a> {
             Some(purged)
         };
         Ok(Some(Deleted {
+            uuid: read.uuid,
+            bucket: read.bucket,
             aliases_left,
             purged,
         }))
@@ -298,6 +305,7 @@ impl<'a> IndexLifecycle<'a> {
             generation: resolved.generation,
             uuid: index.uuid.into_owned(),
             shards: index.number_of_shards,
+            bucket: index.bucket.as_deref().map(str::to_owned),
             aliased_by: index
                 .aliased_by
                 .into_iter()

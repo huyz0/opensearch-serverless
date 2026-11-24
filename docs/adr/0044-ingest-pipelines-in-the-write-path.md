@@ -20,7 +20,7 @@ Pipeline CRUD stores pipelines as a document set ([ADR 0031](0031-document-sets.
 - Easier: pipelines work on `_bulk`, `_doc` and `_create` at one marker read a request, whatever the document count.
 - Harder: a write's stored document can differ from its source; the node log records the source after the pipeline, so replay needs no pipeline.
 - Trades away some OpenSearch compatibility: a pipeline using another processor, a template or a condition is refused when stored (with the list of supported processors), and the settings above are not honoured. This is stated at the route, never silent, and the owner decides whether it stands.
-- Rules out: `default_pipeline` and `final_pipeline` settings, `_simulate`, and processors that call out, for now.
+- Rules out: processors that call out, for now. The `default_pipeline` and `final_pipeline` settings (spec `index-default-pipelines`) and `_simulate` (spec `pipeline-simulate`) were first ruled out and were then added without changing this decision: the engine and where it runs are as above, and the settings only choose which stored pipeline runs.
 
 ## Widening the allowlist
 

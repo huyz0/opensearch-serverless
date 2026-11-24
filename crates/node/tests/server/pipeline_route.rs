@@ -117,3 +117,98 @@ fn a_read_of_an_unchanged_set_is_one_get_and_nothing_is_listed() {
     assert_eq!(total(&r) - before, 1, "one marker GET");
     assert_eq!(r.store.meter().count(S3Op::List), 0);
 }
+
+const UPPER: &str = r#"{"processors":[{"uppercase":{"field":"a"}}]}"#;
+
+// docs/specs/pipeline-simulate AC-3
+#[test]
+fn a_pipeline_is_simulated_inline_and_by_id_without_storing_anything() {
+    let r = rig();
+    assert_eq!(
+        call(&r, "PUT", "/_ingest/pipeline/up", Some(UPPER)).status,
+        200
+    );
+    let docs = r#""docs":[{"_source":{"a":"x"}},{"_id":"2","_source":{"b":1}}]"#;
+    let by_id = call(
+        &r,
+        "POST",
+        "/_ingest/pipeline/up/_simulate",
+        Some(&format!("{{{docs}}}")),
+    );
+    assert_eq!(by_id.status, 200, "{}", text(&by_id));
+    let json: serde_json::Value = serde_json::from_str(&text(&by_id)).expect("json");
+    assert_eq!(json["docs"][0]["doc"]["_source"]["a"], "X");
+    assert_eq!(
+        json["docs"][1]["error"]["type"],
+        "illegal_argument_exception"
+    );
+    let inline = format!(r#"{{"pipeline":{UPPER},{docs}}}"#);
+    for method in ["POST", "GET"] {
+        let reply = call(&r, method, "/_ingest/pipeline/_simulate", Some(&inline));
+        assert_eq!(reply.status, 200, "{method}: {}", text(&reply));
+        assert!(text(&reply).contains(r#""a":"X""#), "{}", text(&reply));
+    }
+    // A missing stored id, `verbose`, and a body that is wrong.
+    let missing = call(
+        &r,
+        "POST",
+        "/_ingest/pipeline/nope/_simulate",
+        Some(&format!("{{{docs}}}")),
+    );
+    assert_eq!(missing.status, 404, "{}", text(&missing));
+    let verbose = call(
+        &r,
+        "POST",
+        "/_ingest/pipeline/up/_simulate?verbose=true",
+        Some(&format!("{{{docs}}}")),
+    );
+    assert_eq!(verbose.status, 501, "{}", text(&verbose));
+    assert_eq!(
+        call(
+            &r,
+            "POST",
+            "/_ingest/pipeline/_simulate",
+            Some(r#"{"docs":[{"_source":{}}]}"#)
+        )
+        .status,
+        400
+    );
+    assert_eq!(
+        call(&r, "POST", "/_ingest/pipeline/up/_simulate", None).status,
+        400
+    );
+    // Nothing was stored: only `up` is held.
+    let all = text(&call(&r, "GET", "/_ingest/pipeline", None));
+    let held: serde_json::Value = serde_json::from_str(&all).expect("json");
+    assert_eq!(held.as_object().expect("object").len(), 1, "{all}");
+}
+
+// docs/specs/pipeline-simulate AC-4
+#[test]
+fn a_simulation_reads_the_set_once_and_an_inline_one_not_at_all() {
+    let r = rig();
+    assert_eq!(
+        call(&r, "PUT", "/_ingest/pipeline/up", Some(UPPER)).status,
+        200
+    );
+    let body = r#"{"docs":[{"_source":{"a":"x"}}]}"#;
+    assert_eq!(
+        call(&r, "POST", "/_ingest/pipeline/up/_simulate", Some(body)).status,
+        200
+    );
+    let total = |r: &Rig| -> u64 { S3Op::ALL.iter().map(|op| r.store.meter().count(*op)).sum() };
+    let before = total(&r);
+    assert_eq!(
+        call(&r, "POST", "/_ingest/pipeline/up/_simulate", Some(body)).status,
+        200
+    );
+    assert_eq!(total(&r) - before, 1, "one marker GET");
+    let inline = format!(r#"{{"pipeline":{UPPER},"docs":[{{"_source":{{"a":"x"}}}}]}}"#);
+    let before = total(&r);
+    assert_eq!(
+        call(&r, "POST", "/_ingest/pipeline/_simulate", Some(&inline)).status,
+        200
+    );
+    assert_eq!(total(&r), before, "an inline simulation makes no request");
+    assert_eq!(r.store.meter().count(S3Op::List), 0);
+}

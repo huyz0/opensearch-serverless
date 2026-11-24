@@ -1,0 +1,6 @@
+- AC-1: `the_default_runs_unless_a_pipeline_is_named_or_none` (crates/writer/tests/bulk_default_pipelines.rs): PASS.
+- AC-2: `the_final_runs_after_whatever_the_write_named` (crates/writer/tests/bulk_default_pipelines.rs): PASS.
+- AC-3: `a_missing_default_or_final_fails_its_item_and_a_delete_runs_neither` (crates/writer/tests/bulk_default_pipelines.rs): PASS.
+- AC-4: `the_routes_read_the_default_and_final_pipelines` (crates/node/tests/roles/descriptor_routes.rs): PASS.
+- AC-5: `a_booted_index_applies_its_default_and_final_pipelines_and_a_node_without_pipelines_refuses_them` (crates/node/tests/server/boot_templates_ingest.rs): PASS.
+- AC-6: `a_booted_index_applies_its_default_and_final_pipelines_and_a_node_without_pipelines_refuses_them` (crates/node/tests/server/boot_templates_ingest.rs): PASS.

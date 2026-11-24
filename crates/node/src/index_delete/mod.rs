@@ -52,6 +52,7 @@ pub struct DeleteService {
     clock: PitClock,
     buffer_bytes: usize,
     inline_purge_max_shards: u32,
+    leave: Option<crate::index_route::BucketLeave>,
 }
 
 impl DeleteService {
@@ -82,7 +83,25 @@ impl DeleteService {
             clock,
             buffer_bytes,
             inline_purge_max_shards,
+            leave: None,
         })
+    }
+
+    /// Takes a deleted bucketed index's member out of its bucket through
+    /// `leave`: one GET and one PUT of the bucket's manifest, none for an
+    /// index that joined no bucket.
+    #[must_use]
+    pub fn with_bucket_leave(mut self, leave: crate::index_route::BucketLeave) -> Self {
+        self.leave = Some(leave);
+        self
+    }
+
+    /// Best effort: the descriptor is gone, so an entry left behind is never
+    /// served, and the delete does not fail for it.
+    fn leave_bucket(&self, deleted: &oss_meta::Deleted) {
+        if let (Some(leave), Some(bucket)) = (&self.leave, deleted.bucket.as_deref()) {
+            let _ = leave(bucket, &deleted.uuid);
+        }
     }
 
     fn now(&self) -> i64 {
@@ -137,7 +156,10 @@ impl DeleteService {
             .delete_index(&index, None, self.now())
             .map_err(|e| refuse(500, "index_delete_failure", e.to_string()))?;
         match deleted {
-            Some(_) => resp.send(200, JSON, delete_ack(&index).as_bytes()),
+            Some(done) => {
+                self.leave_bucket(&done);
+                resp.send(200, JSON, delete_ack(&index).as_bytes())
+            }
             // The pass found no index, or a change to it won the race.
             None => Err(refusal(if self.exists(&index) {
                 delete_failed(&index, true)
@@ -165,10 +187,13 @@ impl DeleteService {
     pub fn remove(&self, index: &str, uuid: &str) -> Result<bool, MetaError> {
         let now = || self.now();
         let pause = |d: Duration| std::thread::sleep(d);
-        Ok(self
+        let deleted = self
             .lifecycle(&now, &pause)
-            .delete_index(index, Some(uuid), self.now())?
-            .is_some())
+            .delete_index(index, Some(uuid), self.now())?;
+        if let Some(done) = &deleted {
+            self.leave_bucket(done);
+        }
+        Ok(deleted.is_some())
     }
 
     fn exists(&self, index: &str) -> bool {

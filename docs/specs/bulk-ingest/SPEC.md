@@ -12,7 +12,7 @@ For an `index` or `create` item that names a pipeline other than `_none`, after 
 
 `oss_node::ingest_run::IngestPipelines` is the node's implementation over the ingest pipeline set. A request makes one `Run`: the first pipeline it names reads the set through the node's `DocSetCache` (one marker GET when unchanged), and later items reuse that snapshot and the pipelines compiled from it. `BulkService` and `DocService` take it with `with_ingest`; `assemble` gives it only under `Config::ingest_pipelines`, and the request reserves the run's two buffers from the request-body pool first. A set that cannot be read fails the item with 500 `illegal_state_exception` (`IngestError::Unavailable`).
 
-Not done here: an index's `default_pipeline` and `final_pipeline` settings, and `_simulate`.
+Not done here: an index's `default_pipeline` and `final_pipeline` settings (the `index-default-pipelines` spec), and `_simulate` ([pipeline-simulate](../pipeline-simulate/SPEC.md)).
 
 ## Acceptance criteria
 

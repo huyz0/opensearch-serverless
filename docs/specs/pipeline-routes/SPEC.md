@@ -10,7 +10,7 @@ Ported from huyz0/OpenSearch (`feature/serverlessshell`): `rest/PipelineHandler.
 
 - A put or post replaces the pipeline; a delete removes one id (404 `pipeline_missing` when absent).
 - A get selects all (no id, `*`, `_all`) or one id; several ids and other wildcards are 501, as in the Java.
-- An underscore-prefixed id (`_simulate`) is 501: simulation is not served.
+- An underscore-prefixed id (`_simulate`) is 501 for a put, post, delete or get of a pipeline; `_simulate` as a path segment is served by [pipeline-simulate](../pipeline-simulate/SPEC.md).
 - The routes are registered when `Config::ingest_pipelines` is on.
 
 ## Acceptance criteria

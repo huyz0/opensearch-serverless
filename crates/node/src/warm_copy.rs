@@ -62,6 +62,13 @@ impl Progress {
         self.copied.load(Ordering::Acquire)
     }
 
+    /// Sets both counts, for a test of what reads them.
+    #[cfg(test)]
+    pub(crate) fn seed(&self, named: u64, copied: u64) {
+        self.named.store(named, Ordering::Release);
+        self.copied.store(copied, Ordering::Release);
+    }
+
     /// Whether `fraction` of the named bytes are in; true when none are named.
     pub fn reached(&self, fraction: f64) -> bool {
         let named = self.named();

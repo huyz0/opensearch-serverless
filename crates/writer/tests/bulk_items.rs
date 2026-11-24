@@ -29,6 +29,8 @@ impl Target for Known {
             partition_size: 1,
             routing_shards: 2,
             routing_required: false,
+            default_pipeline: None,
+            final_pipeline: None,
         })
     }
 
