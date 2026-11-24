@@ -14,6 +14,7 @@ A test, `crates/node/tests/mixed_fleet.rs`, ignored unless `RUSTFS_BIN`, `OSS_JA
 - AC-2: the Java node is killed (SIGKILL); a Rust node takes the shard over and acknowledges a second batch; it still finds every document of the first.
 - AC-3: a second Java node, started after, finds every document of both batches.
 - AC-4: the Rust node is killed; the second Java node takes the shard over and acknowledges a third batch; a second Rust node finds all three batches, and the Java node finds the same count.
+- AC-7: AC-1 to AC-4 hold for a one-shard index with the buckets switch on in every node (the Java node with `serverless.buckets.enabled`, the Rust nodes with `OSS_BUCKETS_ENABLED`), so the index lives in a bucket; the Java node also finds its own batch.
 - AC-5: no acknowledged document is missing and none is found twice at any step; a run that loses one fails and names its id.
 - AC-6: the writes of a hand-over are acknowledged within the lease TTL plus a bound the test states, so a node that cannot take over fails the run rather than waiting forever.
 

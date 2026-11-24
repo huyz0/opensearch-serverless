@@ -343,3 +343,20 @@ impl oss_blob::usage::Classifier for KeyOwner {
         oss_format::index_of_key(&self.0, key)
     }
 }
+
+/// `opener`, reading a bucket member's commit from its bucket when the
+/// buckets switch is on.
+pub(super) fn with_member_commits(
+    opener: crate::writer::HeadOpener,
+    buckets: Option<&Arc<crate::writer::BucketWiring>>,
+) -> crate::writer::HeadOpener {
+    match buckets {
+        Some(buckets) => {
+            let reader = Arc::clone(buckets);
+            opener.with_member_commits(Arc::new(move |bucket, uuid| {
+                reader.member_commit(bucket, uuid)
+            }))
+        }
+        None => opener,
+    }
+}
