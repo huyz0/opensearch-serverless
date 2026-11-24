@@ -59,4 +59,4 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0047](0047-search-slots.md) | Searches are admitted in order by a slot gate that shapes who waits, behind a setting | Accepted |
 | [0048](0048-retiring-a-node.md) | A node told to stop publishes its shards and gives their heads back | Accepted |
 | [0050](0050-writes-to-one-shard-share-a-commit-window.md) | Writes to one shard share a commit window: the slot lock is released before the wait | Accepted |
-| [0051](0051-authorization-at-the-route-by-action-table.md) | Authorization is decided at the route, from an action table, by the names in the path | Proposed |
+| [0051](0051-authorization-at-the-route-by-action-table.md) | Authorization is decided at the route, from an action table, by the names in the path | Accepted |

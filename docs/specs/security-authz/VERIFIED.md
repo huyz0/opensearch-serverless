@@ -1,0 +1,12 @@
+# Security authorization: evidence
+
+- AC-1: `a_granted_pattern_allows_its_names_and_only_them` in crates/coordinator/tests/security_authz.rs; `a_limited_user_does_what_its_role_grants_and_is_told_what_it_lacks` in crates/node/tests/server/security_authz.rs
+- AC-2: `a_wildcard_request_needs_a_pattern_that_covers_it`, `every_index_of_a_list_must_be_covered` and `covering_agrees_with_every_string_the_request_stands_for` in crates/coordinator/tests/security_authz.rs; `a_comma_list_or_encoded_name_is_checked_element_by_element` in crates/node/tests/server/security_authz.rs
+- AC-3: `cluster_permissions_and_action_groups_decide_cluster_actions` in crates/coordinator/tests/security_authz.rs; `bulk_needs_the_cluster_permission_and_all_access_on_indices` in crates/node/tests/server/security_authz.rs
+- AC-4: `an_assembled_node_authenticates_and_authorizes_as_the_stock_plugin_did` in crates/compat/tests/node_cluster.rs (the recorded `search denied`, `index allowed`, `delete index denied`, `create index denied`, `wildcard search`, `cluster settings denied` and `security api denied` steps; `search allowed` is left out for the empty-index search difference in docs/compatibility.md)
+- AC-5: `groups_expand_to_any_depth_and_a_cycle_ends` and `a_stored_group_or_role_does_not_replace_a_built_in` in crates/coordinator/tests/security_authz.rs
+- AC-6: `every_registered_route_has_an_action_row` and `every_management_route_refuses_a_user_without_the_administrator_role` in crates/node/tests/server/security_authz.rs; `a_route_with_no_row_and_a_prefix_route_need_all_access` in crates/node/src/security_authz.rs; `routes_are_listed_with_their_methods_and_prefix_routes_as_any` in crates/rest/tests/authorizer.rs
+- AC-7: `the_administrator_may_do_everything_and_user_names_in_patterns_are_literal` in crates/coordinator/tests/security_authz.rs
+- AC-8: `a_route_the_authorizer_allows_runs_and_one_it_refuses_does_not`, `a_refusal_comes_before_the_parameters_and_the_content_type_are_looked_at` and `a_refused_request_with_a_body_closes_the_connection` in crates/rest/tests/authorizer.rs
+- AC-9: `with_security_off_no_guard_is_installed` in crates/node/src/admin_assemble.rs
+- AC-10: `routes_whose_indices_are_in_the_body_or_that_are_proxied_need_all_access` in crates/node/tests/server/security_authz.rs

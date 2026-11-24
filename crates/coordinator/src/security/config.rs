@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 use oss_doc::mapping::json::Json;
 
 use super::Kind;
+use super::authz::Authz;
 
 /// The built-in role a static administrator holds.
 pub const ALL_ACCESS: &str = "all_access";
@@ -41,6 +42,7 @@ pub struct Config {
     mappings: BTreeMap<String, Mapping>,
     tenants: Vec<String>,
     admin: Option<String>,
+    authz: Authz,
 }
 
 fn strings(doc: &Json, key: &str) -> Vec<String> {
@@ -127,7 +129,9 @@ impl Config {
             }
             // ALLOC: a refresh copies each stored document once, at most 1000 a kind.
             Kind::Tenants => self.tenants.push(name.to_owned()),
-            _ => {}
+            Kind::Roles => self.authz.add_role(name, doc),
+            Kind::ActionGroups => self.authz.add_group(name, doc),
+            Kind::InternalUsers => {}
         }
     }
 
@@ -165,6 +169,23 @@ impl Config {
         roles.sort();
         roles.dedup();
         roles
+    }
+
+    /// Whether the user `name` holds what `all_access` holds.
+    pub fn all_access(&self, name: &str) -> bool {
+        self.authz.all_access(&self.roles_of(name))
+    }
+
+    /// Whether the user `name` may take the cluster-level `action`.
+    pub fn cluster_allows(&self, name: &str, action: &str) -> bool {
+        self.authz.cluster_allows(&self.roles_of(name), action)
+    }
+
+    /// Whether the user `name` may take `action` on every one of `indices`
+    /// (none meaning all of them).
+    pub fn indices_allow(&self, name: &str, action: &str, indices: &[&str]) -> bool {
+        self.authz
+            .indices_allow(&self.roles_of(name), name, action, indices)
     }
 
     /// The tenants `name` can use: its own private one, and for the

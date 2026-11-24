@@ -10,7 +10,7 @@ R15.2, after [security-config](../security-config/SPEC.md): who a request is, fr
 - `oss-coordinator` (`security/`): reading a `Basic` header, the configuration model built from the five sets (users, roles, mappings, action groups, tenants), which roles a user holds (a mapping's `users`, `backend_roles`, `and_backend_roles`, the user's `opendistro_security_roles`), and the `authinfo` answer.
 - `oss-node`: a node snapshot of the five sets, a bounded bcrypt check, and the guard over them, installed when `serverless.security.enabled`. One static administrator comes from the node's settings (`OSS_SECURITY_ADMIN_USER`, `OSS_SECURITY_ADMIN_HASH`: a bcrypt hash, never a password); it holds the role `all_access` and exists before any document is stored, so the management API can be reached on an empty store. With security on and no administrator configured the node refuses to start. `GET /_plugins/_security/authinfo` answers for the caller.
 
-Not in this change: authorization of any request (an authenticated user is not yet limited), tenants' enforcement, `whoami` for certificates, and any scheme but basic. ⚠️ Until authorization lands, security on admits every valid user to every route.
+Not in this change: authorization of any request ([security-authz](../security-authz/SPEC.md); an authenticated user is not yet limited by this change alone), tenants' enforcement, `whoami` for certificates, and any scheme but basic. ⚠️ Until authorization lands, security on admits every valid user to every route.
 
 ## Acceptance criteria
 

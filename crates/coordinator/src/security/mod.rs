@@ -9,12 +9,14 @@
 //! Decisions of authentication and authorization live in sibling modules.
 
 mod authn;
+mod authz;
 mod config;
 mod render;
 mod schema;
 mod validate;
 
-pub use authn::{MAX_HEADER_BYTES, authinfo, basic};
+pub use authn::{MAX_HEADER_BYTES, authinfo, basic, forbidden};
+pub use authz::{Authz, IndexPermission, Role};
 pub use config::{ALL_ACCESS, Config, Mapping, User};
 pub use render::{deleted, missing, render, saved};
 pub use validate::{
