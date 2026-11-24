@@ -211,6 +211,17 @@ impl<'a> Input<'a> {
     /// surrogate.
     pub fn string(&mut self, what: &'static str) -> Result<String, WireError> {
         let chars = self.count(1, what)?;
+        // Chars that are all ASCII are their bytes: no unit to decode.
+        let ascii = self
+            .bytes
+            .get(self.at..)
+            .and_then(|rest| rest.get(..chars))
+            .filter(|run| run.is_ascii());
+        if let Some(run) = ascii {
+            self.at = self.at.saturating_add(chars);
+            // ALLOC: the string's own bytes, at most the remaining input.
+            return Ok(String::from_utf8_lossy(run).into_owned());
+        }
         // ALLOC: at most one UTF-16 unit per remaining input byte (checked by `count`).
         let mut units = Vec::with_capacity(chars);
         for _ in 0..chars {
