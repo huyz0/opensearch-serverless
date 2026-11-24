@@ -786,6 +786,7 @@ dependencies = [
  "miniz_oxide",
  "oss-testkit",
  "oss-types",
+ "sha2",
  "zstd-safe",
 ]
 

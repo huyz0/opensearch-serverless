@@ -1,4 +1,4 @@
-# 0038: A `knn_vector` is written into the segment as the stock k-NN plugin writes it
+# 0039: A `knn_vector` is written into the segment as the stock k-NN plugin writes it
 
 **Status:** Accepted after independent review, 2026-11-24
 

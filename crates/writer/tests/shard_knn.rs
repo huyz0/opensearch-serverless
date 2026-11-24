@@ -68,7 +68,7 @@ fn a_shard_writes_each_vector_it_indexes_and_an_update_adds_the_new_one() {
     );
 }
 
-// docs/adr/0038: a vector counts in the indexing buffer, which the node
+// docs/adr/0039: a vector counts in the indexing buffer, which the node
 // bounds and flushes by, so vector documents cannot grow past it unseen.
 // A thousand ones is two thousand bytes of `_source` but four thousand bytes
 // of vector, so a buffer that holds the source alone stays under the bound.

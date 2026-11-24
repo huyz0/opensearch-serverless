@@ -178,6 +178,7 @@ pub(super) fn apply_janitor_and_hibernation(
     node.pinned_indexes.clone_from(&config.pinned_indexes);
     node.janitor_every = Duration::from_millis(config.janitor_every_millis);
     node.sweep.dry_run = config.janitor_dry_run;
+    node.snapshots = config.snapshots_enabled;
 }
 
 /// Starts the commit push: this node's writer tells its own reader of each
@@ -359,5 +360,16 @@ pub(super) fn with_member_commits(
             }))
         }
         None => opener,
+    }
+}
+
+/// `log`, its PUTs shared among the indices in them when store usage is on.
+pub(super) fn shared_in(
+    log: oss_writer::log::NodeLogStore,
+    ledger: Option<&Arc<oss_blob::usage::Ledger>>,
+) -> oss_writer::log::NodeLogStore {
+    match ledger {
+        Some(ledger) => log.with_usage(Arc::clone(ledger)),
+        None => log,
     }
 }

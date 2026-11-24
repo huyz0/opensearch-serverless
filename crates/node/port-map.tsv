@@ -117,3 +117,4 @@ src/index_assemble.rs	new		builds the index service a node serves creates with f
 src/knn_setting.rs	new		the node setting that accepts the knn_vector type; the shell has it by installing the k-NN plugin
 src/template_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/TemplateHandler.java	the _index_template and _component_template routes over the document sets
 src/usage_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/UsageHandler.java@feature/serverlessshell	GET /_serverless/usage: node id, clock, and each index's cost units, requests and bytes
+src/snapshot_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/SnapshotHandler.java	the read-only _snapshot routes over the snapshot reader

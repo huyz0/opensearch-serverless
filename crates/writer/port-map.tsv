@@ -71,3 +71,4 @@ src/bucket/policy.rs	port	serverless/shell/src/main/java/org/opensearch/serverle
 src/bucket/placement.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/bucket/BucketPlacement.java@429b4cbc	score, observe, rank, ownerFor, keeps, the hold-down constants
 src/publish/commit_register.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/CommitRegister.java@429b4cbc	read, compareAndSwap, and the shard's own register `of`
 src/bucket/member.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/bucket/BucketCommits.java@429b4cbc	member: a bucket member's commit register over swap_all
+src/log/charge.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/nodelog/NodeLogBlob.java@429b4cbc	Header.bytesByIndex: the bytes of a blob's slices by index, to share its PUT in the usage ledger

@@ -63,6 +63,8 @@ pub struct Config {
     pub index_templates: bool,
     /// `serverless.knn.enabled`: whether a create accepts `knn_vector`.
     pub knn: bool,
+    /// Whether the read-only snapshot routes are served: `serverless.snapshots.enabled`.
+    pub snapshots: bool,
     /// How a point in time's register is deleted.
     pub delete_mode: DeleteMode,
     /// How often the publish timer runs a pass.
@@ -117,6 +119,7 @@ impl Config {
             pit_buffer_bytes: MAX_POINT_IN_TIME_BYTES,
             index_templates: false,
             knn: false,
+            snapshots: false,
             delete_mode: DeleteMode::Tombstone,
             publish_every: Duration::from_millis(250),
             publish_age_millis: 1_000,
