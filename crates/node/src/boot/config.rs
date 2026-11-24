@@ -438,7 +438,7 @@ impl NodeConfig {
             max_shards: usize::try_from(max_shards).unwrap_or(0),
             evict_after_millis,
             evict_headroom_percent,
-            write_pipeline_depth: bounded("OSS_WRITE_PIPELINE_DEPTH", "8", 1, 64)?,
+            write_pipeline_depth: bounded("OSS_WRITE_PIPELINE_DEPTH", "1", 1, 64)?,
             pinned_indexes,
             hand_off,
             security,

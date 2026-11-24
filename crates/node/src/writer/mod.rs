@@ -372,9 +372,17 @@ impl WriterRole {
                     // The index was deleted and created again: this shard
                     // serves a deleted one. Groups of it in flight finish
                     // first; the last one out releases it.
-                    let pipe = lock(&slot).pipeline();
+                    // `failed` is set under the slot lock, so no group is
+                    // between its check and its ticket.
+                    let mut held = lock(&slot);
+                    let pipe = held.pipeline();
                     pipe.fail();
-                    if !pipe.busy() {
+                    let idle = !pipe.busy();
+                    if idle {
+                        held.release();
+                    }
+                    drop(held);
+                    if idle {
                         self.release(&index.uuid, shard, &slot);
                     }
                     return unavailable(group.len(), || {

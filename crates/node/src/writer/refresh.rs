@@ -95,10 +95,13 @@ impl WriterRole {
         slot: &Arc<Mutex<ShardSlot>>,
         only_if_due: bool,
     ) -> Result<Option<(Published, i64)>, String> {
-        // Groups in flight settle before the gate is taken, so one shard's
-        // wait does not hold up the other shards' publishes.
-        let pipe = lock(slot).pipeline();
-        pipe.wait_idle();
+        if only_if_due {
+            // Not due, or the slot is going: no quiesce, no gate.
+            let held = lock(slot);
+            if held.failed() || held.released() || !publishing.due(key, held.acked_seq_no()) {
+                return Ok(None);
+            }
+        }
         let _gate = publishing.gate();
         let (snapshot, term, max_seq_no, logged) = {
             // No group of the shard is in flight and none stages until the

@@ -34,6 +34,7 @@ mod track;
 mod types;
 mod write;
 
+pub use staged::Staged;
 pub use timings::AckTimings;
 pub(crate) use types::epoch_entry;
 pub use types::{CommitError, CommitterConfig, EpochLease, Position, Refusal, ShardAdmission};

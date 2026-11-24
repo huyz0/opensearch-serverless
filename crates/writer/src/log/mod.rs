@@ -27,7 +27,7 @@ use oss_format::FormatError;
 
 pub use committer::{
     AckTimings, CommitError, CommitterConfig, EpochLease, NodeLogCommitter, Position, Refusal,
-    ShardAdmission,
+    ShardAdmission, Staged,
 };
 pub use hedge::{HedgeOutcome, Spawn, ThreadPerPut};
 pub use keeper::{LeaseKeeper, LeaseWrite, RenewError};

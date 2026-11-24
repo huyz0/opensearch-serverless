@@ -11,6 +11,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use oss_writer::bulk::{IndexInfo, Planned};
 use oss_writer::index::Written;
+use oss_writer::log::Staged;
 
 use super::apply_group::{Applied, apply_group};
 use super::pipeline::{Pipeline, Quiet};
@@ -21,6 +22,7 @@ use super::{Failure, WriterRole, lock, unavailable};
 /// unwinds or returns before it finished.
 struct Abort<'a> {
     role: &'a WriterRole,
+    window: &'a Staged,
     pipe: &'a Arc<Pipeline>,
     held: &'a Arc<Mutex<ShardSlot>>,
     uuid: &'a str,
@@ -34,6 +36,9 @@ impl Drop for Abort<'_> {
         if !self.armed {
             return;
         }
+        // Its windows are driven to the end first, so none can land after a
+        // reopen; this never unwinds.
+        self.window.finish(&self.role.committer);
         self.pipe.fail();
         // Earlier groups finish under the slot lock, so this waits for them
         // without it.
@@ -123,6 +128,7 @@ impl WriterRole {
         drop(slot);
         let mut abort = Abort {
             role: self,
+            window: &window,
             pipe: &pipe,
             held,
             uuid: &index.uuid,
@@ -131,10 +137,10 @@ impl WriterRole {
             armed: true,
         };
         let committed = window.wait(&self.committer);
-        self.appended(appended_at, committed.is_ok());
         pipe.wait_turn(ticket);
         let mut slot = lock(held);
         let earlier_failed = pipe.failed();
+        self.appended(appended_at, committed.is_ok() && !earlier_failed);
         if committed.is_ok() && !earlier_failed {
             if let Some(p) = &self.publishing {
                 // ALLOC: one key a staged group.
@@ -157,7 +163,9 @@ impl WriterRole {
             };
             refuse(&mut outcomes, &staged, &why);
         }
-        slot.acknowledge();
+        if committed.is_ok() && !earlier_failed {
+            slot.acknowledge();
+        }
         let last_out = pipe.leave(ticket);
         abort.armed = false;
         if last_out {

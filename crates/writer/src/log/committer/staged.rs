@@ -49,8 +49,8 @@ impl Staged {
     ///
     /// [`CommitError`] if a window carrying them did not land, or the shard
     /// was refused admission to its epoch.
-    pub fn wait(self, committer: &NodeLogCommitter) -> Result<Option<Position>, CommitError> {
-        committer.land(&self);
+    pub fn wait(&self, committer: &NodeLogCommitter) -> Result<Option<Position>, CommitError> {
+        committer.land(self);
         if let Some(result) = self.mine.get() {
             committer.timings.caller(self.joined_at, &result);
         }
