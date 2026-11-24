@@ -23,3 +23,4 @@ src/auth.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/transp
 src/actions/tail.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/transport/TailFetchRequest.java@429b4cbc	with TailFetchResponse, TailPushRequest, TailPushResponse and TailRecords: writeTo and the StreamInput constructors byte for byte; counts checked against the bytes left; a deletion travels without its source
 src/actions/read.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/forwarding/ForwardedGetRequest.java@429b4cbc	with ForwardedGetResponse: writeTo and the StreamInput constructors
 src/actions/lease.rs	new		the lease announce; Rust nodes only, the Java shell has no such action
+src/actions/warm.rs	new		the warm-copy messages between Rust nodes: the hot-set ask and answer, the page ask and answer; Java answers these actions with an unknown-action refusal

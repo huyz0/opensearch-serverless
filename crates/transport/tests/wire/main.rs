@@ -22,6 +22,7 @@ mod reader;
 mod stream;
 mod support;
 mod tail;
+mod warm;
 
 use std::net::IpAddr;
 use std::path::PathBuf;
