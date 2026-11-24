@@ -431,3 +431,49 @@ fn tenant_levels_observe_with_a_large_budget_unless_set() {
         assert!(e.contains(needle), "{e} lacks {needle}");
     }
 }
+
+// docs/specs/tenant-tier-budgets AC-6
+#[test]
+fn tenant_tier_budgets_default_to_twenty_two_hundred_and_two_thousand() {
+    let c = NodeConfig::from_lookup(lookup(FS)).expect("valid");
+    assert_eq!(
+        (
+            c.tenant_budget_small,
+            c.tenant_budget_standard,
+            c.tenant_budget_per_minute
+        ),
+        (20, 200, 2_000)
+    );
+    assert_eq!(c.tenant_default_tier, "");
+    let c = NodeConfig::from_lookup(lookup(&with(&[
+        ("OSS_TENANT_BUDGET_SMALL", "5"),
+        ("OSS_TENANT_BUDGET_STANDARD", "50"),
+        ("OSS_TENANT_DEFAULT_TIER", "small"),
+    ])))
+    .expect("valid");
+    assert_eq!(
+        (
+            c.tenant_budget_small,
+            c.tenant_budget_standard,
+            c.tenant_default_tier
+        ),
+        (5, 50, "small")
+    );
+    for (pairs, needle) in [
+        (
+            with(&[("OSS_TENANT_DEFAULT_TIER", "huge")]),
+            "OSS_TENANT_DEFAULT_TIER",
+        ),
+        (
+            with(&[("OSS_TENANT_BUDGET_SMALL", "0")]),
+            "OSS_TENANT_BUDGET_SMALL",
+        ),
+        (
+            with(&[("OSS_TENANT_BUDGET_STANDARD", "0")]),
+            "OSS_TENANT_BUDGET_STANDARD",
+        ),
+    ] {
+        let e = NodeConfig::from_lookup(lookup(&pairs)).expect_err("refused");
+        assert!(e.contains(needle), "{e} lacks {needle}");
+    }
+}

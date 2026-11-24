@@ -115,6 +115,7 @@ impl IndexService {
         )?;
         let asked = parse(1, Some(&body)).map_err(refusal)?;
         let (bucket_off, bucket_group) = bucket_settings(&asked.settings)?;
+        let cost = cost_settings(&asked.settings)?;
         if asked.settings.iter().any(|(k, _)| !is_bucket_key(k)) {
             return Err(unsupported(
                 "index settings at create are not supported by this node yet: create the index, then update its settings",
@@ -162,8 +163,13 @@ impl IndexService {
         record.mapping = asked.mapping.as_deref().map(Cow::Borrowed);
         record.created_at_millis = now;
         record.created_version_id = CREATED_VERSION_ID;
-        let group_settings = bucket_group.as_deref().map(crate::writer::group_settings);
-        if let Some(settings) = &group_settings {
+        let tenancy = crate::writer::Tenancy {
+            group: bucket_group.clone(),
+            ..cost
+        };
+        let tenancy_settings =
+            (!tenancy.is_empty()).then(|| crate::writer::tenancy_settings(&tenancy));
+        if let Some(settings) = &tenancy_settings {
             record.settings = settings;
         }
         if asked.shards == 1
@@ -208,7 +214,10 @@ impl IndexService {
 
 /// Whether `key` is one of the two bucket settings a create accepts.
 fn is_bucket_key(key: &str) -> bool {
-    key == policy::INDEX_POLICY.key() || key == policy::GROUP.key()
+    key == policy::INDEX_POLICY.key()
+        || key == policy::GROUP.key()
+        || key == crate::writer::COST_TIER
+        || key == crate::writer::COST_BUDGET
 }
 
 /// What a create's bucket settings say: whether the index opts out of
@@ -230,6 +239,39 @@ fn bucket_settings(
         }
     }
     Ok((off, group))
+}
+
+/// The cost tier and budget a create names; a tier that is none of the
+/// three, or a budget that is not a positive whole number, is refused.
+fn cost_settings(
+    settings: &[(String, Option<String>)],
+) -> Result<crate::writer::Tenancy, RestError> {
+    let mut out = crate::writer::Tenancy::default();
+    for (key, value) in settings {
+        let value = value.as_deref().unwrap_or("");
+        if key == crate::writer::COST_TIER {
+            if crate::tenants::Tier::parse(value).is_none() {
+                return Err(refuse(
+                    400,
+                    "illegal_argument_exception",
+                    format!("{key} is [{value}], not small, standard or large"),
+                ));
+            }
+            out.tier = Some(value.to_owned()); // ALLOC: one name a create.
+        } else if key == crate::writer::COST_BUDGET {
+            match value.trim().parse::<u64>() {
+                Ok(budget) if budget > 0 => out.budget = Some(budget),
+                _ => {
+                    return Err(refuse(
+                        400,
+                        "illegal_argument_exception",
+                        format!("{key} is [{value}], not a positive whole number"),
+                    ));
+                }
+            }
+        }
+    }
+    Ok(out)
 }
 
 fn unsupported(reason: &str) -> RestError {

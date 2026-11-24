@@ -220,8 +220,9 @@ impl HeadOpener {
         let mapping = Mapping::from_descriptor(record.mapping.as_deref())
             .map_err(|e| e.failed_to_parse().to_string())?;
         let age = publish_age_of(record.settings);
-        if let Some(group) = super::publish_age::bucket_group_of(record.settings) {
-            role.note_group(&index.name, &group);
+        let tenancy = super::tenancy::tenancy_of(record.settings);
+        if !tenancy.is_empty() {
+            role.note_tenancy(&index.name, &tenancy);
         }
         match self.takeover.as_ref().filter(|_| history) {
             None => role.open_shard(index, shard, head.term, mapping)?,

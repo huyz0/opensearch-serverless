@@ -125,3 +125,4 @@ src/writer/tenant_hooks.rs	new		what the tenant levels hang on a writer role: wh
 src/snapshot_take_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/snapshot/SnapshotOperations.java@bf347adb	handleCreate and capture: the order of a take and its cleanup
 src/security_route.rs	new		the security configuration API over five document sets
 src/security_setting.rs	new		serverless.security.enabled
+src/writer/tenancy.rs	new		the billing settings of an index in its descriptor: bucket group, cost tier and cost budget, read when a writer opens a shard of it
