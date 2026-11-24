@@ -304,4 +304,25 @@ mod tests {
         big.resize(MAX_SNAPSHOT_RECORD_BYTES + 1, b' ');
         assert!(SnapshotSummary::parse(&big).is_err());
     }
+
+    #[test]
+    fn a_record_at_the_limit_is_read() {
+        let mut full = DONE.to_vec();
+        full.resize(MAX_SNAPSHOT_RECORD_BYTES, b' ');
+        assert!(SnapshotSummary::parse(&full).is_ok());
+    }
+
+    #[test]
+    fn an_empty_name_and_a_false_text_shallow_are_read_as_the_java_reads_them() {
+        let with = |name: &str, shallow: &str| {
+            format!(
+                r#"{{"repo":"r","name":"{name}","shallow":{shallow},"start_time_in_millis":1,"end_time_in_millis":2,"indices":{{}}}}"#
+            )
+        };
+        assert!(SnapshotSummary::parse(with("", "false").as_bytes()).is_err());
+        let off = SnapshotSummary::parse(with("s", r#""false""#).as_bytes()).expect("reads");
+        assert!(!off.shallow);
+        let on = SnapshotSummary::parse(with("s", r#""true""#).as_bytes()).expect("reads");
+        assert!(on.shallow);
+    }
 }

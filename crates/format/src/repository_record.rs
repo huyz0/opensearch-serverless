@@ -183,4 +183,32 @@ mod tests {
         big.resize(MAX_REPOSITORY_RECORD_BYTES + 1, b' ');
         assert!(RepositoryRecord::parse(&big).is_err());
     }
+
+    #[test]
+    fn a_record_at_the_limit_is_read() {
+        let mut full = br#"{"name":"r","created_at":1}"#.to_vec();
+        full.resize(MAX_REPOSITORY_RECORD_BYTES, b' ');
+        assert!(RepositoryRecord::parse(&full).is_ok());
+    }
+
+    #[test]
+    fn a_named_type_is_kept() {
+        let r =
+            RepositoryRecord::parse(br#"{"name":"r","type":"s3","created_at":1}"#).expect("reads");
+        assert_eq!(r.repo_type, "s3");
+    }
+
+    #[test]
+    fn only_the_shallow_setting_set_true_makes_snapshots_shallow() {
+        let read = |settings: &str| {
+            RepositoryRecord::parse(
+                format!(r#"{{"name":"r","created_at":1,"settings":{settings}}}"#).as_bytes(),
+            )
+            .expect("reads")
+            .shallow_by_default()
+        };
+        assert!(read(r#"{"remote_store_index_shallow_copy":"true"}"#));
+        assert!(!read(r#"{"remote_store_index_shallow_copy":false}"#));
+        assert!(!read(r#"{"other":true}"#));
+    }
 }
