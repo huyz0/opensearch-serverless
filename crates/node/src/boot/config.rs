@@ -14,6 +14,8 @@ use oss_janitor::settings::{ORPHAN_SLICE_BUDGET, ORPHAN_SLICE_INTERVAL_MILLIS};
 
 use crate::tail_overlay::REFRESH_VISIBILITY;
 
+pub(super) mod apply;
+pub(super) mod page_cache;
 pub(super) mod roles;
 pub(super) mod search_slots;
 pub(super) mod write_limit;
@@ -175,6 +177,9 @@ pub struct NodeConfig {
     /// `OSS_SEARCH_*`: the gate that orders searches under pressure;
     /// `slots` 0 is off.
     pub search_slots: crate::search_slots::Config,
+    /// `OSS_PAGE_CACHE_DIR` and `OSS_PAGE_CACHE_BYTES`: a disk tier for the
+    /// page cache; none keeps nothing past a read.
+    pub page_cache: Option<page_cache::DiskCache>,
     /// `OSS_ROLES`: the roles the node's lease names, `ingest` and `search`;
     /// none is a coordinating-only node.
     pub roles: Vec<&'static str>,
@@ -368,6 +373,7 @@ impl NodeConfig {
         let tenant_tick_millis = bounded("OSS_TENANT_TICK_MS", "10000", 10, 3_600_000)?;
         let write_limit = write_limit::read(&bounded)?;
         let search_slots = search_slots::read(&bounded)?;
+        let page_cache = page_cache::read(&or("OSS_PAGE_CACHE_DIR", ""), &bounded)?;
         let roles = roles::read(get("OSS_ROLES"))?;
         let proactive_reapers = bounded("OSS_PROACTIVE_REAPERS", "2", 1, 16)?;
         let proactive_max_concurrent = bounded("OSS_PROACTIVE_MAX_CONCURRENT", "4", 1, 64)?;
@@ -408,6 +414,7 @@ impl NodeConfig {
             tombstone_sweep_millis,
             write_limit,
             search_slots,
+            page_cache,
             roles,
             orphan_slice_budget: usize::try_from(orphan_slice_budget).unwrap_or(0),
             orphan_slice_millis: u64::try_from(orphan_slice_millis).unwrap_or(u64::MAX),
@@ -453,11 +460,6 @@ impl NodeConfig {
     /// Whether the node takes writes: its lease names `ingest`.
     pub fn takes_writes(&self) -> bool {
         self.roles.contains(&"ingest")
-    }
-
-    /// How long a drain waits for the lease to lose the search role.
-    pub fn drain_settle(&self) -> Duration {
-        Duration::from_millis(self.drain_settle_millis)
     }
 
     /// How often the lease is renewed: a third of its lifetime.

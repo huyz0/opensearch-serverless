@@ -360,7 +360,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         &config.node_id,
         address_bytes(&config.node_id),
     );
-    config::write_limit::apply(config, &mut node_config);
+    config::apply::apply(config, &mut node_config);
     support::apply_janitor_and_hibernation(&mut node_config, config);
     let health = Arc::new(StoreHealth::new(
         Arc::clone(&membership),
