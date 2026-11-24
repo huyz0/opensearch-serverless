@@ -14,7 +14,7 @@ The settings of the create body, after a matching template's are laid under them
 
 Keys are read flat or nested (`{"index": {"refresh_interval": "5s"}}`), with or without the `index.` prefix, as a create body is read today. A value of null is dropped. The descriptor's settings object is flat, keys sorted.
 
-Any other key is refused 501 `unsupported_index_option`, naming each key sorted ("index setting [a, b] is not supported by this node at create yet"), whether the request or a template carried it. The refusal is the node's own limit, not a claim the key is wrong: no settings registry for core keys exists here yet.
+Any other key is refused 501 `unsupported_index_option`, naming each key sorted ("index setting [a, b] is not supported by this node at create yet"), whether the request or a template carried it. The refusal is the node's own limit, not a claim the key is wrong; [core-index-settings](../core-index-settings/SPEC.md) accepts the core keys that have no effect here.
 
 ## Acceptance criteria
 
