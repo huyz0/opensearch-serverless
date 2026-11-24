@@ -3,7 +3,7 @@
 //! verification are answered.
 //!
 //! Ported from `serverless/shell/src/main/java/org/opensearch/serverless/snapshot/RepositoryHandler.java`
-//! (ADR 0039). The name rules are [`crate::snapshot_admin::check_name`]'s.
+//! (ADR 0040). The name rules are [`crate::snapshot_admin::check_name`]'s.
 
 use std::fmt::Write;
 
