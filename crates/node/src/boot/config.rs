@@ -14,6 +14,7 @@ use oss_janitor::settings::{ORPHAN_SLICE_BUDGET, ORPHAN_SLICE_INTERVAL_MILLIS};
 
 use crate::tail_overlay::REFRESH_VISIBILITY;
 
+pub(super) mod search_slots;
 pub(super) mod write_limit;
 
 /// The smallest memory total the pools' shares make workable.
@@ -162,6 +163,9 @@ pub struct NodeConfig {
     /// `serverless.write.backpressure.*`: what limits the writes waiting on
     /// the write log.
     pub write_limit: oss_writer::admission::LimiterConfig,
+    /// `OSS_SEARCH_*`: the gate that orders searches under pressure;
+    /// `slots` 0 is off.
+    pub search_slots: crate::search_slots::Config,
     /// How often the one sweeping node removes expired tombstones; 0 is off.
     pub tombstone_sweep_millis: u64,
     /// `serverless.janitor.orphan_slice_budget`: the shard containers one
@@ -334,6 +338,7 @@ impl NodeConfig {
         };
         let tenant_tick_millis = bounded("OSS_TENANT_TICK_MS", "10000", 10, 3_600_000)?;
         let write_limit = write_limit::read(&bounded)?;
+        let search_slots = search_slots::read(&bounded)?;
         let proactive_reapers = bounded("OSS_PROACTIVE_REAPERS", "2", 1, 16)?;
         let proactive_max_concurrent = bounded("OSS_PROACTIVE_MAX_CONCURRENT", "4", 1, 64)?;
         let tombstone_sweep_millis = bounded("OSS_TOMBSTONE_SWEEP_MS", "3600000", 0, 604_800_000)?;
@@ -372,6 +377,7 @@ impl NodeConfig {
             janitor_every_millis,
             tombstone_sweep_millis,
             write_limit,
+            search_slots,
             orphan_slice_budget: usize::try_from(orphan_slice_budget).unwrap_or(0),
             orphan_slice_millis: u64::try_from(orphan_slice_millis).unwrap_or(u64::MAX),
             janitor_dry_run,

@@ -84,6 +84,8 @@ pub mod refresh_route;
 pub(crate) mod route_util;
 #[cfg(feature = "reader")]
 pub mod search;
+#[cfg(feature = "reader")]
+pub mod search_slots;
 pub mod settings;
 #[cfg(feature = "writer")]
 pub mod snapshot_route;

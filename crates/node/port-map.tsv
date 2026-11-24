@@ -127,3 +127,5 @@ src/writer/tenancy.rs	new		the billing settings of an index in its descriptor: b
 src/plugin_proxy.rs	new		the proxy of requests for plugins not ported to a Java node (ADR 0046); the Java shell runs those plugins itself
 src/boot/retire.rs	new		retiring a node on a stop signal: the shell leaves its lease to lapse
 src/writer/retire.rs	new		publishing and giving back every held shard when the node stops
+src/search_slots.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/search/SearchAdmission.java@feature/serverlessshell	a bounded gate of search permits: a fair share while full, a bounded wait for a tenant over it, a level-2 lane, overflow runners instead of refusals
+src/boot/config/search_slots.rs	new		the OSS_SEARCH_* settings of the search gate; the shell reads its admission settings from cluster settings
