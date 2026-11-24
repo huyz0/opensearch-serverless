@@ -69,7 +69,7 @@ impl ShardPublisher {
         let total = group
             .iter()
             .fold(header_len, |sum, (_, length)| sum.saturating_add(*length));
-        if total > placement.max_blob_bytes {
+        if !fits(total, placement.max_blob_bytes) {
             return Ok(None);
         }
         // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
@@ -154,5 +154,23 @@ impl ShardPublisher {
             }
         }
         Ok(())
+    }
+}
+
+/// Whether a segment's blob of `total` bytes may go into a pack: one of
+/// exactly `max` bytes may.
+fn fits(total: u64, max: u64) -> bool {
+    total <= max
+}
+
+#[cfg(test)]
+mod tests {
+    use super::fits;
+
+    #[test]
+    fn a_blob_of_exactly_the_most_fits_and_one_byte_over_does_not() {
+        assert!(fits(9, 10));
+        assert!(fits(10, 10));
+        assert!(!fits(11, 10));
     }
 }

@@ -294,4 +294,14 @@ mod tests {
         assert_eq!(reason(&e), "request [/p] has more than [3] parameters");
         assert_eq!(p.pairs.capacity(), 3, "never grows past its allocation");
     }
+
+    #[test]
+    fn a_plus_is_a_space_only_where_asked_and_an_escape_still_decodes() {
+        assert_eq!(decode_component("a+b%20c", true).expect("decodes"), "a b c");
+        assert_eq!(
+            decode_component("a+b%20c", false).expect("decodes"),
+            "a+b c"
+        );
+        assert_eq!(decode_component("%41%7a", false).expect("decodes"), "Az");
+    }
 }

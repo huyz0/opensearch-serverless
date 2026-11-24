@@ -181,3 +181,43 @@ fn fixed_strings_refuse_past_their_size() {
     assert!(s.write_str("e").is_err());
     assert_eq!(s.as_str(), "abcd");
 }
+
+fn response<'a>(
+    out: &'a mut Vec<u8>,
+    buf: &'a mut [u8],
+    connection: Option<&'static str>,
+) -> Response<'a> {
+    Response::new(out, buf, false, connection, None, None)
+}
+
+#[test]
+fn a_response_closes_the_connection_only_when_it_says_close() {
+    let (mut out, mut buf) = (Vec::new(), [0u8; 64]);
+    assert!(response(&mut out, &mut buf, Some("close")).closes());
+    assert!(!response(&mut out, &mut buf, Some("keep-alive")).closes());
+    assert!(!response(&mut out, &mut buf, None).closes());
+}
+
+#[test]
+fn a_known_length_head_waits_for_its_body_but_an_empty_one_goes_out_at_once() {
+    let (mut out, mut buf) = (Vec::new(), [0u8; 256]);
+    {
+        let mut r = response(&mut out, &mut buf, None);
+        r.start(200, None, Length::Known(5), &[]).expect("starts");
+    }
+    assert!(out.is_empty(), "the head is held until the body is written");
+    {
+        let mut r = response(&mut out, &mut buf, None);
+        r.start(200, None, Length::Known(0), &[]).expect("starts");
+    }
+    assert!(String::from_utf8_lossy(&out).starts_with("HTTP/1.1 200 OK\r\n"));
+}
+
+#[test]
+fn a_bad_request_has_its_reason_phrase() {
+    assert_eq!(reason_phrase(400), "Bad Request");
+    let text = with(256, false, |r| {
+        r.send(400, JSON, b"{}").expect("sends");
+    });
+    assert!(text.starts_with("HTTP/1.1 400 Bad Request\r\n"), "{text}");
+}

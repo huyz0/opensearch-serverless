@@ -73,11 +73,57 @@ pub fn commit_checkpoint(
     let mut buf = vec![0u8; 64 << 10];
     store.get(&extent.key, range, &mut buf, &mut sink)?;
     let infos = parse(&sink.0, generation).map_err(|e| RestoreError::Directory(e.to_string()))?;
-    Ok(Some(
-        infos
-            .user_data
-            .iter()
-            .find(|(k, _)| k == LOCAL_CHECKPOINT_KEY)
-            .and_then(|(_, v)| v.parse().ok()),
-    ))
+    Ok(Some(recorded(&infos.user_data)))
+}
+
+/// The local checkpoint among a commit's user data, if it records one.
+fn recorded(user_data: &[(String, String)]) -> Option<i64> {
+    user_data
+        .iter()
+        .find(|(k, _)| k == LOCAL_CHECKPOINT_KEY)
+        .and_then(|(_, v)| v.parse().ok())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn pair(k: &str, v: &str) -> (String, String) {
+        (k.to_owned(), v.to_owned())
+    }
+
+    #[test]
+    fn a_segments_file_name_carries_its_generation_in_base_36() {
+        assert_eq!(generation("segments_1"), Some(1));
+        assert_eq!(generation("segments_a"), Some(10));
+        assert_eq!(generation("segments_10"), Some(36));
+        assert_eq!(generation("segments_"), None);
+        assert_eq!(generation("segments_!"), None);
+        assert_eq!(generation("_1.si"), None);
+    }
+
+    #[test]
+    fn the_checkpoint_is_the_value_under_its_own_key_among_others() {
+        let data = [
+            pair("max_seq_no", "9"),
+            pair("local_checkpoint", "3"),
+            pair("other", "7"),
+        ];
+        assert_eq!(recorded(&data), Some(3));
+        assert_eq!(recorded(&[pair("max_seq_no", "9")]), None);
+        assert_eq!(recorded(&[pair("local_checkpoint", "x")]), None);
+        assert_eq!(recorded(&[]), None);
+    }
+
+    #[test]
+    fn a_stream_may_fill_the_buffer_to_the_limit_and_not_past_it() {
+        let mut c = Collect(Vec::new());
+        assert!(c.accept(&vec![0u8; MAX_SEGMENTS_FILE]).is_ok());
+        assert!(c.accept(&[1]).is_err(), "one byte past the limit");
+        let mut c = Collect(Vec::new());
+        assert!(c.accept(&vec![0u8; MAX_SEGMENTS_FILE + 1]).is_err());
+        let mut c = Collect(Vec::new());
+        assert!(c.accept(&vec![0u8; MAX_SEGMENTS_FILE - 1]).is_ok());
+        assert!(c.accept(&[1]).is_ok(), "exactly the limit");
+    }
 }
