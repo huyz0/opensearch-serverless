@@ -6,7 +6,7 @@ mod common;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use common::{IO, Parts, build, descriptor, with_body};
+use common::{IN, IO, OUT, Parts, build, descriptor, with_body};
 use oss_ext::{FailureKind, VersionError};
 use oss_ext_wasm::{Host, HostConfig, LoadError, Module, Unbounded};
 
@@ -391,5 +391,86 @@ fn a_table_cannot_grow_past_its_bound() {
             .unwrap_err()
             .kind(),
         FailureKind::Limit
+    );
+}
+
+fn load_err(p: &Parts<'_>) -> LoadError {
+    host()
+        .load(&build(p), Arc::new(Unbounded))
+        .err()
+        .expect("refused")
+}
+
+#[test]
+fn the_descriptor_length_is_held_to_the_ceiling_to_the_byte() {
+    // Over the ceiling but inside memory: refused for its length.
+    let e = load_err(&Parts {
+        describe_len: Some(16 * 1024 + 1),
+        ..Parts::default()
+    });
+    assert!(matches!(e, LoadError::Broken(_)), "{e}");
+    // Exactly the ceiling passes the length check and fails to parse.
+    let e = load_err(&Parts {
+        describe_len: Some(16 * 1024),
+        ..Parts::default()
+    });
+    assert!(matches!(e, LoadError::Descriptor(_)), "{e}");
+}
+
+#[test]
+fn regions_are_checked_each_against_memory_and_each_other() {
+    let ok = |input, output, io: u32| {
+        let p = Parts {
+            input,
+            output,
+            descriptor: common::descriptor_io(io, ""),
+            ..Parts::default()
+        };
+        host().load(&build(&p), Arc::new(Unbounded)).is_ok()
+    };
+    assert!(ok(IN, OUT, IO));
+    assert!(ok(OUT, IN, IO), "the input may sit above the output");
+    assert!(ok(IN, OUT, 65_536), "regions that touch do not overlap");
+    assert!(ok(OUT, IN, 65_536), "and the same the other way round");
+    assert!(!ok(IN, IN + 512, IO), "overlap with the output above");
+    assert!(!ok(OUT + 512, OUT, IO), "overlap with the input above");
+    assert!(!ok(IN, 262_144 - 100, IO), "output past memory");
+    assert!(!ok(262_144 - 100, OUT, IO), "input past memory");
+    assert!(
+        ok(IN, 262_144 - IO, IO),
+        "output ending exactly at memory's end"
+    );
+    assert!(
+        ok(262_144 - IO, IN, IO),
+        "input ending exactly at memory's end"
+    );
+}
+
+#[test]
+fn cancelled_is_false_early_and_true_by_half_the_deadline() {
+    let host = Host::new(HostConfig {
+        fuel: u64::MAX / 2,
+        deadline_ms: 600,
+        ..HostConfig::default()
+    });
+    // Asked at once, the answer is no (the call succeeds); asked after spinning, yes.
+    let early = load(
+        &host,
+        &with_body("(if (call $cancelled) (then (return (i32.const -5)))) (i32.const 0)"),
+    );
+    assert!(early.call("t", 0, b"").is_ok());
+    let late = load(
+        &host,
+        &with_body("(loop $l (br_if $l (i32.eqz (call $cancelled)))) (i32.const -5)"),
+    );
+    let started = std::time::Instant::now();
+    assert_eq!(
+        late.call("t", 0, b"").unwrap_err().kind(),
+        FailureKind::Cancelled
+    );
+    assert!(
+        started.elapsed() >= Duration::from_millis(250),
+        "{:?}",
+        started.elapsed()
     );
 }

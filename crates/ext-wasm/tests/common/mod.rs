@@ -13,8 +13,13 @@ pub const IO: u32 = 1024;
 
 /// The descriptor text of a module named `hostile` with one point.
 pub fn descriptor(extra: &str) -> String {
+    descriptor_io(IO, extra)
+}
+
+/// [`descriptor`] with the region size chosen.
+pub fn descriptor_io(io: u32, extra: &str) -> String {
     format!(
-        r#"{{"name":"hostile","version":"1.0.0","abi":"1.0","io_bytes":{IO},"max_concurrent_calls":8{extra},"points":[{{"id":"echo","version":"1.0.0"}}]}}"#
+        r#"{{"name":"hostile","version":"1.0.0","abi":"1.0","io_bytes":{io},"max_concurrent_calls":8{extra},"points":[{{"id":"echo","version":"1.0.0"}}]}}"#
     )
 }
 
@@ -30,6 +35,9 @@ pub struct Parts<'a> {
     pub abi: u32,
     pub body: &'a str,
     pub extra: &'a str,
+    pub input: u32,
+    pub output: u32,
+    pub describe_len: Option<u32>,
 }
 
 impl Default for Parts<'_> {
@@ -41,6 +49,9 @@ impl Default for Parts<'_> {
             abi: 65_536,
             body: ECHO,
             extra: "",
+            input: IN,
+            output: OUT,
+            describe_len: None,
         }
     }
 }
@@ -62,9 +73,9 @@ pub fn build(p: &Parts<'_>) -> Vec<u8> {
   (global $len (mut i32) (i32.const 0))
   (func (export "oss_abi_version") (result i32) (i32.const {abi}))
   (func (export "oss_describe") (result i32)
-    (memory.copy (i32.const {OUT}) (i32.const 0) (i32.const {dlen})) (i32.const {dlen}))
-  (func (export "oss_input_region") (result i32) (i32.const {IN}))
-  (func (export "oss_output_region") (result i32) (i32.const {OUT}))
+    (memory.copy (i32.const {out}) (i32.const 0) (i32.const {dlen})) (i32.const {reported}))
+  (func (export "oss_input_region") (result i32) (i32.const {inp}))
+  (func (export "oss_output_region") (result i32) (i32.const {out}))
   (func (export "oss_result_len") (result i32) (global.get $len))
   (func (export "oss_call") (param i32 i32 i32) (result i32) {body})
   {extra})"#,
@@ -74,6 +85,9 @@ pub fn build(p: &Parts<'_>) -> Vec<u8> {
         detail = escaped("bad\nnews"),
         abi = p.abi as i32,
         dlen = d.len(),
+        reported = p.describe_len.unwrap_or(d.len() as u32),
+        inp = p.input,
+        out = p.output,
         body = p.body,
         extra = p.extra,
     );
