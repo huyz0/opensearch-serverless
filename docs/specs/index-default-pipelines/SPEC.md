@@ -21,8 +21,8 @@ The writer's `IndexInfo` gains `default_pipeline` and `final_pipeline`, read by 
 - AC-2: the final runs after the first over what it made, on a write that named a pipeline, named none, or named `_none`; `_none` as the setting runs nothing. Test: `the_final_runs_after_whatever_the_write_named`.
 - AC-3: a missing or failing default or final fails that item alone with the messages of AC-4 in bulk-ingest, and a delete runs neither. Test: `a_missing_default_or_final_fails_its_item_and_a_delete_runs_neither`.
 - AC-4: the node reads the two settings from the descriptor, flat or nested, none when unset or empty. Test: `the_routes_read_the_default_and_final_pipelines` (crates/node/tests/roles/descriptor_routes.rs).
-- AC-5: a create stores them when the node's pipelines are on, and refuses them 501 when off; an empty value is refused 400. Test: `a_create_stores_a_default_and_final_pipeline_only_when_pipelines_are_on` (crates/node/tests/server/index_route/create_settings.rs).
-- AC-6: an end-to-end bulk to an index with a default and a final pipeline applies both, in order. Test: `a_bulk_applies_the_indexs_default_and_final_pipelines` (crates/node/tests/server/bulk_route.rs).
+- AC-5: a create stores them when the node's pipelines are on, and refuses them 501 when off; an empty value is refused 400. Test: `a_booted_index_applies_its_default_and_final_pipelines_and_a_node_without_pipelines_refuses_them` (crates/node/tests/server/boot_templates_ingest.rs).
+- AC-6: an end-to-end bulk to an index with a default and a final pipeline applies both, in order. Test: `a_booted_index_applies_its_default_and_final_pipelines_and_a_node_without_pipelines_refuses_them` (crates/node/tests/server/boot_templates_ingest.rs).
 
 ## S3 request budget
 
@@ -33,5 +33,8 @@ Unchanged per request: the pipeline set is read once for a request that runs any
 None: an index sets neither unless a client asks, and the routes and pipelines are each behind their own switches already.
 
 ## Risks
+
+With ingest pipelines on, a `_doc` write now holds the run's two buffers whether or not it names a pipeline, as a bulk does, because the index's own pipelines may run. A node with pipelines off holds none.
+
 
 A create that sets `default_pipeline` before the pipeline exists succeeds, as in OpenSearch, and writes fail until it does. Whether a pipeline the settings name is deleted is not checked.

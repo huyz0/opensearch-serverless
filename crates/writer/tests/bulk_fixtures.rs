@@ -70,6 +70,8 @@ impl Local {
             partition_size: get("routing_partition_size", 1),
             routing_shards: get("number_of_routing_shards", shards),
             routing_required: mapping.routing_required(),
+            default_pipeline: None,
+            final_pipeline: None,
         };
         let shards = (0..shards)
             .map(|_| {
