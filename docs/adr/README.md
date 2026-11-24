@@ -51,3 +51,4 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0039](0039-knn-vectors-in-the-segment.md) | A `knn_vector` is written into the segment as the stock k-NN plugin writes it | Accepted |
 | [0040](0040-repository-registration.md) | Repositories are registered and removed over REST, the Java's way, before snapshots are taken | Accepted |
 | [0041](0041-tenant-cost-levels.md) | A tenant's cost is held to a budget by levels, in observe mode unless set to enforce | Accepted |
+| [0042](0042-snapshots-taken-shallow-first.md) | Snapshots are taken shallow first, in the Java's protocol, behind the switch | Proposed |
