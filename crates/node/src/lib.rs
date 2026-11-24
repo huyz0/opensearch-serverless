@@ -103,6 +103,8 @@ mod tail_subscription;
 pub mod template_route;
 #[cfg(any(feature = "reader", feature = "writer"))]
 pub(crate) mod time_value;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod usage_route;
 #[cfg(feature = "writer")]
 pub mod writer;
 

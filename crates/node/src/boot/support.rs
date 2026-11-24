@@ -317,6 +317,33 @@ pub(super) fn head_store(
     Ok(Arc::new(heads))
 }
 
+/// The ledger and classifier of `config`'s store usage, when it is on.
+pub(super) fn usage_of(
+    store: Arc<dyn BlobStore>,
+    config: &NodeConfig,
+) -> (Arc<dyn BlobStore>, Option<Arc<oss_blob::usage::Ledger>>) {
+    if !config.store_usage {
+        return (store, None);
+    }
+    let ledger = Arc::new(oss_blob::usage::Ledger::new(config.store_usage_max_indices));
+    let classifier = Arc::new(KeyOwner(config.base.clone())); // ALLOC: one name, at start.
+    let wrapped = oss_blob::UsageStore::new(
+        oss_blob::Shared::new(store),
+        Arc::clone(&ledger),
+        classifier,
+    );
+    (Arc::new(wrapped), Some(ledger))
+}
+
+/// Names the index a key of this deployment belongs to.
+struct KeyOwner(String);
+
+impl oss_blob::usage::Classifier for KeyOwner {
+    fn index_of<'a>(&self, key: &'a str) -> Option<&'a str> {
+        oss_format::index_of_key(&self.0, key)
+    }
+}
+
 /// `opener`, reading a bucket member's commit from its bucket when the
 /// buckets switch is on.
 pub(super) fn with_member_commits(
