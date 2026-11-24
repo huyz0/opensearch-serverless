@@ -25,9 +25,7 @@ use crate::health_route::{self, HealthService, HealthSource};
 #[cfg(feature = "coordinator")]
 use crate::index_delete::{self, DeleteService, DrainTimer, NoSnapshots};
 #[cfg(feature = "coordinator")]
-use crate::index_route::{self, IndexService};
-#[cfg(feature = "coordinator")]
-use crate::index_templates::TemplateSets;
+use crate::index_route;
 use crate::pit_route::{self, PitService};
 use crate::refresh_route::{self, RefreshService};
 use crate::search::{self, SearchService};
@@ -444,25 +442,13 @@ pub fn assemble(
         // is what lets a writer confirm an index it kept without reading it.
         let stripes = oss_meta::ChangeStripes::new(Arc::clone(&store), &config.base)
             .map_err(|e| AssembleError::Store(e.to_string()))?;
-        let descriptors =
-            DescriptorStore::new(Arc::clone(&store), &config.base, config.delete_mode)
-                .map_err(|e| AssembleError::Store(e.to_string()))?
-                .record_changes_in(stripes);
-        let mut indices =
-            IndexService::new(descriptors, Arc::clone(&clock), config.pit_buffer_bytes);
-        if let Some(buckets) = &bucket_wiring {
-            let (joiner, leaver) = (Arc::clone(buckets), Arc::clone(buckets));
-            indices = indices.with_bucket_join(
-                Arc::new(move |name, uuid| joiner.join(name, uuid)),
-                Arc::new(move |bucket, uuid| leaver.leave(bucket, uuid)),
-            );
-        }
-        if config.index_templates {
-            let sets = TemplateSets::open(&store, &config.base)
-                .map_err(|e| AssembleError::Store(e.to_string()))?;
-            indices = indices.with_templates(sets);
-        }
-        let indices = Arc::new(indices);
+        let indices = crate::index_assemble::index_service(
+            config,
+            &store,
+            &clock,
+            bucket_wiring.as_ref(),
+            stripes,
+        )?;
         let router = index_route::routes(router, indices).map_err(AssembleError::Route)?;
         let deletes = delete_service(config, &store, &clock)?;
         let drain = DrainTimer::spawn(Arc::clone(&deletes), config.reclaim_every);

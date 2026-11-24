@@ -113,3 +113,4 @@ src/commit_push/tests.rs	new		tests of the commit sink
 src/writer/capacity.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/reconcile/ShardEviction.java	the shard cap and making room for one shard (makeRoom); handing off to a member with room, headroom and pinned indexes are not ported yet
 src/writer/buckets.rs	new		the bucket wiring: descriptor-backed bucket heads and each member shard commit register, built only with the buckets switch on
 src/index_templates.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/indexadmin/IndexCreateRequest.java	template application at create over the cached template sets
+src/index_assemble.rs	new		builds the index service a node serves creates with from its settings
