@@ -423,4 +423,16 @@ mod tests {
             Some(RouteError::TooManySegments(over))
         );
     }
+
+    #[test]
+    fn the_first_position_that_differs_decides_which_route_is_more_explicit() {
+        let r = Router::new()
+            .route(Method::Get, "/{a}/lit", &[], ok)
+            .and_then(|r| r.route(Method::Get, "/lit/{b}", &[], ok))
+            .expect("routes register");
+        let (param_first, literal_first) = (&r.routes[0], &r.routes[1]);
+        assert!(more_explicit(literal_first, param_first));
+        assert!(!more_explicit(param_first, literal_first));
+        assert!(!more_explicit(param_first, param_first));
+    }
 }

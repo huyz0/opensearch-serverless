@@ -42,6 +42,7 @@ exclude_re = [
     # nibble below 16: disjoint bits, where `|` and `^` give the same number.
     "crates/format/src/json/strings.rs:.*replace \\| with \\^ in Reader<'a>::hex4",
     # A hex pair joins a high nibble shifted past a low one: disjoint bits.
+    "crates/rest/src/query.rs:.*replace \\| with \\^ in decode_component",
     "crates/transport/src/auth.rs:.*replace \\| with \\^ in unhex",
     # `Instant` deltas against the probe interval: `<` and `<=` differ for
     # one nanosecond, which no test can land on.

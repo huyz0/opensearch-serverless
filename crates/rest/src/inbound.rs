@@ -85,7 +85,7 @@ impl<R: Read, B: AsMut<[u8]> + AsRef<[u8]>> Source for Inbound<R, B> {
     }
 
     fn fill(&mut self) -> io::Result<usize> {
-        if self.start > 0 {
+        if self.start != 0 {
             let (start, end) = (self.start, self.end);
             self.buf.as_mut().copy_within(start..end, 0);
             self.end = end.saturating_sub(start);
