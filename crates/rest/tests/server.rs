@@ -342,3 +342,106 @@ fn the_server_charges_every_buffer_at_start_and_refuses_a_pool_one_byte_short() 
         Err(StartError::Config(_))
     ));
 }
+
+fn prefixed() -> Router {
+    router()
+        .prefix("/_plugins/_ml", ok)
+        .and_then(|r| r.prefix("/_ltr", ok))
+        .expect("prefixes")
+}
+
+#[test]
+fn a_prefix_route_takes_every_method_path_and_parameter_under_it() {
+    let server = start(small(), prefixed());
+    let mut c = Client::connect(server.local_addr());
+    for path in [
+        "/_plugins/_ml",
+        "/_plugins/_ml/",
+        "/_plugins/_ml/models/_search?anything=1",
+        "/_ltr/_featureset/a",
+    ] {
+        let r = c.request(&get(path));
+        assert_eq!(r.status, 200, "{path}");
+        assert_eq!(r.json()["raw"], path.split('?').next().unwrap());
+    }
+    let r = c.request(&post("/_plugins/_ml/models", "application/json", b"{}"));
+    assert_eq!((r.status, r.json()["method"].clone()), (200, json!("POST")));
+    let r = c.request(b"DELETE /_plugins/_ml/models/1 HTTP/1.1\r\nhost: t\r\n\r\n");
+    assert_eq!(
+        (r.status, r.json()["method"].clone()),
+        (200, json!("DELETE"))
+    );
+    server.shutdown();
+}
+
+#[test]
+fn a_prefix_matches_whole_segments_only() {
+    let server = start(small(), prefixed());
+    let mut c = Client::connect(server.local_addr());
+    for path in [
+        "/_plugins/_mlx",
+        "/_plugins/other/x",
+        "/_ltrx/a",
+        "/_plugins/_ml_",
+    ] {
+        let r = c.request(&get(path));
+        assert_eq!(r.status, 400, "{path}");
+    }
+    server.shutdown();
+}
+
+#[test]
+fn an_ordinary_route_beats_a_prefix_and_keeps_its_own_405() {
+    let router = router()
+        .route(Method::Get, "/_plugins/_ml/native", &["x"], ok)
+        .and_then(|r| r.prefix("/_plugins/_ml", ok))
+        .expect("routes");
+    let server = start(small(), router);
+    let mut c = Client::connect(server.local_addr());
+    // The ordinary route answers, and refuses a parameter it does not take.
+    let r = c.request(&get("/_plugins/_ml/native?x=1"));
+    assert_eq!(r.json()["raw"], "/_plugins/_ml/native");
+    let r = c.request(&get("/_plugins/_ml/native?nope=1"));
+    assert_eq!(r.status, 400);
+    // Another method on the ordinary route's path falls to the prefix.
+    let r = c.request(&post("/_plugins/_ml/native", "application/json", b"{}"));
+    assert_eq!((r.status, r.json()["method"].clone()), (200, json!("POST")));
+    server.shutdown();
+}
+
+#[test]
+fn a_prefix_may_not_be_empty_a_pattern_or_registered_twice() {
+    assert!(Router::new().prefix("/", ok).is_err());
+    assert!(Router::new().prefix("/{a}", ok).is_err());
+    assert!(
+        Router::new()
+            .prefix("/a", ok)
+            .and_then(|r| r.prefix("/a", ok))
+            .is_err()
+    );
+}
+
+#[test]
+fn a_request_lists_its_headers_in_order() {
+    fn echo(req: &mut Request<'_>, resp: &mut Response<'_>) -> Result<(), RestError> {
+        let all: Vec<_> = req.headers().map(|(n, v)| json!([n, v])).collect();
+        resp.send(
+            200,
+            JSON,
+            json!({"headers": all, "query": req.raw_query()})
+                .to_string()
+                .as_bytes(),
+        )
+    }
+    let router = Router::new()
+        .route(Method::Get, "/h", &["a"], echo)
+        .expect("route");
+    let server = start(small(), router);
+    let mut c = Client::connect(server.local_addr());
+    let r = c.request(b"GET /h?a=1 HTTP/1.1\r\nhost: t\r\nX-A: 1\r\nx-a: 2\r\n\r\n");
+    assert_eq!(
+        r.json(),
+        json!({"headers": [["host", "t"], ["X-A", "1"], ["x-a", "2"]], "query": "a=1"})
+    );
+    server.shutdown();
+}

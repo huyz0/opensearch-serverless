@@ -54,12 +54,15 @@ pub(crate) struct Route {
     segments: Vec<Segment>,
     params: &'static [&'static str],
     handler: Arc<dyn Handler>,
+    /// A prefix route: any method, any path under its segments, any parameter.
+    prefix: bool,
 }
 
 impl Route {
-    /// The query parameters the route takes, and its path parameters.
+    /// The query parameters the route takes, and its path parameters; a
+    /// prefix route takes every one, its handler being the judge.
     pub(crate) fn accepts(&self, name: &str) -> bool {
-        self.params.contains(&name) || self.path_param_names().any(|p| p == name)
+        self.prefix || self.params.contains(&name) || self.path_param_names().any(|p| p == name)
     }
 
     /// The declared and path parameter names, the "did you mean" candidates.
@@ -108,6 +111,8 @@ pub const MAX_SEGMENTS: usize = 16;
 #[derive(Default)]
 pub struct Router {
     routes: Vec<Route>,
+    /// Prefix routes, tried only when no ordinary route has the path and method.
+    prefixes: Vec<Route>,
 }
 
 /// Where a path and method lead.
@@ -174,6 +179,44 @@ impl Router {
             params,
             // ALLOC: startup only; one handler per route.
             handler: Arc::new(handler),
+            prefix: false,
+        });
+        Ok(self)
+    }
+
+    /// Registers `handler` for every method on `prefix` and every path under
+    /// it, matched on whole segments (`/_plugins/_ml` takes `/_plugins/_ml/x`
+    /// and not `/_plugins/_mlx`). It is tried only when no ordinary route has
+    /// the path and method, so a route registered with [`Router::route`]
+    /// always wins; and it takes any query parameter.
+    pub fn prefix(
+        mut self,
+        prefix: &'static str,
+        handler: impl Handler + 'static,
+    ) -> Result<Self, RouteError> {
+        // ALLOC: startup only; one entry per segment, at most MAX_SEGMENTS.
+        let mut segments = Vec::new();
+        for s in split(prefix) {
+            let s = &prefix[s];
+            if s.contains(['{', '}']) {
+                return Err(RouteError::BadPattern(prefix));
+            }
+            if segments.len() == MAX_SEGMENTS {
+                return Err(RouteError::TooManySegments(prefix));
+            }
+            segments.push(Segment::Literal(s));
+        }
+        if segments.is_empty() || self.prefixes.iter().any(|r| r.pattern == prefix) {
+            return Err(RouteError::BadPattern(prefix));
+        }
+        self.prefixes.push(Route {
+            method: Method::Get,
+            pattern: prefix,
+            segments,
+            params: &[],
+            // ALLOC: startup only; one handler per prefix.
+            handler: Arc::new(handler),
+            prefix: true,
         });
         Ok(self)
     }
@@ -198,6 +241,12 @@ impl Router {
             }
         }
         bound.clear();
+        if best.is_none()
+            && method.is_some()
+            && let Some(route) = self.prefixes.iter().find(|r| under(r, path))
+        {
+            return Resolved::Found(route);
+        }
         match best {
             Some(route) => {
                 for (seg, range) in route.segments.iter().zip(split(path)) {
@@ -224,6 +273,15 @@ fn more_explicit(a: &Route, b: &Route) -> bool {
         }
     }
     false
+}
+
+/// Whether `path` is the prefix route's path or under it, on whole segments.
+fn under(route: &Route, path: &str) -> bool {
+    let mut segs = split(path);
+    route.segments.iter().all(|seg| match (seg, segs.next()) {
+        (Segment::Literal(lit), Some(r)) => path[r] == **lit,
+        _ => false,
+    })
 }
 
 fn matches(route: &Route, path: &str) -> bool {
