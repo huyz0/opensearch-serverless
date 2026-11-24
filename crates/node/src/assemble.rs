@@ -23,7 +23,7 @@ use crate::get_route::{self, GetService};
 use crate::handlers::Registry;
 use crate::health_route::{self, HealthService, HealthSource};
 #[cfg(feature = "coordinator")]
-use crate::index_delete::{self, DeleteService, DrainTimer, NoSnapshots};
+use crate::index_delete::{self, DrainTimer};
 #[cfg(feature = "coordinator")]
 use crate::index_route;
 use crate::pit_route::{self, PitService};
@@ -157,25 +157,6 @@ impl Config {
 type Drain = Option<DrainTimer>;
 #[cfg(not(feature = "coordinator"))]
 type Drain = Option<()>;
-
-#[cfg(feature = "coordinator")]
-fn delete_service(
-    config: &Config,
-    store: &Arc<dyn BlobStore>,
-    clock: &PitClock,
-) -> Result<Arc<DeleteService>, AssembleError> {
-    DeleteService::new(
-        store,
-        &config.base,
-        config.delete_mode,
-        Arc::clone(clock),
-        Arc::new(NoSnapshots),
-        config.pit_buffer_bytes,
-        config.inline_purge_max_shards,
-    )
-    .map(Arc::new)
-    .map_err(|e| AssembleError::Store(e.to_string()))
-}
 
 /// What the writer role is built on.
 pub struct Writer {
@@ -460,7 +441,7 @@ pub fn assemble(
             stripes,
         )?;
         let router = index_route::routes(router, indices).map_err(AssembleError::Route)?;
-        let deletes = delete_service(config, &store, &clock)?;
+        let deletes = crate::index_assemble::delete_service(config, &store, &clock)?;
         let drain = DrainTimer::spawn(Arc::clone(&deletes), config.reclaim_every);
         let router = index_delete::routes(router, deletes).map_err(AssembleError::Route)?;
         let by_query = Arc::new(crate::by_query::ByQueryService::new(
