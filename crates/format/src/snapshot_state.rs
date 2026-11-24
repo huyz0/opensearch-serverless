@@ -187,4 +187,15 @@ mod tests {
         bytes.splice(2..3, count);
         assert!(SnapshotState::parse(&bytes).is_err());
     }
+
+    #[test]
+    fn a_record_at_the_limit_is_read_and_one_past_it_is_refused_with_its_bytes_present() {
+        let at = vec![b' '; MAX_SNAPSHOT_RECORD_BYTES];
+        let bytes = encode("m", &at, true);
+        let read = SnapshotState::parse(&bytes).expect("at the limit reads");
+        assert!(matches!(read, SnapshotState::Held { record, .. } if record.len() == at.len()));
+        let past = vec![b' '; MAX_SNAPSHOT_RECORD_BYTES + 1];
+        let err = SnapshotState::parse(&encode("m", &past, true)).unwrap_err();
+        assert!(err.to_string().contains("size limit"), "{err}");
+    }
 }
