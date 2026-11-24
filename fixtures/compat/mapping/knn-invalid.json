@@ -1,0 +1,2055 @@
+{
+  "name": "invalid knn_vector mappings",
+  "description": "Refusals.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-nodim",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-dim0",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-dimneg",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-dimstr",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-dimnull",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-badspace",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-badeng",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-badname",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-noname",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-badparam",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-badm",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-badmstr",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-badef",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-unkparam",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-spaces2",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-bigdim",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-bigdimlucene",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-maxdimlucene",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-bogus",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-mstr",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-mfloat",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-mneg",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-paramsstr",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-spacenull",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-nameupper",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-methodempty",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-methodnull",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-spacel1",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-spacelinf",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-spacecosine",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-spacehamming",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-topbad",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-dimbool",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-dimfrac",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-baddt",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-method_str",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-bad-badmeta",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "create compat-knn-bad-nodim",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-nodim",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Dimension value missing for vector: v"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Dimension value missing for vector: v",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Dimension value missing for vector: v"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-bad-dim0",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-dim0",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 0
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Dimension value must be greater than 0 for vector: v"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Dimension value must be greater than 0 for vector: v",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Dimension value must be greater than 0 for vector: v"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-bad-dimneg",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-dimneg",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": -1
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Dimension value must be greater than 0 for vector: v"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Dimension value must be greater than 0 for vector: v",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Dimension value must be greater than 0 for vector: v"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-bad-dimstr",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-dimstr",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": "abc"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Unable to parse [dimension] from provided value [abc] for vector [v]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Unable to parse [dimension] from provided value [abc] for vector [v]",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Unable to parse [dimension] from provided value [abc] for vector [v]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-bad-dimnull",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-dimnull",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": null
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "[dimension] on mapper [v] of type [knn_vector] must not have a [null] value"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: [dimension] on mapper [v] of type [knn_vector] must not have a [null] value",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "[dimension] on mapper [v] of type [knn_vector] must not have a [null] value"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-bad-badspace",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-badspace",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "space_type": "bogus"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Invalid space_type: bogus"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Invalid space_type: bogus",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "Invalid space_type: bogus"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-bad-badeng",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-badeng",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "bogus"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Invalid engine: bogus"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Invalid engine: bogus",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "Invalid engine: bogus"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-bad-badname",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-badname",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "bogus",
+                  "engine": "lucene"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Invalid method name: bogus"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Invalid method name: bogus",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Invalid method name: bogus"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-bad-noname",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-noname",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "engine": "lucene"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "name needs to be set"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: name needs to be set",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "name needs to be set"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-bad-badparam",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-badparam",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "bogus": 1
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Invalid parameter: bogus"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Invalid parameter: bogus",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "Invalid parameter: bogus"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-bad-badm",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-badm",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "parameters": {
+                    "m": 0
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: parameter validation failed for Integer parameter [m].;"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: parameter validation failed for Integer parameter [m].;",
+            "caused_by": {
+              "type": "validation_exception",
+              "reason": "Validation Failed: 1: parameter validation failed for Integer parameter [m].;"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-bad-badmstr",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-badmstr",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "parameters": {
+                    "m": "x"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: value is not an instance of Integer for Integer parameter [m].;"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: value is not an instance of Integer for Integer parameter [m].;",
+            "caused_by": {
+              "type": "validation_exception",
+              "reason": "Validation Failed: 1: value is not an instance of Integer for Integer parameter [m].;"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-bad-badef",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-badef",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "parameters": {
+                    "ef_construction": 0
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: parameter validation failed for Integer parameter [ef_construction].;"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: parameter validation failed for Integer parameter [ef_construction].;",
+            "caused_by": {
+              "type": "validation_exception",
+              "reason": "Validation Failed: 1: parameter validation failed for Integer parameter [ef_construction].;"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-bad-unkparam",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-unkparam",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "parameters": {
+                    "bogus": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: Unknown parameter 'bogus' found;"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: Unknown parameter 'bogus' found;",
+            "caused_by": {
+              "type": "validation_exception",
+              "reason": "Validation Failed: 1: Unknown parameter 'bogus' found;"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-bad-spaces2",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-spaces2",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "space_type": "l2",
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "space_type": "cosinesimil"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Cannot specify conflicting space types: \"[cosinesimil]\" \"[l2]\""
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Cannot specify conflicting space types: \"[cosinesimil]\" \"[l2]\"",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "Cannot specify conflicting space types: \"[cosinesimil]\" \"[l2]\""
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-bad-bigdim",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-bigdim",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 20000
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: Dimension value cannot be greater than 16000 for vector with engine: faiss;"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: Dimension value cannot be greater than 16000 for vector with engine: faiss;",
+            "caused_by": {
+              "type": "validation_exception",
+              "reason": "Validation Failed: 1: Dimension value cannot be greater than 16000 for vector with engine: faiss;"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-bad-bigdimlucene",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-bigdimlucene",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 16001,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: Dimension value cannot be greater than 16000 for vector with engine: lucene;"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: Dimension value cannot be greater than 16000 for vector with engine: lucene;",
+            "caused_by": {
+              "type": "validation_exception",
+              "reason": "Validation Failed: 1: Dimension value cannot be greater than 16000 for vector with engine: lucene;"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-bad-maxdimlucene",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-maxdimlucene",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 16000,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knn-bad-maxdimlucene"
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-bad-bogus",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-bogus",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "bogus": 1
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "unknown parameter [bogus] on mapper [v] of type [knn_vector]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: unknown parameter [bogus] on mapper [v] of type [knn_vector]",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "unknown parameter [bogus] on mapper [v] of type [knn_vector]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-bad-mstr",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-mstr",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "parameters": {
+                    "m": "8"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: value is not an instance of Integer for Integer parameter [m].;"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: value is not an instance of Integer for Integer parameter [m].;",
+            "caused_by": {
+              "type": "validation_exception",
+              "reason": "Validation Failed: 1: value is not an instance of Integer for Integer parameter [m].;"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-bad-mfloat",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-mfloat",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "parameters": {
+                    "m": 8.0
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: value is not an instance of Integer for Integer parameter [m].;"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: value is not an instance of Integer for Integer parameter [m].;",
+            "caused_by": {
+              "type": "validation_exception",
+              "reason": "Validation Failed: 1: value is not an instance of Integer for Integer parameter [m].;"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-bad-mneg",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-mneg",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "parameters": {
+                    "m": -1
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: parameter validation failed for Integer parameter [m].;"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: parameter validation failed for Integer parameter [m].;",
+            "caused_by": {
+              "type": "validation_exception",
+              "reason": "Validation Failed: 1: parameter validation failed for Integer parameter [m].;"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-bad-paramsstr",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-paramsstr",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "parameters": "x"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Unable to parse parameters for main method component"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Unable to parse parameters for main method component",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "Unable to parse parameters for main method component"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-bad-spacenull",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-spacenull",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "space_type": null
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Invalid space_type: null"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Invalid space_type: null",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "Invalid space_type: null"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-bad-nameupper",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-nameupper",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "HNSW",
+                  "engine": "lucene"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Invalid method name: HNSW"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Invalid method name: HNSW",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Invalid method name: HNSW"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-bad-methodempty",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-methodempty",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {}
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "name needs to be set"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: name needs to be set",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "name needs to be set"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-bad-methodnull",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-methodnull",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": null
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "[method] on mapper [v] of type [knn_vector] must not have a [null] value"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: [method] on mapper [v] of type [knn_vector] must not have a [null] value",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "[method] on mapper [v] of type [knn_vector] must not have a [null] value"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-bad-spacel1",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-spacel1",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "space_type": "l1"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: \"hnsw\" with \"lucene\" configuration does not support space type: \"l1\".;"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: \"hnsw\" with \"lucene\" configuration does not support space type: \"l1\".;",
+            "caused_by": {
+              "type": "validation_exception",
+              "reason": "Validation Failed: 1: \"hnsw\" with \"lucene\" configuration does not support space type: \"l1\".;"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-bad-spacelinf",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-spacelinf",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "space_type": "linf"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: \"hnsw\" with \"lucene\" configuration does not support space type: \"linf\".;"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Validation Failed: 1: \"hnsw\" with \"lucene\" configuration does not support space type: \"linf\".;",
+            "caused_by": {
+              "type": "validation_exception",
+              "reason": "Validation Failed: 1: \"hnsw\" with \"lucene\" configuration does not support space type: \"linf\".;"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-bad-spacecosine",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-spacecosine",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "space_type": "cosine"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Invalid space_type: cosine"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Invalid space_type: cosine",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "Invalid space_type: cosine"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-bad-spacehamming",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-spacehamming",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "space_type": "hamming"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Space type [hamming] is not supported with [float] data type"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Space type [hamming] is not supported with [float] data type",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Space type [hamming] is not supported with [float] data type"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-bad-topbad",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-topbad",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "space_type": "bogus",
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Unable to find space: bogus . Valid values are: [l2, cosinesimil, l1, linf, innerproduct, hamming]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Unable to find space: bogus . Valid values are: [l2, cosinesimil, l1, linf, innerproduct, hamming]",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Unable to find space: bogus . Valid values are: [l2, cosinesimil, l1, linf, innerproduct, hamming]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-bad-dimbool",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-dimbool",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": true
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Unable to parse [dimension] from provided value [true] for vector [v]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Unable to parse [dimension] from provided value [true] for vector [v]",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Unable to parse [dimension] from provided value [true] for vector [v]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-bad-dimfrac",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-dimfrac",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3.5
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Unable to parse [dimension] from provided value [3.5] for vector [v]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Unable to parse [dimension] from provided value [3.5] for vector [v]",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Unable to parse [dimension] from provided value [3.5] for vector [v]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-bad-baddt",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-baddt",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "data_type": "bogus"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Invalid value provided for [data_type] field. Supported values are [binary,byte,float,half_float]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Invalid value provided for [data_type] field. Supported values are [binary,byte,float,half_float]",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Invalid value provided for [data_type] field. Supported values are [binary,byte,float,half_float]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-bad-method_str",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-method_str",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": "hnsw"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Unable to parse mapping into KNNMethodContext. Object not of type \"Map\""
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Unable to parse mapping into KNNMethodContext. Object not of type \"Map\"",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "Unable to parse mapping into KNNMethodContext. Object not of type \"Map\""
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "create compat-knn-bad-badmeta",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-bad-badmeta",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "meta": {
+                  "a": 1
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "[meta] values can only be strings, but got Integer[1] for field [v]"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: [meta] values can only be strings, but got Integer[1] for field [v]",
+            "caused_by": {
+              "type": "mapper_parsing_exception",
+              "reason": "[meta] values can only be strings, but got Integer[1] for field [v]"
+            }
+          },
+          "status": 400
+        }
+      }
+    }
+  ]
+}

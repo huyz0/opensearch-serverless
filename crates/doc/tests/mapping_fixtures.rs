@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 
 use oss_doc::document;
 use oss_doc::mapping::json::{self, Json};
-use oss_doc::mapping::{Mapping, MappingError};
+use oss_doc::mapping::{Mapping, MappingError, ParseOptions};
 
 fn fixtures() -> Vec<PathBuf> {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/compat/mapping");
@@ -106,6 +106,8 @@ fn mapping_steps_replay() {
         let fixture = json::parse(&raw).unwrap();
         let file = path.file_name().unwrap().to_string_lossy().into_owned();
         let mut indices: BTreeMap<String, Mapping> = BTreeMap::new();
+        // Each index's `index.knn`, which the k-NN plugin's parser reads.
+        let mut knn: BTreeMap<String, bool> = BTreeMap::new();
         let Some(Json::Arr(steps)) = fixture.get("steps") else {
             panic!("{file}: steps")
         };
@@ -128,10 +130,17 @@ fn mapping_steps_replay() {
             match (step.method, parts.as_slice()) {
                 ("PUT", [index]) => {
                     let mappings = step.body.and_then(|b| b.get("mappings"));
+                    let flag = step
+                        .body
+                        .and_then(|b| b.get("settings"))
+                        .and_then(|s| s.get("index.knn"))
+                        .is_some_and(|k| matches!(k, Json::Bool(true)));
+                    let options = ParseOptions { knn: Some(flag) };
                     let got = match mappings {
                         None => Ok(Mapping::default()),
-                        Some(m) => Mapping::parse(m.to_json().as_bytes()),
+                        Some(m) => Mapping::parse_with(m.to_json().as_bytes(), options),
                     };
+                    knn.insert(index.to_string(), flag);
                     expect_outcome(&step, got.as_ref().map(|_| ()).map_err(Clone::clone));
                     if let Ok(m) = got {
                         indices.insert(index.to_string(), m);
@@ -139,7 +148,10 @@ fn mapping_steps_replay() {
                 }
                 ("PUT", [index, "_mapping"]) => {
                     let current = indices.get(*index).expect("index exists").clone();
-                    let got = Mapping::parse(step.body.unwrap().to_json().as_bytes())
+                    let options = ParseOptions {
+                        knn: Some(knn.get(*index).copied().unwrap_or(false)),
+                    };
+                    let got = Mapping::parse_with(step.body.unwrap().to_json().as_bytes(), options)
                         .and_then(|u| current.merge(&u));
                     expect_outcome(&step, got.as_ref().map(|_| ()).map_err(Clone::clone));
                     if let Ok(m) = got {
@@ -160,8 +172,11 @@ fn mapping_steps_replay() {
                         .unwrap();
                     assert_eq!(m.to_json(), recorded.to_json(), "{file} / {}", step.name);
                     // What it wrote reads back to the same mapping.
+                    let options = ParseOptions {
+                        knn: Some(knn.get(*index).copied().unwrap_or(false)),
+                    };
                     assert_eq!(
-                        &Mapping::parse(m.to_json().as_bytes()).unwrap(),
+                        &Mapping::parse_with(m.to_json().as_bytes(), options).unwrap(),
                         m,
                         "{file} / {}",
                         step.name

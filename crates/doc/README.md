@@ -3,7 +3,7 @@
 A source and a mapping as the Lucene document OpenSearch indexes for it. Shared by the writer and the reader's tail overlay ([ADR 0019](../../docs/adr/0019-document-indexing-crate-below-reader-and-writer.md)).
 
 ## Owns
-Index mappings (parse, merge, `GET _mapping` form), a document read against a mapping, and the Lucene fields built from it: metadata, postings, norms, doc values, points and stored values.
+Index mappings (parse, merge, the `knn_vector` field the k-NN plugin keeps, `GET _mapping` form), a document read against a mapping, and the Lucene fields built from it: metadata, postings, norms, doc values, points and stored values.
 
 ## Depends on
 `oss-rest` (its JSON tokenizer, for mappings), `chunkjson` (pull tokens, for documents) and lucene-rust's `lucene-index`, `lucene-codecs`, `lucene-analysis` and `lucene-engine` (its source ingest); its tests also use `lucene-search` and `lucene-store`. Never `oss-reader` or `oss-writer`.

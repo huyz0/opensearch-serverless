@@ -41,6 +41,11 @@ impl MappingError {
         Self::new("illegal_argument_exception", reason)
     }
 
+    /// `ValidationException`, which the k-NN plugin throws for a method it checks.
+    pub fn validation(reason: &str) -> Self {
+        Self::new("validation_exception", reason)
+    }
+
     /// `MapperException`, which OpenSearch answers with a 500.
     pub fn mapper(reason: &str) -> Self {
         Self::new("mapper_exception", reason)

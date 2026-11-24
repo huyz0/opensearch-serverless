@@ -1,0 +1,375 @@
+{
+  "name": "knn_vector merges",
+  "description": "PUT mapping.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-merge",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "create compat-knn-merge",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-merge",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "space_type": "l2"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knn-merge"
+        }
+      }
+    },
+    {
+      "name": "get mapping compat-knn-merge",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knn-merge/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knn-merge": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "lucene",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "same",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-merge/_mapping",
+        "body": {
+          "properties": {
+            "v": {
+              "type": "knn_vector",
+              "dimension": 3,
+              "method": {
+                "name": "hnsw",
+                "engine": "lucene",
+                "space_type": "l2"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true
+        }
+      }
+    },
+    {
+      "name": "new field",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-merge/_mapping",
+        "body": {
+          "properties": {
+            "w": {
+              "type": "knn_vector",
+              "dimension": 2,
+              "method": {
+                "name": "hnsw",
+                "engine": "lucene"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true
+        }
+      }
+    },
+    {
+      "name": "change dimension",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-merge/_mapping",
+        "body": {
+          "properties": {
+            "v": {
+              "type": "knn_vector",
+              "dimension": 4,
+              "method": {
+                "name": "hnsw",
+                "engine": "lucene",
+                "space_type": "l2"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Mapper for [v] conflicts with existing mapper:\n\tCannot update parameter [dimension] from [3] to [4]"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Mapper for [v] conflicts with existing mapper:\n\tCannot update parameter [dimension] from [3] to [4]"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "change space",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-merge/_mapping",
+        "body": {
+          "properties": {
+            "v": {
+              "type": "knn_vector",
+              "dimension": 3,
+              "method": {
+                "name": "hnsw",
+                "engine": "lucene",
+                "space_type": "cosinesimil"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Mapper for [v] conflicts with existing mapper:\n\tCannot update parameter [method] from [hnsw] to [hnsw]"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Mapper for [v] conflicts with existing mapper:\n\tCannot update parameter [method] from [hnsw] to [hnsw]"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "change m",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-merge/_mapping",
+        "body": {
+          "properties": {
+            "v": {
+              "type": "knn_vector",
+              "dimension": 3,
+              "method": {
+                "name": "hnsw",
+                "engine": "lucene",
+                "space_type": "l2",
+                "parameters": {
+                  "m": 4
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Mapper for [v] conflicts with existing mapper:\n\tCannot update parameter [method] from [hnsw] to [hnsw]"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "Mapper for [v] conflicts with existing mapper:\n\tCannot update parameter [method] from [hnsw] to [hnsw]"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "to keyword",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-merge/_mapping",
+        "body": {
+          "properties": {
+            "v": {
+              "type": "keyword"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "mapper [v] cannot be changed from type [knn_vector] to [keyword]"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "mapper [v] cannot be changed from type [knn_vector] to [keyword]"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "add meta",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-merge/_mapping",
+        "body": {
+          "properties": {
+            "v": {
+              "type": "knn_vector",
+              "dimension": 3,
+              "method": {
+                "name": "hnsw",
+                "engine": "lucene",
+                "space_type": "l2"
+              },
+              "meta": {
+                "a": "b"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true
+        }
+      }
+    },
+    {
+      "name": "get mapping compat-knn-merge",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knn-merge/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knn-merge": {
+            "mappings": {
+              "properties": {
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "meta": {
+                    "a": "b"
+                  },
+                  "method": {
+                    "engine": "lucene",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {}
+                  }
+                },
+                "w": {
+                  "type": "knn_vector",
+                  "dimension": 2,
+                  "method": {
+                    "engine": "lucene",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
