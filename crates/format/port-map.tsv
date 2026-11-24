@@ -46,3 +46,4 @@ src/snapshot_restore.rs	port	serverless/shell/src/main/java/org/opensearch/serve
 src/snapshot_state.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/repository/SnapshotStore.java@bf347adb	decode, the register value of a snapshot name
 src/snapshot_keys.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/repository/SnapshotPaths.java@bf347adb	repository, snapshot state and marker keys
 src/snapshot_write.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/repository/SnapshotRecord.java@bf347adb	toBytes, and SnapshotStore.encode for the register value
+src/restore_mark.rs	new		the setting a restore holds on an index while it copies; the shell has no such mark and leaves a half-restored index unmarked

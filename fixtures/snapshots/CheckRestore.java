@@ -31,6 +31,12 @@ public class CheckRestore {
             require(location.referencedBlob().contains("t=1"), file + " lies in the first-term container");
             require(commit.lengthOf(file) != null && commit.lengthOf(file) == 7L, file + " has its length");
         }
+        // An index a Rust restore has not finished carries the mark in its settings; a Java node reads the descriptor.
+        final IndexDescriptor half = IndexDescriptor.fromStream(new ByteArrayInputStream(Files.readAllBytes(dir.resolve("descriptor-marked.bin"))));
+        require(half.name().equals("half") && half.numberOfShards() == 2, "a marked descriptor reads: " + half.name());
+        require(half.extraSettings().get("index.restore.in_progress") != null, "the mark is in the settings a Java node reads");
+        require(half.routingMetadata().getNumberOfShards() == 2, "a Java node builds routing metadata from it");
+        require(half.toIndexMetadata(new java.util.HashMap<>()).getSettings().get("index.restore.in_progress") != null, "a Java node builds index metadata from it, mark and all");
         System.out.println("PASS");
     }
 }

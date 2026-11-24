@@ -286,6 +286,9 @@ pub(crate) fn meta_of(descriptor: &IndexDescriptor<'_>) -> Result<IndexMeta, Rea
         }
         None => (Mapping::default(), Arc::<str>::from("")),
     };
+    if descriptor.settings.is_some_and(oss_format::is_restoring) {
+        return Err(ReaderError::Restoring);
+    }
     let settings = match descriptor.settings {
         Some(bytes) => oss_format::ClusterSettings::parse(bytes)?,
         None => oss_format::ClusterSettings::default(),

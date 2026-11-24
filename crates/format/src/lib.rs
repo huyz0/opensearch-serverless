@@ -60,6 +60,7 @@ mod point_in_time;
 mod reclaim_intent;
 mod register;
 mod repository_record;
+mod restore_mark;
 mod segment_blob;
 mod shard_head;
 mod snapshot_keys;
@@ -118,6 +119,7 @@ pub use reclaim_intent::{
 };
 pub use register::{GENERATION_BYTES, Register};
 pub use repository_record::{MAX_REPOSITORY_RECORD_BYTES, NATIVE_TYPE, RepositoryRecord};
+pub use restore_mark::{RESTORING_KEY, RESTORING_WHY, is_restoring, mark_restoring};
 pub use segment_blob::{
     SegmentBlobHeader, SegmentFile, blob_order as segment_blob_order,
     encode_header as encode_segment_header,

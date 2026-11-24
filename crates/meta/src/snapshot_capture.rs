@@ -78,6 +78,9 @@ impl SnapshotTaker {
     ) -> Result<DescribedIndex, CaptureError> {
         match descriptors.resolve(index, buf)?.target {
             Target::Index(record) => {
+                if oss_format::is_restoring(record.settings) {
+                    return Err(CaptureError::Restoring);
+                }
                 let units = if record.bucket.is_some() {
                     // ALLOC: the one shard, once a take.
                     vec![0]
