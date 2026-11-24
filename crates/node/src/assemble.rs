@@ -168,6 +168,8 @@ pub struct Writer {
     /// Confirms an open shard's index is still the incarnation it was
     /// opened for, at most once a window.
     pub incarnation: Option<(Arc<dyn Incarnation>, Duration)>,
+    /// Bucket members' heads and commits; none when buckets are off.
+    pub buckets: Option<Arc<crate::writer::BucketWiring>>,
 }
 
 /// Why a node was not assembled.
@@ -344,7 +346,7 @@ pub fn assemble(
         &config.node_id,
         budget,
     ));
-    let publishing = Publishing::new(
+    let mut publishing = Publishing::new(
         Arc::clone(&store),
         &config.base,
         &config.node_id,
@@ -355,6 +357,9 @@ pub fn assemble(
         ),
         Box::new(now_millis),
     );
+    if let Some(buckets) = writer.buckets {
+        publishing = publishing.with_buckets(buckets);
+    }
     // ALLOC: startup only.
     let mut role = WriterRole::new(writer.committer, writer.routes)
         .with_publishing(publishing)

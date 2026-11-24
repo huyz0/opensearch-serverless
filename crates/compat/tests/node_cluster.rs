@@ -121,6 +121,7 @@ fn writer(store: &Arc<Emulator>) -> Writer {
             Arc::new(DescriptorIncarnation::new(Arc::clone(&descriptors))),
             Duration::from_secs(600),
         )),
+        buckets: None,
         opener: Some(Arc::new(HeadOpener::new(
             heads,
             descriptors,
