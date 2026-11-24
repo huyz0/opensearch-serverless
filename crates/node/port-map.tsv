@@ -144,3 +144,4 @@ src/lifecycle/tests.rs	new		unit tests of the readiness and the lease roles it a
 src/page_cache_disk.rs	new		the node builds its page cache, with a disk tier when configured; the shell's block cache is its own
 src/boot/config/page_cache.rs	new		the OSS_PAGE_CACHE_* settings of the disk tier
 src/boot/config/apply.rs	new		what the OSS_* variables set on the assembled node, and the drain settle
+src/snapshot_restore_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/snapshot/SnapshotOperations.java@bf347adb	restore: the order of a restore and its cleanup

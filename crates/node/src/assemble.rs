@@ -80,6 +80,9 @@ pub struct Config {
     pub snapshots: bool,
     /// Whether a snapshot can be taken: `serverless.snapshots.take.enabled`, beside `snapshots`.
     pub snapshots_take: bool,
+    /// Whether a shallow snapshot can be restored:
+    /// `serverless.snapshots.restore.enabled`, beside `snapshots` and `snapshots_take`.
+    pub snapshots_restore: bool,
     /// `serverless.plugins.upstreams`: Java nodes serving unported plugins; none proxies nothing.
     pub plugin_upstreams: Vec<String>,
     /// `serverless.plugins.max_request_bytes`: the most a proxied body may be.
@@ -150,6 +153,7 @@ impl Config {
             knn: false,
             snapshots: false,
             snapshots_take: false,
+            snapshots_restore: false,
             plugin_upstreams: Vec::new(),
             plugin_max_request_bytes: 10 << 20,
             plugin_timeout: Duration::from_secs(30),
@@ -443,6 +447,8 @@ pub fn assemble(
         )?;
         let router = index_route::routes(router, indices).map_err(AssembleError::Route)?;
         let deletes = crate::index_assemble::delete_service(config, &store, &clock)?;
+        let router =
+            crate::index_assemble::restore_routes(router, config, &store, &clock, &deletes)?;
         let drain = DrainTimer::spawn(Arc::clone(&deletes), config.reclaim_every);
         let router = index_delete::routes(router, deletes).map_err(AssembleError::Route)?;
         let by_query = Arc::new(crate::by_query::ByQueryService::new(

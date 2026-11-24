@@ -61,6 +61,7 @@ mod security_limits;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod security_route;
 mod snapshot_delete;
+mod snapshot_restore;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod snapshot_route;
 mod snapshot_take;

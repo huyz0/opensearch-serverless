@@ -1,0 +1,265 @@
+//! `POST /_snapshot/{repo}/{name}/_restore`: restores indices of a shallow
+//! snapshot by copying their files into new indices.
+//!
+//! Ported from `serverless/shell/src/main/java/org/opensearch/serverless/snapshot/SnapshotOperations.java`
+//! (`restore`) and `SnapshotHandler`'s restore branch (ADR 0045). The
+//! request and the answers are `oss_coordinator::snapshot_restore_admin`'s,
+//! the steps against the store `oss_meta::SnapshotRestorer`'s; this is the
+//! order they run in, and the cleanup when one fails.
+
+use std::sync::Arc;
+
+use oss_blob::BlobStore;
+use oss_coordinator::snapshot_admin::snapshot_missing;
+use oss_coordinator::snapshot_restore_admin::{
+    Target, in_progress, plan, render_restored, request, restore_conflict, restore_disabled,
+    target_exists, unsupported_content,
+};
+use oss_coordinator::snapshot_take_admin::{ACCEPTED, check_shards};
+use oss_format::{MAX_REPOSITORY_RECORD_BYTES, MAX_SNAPSHOT_RECORD_BYTES, RestoreIndex};
+use oss_meta::{
+    CopyBuffers, DescriptorStore, MetaError, PitClock, RestoreError, RestoreRead,
+    SnapshotReadError, SnapshotReader, SnapshotRestorer, new_id, validate_index_or_alias,
+};
+use oss_rest::{JSON, Method, Request, Response, RestError, RouteError, Router};
+
+use crate::index_delete::DeleteService;
+use crate::route_util::{flag, read_body, refuse, refused};
+
+/// The bytes one ranged read and one write of a restored file hold each.
+pub const COPY_CHUNK_BYTES: usize = 4 << 20;
+
+/// What a restore accepts besides the shell's hints.
+const PARAMS: &[&str] = &[
+    "master_timeout",
+    "cluster_manager_timeout",
+    "wait_for_completion",
+];
+
+/// What a restore reads and writes, under one base.
+pub struct SnapshotRestoreService {
+    enabled: bool,
+    reader: SnapshotReader,
+    restorer: SnapshotRestorer,
+    descriptors: DescriptorStore,
+    deletes: Arc<DeleteService>,
+    clock: PitClock,
+    chunk_bytes: usize,
+}
+
+fn unavailable(e: &dyn std::fmt::Display) -> RestError {
+    // ALLOC: error path; the failure's words.
+    refuse(503, "metadata_unavailable", e.to_string())
+}
+
+fn restore_failed(e: RestoreError, index: &str) -> RestError {
+    match e {
+        RestoreError::Unsupported(why) => refused(unsupported_content(index, why)),
+        RestoreError::Conflict { shard } => refused(restore_conflict(index, shard)),
+        RestoreError::Meta(MetaError::AlreadyExists) => refused(target_exists(index)),
+        RestoreError::Meta(MetaError::Blob(ref b)) | RestoreError::Blob(ref b) => unavailable(b),
+        // ALLOC: error path; the failure's words.
+        other => refuse(500, "restore_failure", other.to_string()),
+    }
+}
+
+impl SnapshotRestoreService {
+    /// A service over `store` under `base`. With `enabled` false every
+    /// request is answered 501 before any request to the store. `deletes`
+    /// undoes a restore that fails; each file moves through two buffers of
+    /// `chunk_bytes`.
+    pub fn new(
+        store: Arc<dyn BlobStore>,
+        base: &str,
+        descriptors: DescriptorStore,
+        deletes: Arc<DeleteService>,
+        clock: PitClock,
+        enabled: bool,
+        chunk_bytes: usize,
+    ) -> Self {
+        Self {
+            enabled,
+            reader: SnapshotReader::new(Arc::clone(&store), base),
+            restorer: SnapshotRestorer::new(store, base),
+            descriptors,
+            deletes,
+            clock,
+            chunk_bytes,
+        }
+    }
+
+    /// The route's handler.
+    pub(crate) fn restore(
+        &self,
+        req: &mut Request<'_>,
+        resp: &mut Response<'_>,
+    ) -> Result<(), RestError> {
+        if !self.enabled {
+            return Err(refused(restore_disabled()));
+        }
+        let repo = req.path_param("repo").map(|r| r.into_owned());
+        let name = req.path_param("name").map(|n| n.into_owned());
+        let (Some(repo), Some(name)) = (repo, name) else {
+            return Err(RestError::illegal_argument(
+                "a repository and name are required",
+            ));
+        };
+        let wait = flag(req, "wait_for_completion", false);
+        let body = read_body(
+            req,
+            MAX_REPOSITORY_RECORD_BYTES,
+            "a snapshot request is larger than 1 MiB",
+        )?;
+        let asked = request(&repo, &name, Some(&body)).map_err(refused)?;
+        req.body().reserve(MAX_SNAPSHOT_RECORD_BYTES)?;
+        // ALLOC: one buffer a request, MAX_SNAPSHOT_RECORD_BYTES, reserved above.
+        let mut value = vec![0u8; MAX_SNAPSHOT_RECORD_BYTES];
+        let (record, summary) = match self
+            .reader
+            .for_restore(&repo, &name, &mut value)
+            .map_err(|e| read_failed(&e))?
+        {
+            RestoreRead::Missing => return Err(refused(snapshot_missing(&repo, &name))),
+            RestoreRead::Legacy => {
+                return Err(refuse(
+                    501,
+                    "unsupported_operation",
+                    // ALLOC: error path; one message.
+                    format!(
+                        "[{repo}/{name}] is a legacy snapshot, which this node does not restore"
+                    ),
+                ));
+            }
+            RestoreRead::Held { record, summary } => (record, summary),
+        };
+        if !summary.shallow {
+            return Err(refuse(
+                501,
+                "unsupported_operation",
+                // ALLOC: error path; one message.
+                format!("[{repo}/{name}] copied its data, which this node does not restore"),
+            ));
+        }
+        if summary.in_progress() {
+            return Err(refused(in_progress(&repo, &name)));
+        }
+        // ALLOC: one name an index, at most the take's bound.
+        let captured: Vec<String> = summary.indices.iter().map(|i| i.name.clone()).collect();
+        let targets = plan(&asked, &captured).map_err(refused)?;
+        let sources = self.check(record, &targets)?;
+        let shards = sources
+            .iter()
+            .fold(0usize, |n, s| n.saturating_add(s.shards.len()));
+        check_shards(shards).map_err(refused)?;
+        let copy = self.chunk_bytes;
+        req.body().reserve(
+            copy.saturating_mul(2)
+                .saturating_add(self.deletes.remove_bytes()),
+        )?;
+        // ALLOC: two buffers a request, `chunk_bytes` each, reserved above.
+        let (mut read, mut write) = (vec![0u8; copy], vec![0u8; copy]);
+        // ALLOC: one buffer a request, as large as the record and its settings.
+        let mut descriptor = vec![0u8; record.len().saturating_add(4096)];
+        let now = i64::try_from((self.clock)()).unwrap_or(i64::MAX);
+        // Every index created so far, so a failure removes what it made.
+        // ALLOC: one entry an index, at most the take's bound.
+        let mut created: Vec<(String, String)> = Vec::new();
+        let mut run = |created: &mut Vec<(String, String)>| -> Result<(), RestError> {
+            for (target, source) in targets.iter().zip(&sources) {
+                let uuid = new_id().map_err(|e| unavailable(&e))?;
+                // Recorded first: a failure inside the create is cleaned too.
+                created.push((target.target.clone(), uuid.clone()));
+                self.restorer
+                    .restore_index(
+                        &self.descriptors,
+                        source,
+                        &target.target,
+                        &uuid,
+                        now,
+                        &mut descriptor,
+                        &mut CopyBuffers {
+                            read: &mut read,
+                            write: &mut write,
+                        },
+                    )
+                    .map_err(|e| restore_failed(e, &target.target))?;
+            }
+            Ok(())
+        };
+        if let Err(failure) = run(&mut created) {
+            // The failure being reported is the first.
+            for (index, uuid) in &created {
+                let _ = self.deletes.remove(index, uuid);
+            }
+            return Err(failure);
+        }
+        if !wait {
+            return resp.send(200, JSON, ACCEPTED.as_bytes());
+        }
+        resp.send(
+            200,
+            JSON,
+            render_restored(&name, &targets, shards).as_bytes(),
+        )
+    }
+
+    /// Reads every source's entry and refuses what cannot be restored, and
+    /// every target that names an index or alias already, before anything
+    /// is written.
+    fn check(&self, record: &[u8], targets: &[Target]) -> Result<Vec<RestoreIndex>, RestError> {
+        // ALLOC: one entry an index, at most the take's bound.
+        let mut sources = Vec::with_capacity(targets.len());
+        // ALLOC: one buffer a request, the descriptor's size.
+        let mut buf = vec![0u8; 1 << 16];
+        for target in targets {
+            let found = RestoreIndex::find(record, &target.source)
+                .map_err(|e| refuse(500, "snapshot_unreadable", e.to_string()))?;
+            let Some(source) = found else {
+                return Err(refused(
+                    oss_coordinator::snapshot_restore_admin::index_not_captured(&target.source),
+                ));
+            };
+            let refusal = source
+                .refusal()
+                .map_err(|e| refuse(500, "snapshot_unreadable", e.to_string()))?;
+            if let Some(why) = refusal {
+                return Err(refused(unsupported_content(&target.source, why)));
+            }
+            validate_index_or_alias(&target.target).map_err(|e| {
+                // ALLOC: error path; the rule's words.
+                refuse(400, "invalid_index_name_exception", e.to_string())
+            })?;
+            match self.descriptors.get(&target.target, &mut buf) {
+                Ok(None) => {}
+                Ok(Some(_)) => return Err(refused(target_exists(&target.target))),
+                Err(MetaError::Blob(ref b)) => return Err(unavailable(b)),
+                // ALLOC: error path; the failure's words.
+                Err(other) => return Err(refuse(500, "restore_failure", other.to_string())),
+            }
+            sources.push(source);
+        }
+        Ok(sources)
+    }
+}
+
+fn read_failed(e: &SnapshotReadError) -> RestError {
+    match e {
+        SnapshotReadError::Blob(_) => unavailable(e),
+        // ALLOC: error path; the failure's words.
+        _ => refuse(500, "snapshot_unreadable", e.to_string()),
+    }
+}
+
+/// The restore route added to `router`.
+///
+/// # Errors
+///
+/// A route registered twice.
+pub fn routes(router: Router, service: Arc<SnapshotRestoreService>) -> Result<Router, RouteError> {
+    router.route(
+        Method::Post,
+        "/_snapshot/{repo}/{name}/_restore",
+        PARAMS,
+        move |req: &mut Request<'_>, resp: &mut Response<'_>| service.restore(req, resp),
+    )
+}

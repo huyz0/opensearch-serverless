@@ -81,3 +81,65 @@ fn a_take_failure_says_what_went_wrong() {
         assert!(error.to_string().contains(says), "{error}");
     }
 }
+
+#[test]
+fn a_restore_read_tells_held_released_legacy_and_missing_apart() {
+    use oss_blob::SliceSource;
+    use oss_format::{snapshot_legacy_key, snapshot_state_key};
+    use oss_meta::{RestoreRead, SnapshotReader};
+    let store: Arc<dyn BlobStore> = plain();
+    let t = SnapshotTaker::new(Arc::clone(&store), BASE);
+    let reader = SnapshotReader::new(Arc::clone(&store), BASE);
+    let mut b = buf();
+    assert!(matches!(
+        reader.for_restore("backups", "daily", &mut b).unwrap(),
+        RestoreRead::Missing
+    ));
+    take(&t, "daily", "genAAAAAAAAAAAAAAAAAAA").unwrap();
+    match reader.for_restore("backups", "daily", &mut b).unwrap() {
+        RestoreRead::Held { record, summary } => {
+            assert_eq!(
+                (summary.name.as_str(), summary.repo.as_str()),
+                ("daily", "backups")
+            );
+            assert!(!record.is_empty());
+        }
+        other => panic!("{other:?}"),
+    }
+    assert!(t.remove("backups", "daily", &mut buf()).unwrap());
+    assert!(matches!(
+        reader.for_restore("backups", "daily", &mut b).unwrap(),
+        RestoreRead::Missing
+    ));
+    // A register that holds another name's record is not this name's.
+    let mut value = buf();
+    take(&t, "other", "genCCCCCCCCCCCCCCCCCCC").unwrap();
+    let n = store
+        .read_register(
+            &snapshot_state_key(BASE, "backups", "other").unwrap(),
+            &mut value,
+        )
+        .unwrap()
+        .unwrap()
+        .len;
+    for (repo, name) in [("backups", "alias"), ("elsewhere", "other")] {
+        store
+            .create_register(&snapshot_state_key(BASE, repo, name).unwrap(), &value[..n])
+            .unwrap();
+        assert!(
+            matches!(
+                reader.for_restore(repo, name, &mut b),
+                Err(oss_meta::SnapshotReadError::KeyMismatch)
+            ),
+            "{repo}/{name}"
+        );
+    }
+    let legacy = snapshot_legacy_key(BASE, "backups", "old").unwrap();
+    store
+        .put(&legacy, &mut SliceSource::new(b"{}"), &mut [0u8; 64])
+        .unwrap();
+    assert!(matches!(
+        reader.for_restore("backups", "old", &mut b).unwrap(),
+        RestoreRead::Legacy
+    ));
+}

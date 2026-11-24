@@ -8,9 +8,8 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use oss_mem::{BudgetConfig, ConfigError as BudgetError, Pool};
-
 use oss_janitor::settings::{ORPHAN_SLICE_BUDGET, ORPHAN_SLICE_INTERVAL_MILLIS};
+use oss_mem::{BudgetConfig, ConfigError as BudgetError, Pool};
 
 use crate::tail_overlay::REFRESH_VISIBILITY;
 
@@ -109,6 +108,8 @@ pub struct NodeConfig {
     pub snapshots_enabled: bool,
     /// `serverless.snapshots.take.enabled`: take shallow snapshots, beside the snapshot routes. Off by default.
     pub snapshots_take_enabled: bool,
+    /// `serverless.snapshots.restore.enabled`: restore shallow snapshots, beside the take. Off by default.
+    pub snapshots_restore_enabled: bool,
     /// `serverless.plugins.upstreams`: `http(s)` bases of Java nodes that serve the plugins not ported; none by default.
     pub plugin_upstreams: Vec<String>,
     /// `serverless.plugins.max_request_bytes`.
@@ -297,6 +298,7 @@ impl NodeConfig {
         let buckets_enabled = flag("OSS_BUCKETS_ENABLED", "false")?;
         let snapshots_enabled = flag("OSS_SNAPSHOTS_ENABLED", "false")?;
         let snapshots_take_enabled = flag("OSS_SNAPSHOTS_TAKE_ENABLED", "false")?;
+        let snapshots_restore_enabled = flag("OSS_SNAPSHOTS_RESTORE_ENABLED", "false")?;
         let plugin_upstreams = or("OSS_PLUGIN_UPSTREAMS", "")
             .split(',')
             .map(str::trim)
@@ -422,6 +424,7 @@ impl NodeConfig {
             buckets_enabled,
             snapshots_enabled,
             snapshots_take_enabled,
+            snapshots_restore_enabled,
             plugin_upstreams,
             plugin_max_request_bytes,
             plugin_timeout_millis,

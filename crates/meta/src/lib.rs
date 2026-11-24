@@ -92,5 +92,7 @@ pub use routing::{
 pub use snapshot_capture::DescribedIndex;
 pub use snapshot_restore::{CopyBuffers, RestoreError, SnapshotRestorer};
 pub use snapshot_take::{Reservation, SnapshotTaker, TakeError};
-pub use snapshots::{MAX_REPOSITORIES, SnapshotRead, SnapshotReadError, SnapshotReader};
+pub use snapshots::{
+    MAX_REPOSITORIES, RestoreRead, SnapshotRead, SnapshotReadError, SnapshotReader,
+};
 pub use sweep::{MARKERS_PREFIX, Sweep, Swept};

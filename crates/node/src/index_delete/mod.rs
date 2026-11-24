@@ -147,6 +147,30 @@ impl DeleteService {
         }
     }
 
+    /// What [`DeleteService::remove`] holds while it runs, for a caller to
+    /// reserve before it may need one.
+    #[must_use]
+    pub fn remove_bytes(&self) -> usize {
+        self.buffer_bytes.saturating_mul(BUFFERS)
+    }
+
+    /// Deletes `index` only while it is still the incarnation `uuid`: what a
+    /// restore that failed undoes of what it created, without touching an
+    /// index another request created under the name since. The caller
+    /// reserves [`DeleteService::remove_bytes`].
+    ///
+    /// # Errors
+    ///
+    /// [`MetaError`] from any step of the delete.
+    pub fn remove(&self, index: &str, uuid: &str) -> Result<bool, MetaError> {
+        let now = || self.now();
+        let pause = |d: Duration| std::thread::sleep(d);
+        Ok(self
+            .lifecycle(&now, &pause)
+            .delete_index(index, Some(uuid), self.now())?
+            .is_some())
+    }
+
     fn exists(&self, index: &str) -> bool {
         // ALLOC: one buffer, only on a delete that found nothing to delete.
         let mut buf = vec![0u8; self.buffer_bytes];

@@ -66,3 +66,30 @@ pub(crate) fn delete_service(
     .map(Arc::new)
     .map_err(|e| crate::assemble::AssembleError::Store(e.to_string()))
 }
+
+/// The restore route, answering 501 until `serverless.snapshots.restore.enabled`
+/// (with the take's switches) is on.
+pub(crate) fn restore_routes(
+    router: oss_rest::Router,
+    config: &crate::assemble::Config,
+    store: &Arc<dyn BlobStore>,
+    clock: &PitClock,
+    deletes: &Arc<DeleteService>,
+) -> Result<oss_rest::Router, crate::assemble::AssembleError> {
+    if !config.snapshots {
+        return Ok(router);
+    }
+    let descriptors = DescriptorStore::new(Arc::clone(store), &config.base, config.delete_mode)
+        .map_err(|e| crate::assemble::AssembleError::Store(e.to_string()))?;
+    let service = crate::snapshot_restore_route::SnapshotRestoreService::new(
+        Arc::clone(store),
+        &config.base,
+        descriptors,
+        Arc::clone(deletes),
+        Arc::clone(clock),
+        config.snapshots_take && config.snapshots_restore,
+        crate::snapshot_restore_route::COPY_CHUNK_BYTES,
+    );
+    crate::snapshot_restore_route::routes(router, Arc::new(service))
+        .map_err(crate::assemble::AssembleError::Route)
+}
