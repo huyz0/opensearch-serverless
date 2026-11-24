@@ -18,6 +18,11 @@ A test, `crates/node/tests/mixed_fleet.rs`, ignored unless `RUSTFS_BIN`, `OSS_JA
 - AC-5: no acknowledged document is missing and none is found twice at any step; a run that loses one fails and names its id.
 - AC-6: the writes of a hand-over are acknowledged within the lease TTL plus a bound the test states, so a node that cannot take over fails the run rather than waiting forever.
 
+- AC-8: with `OSS_PLUGIN_UPSTREAMS` naming a Java node, a plugin request sent to a Rust node gets the Java node's status and body; the Java node's own endpoint is reached through a counting relay, so the count proves who answered. Without an upstream the Rust node answers 400 and the relay sees nothing.
+- AC-9: `_cluster/health` sent to the same Rust node stays native (the relay count does not move), and a POST to a plugin path is proxied.
+
+Java node discovery is not built: a lease carries only a transport address, so finding a Java node's HTTP address needs a new lease field written by both sides, a format change under the Java freeze. The upstream stays configuration (ADR 0046).
+
 ## S3 request budget
 
 None added: the test only observes. The nodes' own counts are unchanged.
