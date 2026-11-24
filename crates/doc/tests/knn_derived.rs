@@ -97,6 +97,11 @@ fn what_cannot_be_placed_is_refused_as_unsupported() {
     assert_eq!(why(r#"{"v":[1]"#, &["v"]), bad);
     assert_eq!(why(r#"{"k":"a" "v":[1]}"#, &["v"]), bad);
     assert_eq!(why(r#"{"k":"abc}"#, &["v"]), bad);
+    // A value that ends with the source: unclosed array, unclosed string, none.
+    assert_eq!(why(r#"{"v":[1,2"#, &["v"]), bad);
+    assert_eq!(why(r#"{"v":"abc"#, &["v"]), bad);
+    assert_eq!(why(r#"{"v":,"k":1}"#, &["v"]), bad);
+    assert_eq!(why(r#"{"v":}"#, &["v"]), bad);
     assert_eq!(
         why(r#"{"v":[1]} x"#, &["v"]),
         "derived source of a knn_vector: bytes follow the source's object"
@@ -109,5 +114,26 @@ fn an_empty_object_and_empty_nested_object_are_walked() {
     assert_eq!(
         mask(r#"{"o":{},"v":[1]}"#, &["v"]).unwrap(),
         r#"{"o":{},"v":1}"#
+    );
+}
+
+#[test]
+fn white_space_around_a_scalar_value_is_kept() {
+    assert_eq!(
+        mask("{\"v\" : 5 \n, \"k\":1}", &["v"]).unwrap(),
+        "{\"v\" : 1 \n, \"k\":1}"
+    );
+    assert_eq!(mask("{\"v\":5 }", &["v"]).unwrap(), "{\"v\":1 }");
+    assert_eq!(
+        mask("{\"v\":true\t,\"k\":1}", &["v"]).unwrap(),
+        "{\"v\":1\t,\"k\":1}"
+    );
+}
+
+#[test]
+fn a_dotted_key_that_only_shares_text_with_a_vector_path_is_no_concern() {
+    assert_eq!(
+        mask(r#"{"a.b":1,"a":{"bc":[1]}}"#, &["a.bc"]).unwrap(),
+        r#"{"a.b":1,"a":{"bc":1}}"#
     );
 }

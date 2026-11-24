@@ -208,3 +208,22 @@ fn an_index_without_a_vector_field_writes_the_codec_and_source_it_wrote_before()
     let reader = DirectoryReader::open(&dir).expect("open");
     assert!(reader.segment_readers()[0].derived_source().is_none());
 }
+
+// AC-6
+#[test]
+fn a_shard_not_opened_as_derived_keeps_the_vector_in_the_source() {
+    let fixture = fixture("knn-l2");
+    let mapping = Mapping::parse_with(
+        fixture["mappings"].to_string().as_bytes(),
+        ParseOptions { knn: Some(true) },
+    )
+    .expect("mapping");
+    let dir = ByteBuffersDirectory::new();
+    let (writer, _) = open_writer(&dir, &mapping).expect("writer");
+    let mut shard = Shard::new(&dir, writer, mapping, 1, Box::new(|| 0)).expect("shard");
+    shard
+        .index("1", br#"{"v":[1,2,3],"k":"a"}"#, false, &Expect::default())
+        .expect("index");
+    let got = shard.get("1", true).expect("get").expect("found");
+    assert_eq!(got.source, br#"{"v":[1,2,3],"k":"a"}"#);
+}
