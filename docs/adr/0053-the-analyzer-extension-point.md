@@ -104,7 +104,7 @@ Turning the setting back to `false` refuses new pins only; existing pins keep wo
 The pin setting is not registered, and a create with a pin is refused, until slice 4 has landed, so no build indexes a pinned field with a built-in analyzer in between.
 
 1. The point's codec and `Tokens` validation in `oss-ext`, `analyze_block` in `oss-ext-wasm`, hostile and golden vectors, a test module builder for the point.
-2. Pin parsing and create-time validation (coordinator, the setting, the action row, `index.analysis.*` finality), the mapping admitting pinned names, `Tokens` in `oss-doc`.
+2. Pin parsing and create-time validation (`oss_ext::pin`, the create route with a policy the node supplies, the handler's `all_access` check, `index.analysis.analyzer.ext_*` finality, the mapping admitting pinned names to a caller that pins). The `Tokens` trait in `oss-doc`, the resolver and the tree check for the analyzer sites move to slice 4 with the sites they cover (a check that bans the built-in constructors needs every site migrated), and the cluster setting and the shipped-configuration check arrive when the setting is registered, in slice 4.
 3. The write path and replay with recorded limits, the node's `ModuleTokens`, the fail-closed replay event, the open-time load and its budget row.
 4. The reader's query builders, highlight, `_analyze`, `_validate/query`.
 5. The Java refusal fixture, the hostile soak, the replay-equality test, the p99 and per-query measurements, and the compatibility notes. The switch is not flipped here.

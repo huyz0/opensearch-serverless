@@ -6,3 +6,4 @@ src/descriptor.rs	new		the strict parse of a module's descriptor: exact keys, no
 src/error.rs	new		the typed failure of a call and the HTTP status each maps to
 src/json.rs	new		a small strict JSON reader for a descriptor: bounded depth, no duplicate keys, integers apart from other numbers
 src/analyzer.rs	new		the analyzer point's wire form: a block of texts in, tokens out, validated before use
+src/pin.rs	new		an index's analyzer pins read from create settings and written to the descriptor; the keys are the Java's own for a custom analyzer

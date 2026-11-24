@@ -10,6 +10,7 @@ use std::sync::Arc;
 use oss_coordinator::indices::admin::{check_name, create_ack};
 use oss_coordinator::indices::create::parse;
 use oss_coordinator::route::resolve::Refusal;
+use oss_ext::pin::{Pin, ResolvedLimits, parse_pins, render};
 use oss_format::IndexRecord;
 use oss_meta::{DescriptorStore, MetaError, PitClock, Target, new_id};
 use oss_rest::{Exception, JSON, Method, Request, Response, RestError, RouteError, Router};
@@ -17,6 +18,7 @@ use oss_writer::bucket::policy;
 use oss_writer::mapping::{Mapping, ParseOptions};
 
 use crate::index_templates::TemplateSets;
+use crate::pin_policy::{PinPolicy, with_members};
 use crate::route_util::read_body;
 
 /// The most bytes of a create body.
@@ -59,6 +61,7 @@ pub struct IndexService {
     leave: Option<BucketLeave>,
     templates: Option<Arc<TemplateSets>>,
     knn: bool,
+    pins: Option<Arc<dyn PinPolicy>>,
     pipelines: bool,
 }
 
@@ -75,6 +78,7 @@ impl IndexService {
             leave: None,
             templates: None,
             knn: false,
+            pins: None,
             pipelines: false,
         }
     }
@@ -85,6 +89,65 @@ impl IndexService {
     pub fn with_knn(mut self, on: bool) -> Self {
         self.knn = on;
         self
+    }
+
+    /// Lets a create pin analyzer modules under `policy`
+    /// ([ADR 0053](../../../docs/adr/0053-the-analyzer-extension-point.md)).
+    /// Without it every pin is refused.
+    #[must_use]
+    pub fn with_pins(mut self, policy: Arc<dyn PinPolicy>) -> Self {
+        self.pins = Some(policy);
+        self
+    }
+
+    /// The pins a create asks for, checked: refused when this node has no
+    /// policy or the user may not pin, and each module read and probed.
+    fn pinned(
+        &self,
+        req: &Request<'_>,
+        settings: &[(String, Option<String>)],
+    ) -> Result<Vec<(Pin, ResolvedLimits)>, RestError> {
+        // ALLOC: the pin keys of one create, bounded by the body.
+        let own: Vec<(String, Option<String>)> = settings
+            .iter()
+            .filter(|(k, _)| is_pin_key(k))
+            .cloned()
+            .collect();
+        let pins = parse_pins(&own).map_err(|e| {
+            // ALLOC: error path; one message.
+            refuse(400, "illegal_argument_exception", e.to_string())
+        })?;
+        if pins.is_empty() {
+            return Ok(Vec::new());
+        }
+        let Some(policy) = &self.pins else {
+            return Err(refuse(
+                400,
+                "extension_unavailable",
+                "pinned analyzers are not enabled on this node",
+            ));
+        };
+        if !policy.authorised(req.principal()) {
+            return Err(refuse(
+                403,
+                "security_exception",
+                "pinning an analyzer module needs the all_access role",
+            ));
+        }
+        // ALLOC: one entry a pin, at most four.
+        let mut out = Vec::with_capacity(pins.len());
+        for pin in pins {
+            let limits = policy.check(&pin).map_err(|why| {
+                refuse(
+                    400,
+                    "illegal_argument_exception",
+                    // ALLOC: error path; one message.
+                    format!("analyzer [{}]: {why}", pin.name),
+                )
+            })?;
+            out.push((pin, limits));
+        }
+        Ok(out)
     }
 
     /// Accepts `index.default_pipeline` and `index.final_pipeline` at create
@@ -124,8 +187,19 @@ impl IndexService {
             MAX_CREATE_BYTES,
             "the body of a create is larger than 1 MiB",
         )?;
-        let asked = parse(1, Some(&body)).map_err(refusal)?;
-        crate::create_settings::refuse_others(&asked.settings, is_bucket_key)?;
+        let mut asked = parse(1, Some(&body)).map_err(refusal)?;
+        // A setting the node does not read is refused before the policy
+        // is asked anything, so the refusal costs no request.
+        // ALLOC: the non-pin settings of one create, bounded by the body.
+        let own: Vec<_> = asked
+            .settings
+            .iter()
+            .filter(|(k, _)| !is_pin_key(k))
+            .cloned()
+            .collect();
+        crate::create_settings::refuse_others(&own, is_bucket_key)?;
+        let pins = self.pinned(req, &asked.settings)?;
+        asked.settings = own;
         if !asked.aliases.is_empty() {
             return Err(unsupported(
                 "aliases at create are not supported by this node yet: create the index, then add them",
@@ -150,13 +224,27 @@ impl IndexService {
         let read = crate::create_settings::checked(&asked.settings, asked.shards, self.pipelines)?;
         if let Some(text) = asked.mapping.as_deref() {
             // `index.knn` cannot be given at create yet, so the node setting stands for it.
-            Mapping::parse_with(
-                text.as_bytes(),
-                ParseOptions {
-                    knn: self.knn.then_some(true),
-                },
-            )
+            let options = ParseOptions {
+                knn: self.knn.then_some(true),
+            };
+            let parsed = if pins.is_empty() {
+                Mapping::parse_with(text.as_bytes(), options)
+            } else {
+                Mapping::parse_pinned(text.as_bytes(), options)
+            }
             .map_err(|e| refuse(400, "mapper_parsing_exception", e.failed_to_parse().reason))?;
+            if let Some(name) = parsed
+                .ext_analyzer_names()
+                .into_iter()
+                .find(|n| !pins.iter().any(|(p, _)| &p.name == n))
+            {
+                return Err(refuse(
+                    400,
+                    "mapper_parsing_exception",
+                    // ALLOC: error path; one message.
+                    format!("analyzer [{name}] has not been configured in mappings"),
+                ));
+            }
         }
         req.body().reserve(self.buffer_bytes)?;
         // ALLOC: one buffer a create, buffer_bytes, reserved above.
@@ -171,9 +259,12 @@ impl IndexService {
             group: bucket_group.clone(),
             ..cost
         };
+        let rendered = render(&pins);
         let tenancy_settings = (!tenancy.is_empty() || !read.is_empty())
             .then(|| crate::writer::tenancy::tenancy_settings_with(&tenancy, &read));
-        if let Some(settings) = &tenancy_settings {
+        let settings = (!rendered.is_empty())
+            .then(|| with_members(tenancy_settings.as_deref().unwrap_or(b"{}"), &rendered));
+        if let Some(settings) = settings.as_ref().or(tenancy_settings.as_ref()) {
             record.settings = settings;
         }
         if asked.shards == 1
@@ -328,4 +419,10 @@ pub fn routes(router: Router, service: Arc<IndexService>) -> Result<Router, Rout
             &[],
             move |req: &mut Request<'_>, resp: &mut Response<'_>| service.exists(req, resp),
         )
+}
+
+/// Whether `key` sets an extension analyzer pin; other analysis settings
+/// stay for the create to refuse by name.
+fn is_pin_key(key: &str) -> bool {
+    key.starts_with("index.analysis.analyzer.ext_")
 }

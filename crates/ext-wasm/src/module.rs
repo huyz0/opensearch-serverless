@@ -184,6 +184,16 @@ impl Module {
         self.imports
     }
 
+    /// The limits a call of this module runs under: the host's, lowered by
+    /// the descriptor's.
+    pub fn resolved_limits(&self) -> oss_ext::pin::ResolvedLimits {
+        oss_ext::pin::ResolvedLimits {
+            fuel: self.effective.fuel,
+            memory_bytes: self.effective.memory,
+            deadline_ms: self.effective.deadline_ms,
+        }
+    }
+
     /// The module's descriptor.
     pub fn descriptor(&self) -> &Descriptor {
         &self.descriptor

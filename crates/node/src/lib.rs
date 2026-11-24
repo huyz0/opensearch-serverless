@@ -36,6 +36,8 @@ pub(crate) mod create_settings;
 pub mod descriptor_routes;
 #[cfg(feature = "writer")]
 pub mod doc_route;
+#[cfg(all(feature = "extensions", feature = "writer", feature = "coordinator"))]
+pub mod extension_pins;
 #[cfg(all(feature = "extensions", feature = "writer"))]
 pub mod extension_route;
 #[cfg(all(feature = "extensions", feature = "writer"))]
@@ -80,6 +82,8 @@ pub mod open_indexes;
 pub mod overlay_builder;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod page_cache_disk;
+#[cfg(all(feature = "writer", feature = "coordinator"))]
+pub mod pin_policy;
 #[cfg(feature = "writer")]
 pub mod pipeline_route;
 #[cfg(feature = "writer")]
