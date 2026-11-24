@@ -1,0 +1,154 @@
+{
+  "name": "security internalusers",
+  "description": "Internal users: the password is stored hashed and never returned.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/_plugins/_security/api/internalusers/compat-sec-a"
+    },
+    {
+      "method": "DELETE",
+      "path": "/_plugins/_security/api/internalusers/compat-sec-b"
+    }
+  ],
+  "steps": [
+    {
+      "name": "create",
+      "request": {
+        "body": {
+          "attributes": {
+            "k": "v"
+          },
+          "backend_roles": [
+            "b1"
+          ],
+          "password": "Zz9!longEnoughPw1"
+        },
+        "method": "PUT",
+        "path": "/_plugins/_security/api/internalusers/compat-sec-a"
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "CREATED",
+          "message": "'compat-sec-a' created."
+        }
+      }
+    },
+    {
+      "name": "get",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/internalusers/compat-sec-a"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-sec-a": {
+            "attributes": {
+              "k": "v"
+            },
+            "backend_roles": [
+              "b1"
+            ],
+            "hash": "",
+            "hidden": false,
+            "opendistro_security_roles": [],
+            "reserved": false,
+            "static": false
+          }
+        }
+      }
+    },
+    {
+      "name": "no password",
+      "request": {
+        "body": {
+          "backend_roles": [
+            "b1"
+          ]
+        },
+        "method": "PUT",
+        "path": "/_plugins/_security/api/internalusers/compat-sec-b"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "BAD_REQUEST",
+          "message": "Please specify either 'hash' or 'password' when creating a new internal user."
+        }
+      }
+    },
+    {
+      "name": "unknown key",
+      "request": {
+        "body": {
+          "bogus": 1
+        },
+        "method": "PUT",
+        "path": "/_plugins/_security/api/internalusers/compat-sec-b"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "error",
+          "reason": "Invalid configuration",
+          "invalid_keys": {
+            "keys": "bogus"
+          }
+        }
+      }
+    },
+    {
+      "name": "delete",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_security/api/internalusers/compat-sec-a"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "OK",
+          "message": "'compat-sec-a' deleted."
+        }
+      }
+    },
+    {
+      "name": "get absent",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/internalusers/compat-sec-a"
+      },
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "NOT_FOUND",
+          "message": "user 'compat-sec-a' not found."
+        }
+      }
+    }
+  ]
+}

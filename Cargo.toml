@@ -45,6 +45,8 @@ oss-doc = { path = "crates/doc" }
 chunkjson = { path = "crates/chunkjson" }
 # A struct that owns a value and what borrows it, in safe code.
 self_cell = "1"
+# Password hashes of internal users, as the security plugin stores them (bcrypt, `$2b$`).
+bcrypt = { version = "=0.17.1", default-features = false, features = ["std"] }
 oss-reader = { path = "crates/reader" }
 oss-writer = { path = "crates/writer" }
 oss-janitor = { path = "crates/janitor" }

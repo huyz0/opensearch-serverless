@@ -98,6 +98,9 @@ pub struct Request {
     pub query: BTreeMap<String, String>,
     /// The body.
     pub body: Body,
+    /// `user:password` the request is sent as; `None` leaves the target's
+    /// default, and an empty string sends no credentials.
+    pub auth: Option<String>,
 }
 
 impl Request {
@@ -289,7 +292,11 @@ fn parse_step(v: &Value, at: &str) -> Result<Step, FixtureError> {
 }
 
 fn parse_request(v: &Value, at: &str) -> Result<Request, FixtureError> {
-    let obj = object(v, at, &["method", "path", "query", "body", "ndjson", "raw"])?;
+    let obj = object(
+        v,
+        at,
+        &["method", "path", "query", "body", "ndjson", "raw", "auth"],
+    )?;
     let method_at = format!("{at}.method");
     let method_text = string(required(obj, "method", at)?, &method_at)?;
     let method = Method::parse(method_text)
@@ -325,11 +332,16 @@ fn parse_request(v: &Value, at: &str) -> Result<Request, FixtureError> {
     } else {
         Body::None
     };
+    let auth = match obj.get("auth") {
+        None => None,
+        Some(a) => Some(string(a, &format!("{at}.auth"))?.to_owned()),
+    };
     Ok(Request {
         method,
         path: path.to_owned(),
         query,
         body,
+        auth,
     })
 }
 

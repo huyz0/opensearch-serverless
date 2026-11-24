@@ -43,3 +43,7 @@ src/ingest/compile.rs	new		the processors and options the engine runs, each refu
 src/ingest/run.rs	new		runs each processor over a document tree, as the ingest-common processors do
 src/repository_admin.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/snapshot/RepositoryHandler.java@bf347adb	the repository write decisions: reserved names, the registration body, delete names, answers
 src/snapshot_take_admin.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/snapshot/SnapshotHandler.java@bf347adb	the create branch: body keys, bounds and the failures a take answers
+src/security/mod.rs	new		the security configuration kinds and their answers
+src/security/schema.rs	new		the keys each kind accepts
+src/security/validate.rs	new		body validation as the security plugin does it
+src/security/render.rs	new		the plugin's acknowledgements and rendered documents

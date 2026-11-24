@@ -134,6 +134,8 @@ pub struct NodeConfig {
     pub pinned_indexes: Vec<String>,
     /// `serverless.activation.hand_off.enabled`.
     pub hand_off: bool,
+    /// `serverless.security.enabled`: serve the security configuration API. Off by default.
+    pub security: bool,
     /// `serverless.knn.enabled`.
     pub knn: bool,
     /// `OSS_STORE_USAGE`: count the store's requests and bytes per index
@@ -305,6 +307,7 @@ impl NodeConfig {
             .collect();
         let hand_off = flag("OSS_HAND_OFF", "false")?;
         let knn = flag("OSS_KNN", "false")?;
+        let security = flag("OSS_SECURITY", "false")?;
         let store_usage = flag("OSS_STORE_USAGE", "false")?;
         let store_usage_max_indices = bounded("OSS_STORE_USAGE_MAX_INDICES", "1000", 1, 1_000_000)?;
         let tenant_levels = match or("OSS_TENANT_LEVELS", "observe").as_str() {
@@ -390,6 +393,7 @@ impl NodeConfig {
             evict_headroom_percent,
             pinned_indexes,
             hand_off,
+            security,
             knn,
             store_usage,
             tenant_levels,

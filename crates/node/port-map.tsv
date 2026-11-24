@@ -42,6 +42,7 @@ src/writer/get.rs	new		the role's get of a shard it holds and its index lookup
 src/pit_route/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/PointInTimeHandler.java@429b4cbc	routes, refusals and answer shapes for create, delete and list; the node actions and the closing of frozen readers are not here
 src/pit_route/params.rs	port	server/src/main/java/org/opensearch/action/search/DeletePitRequest.java@3.10.0	fromXContent for the pit_id body
 src/assemble.rs	new		the composition root: services, routes and the publish timer over one shared store; the Java assembles in ServerlessNode through plugin wiring
+src/assemble_error.rs	new		why a node was not assembled; the Java reports these as startup exceptions
 src/writer/janitor_pass.rs	new		the janitor's sweep over the held shards that published or are being watched, on one snapshot of the points in time; the shell's reconciler sweeps every shard each pass
 src/writer/janitor_timer.rs	new		one thread running the janitor pass on an interval, the sweep config read each pass; the Java reconciler is a scheduled executor task
 src/time_value.rs	port	server/src/main/java/org/opensearch/common/unit/TimeValue.java@3.10.0	parseTimeValue for the keep-alive units, and the default and longest keep-alive
@@ -123,6 +124,8 @@ src/snapshot_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverl
 src/tenants.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/usage/Guardrails.java@feature/serverlessshell	the node side of the tenant levels: roll the ledger up by tenant, step the policy every 10 s, report; no levels act yet
 src/writer/tenant_hooks.rs	new		what the tenant levels hang on a writer role: who is told an index's bucket group when a shard of it opens, and how far a shard's publish age is stretched
 src/snapshot_take_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/snapshot/SnapshotOperations.java@bf347adb	handleCreate and capture: the order of a take and its cleanup
+src/security_route.rs	new		the security configuration API over five document sets
+src/security_setting.rs	new		serverless.security.enabled
 src/writer/tenancy.rs	new		the billing settings of an index in its descriptor: bucket group, cost tier and cost budget, read when a writer opens a shard of it
 src/plugin_proxy.rs	new		the proxy of requests for plugins not ported to a Java node (ADR 0046); the Java shell runs those plugins itself
 src/boot/retire.rs	new		retiring a node on a stop signal: the shell leaves its lease to lapse

@@ -150,6 +150,11 @@ fn replay(fixture: Fixture) -> Vec<String> {
 
 /// [`replay`] with the k-NN index setting on or off.
 fn replay_with(fixture: Fixture, knn: bool) -> Vec<String> {
+    replay_full(fixture, knn, false)
+}
+
+/// [`replay`] with the k-NN index setting and the security API on or off.
+fn replay_full(fixture: Fixture, knn: bool, security: bool) -> Vec<String> {
     let fixtures = vec![fixture];
     let store = Arc::new(Emulator::new(1 << 28, 9));
     let budget = MemoryBudget::new(
@@ -163,6 +168,8 @@ fn replay_with(fixture: Fixture, knn: bool) -> Vec<String> {
         publish_every: Duration::from_millis(10),
         publish_age_millis: 0,
         knn,
+        security,
+        security_bcrypt_cost: 4,
         ..Config::new("", "node-1", [0; 6])
     };
     let node = assemble(
@@ -238,6 +245,27 @@ fn an_assembled_node_answers_every_knn_search_fixture_as_the_stock_plugin_did() 
     let failed: Vec<String> = fixtures
         .into_iter()
         .flat_map(|f| replay_with(f, true))
+        .collect();
+    assert!(
+        failed.is_empty(),
+        "{} differ:\n{}",
+        failed.len(),
+        failed.join("\n")
+    );
+}
+
+#[test]
+fn an_assembled_node_answers_every_security_management_fixture_as_the_stock_plugin_did() {
+    let fixtures: Vec<Fixture> = load_dir(&root().join("compat/security"))
+        .expect("fixtures load")
+        .into_iter()
+        .filter(|(_, f)| f.name != "security authn and authz")
+        .map(|(_, f)| f)
+        .collect();
+    assert_eq!(fixtures.len(), 5, "a fixture a kind");
+    let failed: Vec<String> = fixtures
+        .into_iter()
+        .flat_map(|f| replay_full(f, false, true))
         .collect();
     assert!(
         failed.is_empty(),

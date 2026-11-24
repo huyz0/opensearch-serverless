@@ -12,7 +12,7 @@ use oss_format::MAX_POINT_IN_TIME_BYTES;
 use oss_janitor::gc;
 use oss_mem::{BufferPool, MemoryBudget, Pool, SMALL_BUFFER};
 use oss_meta::{DeleteMode, DescriptorStore, PitClock, PointInTimeStore};
-use oss_rest::{RouteError, Router, Server, ServerConfig};
+use oss_rest::{Router, Server, ServerConfig};
 use oss_writer::bulk::{BulkBudget, StreamConfig};
 use oss_writer::log::NodeLogCommitter;
 use oss_writer::publish::lazy::Policy;
@@ -34,6 +34,8 @@ use crate::writer::{
     Incarnation, JanitorPass, JanitorTimer, PassLimits, PublishTimer, Publishing, Routes,
     ShardNames, ShardOpener, WriterRole,
 };
+
+pub use crate::assemble_error::AssembleError;
 
 /// Buffers the store's bodies stream through, a node's worth.
 const STORE_BUFFERS: usize = 16;
@@ -64,6 +66,10 @@ pub struct Config {
     /// Whether `_ingest/pipeline` stores, reads and removes pipelines. A
     /// stored pipeline is run by the writes that name it.
     pub ingest_pipelines: bool,
+    /// `serverless.security.enabled`: serve the security configuration API.
+    pub security: bool,
+    /// The bcrypt cost an internal user's password is hashed at.
+    pub security_bcrypt_cost: u32,
     /// `serverless.knn.enabled`: whether a create accepts `knn_vector`.
     pub knn: bool,
     /// Whether the read-only snapshot routes are served: `serverless.snapshots.enabled`.
@@ -130,6 +136,8 @@ impl Config {
             pit_buffer_bytes: MAX_POINT_IN_TIME_BYTES,
             index_templates: false,
             ingest_pipelines: false,
+            security: false,
+            security_bcrypt_cost: crate::security_route::DEFAULT_COST,
             knn: false,
             snapshots: false,
             snapshots_take: false,
@@ -187,36 +195,6 @@ pub struct Writer {
     /// Bucket members' heads and commits; none when buckets are off.
     pub buckets: Option<Arc<crate::writer::BucketWiring>>,
 }
-
-/// Why a node was not assembled.
-#[derive(Debug)]
-pub enum AssembleError {
-    /// The budget gives the `open_indexes` pool nothing, so no index could
-    /// ever open.
-    NoOpenIndexes,
-    /// The page cache or the store's buffers could not be set up.
-    Memory(String),
-    /// A store refused the deployment's base.
-    Store(String),
-    /// A route is registered twice.
-    Route(RouteError),
-    /// The HTTP server did not start.
-    Server(oss_rest::StartError),
-}
-
-impl std::fmt::Display for AssembleError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            AssembleError::NoOpenIndexes => f.write_str("the open_indexes pool is empty"),
-            AssembleError::Memory(e) => write!(f, "memory: {e}"),
-            AssembleError::Store(e) => write!(f, "store: {e}"),
-            AssembleError::Route(e) => write!(f, "route: {e:?}"),
-            AssembleError::Server(e) => write!(f, "server: {e:?}"),
-        }
-    }
-}
-
-impl std::error::Error for AssembleError {}
 
 /// A node built and not yet listening.
 pub struct Assembled {

@@ -45,6 +45,8 @@ mod pipeline_route;
 mod push_read;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod read_forward;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod security_route;
 mod snapshot_delete;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod snapshot_route;

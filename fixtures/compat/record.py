@@ -3,6 +3,8 @@
 
     python3 fixtures/compat/record.py --url http://localhost:9200 fixtures/compat/*/*.json
 
+A secured node: RECORD_AUTH=user:password and, for self-signed certificates, RECORD_INSECURE=1.
+
 For each fixture file: reads the server's version from `GET /`, sends the
 fixture's cleanup requests, sends every step and writes its status, selected
 headers and JSON body into the step's `response`, sends the cleanup again,
@@ -16,7 +18,10 @@ OpenSearch build to record from, is in fixtures/compat/README.md.
 Standard library only.
 """
 import argparse
+import base64
 import json
+import os
+import ssl
 import sys
 import urllib.error
 import urllib.parse
@@ -43,8 +48,12 @@ def send(base, request):
     req = urllib.request.Request(url, data=data, method=request["method"])
     if ctype:
         req.add_header("Content-Type", ctype)
+    auth = request.get("auth", os.environ.get("RECORD_AUTH"))  # user:password; a request names its own user, "" sends none
+    if auth:
+        req.add_header("Authorization", "Basic " + base64.b64encode(auth.encode()).decode())
+    ctx = ssl._create_unverified_context() if os.environ.get("RECORD_INSECURE") else None  # demo certificates
     try:
-        resp = urllib.request.urlopen(req, timeout=60)
+        resp = urllib.request.urlopen(req, timeout=60, context=ctx)
     except urllib.error.HTTPError as e:
         resp = e
     with resp:
@@ -52,7 +61,10 @@ def send(base, request):
         if len(raw) > MAX_RESPONSE_BYTES:
             raise SystemExit(f"record: {request['path']}: response over {MAX_RESPONSE_BYTES} bytes")
         headers = {k.lower(): v for k, v in resp.headers.items()}
-        body = json.loads(raw) if raw.strip() else None
+        try:
+            body = json.loads(raw) if raw.strip() else None
+        except ValueError:
+            body = raw.decode()  # a body that is no JSON (a 401's text) is kept as a JSON string
         return resp.status, headers, body
 
 
