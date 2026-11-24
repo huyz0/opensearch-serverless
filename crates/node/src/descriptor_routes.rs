@@ -112,6 +112,10 @@ impl DescriptorRoutes {
         let Target::Index(record) = held.target else {
             return None;
         };
+        // An index a restore has not finished takes no write.
+        if oss_format::is_restoring(record.settings) {
+            return None;
+        }
         let settings = match parse(record.settings) {
             Ok(Json::Obj(members)) => members,
             _ => Vec::new(),
@@ -131,5 +135,28 @@ impl DescriptorRoutes {
             routing_shards: number(&settings, "index.number_of_routing_shards").unwrap_or(shards),
             routing_required,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use oss_blob::{BlobStore, Emulator};
+    use oss_format::{IndexRecord, mark_restoring};
+    use oss_meta::DeleteMode;
+
+    #[test]
+    fn an_index_a_restore_has_not_finished_takes_no_write() {
+        let store: Arc<dyn BlobStore> = Arc::new(Emulator::new(1 << 20, 1));
+        let descriptors = DescriptorStore::new(store, "", DeleteMode::Conditional).unwrap();
+        let whole = IndexRecord::new("whole", "u1", 1);
+        descriptors.create(&whole, 1, &mut vec![0u8; 4096]).unwrap();
+        let marked = mark_restoring(None).unwrap();
+        let mut half = IndexRecord::new("half", "u2", 1);
+        half.settings = &marked;
+        descriptors.create(&half, 1, &mut vec![0u8; 4096]).unwrap();
+        let routes = DescriptorRoutes::new(descriptors, 4096);
+        assert!(routes.index("whole").is_some());
+        assert!(routes.index("half").is_none());
     }
 }

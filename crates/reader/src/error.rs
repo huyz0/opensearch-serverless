@@ -18,6 +18,8 @@ pub enum ReaderError {
     Deleted,
     /// The name is an alias, not an index.
     Alias,
+    /// A restore is copying the index, or was interrupted before it finished.
+    Restoring,
     /// The engine could not open the commit's segments.
     Open(lucene_search::directory_reader::Error),
     /// A register blob is larger than [`crate::MAX_REGISTER_BYTES`].
@@ -41,6 +43,7 @@ impl fmt::Display for ReaderError {
             ReaderError::Engine(e) => write!(f, "engine: {e}"),
             ReaderError::Deleted => f.write_str("the index was deleted"),
             ReaderError::Alias => f.write_str("the name is an alias, not an index"),
+            ReaderError::Restoring => f.write_str(oss_format::RESTORING_WHY),
             ReaderError::Open(e) => write!(f, "engine: {e}"),
             ReaderError::RegisterTooLarge => f.write_str("register blob larger than its limit"),
             ReaderError::UnknownLength(name) => write!(f, "manifest gives no length for {name}"),
@@ -93,7 +96,7 @@ mod tests {
 
     #[test]
     fn every_kind_names_its_cause() {
-        let cases: [(ReaderError, &str); 6] = [
+        let cases: [(ReaderError, &str); 7] = [
             (
                 ReaderError::Mapping(crate::mapping::MappingError("bad".into())),
                 "mapping: bad",
@@ -104,6 +107,7 @@ mod tests {
             ),
             (ReaderError::Deleted, "the index was deleted"),
             (ReaderError::Alias, "the name is an alias, not an index"),
+            (ReaderError::Restoring, oss_format::RESTORING_WHY),
             (
                 ReaderError::RegisterTooLarge,
                 "register blob larger than its limit",

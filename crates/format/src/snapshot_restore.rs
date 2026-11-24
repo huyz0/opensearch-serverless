@@ -117,7 +117,8 @@ const LAYOUT_KEY: &str = "serverless_unit_layout";
 
 /// The settings a restored index never inherits: they name the captured
 /// index itself.
-const IDENTITY_SETTINGS: [&str; 8] = [
+const IDENTITY_SETTINGS: [&str; 9] = [
+    crate::restore_mark::RESTORING_KEY,
     "index.uuid",
     "index.history.uuid",
     "index.version.created",
@@ -414,6 +415,8 @@ mod tests {
         assert_eq!(entry(r#"{"index":{"x":1}}"#, ok).refusal().unwrap(), None);
         for settings in [
             r#"{"serverless_unit_layout":"{}"}"#,
+            r#"{"index.restore.in_progress":"true"}"#,
+            r#"{"index":{"restore":{"in_progress":"true"}}}"#,
             r#"{"index.uuid":"x"}"#,
             r#"{"uuid":"x"}"#,
             r#"{"index":{"uuid":"x"}}"#,
