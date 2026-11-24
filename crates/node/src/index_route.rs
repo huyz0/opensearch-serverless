@@ -15,6 +15,8 @@ use oss_meta::{DescriptorStore, MetaError, PitClock, Target, new_id};
 use oss_rest::{Exception, JSON, Method, Request, Response, RestError, RouteError, Router};
 use oss_writer::mapping::Mapping;
 
+use crate::index_templates::TemplateSets;
+
 /// The most bytes of a create body.
 const MAX_CREATE_BYTES: usize = 1 << 20;
 
@@ -42,12 +44,17 @@ fn refusal(r: Refusal) -> RestError {
 /// bucket's id out.
 pub type BucketJoin = Arc<dyn Fn(&str, &str) -> Result<String, String> + Send + Sync>;
 
+/// Takes an index back out of the bucket it joined: its bucket and uuid in.
+pub type BucketLeave = Arc<dyn Fn(&str, &str) -> Result<(), String> + Send + Sync>;
+
 /// Serves the index admin routes over the descriptors.
 pub struct IndexService {
     descriptors: DescriptorStore,
     clock: PitClock,
     buffer_bytes: usize,
     join: Option<BucketJoin>,
+    leave: Option<BucketLeave>,
+    templates: Option<Arc<TemplateSets>>,
 }
 
 impl IndexService {
@@ -60,13 +67,25 @@ impl IndexService {
             clock,
             buffer_bytes,
             join: None,
+            leave: None,
+            templates: None,
         }
     }
 
-    /// Places each new one-shard index in a bucket through `join`.
+    /// Places each new one-shard index in a bucket through `join`, and
+    /// takes it back out through `leave` when its create then fails.
     #[must_use]
-    pub fn with_bucket_join(mut self, join: BucketJoin) -> Self {
+    pub fn with_bucket_join(mut self, join: BucketJoin, leave: BucketLeave) -> Self {
         self.join = Some(join);
+        self.leave = Some(leave);
+        self
+    }
+
+    /// Layers the matching index template under each create. Without this
+    /// a create inherits nothing and makes no template request.
+    #[must_use]
+    pub fn with_templates(mut self, templates: Arc<TemplateSets>) -> Self {
+        self.templates = Some(templates);
         self
     }
 
@@ -115,6 +134,24 @@ impl IndexService {
                 "aliases at create are not supported by this node yet: create the index, then add them",
             ));
         }
+        let asked = match &self.templates {
+            Some(templates) => {
+                req.body().reserve(self.buffer_bytes.saturating_mul(2))?;
+                // ALLOC: two scratch buffers a create, buffer_bytes each, reserved above.
+                let mut marker = vec![0u8; self.buffer_bytes];
+                let mut doc = vec![0u8; self.buffer_bytes];
+                let asked = templates
+                    .apply(&index, asked, &mut marker, &mut doc)
+                    .map_err(refusal)?;
+                if !asked.settings.is_empty() {
+                    return Err(unsupported(
+                        "the matching index template carries settings, which this node does not apply at create yet",
+                    ));
+                }
+                asked
+            }
+            None => asked,
+        };
         if let Some(text) = asked.mapping.as_deref() {
             Mapping::parse(text.as_bytes())
                 .map_err(|e| refuse(400, "mapper_parsing_exception", e.failed_to_parse().reason))?;
@@ -135,9 +172,13 @@ impl IndexService {
                 .map_err(|e| refuse(500, "index_create_failure", format!("bucket: {e}")))?;
             record.bucket = Some(Cow::Owned(bucket));
         }
-        self.descriptors
-            .create(&record, now, &mut buf)
-            .map_err(|e| create_failure(&index, &uuid, &e))?;
+        if let Err(e) = self.descriptors.create(&record, now, &mut buf) {
+            // Best effort: a member left behind has no descriptor naming it.
+            if let (Some(leave), Some(bucket)) = (&self.leave, record.bucket.as_deref()) {
+                let _ = leave(bucket, &uuid);
+            }
+            return Err(create_failure(&index, &uuid, &e));
+        }
         resp.send(200, JSON, create_ack(&index, asked.shards).as_bytes())
     }
 

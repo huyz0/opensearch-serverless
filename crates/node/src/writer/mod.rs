@@ -56,7 +56,8 @@ use slot::ShardSlot;
 
 pub use buckets::BucketWiring;
 pub use capacity::{
-    EVICT_AFTER_MILLIS, MAX_SHARDS, SETTINGS as CAPACITY_SETTINGS, ShardCap, ShardCapStats,
+    EVICT_AFTER_MILLIS, EVICT_HEADROOM_PERCENT, MAX_SHARDS, PINNED_INDEXES,
+    SETTINGS as CAPACITY_SETTINGS, ShardCap, ShardCapStats,
 };
 pub use dead_log_pass::{
     DeadLogParts, DeadLogPass, DeadLogReport, DeadMailbox, DeadSnapshot, REAPERS,

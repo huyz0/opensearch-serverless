@@ -304,6 +304,22 @@ fn the_shard_cap_is_off_by_default_and_set_by_its_variables() {
     assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_EVICT_AFTER_MS", "soon")]))).is_err());
 }
 
+// docs/specs/writer-headroom-pins AC-7
+#[test]
+fn headroom_and_pins_are_off_by_default_and_set_by_their_variables() {
+    let c = NodeConfig::from_lookup(lookup(FS)).expect("valid");
+    assert_eq!(c.evict_headroom_percent, 0);
+    assert!(c.pinned_indexes.is_empty());
+    let c = NodeConfig::from_lookup(lookup(&with(&[
+        ("OSS_EVICT_HEADROOM_PCT", "5"),
+        ("OSS_PINNED_INDEXES", " a, b ,,c"),
+    ])))
+    .expect("valid");
+    assert_eq!(c.evict_headroom_percent, 5);
+    assert_eq!(c.pinned_indexes, ["a", "b", "c"]);
+    assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_EVICT_HEADROOM_PCT", "101")]))).is_err());
+}
+
 // docs/specs/writer-hand-off AC-8
 #[test]
 fn hand_off_is_off_by_default_and_set_by_its_variable() {

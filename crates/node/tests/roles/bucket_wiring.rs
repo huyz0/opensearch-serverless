@@ -270,3 +270,66 @@ fn a_join_places_the_index_in_a_bucket_listing_it_as_a_member() {
     // The same index again lands in the same bucket.
     assert_eq!(r.wiring.join("fresh", "fresh-uuid").expect("joins"), bucket);
 }
+
+fn reader_store(r: &Rig) -> oss_blob::PooledStore<oss_blob::Shared> {
+    use oss_mem::{BudgetConfig, BufferPool, MemoryBudget, Pool};
+    let config = BudgetConfig::new(8 << 20)
+        .with_pool(Pool::Transport, 8 << 20)
+        .expect("fits");
+    let buffers =
+        BufferPool::new(&MemoryBudget::new(&config), Pool::Transport, 1 << 16, 16).expect("fits");
+    oss_blob::PooledStore::new(
+        oss_blob::Shared::new(Arc::clone(&r.store) as Arc<dyn BlobStore>),
+        buffers,
+    )
+}
+
+#[test]
+fn a_reader_opens_a_member_from_its_bucket_entry() {
+    use oss_reader::shard_files::ShardFiles;
+    let r = rig("logs");
+    write(&r.role, "logs");
+    assert_eq!(r.role.publish_due().published, 1);
+    let store = reader_store(&r);
+    let gets = r.store.meter().count(S3Op::Get);
+    let (files, meta) = ShardFiles::open_with_meta(&store, "", "logs", 0).expect("opens");
+    assert_eq!(
+        r.store.meter().count(S3Op::Get) - gets,
+        2,
+        "descriptor and bucket manifest"
+    );
+    assert_eq!(files.term, 3);
+    assert!(!files.is_empty());
+    assert_eq!(meta.uuid, "logs-uuid");
+    // A bucketed index has only shard 0.
+    assert!(ShardFiles::open_with_meta(&store, "", "logs", 1).is_err());
+}
+
+#[test]
+fn a_member_with_no_commit_yet_is_not_followable() {
+    use oss_reader::shard_files::ShardFiles;
+    let r = rig("logs");
+    let store = reader_store(&r);
+    let err = ShardFiles::open_with_meta(&store, "", "logs", 0).expect_err("no commit");
+    assert!(err.to_string().contains("no commit"), "{err}");
+}
+
+#[test]
+fn leaving_takes_the_index_back_out_of_its_bucket() {
+    let r = rig("logs");
+    let bucket = r.wiring.join("fresh", "fresh-uuid").expect("joins");
+    let manifest = |r: &Rig| {
+        BucketStore::new(
+            Arc::clone(&r.store) as Arc<dyn BlobStore>,
+            "",
+            ManifestWrite::Json,
+        )
+        .read(&bucket)
+        .expect("reads")
+        .expect("exists")
+        .manifest
+    };
+    assert!(manifest(&r).member("fresh-uuid").is_some());
+    r.wiring.leave(&bucket, "fresh-uuid").expect("leaves");
+    assert!(manifest(&r).member("fresh-uuid").is_none());
+}

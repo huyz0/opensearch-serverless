@@ -6,9 +6,11 @@ use std::net::TcpListener;
 use std::sync::Arc;
 
 use oss_blob::{BlobStore, Emulator, S3Op};
+use oss_format::DocKind;
 use oss_mem::MemoryBudget;
-use oss_meta::{DeleteMode, DescriptorStore, PitClock};
+use oss_meta::{DeleteMode, DescriptorStore, DocSet, PitClock};
 use oss_node::index_route::{IndexService, routes};
+use oss_node::index_templates::TemplateSets;
 use oss_rest::{Router, Server};
 
 const BUF: usize = 1 << 16;
@@ -221,7 +223,11 @@ fn a_descriptor_that_does_not_fit_its_buffer_is_refused_not_failed() {
 }
 
 /// A rig whose creates place one-shard indexes in the bucket `b-1`.
-fn bucketed_rig() -> Rig {
+type Left = Arc<std::sync::Mutex<Vec<(String, String)>>>;
+
+fn bucketed_rig() -> (Rig, Left) {
+    let seen: Left = Arc::default();
+    let leaves = Arc::clone(&seen);
     let store = Arc::new(Emulator::new(1 << 28, 5));
     let clock: PitClock = Arc::new(|| NOW);
     let descriptors = || {
@@ -232,18 +238,29 @@ fn bucketed_rig() -> Rig {
         )
         .expect("names")
     };
-    let service = IndexService::new(descriptors(), clock, BUF)
-        .with_bucket_join(Arc::new(|_, _| Ok("b-1".to_owned())));
+    let service = IndexService::new(descriptors(), clock, BUF).with_bucket_join(
+        Arc::new(|_, _| Ok("b-1".to_owned())),
+        Arc::new(move |bucket, uuid| {
+            leaves
+                .lock()
+                .unwrap()
+                .push((bucket.to_owned(), uuid.to_owned()));
+            Ok(())
+        }),
+    );
     let budget = MemoryBudget::new(&support::budget_config());
     let router = routes(Router::new(), Arc::new(service)).expect("routes");
     let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
     let server =
         Server::start(listener, support::server_config(), router, &budget).expect("starts");
-    Rig {
-        server,
-        descriptors: descriptors(),
-        store,
-    }
+    (
+        Rig {
+            server,
+            descriptors: descriptors(),
+            store,
+        },
+        seen,
+    )
 }
 
 fn bucket_of(r: &Rig, name: &str) -> Option<String> {
@@ -254,7 +271,7 @@ fn bucket_of(r: &Rig, name: &str) -> Option<String> {
 
 #[test]
 fn a_one_shard_create_joins_a_bucket_and_a_sharded_one_does_not() {
-    let r = bucketed_rig();
+    let (r, _) = bucketed_rig();
     assert_eq!(call(&r, "PUT", "/small", None).status, 200);
     assert_eq!(bucket_of(&r, "small").as_deref(), Some("b-1"));
     let body = r#"{"settings":{"number_of_shards":3}}"#;
@@ -267,4 +284,89 @@ fn a_create_without_the_join_names_no_bucket() {
     let r = rig();
     assert_eq!(call(&r, "PUT", "/plain", None).status, 200);
     assert_eq!(bucket_of(&r, "plain"), None);
+}
+
+/// A rig whose creates inherit from the stored templates, each seeded as
+/// (kind, name, source).
+fn templated_rig(seed: &[(DocKind, &str, &str)]) -> Rig {
+    let store = Arc::new(Emulator::new(1 << 28, 5));
+    let blobs = || Arc::clone(&store) as Arc<dyn BlobStore>;
+    let mut marker = vec![0u8; BUF];
+    for (kind, name, source) in seed {
+        DocSet::new(blobs(), "", *kind)
+            .expect("set")
+            .put(name, source.as_bytes(), false, &mut marker)
+            .expect("seeded");
+    }
+    let clock: PitClock = Arc::new(|| NOW);
+    let descriptors = || DescriptorStore::new(blobs(), "", DeleteMode::Conditional).expect("names");
+    let sets = TemplateSets::new(
+        DocSet::new(blobs(), "", DocKind::IndexTemplate).expect("set"),
+        DocSet::new(blobs(), "", DocKind::ComponentTemplate).expect("set"),
+    );
+    let service = Arc::new(IndexService::new(descriptors(), clock, BUF).with_templates(sets));
+    let router = routes(Router::new(), service).expect("routes");
+    let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
+    let budget = MemoryBudget::new(&support::budget_config());
+    let server =
+        Server::start(listener, support::server_config(), router, &budget).expect("starts");
+    Rig {
+        server,
+        descriptors: descriptors(),
+        store,
+    }
+}
+
+const LOGS_TEMPLATE: &str = r#"{"index_patterns":["logs-*"],"composed_of":["base"],"template":{"mappings":{"properties":{"msg":{"type":"text"}}}}}"#;
+const BASE_COMPONENT: &str = r#"{"template":{"mappings":{"properties":{"ts":{"type":"date"}}}}}"#;
+
+#[test]
+fn a_create_inherits_the_mapping_and_shards_of_the_matching_template() {
+    let r = templated_rig(&[
+        (DocKind::IndexTemplate, "logs", LOGS_TEMPLATE),
+        (DocKind::ComponentTemplate, "base", BASE_COMPONENT),
+    ]);
+    assert_eq!(call(&r, "PUT", "/logs-1", None).status, 200);
+    let (_, _, mapping, _) = record(&r, "logs-1").expect("created");
+    let mapping = mapping.expect("mapping");
+    assert!(
+        mapping.contains("\"msg\"") && mapping.contains("\"ts\""),
+        "{mapping}"
+    );
+    assert_eq!(call(&r, "PUT", "/other", None).status, 200);
+    assert_eq!(record(&r, "other").expect("created").2, None);
+}
+
+#[test]
+fn a_template_that_carries_settings_is_refused_not_dropped() {
+    let r = templated_rig(&[(
+        DocKind::IndexTemplate,
+        "logs",
+        r#"{"index_patterns":["logs-*"],"template":{"settings":{"index":{"refresh_interval":"5s"}}}}"#,
+    )]);
+    let reply = call(&r, "PUT", "/logs-1", None);
+    assert_eq!(reply.status, 501);
+    assert!(record(&r, "logs-1").is_none());
+}
+
+#[test]
+fn a_create_with_no_template_stored_reads_only_the_marker() {
+    let r = templated_rig(&[]);
+    let before: u64 = ops(&r).iter().map(|(_, n)| n).sum();
+    assert_eq!(call(&r, "PUT", "/logs", None).status, 200);
+    let used = ops(&r).iter().map(|(_, n)| n).sum::<u64>() - before;
+    assert_eq!(used, 2, "{:?}", ops(&r));
+    assert!(ops(&r).iter().all(|(op, _)| *op != S3Op::List));
+}
+
+#[test]
+fn a_create_that_fails_after_joining_leaves_the_bucket() {
+    let (r, left) = bucketed_rig();
+    assert_eq!(call(&r, "PUT", "/small", None).status, 200);
+    assert!(left.lock().unwrap().is_empty(), "a good create stays in");
+    assert_eq!(call(&r, "PUT", "/small", None).status, 400);
+    let left = left.lock().unwrap();
+    assert_eq!(left.len(), 1, "the refused create took itself back out");
+    assert_eq!(left[0].0, "b-1");
+    assert_eq!(left[0].1.len(), 22, "its own uuid, not the first create's");
 }

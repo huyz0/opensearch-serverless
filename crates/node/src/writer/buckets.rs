@@ -95,6 +95,18 @@ impl BucketWiring {
             .map_err(|e| e.to_string())
     }
 
+    /// Takes an index out of the bucket it joined, for a create that then
+    /// failed.
+    ///
+    /// # Errors
+    ///
+    /// The bucket store's failure, as text.
+    pub fn leave(&self, bucket: &str, index_uuid: &str) -> Result<(), String> {
+        self.assigner
+            .leave(bucket, index_uuid)
+            .map_err(|e| e.to_string())
+    }
+
     /// Tells the bucket heads that `node_id` holds open what `role` holds,
     /// so giving back a member keeps the bucket while a sibling is open.
     pub fn register_open(&self, node_id: &str, role: Arc<WriterRole>) {
