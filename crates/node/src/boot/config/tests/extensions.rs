@@ -24,6 +24,11 @@ fn without_the_feature_the_variable_takes_no_memory() {
     let c =
         NodeConfig::from_lookup(lookup(&with(&[("OSS_EXTENSIONS_PERCENT", "5")]))).expect("valid");
     let b = c.budget().expect("fits");
+    let off = NodeConfig::from_lookup(lookup(FS)).expect("valid");
+    assert_eq!(
+        b.pool(Pool::PageCache),
+        off.budget().expect("fits").pool(Pool::PageCache)
+    );
     assert_eq!(b.pool(Pool::Extensions), 0);
     assert_eq!(b.pool(Pool::PageCache), c.memory_bytes / 100 * 20);
 }
