@@ -123,3 +123,33 @@ fn each_unsupported_shape_says_which_it_is() {
         "knn_vector null method parameter"
     );
 }
+
+#[test]
+fn a_method_parameter_must_be_an_integer_that_fits() {
+    let reason = |param: &str| {
+        let text = format!(
+            r#"{{"properties":{{"v":{{"type":"knn_vector","dimension":3,"method":{{"name":"hnsw","engine":"lucene","parameters":{{"m":{param}}}}}}}}}}}"#
+        );
+        Mapping::parse_with(text.as_bytes(), ON).unwrap_err().reason
+    };
+    let reason = |param: &str| reason(param).replace("Failed to parse mapping [_doc]: ", "");
+    let not_integer =
+        "Validation Failed: 1: value is not an instance of Integer for Integer parameter [m].;";
+    assert_eq!(reason("3000000000"), not_integer);
+    assert_eq!(reason("1.5"), not_integer);
+    assert_eq!(
+        reason("0"),
+        "Validation Failed: 1: parameter validation failed for Integer parameter [m].;"
+    );
+}
+
+#[test]
+fn a_method_without_a_dimension_is_told_the_dimension_is_missing() {
+    let text =
+        r#"{"properties":{"v":{"type":"knn_vector","method":{"name":"hnsw","engine":"lucene"}}}}"#;
+    let e = Mapping::parse_with(text.as_bytes(), ON).unwrap_err();
+    assert_eq!(
+        e.reason,
+        "Failed to parse mapping [_doc]: Dimension value missing for vector: v"
+    );
+}
