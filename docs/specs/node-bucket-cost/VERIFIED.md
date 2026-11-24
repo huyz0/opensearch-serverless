@@ -4,3 +4,4 @@
 - AC-2: `small_indices_cost_no_more_requests_in_buckets_once_created`
 - AC-3: `small_indices_cost_no_more_requests_in_buckets_once_created`
 - AC-4: `small_indices_cost_no_more_requests_in_buckets_once_created`
+- AC-5: `taking_over_small_indices_costs_fewer_requests_in_buckets`
