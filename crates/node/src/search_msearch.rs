@@ -69,7 +69,7 @@ fn rest_item(e: &RestError) -> Vec<u8> {
     out
 }
 
-fn answer_item(answer: Answer) -> Vec<u8> {
+pub(super) fn answer_item(answer: Answer) -> Vec<u8> {
     match answer {
         Answer::Rest(e) => rest_item(&e),
         Answer::Search(e) => e.to_body(),

@@ -6,6 +6,7 @@
 // overflow panics the test in a debug build, which fails it.
 #![allow(clippy::arithmetic_side_effects)]
 
+mod bucket_heads;
 mod budget;
 mod early;
 mod early_bounds;
