@@ -111,3 +111,15 @@ fn a_hit_costs_far_less_than_a_parse() {
     drop(held);
     assert!(hit * 10 < parse, "hit {hit:?}, parse {parse:?}");
 }
+
+// docs/specs/mapping-value-size AC-1
+#[test]
+fn a_parameter_value_stays_small() {
+    // Every leaf field keeps one per declared parameter (up to 17), so a
+    // large variant is paid for by every field of every open shard.
+    assert!(
+        std::mem::size_of::<oss_doc::mapping::Value>() <= 40,
+        "{} bytes",
+        std::mem::size_of::<oss_doc::mapping::Value>()
+    );
+}
