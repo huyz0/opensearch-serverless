@@ -64,6 +64,11 @@ impl StoredFieldVisitor for Source {
 }
 
 impl Shard<'_> {
+    /// The mapping as held: shared until a document grows it.
+    pub fn shared_mapping(&self) -> &std::sync::Arc<crate::mapping::Mapping> {
+        &self.mapping
+    }
+
     /// The live document of `id`. With `realtime`, an id written since the
     /// last refresh is made visible first, and one the version map holds as
     /// deleted is not found; without it the last refresh is read as it is.

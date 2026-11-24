@@ -2,6 +2,8 @@
 //! delete: the version lookup, the plan, a sequence number for each write
 //! that goes ahead, and the Lucene update or tombstone it makes.
 
+use std::sync::Arc;
+
 use lucene_index::buffered_updates::{DocValuesUpdate, Term};
 use lucene_index::index_writer::IndexWriter;
 use lucene_search::directory_reader::DirectoryReader;
@@ -93,7 +95,7 @@ pub struct Shard<'d> {
     writer: IndexWriter<'d>,
     indexer: Indexer,
     fast: FastIngest,
-    mapping: Mapping,
+    mapping: Arc<Mapping>,
     versions: VersionMap,
     reader: Option<DirectoryReader>,
     primary_term: i64,
@@ -116,7 +118,7 @@ impl<'d> Shard<'d> {
     pub fn new(
         dir: &'d dyn Directory,
         writer: IndexWriter<'d>,
-        mapping: Mapping,
+        mapping: impl Into<Arc<Mapping>>,
         primary_term: i64,
         clock: Box<dyn Fn() -> u64 + Send + 'd>,
     ) -> Result<Self, String> {
@@ -134,7 +136,7 @@ impl<'d> Shard<'d> {
             writer,
             indexer: Indexer::new(),
             fast: FastIngest::new(),
-            mapping,
+            mapping: mapping.into(),
             versions: VersionMap::default(),
             reader: None,
             primary_term,
@@ -332,8 +334,8 @@ impl<'d> Shard<'d> {
         // The Java publishes a document's mapping update before the engine
         // plans it, so the update holds even when the write conflicts.
         if let Some(grown) = parsed.as_ref().and_then(|p| p.grown.as_ref()) {
-            // ALLOC: the grown mapping, bounded by the total fields limit.
-            self.mapping = grown.clone();
+            // ALLOC: the grown mapping, bounded by the total fields limit; this shard's own.
+            self.mapping = Arc::new(grown.clone());
             self.fast.invalidate();
         }
         let current = self.current(id, &key)?;
