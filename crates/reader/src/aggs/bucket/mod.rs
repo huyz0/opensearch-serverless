@@ -3,6 +3,10 @@
 //! request and result types (`MetricAgg` and `Value`), as `top_hits` is, so
 //! one pass, one response writer and one reduce serve them all.
 
+pub mod composite;
+pub mod composite_collect;
+pub mod composite_parse;
+pub mod composite_render;
 pub mod count_order;
 pub mod date_histogram;
 pub mod date_histogram_collect;
@@ -46,7 +50,8 @@ pub const BUCKET_LIMIT: usize = 65_535;
 /// limit, for the types whose count the request sets.
 pub fn check_limits(agg: &crate::aggs::metric::MetricAgg) -> Result<(), crate::search::ShardError> {
     range_collect::check_limit(agg)?;
-    filters_collect::check_limit(agg)
+    filters_collect::check_limit(agg)?;
+    composite_collect::check_limit(agg)
 }
 
 use crate::aggs::metric::MetricAgg;
@@ -71,6 +76,10 @@ pub(crate) fn date_histogram_spec(agg: &MetricAgg) -> DateHistogramSpec {
 
 #[cfg(test)]
 mod collect_tests;
+#[cfg(test)]
+mod composite_collect_tests;
+#[cfg(test)]
+mod composite_tests;
 #[cfg(test)]
 mod date_histogram_collect_tests;
 #[cfg(test)]

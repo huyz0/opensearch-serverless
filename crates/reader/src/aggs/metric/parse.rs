@@ -347,6 +347,7 @@ fn parse_definition(p: &mut Parser<'_>, name: &str, level: usize) -> Result<Defi
                     date_histogram: None,
                     range: None,
                     filters: None,
+                    composite: None,
                     // ALLOC: empty; the definition's `aggs` fill it.
                     subs: Vec::new(),
                 };

@@ -23,6 +23,7 @@ use lucene_search::{BooleanQuery, Clause, Explanation};
 use oss_blob::BlobStore;
 
 use crate::OpenShard;
+use crate::aggs::bucket::composite_collect;
 use crate::aggs::bucket::filters_collect;
 use crate::aggs::bucket::{fixed_subs, keyed_subs, keyword_collect, keyword_subs};
 use crate::aggs::metric::{self, Partial, state_bytes};
@@ -203,6 +204,7 @@ pub fn hits_bytes<S: BlobStore + 'static>(source: &SearchSource, shard: &OpenSha
         ))
         .saturating_add(fixed_subs::reserved(shard, &source.aggs))
         .saturating_add(keyed_subs::reserved(shard, &source.aggs))
+        .saturating_add(composite_collect::reserved_all(shard, &source.aggs))
         .saturating_add(state_bytes(&source.aggs))
 }
 

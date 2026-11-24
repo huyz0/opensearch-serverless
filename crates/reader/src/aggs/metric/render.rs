@@ -10,6 +10,7 @@ use std::io::{self, Write};
 
 use oss_rest::write_json_str;
 
+use crate::aggs::bucket::composite_render::write_composite;
 use crate::aggs::bucket::date_histogram_render::write_date_histogram;
 use crate::aggs::bucket::filters_render::write_filters;
 use crate::aggs::bucket::histogram_render::write_histogram;
@@ -158,6 +159,7 @@ pub(crate) fn write_body(out: &mut dyn Write, format: Format, value: &Value) -> 
         Value::KeywordTerms(ref result) => write_keyword_terms(out, result),
         Value::Range(ref result) => write_range(out, format, result),
         Value::Filters(ref result) => write_filters(out, result),
+        Value::Composite(ref result) => write_composite(out, result),
         // Written by the caller, which fetches the hits.
         Value::TopHits(_) | Value::TopHitsParts(_) => Ok(()),
         // Written already: the hits were fetched when it was made.
