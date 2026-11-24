@@ -78,7 +78,10 @@ pub use proactive::{
     Config as ProactiveConfig, ProactiveTakeover, Report as ProactiveReport,
     SETTINGS as PROACTIVE_SETTINGS,
 };
-pub use publish_age::publish_age_of;
+pub use publish_age::{bucket_group_of, group_settings, publish_age_of};
+
+/// Who is told an index's bucket group: index name and group.
+pub type GroupSink = Arc<dyn Fn(&str, &str) + Send + Sync>;
 pub use publish_timer::PublishTimer;
 pub use publishing::{PublishPass, Publishing};
 pub use routes::Routes;
@@ -122,6 +125,8 @@ pub struct WriterRole {
     newest: Mutex<Newest>,
     publishing: Option<Publishing>,
     tail: OnceLock<Arc<dyn TailSink>>,
+    /// Told the bucket group of each index a shard of is opened.
+    groups: OnceLock<GroupSink>,
     /// Told of every commit a publish stages.
     commits: OnceLock<Arc<dyn CommitSink>>,
     /// How far a refresh is made visible before it returns; the code of a
@@ -166,6 +171,7 @@ impl WriterRole {
             newest: Mutex::new(HashMap::new()),
             publishing: None,
             tail: OnceLock::new(),
+            groups: OnceLock::new(),
             commits: OnceLock::new(),
             visibility: AtomicU8::new(0),
             opener: None,
@@ -220,6 +226,19 @@ impl WriterRole {
         if let Some(publishing) = &self.publishing {
             // ALLOC: one key, once a shard opened.
             publishing.set_age(&(uuid.to_owned(), shard), age);
+        }
+    }
+
+    /// Installs who is told the bucket group of an index when a shard of it
+    /// is opened. False when one is installed already.
+    pub fn set_group_sink(&self, sink: GroupSink) -> bool {
+        self.groups.set(sink).is_ok()
+    }
+
+    /// Tells the group sink that `index` bills to `group`.
+    pub(crate) fn note_group(&self, index: &str, group: &str) {
+        if let Some(sink) = self.groups.get() {
+            sink(index, group);
         }
     }
 

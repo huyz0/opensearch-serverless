@@ -7,3 +7,5 @@
 - AC-5: `the_route_reports_the_mode_and_each_tenant` in crates/node/tests/tenants.rs
 - AC-6: `tenant_levels_observe_with_a_large_budget_unless_set` in crates/node/src/boot/config/tests.rs
 - AC-7: `the_ticker_steps_the_levels_until_the_ledger_is_gone` in crates/node/tests/tenants.rs
+- AC-8: `an_index_created_with_a_bucket_group_bills_to_that_tenant` in crates/node/tests/server/boot_usage.rs
+- AC-9: `a_bucket_group_is_written_and_read_back_from_descriptor_settings` in crates/node/tests/tenants.rs

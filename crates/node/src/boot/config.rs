@@ -137,6 +137,8 @@ pub struct NodeConfig {
     /// `OSS_TENANT_BUDGET_PER_MINUTE`: the cost units a minute a tenant may
     /// use before its level rises (the large tier).
     pub tenant_budget_per_minute: u64,
+    /// `OSS_TENANT_TICK_MS`: how often tenant levels are stepped.
+    pub tenant_tick_millis: u64,
     /// `serverless.write.backpressure.*`: what limits the writes waiting on
     /// the write log.
     pub write_limit: oss_writer::admission::LimiterConfig,
@@ -286,6 +288,7 @@ impl NodeConfig {
         };
         let tenant_budget_per_minute =
             bounded("OSS_TENANT_BUDGET_PER_MINUTE", "2000", 1, 100_000_000)?;
+        let tenant_tick_millis = bounded("OSS_TENANT_TICK_MS", "10000", 10, 3_600_000)?;
         let write_limit = write_limit::read(&bounded)?;
         let proactive_reapers = bounded("OSS_PROACTIVE_REAPERS", "2", 1, 16)?;
         let proactive_max_concurrent = bounded("OSS_PROACTIVE_MAX_CONCURRENT", "4", 1, 64)?;
@@ -342,6 +345,7 @@ impl NodeConfig {
             store_usage,
             tenant_levels,
             tenant_budget_per_minute,
+            tenant_tick_millis,
             store_usage_max_indices: usize::try_from(store_usage_max_indices).unwrap_or(1000),
             proactive_takeover,
             proactive_reapers: usize::try_from(proactive_reapers).unwrap_or(2),
