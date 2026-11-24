@@ -1,6 +1,7 @@
 //! The bucket aggregations' bodies, parsed into the `MetricAgg` that holds
 //! them: each type's parser lives beside its other code.
 
+use crate::aggs::bucket::composite_parse::parse_composite_body;
 use crate::aggs::bucket::date_histogram_parse::parse_date_histogram_body;
 use crate::aggs::bucket::filters_parse::{parse_filter_body, parse_filters_body};
 use crate::aggs::bucket::histogram_parse::parse_histogram_body;
@@ -43,6 +44,10 @@ pub fn parse_bucket(p: &mut Parser<'_>, agg: &mut MetricAgg) -> Result<bool, Dsl
         Metric::Filter => {
             // ALLOC: one box a `filter`, bounded by the body's recording.
             agg.filters = Some(Box::new(parse_filter_body(p)?));
+        }
+        Metric::Composite => {
+            // ALLOC: one box a `composite`, bounded by the body's recording.
+            agg.composite = Some(Box::new(parse_composite_body(p, &name)?));
         }
         _ => return Ok(false),
     }

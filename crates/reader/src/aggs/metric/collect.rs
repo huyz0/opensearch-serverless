@@ -30,149 +30,19 @@ use crate::aggs::bucket::BUCKET_LIMIT;
 use crate::aggs::bucket::date_histogram::reduce_results as reduce_dates;
 use crate::aggs::bucket::histogram::reduce_results;
 use crate::aggs::bucket::{
-    date_histogram_collect, date_histogram_spec, filters_collect, histogram_collect,
-    histogram_spec, keyword_subs, range_collect, terms_collect, terms_spec, with_subs,
+    composite_collect, date_histogram_collect, date_histogram_spec, filters_collect,
+    histogram_collect, histogram_spec, keyword_subs, range_collect, terms_collect, terms_spec,
+    with_subs,
 };
 use crate::aggs::metric::hll::Hll;
+use crate::aggs::metric::resolve::bad_request;
+pub(crate) use crate::aggs::metric::resolve::{Resolved, resolve};
 use crate::aggs::metric::tdigest::Digest;
 use crate::aggs::metric::top_hits::TopHitsResult;
 use crate::aggs::metric::{DEFAULT_PRECISION, Metric, MetricAgg};
 use crate::aggs::partial::{Format, Partial, Value};
 use crate::failure::Failure;
-use crate::mapping::FieldType;
 use crate::search::ShardError;
-
-/// What `ValuesSourceConfig` resolved an aggregation's field to.
-pub(crate) enum Resolved {
-    /// No such field: the aggregation sees no value.
-    Unmapped,
-    /// A numeric field's doc values, and how its values are shown.
-    Numeric(Format),
-    /// A keyword field's global ordinals, for a `terms`.
-    Keyword,
-    /// No field: a `filters` reads queries.
-    Queries,
-    /// No field: a `top_hits` reads the matches of its bucket.
-    Hits,
-}
-
-/// The text of `Field [<name>] of type [<type>]`'s type.
-fn type_name(ty: &FieldType) -> &str {
-    match ty {
-        FieldType::Text => "text",
-        FieldType::Keyword => "keyword",
-        FieldType::Int { name, .. } => name,
-        FieldType::Long => "long",
-        FieldType::Date => "date",
-        FieldType::Unsupported(what) => what,
-    }
-}
-
-fn bad_request(failure: Failure) -> ShardError {
-    ShardError {
-        status: 400,
-        failure,
-    }
-}
-
-/// `TextFieldMapper.TextFieldType.fielddataBuilder`'s refusal.
-fn text_fielddata(name: &str) -> ShardError {
-    bad_request(Failure::plain(
-        "illegal_argument_exception",
-        // ALLOC: error path; one message.
-        format!(
-            "Text fields are not optimised for operations that require per-document field data \
-             like aggregations and sorting, so these operations are disabled by default. Please \
-             use a keyword field instead. Alternatively, set fielddata=true on [{name}] in order \
-             to load field data by uninverting the inverted index. Note that this can use \
-             significant memory."
-        ),
-    ))
-}
-
-/// Resolves `agg`'s field in `shard`'s mapping.
-pub(crate) fn resolve<S: BlobStore + 'static>(
-    agg: &MetricAgg,
-    shard: &OpenShard<S>,
-) -> Result<Resolved, ShardError> {
-    if agg.filters.is_some() {
-        return Ok(Resolved::Queries);
-    }
-    if agg.top_hits.is_some() {
-        return Ok(Resolved::Hits);
-    }
-    let Some(field) = shard.meta.mapping.get(&agg.field) else {
-        return Ok(Resolved::Unmapped);
-    };
-    let format = match &field.ty {
-        FieldType::Int { .. } | FieldType::Long => Format::Raw,
-        FieldType::Date => Format::Date,
-        FieldType::Text => return Err(text_fielddata(&agg.field)),
-        FieldType::Keyword if matches!(agg.metric, Metric::Terms | Metric::Cardinality) => {
-            Format::Raw
-        }
-        FieldType::Keyword if agg.metric == Metric::ValueCount => {
-            return Err(bad_request(Failure::plain(
-                "illegal_argument_exception",
-                // ALLOC: error path; one message.
-                format!(
-                    "[{}] of the keyword field [{}] is not supported by this node yet",
-                    agg.metric.name(),
-                    agg.field
-                ),
-            )));
-        }
-        FieldType::Keyword => {
-            return Err(bad_request(Failure::plain(
-                "illegal_argument_exception",
-                // ALLOC: error path; one message.
-                format!(
-                    "Field [{}] of type [{}] is not supported for aggregation [{}]",
-                    agg.field,
-                    type_name(&field.ty),
-                    agg.metric.name()
-                ),
-            )));
-        }
-        FieldType::Unsupported(what) => {
-            return Err(bad_request(Failure::plain(
-                "illegal_argument_exception",
-                // ALLOC: error path; one message.
-                format!(
-                    "aggregating {what} [{}] is not supported by this node yet",
-                    agg.field
-                ),
-            )));
-        }
-    };
-    if !field.doc_values {
-        return Err(bad_request(Failure::plain(
-            "illegal_argument_exception",
-            // ALLOC: error path; one message.
-            format!(
-                "Can't load fielddata on [{}] because fielddata is unsupported on fields of type \
-                 [{}]. Use doc values instead.",
-                agg.field,
-                type_name(&field.ty)
-            ),
-        )));
-    }
-    if field.ty == FieldType::Keyword {
-        return Ok(Resolved::Keyword);
-    }
-    if let Some(option) = agg.terms.as_ref().and_then(|t| t.keyword.first_set()) {
-        return Err(bad_request(Failure::plain(
-            "illegal_argument_exception",
-            // ALLOC: error path; one message.
-            format!(
-                "[{option}] of the numeric field [{}] is not supported by this node yet",
-                agg.field
-            ),
-        )));
-    }
-    keyword_subs::refuse_numeric_order(agg)?;
-    Ok(Resolved::Numeric(format))
-}
 
 /// What `avg` reads: the sum and the count.
 const AVG_NEEDS: u8 = NEED_SUM + NEED_COUNT;
@@ -196,7 +66,7 @@ fn needs(metric: Metric) -> u8 {
         | Metric::Terms
         | Metric::Histogram
         | Metric::DateHistogram => NEED_COUNT,
-        Metric::Range | Metric::Filters | Metric::Filter => NEED_COUNT,
+        Metric::Range | Metric::Filters | Metric::Filter | Metric::Composite => NEED_COUNT,
     }
 }
 
@@ -231,6 +101,7 @@ pub(crate) fn value_of(agg: &MetricAgg, state: &MetricState) -> Value {
         ))),
         Metric::Range => range_collect::value(agg, &[]),
         Metric::Filters | Metric::Filter => filters_collect::value(agg, &[]),
+        Metric::Composite => composite_collect::empty(agg),
         // Filled in by the search once the hits are collected.
         // ALLOC: one box a `top_hits`, bounded by the request's.
         Metric::TopHits => Value::TopHits(Box::new(TopHitsResult::empty())),
@@ -279,6 +150,7 @@ pub(crate) fn node(agg: &MetricAgg, precision: u32) -> AggNode {
             date_histogram_collect::node(&agg.field, &date_histogram_spec(agg))
         }
         Metric::Range => range_collect::node(agg),
+        Metric::Composite => unreachable!("a composite's node is made by composite_collect::node"),
         Metric::Cardinality => AggNode::Cardinality {
             field,
             kind: CardinalityKind::Numeric(ValueKind::Long),
@@ -430,7 +302,15 @@ pub fn collect<S: BlobStore + 'static>(
                 with_subs::attach(&mut made, agg, shard, &mut ords, &mut queries)?;
                 nodes.push(made);
             }
-            Resolved::Unmapped | Resolved::Hits => {}
+            Resolved::Composite(true) => {
+                nodes.push(composite_collect::node(
+                    agg,
+                    shard,
+                    &mut ords,
+                    segments.len(),
+                )?);
+            }
+            Resolved::Unmapped | Resolved::Hits | Resolved::Composite(false) => {}
         }
     }
     let mut results = if nodes.is_empty() {
@@ -471,9 +351,13 @@ pub fn collect<S: BlobStore + 'static>(
             Resolved::Unmapped if with_subs::is_bucket(agg) => {
                 (Format::Raw, with_subs::value(agg, shard, None)?)
             }
-            Resolved::Unmapped | Resolved::Hits => {
+            Resolved::Unmapped | Resolved::Hits | Resolved::Composite(false) => {
                 (Format::Raw, value_of(agg, &MetricState::default()))
             }
+            Resolved::Composite(true) => (
+                Format::Raw,
+                composite_collect::value_from(agg, results.next())?,
+            ),
             Resolved::Numeric(format) if with_subs::is_bucket(agg) => {
                 (format, with_subs::value(agg, shard, results.next())?)
             }

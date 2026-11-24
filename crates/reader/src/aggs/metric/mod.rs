@@ -22,6 +22,7 @@ pub mod parse;
 pub mod partial;
 pub mod percentiles;
 pub mod render;
+pub mod resolve;
 pub mod tdigest;
 pub mod top_hits;
 pub mod top_hits_sub;
@@ -33,6 +34,7 @@ pub use percentiles::PercentilesOptions;
 pub use render::{write_aggregations, write_aggregations_with};
 pub use top_hits::{TopHitsResult, TopHitsSpec};
 
+use crate::aggs::bucket::composite::CompositeSpec;
 use crate::aggs::bucket::date_histogram::DateHistogramSpec;
 use crate::aggs::bucket::filters::FiltersSpec;
 use crate::aggs::bucket::histogram::HistogramSpec;
@@ -80,11 +82,14 @@ pub enum Metric {
     Filters,
     /// `filter`: the documents counted that match one query.
     Filter,
+    /// `composite`: the documents counted by each combination of the values
+    /// of its sources, a page at a time.
+    Composite,
 }
 
 impl Metric {
     /// Every metric served, by its aggregation type name.
-    pub const ALL: [Metric; 16] = [
+    pub const ALL: [Metric; 17] = [
         Metric::Min,
         Metric::Max,
         Metric::Sum,
@@ -101,6 +106,7 @@ impl Metric {
         Metric::Range,
         Metric::Filters,
         Metric::Filter,
+        Metric::Composite,
     ];
 
     /// The aggregation type name.
@@ -122,6 +128,7 @@ impl Metric {
             Metric::Range => "range",
             Metric::Filters => "filters",
             Metric::Filter => "filter",
+            Metric::Composite => "composite",
         }
     }
 
@@ -161,6 +168,8 @@ pub struct MetricAgg {
     pub range: Option<Box<RangeSpec>>,
     /// A `filters`' options; `None` for every other aggregation.
     pub filters: Option<Box<FiltersSpec>>,
+    /// A `composite`'s options; `None` for every other aggregation.
+    pub composite: Option<Box<CompositeSpec>>,
 }
 
 /// What a `cardinality` aggregation sets besides its field.
@@ -228,6 +237,10 @@ pub fn state_bytes(aggs: &[MetricAgg]) -> usize {
                     .saturating_mul(per_range)
                     .saturating_add(keys)
             }),
+            Metric::Composite => agg
+                .composite
+                .as_deref()
+                .map_or(0, crate::aggs::bucket::composite_collect::state_bytes),
             Metric::Filters | Metric::Filter => agg
                 .filters
                 .as_deref()
