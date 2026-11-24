@@ -15,6 +15,7 @@ pub mod full_text_build;
 pub mod function_score;
 pub mod function_score_build;
 mod function_score_modes;
+pub mod knn;
 mod leaf_common;
 pub mod query_string;
 pub mod query_string_build;
@@ -47,6 +48,7 @@ pub const NAMES: &[&str] = &[
     "simple_query_string",
     "query_string",
     "function_score",
+    "knn",
 ];
 
 /// `Fuzziness`: an edit distance, or `AUTO` with its two length bounds.
@@ -199,6 +201,8 @@ pub enum More {
     QueryString(Box<query_string::QueryString>, f32),
     /// `FunctionScoreQueryBuilder`, and its boost.
     FunctionScore(Box<function_score::FunctionScore>, f32),
+    /// The k-NN plugin's `KNNQueryBuilder`.
+    Knn(Box<knn::Knn>),
 }
 
 impl More {
@@ -220,6 +224,7 @@ impl More {
             | More::QueryString(_, boost)
             | More::FunctionScore(_, boost)
             | More::MatchNone { boost } => *boost,
+            More::Knn(q) => q.boost,
         }
     }
 }
@@ -242,6 +247,7 @@ pub fn parse(name: &str, p: &mut Parser<'_>) -> Result<More, DslError> {
         "simple_query_string" => simple_string::parse_simple_query_string(p),
         "query_string" => query_string::parse_query_string(p),
         "function_score" => function_score::parse_function_score(p),
+        "knn" => knn::parse_knn(p),
         _ => compound::parse_match_none(p),
     }
 }
@@ -251,6 +257,9 @@ mod parse_tests;
 
 #[cfg(test)]
 mod compound_tests;
+
+#[cfg(test)]
+mod knn_tests;
 
 #[cfg(test)]
 mod build_tests;

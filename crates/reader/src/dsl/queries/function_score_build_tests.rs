@@ -27,6 +27,7 @@ fn built(body: &str) -> Result<(String, bool), Failure> {
         mapping: &mapping,
         analyzer: &analyzer,
         max_doc: 5,
+        knn: None,
     };
     let text = format!(r#"{{"query":{{"function_score":{body}}}}}"#);
     let source = parse_chunks([text.as_bytes()]).expect("parses");

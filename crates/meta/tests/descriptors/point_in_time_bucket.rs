@@ -13,7 +13,7 @@ use crate::point_in_time_capture::{KEEP_ALIVE, N_BEFORE_CHECK, index, publish, s
 use crate::probe::Quirky;
 use crate::{BASE, all, counted};
 
-fn bucketed_index(d: &DescriptorStore, name: &str, uuid: &str, bucket: &str) {
+pub(crate) fn bucketed_index(d: &DescriptorStore, name: &str, uuid: &str, bucket: &str) {
     let record = IndexRecord {
         bucket: Some(bucket.into()),
         ..IndexRecord::new(name, uuid, 1)
@@ -22,7 +22,7 @@ fn bucketed_index(d: &DescriptorStore, name: &str, uuid: &str, bucket: &str) {
 }
 
 /// The commit a bucketed member publishes: two files in one node pack.
-fn node_commit(term: u64, packed: bool) -> String {
+pub(crate) fn node_commit(term: u64, packed: bool) -> String {
     let location = |offset, length| {
         if packed {
             FileLocation::NodePacked {
@@ -59,7 +59,11 @@ fn node_commit(term: u64, packed: bool) -> String {
 }
 
 /// A bucket's manifest register in its JSON form, `others` members first.
-fn publish_bucket(store: &dyn BlobStore, bucket: &str, members: &[(&str, Option<&str>)]) {
+pub(crate) fn publish_bucket(
+    store: &dyn BlobStore,
+    bucket: &str,
+    members: &[(&str, Option<&str>)],
+) {
     let mut json = format!("{{\"bucket\":\"{bucket}\",\"term\":1,\"members\":{{");
     for (i, (uuid, commit)) in members.iter().enumerate() {
         if i > 0 {

@@ -249,6 +249,10 @@ fn the_buckets_switch_is_off_by_default_and_reads_a_flag() {
         .expect("valid");
     assert!(snaps.snapshots_enabled);
     assert!(!on.snapshots_enabled);
+    assert!(!snaps.snapshots_take_enabled);
+    let take = NodeConfig::from_lookup(lookup(&with(&[("OSS_SNAPSHOTS_TAKE_ENABLED", "true")])))
+        .expect("valid");
+    assert!(take.snapshots_take_enabled && !take.snapshots_enabled);
 }
 
 #[test]

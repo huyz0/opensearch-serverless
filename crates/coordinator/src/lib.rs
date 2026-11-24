@@ -17,6 +17,7 @@ pub mod route;
 pub mod search;
 pub mod search_nested;
 pub mod snapshot_admin;
+pub mod snapshot_take_admin;
 pub mod template_admin;
 pub mod templates;
 pub mod zone_meter;

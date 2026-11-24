@@ -68,6 +68,8 @@ pub struct Config {
     pub knn: bool,
     /// Whether the read-only snapshot routes are served: `serverless.snapshots.enabled`.
     pub snapshots: bool,
+    /// Whether a snapshot can be taken: `serverless.snapshots.take.enabled`, beside `snapshots`.
+    pub snapshots_take: bool,
     /// How a point in time's register is deleted.
     pub delete_mode: DeleteMode,
     /// How often the publish timer runs a pass.
@@ -124,6 +126,7 @@ impl Config {
             ingest_pipelines: false,
             knn: false,
             snapshots: false,
+            snapshots_take: false,
             delete_mode: DeleteMode::Tombstone,
             publish_every: Duration::from_millis(250),
             publish_age_millis: 1_000,

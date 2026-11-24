@@ -24,6 +24,7 @@ fn built(body: &str) -> Result<String, Failure> {
         mapping: &mapping,
         analyzer: &analyzer,
         max_doc: 5,
+        knn: None,
     };
     let text = format!(r#"{{"query":{{"query_string":{body}}}}}"#);
     let source = match parse_chunks([text.as_bytes()]) {

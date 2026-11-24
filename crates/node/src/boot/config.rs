@@ -103,6 +103,8 @@ pub struct NodeConfig {
     pub buckets_enabled: bool,
     /// `serverless.snapshots.enabled`: serve the read-only snapshot routes. Off by default.
     pub snapshots_enabled: bool,
+    /// `serverless.snapshots.take.enabled`: take shallow snapshots, beside the snapshot routes. Off by default.
+    pub snapshots_take_enabled: bool,
     /// `serverless.activation.hibernate_after_millis`; 0 never hibernates.
     pub hibernate_after_millis: u64,
     /// `serverless.search.commit_push.enabled`: a published commit is pushed
@@ -255,6 +257,7 @@ impl NodeConfig {
         let janitor_dry_run = flag("OSS_JANITOR_DRY_RUN", "false")?;
         let buckets_enabled = flag("OSS_BUCKETS_ENABLED", "false")?;
         let snapshots_enabled = flag("OSS_SNAPSHOTS_ENABLED", "false")?;
+        let snapshots_take_enabled = flag("OSS_SNAPSHOTS_TAKE_ENABLED", "false")?;
         let tail_overlay = flag("OSS_TAIL_OVERLAY", "true")?;
         let commit_push = flag(
             "OSS_COMMIT_PUSH",
@@ -333,6 +336,7 @@ impl NodeConfig {
             janitor_dry_run,
             buckets_enabled,
             snapshots_enabled,
+            snapshots_take_enabled,
             hibernate_after_millis,
             commit_push,
             give_back_after_millis,

@@ -30,7 +30,7 @@ fn rig_with(config: BudgetConfig) -> Rig {
         "node-1",
         Arc::new(|| 1_700_000_000_000),
     ));
-    let router = routes(Router::new(), &service).expect("routes");
+    let router = routes(Router::new(), &service, None).expect("routes");
     let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
     let budget = MemoryBudget::new(&config);
     let server =
