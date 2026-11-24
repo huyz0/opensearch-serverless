@@ -38,3 +38,4 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0026](0026-bucket-manifests-in-the-writer.md) | Bucket manifests in the writer: the shell's register, written as JSON first | Accepted |
 | [0027](0027-hibernating-idle-writers.md) | An idle writer hibernates: engine closed, head kept | Accepted |
 | [0028](0028-orphan-shard-sweep.md) | Orphan-shard sweep: an opt-in, default-off backstop that lists one key per shard prefix | Accepted |
+| [0029](0029-giving-back-a-hibernated-head.md) | A hibernated shard gives its head back after a longer sleep | Accepted |

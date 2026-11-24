@@ -100,6 +100,8 @@ pub struct NodeConfig {
     pub janitor_dry_run: bool,
     /// `serverless.activation.hibernate_after_millis`; 0 never hibernates.
     pub hibernate_after_millis: u64,
+    /// `serverless.activation.give_back_after_millis`; 0 never gives back.
+    pub give_back_after_millis: u64,
     /// `serverless.write.backpressure.*`: what limits the writes waiting on
     /// the write log.
     pub write_limit: oss_writer::admission::LimiterConfig,
@@ -217,6 +219,7 @@ impl NodeConfig {
         let tail_overlay = flag("OSS_TAIL_OVERLAY", "false")?;
         let proactive_takeover = flag("OSS_PROACTIVE_TAKEOVER", "true")?;
         let hibernate_after_millis = bounded("OSS_HIBERNATE_AFTER_MS", "0", 0, 604_800_000)?;
+        let give_back_after_millis = bounded("OSS_GIVE_BACK_AFTER_MS", "0", 0, 86_400_000)?;
         let write_limit = write_limit::read(&bounded)?;
         let proactive_reapers = bounded("OSS_PROACTIVE_REAPERS", "2", 1, 16)?;
         let proactive_max_concurrent = bounded("OSS_PROACTIVE_MAX_CONCURRENT", "4", 1, 64)?;
@@ -260,6 +263,7 @@ impl NodeConfig {
             orphan_slice_millis: u64::try_from(orphan_slice_millis).unwrap_or(u64::MAX),
             janitor_dry_run,
             hibernate_after_millis,
+            give_back_after_millis,
             proactive_takeover,
             proactive_reapers: usize::try_from(proactive_reapers).unwrap_or(2),
             proactive_max_concurrent: usize::try_from(proactive_max_concurrent).unwrap_or(4),

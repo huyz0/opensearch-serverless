@@ -138,3 +138,97 @@ fn one_of_two_racing_nodes_wins_an_absent_head() {
         .count();
     assert_eq!(won, 1);
 }
+
+#[test]
+fn a_release_clears_the_owner_and_keeps_the_term_and_writers() {
+    let fleet = Fleet::new();
+    let heads = heads(&fleet);
+    heads.acquire("logs", 0, "n1", "en1", Some("u1")).unwrap();
+    let before = fleet.total();
+    assert!(heads.release("logs", 0, "n1", "en1", 1, "u1").unwrap());
+    assert_eq!(fleet.total() - before, 2, "one read and one swap");
+    let head = heads.read("logs", 0).unwrap().unwrap();
+    assert_eq!(head.owner_node_id, None);
+    assert_eq!((head.term, head.index_uuid.as_deref()), (1, Some("u1")));
+    assert!(head.writers.is_empty(), "no log to read: all published");
+    // Taken at once, with no revocation, by anyone.
+    let Acquisition::Won { head, taken_from } =
+        heads.acquire("logs", 0, "n2", "en2", Some("u1")).unwrap()
+    else {
+        panic!("won");
+    };
+    assert_eq!((head.term, taken_from), (2, None));
+}
+
+#[test]
+fn a_release_leaves_a_head_that_is_not_this_processes_at_that_term() {
+    let fleet = Fleet::new();
+    let heads = heads(&fleet);
+    heads.acquire("logs", 0, "n1", "en1", Some("u1")).unwrap();
+    let held = heads.read("logs", 0).unwrap().unwrap();
+    for (node, eph, term, uuid) in [
+        ("n2", "en1", 1, "u1"),
+        ("n1", "en9", 1, "u1"),
+        ("n1", "en1", 2, "u1"),
+        ("n1", "en1", 1, "other"),
+    ] {
+        assert!(!heads.release("logs", 0, node, eph, term, uuid).unwrap());
+        assert_eq!(heads.read("logs", 0).unwrap().unwrap(), held);
+    }
+    assert!(!heads.release("logs", 5, "n1", "en1", 1, "u1").unwrap());
+}
+
+#[test]
+fn a_head_naming_a_node_alone_is_not_given_back() {
+    let fleet = Fleet::new();
+    let heads = heads(&fleet);
+    let nameless = oss_format::ShardHead {
+        index: "logs".to_owned(),
+        shard: 0,
+        term: 1,
+        owner_node_id: Some("n1".to_owned()),
+        owner_ephemeral_id: None,
+        lease_expires_at_millis: i64::MAX,
+        index_uuid: Some("u1".to_owned()),
+        writers: Vec::new(),
+    };
+    fleet
+        .store
+        .create_register(
+            &shard_head_key(BASE, "logs", 0),
+            &nameless.to_bytes().unwrap(),
+        )
+        .unwrap();
+    assert!(!heads.release("logs", 0, "n1", "en1", 1, "u1").unwrap());
+    assert_eq!(heads.read("logs", 0).unwrap().unwrap(), nameless);
+}
+
+#[test]
+fn a_take_that_loses_the_swap_to_a_release_wins_the_unowned_head_at_once() {
+    let fleet = Fleet::new();
+    let owner = heads(&fleet);
+    owner.acquire("logs", 0, "n1", "en1", Some("u1")).unwrap();
+    let racing = crate::Racing::new(fleet.store.clone());
+    {
+        // Between the take's read and its swap, the owner gives the shard back.
+        let owner = heads(&fleet);
+        let done = std::sync::atomic::AtomicBool::new(false);
+        racing.set(move |_| {
+            if !done.swap(true, std::sync::atomic::Ordering::SeqCst) {
+                assert!(owner.release("logs", 0, "n1", "en1", 1, "u1").unwrap());
+            }
+        });
+    }
+    let store: Arc<dyn BlobStore> = racing;
+    let clock: Arc<dyn LeaseClock> = fleet.clock.clone();
+    let oracle = Arc::new(LivenessOracle::new(Arc::new(fleet.node())));
+    let taker = ShardHeadStore::new(store, BASE, clock, TTL, oracle).unwrap();
+    let Acquisition::Won { head, .. } = taker.acquire("logs", 0, "n1", "en1b", Some("u1")).unwrap()
+    else {
+        panic!("won, not refused by a head nobody owns");
+    };
+    assert_eq!(
+        (head.term, head.owner_ephemeral_id.as_deref()),
+        (2, Some("en1b"))
+    );
+}
