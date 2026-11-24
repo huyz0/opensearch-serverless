@@ -7,6 +7,7 @@
 //! `VersionType`, `LiveVersionMap` and `VersionsAndSeqNoResolver` (server,
 //! OpenSearch 3.10).
 
+pub mod knn;
 mod lookup;
 mod plan;
 mod shard;

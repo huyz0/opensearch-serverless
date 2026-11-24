@@ -1,8 +1,6 @@
 //! One shard held by this node: its in-memory directory and the engine
 //! over it, owned together so the slot can live in a map.
 
-use lucene_index::index_writer::IndexWriter;
-use lucene_index::segment_info::LuceneVersion;
 use lucene_store::ByteBuffersDirectory;
 use oss_format::{ShardHead, ShardKey};
 use oss_writer::bulk::Kind;
@@ -13,13 +11,6 @@ use oss_writer::takeover::{Adopted, ShardEngine, adopt};
 
 use super::Takeover;
 use super::snapshot::Snapshot;
-
-/// The Lucene version the writer's segments are written as.
-const VERSION: LuceneVersion = LuceneVersion {
-    major: 10,
-    minor: 4,
-    bugfix: 0,
-};
 
 self_cell::self_cell!(
     /// The directory and the shard that borrows it.
@@ -57,10 +48,9 @@ impl ShardSlot {
         let owner = ByteBuffersDirectory::new();
         fill(&owner)?;
         let cell = Cell::try_new(owner, |dir| {
-            let mut w = IndexWriter::open(dir, Vec::new(), "Lucene104", VERSION)
-                .map_err(|e| e.to_string())?;
-            w.enable_explicit_documents().map_err(|e| e.to_string())?;
+            let (w, derived) = oss_writer::index::knn::open_writer(dir, &mapping)?;
             Shard::new(dir, w, mapping, term, Box::new(clock))
+                .map(|s| s.with_derived_source(derived))
         })?;
         Ok(Self {
             cell,
