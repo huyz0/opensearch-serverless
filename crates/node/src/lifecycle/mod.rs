@@ -15,9 +15,12 @@ use oss_format::NodeLease;
 
 pub use routes::routes;
 
+#[cfg(all(feature = "reader", feature = "writer"))]
 use std::sync::Arc;
+#[cfg(all(feature = "reader", feature = "writer"))]
 use std::time::Duration;
 
+#[cfg(all(feature = "reader", feature = "writer"))]
 use crate::assemble::{AssembleError, Assembled};
 
 /// A node's readiness, shared by its endpoints and its lease writer.
@@ -59,6 +62,7 @@ impl Readiness {
     }
 }
 
+#[cfg(all(feature = "reader", feature = "writer"))]
 impl Assembled {
     /// Registers `GET /_serverless/ready` and `POST /_serverless/drain` over
     /// `readiness`; a drain answers after `settle`.
