@@ -20,7 +20,7 @@ Parity plan R8.2 and [ADR 0021](../../adr/0021-proactive-takeover-from-the-node-
 - AC-3: a shard the dead node held that its log does not name (everything published) is not touched by the pass: no head read, no restore.
 - AC-4: with three live nodes and two reapers, only the two reapers fence the dead node's epochs; the third makes no request about it.
 - AC-5: the second reaper starts at lease expiry plus one refresh interval if epochs are still named, takes only shards still needed, and costs at most twice the first's checks; if the first reaper is down, the second takes them all (up to its bounds).
-- AC-6: more shards named than `max_concurrent` are taken at most that many at once; a shard or header that cannot reserve from the pool is deferred, never refused to a client, and the pass reserves for the headers and the named set before reading them.
+- AC-6: more shards named than `max_concurrent` are taken at most that many at once; a header over `max_header_bytes` is refused (AC-20), which bounds the named set, and each take reserves what a lazy take does, so a client write is never refused for the pass.
 - AC-7: a pass past `pass_millis` stops starting takes and lets those in flight finish; shards not started stay lazy.
 - AC-8: the same dead node and epoch set starts no second pass on a reaper that completed it; a reaper whose pass deferred shards runs again on a later refresh; a new epoch set starts one.
 - AC-9: two reapers disagreeing (stale digests) never produce two owners: the loser's acquire is refused before any restore, and the shard is held once. With no live writer there is no reaper and no request.
@@ -33,6 +33,7 @@ Parity plan R8.2 and [ADR 0021](../../adr/0021-proactive-takeover-from-the-node-
 - AC-16: the requests of a pass are exactly the budget row's function of epochs, named shards and shards taken (fence creates and probes, header GETs, a descriptor and a head GET a named shard, plus the lazy take's), checked at 3, 30 and 200 simulated nodes to show the pass costs the same at each; 0 LIST. The pre-check decisions are made on the view at pass start. The row is written with the first test, before the code.
 - AC-18: a write routed by placement to a shard a reaper holds reaches it or hands it off within a request bound stated in the budget row.
 - AC-19: the janitor's collect of the dead node after a pass reuses the reaper's fence (no second fence create) and the new refresh surface distinguishes a revoked member from an expired one.
+- AC-21: a pass that fails or is deferred is not retried every refresh: its next attempt waits one stagger, then twice as long each time, up to 64 staggers.
 - AC-20: a header over `max_header_bytes` is refused and its shards stay lazy.
 - AC-17: the four settings (`enabled`, `reapers`, `max_concurrent`, `pass_millis`) are registered and validated; a java-written node log (the recorded fixtures) is read by the pass.
 

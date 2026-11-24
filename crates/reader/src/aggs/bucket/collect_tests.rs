@@ -126,6 +126,25 @@ fn min_doc_count_is_the_reduces_not_the_shards() {
     assert_eq!(got.buckets.len(), 20);
 }
 
+// AC-3
+#[test]
+fn a_shard_min_doc_count_drops_the_shards_thin_buckets_into_other() {
+    let shard = shard("terms-shard-min", 20);
+    let got = terms(
+        &shard,
+        r#"{"aggs":{"t":{"terms":{"field":"n","min_doc_count":2,"shard_min_doc_count":2}}}}"#,
+    );
+    // Every `n` is one document's: none reaches 2.
+    assert!(got.buckets.is_empty());
+    assert_eq!(got.other_doc_count, 20);
+    // `shard_min_doc_count` alone is capped at the default `min_doc_count`.
+    let got = terms(
+        &shard,
+        r#"{"aggs":{"t":{"terms":{"field":"n","shard_min_doc_count":5}}}}"#,
+    );
+    assert_eq!(got.buckets.len(), 20);
+}
+
 #[test]
 fn an_unmapped_field_or_no_match_has_no_buckets() {
     let shard = shard("terms-none", 20);

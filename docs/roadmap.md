@@ -41,6 +41,16 @@ Carried into stage 2: the real S3 client over SigV4 (ADR 0005), tested against t
 - REST, routing, fan-out and reduce, ported from OpenSearch and the shell. Java remains only for features not yet ported, then retires.
 - **Gate:** the compatibility suite and OpenSearch's REST YAML suites for every in-scope endpoint, with skips listed.
 
+### Stage 4, parity plan R7: status
+
+Done and on main: routing, fan-out and reduce, document APIs, index admin, cluster and health REST, node assembly and roles, the one-node usable-index replay ([node-usable-cluster](specs/node-usable-cluster/SPEC.md)), forwarded reads ([node-read-forward](specs/node-read-forward/SPEC.md)), and the three-node REST suite ([node-cluster-suite](specs/node-cluster-suite/SPEC.md)). A top-level `top_hits` is merged and rendered in the search path ([coordinator-search-top-hits](specs/coordinator-search-top-hits/SPEC.md)).
+
+R7 is complete: every item of the plan's R7 table is on main. Carried beyond it:
+
+- `top_hits` inside a bucket aggregation: no reader serves it yet ([top-hits-agg](specs/top-hits-agg/SPEC.md)), so the reduce waits for that (R10).
+- Fixtures: the bucket aggregations' expected bodies are read from the Java and not yet recorded against a stock node (see compatibility.md).
+- The suite's RustFS run ([node-cluster-suite](specs/node-cluster-suite/SPEC.md) AC-5) has not been made with a binary.
+
 ## Alongside
 
 - **Extensions:** C and WASM modules, with an ABI designed here and informed by hsearch's ABI v1, added when the reader needs its first one.

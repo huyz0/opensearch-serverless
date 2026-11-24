@@ -52,10 +52,12 @@ pub(crate) fn signed_call(
     action: &'static str,
     (lease, address): (&NodeLease, SocketAddr),
     timeout: Duration,
+    size_hint: usize,
     write: impl FnOnce(&mut Output<'_>) -> Result<(), WireError>,
 ) -> Result<Answer, ForwardError> {
-    // ALLOC: one request message, at most MAX_FORWARD_BYTES.
-    let mut message = Vec::new();
+    // ALLOC: one request message, at most MAX_FORWARD_BYTES, sized once so
+    // the encode never holds a buffer and its grown copy together.
+    let mut message = Vec::with_capacity(size_hint.min(MAX_FORWARD_BYTES));
     write(&mut Output::new(&mut message, MAX_FORWARD_BYTES)).map_err(|_| ForwardError::TooLarge)?;
     let mac = auth
         .sign(

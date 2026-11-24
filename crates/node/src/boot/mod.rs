@@ -6,6 +6,9 @@
 //! cost a handover and never a write.
 
 mod config;
+mod error;
+mod follow;
+mod join;
 mod renew;
 mod support;
 mod tail;
@@ -13,7 +16,7 @@ mod transport;
 
 use std::net::TcpListener;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use oss_cluster::heads::ShardHeadStore;
 use oss_cluster::transport_secret::{CachedTransportSecrets, TransportSecretStore};
@@ -31,24 +34,24 @@ use oss_transport::client::{Client, ClientConfig};
 use oss_transport::server::{Server as TransportServer, ServerConfig as TransportConfig};
 use oss_writer::log::{CommitterConfig, LeaseKeeper, NodeLogCommitter, NodeLogStore};
 
-use crate::assemble::{self, AssembleError, Config, Running, Writer};
+use crate::assemble::{self, Config, Running, Writer};
 use crate::bulk_handler::BulkHandler;
-use crate::cluster_owner::{ClusterRoutes, IndexSource};
+use crate::cluster_owner::ClusterRoutes;
 use crate::descriptor_routes::DescriptorRoutes;
 use crate::forward::BulkForwarder;
 use crate::handlers::Registry;
 use crate::health_route::StoreHealth;
 use crate::index_cache::IndexCache;
-use crate::push_link::Leases;
 use crate::read_forward::{GetForwarder, GetHandler};
 use crate::writer::{
     DeadLogParts, DeadLogPass, DeadMailbox, DeadSnapshot, DescriptorIncarnation, HeadAdmission,
-    HeadOpener, MembershipLeaseWrite, Routes, ShardNames, Takeover,
+    HeadOpener, LiveLeases, MembershipLeaseWrite, OrphanTimer, ShardNames, Takeover,
 };
 
 pub use config::{MIN_MEMORY_BYTES, NodeConfig, StoreChoice};
-use renew::Renewal;
-use support::{address_bytes, earlier_epochs, store_of};
+pub use error::BootError;
+use renew::{Cadence, Renewal};
+use support::{Held, address_bytes, earlier_epochs, store_of};
 
 /// The roles a node's lease names.
 const ROLES: [&str; 2] = ["ingest", "search"];
@@ -68,32 +71,6 @@ const REPLAY_CAPACITY: usize = 65_536;
 /// How long a held shard's index incarnation is trusted before it is read again.
 const INCARNATION_WINDOW: Duration = Duration::from_secs(600);
 
-/// Why a node did not start.
-#[derive(Debug)]
-pub enum BootError {
-    /// The configuration does not fit: the budget or the store.
-    Config(String),
-    /// The store, the lease or a head could not be reached.
-    Cluster(String),
-    /// The roles could not be assembled.
-    Assemble(AssembleError),
-    /// The listener could not be bound.
-    Bind(String),
-}
-
-impl std::fmt::Display for BootError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Config(e) => write!(f, "configuration: {e}"),
-            Self::Cluster(e) => write!(f, "cluster: {e}"),
-            Self::Assemble(e) => write!(f, "assembly: {e}"),
-            Self::Bind(e) => write!(f, "bind: {e}"),
-        }
-    }
-}
-
-impl std::error::Error for BootError {}
-
 /// A node running: dropping it stops its lease renewal, its servers, and
 /// releases its lease.
 pub struct Node {
@@ -101,6 +78,9 @@ pub struct Node {
     transport: Option<TransportServer>,
     renewal: Option<Renewal>,
     dead_logs: Option<Renewal>,
+    /// The orphan-shard sweep, present when its budget is above 0.
+    orphan_sweep: Option<OrphanTimer>,
+    following: Option<follow::Following>,
     membership: Arc<Membership>,
     node_id: String,
     /// Whether dropping the node leaves its lease to lapse, as a killed
@@ -130,6 +110,12 @@ impl Node {
         self.running.as_ref().is_some_and(|r| r.tail().is_some())
     }
 
+    /// The refresh visibility the node is in, which follows the cluster
+    /// register; `None` while the tail overlay is off.
+    pub fn refresh_visibility(&self) -> Option<crate::writer::RefreshVisibility> {
+        self.following.as_ref().map(follow::Following::mode)
+    }
+
     /// The address the node's transport server listens on.
     pub fn transport_addr(&self) -> std::net::SocketAddr {
         self.transport.as_ref().map_or_else(
@@ -144,28 +130,14 @@ impl Drop for Node {
         // The renewal stops first, so it cannot write the lease back.
         drop(self.renewal.take());
         drop(self.dead_logs.take());
+        drop(self.orphan_sweep.take());
+        drop(self.following.take());
         drop(self.running.take());
         drop(self.transport.take());
         // Best effort: an unreleased lease lapses in one lifetime.
         if !self.crashed {
             let _ = self.membership.release(&self.node_id);
         }
-    }
-}
-
-/// The leases this node holds, for the forwarder.
-#[derive(Clone)]
-struct Held(Arc<Membership>);
-
-impl Leases for Held {
-    fn current(&self) -> Arc<[NodeLease]> {
-        self.0.current()
-    }
-}
-
-impl IndexSource for DescriptorRoutes {
-    fn index(&self, name: &str) -> Option<oss_writer::bulk::IndexInfo> {
-        Routes::index(self, name)
     }
 }
 
@@ -243,6 +215,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     registry
         .add(GET_ACTION, late_get)
         .map_err(|e| BootError::Cluster(e.to_string()))?;
+    join::register(&mut registry, &membership).map_err(|e| BootError::Cluster(e.to_string()))?;
     let mut handlers = registry.into_handlers();
     let tail_slots = tail::Slots::list(&mut handlers);
     let transport_server = TransportServer::bind(
@@ -389,8 +362,8 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         &config.node_id,
         address_bytes(&config.node_id),
     );
-    node_config.publish_every = Duration::from_millis(250);
-    node_config.janitor_every = Duration::from_millis(config.janitor_every_millis);
+    config::write_limit::apply(config, &mut node_config);
+    support::apply_janitor_and_hibernation(&mut node_config, config);
     let health = Arc::new(StoreHealth::new(
         Arc::clone(&membership),
         oracle,
@@ -413,11 +386,12 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         &mut assembled,
         config,
         &tail_slots,
-        client,
+        Arc::clone(&client),
         Arc::clone(&auth),
         &membership,
         Arc::clone(&clock),
     )?;
+    let following = follow::start(assembled.tail_visibility(), Arc::clone(&store), config)?;
     let handler: Arc<dyn oss_transport::server::Handler> = Arc::new(BulkHandler::new(
         Arc::clone(&assembled.role),
         Arc::new(descriptor_routes()?),
@@ -431,26 +405,30 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     late_get_slot.set(get_handler).ok();
     // Enrolled last: a peer that sees the lease can reach everything it names.
     membership.renew(&lease_for_enrolment).map_err(cluster)?;
+    join::announce(&membership, client, &auth, &config.node_id, &ephemeral)
+        .map_err(|e| BootError::Cluster(format!("lease announce thread: {e}")))?;
     let listener = TcpListener::bind(config.http)
         .map_err(|e| BootError::Bind(format!("{}: {e}", config.http)))?;
     let role = Arc::clone(&assembled.role);
     let running = assembled
         .start(listener, ServerConfig::default(), &budget)
         .map_err(BootError::Assemble)?;
-
-    // The dead nodes that still name log epochs come from the refresh each
-    // renewal already makes; a thread of its own collects them, so a slow
-    // collection never delays a lease.
+    // Dead nodes naming log epochs come from each renewal's refresh; a thread of its own collects them.
     let mailbox = Arc::new(DeadMailbox::default());
     let posting = Arc::clone(&mailbox);
     let renewing = Arc::clone(&membership);
-    let proactive = support::proactive_takeover(config, role, predecessors);
+    let proactive = support::proactive_takeover(config, role, Arc::clone(&predecessors));
     let taking_clock = Arc::clone(&clock);
-    let renewal = Renewal::spawn(config.renew_every(), move || {
-        // A failed tick is retried by the next: the lease only has to land
-        // once in a lifetime.
-        let _ = keeper.renew(&committer);
-        if let Ok(refreshed) = renewing.refresh() {
+    let mut cadence = Cadence::new(config.renew_every(), config.refresh_every(), Instant::now());
+    let renewal = Renewal::spawn(cadence.tick_every(), move || {
+        let now = Instant::now();
+        if cadence.renew_due(now) {
+            let _ = keeper.renew(&committer);
+        }
+        if cadence.refresh_due(now)
+            && let Ok(refreshed) = renewing.refresh()
+        {
+            cadence.refreshed(now);
             proactive.on_refresh(&refreshed, taking_clock.now_millis());
             posting.post(DeadSnapshot {
                 live: refreshed.live,
@@ -472,6 +450,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
             buffer_bytes: READ_BUFFER,
             first_wait_millis: i64::try_from(node_config.janitor_every.as_millis())
                 .unwrap_or(i64::MAX),
+            predecessors: Some(predecessors),
         },
         {
             let clock = Arc::clone(&clock);
@@ -479,9 +458,21 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         },
     );
     let dry_run = node_config.sweep.dry_run;
+    let live_members = Arc::new(LiveLeases::default());
+    let orphan_sweep = support::orphan_sweep(
+        config,
+        &store,
+        &budget,
+        Arc::clone(&clock),
+        Arc::clone(&live_members),
+        dry_run,
+    );
+    let tombstones = support::tombstone_pass(config, &store, &budget, Arc::clone(&clock));
     let dead_logs = Renewal::spawn_named("dead-log-pass", node_config.janitor_every, move || {
         if let Some(snapshot) = mailbox.take() {
+            live_members.set(Arc::clone(&snapshot.live));
             let _ = collecting.run(&snapshot, dry_run);
+            let _ = tombstones.run(&snapshot.live);
         }
     })
     .map_err(|e| BootError::Cluster(format!("dead log thread: {e}")))?;
@@ -490,6 +481,8 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         running: Some(running),
         renewal: Some(renewal),
         dead_logs: Some(dead_logs),
+        orphan_sweep,
+        following,
         membership,
         node_id: config.node_id.clone(),
         crashed: false,

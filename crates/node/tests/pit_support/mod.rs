@@ -26,6 +26,7 @@ pub struct Rig {
     pub pits: PointInTimeStore,
     pub descriptors: DescriptorStore,
     pub now: Arc<AtomicU64>,
+    pub service: Arc<PitService>,
 }
 
 pub fn rig() -> Rig {
@@ -43,7 +44,7 @@ pub fn rig_sized(buffer_bytes: usize) -> Rig {
         Arc::clone(&clock),
         buffer_bytes,
     ));
-    let router = routes(Router::new(), service).expect("routes");
+    let router = routes(Router::new(), Arc::clone(&service)).expect("routes");
     let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
     let server = Server::start(
         listener,
@@ -59,6 +60,7 @@ pub fn rig_sized(buffer_bytes: usize) -> Rig {
             .expect("names"),
         store,
         now,
+        service,
     }
 }
 

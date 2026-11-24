@@ -13,6 +13,7 @@
 //! empty. [`Rounds`], behind the `emulator` feature, wraps a store to measure
 //! a path's round-trip depth for the request-budget gates.
 
+mod children;
 pub mod chunk;
 #[cfg(feature = "emulator")]
 pub mod emulator;

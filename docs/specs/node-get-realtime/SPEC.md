@@ -19,7 +19,7 @@ A get with `realtime=false` of a shard another node owns was answered realtime, 
 
 ## Test plan
 
-`crates/transport/tests/wire/read.rs` and `crates/node/tests/read_forward.rs`, over a real socket.
+`crates/transport/tests/wire/read.rs` and `crates/node/tests/server/read_forward.rs`, over a real socket.
 
 ## S3 request budget
 

@@ -43,6 +43,8 @@ fn spec(size: usize, shard_size: usize, min: u64, order: TermsOrder) -> TermsSpe
         order,
         keyword: Default::default(),
         sub_order: None,
+        show_error: false,
+        shard_min_doc_count: 0,
     }
 }
 
@@ -184,13 +186,12 @@ fn an_order_by_a_path_is_a_sub_aggregations() {
 fn unserved_options_are_refused_as_not_supported_yet() {
     for key in [
         r#""missing":0"#,
+        r#""missing":true"#,
         r#""script":{"source":"1"}"#,
         r#""value_type":"long""#,
         r#""format":"yyyy""#,
         r#""execution_hint":"map""#,
         r#""collect_mode":"depth_first""#,
-        r#""show_term_doc_count_error":true"#,
-        r#""shard_min_doc_count":2"#,
         r#""order":[{"_count":"asc"},{"_key":"asc"}]"#,
     ] {
         let r = reason(&format!(r#"{{"field":"n",{key}}}"#));
@@ -205,7 +206,8 @@ fn unserved_options_are_refused_as_not_supported_yet() {
 fn sub_aggregations_are_refused_as_not_supported_yet() {
     // A metric sub-aggregation parses (the shard refuses it under a numeric
     // field); one of another kind is refused here.
-    let body = r#"{"aggs":{"t":{"terms":{"field":"n"},"aggs":{"m":{"histogram":{"field":"n","interval":5}}}}}}"#;
+    let body =
+        r#"{"aggs":{"t":{"terms":{"field":"n"},"aggs":{"m":{"percentiles":{"field":"n"}}}}}}"#;
     let r = parse_chunks([body.as_bytes()])
         .expect_err("refused")
         .into_failure()
@@ -340,4 +342,131 @@ fn the_reduce_dispatch_reaches_terms() {
     assert_eq!(t.buckets, [(1, 5), (2, 1)]);
     // A terms beside a value of another kind is not a reduce.
     assert!(reduce(&[part(&[(1, 2)]), Value::Min(1.0)]).is_none());
+}
+
+// AC-6
+#[test]
+fn a_bucket_writes_the_error_of_the_shards_that_lack_it() {
+    let s = TermsSpec {
+        show_error: true,
+        shard_min_doc_count: 0,
+        ..spec(2, 2, 1, TermsOrder::CountDesc)
+    };
+    // Both shards are full: their errors are their last counts, 4 and 5.
+    let a = shard(&s, 0, &[(1, 10), (2, 4)]);
+    let b = shard(&s, 0, &[(2, 6), (3, 5)]);
+    let r = reduced(&[a.clone(), b]);
+    assert_eq!(r.buckets, [(1, 10), (2, 10)]);
+    assert_eq!(r.doc_count_error, 9);
+    // Key 1 is missing from `b` (5), key 2 is in both (0).
+    assert_eq!(r.bucket_errors, [5, 0]);
+    let text = written(Format::Raw, &r);
+    assert!(
+        text.contains(r#"{"key":1,"doc_count":10,"doc_count_error_upper_bound":5}"#),
+        "{text}"
+    );
+    // One shard holds every bucket: no error.
+    let one = reduced(&[a]);
+    assert_eq!(one.bucket_errors, [0, 0]);
+    // Not asked for: no key, as before.
+    let plain = written(
+        Format::Raw,
+        &shard(&spec(2, 2, 1, TermsOrder::CountDesc), 0, &[(1, 10)]),
+    );
+    assert!(
+        !plain.contains("doc_count_error_upper_bound\":0}"),
+        "{plain}"
+    );
+}
+
+#[test]
+fn an_unbounded_shard_makes_every_bucket_error_unbounded() {
+    let s = TermsSpec {
+        show_error: true,
+        shard_min_doc_count: 0,
+        ..spec(2, 2, 1, TermsOrder::CountAsc)
+    };
+    let a = shard(&s, 0, &[(1, 1), (2, 2)]);
+    let b = shard(&s, 0, &[(3, 1), (4, 2)]);
+    let r = reduced(&[a, b]);
+    assert_eq!(r.doc_count_error, -1);
+    assert!(r.bucket_errors.iter().all(|e| *e == -1), "{r:?}");
+}
+
+#[test]
+fn show_term_doc_count_error_parses_as_a_boolean() {
+    let (_, s) = spec_of(r#"{"field":"n","show_term_doc_count_error":true}"#);
+    assert!(s.show_error);
+    let (_, s) = spec_of(r#"{"field":"n","show_term_doc_count_error":false}"#);
+    assert!(!s.show_error);
+}
+
+// AC-1
+#[test]
+fn shard_min_doc_count_is_capped_at_min_doc_count_and_defaults_to_zero() {
+    let s = |body: &str| spec_of(body).1.shard_min_doc_count;
+    assert_eq!(s(r#"{"field":"n"}"#), 0);
+    assert_eq!(s(r#"{"field":"n","shard_min_doc_count":3}"#), 1);
+    assert_eq!(
+        s(r#"{"field":"n","min_doc_count":5,"shard_min_doc_count":3}"#),
+        3
+    );
+    assert_eq!(
+        s(r#"{"field":"n","min_doc_count":2,"shard_min_doc_count":"7"}"#),
+        2
+    );
+    assert_eq!(
+        s(r#"{"field":"n","min_doc_count":0,"shard_min_doc_count":4}"#),
+        0
+    );
+}
+
+// AC-1
+#[test]
+fn a_negative_shard_min_doc_count_fails_as_opensearch_fails_it() {
+    let r = reason(r#"{"field":"n","shard_min_doc_count":-1}"#);
+    assert!(
+        r.contains("[shardMinDocCount] must be greater than or equal to 0. Found [-1] in [t]"),
+        "{r}"
+    );
+}
+
+// AC-2
+#[test]
+fn a_shard_min_doc_count_that_bites_needs_the_count_descending_order() {
+    for order in [
+        r#"{"_count":"asc"}"#,
+        r#"{"_key":"asc"}"#,
+        r#"{"_key":"desc"}"#,
+    ] {
+        let r = reason(&format!(
+            r#"{{"field":"n","min_doc_count":3,"shard_min_doc_count":3,"order":{order}}}"#
+        ));
+        assert!(
+            r.contains("is not supported by this node yet"),
+            "{order}: {r}"
+        );
+    }
+    // Capped to 0 by `min_doc_count: 0`, it bites nothing and any order serves.
+    let s = spec_of(
+        r#"{"field":"n","min_doc_count":0,"shard_min_doc_count":3,"order":{"_key":"asc"}}"#,
+    );
+    assert_eq!(s.1.shard_min_doc_count, 0);
+}
+
+// AC-3
+#[test]
+fn a_shard_drops_buckets_under_its_minimum_and_counts_their_documents_as_others() {
+    let mut s = spec(10, 25, 1, TermsOrder::CountDesc);
+    s.shard_min_doc_count = 3;
+    let mut r = shard(&s, 4, &[(1, 5), (2, 2), (3, 3), (4, 1)]);
+    r.subs.lists = vec![vec![], vec![], vec![], vec![]];
+    r.apply_shard_min();
+    assert_eq!(r.buckets, vec![(1, 5), (3, 3)]);
+    assert_eq!(r.other_doc_count, 4 + 2 + 1);
+    assert_eq!(r.subs.lists.len(), 2);
+    let mut none = shard(&spec(10, 25, 1, TermsOrder::CountDesc), 0, &[(1, 1)]);
+    none.apply_shard_min();
+    assert_eq!(none.buckets, vec![(1, 1)]);
+    assert_eq!(none.other_doc_count, 0);
 }

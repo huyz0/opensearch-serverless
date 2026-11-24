@@ -176,6 +176,24 @@ pub trait BlobStore: Send + Sync {
         visit: &mut dyn FnMut(&str, u64),
     ) -> BlobResult<ListPage>;
 
+    /// Visits up to `max_children` children of `prefix` in byte order,
+    /// strictly after the child `start_after`: a child is a key's path up to
+    /// and including the next `/` after `prefix` (or the key itself when no
+    /// `/` follows). `truncated` says the page stopped at `max_children`.
+    /// This form costs one LIST of one key a child, plus one more when the
+    /// page is short.
+    // LIST: one key a child, through `list_prefix`; each caller carries its
+    // own justification.
+    fn list_children(
+        &self,
+        prefix: &str,
+        start_after: Option<&str>,
+        max_children: usize,
+        visit: &mut dyn FnMut(&str),
+    ) -> BlobResult<ListPage> {
+        crate::children::list_children(self, prefix, start_after, max_children, visit)
+    }
+
     /// Reads the register at `key` into the front of `buf`: its generation
     /// and value length, or `None` when there is no register. A register
     /// that does not fit `buf` is [`BlobError::InvalidArgument`]; an object

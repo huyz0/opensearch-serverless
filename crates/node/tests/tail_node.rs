@@ -333,3 +333,31 @@ fn an_acknowledged_write_is_kept_fetched_pushed_and_dropped_when_published() {
     writer.role.publish_due();
     assert!(kept.kept_after("docs-uuid", 0, -1).is_empty(), "published");
 }
+
+// docs/specs/node-cluster-visibility AC-4
+#[test]
+fn a_mode_set_on_the_handle_reaches_the_writer_and_the_reader_together() {
+    use oss_node::writer::RefreshVisibility::{Everywhere, Owner, Serving};
+    let late = Late::default();
+    let mut node = assembled("writer-1");
+    assert!(
+        node.tail_visibility().is_none(),
+        "off, there is nothing to change"
+    );
+    node.wire_tail(parts(true, "writer-1", &late).with_visibility(Owner))
+        .expect("wires")
+        .expect("on");
+    let handle = node.tail_visibility().expect("on");
+    assert_eq!(
+        (handle.writer_mode(), handle.reader_mode()),
+        (Owner, (false, false))
+    );
+    for (mode, reader) in [
+        (Everywhere, (true, true)),
+        (Serving, (false, true)),
+        (Owner, (false, false)),
+    ] {
+        handle.set(mode);
+        assert_eq!((handle.writer_mode(), handle.reader_mode()), (mode, reader));
+    }
+}

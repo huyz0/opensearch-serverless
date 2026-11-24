@@ -11,7 +11,14 @@
 
 mod codec;
 mod compact;
+mod compact_write;
 mod cursor;
+mod doc;
+mod open;
+
+pub use codec::ManifestCodec;
+pub use doc::{BucketManifest, MAX_BUCKET_MEMBERS};
+pub use open::{BUCKET_OPEN_PREFIX, bucket_open_key, encode_open, parse_open};
 
 use crate::error::{FormatError, corrupt};
 use crate::json::{Reader, Token};
@@ -132,7 +139,7 @@ fn json_member(value: &[u8], index_uuid: &str) -> Result<BucketEntry, FormatErro
     })
 }
 
-fn json_entry(json: &mut Reader<'_>) -> Result<BucketMember, FormatError> {
+pub(super) fn json_entry(json: &mut Reader<'_>) -> Result<BucketMember, FormatError> {
     json.start_object("a member must be an object")?;
     let (mut index_name, mut version, mut commit) = (None, None, None);
     while let Some(field) = json.next_field()? {

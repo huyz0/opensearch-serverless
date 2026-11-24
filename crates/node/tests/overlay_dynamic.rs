@@ -100,11 +100,11 @@ fn an_index_without_a_mapping_is_served_by_the_overlay_at_the_cost_of_one_with()
     let dynamic = run(&cluster, "dynamic", Duration::from_secs(3));
     println!("OVERLAYDYNAMIC|requests for {WRITES} writes: mapped {mapped}, dynamic {dynamic}");
     // A refreshing write to the unmapped index is counted by the first
-    // search of each other node, as the shell promises.
+    // search of every node, the shard's owner included, as the shell promises.
     let body = "{\"index\":{\"_index\":\"dynamic\",\"_id\":\"fresh\"}}\n{\"n\":1}\n";
     let r = cluster.call(0, "POST", "/_bulk?refresh=true", Some(body));
     assert_eq!(r.status, 200, "{}", r.text());
-    for slot in [1, 2] {
+    for slot in [0, 1, 2] {
         assert!(counts(&cluster, slot, "dynamic", "fresh"), "node {slot}");
     }
     assert!(

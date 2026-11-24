@@ -26,7 +26,7 @@ Parity plan R7.6, the last of the push carry-overs; [writer-newest](../writer-ne
 
 ## Test plan
 
-`crates/reader/tests/commit_push.rs` (AC-1, AC-2), `crates/node/tests/newest_ask.rs` (AC-3, AC-4, AC-6, AC-7 over a real writer's publishes) and `crates/node/tests/newest_ask_transport.rs` (AC-5 over a real socket with a guarded handler), `crates/node/src/settings.rs` (AC-6).
+`crates/reader/tests/commit_push.rs` (AC-1, AC-2), `crates/node/tests/server/newest_ask.rs` (AC-3, AC-4, AC-6, AC-7 over a real writer's publishes) and `crates/node/tests/tail/newest_ask_transport.rs` (AC-5 over a real socket with a guarded handler), `crates/node/src/settings.rs` (AC-6).
 
 ## S3 request budget
 

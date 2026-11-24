@@ -22,6 +22,7 @@ pub mod keyword_collect;
 pub mod keyword_options;
 pub mod keyword_subs;
 pub mod keyword_terms;
+pub mod nested_subs;
 pub mod parse_arms;
 pub mod range;
 pub mod range_collect;
@@ -34,6 +35,7 @@ pub mod terms;
 pub mod terms_collect;
 pub mod terms_parse;
 pub mod terms_render;
+pub mod walk;
 pub mod with_subs;
 
 /// `search.max_buckets`'s default: the most distinct values one shard holds
@@ -97,6 +99,12 @@ mod keyword_subs_tests;
 #[cfg(test)]
 mod keyword_terms_tests;
 #[cfg(test)]
+mod nested_filters_tests;
+#[cfg(test)]
+mod nested_terms_tests;
+#[cfg(test)]
+mod nested_tests;
+#[cfg(test)]
 mod range_collect_tests;
 #[cfg(test)]
 mod range_tests;
@@ -105,6 +113,10 @@ mod running_tests;
 #[cfg(test)]
 mod sub_order_tests;
 #[cfg(test)]
+mod terms_error_tests;
+#[cfg(test)]
 mod terms_subs_tests;
 #[cfg(test)]
 mod terms_tests;
+#[cfg(test)]
+mod top_hits_sub_tests;

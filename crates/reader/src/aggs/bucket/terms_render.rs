@@ -29,6 +29,10 @@ pub fn write_terms(out: &mut dyn Write, format: Format, result: &TermsResult) ->
             out.write_all(b"\"")?;
         }
         write!(out, ",\"doc_count\":{count}")?;
+        if reduced.spec.show_error {
+            let error = reduced.bucket_errors.get(i).copied().unwrap_or(0);
+            write!(out, ",\"doc_count_error_upper_bound\":{error}")?;
+        }
         write_subs(out, &reduced.subs.meta, reduced.subs.lists.get(i))?;
         out.write_all(b"}")?;
     }

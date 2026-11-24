@@ -24,7 +24,7 @@ Parity plan R7.6, node assembly: `GET|HEAD /{index}/_doc/{id}`, `GET|HEAD /{inde
 
 ## Test plan
 
-`crates/node/tests/get_route.rs` over the emulator and a real server socket, as `doc_route.rs`; `crates/writer/tests/shard_get.rs` for AC-8.
+`crates/node/tests/server/get_route.rs` over the emulator and a real server socket, as `doc_route.rs`; `crates/writer/tests/shard_get.rs` for AC-8.
 
 ## S3 request budget
 

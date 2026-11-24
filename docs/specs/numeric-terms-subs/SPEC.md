@@ -13,7 +13,7 @@ Roadmap R10.2: the last parent of the sub-aggregation series ([fixed-bucket-subs
 - AC-1: each bucket holds the metric sub-aggregations of the documents it counts.
 - AC-2: a keyword `terms` under a bucket counts that bucket's documents.
 - AC-3: a `terms` over an unmapped field has no bucket and the empty values.
-- AC-4: a numeric `terms` under a numeric `terms` fails with a 400 naming it.
+- AC-4: a numeric `terms` under a keyword `terms` fails with a 400 naming it (a numeric `terms` under a numeric `terms` is served since [nested-bucket-aggs](../nested-bucket-aggs/SPEC.md)).
 - AC-5: a reduce adds each key's sub-aggregations and keeps them with the kept buckets.
 - AC-6: the response writes each bucket's sub-aggregations after its `doc_count`.
 - AC-7: a search reserves for the field's value count (at most the bucket limit); a keyword `terms` reserves nothing here.

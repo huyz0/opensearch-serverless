@@ -104,6 +104,7 @@ const LIVE: Config = Config {
     minimum_unreferenced_millis: 0,
     max_watched: 100_000,
     max_pinned: 100_000,
+    relist_after_millis: 0,
 };
 
 fn whole(term_dir: &str) -> FileLocation<'_> {
@@ -226,6 +227,7 @@ fn a_minimum_age_holds_a_blob_seen_twice_until_the_clock_has_moved() {
         minimum_unreferenced_millis: 1_000,
         max_watched: 100_000,
         max_pinned: 100_000,
+        relist_after_millis: 0,
     };
     rig.sweep(config);
     rig.now.set(1_500);
@@ -258,6 +260,7 @@ fn a_dry_run_deletes_nothing_and_reports_what_it_would() {
         minimum_unreferenced_millis: 0,
         max_watched: 100_000,
         max_pinned: 100_000,
+        relist_after_millis: 0,
     };
     assert!(rig.sweep(dry).would_delete.is_empty());
     let second = rig.sweep(dry);
@@ -373,6 +376,7 @@ fn pins_naming_more_keys_than_the_cap_are_as_if_they_said_everything() {
     rig.pins.set(Pinned::Blobs(vec!["a".into(), "b".into()]));
     let capped = Config {
         max_pinned: 1,
+        relist_after_millis: 0,
         ..LIVE
     };
     let sweep = rig.sweep(capped);

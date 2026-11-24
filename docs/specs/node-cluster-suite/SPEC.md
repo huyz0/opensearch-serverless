@@ -31,4 +31,4 @@ Tests only; no product request changes except that `ClusterRoutes` no longer mak
 
 - #219: a shard whose rendezvous owner changes while another live node holds its head answers 503 for as long as that node lives; the suite settles the members before it creates the index.
 - A killed node's lease lapses in one lease lifetime (3 s here) plus a view refresh, so AC-4 waits about that long.
-- RustFS was not run in the session that wrote this (no binary); AC-5 is unverified until a run with `RUSTFS_BIN`.
+- AC-5 was run on 2026-11-21 against RustFS 1.0.6 (the vendor's prebuilt release build of 2026-11-15, SHA-256 of the zip `a4d109a0...a1398f`; the vendor publishes no checksum), alongside the emulated scenarios: all four tests pass, the RustFS one in about 15 s.

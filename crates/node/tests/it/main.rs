@@ -21,4 +21,6 @@ mod open_prefetch;
 mod open_prefetch_layout;
 mod search;
 mod search_hits;
+mod search_template;
 mod shards;
+mod validate_query;

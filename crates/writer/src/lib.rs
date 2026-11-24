@@ -6,11 +6,14 @@
 //! immutable blob, and carries commit metadata inside uploads it already
 //! makes rather than in extra PUTs.
 
+pub mod admission;
+pub mod bucket;
 pub mod bulk;
 pub mod index;
 pub mod indexing_memory;
 pub mod log;
 pub mod mapping_growth;
+pub mod pack;
 pub mod publish;
 pub mod takeover;
 

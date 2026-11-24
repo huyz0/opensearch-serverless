@@ -68,6 +68,10 @@ pub struct Config {
     pub publish_max_operations: u64,
     /// The write log's window, which a due time rounds up to.
     pub publish_tick_millis: u64,
+    /// How long a writer shard may go unused before it hibernates; 0 never.
+    pub hibernate_after_millis: u64,
+    /// What limits the writes waiting on the log.
+    pub write_limit: oss_writer::admission::LimiterConfig,
     /// How often the janitor runs a pass.
     pub janitor_every: Duration,
     /// How a janitor sweep behaves; it starts as a dry run.
@@ -99,12 +103,15 @@ impl Config {
             publish_age_millis: 1_000,
             publish_max_operations: 10_000,
             publish_tick_millis: 250,
+            hibernate_after_millis: 0,
+            write_limit: oss_writer::admission::LimiterConfig::default(),
             janitor_every: Duration::from_secs(60),
             sweep: gc::Config {
-                dry_run: true,
+                dry_run: false,
                 minimum_unreferenced_millis: 60_000,
                 max_watched: 100_000,
                 max_pinned: 100_000,
+                relist_after_millis: 3_600_000,
             },
             inline_purge_max_shards: 16,
             reclaim_every: Duration::from_secs(60),
@@ -259,6 +266,12 @@ impl Assembled {
         }))
     }
 
+    /// Changes the refresh visibility of this node; `None` while the tail
+    /// overlay is off.
+    pub fn tail_visibility(&self) -> Option<tail_node::VisibilityHandle> {
+        self.tail.as_ref().map(|t| t.visibility.clone())
+    }
+
     /// Starts serving on `listener`, the server's buffers charged to
     /// `budget`.
     ///
@@ -334,7 +347,10 @@ pub fn assemble(
         Box::new(now_millis),
     );
     // ALLOC: startup only.
-    let mut role = WriterRole::new(writer.committer, writer.routes).with_publishing(publishing);
+    let mut role = WriterRole::new(writer.committer, writer.routes)
+        .with_publishing(publishing)
+        .with_hibernation(config.hibernate_after_millis);
+    role.set_write_limiter(config.write_limit.build());
     if let Some(opener) = writer.opener {
         role = role.with_opener(opener);
     }
@@ -361,6 +377,12 @@ pub fn assemble(
         Arc::clone(&clock),
         config.pit_buffer_bytes,
     ));
+    {
+        let search = Arc::clone(&search);
+        pit.set_release_hook(Arc::new(move |id| {
+            search.close_view(id);
+        }));
+    }
     let bulk = Arc::new(BulkService::new(
         Arc::clone(&role),
         BulkBudget::new(config.bulk_bytes, config.bulk_holders),

@@ -4,12 +4,22 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use oss_blob::{BlobStore, Credentials, FsStore, S3Config, S3Store};
+use oss_cluster::lease::Membership;
 use oss_format::{NodeLease, NodeLogEpoch};
 
 use oss_writer::takeover::Predecessors;
 
 use super::{BootError, NodeConfig, StoreChoice, cluster};
-use crate::writer::{ProactiveConfig, ProactiveTakeover, WriterRole};
+use crate::cluster_owner::IndexSource;
+use crate::descriptor_routes::DescriptorRoutes;
+use crate::push_link::Leases;
+use crate::writer::{
+    LiveLeases, OrphanParts, OrphanTimer, ProactiveConfig, ProactiveTakeover, Routes,
+    TombstoneParts, TombstonePass, WriterRole,
+};
+use oss_cluster::LeaseClock;
+use oss_mem::MemoryBudget;
+use oss_meta::DeleteMode;
 
 /// The buffer a lease register is read through.
 const LEASE_BUFFER: usize = 1 << 16;
@@ -85,4 +95,80 @@ pub(super) fn proactive_takeover(
         role,
         predecessors,
     ))
+}
+
+/// The pass that removes the tombstones of deleted indexes, which the one
+/// node ranked to sweep runs once every `OSS_TOMBSTONE_SWEEP_MS`.
+pub(super) fn tombstone_pass(
+    config: &NodeConfig,
+    store: &Arc<dyn BlobStore>,
+    budget: &MemoryBudget,
+    clock: Arc<dyn LeaseClock>,
+) -> TombstonePass {
+    let proving = Arc::clone(store);
+    let base = config.base.clone();
+    TombstonePass::new(
+        TombstoneParts {
+            store: Arc::clone(store),
+            base: config.base.clone(),
+            node_id: config.node_id.clone(),
+            budget: budget.clone(),
+            buffer_bytes: LEASE_BUFFER,
+            every_millis: i64::try_from(config.tombstone_sweep_millis).unwrap_or(i64::MAX),
+            probe: Box::new(move || DeleteMode::probe(proving.as_ref(), &base)),
+        },
+        Box::new(move || clock.now_millis()),
+    )
+}
+
+/// The leases this node holds, for the forwarder.
+#[derive(Clone)]
+pub(super) struct Held(pub(super) Arc<Membership>);
+
+impl Leases for Held {
+    fn current(&self) -> Arc<[NodeLease]> {
+        self.0.current()
+    }
+}
+
+impl IndexSource for DescriptorRoutes {
+    fn index(&self, name: &str) -> Option<oss_writer::bulk::IndexInfo> {
+        Routes::index(self, name)
+    }
+}
+
+/// The orphan-shard sweep, which the one node ranked to sweep runs once every
+/// `OSS_ORPHAN_SLICE_MS`; nothing for a budget of 0.
+pub(super) fn orphan_sweep(
+    config: &NodeConfig,
+    store: &Arc<dyn BlobStore>,
+    budget: &MemoryBudget,
+    clock: Arc<dyn LeaseClock>,
+    live: Arc<LiveLeases>,
+    dry_run: bool,
+) -> Option<OrphanTimer> {
+    OrphanTimer::spawn(
+        OrphanParts {
+            store: Arc::clone(store),
+            base: config.base.clone(),
+            node_id: config.node_id.clone(),
+            budget: budget.clone(),
+            slice: config.orphan_slice_budget,
+            every: Duration::from_millis(config.orphan_slice_millis),
+            dry_run,
+            clock: Arc::new(move || u64::try_from(clock.now_millis()).unwrap_or(0)),
+        },
+        live,
+    )
+}
+
+/// The janitor's rhythm and switch and the hibernation threshold, from the
+/// node's configuration.
+pub(super) fn apply_janitor_and_hibernation(
+    node: &mut crate::assemble::Config,
+    config: &NodeConfig,
+) {
+    node.hibernate_after_millis = config.hibernate_after_millis;
+    node.janitor_every = Duration::from_millis(config.janitor_every_millis);
+    node.sweep.dry_run = config.janitor_dry_run;
 }

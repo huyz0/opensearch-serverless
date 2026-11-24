@@ -13,7 +13,7 @@ use std::time::Instant;
 use oss_blob::BlobStore;
 use oss_coordinator::reduce::aggs::AggsError;
 use oss_coordinator::reduce::hits::SortSpec;
-use oss_coordinator::search::{Params, SearchFailure, Shards, search};
+use oss_coordinator::search::{Params, SearchFailure, Shards, TopHitsWindow, search};
 use oss_format::PointInTime;
 use oss_mem::{Pool, Reservation};
 use oss_reader::aggs::bucket::BUCKET_LIMIT;
@@ -96,25 +96,61 @@ impl<S: BlobStore + 'static> Shards for Local<'_, S> {
     ) -> Result<Vec<Vec<u8>>, ShardError> {
         query
             .render(&self.service.node_id, positions, &mut |n| (self.reserve)(n))
-            .map_err(|e| {
-                // ALLOC: error path; one box.
-                ShardError(Box::new(SearchError::request(
-                    500,
-                    Failure::plain("exception", e.to_string()),
-                )))
+            .map_err(render_error)
+    }
+
+    fn top_hits_window(&self, name: &str) -> Option<TopHitsWindow> {
+        let spec = find_top_hits(&self.source.aggs, name)?;
+        Some(TopHitsWindow {
+            from: spec.from,
+            size: spec.size,
+            sorts: sorts(&spec.sort),
+        })
+    }
+
+    fn render_top_hits(
+        &self,
+        _shard: usize,
+        query: &ShardQuery<S>,
+        result: &oss_reader::aggs::metric::top_hits::TopHitsResult,
+        positions: &[usize],
+    ) -> Result<Vec<Vec<u8>>, ShardError> {
+        query
+            .render_top_hits(&self.service.node_id, result, positions, &mut |n| {
+                (self.reserve)(n)
             })
+            .map_err(render_error)
     }
 }
 
+/// The first `top_hits` named `name` among `aggs` or beneath them.
+fn find_top_hits<'a>(
+    aggs: &'a [oss_reader::aggs::metric::MetricAgg],
+    name: &str,
+) -> Option<&'a oss_reader::aggs::metric::TopHitsSpec> {
+    aggs.iter().find_map(|a| {
+        a.top_hits
+            .as_deref()
+            .filter(|_| a.name == name)
+            .or_else(|| find_top_hits(&a.subs, name))
+    })
+}
+
+fn render_error(e: io::Error) -> ShardError {
+    // ALLOC: error path; one box.
+    ShardError(Box::new(SearchError::request(
+        500,
+        Failure::plain("exception", e.to_string()),
+    )))
+}
+
 /// The sort the merge orders by; `None` for the score.
-fn sorts(source: &SearchSource) -> Option<Vec<SortSpec>> {
-    if source.sort.is_empty() {
+fn sorts(keys: &[SortKey]) -> Option<Vec<SortSpec>> {
+    if keys.is_empty() {
         return None;
     }
     Some(
-        source
-            .sort
-            .iter()
+        keys.iter()
             .map(|key| {
                 let ascending = match key {
                     SortKey::Score { ascending } | SortKey::Field { ascending, .. } => *ascending,
@@ -184,7 +220,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
         let params = Params {
             from: source.from,
             size: source.size,
-            sorts: sorts(source),
+            sorts: sorts(&source.sort),
             track_total_hits_up_to: source
                 .track_total_hits
                 .map(|n| i64::try_from(n).unwrap_or(i64::MAX)),

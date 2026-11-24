@@ -15,11 +15,14 @@
 mod memory;
 mod pins;
 mod point_in_time;
+mod snapshot_pins;
 mod terms;
 
 pub use memory::Memory;
+use memory::Scope;
 pub use pins::{Pinned, Pins};
 pub use point_in_time::PointInTimePins;
+pub use snapshot_pins::SnapshotPins;
 
 use std::collections::{BTreeMap, HashSet};
 
@@ -44,6 +47,10 @@ pub struct Config {
     /// The most blob keys the pins may name for one shard; more is as if
     /// they said [`Pinned::Everything`], so nothing is deleted.
     pub max_pinned: usize,
+    /// How long a sweep may judge from [`Memory`]'s scope before it lists the
+    /// shard again, in the clock's milliseconds. Zero lists every sweep. A
+    /// fenced zombie's late write into an older term waits this long.
+    pub relist_after_millis: i64,
 }
 
 /// What kind of sweep this was.
@@ -70,6 +77,8 @@ pub struct Sweep {
     pub would_delete: Vec<String>,
     /// The blobs now being watched: unreferenced, not yet deletable.
     pub watching: usize,
+    /// Whether the sweep listed the shard, or judged from the scope.
+    pub listed: bool,
 }
 
 /// Whether a blob first seen at `since` is old enough to delete at `now`.
@@ -84,6 +93,7 @@ impl Sweep {
             deleted: Vec::new(),
             would_delete: Vec::new(),
             watching: 0,
+            listed: false,
         }
     }
 }
@@ -164,40 +174,61 @@ impl<'a> Collector<'a> {
         let mut watching: BTreeMap<String, i64> = BTreeMap::new();
         // ALLOC: one key a blob to delete this sweep, same bound.
         let mut due: Vec<String> = Vec::new();
-        let mut start_after: Option<String> = None;
-        loop {
-            let mut last: Option<String> = None;
-            // LIST: one shard's storage path, a page of 1,000 keys at a time;
-            // the cost scales with the shard's blobs and nothing else.
-            let page = self.store.list_prefix(
-                &path,
-                start_after.as_deref(),
-                MAX_LIST_KEYS,
-                &mut |key, _| {
-                    last = Some(key.to_owned());
-                    if !terms::is_older_term_blob(key, &path, live_term) || referenced.contains(key)
-                    {
-                        return;
-                    }
-                    let since = before.get(key).copied();
-                    let aged = aged_since(since, now, &self.config);
-                    // The cap holds for every blob but one already due, so a
-                    // lowered cap shrinks the memory and an aged blob is never starved.
-                    if watching.len() >= self.config.max_watched && !aged {
-                        return;
-                    }
-                    if aged {
-                        due.push(key.to_owned());
-                    }
-                    watching.insert(key.to_owned(), since.unwrap_or(now));
-                },
-            )?;
-            if !page.truncated {
-                break;
+        let mut judge = |key: &str| {
+            if !terms::is_older_term_blob(key, &path, live_term) || referenced.contains(key) {
+                return;
             }
-            start_after = last;
-            if start_after.is_none() {
-                break;
+            let since = before.get(key).copied();
+            let aged = aged_since(since, now, &self.config);
+            // The cap holds for every blob but one already due, so a
+            // lowered cap shrinks the memory and an aged blob is never starved.
+            if watching.len() >= self.config.max_watched && !aged {
+                return;
+            }
+            if aged {
+                due.push(key.to_owned());
+            }
+            watching.insert(key.to_owned(), since.unwrap_or(now));
+        };
+        let scope = memory.scope(&path).filter(|scope| {
+            scope.term == live_term
+                && now >= scope.listed_at
+                && now.saturating_sub(scope.listed_at) < self.config.relist_after_millis
+        });
+        let listed = scope.is_none();
+        let listed_at = scope.map_or(now, |scope| scope.listed_at);
+        if let Some(scope) = scope {
+            // The names the manifest or a pin gave last time and the watched
+            // ones: what a listing would have found worth judging.
+            for key in &scope.names {
+                judge(key);
+            }
+            for key in before.keys().filter(|key| !scope.names.contains(*key)) {
+                judge(key);
+            }
+        } else {
+            let mut start_after: Option<String> = None;
+            loop {
+                let mut last: Option<String> = None;
+                // LIST: one shard's storage path, a page of 1,000 keys at a
+                // time; the cost scales with the shard's blobs, and happens at
+                // most once an hour and at each new term.
+                let page = self.store.list_prefix(
+                    &path,
+                    start_after.as_deref(),
+                    MAX_LIST_KEYS,
+                    &mut |key, _| {
+                        last = Some(key.to_owned());
+                        judge(key);
+                    },
+                )?;
+                if !page.truncated {
+                    break;
+                }
+                start_after = last;
+                if start_after.is_none() {
+                    break;
+                }
             }
         }
 
@@ -215,7 +246,24 @@ impl<'a> Collector<'a> {
             sweep.deleted = due;
         }
         sweep.watching = watching.len();
-        memory.set(&path, watching);
+        sweep.listed = listed;
+        // ALLOC: one key a blob the manifest or a pin names in an older term,
+        // bounded by the manifest's file limit and the pins' cap, and one a
+        // watched blob.
+        let names: HashSet<String> = referenced
+            .into_iter()
+            .filter(|key| terms::is_older_term_blob(key, &path, live_term))
+            .chain(watching.keys().cloned())
+            .collect();
+        memory.set(
+            &path,
+            watching,
+            Scope {
+                term: live_term,
+                listed_at,
+                names,
+            },
+        );
         Ok(sweep)
     }
 }

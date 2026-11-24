@@ -71,6 +71,14 @@ impl WriterRole {
             .map(|outcome| match outcome {
                 Ok(w) => item_result(Ok(w), index, shard),
                 Err(Failure::Refused(r)) => item_result(Err(r), index, shard),
+                Err(Failure::Throttled(reason)) => ItemResult::Failed {
+                    status: 429,
+                    error: Exception::new("es_rejected_execution_exception", reason)
+                        // ALLOC: three short fields an item that failed.
+                        .with_meta("index", Meta::Str(index.name.clone()))
+                        .with_meta("shard", Meta::Str(shard.to_string()))
+                        .with_meta("index_uuid", Meta::Str(index.uuid.clone())),
+                },
                 Err(Failure::Unavailable(reason)) => ItemResult::Failed {
                     status: 503,
                     error: Exception::new("node_log_exception", reason)

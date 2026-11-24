@@ -100,7 +100,11 @@ impl<L: Leases> BulkForwarder<L> {
     /// # Errors
     ///
     /// [`ForwardError`]: nothing sent, the owner gone, or the call failed.
-    pub fn bulk(&self, node_id: &str, request: &BulkRequest) -> Result<BulkResponse, ForwardError> {
+    pub fn bulk(
+        &self,
+        node_id: &str,
+        request: &BulkRequest<'_>,
+    ) -> Result<BulkResponse, ForwardError> {
         let (lease, address) = owner_of(&self.leases, node_id)?;
         match signed_call(
             &self.client,
@@ -108,6 +112,7 @@ impl<L: Leases> BulkForwarder<L> {
             BULK_ACTION,
             (&lease, address),
             self.timeout,
+            request.encoded_size_hint(),
             |out| request.write(out),
         ) {
             Ok(answer) => BulkResponse::read(&mut Input::new(answer.message()))

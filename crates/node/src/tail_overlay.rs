@@ -19,11 +19,34 @@ pub const TAIL_OVERLAY_ENABLED: BoolSetting = BoolSetting::new(
      on top of it, before they are published.",
 );
 
-/// `serverless.search.refresh_visibility`: which copies of a shard answer a
-/// search only while they hold every write the writer answered as refreshed
-/// (the shell's `RefreshVisibility`). Only `everywhere` makes a reader check
-/// with the writer before it answers; the writer-side wait of `owner` and
-/// `serving` is not wired yet, so both leave a search as it is.
+/// `index.serverless.search.tail_overlay.enabled`: whether a search of this
+/// index uses the overlay on a node that has it wired. Read from the index's
+/// settings when a shard is opened; `false` serves the index from the commit
+/// alone. Default `true`: the node setting is what builds the overlay.
+pub const TAIL_OVERLAY_INDEX_ENABLED: BoolSetting = BoolSetting::new(
+    "index.serverless.search.tail_overlay.enabled",
+    true,
+    Scope::Index,
+    "Search the acknowledged writes above the open commit of this index, where the node \
+     has the overlay on.",
+);
+
+/// Whether an index with these settings is served over the overlay: its own
+/// setting, and `true` when it has none or one that does not parse.
+pub fn index_wants_overlay(settings: &dyn oss_types::settings::Source) -> bool {
+    settings
+        .value(TAIL_OVERLAY_INDEX_ENABLED.key())
+        .filter(|v| !v.is_empty())
+        .and_then(|v| TAIL_OVERLAY_INDEX_ENABLED.parse(v).ok())
+        .unwrap_or_else(|| TAIL_OVERLAY_INDEX_ENABLED.default())
+}
+
+/// `serverless.search.refresh_visibility`: how far a refreshing write is made
+/// visible before it is answered (the shell's `RefreshVisibility`). `serving`
+/// and `everywhere` make the writer wait for the search nodes instead of
+/// publishing a commit; `everywhere` also makes a reader check with the
+/// writer before it answers. Dynamic: the cluster register's value overrides
+/// the node's and a running node follows it.
 pub const REFRESH_VISIBILITY: ChoiceSetting = ChoiceSetting::new(
     "serverless.search.refresh_visibility",
     "everywhere",
@@ -31,10 +54,15 @@ pub const REFRESH_VISIBILITY: ChoiceSetting = ChoiceSetting::new(
     Scope::Node,
     "Which copies of a shard answer a search only once they hold every write \
      acknowledged as refreshed: owner, serving or everywhere.",
-);
+)
+.dynamic();
 
 /// Every setting this module defines, for the node's registry.
-pub static SETTINGS: &[&Setting] = &[TAIL_OVERLAY_ENABLED.setting(), REFRESH_VISIBILITY.setting()];
+pub static SETTINGS: &[&Setting] = &[
+    TAIL_OVERLAY_ENABLED.setting(),
+    TAIL_OVERLAY_INDEX_ENABLED.setting(),
+    REFRESH_VISIBILITY.setting(),
+];
 
 /// Installs `source` on `service` when the setting is on (`enabled`); off,
 /// a search is answered from the commit alone. Gives whether the source was

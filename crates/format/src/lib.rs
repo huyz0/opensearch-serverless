@@ -52,11 +52,13 @@ mod mutf8;
 mod node_lease;
 mod node_log;
 mod node_pack;
+mod node_pack_ledger;
 mod point_in_time;
 mod reclaim_intent;
 mod register;
 mod segment_blob;
 mod shard_head;
+mod snapshot_pins;
 mod tombstone;
 mod transport_secret;
 mod unit_layout;
@@ -64,8 +66,9 @@ mod wal_record;
 
 pub use alias_record::{ALIAS_DISCRIMINATOR, AliasMutation, AliasRecord};
 pub use bucket_manifest::{
-    BUCKETS_PREFIX, BucketEntry, BucketMember, MAX_BUCKET_ID_LENGTH, bucket_manifest_key,
-    parse_member as parse_bucket_member,
+    BUCKET_OPEN_PREFIX, BUCKETS_PREFIX, BucketEntry, BucketManifest, BucketMember,
+    MAX_BUCKET_ID_LENGTH, MAX_BUCKET_MEMBERS, ManifestCodec, bucket_manifest_key, bucket_open_key,
+    encode_open, parse_member as parse_bucket_member, parse_open,
 };
 pub use change_stripe::{
     ChangeKind, ChangeStripe, KEPT, KEPT_PENDING, MAX_CHANGE_STRIPE_BYTES, MAX_ENTRY_NAME_BYTES,
@@ -93,7 +96,8 @@ pub use node_log::{
     EncodedNodeLog, NodeLogEntry, NodeLogFence, NodeLogHeader, OrdinalRange, ShardBatch, ShardKey,
     Slice, SliceRecords, slice_records, trim_below, with_ordinal,
 };
-pub use node_pack::{Block, NodePackHeader};
+pub use node_pack::{Block, EncodedPack, NodePackHeader, PlannedBlock, encode as encode_node_pack};
+pub use node_pack_ledger::{NodePackLedger, PackEpoch, encode as encode_pack_ledger};
 pub use point_in_time::{MAX_POINT_IN_TIME_BYTES, PitFile, PitShard, PointInTime, RELEASED};
 pub use reclaim_intent::{
     MAX_RECLAIM_INTENT_BYTES, ReclaimIntent, reclaim_bucket, reclaim_bucket_start,
@@ -104,6 +108,7 @@ pub use segment_blob::{
     encode_header as encode_segment_header,
 };
 pub use shard_head::{MAX_SHARD_HEAD_BYTES, MAX_WRITERS, ShardHead};
+pub use snapshot_pins::{MAX_SNAPSHOT_RECORD_BYTES, snapshot_pinned_indexes};
 pub use tombstone::{MAX_TOMBSTONE_BYTES, Tombstone, tombstone_bucket, tombstone_bucket_start};
 
 /// Node pack format constants and the header-length probe.

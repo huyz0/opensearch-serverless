@@ -26,7 +26,7 @@ Parity plan R7.6, node assembly: `Routes::owner` and `Routes::forward` over the 
 
 ## Test plan
 
-`crates/node/tests/cluster_owner.rs` with a fake `BulkSend` that records requests and a fixed lease list; each test red before the code.
+`crates/node/tests/roles/cluster_owner.rs` with a fake `BulkSend` that records requests and a fixed lease list; each test red before the code.
 
 ## S3 request budget
 

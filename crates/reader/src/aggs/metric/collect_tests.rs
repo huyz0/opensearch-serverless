@@ -337,8 +337,8 @@ fn cardinality_options_the_shard_refuses_fail_it_in_opensearch_order() {
              significant memory.",
         ),
         (
-            r#"{"aggs":{"c":{"cardinality":{"field":"tag"}}}}"#,
-            "[cardinality] of the keyword field [tag] is not supported by this node yet",
+            r#"{"aggs":{"c":{"value_count":{"field":"tag"}}}}"#,
+            "[value_count] of the keyword field [tag] is not supported by this node yet",
         ),
     ] {
         let e = run(&shard, body).expect_err("refused");
@@ -457,4 +457,37 @@ fn a_percentiles_reserves_its_digest_and_keys() {
     let digest = crate::aggs::metric::tdigest::digest_bytes;
     assert_eq!(bytes(&p) - bytes(&min), digest(100.0) + 2 * 16);
     assert_eq!(bytes(&big) - bytes(&min), digest(1000.0) + 16);
+}
+
+#[test]
+fn a_keyword_cardinality_counts_the_distinct_terms_across_segments() {
+    let shard = shard("aggs-keyword-cardinality");
+    // `tag` is `t<i % 16>`: sixteen terms, each segment holding all of them.
+    let body = |extra: &str, query: &str| {
+        format!(r#"{{"size":0{query},"aggs":{{"c":{{"cardinality":{{"field":"tag"{extra}}}}}}}}}"#)
+    };
+    assert_eq!(cardinality(&shard, &body("", "")), 16);
+    assert_eq!(
+        cardinality(&shard, &body(r#","execution_hint":"direct""#, "")),
+        16
+    );
+    // Only the matches' terms: `n` below 5 are five terms.
+    let five = body("", r#","query":{"range":{"n":{"lt":5}}}"#);
+    assert_eq!(cardinality(&shard, &five), 5);
+    let none = body("", r#","query":{"term":{"tag":"nope"}}"#);
+    assert_eq!(values(&shard, &none), [Value::Cardinality(None)]);
+}
+
+#[test]
+fn a_keyword_cardinality_reserves_its_ordinals_and_sketch() {
+    let shard = shard("aggs-keyword-cardinality-reserved");
+    let with = source(r#"{"size":0,"aggs":{"c":{"cardinality":{"field":"tag"}}}}"#);
+    let without = source(r#"{"size":0,"aggs":{"c":{"cardinality":{"field":"n"}}}}"#);
+    let (a, b) = (
+        crate::search::hits_bytes(&with, &shard),
+        crate::search::hits_bytes(&without, &shard),
+    );
+    let (terms, _, _) = crate::aggs::bucket::keyword_collect::dictionary(&shard, "tag");
+    assert!(terms > 0);
+    assert!(a - b >= terms * crate::aggs::bucket::keyword_collect::ORD_BYTES);
 }

@@ -41,7 +41,7 @@ fn refuse(why: &str, status: &str) -> RemoteException {
 }
 
 /// The engine's input for one wire operation.
-fn op(index: &str, wire: &BulkOperation) -> Op {
+fn op(index: &str, wire: &mut BulkOperation<'_>) -> Op {
     let kind = if wire.deletion {
         Kind::Delete
     } else {
@@ -65,8 +65,8 @@ fn op(index: &str, wire: &BulkOperation) -> Op {
             pipeline: None,
             require_alias: false,
         },
-        // ALLOC: one copy of the source an operation.
-        source: wire.source.clone().into_bytes(),
+        // The decoded source moves into the engine's input: held once.
+        source: std::mem::take(&mut wire.source).into_owned().into_bytes(),
     }
 }
 
@@ -97,7 +97,7 @@ fn outcome(id: &str, result: ItemResult) -> BulkOutcome {
 
 impl Handler for BulkHandler {
     fn handle(&self, request: &Request<'_>, out: &mut Output<'_>) -> Result<(), RemoteException> {
-        let bulk = BulkRequest::read(&mut Input::new(request.message))
+        let mut bulk = BulkRequest::read(&mut Input::new(request.message))
             .map_err(|_| refuse("malformed forwarded bulk", "BAD_REQUEST"))?;
         let index = self
             .routes
@@ -114,7 +114,11 @@ impl Handler for BulkHandler {
             .filter(|s| *s < index.shards)
             .ok_or_else(|| refuse("shard out of range", "BAD_REQUEST"))?;
         // ALLOC: one input an operation, bounded by the frame the request came in.
-        let ops: Vec<Op> = bulk.operations.iter().map(|w| op(&bulk.index, w)).collect();
+        let ops: Vec<Op> = bulk
+            .operations
+            .iter_mut()
+            .map(|w| op(&bulk.index, w))
+            .collect();
         let group: Vec<Planned<'_>> = ops
             .iter()
             .zip(&bulk.operations)

@@ -127,3 +127,35 @@ pub fn sent<T>(r: &Rig, work: impl FnOnce() -> T) -> (T, Vec<(S3Op, u64)>) {
         .collect();
     (out, added)
 }
+
+/// The status of `method target` whose body goes as `chunks` with no
+/// declared length.
+pub fn chunked_status(r: &Rig, method: &str, target: &str, chunks: &[&[u8]]) -> u16 {
+    use std::io::{Read, Write};
+    let mut s = std::net::TcpStream::connect(r.server.local_addr()).expect("connects");
+    s.set_read_timeout(Some(std::time::Duration::from_secs(30)))
+        .expect("timeout");
+    let head = format!(
+        "{method} {target} HTTP/1.1\r\nhost: test\r\nconnection: close\r\ncontent-type: application/json\r\ntransfer-encoding: chunked\r\n\r\n"
+    );
+    s.write_all(head.as_bytes()).expect("sends head");
+    for chunk in chunks {
+        let _ = s.write_all(format!("{:x}\r\n", chunk.len()).as_bytes());
+        let _ = s.write_all(chunk);
+        let _ = s.write_all(b"\r\n");
+    }
+    let _ = s.write_all(b"0\r\n\r\n");
+    let mut raw = Vec::new();
+    let mut buf = [0u8; 4 << 10];
+    while let Ok(n) = s.read(&mut buf) {
+        if n == 0 {
+            break;
+        }
+        raw.extend_from_slice(&buf[..n]);
+    }
+    String::from_utf8_lossy(&raw)
+        .split(' ')
+        .nth(1)
+        .and_then(|v| v.parse().ok())
+        .expect("a status")
+}

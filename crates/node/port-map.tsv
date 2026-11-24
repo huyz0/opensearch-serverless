@@ -79,6 +79,7 @@ src/by_query/response.rs	new		the answer of a delete by query
 src/by_query/search.rs	new		the by-query search answered by the node's own reader, sorted by sequence number
 src/writer/publish_age.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/reconcile/BackgroundReconciler.java	the per-index publish age: refresh_interval bounds the oldest unpublished write; -1 leaves it to the operation count
 src/search_count.rs	port	server/src/main/java/org/opensearch/rest/action/search/RestCountAction.java	_count as the exact total of a size-0 search of the query
+src/search_validate.rs	port	server/src/main/java/org/opensearch/rest/action/admin/indices/RestValidateQueryAction.java	_validate/query as whether the query builds over the mapping, with no explanation
 src/writer/dead_logs.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/shard/ShardSettlement.java	collectNodeLog reads: the fenced epochs, the shard names in the headers, the commit checkpoint
 src/search_field_caps.rs	port	server/src/main/java/org/opensearch/rest/action/admin/indices/RestFieldCapabilitiesAction.java	_field_caps over named indices: type, searchable and aggregatable per field, merged by type
 src/writer/dead_log_pass.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/reconcile/BackgroundReconciler.java	which dead nodes a node reaps, the collection pass over them and the wait that backs off
@@ -93,3 +94,16 @@ src/tail_fresh.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/
 src/boot/tail.rs	new		the tail actions listed on the transport server before it binds, and their handlers given once the node is assembled
 src/writer/snapshot.rs	new		the files of a commit held apart from the engine directory so a publish uploads them after the shard lock is let go; the shell publishes from the Lucene commit's immutable files
 src/writer/proactive.rs	new		the take of the shards a dead node's write log names, by designated reapers, before a write asks (ADR 0021); the shell finds them by listing a per-node claims folder
+src/boot/join.rs	new		what a node does once enrolled: read the fleet, then announce itself; the Java learns of a join at its next lease read
+src/lease_announce.rs	new		the joiner announces itself and a peer reads the fleet once; the Java has no such action
+src/cluster_live.rs	new		the cluster register read into the node's live settings; the Java shell receives them in the cluster state
+src/boot/follow.rs	new		the node follows the cluster register's refresh visibility; the Java shell is told by the cluster state
+src/writer/tombstone_pass.rs	new		which node runs the tombstone sweep, on a wait, from the live members; the shell's reconciler sweeps from every node on its schedule
+src/writer/hibernate.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/reconcile/ShardHibernation.java	idle writers close their engines and keep their head, woken at the same term; the head give-back after a longer idle is not ported yet
+src/writer/routes.rs	new		the writer's seam to the cluster (index lookup, owner, forward), split out of the writer module to keep it under the size limit
+src/writer/limit.rs	new		the write limiter admits a group before anything is applied and is told how the log append went, split out of the writer module to keep it under the size limit
+src/boot/config/write_limit.rs	new		the OSS_WRITE_* variables of the write limiter, split out of the boot config to keep it under the size limit
+src/search_template.rs	port	modules/lang-mustache/src/main/java/org/opensearch/script/mustache/RestSearchTemplateAction.java	_render/template and _search/template: render an inline template, then search the rendered body
+src/writer/orphan_timer.rs	new		which node runs the orphan-shard sweep, on a timer, from the live members; the shell runs collectOrphanedShards from its reconciler on every janitor node
+src/boot/error.rs	new		BootError, moved out of boot/mod.rs for its size
+src/boot/config/tests.rs	new		the configuration tests, moved out of boot/config.rs for its size

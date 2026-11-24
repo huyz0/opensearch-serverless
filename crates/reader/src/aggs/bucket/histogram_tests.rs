@@ -150,13 +150,13 @@ fn unserved_keys_and_orders_are_refused_as_not_supported_yet() {
             "{body}"
         );
     }
-    let body = br#"{"aggs":{"h":{"histogram":{"field":"n","interval":1},"aggs":{"m":{"range":{"field":"n","ranges":[{"to":5}]}}}}}}"#;
+    let body = br#"{"aggs":{"h":{"histogram":{"field":"n","interval":1},"aggs":{"m":{"percentiles":{"field":"n"}}}}}}"#;
     let e = parse_chunks([&body[..]])
         .expect_err("refused")
         .into_failure();
     assert!(
         e.reason
-            .contains("[range] sub-aggregation of a [histogram]"),
+            .contains("[percentiles] sub-aggregation of a [histogram]"),
         "{e:?}"
     );
 }

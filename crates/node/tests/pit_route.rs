@@ -317,3 +317,30 @@ fn the_literal_all_wins_over_an_id_in_the_path() {
             .any(|v| v.id == view)
     );
 }
+
+#[test]
+fn a_release_tells_the_hook_each_view_it_removed_and_no_other() {
+    use std::sync::{Arc, Mutex};
+    let r = rig();
+    index(&r, "logs", 1);
+    let told: Arc<Mutex<Vec<String>>> = Arc::default();
+    let sink = Arc::clone(&told);
+    assert!(r.service.set_release_hook(Arc::new(move |id| {
+        sink.lock().expect("lock").push(id.to_owned())
+    })));
+    assert!(!r.service.set_release_hook(Arc::new(|_| {})), "one hook");
+    let a = create(&r, "logs");
+    let b = create(&r, "logs");
+    let c = create(&r, "logs");
+    call(&r, "DELETE", &format!("/_search/point_in_time/{a}"), None);
+    // A repeat of a released id and an id that was never a view are not told.
+    call(&r, "DELETE", &format!("/_search/point_in_time/{a}"), None);
+    call(&r, "DELETE", "/_search/point_in_time/not-an-id", None);
+    assert_eq!(*told.lock().expect("lock"), vec![a.clone()]);
+    call(&r, "DELETE", "/_search/point_in_time/_all", None);
+    let mut all = told.lock().expect("lock").clone();
+    all.sort();
+    let mut want = vec![a, b, c];
+    want.sort();
+    assert_eq!(all, want);
+}

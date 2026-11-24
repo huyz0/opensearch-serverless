@@ -21,7 +21,7 @@ R7.6, node assembly: `Routes::index` for a writer node, read from the descriptor
 
 ## Test plan
 
-`crates/node/tests/descriptor_routes.rs` over the emulator.
+`crates/node/tests/roles/descriptor_routes.rs` over the emulator.
 
 ## S3 request budget
 

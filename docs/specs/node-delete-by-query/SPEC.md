@@ -20,7 +20,7 @@ R10.7 (delete-by-query), node side. Uses the coordinator's walk ([coordinator-by
 
 ## Test plan
 
-`crates/node/tests/by_query_route.rs`: a real writer role and server, the search faked with the hits a test records from its own index responses. Seen failing with the conditional dropped from the delete.
+`crates/node/tests/server/by_query_route.rs`: a real writer role and server, the search faked with the hits a test records from its own index responses. Seen failing with the conditional dropped from the delete.
 
 ## S3 request budget
 

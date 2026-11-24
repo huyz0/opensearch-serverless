@@ -1,0 +1,34 @@
+//! The REST route tests that share the compat-index node in `support`, built as
+//! one test binary so a rebuild links once. Each module keeps the features it
+//! needed as its own test target.
+
+#[cfg(feature = "reader")]
+#[path = "../support/mod.rs"]
+mod support;
+
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod assemble;
+#[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
+mod boot;
+#[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
+mod boot_limit;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod bulk_route;
+#[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
+mod by_query_route;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod cluster_assemble;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod doc_route;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod get_route;
+#[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
+mod index_delete;
+#[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
+mod index_route;
+#[cfg(feature = "reader")]
+mod newest_ask;
+#[cfg(feature = "reader")]
+mod push_read;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod read_forward;

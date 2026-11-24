@@ -16,7 +16,7 @@ Parity plan R7.6, node assembly: [`WriterRole::publish_due`](../node-publish-loo
 
 ## Test plan
 
-`crates/node/tests/writer_publish_timer.rs`: a role on the metered emulator with the real clock and age 0, ticks of 10 ms; bounded waits poll the meter.
+`crates/node/tests/roles/writer_publish_timer.rs`: a role on the metered emulator with the real clock and age 0, ticks of 10 ms; bounded waits poll the meter.
 
 ## S3 request budget
 

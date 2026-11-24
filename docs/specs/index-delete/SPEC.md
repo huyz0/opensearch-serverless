@@ -26,7 +26,7 @@ R7 node assembly; [ADR 0012](../../adr/0012-index-deletes-and-reclaim.md), whose
 
 ## Test plan
 
-AC-1..4: `crates/cluster/tests/head_registers.rs` on the emulator. AC-5: unit tests in the node pins module. AC-6..9: `crates/node/tests/index_delete.rs` through a real server on the emulator. Each seen failing against a stub that answers no heads and no pins first.
+AC-1..4: `crates/cluster/tests/head_registers.rs` on the emulator. AC-5: unit tests in the node pins module. AC-6..9: `crates/node/tests/server/index_delete.rs` through a real server on the emulator. Each seen failing against a stub that answers no heads and no pins first.
 
 ## S3 request budget
 

@@ -7,7 +7,7 @@ use std::io::{self, Write};
 use crate::aggs::bucket::running;
 use crate::aggs::bucket::sub_order;
 use crate::aggs::bucket::sub_values::{reduce_sub, write_subs};
-use crate::aggs::bucket::terms::{TermsSpec, compare, shard_error};
+use crate::aggs::bucket::terms::{TermsSpec, bucket_errors, compare, shard_error};
 use crate::aggs::partial::{Format, Value};
 
 /// What one shard (or one reduce) holds for a keyword `terms`.
@@ -23,12 +23,28 @@ pub struct KeywordTermsResult {
     /// unless ordered by key descending) from a shard, by the order from a
     /// reduce.
     pub buckets: Vec<(String, u64)>,
+    /// Each bucket's `doc_count_error_upper_bound`, as for a numeric
+    /// `terms`.
+    pub bucket_errors: Vec<i64>,
     /// The name and format of each sub-aggregation, in request order.
     pub sub_meta: Vec<(String, Format)>,
     /// Each bucket's sub-aggregation values, one list a bucket in the order
     /// of `buckets`, each in the order of `sub_meta`; empty lists when there
     /// are no sub-aggregations.
     pub subs: Vec<Vec<Value>>,
+}
+
+impl KeywordTermsResult {
+    /// Drops the buckets under the spec's `shard_min_doc_count`, once the
+    /// sub-aggregation lists are in place; their documents join the others.
+    pub fn apply_shard_min(&mut self) {
+        let dropped = super::terms::drop_below(
+            self.spec.shard_min_doc_count,
+            &mut self.buckets,
+            &mut self.subs,
+        );
+        self.other_doc_count = self.other_doc_count.saturating_add(dropped);
+    }
 }
 
 /// `InternalTerms.reduce` as a final reduce: `None` unless there is a part
@@ -62,6 +78,8 @@ pub fn reduce_results(parts: &[&KeywordTermsResult]) -> KeywordTermsResult {
     let spec = parts.first().map(|p| p.spec.clone()).unwrap_or_default();
     let mut other = 0u64;
     let mut sum_error = 0i64;
+    // ALLOC: one error a part, bounded by the shards.
+    let mut part_errors = Vec::with_capacity(parts.len());
     // ALLOC: one entry a distinct term of the shards' buckets.
     let mut merged: std::collections::BTreeMap<&str, (u64, Vec<Vec<Value>>)> =
         std::collections::BTreeMap::new();
@@ -69,6 +87,7 @@ pub fn reduce_results(parts: &[&KeywordTermsResult]) -> KeywordTermsResult {
     for part in parts {
         other = other.saturating_add(part.other_doc_count);
         let error = shard_error(&part.spec, &part.buckets, part.doc_count_error);
+        part_errors.push(error);
         sum_error = if sum_error == -1 || error == -1 {
             -1
         } else {
@@ -139,6 +158,19 @@ pub fn reduce_results(parts: &[&KeywordTermsResult]) -> KeywordTermsResult {
         other = other.saturating_add(count);
     }
     kept.truncate(spec.size);
+    let shown = parts
+        .iter()
+        .zip(&part_errors)
+        .map(|(p, e)| {
+            // ALLOC: one key a shard bucket, at most `shard_size` a shard.
+            let keys = p.buckets.iter().map(|b| b.0.as_str()).collect();
+            (keys, p.bucket_errors.as_slice(), *e)
+        })
+        // ALLOC: one entry a shard, bounded by the shards.
+        .collect::<Vec<_>>();
+    // ALLOC: one key a kept bucket, at most `size`.
+    let kept_keys: Vec<&str> = kept.iter().map(|k| k.0).collect();
+    let bucket_errors = bucket_errors(spec.show_error, sum_error, &shown, &kept_keys);
     let doc_count_error = if sum_error == -1 || parts.len() != 1 {
         sum_error
     } else {
@@ -148,6 +180,7 @@ pub fn reduce_results(parts: &[&KeywordTermsResult]) -> KeywordTermsResult {
         spec,
         other_doc_count: other,
         doc_count_error,
+        bucket_errors,
         // ALLOC: one term a kept bucket, at most `size`.
         buckets: kept.iter().map(|(k, c, _)| ((*k).to_owned(), *c)).collect(),
         sub_meta: parts
@@ -184,6 +217,10 @@ pub fn write_keyword_terms(out: &mut dyn Write, result: &KeywordTermsResult) -> 
         out.write_all(b"{\"key\":")?;
         oss_rest::write_json_str(out, term)?;
         write!(out, ",\"doc_count\":{count}")?;
+        if reduced.spec.show_error {
+            let error = reduced.bucket_errors.get(i).copied().unwrap_or(0);
+            write!(out, ",\"doc_count_error_upper_bound\":{error}")?;
+        }
         write_subs(out, &reduced.sub_meta, reduced.subs.get(i))?;
         out.write_all(b"}")?;
     }

@@ -1,0 +1,1275 @@
+[
+ {
+  "t": "{\"query\":{\"match\":{\"f\":\"{{q}}\"}}}",
+  "p": {
+   "q": "a\"b\\c\nd\u0001/é <>&'"
+  },
+  "out": "{\"query\":{\"match\":{\"f\":\"a\\\"b\\\\c\\nd\\u0001/é <>&'\"}}}"
+ },
+ {
+  "t": "{{a}} {{{a}}} {{&a}} {{ a }} {{{ a }}} {{& a }}",
+  "p": {
+   "a": "<&\">'"
+  },
+  "out": "<&\\\">' <&\">' <&\">' <&\\\">' <&\">' <&\">'"
+ },
+ {
+  "t": "{{missing}}|{{n}}|{{t}}|{{f}}",
+  "p": {
+   "n": null,
+   "t": true,
+   "f": false
+  },
+  "out": "||true|false"
+ },
+ {
+  "t": "{{a}}|{{b}}|{{c}}|{{d}}|{{e}}|{{f}}|{{g}}|{{h}}",
+  "p": {
+   "a": 1.5,
+   "b": 100.0,
+   "c": 10000000.0,
+   "d": 0.001,
+   "e": 123456789.123,
+   "f": -0.0,
+   "g": 9999999.0,
+   "h": 0.00099
+  },
+  "out": "1.5|100.0|1.0E7|0.001|1.23456789123E8|-0.0|9999999.0|9.9E-4"
+ },
+ {
+  "t": "{{a}}|{{b}}|{{c}}|{{d}}|{{e}}",
+  "p": {
+   "a": 2147483648,
+   "b": -2147483649,
+   "c": 18446744073709551616,
+   "d": 0
+  },
+  "out": "2147483648|-2147483649|18446744073709551616|0|"
+ },
+ {
+  "t": "{{m}}|{{l}}|{{e}}|{{em}}|{{nested}}",
+  "p": {
+   "m": {
+    "x": 1,
+    "y": [
+     2,
+     "s",
+     null,
+     {
+      "z": true
+     }
+    ]
+   },
+   "l": [
+    1,
+    "a",
+    [
+     2,
+     3
+    ],
+    {
+     "k": null
+    }
+   ],
+   "e": [],
+   "em": {},
+   "nested": {
+    "a": {
+     "b": [
+      1.5,
+      2.0
+     ]
+    }
+   }
+  },
+  "out": "{x=1, y=[2, s, null, {z=true}]}|{0=1, 1=a, 2=[2, 3], 3={k=null}}|{}|{}|{a={b=[1.5, 2.0]}}"
+ },
+ {
+  "t": "a{{! c }}b\n{{!c}}\nx\n  {{!c}}  \ny",
+  "p": {},
+  "out": "ab\n\nx\n    \ny"
+ },
+ {
+  "t": "no tags at all",
+  "p": {},
+  "out": "no tags at all"
+ },
+ {
+  "t": "",
+  "p": {},
+  "out": ""
+ },
+ {
+  "t": "{ \"a\": { \"b\": [1, 2, 3] } }",
+  "p": {},
+  "out": "{ \"a\": { \"b\": [1, 2, 3] } }"
+ },
+ {
+  "t": "one { two } {three} {{",
+  "p": {},
+  "err": "MustacheException: Empty mustache @[query-template:1]"
+ },
+ {
+  "t": "}} }}{{a}}{{",
+  "p": {
+   "a": "x"
+  },
+  "err": "MustacheException: Empty mustache @[query-template:1]"
+ },
+ {
+  "t": "{{#a}}x{{.}}{{/a}}|{{^a}}none{{/a}}|{{^b}}nob{{/b}}|{{#o}}{{p}}-{{q.r}}{{/o}}|{{a.0}} {{a.1}} {{a.size}} {{o.p}}",
+  "p": {
+   "a": [
+    1,
+    2
+   ],
+   "o": {
+    "p": "P",
+    "q": {
+     "r": "R"
+    }
+   }
+  },
+  "out": "x1x2||nob|P-R|1 2 2 P"
+ },
+ {
+  "t": "{{#x}}{{/x}}{{^x}}Z{{/x}}",
+  "p": {
+   "x": 0
+  },
+  "out": ""
+ },
+ {
+  "t": "[{{#x}}in{{.}}{{/x}}][{{^x}}out{{/x}}]",
+  "p": {
+   "x": true
+  },
+  "out": "[intrue][]"
+ },
+ {
+  "t": "[{{#x}}in{{.}}{{/x}}][{{^x}}out{{/x}}]",
+  "p": {
+   "x": false
+  },
+  "out": "[][out]"
+ },
+ {
+  "t": "[{{#x}}in{{.}}{{/x}}][{{^x}}out{{/x}}]",
+  "p": {
+   "x": "s"
+  },
+  "out": "[ins][]"
+ },
+ {
+  "t": "[{{#x}}in{{.}}{{/x}}][{{^x}}out{{/x}}]",
+  "p": {
+   "x": ""
+  },
+  "out": "[][out]"
+ },
+ {
+  "t": "[{{#x}}in{{.}}{{/x}}][{{^x}}out{{/x}}]",
+  "p": {
+   "x": []
+  },
+  "out": "[][out]"
+ },
+ {
+  "t": "[{{#x}}in{{.}}{{/x}}][{{^x}}out{{/x}}]",
+  "p": {
+   "x": [
+    null
+   ]
+  },
+  "out": "[in{x=[null]}][]"
+ },
+ {
+  "t": "[{{#x}}in{{.}}{{/x}}][{{^x}}out{{/x}}]",
+  "p": {
+   "x": {}
+  },
+  "out": "[in{}][]"
+ },
+ {
+  "t": "[{{#x}}in{{.}}{{/x}}][{{^x}}out{{/x}}]",
+  "p": {
+   "x": 0
+  },
+  "out": "[in0][]"
+ },
+ {
+  "t": "[{{#x}}in{{.}}{{/x}}][{{^x}}out{{/x}}]",
+  "p": {
+   "x": 1.5
+  },
+  "out": "[in1.5][]"
+ },
+ {
+  "t": "[{{#x}}in{{.}}{{/x}}][{{^x}}out{{/x}}]",
+  "p": {
+   "x": [
+    0
+   ]
+  },
+  "out": "[in0][]"
+ },
+ {
+  "t": "[{{#x}}in{{.}}{{/x}}][{{^x}}out{{/x}}]",
+  "p": {
+   "x": [
+    false
+   ]
+  },
+  "out": "[infalse][]"
+ },
+ {
+  "t": "[{{#x}}in{{.}}{{/x}}][{{^x}}out{{/x}}]",
+  "p": {
+   "x": null
+  },
+  "out": "[][out]"
+ },
+ {
+  "t": "{{#a}}{{#b}}{{c}}{{d}}{{/b}}{{/a}}",
+  "p": {
+   "a": {
+    "b": {
+     "c": 1
+    }
+   },
+   "d": "D"
+  },
+  "out": "1D"
+ },
+ {
+  "t": "{{#l}}{{.}}{{^last}},{{/last}}{{/l}}",
+  "p": {
+   "l": [
+    1,
+    2,
+    3
+   ]
+  },
+  "out": "1,2,3,"
+ },
+ {
+  "t": "{{#ll}}{{.}};{{/ll}}",
+  "p": {
+   "ll": [
+    [
+     1,
+     2
+    ],
+    [
+     3
+    ],
+    []
+   ]
+  },
+  "out": "{0=1, 1=2};{0=3};{};"
+ },
+ {
+  "t": "{{#ll}}{{#.}}<{{.}}>{{/.}}{{/ll}}",
+  "p": {
+   "ll": [
+    [
+     1,
+     2
+    ],
+    [
+     3
+    ],
+    []
+   ]
+  },
+  "out": "<1><2><3>"
+ },
+ {
+  "t": "{{#l}}[{{.}}]{{/l}}",
+  "p": {
+   "l": [
+    1,
+    null,
+    2,
+    "x",
+    true,
+    {
+     "a": 1
+    }
+   ]
+  },
+  "out": "[1][{l=[1, null, 2, x, true, {a=1}]}][2][x][true][{a=1}]"
+ },
+ {
+  "t": "{{#o}}{{a}}{{b}}{{/o}}",
+  "p": {
+   "o": {
+    "a": "A"
+   },
+   "b": "B"
+  },
+  "out": "AB"
+ },
+ {
+  "t": "{{#o}}{{#p}}{{q}}{{/p}}{{/o}}",
+  "p": {
+   "o": {
+    "p": {
+     "x": 1
+    }
+   },
+   "q": "Q"
+  },
+  "out": "Q"
+ },
+ {
+  "t": "{{a.b.c}} {{a.b}} {{a.x.c}} {{x.y}}",
+  "p": {
+   "a": {
+    "b": {
+     "c": 1
+    }
+   }
+  },
+  "out": "1 {c=1}  "
+ },
+ {
+  "t": "{{#o}}{{a.b}}{{/o}}|{{#o}}{{z.b}}{{/o}}",
+  "p": {
+   "o": {
+    "a": {
+     "b": 1
+    }
+   },
+   "a": {
+    "b": "outer"
+   },
+   "z": null
+  },
+  "out": "1|"
+ },
+ {
+  "t": "{{#o}}{{a.b}}{{/o}}",
+  "p": {
+   "o": {
+    "a": null
+   },
+   "a": {
+    "b": "outer"
+   }
+  },
+  "out": ""
+ },
+ {
+  "t": "{{#o}}{{a.b}}{{/o}}",
+  "p": {
+   "o": {
+    "a": {
+     "c": 1
+    }
+   },
+   "a": {
+    "b": "outer"
+   }
+  },
+  "out": ""
+ },
+ {
+  "t": "{{a.b}}",
+  "p": {
+   "a.b": "literal",
+   "a": {
+    "b": "nested"
+   }
+  },
+  "out": "literal"
+ },
+ {
+  "t": "{{a.b}}",
+  "p": {
+   "a.b": null,
+   "a": {
+    "b": "nested"
+   }
+  },
+  "out": ""
+ },
+ {
+  "t": "{{l.0}} {{l.1}} {{l.size}} {{l.x}} {{l.+1}} {{l.01}} {{l.2147483648}}",
+  "p": {
+   "l": [
+    "a",
+    null,
+    "c"
+   ]
+  },
+  "out": "a  3    "
+ },
+ {
+  "t": "{{l.3}}",
+  "p": {
+   "l": [
+    1,
+    2
+   ]
+  },
+  "err": "MustacheException: Failed to get value for l.3 @[query-template:1]"
+ },
+ {
+  "t": "{{l.-1}}",
+  "p": {
+   "l": [
+    1,
+    2
+   ]
+  },
+  "err": "MustacheException: Failed to get value for l.-1 @[query-template:1]"
+ },
+ {
+  "t": "{{#l.3}}x{{/l.3}}",
+  "p": {
+   "l": [
+    1,
+    2
+   ]
+  },
+  "err": "MustacheException: 3 @[query-template:1]"
+ },
+ {
+  "t": "{{^l.-1}}x{{/l.-1}}",
+  "p": {
+   "l": [
+    1,
+    2
+   ]
+  },
+  "err": "MustacheException: position >= 0 @[query-template:1]"
+ },
+ {
+  "t": "{{ll.0.1}} {{ll.1.size}} {{ll.0.9}}",
+  "p": {
+   "ll": [
+    [
+     1,
+     2
+    ],
+    [
+     3
+    ]
+   ]
+  },
+  "err": "MustacheException: Failed to get value for ll.0.9 @[query-template:1]"
+ },
+ {
+  "t": "{{#ll}}{{0}}{{size}}{{/ll}}",
+  "p": {
+   "ll": [
+    [
+     1,
+     2
+    ],
+    [
+     3
+    ]
+   ]
+  },
+  "out": "1231"
+ },
+ {
+  "t": "{{o.size}} {{o.length}} {{o.empty}} {{o.class}}",
+  "p": {
+   "o": {
+    "a": 1
+   }
+  },
+  "out": "   "
+ },
+ {
+  "t": "{{size}}",
+  "p": {
+   "size": 5
+  },
+  "out": "5"
+ },
+ {
+  "t": "{{.}}",
+  "p": {
+   "a": "x"
+  },
+  "out": "{a=x}"
+ },
+ {
+  "t": "{{#a}}{{.}}{{/a}}",
+  "p": {
+   "a": {
+    "b": 1
+   }
+  },
+  "out": "{b=1}"
+ },
+ {
+  "t": "{{#a}}{{.}}{{/a}}",
+  "p": {
+   "a": "s"
+  },
+  "out": "s"
+ },
+ {
+  "t": "{{#a}}{{.}}{{/a}}",
+  "p": {
+   "a": 2.5
+  },
+  "out": "2.5"
+ },
+ {
+  "t": "{{#a}}{{b}}{{/a}}",
+  "p": {
+   "a": true,
+   "b": "B"
+  },
+  "out": "B"
+ },
+ {
+  "t": "{{#a}}{{b}}{{/a}}",
+  "p": {
+   "a": "str",
+   "b": "B"
+  },
+  "out": "B"
+ },
+ {
+  "t": "{{#a}}{{b}}{{/a}}",
+  "p": {
+   "a": 7,
+   "b": "B"
+  },
+  "out": "B"
+ },
+ {
+  "t": "{{#toJson}}arr{{/toJson}} {{#toJson}}m{{/toJson}} {{#toJson}}s{{/toJson}} {{#toJson}}n{{/toJson}} {{#toJson}}b{{/toJson}} {{#toJson}}z{{/toJson}}",
+  "p": {
+   "arr": [
+    1,
+    2.5,
+    "x",
+    null,
+    true,
+    {
+     "a": [
+      1
+     ]
+    }
+   ],
+   "m": {
+    "k": 10000000000.0,
+    "z": null,
+    "é": "é <>\"\\"
+   },
+   "s": "str",
+   "n": 3,
+   "b": false,
+   "z": null
+  },
+  "out": "[1,2.5,\"x\",null,true,{\"a\":[1]}] {\"k\":1.0E10,\"z\":null,\"é\":\"é <>\\\"\\\\\"} str 3 false "
+ },
+ {
+  "t": "{{#toJSON}}arr{{/toJSON}}{{#TOJSON}}arr{{/TOJSON}}",
+  "p": {
+   "arr": [
+    1
+   ]
+  },
+  "out": "[1][1]"
+ },
+ {
+  "t": "{{#toJson}}a b{{/toJson}}",
+  "p": {
+   "a b": [
+    1
+   ]
+  },
+  "out": "[1]"
+ },
+ {
+  "t": "{{#l}}{{#toJson}}.{{/toJson}},{{/l}}",
+  "p": {
+   "l": [
+    1,
+    {
+     "a": 2
+    },
+    [
+     3
+    ],
+    "s",
+    null
+   ]
+  },
+  "out": "1,{\"a\":2},[3],s,{\"l\":[1,{\"a\":2},[3],\"s\",null]},"
+ },
+ {
+  "t": "{{#toJson}}{{a}}{{/toJson}}",
+  "p": {
+   "a": [
+    1
+   ]
+  },
+  "out": ""
+ },
+ {
+  "t": "{{#toJson}}a{{/toJson}} tail",
+  "p": {
+   "a": {
+    "x": []
+   }
+  },
+  "out": "{\"x\":[]} tail"
+ },
+ {
+  "t": "{{#toJson}}{{/toJson}}",
+  "p": {},
+  "err": "MustacheException: Mustache function [toJson] must contain one and only one identifier"
+ },
+ {
+  "t": "{{#toJson}}a{{b}}{{/toJson}}",
+  "p": {
+   "a": 1,
+   "b": 2
+  },
+  "err": "MustacheException: Mustache function [toJson] must contain one and only one identifier"
+ },
+ {
+  "t": "{{#toJson}}a {{! c}}{{/toJson}}",
+  "p": {
+   "a": 1
+  },
+  "out": ""
+ },
+ {
+  "t": "{{#toJson}}l.0{{/toJson}}|{{#toJson}}o.p{{/toJson}}",
+  "p": {
+   "l": [
+    [
+     1
+    ]
+   ],
+   "o": {
+    "p": {
+     "q": 2
+    }
+   }
+  },
+  "out": "[1]|{\"q\":2}"
+ },
+ {
+  "t": "[{{#join}}l{{/join}}] [{{#join delimiter='; '}}l{{/join delimiter='; '}}] [{{#join}}s{{/join}}] [{{#join}}nope{{/join}}] [{{#join}}m{{/join}}] [{{#join}}e{{/join}}]",
+  "p": {
+   "l": [
+    "a<",
+    1,
+    2.0,
+    true,
+    null,
+    [
+     1,
+     2
+    ],
+    {
+     "k": "v"
+    }
+   ],
+   "s": "x<y",
+   "m": {
+    "a": 1
+   },
+   "e": []
+  },
+  "err": "MustacheException: Function failure @[query-template:1]"
+ },
+ {
+  "t": "{{#join delimiter=', '}}l{{/join delimiter=', '}}|{{#join delimiter=''}}l{{/join delimiter=''}}|{{#join delimiter='x'y'}}l{{/join delimiter='x'y'}}",
+  "p": {
+   "l": [
+    1,
+    2,
+    3
+   ]
+  },
+  "out": "1, 2, 3|123|1x'y2x'y3"
+ },
+ {
+  "t": "{{#join delimiter=','}}l{{/join}}",
+  "p": {
+   "l": [
+    1
+   ]
+  },
+  "err": "MustacheException: Mismatched start/end tags: join delimiter=',' != join in query-template:1 @[query-template:1]"
+ },
+ {
+  "t": "{{#join}}{{l}}{{/join}}",
+  "p": {
+   "l": [
+    "a<",
+    "b"
+   ]
+  },
+  "out": "{0=a<, 1=b}"
+ },
+ {
+  "t": "{{#join}}l{{/JOIN}}",
+  "p": {
+   "l": [
+    "a"
+   ]
+  },
+  "err": "MustacheException: Mismatched start/end tags: join != JOIN in query-template:1 @[query-template:1]"
+ },
+ {
+  "t": "{{#JOIN}}l{{/JOIN}}",
+  "p": {
+   "l": [
+    "a",
+    "b"
+   ]
+  },
+  "out": "a,b"
+ },
+ {
+  "t": "{{#join delimiter=','}}l{{/join delimiter=','}}",
+  "p": {
+   "l": []
+  },
+  "out": ""
+ },
+ {
+  "t": "{{#url}}{{s}}{{/url}}|{{#url}}{{l}}{{/url}}|{{#url}}{{nope}}{{/url}}|{{#url}}lit eral{{/url}}|{{#url}}{{s}} {{s}}{{/url}}|{{#url}}{{s}}{{s}}{{/url}}",
+  "p": {
+   "s": "a b+c~*-._é€/?&=\"\\",
+   "l": [
+    1
+   ]
+  },
+  "out": "a+b%2Bc%7E*-._%C3%A9%E2%82%AC%2F%3F%26%3D%5C%22%5C%5C|%7B0%3D1%7D||lit+eral|a+b%2Bc%7E*-._%C3%A9%E2%82%AC%2F%3F%26%3D%5C%22%5C%5C+a+b%2Bc%7E*-._%C3%A9%E2%82%AC%2F%3F%26%3D%5C%22%5C%5C|a+b%2Bc%7E*-._%C3%A9%E2%82%AC%2F%3F%26%3D%5C%22%5C%5Ca+b%2Bc%7E*-._%C3%A9%E2%82%AC%2F%3F%26%3D%5C%22%5C%5C"
+ },
+ {
+  "t": "{{#URL}}{{s}}{{/URL}}",
+  "p": {
+   "s": "x y"
+  },
+  "out": "x+y"
+ },
+ {
+  "t": "{{#url}}{{/url}}x",
+  "p": {},
+  "out": "x"
+ },
+ {
+  "t": "{{#l}}{{#url}}{{.}}{{/url}}&{{/l}}",
+  "p": {
+   "l": [
+    "a b",
+    "c/d"
+   ]
+  },
+  "out": "a+b&c%2Fd&"
+ },
+ {
+  "t": "line1\n  {{#s}}\n  inner {{x}}\n  {{/s}}\nend\n{{! comment }}\nz",
+  "p": {
+   "s": true,
+   "x": "X"
+  },
+  "out": "line1\n  inner X\nend\n\nz"
+ },
+ {
+  "t": "  {{#a}}\n  x\n  {{/a}}\n\n  {{^a}}\n  y\n  {{/a}}  \n",
+  "p": {
+   "a": false
+  },
+  "out": "\n  y\n  "
+ },
+ {
+  "t": "a\r\n{{#s}}\r\nb\r\n{{/s}}\r\nc",
+  "p": {
+   "s": true
+  },
+  "out": "a\r\nb\r\nc"
+ },
+ {
+  "t": "{{#s}}\nb\n{{/s}}\n",
+  "p": {
+   "s": [
+    1,
+    2
+   ]
+  },
+  "out": "b\nb\n"
+ },
+ {
+  "t": "x {{#s}} y {{/s}} z",
+  "p": {
+   "s": true
+  },
+  "out": "x  y  z"
+ },
+ {
+  "t": "x\n{{#s}}y{{/s}}\nz",
+  "p": {
+   "s": true
+  },
+  "out": "x\ny\nz"
+ },
+ {
+  "t": "  {{#s}}y{{/s}}  \n",
+  "p": {
+   "s": true
+  },
+  "out": "  y  \n"
+ },
+ {
+  "t": "\n\n{{#s}}\n\n{{.}}\n\n{{/s}}\n\n",
+  "p": {
+   "s": [
+    1,
+    2
+   ]
+  },
+  "out": "\n\n\n1\n\n\n2\n\n\n"
+ },
+ {
+  "t": "{{#a}}\n{{#b}}\nx\n{{/b}}\n{{/a}}\n",
+  "p": {
+   "a": {
+    "b": true
+   }
+  },
+  "out": "x\n"
+ },
+ {
+  "t": "{{^a}}\nnone\n{{/a}}\n",
+  "p": {},
+  "out": "none\n"
+ },
+ {
+  "t": "{{a}}\n{{b}}\n",
+  "p": {
+   "a": 1,
+   "b": 2
+  },
+  "out": "1\n2\n"
+ },
+ {
+  "t": "{\n  \"query\": {\n    {{#f}}\n    \"term\": {\"x\": \"{{f}}\"}\n    {{/f}}\n    {{^f}}\n    \"match_all\": {}\n    {{/f}}\n  }\n}\n",
+  "p": {
+   "f": "v"
+  },
+  "out": "{\n  \"query\": {\n    \"term\": {\"x\": \"v\"}\n  }\n}\n"
+ },
+ {
+  "t": "{\n  \"query\": {\n    {{#f}}\n    \"term\": {\"x\": \"{{f}}\"}\n    {{/f}}\n    {{^f}}\n    \"match_all\": {}\n    {{/f}}\n  }\n}\n",
+  "p": {},
+  "out": "{\n  \"query\": {\n    \"match_all\": {}\n  }\n}\n"
+ },
+ {
+  "t": "{{=<% %>=}}<% a %> {{a}} <%={{ }}=%>{{a}}",
+  "p": {
+   "a": 1
+  },
+  "out": "1 {{a}} 1"
+ },
+ {
+  "t": "{{=| |=}}|#s|x|/s| |a|",
+  "p": {
+   "s": true,
+   "a": "A"
+  },
+  "out": "x A"
+ },
+ {
+  "t": "{{=[ ]=}}[a] [#s][.][/s]",
+  "p": {
+   "a": "A",
+   "s": [
+    1,
+    2
+   ]
+  },
+  "out": "A 12"
+ },
+ {
+  "t": "{{=<% %>=}}<%#s%>in<%/s%>{{x}}",
+  "p": {
+   "s": true
+  },
+  "out": "in{{x}}"
+ },
+ {
+  "t": "{{= =}}",
+  "p": {},
+  "err": "MustacheException: Invalid delimiter string:  @[query-template:1]"
+ },
+ {
+  "t": "{{=a=}}",
+  "p": {},
+  "err": "MustacheException: Invalid delimiter string: a @[query-template:1]"
+ },
+ {
+  "t": "{{#s}}{{=<% %>=}}<%a%>{{/s}}{{a}}",
+  "p": {
+   "s": true,
+   "a": "A"
+  },
+  "err": "MustacheException: Failed to close 's' tag @[query-template:1]"
+ },
+ {
+  "t": "{{#a}}",
+  "p": {},
+  "err": "MustacheException: Failed to close 'a' tag @[query-template:1]"
+ },
+ {
+  "t": "{{/a}}",
+  "p": {},
+  "err": "MustacheException: Mismatched start/end tags: null != a in query-template:1 @[query-template:1]"
+ },
+ {
+  "t": "{{#a}}{{/b}}",
+  "p": {},
+  "err": "MustacheException: Mismatched start/end tags: a != b in query-template:1 @[query-template:1]"
+ },
+ {
+  "t": "{{}}",
+  "p": {},
+  "err": "MustacheException: Empty mustache @[query-template:1]"
+ },
+ {
+  "t": "{{ }}",
+  "p": {},
+  "out": ""
+ },
+ {
+  "t": "{{a",
+  "p": {},
+  "err": "MustacheException: Improperly closed variable @[query-template:1]"
+ },
+ {
+  "t": "{{{a}}",
+  "p": {
+   "a": 1
+  },
+  "err": "MustacheException: Improperly closed variable: a in query-template:1@6 @[query-template:1]"
+ },
+ {
+  "t": "{{{a",
+  "p": {
+   "a": 1
+  },
+  "err": "MustacheException: Improperly closed variable: a in query-template:1@4 @[query-template:1]"
+ },
+ {
+  "t": "{{#a",
+  "p": {},
+  "err": "MustacheException: Failed to close 'a' tag @[query-template:1]"
+ },
+ {
+  "t": "{{!",
+  "p": {},
+  "out": ""
+ },
+ {
+  "t": "{{>p}}",
+  "p": {},
+  "err": "MustacheNotFoundException: Template p not found"
+ },
+ {
+  "t": "{{> p }}",
+  "p": {},
+  "err": "MustacheNotFoundException: Template p not found"
+ },
+ {
+  "t": "{{<x}}{{/x}}",
+  "p": {},
+  "err": "MustacheNotFoundException: Template x not found"
+ },
+ {
+  "t": "{{#a}}{{#b}}{{/a}}{{/b}}",
+  "p": {},
+  "err": "MustacheException: Mismatched start/end tags: b != a in query-template:1 @[query-template:1]"
+ },
+ {
+  "t": "x\ny\n{{#a}}\n{{/b}}",
+  "p": {},
+  "err": "MustacheException: Mismatched start/end tags: a != b in query-template:4 @[query-template:4]"
+ },
+ {
+  "t": "{{#a}}\n\n{{#b}}",
+  "p": {},
+  "err": "MustacheException: Failed to close 'b' tag @[query-template:3]"
+ },
+ {
+  "t": "{{#a}}{{/a}}{{/a}}",
+  "p": {},
+  "err": "MustacheException: Mismatched start/end tags: null != a in query-template:1 @[query-template:1]"
+ },
+ {
+  "t": "{{&}}",
+  "p": {
+   "a": 1
+  },
+  "out": ""
+ },
+ {
+  "t": "{{#}}x{{/}}",
+  "p": {},
+  "out": ""
+ },
+ {
+  "t": "{{^}}x{{/}}",
+  "p": {},
+  "out": "x"
+ },
+ {
+  "t": "{{\"a\"}}",
+  "p": {
+   "\"a\"": 1
+  },
+  "out": "1"
+ },
+ {
+  "t": "{{a-b}} {{a b}} {{a_b}}",
+  "p": {
+   "a-b": 1,
+   "a b": 2,
+   "a_b": 3
+  },
+  "out": "1 2 3"
+ },
+ {
+  "t": "{{#l}}{{.}}{{/l}}",
+  "p": {
+   "l": [
+    1,
+    2
+   ]
+  },
+  "out": "12"
+ },
+ {
+  "t": "{{x}}",
+  "p": {
+   "x": {
+    "a": {
+     "b": 1
+    }
+   }
+  },
+  "out": "{a={b=1}}"
+ },
+ {
+  "t": "{{#a}}{{#toJson}}b{{/toJson}}{{/a}}",
+  "p": {
+   "a": {
+    "b": [
+     1,
+     2
+    ]
+   }
+  },
+  "out": "[1,2]"
+ },
+ {
+  "t": "{{a}}",
+  "p": {
+   "a": "é😀"
+  },
+  "out": "é😀"
+ },
+ {
+  "t": "{{#toJson}}a{{/toJson}}",
+  "p": {
+   "a": "é😀"
+  },
+  "out": "é😀"
+ },
+ {
+  "t": "{{a}}|{{b}}",
+  "p": {
+   "a": 2,
+   "b": 3
+  },
+  "out": "2|3"
+ },
+ {
+  "t": "{{a}}",
+  "p": {},
+  "out": ""
+ },
+ {
+  "t": "{{x}}|{{#toJson}}x{{/toJson}}|{{#toJson}}m{{/toJson}}",
+  "p": {
+   "x": 1,
+   "m": {
+    "v": 1,
+    "l": [
+     1
+    ]
+   }
+  },
+  "out": "1|1|{\"v\":1,\"l\":[1]}"
+ },
+ {
+  "t": "{{x}}|{{#toJson}}x{{/toJson}}|{{#toJson}}m{{/toJson}}",
+  "p": {
+   "x": -1,
+   "m": {
+    "v": -1,
+    "l": [
+     -1
+    ]
+   }
+  },
+  "out": "-1|-1|{\"v\":-1,\"l\":[-1]}"
+ },
+ {
+  "t": "{{x}}|{{#toJson}}x{{/toJson}}|{{#toJson}}m{{/toJson}}",
+  "p": {
+   "x": 0,
+   "m": {
+    "v": 0,
+    "l": [
+     0
+    ]
+   }
+  },
+  "out": "0|0|{\"v\":0,\"l\":[0]}"
+ },
+ {
+  "t": "{{x}}|{{#toJson}}x{{/toJson}}|{{#toJson}}m{{/toJson}}",
+  "p": {
+   "x": 12345678901234567890,
+   "m": {
+    "v": 12345678901234567890,
+    "l": [
+     12345678901234567890
+    ]
+   }
+  },
+  "out": "12345678901234567890|12345678901234567890|{\"v\":12345678901234567890,\"l\":[12345678901234567890]}"
+ },
+ {
+  "t": "{{x}}|{{#toJson}}x{{/toJson}}|{{#toJson}}m{{/toJson}}",
+  "p": {
+   "x": 1.0,
+   "m": {
+    "v": 1.0,
+    "l": [
+     1.0
+    ]
+   }
+  },
+  "out": "1.0|1.0|{\"v\":1.0,\"l\":[1.0]}"
+ },
+ {
+  "t": "{{x}}|{{#toJson}}x{{/toJson}}|{{#toJson}}m{{/toJson}}",
+  "p": {
+   "x": 100.0,
+   "m": {
+    "v": 100.0,
+    "l": [
+     100.0
+    ]
+   }
+  },
+  "out": "100.0|100.0|{\"v\":100.0,\"l\":[100.0]}"
+ },
+ {
+  "t": "{{x}}|{{#toJson}}x{{/toJson}}|{{#toJson}}m{{/toJson}}",
+  "p": {
+   "x": 100.0,
+   "m": {
+    "v": 100.0,
+    "l": [
+     100.0
+    ]
+   }
+  },
+  "out": "100.0|100.0|{\"v\":100.0,\"l\":[100.0]}"
+ },
+ {
+  "t": "{{x}}|{{#toJson}}x{{/toJson}}|{{#toJson}}m{{/toJson}}",
+  "p": {
+   "x": 0.0015,
+   "m": {
+    "v": 0.0015,
+    "l": [
+     0.0015
+    ]
+   }
+  },
+  "out": "0.0015|0.0015|{\"v\":0.0015,\"l\":[0.0015]}"
+ },
+ {
+  "t": "{{x}}|{{#toJson}}x{{/toJson}}|{{#toJson}}m{{/toJson}}",
+  "p": {
+   "x": -1500.0,
+   "m": {
+    "v": -1500.0,
+    "l": [
+     -1500.0
+    ]
+   }
+  },
+  "out": "-1500.0|-1500.0|{\"v\":-1500.0,\"l\":[-1500.0]}"
+ },
+ {
+  "t": "{{x}}|{{#toJson}}x{{/toJson}}|{{#toJson}}m{{/toJson}}",
+  "p": {
+   "x": 0.1,
+   "m": {
+    "v": 0.1,
+    "l": [
+     0.1
+    ]
+   }
+  },
+  "out": "0.1|0.1|{\"v\":0.1,\"l\":[0.1]}"
+ },
+ {
+  "t": "{{x}}|{{#toJson}}x{{/toJson}}|{{#toJson}}m{{/toJson}}",
+  "p": {
+   "x": 1e+20,
+   "m": {
+    "v": 1e+20,
+    "l": [
+     1e+20
+    ]
+   }
+  },
+  "out": "1.0E20|1.0E20|{\"v\":1.0E20,\"l\":[1.0E20]}"
+ },
+ {
+  "t": "{{>p}}{{#a}}",
+  "p": {},
+  "err": "MustacheException: Failed to close 'a' tag @[query-template:1]"
+ },
+ {
+  "t": "{{#a}}{{>p}}{{/a}}{{^b}}",
+  "p": {},
+  "err": "MustacheException: Failed to close 'b' tag @[query-template:1]"
+ },
+ {
+  "t": "{{<x}}d{{/x}}{{#a}}",
+  "p": {},
+  "err": "MustacheException: Failed to close 'a' tag @[query-template:1]"
+ },
+ {
+  "t": "{{#a}}{{>p}}{{/a}}{{<x}}{{/x}}",
+  "p": {},
+  "err": "MustacheNotFoundException: Template p not found"
+ },
+ {
+  "t": "{{#a}}{{<x}}{{>q}}{{/x}}{{/a}}",
+  "p": {},
+  "err": "IllegalArgumentException: Illegal code in extend section: com.github.mustachejava.codes.PartialCode"
+ }
+]

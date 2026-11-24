@@ -16,6 +16,7 @@ mod refresh;
 mod renew;
 mod revoke;
 mod secret;
+mod view;
 mod zone;
 
 use std::sync::Arc;

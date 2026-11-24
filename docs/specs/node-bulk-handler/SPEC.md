@@ -24,7 +24,7 @@ Parity plan R7.6, cluster routing: the receiving half of [forward](../forward/SP
 
 ## Test plan
 
-`crates/node/tests/bulk_handler.rs` calls the handler directly over a writer role on the emulator, as `assemble.rs` builds one; each test run red before the code.
+`crates/node/tests/roles/bulk_handler.rs` calls the handler directly over a writer role on the emulator, as `assemble.rs` builds one; each test run red before the code.
 
 ## S3 request budget
 

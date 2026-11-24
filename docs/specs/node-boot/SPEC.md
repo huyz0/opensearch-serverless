@@ -8,7 +8,7 @@ Parity plan R7.6, node `main`: until now `main` printed the roles. A node with t
 
 `oss-node`, with the `reader` and `writer` features, gains `boot`:
 
-- `NodeConfig::from_lookup` reads `OSS_NODE_ID` (required), `OSS_STORE` (`fs` with `OSS_FS_ROOT`, or `s3` with `OSS_S3_ENDPOINT`, `OSS_S3_BUCKET`, `OSS_S3_REGION`, `OSS_S3_ACCESS_KEY`, `OSS_S3_SECRET_KEY`), `OSS_CLUSTER`, `OSS_BASE`, `OSS_HTTP_ADDR`, `OSS_TRANSPORT_ADDR` (the native transport listener, default `127.0.0.1:9300`), `OSS_ADVERTISE_ADDR` (the transport address the lease carries; the bound transport address when unset), `OSS_MEMORY_BYTES`, `OSS_LEASE_TTL_MS`, `OSS_JANITOR_EVERY_MS` (how often the janitor sweeps and the dead-log pass runs, default 60,000) and `OSS_INDEX_CONFIRM_MS` (how long a writer trusts an index it read before confirming it by the change stripes, default 5,000, 0 off; [node-index-cache](../node-index-cache/SPEC.md)), and refuses what it cannot use with a message that names the variable. A secret never appears in `Debug`.
+- `NodeConfig::from_lookup` reads `OSS_NODE_ID` (required), `OSS_STORE` (`fs` with `OSS_FS_ROOT`, or `s3` with `OSS_S3_ENDPOINT`, `OSS_S3_BUCKET`, `OSS_S3_REGION`, `OSS_S3_ACCESS_KEY`, `OSS_S3_SECRET_KEY`), `OSS_CLUSTER`, `OSS_BASE`, `OSS_HTTP_ADDR`, `OSS_TRANSPORT_ADDR` (the native transport listener, default `127.0.0.1:9300`), `OSS_ADVERTISE_ADDR` (the transport address the lease carries; the bound transport address when unset), `OSS_MEMORY_BYTES`, `OSS_LEASE_TTL_MS`, `OSS_LEASE_REFRESH_MS` (how often the fleet's leases are read again, default a third of the lease lifetime; [node-lease-refresh](../node-lease-refresh/SPEC.md)), `OSS_JANITOR_EVERY_MS` (how often the janitor sweeps and the dead-log pass runs, default 60,000), `OSS_TOMBSTONE_SWEEP_MS` (how often the one sweeping node removes expired tombstones, default 3,600,000, 0 off; [node-tombstone-sweep](../node-tombstone-sweep/SPEC.md)) and `OSS_INDEX_CONFIRM_MS` (how long a writer trusts an index it read before confirming it by the change stripes, default 5,000, 0 off; [node-index-cache](../node-index-cache/SPEC.md)), and refuses what it cannot use with a message that names the variable. A secret never appears in `Debug`.
 - `start` builds the node: the store, the memory budget split into pools by fixed shares, a `Membership` whose lease (roles `ingest` and `search`) is enrolled before the node listens, the write log's committer over `HeadAdmission`, a `HeadOpener` so a write opens the shard it names, `DescriptorRoutes` for indexes, the native transport server with the owner-side handler for a forwarded bulk, `ClusterRoutes` as the writer's routes (owner by placement over the live members, forward and remote refresh over the transport), `assemble`, `StoreHealth` through `Assembled::with_health`, and the listener.
 - A renewal thread renews the lease and refreshes the membership every `lease_ttl / 3`; dropping the node stops it and releases the lease.
 - `main` reads the process environment, starts the node and parks.
@@ -29,7 +29,7 @@ Parity plan R7.6, node `main`: until now `main` printed the roles. A node with t
 
 ## Test plan
 
-`crates/node/src/boot/config.rs` unit tests for AC-1 and AC-2; `crates/node/tests/boot.rs` over a temp-dir file store and real sockets for AC-3 to AC-8.
+`crates/node/src/boot/config.rs` unit tests for AC-1 and AC-2; `crates/node/tests/server/boot.rs` over a temp-dir file store and real sockets for AC-3 to AC-8.
 
 ## S3 request budget
 

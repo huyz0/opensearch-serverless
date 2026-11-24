@@ -9,7 +9,7 @@ use crate::aggs::bucket::terms::{TermsOrder, TermsSpec, suggested_shard_size};
 use crate::aggs::metric::parse::long_value;
 use crate::dsl::error::DslError;
 use crate::dsl::tokens::{Kind, Parser};
-use crate::dsl::values::{int_value, suggest};
+use crate::dsl::values::{bool_value, int_value, suggest};
 use crate::failure::Failure;
 
 /// Every key `terms` declares.
@@ -37,9 +37,11 @@ pub fn parse_terms_body(p: &mut Parser<'_>, name: &str) -> Result<(String, Terms
     let mut size = 10usize;
     let mut shard_size: Option<usize> = None;
     let mut min_doc_count = 1u64;
+    let mut shard_min = 0u64;
     let mut order = TermsOrder::CountDesc;
     let mut sub_order = None;
     let mut keyword = KeywordOptions::default();
+    let mut show_error = false;
     let mut key = "";
     let mut key_at = p.location();
     loop {
@@ -66,10 +68,12 @@ pub fn parse_terms_body(p: &mut Parser<'_>, name: &str) -> Result<(String, Terms
                 | "size"
                 | "shard_size"
                 | "min_doc_count"
+                | "shard_min_doc_count"
                 | "order"
                 | "include"
                 | "exclude"
                 | "missing"
+                | "show_term_doc_count_error"
         );
         if !served {
             // ALLOC: error path; one message.
@@ -82,6 +86,7 @@ pub fn parse_terms_body(p: &mut Parser<'_>, name: &str) -> Result<(String, Terms
             "order" => matches!(kind, Kind::StartObject | Kind::StartArray),
             "include" | "exclude" => true,
             "missing" => matches!(kind, Kind::String | Kind::Number | Kind::Bool),
+            "show_term_doc_count_error" => matches!(kind, Kind::Bool | Kind::String),
             _ => matches!(kind, Kind::Number | Kind::String),
         };
         if !accepted {
@@ -139,6 +144,22 @@ pub fn parse_terms_body(p: &mut Parser<'_>, name: &str) -> Result<(String, Terms
                     )
                 })?;
             }
+            "shard_min_doc_count" => {
+                let n = long_value(kind, p.text()).map_err(|e| failed(p, e))?;
+                shard_min = u64::try_from(n).map_err(|_| {
+                    failed(
+                        p,
+                        DslError::illegal(
+                            // ALLOC: error path; one message.
+                            format!(
+                                "[shardMinDocCount] must be greater than or equal to 0. Found \
+                                 [{n}] in [{name}]"
+                            ),
+                        ),
+                    )
+                })?;
+            }
+            "show_term_doc_count_error" => show_error = bool_value(p).map_err(|e| failed(p, e))?,
             "include" | "exclude" => {
                 let filter = parse_filter(p, kind, key).map_err(|e| failed(p, e))?;
                 keyword
@@ -184,15 +205,27 @@ pub fn parse_terms_body(p: &mut Parser<'_>, name: &str) -> Result<(String, Terms
             suggested_shard_size(size)
         })
         .max(size);
+    // `ensureValidity`: a shard never asks for more than the answer does.
+    let shard_min_doc_count = shard_min.min(min_doc_count);
+    if shard_min_doc_count > 0 && order != TermsOrder::CountDesc {
+        // The engine picks a shard's buckets before the minimum applies, which
+        // only matches OpenSearch when the order is by count, descending.
+        return Err(DslError::unsupported(
+            "a [shard_min_doc_count] with an [order] other than [_count] descending in a \
+             [terms] aggregation",
+        ));
+    }
     Ok((
         field,
         TermsSpec {
             size,
             shard_size,
             min_doc_count,
+            shard_min_doc_count,
             order,
             keyword,
             sub_order,
+            show_error,
         },
     ))
 }

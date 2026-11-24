@@ -1,25 +1,25 @@
 //! The writer role of a node: applies a write to the shard's engine, stages
 //! its record in the node's one write log, and acknowledges only once the
-//! log blob holding it landed.
-//!
-//! Ported from the write path of
+//! log blob holding it landed. Ported from the write path of
 //! `serverless/shell/src/main/java/org/opensearch/serverless/node/NodeWritePath.java`
 //! (`indexUnderFence`, `appendOrRelease`): the engine runs first because it
 //! assigns the sequence number the record carries; a stage that fails after
-//! the engine applied the write releases the shard, whose engine now holds
-//! an operation the log does not, so it reopens from the log. A bulk group
-//! is applied item by item and staged with one commit.
+//! the engine applied the write releases the shard, which reopens from the
+//! log. A bulk group is applied item by item and staged with one commit.
 
 mod dead_log_pass;
 mod dead_logs;
 mod get;
 mod heads;
+mod hibernate;
 mod incarnation;
 mod janitor_pass;
 mod janitor_timer;
 mod lease;
+mod limit;
 mod newest_commit;
 mod opener;
+mod orphan_timer;
 mod predecessors;
 mod proactive;
 mod publish_age;
@@ -27,20 +27,23 @@ mod publish_timer;
 mod publishing;
 mod redirect;
 mod refresh;
+mod routes;
 mod slot;
 mod snapshot;
 mod tail;
 mod takeover;
 mod target;
+mod tombstone_pass;
 
 use std::collections::HashMap;
 use std::sync::atomic::AtomicU8;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use oss_format::WalRecord;
-use oss_writer::bulk::{IndexInfo, ItemResult, Kind, Owner, Planned};
-use oss_writer::index::{Fetched, Refused, Written};
+use oss_writer::admission::WriteLimiter;
+use oss_writer::bulk::{IndexInfo, Kind, Owner, Planned};
+use oss_writer::index::{Refused, Written};
 use oss_writer::log::NodeLogCommitter;
 use oss_writer::publish::lazy::PublishAge;
 
@@ -54,11 +57,15 @@ pub use dead_log_pass::{
 };
 pub use dead_logs::{StoreCommits, StoreNodeLogs};
 pub use heads::{HeadAdmission, ShardNames};
+pub use hibernate::{
+    HIBERNATE_AFTER_MILLIS, HibernatePass, KEEP_ASLEEP_MILLIS, SETTINGS as HIBERNATE_SETTINGS,
+};
 pub use incarnation::{DescriptorIncarnation, FENCE_WINDOW, Incarnation};
 pub use janitor_pass::{HeldShard, JanitorPass, JanitorReport, PassLimits};
 pub use janitor_timer::{JanitorTimer, SweepConfig};
 pub use lease::MembershipLeaseWrite;
 pub use opener::{HeadOpener, OpenRefused, ShardOpener};
+pub use orphan_timer::{LiveLeases, OrphanParts, OrphanTimer};
 pub use proactive::{
     Config as ProactiveConfig, ProactiveTakeover, Report as ProactiveReport,
     SETTINGS as PROACTIVE_SETTINGS,
@@ -66,60 +73,11 @@ pub use proactive::{
 pub use publish_age::publish_age_of;
 pub use publish_timer::PublishTimer;
 pub use publishing::{PublishPass, Publishing};
+pub use routes::Routes;
 pub use tail::{RefreshVisibility, TailSink};
 pub use takeover::Takeover;
 pub use target::RoleTarget;
-
-/// What a writer asks of the rest of the cluster: which indexes exist,
-/// who owns a shard it does not hold, and how to send that owner a group.
-pub trait Routes: Send + Sync {
-    /// The index called `name`, if there is one.
-    fn index(&self, name: &str) -> Option<IndexInfo>;
-
-    /// Who owns `shard` of `index`, asked when this node does not hold it.
-    fn owner(&self, index: &IndexInfo, shard: u32) -> Owner;
-
-    /// Sends a group to the node that owns its shard, once, and answers
-    /// each item's outcome in the group's order.
-    fn forward(
-        &self,
-        node: &str,
-        index: &IndexInfo,
-        shard: u32,
-        group: &[Planned<'_>],
-    ) -> Vec<ItemResult>;
-
-    /// Asks the node that owns `shard` to refresh it. A route that never
-    /// names another owner has nothing to ask.
-    fn refresh_remote(&self, _node: &str, _index: &IndexInfo, _shard: u32) -> Result<(), String> {
-        Err("the shard is held by another node".to_owned())
-    }
-
-    /// Asks the node that owns `shard` for the live document `id`. A route
-    /// that never names another owner has nothing to ask.
-    fn get_remote(
-        &self,
-        _node: &str,
-        _index: &IndexInfo,
-        _shard: u32,
-        _id: &str,
-    ) -> Result<Option<Fetched>, String> {
-        Err("the shard is held by another node".to_owned())
-    }
-
-    /// As [`Routes::get_remote`], reading what is not yet refreshed only
-    /// when `realtime`. A route that cannot say asks for the realtime read.
-    fn get_remote_as(
-        &self,
-        node: &str,
-        index: &IndexInfo,
-        shard: u32,
-        id: &str,
-        _realtime: bool,
-    ) -> Result<Option<Fetched>, String> {
-        self.get_remote(node, index, shard, id)
-    }
-}
+pub use tombstone_pass::{DeleteProbe, TombstoneParts, TombstonePass, TombstoneReport};
 
 /// Why an item did not go ahead.
 enum Failure {
@@ -127,6 +85,8 @@ enum Failure {
     Refused(Refused),
     /// The write could not be made durable or the shard is not held.
     Unavailable(String),
+    /// The node's write limiter refused it before anything was applied.
+    Throttled(String),
 }
 
 /// The shards held, by index uuid and shard number.
@@ -142,6 +102,11 @@ pub const MAX_NEWEST_BYTES: usize = 4 << 20;
 /// The shards this node writes, and the log their writes are staged in.
 pub struct WriterRole {
     committer: Arc<NodeLogCommitter>,
+    /// What limits the writes waiting on the log; none, and every write is
+    /// admitted.
+    limiter: OnceLock<WriteLimiter>,
+    /// What the limiter's times count from.
+    epoch: Instant,
     routes: Arc<dyn Routes>,
     names: Arc<ShardNames>,
     incarnation: Option<Fenced>,
@@ -158,6 +123,7 @@ pub struct WriterRole {
     opening: Mutex<()>,
     /// The live node whose head holds a shard this node was asked to write.
     redirects: Mutex<Redirects>,
+    hibernation: hibernate::Hibernation,
 }
 
 fn now_millis() -> u64 {
@@ -176,6 +142,8 @@ impl WriterRole {
     pub fn new(committer: Arc<NodeLogCommitter>, routes: Arc<dyn Routes>) -> Self {
         Self {
             committer,
+            limiter: OnceLock::new(),
+            epoch: Instant::now(),
             routes,
             names: Arc::new(ShardNames::default()),
             incarnation: None,
@@ -190,6 +158,7 @@ impl WriterRole {
             opening: Mutex::new(()),
             // ALLOC: one entry a shard another node holds that this node was asked to write.
             redirects: Mutex::new(HashMap::new()),
+            hibernation: hibernate::Hibernation::default(),
         }
     }
 
@@ -348,8 +317,26 @@ impl WriterRole {
         }
     }
 
-    /// Applies a group to the opened `slot` of the shard.
+    /// Applies a group to the opened `slot` of the shard, once the write
+    /// limiter admits it; a group it refuses is neither applied nor logged.
     fn group_on(
+        &self,
+        slot: Arc<Mutex<ShardSlot>>,
+        index: &IndexInfo,
+        shard: u32,
+        group: &[Planned<'_>],
+    ) -> Vec<Result<Written, Failure>> {
+        // Held to the end: the slot is given back once the group's records
+        // have landed or failed.
+        let _admitted = match self.admit_group(group.len()) {
+            Ok(permit) => permit,
+            Err(refused) => return refused,
+        };
+        self.group_admitted(slot, index, shard, group)
+    }
+
+    /// Applies an admitted group to the opened `slot` of the shard.
+    fn group_admitted(
         &self,
         slot: Arc<Mutex<ShardSlot>>,
         index: &IndexInfo,
@@ -376,6 +363,11 @@ impl WriterRole {
         }
         let held = Arc::clone(&slot);
         let mut slot = lock(&slot);
+        if slot.asleep() {
+            // Slept after this write took the slot: wake the shard.
+            drop(slot);
+            return self.group(index, shard, group);
+        }
         if slot.released() {
             return unavailable(group.len(), || {
                 // ALLOC: error path; one message.
@@ -451,7 +443,11 @@ impl WriterRole {
                 Err(refused) => outcomes.push(Err(Failure::Refused(refused))),
             }
         }
+        let appended_at = self.limiter_now();
         let committed = self.committer.commit(slot.key(), slot.term(), &records);
+        if !records.is_empty() {
+            self.appended(appended_at, committed.is_ok());
+        }
         if let (Ok(_), Some(p), false) = (&committed, &self.publishing, records.is_empty()) {
             // ALLOC: one key a staged group.
             p.written(&(index.uuid.clone(), shard));

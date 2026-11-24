@@ -40,6 +40,8 @@ pub fn from_engine(spec: &TermsSpec, other: u64, buckets: Vec<(i64, u64)>) -> Te
         other_doc_count: other,
         doc_count_error: 0,
         buckets,
+        // ALLOC: empty; a shard's bucket errors are 0.
+        bucket_errors: Vec::new(),
         subs: BucketSubs::default(),
     }
 }

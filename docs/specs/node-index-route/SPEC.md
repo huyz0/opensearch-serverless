@@ -27,7 +27,7 @@ Refused with 501 `unsupported_index_option`: settings other than the shard and r
 
 ## Test plan
 
-`crates/node/tests/index_route.rs` over the emulator.
+`crates/node/tests/server/index_route.rs` over the emulator.
 
 ## S3 request budget
 

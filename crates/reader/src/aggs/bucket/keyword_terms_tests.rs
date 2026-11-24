@@ -19,6 +19,8 @@ fn spec(size: usize, shard_size: usize, min: u64, order: TermsOrder) -> TermsSpe
         order,
         keyword: Default::default(),
         sub_order: None,
+        show_error: false,
+        shard_min_doc_count: 0,
     }
 }
 
@@ -28,6 +30,7 @@ fn shard(spec: &TermsSpec, other: u64, buckets: &[(&str, u64)]) -> KeywordTermsR
         other_doc_count: other,
         doc_count_error: 0,
         buckets: buckets.iter().map(|&(k, c)| (k.to_owned(), c)).collect(),
+        bucket_errors: Vec::new(),
         sub_meta: Vec::new(),
         subs: Vec::new(),
     }
@@ -302,4 +305,45 @@ fn a_reduce_orders_by_the_reduced_sub_aggregation() {
         part(&[("b", 1, 8.0)]),
     ]);
     assert_eq!(two.doc_count_error, -1);
+}
+
+#[test]
+fn a_keyword_bucket_writes_the_error_of_the_shards_that_lack_it() {
+    let s = TermsSpec {
+        show_error: true,
+        shard_min_doc_count: 0,
+        ..spec(2, 2, 1, TermsOrder::CountDesc)
+    };
+    let a = shard(&s, 0, &[("a", 10), ("b", 4)]);
+    let b = shard(&s, 0, &[("b", 6), ("c", 5)]);
+    let r = reduced(&[a, b]);
+    assert_eq!(keys(&r), [("a", 10), ("b", 10)]);
+    assert_eq!(r.bucket_errors, [5, 0]);
+    let mut out = Vec::new();
+    write_keyword_terms(&mut out, &r).expect("writes");
+    let text = String::from_utf8(out).expect("utf-8");
+    assert!(
+        text.contains(r#"{"key":"a","doc_count":10,"doc_count_error_upper_bound":5}"#),
+        "{text}"
+    );
+}
+
+// AC-3
+#[test]
+fn a_keyword_shard_drops_buckets_under_its_minimum_with_their_sub_lists() {
+    let mut s = spec(10, 25, 1, TermsOrder::CountDesc);
+    s.shard_min_doc_count = 2;
+    let mut r = shard(&s, 1, &[("a", 4), ("b", 1), ("c", 2)]);
+    r.subs = vec![
+        vec![Value::ValueCount(4)],
+        vec![Value::ValueCount(1)],
+        vec![Value::ValueCount(2)],
+    ];
+    r.apply_shard_min();
+    assert_eq!(r.buckets, vec![("a".to_owned(), 4), ("c".to_owned(), 2)]);
+    assert_eq!(r.other_doc_count, 2);
+    assert_eq!(
+        r.subs,
+        vec![vec![Value::ValueCount(4)], vec![Value::ValueCount(2)]]
+    );
 }
