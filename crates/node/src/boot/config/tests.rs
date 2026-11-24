@@ -320,6 +320,16 @@ fn headroom_and_pins_are_off_by_default_and_set_by_their_variables() {
     assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_EVICT_HEADROOM_PCT", "101")]))).is_err());
 }
 
+// docs/specs/knn-vector-index AC-4
+#[test]
+fn knn_is_off_by_default_and_set_by_its_variable() {
+    let c = NodeConfig::from_lookup(lookup(FS)).expect("valid");
+    assert!(!c.knn);
+    let c = NodeConfig::from_lookup(lookup(&with(&[("OSS_KNN", "true")]))).expect("valid");
+    assert!(c.knn);
+    assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_KNN", "yes")]))).is_err());
+}
+
 // docs/specs/writer-hand-off AC-8
 #[test]
 fn hand_off_is_off_by_default_and_set_by_its_variable() {

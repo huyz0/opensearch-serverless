@@ -168,6 +168,8 @@ fn entry(name: &str, leaf: &Leaf, spec: Spec, number: i32) -> Option<Entry> {
         Shape::Double => e.kind = ingest::DOUBLE,
         Shape::Date => e.kind = ingest::DATE,
         Shape::Bool => e.kind = ingest::BOOLEAN,
+        // A vector goes through the complete path, which hands the engine its vectors.
+        Shape::Vector => return None,
     }
     Some(e)
 }

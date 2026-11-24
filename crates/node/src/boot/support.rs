@@ -173,6 +173,7 @@ pub(super) fn apply_janitor_and_hibernation(
     node.max_shards = config.max_shards;
     node.evict_after_millis = config.evict_after_millis;
     node.hand_off = config.hand_off;
+    node.knn = config.knn;
     node.evict_headroom_percent = config.evict_headroom_percent;
     node.pinned_indexes.clone_from(&config.pinned_indexes);
     node.janitor_every = Duration::from_millis(config.janitor_every_millis);

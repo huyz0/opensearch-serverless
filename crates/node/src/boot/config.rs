@@ -120,6 +120,8 @@ pub struct NodeConfig {
     pub pinned_indexes: Vec<String>,
     /// `serverless.activation.hand_off.enabled`.
     pub hand_off: bool,
+    /// `serverless.knn.enabled`.
+    pub knn: bool,
     /// `serverless.write.backpressure.*`: what limits the writes waiting on
     /// the write log.
     pub write_limit: oss_writer::admission::LimiterConfig,
@@ -253,6 +255,7 @@ impl NodeConfig {
             .map(str::to_owned)
             .collect();
         let hand_off = flag("OSS_HAND_OFF", "false")?;
+        let knn = flag("OSS_KNN", "false")?;
         let write_limit = write_limit::read(&bounded)?;
         let proactive_reapers = bounded("OSS_PROACTIVE_REAPERS", "2", 1, 16)?;
         let proactive_max_concurrent = bounded("OSS_PROACTIVE_MAX_CONCURRENT", "4", 1, 64)?;
@@ -304,6 +307,7 @@ impl NodeConfig {
             evict_headroom_percent,
             pinned_indexes,
             hand_off,
+            knn,
             proactive_takeover,
             proactive_reapers: usize::try_from(proactive_reapers).unwrap_or(2),
             proactive_max_concurrent: usize::try_from(proactive_max_concurrent).unwrap_or(4),

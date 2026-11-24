@@ -12,9 +12,11 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use lucene_codecs::field_infos::{DocValuesSkipIndexType, DocValuesType, FieldInfo, IndexOptions};
+use lucene_codecs::field_infos::{
+    DocValuesSkipIndexType, DocValuesType, FieldInfo, IndexOptions, VectorSimilarityFunction,
+};
 use lucene_codecs::stored_fields::{FieldValue, StoredField};
-use lucene_index::index_writer::{ExplicitDocument, IndexWriter};
+use lucene_index::index_writer::{ExplicitDocument, IndexWriter, VectorValue};
 use lucene_index::segment_info::LuceneVersion;
 use lucene_search::directory_reader::DirectoryReader;
 use lucene_search::reader::LeafReader;
@@ -22,7 +24,7 @@ use lucene_store::ByteBuffersDirectory;
 use oss_writer::document;
 use oss_writer::index::{Expect, Shard};
 use oss_writer::lucene::{Indexer, Meta};
-use oss_writer::mapping::Mapping;
+use oss_writer::mapping::{Mapping, ParseOptions};
 use serde_json::{Value, json};
 
 fn fixtures() -> Vec<PathBuf> {
@@ -72,7 +74,46 @@ fn doc_values(t: DocValuesType) -> &'static str {
     }
 }
 
+/// `VectorSimilarityFunction.toString()`.
+fn similarity(f: VectorSimilarityFunction) -> &'static str {
+    match f {
+        VectorSimilarityFunction::Euclidean => "EUCLIDEAN",
+        VectorSimilarityFunction::DotProduct => "DOT_PRODUCT",
+        VectorSimilarityFunction::Cosine => "COSINE",
+        VectorSimilarityFunction::MaximumInnerProduct => "MAXIMUM_INNER_PRODUCT",
+    }
+}
+
+/// The mapping a fixture creates its index with: a `knn_vector` is read
+/// when its settings turn `index.knn` on.
+fn fixture_mapping(fixture: &Value) -> Mapping {
+    let knn = fixture["settings"]["index.knn"].as_bool().unwrap_or(false);
+    match fixture.get("mappings") {
+        Some(m) if knn => {
+            Mapping::parse_with(m.to_string().as_bytes(), ParseOptions { knn: Some(true) })
+                .expect("mapping")
+        }
+        Some(m) => Mapping::parse(m.to_string().as_bytes()).expect("mapping"),
+        None => Mapping::default(),
+    }
+}
+
 fn field_json(f: &FieldInfo) -> Value {
+    let mut out = field_base(f);
+    if f.vector_dimension > 0 {
+        let mut attributes: Vec<_> = f.attributes.clone();
+        attributes.sort();
+        out["vector"] = json!({
+            "dimension": f.vector_dimension,
+            "encoding": "FLOAT32",
+            "similarity": similarity(f.vector_similarity_function),
+            "attributes": attributes.into_iter().collect::<BTreeMap<_, _>>(),
+        });
+    }
+    out
+}
+
+fn field_base(f: &FieldInfo) -> Value {
     json!({
         "number": f.number,
         "name": f.name,
@@ -223,10 +264,7 @@ const VERSION: LuceneVersion = LuceneVersion {
 fn replay(path: &Path) {
     let fixture: Value =
         serde_json::from_slice(&std::fs::read(path).expect("read")).expect("fixture json");
-    let mut mapping = match fixture.get("mappings") {
-        Some(m) => Mapping::parse(m.to_string().as_bytes()).expect("mapping"),
-        None => Mapping::default(),
-    };
+    let mut mapping = fixture_mapping(&fixture);
     let mut indexer = Indexer::new();
     let dir = ByteBuffersDirectory::new();
     let mut docs = Vec::new();
@@ -251,11 +289,16 @@ fn replay(path: &Path) {
                 version: 1,
                 source: source.as_bytes(),
             };
-            let doc = indexer
-                .document(&mut w, &mapping, &parsed, &meta)
+            let (doc, vectors) = indexer
+                .document_with_vectors(&mut w, &mapping, &parsed, &meta, None)
                 .unwrap_or_else(|e| panic!("{}: {id}: {e:?}", path.display()));
-            docs.push(doc.clone());
-            w.add_explicit_documents(vec![doc]).expect("add");
+            docs.push((doc.clone(), vectors.clone()));
+            if vectors.is_empty() {
+                w.add_explicit_documents(vec![doc]).expect("add");
+            } else {
+                w.add_explicit_documents_with_vectors(None, vec![doc], vec![vectors])
+                    .expect("add");
+            }
         }
         w.commit().expect("commit");
     }
@@ -288,7 +331,7 @@ fn replay(path: &Path) {
         "{}: field count",
         path.display()
     );
-    for (i, (doc, want)) in docs
+    for (i, ((doc, vectors), want)) in docs
         .iter()
         .zip(recorded["docs"].as_array().expect("docs"))
         .enumerate()
@@ -297,6 +340,41 @@ fn replay(path: &Path) {
         for part in ["stored", "inverted", "doc_values", "points"] {
             assert_eq!(got[part], want[part], "{}: doc {i}: {part}", path.display());
         }
+        let built: BTreeMap<&str, Vec<f64>> = vectors
+            .iter()
+            .map(|v| {
+                let VectorValue::Float32(c) = &v.value else {
+                    panic!("a float vector")
+                };
+                (
+                    v.field_name.as_str(),
+                    c.iter().map(|x| f64::from(*x)).collect(),
+                )
+            })
+            .collect();
+        let recorded_vectors: BTreeMap<&str, Vec<f64>> = want["vectors"]
+            .as_object()
+            .map(|o| {
+                o.iter()
+                    .map(|(k, v)| {
+                        (
+                            k.as_str(),
+                            v.as_array()
+                                .expect("vector")
+                                .iter()
+                                .map(|x| x.as_f64().expect("float"))
+                                .collect(),
+                        )
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        assert_eq!(
+            built,
+            recorded_vectors,
+            "{}: doc {i}: vectors",
+            path.display()
+        );
     }
 }
 
@@ -480,4 +558,58 @@ fn a_stored_field_dump_reads_every_type() {
         document_json(&doc, &infos)["stored"],
         json!([["f", "string", "s"], ["f", "long", 2]])
     );
+}
+
+/// Writes each `knn-*` fixture's documents to a directory of its own under
+/// `KNN_SEGMENT_DIR`, for Lucene's own `CheckIndex` to read:
+///
+/// ```text
+/// KNN_SEGMENT_DIR=/tmp/knn cargo test -p oss-writer --test segment_fixtures -- --ignored
+/// java -cp lucene-core.jar org.apache.lucene.index.CheckIndex /tmp/knn/knn-cosine
+/// ```
+#[test]
+#[ignore = "writes to KNN_SEGMENT_DIR for a Java check"]
+fn knn_segments_are_written_for_java_to_check() {
+    let out = std::env::var("KNN_SEGMENT_DIR").expect("KNN_SEGMENT_DIR");
+    for path in fixtures().iter().filter(|p| {
+        p.file_name()
+            .is_some_and(|n| n.to_string_lossy().starts_with("knn-"))
+    }) {
+        let fixture: Value =
+            serde_json::from_slice(&std::fs::read(path).expect("read")).expect("fixture json");
+        let mapping = fixture_mapping(&fixture);
+        let target = Path::new(&out).join(path.file_stem().expect("stem"));
+        std::fs::create_dir_all(&target).expect("dir");
+        let dir = lucene_store::FsDirectory::open(&target);
+        let mut indexer = Indexer::new();
+        let mut w = IndexWriter::open(&dir, Vec::new(), "Lucene104", VERSION).expect("writer");
+        w.enable_explicit_documents().expect("explicit");
+        for (seq_no, d) in fixture["documents"]
+            .as_array()
+            .expect("documents")
+            .iter()
+            .enumerate()
+        {
+            let id = d["id"].as_str().expect("id");
+            let source = recorded_source(&fixture, seq_no);
+            let parsed = document::parse(&mapping, id, source.as_bytes()).expect("parse");
+            let meta = Meta {
+                id,
+                seq_no: i64::try_from(seq_no).expect("fits"),
+                primary_term: 1,
+                version: 1,
+                source: source.as_bytes(),
+            };
+            let (doc, vectors) = indexer
+                .document_with_vectors(&mut w, &mapping, &parsed, &meta, None)
+                .expect("document");
+            if vectors.is_empty() {
+                w.add_explicit_documents(vec![doc]).expect("add");
+            } else {
+                w.add_explicit_documents_with_vectors(None, vec![doc], vec![vectors])
+                    .expect("add");
+            }
+        }
+        w.commit().expect("commit");
+    }
 }

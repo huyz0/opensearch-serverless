@@ -10,7 +10,8 @@ Parity plan R15, k-NN native, step 2b of four. The mapping (`knn-vector-mapping`
 - `oss-doc`'s `Indexer` registers the field's `FieldInfo` with its vector shape, and returns each document's vectors beside its `ExplicitDocument`; `Indexer::document` keeps its signature and a new method returns the pair, so every caller that never sees a vector is unchanged.
 - The writer passes the vectors to the engine (`add_explicit_documents_with_vectors`, lucene-rust 569) and gives each vector field its graph's `m` and `beam_width` (`ef_construction`, default 100 and 16 as the plugin's `Lucene99HnswVectorsFormat` is built).
 - The complete ingest path takes the field; the fast ingest plan declines a mapping with a vector field (it adds nothing to a plan today).
-- A node setting turns the type on: `serverless.knn.enabled`, off by default for a node, which makes `ParseOptions { knn: Some(index.knn) }` where the index admin parses mappings, so an index with `knn_vector` is still refused as unsupported (and stays on a Java writer) until it is set.
+- A node setting turns the type on: `serverless.knn.enabled`, off by default for a node, (`OSS_KNN` at boot), which makes the index admin parse a created mapping with `ParseOptions { knn: Some(true) }`, so an index with `knn_vector` is still refused as unsupported (and stays on a Java writer) until it is set. Index settings cannot be given at create yet, so the node setting stands for `index.knn`. A mapping a descriptor stores was checked when it was accepted: it is read with `knn_vector` allowed, whatever the setting is now.
+- Known limit: the reader's tail overlay cannot build a document with a vector, so it serves the commit alone for an index with unpublished vector writes until step 2c or 3 lifts it.
 
 ## Acceptance criteria
 

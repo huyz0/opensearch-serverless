@@ -23,6 +23,10 @@ struct Rig {
 }
 
 fn rig_with(budget: &MemoryBudget, buffer: usize) -> Rig {
+    rig_knn(budget, buffer, false)
+}
+
+fn rig_knn(budget: &MemoryBudget, buffer: usize, knn: bool) -> Rig {
     let store = Arc::new(Emulator::new(1 << 28, 5));
     let clock: PitClock = Arc::new(|| NOW);
     let descriptors = || {
@@ -33,7 +37,7 @@ fn rig_with(budget: &MemoryBudget, buffer: usize) -> Rig {
         )
         .expect("names")
     };
-    let service = Arc::new(IndexService::new(descriptors(), clock, buffer));
+    let service = Arc::new(IndexService::new(descriptors(), clock, buffer).with_knn(knn));
     let router = routes(Router::new(), service).expect("routes");
     let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
     let server = Server::start(listener, support::server_config(), router, budget).expect("starts");
@@ -369,4 +373,19 @@ fn a_create_that_fails_after_joining_leaves_the_bucket() {
     assert_eq!(left.len(), 1, "the refused create took itself back out");
     assert_eq!(left[0].0, "b-1");
     assert_eq!(left[0].1.len(), 22, "its own uuid, not the first create's");
+}
+
+const KNN_MAPPING: &str = r#"{"mappings":{"properties":{"v":{"type":"knn_vector","dimension":3,"method":{"name":"hnsw","engine":"lucene","space_type":"l2"}}}}}"#;
+
+// docs/specs/knn-vector-index AC-4
+#[test]
+fn a_knn_vector_mapping_is_refused_unless_the_node_setting_is_on() {
+    let off = rig();
+    let refused = call(&off, "PUT", "/vec", Some(KNN_MAPPING));
+    assert_ne!(refused.status, 200);
+    assert!(record(&off, "vec").is_none());
+    let on = rig_knn(&MemoryBudget::new(&support::budget_config()), BUF, true);
+    let made = call(&on, "PUT", "/vec", Some(KNN_MAPPING));
+    assert_eq!(made.status, 200, "{}", String::from_utf8_lossy(&made.body));
+    assert!(record(&on, "vec").is_some());
 }

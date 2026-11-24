@@ -33,5 +33,5 @@ pub(crate) fn index_service(
             .map_err(|e| crate::assemble::AssembleError::Store(e.to_string()))?;
         indices = indices.with_templates(sets);
     }
-    Ok(Arc::new(indices))
+    Ok(Arc::new(indices.with_knn(config.knn)))
 }
