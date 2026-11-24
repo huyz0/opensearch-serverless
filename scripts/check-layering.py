@@ -38,6 +38,7 @@ LAYERS = {
     "oss-node": 5,
     "oss-compat": 6,
     "chunkjson": 0,
+    "oss-ext": 0,
 }
 DEV_ONLY = {"oss-testkit"}
 STANDALONE = ["crates/chunkjson"]

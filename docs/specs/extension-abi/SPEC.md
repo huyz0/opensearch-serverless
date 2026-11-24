@@ -14,10 +14,10 @@ Not in this change: any point, pins, native modules, the write or search path.
 
 ## Acceptance criteria
 
-- AC-1: A module is accepted only when its ABI major equals the host's and its minor is at most the host's; a newer minor, another major, or a packed value with reserved bits set is refused. A refused module is judged on the version alone.
+- AC-1: A module is accepted only when its ABI major equals the host's and its minor is at most the host's; a newer minor or another major is refused, naming which. A refused module is judged on the version alone.
 - AC-2: A descriptor of at most 16 KiB is parsed strictly: unknown keys, duplicate keys, a missing key, a wrong type, a bad name, version or id, an empty point list, a duplicate point and a descriptor over the ceiling are each refused with a typed failure naming the key.
-- AC-3: A status code outside the defined set is malformed; zero is success, every failure is negative; `buffer too small` carries the size required and is final.
-- AC-4: The ceilings (16 KiB descriptor, 64 KiB module configuration, and a per-point input and output bound) are constants the parser and the host read; a point may only lower them.
+- AC-3: A status code outside the defined set is malformed; zero is success, every failure is negative; `buffer too small` is final (the call fails, no retry); a module's detail is cut to 256 bytes and its control characters replaced; capacity is 429, a module that broke the contract 502, any other failure of the input 400.
+- AC-4: The ceilings (16 KiB descriptor, 64 KiB module configuration, 8 MiB module, 16 MiB I/O region) are constants the parser and the host read; a point and a descriptor's `limits` may only lower them, and a zero limit is refused.
 - AC-5 (slice 2): A hostile module (spin, memory growth, trap, an oversized output, a region out of bounds) fails its call with a typed failure and leaves the node serving; a limit is a 400 `extension_failed`, capacity is a 429.
 - AC-6 (slice 2): Calls reserve `linear memory + 2 x io_bytes + stack` and compiled code is charged to the `Extensions` pool; a pool that cannot hold it answers 429; the peak never passes the reservation.
 - AC-7 (slice 3): A module is one PUT under its hash ever and one GET per module per node, none per call; an upload over 8 MiB is refused, a second concurrent upload answers 429, a repeat adds no PUT, and the janitor never touches `ext/`.

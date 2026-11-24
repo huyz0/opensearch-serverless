@@ -21,6 +21,7 @@ members = [
     "crates/node",
     "crates/compat",
     "crates/chunkjson",
+    "crates/ext",
 ]
 
 [workspace.package]
