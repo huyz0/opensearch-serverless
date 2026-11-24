@@ -1,0 +1,156 @@
+{
+  "name": "knn_vector cosine",
+  "description": "Zero vectors.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-docs-cos",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "create compat-knn-docs-cos",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-docs-cos",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "space_type": "cosinesimil"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knn-docs-cos"
+        }
+      }
+    },
+    {
+      "name": "unit",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-docs-cos/_doc/1",
+        "body": {
+          "v": [
+            1,
+            0,
+            0
+          ]
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-knn-docs-cos",
+          "_id": "1",
+          "_version": 1,
+          "result": "created",
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 0,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "zero",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-docs-cos/_doc/2",
+        "body": {
+          "v": [
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse field [v] of type [knn_vector] in document with id '2'. Preview of field's value: 'null'"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [v] of type [knn_vector] in document with id '2'. Preview of field's value: 'null'",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "zero vector is not supported when space type is [cosinesimil]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "get 1",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knn-docs-cos/_doc/1"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-knn-docs-cos",
+          "_id": "1",
+          "_version": 1,
+          "_seq_no": 0,
+          "_primary_term": 1,
+          "found": true,
+          "_source": {
+            "v": [
+              1.0,
+              0.0,
+              0.0
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

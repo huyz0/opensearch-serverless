@@ -1,0 +1,68 @@
+{
+  "name": "knn_vector without index.knn",
+  "description": "Method needs index.knn.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-noset",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "method without index.knn",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-noset",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "Failed to parse mapping [_doc]: Cannot set modelId or method parameters when index.knn setting is false"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "Failed to parse mapping [_doc]: Cannot set modelId or method parameters when index.knn setting is false",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Cannot set modelId or method parameters when index.knn setting is false"
+            }
+          },
+          "status": 400
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,876 @@
+{
+  "name": "knn_vector documents",
+  "description": "Values.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-docs",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "create compat-knn-docs",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-docs",
+        "body": {
+          "settings": {
+            "index.knn": true,
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "v": {
+                "type": "knn_vector",
+                "dimension": 3,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene",
+                  "space_type": "l2"
+                }
+              },
+              "f": {
+                "type": "knn_vector",
+                "dimension": 2,
+                "method": {
+                  "name": "hnsw",
+                  "engine": "lucene"
+                }
+              },
+              "o": {
+                "properties": {
+                  "v": {
+                    "type": "knn_vector",
+                    "dimension": 2,
+                    "method": {
+                      "name": "hnsw",
+                      "engine": "lucene"
+                    }
+                  }
+                }
+              },
+              "k": {
+                "type": "keyword"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knn-docs"
+        }
+      }
+    },
+    {
+      "name": "ok",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-docs/_doc/1",
+        "body": {
+          "v": [
+            1,
+            2,
+            3
+          ],
+          "k": "a"
+        },
+        "query": {
+          "refresh": "true"
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-knn-docs",
+          "_id": "1",
+          "_version": 1,
+          "result": "created",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 0,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "floats",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-docs/_doc/2",
+        "body": {
+          "v": [
+            0.5,
+            -1.25,
+            300.0
+          ]
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-knn-docs",
+          "_id": "2",
+          "_version": 1,
+          "result": "created",
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 1,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "flat field",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-docs/_doc/3",
+        "body": {
+          "f": [
+            1,
+            2
+          ]
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-knn-docs",
+          "_id": "3",
+          "_version": 1,
+          "result": "created",
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 2,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "nested field",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-docs/_doc/4",
+        "body": {
+          "o": {
+            "v": [
+              1,
+              2
+            ]
+          }
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-knn-docs",
+          "_id": "4",
+          "_version": 1,
+          "result": "created",
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 3,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "null",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-docs/_doc/5",
+        "body": {
+          "v": null
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-knn-docs",
+          "_id": "5",
+          "_version": 1,
+          "result": "created",
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 4,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "empty array",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-docs/_doc/6",
+        "body": {
+          "v": []
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse field [v] of type [knn_vector] in document with id '6'. Preview of field's value: 'null'"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [v] of type [knn_vector] in document with id '6'. Preview of field's value: 'null'",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Vector dimension mismatch. Expected: 3, Given: 0"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "too few",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-docs/_doc/7",
+        "body": {
+          "v": [
+            1,
+            2
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse field [v] of type [knn_vector] in document with id '7'. Preview of field's value: 'null'"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [v] of type [knn_vector] in document with id '7'. Preview of field's value: 'null'",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Vector dimension mismatch. Expected: 3, Given: 2"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "too many",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-docs/_doc/8",
+        "body": {
+          "v": [
+            1,
+            2,
+            3,
+            4
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse field [v] of type [knn_vector] in document with id '8'. Preview of field's value: 'null'"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [v] of type [knn_vector] in document with id '8'. Preview of field's value: 'null'",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Vector dimension mismatch. Expected: 3, Given: 4"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "string element",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-docs/_doc/9",
+        "body": {
+          "v": [
+            "a",
+            "b",
+            "c"
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse field [v] of type [knn_vector] in document with id '9'. Preview of field's value: 'a'"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [v] of type [knn_vector] in document with id '9'. Preview of field's value: 'a'",
+            "caused_by": {
+              "type": "number_format_exception",
+              "reason": "For input string: \"a\""
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "numeric strings",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-docs/_doc/10",
+        "body": {
+          "v": [
+            "1",
+            "2",
+            "3"
+          ]
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-knn-docs",
+          "_id": "10",
+          "_version": 1,
+          "result": "created",
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 5,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "scalar",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-docs/_doc/11",
+        "body": {
+          "v": 5
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse field [v] of type [knn_vector] in document with id '11'. Preview of field's value: 'null'"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [v] of type [knn_vector] in document with id '11'. Preview of field's value: 'null'",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Vector dimension mismatch. Expected: 3, Given: 1"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "object",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-docs/_doc/12",
+        "body": {
+          "v": {
+            "a": 1
+          }
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse field [v] of type [knn_vector] in document with id '12'. Preview of field's value: '{a=1}'"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [v] of type [knn_vector] in document with id '12'. Preview of field's value: '{a=1}'",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Vector dimension mismatch. Expected: 3, Given: 0"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "array of arrays",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-docs/_doc/13",
+        "body": {
+          "v": [
+            [
+              1,
+              2,
+              3
+            ],
+            [
+              4,
+              5,
+              6
+            ]
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse field [v] of type [knn_vector] in document with id '13'. Preview of field's value: '[1, 2, 3]'"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [v] of type [knn_vector] in document with id '13'. Preview of field's value: '[1, 2, 3]'",
+            "caused_by": {
+              "type": "input_coercion_exception",
+              "reason": "Current token (START_ARRAY) not numeric, cannot use numeric value accessors\n at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); byte offset: #7]",
+              "caused_by": {
+                "type": "input_coercion_exception",
+                "reason": "Current token (START_ARRAY) not numeric, cannot use numeric value accessors\n at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); byte offset: #7]"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "bool",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-docs/_doc/14",
+        "body": {
+          "v": [
+            true,
+            false,
+            true
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse field [v] of type [knn_vector] in document with id '14'. Preview of field's value: 'true'"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [v] of type [knn_vector] in document with id '14'. Preview of field's value: 'true'",
+            "caused_by": {
+              "type": "input_coercion_exception",
+              "reason": "Current token (VALUE_TRUE) not numeric, cannot use numeric value accessors\n at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); byte offset: #10]",
+              "caused_by": {
+                "type": "input_coercion_exception",
+                "reason": "Current token (VALUE_TRUE) not numeric, cannot use numeric value accessors\n at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); byte offset: #10]"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "null element",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-docs/_doc/15",
+        "body": {
+          "v": [
+            1,
+            null,
+            3
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse field [v] of type [knn_vector] in document with id '15'. Preview of field's value: 'null'"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [v] of type [knn_vector] in document with id '15'. Preview of field's value: 'null'",
+            "caused_by": {
+              "type": "input_coercion_exception",
+              "reason": "Current token (VALUE_NULL) not numeric, cannot use numeric value accessors\n at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); byte offset: #12]",
+              "caused_by": {
+                "type": "input_coercion_exception",
+                "reason": "Current token (VALUE_NULL) not numeric, cannot use numeric value accessors\n at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); byte offset: #12]"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "huge",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-docs/_doc/16",
+        "body": {
+          "v": [
+            1e+39,
+            1,
+            1
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse field [v] of type [knn_vector] in document with id '16'. Preview of field's value: 'Infinity'"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [v] of type [knn_vector] in document with id '16'. Preview of field's value: 'Infinity'",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "KNN vector values cannot be infinity"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "nan string",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-docs/_doc/17",
+        "body": {
+          "v": [
+            "NaN",
+            1,
+            1
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse field [v] of type [knn_vector] in document with id '17'. Preview of field's value: 'NaN'"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [v] of type [knn_vector] in document with id '17'. Preview of field's value: 'NaN'",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "KNN vector values cannot be NaN"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "string value",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-docs/_doc/18",
+        "body": {
+          "v": "1,2,3"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "mapper_parsing_exception",
+                "reason": "failed to parse field [v] of type [knn_vector] in document with id '18'. Preview of field's value: '1,2,3'"
+              }
+            ],
+            "type": "mapper_parsing_exception",
+            "reason": "failed to parse field [v] of type [knn_vector] in document with id '18'. Preview of field's value: '1,2,3'",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Invalid base64 encoding for vector field [v]: Illegal base64 character 2c",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Illegal base64 character 2c"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "zero vector",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-knn-docs/_doc/19",
+        "body": {
+          "v": [
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-knn-docs",
+          "_id": "19",
+          "_version": 1,
+          "result": "created",
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 6,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "get 1",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knn-docs/_doc/1"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-knn-docs",
+          "_id": "1",
+          "_version": 1,
+          "_seq_no": 0,
+          "_primary_term": 1,
+          "found": true,
+          "_source": {
+            "v": [
+              1.0,
+              2.0,
+              3.0
+            ],
+            "k": "a"
+          }
+        }
+      }
+    },
+    {
+      "name": "get mapping",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knn-docs/_mapping"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-knn-docs": {
+            "mappings": {
+              "properties": {
+                "f": {
+                  "type": "knn_vector",
+                  "dimension": 2,
+                  "method": {
+                    "engine": "lucene",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {}
+                  }
+                },
+                "k": {
+                  "type": "keyword"
+                },
+                "o": {
+                  "properties": {
+                    "v": {
+                      "type": "knn_vector",
+                      "dimension": 2,
+                      "method": {
+                        "engine": "lucene",
+                        "space_type": "l2",
+                        "name": "hnsw",
+                        "parameters": {}
+                      }
+                    }
+                  }
+                },
+                "v": {
+                  "type": "knn_vector",
+                  "dimension": 3,
+                  "method": {
+                    "engine": "lucene",
+                    "space_type": "l2",
+                    "name": "hnsw",
+                    "parameters": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "count",
+      "request": {
+        "method": "GET",
+        "path": "/compat-knn-docs/_count",
+        "query": {}
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "count": 1,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          }
+        }
+      }
+    }
+  ]
+}

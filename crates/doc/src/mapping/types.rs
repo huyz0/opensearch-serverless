@@ -22,6 +22,8 @@ pub enum FieldType {
     Date,
     /// `boolean`
     Boolean,
+    /// `knn_vector`, the k-NN plugin's field.
+    Knn,
 }
 
 impl FieldType {
@@ -38,6 +40,7 @@ impl FieldType {
             "double" => FieldType::Number(NumType::Double),
             "date" => FieldType::Date,
             "boolean" => FieldType::Boolean,
+            "knn_vector" => FieldType::Knn,
             _ => return None,
         })
     }
@@ -50,6 +53,7 @@ impl FieldType {
             FieldType::Number(n) => n.name(),
             FieldType::Date => "date",
             FieldType::Boolean => "boolean",
+            FieldType::Knn => "knn_vector",
         }
     }
 
@@ -61,6 +65,7 @@ impl FieldType {
             FieldType::Number(_) => NUMBER,
             FieldType::Date => DATE,
             FieldType::Boolean => BOOLEAN,
+            FieldType::Knn => KNN,
         }
     }
 }
@@ -92,7 +97,6 @@ pub(crate) const OTHER_TYPES: &[&str] = &[
     "ip_range",
     "rank_feature",
     "rank_features",
-    "knn_vector",
     "percolator",
     "join",
     "derived",
@@ -285,3 +289,29 @@ pub(crate) const DEPRECATED_PARAMS: &[&str] = &[
     "index_options",
     "similarity",
 ];
+
+/// `KNNVectorFieldMapper.Builder.getParameters`, in its order. The stored,
+/// doc-values, model, mode, compression and engine parameters are read and
+/// refused as unsupported when set: the Lucene HNSW field this writer
+/// indexes has none of them.
+pub(crate) const KNN: &[Def] = &[
+    only("store", Kind::Bool, Fixed, D::Bool(false)),
+    only("doc_values", Kind::Bool, Fixed, D::Bool(false)),
+    p(
+        "dimension",
+        Kind::KnnDimension,
+        Fixed,
+        D::Int(KNN_NO_DIMENSION),
+    ),
+    p("data_type", Kind::KnnDataType, Fixed, D::Str("float")),
+    p("meta", Kind::Meta, Upd, D::Empty),
+    p("method", Kind::KnnMethod, Fixed, D::Null),
+    only("model_id", Kind::NullString, Fixed, D::Null),
+    only("mode", Kind::NullString, Fixed, D::Null),
+    only("compression_level", Kind::NullString, Fixed, D::Null),
+    p("space_type", Kind::KnnSpace, Fixed, D::Str("undefined")),
+    only("engine", Kind::NullString, Fixed, D::Str("undefined")),
+];
+
+/// `KNNVectorFieldMapper.UNSET_MODEL_DIMENSION_IDENTIFIER`: a dimension the mapping never set.
+pub const KNN_NO_DIMENSION: i32 = -1;

@@ -121,6 +121,9 @@ impl Spec {
                 false,
             ),
             FieldType::Date => (Shape::Date, IndexOptions::None, index, false),
+            // Never reached: a document with a `knn_vector` value is refused
+            // as unsupported before a segment is built.
+            FieldType::Knn => (Shape::Keyword, IndexOptions::None, false, false),
             FieldType::Number(n) => {
                 let shape = match n {
                     NumType::Byte | NumType::Short | NumType::Integer => Shape::Int,
