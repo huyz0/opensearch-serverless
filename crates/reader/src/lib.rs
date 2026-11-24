@@ -16,6 +16,7 @@ pub mod error;
 pub mod failure;
 pub mod fetch;
 mod frozen;
+pub mod knn;
 pub mod lucene_query;
 pub mod mapping;
 pub mod numbers;

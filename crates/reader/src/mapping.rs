@@ -56,6 +56,9 @@ pub struct Field {
     pub indexed: bool,
     /// `doc_values`, true by default.
     pub doc_values: bool,
+    /// A `knn_vector` field's `dimension`; its type is unsupported for every
+    /// query but `knn`.
+    pub knn_dimension: Option<u32>,
 }
 
 /// An index's fields by full name.
@@ -208,6 +211,7 @@ impl Mapping {
         let mut indexed = true;
         let mut doc_values = true;
         let mut options = None;
+        let mut dimension = None;
         while let Some(Kind::FieldName) = p.next_token() {
             let key = p.text();
             p.next_token();
@@ -216,6 +220,7 @@ impl Mapping {
                 "type" => ty = Some(text),
                 "index" => indexed = text != "false",
                 "doc_values" => doc_values = text != "false",
+                "dimension" => dimension = text.parse::<u32>().ok(),
                 "analyzer" | "search_analyzer" if text == "standard" => {}
                 "analyzer"
                 | "search_analyzer"
@@ -241,6 +246,7 @@ impl Mapping {
             // An object field: its sub-fields are already in.
             return Ok(());
         };
+        let is_knn = ty == "knn_vector";
         let ty = match (ty, options) {
             (other, Some(option)) => {
                 // ALLOC: one description a field this reader does not search.
@@ -279,6 +285,7 @@ impl Mapping {
                 ty,
                 indexed,
                 doc_values,
+                knn_dimension: dimension.filter(|_| is_knn),
             },
         );
         Ok(())

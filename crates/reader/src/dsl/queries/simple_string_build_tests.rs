@@ -26,6 +26,7 @@ fn built(body: &str) -> Result<String, Failure> {
         mapping: &mapping,
         analyzer: &analyzer,
         max_doc: 5,
+        knn: None,
     };
     let text = format!(r#"{{"query":{{"simple_query_string":{body}}}}}"#);
     let source = parse_chunks([text.as_bytes()]).expect("parses");

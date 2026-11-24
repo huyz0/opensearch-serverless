@@ -27,6 +27,7 @@ pub const REGISTERED_QUERIES: &[&str] = &[
     "has_parent",
     "ids",
     "intervals",
+    "knn",
     "match",
     "match_all",
     "match_bool_prefix",

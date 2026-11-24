@@ -20,10 +20,13 @@
 // an overflow panics the test, which fails it as it should.
 #![allow(clippy::arithmetic_side_effects)]
 
-use lucene_codecs::field_infos::{DocValuesSkipIndexType, DocValuesType, FieldInfo, IndexOptions};
+use lucene_codecs::field_infos::{
+    DocValuesSkipIndexType, DocValuesType, FieldInfo, IndexOptions, VectorEncoding,
+    VectorSimilarityFunction,
+};
 use lucene_codecs::stored_fields::{FieldValue, StoredField};
 use lucene_index::index_writer::{
-    ExplicitDocument, ExplicitFields, IndexWriter, InvertedField, InvertedTerm,
+    DocumentVector, ExplicitDocument, ExplicitFields, IndexWriter, InvertedField, InvertedTerm,
 };
 use lucene_index::segment_info::LuceneVersion;
 use lucene_store::{ByteBuffersDirectory, Directory};
@@ -37,8 +40,17 @@ pub fn mapping(spec: &Spec) -> String {
     for x in 0..spec.texts {
         out.push_str(&format!(r#","x{x}":{{"type":"text"}}"#));
     }
+    if spec.vectors.is_some() {
+        out.push_str(r#","v":{"type":"knn_vector","dimension":3}"#);
+    }
     out.push_str("}}");
     out
+}
+
+/// The vector of document `i` when [`Spec::with_vectors`] is set: three small
+/// whole numbers, and none for every fifth document.
+pub fn doc_vector(i: usize) -> Option<[f32; 3]> {
+    (i % 5 != 4).then_some([(i % 7) as f32, (i % 5) as f32, (i % 3) as f32])
 }
 
 /// How many distinct `tag` values the documents cycle through.
@@ -74,6 +86,8 @@ pub struct Spec {
     /// Whether flushed segments are compound files, as the shell writes
     /// them (Lucene's default).
     pub compound: bool,
+    /// The similarity of the `v` vector field ([`doc_vector`]), when there is one.
+    pub vectors: Option<VectorSimilarityFunction>,
 }
 
 impl Spec {
@@ -87,6 +101,7 @@ impl Spec {
             compound: true,
             keywords: 0,
             texts: 0,
+            vectors: None,
         }
     }
 
@@ -105,6 +120,12 @@ impl Spec {
     /// Adds `n` text fields, `x0` to `x<n-1>`.
     pub fn with_texts(mut self, n: usize) -> Self {
         self.texts = n;
+        self
+    }
+
+    /// Adds the 3-dimensional vector field `v`, one document in five without a value.
+    pub fn with_vectors(mut self, similarity: VectorSimilarityFunction) -> Self {
+        self.vectors = Some(similarity);
         self
     }
 
@@ -166,6 +187,10 @@ fn keyword_number(k: usize) -> i32 {
 
 fn text_number(spec: &Spec, x: usize) -> i32 {
     keyword_number(spec.keywords) + i32::try_from(x).expect("fits")
+}
+
+fn vector_number(spec: &Spec) -> i32 {
+    text_number(spec, spec.texts)
 }
 
 fn term(bytes: &[u8]) -> InvertedTerm {
@@ -330,10 +355,28 @@ pub fn lucene_files(spec: &Spec) -> Vec<(String, Vec<u8>)> {
             )
             .expect("text");
         }
+        if let Some(similarity) = spec.vectors {
+            w.register_field(FieldInfo::new("v", vector_number(spec)).with_vectors(
+                3,
+                VectorEncoding::Float32,
+                similarity,
+            ))
+            .expect("v");
+        }
         let mut start = 0;
         while start < spec.docs {
             let end = spec.docs.min(start + spec.docs_per_segment);
-            w.add_explicit_documents((start..end).map(|i| document(spec, i)).collect())
+            let docs: Vec<ExplicitDocument> = (start..end).map(|i| document(spec, i)).collect();
+            let vectors = (start..end)
+                .map(|i| {
+                    doc_vector(i)
+                        .filter(|_| spec.vectors.is_some())
+                        .map(|v| DocumentVector::float32("v", v.to_vec()))
+                        .into_iter()
+                        .collect()
+                })
+                .collect();
+            w.add_explicit_documents_with_vectors(None, docs, vectors)
                 .expect("add");
             w.commit().expect("commit");
             start = end;

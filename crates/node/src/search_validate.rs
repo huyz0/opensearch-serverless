@@ -98,6 +98,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
                         mapping: &shard.meta.mapping,
                         analyzer: &analyzer,
                         max_doc: shard.reader.max_doc(),
+                        knn: None,
                     };
                     let query = source.query.unwrap_or(Query::MatchAll { boost: 1.0 });
                     match to_lucene(&query, &cx) {
