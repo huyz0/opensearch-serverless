@@ -47,3 +47,4 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0035](0035-the-tail-overlay-is-on-by-default.md) | The tail overlay is on by default | Accepted |
 | [0036](0036-headroom-and-pinned-indexes.md) | A writer node can clear room in bursts and can pin indexes it never lets go of | Accepted |
 | [0037](0037-per-index-store-usage.md) | The store counts its requests per index in a ledger beside the meter | Accepted |
+| [0038](0038-knn-vectors-in-the-segment.md) | A `knn_vector` is written into the segment as the stock k-NN plugin writes it | Proposed |

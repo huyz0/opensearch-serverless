@@ -67,3 +67,28 @@ fn a_shard_writes_each_vector_it_indexes_and_an_update_adds_the_new_one() {
         &[1.0, 2.0, 3.0, 0.5, -1.25, 300.0, 9.0, 8.0, 7.0]
     );
 }
+
+// docs/adr/0038: a vector counts in the indexing buffer, which the node
+// bounds and flushes by, so vector documents cannot grow past it unseen.
+#[test]
+fn vectors_are_charged_to_the_indexing_buffer() {
+    let mapping =
+        Mapping::parse_with(MAPPING.as_bytes(), ParseOptions { knn: Some(true) }).expect("mapping");
+    let dir = ByteBuffersDirectory::new();
+    let mut w = IndexWriter::open(&dir, Vec::new(), "Lucene104", VERSION).expect("writer");
+    w.enable_explicit_documents().expect("explicit");
+    let mut shard = Shard::new(&dir, w, mapping, 1, Box::new(|| 0)).expect("shard");
+    for n in 0..50 {
+        index(&mut shard, &format!("p{n}"), r#"{"k":"plain"}"#);
+    }
+    let plain = shard.indexing_buffer_bytes();
+    for n in 0..50 {
+        index(&mut shard, &format!("v{n}"), r#"{"v":[1,2,3],"k":"plain"}"#);
+    }
+    let with_vectors = shard.indexing_buffer_bytes();
+    // Fifty vectors of three floats are 600 bytes before the graph.
+    assert!(
+        with_vectors - plain >= 50 * 3 * 4,
+        "buffer grew {plain} -> {with_vectors}"
+    );
+}
