@@ -5,7 +5,12 @@
 use crate::aggs::bucket::composite::{
     AfterValue, CompositeSpec, MissingOrder, SourceKind, SourceSpec,
 };
+use crate::aggs::bucket::date_histogram::{DateRounding, RoundingKind};
+use crate::aggs::bucket::date_histogram_parse::{
+    calendar_unit, offset_millis, time_value_millis, zone_millis,
+};
 use crate::aggs::bucket::histogram_parse::double_value;
+use crate::aggs::metric::parse::long_value;
 use crate::dsl::error::DslError;
 use crate::dsl::tokens::{Kind, Parser};
 use crate::dsl::values::{bool_value, int_value, suggest};
@@ -26,6 +31,22 @@ const TERMS_KEYS: &[&str] = &[
 /// Every key a `histogram` source declares.
 const HISTOGRAM_KEYS: &[&str] = &[
     "interval",
+    "field",
+    "missing_bucket",
+    "missing_order",
+    "value_type",
+    "script",
+    "order",
+];
+
+/// Every key a `date_histogram` source declares.
+const DATE_KEYS: &[&str] = &[
+    "format",
+    "calendar_interval",
+    "fixed_interval",
+    "interval",
+    "offset",
+    "time_zone",
     "field",
     "missing_bucket",
     "missing_order",
@@ -188,13 +209,9 @@ fn parse_source(p: &mut Parser<'_>) -> Result<SourceSpec, DslError> {
     let type_at = p.location();
     expect(p, Kind::StartObject)?;
     let source = match ty {
-        "terms" => parse_source_body(p, name, ty, false)?,
-        "histogram" => parse_source_body(p, name, ty, true)?,
-        "date_histogram" => {
-            return Err(DslError::unsupported(
-                "a [date_histogram] source of a [composite] aggregation",
-            ));
-        }
+        "terms" => parse_source_body(p, name, ty, Shape::Terms)?,
+        "histogram" => parse_source_body(p, name, ty, Shape::Histogram)?,
+        "date_histogram" => parse_source_body(p, name, ty, Shape::Date)?,
         other => {
             return Err(DslError::parsing(
                 type_at,
@@ -208,18 +225,30 @@ fn parse_source(p: &mut Parser<'_>) -> Result<SourceSpec, DslError> {
     Ok(source)
 }
 
+/// Which source type a body is.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Shape {
+    Terms,
+    Histogram,
+    Date,
+}
+
 /// A source's body, the parser past its `{`.
 fn parse_source_body(
     p: &mut Parser<'_>,
     name: String,
     ty: &str,
-    histogram: bool,
+    shape: Shape,
 ) -> Result<SourceSpec, DslError> {
-    let keys = if histogram {
-        HISTOGRAM_KEYS
-    } else {
-        TERMS_KEYS
+    let keys = match shape {
+        Shape::Terms => TERMS_KEYS,
+        Shape::Histogram => HISTOGRAM_KEYS,
+        Shape::Date => DATE_KEYS,
     };
+    let mut interval_key: Option<&'static str> = None;
+    let mut date_kind: Option<RoundingKind> = None;
+    let mut zone_ms = 0i64;
+    let mut offset = 0i64;
     let mut field: Option<String> = None;
     let mut interval: Option<f64> = None;
     let mut desc = false;
@@ -251,7 +280,9 @@ fn parse_source_body(
             ));
         }
         let kind = p.next_token();
-        if matches!(key, "value_type" | "script") {
+        if matches!(key, "value_type" | "script" | "format")
+            || (key == "interval" && shape == Shape::Date)
+        {
             // ALLOC: error path; one message.
             return Err(DslError::unsupported(&format!(
                 // ALLOC: error path; one message.
@@ -309,6 +340,73 @@ fn parse_source_body(
                     }
                 };
             }
+            "calendar_interval" | "fixed_interval" => {
+                let this: &'static str = if key == "calendar_interval" {
+                    "calendar_interval"
+                } else {
+                    "fixed_interval"
+                };
+                if let Some(prior) = interval_key
+                    && prior != this
+                {
+                    return Err(failed(
+                        p,
+                        DslError::illegal(
+                            // ALLOC: error path; one message.
+                            format!("Cannot use [{this}] with [{prior}] configuration option."),
+                        ),
+                    ));
+                }
+                interval_key = Some(this);
+                let text = p.text();
+                date_kind = Some(if this == "calendar_interval" {
+                    let unit = calendar_unit(text).ok_or_else(|| {
+                        failed(
+                            p,
+                            DslError::illegal(
+                                // ALLOC: error path; one message.
+                                format!(
+                                    "The supplied interval [{text}] could not be parsed as a \
+                                     calendar interval."
+                                ),
+                            ),
+                        )
+                    })?;
+                    RoundingKind::Unit(unit)
+                } else {
+                    let ms = time_value_millis(text, "date_histogram.fixedInterval")
+                        .map_err(|m| failed(p, DslError::illegal(m)))?;
+                    if ms < 1 {
+                        return Err(failed(
+                            p,
+                            DslError::illegal("Zero or negative time interval not supported"),
+                        ));
+                    }
+                    RoundingKind::Interval(ms)
+                });
+            }
+            "time_zone" => {
+                zone_ms = if kind == Some(Kind::Number) {
+                    long_value(Kind::Number, p.text())
+                        .map_err(|e| failed(p, e))?
+                        .saturating_mul(3_600_000)
+                } else {
+                    zone_millis(p.text()).ok_or_else(|| {
+                        // ALLOC: error path; one message.
+                        DslError::unsupported(&format!(
+                            "a composite source's time zone [{}]",
+                            p.text()
+                        ))
+                    })?
+                };
+            }
+            "offset" => {
+                offset = if kind == Some(Kind::Number) {
+                    long_value(Kind::Number, p.text()).map_err(|e| failed(p, e))?
+                } else {
+                    offset_millis(p.text()).map_err(|m| failed(p, DslError::illegal(m)))?
+                };
+            }
             _ => {
                 let v = double_value(p).map_err(|e| failed(p, e))?;
                 if v.is_nan() || v <= 0.0 {
@@ -331,14 +429,22 @@ fn parse_source_body(
             "missing_order require missing_bucket is true",
         ));
     }
-    let kind = if histogram {
-        SourceKind::Histogram {
+    let kind = match shape {
+        Shape::Histogram => SourceKind::Histogram {
             interval: interval.ok_or_else(|| {
                 DslError::illegal("[interval] must be greater than 0 for [histogram] source")
             })?,
-        }
-    } else {
-        SourceKind::Terms
+        },
+        Shape::Terms => SourceKind::Terms,
+        Shape::Date => SourceKind::DateHistogram {
+            rounding: DateRounding {
+                kind: date_kind.ok_or_else(|| {
+                    DslError::illegal("Invalid interval specified, must be non-null and non-empty")
+                })?,
+                zone_ms,
+                offset,
+            },
+        },
     };
     Ok(SourceSpec {
         name,

@@ -192,6 +192,36 @@ fn the_buckets_are_those_of_the_querys_matches_and_a_search_writes_them() {
     );
 }
 
+// AC-10
+#[test]
+fn a_date_histogram_source_keys_by_the_rounded_millis_and_pages_with_after() {
+    let shard = shard("cp-date", DOCS);
+    let src = r#""sources":[{"d":{"date_histogram":{"field":"n","fixed_interval":"50ms"}}}]"#;
+    let all = composite(&shard, &format!(r#"{{{src}}}"#));
+    assert_eq!(longs(&all), [(0, 50), (50, 50), (100, 50), (150, 50)]);
+    let next = composite(&shard, &format!(r#"{{"size":1,{src},"after":{{"d":50}}}}"#));
+    assert_eq!(longs(&next), [(100, 50)]);
+    let desc = composite(
+        &shard,
+        r#"{"size":2,"sources":[{"d":{"date_histogram":{"field":"n","fixed_interval":"50ms","order":"desc"}}}]}"#,
+    );
+    assert_eq!(longs(&desc), [(150, 50), (100, 50)]);
+    let one = composite(
+        &shard,
+        r#"{"sources":[{"d":{"date_histogram":{"field":"n","calendar_interval":"minute"}}}]}"#,
+    );
+    assert_eq!(longs(&one), [(0, 200)]);
+    let (status, reason) = refused(
+        &shard,
+        r#"{"sources":[{"d":{"date_histogram":{"field":"tag","fixed_interval":"1d"}}}]}"#,
+    );
+    assert_eq!(status, 400);
+    assert!(
+        reason.contains("not supported for aggregation [date_histogram]"),
+        "{reason}"
+    );
+}
+
 // AC-4
 #[test]
 fn missing_bucket_on_a_field_every_document_has_adds_no_bucket() {

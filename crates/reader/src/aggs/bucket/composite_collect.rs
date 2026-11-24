@@ -132,10 +132,14 @@ fn reads<S: BlobStore + 'static>(
         (FieldType::Text, _) => return Err(text_fielddata(&source.field)),
         (FieldType::Keyword, SourceKind::Terms) => Reads::Keyword,
         (FieldType::Int { .. } | FieldType::Long | FieldType::Date, _) => Reads::Long,
-        (FieldType::Keyword, _) => {
+        (FieldType::Keyword, kind) => {
+            let what = match kind {
+                SourceKind::DateHistogram { .. } => "date_histogram",
+                _ => "histogram",
+            };
             // ALLOC: error path; one message.
             return Err(bad_request(format!(
-                "Field [{}] of type [{ty}] is not supported for aggregation [histogram]",
+                "Field [{}] of type [{ty}] is not supported for aggregation [{what}]",
                 source.field
             )));
         }
@@ -235,11 +239,13 @@ fn after_of(
         out.push(match (kind, source.kind) {
             // ALLOC: one term an `after`, bounded by the request's.
             (Reads::Keyword, _) => CompositeAfter::Term(text.as_bytes().to_vec()),
-            (Reads::Long, SourceKind::Terms) => CompositeAfter::Value(
-                text.trim()
-                    .parse::<i64>()
-                    .map_err(|_| number_format(text))?,
-            ),
+            (Reads::Long, SourceKind::Terms | SourceKind::DateHistogram { .. }) => {
+                CompositeAfter::Value(
+                    text.trim()
+                        .parse::<i64>()
+                        .map_err(|_| number_format(text))?,
+                )
+            }
             (Reads::Long, SourceKind::Histogram { .. }) => CompositeAfter::Value(sortable(
                 text.trim()
                     .parse::<f64>()
@@ -288,6 +294,9 @@ pub fn node<S: BlobStore + 'static>(
                 CompositeValues::Keyword
             }
             (Reads::Long, SourceKind::Terms) => CompositeValues::Long,
+            (Reads::Long, SourceKind::DateHistogram { rounding }) => {
+                CompositeValues::Date(rounding)
+            }
             (Reads::Long, SourceKind::Histogram { interval }) => CompositeValues::Histogram {
                 kind: ValueKind::Long,
                 interval,
