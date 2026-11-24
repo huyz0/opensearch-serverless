@@ -33,7 +33,7 @@ fn call(node: &Node, method: &str, target: &str, body: Option<&str>) -> support:
 
 // docs/specs/snapshots-default-on AC-1
 #[test]
-fn a_node_with_no_variable_serves_the_snapshot_reads_and_the_take_but_not_the_restore() {
+fn a_node_with_no_variable_serves_the_snapshot_reads_the_take_and_the_restore() {
     let dir = TempDir::new("boot-snapshots-default");
     let node = boot(dir.path(), None);
     let read = call(&node, "GET", "/_snapshot/backups", None);
@@ -56,7 +56,12 @@ fn a_node_with_no_variable_serves_the_snapshot_reads_and_the_take_but_not_the_re
         take.text()
     );
     let restore = call(&node, "POST", "/_snapshot/backups/s1/_restore", Some("{}"));
-    assert_eq!(restore.status, 501, "{}", restore.text());
+    assert_eq!(restore.status, 404, "{}", restore.text());
+    assert!(
+        restore.text().contains("snapshot_missing_exception"),
+        "{}",
+        restore.text()
+    );
 }
 
 // docs/specs/snapshots-default-on AC-2
