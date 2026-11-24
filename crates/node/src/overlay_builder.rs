@@ -21,7 +21,8 @@ use oss_format::WalRecord;
 use oss_mem::{MemoryBudget, Pool, Reservation};
 use oss_reader::commit_push::Stage;
 use oss_reader::overlay::{
-    CommitAccess, OverlaySource, Ready, build_ready, estimate_bytes, local_checkpoint, mask_bytes,
+    CommitAccess, OverlaySource, Ready, build_ready, estimate_bytes, kept_bytes, local_checkpoint,
+    mask_bytes,
 };
 use oss_transport::actions::tail::{FetchRequest, FetchResponse, NEW, Record, ShardRef};
 use oss_transport::stream::TaskId;
@@ -411,7 +412,7 @@ impl Inner {
         // Never evicts an open index: an overlay is worth less than one.
         // The view a search caches also holds a mask of every commit segment.
         let charged = estimate.saturating_add(mask_bytes(job.commit.reader()));
-        let Ok(charge) = self.budget.try_reserve(Pool::OpenIndexes, charged) else {
+        let Ok(mut charge) = self.budget.try_reserve(Pool::OpenIndexes, charged) else {
             if let Some(slot) = lock(&self.slots).get_mut(&job.key)
                 && slot.stage == job.stage
             {
@@ -428,6 +429,10 @@ impl Inner {
         ) else {
             return;
         };
+        // The peak is over: the pool holds what the finished overlay keeps.
+        let kept = kept_bytes(&records, ready.overlay().stored_bytes())
+            .saturating_add(mask_bytes(job.commit.reader()));
+        charge.shrink(charged.saturating_sub(kept));
         let mut slots = lock(&self.slots);
         if let Some(slot) = slots.get_mut(&job.key)
             && slot.stage == job.stage

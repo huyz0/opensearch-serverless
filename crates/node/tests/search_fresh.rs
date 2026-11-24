@@ -121,3 +121,40 @@ fn a_shard_its_own_node_writes_is_asked_about_like_any_and_a_node_without_grants
     assert_eq!(all(&fx), 2);
     assert_eq!(asked(&claims), 0);
 }
+
+// docs/specs/tail-overlay-kept-charge AC-3: a shard the pool left without an
+// overlay is searched from its commit alone, whatever the writer claims.
+#[test]
+fn a_shard_with_no_overlay_answers_under_owner_and_serving_and_is_refused_under_everywhere() {
+    for (mode, grants, applies, status, asks) in [
+        ("owner", false, false, 200, false),
+        ("serving", false, true, 200, false),
+        ("everywhere", true, true, 503, true),
+    ] {
+        let root = TempDir::new("fresh-no-overlay");
+        let dir = ByteBuffersDirectory::new();
+        let fx = fixture(root.path(), &dir, &["a", "b"]);
+        // The writer says it acknowledged refreshed writes the commit lacks.
+        let claims = Arc::new(Claims {
+            claimed: i64::MAX,
+            asked: Mutex::new(0),
+        });
+        let fresh = oss_node::tail_fresh::TailFresh::new(
+            Arc::new(oss_node::tail_held::TailHeld::new()),
+            Arc::clone(&claims) as Arc<dyn TailFetcher>,
+            "reader-1".to_owned(),
+            Arc::new(|| 1_000),
+            grants,
+        )
+        .applying(applies);
+        assert!(fx.service.set_tail_fresh(Arc::new(fresh)));
+        let reply = fx.search();
+        assert_eq!(
+            reply.status,
+            status,
+            "{mode}: {}",
+            String::from_utf8_lossy(&reply.body)
+        );
+        assert_eq!(asked(&claims) > 0, asks, "{mode}: writer asks");
+    }
+}

@@ -10,5 +10,5 @@
 - AC-7: `a_full_queue_refuses_a_further_build_and_the_asks_finish_later` in crates/node/tests/overlay_builder.rs
 - AC-8: `records_the_commit_holds_are_left_out_and_newer_ones_kept` in crates/reader/tests/overlay_build_ready.rs
 - AC-9: `a_build_queued_for_an_old_stage_is_dropped_when_the_stage_changed` in crates/node/tests/overlay_builder.rs
-- AC-10: `an_overlay_is_charged_its_estimate_and_the_masks_of_the_commit` in crates/node/tests/overlay_builder.rs
+- AC-10: `an_overlay_is_reserved_its_estimate_and_the_masks_of_the_commit_to_build` in crates/node/tests/overlay_builder.rs
 - AC-10 (mask size): `the_masks_of_a_commit_take_a_bit_a_document_in_whole_words_a_segment` in crates/reader/tests/overlay_checkpoint.rs
