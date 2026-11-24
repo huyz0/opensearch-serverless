@@ -153,7 +153,9 @@ impl Config {
             // ALLOC: a refresh copies each stored document once, at most 1000 a kind.
             return Vec::new();
         };
-        let has = |role: &String| user.backend_roles.contains(role) || role == "*";
+        let has = |role: &String| {
+            user.backend_roles.contains(role) || (role == "*" && !user.backend_roles.is_empty())
+        };
         let mut roles = user.roles.clone();
         for (role, m) in &self.mappings {
             let by_name = m.users.iter().any(|u| u == name || u == "*");

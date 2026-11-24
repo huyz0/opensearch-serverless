@@ -17,6 +17,10 @@ pub struct IndexPermission {
     pub patterns: Vec<String>,
     /// Action names, wildcard patterns or action group names.
     pub actions: Vec<String>,
+    /// Whether the permission carries document-level security, field-level
+    /// security or masked fields, none of which this node enforces: such a
+    /// permission grants nothing, so a role is never looser than the plugin's.
+    pub restricted: bool,
 }
 
 /// A role's permissions.
@@ -57,6 +61,14 @@ fn role_of(doc: &Json) -> Role {
             .map(|p| IndexPermission {
                 patterns: strings(p, "index_patterns"),
                 actions: strings(p, "allowed_actions"),
+                restricted: ["dls", "fls", "masked_fields"]
+                    .iter()
+                    .any(|k| match p.get(k) {
+                        Some(Json::Str(s)) => !s.is_empty(),
+                        Some(Json::Arr(a)) => !a.is_empty(),
+                        Some(Json::Null) | None => false,
+                        Some(_) => true,
+                    }),
             })
             // ALLOC: a refresh copies each stored document once, at most 1000 a kind.
             .collect(),
@@ -256,7 +268,7 @@ impl Authz {
         let held = || roles.iter().filter_map(|r| self.roles.get(r));
         held().any(|r| r.cluster.iter().any(|c| c == "*"))
             && held().any(|r| {
-                r.indices.iter().any(|p| {
+                r.indices.iter().filter(|p| !p.restricted).any(|p| {
                     p.patterns.iter().any(|x| x == "*") && p.actions.iter().any(|a| a == "*")
                 })
             })
@@ -289,7 +301,7 @@ impl Authz {
                 .iter()
                 .filter_map(|r| self.roles.get(r))
                 .flat_map(|r| r.indices.iter())
-                .filter(|p| self.grants(&p.actions, action))
+                .filter(|p| !p.restricted && self.grants(&p.actions, action))
                 .flat_map(|p| p.patterns.iter())
                 .any(|pattern| {
                     if pattern.contains("${user.name}") {

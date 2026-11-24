@@ -183,17 +183,64 @@ fn routes_whose_indices_are_in_the_body_or_that_are_proxied_need_all_access() {
 fn every_management_route_refuses_a_user_without_the_administrator_role() {
     let r = rig();
     make_user(&r, "u", "Zz9!longEnough");
-    for pattern in HANDLER {
+    // Every method registered on a management pattern, not a list written here.
+    let (node, _, _) = assembled_with(&secured(), 256 << 20);
+    let routes = node.routes();
+    let mut sent = 0;
+    for (method, pattern) in routes.iter().filter(|(_, p)| HANDLER.contains(p)) {
+        let Some(method) = method else { continue };
         let path = pattern.replace("{name}", "x");
-        let methods: &[&str] = if pattern.ends_with("{name}") {
-            &["GET", "PUT", "DELETE"]
-        } else {
-            &["GET"]
-        };
-        for method in methods {
-            let reply = call_rig(&r, Some(USER), method, &path, Some("{}"));
-            assert_eq!(reply.0, 403, "{method} {path}: {reply:?}");
-            assert!(reply.1.contains("FORBIDDEN"), "{method} {path}: {reply:?}");
-        }
+        let reply = call_rig(&r, Some(USER), method.as_str(), &path, Some("{}"));
+        assert_eq!(reply.0, 403, "{method:?} {path}: {reply:?}");
+        assert!(
+            reply.1.contains("FORBIDDEN"),
+            "{method:?} {path}: {reply:?}"
+        );
+        sent += 1;
     }
+    assert!(sent >= 20, "{sent}");
+}
+
+// docs/specs/security-authz AC-3: a bulk may delete and update, so it needs those too.
+#[test]
+fn a_bulk_needs_every_write_action_its_items_may_name() {
+    let r = node_with(
+        r#"{"cluster_permissions":["indices:data/write/bulk"],"index_permissions":[{"index_patterns":["*"],"allowed_actions":["indices:data/write/index"]}]}"#,
+    );
+    let delete = "{\"delete\":{\"_index\":\"payroll\",\"_id\":\"1\"}}\n";
+    let reply = send(&r, USER, "POST", "/_bulk", Some(delete));
+    assert_eq!(reply.0, 403, "{reply:?}");
+    assert!(reply.1.contains("indices:data/write/"), "{reply:?}");
+}
+
+// docs/specs/security-authz AC-2: a long list is refused rather than checked name by name.
+#[test]
+fn an_index_list_longer_than_the_cap_is_refused() {
+    let r = node_with(LOGS_RW);
+    let many = vec!["docs"; 300].join(",");
+    assert_eq!(
+        send(&r, USER, "GET", &format!("/{many}/_search"), None).0,
+        403
+    );
+    let few = ["docs"; 3].join(",");
+    assert_ne!(
+        send(&r, USER, "GET", &format!("/{few}/_search"), None).0,
+        403
+    );
+}
+
+// docs/specs/security-authz AC-2: creating an index grants no alias, so an alias in the body stays refused.
+#[test]
+fn an_index_created_with_an_alias_is_not_made_for_a_user_who_may_only_create() {
+    let r = node_with(
+        r#"{"index_permissions":[{"index_patterns":["docs*"],"allowed_actions":["indices:admin/create"]}]}"#,
+    );
+    let reply = send(
+        &r,
+        USER,
+        "PUT",
+        "/docsnew",
+        Some(r#"{"aliases":{"payroll_alias":{}}}"#),
+    );
+    assert!(reply.0 != 200 && reply.0 != 201, "{reply:?}");
 }

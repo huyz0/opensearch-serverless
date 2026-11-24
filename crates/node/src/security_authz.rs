@@ -6,6 +6,7 @@ use std::sync::Arc;
 use oss_coordinator::security::{Config, forbidden};
 use oss_rest::{Authorization, Authorizer, Denial, Method};
 
+use crate::security_route::admin_refusal;
 use crate::security_state::SecurityState;
 
 const JSON: &str = "application/json; charset=UTF-8";
@@ -233,6 +234,9 @@ pub fn rule_of(prefix: bool, method: Option<Method>, pattern: &str) -> Rule {
     rule(method, pattern).unwrap_or(Rule::AllAccess)
 }
 
+/// The most names one index expression may list; a longer one is refused.
+const MAX_ELEMENTS: usize = 256;
+
 /// Splits an index expression the way the handler will, refusing what a
 /// handler would read differently: an empty element, an exclusion, an
 /// inclusion sign. `_all` is `*`.
@@ -240,7 +244,7 @@ fn elements(expression: &str) -> Option<Vec<&str>> {
     // ALLOC: one request's index names, at most the path's length.
     let mut out = Vec::new();
     for e in expression.split(',') {
-        if e.is_empty() || e.starts_with(['-', '+']) {
+        if out.len() >= MAX_ELEMENTS || e.is_empty() || e.starts_with(['-', '+']) {
             return None;
         }
         out.push(if e == "_all" { "*" } else { e });
@@ -281,11 +285,12 @@ fn allowed(config: &Config, user: &str, rule: Rule, req: &Authorization<'_>) -> 
             if !config.cluster_allows(user, action) {
                 return Err(action.to_owned());
             }
-            let item = "indices:data/write/index";
-            config
-                .indices_allow(user, item, &["*"])
-                .then_some(())
-                .ok_or_else(|| item.to_owned())
+            // A bulk body may carry any of these, so each is needed.
+            ["index", "create", "update", "delete"]
+                .iter()
+                .map(|kind| format!("indices:data/write/{kind}"))
+                .find(|item| !config.indices_allow(user, item, &["*"]))
+                .map_or(Ok(()), Err)
         }
         Rule::Index(action) => {
             let names = match req.path_param("index") {
@@ -335,6 +340,16 @@ impl Authorizer for RouteAuthorizer {
             });
         };
         let rule = rule_of(req.is_prefix(), req.method(), req.pattern());
+        if rule == Rule::Handler {
+            // The management API answers the plugin's own refusal body; the
+            // handler checks again, so a route never rests on one check.
+            return admin_refusal(&config, user).map(|a| Denial {
+                status: a.status,
+                content_type: JSON,
+                body: a.body,
+                challenge: None,
+            });
+        }
         allowed(&config, user, rule, req)
             .err()
             .map(|action| refuse(&config, user, &action))

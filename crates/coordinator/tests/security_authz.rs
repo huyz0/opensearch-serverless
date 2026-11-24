@@ -266,3 +266,45 @@ fn all_access_is_the_star_on_both_levels_and_nothing_less() {
     );
     assert!(star.all_access("u"));
 }
+
+// docs/specs/security-authz AC-2: a permission this node cannot enforce grants nothing.
+#[test]
+fn a_permission_with_dls_fls_or_masking_grants_nothing() {
+    for extra in [
+        r#""dls":"{\"term\":{\"o\":\"x\"}}""#,
+        r#""fls":["~secret"]"#,
+        r#""masked_fields":["ssn"]"#,
+    ] {
+        let role = format!(
+            r#"{{"index_permissions":[{{"index_patterns":["docs*"],"allowed_actions":["read"],{extra}}}]}}"#
+        );
+        let c = config(&role, &[]);
+        assert!(!c.indices_allow("u", SEARCH, &["docs1"]), "{extra}");
+    }
+    let plain = config(
+        r#"{"index_permissions":[{"index_patterns":["docs*"],"allowed_actions":["read"],"dls":"","fls":[],"masked_fields":[]}]}"#,
+        &[],
+    );
+    assert!(
+        plain.indices_allow("u", SEARCH, &["docs1"]),
+        "empty is none"
+    );
+}
+
+// docs/specs/security-authz AC-1: `*` among a mapping's backend roles needs the user to have one.
+#[test]
+fn a_star_backend_role_does_not_reach_a_user_with_none() {
+    let mut c = config(r#"{}"#, &[]);
+    c.add(
+        Kind::RolesMapping,
+        "star",
+        &doc(r#"{"backend_roles":["*"]}"#),
+    );
+    assert!(!c.roles_of("u").contains(&"star".to_owned()));
+    c.add(
+        Kind::InternalUsers,
+        "v",
+        &doc(r#"{"hash":"x","backend_roles":["b"]}"#),
+    );
+    assert!(c.roles_of("v").contains(&"star".to_owned()));
+}
