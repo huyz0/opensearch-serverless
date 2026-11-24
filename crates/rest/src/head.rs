@@ -233,6 +233,16 @@ impl Head {
         })
     }
 
+    /// Every header as a name and value, in order; a value that is not
+    /// UTF-8 is left out.
+    pub(crate) fn all<'b>(&self, buf: &'b [u8]) -> impl Iterator<Item = (&'b str, &'b str)> {
+        self.headers.iter().filter_map(move |(n, v)| {
+            let name = std::str::from_utf8(&buf[n.clone()]).ok()?;
+            let value = std::str::from_utf8(&buf[v.clone()]).ok()?;
+            Some((name, value))
+        })
+    }
+
     /// How many headers the head has.
     #[cfg(test)]
     pub(crate) fn header_count(&self) -> usize {
