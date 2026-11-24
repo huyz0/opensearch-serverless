@@ -47,11 +47,15 @@ struct Rig {
 }
 
 fn rig() -> Rig {
+    rig_with(128 << 20)
+}
+
+fn rig_with(extensions: usize) -> Rig {
     let store: Arc<dyn BlobStore> = Arc::new(Emulator::new(1 << 28, 5));
     let budget = MemoryBudget::new(
         &BudgetConfig::new(256 << 20)
             .with_pool(Pool::RequestBodies, 32 << 20)
-            .and_then(|c| c.with_pool(Pool::Extensions, 128 << 20))
+            .and_then(|c| c.with_pool(Pool::Extensions, extensions))
             .and_then(|c| c.with_pool(Pool::OpenIndexes, 16 << 20))
             .expect("fits"),
     );
@@ -174,6 +178,8 @@ fn bytes_that_do_not_hash_to_their_key_are_refused() {
 #[test]
 fn a_module_that_is_refused_is_not_stored() {
     let r = rig();
+    // The server's own body buffers are charged for as long as it runs.
+    let resting = r.budget.in_use(Pool::RequestBodies);
     let junk = put(&r, b"not a module");
     assert_eq!(junk.status, 400, "{}", junk.text());
     assert!(
@@ -183,7 +189,18 @@ fn a_module_that_is_refused_is_not_stored() {
     );
     let big = put(&r, &vec![0_u8; 8 * 1024 * 1024 + 1]);
     assert_eq!(big.status, 413, "{}", big.text());
+    // Exactly the ceiling is read whole and refused for what it is.
+    let exact = put(&r, &vec![0_u8; 8 * 1024 * 1024]);
+    assert_eq!(exact.status, 400, "{}", exact.text());
+    // A body that declares no length is stopped at the ceiling too.
+    assert_eq!(chunked_status(&r, 8 * 1024 * 1024 + 1), 413);
     assert_eq!(count(&r, S3Op::Put), 0);
+    assert_eq!(r.budget.in_use(Pool::Extensions), 0);
+    assert_eq!(
+        r.budget.in_use(Pool::RequestBodies),
+        resting,
+        "released with the request"
+    );
 }
 
 #[test]
@@ -200,8 +217,17 @@ fn a_second_upload_while_one_is_in_flight_answers_429() {
     );
     slow.write_all(head.as_bytes()).expect("head");
     slow.write_all(&wasm[..8]).expect("part");
-    std::thread::sleep(Duration::from_millis(300));
-    let second = put(&r, &wasm);
+    // The first upload takes the place when its handler starts; ask until refused.
+    // A body that cannot be stored shows whether the place is taken: 400 free, 429 taken.
+    let mut second = put(&r, b"probe");
+    for _ in 0..100 {
+        if second.status == 429 {
+            break;
+        }
+        assert_eq!(second.status, 400, "{}", second.text());
+        std::thread::sleep(Duration::from_millis(50));
+        second = put(&r, b"probe");
+    }
     assert_eq!(second.status, 429, "{}", second.text());
     assert_eq!(count(&r, S3Op::Put), 0);
     slow.write_all(&wasm[8..]).expect("rest");
@@ -214,4 +240,57 @@ fn a_second_upload_while_one_is_in_flight_answers_429() {
     }
     assert!(reply.starts_with("HTTP/1.1 201"), "{reply}");
     assert_eq!(put(&r, &wasm).status, 200, "the place is free again");
+}
+
+/// The status of an upload whose body of `len` zero bytes goes in one
+/// chunk with no declared length.
+fn chunked_status(r: &Rig, len: usize) -> u16 {
+    let mut s = std::net::TcpStream::connect(r.server.local_addr()).expect("connects");
+    s.set_read_timeout(Some(Duration::from_secs(30)))
+        .expect("timeout");
+    let head = "PUT /_serverless/extensions/modules HTTP/1.1\r\nhost: t\r\nconnection: close\r\ncontent-type: application/json\r\ntransfer-encoding: chunked\r\n\r\n";
+    s.write_all(head.as_bytes()).expect("head");
+    // The node may answer and close before the whole body is sent.
+    let _ = s.write_all(format!("{len:x}\r\n").as_bytes());
+    let _ = s.write_all(&vec![0_u8; len]);
+    let _ = s.write_all(b"\r\n0\r\n\r\n");
+    let mut reply = Vec::new();
+    let _ = s.read_to_end(&mut reply);
+    String::from_utf8_lossy(&reply)
+        .split_whitespace()
+        .nth(1)
+        .and_then(|c| c.parse().ok())
+        .expect("a status")
+}
+
+#[test]
+fn a_foreign_object_at_a_modules_key_is_told_and_not_taken_for_the_module() {
+    let r = rig();
+    let wasm = module();
+    let hash = extension_store::hash_of(&wasm);
+    let mut buf = vec![0_u8; 4096];
+    r.store
+        .put(
+            &extension_store::key("", &hash),
+            &mut oss_blob::SliceSource::new(b"truncated"),
+            &mut buf,
+        )
+        .expect("planted");
+    let reply = put(&r, &wasm);
+    assert_eq!(reply.status, 500, "{}", reply.text());
+    assert!(
+        reply.text().contains("extension_corrupt"),
+        "{}",
+        reply.text()
+    );
+}
+
+#[test]
+fn a_pool_that_cannot_hold_the_compile_answers_429_and_releases_what_it_took() {
+    let r = rig_with(1 << 20);
+    let reply = put(&r, &module());
+    assert_eq!(reply.status, 429, "{}", reply.text());
+    assert!(reply.text().contains("extension_busy"), "{}", reply.text());
+    assert_eq!(r.budget.in_use(Pool::Extensions), 0);
+    assert_eq!(count(&r, S3Op::Put), 0);
 }

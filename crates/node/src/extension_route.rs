@@ -86,11 +86,16 @@ impl ExtensionService {
         if declared.is_some_and(|n| n > u64::from(MAX_MODULE_BYTES)) {
             return Err(RestError::too_large());
         }
-        req.body().reserve(MAX_MODULE_BYTES as usize)?;
+        // What the body declares, or the most a module may be; reserved and
+        // allocated once, so the buffer never grows past what was reserved.
+        let room = declared.map_or(MAX_MODULE_BYTES as usize, |n| {
+            usize::try_from(n).unwrap_or(MAX_MODULE_BYTES as usize)
+        });
+        req.body().reserve(room)?;
         // ALLOC: the module, at most MAX_MODULE_BYTES, reserved above.
-        let mut bytes: Vec<u8> = Vec::new();
+        let mut bytes: Vec<u8> = Vec::with_capacity(room);
         while let Some(chunk) = req.body().next_chunk()? {
-            if bytes.len().saturating_add(chunk.len()) > MAX_MODULE_BYTES as usize {
+            if bytes.len().saturating_add(chunk.len()) > room {
                 return Err(RestError::too_large());
             }
             bytes.extend_from_slice(chunk);

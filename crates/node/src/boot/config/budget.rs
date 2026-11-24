@@ -12,9 +12,11 @@ impl NodeConfig {
     /// [`BudgetError`] when the shares do not fit the total.
     pub fn budget(&self) -> Result<BudgetConfig, BudgetError> {
         let share = |percent: usize| (self.memory_bytes / 100).saturating_mul(percent);
-        let ext = self
-            .extensions_percent
-            .min(if cfg!(feature = "extensions") { 20 } else { 0 });
+        let ext = if cfg!(feature = "extensions") {
+            self.extensions_percent
+        } else {
+            0
+        };
         BudgetConfig::new(self.memory_bytes)
             .with_pool(Pool::RequestBodies, share(20))?
             .with_pool(Pool::QueryExecution, share(15))?

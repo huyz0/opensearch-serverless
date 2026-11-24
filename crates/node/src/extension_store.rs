@@ -62,8 +62,14 @@ pub fn write_once(
 ) -> Result<bool, StoreError> {
     let k = key(base, hash);
     // A repeat is told by a HEAD, so it adds no PUT.
-    if store.head(&k).map_err(StoreError::Blob)?.is_some() {
-        return Ok(false);
+    if let Some(meta) = store.head(&k).map_err(StoreError::Blob)? {
+        // The HEAD already says the object's length: one of another length
+        // is not this module, and is told here instead of being trusted.
+        return if meta.len == bytes.len() as u64 {
+            Ok(false)
+        } else {
+            Err(StoreError::Mismatch)
+        };
     }
     let mut buf = vec![0_u8; IO_BUFFER]; // ALLOC: IO_BUFFER, once an upload.
     match store
@@ -87,8 +93,8 @@ pub fn load(
     let _held = budget
         .try_reserve(Pool::Extensions, MAX_MODULE_BYTES as usize)
         .map_err(|_| StoreError::Load(LoadError::Busy))?;
-    // ALLOC: at most MAX_MODULE_BYTES, reserved above.
-    let mut bytes: Vec<u8> = Vec::new();
+    // ALLOC: MAX_MODULE_BYTES, reserved above, allocated once.
+    let mut bytes: Vec<u8> = Vec::with_capacity(MAX_MODULE_BYTES as usize);
     let mut scratch = vec![0_u8; IO_BUFFER]; // ALLOC: IO_BUFFER, once a load.
     let mut sink = |chunk: &[u8]| {
         if bytes.len().saturating_add(chunk.len()) > MAX_MODULE_BYTES as usize {

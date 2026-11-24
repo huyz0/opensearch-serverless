@@ -98,7 +98,7 @@ The Java shell answers a `_bulk` request that carries `Connection: close` with t
 
 ## `PUT /_serverless/extensions/modules` on a node
 
-An administrator uploads an extension module (a WebAssembly module of at most 8 MiB) as the request body. The node hashes it, checks that it loads, and stores it under `ext/modules/<sha256>.wasm`; it answers 201 with the id, or 200 when the module was already stored. One upload runs at a time a node (a second answers 429). The route exists only on a node built with the Cargo feature `extensions` and started with `OSS_EXTENSIONS_PERCENT` above 0. **Differs:** this is not an OpenSearch endpoint; no point is wired to a request path yet ([extension-abi](specs/extension-abi/SPEC.md)).
+An administrator uploads an extension module (a WebAssembly module of at most 8 MiB) as the request body. The node hashes it, checks that it loads, and stores it under `ext/modules/<sha256>.wasm`; it answers 201 with the id, or 200 when the module was already stored. One upload runs at a time a node (a second answers 429, and a client that sends its body slowly holds the place until the read times out). With security off, like every route, it is open to anyone who can reach the node; with security on it is `all_access`. The route exists only on a node built with the Cargo feature `extensions` and started with `OSS_EXTENSIONS_PERCENT` above 0. **Differs:** this is not an OpenSearch endpoint; no point is wired to a request path yet ([extension-abi](specs/extension-abi/SPEC.md)).
 
 ## `/_serverless/ready` and `/_serverless/drain` on a node
 
