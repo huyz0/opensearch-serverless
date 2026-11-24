@@ -44,12 +44,16 @@ fn refusal(r: Refusal) -> RestError {
 /// bucket's id out.
 pub type BucketJoin = Arc<dyn Fn(&str, &str) -> Result<String, String> + Send + Sync>;
 
+/// Takes an index back out of the bucket it joined: its bucket and uuid in.
+pub type BucketLeave = Arc<dyn Fn(&str, &str) -> Result<(), String> + Send + Sync>;
+
 /// Serves the index admin routes over the descriptors.
 pub struct IndexService {
     descriptors: DescriptorStore,
     clock: PitClock,
     buffer_bytes: usize,
     join: Option<BucketJoin>,
+    leave: Option<BucketLeave>,
     templates: Option<Arc<TemplateSets>>,
 }
 
@@ -63,14 +67,17 @@ impl IndexService {
             clock,
             buffer_bytes,
             join: None,
+            leave: None,
             templates: None,
         }
     }
 
-    /// Places each new one-shard index in a bucket through `join`.
+    /// Places each new one-shard index in a bucket through `join`, and
+    /// takes it back out through `leave` when its create then fails.
     #[must_use]
-    pub fn with_bucket_join(mut self, join: BucketJoin) -> Self {
+    pub fn with_bucket_join(mut self, join: BucketJoin, leave: BucketLeave) -> Self {
         self.join = Some(join);
+        self.leave = Some(leave);
         self
     }
 
@@ -165,9 +172,13 @@ impl IndexService {
                 .map_err(|e| refuse(500, "index_create_failure", format!("bucket: {e}")))?;
             record.bucket = Some(Cow::Owned(bucket));
         }
-        self.descriptors
-            .create(&record, now, &mut buf)
-            .map_err(|e| create_failure(&index, &uuid, &e))?;
+        if let Err(e) = self.descriptors.create(&record, now, &mut buf) {
+            // Best effort: a member left behind has no descriptor naming it.
+            if let (Some(leave), Some(bucket)) = (&self.leave, record.bucket.as_deref()) {
+                let _ = leave(bucket, &uuid);
+            }
+            return Err(create_failure(&index, &uuid, &e));
+        }
         resp.send(200, JSON, create_ack(&index, asked.shards).as_bytes())
     }
 
