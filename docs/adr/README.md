@@ -58,3 +58,4 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0046](0046-plugin-requests-are-proxied-to-java-nodes.md) | Requests for plugins that are not ported are proxied to Java nodes, behind a setting | Accepted |
 | [0047](0047-search-slots.md) | Searches are admitted in order by a slot gate that shapes who waits, behind a setting | Accepted |
 | [0048](0048-retiring-a-node.md) | A node told to stop publishes its shards and gives their heads back | Accepted |
+| [0050](0050-writes-to-one-shard-share-a-commit-window.md) | Writes to one shard share a commit window: the slot lock is released before the wait | Proposed |
