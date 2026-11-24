@@ -167,6 +167,7 @@ src/boot/config/authoring.rs	new		the index template and ingest pipeline switche
 src/extension_pins.rs	new		the pin policy over the module store: read, check, probe and resolve limits
 src/pin_policy.rs	new		what a create needs to pin analyzer modules, and the settings merge
 src/create_settings.rs	new		the index settings a create may carry: the three the node reads from the descriptor, checked, and a refusal naming any other key
+src/core_settings.rs	new		the core index settings a create stores without reading them, checked as core checks them; the shell's index scoped settings registry
 src/warm_boot.rs	new		when a warming node is let in: at the ready share of the bytes named, at max_wait, or when the copy is done
 src/warm_boot/tests.rs	new		tests of the three ways a warming node is let in
 src/boot/tail/joining.rs	new		the warm-up of a joining reader on its own thread, ending when enough is in or the wait runs out

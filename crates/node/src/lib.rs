@@ -31,6 +31,8 @@ pub mod cluster_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod commit_push;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
+pub(crate) mod core_settings;
+#[cfg(all(feature = "writer", feature = "coordinator"))]
 pub(crate) mod create_settings;
 #[cfg(feature = "writer")]
 pub mod descriptor_routes;

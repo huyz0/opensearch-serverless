@@ -1,5 +1,6 @@
-//! The index settings a create may carry: the three the node reads from the
-//! descriptor, checked, and a refusal naming any other key.
+//! The index settings a create may carry: the ones the node reads from the
+//! descriptor and the core ones it only stores ([`crate::core_settings`]),
+//! checked, and a refusal naming any other key.
 
 use oss_rest::{Exception, RestError};
 
@@ -43,7 +44,7 @@ pub(crate) fn refuse_others(
     let mut others: Vec<&str> = settings
         .iter()
         .map(|(key, _)| key.as_str())
-        .filter(|key| !READ.contains(key) && !own(key))
+        .filter(|key| !READ.contains(key) && !crate::core_settings::accepts(key) && !own(key))
         .collect();
     if others.is_empty() {
         return Ok(());
@@ -116,7 +117,11 @@ pub(crate) fn checked(
                     return Err(bad(format!("{key} must not be empty")));
                 }
             }
-            _ => continue,
+            _ => {
+                if !crate::core_settings::check(key, value)? {
+                    continue;
+                }
+            }
         }
         out.push((key.to_owned(), value.to_owned()));
     }
@@ -192,7 +197,7 @@ mod tests {
     #[test]
     fn other_keys_are_refused_together_sorted_and_own_keys_pass() {
         let set = given(&[
-            ("index.codec", "x"),
+            ("index.blocks.write", "x"),
             ("index.b", "1"),
             ("own", "1"),
             (REFRESH_INTERVAL, "1s"),
@@ -203,7 +208,7 @@ mod tests {
             err.as_exception()
                 .expect("a body")
                 .reason()
-                .contains("settings [index.b, index.codec]"),
+                .contains("settings [index.b, index.blocks.write]"),
             "{err:?}"
         );
         assert!(refuse_others(&given(&[("own", "1")]), |k| k == "own").is_ok());
