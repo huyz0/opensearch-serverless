@@ -225,7 +225,7 @@ impl NodeConfig {
         };
         let janitor_every_millis = bounded("OSS_JANITOR_EVERY_MS", "60000", 1, u64::MAX)?;
         let janitor_dry_run = flag("OSS_JANITOR_DRY_RUN", "false")?;
-        let tail_overlay = flag("OSS_TAIL_OVERLAY", "false")?;
+        let tail_overlay = flag("OSS_TAIL_OVERLAY", "true")?;
         let commit_push = flag(
             "OSS_COMMIT_PUSH",
             if tail_overlay { "false" } else { "true" },

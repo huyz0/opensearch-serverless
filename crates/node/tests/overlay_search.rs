@@ -143,11 +143,7 @@ fn with_the_setting_off_no_source_is_installed_and_the_commit_answers() {
     let dir = ByteBuffersDirectory::new();
     let fx = fixture(root.path(), &dir, &["a", "b"]);
     let source = Source::new(true);
-    assert!(!install(
-        &fx.service,
-        TAIL_OVERLAY_ENABLED.default(),
-        source.clone()
-    ));
+    assert!(!install(&fx.service, false, source.clone()));
     assert_eq!(all(&fx), 2);
     assert_eq!(*source.asked.lock().expect("lock"), 0);
 }
@@ -212,8 +208,8 @@ fn a_new_overlay_from_the_source_makes_a_new_view_once() {
 }
 
 #[test]
-fn the_setting_is_off_by_default() {
-    assert!(!TAIL_OVERLAY_ENABLED.default());
+fn the_setting_is_on_by_default() {
+    assert!(TAIL_OVERLAY_ENABLED.default());
 }
 
 #[test]

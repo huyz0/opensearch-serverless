@@ -33,7 +33,7 @@ Unchanged: the meter makes the requests its writes and searches make and adds no
 
 ## Switch
 
-None: a test only. The overlay it runs with is `OSS_TAIL_OVERLAY`, off by default until R8's fault suites cover takeover with overlay records.
+None: a test only. The overlay it runs with is `OSS_TAIL_OVERLAY`, on by default, as [overlay-default-on](../overlay-default-on/SPEC.md) records; `METER_OVERLAY=false` runs the meter with it off.
 
 ## Risks
 

@@ -160,7 +160,11 @@ fn a_write_is_visible_on_the_other_nodes_within_the_shells_bar() {
     // `everywhere`, the default) the overlay is on under.
     let tail = std::env::var("METER_TAIL").unwrap_or_else(|_| "everywhere".to_owned());
     println!("FRESHMETER|visibility={tail}");
-    cluster.set("OSS_TAIL_OVERLAY", "true");
+    // `METER_OVERLAY`: `false` runs with the tail overlay off, where a
+    // refresh publishes a commit.
+    let overlay = std::env::var("METER_OVERLAY").map_or(true, |v| v != "false");
+    println!("FRESHMETER|overlay={overlay}");
+    cluster.set("OSS_TAIL_OVERLAY", if overlay { "true" } else { "false" });
     cluster.set("OSS_REFRESH_VISIBILITY", &tail);
     // `METER_REFRESH_MS`: how often each node reads the fleet's leases;
     // unset, a third of the lease lifetime.
@@ -180,7 +184,11 @@ fn a_write_is_visible_on_the_other_nodes_within_the_shells_bar() {
         (0..3).all(|s| cluster.nodes_seen(s) == 3)
     });
     std::thread::sleep(Duration::from_millis(TTL_MS));
-    assert!((0..3).all(|s| cluster.node(s).tail_on()), "overlay on");
+    assert_eq!(
+        (0..3).all(|s| cluster.node(s).tail_on()),
+        overlay,
+        "overlay"
+    );
     let made = cluster.call(
         0,
         "PUT",
@@ -194,7 +202,7 @@ fn a_write_is_visible_on_the_other_nodes_within_the_shells_bar() {
         let (p99, misses) = report(refresh, &samples, &sent);
         // A write that waits for its readers is never missed by them.
         assert!(
-            !(refresh && tail != "owner") || misses == 0,
+            !(overlay && refresh && tail != "owner") || misses == 0,
             "refresh=true under {tail}: {misses} misses"
         );
         assert!(

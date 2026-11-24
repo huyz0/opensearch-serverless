@@ -7,7 +7,7 @@ Emulator behind the S3 front end, so numbers are provisional.
 - AC-3: `with_the_setting_off_an_opened_shard_stays_on_its_commit` in the same file
 - AC-4: `a_commit_is_taken_locally_at_once_and_sent_by_the_worker` in crates/node/src/commit_push/tests.rs
 - AC-5: `a_full_queue_drops_the_commit_and_the_publisher_never_waits`, `after_stop_nothing_is_queued` in crates/node/src/commit_push/tests.rs
-- AC-6: `the_commit_push_is_on_unless_the_variable_turns_it_off` in crates/node/src/boot/config/tests.rs
+- AC-6: `the_commit_push_is_on_with_the_overlay_off_and_off_with_it_on_unless_the_variable_says` in crates/node/src/boot/config/tests.rs
 - AC-7: `the_owner_counts_its_own_refreshed_writes_from_its_first_search` in crates/node/tests/overlay_takeover.rs
 - AC-8: `a_commit_its_own_writer_published_is_kept_for_the_open_that_follows` in crates/node/tests/server/push_read.rs; `after_the_takeover_nothing_acknowledged_is_lost_doubled_or_stale` in crates/node/tests/overlay_takeover.rs
 - AC-10: `the_overlay_is_rebuilt_against_the_successor_so_a_refreshed_write_is_never_missed` in crates/node/tests/overlay_takeover.rs (a survivor refused as behind answers within 10 s; the release itself has no test of its own: before it, one run in about eight left a survivor refusing for 30 s, after it a persistent refusal was not seen in the 7 further full runs that completed)

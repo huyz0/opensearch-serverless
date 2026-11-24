@@ -427,10 +427,10 @@ fn a_node_with_the_tail_overlay_on_starts_and_serves_in_every_visibility() {
 
 // docs/specs/node-boot-tail AC-2
 #[test]
-fn a_node_starts_with_the_tail_overlay_off_unless_the_setting_is_on() {
-    let dir = TempDir::new("boot-tail-off");
+fn a_node_starts_with_the_tail_overlay_on_unless_the_setting_is_off() {
+    let dir = TempDir::new("boot-tail-on");
     let node = start(&config(dir.path(), "n1", "30000")).expect("starts");
-    assert!(!node.tail_on());
+    assert!(node.tail_on());
     let dir = TempDir::new("boot-tail-false");
     let node = start(&config_tail(
         dir.path(),
@@ -477,6 +477,13 @@ fn a_booted_node_follows_the_cluster_registers_refresh_visibility() {
     });
     // Off, there is nothing to follow and nothing is read.
     let dir = TempDir::new("boot-follow-off");
-    let node = start(&config(dir.path(), "n1", "30000")).expect("starts");
+    let node = start(&config_tail(
+        dir.path(),
+        "n1",
+        "30000",
+        None,
+        Some(("false", "everywhere")),
+    ))
+    .expect("starts");
     assert_eq!(node.refresh_visibility(), None);
 }
