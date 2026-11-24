@@ -3,18 +3,11 @@
 
 use std::collections::BTreeMap;
 
-use oss_blob::BlobError;
 use oss_blob::register::ABSENT_GENERATION;
 use oss_format::CommitManifest;
 
 use super::PublishError;
 use super::publisher::ShardPublisher;
-
-/// What a register read first has room for: well over a thousand files.
-const MANIFEST_READ_FIRST: usize = 256 << 10;
-
-/// The most a manifest read keeps: 16,384 files at well under 200 bytes.
-const MANIFEST_READ_BYTES: usize = 4 << 20;
 
 /// A file the register already names: where it is and how long it is.
 #[derive(Clone, Debug)]
@@ -55,26 +48,10 @@ impl ShardPublisher {
     /// An absent register is [`PublishError::Unusable`] "no commit
     /// published".
     pub(super) fn read_register_bytes(&self) -> Result<(Last, u64, Vec<u8>), PublishError> {
-        let mut found = None;
-        for size in [MANIFEST_READ_FIRST, MANIFEST_READ_BYTES] {
-            // ALLOC: one buffer a register read, at most manifest-sized: a publisher's first, or after a lost swap.
-            let mut buf = vec![0u8; size];
-            match self.store.read_register(&self.manifest_key, &mut buf) {
-                Ok(Some(read)) => {
-                    found = Some((buf, read));
-                    break;
-                }
-                Ok(None) => return Err(PublishError::Unusable("no commit published")),
-                // A larger manifest than this buffer: once more with room for the most.
-                Err(BlobError::InvalidArgument(_)) => {}
-                Err(e) => return Err(e.into()),
-            }
-        }
-        let Some((buf, read)) = found else {
-            return Err(PublishError::Unusable("a manifest too large to read"));
+        let Some(value) = self.register.read()? else {
+            return Err(PublishError::Unusable("no commit published"));
         };
-        let value = buf.get(..read.len).unwrap_or_default();
-        let manifest = CommitManifest::parse(value)?;
+        let manifest = CommitManifest::parse(&value.bytes)?;
         // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
         let mut files = BTreeMap::new();
         for file in manifest.files() {
@@ -91,13 +68,12 @@ impl ShardPublisher {
             );
         }
         let last = Last {
-            generation: read.generation,
+            generation: value.generation,
             term: manifest.term,
             writer: manifest.writer.as_deref().map(str::to_owned),
             files,
         };
-        // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
-        Ok((last, read.generation, value.to_vec()))
+        Ok((last, value.generation, value.bytes))
     }
 }
 
