@@ -118,6 +118,8 @@ pub struct Spec {
     pub vectors: Option<VectorSimilarityFunction>,
     /// The dimension of the `v` vector field: 3 ([`doc_vector`]) unless set.
     pub vector_dimension: usize,
+    /// The index's settings, as the JSON object its descriptor holds.
+    pub settings: String,
 }
 
 impl Spec {
@@ -133,6 +135,7 @@ impl Spec {
             texts: 0,
             vectors: None,
             vector_dimension: 3,
+            settings: "{}".to_owned(),
         }
     }
 
@@ -164,6 +167,12 @@ impl Spec {
     /// generator ([`spec_vector`]), for a test that needs a realistic size.
     pub fn with_vector_dimension(mut self, dimension: usize) -> Self {
         self.vector_dimension = dimension;
+        self
+    }
+
+    /// Gives the index these settings, a JSON object of flat dotted keys.
+    pub fn with_settings(mut self, json: &str) -> Self {
+        json.clone_into(&mut self.settings);
         self
     }
 
@@ -450,8 +459,9 @@ pub fn blobs(base: &str, spec: &Spec) -> Vec<(String, Vec<u8>)> {
     out.push((
         format!("{base}indices/{name}"),
         register(&format!(
-            r#"{{"name":"{name}","uuid":"{uuid}","number_of_shards":1,"mapping":{},"settings":{{}}}}"#,
-            json_string(&mapping(spec))
+            r#"{{"name":"{name}","uuid":"{uuid}","number_of_shards":1,"mapping":{},"settings":{}}}"#,
+            json_string(&mapping(spec)),
+            spec.settings
         )),
     ));
     let locations: Vec<String> = files
