@@ -8,10 +8,14 @@
 //! murmur3 of `<index>#<shard>`, so heads spread over a bucket's key space.
 
 mod bucket;
+mod descriptor;
 mod registers;
 mod store;
 
 pub use bucket::{BucketHeads, Member, bucket_head_index};
+pub use descriptor::{
+    Described, DescriptorBucketHeads, Descriptors, MEMBERSHIP_CACHE_MILLIS, OpenShards,
+};
 pub use registers::{HeadAt, HeadRegisters};
 pub use store::{Acquisition, ShardHeadStore};
 
