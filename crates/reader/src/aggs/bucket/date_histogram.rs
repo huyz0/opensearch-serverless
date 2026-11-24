@@ -3,7 +3,7 @@
 //! 3.10.0), and the reduce of results across shards
 //! (`InternalDateHistogram.reduce`).
 
-pub use lucene_aggs::bucket_aggs::{DateRounding, DateUnit, RoundingKind};
+pub use lucene_aggs::bucket_aggs::{DateRounding, DateUnit, RegionZone, RoundingKind};
 
 use crate::aggs::bucket::count_order::sort_by_count;
 use crate::aggs::bucket::histogram::HistogramOrder;
@@ -40,6 +40,7 @@ impl Default for DateHistogramSpec {
             rounding: DateRounding {
                 kind: RoundingKind::Unit(DateUnit::Day),
                 zone_ms: 0,
+                region: None,
                 offset: 0,
             },
             keyed: false,
