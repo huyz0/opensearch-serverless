@@ -19,6 +19,8 @@ use crate::reserve::{Reservation, Reserver};
 
 const MAX_LOG_BYTES: usize = 512;
 const MAX_LOGS_PER_SECOND: u32 = 10;
+/// Fuel one `log` call costs, whether or not the line is kept.
+const LOG_FUEL: u64 = 1_000;
 /// How much of the output region a failure's detail reads.
 const DETAIL_BYTES: u32 = 256;
 
@@ -86,14 +88,6 @@ fn linker(shared: &Shared) -> Result<Linker<State>, wasmtime::Error> {
         "oss",
         "log",
         |mut c: Caller<'_, State>, ptr: i32, len: i32| {
-            let Some(Extern::Memory(m)) = c.get_export("memory") else {
-                return;
-            };
-            let (ptr, len) = (word(ptr), word(len).min(MAX_LOG_BYTES as u32));
-            let mut buf = vec![0_u8; len as usize]; // ALLOC: at most MAX_LOG_BYTES.
-            if m.read(&c, ptr as usize, &mut buf).is_err() {
-                return;
-            }
             let allowed = {
                 let mut r = c
                     .data()
@@ -106,6 +100,20 @@ fn linker(shared: &Shared) -> Result<Linker<State>, wasmtime::Error> {
                 r.1 = r.1.saturating_add(1);
                 r.1 <= MAX_LOGS_PER_SECOND
             };
+            // A refused line costs the module fuel and the host no copy.
+            let left = c.get_fuel().unwrap_or(0);
+            let _ = c.set_fuel(left.saturating_sub(LOG_FUEL));
+            let Some(Extern::Memory(m)) = c.get_export("memory") else {
+                return;
+            };
+            if !allowed {
+                return;
+            }
+            let (ptr, len) = (word(ptr), word(len).min(MAX_LOG_BYTES as u32));
+            let mut buf = vec![0_u8; len as usize]; // ALLOC: at most MAX_LOG_BYTES.
+            if m.read(&c, ptr as usize, &mut buf).is_err() {
+                return;
+            }
             if allowed {
                 let d = c.data();
                 (d.log)(&d.name, &printable(&buf, MAX_LOG_BYTES));
@@ -269,6 +277,8 @@ fn open(
         limits: StoreLimitsBuilder::new()
             .memory_size(usize::try_from(eff.memory).unwrap_or(usize::MAX))
             .table_elements(10_000)
+            .tables(4)
+            .memories(1)
             .instances(1)
             .trap_on_grow_failure(false)
             .build(),

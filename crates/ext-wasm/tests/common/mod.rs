@@ -117,7 +117,10 @@ pub struct Handle(pub Arc<Pool>);
 impl Reserver for Handle {
     fn reserve(&self, bytes: u64) -> Option<Reservation> {
         let p = &self.0;
-        let now = p.held.fetch_add(bytes, Ordering::SeqCst).saturating_add(bytes);
+        let now = p
+            .held
+            .fetch_add(bytes, Ordering::SeqCst)
+            .saturating_add(bytes);
         if now > p.budget.load(Ordering::SeqCst) {
             p.held.fetch_sub(bytes, Ordering::SeqCst);
             return None;

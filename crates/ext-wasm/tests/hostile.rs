@@ -264,7 +264,7 @@ fn a_call_holds_exactly_the_reservation_formula_and_releases_it() {
 fn a_pool_that_cannot_hold_a_call_answers_busy() {
     let wasm = with_body("(i32.const 0)");
     let code = u64::try_from(wasm.len()).unwrap() * 16;
-    let pool = Pool::of(code + 1);
+    let pool = Pool::of(code + 65 * 1024 * 1024);
     let m = host()
         .load(&wasm, Arc::new(Handle(Arc::clone(&pool))))
         .expect("loads");
@@ -457,4 +457,72 @@ fn regions_outside_memory_or_overlapping_are_refused() {
         .err()
         .expect("refused");
     assert!(matches!(e, LoadError::Broken(_)), "{e}");
+}
+
+#[test]
+fn a_module_that_uses_atomics_or_shared_memory_is_refused() {
+    let host = host();
+    let shared = wat::parse_str(
+        r#"(module (memory (export "memory") 1 1 shared)
+          (func (export "oss_abi_version") (result i32) (i32.const 65536)))"#,
+    );
+    // Threads are compiled out of this engine, so the text form is refused or the load is.
+    if let Ok(bytes) = shared {
+        assert!(host.load(&bytes, Arc::new(Unbounded)).is_err());
+    }
+    let text = wat::parse_str(
+        r#"(module (memory (export "memory") 1) (func (result i32) (memory.atomic.notify (i32.const 0) (i32.const 1))))"#,
+    );
+    if let Ok(bytes) = text {
+        assert!(host.load(&bytes, Arc::new(Unbounded)).is_err());
+    }
+}
+
+#[test]
+fn a_table_cannot_grow_past_its_bound() {
+    let body = "(if (i32.eq (table.grow $t (ref.null func) (i32.const 20000)) (i32.const -1)) \
+        (then (return (i32.const -4)))) (i32.const 0)";
+    let p = Parts {
+        body,
+        extra: "(table $t 1 funcref)",
+        ..Parts::default()
+    };
+    assert_eq!(
+        load(&host(), &build(&p))
+            .call("t", 0, b"")
+            .unwrap_err()
+            .kind(),
+        FailureKind::Limit
+    );
+}
+
+#[test]
+fn describing_is_reserved_too_and_a_refused_call_frees_its_place() {
+    let wasm = with_body("(i32.const 0)");
+    let code = u64::try_from(wasm.len()).unwrap() * 16;
+    // Room for the compile charge only: describing cannot be held.
+    let e = host()
+        .load(&wasm, Arc::new(Handle(Pool::of(code))))
+        .err()
+        .expect("busy");
+    assert!(matches!(e, LoadError::Busy));
+    // A call the pool refused leaves the tenant's place free.
+    let pool = Pool::of(code + 65 * 1024 * 1024 + 1024 * 1024);
+    let host = Host::new(HostConfig {
+        tenant_concurrency: 1,
+        ..HostConfig::default()
+    });
+    let m = host
+        .load(&wasm, Arc::new(Handle(Arc::clone(&pool))))
+        .expect("loads");
+    let hog = Handle(Arc::clone(&pool));
+    let held = oss_ext_wasm::Reserver::reserve(&hog, u64::MAX / 4);
+    assert!(held.is_none());
+    pool.budget.store(code, Ordering::SeqCst);
+    assert_eq!(m.call("t", 0, b"").unwrap_err().kind(), FailureKind::Busy);
+    pool.budget.store(u64::MAX, Ordering::SeqCst);
+    assert!(
+        m.call("t", 0, b"").is_ok(),
+        "the refused call released its place"
+    );
 }

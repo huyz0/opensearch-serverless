@@ -119,6 +119,12 @@ impl Host {
         }
         let charge = (bytes.len() as u64).saturating_mul(COMPILE_FACTOR);
         let hold = reserver.reserve(charge).ok_or(LoadError::Busy)?;
+        // Describing runs the module with the host's memory and stack, so
+        // that is held too until it is described.
+        let c = &self.shared.config;
+        let _describing = reserver
+            .reserve(c.memory_bytes.saturating_add(c.stack_bytes as u64))
+            .ok_or(LoadError::Busy)?;
         Module::compile(Arc::clone(&self.shared), bytes, reserver, hold)
     }
 }
