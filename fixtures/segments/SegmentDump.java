@@ -46,7 +46,20 @@ public class SegmentDump {
                     .append(", \"points\": [").append(f.getPointDimensionCount()).append(", ")
                     .append(f.getPointIndexDimensionCount()).append(", ").append(f.getPointNumBytes()).append("]")
                     .append(", \"payloads\": ").append(f.hasPayloads())
-                    .append(", \"term_vectors\": ").append(f.hasTermVectors()).append("}");
+                    .append(", \"term_vectors\": ").append(f.hasTermVectors());
+                if (f.getVectorDimension() > 0) {
+                    out.append(", \"vector\": {\"dimension\": ").append(f.getVectorDimension())
+                        .append(", \"encoding\": ").append(str(f.getVectorEncoding().toString()))
+                        .append(", \"similarity\": ").append(str(f.getVectorSimilarityFunction().toString()))
+                        .append(", \"attributes\": {");
+                    boolean firstAttribute = true;
+                    for (Map.Entry<String, String> a : new TreeMap<>(f.attributes()).entrySet()) {
+                        out.append(firstAttribute ? "" : ", ").append(str(a.getKey())).append(": ").append(str(a.getValue()));
+                        firstAttribute = false;
+                    }
+                    out.append("}}");
+                }
+                out.append("}");
                 first = false;
             }
             out.append("\n  ],\n  \"docs\": [");
@@ -55,6 +68,10 @@ public class SegmentDump {
             }
             out.append("\n  ]\n}\n");
             System.out.print(out);
+            System.out.flush();
+            // The k-NN plugin's readers fail on close outside a node (they ask a
+            // cluster service that is not there); the dump is already written.
+            Runtime.getRuntime().halt(0);
         }
     }
 
@@ -98,8 +115,23 @@ public class SegmentDump {
                 }
             }
         }
+        Map<String, String> vectors = new TreeMap<>();
+        for (FieldInfo f : leaf.getFieldInfos()) {
+            if (f.getVectorDimension() > 0 && f.getVectorEncoding() == VectorEncoding.FLOAT32) {
+                FloatVectorValues values = leaf.getFloatVectorValues(f.name);
+                KnnVectorValues.DocIndexIterator it = values == null ? null : values.iterator();
+                if (it != null && it.advance(doc) == doc) {
+                    List<String> parts = new ArrayList<>();
+                    for (float c : values.vectorValue(it.index())) {
+                        parts.add(Float.toString(c));
+                    }
+                    vectors.put(f.name, "[" + String.join(", ", parts) + "]");
+                }
+            }
+        }
+        String tail = vectors.isEmpty() ? "" : ",\n     \"vectors\": " + map(vectors);
         return "    {\"stored\": [" + String.join(", ", stored) + "],\n     \"inverted\": " + map(inverted)
-            + ",\n     \"doc_values\": " + map(docValues) + ",\n     \"points\": " + map(points) + "}";
+            + ",\n     \"doc_values\": " + map(docValues) + ",\n     \"points\": " + map(points) + tail + "}";
     }
 
     static String terms(LeafReader leaf, FieldInfo f, int doc) throws Exception {

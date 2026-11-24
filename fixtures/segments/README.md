@@ -30,6 +30,7 @@ For each fixture it creates the index (one shard, no replicas, no refresh), inde
 | [types.json](types.json) | every type the writer indexes with `index`, `doc_values`, `store`, `norms`, `index_options`, `position_increment_gap`, `ignore_above`, `null_value`, `ignore_malformed`; multi-fields, objects, arrays, coercion, dotted names, `_field_names`, `_ignored`, `@timestamp`'s skip index, non-ASCII offsets |
 | [dynamic.json](dynamic.json) | dynamic fields of every JSON kind, the long-token split, an empty string, and a field first seen in a later document |
 | [ids.json](ids.json) | `_id` in each of `Uid.encodeId`'s forms |
+| [knn-l2.json](knn-l2.json), [knn-cosine.json](knn-cosine.json), [knn-innerproduct.json](knn-innerproduct.json) | a lucene-engine HNSW `knn_vector` field per space, a nested one, a document with none, numeric strings and a `null`: the field's vector shape and attributes and each document's vector. Recorded with the k-NN plugin and the server's jars on the dump's class path (`--lucene` takes the whole class path, absolute), `settings` in the fixture sets `index.knn`; the stored `_source` is the plugin's rebuilt one |
 | [updates.json](updates.json) | updates and deletes: `__soft_deletes` on replaced and deleted documents, tombstones (`_tombstone`), a delete of a missing id; the test replays it through a shard ([spec](../../docs/specs/shard-engine/SPEC.md)) |
 
 Recorded from stock OpenSearch 3.10.0-SNAPSHOT built from huyz0/OpenSearch `429b4cbc` (`./gradlew localDistro`), Lucene 10.5.1.
