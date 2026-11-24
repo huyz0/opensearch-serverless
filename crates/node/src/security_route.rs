@@ -9,8 +9,8 @@ use std::sync::Arc;
 
 use oss_blob::BlobStore;
 use oss_coordinator::security::{
-    ALL_ACCESS, Answer, Kind, authinfo, deleted, missing, needs_credentials, password_ok, render,
-    saved, validate, weak_password, with_hash,
+    ALL_ACCESS, Answer, Config, Kind, authinfo, deleted, missing, needs_credentials, password_ok,
+    render, saved, validate, weak_password, with_hash,
 };
 use oss_doc::mapping::json::{Json, parse};
 use oss_format::{DocKind, MAX_DOC_BYTES};
@@ -90,24 +90,7 @@ impl SecurityService {
                 "the security configuration is unavailable",
             )
         })?;
-        let name = req.principal().unwrap_or_default();
-        let roles = config.roles_of(name);
-        if roles.iter().any(|r| r == ALL_ACCESS) {
-            return Ok(None);
-        }
-        // ALLOC: one message on a refused request.
-        let mut text = String::new();
-        oss_doc::mapping::json::write_str(
-            &mut text,
-            &format!(
-                "No permission to access REST API: User {name} with Security roles [{}] does not have any role privileged for admin access. No client TLS certificate found in request",
-                roles.join(", ")
-            ),
-        );
-        Ok(Some(Answer {
-            status: 403,
-            body: format!(r#"{{"status":"FORBIDDEN","message":{text}}}"#),
-        }))
+        Ok(admin_refusal(&config, req.principal().unwrap_or_default()))
     }
 
     fn changed(&self) {
@@ -359,4 +342,26 @@ pub fn authinfo_route(router: Router, state: &Arc<SecurityState>) -> Result<Rout
             resp.send(200, JSON, body.as_bytes())
         },
     )
+}
+
+/// The plugin's refusal of `name` for a management route, unless `name`
+/// holds `all_access`.
+pub fn admin_refusal(config: &Config, name: &str) -> Option<Answer> {
+    let roles = config.roles_of(name);
+    if roles.iter().any(|r| r == ALL_ACCESS) {
+        return None;
+    }
+    // ALLOC: one message on a refused request.
+    let mut text = String::new();
+    oss_doc::mapping::json::write_str(
+        &mut text,
+        &format!(
+            "No permission to access REST API: User {name} with Security roles [{}] does not have any role privileged for admin access. No client TLS certificate found in request",
+            roles.join(", ")
+        ),
+    );
+    Some(Answer {
+        status: 403,
+        body: format!(r#"{{"status":"FORBIDDEN","message":{text}}}"#),
+    })
 }

@@ -1,0 +1,356 @@
+{
+ "action_groups": {
+  "cluster_all": [
+   "cluster:*"
+  ],
+  "cluster_composite_ops": [
+   "indices:data/write/bulk",
+   "indices:admin/aliases*",
+   "indices:data/write/reindex",
+   "cluster_composite_ops_ro"
+  ],
+  "cluster_composite_ops_ro": [
+   "indices:data/read/mget",
+   "indices:data/read/msearch",
+   "indices:data/read/mtv",
+   "indices:admin/aliases/exists*",
+   "indices:admin/aliases/get*",
+   "indices:data/read/scroll",
+   "indices:admin/resolve/index"
+  ],
+  "cluster_manage_index_templates": [
+   "indices:admin/template/*",
+   "indices:admin/index_template/*",
+   "cluster:admin/component_template/*"
+  ],
+  "cluster_manage_pipelines": [
+   "cluster:admin/ingest/pipeline/*"
+  ],
+  "cluster_monitor": [
+   "cluster:monitor/*"
+  ],
+  "create_index": [
+   "indices:admin/create",
+   "indices:admin/mapping/put"
+  ],
+  "crud": [
+   "read",
+   "write"
+  ],
+  "data_access": [
+   "indices:data/*",
+   "crud"
+  ],
+  "delete": [
+   "indices:data/write/delete*"
+  ],
+  "get": [
+   "indices:data/read/get*",
+   "indices:data/read/mget*"
+  ],
+  "index": [
+   "indices:data/write/index*",
+   "indices:data/write/update*",
+   "indices:admin/mapping/put",
+   "indices:data/write/bulk*"
+  ],
+  "indices_all": [
+   "indices:*"
+  ],
+  "indices_monitor": [
+   "indices:monitor/*"
+  ],
+  "kibana_all_read": [
+   "kibana:saved_objects/*/read"
+  ],
+  "kibana_all_write": [
+   "kibana:saved_objects/*/write"
+  ],
+  "manage": [
+   "indices:monitor/*",
+   "indices:admin/*"
+  ],
+  "manage_aliases": [
+   "indices:admin/aliases*"
+  ],
+  "manage_data_streams": [
+   "indices:admin/data_stream/*",
+   "indices:monitor/data_stream/stats"
+  ],
+  "manage_point_in_time": [
+   "indices:data/read/point_in_time/create",
+   "indices:data/read/point_in_time/delete",
+   "indices:data/read/point_in_time/readall",
+   "indices:data/read/search",
+   "indices:monitor/point_in_time/segments"
+  ],
+  "manage_snapshots": [
+   "cluster:admin/snapshot/*",
+   "cluster:admin/repository/*"
+  ],
+  "read": [
+   "indices:data/read*",
+   "indices:admin/mappings/fields/get*",
+   "indices:admin/resolve/index"
+  ],
+  "search": [
+   "indices:data/read/search*",
+   "indices:data/read/msearch*",
+   "indices:admin/resolve/index",
+   "suggest"
+  ],
+  "suggest": [
+   "indices:data/read/suggest*"
+  ],
+  "unlimited": [
+   "*"
+  ],
+  "write": [
+   "indices:data/write*",
+   "indices:admin/mapping/put"
+  ]
+ },
+ "roles": {
+  "all_access": {
+   "cluster_permissions": [
+    "*"
+   ],
+   "index_permissions": [
+    {
+     "allowed_actions": [
+      "*"
+     ],
+     "index_patterns": [
+      "*"
+     ]
+    }
+   ]
+  },
+  "base_dashboards_user": {
+   "cluster_permissions": [
+    "cluster_composite_ops"
+   ],
+   "index_permissions": [
+    {
+     "allowed_actions": [
+      "delete",
+      "index",
+      "manage",
+      "read"
+     ],
+     "index_patterns": [
+      ".kibana",
+      ".opensearch_dashboards"
+     ]
+    }
+   ]
+  },
+  "base_dashboards_user_read_only": {
+   "cluster_permissions": [
+    "cluster_composite_ops_ro"
+   ],
+   "index_permissions": [
+    {
+     "allowed_actions": [
+      "read"
+     ],
+     "index_patterns": [
+      ".kibana",
+      ".opensearch_dashboards"
+     ]
+    }
+   ]
+  },
+  "kibana_server": {
+   "cluster_permissions": [
+    "cluster_composite_ops",
+    "cluster_monitor",
+    "indices:admin/index_template*",
+    "indices:admin/template*",
+    "indices:data/read/scroll*",
+    "manage_point_in_time"
+   ],
+   "index_permissions": [
+    {
+     "allowed_actions": [
+      "indices_all"
+     ],
+     "index_patterns": [
+      ".kibana",
+      ".opensearch_dashboards"
+     ]
+    },
+    {
+     "allowed_actions": [
+      "indices_all"
+     ],
+     "index_patterns": [
+      ".kibana-6",
+      ".opensearch_dashboards-6"
+     ]
+    },
+    {
+     "allowed_actions": [
+      "indices_all"
+     ],
+     "index_patterns": [
+      ".kibana_*",
+      ".opensearch_dashboards_*"
+     ]
+    },
+    {
+     "allowed_actions": [
+      "indices_all"
+     ],
+     "index_patterns": [
+      ".tasks"
+     ]
+    },
+    {
+     "allowed_actions": [
+      "indices_all"
+     ],
+     "index_patterns": [
+      ".management-beats*"
+     ]
+    },
+    {
+     "allowed_actions": [
+      "indices:admin/aliases*",
+      "indices:admin/get"
+     ],
+     "index_patterns": [
+      "*"
+     ]
+    }
+   ]
+  },
+  "kibana_user": {
+   "cluster_permissions": [
+    "cluster_composite_ops"
+   ],
+   "index_permissions": [
+    {
+     "allowed_actions": [
+      "delete",
+      "index",
+      "manage",
+      "read"
+     ],
+     "index_patterns": [
+      ".kibana",
+      ".kibana-6",
+      ".kibana_*",
+      ".opensearch_dashboards",
+      ".opensearch_dashboards-6",
+      ".opensearch_dashboards_*"
+     ]
+    },
+    {
+     "allowed_actions": [
+      "indices_all"
+     ],
+     "index_patterns": [
+      ".tasks",
+      ".management-beats",
+      "*:.tasks",
+      "*:.management-beats"
+     ]
+    }
+   ]
+  },
+  "logstash": {
+   "cluster_permissions": [
+    "cluster:admin/ingest/pipeline/get",
+    "cluster:admin/ingest/pipeline/put",
+    "cluster_composite_ops",
+    "cluster_monitor",
+    "indices:admin/template/get",
+    "indices:admin/template/put"
+   ],
+   "index_permissions": [
+    {
+     "allowed_actions": [
+      "create_index",
+      "crud"
+     ],
+     "index_patterns": [
+      "logstash-*",
+      "ecs-logstash-*"
+     ]
+    },
+    {
+     "allowed_actions": [
+      "crud",
+      "create_index"
+     ],
+     "index_patterns": [
+      "*beat*"
+     ]
+    }
+   ]
+  },
+  "manage_snapshots": {
+   "cluster_permissions": [
+    "manage_snapshots"
+   ],
+   "index_permissions": [
+    {
+     "allowed_actions": [
+      "indices:admin/create",
+      "indices:data/write/index"
+     ],
+     "index_patterns": [
+      "*"
+     ]
+    }
+   ]
+  },
+  "own_index": {
+   "cluster_permissions": [
+    "cluster_composite_ops"
+   ],
+   "index_permissions": [
+    {
+     "allowed_actions": [
+      "indices_all"
+     ],
+     "index_patterns": [
+      "${user_name}"
+     ]
+    }
+   ]
+  },
+  "readall": {
+   "cluster_permissions": [
+    "cluster_composite_ops_ro"
+   ],
+   "index_permissions": [
+    {
+     "allowed_actions": [
+      "read"
+     ],
+     "index_patterns": [
+      "*"
+     ]
+    }
+   ]
+  },
+  "readall_and_monitor": {
+   "cluster_permissions": [
+    "cluster_composite_ops_ro",
+    "cluster_monitor"
+   ],
+   "index_permissions": [
+    {
+     "allowed_actions": [
+      "read"
+     ],
+     "index_patterns": [
+      "*"
+     ]
+    }
+   ]
+  }
+ }
+}

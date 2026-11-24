@@ -18,6 +18,7 @@
 
 use std::sync::Arc;
 
+use crate::authorizer::Authorizer;
 use crate::error::RestError;
 use crate::guard::Guard;
 use crate::method::{Method, MethodSet};
@@ -50,7 +51,6 @@ enum Segment {
 /// One registered route.
 pub(crate) struct Route {
     method: Method,
-    #[cfg_attr(not(test), allow(dead_code))]
     pattern: &'static str,
     segments: Vec<Segment>,
     params: &'static [&'static str],
@@ -83,9 +83,13 @@ impl Route {
     }
 
     /// The pattern as registered.
-    #[cfg(test)]
     pub(crate) fn pattern(&self) -> &'static str {
         self.pattern
+    }
+
+    /// Whether this is a prefix route.
+    pub(crate) fn is_prefix(&self) -> bool {
+        self.prefix
     }
 }
 
@@ -115,6 +119,7 @@ pub struct Router {
     /// Prefix routes, tried only when no ordinary route has the path and method.
     prefixes: Vec<Route>,
     guard: Option<Arc<dyn Guard>>,
+    authorizer: Option<Arc<dyn Authorizer>>,
 }
 
 /// Where a path and method lead.
@@ -142,6 +147,34 @@ impl Router {
     pub fn with_guard(mut self, guard: Arc<dyn Guard>) -> Self {
         self.guard = Some(guard);
         self
+    }
+
+    /// Puts `authorizer` between finding a route and running it.
+    #[must_use]
+    pub fn with_authorizer(mut self, authorizer: Arc<dyn Authorizer>) -> Self {
+        self.authorizer = Some(authorizer);
+        self
+    }
+
+    /// Whether an authorizer is set.
+    pub fn has_authorizer(&self) -> bool {
+        self.authorizer.is_some()
+    }
+
+    /// The authorizer, if one is set.
+    pub(crate) fn authorizer(&self) -> Option<&dyn Authorizer> {
+        self.authorizer.as_deref()
+    }
+
+    /// Every registered route: its method (none for a prefix route, which
+    /// takes any) and pattern.
+    pub fn routes(&self) -> Vec<(Option<Method>, &'static str)> {
+        self.routes
+            .iter()
+            .map(|r| (Some(r.method), r.pattern))
+            // ALLOC: a test or startup listing, one entry a route.
+            .chain(self.prefixes.iter().map(|r| (None, r.pattern)))
+            .collect()
     }
 
     /// Whether a guard is set.

@@ -290,22 +290,8 @@ fn an_assembled_node_answers_every_security_management_fixture_as_the_stock_plug
     );
 }
 
-/// The steps of the access fixture that authentication decides: who the
-/// caller is and what an unauthenticated one is told. The steps about what a
-/// user may do follow with authorization (docs/specs/security-authz).
-const AUTHN_STEPS: &[&str] = &[
-    "create user",
-    "create role",
-    "map",
-    "whoami",
-    "no credentials",
-    "wrong password",
-    "unknown user",
-    "security api denied",
-];
-
 #[test]
-fn an_assembled_node_authenticates_as_the_stock_plugin_did() {
+fn an_assembled_node_authenticates_and_authorizes_as_the_stock_plugin_did() {
     let mut fixtures: Vec<Fixture> = load_dir(&root().join("compat/security"))
         .expect("fixtures load")
         .into_iter()
@@ -313,10 +299,11 @@ fn an_assembled_node_authenticates_as_the_stock_plugin_did() {
         .map(|(_, f)| f)
         .collect();
     assert_eq!(fixtures.len(), 1);
-    fixtures[0]
-        .steps
-        .retain(|s| AUTHN_STEPS.contains(&s.name.as_str()));
-    assert_eq!(fixtures[0].steps.len(), AUTHN_STEPS.len());
+    // The stock node answers a search of an index that never held a document
+    // with 200 and no hits; this one answers 404 (docs/compatibility.md). The
+    // step shows what authorization allows, which `a_limited_user_does_what_its_role_grants_and_is_told_what_it_lacks`
+    // in crates/node shows too, so it is left out until that is fixed.
+    fixtures[0].steps.retain(|s| s.name != "search allowed");
     let failed: Vec<String> = fixtures
         .into_iter()
         .flat_map(|f| replay_full(f, false, true))

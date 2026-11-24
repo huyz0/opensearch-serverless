@@ -118,3 +118,26 @@ fn array<'a>(out: &mut String, items: impl Iterator<Item = &'a str>) {
     }
     out.push(']');
 }
+
+/// The body of the `403` a user is refused an `action` with, as the stock
+/// plugin answers it.
+pub fn forbidden(config: &Config, name: &str, action: &str) -> String {
+    let backend = config
+        .user(name)
+        .map(|u| u.backend_roles.as_slice())
+        .unwrap_or_default();
+    // ALLOC: one answer a request, bounded by the stored document.
+    let mut reason = String::new();
+    write_str(
+        &mut reason,
+        // ALLOC: one answer a request, bounded by the stored document.
+        &format!(
+            "no permissions for [{action}] and User [name={name}, backend_roles=[{}], requestedTenant=null]",
+            backend.join(", ")
+        ),
+    );
+    // ALLOC: one message on a refused request.
+    format!(
+        r#"{{"error":{{"root_cause":[{{"type":"security_exception","reason":{reason}}}],"type":"security_exception","reason":{reason}}},"status":403}}"#
+    )
+}
