@@ -138,6 +138,10 @@ pub struct NodeConfig {
     pub hand_off: bool,
     /// `serverless.security.enabled`: serve the security configuration API. Off by default.
     pub security: bool,
+    /// The static administrator's name and bcrypt hash (`OSS_SECURITY_ADMIN_USER`, `OSS_SECURITY_ADMIN_HASH`).
+    pub security_admin: Option<(String, String)>,
+    /// `OSS_SECURITY_REFRESH_MS`: how long a snapshot of the security configuration is used.
+    pub security_refresh_millis: u64,
     /// `serverless.knn.enabled`.
     pub knn: bool,
     /// `OSS_STORE_USAGE`: count the store's requests and bytes per index
@@ -316,6 +320,19 @@ impl NodeConfig {
         let hand_off = flag("OSS_HAND_OFF", "false")?;
         let knn = flag("OSS_KNN", "false")?;
         let security = flag("OSS_SECURITY", "false")?;
+        let security_refresh_millis = bounded("OSS_SECURITY_REFRESH_MS", "10000", 1000, 3_600_000)?;
+        let security_admin = match (
+            get("OSS_SECURITY_ADMIN_USER").filter(|v| !v.is_empty()),
+            get("OSS_SECURITY_ADMIN_HASH").filter(|v| !v.is_empty()),
+        ) {
+            (Some(user), Some(hash)) => Some((user, hash)),
+            (None, None) => None,
+            _ => {
+                return Err(
+                    "OSS_SECURITY_ADMIN_USER and OSS_SECURITY_ADMIN_HASH go together".to_owned(),
+                );
+            }
+        };
         let store_usage = flag("OSS_STORE_USAGE", "false")?;
         let store_usage_max_indices = bounded("OSS_STORE_USAGE_MAX_INDICES", "1000", 1, 1_000_000)?;
         let tenant_levels = match or("OSS_TENANT_LEVELS", "observe").as_str() {
@@ -406,6 +423,8 @@ impl NodeConfig {
             pinned_indexes,
             hand_off,
             security,
+            security_admin,
+            security_refresh_millis,
             knn,
             store_usage,
             tenant_levels,
@@ -459,5 +478,7 @@ impl NodeConfig {
     }
 }
 
+#[cfg(test)]
+mod security_tests;
 #[cfg(test)]
 mod tests;

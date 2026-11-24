@@ -47,3 +47,5 @@ src/security/mod.rs	new		the security configuration kinds and their answers
 src/security/schema.rs	new		the keys each kind accepts
 src/security/validate.rs	new		body validation as the security plugin does it
 src/security/render.rs	new		the plugin's acknowledgements and rendered documents
+src/security/config.rs	new		the users, mappings and tenants a node authenticates against
+src/security/authn.rs	new		basic credentials and the authinfo answer

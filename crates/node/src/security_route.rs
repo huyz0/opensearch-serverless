@@ -9,8 +9,8 @@ use std::sync::Arc;
 
 use oss_blob::BlobStore;
 use oss_coordinator::security::{
-    Answer, Kind, deleted, missing, needs_credentials, password_ok, render, saved, validate,
-    weak_password, with_hash,
+    ALL_ACCESS, Answer, Kind, authinfo, deleted, missing, needs_credentials, password_ok, render,
+    saved, validate, weak_password, with_hash,
 };
 use oss_doc::mapping::json::{Json, parse};
 use oss_format::{DocKind, MAX_DOC_BYTES};
@@ -18,6 +18,7 @@ use oss_meta::{DocSet, MetaError};
 use oss_rest::{JSON, Method, Request, Response, RestError, RouteError, Router};
 
 use crate::route_util::{read_body, refuse};
+use crate::security_state::SecurityState;
 
 /// The bcrypt cost the plugin's own hashes use.
 pub const DEFAULT_COST: u32 = 12;
@@ -37,6 +38,7 @@ pub struct SecurityService {
     sets: [DocSet; 5],
     buffer_bytes: usize,
     cost: u32,
+    state: Option<Arc<SecurityState>>,
 }
 
 impl SecurityService {
@@ -64,7 +66,54 @@ impl SecurityService {
             ],
             buffer_bytes,
             cost,
+            state: None,
         })
+    }
+
+    /// Serves the routes only to administrators, as `state` knows them, and
+    /// tells it of every change so this node sees it at once.
+    #[must_use]
+    pub fn with_state(mut self, state: Arc<SecurityState>) -> Self {
+        self.state = Some(state);
+        self
+    }
+
+    /// The refusal for a caller who is not an administrator, if it is not.
+    fn admin_only(&self, req: &Request<'_>) -> Result<Option<Answer>, RestError> {
+        let Some(state) = &self.state else {
+            return Ok(None);
+        };
+        let config = state.config().map_err(|_| {
+            refuse(
+                503,
+                "security_exception",
+                "the security configuration is unavailable",
+            )
+        })?;
+        let name = req.principal().unwrap_or_default();
+        let roles = config.roles_of(name);
+        if roles.iter().any(|r| r == ALL_ACCESS) {
+            return Ok(None);
+        }
+        // ALLOC: one message on a refused request.
+        let mut text = String::new();
+        oss_doc::mapping::json::write_str(
+            &mut text,
+            &format!(
+                "No permission to access REST API: User {name} with Security roles [{}] does not have any role privileged for admin access. No client TLS certificate found in request",
+                roles.join(", ")
+            ),
+        );
+        Ok(Some(Answer {
+            status: 403,
+            body: format!(r#"{{"status":"FORBIDDEN","message":{text}}}"#),
+        }))
+    }
+
+    fn changed(&self) {
+        if let Some(state) = &self.state {
+            state.invalidate();
+        }
     }
 
     fn set(&self, kind: Kind) -> &DocSet {
@@ -122,6 +171,7 @@ impl SecurityService {
         self.set(kind)
             .put(name, stored.to_json().as_bytes(), false, &mut marker)
             .map_err(failed)?;
+        self.changed();
         Ok(saved(name, existing.is_none()))
     }
 
@@ -160,6 +210,9 @@ impl SecurityService {
             .path_param("name")
             .map(|n| n.into_owned())
             .ok_or_else(|| RestError::illegal_argument("a name is required"))?;
+        if let Some(refused) = self.admin_only(req)? {
+            return resp.send(refused.status, JSON, refused.body.as_bytes());
+        }
         let answer = match req.method() {
             Method::Put => self.put(kind, &name, req)?,
             Method::Delete => {
@@ -170,6 +223,7 @@ impl SecurityService {
                     .set(kind)
                     .delete(&name, &mut marker)
                     .map_err(|e| failure(&e))?;
+                self.changed();
                 if there {
                     deleted(&name)
                 } else {
@@ -224,6 +278,31 @@ fn failure(e: &MetaError) -> RestError {
 /// A route registered twice.
 pub fn routes(router: Router, service: &Arc<SecurityService>) -> Result<Router, RouteError> {
     let mut router = router;
+    const LISTS: [(Kind, &str); 5] = [
+        (Kind::Roles, "/_plugins/_security/api/roles"),
+        (Kind::RolesMapping, "/_plugins/_security/api/rolesmapping"),
+        (Kind::InternalUsers, "/_plugins/_security/api/internalusers"),
+        (Kind::Tenants, "/_plugins/_security/api/tenants"),
+        (Kind::ActionGroups, "/_plugins/_security/api/actiongroups"),
+    ];
+    for (kind, path) in LISTS {
+        let service = Arc::clone(service);
+        router = router.route(
+            Method::Get,
+            path,
+            &[],
+            move |req: &mut Request<'_>, resp: &mut Response<'_>| {
+                if let Some(refused) = service.admin_only(req)? {
+                    return resp.send(refused.status, JSON, refused.body.as_bytes());
+                }
+                Err(refuse(
+                    501,
+                    "not_implemented",
+                    format!("listing {} is not served by this node", kind.segment()),
+                ))
+            },
+        )?;
+    }
     const PATHS: [(Kind, &str); 5] = [
         (Kind::Roles, "/_plugins/_security/api/roles/{name}"),
         (
@@ -254,4 +333,30 @@ pub fn routes(router: Router, service: &Arc<SecurityService>) -> Result<Router, 
         }
     }
     Ok(router)
+}
+
+/// `GET /_plugins/_security/authinfo`: who the caller is, its roles and
+/// tenants, as the plugin answers.
+///
+/// # Errors
+///
+/// A route registered twice.
+pub fn authinfo_route(router: Router, state: &Arc<SecurityState>) -> Result<Router, RouteError> {
+    let state = Arc::clone(state);
+    router.route(
+        Method::Get,
+        "/_plugins/_security/authinfo",
+        &[],
+        move |req: &mut Request<'_>, resp: &mut Response<'_>| {
+            let config = state.config().map_err(|_| {
+                refuse(
+                    503,
+                    "security_exception",
+                    "the security configuration is unavailable",
+                )
+            })?;
+            let body = authinfo(&config, req.principal().unwrap_or_default());
+            resp.send(200, JSON, body.as_bytes())
+        },
+    )
 }

@@ -4,7 +4,7 @@
 
 use std::net::{SocketAddr, TcpListener};
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use lucene_store::page_cache::{PageCache, PageCacheConfig};
 use oss_blob::{BlobStore, PooledStore, Shared};
@@ -18,6 +18,7 @@ use oss_writer::log::NodeLogCommitter;
 use oss_writer::publish::lazy::Policy;
 
 use crate::bulk_route::{self, BulkService};
+use crate::clock::now_millis;
 use crate::doc_route::{self, DocService};
 use crate::get_route::{self, GetService};
 use crate::handlers::Registry;
@@ -68,6 +69,10 @@ pub struct Config {
     pub ingest_pipelines: bool,
     /// `serverless.security.enabled`: serve the security configuration API.
     pub security: bool,
+    /// The static administrator's name and bcrypt hash, needed with security on.
+    pub security_admin: Option<(String, String)>,
+    /// How long a snapshot of the security configuration is used.
+    pub security_refresh_millis: u64,
     /// The bcrypt cost an internal user's password is hashed at.
     pub security_bcrypt_cost: u32,
     /// `serverless.knn.enabled`: whether a create accepts `knn_vector`.
@@ -137,6 +142,8 @@ impl Config {
             index_templates: false,
             ingest_pipelines: false,
             security: false,
+            security_admin: None,
+            security_refresh_millis: 10_000,
             security_bcrypt_cost: crate::security_route::DEFAULT_COST,
             knn: false,
             snapshots: false,
@@ -303,12 +310,6 @@ impl Assembled {
     }
 }
 
-pub(crate) fn now_millis() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
-}
-
 /// Builds a node's services over `store` and registers their routes.
 ///
 /// # Errors
@@ -420,7 +421,7 @@ pub fn assemble(
     let router = refresh_route::routes(router, Arc::new(RefreshService::new(Arc::clone(&role))))
         .map_err(AssembleError::Route)?;
     let router = pit_route::routes(router, pit).map_err(AssembleError::Route)?;
-    let router = crate::admin_assemble::register(router, &store, config)?;
+    let router = crate::admin_assemble::register(router, &store, config, budget)?;
     #[cfg(feature = "coordinator")]
     let (router, drain) = {
         // Every update and delete is recorded in the change stripes, which

@@ -826,6 +826,7 @@ dependencies = [
 name = "oss-compat"
 version = "0.1.0"
 dependencies = [
+ "bcrypt",
  "oss-blob",
  "oss-cluster",
  "oss-format",

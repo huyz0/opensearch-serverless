@@ -2,7 +2,7 @@
 
 use super::*;
 
-fn lookup<'a>(pairs: &'a [(&'a str, &'a str)]) -> impl Fn(&str) -> Option<String> + 'a {
+pub(super) fn lookup<'a>(pairs: &'a [(&'a str, &'a str)]) -> impl Fn(&str) -> Option<String> + 'a {
     move |key| {
         pairs
             .iter()
@@ -11,13 +11,13 @@ fn lookup<'a>(pairs: &'a [(&'a str, &'a str)]) -> impl Fn(&str) -> Option<String
     }
 }
 
-const FS: &[(&str, &str)] = &[
+pub(super) const FS: &[(&str, &str)] = &[
     ("OSS_NODE_ID", "n1"),
     ("OSS_STORE", "fs"),
     ("OSS_FS_ROOT", "/data"),
 ];
 
-fn with<'a>(extra: &[(&'a str, &'a str)]) -> Vec<(&'a str, &'a str)> {
+pub(super) fn with<'a>(extra: &[(&'a str, &'a str)]) -> Vec<(&'a str, &'a str)> {
     let mut all: Vec<(&str, &str)> = FS.to_vec();
     all.extend_from_slice(extra);
     all
@@ -358,15 +358,6 @@ fn knn_is_off_by_default_and_set_by_its_variable() {
     let c = NodeConfig::from_lookup(lookup(&with(&[("OSS_KNN", "true")]))).expect("valid");
     assert!(c.knn);
     assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_KNN", "yes")]))).is_err());
-}
-
-// docs/specs/security-config AC-7
-#[test]
-fn security_is_off_by_default_and_set_by_its_variable() {
-    assert!(!NodeConfig::from_lookup(lookup(FS)).expect("valid").security);
-    let on = NodeConfig::from_lookup(lookup(&with(&[("OSS_SECURITY", "true")])));
-    assert!(on.expect("valid").security);
-    assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_SECURITY", "yes")]))).is_err());
 }
 
 // docs/specs/writer-hand-off AC-8

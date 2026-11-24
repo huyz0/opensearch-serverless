@@ -14,6 +14,8 @@ pub enum AssembleError {
     Store(String),
     /// A route is registered twice.
     Route(RouteError),
+    /// Security is on without an administrator, or its settings are refused.
+    Security(String),
     /// The HTTP server did not start.
     Server(oss_rest::StartError),
 }
@@ -25,6 +27,7 @@ impl std::fmt::Display for AssembleError {
             AssembleError::Memory(e) => write!(f, "memory: {e}"),
             AssembleError::Store(e) => write!(f, "store: {e}"),
             AssembleError::Route(e) => write!(f, "route: {e:?}"),
+            AssembleError::Security(e) => write!(f, "security: {e}"),
             AssembleError::Server(e) => write!(f, "server: {e:?}"),
         }
     }

@@ -26,6 +26,7 @@ use crate::body::{BREAKER_LABEL, Body, BodyBuffers, Framing};
 use crate::checks::{check_params, content_type, java_parses_uri, plan};
 use crate::config::ServerConfig;
 use crate::error::{Exception, RestError};
+use crate::guard::{Admission, Verdict};
 use crate::head::{self, Head, HeadLimits, Scan, Version};
 use crate::inbound::Inbound;
 use crate::method::{Method, MethodSet};
@@ -305,6 +306,32 @@ fn handle(ctx: Ctx<'_>, inbound: &mut Inbound<&Timed<'_>, &mut [u8]>, stream: &T
         Err(e) => return refuse(&mut resp, &e, wants_open, false),
     };
     let has_body = plan.framing != Framing::Empty;
+    let mut principal = None;
+    if let Some(guard) = shared.router.guard() {
+        let admission = Admission {
+            method,
+            path,
+            authorization: head.header(buf, "authorization"),
+        };
+        match guard.admit(&admission) {
+            Verdict::Allow(who) => principal = who,
+            Verdict::Deny(denial) => {
+                let challenge = denial.challenge.map(|c| [("www-authenticate", c)]);
+                let sent = resp
+                    .start(
+                        denial.status,
+                        Some(denial.content_type),
+                        Length::Known(denial.body.len() as u64),
+                        challenge.as_ref().map_or(&[], |c| c.as_slice()),
+                    )
+                    .and_then(|mut w| {
+                        w.write_all(denial.body.as_bytes())?;
+                        w.finish()
+                    });
+                return sent.is_ok() && wants_open && !has_body;
+            }
+        }
+    }
     let route = match shared.router.resolve(method, path, bound) {
         Resolved::Found(route) => route,
         Resolved::OtherMethods(allowed) if method == Some(Method::Options) => {
@@ -370,6 +397,7 @@ fn handle(ctx: Ctx<'_>, inbound: &mut Inbound<&Timed<'_>, &mut [u8]>, stream: &T
         params,
         path_params: bound,
         head,
+        principal,
         head_buf: buf,
         body,
     };
