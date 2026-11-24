@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 use oss_rest::{Exception, Meta};
-use oss_writer::bulk::{IndexInfo, ItemResult, Planned, item_result};
+use oss_writer::bulk::{IndexInfo, ItemResult, Owner, Planned, item_result};
 
 use super::{Failure, OpenRefused, WriterRole, lock, unavailable};
 
@@ -12,6 +12,20 @@ use super::{Failure, OpenRefused, WriterRole, lock, unavailable};
 pub(super) type Redirects = HashMap<(String, u32), String>;
 
 impl WriterRole {
+    /// Whether the group's shard is held here; otherwise who owns it.
+    pub(crate) fn owner(&self, index: &IndexInfo, shard: u32) -> Owner {
+        if self.held(&index.uuid, shard) {
+            Owner::Local
+        } else if let Some(node) = self
+            .redirect(&index.uuid, shard)
+            .or_else(|| self.steer(index, shard))
+        {
+            Owner::Node(node)
+        } else {
+            self.routes.owner(index, shard)
+        }
+    }
+
     /// The live node known to hold a shard this node does not.
     pub(super) fn redirect(&self, uuid: &str, shard: u32) -> Option<String> {
         // ALLOC: one key a lookup.
