@@ -72,6 +72,7 @@ impl RepositoryRecord {
         };
         Ok(Self {
             name,
+            // ALLOC: one type name, once a record.
             repo_type: repo_type.unwrap_or_else(|| NATIVE_TYPE.to_owned()),
             created_at_millis,
             settings,
@@ -105,6 +106,7 @@ fn read_settings(
         other => return json.skip_after(&other),
     }
     while let Some(key) = json.next_field()? {
+        // ALLOC: one value a setting, bounded by the record size.
         let value = match json.expect_token()? {
             Token::Str(s) => s.into_owned(),
             Token::Int(_) | Token::OtherNumber => json.number_text().to_owned(),
