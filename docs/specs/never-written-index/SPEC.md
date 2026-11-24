@@ -6,7 +6,7 @@ Compatibility: stock OpenSearch answers `_search` and `_count` of an index that 
 
 ## Change
 
-`oss-reader` opens a shard whose descriptor exists and whose commit does not (the shard's commit register is absent, or a bucketed index's manifest is absent or holds no commit for it) as a shard of no documents. `ShardFiles` then holds one file, the engine's own empty `segments_N`, served from memory (`empty_commit`); the prefetch plan skips it. Every read route that opens a shard (`_search`, `_count`, `_msearch`, `_field_caps`, `_validate/query`, `_analyze` on a field, scrolls and points in time over it) sees an index of no documents. An index with no descriptor, a tombstone, and an alias are unchanged.
+`oss-reader` opens a shard that was positively never committed as a shard of no documents: its commit register is absent and so is its shard head (no writer ever took it, or the head is an earlier index of the name's), or a bucketed index's manifest entry holds no commit. A commit register missing on a shard a writer took stays an error (the 404 as before), because that is lost data, not an empty index. `ShardFiles` then holds one file, the engine's own empty `segments_N`, served from memory (`empty_commit`); the prefetch plan skips it. Every read route that opens a shard (`_search`, `_count`, `_msearch`, `_field_caps`, `_validate/query`, `_analyze` on a field, scrolls and points in time over it) sees an index of no documents. An index with no descriptor, a tombstone, and an alias are unchanged.
 
 Not here: the writer's overlay is unchanged; a document accepted and not yet published is found as before.
 
@@ -16,7 +16,8 @@ Not here: the writer's overlay is unchanged; a document accepted and not yet pub
 - AC-2: `_count` of it answers `{"count":0,...}`; a `value_count` aggregation answers 0.
 - AC-3: a search of a name that has no descriptor still answers 404 `index_not_found_exception`.
 - AC-4: opening it makes no LIST, HEAD, PUT, COPY or DELETE and at most the descriptor's and the register's GETs; a second search makes none.
-- AC-5: a bucketed index whose bucket manifest is absent, or holds no commit for it, opens the same way; one that is not a member of its bucket is still refused.
+- AC-5: a bucketed index whose manifest entry holds no commit opens the same way; one whose bucket manifest is absent, or that is not a member of its bucket, is still refused.
+- AC-6: a shard whose commit register is missing and whose head exists for this index is an error, not an empty shard; a head left by an earlier index of the name does not count.
 
 ## Test plan
 
@@ -24,7 +25,7 @@ Not here: the writer's overlay is unchanged; a document accepted and not yet pub
 
 ## S3 request budget
 
-Unchanged: the descriptor GET and the register GET, which is a 404 here, as it was. No LIST. Once open, the empty shard is held and charged like any other.
+The descriptor GET and the register GET (a 404 here), as before, and one more GET of the shard head, only when the register is missing: a second search of the open shard makes none. No LIST. Once open, the empty shard is held and charged like any other.
 
 ## Switch
 
@@ -32,4 +33,4 @@ None: a refusal that stock does not make becomes the stock answer, with no cost.
 
 ## Risks
 
-- A commit register that is missing for another reason (a deleted blob) now reads as an empty index instead of a 404. The janitor deletes registers only with their index's descriptor tombstone.
+- A shard head deleted while its commit register is also gone reads as never written; the head is only removed with the index.

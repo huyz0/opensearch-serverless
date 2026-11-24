@@ -103,7 +103,7 @@ fn the_reads_of_an_unwritten_index_make_no_list_and_no_write() {
             .sum::<u64>()
     };
     assert!(
-        gets(now) - gets(before) <= 2,
-        "one open: the descriptor and the register, then none: {before:?} {now:?}"
+        gets(now) - gets(before) <= 3,
+        "one open: the descriptor, the register and the head, then none: {before:?} {now:?}"
     );
 }

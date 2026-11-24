@@ -141,14 +141,10 @@ impl ShardFiles {
         let value = match (pushed, bucket) {
             (Some(value), _) => value,
             (None, Some(bucket)) => {
-                match member_commit(store, base, bucket, &descriptor.uuid) {
-                    Ok(Some(commit)) => held = commit,
-                    Ok(None) => return Ok((Self::never_written(), meta)),
-                    // The index was created and nothing was published.
-                    Err(ReaderError::Blob(oss_blob::BlobError::NotFound)) => {
-                        return Ok((Self::never_written(), meta));
-                    }
-                    Err(e) => return Err(e),
+                match member_commit(store, base, bucket, &descriptor.uuid)? {
+                    Some(commit) => held = commit,
+                    // The bucket's entry says nothing was ever committed.
+                    None => return Ok((Self::never_written(), meta)),
                 }
                 held.as_slice()
             }
@@ -156,7 +152,9 @@ impl ShardFiles {
                 match read_register(store, &shard_ref.manifest_key(base)?, MAX_REGISTER_BYTES) {
                     Ok(bytes) => register_bytes = bytes,
                     // The index was created and nothing was published.
-                    Err(ReaderError::Blob(oss_blob::BlobError::NotFound)) => {
+                    Err(ReaderError::Blob(oss_blob::BlobError::NotFound))
+                        if never_activated(store, base, &descriptor, shard)? =>
+                    {
                         return Ok((Self::never_written(), meta));
                     }
                     Err(e) => return Err(e),
@@ -327,6 +325,31 @@ fn member_commit<S: BlobStore>(
         .member
         .ok_or_else(|| not_followable("the index is not a member of its bucket"))?
         .commit)
+}
+
+/// Whether no writer ever took shard `shard` of the index `descriptor`
+/// describes: its head is absent, or was left by an earlier index of the
+/// name. A shard that was taken and has no commit register lost it, which
+/// is an error, not an empty shard. One GET, only when the register is
+/// missing.
+fn never_activated<S: BlobStore>(
+    store: &PooledStore<S>,
+    base: &str,
+    descriptor: &IndexDescriptor<'_>,
+    shard: u32,
+) -> Result<bool, ReaderError> {
+    let key = oss_cluster::heads::shard_head_key(base, &descriptor.name, shard);
+    match read_register(store, &key, MAX_REGISTER_BYTES) {
+        Ok(bytes) => {
+            let head = oss_format::ShardHead::parse(Register::parse(&bytes)?.value)?;
+            Ok(head
+                .index_uuid
+                .as_deref()
+                .is_some_and(|uuid| uuid != descriptor.uuid))
+        }
+        Err(ReaderError::Blob(oss_blob::BlobError::NotFound)) => Ok(true),
+        Err(e) => Err(e),
+    }
 }
 
 /// Reads a whole register blob, refusing one over `max` bytes.
