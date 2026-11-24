@@ -99,6 +99,9 @@ pub mod search_slots;
 #[cfg(feature = "writer")]
 pub mod security_auth;
 #[cfg(feature = "writer")]
+#[cfg(feature = "writer")]
+pub mod security_authz;
+#[cfg(feature = "writer")]
 pub mod security_route;
 pub mod security_setting;
 #[cfg(feature = "writer")]

@@ -23,7 +23,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 # A workspace build unifies features, so another crate switching a role on
 # hides a module that only builds with its role's other features.
 step "cargo check -p oss-node, each role alone (features are not unified)"
-for features in "" "writer" "coordinator" "reader,writer" "writer,coordinator"; do
+for features in "" "reader" "writer" "coordinator" "reader,writer" "reader,coordinator" "writer,coordinator"; do
   cargo check -p oss-node --no-default-features --features "$features"
 done
 

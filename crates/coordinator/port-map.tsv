@@ -54,3 +54,5 @@ src/snapshot_restore_rename.rs	port	serverless/shell/src/main/java/org/opensearc
 src/snapshot_restore_keys.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/snapshot/SnapshotRequestBodies.java@bf347adb	RESTORE_KNOWN_KEYS and RESTORE_REFUSED_KEYS with their reasons
 src/system_indices.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/SystemIndices.java@bf347adb	the declared patterns and contains
 src/glob.rs	new		the simple * match the template resolver already used, shared with the system index patterns
+src/security/authz.rs	new		what a user's roles allow: cluster and index permissions, action groups, the wildcard rule
+src/security/static_config.json	port	security/src/main/resources/static_config/static_action_groups.yml@3.10.0	the plugin's built-in action groups and roles, as shipped

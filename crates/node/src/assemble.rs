@@ -55,8 +55,7 @@ pub struct Config {
     pub bulk_holders: usize,
     /// How a `_bulk` body streams.
     pub bulk: StreamConfig,
-    /// How long a store call waits for a free I/O buffer before it is
-    /// refused as busy; zero refuses at once.
+    /// How long a store call waits for a free I/O buffer before it is refused as busy; zero refuses at once.
     pub store_buffer_wait: Duration,
     /// The buffer a point-in-time request holds.
     pub pit_buffer_bytes: usize,
@@ -80,8 +79,7 @@ pub struct Config {
     pub snapshots: bool,
     /// Whether a snapshot can be taken: `serverless.snapshots.take.enabled`, beside `snapshots`.
     pub snapshots_take: bool,
-    /// Whether a shallow snapshot can be restored:
-    /// `serverless.snapshots.restore.enabled`, beside `snapshots` and `snapshots_take`.
+    /// Whether a shallow snapshot can be restored: `serverless.snapshots.restore.enabled`.
     pub snapshots_restore: bool,
     /// `serverless.system_indices.patterns`: comma-separated `*` patterns of the names a take and a restore refuse.
     pub system_index_patterns: String,
@@ -142,7 +140,7 @@ impl Config {
             node_id: node_id.to_owned(),
             address,
             bulk_bytes: 64 << 20,
-            bulk_holders: 4,
+            bulk_holders: 64,
             bulk: StreamConfig::default(),
             store_buffer_wait: Duration::from_secs(5),
             pit_buffer_bytes: MAX_POINT_IN_TIME_BYTES,
@@ -241,6 +239,13 @@ pub struct Running {
     _drain: Drain,
     _tail: Option<TailNode>,
     _cache_records: Option<oss_mem::Reservation>,
+}
+
+impl Assembled {
+    /// Every route registered: its method (none for a prefix route) and pattern.
+    pub fn routes(&self) -> Vec<(Option<oss_rest::Method>, &'static str)> {
+        self.router.routes()
+    }
 }
 
 impl Running {
@@ -365,6 +370,7 @@ pub fn assemble(
         ),
         Box::new(now_millis),
     );
+    #[cfg(feature = "coordinator")]
     let bucket_wiring = writer.buckets.clone();
     if let Some(buckets) = writer.buckets {
         publishing = publishing.with_buckets(buckets);
@@ -393,12 +399,11 @@ pub fn assemble(
     }
     let role = Arc::new(role);
     let clock: PitClock = Arc::new(now_millis);
-    let pits = PointInTimeStore::new(Arc::clone(&store), &config.base, Arc::clone(&clock))
-        .map_err(|e| AssembleError::Store(e.to_string()))?;
-    let janitor_pits = PointInTimeStore::new(Arc::clone(&store), &config.base, Arc::clone(&clock))
-        .map_err(|e| AssembleError::Store(e.to_string()))?;
-    let search_pits = PointInTimeStore::new(Arc::clone(&store), &config.base, Arc::clone(&clock))
-        .map_err(|e| AssembleError::Store(e.to_string()))?;
+    let new_pits = || {
+        PointInTimeStore::new(Arc::clone(&store), &config.base, Arc::clone(&clock))
+            .map_err(|e| AssembleError::Store(e.to_string()))
+    };
+    let (pits, janitor_pits, search_pits) = (new_pits()?, new_pits()?, new_pits()?);
     search.set_point_in_time(search_pits, Arc::clone(&clock), config.pit_buffer_bytes);
     let descriptors = DescriptorStore::new(Arc::clone(&store), &config.base, config.delete_mode)
         .map_err(|e| AssembleError::Store(e.to_string()))?;

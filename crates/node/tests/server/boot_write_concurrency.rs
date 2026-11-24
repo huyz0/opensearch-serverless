@@ -120,3 +120,40 @@ fn concurrent_bulks_to_one_index_give_every_document_its_own_id() {
         "{count}"
     );
 }
+
+const MANY: usize = 32;
+
+// AC-5
+#[test]
+fn more_bulks_than_four_in_flight_together_share_a_window() {
+    let dir = TempDir::new("write-concurrency-many");
+    let node = boot(dir.path());
+    let addr = node.addr();
+    for c in 0..MANY {
+        assert_eq!(
+            support::request(addr, "PUT", &format!("/m{c}"), None).status,
+            200
+        );
+        let warm = format!("{{\"index\":{{\"_index\":\"m{c}\"}}}}\n{{\"n\":0}}\n");
+        assert_eq!(
+            support::request(addr, "POST", "/_bulk", Some(warm.as_bytes())).status,
+            200
+        );
+    }
+    let started = Instant::now();
+    std::thread::scope(|s| {
+        for c in 0..MANY {
+            s.spawn(move || {
+                let body = format!("{{\"index\":{{\"_index\":\"m{c}\"}}}}\n{{\"n\":1}}\n");
+                let reply = support::request(addr, "POST", "/_bulk", Some(body.as_bytes()));
+                assert_eq!(reply.status, 200, "{}", reply.text());
+            });
+        }
+    });
+    let took = started.elapsed();
+    // Held four at a time, the 32 need eight windows (2 s).
+    assert!(
+        took < Duration::from_millis(1_200),
+        "{took:?} for {MANY} bulks; four at a time they need 2 s"
+    );
+}

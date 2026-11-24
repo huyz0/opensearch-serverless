@@ -22,11 +22,12 @@ use std::time::Instant;
 
 use oss_mem::{MemoryBudget, PooledBuffer};
 
+use crate::authorizer::Authorization;
 use crate::body::{BREAKER_LABEL, Body, BodyBuffers, Framing};
 use crate::checks::{check_params, content_type, java_parses_uri, plan};
 use crate::config::ServerConfig;
 use crate::error::{Exception, RestError};
-use crate::guard::{Admission, Verdict};
+use crate::guard::{Admission, Denial, Verdict};
 use crate::head::{self, Head, HeadLimits, Scan, Version};
 use crate::inbound::Inbound;
 use crate::method::{Method, MethodSet};
@@ -315,21 +316,7 @@ fn handle(ctx: Ctx<'_>, inbound: &mut Inbound<&Timed<'_>, &mut [u8]>, stream: &T
         };
         match guard.admit(&admission) {
             Verdict::Allow(who) => principal = who,
-            Verdict::Deny(denial) => {
-                let challenge = denial.challenge.map(|c| [("www-authenticate", c)]);
-                let sent = resp
-                    .start(
-                        denial.status,
-                        Some(denial.content_type),
-                        Length::Known(denial.body.len() as u64),
-                        challenge.as_ref().map_or(&[], |c| c.as_slice()),
-                    )
-                    .and_then(|mut w| {
-                        w.write_all(denial.body.as_bytes())?;
-                        w.finish()
-                    });
-                return sent.is_ok() && wants_open && !has_body;
-            }
+            Verdict::Deny(denial) => return deny(&mut resp, &denial, wants_open, has_body),
         }
     }
     let route = match shared.router.resolve(method, path, bound) {
@@ -362,6 +349,20 @@ fn handle(ctx: Ctx<'_>, inbound: &mut Inbound<&Timed<'_>, &mut [u8]>, stream: &T
             return refuse(&mut resp, &e, wants_open, has_body);
         }
     };
+    if let Some(authorizer) = shared.router.authorizer() {
+        let who = principal.as_deref();
+        let authorization = Authorization {
+            principal: who,
+            method,
+            pattern: route.pattern(),
+            prefix: route.is_prefix(),
+            path,
+            params: bound,
+        };
+        if let Some(denial) = authorizer.authorize(&authorization) {
+            return deny(&mut resp, &denial, wants_open, has_body);
+        }
+    }
     if has_body && let Err(e) = content_type(head, buf) {
         return refuse(&mut resp, &e, wants_open, true);
     }
@@ -437,6 +438,24 @@ fn handle(ctx: Ctx<'_>, inbound: &mut Inbound<&Timed<'_>, &mut [u8]>, stream: &T
     }
 }
 
+/// Sends a guard's or an authorizer's refusal. A refused request with a body
+/// closes the connection, since the body is not read.
+fn deny(resp: &mut Response<'_>, denial: &Denial, wants_open: bool, has_body: bool) -> bool {
+    let challenge = denial.challenge.map(|c| [("www-authenticate", c)]);
+    let sent = resp
+        .start(
+            denial.status,
+            Some(denial.content_type),
+            Length::Known(denial.body.len() as u64),
+            challenge.as_ref().map_or(&[], |c| c.as_slice()),
+        )
+        .and_then(|mut w| {
+            w.write_all(denial.body.as_bytes())?;
+            w.finish()
+        });
+    sent.is_ok() && wants_open && !has_body
+}
+
 /// Sends `e`; whether the connection stays open.
 fn refuse(resp: &mut Response<'_>, e: &RestError, wants_open: bool, body_unread: bool) -> bool {
     resp.send_error(e).is_ok() && wants_open && !body_unread && !e.closes_connection()
@@ -449,47 +468,5 @@ fn stream_write(stream: &Timed<'_>, bytes: &[u8]) -> io::Result<()> {
 }
 
 #[cfg(test)]
-mod linger_tests {
-    use std::io::Write;
-    use std::net::{TcpListener, TcpStream};
-    use std::thread;
-
-    use super::{LINGER_LIMIT, linger};
-
-    fn pair() -> (TcpStream, TcpStream) {
-        let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
-        let client = TcpStream::connect(listener.local_addr().expect("addr")).expect("connect");
-        let (server, _) = listener.accept().expect("accept");
-        (server, client)
-    }
-
-    #[test]
-    fn linger_discards_at_most_its_limit() {
-        let (server, mut client) = pair();
-        let writer = thread::spawn(move || {
-            let chunk = [7u8; 4096];
-            // Four times the limit; the server stops reading at the limit.
-            for _ in 0..(LINGER_LIMIT * 4 / 4096) {
-                if client.write_all(&chunk).is_err() {
-                    break;
-                }
-            }
-        });
-        assert_eq!(linger(&server), LINGER_LIMIT);
-        drop(server);
-        let _ = writer.join();
-    }
-
-    #[test]
-    fn linger_reads_what_is_in_flight_then_stops_when_the_client_is_quiet() {
-        let (server, mut client) = pair();
-        client.write_all(&[1u8; 10_000]).expect("send");
-        let started = std::time::Instant::now();
-        assert_eq!(linger(&server), 10_000);
-        assert!(
-            started.elapsed() < std::time::Duration::from_secs(1),
-            "waited past the idle limit"
-        );
-        drop(client);
-    }
-}
+#[path = "conn_linger_tests.rs"]
+mod linger_tests;
