@@ -57,6 +57,7 @@ mod repositories;
 mod routing;
 mod snapshot_capture;
 mod snapshot_remove;
+mod snapshot_restore;
 mod snapshot_take;
 mod snapshots;
 mod sweep;
@@ -89,6 +90,7 @@ pub use routing::{
     RoutingCache,
 };
 pub use snapshot_capture::DescribedIndex;
+pub use snapshot_restore::{CopyBuffers, RestoreError, SnapshotRestorer};
 pub use snapshot_take::{Reservation, SnapshotTaker, TakeError};
 pub use snapshots::{MAX_REPOSITORIES, SnapshotRead, SnapshotReadError, SnapshotReader};
 pub use sweep::{MARKERS_PREFIX, Sweep, Swept};
