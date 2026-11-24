@@ -21,6 +21,8 @@ A test, `crates/node/tests/mixed_fleet.rs`, ignored unless `RUSTFS_BIN`, `OSS_JA
 - AC-8: with `OSS_PLUGIN_UPSTREAMS` naming a Java node, a plugin request sent to a Rust node gets the Java node's status and body; the Java node's own endpoint is reached through a counting relay, so the count proves who answered. Without an upstream the Rust node answers 400 and the relay sees nothing.
 - AC-9: `_cluster/health` sent to the same Rust node stays native (the relay count does not move), and a POST to a plugin path is proxied.
 
+- AC-10: a Rust node creates a two-shard index and acknowledges a batch; it is killed; a Java node that never saw the index takes the shards over from the commit Rust made and acknowledges a second batch; a second Rust node finds both. The commit Rust made from nothing carries the `translog_uuid` and `history_uuid` that `InternalEngine`'s constructor and `Store.bootstrapNewHistory` require, as `Store.createEmpty` leaves them; a refresh keeps the ones a commit has.
+
 Java node discovery is not built: a lease carries only a transport address, so finding a Java node's HTTP address needs a new lease field written by both sides, a format change under the Java freeze. The upstream stays configuration (ADR 0046).
 
 ## S3 request budget
