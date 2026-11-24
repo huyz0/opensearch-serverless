@@ -155,3 +155,25 @@ fn a_negative_page_is_refused() {
         .unwrap();
     assert!(PagesRequest::read(&mut Input::new(&buf)).is_err());
 }
+
+#[test]
+fn a_pages_response_at_the_cap_reads_and_one_past_it_is_refused() {
+    let served = |n: usize| PagesResponse {
+        pages: (0..n)
+            .map(|i| PageBytes {
+                key: format!("k{i}"),
+                page: 0,
+                bytes: vec![0; 2],
+            })
+            .collect(),
+    };
+    let at_cap = served(MAX_PAGES_PER_REQUEST);
+    let bytes = encode(|out| at_cap.write(out));
+    assert_eq!(read_whole(&bytes, PagesResponse::read), at_cap);
+
+    let bytes = encode(|out| served(MAX_PAGES_PER_REQUEST + 1).write(out));
+    assert!(matches!(
+        PagesResponse::read(&mut Input::new(&bytes)),
+        Err(WireError::TooLarge { .. })
+    ));
+}

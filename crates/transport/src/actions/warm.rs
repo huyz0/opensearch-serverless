@@ -30,9 +30,6 @@ const MIN_FILE_BYTES: usize = 2;
 /// The fewest bytes one page takes: a one-byte number and a one-byte length.
 const MIN_PAGE_BYTES: usize = 2;
 
-/// The fewest bytes one page ask takes: a one-byte key length and number.
-const MIN_ASK_BYTES: usize = 2;
-
 /// The fewest bytes one served page takes: key length, number, byte count.
 const MIN_SERVED_BYTES: usize = 3;
 
@@ -229,9 +226,6 @@ impl PagesRequest {
             .map_err(|_| WireError::malformed(WHAT, "a count is not negative"))?;
         if count > MAX_PAGES_PER_REQUEST {
             return Err(WireError::too_large(WHAT, MAX_PAGES_PER_REQUEST, count));
-        }
-        if count.saturating_mul(MIN_ASK_BYTES) > input.remaining() {
-            return Err(WireError::Truncated { what: WHAT });
         }
         // ALLOC: one entry per ask, at most MAX_PAGES_PER_REQUEST.
         let mut asks = Vec::with_capacity(count);
