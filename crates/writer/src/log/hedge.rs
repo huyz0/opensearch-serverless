@@ -16,6 +16,7 @@ use std::time::Duration;
 
 use oss_blob::{BlobError, BlobStore, ByteRange};
 
+use super::charge::Charge;
 use super::store::{IO_BUF_BYTES, create};
 use super::{LogError, NodeLogStore};
 
@@ -90,16 +91,26 @@ impl NodeLogStore {
         let key: Arc<str> = Arc::from(self.key(epoch, ordinal)?);
         // Room for both answers, so a PUT that loses never blocks sending.
         let (tx, rx) = mpsc::sync_channel::<Answer>(2);
+        let charge = self
+            .charge
+            .as_ref()
+            .map(|c| (c.clone(), Charge::weights(blob)));
         let put = |which: Which| -> bool {
-            let (store, key, blob, tx) = (
+            let (store, key, blob, tx, charge) = (
                 Arc::clone(&self.store),
                 Arc::clone(&key),
                 Arc::clone(blob),
                 tx.clone(),
+                charge.clone(),
             );
             // ALLOC: one boxed job a PUT, at most two an append.
             spawn.spawn(Box::new(move || {
-                let _ = tx.send((which, create(store.as_ref(), &key, &blob)));
+                let put = || create(store.as_ref(), &key, &blob);
+                let answer = match &charge {
+                    Some((charge, weights)) => charge.run(weights, put),
+                    None => put(),
+                };
+                let _ = tx.send((which, answer));
             }))
         };
         if !put(Which::First) {

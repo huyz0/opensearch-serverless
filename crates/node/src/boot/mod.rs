@@ -248,8 +248,9 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     let buckets = support::bucket_wiring(config, &store, &descriptors, &clock)?;
     let heads = support::head_store(config, &store, &clock, &oracle, buckets.as_ref())?;
     let names = Arc::new(ShardNames::default());
-    let log =
-        NodeLogStore::new(Arc::clone(&store), &config.base, &config.node_id).map_err(cluster)?;
+    let log = NodeLogStore::new(Arc::clone(&store), &config.base, &config.node_id)
+        .map(|log| support::shared_in(log, usage.as_ref()))
+        .map_err(cluster)?;
     let lease_for_enrolment = lease.clone();
     // What the lease tells peers this node holds; the renewal thread keeps it.
     let load = Arc::new(crate::writer::LoadReport::default());

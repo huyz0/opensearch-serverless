@@ -8,6 +8,7 @@ use oss_format::node_log_format::{PREFIX_BYTES, decode, header_end};
 use oss_format::{NodeLogEntry, NodeLogFence, NodeLogHeader, Slice, node_log_key};
 
 use super::LogError;
+use super::charge::Charge;
 
 /// How many leading bytes a header read fetches first; a longer header
 /// costs a second read.
@@ -31,6 +32,7 @@ pub struct NodeLogStore {
     base: String,
     node_id: String,
     max_read: u64,
+    pub(super) charge: Option<Charge>,
 }
 
 impl std::fmt::Debug for NodeLogStore {
@@ -60,9 +62,18 @@ impl NodeLogStore {
             base: base.into(),
             node_id: node_id.into(),
             max_read: MAX_READ_BYTES,
+            charge: None,
         };
         log.key(0, 0)?;
         Ok(log)
+    }
+
+    /// Shares the PUT of each blob this log appends among the indices in it,
+    /// by the bytes of their slices, in `ledger`.
+    #[must_use]
+    pub fn with_usage(mut self, ledger: Arc<oss_blob::usage::Ledger>) -> Self {
+        self.charge = Some(Charge(ledger));
+        self
     }
 
     /// Bounds every read at `max_read` bytes, at most [`MAX_READ_BYTES`]: a
@@ -102,7 +113,13 @@ impl NodeLogStore {
     /// is closed to this writer. [`LogError::Blob`] if the write failed or
     /// its outcome is unknown; the writer must not use the epoch again.
     pub fn append(&self, epoch: u64, ordinal: u64, blob: &[u8]) -> Result<(), LogError> {
-        create(self.store.as_ref(), &self.key(epoch, ordinal)?, blob)
+        let key = self.key(epoch, ordinal)?;
+        match &self.charge {
+            Some(charge) => charge.run(&Charge::weights(blob), || {
+                create(self.store.as_ref(), &key, blob)
+            }),
+            None => create(self.store.as_ref(), &key, blob),
+        }
     }
 
     /// An epoch's first free slot, searching from `from`, every slot below

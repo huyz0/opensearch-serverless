@@ -9,7 +9,7 @@ Roadmap R13.3, second half: the ledger of [store-usage](../store-usage/SPEC.md) 
 - `OSS_STORE_USAGE` (default `false`) wraps the node's store in a `UsageStore` over a `Ledger` of at most `OSS_STORE_USAGE_MAX_INDICES` (default 1,000, 1 to 1,000,000) indices. Keys are classified by `oss_format::index_of_key` under the node's base.
 - With it on, `GET /_serverless/usage` answers `node_id`, `started_millis`, `now_millis`, `metered` and `indices`: each index, then `_node` and `_other`, with `cost_units` (PUTs; a GET counts 0.08), `requests` by kind (decimals: a shared request is a fraction) and `bytes` read and written. Counters only grow, so a reader takes the difference of two reads.
 - With it off, the route is not registered and the store is not wrapped.
-- Not in this change: splitting node-log and pack uploads across the indices they carry (they read as `_node`), the opt-in cost header on responses, and tenant roll-up and limits (R13.4).
+- Not in this change: splitting pack uploads across the indices they carry (they read as `_node`), the opt-in cost header on responses, and tenant roll-up and limits (R13.4).
 
 ## Acceptance criteria
 
@@ -34,5 +34,5 @@ Unchanged: no request is added. Off by default, the node does exactly what it di
 
 ## Risks
 
-- Until uploads that carry many indices are split, the node-log's cost reads as `_node`: the per-index lines under-count writes.
+- The write log's PUTs are shared by index ([store-usage-log](../store-usage-log/SPEC.md)); node packs and bucket manifest swaps still read as `_node`.
 - An index past the limit is counted in `_other`, so a tenant's bill needs the limit above the indices the node serves.
