@@ -26,6 +26,7 @@ graph TD
     oss-coordinator --> oss-writer
     oss-doc --> chunkjson
     oss-doc --> oss-rest
+    oss-ext
     oss-format --> oss-types
     oss-janitor --> oss-blob
     oss-janitor --> oss-cluster
