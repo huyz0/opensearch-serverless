@@ -31,8 +31,11 @@ Not here: an index joining a bucket when created (so no index is a member yet), 
 ## S3 request budget
 
 With the switch off: unchanged. On: a member's head operations and publish are those of [bucket-heads](../bucket-heads/SPEC.md) and [bucket-member-register](../bucket-member-register/SPEC.md); the descriptor read that decides membership is one per index per hour. 0 LIST.
+- AC-9: a create accepts `index.serverless.bucket_group` (the group the index joins with, else its name) and `index.serverless.bucket` (`off` joins none, `auto` as unset, any other value 400); other create settings are still refused.
+- AC-10: a node taking over a bucketed index restores the commit in its bucket entry (not a shard register, which a member has none of), so the documents written before the takeover are searchable after it, and a member with no commit yet opens empty.
 
 ## Risks
 
 - A create joins the bucket before its descriptor is written. A create that fails takes itself back out; a node that dies between the join and the descriptor write leaves an unused member entry (never served, since no descriptor names it), and nothing clears it yet.
-- The switch stays off until a differential check against a shell-written bucket (the R7 suite) has passed: placement, heads and the member entry layout are checked against this repo's own fixtures only.
+- The switch stays off by default: a create costs more requests than a takeover saves for an index taken over once ([node-bucket-cost](../node-bucket-cost/SPEC.md)). The live Java/Rust hand-over of a bucketed index passes ([mixed-fleet-soak](../mixed-fleet-soak/SPEC.md) AC-7).
+- The janitor's commit check (`StoreCommits`) reads shard registers only, so it reports a bucketed shard as having no commit, which keeps its node-log segments longer; it never deletes early.

@@ -291,6 +291,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         READ_BUFFER,
     )
     .with_takeover(takeover);
+    let opener = support::with_member_commits(opener, buckets.as_ref());
     // One cache of the indexes this node reads, shared by every route that
     // resolves one; its confirmations are the change stripes every node
     // records its descriptor changes in.
