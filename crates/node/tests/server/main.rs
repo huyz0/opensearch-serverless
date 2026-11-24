@@ -26,6 +26,8 @@ mod boot_retire;
 mod boot_roles;
 mod boot_search_slots;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
+mod boot_snapshots;
+#[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod boot_usage;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod boot_write_concurrency;

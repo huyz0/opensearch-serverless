@@ -2,7 +2,7 @@
 
 ## Serves
 
-[ADR 0039](../../adr/0038-snapshots-read-first.md): the shell's repositories and snapshots are readable over REST from a Rust node, byte-compatible, behind `serverless.snapshots.enabled` (default false).
+[ADR 0039](../../adr/0038-snapshots-read-first.md): the shell's repositories and snapshots are readable over REST from a Rust node, byte-compatible, behind `serverless.snapshots.enabled` (default true).
 
 ## Acceptance criteria
 

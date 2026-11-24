@@ -6,7 +6,7 @@ use super::NodeConfig;
 /// What a node serves of snapshots.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SnapshotConfig {
-    /// `serverless.snapshots.enabled`: serve the read-only snapshot routes. Off by default.
+    /// `serverless.snapshots.enabled`: serve the snapshot read routes. On by default.
     pub enabled: bool,
     /// `serverless.snapshots.take.enabled`: take shallow snapshots, beside the snapshot routes. Off by default.
     pub take: bool,
@@ -23,7 +23,7 @@ pub(in crate::boot) fn read(
     or: &dyn Fn(&str, &str) -> String,
 ) -> Result<SnapshotConfig, String> {
     Ok(SnapshotConfig {
-        enabled: flag("OSS_SNAPSHOTS_ENABLED", "false")?,
+        enabled: flag("OSS_SNAPSHOTS_ENABLED", "true")?,
         take: flag("OSS_SNAPSHOTS_TAKE_ENABLED", "false")?,
         restore: flag("OSS_SNAPSHOTS_RESTORE_ENABLED", "false")?,
         system_index_patterns: or("OSS_SYSTEM_INDEX_PATTERNS", ""),
@@ -51,14 +51,15 @@ mod tests {
     }
 
     #[test]
-    fn every_switch_is_off_until_it_is_set_and_each_stands_alone() {
-        assert_eq!(config(&[]), super::SnapshotConfig::default());
-        let snaps = config(&[("OSS_SNAPSHOTS_ENABLED", "true")]);
-        assert!(snaps.enabled && !snaps.take && !snaps.restore);
+    fn the_reads_are_on_and_take_and_restore_off_until_set_and_each_stands_alone() {
+        let defaults = config(&[]);
+        assert!(defaults.enabled && !defaults.take && !defaults.restore);
+        let snaps = config(&[("OSS_SNAPSHOTS_ENABLED", "false")]);
+        assert!(!snaps.enabled && !snaps.take && !snaps.restore);
         let take = config(&[("OSS_SNAPSHOTS_TAKE_ENABLED", "true")]);
-        assert!(take.take && !take.enabled && !take.restore);
+        assert!(take.take && take.enabled && !take.restore);
         let restore = config(&[("OSS_SNAPSHOTS_RESTORE_ENABLED", "true")]);
-        assert!(restore.restore && !restore.enabled && !restore.take);
+        assert!(restore.restore && restore.enabled && !restore.take);
         assert!(
             NodeConfig::from_lookup(lookup(&with(&[("OSS_SNAPSHOTS_RESTORE_ENABLED", "yes")])))
                 .is_err()
