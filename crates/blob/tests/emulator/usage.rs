@@ -162,3 +162,9 @@ fn a_batch_delete_is_the_index_its_keys_all_name_or_the_nodes() {
     s.delete_many(&[]).unwrap();
     assert_eq!(ledger.total_requests(S3Op::Delete), 3 * ONE_REQUEST);
 }
+
+#[test]
+fn a_usage_store_names_itself_without_its_contents() {
+    let (s, _) = store(1);
+    assert_eq!(format!("{s:?}"), "UsageStore");
+}
