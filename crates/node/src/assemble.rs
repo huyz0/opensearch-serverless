@@ -10,7 +10,7 @@ use oss_blob::{BlobStore, PooledStore, Shared};
 use oss_format::MAX_POINT_IN_TIME_BYTES;
 use oss_janitor::gc;
 use oss_mem::{BufferPool, MemoryBudget, Pool, SMALL_BUFFER};
-use oss_meta::{DeleteMode, DescriptorStore, PitClock, PointInTimeStore};
+use oss_meta::{DeleteMode, DescriptorStore, PitClock};
 use oss_rest::{Router, Server, ServerConfig};
 use oss_writer::bulk::{BulkBudget, StreamConfig};
 use oss_writer::log::NodeLogCommitter;
@@ -403,12 +403,7 @@ pub fn assemble(
     }
     let role = Arc::new(role);
     let clock: PitClock = Arc::new(now_millis);
-    let pits = PointInTimeStore::new(Arc::clone(&store), &config.base, Arc::clone(&clock))
-        .map_err(|e| AssembleError::Store(e.to_string()))?;
-    let janitor_pits = PointInTimeStore::new(Arc::clone(&store), &config.base, Arc::clone(&clock))
-        .map_err(|e| AssembleError::Store(e.to_string()))?;
-    let search_pits = PointInTimeStore::new(Arc::clone(&store), &config.base, Arc::clone(&clock))
-        .map_err(|e| AssembleError::Store(e.to_string()))?;
+    let [pits, janitor_pits, search_pits] = crate::pit_stores::three(&store, &config.base, &clock)?;
     search.set_point_in_time(search_pits, Arc::clone(&clock), config.pit_buffer_bytes);
     let descriptors = DescriptorStore::new(Arc::clone(&store), &config.base, config.delete_mode)
         .map_err(|e| AssembleError::Store(e.to_string()))?;
