@@ -9,6 +9,7 @@ pub mod cluster;
 pub mod docs;
 pub mod fanout;
 pub mod indices;
+pub mod ingest;
 pub mod pipeline_admin;
 pub mod reduce;
 pub mod repository_admin;

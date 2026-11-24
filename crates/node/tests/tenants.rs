@@ -161,3 +161,26 @@ fn the_ticker_steps_the_levels_until_the_ledger_is_gone() {
     }
     assert_eq!(levels.report(1_000)[0].0, "busy");
 }
+
+// AC-9
+#[test]
+fn a_bucket_group_is_written_and_read_back_from_descriptor_settings() {
+    use oss_node::writer::{bucket_group_of, group_settings};
+    for group in ["acme", "a \"b\\", "ünï"] {
+        assert_eq!(
+            bucket_group_of(&group_settings(group)).as_deref(),
+            Some(group)
+        );
+    }
+    assert_eq!(
+        bucket_group_of(br#"{"index":{"serverless":{"bucket_group":"nested"}}}"#).as_deref(),
+        Some("nested")
+    );
+    for none in [
+        &b"{}"[..],
+        br#"{"index.serverless.bucket_group":""}"#,
+        b"nope",
+    ] {
+        assert_eq!(bucket_group_of(none), None);
+    }
+}

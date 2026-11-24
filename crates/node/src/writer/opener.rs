@@ -220,6 +220,9 @@ impl HeadOpener {
         let mapping = Mapping::from_descriptor(record.mapping.as_deref())
             .map_err(|e| e.failed_to_parse().to_string())?;
         let age = publish_age_of(record.settings);
+        if let Some(group) = super::publish_age::bucket_group_of(record.settings) {
+            role.note_group(&index.name, &group);
+        }
         match self.takeover.as_ref().filter(|_| history) {
             None => role.open_shard(index, shard, head.term, mapping)?,
             Some(takeover) => role.open_taken(index, shard, &head, mapping, takeover, |dir| {

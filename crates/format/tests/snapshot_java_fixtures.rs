@@ -5,7 +5,9 @@
 
 use std::path::PathBuf;
 
-use oss_format::{RepositoryRecord, SnapshotState, SnapshotSummary};
+use oss_format::{
+    IndexCapture, RepositoryRecord, ShardCapture, SnapshotDraft, SnapshotState, SnapshotSummary,
+};
 
 fn fixture(name: &str) -> Vec<u8> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -85,4 +87,49 @@ fn the_java_state_register_values_hold_their_record() {
         assert_eq!(flag, finished);
         assert_eq!(SnapshotSummary::parse(record).expect("record").name, name);
     }
+}
+
+#[test]
+fn a_record_and_register_written_here_are_the_bytes_the_java_wrote() {
+    let draft = SnapshotDraft {
+        repo: "backups".into(),
+        name: "daily-1".into(),
+        uuid: "snapuuid00000000000001".into(),
+        storage_generation: Some("gen0000000000000000001".into()),
+        shallow: false,
+        start_millis: 1_700_000_001_000,
+        end_millis: 1_700_000_002_000,
+        indices: vec![IndexCapture {
+            name: "logs".into(),
+            uuid: "uuidlogs0000000000000A".into(),
+            number_of_shards: 1,
+            mapping: Some(r#"{"properties":{"n":{"type":"long"}}}"#.into()),
+            settings: None,
+            shards: vec![ShardCapture {
+                shard: 0,
+                term: 2,
+                files: vec![
+                    ("segments_1".into(), "t=2/_0-abc.seg#110:50".into()),
+                    ("_0.cfs".into(), "t=2/_0-abc.seg#10:100".into()),
+                ],
+                lengths: vec![("segments_1".into(), 50), ("_0.cfs".into(), 100)],
+            }],
+        }],
+    };
+    let java = fixture("snapshot-finished.json");
+    let mut buf = vec![0u8; java.len()];
+    let n = draft.write(&mut buf).expect("writes");
+    assert_eq!(
+        String::from_utf8_lossy(&buf[..n]),
+        String::from_utf8_lossy(&java)
+    );
+
+    let state = fixture("state-finished.bin");
+    let SnapshotState::Held { marker, .. } = SnapshotState::parse(&state).expect("parses") else {
+        panic!("held");
+    };
+    let mut out = vec![0u8; state.len()];
+    let n = SnapshotState::write_held(marker, &java, true, &mut out).expect("writes");
+    assert_eq!(out[..n], state[..]);
+    assert!(SnapshotState::write_held(marker, &java, true, &mut out[..n - 1]).is_err());
 }

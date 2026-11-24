@@ -14,9 +14,6 @@ use std::time::Duration;
 use oss_blob::guard::{Guardrails, Measure, Mode, TenantReport};
 use oss_blob::usage::{Ledger, NODE, OTHER};
 
-/// How often the ledger is read and the levels are stepped.
-pub const TICK: Duration = Duration::from_secs(10);
-
 /// The longest a paced write waits before it is refused.
 const MAX_WAIT_MILLIS: u64 = 5_000;
 
@@ -112,7 +109,7 @@ impl TenantLevels {
         self.guard.report(now)
     }
 
-    /// Steps the levels every `every` (the node uses [`TICK`]) until the ledger is gone, which is
+    /// Steps the levels every `every` until the ledger is gone, which is
     /// when the node that made it has stopped.
     pub fn spawn_ticker(
         self: &Arc<Self>,
