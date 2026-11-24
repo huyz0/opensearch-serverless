@@ -14,6 +14,9 @@ use suite_rig::{Cluster, wait_for};
 
 const INDICES: usize = 24;
 
+/// The tenants the grouped run spreads the indices over.
+const TENANTS: usize = 4;
+
 fn counts(cluster: &Cluster) -> Vec<u64> {
     S3Op::ALL.iter().map(|op| cluster.sent(*op)).collect()
 }
@@ -54,16 +57,44 @@ fn write_all(cluster: &Cluster, slot: usize, rounds: &str) {
     }
 }
 
+/// Every index answers with the document written before the takeover and the
+/// one written after it: the taken-over shard restored its commit.
+fn keeps_both_documents(cluster: &Cluster, slot: usize) {
+    for i in 0..INDICES {
+        let target = format!("/small-{i}");
+        let refreshed = cluster.call(slot, "POST", &format!("{target}/_refresh"), None);
+        assert_eq!(refreshed.status, 200, "{}", refreshed.text());
+        let found = cluster.call(
+            slot,
+            "POST",
+            &format!("{target}/_search"),
+            Some(r#"{"query":{"match_all":{}}}"#),
+        );
+        assert_eq!(found.status, 200, "{}", found.text());
+        let text = found.text();
+        assert!(text.contains(r#""total":{"value":2"#), "small-{i}: {text}");
+    }
+}
+
 /// The requests of the second node taking over `INDICES` indices, and how
 /// long it took.
-fn measure(buckets: bool) -> (Vec<u64>, Duration) {
+fn measure(buckets: bool, grouped: bool) -> (Vec<u64>, Duration) {
     let mut cluster = Cluster::new(3_000, 50, false).expect("emulator");
     if buckets {
         cluster.set("OSS_BUCKETS_ENABLED", "true");
     }
     cluster.add("n1");
     for i in 0..INDICES {
-        let made = cluster.call(0, "PUT", &format!("/small-{i}"), None);
+        let body = format!(
+            r#"{{"settings":{{"index.serverless.bucket_group":"tenant-{}"}}}}"#,
+            i % TENANTS
+        );
+        let made = cluster.call(
+            0,
+            "PUT",
+            &format!("/small-{i}"),
+            grouped.then_some(body.as_str()),
+        );
         assert_eq!(made.status, 200, "{}", made.text());
     }
     write_all(&cluster, 0, "1");
@@ -75,15 +106,18 @@ fn measure(buckets: bool) -> (Vec<u64>, Duration) {
     write_all(&cluster, 1, "2");
     let took = started.elapsed();
     let now = counts(&cluster);
+    keeps_both_documents(&cluster, 1);
     (now.iter().zip(&before).map(|(a, b)| a - b).collect(), took)
 }
 
 #[test]
 fn taking_over_small_indices_costs_fewer_requests_in_buckets() {
-    let (off, off_took) = measure(false);
-    let (on, on_took) = measure(true);
-    show("takeover off", &off, off_took);
-    show("takeover on ", &on, on_took);
+    let (off, off_took) = measure(false, true);
+    let (on, on_took) = measure(true, true);
+    let (own, own_took) = measure(true, false);
+    show("takeover off      ", &off, off_took);
+    show("takeover on, tenants", &on, on_took);
+    show("takeover on, own group", &own, own_took);
     let put = |c: &[u64]| c[S3Op::ALL.iter().position(|o| *o == S3Op::Put).unwrap()];
     let total = |c: &[u64]| c.iter().sum::<u64>();
     // One bucket swap moves every member it holds, where each shard moves alone.

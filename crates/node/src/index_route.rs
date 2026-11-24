@@ -13,9 +13,11 @@ use oss_coordinator::route::resolve::Refusal;
 use oss_format::IndexRecord;
 use oss_meta::{DescriptorStore, MetaError, PitClock, Target, new_id};
 use oss_rest::{Exception, JSON, Method, Request, Response, RestError, RouteError, Router};
+use oss_writer::bucket::policy;
 use oss_writer::mapping::{Mapping, ParseOptions};
 
 use crate::index_templates::TemplateSets;
+use crate::route_util::read_body;
 
 /// The most bytes of a create body.
 const MAX_CREATE_BYTES: usize = 1 << 20;
@@ -40,9 +42,10 @@ fn refusal(r: Refusal) -> RestError {
     refuse(r.status, r.kind, r.reason)
 }
 
-/// Places a new one-shard index in a bucket: its name and uuid in, the
-/// bucket's id out.
-pub type BucketJoin = Arc<dyn Fn(&str, &str) -> Result<String, String> + Send + Sync>;
+/// Places a new one-shard index in a bucket: its group (the
+/// `index.serverless.bucket_group` setting, else its name), name and uuid in,
+/// the bucket's id out.
+pub type BucketJoin = Arc<dyn Fn(&str, &str, &str) -> Result<String, String> + Send + Sync>;
 
 /// Takes an index back out of the bucket it joined: its bucket and uuid in.
 pub type BucketLeave = Arc<dyn Fn(&str, &str) -> Result<(), String> + Send + Sync>;
@@ -99,42 +102,20 @@ impl IndexService {
         self
     }
 
-    /// The body, read as it streams in, its growth reserved first.
-    fn read_body(req: &mut Request<'_>) -> Result<Vec<u8>, RestError> {
-        let body = req.body();
-        let mut out: Vec<u8> = Vec::new();
-        loop {
-            let chunk = body.max_chunk();
-            let more = out
-                .len()
-                .saturating_add(chunk)
-                .saturating_sub(body.reserved());
-            body.reserve(more)?;
-            let Some(next) = body.next_chunk()? else {
-                break;
-            };
-            if out.len().saturating_add(next.len()) > MAX_CREATE_BYTES {
-                return Err(refuse(
-                    400,
-                    "illegal_argument_exception",
-                    "the body of a create is larger than 1 MiB",
-                ));
-            }
-            // ALLOC: the body so far, at most MAX_CREATE_BYTES, reserved above.
-            out.extend_from_slice(next);
-        }
-        Ok(out)
-    }
-
     /// `PUT /{index}`.
     pub fn create(&self, req: &mut Request<'_>, resp: &mut Response<'_>) -> Result<(), RestError> {
         let index = req
             .path_param("index")
             .ok_or_else(|| RestError::illegal_argument("an index is required"))?;
         check_name(&index, true).map_err(refusal)?;
-        let body = Self::read_body(req)?;
+        let body = read_body(
+            req,
+            MAX_CREATE_BYTES,
+            "the body of a create is larger than 1 MiB",
+        )?;
         let asked = parse(1, Some(&body)).map_err(refusal)?;
-        if !asked.settings.is_empty() {
+        let (bucket_off, bucket_group) = bucket_settings(&asked.settings)?;
+        if asked.settings.iter().any(|(k, _)| !is_bucket_key(k)) {
             return Err(unsupported(
                 "index settings at create are not supported by this node yet: create the index, then update its settings",
             ));
@@ -182,9 +163,11 @@ impl IndexService {
         record.created_at_millis = now;
         record.created_version_id = CREATED_VERSION_ID;
         if asked.shards == 1
+            && !bucket_off
             && let Some(join) = &self.join
         {
-            let bucket = join(&index, &uuid)
+            let group = bucket_group.as_deref().unwrap_or(&index);
+            let bucket = join(group, &index, &uuid)
                 .map_err(|e| refuse(500, "index_create_failure", format!("bucket: {e}")))?;
             record.bucket = Some(Cow::Owned(bucket));
         }
@@ -217,6 +200,32 @@ impl IndexService {
         };
         resp.send(status, JSON, b"")
     }
+}
+
+/// Whether `key` is one of the two bucket settings a create accepts.
+fn is_bucket_key(key: &str) -> bool {
+    key == policy::INDEX_POLICY.key() || key == policy::GROUP.key()
+}
+
+/// What a create's bucket settings say: whether the index opts out of
+/// buckets, and the group it names.
+fn bucket_settings(
+    settings: &[(String, Option<String>)],
+) -> Result<(bool, Option<String>), RestError> {
+    let mut off = false;
+    let mut group = None;
+    for (key, value) in settings {
+        let value = value.as_deref().unwrap_or("");
+        if key == policy::INDEX_POLICY.key() {
+            policy::check(value)
+                .map_err(|e| refuse(400, "illegal_argument_exception", e.to_string()))?;
+            off = value.eq_ignore_ascii_case("off");
+        } else if key == policy::GROUP.key() && !value.is_empty() {
+            // ALLOC: error-free path; one group name a create.
+            group = Some(value.to_owned());
+        }
+    }
+    Ok((off, group))
 }
 
 fn unsupported(reason: &str) -> RestError {

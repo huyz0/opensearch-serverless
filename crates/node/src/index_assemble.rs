@@ -24,7 +24,7 @@ pub(crate) fn index_service(
     if let Some(buckets) = bucket_wiring {
         let (joiner, leaver) = (Arc::clone(buckets), Arc::clone(buckets));
         indices = indices.with_bucket_join(
-            Arc::new(move |name, uuid| joiner.join(name, uuid)),
+            Arc::new(move |group, name, uuid| joiner.join(group, name, uuid)),
             Arc::new(move |bucket, uuid| leaver.leave(bucket, uuid)),
         );
     }

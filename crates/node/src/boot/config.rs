@@ -120,8 +120,17 @@ pub struct NodeConfig {
     pub pinned_indexes: Vec<String>,
     /// `serverless.activation.hand_off.enabled`.
     pub hand_off: bool,
+<<<<<<< HEAD
     /// `serverless.knn.enabled`.
     pub knn: bool,
+=======
+    /// `OSS_STORE_USAGE`: count the store's requests and bytes per index
+    /// and serve them at `GET /_serverless/usage`.
+    pub store_usage: bool,
+    /// `OSS_STORE_USAGE_MAX_INDICES`: how many indices the usage tracks
+    /// before counting the rest together.
+    pub store_usage_max_indices: usize,
+>>>>>>> origin/main
     /// `serverless.write.backpressure.*`: what limits the writes waiting on
     /// the write log.
     pub write_limit: oss_writer::admission::LimiterConfig,
@@ -255,7 +264,12 @@ impl NodeConfig {
             .map(str::to_owned)
             .collect();
         let hand_off = flag("OSS_HAND_OFF", "false")?;
+<<<<<<< HEAD
         let knn = flag("OSS_KNN", "false")?;
+=======
+        let store_usage = flag("OSS_STORE_USAGE", "false")?;
+        let store_usage_max_indices = bounded("OSS_STORE_USAGE_MAX_INDICES", "1000", 1, 1_000_000)?;
+>>>>>>> origin/main
         let write_limit = write_limit::read(&bounded)?;
         let proactive_reapers = bounded("OSS_PROACTIVE_REAPERS", "2", 1, 16)?;
         let proactive_max_concurrent = bounded("OSS_PROACTIVE_MAX_CONCURRENT", "4", 1, 64)?;
@@ -307,7 +321,12 @@ impl NodeConfig {
             evict_headroom_percent,
             pinned_indexes,
             hand_off,
+<<<<<<< HEAD
             knn,
+=======
+            store_usage,
+            store_usage_max_indices: usize::try_from(store_usage_max_indices).unwrap_or(1000),
+>>>>>>> origin/main
             proactive_takeover,
             proactive_reapers: usize::try_from(proactive_reapers).unwrap_or(2),
             proactive_max_concurrent: usize::try_from(proactive_max_concurrent).unwrap_or(4),

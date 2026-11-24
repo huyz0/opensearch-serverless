@@ -90,7 +90,26 @@ pub fn restore(
     let Some((value, generation)) = read_manifest(store, &key)? else {
         return Ok(None);
     };
-    let manifest = CommitManifest::parse(&value)?;
+    restore_value(store, base, shard, &value, generation, dir, buf).map(Some)
+}
+
+/// Copies the files of the commit `value` (a commit manifest, read from the
+/// shard's register or from its bucket entry) into `dir`, as [`restore`]
+/// does; `generation` is the version it was read at.
+///
+/// # Errors
+///
+/// As [`restore`].
+pub fn restore_value(
+    store: &dyn BlobStore,
+    base: &str,
+    shard: &ShardRef<'_>,
+    value: &[u8],
+    generation: u64,
+    dir: &dyn Directory,
+    buf: &mut [u8],
+) -> Result<Restored, RestoreError> {
+    let manifest = CommitManifest::parse(value)?;
     // ALLOC: one entry a blob of the commit, one member a file.
     let mut blobs: BTreeMap<String, Vec<Member>> = BTreeMap::new();
     for extent in shard.resolve(base, &manifest)? {
@@ -104,10 +123,10 @@ pub fn restore(
         members.sort_by_key(|m| m.offset);
         spread(store, &blob, &members, dir, buf)?;
     }
-    Ok(Some(Restored {
+    Ok(Restored {
         term: manifest.term,
         generation,
-    }))
+    })
 }
 
 /// The register's value and generation; `None` when there is none.

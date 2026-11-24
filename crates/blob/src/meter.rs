@@ -12,12 +12,26 @@
 //! showing up on a bill.
 
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, OnceLock};
 
 use crate::op::{PriceClass, S3Op};
+
+/// Told of everything a [`Meter`] counts, as it is counted, on the thread
+/// that made the request: how a per-index ledger learns who a request was
+/// for (`crate::usage`).
+pub trait MeterTap: Send + Sync + std::fmt::Debug {
+    /// One attempt of `op` was made.
+    fn request(&self, op: S3Op);
+    /// `n` body bytes reached a GET's sink.
+    fn bytes_read(&self, n: u64);
+    /// `n` body bytes were committed by a PUT.
+    fn bytes_written(&self, n: u64);
+}
 
 /// Lock-free per-request-kind counters, plus bytes moved and failures.
 #[derive(Debug, Default)]
 pub struct Meter {
+    tap: OnceLock<Arc<dyn MeterTap>>,
     counts: [AtomicU64; S3Op::ALL.len()],
     bytes_read: AtomicU64,
     bytes_written: AtomicU64,
@@ -30,9 +44,18 @@ impl Meter {
         Self::default()
     }
 
+    /// Has `tap` told of every count from now on; false when one is set
+    /// already.
+    pub fn set_tap(&self, tap: Arc<dyn MeterTap>) -> bool {
+        self.tap.set(tap).is_ok()
+    }
+
     /// Counts one attempt of `op`.
     pub fn record(&self, op: S3Op) {
         self.counts[op.index()].fetch_add(1, Ordering::Relaxed);
+        if let Some(tap) = self.tap.get() {
+            tap.request(op);
+        }
     }
 
     /// Counts one attempt that failed: the store refused it, the caller's
@@ -46,6 +69,9 @@ impl Meter {
     /// that is the range, which says whether reads are lazy.
     pub fn add_bytes_read(&self, n: u64) {
         self.bytes_read.fetch_add(n, Ordering::Relaxed);
+        if let Some(tap) = self.tap.get() {
+            tap.bytes_read(n);
+        }
     }
 
     /// Counts `n` body bytes a PUT committed. Unlike the Java, which adds
@@ -53,6 +79,9 @@ impl Meter {
     /// add nothing, so this is bytes stored rather than bytes sent.
     pub fn add_bytes_written(&self, n: u64) {
         self.bytes_written.fetch_add(n, Ordering::Relaxed);
+        if let Some(tap) = self.tap.get() {
+            tap.bytes_written(n);
+        }
     }
 
     /// Failed attempts recorded so far.

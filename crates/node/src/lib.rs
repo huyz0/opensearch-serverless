@@ -101,8 +101,12 @@ pub mod tail_reader_link;
 pub mod tail_serve;
 #[cfg(feature = "writer")]
 mod tail_subscription;
+#[cfg(feature = "writer")]
+pub mod template_route;
 #[cfg(any(feature = "reader", feature = "writer"))]
 pub(crate) mod time_value;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod usage_route;
 #[cfg(feature = "writer")]
 pub mod writer;
 

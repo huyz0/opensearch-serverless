@@ -256,7 +256,10 @@ fn a_registered_node_reports_the_members_it_holds_open() {
 #[test]
 fn a_join_places_the_index_in_a_bucket_listing_it_as_a_member() {
     let r = rig("logs");
-    let bucket = r.wiring.join("fresh", "fresh-uuid").expect("joins");
+    let bucket = r
+        .wiring
+        .join("fresh", "fresh", "fresh-uuid")
+        .expect("joins");
     assert!(!bucket.is_empty());
     let read = BucketStore::new(
         Arc::clone(&r.store) as Arc<dyn BlobStore>,
@@ -268,7 +271,12 @@ fn a_join_places_the_index_in_a_bucket_listing_it_as_a_member() {
     .expect("exists");
     assert!(read.manifest.member("fresh-uuid").is_some());
     // The same index again lands in the same bucket.
-    assert_eq!(r.wiring.join("fresh", "fresh-uuid").expect("joins"), bucket);
+    assert_eq!(
+        r.wiring
+            .join("fresh", "fresh", "fresh-uuid")
+            .expect("joins"),
+        bucket
+    );
 }
 
 fn reader_store(r: &Rig) -> oss_blob::PooledStore<oss_blob::Shared> {
@@ -317,7 +325,10 @@ fn a_member_with_no_commit_yet_is_not_followable() {
 #[test]
 fn leaving_takes_the_index_back_out_of_its_bucket() {
     let r = rig("logs");
-    let bucket = r.wiring.join("fresh", "fresh-uuid").expect("joins");
+    let bucket = r
+        .wiring
+        .join("fresh", "fresh", "fresh-uuid")
+        .expect("joins");
     let manifest = |r: &Rig| {
         BucketStore::new(
             Arc::clone(&r.store) as Arc<dyn BlobStore>,
