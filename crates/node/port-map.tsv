@@ -133,3 +133,4 @@ src/writer/retire.rs	new		publishing and giving back every held shard when the n
 src/search_slots.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/search/SearchAdmission.java@feature/serverlessshell	a bounded gate of search permits: a fair share while full, a bounded wait for a tenant over it, a level-2 lane, overflow runners instead of refusals
 src/boot/config/search_slots.rs	new		the OSS_SEARCH_* settings of the search gate; the shell reads its admission settings from cluster settings
 src/boot/config/roles.rs	new		OSS_ROLES, the roles a node's lease names; the shell reads serverless.roles (ingest, search; empty is coordinating only)
+src/id_lanes.rs	new		a generator of auto ids a write request; the shell shares one generator, and a lock held across a request is what this removes

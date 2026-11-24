@@ -3,14 +3,13 @@
 //! the writer role, and the response is the items' results.
 
 use std::io::{self, Read, Write};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use oss_rest::{JSON, Length, Method, Request, Response, RestError, RouteError, Router};
-use oss_writer::bulk::{
-    Bulk, BulkBudget, Defaults, IdGenerator, StreamConfig, stream, write_response,
-};
+use oss_writer::bulk::{Bulk, BulkBudget, Defaults, StreamConfig, stream, write_response};
 
+use crate::id_lanes::IdLanes;
 use crate::ingest_run::IngestPipelines;
 use crate::writer::{RoleTarget, WriterRole};
 
@@ -22,7 +21,7 @@ pub struct BulkService {
     role: Arc<WriterRole>,
     budget: BulkBudget,
     config: StreamConfig,
-    ids: Mutex<IdGenerator>,
+    ids: IdLanes,
     ingest: Option<Arc<IngestPipelines>>,
 }
 
@@ -82,7 +81,7 @@ impl BulkService {
             role,
             budget,
             config,
-            ids: Mutex::new(IdGenerator::new(0, address)),
+            ids: IdLanes::new(address),
             ingest: None,
         }
     }
@@ -109,10 +108,9 @@ impl BulkService {
         // ALLOC: one read buffer a bulk, the body's largest chunk.
         let mut buffer = vec![0u8; chunk];
         let mut target = RoleTarget::new(&self.role);
-        let mut ids = self
-            .ids
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        // Its own generator: no lock is held while the request waits for
+        // its log commit.
+        let mut ids = self.ids.generator();
         let mut pipelines = match &self.ingest {
             Some(set) => {
                 req.body().reserve(set.reserve_bytes())?;

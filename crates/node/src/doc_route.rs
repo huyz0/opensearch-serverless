@@ -3,14 +3,15 @@
 //! rules, the write log and shard routing are the `_bulk` path's.
 
 use std::io::Write;
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use oss_rest::{JSON, Length, Method, Request, Response, RestError, RouteError, Router};
-use oss_writer::bulk::{Action, Bulk, IdGenerator, Kind, Op, doc_status, write_doc};
+use oss_writer::bulk::{Action, Bulk, Kind, Op, doc_status, write_doc};
 use oss_writer::index::{Expect, MATCH_ANY, VersionType};
 
 use crate::bulk_route::refresh;
+use crate::id_lanes::IdLanes;
 use crate::ingest_run::IngestPipelines;
 use crate::writer::{RoleTarget, WriterRole};
 
@@ -43,7 +44,7 @@ const UNASSIGNED: i64 = -2;
 /// Serves the document write APIs over a [`WriterRole`].
 pub struct DocService {
     role: Arc<WriterRole>,
-    ids: Mutex<IdGenerator>,
+    ids: IdLanes,
     ingest: Option<Arc<IngestPipelines>>,
 }
 
@@ -88,7 +89,7 @@ impl DocService {
     pub fn new(role: Arc<WriterRole>, address: [u8; 6]) -> Self {
         Self {
             role,
-            ids: Mutex::new(IdGenerator::new(0, address)),
+            ids: IdLanes::new(address),
             ingest: None,
         }
     }
@@ -153,7 +154,7 @@ impl DocService {
             Self::source(req)?
         };
         let mut target = RoleTarget::new(&self.role);
-        let mut ids = self.ids.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut ids = self.ids.generator();
         let names = action
             .pipeline
             .as_deref()
