@@ -5,6 +5,7 @@
 
 use crate::error::{FormatError, corrupt};
 use crate::json::{Reader, Token};
+use crate::location::FileLocation;
 use crate::snapshot_pins::MAX_SNAPSHOT_RECORD_BYTES;
 
 const WHAT: &str = "snapshot record";
@@ -74,6 +75,94 @@ impl RestoreIndex {
         json.finish()?;
         Ok(found)
     }
+}
+
+impl RestoreIndex {
+    /// Why a restore refuses this entry before writing anything, when it
+    /// does: the entry carries a shard mode's unit layout, settings that
+    /// are another index's own identity, or a file whose length the record
+    /// does not state (the Java lists a term to find it, which costs a LIST).
+    ///
+    /// # Errors
+    ///
+    /// [`FormatError::Corrupt`] when the settings or a file's location are
+    /// malformed, or a shard is numbered past the shard count.
+    pub fn refusal(&self) -> Result<Option<&'static str>, FormatError> {
+        if let Some(settings) = &self.settings {
+            let mut json = Reader::new(settings, WHAT);
+            json.start_object("an index's settings are an object")?;
+            if let Some(why) = settings_refusal(&mut json, "")? {
+                return Ok(Some(why));
+            }
+            json.finish()?;
+        }
+        for shard in &self.shards {
+            if shard.shard >= self.number_of_shards {
+                return Err(corrupt(WHAT, "a shard is numbered past the shard count"));
+            }
+            for (name, location) in &shard.files {
+                let stated = shard.lengths.iter().any(|(n, _)| n == name)
+                    || FileLocation::parse(location)?.range().is_some();
+                if !stated {
+                    return Ok(Some("a captured file has no recorded length"));
+                }
+            }
+        }
+        Ok(None)
+    }
+}
+
+/// The unit layout's key in a captured index's settings.
+const LAYOUT_KEY: &str = "serverless_unit_layout";
+
+/// The settings a restored index never inherits: they name the captured
+/// index itself.
+const IDENTITY_SETTINGS: [&str; 8] = [
+    "index.uuid",
+    "index.history.uuid",
+    "index.version.created",
+    "index.version.upgraded",
+    "index.creation_date",
+    "index.provided_name",
+    "index.number_of_shards",
+    "index.number_of_replicas",
+];
+
+/// Walks one settings object (its `{` read), dotting nested names, and
+/// answers the first refusal.
+fn settings_refusal(
+    json: &mut Reader<'_>,
+    prefix: &str,
+) -> Result<Option<&'static str>, FormatError> {
+    while let Some(key) = json.next_field()? {
+        // ALLOC: one dotted name, bounded by the settings' size.
+        let name = if prefix.is_empty() {
+            key.into_owned()
+        } else {
+            [prefix, ".", key.as_ref()].concat()
+        };
+        if name == LAYOUT_KEY {
+            return Ok(Some("the index carries a shard mode's unit layout"));
+        }
+        if json.next_is_object() {
+            json.start_object("a setting group is an object")?;
+            if let Some(why) = settings_refusal(json, &name)? {
+                return Ok(Some(why));
+            }
+            continue;
+        }
+        let full = if name.starts_with("index.") {
+            name
+        } else {
+            // ALLOC: one prefixed name, bounded by the settings' size.
+            ["index.", &name].concat()
+        };
+        if IDENTITY_SETTINGS.contains(&full.as_str()) {
+            return Ok(Some("the index's settings carry another index's identity"));
+        }
+        json.skip_value()?;
+    }
+    Ok(None)
 }
 
 fn read_index(json: &mut Reader<'_>, name: &str) -> Result<RestoreIndex, FormatError> {
@@ -309,6 +398,45 @@ mod tests {
         assert_eq!(got.mapping, None);
         assert_eq!(got.shards[0].term, 2);
         assert_eq!(got.shards[0].lengths, [("f".to_owned(), 5)]);
+    }
+
+    fn entry(settings: &str, shards: &str) -> RestoreIndex {
+        let record = format!(
+            r#"{{"repo":"r","name":"s","shallow":true,"start_time_in_millis":1,"end_time_in_millis":2,
+            "indices":{{"a":{{"uuid":"U","number_of_shards":2,"settings":{settings},"shards":{shards}}}}}}}"#
+        );
+        RestoreIndex::find(record.as_bytes(), "a").unwrap().unwrap()
+    }
+
+    #[test]
+    fn what_a_restore_refuses_before_writing_is_named() {
+        let ok = r#"[{"shard":0,"term":1,"files":{"f":"t=1"},"lengths":{"f":3}}]"#;
+        assert_eq!(entry(r#"{"index":{"x":1}}"#, ok).refusal().unwrap(), None);
+        for settings in [
+            r#"{"serverless_unit_layout":"{}"}"#,
+            r#"{"index.uuid":"x"}"#,
+            r#"{"uuid":"x"}"#,
+            r#"{"index":{"uuid":"x"}}"#,
+            r#"{"index":{"version":{"created":"1"}}}"#,
+            r#"{"index.number_of_replicas":1}"#,
+            r#"{"creation_date":"1"}"#,
+        ] {
+            assert!(
+                entry(settings, ok).refusal().unwrap().is_some(),
+                "{settings}"
+            );
+        }
+        // A setting that only starts like an identity one is carried.
+        assert_eq!(
+            entry(r#"{"index.uuid_hint":1}"#, ok).refusal().unwrap(),
+            None
+        );
+        let no_length = r#"[{"shard":0,"term":1,"files":{"f":"t=1"}}]"#;
+        assert!(entry("{}", no_length).refusal().unwrap().is_some());
+        let packed = r#"[{"shard":0,"term":1,"files":{"f":"t=1/b#4:9"}}]"#;
+        assert_eq!(entry("{}", packed).refusal().unwrap(), None);
+        let past = r#"[{"shard":2,"term":1,"files":{}}]"#;
+        assert!(entry("{}", past).refusal().is_err());
     }
 
     #[test]
