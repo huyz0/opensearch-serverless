@@ -64,12 +64,25 @@ fn keeps_both_documents(cluster: &Cluster, slot: usize) {
         let target = format!("/small-{i}");
         let refreshed = cluster.call(slot, "POST", &format!("{target}/_refresh"), None);
         assert_eq!(refreshed.status, 200, "{}", refreshed.text());
-        let found = cluster.call(
-            slot,
-            "POST",
-            &format!("{target}/_search"),
-            Some(r#"{"query":{"match_all":{}}}"#),
-        );
+        // A search that finds the reader a step behind the refresh it was
+        // told of is a retryable 503 (`shard_behind_exception`); on a busy
+        // machine the step can be long, so the test waits for it.
+        let deadline = Instant::now() + Duration::from_secs(20);
+        let found = loop {
+            let found = cluster.call(
+                slot,
+                "POST",
+                &format!("{target}/_search"),
+                Some(r#"{"query":{"match_all":{}}}"#),
+            );
+            if found.status != 503
+                || !found.text().contains("shard_behind_exception")
+                || Instant::now() > deadline
+            {
+                break found;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        };
         assert_eq!(found.status, 200, "{}", found.text());
         let text = found.text();
         assert!(text.contains(r#""total":{"value":2"#), "small-{i}: {text}");
