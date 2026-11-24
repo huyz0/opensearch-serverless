@@ -19,7 +19,8 @@ use oss_blob::s3::sigv4::{self, Credentials, Scope, UNSIGNED_PAYLOAD};
 use oss_blob::{Emulator, S3Op};
 use oss_node::boot::{Node, NodeConfig, start};
 
-pub use support::Reply;
+#[allow(unused_imports)]
+pub use support::{Reply, request};
 
 const ACCESS: &str = "suiteaccess";
 const SECRET: &str = "suitesecret";
