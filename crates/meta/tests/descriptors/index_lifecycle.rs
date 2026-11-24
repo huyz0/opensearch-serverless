@@ -243,15 +243,16 @@ fn a_conditional_delete_files_its_intent_first_then_removes_everything() {
         assert_eq!(
             deleted.unwrap(),
             Some(Deleted {
+                uuid: "u1".into(),
+                bucket: None,
                 aliases_left: 0,
                 purged: Some(Purged::default()),
             }),
             "{:?}",
             b.kind
         );
-        // The read, the intent, the conditional delete, and a LIST and the
-        // blobs' deletes a shard.
-        // The filesystem's conditional delete reads the generation first.
+        // The read, the intent, the conditional delete, and a LIST and the blobs' deletes a
+        // shard. The filesystem's conditional delete reads the generation first.
         let budget = b.budget(
             &[(Get, 1), (Put, 1), (List, 2), (Delete, 3)],
             &[(Get, 1), (GetRange, 1), (Put, 1), (List, 2), (Delete, 3)],
@@ -310,6 +311,8 @@ fn a_shard_with_a_writer_leaves_its_bytes_to_the_reclaim() {
         assert_eq!(
             deleted.unwrap(),
             Some(Deleted {
+                uuid: "u1".into(),
+                bucket: None,
                 aliases_left: 0,
                 purged: None,
             })
