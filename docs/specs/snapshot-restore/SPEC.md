@@ -20,7 +20,10 @@
 The route ships behind its switch, off by default, with these still open, so this spec has no VERIFIED.md yet:
 
 - The 403 `system_index` refusal: the node holds no registry of system indices to check a target against.
-- AC-1's search over a restored index, and AC-7's recorded Java fixtures and Java-side read. Until both pass the switch stays off in every deployment.
+
+AC-7 is held by `fixtures/snapshots/java-take/` (a record the shell's own classes wrote, restored by `a_snapshot_a_java_node_took_is_restored_by_a_rust_node`) and `fixtures/snapshots/rust-restore/` read by `CheckRestore.java` against the shell's classes (PASS, run by hand at `e71d4233`).
+
+AC-1's search is held by `crates/node/tests/server/snapshot_restore_search.rs::a_restored_index_answers_a_search_with_what_the_snapshot_captured`: a real shard's three documents are published, taken and restored as `copy`, and a reader over the same store answers 3 for both indices.
 
 ## Out of scope
 
