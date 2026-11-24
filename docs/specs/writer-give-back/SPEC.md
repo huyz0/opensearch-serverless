@@ -19,8 +19,10 @@
 - AC-5: a write to a shard whose head was given back opens it the ordinary way at the next term, and every document written before and after is found.
 - AC-6: another node's write takes a given-back head at once, with no liveness revocation, and this node's later ask for the shard is refused with that holder.
 - AC-7: a write that woke the shard first leaves nothing for the give-back: it releases nothing and the head still names this node.
-- AC-8: an assembled node with both thresholds set gives back the head of an idle published shard on its timer; with the give-back threshold unset it never does.
-- AC-9: `OSS_GIVE_BACK_AFTER_MS` sets the threshold, defaults to 0, and a value that is not a number is refused.
+- AC-8: a booted node with both thresholds set gives back the head of an idle published shard on its timer; with either unset it never does.
+- AC-9: a take that loses its swap to a release takes the unowned head at once, and a head naming a node with no process id is never released.
+- AC-10: a pass gives back at most `GIVE_BACK_PER_PASS` heads and the rest are due the next pass; the setting's largest value is the day a record is kept.
+- AC-11: `OSS_GIVE_BACK_AFTER_MS` sets the threshold, defaults to 0, and a value that is not a number is refused.
 
 ## Test plan
 

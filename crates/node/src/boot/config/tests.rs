@@ -240,3 +240,13 @@ fn the_give_back_threshold_defaults_to_never_and_is_set_by_the_variable() {
     assert_eq!(c.give_back_after_millis, 300_000);
     assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_GIVE_BACK_AFTER_MS", "soon")]))).is_err());
 }
+
+#[test]
+fn a_give_back_threshold_beyond_the_day_a_record_is_kept_is_refused() {
+    assert!(
+        NodeConfig::from_lookup(lookup(&with(&[("OSS_GIVE_BACK_AFTER_MS", "86400001")]))).is_err()
+    );
+    assert!(
+        NodeConfig::from_lookup(lookup(&with(&[("OSS_GIVE_BACK_AFTER_MS", "86400000")]))).is_ok()
+    );
+}

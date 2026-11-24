@@ -34,8 +34,13 @@ fn wait_for(what: &str, mut done: impl FnMut() -> bool) {
 
 // docs/specs/writer-give-back AC-8
 #[test]
-fn a_booted_node_gives_back_the_head_of_a_long_asleep_shard_only_when_the_setting_is_on() {
-    for give_back in [None, Some("600")] {
+fn a_booted_node_gives_back_the_head_of_a_long_asleep_shard_only_with_both_settings_on() {
+    // (hibernation, give-back): both on gives back; either alone does not.
+    for (hibernate, give_back) in [
+        (Some("200"), None),
+        (Some("200"), Some("600")),
+        (None, Some("600")),
+    ] {
         let dir = TempDir::new("boot-give-back");
         let root = dir.path().display().to_string();
         let node = start(
@@ -48,7 +53,7 @@ fn a_booted_node_gives_back_the_head_of_a_long_asleep_shard_only_when_the_settin
                         "OSS_HTTP_ADDR" => "127.0.0.1:0",
                         "OSS_TRANSPORT_ADDR" => "127.0.0.1:0",
                         "OSS_LEASE_TTL_MS" => "3000",
-                        "OSS_HIBERNATE_AFTER_MS" => "200",
+                        "OSS_HIBERNATE_AFTER_MS" => return hibernate.map(str::to_owned),
                         "OSS_GIVE_BACK_AFTER_MS" => return give_back.map(str::to_owned),
                         _ => return None,
                     }
@@ -62,7 +67,7 @@ fn a_booted_node_gives_back_the_head_of_a_long_asleep_shard_only_when_the_settin
         let wrote = call(&node, "PUT", "/logs/_doc/1", Some(r#"{"n":1}"#));
         assert_eq!(wrote.status, 201, "{}", wrote.text());
         assert_eq!(head_owner(dir.path()).as_deref(), Some("n1"));
-        if give_back.is_some() {
+        if hibernate.is_some() && give_back.is_some() {
             wait_for("the head was never given back", || {
                 head_owner(dir.path()).is_none()
             });

@@ -1,6 +1,6 @@
 # 0029: A hibernated shard gives its head back after a longer sleep
 
-**Status:** Proposed
+**Status:** Accepted after independent review, 2026-11-24
 
 ## Context
 
@@ -10,9 +10,9 @@
 
 - A shard asleep for `serverless.activation.give_back_after_millis` has its head released: one GET of the head and one conditional swap that clears the owner, leaving the term, the uuid and the writers as they are. The swap is conditional on the generation just read, and the read must still show this process as owner at the term the shard slept at and the same index uuid; anything else is left alone.
 - A released head is an unowned head, which `ShardHeadStore::acquire` already takes at the next term without a liveness check. Any node's next write, this one's included, takes it the ordinary way. A node that dies after releasing leaves nothing to revoke.
-- The shard's record in memory is claimed before the release, by the same removal a wake makes, so exactly one of a wake and a give-back wins. A write arriving between the claim and the swap opens the shard the ordinary way: either its take moves the generation and the release finds the head changed and does nothing, or the release lands first and the take finds an unowned head. Both end with one owner.
+- The shard's record in memory is claimed before the release, by the same removal a wake makes, so exactly one of a wake and a give-back wins. A write arriving between the claim and the swap opens the shard the ordinary way: either its take moves the generation and the release finds the head changed and does nothing, or the release lands first and the take finds an unowned head. A third order is a write whose take has read the head as this node's when the release lands: its swap then loses, finds the head unowned, and the take is made once more, which wins the unowned head. All three end with one owner.
 - Everything a released shard holds is already in a published commit (a shard sleeps only then), so a successor has no log of this node to read. The head does not name this node among the writers: a take that did would, in this same process, fence the log epoch it is writing to; a later take from this node names it as it does for any owner.
-- **A switch, default 0 (never).** A write after a give-back costs the take that a wake does not (14 requests against 5 for a one-segment shard), so by the switch rule it is off until measured to cost nothing it saves. It acts only with hibernation on.
+- **A switch, default 0 (never).** A write after a give-back costs the take that a wake does not (14 requests against 5 for a one-segment shard), so by the switch rule it is off until measured to cost nothing it saves. It runs on the hibernate pass, so it acts only with hibernation on, and its largest value is the day a hibernated record is kept (`KEEP_ASLEEP_MILLIS`): a longer threshold could never fire. One pass gives back at most 64 heads, the rest staying asleep and due the next pass, so a bulk load that falls idle all at once cannot hold the timer.
 
 ## Consequences
 

@@ -13,7 +13,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use oss_blob::{BlobStore, S3Op};
 use oss_cluster::heads::shard_head_key;
 use oss_format::ShardHead;
-use oss_node::writer::Takeover;
+use oss_node::writer::{GIVE_BACK_PER_PASS, Takeover};
 use oss_testkit::budget;
 use oss_writer::bulk::ItemResult;
 use oss_writer::index::Outcome;
@@ -160,4 +160,25 @@ fn a_head_that_moved_while_it_slept_is_left_as_the_other_node_wrote_it() {
     let theirs = head(&c);
     assert_eq!(one.role.give_back_idle(GIVE, slept + GIVE), 0);
     assert_eq!(head(&c), theirs);
+}
+
+#[test]
+fn a_pass_gives_back_no_more_than_its_cap_and_the_rest_are_due_next_pass() {
+    let shards = u32::try_from(GIVE_BACK_PER_PASS).expect("fits") + 3;
+    let c = cluster();
+    create_n(&c, "logs", "u1", shards);
+    let one = node(&c, "node-1", 1, false, Some(takeover_of(&c, "node-1", 1)));
+    for ids in ids_by_shard(shards, 1) {
+        write_id(&one.role, &ids[0]);
+    }
+    let slept = after(2 * IDLE);
+    let report = one.role.hibernate_idle(IDLE, slept);
+    assert_eq!(report.hibernated, shards as usize, "{report:?}");
+    assert_eq!(
+        one.role.give_back_idle(GIVE, slept + GIVE),
+        GIVE_BACK_PER_PASS
+    );
+    assert_eq!(one.role.hibernated(), 3, "the rest stay asleep");
+    assert_eq!(one.role.give_back_idle(GIVE, slept + GIVE), 3);
+    assert_eq!(one.role.hibernated(), 0);
 }

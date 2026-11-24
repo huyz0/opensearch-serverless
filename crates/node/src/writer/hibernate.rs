@@ -40,7 +40,7 @@ pub const GIVE_BACK_AFTER_MILLIS: LongSetting = LongSetting::new(
     "serverless.activation.give_back_after_millis",
     0,
     0,
-    604_800_000,
+    86_400_000,
     Scope::Node,
     "How long a hibernated writer shard may sleep before its head is given back, in \
      milliseconds; the next write takes it the ordinary way. 0 never gives back.",
@@ -66,6 +66,11 @@ pub(super) struct Slept {
 /// memory for ever, and a write that does come takes the shard the ordinary
 /// way. Memory only, no request.
 pub const KEEP_ASLEEP_MILLIS: u64 = 86_400_000;
+
+/// The most heads one pass gives back, so a bulk load that falls idle all at
+/// once is given back over several passes and does not hold the timer for
+/// every shard's two requests; the rest stay asleep, and are due next pass.
+pub const GIVE_BACK_PER_PASS: usize = 64;
 
 /// The hibernated shards of a role, and how long one must be idle.
 #[derive(Default)]
@@ -141,6 +146,7 @@ impl WriterRole {
                 .iter()
                 .filter(|(_, s)| now_millis.saturating_sub(s.at) >= after_millis)
                 .map(|(k, _)| k.clone())
+                .take(GIVE_BACK_PER_PASS)
                 .collect();
             keys.into_iter()
                 .filter_map(|k| asleep.remove(&k).map(|s| (k, s)))

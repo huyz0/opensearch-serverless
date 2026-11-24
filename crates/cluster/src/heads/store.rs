@@ -111,6 +111,26 @@ impl ShardHeadStore {
         if let Some(member) = self.member_of(index, shard, index_uuid)? {
             return self.acquire_member(&member, index, shard, node_id, ephemeral_id);
         }
+        let first = self.acquire_once(index, shard, node_id, ephemeral_id, index_uuid)?;
+        // A race lost to a release leaves the head unowned, and a take that
+        // finds an unowned head wins it: once more is enough, since a release
+        // is made once a sleep.
+        match first {
+            Acquisition::HeldByAnother(ref head) if head.owner_node_id.is_none() => {
+                self.acquire_once(index, shard, node_id, ephemeral_id, index_uuid)
+            }
+            other => Ok(other),
+        }
+    }
+
+    fn acquire_once(
+        &self,
+        index: &str,
+        shard: u32,
+        node_id: &str,
+        ephemeral_id: &str,
+        index_uuid: Option<&str>,
+    ) -> Result<Acquisition, ClusterError> {
         let key = shard_head_key(&self.base, index, shard);
         let now = self.clock.now_millis();
         let claim = now.saturating_add(self.lease_ttl_millis);
@@ -204,7 +224,7 @@ impl ShardHeadStore {
         };
         if current.term != term
             || !current.owned_by(node_id, ephemeral_id)
-            || current.owner_ephemeral_id.is_none()
+            || current.owner_ephemeral_id.is_none() // a head naming a node alone is never given back
             || current
                 .index_uuid
                 .as_deref()
