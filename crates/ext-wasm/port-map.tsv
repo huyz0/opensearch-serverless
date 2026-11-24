@@ -1,0 +1,8 @@
+rust_path	kind	java_source	note
+src/lib.rs	new		crate root; extension modules have no Java counterpart
+src/host.rs	new		the wasmtime engine with a fixed deterministic configuration, its epoch ticker and loading a module
+src/module.rs	new		a described module and one bounded call into a fresh instance
+src/validate.rs	new		what a module is refused for before any compile
+src/gate.rs	new		the per-module and per-tenant concurrency gate
+src/reserve.rs	new		the pool trait a caller supplies
+src/config.rs	new		the host limits a descriptor may only lower

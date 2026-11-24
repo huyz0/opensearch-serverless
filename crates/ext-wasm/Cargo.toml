@@ -1,0 +1,21 @@
+[package]
+name = "oss-ext-wasm"
+description = "opensearch-serverless: the WASM host for extension modules"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+oss-ext = { workspace = true }
+# Pinned: fuel counts can change with a version, so an upgrade reruns the hostile and golden vectors.
+wasmtime = { version = "=51.0.0", default-features = false, features = ["runtime", "cranelift", "std"] }
+wasmparser = { version = "=0.263.0", default-features = false, features = ["std"] }
+
+[dev-dependencies]
+wat = "1"
+
+[lints]
+workspace = true

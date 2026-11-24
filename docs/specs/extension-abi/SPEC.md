@@ -6,9 +6,15 @@ R15.3, decided in [ADR 0052](../../adr/0052-extension-modules-on-a-wasm-abi.md):
 
 ## Change
 
-Slice 1, this PR: `oss-ext`, the ABI with no runtime dependency: the version rule, status codes, ceilings, the strict descriptor parser and the typed failures.
+Slice 1 (merged): `oss-ext`, the ABI with no runtime dependency: the version rule, status codes, ceilings, the strict descriptor parser and the typed failures.
 
-Later slices, each its own PR with its own `VERIFIED.md` rows: `oss-ext-wasm` (the host: wasmtime, the limits, the `Extensions` pool, a test-only point for hostile modules); the store and the administrator upload route behind `serverless.extensions.enabled`.
+Slice 2, this PR: `oss-ext-wasm`, the host: wasmtime, the limits, a reservation trait the caller supplies, and hostile modules tested through a test-only module builder. The `Extensions` pool itself arrives with slice 3, which wires the trait to it.
+
+Later slice, its own PR with its own `VERIFIED.md` rows: the store and the administrator upload route behind `serverless.extensions.enabled`.
+
+### Guest contract the host reads
+
+A module imports only `oss.log(ptr, len)` and `oss.cancelled() -> i32` and exports `memory`, `oss_abi_version() -> i32`, `oss_describe() -> i32` (the descriptor's length, written at the start of the output region), `oss_input_region() -> i32`, `oss_output_region() -> i32`, `oss_result_len() -> i32` and `oss_call(point, in_len, out_cap) -> i32`. Both regions must lie in memory, not overlap, and be `io_bytes` long. `cancelled` turns true at half the deadline; the epoch deadline ends the call by force at the whole of it, in steps of 10 ms.
 
 Not in this change: any point, pins, native modules, the write or search path.
 

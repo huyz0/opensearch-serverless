@@ -57,14 +57,18 @@ fn unprintable(c: char) -> bool {
 /// characters replaced, and the result cut to [`MAX_ERROR_DETAIL_BYTES`] on a
 /// character boundary.
 pub(crate) fn clean(raw: &[u8]) -> String {
-    let head = raw
-        .get(..MAX_ERROR_DETAIL_BYTES.saturating_mul(4))
-        .unwrap_or(raw);
-    // ALLOC: one failure, at most MAX_ERROR_DETAIL_BYTES kept of the module's text.
+    printable(raw, MAX_ERROR_DETAIL_BYTES)
+}
+
+/// A module's text made safe to log, cut to `max` bytes: [`clean`] with the
+/// bound chosen by the caller (a log line is longer than a failure's detail).
+pub fn printable(raw: &[u8], max: usize) -> String {
+    let head = raw.get(..max.saturating_mul(4)).unwrap_or(raw);
+    // ALLOC: one text, at most `max` bytes kept of the module's text.
     let mut out = String::new();
     for c in String::from_utf8_lossy(head).chars() {
         let c = if unprintable(c) { '?' } else { c };
-        if out.len().saturating_add(c.len_utf8()) > MAX_ERROR_DETAIL_BYTES {
+        if out.len().saturating_add(c.len_utf8()) > max {
             break;
         }
         out.push(c);
@@ -115,6 +119,16 @@ impl CallError {
             kind: FailureKind::Malformed,
             // ALLOC: one failure, a short message.
             detail: format!("undefined status {code}"),
+        }
+    }
+
+    /// The module broke the contract in a way a status does not name (an
+    /// output length past its region, a region outside memory).
+    pub fn malformed_because(why: &'static str) -> Self {
+        Self {
+            kind: FailureKind::Malformed,
+            // ALLOC: one failure, a short fixed message.
+            detail: why.to_owned(),
         }
     }
 
