@@ -42,6 +42,7 @@ src/doc_set.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/tem
 src/key_owner.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/metadata/RegisterMap.java@feature/serverlessshell	the index each key layout names
 src/repository_record.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/repository/RepositoryDescriptor.java@bf347adb	fromStream, read-only
 src/snapshot_record.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/repository/SnapshotRecord.java@bf347adb	fromStream and inProgress, as a summary without the files
+src/snapshot_restore.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/repository/SnapshotRecord.java@bf347adb	fromStream for one index with its mapping, settings and shard files, for a restore
 src/snapshot_state.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/repository/SnapshotStore.java@bf347adb	decode, the register value of a snapshot name
 src/snapshot_keys.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/repository/SnapshotPaths.java@bf347adb	repository, snapshot state and marker keys
 src/snapshot_write.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/repository/SnapshotRecord.java@bf347adb	toBytes, and SnapshotStore.encode for the register value

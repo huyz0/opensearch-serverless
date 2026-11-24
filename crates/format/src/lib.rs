@@ -65,6 +65,7 @@ mod shard_head;
 mod snapshot_keys;
 mod snapshot_pins;
 mod snapshot_record;
+mod snapshot_restore;
 mod snapshot_state;
 mod snapshot_write;
 mod tombstone;
@@ -128,6 +129,7 @@ pub use snapshot_keys::{
 };
 pub use snapshot_pins::{MAX_SNAPSHOT_RECORD_BYTES, snapshot_pinned_indexes};
 pub use snapshot_record::{SnapshotIndex, SnapshotSummary};
+pub use snapshot_restore::{RestoreIndex, RestoreShard};
 pub use snapshot_state::SnapshotState;
 pub use snapshot_write::{IndexCapture, ShardCapture, SnapshotDraft};
 pub use tombstone::{MAX_TOMBSTONE_BYTES, Tombstone, tombstone_bucket, tombstone_bucket_start};
