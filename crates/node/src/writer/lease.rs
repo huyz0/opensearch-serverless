@@ -49,6 +49,7 @@ pub struct MembershipLeaseWrite {
     membership: Arc<Membership>,
     lease: Mutex<NodeLease>,
     load: Option<Arc<LoadReport>>,
+    readiness: Option<Arc<crate::lifecycle::Readiness>>,
 }
 
 impl MembershipLeaseWrite {
@@ -58,7 +59,16 @@ impl MembershipLeaseWrite {
             membership,
             lease: Mutex::new(lease),
             load: None,
+            readiness: None,
         }
+    }
+
+    /// Drops the search role from the lease each write renews once `readiness`
+    /// drains.
+    #[must_use]
+    pub fn with_readiness(mut self, readiness: Arc<crate::lifecycle::Readiness>) -> Self {
+        self.readiness = Some(readiness);
+        self
     }
 
     /// Reports `load` in the lease each write renews.
@@ -76,6 +86,9 @@ impl LeaseWrite for MembershipLeaseWrite {
         lease.node_log = epochs.to_vec();
         if let Some(load) = &self.load {
             load.stamp(&mut lease);
+        }
+        if let Some(readiness) = &self.readiness {
+            readiness.stamp(&mut lease);
         }
         self.membership
             .renew(&lease)

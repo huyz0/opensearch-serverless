@@ -113,6 +113,8 @@ pub struct NodeConfig {
     pub plugin_max_request_bytes: u64,
     /// `serverless.plugins.timeout`, in milliseconds.
     pub plugin_timeout_millis: u64,
+    /// `serverless.search.drain.settle`, in milliseconds: how long a drain waits for the lease to lose the search role; two thirds of the lease TTL unless set.
+    pub drain_settle_millis: u64,
     /// `serverless.activation.hibernate_after_millis`; 0 never hibernates.
     pub hibernate_after_millis: u64,
     /// `serverless.search.commit_push.enabled`: a published commit is pushed
@@ -299,6 +301,9 @@ impl NodeConfig {
         let plugin_max_request_bytes =
             bounded("OSS_PLUGIN_MAX_REQUEST_BYTES", "10485760", 1, 1 << 40)?;
         let plugin_timeout_millis = bounded("OSS_PLUGIN_TIMEOUT_MS", "30000", 1, 3_600_000)?;
+        let drain_default = (lease_ttl_millis.saturating_mul(2) / 3).clamp(1, 60_000);
+        let drain_settle_millis =
+            bounded("OSS_DRAIN_SETTLE_MS", &drain_default.to_string(), 1, 60_000)?;
         let tail_overlay = flag("OSS_TAIL_OVERLAY", "true")?;
         let commit_push = flag(
             "OSS_COMMIT_PUSH",
@@ -413,6 +418,7 @@ impl NodeConfig {
             plugin_upstreams,
             plugin_max_request_bytes,
             plugin_timeout_millis,
+            drain_settle_millis,
             hibernate_after_millis,
             commit_push,
             give_back_after_millis,
@@ -447,6 +453,11 @@ impl NodeConfig {
     /// Whether the node takes writes: its lease names `ingest`.
     pub fn takes_writes(&self) -> bool {
         self.roles.contains(&"ingest")
+    }
+
+    /// How long a drain waits for the lease to lose the search role.
+    pub fn drain_settle(&self) -> Duration {
+        Duration::from_millis(self.drain_settle_millis)
     }
 
     /// How often the lease is renewed: a third of its lifetime.

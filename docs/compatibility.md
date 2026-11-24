@@ -91,3 +91,7 @@ A get of a shard another node owns is forwarded to its owner. The Java `Forwarde
 ## A `_bulk` with `Connection: close` on a Java shell node
 
 The Java shell answers a `_bulk` request that carries `Connection: close` with the head of a chunked reply and closes before the body, so the client reads `200` and no body. A Rust node answers it whole (`crates/rest/tests/peak_memory.rs` sends one). Found by the mixed-fleet soak ([mixed-fleet-soak](specs/mixed-fleet-soak/VERIFIED.md)). **Not fixed:** the Java shell is under a code freeze ([ADR 0001](adr/0001-strangler-and-crate-layout.md)), so the soak keeps its connection open; a client of a mixed fleet that cannot keep one open should read the bulk's effect from a later `_count`, not from the body.
+
+## `/_serverless/ready` and `/_serverless/drain` on a node
+
+`GET /_serverless/ready` answers 200 while the node takes new work and 503 once it is draining, for a Kubernetes readiness probe. `POST /_serverless/drain`, for a `preStop` hook, starts draining and answers after `OSS_DRAIN_SETTLE_MS` (`serverless.search.drain.settle`, default two thirds of the lease TTL, at most a minute); the node's next lease renewal then carries no `search` role, so no coordinator ranks it as a reader or pushes it a tail, while its `ingest` role and its shards stay. A second drain answers at once. **Differs:** the shell also hands its warm blocks to its peers and can start warming on join (`warm_on_join`); this node does neither yet ([node-ready-drain](specs/node-ready-drain/SPEC.md)).

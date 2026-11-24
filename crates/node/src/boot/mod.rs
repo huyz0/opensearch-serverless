@@ -46,7 +46,7 @@ use crate::read_forward::{GetForwarder, GetHandler};
 use crate::usage_route;
 use crate::writer::{
     DeadLogParts, DeadLogPass, DeadMailbox, DeadSnapshot, DescriptorIncarnation, HeadAdmission,
-    HeadOpener, LiveLeases, MembershipLeaseWrite, OrphanTimer, ShardNames, ShardOpener, Takeover,
+    HeadOpener, LiveLeases, OrphanTimer, ShardNames, ShardOpener, Takeover,
 };
 
 pub use config::{MIN_MEMORY_BYTES, NodeConfig, StoreChoice};
@@ -253,10 +253,9 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     let lease_for_enrolment = lease.clone();
     // What the lease tells peers this node holds; the renewal thread keeps it.
     let load = Arc::new(crate::writer::LoadReport::default());
+    let readiness = Arc::new(crate::lifecycle::Readiness::new());
     let keeper = Arc::new(LeaseKeeper::new(
-        Box::new(
-            MembershipLeaseWrite::new(Arc::clone(&membership), lease).with_load(Arc::clone(&load)),
-        ),
+        support::lease_writer(&membership, lease, &load, &readiness),
         log.clone(),
         inherited,
     ));
@@ -380,6 +379,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     ));
     let mut assembled = assemble::assemble(&node_config, Arc::clone(&store), &budget, writer)
         .and_then(|a| a.with_health(health, &config.cluster))
+        .and_then(|a| a.with_lifecycle(Arc::clone(&readiness), config.drain_settle()))
         .and_then(|a| usage_route::attach(a, usage, config, &clock))
         .map_err(BootError::Assemble)?;
     if let Some(buckets) = &buckets {
