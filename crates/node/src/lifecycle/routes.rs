@@ -40,7 +40,8 @@ fn ready(readiness: &Readiness, resp: &mut Response<'_>) -> Result<(), RestError
     if readiness.ready() {
         resp.send(200, JSON, br#"{"ready":true,"state":"ready"}"#)
     } else {
-        resp.send(503, JSON, br#"{"ready":false,"state":"draining"}"#)
+        let body = format!(r#"{{"ready":false,"state":"{}"}}"#, readiness.state());
+        resp.send(503, JSON, body.as_bytes())
     }
 }
 

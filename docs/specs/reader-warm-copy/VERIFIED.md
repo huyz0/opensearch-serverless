@@ -6,6 +6,6 @@
 - AC-4: partly: `crates/node/src/warm_copy/tests.rs` (`every_named_page_is_taken_and_the_pauses_add_up_to_the_byte_rate`, with an injected `Pause`) and `crates/node/src/warm_join/tests.rs` (`every_peer_is_asked_and_never_more_than_parallel_peers_at_once`, `a_joiner_whose_batches_do_not_fit_the_pool_asks_no_peer`). NOT-RUN: a fake clock showing no batch sent early over a whole join
 - AC-5: NOT-RUN: not built yet
 - AC-6: partly: `warm_copy/tests.rs` (`a_peer_that_does_not_answer_or_names_another_page_size_gives_nothing`, `a_short_page_ends_that_peers_copy_and_the_target_drops_what_it_did_not_give`, `a_copy_stops_when_the_wait_is_over`). NOT-RUN: a peer that refuses as a Java node does, an error mid-copy after pages were taken, and ready by `max_wait` with other peers' pages in
-- AC-7: NOT-RUN: not built yet
+- AC-7: partly: `crates/node/src/lifecycle/tests.rs` (`a_warming_node_is_not_ready_and_has_no_search_role_until_it_finishes`, `a_drain_is_reported_over_warming_and_finishing_does_not_undo_it`). NOT-RUN: the `ready_fraction` and `max_wait` trigger that ends warming, the 503 over HTTP, and the switch off giving 200 at once, which need the boot wiring
 - AC-8: NOT-RUN: not built yet
 - AC-9: partly: `crates/node/src/warm_expect/tests.rs` (`every_page_an_open_caches_is_one_the_joiner_would_accept_at_its_own_length`, `a_page_outside_what_the_open_commit_stores_is_refused`, `pinned_names_are_never_accepted_and_segments_files_are_pinned`). NOT-RUN: the copy loop applying it to a peer's answer
