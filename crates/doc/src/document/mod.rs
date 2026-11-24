@@ -10,6 +10,7 @@ mod dynamic;
 mod preview;
 mod reader;
 mod values;
+mod vector;
 mod walk;
 
 pub(crate) use preview::hash_order;

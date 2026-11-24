@@ -34,7 +34,9 @@ pub use field::Leaf;
 pub use numbers::{Num, NumType, java_parse_double};
 pub use object::{Dynamic, Mapper, Object};
 pub use params::Value;
-pub use types::{DEFAULT_DATE_FORMAT, FieldType, POSITION_INCREMENT_GAP_USE_ANALYZER};
+pub use types::{
+    DEFAULT_DATE_FORMAT, FieldType, KNN_NO_DIMENSION, POSITION_INCREMENT_GAP_USE_ANALYZER,
+};
 
 use json::Json;
 pub(crate) use object::join;

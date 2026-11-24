@@ -21,6 +21,8 @@ pub enum FieldValue {
     Date(i64),
     /// A `boolean`.
     Bool(bool),
+    /// A `knn_vector`'s components.
+    Vector(Vec<f32>),
 }
 
 /// 2^63, `(double) Long.MAX_VALUE`.
@@ -48,7 +50,7 @@ fn jackson_at(at: At) -> String {
 
 /// `InputCoercionException`, as OpenSearch reports it: twice, the second
 /// as the first's cause.
-fn coercion(message: &str, at: At) -> MappingError {
+pub(super) fn coercion(message: &str, at: At) -> MappingError {
     // ALLOC: error path; one message.
     let reason = format!("{message}{}", jackson_at(at));
     MappingError::input_coercion(&reason).caused_by(MappingError::input_coercion(&reason))
@@ -87,8 +89,7 @@ pub fn take(leaf: &Leaf, tok: &Tok, at: At) -> Result<Taken, MappingError> {
         FieldType::Boolean => boolean(leaf, tok, at),
         FieldType::Date => date(leaf, tok, at),
         FieldType::Number(ty) => number(leaf, ty, tok, at),
-        // The vector is not indexed yet; a mapping with the field is only
-        // accepted by a caller that asks for it.
+        // Read by the walker, which holds the array's tokens.
         FieldType::Knn => Err(MappingError::unsupported("knn_vector values")),
     }
 }
