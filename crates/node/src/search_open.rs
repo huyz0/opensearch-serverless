@@ -260,6 +260,11 @@ pub(super) fn open_failure(index: &str, e: ReaderError) -> Answer {
             // ALLOC: error path; one box.
             Answer::Search(Box::new(index_not_found(index)))
         }
+        ReaderError::Restoring => {
+            // ALLOC: error path; one message and one box.
+            let failure = Failure::opensearch("cluster_block_exception", e.to_string());
+            Answer::Search(Box::new(SearchError::request(503, failure)))
+        }
         e => {
             // ALLOC: error path; one message.
             let failure = Failure::opensearch("exception", e.to_string());

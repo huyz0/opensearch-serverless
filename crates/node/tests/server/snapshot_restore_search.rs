@@ -211,4 +211,32 @@ fn a_restored_index_answers_a_search_with_what_the_snapshot_captured() {
         assert_eq!(found.status, 200, "{name}: {}", found.text());
         assert_eq!(total(&found.text()), 3, "{name}: {}", found.text());
     }
+    // What a crash part-way leaves, a descriptor that still carries the
+    // restore's mark: the reader refuses it and answers nothing from it.
+    let mut stuck = IndexRecord::new("stuck", "u9", 1);
+    let marked = oss_format::mark_restoring(None).expect("marked");
+    stuck.settings = &marked;
+    descriptors()
+        .create(&stuck, 1, &mut vec![0u8; 1 << 16])
+        .expect("created");
+    let refused = support::request(
+        reader.local_addr(),
+        "POST",
+        "/stuck/_search",
+        Some(br#"{"size":0}"#),
+    );
+    assert_eq!(refused.status, 503, "{}", refused.text());
+    assert!(
+        refused.text().contains("cluster_block_exception")
+            && refused.text().contains("restore it again"),
+        "{}",
+        refused.text()
+    );
+    // And the restored index kept none of the mark.
+    let mut buf = vec![0u8; 1 << 16];
+    let kept = descriptors()
+        .get("copy", &mut buf)
+        .expect("reads")
+        .expect("there");
+    assert!(!oss_format::is_restoring(kept.settings));
 }

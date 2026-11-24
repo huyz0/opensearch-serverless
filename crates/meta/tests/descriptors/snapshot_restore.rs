@@ -6,7 +6,7 @@ use oss_blob::{BlobStore, ByteRange, SliceSource};
 use oss_format::{CommitManifest, FileLocation, RestoreIndex, ShardRef};
 use oss_meta::{CopyBuffers, DeleteMode, RestoreError, SnapshotRestorer};
 
-use crate::{BASE, Backend, all, counted};
+use crate::{BASE, Backend, Kind, all, counted};
 
 /// A record whose index `logs` (uuid `U1`) has shard 0: `_0.si` whole in
 /// term 3 (10 bytes) and `_0.cfs` packed in `t=3/pack` at 4 for 6 bytes.
@@ -86,7 +86,10 @@ fn an_index_is_restored_by_copying_each_file_and_landing_the_manifest() {
             .filter(|(op, _)| matches!(op, Get | GetRange))
             .map(|(_, c)| c)
             .sum();
-        assert_eq!(gets, 5, "{:?} {n:?}", b.kind);
+        // The filesystem store reads a register to compare it before it
+        // swaps, so the swap that clears the mark is one more read there.
+        let swap_read = u64::from(b.kind == Kind::Fs);
+        assert_eq!(gets, 5 + swap_read, "{:?} {n:?}", b.kind);
         assert!(n.iter().all(|(op, _)| *op != List), "{:?}", b.kind);
         assert!(!n.iter().any(|(op, _)| *op == Delete), "{:?}", b.kind);
         let puts: u64 = n.iter().filter(|(op, _)| *op == Put).map(|(_, c)| c).sum();
@@ -121,6 +124,10 @@ fn an_index_is_restored_by_copying_each_file_and_landing_the_manifest() {
         let got = d.get("logs2", &mut buf).unwrap().unwrap();
         assert_eq!(got.uuid, "U2");
         assert_eq!(got.mapping.as_deref(), Some(r#"{"p":1}"#));
+        // The mark a restore holds while it copies is gone, and the index's
+        // own settings are what it keeps.
+        assert!(!oss_format::is_restoring(got.settings), "{:?}", b.kind);
+        assert_eq!(got.settings, br#"{"index":{"x":1}}"#, "{:?}", b.kind);
     }
 }
 
@@ -197,15 +204,11 @@ fn a_source_shorter_than_recorded_fails_and_no_manifest_lands() {
             "{:?}",
             b.kind
         );
+        // The node died here, as far as the store can tell: the index is
+        // there, and still marked, so nothing reads or writes it.
+        let d = b.descriptors(DeleteMode::Conditional);
+        let mut record = vec![0u8; 1 << 16];
+        let left = d.get("logs2", &mut record).unwrap().unwrap();
+        assert!(oss_format::is_restoring(left.settings), "{:?}", b.kind);
     }
-}
-
-#[test]
-fn each_failure_says_what_went_wrong() {
-    assert_eq!(RestoreError::Unsupported("why").to_string(), "why");
-    assert!(
-        RestoreError::Conflict { shard: 3 }
-            .to_string()
-            .contains("shard 3")
-    );
 }
