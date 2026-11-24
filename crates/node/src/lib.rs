@@ -63,6 +63,8 @@ pub mod open_indexes;
 #[cfg(feature = "reader")]
 pub mod overlay_builder;
 #[cfg(feature = "writer")]
+pub mod pipeline_route;
+#[cfg(feature = "writer")]
 pub mod pit_route;
 #[cfg(feature = "reader")]
 pub mod push;

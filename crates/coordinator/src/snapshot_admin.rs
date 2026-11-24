@@ -3,7 +3,7 @@
 //!
 //! Ported from `serverless/shell/src/main/java/org/opensearch/serverless/snapshot/`
 //! (`SnapshotHandler`, `SnapshotRequestBodies.invalidName`, `RepositoryHandler`
-//! and `SnapshotOperations.writeSnapshotInfo`), read-only (ADR 0038). The
+//! and `SnapshotOperations.writeSnapshotInfo`), read-only (ADR 0039). The
 //! answers carry this node's version, the shell's (3.10.0).
 
 use std::fmt::Write;

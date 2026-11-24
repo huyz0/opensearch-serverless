@@ -37,3 +37,5 @@ src/shared.rs	new		a forwarding BlobStore over one shared store, so a node's rol
 src/children.rs	new		the portable listing of a prefix's children, one LIST each; the Java lists a container's children with the S3 delimiter
 src/usage.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/StoreUsage.java@feature/serverlessshell	StoreUsage and IndexUsage: a request goes to its key's index, else is split by weight, else the node's; the Java keeps no tap, it wraps each store call
 src/usage_store.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/StoreUsage.java@feature/serverlessshell	the wrapper that names the owner of each store call from its key
+src/guard/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/usage/Guardrails.java@feature/serverlessshell	levels from cost against a budget (tick, step, level, set levels); no clock, no settings, the caller names both
+src/guard/pace.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/usage/Guardrails.java@feature/serverlessshell	paceWrite: a token bucket of documents at the rate the budget allows; the caller sleeps
