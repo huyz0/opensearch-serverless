@@ -18,6 +18,8 @@ fn providers() -> Vec<&'static [&'static Setting]> {
         crate::tail_overlay::SETTINGS,
         #[cfg(all(feature = "reader", feature = "writer"))]
         crate::commit_push::SETTINGS,
+        #[cfg(all(feature = "reader", feature = "writer"))]
+        crate::warm_setting::SETTINGS,
         #[cfg(all(feature = "writer", feature = "coordinator"))]
         crate::knn_setting::SETTINGS,
         crate::security_setting::SETTINGS,
@@ -74,6 +76,7 @@ mod tests {
                 keys.len(),
                 7 + 6 * usize::from(reader)
                     + if writer { 37 + usize::from(reader) } else { 0 }
+                    + usize::from(reader && writer)
                     + usize::from(writer && cfg!(feature = "coordinator"))
             );
             assert_eq!(

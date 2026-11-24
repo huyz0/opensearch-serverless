@@ -172,3 +172,4 @@ src/core_settings.rs	new		the core index settings a create stores without readin
 src/warm_boot.rs	new		when a warming node is let in: at the ready share of the bytes named, at max_wait, or when the copy is done
 src/warm_boot/tests.rs	new		tests of the three ways a warming node is let in
 src/boot/tail/joining.rs	new		the warm-up of a joining reader on its own thread, ending when enough is in or the wait runs out
+src/warm_setting.rs	new		the per-index switch that leaves an index out of warm copy

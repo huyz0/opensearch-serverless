@@ -27,6 +27,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
         let open = self.lock();
         // ALLOC: one entry per open shard, which the open_indexes pool bounds.
         open.values()
+            .filter(|held| crate::warm_setting::index_wants_warm(&held.shard.meta.settings))
             .map(|held| HeldShard {
                 shard: ShardRef {
                     index_name: held.index.clone(),

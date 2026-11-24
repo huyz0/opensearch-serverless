@@ -22,8 +22,13 @@ fn service(dir: &std::path::Path) -> (Arc<SearchService<Emulator>>, Arc<PageCach
     let budget = MemoryBudget::new(&config);
     let buffers = BufferPool::new(&budget, Pool::Transport, SMALL_BUFFER, 8).expect("fits");
     let store = PooledStore::new(Emulator::new(64 << 20, 1), buffers);
-    for name in ["idx-a", "idx-b"] {
-        for (key, bytes) in blobs("", &Spec::new(name, 200)) {
+    let cold = r#"{"index.serverless.search.warm_on_join.enabled":"false"}"#;
+    for spec in [
+        Spec::new("idx-a", 200),
+        Spec::new("idx-b", 200),
+        Spec::new("idx-cold", 200).with_settings(cold),
+    ] {
+        for (key, bytes) in blobs("", &spec) {
             store.put(&key, &mut SliceSource::new(&bytes)).expect("put");
         }
     }
@@ -114,4 +119,16 @@ fn a_shard_the_joiner_opens_accepts_the_pages_its_open_cached_and_no_other_shard
         accepted += 1;
     }
     assert!(accepted > 0, "an unpinned page was checked");
+}
+
+// docs/specs/reader-warm-copy AC-2
+#[test]
+fn an_open_index_that_sets_its_switch_to_false_is_not_listed() {
+    let dir = oss_testkit::TempDir::new("search-warm-index-off");
+    let (service, _cache) = service(dir.path());
+    for index in ["idx-a", "idx-cold"] {
+        service.open(index, 0).expect("opens");
+    }
+    assert_eq!(service.held_shards().len(), 1);
+    assert_eq!(service.held()[0].shard.index_name, "idx-a");
 }

@@ -1,6 +1,10 @@
 //! docs/specs/reader-warm-copy: a reader joining a cluster takes its peer's
 //! hot pages into its own disk tier before it says it is ready.
 
+// ARITH: the sums and offsets are of small test numbers; an overflow panics
+// the test, which fails it as it should.
+#![allow(clippy::arithmetic_side_effects)]
+
 use std::time::{Duration, Instant};
 
 use crate::support;
@@ -22,6 +26,7 @@ fn boot(root: &str, id: &str, tier: &std::path::Path, warm: bool) -> Node {
                 "OSS_PAGE_CACHE_BYTES" => "67108864",
                 "OSS_WARM_ON_JOIN" if warm => "true",
                 "OSS_WARM_MAX_WAIT_SECONDS" => "30",
+                "OSS_STORE_USAGE" => "true",
                 _ => return None,
             }
             .to_owned(),
@@ -131,4 +136,73 @@ fn a_node_not_asked_to_warm_is_ready_at_once_and_holds_nothing() {
     assert_eq!(ready.status, 200, "{}", ready.text());
     std::thread::sleep(Duration::from_millis(500));
     assert_eq!(used(tier_b.path()), 0, "switch off: no pages taken");
+}
+
+/// The GETs, ranged GETs and HEADs a node has made for `index`, from its
+/// usage report.
+fn reads(node: &Node, index: &str) -> f64 {
+    let body = call(node, "GET", "/_serverless/usage", None).text();
+    // An index the node has not touched is not listed: no reads.
+    let Some(at) = body.find(&format!("\"{index}\":{{\"cost_units\"")) else {
+        return 0.0;
+    };
+    let rest = &body[at..];
+    ["\"get\":", "\"get_range\":", "\"head\":"]
+        .iter()
+        .map(|key| {
+            let from = rest.find(key).expect("a kind") + key.len();
+            let to = rest[from..].find([',', '}']).expect("an end") + from;
+            rest[from..to].parse::<f64>().expect("a number")
+        })
+        .sum()
+}
+
+fn first_search(node: &Node) -> Duration {
+    let started = Instant::now();
+    let found = call(
+        node,
+        "POST",
+        "/logs/_search",
+        Some(r#"{"query":{"match":{"msg":"line"}},"size":3}"#),
+    );
+    assert_eq!(found.status, 200, "{}", found.text());
+    started.elapsed()
+}
+
+// docs/specs/reader-warm-copy AC-8: what the first search of a joining reader
+// costs with the warm-up and without it, over the same shard.
+#[test]
+fn the_first_search_of_a_warmed_reader_makes_fewer_store_reads_than_a_cold_one() {
+    let store = TempDir::new("warm-join-measure");
+    let root = store.path().display().to_string();
+    let tiers = ["a", "b", "c"].map(|n| TempDir::new(&format!("warm-join-measure-{n}")));
+
+    let a = boot(&root, "n1", tiers[0].path(), true);
+    wait_ready(&a);
+    search(&a);
+
+    let b = boot(&root, "n2", tiers[1].path(), true);
+    wait_ready(&b);
+    let warm_up = reads(&b, "logs");
+    let warm_search_time = first_search(&b);
+    let warm_search = reads(&b, "logs") - warm_up;
+
+    let c = boot(&root, "n3", tiers[2].path(), false);
+    wait_ready(&c);
+    let before = reads(&c, "logs");
+    let cold_search_time = first_search(&c);
+    let cold_search = reads(&c, "logs") - before;
+
+    eprintln!(
+        "AC-8 store reads for logs: warm-up {warm_up}, first search after it {warm_search} \
+         ({warm_search_time:?}); cold first search {cold_search} ({cold_search_time:?})"
+    );
+    assert!(
+        warm_search < cold_search,
+        "warm {warm_search} against cold {cold_search}"
+    );
+    assert!(
+        warm_up + warm_search <= cold_search,
+        "the warm-up and the search together read no more than the cold search"
+    );
 }
