@@ -122,6 +122,8 @@ pub struct NodeConfig {
     pub pinned_indexes: Vec<String>,
     /// `serverless.activation.hand_off.enabled`.
     pub hand_off: bool,
+    /// `serverless.knn.enabled`.
+    pub knn: bool,
     /// `OSS_STORE_USAGE`: count the store's requests and bytes per index
     /// and serve them at `GET /_serverless/usage`.
     pub store_usage: bool,
@@ -262,6 +264,7 @@ impl NodeConfig {
             .map(str::to_owned)
             .collect();
         let hand_off = flag("OSS_HAND_OFF", "false")?;
+        let knn = flag("OSS_KNN", "false")?;
         let store_usage = flag("OSS_STORE_USAGE", "false")?;
         let store_usage_max_indices = bounded("OSS_STORE_USAGE_MAX_INDICES", "1000", 1, 1_000_000)?;
         let write_limit = write_limit::read(&bounded)?;
@@ -316,6 +319,7 @@ impl NodeConfig {
             evict_headroom_percent,
             pinned_indexes,
             hand_off,
+            knn,
             store_usage,
             store_usage_max_indices: usize::try_from(store_usage_max_indices).unwrap_or(1000),
             proactive_takeover,

@@ -331,14 +331,19 @@ impl<'d> Shard<'d> {
                     .map_err(Refused::Mapping)?,
             )
         };
-        let doc = match (fast, &parsed) {
-            (Some(f), _) => f
-                .finish(seq_no, self.primary_term, p.version)
-                .pop()
-                .ok_or_else(|| Refused::Mapping(MappingError::illegal_state("no document read")))?,
+        let (doc, vectors) = match (fast, &parsed) {
+            (Some(f), _) => (
+                f.finish(seq_no, self.primary_term, p.version)
+                    .pop()
+                    .ok_or_else(|| {
+                        Refused::Mapping(MappingError::illegal_state("no document read"))
+                    })?,
+                // ALLOC: no vectors, one document.
+                Vec::new(),
+            ),
             (None, Some(parsed)) => self
                 .indexer
-                .document_routed(&mut self.writer, mapping, parsed, &meta, routing)
+                .document_with_vectors(&mut self.writer, mapping, parsed, &meta, routing)
                 .map_err(Refused::Mapping)?,
             (None, None) => {
                 return Err(Refused::Mapping(MappingError::illegal_state(
@@ -348,11 +353,23 @@ impl<'d> Shard<'d> {
         };
         // ALLOC: one document a write.
         let docs = vec![doc];
-        match soft {
-            None => self.writer.add_explicit_documents(docs),
-            Some(_) => self.writer.soft_update_explicit_documents(
+        match (soft, vectors.is_empty()) {
+            (None, true) => self.writer.add_explicit_documents(docs),
+            (None, false) => {
+                self.writer
+                    // ALLOC: one vector list a document with vectors, one document.
+                    .add_explicit_documents_with_vectors(None, docs, vec![vectors])
+            }
+            (Some(_), true) => self.writer.soft_update_explicit_documents(
                 Term::new("_id", key.clone()),
                 docs,
+                &[soft_delete(&key)],
+            ),
+            (Some(_), false) => self.writer.soft_update_explicit_documents_with_vectors(
+                Term::new("_id", key.clone()),
+                docs,
+                // ALLOC: one vector list a document with vectors, one document.
+                vec![vectors],
                 &[soft_delete(&key)],
             ),
         }

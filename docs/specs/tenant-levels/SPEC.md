@@ -2,7 +2,7 @@
 
 ## Serves
 
-Roadmap R13.4, the first piece: the policy of the shell's `Guardrails` (levels from cost against a budget, and write pacing at level three), over the usage ledger of [store-usage](../store-usage/SPEC.md). [ADR 0039](../../adr/0039-tenant-cost-levels.md).
+Roadmap R13.4, the first piece: the policy of the shell's `Guardrails` (levels from cost against a budget, and write pacing at level three), over the usage ledger of [store-usage](../store-usage/SPEC.md). [ADR 0041](../../adr/0041-tenant-cost-levels.md).
 
 ## Change
 

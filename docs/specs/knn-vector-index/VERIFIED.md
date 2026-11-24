@@ -1,0 +1,5 @@
+- AC-1: `rust_documents_index_as_the_java_indexes_them` in crates/writer/tests/segment_fixtures.rs (the knn fixtures)
+- AC-2: `a_shard_writes_each_vector_it_indexes_and_an_update_adds_the_new_one` in crates/writer/tests/shard_knn.rs
+- AC-3: `knn_segments_are_written_for_java_to_check` in crates/writer/tests/knn_check_index.rs (ignored; run by hand with the stock lucene-core 10.6.0 `CheckIndex`, passed on l2, cosinesimil and innerproduct)
+- AC-4: `a_knn_vector_mapping_is_refused_unless_the_node_setting_is_on` in crates/node/tests/server/index_route.rs, `knn_is_off_by_default_and_set_by_its_variable` in crates/node/src/boot/config/tests.rs, `a_stored_mapping_with_a_vector_field_is_read_whatever_the_setting` in crates/doc/tests/knn_mapping.rs
+- AC-5: NOT-RUN: the writer fixture and request-budget suites are run in CI on the PR
