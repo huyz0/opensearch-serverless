@@ -120,3 +120,4 @@ src/pipeline_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverl
 src/usage_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/UsageHandler.java@feature/serverlessshell	GET /_serverless/usage: node id, clock, and each index's cost units, requests and bytes
 src/snapshot_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/SnapshotHandler.java	the read-only _snapshot routes over the snapshot reader
 src/tenants.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/usage/Guardrails.java@feature/serverlessshell	the node side of the tenant levels: roll the ledger up by tenant, step the policy every 10 s, report; no levels act yet
+src/writer/group_sink.rs	new		the call that tells the tenant levels an index's bucket group when a writer opens a shard of it

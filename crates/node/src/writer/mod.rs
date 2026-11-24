@@ -12,6 +12,7 @@ mod capacity;
 mod dead_log_pass;
 mod dead_logs;
 mod get;
+mod group_sink;
 mod heads;
 mod hibernate;
 mod incarnation;
@@ -63,6 +64,7 @@ pub use dead_log_pass::{
     DeadLogParts, DeadLogPass, DeadLogReport, DeadMailbox, DeadSnapshot, REAPERS,
 };
 pub use dead_logs::{StoreCommits, StoreNodeLogs};
+pub use group_sink::GroupSink;
 pub use heads::{HeadAdmission, ShardNames};
 pub use hibernate::{
     GIVE_BACK_PER_PASS, HIBERNATE_AFTER_MILLIS, HibernatePass, KEEP_ASLEEP_MILLIS,
@@ -78,7 +80,7 @@ pub use proactive::{
     Config as ProactiveConfig, ProactiveTakeover, Report as ProactiveReport,
     SETTINGS as PROACTIVE_SETTINGS,
 };
-pub use publish_age::publish_age_of;
+pub use publish_age::{bucket_group_of, group_settings, publish_age_of};
 pub use publish_timer::PublishTimer;
 pub use publishing::{PublishPass, Publishing};
 pub use routes::Routes;
@@ -122,6 +124,8 @@ pub struct WriterRole {
     newest: Mutex<Newest>,
     publishing: Option<Publishing>,
     tail: OnceLock<Arc<dyn TailSink>>,
+    /// Told the bucket group of each index a shard of is opened.
+    groups: OnceLock<GroupSink>,
     /// Told of every commit a publish stages.
     commits: OnceLock<Arc<dyn CommitSink>>,
     /// How far a refresh is made visible before it returns; the code of a
@@ -166,6 +170,7 @@ impl WriterRole {
             newest: Mutex::new(HashMap::new()),
             publishing: None,
             tail: OnceLock::new(),
+            groups: OnceLock::new(),
             commits: OnceLock::new(),
             visibility: AtomicU8::new(0),
             opener: None,

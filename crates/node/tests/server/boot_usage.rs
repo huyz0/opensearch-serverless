@@ -15,6 +15,7 @@ fn boot(root: &std::path::Path, usage: Option<&str>) -> Node {
         "OSS_FS_ROOT" => Some(root.clone()),
         "OSS_HTTP_ADDR" | "OSS_TRANSPORT_ADDR" => Some("127.0.0.1:0".to_owned()),
         "OSS_STORE_USAGE" => usage.map(str::to_owned),
+        "OSS_TENANT_TICK_MS" => Some("20".to_owned()),
         _ => None,
     };
     start(&NodeConfig::from_lookup(lookup).expect("valid")).expect("starts")
@@ -55,4 +56,39 @@ fn a_node_without_store_usage_serves_no_usage_route() {
     let reply = call(&node, "GET", "/_serverless/usage", None);
     assert_ne!(reply.status, 200, "{}", reply.text());
     assert!(!reply.text().contains("cost_units"));
+}
+
+// docs/specs/tenant-levels-wiring AC-8
+#[test]
+fn an_index_created_with_a_bucket_group_bills_to_that_tenant() {
+    let dir = TempDir::new("boot-tenants");
+    let node = boot(dir.path(), Some("true"));
+    let made = call(
+        &node,
+        "PUT",
+        "/logs-a",
+        Some(r#"{"settings":{"index.serverless.bucket_group":"acme"}}"#),
+    );
+    assert_eq!(made.status, 200, "{}", made.text());
+    assert_eq!(call(&node, "PUT", "/plain", None).status, 200);
+    for index in ["logs-a", "plain"] {
+        let put = call(
+            &node,
+            "PUT",
+            &format!("/{index}/_doc/1"),
+            Some(r#"{"n":1}"#),
+        );
+        assert_eq!(put.status, 201, "{}", put.text());
+    }
+    let started = std::time::Instant::now();
+    loop {
+        let body = call(&node, "GET", "/_serverless/usage", None).text();
+        if body.contains("\"acme\":{\"level\"") && body.contains("\"plain\":{\"level\"") {
+            assert!(!body.contains("\"tenants\":{\"logs-a\""), "{body}");
+            assert!(!body.contains("\"logs-a\":{\"level\""), "{body}");
+            return;
+        }
+        assert!(started.elapsed().as_secs() < 10, "{body}");
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
 }

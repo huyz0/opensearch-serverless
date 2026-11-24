@@ -162,6 +162,10 @@ impl IndexService {
         record.mapping = asked.mapping.as_deref().map(Cow::Borrowed);
         record.created_at_millis = now;
         record.created_version_id = CREATED_VERSION_ID;
+        let group_settings = bucket_group.as_deref().map(crate::writer::group_settings);
+        if let Some(settings) = &group_settings {
+            record.settings = settings;
+        }
         if asked.shards == 1
             && !bucket_off
             && let Some(join) = &self.join

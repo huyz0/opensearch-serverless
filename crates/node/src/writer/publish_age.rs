@@ -15,7 +15,7 @@ const KEY: &str = "index.refresh_interval";
 
 /// The member `key` of settings JSON, flat (`"index.a.b"`) or nested
 /// (`{"index":{"a":{"b":..}}}`).
-fn find<'a>(settings: &'a [(String, Json)], key: &str) -> Option<&'a Json> {
+pub(super) fn find<'a>(settings: &'a [(String, Json)], key: &str) -> Option<&'a Json> {
     if let Some((_, v)) = settings.iter().find(|(k, _)| k == key) {
         return Some(v);
     }
@@ -50,4 +50,31 @@ pub fn publish_age_of(settings: &[u8]) -> PublishAge {
         return PublishAge::Never;
     }
     time_millis(KEY, value).map_or(PublishAge::Node, PublishAge::Millis)
+}
+
+const GROUP_KEY: &str = "index.serverless.bucket_group";
+
+/// The `index.serverless.bucket_group` a descriptor's settings JSON names:
+/// the tenant the index bills to; `None` when it sets none.
+#[must_use]
+pub fn bucket_group_of(settings: &[u8]) -> Option<String> {
+    let Ok(Json::Obj(members)) = parse(settings) else {
+        return None;
+    };
+    match find(&members, GROUP_KEY) {
+        // ALLOC: one name, once a shard opened.
+        Some(Json::Str(group)) if !group.is_empty() => Some(group.to_string()),
+        _ => None,
+    }
+}
+
+/// The descriptor settings JSON of an index created with `group`.
+#[must_use]
+pub fn group_settings(group: &str) -> Vec<u8> {
+    // ALLOC: one small body, once an index created.
+    let mut out = Vec::with_capacity(group.len().saturating_add(40));
+    out.extend_from_slice(b"{\"index.serverless.bucket_group\":");
+    let _ = oss_rest::write_json_str(&mut out, group);
+    out.push(b'}');
+    out
 }
