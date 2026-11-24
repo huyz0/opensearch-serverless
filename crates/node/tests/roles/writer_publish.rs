@@ -180,6 +180,26 @@ fn a_later_write_waits_for_its_age_rounded_up_to_the_tick() {
     assert_eq!(published(&r), 0, "nothing written since");
 }
 
+// docs/specs/tenant-publish-stretch AC-3
+#[test]
+fn a_stretch_asked_by_index_name_lengthens_the_wait_of_that_index() {
+    let r = rig(1_000);
+    assert!(
+        r.role
+            .set_publish_stretch(Arc::new(|index| if index == "logs" { 4 } else { 1 }))
+    );
+    assert!(!r.role.set_publish_stretch(Arc::new(|_| 1)), "once");
+    write(&r.role);
+    assert_eq!(published(&r), 1);
+    at(&r, 100);
+    write(&r.role);
+    // Due at ceil((100 + 4 * 1000) / 250) * 250 = 4250.
+    at(&r, 4_249);
+    assert_eq!(published(&r), 0);
+    at(&r, 4_250);
+    assert_eq!(published(&r), 1);
+}
+
 #[test]
 fn age_zero_publishes_every_pass_with_a_write() {
     let r = rig(0);

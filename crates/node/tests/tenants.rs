@@ -184,3 +184,73 @@ fn a_bucket_group_is_written_and_read_back_from_descriptor_settings() {
         assert_eq!(bucket_group_of(none), None);
     }
 }
+
+// docs/specs/tenant-publish-stretch AC-2
+#[test]
+fn an_enforced_tenant_at_level_one_publishes_four_times_less_often() {
+    let (ledger, _) = rig();
+    for (mode, want) in [(Mode::Enforce, 4), (Mode::Observe, 1), (Mode::Off, 1)] {
+        let levels = TenantLevels::new(Arc::clone(&ledger), mode, 1);
+        levels.note_group("a", "acme");
+        levels.set_levels("acme=1,other=0");
+        assert_eq!(levels.publish_stretch("a", 0), want, "{mode:?}");
+        assert_eq!(levels.publish_stretch("unrelated", 0), 1, "{mode:?}");
+    }
+    let levels = TenantLevels::new(ledger, Mode::Enforce, 1);
+    assert_eq!(levels.publish_stretch("a", 0), 1, "no level set");
+}
+
+/// A tenant over its budget with documents, held at level 3 from outside,
+/// at 80 s: 5 documents a second fit its budget, a burst of 20.
+fn paced(mode: Mode) -> TenantLevels {
+    let (ledger, store) = rig();
+    let levels = TenantLevels::new(ledger, mode, 6);
+    levels.tick(0);
+    for step in 1..=8_i64 {
+        put(&store, "busy", 2);
+        assert_eq!(levels.admit_write("busy", 100, step * 10_000), Ok(0));
+        levels.tick(step * 10_000);
+    }
+    levels.set_levels("busy=3");
+    levels
+}
+
+// AC-1
+#[test]
+fn documents_written_are_counted_per_tenant_and_reported() {
+    let levels = paced(Mode::Observe);
+    let report = levels.report(80_000);
+    assert!(
+        (report[0].1.docs_per_minute - 600.0).abs() < 0.01,
+        "{report:?}"
+    );
+}
+
+// AC-2
+#[test]
+fn an_enforced_tenant_at_level_three_is_held_to_its_budget_and_refused_past_the_longest_wait() {
+    let levels = paced(Mode::Enforce);
+    assert_eq!(
+        levels.admit_write("busy", 10, 80_000),
+        Ok(0),
+        "within the burst"
+    );
+    assert_eq!(
+        levels.admit_write("busy", 30, 80_000),
+        Ok(4_000),
+        "held for the 20 it lacks"
+    );
+    assert_eq!(
+        levels.admit_write("other", 1_000, 80_000),
+        Ok(0),
+        "another tenant"
+    );
+    let refused = levels
+        .admit_write("busy", 100, 80_000)
+        .expect_err("refused");
+    assert!(refused > 5_000, "{refused}");
+    let observed = paced(Mode::Observe);
+    for docs in [10, 30, 100] {
+        assert_eq!(observed.admit_write("busy", docs, 80_000), Ok(0));
+    }
+}

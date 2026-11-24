@@ -107,16 +107,16 @@ fn info(name: &str, shards: u32) -> IndexInfo {
     }
 }
 
-struct Rig {
+pub(super) struct Rig {
     store: Arc<Emulator>,
     log: NodeLogStore,
     lease: Arc<Lease>,
     admission: Arc<Admission>,
     cluster: Arc<Cluster>,
-    role: WriterRole,
+    pub(super) role: WriterRole,
 }
 
-fn rig() -> Rig {
+pub(super) fn rig() -> Rig {
     let store = Arc::new(Emulator::new(1 << 30, 7));
     let log =
         NodeLogStore::new(Arc::clone(&store) as Arc<dyn BlobStore>, "", "node-1").expect("names");
@@ -144,7 +144,7 @@ fn rig() -> Rig {
     }
 }
 
-fn open(r: &Rig, name: &str, shards: u32) {
+pub(super) fn open(r: &Rig, name: &str, shards: u32) {
     let i = info(name, shards);
     for s in 0..shards {
         r.role
@@ -158,7 +158,7 @@ fn open(r: &Rig, name: &str, shards: u32) {
     }
 }
 
-fn bulk(r: &Rig, index: &str, body: &str) -> Vec<Item> {
+pub(super) fn bulk(r: &Rig, index: &str, body: &str) -> Vec<Item> {
     let defaults = Defaults {
         index: Some(index.into()),
         ..Defaults::default()
@@ -184,16 +184,16 @@ fn bulk(r: &Rig, index: &str, body: &str) -> Vec<Item> {
     run.finish().expect("finishes")
 }
 
-fn docs(ids: impl Iterator<Item = String>) -> String {
+pub(super) fn docs(ids: impl Iterator<Item = String>) -> String {
     ids.map(|id| format!("{{\"index\":{{\"_id\":\"{id}\"}}}}\n{{\"n\":1}}\n"))
         .collect()
 }
 
-fn puts(r: &Rig) -> u64 {
+pub(super) fn puts(r: &Rig) -> u64 {
     r.store.meter().count(S3Op::Put)
 }
 
-fn written(items: &[Item]) -> usize {
+pub(super) fn written(items: &[Item]) -> usize {
     items
         .iter()
         .filter(|i| matches!(i.result, ItemResult::Written { .. }))

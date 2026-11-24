@@ -70,8 +70,10 @@ pub(crate) fn levenshtein(target: &str, other: &str) -> f32 {
     let n = fill(&mut sa, target);
     let m = fill(&mut so, other);
     let (sa, so) = (&sa[..n], &so[..m]);
-    if n == 0 || m == 0 {
-        return if n == m { 1.0 } else { 0.0 };
+    // With one side empty the table below gives 0: every unit of the other
+    // is an edit, and the longest is that side.
+    if n == 0 && m == 0 {
+        return 1.0;
     }
     let mut p = [0u32; MAX + 1];
     let mut d = [0u32; MAX + 1];
@@ -174,5 +176,13 @@ mod tests {
     fn names_past_the_scratch_are_compared_on_their_prefix() {
         let long = "x".repeat(300);
         assert_eq!(levenshtein(&long, &long), 1.0);
+    }
+
+    #[test]
+    fn an_empty_name_is_all_edits_from_any_other_and_alike_to_another_empty() {
+        assert!((levenshtein("", "") - 1.0).abs() < f32::EPSILON);
+        assert!(levenshtein("", "abc").abs() < f32::EPSILON);
+        assert!(levenshtein("abc", "").abs() < f32::EPSILON);
+        assert!((levenshtein("abc", "abd") - 2.0 / 3.0).abs() < 1e-6);
     }
 }
