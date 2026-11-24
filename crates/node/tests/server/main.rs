@@ -51,6 +51,11 @@ mod push_read;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod read_forward;
 #[cfg(all(feature = "reader", feature = "writer"))]
+mod security_authn;
+mod security_hardening;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod security_limits;
+#[cfg(all(feature = "reader", feature = "writer"))]
 mod security_route;
 mod snapshot_delete;
 #[cfg(all(feature = "reader", feature = "writer"))]

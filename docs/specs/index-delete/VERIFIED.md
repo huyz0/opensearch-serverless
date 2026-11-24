@@ -10,3 +10,4 @@
 - AC-8: `an_owned_shard_waits_for_the_drain`
 - AC-9: `a_missing_index_is_404_and_several_names_are_refused`
 - AC-10: `scripts/tree-checks.sh` runs without the script; its self-test and gate rows are removed. Seen: `scripts/tree-checks.sh` green
+- AC-11: `an_index_a_snapshot_names_keeps_its_bytes_and_another_is_purged`, `without_the_snapshot_reading_a_delete_purges_what_a_snapshot_names`, `a_released_snapshot_names_nothing_and_a_retried_drain_frees_the_bytes`, `a_store_that_fails_while_reading_the_snapshots_refuses_the_purge_as_a_store_error`, `a_delete_that_reads_the_snapshots_costs_what_the_budget_says`

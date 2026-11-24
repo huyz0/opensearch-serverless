@@ -134,3 +134,7 @@ src/search_slots.rs	port	serverless/shell/src/main/java/org/opensearch/serverles
 src/boot/config/search_slots.rs	new		the OSS_SEARCH_* settings of the search gate; the shell reads its admission settings from cluster settings
 src/boot/config/roles.rs	new		OSS_ROLES, the roles a node's lease names; the shell reads serverless.roles (ingest, search; empty is coordinating only)
 src/id_lanes.rs	new		a generator of auto ids a write request; the shell shares one generator, and a lock held across a request is what this removes
+src/security_state.rs	new		the node snapshot of the security configuration
+src/security_auth.rs	new		credential checks with bounded bcrypt, and the guard
+src/clock.rs	new		the wall clock in milliseconds
+src/boot/config/security_tests.rs	new		tests for the security settings of the node configuration

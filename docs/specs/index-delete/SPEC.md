@@ -7,9 +7,9 @@ R7 node assembly; [ADR 0012](../../adr/0012-index-deletes-and-reclaim.md), whose
 ## Change
 
 - `oss-cluster`: `HeadRegisters` reads, deletes at a generation, releases and removes the heads of one index incarnation by their derived keys (one request a shard, never a LIST).
-- `oss-node`: `ShardHeads` over `HeadRegisters`; `ShardPins` over the live points in time (a view that cannot be read, or a capture of the index, pins every shard; a view of the uuid pins the shards it names); a `SnapshotPins` hook the assembly fills, with no source today because the Rust node takes no snapshots (snapshot management is out of scope, [compatibility](../../compatibility.md)); `DELETE /{index}` over `IndexLifecycle::delete_index` (purge inline when no shard had a writer, else at the intent's reclaim); a reclaim drain timer that takes due intents on this node.
+- `oss-node`: `ShardHeads` over `HeadRegisters`; `ShardPins` over the live points in time (a view that cannot be read, or a capture of the index, pins every shard; a view of the uuid pins the shards it names); a `SnapshotPins` hook the assembly fills with `StoreSnapshotPins` (the janitor's snapshot read) when snapshots are on, and with none otherwise; `DELETE /{index}` over `IndexLifecycle::delete_index` (purge inline when no shard had a writer, else at the intent's reclaim); a reclaim drain timer that takes due intents on this node.
 - Retires the unwired-deletes check and its self-test and gate row.
-- Not changed: wildcard or comma-separated names (refused 400), aliases as delete targets, batched blob deletes, snapshot pins (an extension point only).
+- Not changed: wildcard or comma-separated names (refused 400), aliases as delete targets, batched blob deletes, snapshot pins beyond the read of the stored snapshots.
 
 ## Acceptance criteria
 
@@ -22,6 +22,7 @@ R7 node assembly; [ADR 0012](../../adr/0012-index-deletes-and-reclaim.md), whose
 - AC-7: a shard a live point in time names keeps its blobs after the delete.
 - AC-8: a delete of an index with an owned head files its intent with `had_writer` true, purges nothing inline, and the drain, once the intent is due, purges it and removes the intent.
 - AC-9: a missing index answers 404 `index_not_found_exception`; a wildcard or comma list answers 400.
+- AC-11: with snapshots on, a delete of an index a snapshot names keeps every shard's blobs and another index is purged; a released snapshot's blobs are purged at the drain; a store failure while reading the snapshots is a store error and purges nothing. With snapshots off the delete reads none. Cost: [`index.delete_pinned.requests`](../../request-budgets.md).
 - AC-10: no crate is barred from naming the lifecycle: the unwired-deletes check is gone.
 
 ## Test plan

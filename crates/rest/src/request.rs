@@ -5,6 +5,7 @@
 //! The body streams; see [`Body`].
 
 use std::borrow::Cow;
+use std::sync::Arc;
 
 use crate::body::Body;
 use crate::head::Head;
@@ -21,6 +22,7 @@ pub struct Request<'a> {
     pub(crate) params: &'a QueryParams,
     pub(crate) path_params: &'a [PathParam],
     pub(crate) head: &'a Head,
+    pub(crate) principal: Option<Arc<str>>,
     pub(crate) head_buf: &'a [u8],
     pub(crate) body: Body<'a>,
 }
@@ -49,6 +51,11 @@ impl<'a> Request<'a> {
     /// A query parameter, percent-decoded; the last one wins when repeated.
     pub fn param(&self, name: &str) -> Option<Cow<'a, str>> {
         self.params.get(self.query, name)
+    }
+
+    /// Who the request acts as, when a guard admitted it with a name.
+    pub fn principal(&self) -> Option<&str> {
+        self.principal.as_deref()
     }
 
     /// The first value of a header, compared case-insensitively.

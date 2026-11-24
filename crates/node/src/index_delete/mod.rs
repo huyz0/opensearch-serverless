@@ -22,15 +22,15 @@ use oss_meta::{
 use oss_rest::{Exception, JSON, Method, Request, Response, RestError, RouteError, Router};
 
 pub use heads::NodeHeads;
-pub use pins::{NoSnapshots, NodePins, SnapshotPins};
+pub use pins::{NoSnapshots, NodePins, SnapshotPins, StoreSnapshotPins};
 pub use timer::DrainTimer;
 
 /// The lifetime of an alias reservation a delete's detach takes.
 const ALIAS_TTL_MILLIS: i64 = 30_000;
 
-/// Buffers a delete holds: the lifecycle's, its alias mutations' three, and
-/// the pins' one.
-const BUFFERS: usize = 5;
+/// Buffers a delete holds: the lifecycle's, its alias mutations' three, the
+/// pins' one and the snapshot pins' one.
+const BUFFERS: usize = 6;
 
 /// The query parameters a delete accepts and has nothing to do for.
 const PARAMS: &[&str] = &["timeout", "master_timeout", "cluster_manager_timeout"];
@@ -56,7 +56,7 @@ pub struct DeleteService {
 
 impl DeleteService {
     /// A service over `store` under `base`. Each request holds
-    /// five buffers of `buffer_bytes`, charged to the request-body pool.
+    /// six buffers of `buffer_bytes`, charged to the request-body pool.
     ///
     /// # Errors
     ///

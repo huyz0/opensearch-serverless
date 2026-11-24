@@ -49,6 +49,12 @@ impl Target for HttpTarget {
                 b.len()
             ));
         }
+        if let Some(auth) = request.auth.as_deref().filter(|a| !a.is_empty()) {
+            head.push_str(&format!(
+                "authorization: Basic {}\r\n",
+                base64(auth.as_bytes())
+            ));
+        }
         head.push_str("\r\n");
         let mut s = TcpStream::connect(self.addr).map_err(failed)?;
         s.set_read_timeout(Some(Duration::from_secs(30)))
@@ -61,6 +67,22 @@ impl Target for HttpTarget {
         s.read_to_end(&mut raw).map_err(failed)?;
         Ok(parse(&raw))
     }
+}
+
+/// Standard base64 with padding.
+fn base64(bytes: &[u8]) -> String {
+    const A: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::new();
+    for chunk in bytes.chunks(3) {
+        let n = chunk.iter().fold(0u32, |n, b| (n << 8) | u32::from(*b)) << (8 * (3 - chunk.len()));
+        for i in 0..=chunk.len() {
+            out.push(char::from(A[((n >> (18 - 6 * i)) & 63) as usize]));
+        }
+        for _ in chunk.len()..3 {
+            out.push('=');
+        }
+    }
+    out
 }
 
 fn parse(raw: &[u8]) -> Response {
@@ -100,7 +122,14 @@ fn parse(raw: &[u8]) -> Response {
     } else {
         rest.to_vec()
     };
+    let text = headers
+        .get("content-type")
+        .is_some_and(|t| t.starts_with("text/plain"));
     let body = (!body.is_empty()).then(|| {
+        if text {
+            // A body that is no JSON (a 401's text) is compared as a JSON string.
+            return serde_json::Value::String(String::from_utf8_lossy(&body).into_owned());
+        }
         serde_json::from_slice(&body)
             .unwrap_or_else(|e| panic!("json body ({e}): {}", String::from_utf8_lossy(&body)))
     });
