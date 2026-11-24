@@ -383,10 +383,10 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         &mut assembled,
         config,
         &tail_slots,
-        Arc::clone(&client),
-        Arc::clone(&auth),
+        (Arc::clone(&client), Arc::clone(&auth)),
         &membership,
         Arc::clone(&clock),
+        Arc::clone(&store),
     )?;
     let following = follow::start(assembled.tail_visibility(), Arc::clone(&store), config)?;
     let handler: Arc<dyn oss_transport::server::Handler> = Arc::new(BulkHandler::new(

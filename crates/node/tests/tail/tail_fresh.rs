@@ -283,3 +283,73 @@ fn a_running_check_follows_the_mode_set_last() {
     assert_eq!(ensure(&r, 5), (true, 0), "back to owner");
     assert_eq!(r.fetcher.asked.lock().unwrap().len(), before);
 }
+
+/// A rig whose check reads heads through `unowned`, counting the reads.
+fn rig_unowned(unowned: bool) -> (Rig, Arc<std::sync::atomic::AtomicU32>) {
+    let mut r = rig(true);
+    let reads = Arc::new(std::sync::atomic::AtomicU32::new(0));
+    let counted = reads.clone();
+    let clock = {
+        let now = r.now.clone();
+        Arc::new(move || now.load(Ordering::SeqCst)) as oss_node::tail_reader_link::Clock
+    };
+    r.fresh = TailFresh::new(
+        r.held.clone(),
+        r.fetcher.clone(),
+        "me".to_owned(),
+        clock,
+        true,
+    )
+    .with_unowned(Arc::new(move |_, _| {
+        counted.fetch_add(1, Ordering::SeqCst);
+        unowned
+    }));
+    (r, reads)
+}
+
+/// What a node that let the shard go answers.
+fn not_mine() -> Option<FetchResponse> {
+    answer(NONE, false, i64::MAX)
+}
+
+// docs/specs/reader-unowned-shard AC-1
+#[test]
+fn a_writer_that_does_not_hold_the_shard_and_a_released_head_let_a_search_answer() {
+    let (r, reads) = rig_unowned(true);
+    r.fetcher.answers.lock().unwrap().push(not_mine());
+    assert!(ensure(&r, 5).0);
+    assert_eq!(reads.load(Ordering::SeqCst), 1);
+    assert_eq!(r.fresh.counts().1, 0, "no refusal");
+}
+
+// docs/specs/reader-unowned-shard AC-2
+#[test]
+fn a_writer_that_does_not_hold_the_shard_and_an_owned_head_still_refuse() {
+    let (r, _) = rig_unowned(false);
+    r.fetcher.answers.lock().unwrap().push(not_mine());
+    assert!(!ensure(&r, 5).0);
+    assert_eq!(r.fresh.counts().1, 1);
+}
+
+// docs/specs/reader-unowned-shard AC-3
+#[test]
+fn the_head_is_read_once_for_searches_within_the_keep() {
+    let (r, reads) = rig_unowned(true);
+    for _ in 0..3 {
+        r.fetcher.answers.lock().unwrap().push(not_mine());
+        assert!(ensure(&r, 5).0);
+    }
+    assert_eq!(reads.load(Ordering::SeqCst), 1);
+    r.now.store(1_000 + 2_000, Ordering::SeqCst);
+    r.fetcher.answers.lock().unwrap().push(not_mine());
+    assert!(ensure(&r, 5).0);
+    assert_eq!(reads.load(Ordering::SeqCst), 2, "read again after the keep");
+}
+
+// docs/specs/reader-unowned-shard AC-4
+#[test]
+fn with_no_head_reader_a_writer_that_does_not_hold_the_shard_refuses() {
+    let r = rig(true);
+    r.fetcher.answers.lock().unwrap().push(not_mine());
+    assert!(!ensure(&r, 5).0);
+}

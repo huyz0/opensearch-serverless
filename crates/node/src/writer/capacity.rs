@@ -1,6 +1,6 @@
 //! A cap on the shards this node holds, and making room under it.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use oss_types::settings::{BoolSetting, LongSetting, Scope, Setting, StrSetting};
@@ -11,6 +11,12 @@ use oss_format::NodeLease;
 use super::{Key, OpenRefused, ShardSlot, WriterRole, lock, now_millis};
 use oss_writer::bulk::IndexInfo;
 use std::sync::{Arc, Mutex};
+
+/// How long a shard sent to a member keeps being sent there.
+const STEER_KEEP_MILLIS: u64 = 10_000;
+
+/// The most steered shards remembered; a full memory is cleared.
+const STEER_KEPT: usize = 4_096;
 
 /// How far below its cap a node handing off lets go to, as a share of it.
 const HAND_OFF_DOWN_TO: f64 = 0.8;
@@ -135,6 +141,9 @@ pub(super) struct Counters {
     pinned: Mutex<HashSet<String>>,
     /// The fleet as the last refresh saw it.
     fleet: Mutex<Option<Fleet>>,
+    /// Where each steered shard was sent and until when, so the calls that
+    /// follow a write (its refresh) go where the write went.
+    steers: Mutex<HashMap<Key, (String, u64)>>,
 }
 
 /// The members a refresh read, the time in their leases' clock, and who
@@ -262,6 +271,14 @@ impl WriterRole {
             return None;
         }
         let cap = self.cap.get().filter(|c| c.max > 0)?;
+        let now = now_millis();
+        let shard_key: Key = (index.uuid.clone(), shard);
+        if let Some((node, until)) = lock(&self.counters.steers).get(&shard_key)
+            && *until > now
+        {
+            // An empty member is a shard whose steering failed: it opens here.
+            return (!node.is_empty()).then(|| node.clone());
+        }
         let fleet = lock(&self.counters.fleet);
         let fleet = fleet.as_ref()?;
         let view = FleetView {
@@ -281,7 +298,32 @@ impl WriterRole {
         let target = view.member_with_room().and_then(|_| view.writer_for(key))?;
         self.counters.steered.fetch_add(1, Ordering::Relaxed);
         // ALLOC: one id, on a steered write.
-        Some(target.to_owned())
+        let target = target.to_owned();
+        let mut steers = lock(&self.counters.steers);
+        if steers.len() >= STEER_KEPT {
+            steers.retain(|_, (_, until)| *until > now);
+            if steers.len() >= STEER_KEPT {
+                steers.clear();
+            }
+        }
+        // ALLOC: one entry a steered shard, bounded by STEER_KEPT.
+        steers.insert(
+            shard_key,
+            (target.clone(), now.saturating_add(STEER_KEEP_MILLIS)),
+        );
+        Some(target)
+    }
+
+    /// Stops steering the shard of `uuid` for a while: the member it was
+    /// sent to could not take its write or refresh, so it opens here.
+    pub(super) fn unsteer(&self, uuid: &str, shard: u32) {
+        let mut steers = lock(&self.counters.steers);
+        if let Some(entry) = steers.get_mut(&(uuid.to_owned(), shard)) {
+            *entry = (
+                String::new(),
+                now_millis().saturating_add(STEER_KEEP_MILLIS),
+            );
+        }
     }
 
     /// Room for one more shard under the cap, made by letting idle shards
