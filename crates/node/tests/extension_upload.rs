@@ -254,9 +254,10 @@ fn chunked_status(r: &Rig, len: usize) -> u16 {
     let _ = s.write_all(format!("{len:x}\r\n").as_bytes());
     let _ = s.write_all(&vec![0_u8; len]);
     let _ = s.write_all(b"\r\n0\r\n\r\n");
-    let mut reply = Vec::new();
-    let _ = s.read_to_end(&mut reply);
-    String::from_utf8_lossy(&reply)
+    // The status line is in the first bytes.
+    let mut head = [0_u8; 256];
+    let n = s.read(&mut head).unwrap_or(0);
+    String::from_utf8_lossy(&head[..n])
         .split_whitespace()
         .nth(1)
         .and_then(|c| c.parse().ok())
