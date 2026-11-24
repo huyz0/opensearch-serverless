@@ -12,6 +12,16 @@ use suite_rig::{Cluster, wait_for};
 
 const TTL_MS: u64 = 3_000;
 
+/// One cluster at a time: leases last three seconds, and four clusters of
+/// three nodes on one machine starve each other's renewals.
+static ONE_AT_A_TIME: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+fn alone() -> std::sync::MutexGuard<'static, ()> {
+    ONE_AT_A_TIME
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
 fn started() -> Cluster {
     let mut cluster = Cluster::new(TTL_MS, 4, false).expect("emulated");
     cluster.set("OSS_TAIL_OVERLAY", "true");
@@ -89,6 +99,23 @@ fn count(cluster: &Cluster, slot: usize, value: Option<u32>) -> Option<(u64, u64
     Some((number("\"value\":"), number("\"failed\":")))
 }
 
+/// [`count`], asked again while the search is refused: a copy that is not
+/// yet caught up reports the shard failed (503) rather than a stale count,
+/// and must answer within 10 s.
+fn answered(cluster: &Cluster, slot: usize, value: Option<u32>) -> (u64, u64) {
+    let started = Instant::now();
+    loop {
+        if let Some(answer) = count(cluster, slot, value) {
+            return answer;
+        }
+        assert!(
+            started.elapsed() < Duration::from_secs(10),
+            "node {slot} kept refusing the search"
+        );
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
 /// Polls `slot` until `value`'s count is `want`, failing if any poll counts
 /// more than `want` (a document seen twice) or a poll that reports no shard
 /// failure counts fewer once `settled` (an acknowledged write lost).
@@ -139,6 +166,7 @@ fn killed_owner() -> (Cluster, usize) {
 
 #[test]
 fn a_search_after_the_owner_died_never_counts_fewer_than_were_acknowledged_without_a_failure() {
+    let _alone = alone();
     let (cluster, owner) = killed_owner();
     for slot in (0..3).filter(|s| *s != owner) {
         let started = Instant::now();
@@ -157,6 +185,7 @@ fn a_search_after_the_owner_died_never_counts_fewer_than_were_acknowledged_witho
 
 #[test]
 fn after_the_takeover_nothing_acknowledged_is_lost_doubled_or_stale() {
+    let _alone = alone();
     let (cluster, owner) = killed_owner();
     let survivors: Vec<usize> = (0..3).filter(|s| *s != owner).collect();
     // A write through a survivor makes the new owner take the shard: five
@@ -173,6 +202,7 @@ fn after_the_takeover_nothing_acknowledged_is_lost_doubled_or_stale() {
 
 #[test]
 fn the_overlay_is_rebuilt_against_the_successor_so_a_refreshed_write_is_never_missed() {
+    let _alone = alone();
     let (cluster, owner) = killed_owner();
     let survivors: Vec<usize> = (0..3).filter(|s| *s != owner).collect();
     bulk(&cluster, survivors[0], &ids(20..21), 1);
@@ -181,8 +211,7 @@ fn the_overlay_is_rebuilt_against_the_successor_so_a_refreshed_write_is_never_mi
         bulk(&cluster, survivors[0], std::slice::from_ref(&id), 7);
         for slot in &survivors {
             // refresh=true waits for the readers, so the first search counts it.
-            let (total, failed) = count(&cluster, *slot, Some(7))
-                .unwrap_or_else(|| panic!("node {slot} refused the search"));
+            let (total, failed) = answered(&cluster, *slot, Some(7));
             assert_eq!(failed, 0, "round {round}, node {slot}");
             assert_eq!(total, round + 1, "round {round}, node {slot}");
         }
@@ -193,6 +222,7 @@ fn the_overlay_is_rebuilt_against_the_successor_so_a_refreshed_write_is_never_mi
 /// by its own search, and by every other node's, from the first search.
 #[test]
 fn the_owner_counts_its_own_refreshed_writes_from_its_first_search() {
+    let _alone = alone();
     let cluster = started();
     bulk(&cluster, 0, &ids(0..3), 1);
     for round in 0_u64..6 {
@@ -200,8 +230,8 @@ fn the_owner_counts_its_own_refreshed_writes_from_its_first_search() {
         bulk(&cluster, 0, std::slice::from_ref(&id), 7);
         for slot in 0..3 {
             assert_eq!(
-                count(&cluster, slot, Some(7)),
-                Some((round + 1, 0)),
+                answered(&cluster, slot, Some(7)),
+                (round + 1, 0),
                 "round {round}, node {slot}"
             );
         }

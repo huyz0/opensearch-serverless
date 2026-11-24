@@ -11,7 +11,7 @@ Parity plan R9 (freshness) and [ADR 0016](../../adr/0016-native-transport-and-ea
   - the node's own reader takes it at once (`SearchService::take_push`): the node that owns a shard also serves searches, and nothing pushes to oneself;
   - the commit goes to a bounded queue (256) read by one worker thread that sends it with the `PushSender` to the readers placement ranks for the shard, other than this node. A full queue drops the commit: a lost push costs nothing, the reader's next open reads the register.
 - A booted node registers the `PushHandler` for `internal:serverless/commit/push`, behind the node's transport signature check as the tail's handlers are.
-- `serverless.search.commit_push.enabled` (node scope, `OSS_COMMIT_PUSH`) turns the send to other nodes on or off. The own reader's local take is not part of it: it has no cost and an owner that never took its own commit served a dead writer's. Default true while the tail overlay is off, false when it is on (see Switch).
+- `serverless.search.commit_push.enabled` (node scope, `OSS_COMMIT_PUSH`) turns the send to other nodes on or off. The own reader's local take is not part of it: it costs nothing measurable and an owner that never took its own commit served a dead writer's. Default true while the tail overlay is off, false when it is on (see Switch).
 
 Two defects of the owner's own searches under the overlay are fixed with it (found by the takeover suite): the owner's reader never received its own writer's tail, and a node that took a shard over opened its reader on the dead writer's commit and then asked that writer for a grant the live one could not give (a 503 `shard_behind_exception` for ever).
 
@@ -25,13 +25,14 @@ Not changed: pushes carry no inline blocks, the writer answers no newest-commit 
 - AC-4: the sink holds no object store: a push is a message between nodes, and the reader's next open spends the one descriptor GET of [reader-push-handler](../reader-push-handler/SPEC.md)'s budget row.
 - AC-5: the sink's queue is bounded: a full queue drops the commit and counts it; the publishing call never waits for a send.
 - AC-6: `OSS_COMMIT_PUSH` defaults to true with the overlay off and false with it on, an explicit value wins, and one that is not true or false is refused.
-- AC-7: with the tail overlay on, a node that owns a shard counts a refreshed write on its first search, as every other node does: the owner's reader follows its own writer's tail (records its writer acknowledged here reach its own overlay, and a search of the shard asks its writer like any reader's does).
-- AC-8: a commit this node's writer publishes while no search holds the shard open is kept for the next open, so a node that took a shard over opens on its own newest commit, not on the dead writer's the register still names.
+- AC-7: with the tail overlay on, a node that owns a shard counts a refreshed write on its first search, as every other node does: the owner's reader follows its own writer's tail as a subscriber like any other (a search of the shard asks its writer, itself, for the grant and the writer's pushes reach it over the transport, a loopback call that makes no object-store request).
+- AC-8: a commit this node's writer publishes while no search holds the shard open is kept (for as long as a pushed commit is kept, 10 s) for the next open, so a node that took a shard over and is searched soon after opens on its own newest commit, with the descriptor's one GET, not on the dead writer's the register still names. A search after that bound opens as it did before.
+- AC-10: a shard that refuses a search as behind its writer is let go, so its next search opens it afresh on the newest commit and asks for the tail again; without it a shard whose engine had refused the tail stayed behind until its commit changed.
 - AC-9: three nodes, overlay on, the owner killed with both readers holding its tail: no search that reports no shard failure counts fewer documents than were acknowledged, none counts more, and after the takeover every acknowledged write and update is counted exactly once on each survivor, a refreshed write from its first search.
 
 ## Test plan
 
-`crates/node/tests/commit_push_wired.rs` over the cluster rig (AC-1 to AC-3, both settings); `crates/node/tests/overlay_takeover.rs` (AC-7 to AC-9); unit tests of the sink in `crates/node/src/commit_push.rs` (AC-5) and `NodeConfig` (AC-6).
+`crates/node/tests/commit_push_wired.rs` over the cluster rig (AC-1 to AC-3, both settings); `crates/node/tests/overlay_takeover.rs` (AC-7 to AC-10); `crates/node/tests/server/push_read.rs` (AC-8); unit tests of the sink in `crates/node/src/commit_push.rs` (AC-5) and `NodeConfig` (AC-6).
 
 ## S3 request budget
 

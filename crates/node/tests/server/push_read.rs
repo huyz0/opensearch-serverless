@@ -214,6 +214,41 @@ fn a_push_moves_the_reader_onto_the_new_commit_with_one_get() {
 }
 
 #[test]
+fn a_commit_its_own_writer_published_is_kept_for_the_open_that_follows() {
+    let root = TempDir::new("push-own");
+    let dir = ByteBuffersDirectory::new();
+    let mut f = fixture(root.path(), &dir, &["a", "b", "c"]);
+
+    // Not open: the commit is kept all the same, and the answer says the
+    // shard is not open.
+    let second = f.writing.publish(&["d", "e"]);
+    assert!(!f.service.take_own("logs", "u1", 0, &second));
+    let before = counts(&f.store);
+    let first = f.search();
+    let after = counts(&f.store);
+    assert_eq!(first.status, 200, "{}", first.text());
+    assert_eq!(
+        gets(before, after, S3Op::Get),
+        1,
+        "the kept commit's descriptor only, not the register"
+    );
+
+    // Open: it goes the way of a push, the older commit let go.
+    let third = f.writing.publish(&["f"]);
+    assert!(f.service.take_own("logs", "u1", 0, &third));
+    assert_eq!(f.service.open_indexes(), 0);
+
+    // The next open takes the kept third commit with the descriptor's GET.
+    let before = counts(&f.store);
+    assert_eq!(f.search().status, 200);
+    assert_eq!(gets(before, counts(&f.store), S3Op::Get), 1);
+    // Another incarnation of the name is not this shard: it is not taken.
+    let fourth = f.writing.publish(&["g"]);
+    assert!(!f.service.take_own("logs", "other", 0, &fourth));
+    assert_eq!(f.service.open_indexes(), 1, "nothing was let go");
+}
+
+#[test]
 fn a_push_that_changes_nothing_leaves_the_index_open() {
     let root = TempDir::new("push-same");
     let dir = ByteBuffersDirectory::new();

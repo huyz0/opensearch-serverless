@@ -104,4 +104,12 @@ fn with_the_setting_off_an_opened_shard_stays_on_its_commit() {
     for slot in (0..3).filter(|s| *s != owner) {
         assert_eq!(total(&cluster, slot), 1, "node {slot} moved on");
     }
+    let started = Instant::now();
+    while total(&cluster, owner) != 2 {
+        assert!(
+            started.elapsed() < Duration::from_secs(10),
+            "the owner never took its own commit"
+        );
+        std::thread::sleep(Duration::from_millis(50));
+    }
 }

@@ -79,6 +79,13 @@ impl<S: BlobStore + 'static> SearchService<S> {
         ) {
             return Ok(());
         }
+        // A shard that cannot hold its writer's tail (it ran out of room, or
+        // the engine refused a record) would refuse every search until its
+        // commit changed: letting it go makes the next search open it afresh,
+        // on the newest commit the node knows, and ask for the tail again.
+        let key = crate::search::open_shard::set_key(&held.index, held.shard_no);
+        let released = self.lock().release(&key);
+        drop(released);
         // ALLOC: error path; one box and the names.
         Err(Box::new(SearchError::on_shard(
             503,
