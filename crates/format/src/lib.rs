@@ -62,6 +62,7 @@ mod register;
 mod repository_record;
 mod segment_blob;
 mod shard_head;
+mod snapshot_keys;
 mod snapshot_pins;
 mod snapshot_record;
 mod snapshot_state;
@@ -94,8 +95,7 @@ pub use keys::{
     NODE_LOG_PREFIX, POINT_IN_TIME_STATES_PREFIX, POINTS_IN_TIME_PREFIX, RECLAIM_PREFIX, ShardRef,
     TRANSPORT_SECRET_KEY, change_stripe_key, cluster_config_key, descriptor_key, looks_like_an_id,
     node_log_key, node_pack_key, point_in_time_key, point_in_time_state_key, reclaim_intent_key,
-    repository_key, snapshot_legacy_key, snapshot_state_key, tombstone_marker_key,
-    transport_secret_key,
+    tombstone_marker_key, transport_secret_key,
 };
 pub use location::{FileLocation, NODE_PACK_PREFIX};
 pub use manifest::{CommitManifest, ManifestEntry, ManifestFile, encode as encode_manifest};
@@ -121,6 +121,10 @@ pub use segment_blob::{
     encode_header as encode_segment_header,
 };
 pub use shard_head::{MAX_SHARD_HEAD_BYTES, MAX_WRITERS, ShardHead};
+pub use snapshot_keys::{
+    repository_key, sha256_hex, snapshot_legacy_key, snapshot_marker_prefixes, snapshot_state_key,
+    snapshot_state_key_of_hash,
+};
 pub use snapshot_pins::{MAX_SNAPSHOT_RECORD_BYTES, snapshot_pinned_indexes};
 pub use snapshot_record::{SnapshotIndex, SnapshotSummary};
 pub use snapshot_state::SnapshotState;

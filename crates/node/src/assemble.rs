@@ -23,7 +23,7 @@ use crate::get_route::{self, GetService};
 use crate::handlers::Registry;
 use crate::health_route::{self, HealthService, HealthSource};
 #[cfg(feature = "coordinator")]
-use crate::index_delete::{self, DeleteService, DrainTimer, NoSnapshots};
+use crate::index_delete::{self, DrainTimer};
 #[cfg(feature = "coordinator")]
 use crate::index_route;
 use crate::pit_route::{self, PitService};
@@ -61,6 +61,9 @@ pub struct Config {
     /// Whether a create inherits from the index template that matches its
     /// name: one more GET on each create, none when off.
     pub index_templates: bool,
+    /// Whether `_ingest/pipeline` stores, reads and removes pipelines. A
+    /// stored pipeline is not yet run by a write.
+    pub ingest_pipelines: bool,
     /// `serverless.knn.enabled`: whether a create accepts `knn_vector`.
     pub knn: bool,
     /// Whether the read-only snapshot routes are served: `serverless.snapshots.enabled`.
@@ -118,6 +121,7 @@ impl Config {
             store_buffer_wait: Duration::from_secs(5),
             pit_buffer_bytes: MAX_POINT_IN_TIME_BYTES,
             index_templates: false,
+            ingest_pipelines: false,
             knn: false,
             snapshots: false,
             delete_mode: DeleteMode::Tombstone,
@@ -153,25 +157,6 @@ impl Config {
 type Drain = Option<DrainTimer>;
 #[cfg(not(feature = "coordinator"))]
 type Drain = Option<()>;
-
-#[cfg(feature = "coordinator")]
-fn delete_service(
-    config: &Config,
-    store: &Arc<dyn BlobStore>,
-    clock: &PitClock,
-) -> Result<Arc<DeleteService>, AssembleError> {
-    DeleteService::new(
-        store,
-        &config.base,
-        config.delete_mode,
-        Arc::clone(clock),
-        Arc::new(NoSnapshots),
-        config.pit_buffer_bytes,
-        config.inline_purge_max_shards,
-    )
-    .map(Arc::new)
-    .map_err(|e| AssembleError::Store(e.to_string()))
-}
 
 /// What the writer role is built on.
 pub struct Writer {
@@ -328,7 +313,7 @@ impl Assembled {
     }
 }
 
-fn now_millis() -> u64 {
+pub(crate) fn now_millis() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
@@ -456,7 +441,7 @@ pub fn assemble(
             stripes,
         )?;
         let router = index_route::routes(router, indices).map_err(AssembleError::Route)?;
-        let deletes = delete_service(config, &store, &clock)?;
+        let deletes = crate::index_assemble::delete_service(config, &store, &clock)?;
         let drain = DrainTimer::spawn(Arc::clone(&deletes), config.reclaim_every);
         let router = index_delete::routes(router, deletes).map_err(AssembleError::Route)?;
         let by_query = Arc::new(crate::by_query::ByQueryService::new(

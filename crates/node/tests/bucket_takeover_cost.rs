@@ -10,7 +10,7 @@ mod suite_rig;
 use std::time::{Duration, Instant};
 
 use oss_blob::S3Op;
-use suite_rig::{Cluster, wait_for};
+use suite_rig::{Cluster, Reply, wait_for};
 
 const INDICES: usize = 24;
 
@@ -57,6 +57,15 @@ fn write_all(cluster: &Cluster, slot: usize, rounds: &str) {
     }
 }
 
+fn search(cluster: &Cluster, slot: usize, target: &str) -> Reply {
+    cluster.call(
+        slot,
+        "POST",
+        &format!("{target}/_search"),
+        Some(r#"{"query":{"match_all":{}}}"#),
+    )
+}
+
 /// Every index answers with the document written before the takeover and the
 /// one written after it: the taken-over shard restored its commit.
 fn keeps_both_documents(cluster: &Cluster, slot: usize) {
@@ -64,25 +73,16 @@ fn keeps_both_documents(cluster: &Cluster, slot: usize) {
         let target = format!("/small-{i}");
         let refreshed = cluster.call(slot, "POST", &format!("{target}/_refresh"), None);
         assert_eq!(refreshed.status, 200, "{}", refreshed.text());
-        // A search that finds the reader a step behind the refresh it was
-        // told of is a retryable 503 (`shard_behind_exception`); on a busy
-        // machine the step can be long, so the test waits for it.
-        let deadline = Instant::now() + Duration::from_secs(20);
-        let found = loop {
-            let found = cluster.call(
-                slot,
-                "POST",
-                &format!("{target}/_search"),
-                Some(r#"{"query":{"match_all":{}}}"#),
-            );
-            if found.status != 503
-                || !found.text().contains("shard_behind_exception")
-                || Instant::now() > deadline
-            {
-                break found;
+        // A shard just taken over may answer 503 `shard_behind_exception`
+        // until it has caught up with the writes its writer acknowledged.
+        let mut found = search(cluster, slot, &target);
+        for _ in 0..100 {
+            if found.status != 503 {
+                break;
             }
-            std::thread::sleep(Duration::from_millis(50));
-        };
+            std::thread::sleep(Duration::from_millis(100));
+            found = search(cluster, slot, &target);
+        }
         assert_eq!(found.status, 200, "{}", found.text());
         let text = found.text();
         assert!(text.contains(r#""total":{"value":2"#), "small-{i}: {text}");

@@ -11,6 +11,7 @@ use oss_rest::Router;
 use crate::assemble::{AssembleError, Config};
 use crate::cat_route::{self, CatService};
 use crate::cluster_route::{self, ClusterService};
+use crate::pipeline_route::{self, PipelineService};
 use crate::snapshot_route::{self, SnapshotService};
 use crate::template_route::{self, TemplateService};
 
@@ -30,15 +31,27 @@ pub(crate) fn register(
     let router = cat_route::routes(router, Arc::new(CatService::new(descriptors)))
         .map_err(AssembleError::Route)?;
     let router = if config.snapshots {
-        let service = Arc::new(SnapshotService::new(Arc::clone(store), &config.base));
+        let service = Arc::new(SnapshotService::new(
+            Arc::clone(store),
+            &config.base,
+            &config.node_id,
+            Arc::new(crate::assemble::now_millis),
+        ));
         snapshot_route::routes(router, &service).map_err(AssembleError::Route)?
     } else {
         router
     };
-    if !config.index_templates {
+    let router = if config.index_templates {
+        let templates = TemplateService::new(store, &config.base, config.pit_buffer_bytes)
+            .map_err(store_error)?;
+        template_route::routes(router, &Arc::new(templates)).map_err(AssembleError::Route)?
+    } else {
+        router
+    };
+    if !config.ingest_pipelines {
         return Ok(router);
     }
-    let templates =
-        TemplateService::new(store, &config.base, config.pit_buffer_bytes).map_err(store_error)?;
-    template_route::routes(router, &Arc::new(templates)).map_err(AssembleError::Route)
+    let pipelines =
+        PipelineService::new(store, &config.base, config.pit_buffer_bytes).map_err(store_error)?;
+    pipeline_route::routes(router, &Arc::new(pipelines)).map_err(AssembleError::Route)
 }
