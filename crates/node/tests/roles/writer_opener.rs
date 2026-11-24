@@ -203,6 +203,19 @@ fn rig(opener: bool) -> Rig {
     }
 }
 
+fn info(name: &str, uuid: &str) -> IndexInfo {
+    IndexInfo {
+        name: name.into(),
+        uuid: uuid.into(),
+        shards: 1,
+        partition_size: 1,
+        routing_shards: 1,
+        routing_required: false,
+        default_pipeline: None,
+        final_pipeline: None,
+    }
+}
+
 fn create(r: &Rig, name: &str, uuid: &str) {
     create_with(r, name, uuid, b"{}");
 }
@@ -405,16 +418,7 @@ fn an_index_recreated_since_the_group_was_planned_is_not_opened() {
     create(&r, "logs", "u1");
     // The routes planned the write for uuid u1; the opener's descriptor read
     // finds the same, so open directly with a stale uuid instead.
-    let stale = IndexInfo {
-        name: "logs".into(),
-        uuid: "old".into(),
-        shards: 1,
-        partition_size: 1,
-        routing_shards: 1,
-        routing_required: false,
-        default_pipeline: None,
-        final_pipeline: None,
-    };
+    let stale = info("logs", "old");
     let opener = HeadOpener::new(
         Arc::clone(&r.heads),
         Arc::clone(&r.descriptors),
@@ -426,6 +430,27 @@ fn an_index_recreated_since_the_group_was_planned_is_not_opened() {
     );
     let err = opener.open(&r.role, &stale, 0).expect_err("stale");
     assert!(err.reason.contains("no longer the index"), "{err}");
+}
+
+// docs/specs/shared-mappings AC-3
+#[test]
+fn shards_of_indexes_with_one_mapping_hold_one_parsed_copy() {
+    let r = rig(false);
+    let opener = HeadOpener::new(
+        Arc::clone(&r.heads),
+        Arc::clone(&r.descriptors),
+        r.store.clone(),
+        "",
+        "node-1",
+        "e1",
+        1 << 16,
+    );
+    for n in 0..3 {
+        let (name, uuid) = (format!("logs-{n}"), format!("u{n}"));
+        create(&r, &name, &uuid);
+        opener.open(&r.role, &info(&name, &uuid), 0).expect("opens");
+    }
+    assert_eq!(opener.shared_mappings(), 1);
 }
 
 #[test]

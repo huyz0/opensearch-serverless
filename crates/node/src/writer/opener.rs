@@ -11,7 +11,7 @@ use oss_cluster::heads::{Acquisition, ShardHeadStore};
 use oss_format::ShardRef;
 use oss_meta::DescriptorStore;
 use oss_writer::bulk::IndexInfo;
-use oss_writer::mapping::Mapping;
+use oss_writer::mapping::MappingInterner;
 
 use std::sync::Mutex;
 
@@ -77,6 +77,8 @@ pub struct HeadOpener {
     buffer_bytes: usize,
     takeover: Option<Takeover>,
     member_commit: Option<MemberCommitRead>,
+    /// The parsed mappings of the shards this opener opened, shared by text.
+    mappings: MappingInterner,
 }
 
 impl HeadOpener {
@@ -102,6 +104,7 @@ impl HeadOpener {
             buffer_bytes,
             takeover: None,
             member_commit: None,
+            mappings: MappingInterner::new(),
         }
     }
 
@@ -111,6 +114,12 @@ impl HeadOpener {
     pub fn with_member_commits(mut self, read: MemberCommitRead) -> Self {
         self.member_commit = Some(read);
         self
+    }
+
+    /// How many distinct parsed mappings the shards this opener opened hold.
+    #[must_use]
+    pub fn shared_mappings(&self) -> usize {
+        self.mappings.live()
     }
 
     /// Lets this opener take over shards that have a history: restore the
@@ -217,7 +226,9 @@ impl HeadOpener {
         if history && self.takeover.is_none() {
             return Err(format!("[{}][{shard}]: {TAKEOVER}", index.name).into());
         }
-        let mapping = Mapping::from_descriptor(record.mapping.as_deref())
+        let mapping = self
+            .mappings
+            .get(record.mapping.as_deref())
             .map_err(|e| e.failed_to_parse().to_string())?;
         let age = publish_age_of(record.settings);
         let tenancy = super::tenancy::tenancy_of(record.settings);

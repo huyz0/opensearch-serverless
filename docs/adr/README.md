@@ -62,3 +62,4 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0051](0051-authorization-at-the-route-by-action-table.md) | Authorization is decided at the route, from an action table, by the names in the path | Accepted |
 | [0052](0052-extension-modules-on-a-wasm-abi.md) | Extension modules are sandboxed WASM on a bytes-in, bytes-out ABI, content-addressed in the store; no point is wired yet | Accepted |
 | [0053](0053-the-analyzer-extension-point.md) | The analyzer point: an index pins a WASM module as a named analyzer at creation; every node runs it or refuses | Accepted |
+| [0054](0054-parsed-mappings-are-shared-by-content.md) | Parsed mappings are shared across shards by content, in memory; the descriptor keeps its mapping inline | Accepted |

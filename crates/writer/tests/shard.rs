@@ -163,6 +163,35 @@ fn a_dynamic_field_grows_the_shards_mapping() {
     assert!(s.mapping().to_json().contains(r#""t":{"type":"text""#));
 }
 
+// docs/specs/shared-mappings AC-4
+#[test]
+fn a_shard_that_grows_leaves_the_shared_mapping_to_the_others() {
+    let shared = Arc::new(Mapping::parse(br#"{"properties":{"n":{"type":"integer"}}}"#).unwrap());
+    let clock = Arc::new(AtomicU64::new(0));
+    let open = |dir| {
+        let mut w = IndexWriter::open(dir, Vec::new(), "Lucene104", VERSION).expect("writer");
+        w.enable_explicit_documents().expect("explicit");
+        let clock = Arc::clone(&clock);
+        Shard::new(
+            dir,
+            w,
+            Arc::clone(&shared),
+            3,
+            Box::new(move || clock.load(Ordering::Relaxed)),
+        )
+        .expect("shard")
+    };
+    let (dir_a, dir_b) = (ByteBuffersDirectory::new(), ByteBuffersDirectory::new());
+    let (mut a, b) = (open(&dir_a), open(&dir_b));
+    assert!(Arc::ptr_eq(a.shared_mapping(), &shared) && Arc::ptr_eq(b.shared_mapping(), &shared));
+    a.index("x", br#"{"t":"x"}"#, false, &Expect::default())
+        .unwrap();
+    assert!(!Arc::ptr_eq(a.shared_mapping(), &shared));
+    assert!(a.mapping().to_json().contains(r#""t":{"type":"text""#));
+    assert!(Arc::ptr_eq(b.shared_mapping(), &shared));
+    assert!(!shared.to_json().contains("\"t\""));
+}
+
 #[test]
 fn requests_are_checked_as_the_java_validates_them() {
     let ext = |version| Expect {
