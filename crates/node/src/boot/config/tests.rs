@@ -183,9 +183,12 @@ fn what_cannot_be_used_is_refused_by_name() {
 }
 
 #[test]
-fn the_tail_overlay_is_off_and_visibility_everywhere_unless_set() {
+fn the_tail_overlay_is_on_and_visibility_everywhere_unless_set() {
     let c = NodeConfig::from_lookup(lookup(FS)).expect("valid");
-    assert!(!c.tail_overlay);
+    assert!(c.tail_overlay);
+    let off =
+        NodeConfig::from_lookup(lookup(&with(&[("OSS_TAIL_OVERLAY", "false")]))).expect("valid");
+    assert!(!off.tail_overlay);
     assert_eq!(c.refresh_visibility, "everywhere");
     let mut pairs = FS.to_vec();
     pairs.push(("OSS_TAIL_OVERLAY", "true"));
@@ -265,15 +268,15 @@ fn a_give_back_threshold_beyond_the_day_a_record_is_kept_is_refused() {
 }
 
 #[test]
-fn the_commit_push_is_on_unless_the_variable_turns_it_off() {
+fn the_commit_push_is_on_with_the_overlay_off_and_off_with_it_on_unless_the_variable_says() {
+    let overlay = NodeConfig::from_lookup(lookup(FS)).expect("valid");
     assert!(
-        NodeConfig::from_lookup(lookup(FS))
-            .expect("valid")
-            .commit_push
+        !overlay.commit_push,
+        "the overlay is on and serves freshness"
     );
-    let overlay =
-        NodeConfig::from_lookup(lookup(&with(&[("OSS_TAIL_OVERLAY", "true")]))).expect("valid");
-    assert!(!overlay.commit_push, "the overlay serves freshness");
+    let no_overlay =
+        NodeConfig::from_lookup(lookup(&with(&[("OSS_TAIL_OVERLAY", "false")]))).expect("valid");
+    assert!(no_overlay.commit_push);
     let both = NodeConfig::from_lookup(lookup(&with(&[
         ("OSS_TAIL_OVERLAY", "true"),
         ("OSS_COMMIT_PUSH", "true"),

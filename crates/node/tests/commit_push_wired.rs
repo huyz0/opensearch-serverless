@@ -13,6 +13,9 @@ const TTL_MS: u64 = 3_000;
 
 fn started(push: Option<&str>) -> Cluster {
     let mut cluster = Cluster::new(TTL_MS, 4, false).expect("emulated");
+    // The push is the freshness path with the overlay off: that is what is
+    // pinned here. With the overlay on, `overlay_takeover.rs` covers it.
+    cluster.set("OSS_TAIL_OVERLAY", "false");
     if let Some(push) = push {
         cluster.set("OSS_COMMIT_PUSH", push);
     }

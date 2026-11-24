@@ -1,4 +1,4 @@
-# 0035: A writer node can clear room in bursts and can pin indexes it never lets go of
+# 0036: A writer node can clear room in bursts and can pin indexes it never lets go of
 
 **Status:** Accepted after independent review of the change, 2026-11-24
 
