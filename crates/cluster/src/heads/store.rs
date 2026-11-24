@@ -5,6 +5,7 @@ use std::sync::Arc;
 use oss_blob::{BlobStore, SwapOutcome};
 use oss_format::{MAX_SHARD_HEAD_BYTES, ShardHead};
 
+use super::bucket::{BucketHeads, Turns};
 use super::shard_head_key;
 use crate::error::ClusterError;
 use crate::lease::{LeaseClock, LivenessOracle};
@@ -25,11 +26,13 @@ pub enum Acquisition {
 
 /// A deployment's shard heads.
 pub struct ShardHeadStore {
-    store: Arc<dyn BlobStore>,
-    base: String,
-    clock: Arc<dyn LeaseClock>,
-    lease_ttl_millis: i64,
-    oracle: Arc<LivenessOracle>,
+    pub(super) store: Arc<dyn BlobStore>,
+    pub(super) base: String,
+    pub(super) clock: Arc<dyn LeaseClock>,
+    pub(super) lease_ttl_millis: i64,
+    pub(super) oracle: Arc<LivenessOracle>,
+    pub(super) buckets: Option<Arc<dyn BucketHeads>>,
+    pub(super) turns: Turns,
 }
 
 impl ShardHeadStore {
@@ -56,10 +59,13 @@ impl ShardHeadStore {
             clock,
             lease_ttl_millis,
             oracle,
+            buckets: None,
+            // ALLOC: empty until a bucket is taken.
+            turns: Turns::default(),
         })
     }
 
-    fn read_raw(&self, key: &str) -> Result<Option<(u64, ShardHead)>, ClusterError> {
+    pub(super) fn read_raw(&self, key: &str) -> Result<Option<(u64, ShardHead)>, ClusterError> {
         // ALLOC: one head's bytes a read, at most MAX_SHARD_HEAD_BYTES.
         let mut buf = vec![0u8; MAX_SHARD_HEAD_BYTES];
         let Some(read) = self.store.read_register(key, &mut buf)? else {
@@ -76,6 +82,9 @@ impl ShardHeadStore {
     ///
     /// The store failing, or a head that does not parse.
     pub fn read(&self, index: &str, shard: u32) -> Result<Option<ShardHead>, ClusterError> {
+        if let Some(member) = self.member_of(index, shard, None)? {
+            return self.read_member(&member, index, shard);
+        }
         let key = shard_head_key(&self.base, index, shard);
         Ok(self.read_raw(&key)?.map(|(_, head)| head))
     }
@@ -99,6 +108,9 @@ impl ShardHeadStore {
         ephemeral_id: &str,
         index_uuid: Option<&str>,
     ) -> Result<Acquisition, ClusterError> {
+        if let Some(member) = self.member_of(index, shard, index_uuid)? {
+            return self.acquire_member(&member, index, shard, node_id, ephemeral_id);
+        }
         let key = shard_head_key(&self.base, index, shard);
         let now = self.clock.now_millis();
         let claim = now.saturating_add(self.lease_ttl_millis);
