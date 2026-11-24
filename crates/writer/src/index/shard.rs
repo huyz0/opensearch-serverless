@@ -139,6 +139,14 @@ impl<'d> Shard<'d> {
         Ok(shard)
     }
 
+    /// Stores each document's `_source` with its vectors masked when `on`:
+    /// for a writer [`knn::open_writer`] opened as derived.
+    #[must_use]
+    pub fn with_derived_source(mut self, on: bool) -> Self {
+        self.indexer = std::mem::take(&mut self.indexer).with_derived_source(on);
+        self
+    }
+
     /// The mapping, grown by the dynamic updates documents made.
     pub fn mapping(&self) -> &Mapping {
         &self.mapping

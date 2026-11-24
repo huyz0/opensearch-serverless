@@ -106,7 +106,7 @@ impl Shard<'_> {
             bytes: Vec::new(),
         };
         segment
-            .visit_stored_document(found.doc, &mut source)
+            .visit_source_document(found.doc, &mut source)
             // ALLOC: error path; one message.
             .map_err(|e| e.to_string())?;
         if source.bytes.is_empty() {

@@ -13,6 +13,13 @@ A Java node runs the stock k-NN plugin over the same blobs, so a segment the Rus
 - A node setting `serverless.knn.enabled` (`OSS_KNN`), off by default, makes the index admin accept `knn_vector`. Index settings cannot be given at create yet, so it stands for `index.knn`. A stored mapping is read with the type allowed, because it was checked on the way in. Off, an index with the type is refused as unsupported and stays on a Java writer. It turns on once the `knn` query serves the field.
 - The tail overlay does not build vector documents: an index with unpublished vector writes is served from the commit alone until the overlay takes them.
 
+## Derived source (amendment)
+
+- Stock stores a knn index's `_source` with each vector's value replaced by `1` and puts it back on read, under codec `KNN1040Codec` with `derived_vector_fields` in the segment's `.si` (recorded in `fixtures/segments/files/`). A shard whose mapping has `knn_vector` fields opens its engine that way (`oss_writer::index::knn::open_writer`), and stores `_source` masked by a byte splice of each vector's value (`oss_doc::lucene::derived`). A source the splice cannot place (an escaped or dotted key over a vector, a vector inside an array of objects) is refused as unsupported and stays on a Java writer.
+- Reading goes through lucene-rust's `visit_source_document`, which splices vectors back into a segment that lists derived fields and reads every other segment as stored. The search fetch and the realtime get use it, so a knn index a Java writer wrote is read correctly here.
+- No setting: it is the plugin's behaviour for every knn index, and the type is already behind `serverless.knn.enabled`. No request is added; `_source` of a vector index is smaller by the vectors.
+- A Rust-written segment's vectors count once in the indexing buffer and are masked in `_source`, so the memory bound above holds with a source shorter by the vectors' text.
+
 ## Consequences
 
 - Java and Rust read each other's vector segments; checked by the fixtures and by Lucene 10.6.0 `CheckIndex` on Rust-written segments.

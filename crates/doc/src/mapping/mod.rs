@@ -284,6 +284,16 @@ impl Mapping {
         out
     }
 
+    /// The full names of the `knn_vector` fields.
+    pub fn knn_fields(&self) -> Vec<String> {
+        self.leaves()
+            .into_iter()
+            .filter(|(_, leaf)| leaf.ty() == FieldType::Knn)
+            .map(|(name, _)| name)
+            // ALLOC: one name a vector field, bounded by the mapping's field limit.
+            .collect()
+    }
+
     /// Every leaf field, multi-fields included, by full name.
     pub fn leaves(&self) -> Vec<(String, &Leaf)> {
         // ALLOC: one entry a field, at most TOTAL_FIELDS_LIMIT.
