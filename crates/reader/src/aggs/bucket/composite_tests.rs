@@ -292,8 +292,12 @@ fn a_histogram_source_needs_a_positive_interval() {
 fn what_this_node_does_not_serve_is_refused_by_name() {
     for (body, what) in [
         (
-            r#"{"sources":[{"a":{"date_histogram":{"field":"d","calendar_interval":"day"}}}]}"#,
-            "a [date_histogram] source",
+            r#"{"sources":[{"a":{"date_histogram":{"field":"d","calendar_interval":"day","format":"yyyy"}}}]}"#,
+            "a composite source's [format]",
+        ),
+        (
+            r#"{"sources":[{"a":{"date_histogram":{"field":"d","interval":"day"}}}]}"#,
+            "a composite source's [interval]",
         ),
         (
             r#"{"sources":[{"a":{"terms":{"field":"x","script":"1"}}}]}"#,
@@ -327,5 +331,44 @@ fn what_this_node_does_not_serve_is_refused_by_name() {
         failure.reason.contains("[composite] sub-aggregation"),
         "{}",
         failure.reason
+    );
+}
+
+// AC-10
+#[test]
+fn a_date_histogram_source_is_parsed_with_its_interval_zone_and_offset() {
+    use crate::aggs::bucket::date_histogram::{DateUnit, RoundingKind};
+    let s = spec(
+        r#"{"sources":[{"d":{"date_histogram":{"field":"ts","calendar_interval":"month","time_zone":"+02:00","offset":"+1h"}}},{"e":{"date_histogram":{"field":"ts","fixed_interval":"90s"}}}]}"#,
+    );
+    let SourceKind::DateHistogram { rounding } = s.sources[0].kind else {
+        panic!("not a date_histogram");
+    };
+    assert_eq!(rounding.kind, RoundingKind::Unit(DateUnit::Month));
+    assert_eq!((rounding.zone_ms, rounding.offset), (7_200_000, 3_600_000));
+    let SourceKind::DateHistogram { rounding } = s.sources[1].kind else {
+        panic!("not a date_histogram");
+    };
+    assert_eq!(rounding.kind, RoundingKind::Interval(90_000));
+}
+
+#[test]
+fn a_date_histogram_source_needs_one_valid_interval() {
+    let src = |body: &str| {
+        format!(r#"{{"sources":[{{"d":{{"date_histogram":{{"field":"ts",{body}}}}}}}]}}"#)
+    };
+    assert!(reason(&src(r#""offset":1"#)).contains("Invalid interval specified"));
+    assert!(
+        reason(&src(r#""calendar_interval":"day","fixed_interval":"1d""#))
+            .contains("Cannot use [fixed_interval] with [calendar_interval] configuration option.")
+    );
+    assert!(
+        reason(&src(r#""calendar_interval":"fortnight""#))
+            .contains("could not be parsed as a calendar interval")
+    );
+    assert!(reason(&src(r#""fixed_interval":"0ms""#)).contains("Zero or negative time interval"));
+    assert!(
+        reason(&src(r#""fixed_interval":"1d","time_zone":"Europe/Paris""#))
+            .contains("is not supported by this node yet")
     );
 }

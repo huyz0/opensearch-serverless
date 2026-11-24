@@ -34,7 +34,7 @@ const KEYS: &[&str] = &[
 ];
 
 /// `DateHistogramAggregationBuilder.DATE_FIELD_UNITS`.
-fn calendar_unit(text: &str) -> Option<DateUnit> {
+pub(crate) fn calendar_unit(text: &str) -> Option<DateUnit> {
     Some(match text {
         "year" | "1y" => DateUnit::Year,
         "quarter" | "1q" => DateUnit::Quarter,
@@ -123,7 +123,7 @@ pub fn time_value_millis(text: &str, setting: &str) -> Result<i64, String> {
 /// A fixed-offset zone's offset in milliseconds, for the ids `ZoneId.of`
 /// reads as one: `Z`, `UTC`, `GMT`, `UT`, and `+h`, `+hh`, `+hh:mm`,
 /// `+hhmm`, `+hh:mm:ss` or `+hhmmss`, alone or after `UTC`, `GMT` or `UT`.
-fn zone_millis(id: &str) -> Option<i64> {
+pub(crate) fn zone_millis(id: &str) -> Option<i64> {
     if matches!(id, "Z" | "UTC" | "GMT" | "UT") {
         return Some(0);
     }
@@ -380,13 +380,7 @@ pub fn parse_date_histogram_body(
                 offset = if token == Kind::Number {
                     long_value(token, p.text()).map_err(|e| failed(p, e))?
                 } else {
-                    let text = p.text();
-                    let setting = "DateHistogramAggregationBuilder.parseOffset";
-                    let parsed = match text.strip_prefix('-') {
-                        Some(rest) => time_value_millis(rest, setting).map(i64::wrapping_neg),
-                        None => time_value_millis(text.strip_prefix('+').unwrap_or(text), setting),
-                    };
-                    parsed.map_err(|m| failed(p, DslError::illegal(m)))?
+                    offset_millis(p.text()).map_err(|m| failed(p, DslError::illegal(m)))?
                 };
             }
             "keyed" => keyed = bool_value(p).map_err(|e| failed(p, e))?,
@@ -461,6 +455,15 @@ pub fn parse_date_histogram_body(
             hard_bounds: hard_bounds.unwrap_or((None, None)),
         },
     ))
+}
+
+/// `DateHistogramAggregationBuilder.parseStringOffset`: a signed time value.
+pub(crate) fn offset_millis(text: &str) -> Result<i64, String> {
+    let setting = "DateHistogramAggregationBuilder.parseOffset";
+    match text.strip_prefix('-') {
+        Some(rest) => time_value_millis(rest, setting).map(i64::wrapping_neg),
+        None => time_value_millis(text.strip_prefix('+').unwrap_or(text), setting),
+    }
 }
 
 /// `LongBounds.parseAndValidate` then `round`: `None` when none were given.
