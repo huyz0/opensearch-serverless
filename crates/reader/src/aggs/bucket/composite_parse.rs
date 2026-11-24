@@ -6,9 +6,8 @@ use crate::aggs::bucket::composite::{
     AfterValue, CompositeSpec, MissingOrder, SourceKind, SourceSpec,
 };
 use crate::aggs::bucket::date_histogram::{DateRounding, RegionZone, RoundingKind};
-use crate::aggs::bucket::date_histogram_parse::{
-    calendar_unit, offset_millis, time_value_millis, zone_millis,
-};
+use crate::aggs::bucket::date_histogram_parse::{calendar_unit, offset_millis, time_value_millis};
+use crate::aggs::bucket::date_histogram_zone::zone_of;
 use crate::aggs::bucket::histogram_parse::double_value;
 use crate::aggs::metric::parse::long_value;
 use crate::dsl::error::DslError;
@@ -387,22 +386,17 @@ fn parse_source_body(
                 });
             }
             "time_zone" => {
-                region = None;
-                zone_ms = if kind == Some(Kind::Number) {
-                    long_value(Kind::Number, p.text())
-                        .map_err(|e| failed(p, e))?
-                        .saturating_mul(3_600_000)
-                } else if let Some(fixed) = zone_millis(p.text()) {
-                    fixed
-                } else if let Some(named) = RegionZone::named(p.text()) {
-                    region = Some(named);
-                    0
+                (zone_ms, region) = if kind == Some(Kind::Number) {
+                    let hours = long_value(Kind::Number, p.text()).map_err(|e| failed(p, e))?;
+                    (hours.saturating_mul(3_600_000), None)
                 } else {
-                    // ALLOC: error path; one message.
-                    return Err(DslError::unsupported(&format!(
-                        "a composite source's time zone [{}]",
-                        p.text()
-                    )));
+                    zone_of(p.text()).ok_or_else(|| {
+                        // ALLOC: error path; one message.
+                        DslError::unsupported(&format!(
+                            "a composite source's time zone [{}]",
+                            p.text()
+                        ))
+                    })?
                 };
             }
             "offset" => {
