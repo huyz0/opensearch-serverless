@@ -12,7 +12,7 @@ Invariants served:
 
 ## Change
 
-Ported from huyz0/OpenSearch (`feature/serverlessshell`): `template/TemplateStore.java` (the indexed form) and `metadata/RegisterMap.java` (`indexTemplates`, `componentTemplates`, `pipelines`, `searchPipelines`). A decision record is not needed: the design is the Java's, and it adds no request class.
+Ported from huyz0/OpenSearch (`feature/serverlessshell`): `template/TemplateStore.java` (the indexed form) and `metadata/RegisterMap.java` (`indexTemplates`, `componentTemplates`, `pipelines`, `searchPipelines`). Decision record: [ADR 0031](../../adr/0031-document-sets.md).
 
 ### In `oss-format`
 
