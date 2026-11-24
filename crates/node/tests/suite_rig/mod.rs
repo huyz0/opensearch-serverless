@@ -80,7 +80,21 @@ fn free_port() -> u16 {
         .port()
 }
 
+/// Creates the bucket, retrying while the store answers 503: RustFS accepts
+/// connections before it can serve requests.
 fn create_bucket(endpoint: &str, host: &str) {
+    let started = Instant::now();
+    loop {
+        let status = put_bucket(endpoint, host);
+        if status != 503 || started.elapsed() > Duration::from_secs(30) {
+            assert_eq!(status, 200, "create bucket");
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(200));
+    }
+}
+
+fn put_bucket(endpoint: &str, host: &str) -> u16 {
     let now = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .expect("after the epoch")
@@ -112,7 +126,7 @@ fn create_bucket(endpoint: &str, host: &str) {
         .header("authorization", &auth)
         .send_empty()
         .expect("the bucket request");
-    assert_eq!(response.status().as_u16(), 200, "create bucket");
+    response.status().as_u16()
 }
 
 impl Cluster {
@@ -263,6 +277,20 @@ impl Cluster {
             target,
             body.map(str::as_bytes),
         )
+    }
+
+    /// The S3 endpoint, bucket, region and credentials the nodes share, for
+    /// a process that is not one of this cluster's nodes.
+    pub fn store(
+        &self,
+    ) -> (
+        String,
+        &'static str,
+        &'static str,
+        &'static str,
+        &'static str,
+    ) {
+        (self.endpoint.clone(), BUCKET, REGION, ACCESS, SECRET)
     }
 
     /// The nodes the node in `slot` counts in its cluster health.
