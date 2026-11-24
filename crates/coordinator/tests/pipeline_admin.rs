@@ -9,8 +9,19 @@ fn refused(body: &str) -> (u16, &'static str, String) {
 
 #[test]
 fn a_pipeline_of_supported_processors_is_accepted() {
-    for name in SUPPORTED {
-        let body = format!(r#"{{"processors":[{{"{name}":{{"field":"a"}}}}]}}"#);
+    let configs = [
+        ("append", r#"{"field":"a","value":1}"#),
+        ("convert", r#"{"field":"a","type":"integer"}"#),
+        ("lowercase", r#"{"field":"a"}"#),
+        ("remove", r#"{"field":"a"}"#),
+        ("rename", r#"{"field":"a","target_field":"b"}"#),
+        ("set", r#"{"field":"a","value":1}"#),
+        ("trim", r#"{"field":"a"}"#),
+        ("uppercase", r#"{"field":"a"}"#),
+    ];
+    assert_eq!(configs.len(), SUPPORTED.len());
+    for (name, config) in configs {
+        let body = format!(r#"{{"processors":[{{"{name}":{config}}}]}}"#);
         assert!(validate(body.as_bytes()).is_ok(), "{name}");
     }
     assert!(validate(br#"{"description":"d","version":2,"processors":[]}"#).is_ok());
@@ -41,6 +52,10 @@ fn a_malformed_pipeline_is_refused() {
         r#"{"processors":[1]}"#,
         r#"{"processors":[{}]}"#,
         r#"{"processors":[{"set":{},"remove":{}}]}"#,
+        r#"{"processors":[{"set":{"field":"a"}}]}"#,
+        r#"{"processors":[{"set":{"field":"a","value":"{{b}}"}}]}"#,
+        r#"{"processors":[{"set":{"field":"a","value":1,"if":"true"}}]}"#,
+        r#"{"processors":[{"convert":{"field":"a","type":"ip"}}]}"#,
     ] {
         assert_eq!(refused(body).1, "invalid_pipeline", "{body}");
     }
