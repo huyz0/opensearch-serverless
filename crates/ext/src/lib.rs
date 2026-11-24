@@ -14,7 +14,7 @@ mod status;
 mod version;
 
 pub use descriptor::{Descriptor, DescriptorError, Limits, Point};
-pub use error::{CallError, FailureKind, MAX_ERROR_DETAIL_BYTES};
+pub use error::{CallError, FailureKind, MAX_ERROR_DETAIL_BYTES, printable};
 pub use status::{Status, status_of};
 pub use version::{
     ABI_MAJOR, ABI_MINOR, ABI_VERSION, VersionError, abi_accepted, abi_accepted_against, pack_abi,

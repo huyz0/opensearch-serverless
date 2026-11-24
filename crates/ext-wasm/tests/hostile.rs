@@ -1,0 +1,476 @@
+//! Hostile and malformed modules (docs/specs/extension-abi AC-5, AC-6): each
+//! fails its call or its load with a typed failure, and the host keeps serving.
+
+mod common;
+
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+
+use common::{IN, IO, OUT, Parts, build, descriptor, with_body};
+use oss_ext::{FailureKind, VersionError};
+use oss_ext_wasm::{Host, HostConfig, LoadError, Module, Unbounded};
+
+fn load(host: &Host, wasm: &[u8]) -> Module {
+    host.load(wasm, Arc::new(Unbounded)).expect("loads")
+}
+
+fn host() -> Host {
+    Host::new(HostConfig::default())
+}
+
+fn kind(m: &Module) -> (FailureKind, u16, String) {
+    let e = m.call("t", 0, b"hi").expect_err("the call fails");
+    (e.kind(), e.http_status(), e.detail().to_owned())
+}
+
+// docs/specs/extension-abi AC-5
+#[test]
+fn a_well_behaved_module_echoes_and_describes_itself() {
+    let m = load(&host(), &build(&Parts::default()));
+    assert_eq!(m.descriptor().name(), "hostile");
+    assert_eq!(m.call("t", 0, b"hello").expect("echo"), b"hello");
+    assert_eq!(m.call("t", 0, b"").expect("empty"), b"");
+    // A second call sees a fresh instance, not the first call's state.
+    assert_eq!(m.call("t", 0, b"again").expect("echo"), b"again");
+}
+
+#[test]
+fn a_point_that_is_not_in_the_descriptor_and_a_large_input_are_refused() {
+    let m = load(&host(), &build(&Parts::default()));
+    assert_eq!(
+        m.call("t", 1, b"x").unwrap_err().kind(),
+        FailureKind::Unsupported
+    );
+    let big = vec![0_u8; IO as usize + 1];
+    let e = m.call("t", 0, &big).unwrap_err();
+    assert_eq!((e.kind(), e.http_status()), (FailureKind::Limit, 400));
+    assert_eq!(
+        m.call("t", 0, &big[..IO as usize])
+            .expect("exactly the region")
+            .len(),
+        IO as usize
+    );
+}
+
+#[test]
+fn a_spinning_module_runs_out_of_fuel_and_the_next_call_is_served() {
+    let host = host();
+    let spin = load(&host, &with_body("(loop $l (br $l)) (i32.const 0)"));
+    assert_eq!(
+        kind(&spin),
+        (FailureKind::Limit, 400, "fuel exhausted".into())
+    );
+    let ok = load(&host, &build(&Parts::default()));
+    assert!(ok.call("t", 0, b"x").is_ok());
+}
+
+#[test]
+fn a_module_that_outlasts_its_deadline_is_interrupted() {
+    let host = Host::new(HostConfig {
+        fuel: u64::MAX / 2,
+        deadline_ms: 100,
+        ..HostConfig::default()
+    });
+    let spin = load(&host, &with_body("(loop $l (br $l)) (i32.const 0)"));
+    let started = std::time::Instant::now();
+    assert_eq!(
+        kind(&spin),
+        (FailureKind::Limit, 400, "deadline passed".into())
+    );
+    assert!(started.elapsed() < Duration::from_secs(5));
+}
+
+#[test]
+fn a_cooperative_module_is_told_to_stop_before_the_hard_deadline() {
+    let host = Host::new(HostConfig {
+        fuel: u64::MAX / 2,
+        deadline_ms: 400,
+        ..HostConfig::default()
+    });
+    let m = load(
+        &host,
+        &with_body("(loop $l (br_if $l (i32.eqz (call $cancelled)))) (i32.const -5)"),
+    );
+    assert_eq!(
+        m.call("t", 0, b"").unwrap_err().kind(),
+        FailureKind::Cancelled
+    );
+}
+
+#[test]
+fn growing_memory_past_the_cap_fails_the_growth_and_not_the_node() {
+    let grow = "(if (i32.eq (memory.grow (i32.const 100000)) (i32.const -1)) \
+        (then (return (i32.const -4)))) (i32.const 0)";
+    let m = load(&host(), &with_body(grow));
+    assert_eq!(m.call("t", 0, b"").unwrap_err().kind(), FailureKind::Limit);
+    // Below the cap the same growth succeeds.
+    let small = "(if (i32.eq (memory.grow (i32.const 10)) (i32.const -1)) \
+        (then (return (i32.const -4)))) (i32.const 0)";
+    assert!(load(&host(), &with_body(small)).call("t", 0, b"").is_ok());
+}
+
+#[test]
+fn a_descriptor_may_lower_the_memory_cap_and_cannot_raise_it() {
+    let lower = Parts {
+        descriptor: descriptor(r#","limits":{"memory_bytes":1048576}"#),
+        body: "(if (i32.eq (memory.grow (i32.const 100)) (i32.const -1)) \
+            (then (return (i32.const -4)))) (i32.const 0)",
+        ..Parts::default()
+    };
+    assert_eq!(
+        load(&host(), &build(&lower))
+            .call("t", 0, b"")
+            .unwrap_err()
+            .kind(),
+        FailureKind::Limit
+    );
+    let raise = Parts {
+        descriptor: descriptor(r#","limits":{"memory_bytes":4294967296}"#),
+        body: "(if (i32.eq (memory.grow (i32.const 100000)) (i32.const -1)) \
+            (then (return (i32.const -4)))) (i32.const 0)",
+        ..Parts::default()
+    };
+    assert_eq!(
+        load(&host(), &build(&raise))
+            .call("t", 0, b"")
+            .unwrap_err()
+            .kind(),
+        FailureKind::Limit
+    );
+}
+
+#[test]
+fn a_module_whose_memory_starts_over_the_cap_is_not_loaded() {
+    let p = Parts {
+        memory: "2000",
+        ..Parts::default()
+    };
+    let e = host()
+        .load(&build(&p), Arc::new(Unbounded))
+        .err()
+        .expect("refused");
+    assert!(matches!(e, LoadError::Broken(_)), "{e}");
+}
+
+#[test]
+fn a_trap_is_a_trap_and_a_runaway_recursion_is_a_stack_limit() {
+    let host = host();
+    assert_eq!(
+        kind(&load(&host, &with_body("(unreachable)"))).0,
+        FailureKind::Trap
+    );
+    let rec = Parts {
+        body: "(call $rec) (i32.const 0)",
+        extra: "(func $rec (call $rec))",
+        ..Parts::default()
+    };
+    assert_eq!(
+        kind(&load(&host, &build(&rec))),
+        (FailureKind::Limit, 400, "stack exhausted".into())
+    );
+}
+
+#[test]
+fn an_output_past_its_region_or_memory_is_malformed() {
+    let host = host();
+    for len in [IO + 1, u32::MAX] {
+        let body = format!("(global.set $len (i32.const {})) (i32.const 0)", len as i32);
+        let (k, status, _) = kind(&load(&host, &with_body(&body)));
+        assert_eq!((k, status), (FailureKind::Malformed, 502), "length {len}");
+    }
+}
+
+#[test]
+fn an_undefined_status_is_malformed() {
+    let (k, status, detail) = kind(&load(&host(), &with_body("(i32.const -99)")));
+    assert_eq!((k, status), (FailureKind::Malformed, 502));
+    assert_eq!(detail, "undefined status -99");
+}
+
+#[test]
+fn a_module_failure_carries_its_detail_made_printable() {
+    let body = "(memory.copy (i32.const 131072) (i32.const 400) (i32.const 8)) \
+        (global.set $len (i32.const 8)) (i32.const -6)";
+    let (k, status, detail) = kind(&load(&host(), &with_body(body)));
+    assert_eq!((k, status), (FailureKind::ModuleFailed, 400));
+    assert_eq!(detail, "bad?news");
+}
+
+#[test]
+fn a_module_that_asks_for_more_than_the_output_holds_fails_without_a_retry() {
+    let (k, _, _) = kind(&load(&host(), &with_body("(i32.const -1)")));
+    assert_eq!(k, FailureKind::OutputTooLarge);
+}
+
+#[test]
+fn log_lines_are_cut_rate_limited_and_made_printable() {
+    let seen = Arc::new(Mutex::new(Vec::<(String, String)>::new()));
+    let sink = Arc::clone(&seen);
+    let host = Host::new(HostConfig {
+        log: Arc::new(move |name, text| {
+            sink.lock()
+                .unwrap()
+                .push((name.to_owned(), text.to_owned()));
+        }),
+        ..HostConfig::default()
+    });
+    let body = "(local $i i32) (loop $l (call $log (i32.const 1000) (i32.const 600)) \
+        (local.set $i (i32.add (local.get $i) (i32.const 1))) \
+        (br_if $l (i32.lt_u (local.get $i) (i32.const 20)))) (i32.const 0)";
+    load(&host, &with_body(body)).call("t", 0, b"").expect("ok");
+    let seen = seen.lock().unwrap();
+    assert_eq!(seen.len(), 10, "ten a second");
+    assert!(
+        seen.iter()
+            .all(|(n, t)| n == "hostile" && t == &"?".repeat(512))
+    );
+}
+
+// Loading: what is refused before or after the compile.
+#[test]
+fn a_module_that_is_refused_names_why() {
+    let host = host();
+    let refused = |p: &Parts<'_>, want: &str| {
+        let e = host
+            .load(&build(p), Arc::new(Unbounded))
+            .err()
+            .expect("refused")
+            .to_string();
+        assert!(e.contains(want), "{e} should contain {want}");
+    };
+    refused(
+        &Parts {
+            imports: r#"(import "env" "x" (func))"#,
+            ..Parts::default()
+        },
+        "env.x",
+    );
+    refused(
+        &Parts {
+            extra: "(func $s) (start $s)",
+            ..Parts::default()
+        },
+        "start function",
+    );
+    refused(
+        &Parts {
+            extra: "(memory 1)",
+            ..Parts::default()
+        },
+        "more than one memory",
+    );
+    let locals = format!("(func (local {}))", "i32 ".repeat(1001));
+    refused(
+        &Parts {
+            extra: &locals,
+            ..Parts::default()
+        },
+        "locals",
+    );
+    let many = "(func)".repeat(5001);
+    refused(
+        &Parts {
+            extra: &many,
+            ..Parts::default()
+        },
+        "functions",
+    );
+    let e = host
+        .load(b"not wasm", Arc::new(Unbounded))
+        .err()
+        .expect("refused");
+    assert!(matches!(e, LoadError::Refused(_)));
+    let huge = vec![0_u8; 8 * 1024 * 1024 + 1];
+    assert!(matches!(
+        host.load(&huge, Arc::new(Unbounded)).err(),
+        Some(LoadError::TooLarge)
+    ));
+}
+
+#[test]
+fn a_module_with_the_wrong_abi_or_descriptor_or_exports_is_not_loaded() {
+    let host = host();
+    let e = host
+        .load(
+            &build(&Parts {
+                abi: 2 << 16,
+                ..Parts::default()
+            }),
+            Arc::new(Unbounded),
+        )
+        .err()
+        .expect("refused");
+    assert!(matches!(
+        e,
+        LoadError::Abi(VersionError::OtherMajor { module: 2, host: 1 })
+    ));
+    let e = host
+        .load(
+            &build(&Parts {
+                abi: (1 << 16) | 1,
+                ..Parts::default()
+            }),
+            Arc::new(Unbounded),
+        )
+        .err()
+        .expect("refused");
+    assert!(matches!(e, LoadError::Abi(VersionError::NewerMinor { .. })));
+    let e = host
+        .load(
+            &build(&Parts {
+                descriptor: descriptor(r#","surprise":1"#),
+                ..Parts::default()
+            }),
+            Arc::new(Unbounded),
+        )
+        .err()
+        .expect("refused");
+    assert!(
+        matches!(&e, LoadError::Descriptor(d) if d.key() == "surprise"),
+        "{e}"
+    );
+    let no_describe = wat::parse_str(
+        r#"(module (memory (export "memory") 1) (func (export "oss_abi_version") (result i32) (i32.const 65536)))"#,
+    )
+    .unwrap();
+    let e = host
+        .load(&no_describe, Arc::new(Unbounded))
+        .err()
+        .expect("refused");
+    assert!(matches!(e, LoadError::Broken(_)), "{e}");
+}
+
+#[test]
+fn regions_outside_memory_or_overlapping_are_refused() {
+    let host = host();
+    // Memory of one page puts both regions out of range.
+    let e = host
+        .load(
+            &build(&Parts {
+                memory: "1",
+                ..Parts::default()
+            }),
+            Arc::new(Unbounded),
+        )
+        .err()
+        .expect("refused");
+    assert!(matches!(e, LoadError::Broken(_)), "{e}");
+}
+
+#[test]
+fn a_module_that_uses_atomics_or_shared_memory_is_refused() {
+    let host = host();
+    let shared = wat::parse_str(
+        r#"(module (memory (export "memory") 1 1 shared)
+          (func (export "oss_abi_version") (result i32) (i32.const 65536)))"#,
+    );
+    // Threads are compiled out of this engine, so the text form is refused or the load is.
+    if let Ok(bytes) = shared {
+        assert!(host.load(&bytes, Arc::new(Unbounded)).is_err());
+    }
+    let text = wat::parse_str(
+        r#"(module (memory (export "memory") 1) (func (result i32) (memory.atomic.notify (i32.const 0) (i32.const 1))))"#,
+    );
+    if let Ok(bytes) = text {
+        assert!(host.load(&bytes, Arc::new(Unbounded)).is_err());
+    }
+}
+
+#[test]
+fn a_table_cannot_grow_past_its_bound() {
+    let body = "(if (i32.eq (table.grow $t (ref.null func) (i32.const 20000)) (i32.const -1)) \
+        (then (return (i32.const -4)))) (i32.const 0)";
+    let p = Parts {
+        body,
+        extra: "(table $t 1 funcref)",
+        ..Parts::default()
+    };
+    assert_eq!(
+        load(&host(), &build(&p))
+            .call("t", 0, b"")
+            .unwrap_err()
+            .kind(),
+        FailureKind::Limit
+    );
+}
+
+fn load_err(p: &Parts<'_>) -> LoadError {
+    host()
+        .load(&build(p), Arc::new(Unbounded))
+        .err()
+        .expect("refused")
+}
+
+#[test]
+fn the_descriptor_length_is_held_to_the_ceiling_to_the_byte() {
+    // Over the ceiling but inside memory: refused for its length.
+    let e = load_err(&Parts {
+        describe_len: Some(16 * 1024 + 1),
+        ..Parts::default()
+    });
+    assert!(matches!(e, LoadError::Broken(_)), "{e}");
+    // Exactly the ceiling passes the length check and fails to parse.
+    let e = load_err(&Parts {
+        describe_len: Some(16 * 1024),
+        ..Parts::default()
+    });
+    assert!(matches!(e, LoadError::Descriptor(_)), "{e}");
+}
+
+#[test]
+fn regions_are_checked_each_against_memory_and_each_other() {
+    let ok = |input, output, io: u32| {
+        let p = Parts {
+            input,
+            output,
+            descriptor: common::descriptor_io(io, ""),
+            ..Parts::default()
+        };
+        host().load(&build(&p), Arc::new(Unbounded)).is_ok()
+    };
+    assert!(ok(IN, OUT, IO));
+    assert!(ok(OUT, IN, IO), "the input may sit above the output");
+    assert!(ok(IN, OUT, 65_536), "regions that touch do not overlap");
+    assert!(ok(OUT, IN, 65_536), "and the same the other way round");
+    assert!(!ok(IN, IN + 512, IO), "overlap with the output above");
+    assert!(!ok(OUT + 512, OUT, IO), "overlap with the input above");
+    assert!(!ok(IN, 262_144 - 100, IO), "output past memory");
+    assert!(!ok(262_144 - 100, OUT, IO), "input past memory");
+    assert!(
+        ok(IN, 262_144 - IO, IO),
+        "output ending exactly at memory's end"
+    );
+    assert!(
+        ok(262_144 - IO, IN, IO),
+        "input ending exactly at memory's end"
+    );
+}
+
+#[test]
+fn cancelled_is_false_early_and_true_by_half_the_deadline() {
+    let host = Host::new(HostConfig {
+        fuel: u64::MAX / 2,
+        deadline_ms: 600,
+        ..HostConfig::default()
+    });
+    // Asked at once, the answer is no (the call succeeds); asked after spinning, yes.
+    let early = load(
+        &host,
+        &with_body("(if (call $cancelled) (then (return (i32.const -5)))) (i32.const 0)"),
+    );
+    assert!(early.call("t", 0, b"").is_ok());
+    let late = load(
+        &host,
+        &with_body("(loop $l (br_if $l (i32.eqz (call $cancelled)))) (i32.const -5)"),
+    );
+    let started = std::time::Instant::now();
+    assert_eq!(
+        late.call("t", 0, b"").unwrap_err().kind(),
+        FailureKind::Cancelled
+    );
+    assert!(
+        started.elapsed() >= Duration::from_millis(250),
+        "{:?}",
+        started.elapsed()
+    );
+}

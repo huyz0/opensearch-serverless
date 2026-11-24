@@ -203,3 +203,13 @@ fn separators_and_format_characters_cannot_hide_or_reorder_a_log_line() {
         assert_eq!(e.detail(), "a?b", "{:x}", c as u32);
     }
 }
+
+#[test]
+fn a_contract_break_names_why_and_a_log_line_is_cut_where_asked() {
+    let e = CallError::malformed_because("output past its region");
+    assert_eq!(e.kind(), FailureKind::Malformed);
+    assert_eq!(e.detail(), "output past its region");
+    assert_eq!(e.http_status(), 502);
+    assert_eq!(oss_ext::printable(b"ab\ncd", 3), "ab?");
+    assert_eq!(oss_ext::printable(&[b'x'; 2000], 512).len(), 512);
+}

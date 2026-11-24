@@ -26,7 +26,7 @@ getrandom = "=0.4.3"
 # The filesystem store's register lock is the POSIX record lock Java's
 # FileChannel.lock takes; std's File::lock is flock, which does not exclude it.
 [target.'cfg(unix)'.dependencies]
-rustix = { version = "=1.1.2", default-features = false, features = ["fs", "std"] }
+rustix = { version = "=1.1.4", default-features = false, features = ["fs", "std"] }
 
 [features]
 # The in-process S3 emulator, for tests in this crate and the crates above.
@@ -38,7 +38,7 @@ oss-testkit = { workspace = true }
 
 # The register tests hold the lock Java takes, from a child process.
 [target.'cfg(unix)'.dev-dependencies]
-rustix = { version = "=1.1.2", default-features = false, features = ["fs", "std"] }
+rustix = { version = "=1.1.4", default-features = false, features = ["fs", "std"] }
 
 [[test]]
 name = "emulator"
