@@ -291,6 +291,37 @@ fn a_create_names_its_group_by_the_bucket_group_setting() {
     assert_eq!(bucket_of(&r, "a").as_deref(), Some("b-acme"));
 }
 
+fn tenancy_of_index(r: &Rig, name: &str) -> oss_node::writer::Tenancy {
+    let mut buf = vec![0u8; BUF];
+    let rec = r
+        .descriptors
+        .get(name, &mut buf)
+        .expect("read")
+        .expect("there");
+    oss_node::writer::tenancy_of(rec.settings)
+}
+
+// docs/specs/tenant-tier-budgets AC-1
+#[test]
+fn a_create_keeps_its_group_tier_and_budget_and_refuses_a_bad_tier_or_budget() {
+    let r = rig();
+    let body = r#"{"settings":{"index.serverless.bucket_group":"acme","index.serverless.cost.tier":"small","index.serverless.cost.budget":"75"}}"#;
+    assert_eq!(call(&r, "PUT", "/a", Some(body)).status, 200);
+    let kept = tenancy_of_index(&r, "a");
+    assert_eq!(kept.group.as_deref(), Some("acme"));
+    assert_eq!(kept.tier.as_deref(), Some("small"));
+    assert_eq!(kept.budget, Some(75));
+    assert_eq!(call(&r, "PUT", "/plain", None).status, 200);
+    assert!(tenancy_of_index(&r, "plain").is_empty());
+    for bad in [
+        r#"{"settings":{"index.serverless.cost.tier":"huge"}}"#,
+        r#"{"settings":{"index.serverless.cost.budget":"0"}}"#,
+        r#"{"settings":{"index.serverless.cost.budget":"lots"}}"#,
+    ] {
+        assert_eq!(call(&r, "PUT", "/bad", Some(bad)).status, 400, "{bad}");
+    }
+}
+
 #[test]
 fn an_index_that_sets_the_bucket_policy_off_joins_none() {
     let (r, _) = bucketed_rig();

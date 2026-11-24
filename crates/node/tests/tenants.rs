@@ -14,7 +14,7 @@ use oss_blob::BlobStore;
 use oss_blob::guard::Mode;
 use oss_blob::usage::Ledger;
 use oss_mem::MemoryBudget;
-use oss_node::tenants::TenantLevels;
+use oss_node::tenants::{TenantLevels, Tier, TierBudgets};
 use oss_node::usage_route::{UsageService, routes};
 use oss_rest::{Router, Server};
 
@@ -141,7 +141,7 @@ fn the_route_reports_the_mode_and_each_tenant() {
     let reply = support::request(server.local_addr(), "GET", "/_serverless/usage", None);
     let body = reply.text();
     assert!(
-        body.contains("\"tenant_levels\":{\"mode\":\"observe\",\"tenants\":{\"busy\":{\"level\":1,\"local_level\":1,\"set_level\":0,\"cost_per_minute\":12.000,"),
+        body.contains("\"tenant_levels\":{\"mode\":\"observe\",\"tenants\":{\"busy\":{\"level\":1,\"local_level\":1,\"set_level\":0,\"budget_per_minute\":10,\"cost_per_minute\":12.000,"),
         "{body}"
     );
     assert!(body.ends_with("\"refused\":0}}}}"), "{body}");
@@ -162,27 +162,111 @@ fn the_ticker_steps_the_levels_until_the_ledger_is_gone() {
     assert_eq!(levels.report(1_000)[0].0, "busy");
 }
 
-// AC-9
+// docs/specs/tenant-levels-wiring AC-9, tenant-tier-budgets AC-2
 #[test]
-fn a_bucket_group_is_written_and_read_back_from_descriptor_settings() {
-    use oss_node::writer::{bucket_group_of, group_settings};
+fn billing_settings_are_written_and_read_back_from_descriptor_settings() {
+    use oss_node::writer::{Tenancy, tenancy_of, tenancy_settings};
     for group in ["acme", "a \"b\\", "ünï"] {
-        assert_eq!(
-            bucket_group_of(&group_settings(group)).as_deref(),
-            Some(group)
-        );
+        let t = Tenancy {
+            group: Some(group.to_owned()),
+            ..Tenancy::default()
+        };
+        assert_eq!(tenancy_of(&tenancy_settings(&t)), t);
     }
+    let all = Tenancy {
+        group: Some("g".to_owned()),
+        tier: Some("standard".to_owned()),
+        budget: Some(75),
+    };
+    assert_eq!(tenancy_of(&tenancy_settings(&all)), all);
     assert_eq!(
-        bucket_group_of(br#"{"index":{"serverless":{"bucket_group":"nested"}}}"#).as_deref(),
-        Some("nested")
+        tenancy_of(
+            br#"{"index":{"serverless":{"bucket_group":"nested","cost":{"tier":"large"}}}}"#
+        ),
+        Tenancy {
+            group: Some("nested".to_owned()),
+            tier: Some("large".to_owned()),
+            budget: None
+        }
     );
     for none in [
         &b"{}"[..],
         br#"{"index.serverless.bucket_group":""}"#,
+        br#"{"index.serverless.cost.budget":"0"}"#,
+        br#"{"index.serverless.cost.budget":"x"}"#,
         b"nope",
     ] {
-        assert_eq!(bucket_group_of(none), None);
+        assert!(tenancy_of(none).is_empty(), "{none:?}");
     }
+    assert_eq!(
+        tenancy_of(br#"{"index.serverless.cost.budget":"9","index.serverless.cost.tier":"small"}"#)
+            .budget,
+        Some(9),
+        "a budget beats a tier"
+    );
+}
+
+/// Levels over a ledger with `tiers`, where each of `names` has cost.
+fn tiered(mode: Mode, default: Tier, names: &[&str]) -> (TenantLevels, Arc<Ledger>) {
+    let (ledger, store) = rig();
+    let levels = TenantLevels::new(Arc::clone(&ledger), mode, 2_000)
+        .with_tiers(TierBudgets::default(), default);
+    run(&levels, &store, names, 2, 80);
+    (levels, ledger)
+}
+
+// AC-3, AC-4, AC-5
+#[test]
+fn a_tenant_is_judged_against_the_largest_budget_of_its_indices() {
+    use oss_node::writer::Tenancy;
+    let tier = |t: &str| Tenancy {
+        tier: Some(t.to_owned()),
+        ..Tenancy::default()
+    };
+    // Two puts every ten seconds is 12 cost units a minute: over small (20)
+    // only when two indices add up to 24.
+    let (ledger, store) = rig();
+    let levels = TenantLevels::new(Arc::clone(&ledger), Mode::Observe, 2_000);
+    levels.note_tenancy("a", &tier("small"));
+    run(&levels, &store, &["a"], 2, 80);
+    assert_eq!(levels.budget_of("a"), 20);
+    assert_eq!(levels.report(80_000)[0].1.level, 0, "12 under 20");
+    let (ledger, store) = rig();
+    let levels = TenantLevels::new(ledger, Mode::Observe, 2_000);
+    levels.note_tenancy("a", &tier("small"));
+    levels.note_tenancy("b", &tier("small"));
+    levels.note_group("a", "acme");
+    levels.note_group("b", "acme");
+    run(&levels, &store, &["a", "b"], 2, 80);
+    assert_eq!(levels.budget_of("acme"), 20);
+    assert_eq!(levels.report(80_000)[0].1.level, 1, "24 over 20");
+    // The larger of two indices' budgets wins.
+    levels.note_tenancy(
+        "b",
+        &Tenancy {
+            group: Some("acme".to_owned()),
+            budget: Some(500),
+            ..Tenancy::default()
+        },
+    );
+    levels.tick(90_000);
+    assert_eq!(levels.budget_of("acme"), 500);
+    // Whichever index comes first or last, the larger budget is the one.
+    levels.note_tenancy(
+        "a",
+        &Tenancy {
+            group: Some("acme".to_owned()),
+            budget: Some(900),
+            ..Tenancy::default()
+        },
+    );
+    levels.tick(100_000);
+    assert_eq!(levels.budget_of("acme"), 900);
+    // An index with none takes the default tier's.
+    let (levels, _) = tiered(Mode::Enforce, Tier::Standard, &["c"]);
+    assert_eq!(levels.budget_of("c"), 200);
+    let (levels, _) = tiered(Mode::Observe, Tier::Large, &["c"]);
+    assert_eq!(levels.budget_of("c"), 2_000);
 }
 
 // docs/specs/tenant-publish-stretch AC-2

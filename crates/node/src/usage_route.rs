@@ -104,10 +104,11 @@ impl UsageService {
             write_json_str(&mut *out, name)?;
             write!(
                 out,
-                ":{{\"level\":{},\"local_level\":{},\"set_level\":{},\"cost_per_minute\":{:.3},\"docs_per_minute\":{:.3},\"paced\":{},\"refused\":{}}}",
+                ":{{\"level\":{},\"local_level\":{},\"set_level\":{},\"budget_per_minute\":{},\"cost_per_minute\":{:.3},\"docs_per_minute\":{:.3},\"paced\":{},\"refused\":{}}}",
                 t.level,
                 t.local_level,
                 t.set_level,
+                tenants.budget_of(name),
                 t.cost_per_minute,
                 t.docs_per_minute,
                 t.paced,
@@ -200,15 +201,26 @@ pub fn attach(
     let mode =
         oss_blob::guard::Mode::parse(config.tenant_levels).unwrap_or(oss_blob::guard::Mode::Off);
     if mode != oss_blob::guard::Mode::Off {
-        let levels = Arc::new(TenantLevels::new(
-            ledger,
-            mode,
-            config.tenant_budget_per_minute,
-        ));
+        let tiers = crate::tenants::TierBudgets {
+            small: config.tenant_budget_small,
+            standard: config.tenant_budget_standard,
+            large: config.tenant_budget_per_minute,
+        };
+        let default = crate::tenants::Tier::parse(config.tenant_default_tier).unwrap_or(
+            if mode == oss_blob::guard::Mode::Enforce {
+                crate::tenants::Tier::Standard
+            } else {
+                crate::tenants::Tier::Large
+            },
+        );
+        let levels = Arc::new(
+            TenantLevels::new(ledger, mode, config.tenant_budget_per_minute)
+                .with_tiers(tiers, default),
+        );
         let noted = Arc::clone(&levels);
         assembled
             .role
-            .set_group_sink(Arc::new(move |index, group| noted.note_group(index, group)));
+            .set_tenancy_sink(Arc::new(move |index, t| noted.note_tenancy(index, t)));
         let stretched = Arc::clone(&levels);
         let at = Arc::clone(&now);
         assembled.role.set_publish_stretch(Arc::new(move |index| {

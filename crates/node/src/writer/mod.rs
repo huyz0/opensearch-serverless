@@ -35,6 +35,7 @@ mod snapshot;
 mod tail;
 mod takeover;
 mod target;
+mod tenancy;
 mod tenant_hooks;
 mod tombstone_pass;
 
@@ -79,14 +80,15 @@ pub use proactive::{
     Config as ProactiveConfig, ProactiveTakeover, Report as ProactiveReport,
     SETTINGS as PROACTIVE_SETTINGS,
 };
-pub use publish_age::{bucket_group_of, group_settings, publish_age_of};
+pub use publish_age::publish_age_of;
 pub use publish_timer::PublishTimer;
 pub use publishing::{PublishPass, Publishing};
 pub use routes::Routes;
 pub use tail::{CommitSink, RefreshVisibility, TailSink};
 pub use takeover::Takeover;
 pub use target::RoleTarget;
-pub use tenant_hooks::{GroupSink, WriteGate};
+pub use tenancy::{COST_BUDGET, COST_TIER, Tenancy, tenancy_of, tenancy_settings};
+pub use tenant_hooks::{TenancySink, WriteGate};
 pub use tombstone_pass::{DeleteProbe, TombstoneParts, TombstonePass, TombstoneReport};
 
 /// Why an item did not go ahead.
