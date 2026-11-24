@@ -61,6 +61,9 @@ pub struct Config {
     /// Whether a create inherits from the index template that matches its
     /// name: one more GET on each create, none when off.
     pub index_templates: bool,
+    /// Whether `_ingest/pipeline` stores, reads and removes pipelines. A
+    /// stored pipeline is not yet run by a write.
+    pub ingest_pipelines: bool,
     /// How a point in time's register is deleted.
     pub delete_mode: DeleteMode,
     /// How often the publish timer runs a pass.
@@ -114,6 +117,7 @@ impl Config {
             store_buffer_wait: Duration::from_secs(5),
             pit_buffer_bytes: MAX_POINT_IN_TIME_BYTES,
             index_templates: false,
+            ingest_pipelines: false,
             delete_mode: DeleteMode::Tombstone,
             publish_every: Duration::from_millis(250),
             publish_age_millis: 1_000,
