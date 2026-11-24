@@ -11,6 +11,7 @@ use std::io::Write;
 use std::sync::Arc;
 
 use crate::assemble::{AssembleError, Assembled};
+use crate::tenants::TenantLevels;
 use oss_blob::S3Op;
 use oss_blob::usage::{IndexUsage, Ledger};
 use oss_rest::{JSON, Method, Request, Response, RestError, RouteError, Router, write_json_str};
@@ -32,6 +33,7 @@ pub struct UsageService {
     node_id: String,
     started_millis: i64,
     clock: Arc<dyn Fn() -> i64 + Send + Sync>,
+    tenants: Option<Arc<TenantLevels>>,
 }
 
 impl UsageService {
@@ -47,7 +49,15 @@ impl UsageService {
             node_id: node_id.to_owned(), // ALLOC: one name, at start.
             started_millis,
             clock,
+            tenants: None,
         }
+    }
+
+    /// This service also reporting the levels of `tenants`.
+    #[must_use]
+    pub fn with_tenants(mut self, tenants: Arc<TenantLevels>) -> Self {
+        self.tenants = Some(tenants);
+        self
     }
 
     fn handle(&self, resp: &mut Response<'_>) -> Result<(), RestError> {
@@ -74,8 +84,36 @@ impl UsageService {
             out.write_all(b":")?;
             line(out, usage)?;
         }
-        out.write_all(b"}}")?;
+        out.write_all(b"}")?;
+        if let Some(tenants) = &self.tenants {
+            self.tenants_json(out, tenants)?;
+        }
+        out.write_all(b"}")?;
         Ok(())
+    }
+
+    fn tenants_json(&self, out: &mut Vec<u8>, tenants: &TenantLevels) -> std::io::Result<()> {
+        out.write_all(b",\"tenant_levels\":{\"mode\":\"")?;
+        out.write_all(crate::tenants::word(tenants.mode()).as_bytes())?;
+        out.write_all(b"\",\"tenants\":{")?;
+        for (i, (name, t)) in tenants.report((self.clock)()).iter().enumerate() {
+            if i > 0 {
+                out.write_all(b",")?;
+            }
+            write_json_str(&mut *out, name)?;
+            write!(
+                out,
+                ":{{\"level\":{},\"local_level\":{},\"set_level\":{},\"cost_per_minute\":{:.3},\"docs_per_minute\":{:.3},\"paced\":{},\"refused\":{}}}",
+                t.level,
+                t.local_level,
+                t.set_level,
+                t.cost_per_minute,
+                t.docs_per_minute,
+                t.paced,
+                t.refused
+            )?;
+        }
+        out.write_all(b"}}")
     }
 }
 
@@ -135,7 +173,8 @@ impl Assembled {
 }
 
 /// Serves the usage of `ledger` when there is one; `assembled` unchanged
-/// when store usage is off.
+/// when store usage is off. With tenant levels on, steps them from the ledger
+/// and reports them.
 ///
 /// # Errors
 ///
@@ -143,17 +182,30 @@ impl Assembled {
 pub fn attach(
     assembled: Assembled,
     ledger: Option<Arc<Ledger>>,
-    node_id: &str,
+    config: &crate::boot::NodeConfig,
     clock: &Arc<dyn oss_cluster::LeaseClock>,
 ) -> Result<Assembled, AssembleError> {
     let Some(ledger) = ledger else {
         return Ok(assembled);
     };
     let reader = Arc::clone(clock);
-    assembled.with_usage(UsageService::new(
-        ledger,
-        node_id,
+    let now: Arc<dyn Fn() -> i64 + Send + Sync> = Arc::new(move || reader.now_millis());
+    let mut service = UsageService::new(
+        Arc::clone(&ledger),
+        &config.node_id,
         clock.now_millis(),
-        Arc::new(move || reader.now_millis()),
-    ))
+        Arc::clone(&now),
+    );
+    let mode =
+        oss_blob::guard::Mode::parse(config.tenant_levels).unwrap_or(oss_blob::guard::Mode::Off);
+    if mode != oss_blob::guard::Mode::Off {
+        let levels = Arc::new(TenantLevels::new(
+            ledger,
+            mode,
+            config.tenant_budget_per_minute,
+        ));
+        levels.spawn_ticker(crate::tenants::TICK, now);
+        service = service.with_tenants(levels);
+    }
+    assembled.with_usage(service)
 }

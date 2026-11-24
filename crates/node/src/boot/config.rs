@@ -130,6 +130,13 @@ pub struct NodeConfig {
     /// `OSS_STORE_USAGE_MAX_INDICES`: how many indices the usage tracks
     /// before counting the rest together.
     pub store_usage_max_indices: usize,
+    /// `OSS_TENANT_LEVELS`: `off`, `observe` or `enforce`; with store usage
+    /// on, each tenant's cost is judged against its budget and the level is
+    /// reported at `GET /_serverless/usage`. Only `enforce` slows a tenant.
+    pub tenant_levels: &'static str,
+    /// `OSS_TENANT_BUDGET_PER_MINUTE`: the cost units a minute a tenant may
+    /// use before its level rises (the large tier).
+    pub tenant_budget_per_minute: u64,
     /// `serverless.write.backpressure.*`: what limits the writes waiting on
     /// the write log.
     pub write_limit: oss_writer::admission::LimiterConfig,
@@ -267,6 +274,18 @@ impl NodeConfig {
         let knn = flag("OSS_KNN", "false")?;
         let store_usage = flag("OSS_STORE_USAGE", "false")?;
         let store_usage_max_indices = bounded("OSS_STORE_USAGE_MAX_INDICES", "1000", 1, 1_000_000)?;
+        let tenant_levels = match or("OSS_TENANT_LEVELS", "observe").as_str() {
+            "off" => "off",
+            "observe" => "observe",
+            "enforce" => "enforce",
+            other => {
+                return Err(format!(
+                    "OSS_TENANT_LEVELS is [{other}], not off, observe or enforce"
+                ));
+            }
+        };
+        let tenant_budget_per_minute =
+            bounded("OSS_TENANT_BUDGET_PER_MINUTE", "2000", 1, 100_000_000)?;
         let write_limit = write_limit::read(&bounded)?;
         let proactive_reapers = bounded("OSS_PROACTIVE_REAPERS", "2", 1, 16)?;
         let proactive_max_concurrent = bounded("OSS_PROACTIVE_MAX_CONCURRENT", "4", 1, 64)?;
@@ -321,6 +340,8 @@ impl NodeConfig {
             hand_off,
             knn,
             store_usage,
+            tenant_levels,
+            tenant_budget_per_minute,
             store_usage_max_indices: usize::try_from(store_usage_max_indices).unwrap_or(1000),
             proactive_takeover,
             proactive_reapers: usize::try_from(proactive_reapers).unwrap_or(2),

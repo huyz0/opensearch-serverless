@@ -378,7 +378,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     ));
     let mut assembled = assemble::assemble(&node_config, Arc::clone(&store), &budget, writer)
         .and_then(|a| a.with_health(health, &config.cluster))
-        .and_then(|a| usage_route::attach(a, usage, &config.node_id, &clock))
+        .and_then(|a| usage_route::attach(a, usage, config, &clock))
         .map_err(BootError::Assemble)?;
     if let Some(buckets) = &buckets {
         buckets.register_open(&config.node_id, Arc::clone(&assembled.role));
