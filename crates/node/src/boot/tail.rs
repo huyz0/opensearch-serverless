@@ -76,9 +76,11 @@ pub(super) fn wire(
         // A head that is gone or unreadable is not known to be released.
         matches!(heads.read(index, shard), Ok(Some(head)) if head.owner_node_id.is_none())
     }))
-    .with_owner(Arc::new(move |index, shard| match owners.read(index, shard) {
-        Ok(Some(head)) => head.owner_node_id,
-        _ => None,
+    .with_owner(Arc::new(move |index, shard| {
+        match owners.read(index, shard) {
+            Ok(Some(head)) => head.owner_node_id,
+            _ => None,
+        }
     }));
     let Some(registry) = assembled
         .wire_tail(parts)
