@@ -5,7 +5,7 @@
 use crate::aggs::bucket::composite::{
     AfterValue, CompositeSpec, MissingOrder, SourceKind, SourceSpec,
 };
-use crate::aggs::bucket::date_histogram::{DateRounding, RoundingKind};
+use crate::aggs::bucket::date_histogram::{DateRounding, RegionZone, RoundingKind};
 use crate::aggs::bucket::date_histogram_parse::{
     calendar_unit, offset_millis, time_value_millis, zone_millis,
 };
@@ -248,6 +248,7 @@ fn parse_source_body(
     let mut interval_key: Option<&'static str> = None;
     let mut date_kind: Option<RoundingKind> = None;
     let mut zone_ms = 0i64;
+    let mut region: Option<RegionZone> = None;
     let mut offset = 0i64;
     let mut field: Option<String> = None;
     let mut interval: Option<f64> = None;
@@ -386,18 +387,22 @@ fn parse_source_body(
                 });
             }
             "time_zone" => {
+                region = None;
                 zone_ms = if kind == Some(Kind::Number) {
                     long_value(Kind::Number, p.text())
                         .map_err(|e| failed(p, e))?
                         .saturating_mul(3_600_000)
+                } else if let Some(fixed) = zone_millis(p.text()) {
+                    fixed
+                } else if let Some(named) = RegionZone::named(p.text()) {
+                    region = Some(named);
+                    0
                 } else {
-                    zone_millis(p.text()).ok_or_else(|| {
-                        // ALLOC: error path; one message.
-                        DslError::unsupported(&format!(
-                            "a composite source's time zone [{}]",
-                            p.text()
-                        ))
-                    })?
+                    // ALLOC: error path; one message.
+                    return Err(DslError::unsupported(&format!(
+                        "a composite source's time zone [{}]",
+                        p.text()
+                    )));
                 };
             }
             "offset" => {
@@ -442,7 +447,7 @@ fn parse_source_body(
                     DslError::illegal("Invalid interval specified, must be non-null and non-empty")
                 })?,
                 zone_ms,
-                region: None,
+                region,
                 offset,
             },
         },
