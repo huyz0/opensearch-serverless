@@ -223,7 +223,11 @@ fn a_descriptor_that_does_not_fit_its_buffer_is_refused_not_failed() {
 }
 
 /// A rig whose creates place one-shard indexes in the bucket `b-1`.
-fn bucketed_rig() -> Rig {
+type Left = Arc<std::sync::Mutex<Vec<(String, String)>>>;
+
+fn bucketed_rig() -> (Rig, Left) {
+    let seen: Left = Arc::default();
+    let leaves = Arc::clone(&seen);
     let store = Arc::new(Emulator::new(1 << 28, 5));
     let clock: PitClock = Arc::new(|| NOW);
     let descriptors = || {
@@ -234,18 +238,29 @@ fn bucketed_rig() -> Rig {
         )
         .expect("names")
     };
-    let service = IndexService::new(descriptors(), clock, BUF)
-        .with_bucket_join(Arc::new(|_, _| Ok("b-1".to_owned())));
+    let service = IndexService::new(descriptors(), clock, BUF).with_bucket_join(
+        Arc::new(|_, _| Ok("b-1".to_owned())),
+        Arc::new(move |bucket, uuid| {
+            leaves
+                .lock()
+                .unwrap()
+                .push((bucket.to_owned(), uuid.to_owned()));
+            Ok(())
+        }),
+    );
     let budget = MemoryBudget::new(&support::budget_config());
     let router = routes(Router::new(), Arc::new(service)).expect("routes");
     let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
     let server =
         Server::start(listener, support::server_config(), router, &budget).expect("starts");
-    Rig {
-        server,
-        descriptors: descriptors(),
-        store,
-    }
+    (
+        Rig {
+            server,
+            descriptors: descriptors(),
+            store,
+        },
+        seen,
+    )
 }
 
 fn bucket_of(r: &Rig, name: &str) -> Option<String> {
@@ -256,7 +271,7 @@ fn bucket_of(r: &Rig, name: &str) -> Option<String> {
 
 #[test]
 fn a_one_shard_create_joins_a_bucket_and_a_sharded_one_does_not() {
-    let r = bucketed_rig();
+    let (r, _) = bucketed_rig();
     assert_eq!(call(&r, "PUT", "/small", None).status, 200);
     assert_eq!(bucket_of(&r, "small").as_deref(), Some("b-1"));
     let body = r#"{"settings":{"number_of_shards":3}}"#;
@@ -342,4 +357,16 @@ fn a_create_with_no_template_stored_reads_only_the_marker() {
     let used = ops(&r).iter().map(|(_, n)| n).sum::<u64>() - before;
     assert_eq!(used, 2, "{:?}", ops(&r));
     assert!(ops(&r).iter().all(|(op, _)| *op != S3Op::List));
+}
+
+#[test]
+fn a_create_that_fails_after_joining_leaves_the_bucket() {
+    let (r, left) = bucketed_rig();
+    assert_eq!(call(&r, "PUT", "/small", None).status, 200);
+    assert!(left.lock().unwrap().is_empty(), "a good create stays in");
+    assert_eq!(call(&r, "PUT", "/small", None).status, 400);
+    let left = left.lock().unwrap();
+    assert_eq!(left.len(), 1, "the refused create took itself back out");
+    assert_eq!(left[0].0, "b-1");
+    assert_eq!(left[0].1.len(), 22, "its own uuid, not the first create's");
 }

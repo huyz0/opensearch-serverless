@@ -20,7 +20,7 @@ Not here: an index joining a bucket when created (so no index is a member yet), 
 - AC-3: a writer role publishing with a wiring records a member shard's commit in its bucket entry (one blob and one bucket manifest swap), and never writes the shard's own register.
 - AC-4: with no wiring, or for a shard of an unbucketed index, a publish is a blob and a swap of the shard's own register, as before.
 - AC-6: with the switch on, the node tells the bucket heads which shards its writer role holds open, so a member's release keeps the bucket head while a sibling member is open on the node.
-- AC-7: with the switch on, creating a one-shard index places it in its group's open bucket and its descriptor names that bucket; an index of more than one shard, or any index with the switch off, names none.
+- AC-7: with the switch on, creating a one-shard index places it in its group's open bucket and its descriptor names that bucket; an index of more than one shard, or any index with the switch off, names none. A create that fails after joining takes the index back out of the bucket.
 - AC-8: a reader opening a bucketed index reads its descriptor and its entry in the bucket manifest, two GETs, and resolves the member's commit as it would a shard register; shard 0 only; a member with no commit yet is refused as not followable.
 - AC-5: a node booted with the switch off builds no wiring and its shard head store has no bucket routing (existing boot tests unchanged).
 
@@ -34,5 +34,5 @@ With the switch off: unchanged. On: a member's head operations and publish are t
 
 ## Risks
 
-- A create joins the bucket before its descriptor is written, so a create that fails after joining leaves an unused member entry in the manifest; the janitor does not yet clear it.
+- A create joins the bucket before its descriptor is written. A create that fails takes itself back out; a node that dies between the join and the descriptor write leaves an unused member entry (never served, since no descriptor names it), and nothing clears it yet.
 - The switch stays off until a differential check against a shell-written bucket (the R7 suite) has passed: placement, heads and the member entry layout are checked against this repo's own fixtures only.

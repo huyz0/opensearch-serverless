@@ -83,6 +83,10 @@ pub struct Config {
     pub evict_after_millis: u64,
     /// Whether idle shards are handed to a member with room.
     pub hand_off: bool,
+    /// How far below the cap making room clears, as a percent of it.
+    pub evict_headroom_percent: u64,
+    /// Indexes whose shards are never let go of.
+    pub pinned_indexes: Vec<String>,
     /// What limits the writes waiting on the log.
     pub write_limit: oss_writer::admission::LimiterConfig,
     /// How often the janitor runs a pass.
@@ -122,6 +126,8 @@ impl Config {
             max_shards: 0,
             evict_after_millis: 60_000,
             hand_off: false,
+            evict_headroom_percent: 0,
+            pinned_indexes: Vec::new(),
             write_limit: oss_writer::admission::LimiterConfig::default(),
             janitor_every: Duration::from_secs(60),
             sweep: gc::Config {
@@ -377,6 +383,8 @@ pub fn assemble(
         .with_give_back(config.give_back_after_millis);
     role.set_write_limiter(config.write_limit.build());
     role.set_hand_off(config.hand_off);
+    role.set_evict_headroom_percent(config.evict_headroom_percent);
+    role.set_pinned_indexes(config.pinned_indexes.iter().cloned());
     role.set_shard_cap(crate::writer::ShardCap {
         max: config.max_shards,
         evict_after_millis: config.evict_after_millis,
@@ -443,9 +451,11 @@ pub fn assemble(
         let mut indices =
             IndexService::new(descriptors, Arc::clone(&clock), config.pit_buffer_bytes);
         if let Some(buckets) = &bucket_wiring {
-            let buckets = Arc::clone(buckets);
-            indices =
-                indices.with_bucket_join(Arc::new(move |name, uuid| buckets.join(name, uuid)));
+            let (joiner, leaver) = (Arc::clone(buckets), Arc::clone(buckets));
+            indices = indices.with_bucket_join(
+                Arc::new(move |name, uuid| joiner.join(name, uuid)),
+                Arc::new(move |bucket, uuid| leaver.leave(bucket, uuid)),
+            );
         }
         if config.index_templates {
             let sets = TemplateSets::open(&store, &config.base)
