@@ -22,49 +22,58 @@ fn main() -> std::process::ExitCode {
         config.node_id,
         node.addr()
     );
-    wait_for_stop();
-    let report = node.retire();
+    if let Err(why) = wait_for_stop() {
+        eprintln!("opensearch-serverless node: {why}");
+        return std::process::ExitCode::FAILURE;
+    }
+    let report = node.retire(config.retire_timeout_millis);
     println!(
-        "opensearch-serverless node {} retired: {} shards slept, {} heads given back, {} busy, {} failed",
+        "opensearch-serverless node {} retired: {} shards slept, {} heads given back, {} busy, {} failed, {} unfinished",
         config.node_id,
         report.hibernated,
         report.given_back,
         report.busy,
-        report.failed.len()
+        report.failed.len(),
+        report.unfinished
     );
     for failed in &report.failed {
         eprintln!("opensearch-serverless node: not published: {failed}");
     }
-    if report.failed.is_empty() {
+    // 0: retired, or left to the lease (busy shards, a timeout of 0); 1: a
+    // shard failed to publish or the deadline passed first.
+    if report.failed.is_empty() && report.unfinished == 0 {
         std::process::ExitCode::SUCCESS
     } else {
         std::process::ExitCode::FAILURE
     }
 }
 
-/// Blocks until the process is told to stop (`SIGTERM`, `SIGINT`); a killed
-/// process leaves its lease to lapse in one lifetime.
+/// Blocks until the process is told to stop (`SIGTERM`, `SIGINT`); a second
+/// signal while the node retires ends the process at once with status 130,
+/// and a killed process leaves its lease to lapse in one lifetime.
 #[cfg(all(unix, feature = "reader", feature = "writer"))]
-fn wait_for_stop() {
+fn wait_for_stop() -> Result<(), String> {
     use signal_hook::consts::{SIGINT, SIGTERM};
-    match signal_hook::iterator::Signals::new([SIGTERM, SIGINT]) {
-        Ok(mut signals) => {
-            let _ = signals.forever().next();
-        }
-        Err(why) => {
-            eprintln!(
-                "opensearch-serverless node: no signal handler ({why}); stop it by killing it"
-            );
-            loop {
-                std::thread::park();
+    let mut signals = signal_hook::iterator::Signals::new([SIGTERM, SIGINT])
+        .map_err(|e| format!("no signal handler: {e}"))?;
+    let (first, wait) = std::sync::mpsc::sync_channel(1);
+    std::thread::spawn(move || {
+        let mut seen = 0usize;
+        for _ in signals.forever() {
+            seen = seen.saturating_add(1);
+            if seen == 1 {
+                let _ = first.try_send(());
+            } else {
+                std::process::exit(130);
             }
         }
-    }
+    });
+    wait.recv().map_err(|e| format!("signal thread ended: {e}"))
 }
 
 /// Without signals to wait for, runs until the process is killed.
 #[cfg(all(not(unix), feature = "reader", feature = "writer"))]
-fn wait_for_stop() {
+fn wait_for_stop() -> Result<(), String> {
     loop {
         std::thread::park();
     }

@@ -9,7 +9,11 @@ impl Node {
     /// and gives back every shard the writer role holds. Dropping the node
     /// afterwards releases its member lease. The answer says what the
     /// writer role did; a shard in `failed` keeps its head.
-    pub fn retire(mut self) -> HibernatePass {
+    ///
+    /// `timeout_millis` bounds the publishing and giving back; shards not
+    /// reached by then are counted `unfinished` and left to the lease. 0
+    /// skips them all and only stops the node and releases the lease.
+    pub fn retire(mut self, timeout_millis: u64) -> HibernatePass {
         // The renewal and timers stop first; the role is retired after the
         // server that feeds it is gone.
         drop(self.renewal.take());
@@ -22,8 +26,12 @@ impl Node {
             role
         });
         drop(self.transport.take());
-        role.map_or_else(HibernatePass::default, |role| {
-            role.retire(crate::writer::now_millis())
-        })
+        let now = crate::writer::now_millis();
+        match role {
+            Some(role) if timeout_millis > 0 => {
+                role.retire(now, now.saturating_add(timeout_millis))
+            }
+            _ => HibernatePass::default(),
+        }
     }
 }

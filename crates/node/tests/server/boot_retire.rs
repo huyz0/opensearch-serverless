@@ -57,7 +57,7 @@ fn a_retired_node_leaves_its_shard_to_the_next_writer_at_once() {
     assert_eq!(wrote.status, 201, "{}", wrote.text());
     assert_eq!(head_owner(dir.path()).as_deref(), Some("n1"));
     let addr = first.addr();
-    let retired = first.retire();
+    let retired = first.retire(25_000);
     assert!(retired.failed.is_empty(), "{:?}", retired.failed);
     assert_eq!(retired.hibernated, 1);
     assert_eq!(retired.given_back, 1);
@@ -79,12 +79,31 @@ fn a_retired_node_leaves_its_shard_to_the_next_writer_at_once() {
     assert!(count.contains("\"count\":2"), "{count}");
 }
 
+// AC-8
+#[test]
+fn a_timeout_of_zero_skips_the_shards_and_still_stops_the_node() {
+    let dir = TempDir::new("boot-retire-zero");
+    let node = boot(dir.path(), "n1");
+    assert_eq!(call(&node, "PUT", "/logs", None).status, 200);
+    let wrote = call(&node, "PUT", "/logs/_doc/1", Some(r#"{"n":1}"#));
+    assert_eq!(wrote.status, 201, "{}", wrote.text());
+    let addr = node.addr();
+    let retired = node.retire(0);
+    assert_eq!((retired.hibernated, retired.given_back), (0, 0));
+    assert!(std::net::TcpStream::connect_timeout(&addr, Duration::from_secs(1)).is_err());
+    assert_eq!(
+        head_owner(dir.path()).as_deref(),
+        Some("n1"),
+        "left to the lease"
+    );
+}
+
 // AC-6
 #[test]
 fn a_node_holding_nothing_retires_with_nothing_to_do() {
     let dir = TempDir::new("boot-retire-empty");
     let node = boot(dir.path(), "n1");
-    let retired = node.retire();
+    let retired = node.retire(25_000);
     assert_eq!((retired.hibernated, retired.given_back), (0, 0));
     assert!(retired.failed.is_empty() && retired.busy == 0);
 }
@@ -132,4 +151,28 @@ fn the_binary_retires_on_sigterm_and_exits_zero() {
         retired.contains("1 shards slept, 1 heads given back"),
         "{retired}"
     );
+}
+
+// AC-8
+#[test]
+fn the_retire_timeout_defaults_to_twenty_five_seconds_and_zero_skips_it() {
+    for (value, want) in [
+        (None, Some(25_000)),
+        (Some("0"), Some(0)),
+        (Some("soon"), None),
+        (Some("3600001"), None),
+    ] {
+        let config = NodeConfig::from_lookup(|key| match key {
+            "OSS_NODE_ID" => Some("n1".to_owned()),
+            "OSS_STORE" => Some("fs".to_owned()),
+            "OSS_FS_ROOT" => Some("/tmp/unused".to_owned()),
+            "OSS_RETIRE_TIMEOUT_MS" => value.map(str::to_owned),
+            _ => None,
+        });
+        assert_eq!(
+            config.ok().map(|c| c.retire_timeout_millis),
+            want,
+            "{value:?}"
+        );
+    }
 }

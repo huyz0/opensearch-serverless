@@ -7,3 +7,6 @@
 - AC-5: `a_retired_node_leaves_its_shard_to_the_next_writer_at_once` in crates/node/tests/server/boot_retire.rs
 - AC-6: `a_node_holding_nothing_retires_with_nothing_to_do` in crates/node/tests/server/boot_retire.rs
 - AC-7: `the_binary_retires_on_sigterm_and_exits_zero` in crates/node/tests/server/boot_retire.rs
+- AC-8: `the_retire_timeout_defaults_to_twenty_five_seconds_and_zero_skips_it` in crates/node/tests/server/boot_retire.rs; `a_timeout_of_zero_skips_the_shards_and_still_stops_the_node` in crates/node/tests/server/boot_retire.rs
+- AC-9: `a_head_that_moved_is_left_and_the_rest_are_still_given_back_past_one_pass` in crates/node/tests/writer_retire.rs
+- AC-10: `a_deadline_that_has_passed_leaves_every_shard_held_and_counts_them` in crates/node/tests/writer_retire.rs
