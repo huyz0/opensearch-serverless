@@ -29,6 +29,8 @@ pub mod s3;
 pub mod settings;
 mod shared;
 pub mod store;
+pub mod usage;
+mod usage_store;
 
 pub use chunk::{ChunkSink, ChunkSource, SliceSource};
 #[cfg(feature = "emulator")]
@@ -50,3 +52,4 @@ pub use store::{
     BlobStore, ByteRange, CreateOutcome, GetOutcome, ListPage, MAX_DELETE_KEYS, MAX_KEY_BYTES,
     MAX_LIST_KEYS, ObjectMeta,
 };
+pub use usage_store::UsageStore;

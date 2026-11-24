@@ -31,7 +31,7 @@ struct JavaNode {
 }
 
 impl JavaNode {
-    fn start(name: &str, home: &Path, cluster: &Cluster) -> Self {
+    fn start(name: &str, home: &Path, cluster: &Cluster, buckets: bool) -> Self {
         let java = std::env::var("OSS_JAVA_BIN").expect("OSS_JAVA_BIN");
         let cp = std::env::var("OSS_JAVA_CP").expect("OSS_JAVA_CP");
         let (endpoint, bucket, region, access, secret) = cluster.store();
@@ -90,6 +90,9 @@ impl JavaNode {
         ];
         for (k, v) in settings {
             command.arg(format!("-D{k}={v}"));
+        }
+        if buckets {
+            command.arg("-Dserverless.buckets.enabled=true");
         }
         command
             .arg("org.opensearch.serverless.shell.ServerlessBootstrap")
@@ -301,6 +304,18 @@ fn temp(name: &str) -> PathBuf {
 #[test]
 #[ignore = "needs RUSTFS_BIN, OSS_JAVA_BIN and OSS_JAVA_CP"]
 fn a_shard_changes_hands_between_java_and_rust_without_losing_a_write() {
+    hand_over(false);
+}
+
+#[test]
+#[ignore = "needs RUSTFS_BIN, OSS_JAVA_BIN and OSS_JAVA_CP"]
+fn a_bucketed_index_changes_hands_between_java_and_rust_without_losing_a_write() {
+    hand_over(true);
+}
+
+/// The hand-over scenario; `buckets` turns the switch on in every node and
+/// makes the index one shard, so it lives in a bucket.
+fn hand_over(buckets: bool) {
     if std::env::var_os("OSS_JAVA_CP").is_none() || std::env::var_os("OSS_JAVA_BIN").is_none() {
         eprintln!("skipped: OSS_JAVA_BIN and OSS_JAVA_CP are not set");
         return;
@@ -309,18 +324,25 @@ fn a_shard_changes_hands_between_java_and_rust_without_losing_a_write() {
         eprintln!("skipped: RUSTFS_BIN is not set");
         return;
     };
+    if buckets {
+        cluster.set("OSS_BUCKETS_ENABLED", "true");
+    }
+    let shards = if buckets { 1 } else { 2 };
     let mut ledger = BTreeSet::new();
 
     // AC-1: Java creates and writes; Rust, started after, finds it all.
-    let j1 = JavaNode::start("java-1", &temp("j1"), &cluster);
+    let j1 = JavaNode::start("java-1", &temp("j1"), &cluster, buckets);
     let made = call(
         j1.addr,
         "PUT",
         &format!("/{INDEX}"),
-        Some("{\"settings\":{\"index\":{\"number_of_shards\":2}}}"),
+        Some(&format!(
+            "{{\"settings\":{{\"index\":{{\"number_of_shards\":{shards}}}}}}}"
+        )),
     );
     assert_eq!(made.status, 200, "{}", made.text());
     write(j1.addr, 0..BATCH, &mut ledger);
+    judge("AC-1 java reads its own batch", j1.addr, &ledger);
     let r1 = cluster.add("rust-1");
     let r1_addr = cluster.node(r1).addr();
     judge("AC-1 rust finds java's batch", r1_addr, &ledger);
@@ -331,7 +353,7 @@ fn a_shard_changes_hands_between_java_and_rust_without_losing_a_write() {
     judge("AC-2 rust after taking over", r1_addr, &ledger);
 
     // AC-3: a second Java node finds both batches.
-    let j2 = JavaNode::start("java-2", &temp("j2"), &cluster);
+    let j2 = JavaNode::start("java-2", &temp("j2"), &cluster, buckets);
     judge("AC-3 second java", j2.addr, &ledger);
 
     // AC-4: Rust is killed; the second Java node takes over and writes.
