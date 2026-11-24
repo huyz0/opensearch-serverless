@@ -104,7 +104,9 @@ impl Pipeline {
     /// Asks the shard to be quiet: new writes wait. Cleared when the
     /// returned guard drops.
     pub(super) fn quiesce(self: &Arc<Self>) -> Quiet {
-        lock(&self.state).quiescing += 1;
+        let mut s = lock(&self.state);
+        s.quiescing = s.quiescing.saturating_add(1);
+        drop(s);
         Quiet {
             pipeline: Arc::clone(self),
         }

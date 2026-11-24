@@ -463,11 +463,6 @@ impl NodeConfig {
         })
     }
 
-    /// Whether the node takes writes: its lease names `ingest`.
-    pub fn takes_writes(&self) -> bool {
-        self.roles.contains(&"ingest")
-    }
-
     /// How often the lease is renewed: a third of its lifetime.
     pub fn renew_every(&self) -> Duration {
         Duration::from_millis(u64::try_from(self.lease_ttl_millis / 3).unwrap_or(1).max(1))
