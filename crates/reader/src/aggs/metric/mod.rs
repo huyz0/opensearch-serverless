@@ -237,10 +237,9 @@ pub fn state_bytes(aggs: &[MetricAgg]) -> usize {
                     .saturating_mul(per_range)
                     .saturating_add(keys)
             }),
-            Metric::Composite => agg
-                .composite
-                .as_deref()
-                .map_or(0, crate::aggs::bucket::composite_collect::state_bytes),
+            Metric::Composite => agg.composite.as_deref().map_or(0, |spec| {
+                crate::aggs::bucket::composite_collect::state_bytes(spec, agg.subs.len())
+            }),
             Metric::Filters | Metric::Filter => agg
                 .filters
                 .as_deref()

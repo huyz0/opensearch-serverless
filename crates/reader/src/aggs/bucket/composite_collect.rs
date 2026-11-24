@@ -17,8 +17,11 @@ use crate::aggs::bucket::BUCKET_LIMIT;
 use crate::aggs::bucket::composite::{
     AfterValue, CompositeResult, CompositeSpec, KeyPart, MissingOrder, SourceKind, SourceSpec,
 };
+use crate::aggs::bucket::filters_collect::Queries;
 use crate::aggs::bucket::histogram::canonical_bits;
 use crate::aggs::bucket::keyword_collect::dictionary;
+use crate::aggs::bucket::keyword_subs;
+use crate::aggs::bucket::sub_values::BucketSubs;
 use crate::aggs::bucket::terms_collect::too_many_buckets;
 use crate::aggs::metric::MetricAgg;
 use crate::aggs::metric::resolve::{text_fielddata, type_name};
@@ -34,6 +37,10 @@ const BUCKET_BYTES: usize = 96;
 /// What each source's value of a key holds: the value and, for a keyword,
 /// the copies of its term the engine and the result keep.
 const KEY_PART_BYTES: usize = 48;
+
+/// What each scalar sub-aggregation holds for a kept bucket: its state in
+/// the engine and its value in the result.
+const SUB_BYTES: usize = 64;
 
 fn bad_request(reason: String) -> ShardError {
     ShardError {
@@ -55,12 +62,14 @@ fn spec_of(agg: &MetricAgg) -> CompositeSpec {
 }
 
 /// The bytes a `composite` holds while collecting beyond its field
-/// readers: its kept keys, the request's and the result's.
-pub fn state_bytes(spec: &CompositeSpec) -> usize {
+/// readers: its kept keys, the request's and the result's, and the
+/// `subs` sub-aggregation values of each.
+pub fn state_bytes(spec: &CompositeSpec, subs: usize) -> usize {
     let key = spec
         .sources
         .len()
         .saturating_mul(KEY_PART_BYTES)
+        .saturating_add(subs.saturating_mul(SUB_BYTES))
         .saturating_add(BUCKET_BYTES);
     spec.size
         .min(BUCKET_LIMIT)
@@ -322,8 +331,7 @@ pub fn node<S: BlobStore + 'static>(
         after: after_of(&spec, &kinds)?,
         // ALLOC: one flag a segment.
         sorted_lead: vec![false; segments],
-        // ALLOC: empty; sub-aggregations are refused.
-        subs: Vec::new(),
+        subs: keyword_subs::sub_nodes(agg, shard, ords, &mut Queries::new(None), false)?,
     })
 }
 
@@ -334,12 +342,17 @@ pub fn empty(agg: &MetricAgg) -> Value {
         spec: spec_of(agg),
         // ALLOC: empty.
         buckets: Vec::new(),
+        subs: BucketSubs::default(),
     }))
 }
 
 /// The shard-level result of `agg` from the engine's `result`.
-pub fn value_from(agg: &MetricAgg, result: Option<AggResult>) -> Result<Value, ShardError> {
-    let Some(AggResult::Composite { buckets, .. }) = result else {
+pub fn value_from<S: BlobStore + 'static>(
+    agg: &MetricAgg,
+    shard: &OpenShard<S>,
+    result: Option<AggResult>,
+) -> Result<Value, ShardError> {
+    let Some(AggResult::Composite { buckets, subs }) = result else {
         return Err(ShardError {
             status: 500,
             failure: Failure::opensearch(
@@ -348,6 +361,16 @@ pub fn value_from(agg: &MetricAgg, result: Option<AggResult>) -> Result<Value, S
                 "an aggregation result of another kind".to_owned(),
             ),
         });
+    };
+    let subs = if agg.subs.is_empty() {
+        BucketSubs::default()
+    } else {
+        let (meta, lists) = keyword_subs::sub_values(agg, shard, subs, buckets.len(), false)?;
+        BucketSubs {
+            meta,
+            empty: keyword_subs::empty_values(agg, shard)?,
+            lists,
+        }
     };
     // ALLOC: one entry a bucket, at most `size`, which the shard bounds.
     let kept = buckets
@@ -372,5 +395,6 @@ pub fn value_from(agg: &MetricAgg, result: Option<AggResult>) -> Result<Value, S
     Ok(Value::Composite(Box::new(CompositeResult {
         spec: spec_of(agg),
         buckets: kept,
+        subs,
     })))
 }

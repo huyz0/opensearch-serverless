@@ -356,7 +356,7 @@ pub fn collect<S: BlobStore + 'static>(
             }
             Resolved::Composite(true) => (
                 Format::Raw,
-                composite_collect::value_from(agg, results.next())?,
+                composite_collect::value_from(agg, shard, results.next())?,
             ),
             Resolved::Numeric(format) if with_subs::is_bucket(agg) => {
                 (format, with_subs::value(agg, shard, results.next())?)

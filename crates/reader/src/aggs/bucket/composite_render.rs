@@ -6,6 +6,7 @@ use std::io::{self, Write};
 use oss_rest::write_json_str;
 
 use crate::aggs::bucket::composite::{CompositeResult, KeyPart, reduce_results};
+use crate::aggs::bucket::sub_values::write_subs;
 use crate::aggs::metric::double::write_java_double;
 
 /// Writes the body of the reduce of the one shard result `result`:
@@ -33,7 +34,9 @@ pub fn write_composite(out: &mut dyn Write, result: &CompositeResult) -> io::Res
         }
         out.write_all(b"{\"key\":")?;
         write_key(out, &names, key)?;
-        write!(out, ",\"doc_count\":{count}}}")?;
+        write!(out, ",\"doc_count\":{count}")?;
+        write_subs(out, &reduced.subs.meta, reduced.subs.lists.get(i))?;
+        out.write_all(b"}")?;
     }
     out.write_all(b"]")
 }
