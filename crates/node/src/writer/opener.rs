@@ -52,6 +52,13 @@ pub trait ShardOpener: Send + Sync {
     /// Why the shard cannot be held here, with the holder when another live
     /// node holds it.
     fn open(&self, role: &WriterRole, index: &IndexInfo, shard: u32) -> Result<(), OpenRefused>;
+
+    /// Gives back the head of a shard this node closed at `term`, when it
+    /// still names this process; whether it did. An opener with no head to
+    /// give back answers false.
+    fn give_back(&self, _index: &str, _uuid: &str, _shard: u32, _term: i64) -> bool {
+        false
+    }
 }
 
 /// Opens shards whose head this process wins and which hold no commit yet.
@@ -106,6 +113,14 @@ const TAKEOVER: &str = "takeover of a shard with a history is not supported by t
 impl ShardOpener for HeadOpener {
     fn open(&self, role: &WriterRole, index: &IndexInfo, shard: u32) -> Result<(), OpenRefused> {
         self.open_shard(role, index, shard)
+    }
+
+    fn give_back(&self, index: &str, uuid: &str, shard: u32, term: i64) -> bool {
+        // A failed release leaves the head this node's: the next write wakes
+        // or takes it as it would have.
+        self.heads
+            .release(index, shard, &self.node_id, &self.ephemeral_id, term, uuid)
+            .unwrap_or(false)
     }
 }
 

@@ -138,3 +138,42 @@ fn one_of_two_racing_nodes_wins_an_absent_head() {
         .count();
     assert_eq!(won, 1);
 }
+
+#[test]
+fn a_release_clears_the_owner_and_keeps_the_term_and_writers() {
+    let fleet = Fleet::new();
+    let heads = heads(&fleet);
+    heads.acquire("logs", 0, "n1", "en1", Some("u1")).unwrap();
+    let before = fleet.total();
+    assert!(heads.release("logs", 0, "n1", "en1", 1, "u1").unwrap());
+    assert_eq!(fleet.total() - before, 2, "one read and one swap");
+    let head = heads.read("logs", 0).unwrap().unwrap();
+    assert_eq!(head.owner_node_id, None);
+    assert_eq!((head.term, head.index_uuid.as_deref()), (1, Some("u1")));
+    assert!(head.writers.is_empty(), "no log to read: all published");
+    // Taken at once, with no revocation, by anyone.
+    let Acquisition::Won { head, taken_from } =
+        heads.acquire("logs", 0, "n2", "en2", Some("u1")).unwrap()
+    else {
+        panic!("won");
+    };
+    assert_eq!((head.term, taken_from), (2, None));
+}
+
+#[test]
+fn a_release_leaves_a_head_that_is_not_this_processes_at_that_term() {
+    let fleet = Fleet::new();
+    let heads = heads(&fleet);
+    heads.acquire("logs", 0, "n1", "en1", Some("u1")).unwrap();
+    let held = heads.read("logs", 0).unwrap().unwrap();
+    for (node, eph, term, uuid) in [
+        ("n2", "en1", 1, "u1"),
+        ("n1", "en9", 1, "u1"),
+        ("n1", "en1", 2, "u1"),
+        ("n1", "en1", 1, "other"),
+    ] {
+        assert!(!heads.release("logs", 0, node, eph, term, uuid).unwrap());
+        assert_eq!(heads.read("logs", 0).unwrap().unwrap(), held);
+    }
+    assert!(!heads.release("logs", 5, "n1", "en1", 1, "u1").unwrap());
+}

@@ -230,3 +230,13 @@ fn the_janitor_deletes_unless_the_variable_makes_it_a_dry_run() {
         NodeConfig::from_lookup(lookup(&with(&[("OSS_JANITOR_DRY_RUN", "true")]))).expect("valid");
     assert!(dry.janitor_dry_run);
 }
+
+#[test]
+fn the_give_back_threshold_defaults_to_never_and_is_set_by_the_variable() {
+    let c = NodeConfig::from_lookup(lookup(FS)).expect("valid");
+    assert_eq!(c.give_back_after_millis, 0);
+    let c = NodeConfig::from_lookup(lookup(&with(&[("OSS_GIVE_BACK_AFTER_MS", "300000")])))
+        .expect("valid");
+    assert_eq!(c.give_back_after_millis, 300_000);
+    assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_GIVE_BACK_AFTER_MS", "soon")]))).is_err());
+}

@@ -11,7 +11,7 @@ A node holds every shard it ever wrote, engine in memory, until it stops: nothin
 - A pass over the held shards (run by the publish timer) hibernates a shard unused for `serverless.activation.hibernate_after_millis`: it publishes what no commit holds, then, under the slot lock and only if nothing reached the shard meanwhile and everything is published, closes the engine and records the term its head carried. The head is kept.
 - A write to a hibernated shard reads the head (one GET). If it still names this process at that term, the shard is opened over its published commit at that term: no swap, no new term, no replay. Otherwise the ordinary open is made. A write that took the slot just before it slept finds it asleep and wakes the shard.
 - Idleness is read from memory: a pass over shards none of which is idle makes no request. A wake is 5 requests, all reads, against 14 for a takeover.
-- **A switch, default 0 (never).** A wake costs requests a shard that stays open does not, so by the switch rule it is off until measured to cost nothing it saves. Giving the head back after a longer idle is a later slice.
+- **A switch, default 0 (never).** A wake costs requests a shard that stays open does not, so by the switch rule it is off until measured to cost nothing it saves. Giving the head back after a longer idle is [ADR 0029](0029-giving-back-a-hibernated-head.md).
 
 ## Consequences
 

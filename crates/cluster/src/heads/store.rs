@@ -178,6 +178,51 @@ impl ShardHeadStore {
         }
     }
 
+    /// Gives the shard back: clears the owner of the head when it still
+    /// names this process at `term` for incarnation `index_uuid`, keeping
+    /// the term, the uuid and the writers: the caller has published
+    /// everything it acknowledged, so no successor needs its log, and one
+    /// naming it would make the same process fence its own epoch. The swap
+    /// is conditional on the generation read, so a head that moved is left. Answers whether it released: 2
+    /// requests.
+    ///
+    /// # Errors
+    ///
+    /// The store failing, or a head that does not parse.
+    pub fn release(
+        &self,
+        index: &str,
+        shard: u32,
+        node_id: &str,
+        ephemeral_id: &str,
+        term: i64,
+        index_uuid: &str,
+    ) -> Result<bool, ClusterError> {
+        let key = shard_head_key(&self.base, index, shard);
+        let Some((generation, current)) = self.read_raw(&key)? else {
+            return Ok(false);
+        };
+        if current.term != term
+            || !current.owned_by(node_id, ephemeral_id)
+            || current.owner_ephemeral_id.is_none()
+            || current
+                .index_uuid
+                .as_deref()
+                .is_some_and(|u| u != index_uuid)
+        {
+            return Ok(false);
+        }
+        let mut next = current;
+        next.owner_node_id = None;
+        next.owner_ephemeral_id = None;
+        next.lease_expires_at_millis = 0;
+        Ok(matches!(
+            self.store
+                .swap_register(&key, generation, &next.to_bytes()?)?,
+            SwapOutcome::Applied(_)
+        ))
+    }
+
     /// The head a lost race left: the winner's.
     fn winner(&self, key: &str) -> Result<Acquisition, ClusterError> {
         match self.read_raw(key)? {
