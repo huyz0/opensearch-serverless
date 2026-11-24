@@ -67,7 +67,7 @@ impl<E: Into<MetaError>> From<E> for CaptureError {
 /// without a shard mode, the live unit ids of its layout otherwise (a unit a
 /// split retired keeps its slot but is not served, and neither are the
 /// halves of a split still pending), as `IndexDescriptor.unitIds`.
-fn live_units(layout: Option<&[u8]>, slots: u32) -> Result<Vec<u32>, MetaError> {
+pub(crate) fn live_units(layout: Option<&[u8]>, slots: u32) -> Result<Vec<u32>, MetaError> {
     let Some(bytes) = layout else {
         // ALLOC: one id a shard, at most the index record's shard count.
         return Ok((0..slots).collect());

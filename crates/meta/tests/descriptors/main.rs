@@ -27,6 +27,7 @@ mod reclaim;
 mod reclaim_modes;
 mod repositories;
 mod routing;
+mod snapshot_capture;
 mod snapshot_take;
 mod snapshots;
 mod sweep;

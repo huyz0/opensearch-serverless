@@ -55,6 +55,7 @@ mod pit;
 mod probe;
 mod repositories;
 mod routing;
+mod snapshot_capture;
 mod snapshot_take;
 mod snapshots;
 mod sweep;
@@ -86,6 +87,7 @@ pub use routing::{
     DEFAULT_ROUTING_CACHE_BYTES, DEFAULT_ROUTING_CACHE_MILLIS, DEFAULT_ROUTING_CACHE_PRUNE_ABOVE,
     RoutingCache,
 };
+pub use snapshot_capture::DescribedIndex;
 pub use snapshot_take::{Reservation, SnapshotTaker, TakeError};
 pub use snapshots::{MAX_REPOSITORIES, SnapshotRead, SnapshotReadError, SnapshotReader};
 pub use sweep::{MARKERS_PREFIX, Sweep, Swept};

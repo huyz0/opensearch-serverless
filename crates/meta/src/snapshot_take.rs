@@ -90,8 +90,8 @@ impl Reservation {
 
 /// Takes the steps of one snapshot take against the store.
 pub struct SnapshotTaker {
-    store: Arc<dyn BlobStore>,
-    base: String,
+    pub(crate) store: Arc<dyn BlobStore>,
+    pub(crate) base: String,
 }
 
 impl SnapshotTaker {
