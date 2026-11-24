@@ -62,10 +62,28 @@ pub(crate) fn register(
     } else {
         router
     };
+    let router = plugin_routes(config, router)?;
     if !config.ingest_pipelines {
         return Ok(router);
     }
     let pipelines =
         PipelineService::new(store, &config.base, config.pit_buffer_bytes).map_err(store_error)?;
     pipeline_route::routes(router, &Arc::new(pipelines)).map_err(AssembleError::Route)
+}
+
+/// The prefix routes of the plugins not ported, proxied to the Java upstreams
+/// when there are any.
+fn plugin_routes(config: &Config, router: Router) -> Result<Router, AssembleError> {
+    if config.plugin_upstreams.is_empty() {
+        return Ok(router);
+    }
+    let proxy = crate::plugin_proxy::PluginProxy::new(&crate::plugin_proxy::ProxySettings {
+        upstreams: config.plugin_upstreams.clone(),
+        max_request_bytes: config.plugin_max_request_bytes,
+        timeout: config.plugin_timeout,
+    })
+    .map_err(|e| AssembleError::Store(format!("serverless.plugins.upstreams: {}", e.0)))?;
+    Arc::new(proxy)
+        .register(router)
+        .map_err(AssembleError::Route)
 }

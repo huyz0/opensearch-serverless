@@ -378,7 +378,12 @@ fn a_prefix_route_takes_every_method_path_and_parameter_under_it() {
 fn a_prefix_matches_whole_segments_only() {
     let server = start(small(), prefixed());
     let mut c = Client::connect(server.local_addr());
-    for path in ["/_plugins/_mlx", "/_plugins/other/x", "/_ltrx/a", "/_plugins/_ml_"] {
+    for path in [
+        "/_plugins/_mlx",
+        "/_plugins/other/x",
+        "/_ltrx/a",
+        "/_plugins/_ml_",
+    ] {
         let r = c.request(&get(path));
         assert_eq!(r.status, 400, "{path}");
     }

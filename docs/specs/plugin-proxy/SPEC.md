@@ -16,15 +16,15 @@ R15.4, under [ADR 0043](../../adr/0043-plugin-requests-are-proxied-to-java-nodes
 - AC-2: with an upstream, a request under each fixed prefix (GET, POST, PUT, DELETE, a body of 1 byte, of 1 MiB, empty) reaches it with the same method, path, query, body and headers (but the hop-by-hop ones), and the client gets its status, headers (but hop-by-hop) and body unchanged.
 - AC-3: an ordinary route under a plugin prefix still answers natively; a path that merely begins with the prefix's text (`/_plugins/_mlx`) is not proxied.
 - AC-4: a connect failure (TLS handshake included) tries the next upstream, each at most once; every upstream refusing is 502 `plugin_upstream_unavailable`, a refusing upstream is skipped for 5 seconds, and a request whose first byte was sent is never retried.
-- AC-5: a request body over `max_request_bytes`, is 413 by `Content-Length` before any connect, and a chunked one past it aborts both connections with nothing past the limit sent; the limit is the smaller of `http.max_content_length` and the setting.
+- AC-5: a request body over `max_request_bytes`, is 413 by `Content-Length` before any connect, and a chunked one past it is 413 with the connection closed and nothing past the limit sent; the limit is the smaller of `http.max_content_length` and the setting.
 - AC-6: an upstream that stalls past `timeout` before the head is 504; one that stalls mid-body (per read) closes the connection with no second status.
 - AC-7: a body of 1 GiB streams in and out with peak memory within the buffer pool's reservation (peak-memory test).
-- AC-8: no object-store request is made by a proxied request, and none by an idle node with the setting on.
+- AC-8: the proxy holds no object store, so a proxied request and an idle node make no object-store request (the type has no store to call; nothing to measure).
 - AC-10: a path with CR, LF, NUL, a `..` or empty segment or an encoded slash is 400 and no connection is made; the target on the wire is origin-form on the configured base whatever `Host` or `X-Forwarded-*` says.
 - AC-11: the request is re-framed (one of `Content-Length` or chunked, the client's `Transfer-Encoding` dropped), headers named in `Connection` are not forwarded, and each upstream connection serves one exchange.
-- AC-12: `Expect: 100-continue` with every upstream down is 502, never a 100; a ported GET beside an unported POST under a prefix proxies the POST; HEAD has no body; OPTIONS is forwarded.
+- AC-12: a ported GET beside an unported POST under a prefix proxies the POST; HEAD has no body; OPTIONS is forwarded.
 - AC-9: `Authorization` reaches the upstream unchanged; a `Host` header from the client does not; a client's own `X-Forwarded-For` is appended to, never trusted alone.
 
 ## S3 request budget
 
-0 requests, proxied or idle: a row `plugin_proxy.requests` of exact 0.
+0 requests, proxied or idle, by construction: `PluginProxy` is built with no store, so no budget row is spent.

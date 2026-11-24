@@ -70,6 +70,13 @@ pub struct Config {
     pub snapshots: bool,
     /// Whether a snapshot can be taken: `serverless.snapshots.take.enabled`, beside `snapshots`.
     pub snapshots_take: bool,
+    /// `serverless.plugins.upstreams`: Java nodes that serve the plugins not
+    /// ported; none, the default, proxies nothing.
+    pub plugin_upstreams: Vec<String>,
+    /// `serverless.plugins.max_request_bytes`: the most a proxied body may be.
+    pub plugin_max_request_bytes: u64,
+    /// `serverless.plugins.timeout`: the wait for a proxied request's connect and answer.
+    pub plugin_timeout: Duration,
     /// How a point in time's register is deleted.
     pub delete_mode: DeleteMode,
     /// How often the publish timer runs a pass.
@@ -127,6 +134,9 @@ impl Config {
             knn: false,
             snapshots: false,
             snapshots_take: false,
+            plugin_upstreams: Vec::new(),
+            plugin_max_request_bytes: 10 << 20,
+            plugin_timeout: Duration::from_secs(30),
             delete_mode: DeleteMode::Tombstone,
             publish_every: Duration::from_millis(250),
             publish_age_millis: 1_000,
