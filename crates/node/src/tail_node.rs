@@ -77,6 +77,9 @@ pub struct TailParts {
     /// search nodes, and whether a search answers only under a grant from
     /// the shard's writer (`everywhere`).
     pub visibility: crate::writer::RefreshVisibility,
+    /// Reads whether a shard's head is released; see
+    /// [`crate::tail_fresh::TailFresh::with_unowned`].
+    pub unowned: Option<crate::tail_fresh::Unowned>,
 }
 
 impl TailParts {
@@ -104,7 +107,16 @@ impl TailParts {
             in_doubt: Arc::new(|| false),
             flush_every: Duration::from_millis(10),
             visibility: crate::writer::RefreshVisibility::Owner,
+            unowned: None,
         }
+    }
+
+    /// These parts reading whether a shard's head is released through
+    /// `unowned`.
+    #[must_use]
+    pub fn with_unowned(mut self, unowned: crate::tail_fresh::Unowned) -> Self {
+        self.unowned = Some(unowned);
+        self
     }
 
     /// These parts under `visibility`.
@@ -279,16 +291,18 @@ pub fn wire<S: oss_blob::BlobStore + 'static>(
     ) else {
         return Ok(None);
     };
-    let fresh = Arc::new(
-        crate::tail_fresh::TailFresh::new(
-            Arc::clone(&wired.held),
-            parts.fetcher,
-            parts.node_id,
-            Arc::clone(&reader_clock),
-            parts.visibility.grants(),
-        )
-        .applying(parts.visibility.waits()),
-    );
+    let mut fresh = crate::tail_fresh::TailFresh::new(
+        Arc::clone(&wired.held),
+        parts.fetcher,
+        parts.node_id,
+        Arc::clone(&reader_clock),
+        parts.visibility.grants(),
+    )
+    .applying(parts.visibility.waits());
+    if let Some(unowned) = parts.unowned {
+        fresh = fresh.with_unowned(unowned);
+    }
+    let fresh = Arc::new(fresh);
     service.set_tail_fresh(Arc::clone(&fresh));
     let keep = Arc::new(TailKeep::new());
     let facts: Arc<dyn ShardFacts> = Arc::new(RoleFacts {
