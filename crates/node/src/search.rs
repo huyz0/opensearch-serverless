@@ -172,9 +172,10 @@ impl<S: BlobStore + 'static> SearchService<S> {
             Err(Answer::Rest(e)) => return Err(e),
             Err(Answer::Search(e)) => return send(resp, &e),
         };
-        let view = match self.fresh_view(&held) {
-            Ok(view) => view,
-            Err(e) => return send(resp, &e),
+        let (held, view) = match self.fresh_held(held, true) {
+            Ok(opened) => opened,
+            Err(Answer::Rest(e)) => return Err(e),
+            Err(Answer::Search(e)) => return send(resp, &e),
         };
         let shard = view.as_deref().unwrap_or(&held.shard);
         req.body().reserve(hits_bytes(&source, shard))?;

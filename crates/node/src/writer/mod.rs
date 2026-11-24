@@ -251,10 +251,13 @@ impl WriterRole {
             match self.publish_shard(publishing, &key, &index, &slot, true) {
                 Ok(None) => {}
                 Ok(Some((done, max_seq_no))) => {
+                    // Staged first: the tail stops keeping what the commit
+                    // holds only once a reader that asks can be given it,
+                    // else a reader that opens in between finds neither.
+                    self.staged(&key.0, key.1, &done.manifest);
                     if let Some(t) = self.tail.get() {
                         t.published(&key.0, key.1, max_seq_no);
                     }
-                    self.staged(&key.0, key.1, &done.manifest);
                     pass.published = pass.published.saturating_add(1);
                 }
                 Err(reason) => {

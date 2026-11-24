@@ -148,10 +148,11 @@ impl<S: BlobStore + 'static> SearchService<S> {
                 },
             ))
         })?;
-        let view = if overlay {
-            self.fresh_view(&held)?
+        let (held, view) = if overlay {
+            self.fresh_held(held, false)
+                .map_err(super::open_shard::into_error)?
         } else {
-            None
+            (held, None)
         };
         let analyzer = Analyzer::standard(None);
         let hits = {

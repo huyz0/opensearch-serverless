@@ -15,8 +15,6 @@ use oss_testkit::TempDir;
 const DOCS: usize = 5;
 const DOC_BYTES: usize = 3 << 20;
 
-const ROUNDS: usize = 1;
-
 fn bulk_body(round: usize) -> Vec<u8> {
     let mut body = Vec::new();
     for i in 0..DOCS {
@@ -34,9 +32,20 @@ fn bulk_body(round: usize) -> Vec<u8> {
     body
 }
 
-/// AC-1
+/// AC-2 of docs/specs/refresh-large-tail
 #[test]
 fn the_first_count_after_a_refresh_sees_every_acknowledged_large_document() {
+    rounds(1);
+}
+
+/// AC-1 of docs/specs/refresh-count-after-publish: a count right after a
+/// refresh is not refused when a publish landed since the shard was opened.
+#[test]
+fn a_count_after_a_refresh_is_answered_when_a_publish_landed_since_the_shard_opened() {
+    rounds(3);
+}
+
+fn rounds(rounds: usize) {
     let dir = TempDir::new("refresh-large-tail");
     let root = dir.path().display().to_string();
     let lookup = |key: &str| match key {
@@ -50,7 +59,7 @@ fn the_first_count_after_a_refresh_sees_every_acknowledged_large_document() {
     let addr = node.addr();
     assert_eq!(support::request(addr, "PUT", "/big", None).status, 200);
     // Each round leaves a fresh unpublished tail of DOCS large documents.
-    for round in 1..=ROUNDS {
+    for round in 1..=rounds {
         let reply = support::request(addr, "POST", "/_bulk", Some(&bulk_body(round)));
         assert_eq!(reply.status, 200, "{}", reply.text());
         assert_eq!(
