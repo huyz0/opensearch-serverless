@@ -313,3 +313,23 @@ fn a_member_with_no_commit_yet_is_not_followable() {
     let err = ShardFiles::open_with_meta(&store, "", "logs", 0).expect_err("no commit");
     assert!(err.to_string().contains("no commit"), "{err}");
 }
+
+#[test]
+fn leaving_takes_the_index_back_out_of_its_bucket() {
+    let r = rig("logs");
+    let bucket = r.wiring.join("fresh", "fresh-uuid").expect("joins");
+    let manifest = |r: &Rig| {
+        BucketStore::new(
+            Arc::clone(&r.store) as Arc<dyn BlobStore>,
+            "",
+            ManifestWrite::Json,
+        )
+        .read(&bucket)
+        .expect("reads")
+        .expect("exists")
+        .manifest
+    };
+    assert!(manifest(&r).member("fresh-uuid").is_some());
+    r.wiring.leave(&bucket, "fresh-uuid").expect("leaves");
+    assert!(manifest(&r).member("fresh-uuid").is_none());
+}
