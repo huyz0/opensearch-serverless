@@ -121,5 +121,4 @@ src/usage_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless
 src/snapshot_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/SnapshotHandler.java	the read-only _snapshot routes over the snapshot reader
 src/tenants.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/usage/Guardrails.java@feature/serverlessshell	the node side of the tenant levels: roll the ledger up by tenant, step the policy every 10 s, report; no levels act yet
 src/writer/tenant_hooks.rs	new		what the tenant levels hang on a writer role: who is told an index's bucket group when a shard of it opens, and how far a shard's publish age is stretched
-src/writer/group_sink.rs	new		the call that tells the tenant levels an index's bucket group when a writer opens a shard of it
 src/snapshot_take_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/snapshot/SnapshotOperations.java@bf347adb	handleCreate and capture: the order of a take and its cleanup
