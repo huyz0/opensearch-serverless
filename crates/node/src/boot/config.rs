@@ -370,7 +370,7 @@ impl NodeConfig {
         let tenant_tick_millis = bounded("OSS_TENANT_TICK_MS", "10000", 10, 3_600_000)?;
         let write_limit = write_limit::read(&bounded)?;
         let search_slots = search_slots::read(&bounded)?;
-        let page_cache = page_cache::read(&or("OSS_PAGE_CACHE_DIR", ""), &bounded)?;
+        let page_cache = page_cache::read(&or("OSS_PAGE_CACHE_DIR", ""), &bounded, &flag)?;
         let roles = roles::read(get("OSS_ROLES"))?;
         let proactive_reapers = bounded("OSS_PROACTIVE_REAPERS", "2", 1, 16)?;
         let proactive_max_concurrent = bounded("OSS_PROACTIVE_MAX_CONCURRENT", "4", 1, 64)?;
