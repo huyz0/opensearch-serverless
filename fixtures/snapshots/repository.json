@@ -1,0 +1,1 @@
+{"name":"backups","type":"fs","created_at":1700000000000,"settings":{"remote_store_index_shallow_copy":true,"location":"backups","max_snapshot_bytes_per_sec":5}}

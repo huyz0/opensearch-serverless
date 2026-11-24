@@ -94,7 +94,8 @@ pub use keys::{
     NODE_LOG_PREFIX, POINT_IN_TIME_STATES_PREFIX, POINTS_IN_TIME_PREFIX, RECLAIM_PREFIX, ShardRef,
     TRANSPORT_SECRET_KEY, change_stripe_key, cluster_config_key, descriptor_key, looks_like_an_id,
     node_log_key, node_pack_key, point_in_time_key, point_in_time_state_key, reclaim_intent_key,
-    tombstone_marker_key, transport_secret_key,
+    repository_key, snapshot_legacy_key, snapshot_state_key, tombstone_marker_key,
+    transport_secret_key,
 };
 pub use location::{FileLocation, NODE_PACK_PREFIX};
 pub use manifest::{CommitManifest, ManifestEntry, ManifestFile, encode as encode_manifest};

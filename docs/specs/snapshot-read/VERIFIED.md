@@ -1,7 +1,7 @@
 # Verified
-- AC-1: NOT-RUN: not implemented yet; this slice is specified first.
-- AC-2: NOT-RUN: not implemented yet; this slice is specified first.
-- AC-3: NOT-RUN: not implemented yet; this slice is specified first.
+- AC-1: `a_record_the_java_wrote_is_read`, `a_record_missing_a_required_field_or_malformed_is_refused` (unit, crates/format/src/repository_record.rs), `the_java_repository_record_is_read` (a record the Java wrote, fixtures/snapshots/repository.json)
+- AC-2: `what_the_java_refuses_is_refused`, `a_finished_record_reads_to_its_summary` (unit), `a_finished_java_snapshot_reads_to_its_summary`, `an_unfinished_java_snapshot_is_in_progress_by_its_record` (Java-written)
+- AC-3: `a_value_that_is_cut_padded_or_odd_is_refused`, `the_released_value_is_no_snapshot`, `a_record_past_the_limit_is_refused_before_it_is_taken` (unit), `the_java_state_register_values_hold_their_record` (Java-written)
 - AC-4: NOT-RUN: not implemented yet; this slice is specified first.
 - AC-5: NOT-RUN: not implemented yet; this slice is specified first.
 - AC-6: NOT-RUN: not implemented yet; this slice is specified first.
