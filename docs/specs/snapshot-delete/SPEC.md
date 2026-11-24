@@ -29,4 +29,4 @@ The take's two switches; no new setting. Taking and deleting are served together
 
 ## Risks
 
-A shallow snapshot's delete reclaims no data, as none was copied. A Java node reads a Rust-released register as released; a mixed-fleet delete proof is not run here, so the take switch stays off by default.
+A shallow snapshot's delete reclaims no data, as none was copied. A Java node reads a Rust-released register as released; the mixed-fleet delete proof is AC-5 of [snapshots-default-on](../snapshots-default-on/SPEC.md).

@@ -8,7 +8,7 @@ use super::NodeConfig;
 pub struct SnapshotConfig {
     /// `serverless.snapshots.enabled`: serve the snapshot read routes. On by default.
     pub enabled: bool,
-    /// `serverless.snapshots.take.enabled`: take shallow snapshots, beside the snapshot routes. Off by default.
+    /// `serverless.snapshots.take.enabled`: take shallow snapshots, beside the snapshot routes. On by default.
     pub take: bool,
     /// `serverless.snapshots.restore.enabled`: restore shallow snapshots, beside the take. Off by default.
     pub restore: bool,
@@ -24,7 +24,7 @@ pub(in crate::boot) fn read(
 ) -> Result<SnapshotConfig, String> {
     Ok(SnapshotConfig {
         enabled: flag("OSS_SNAPSHOTS_ENABLED", "true")?,
-        take: flag("OSS_SNAPSHOTS_TAKE_ENABLED", "false")?,
+        take: flag("OSS_SNAPSHOTS_TAKE_ENABLED", "true")?,
         restore: flag("OSS_SNAPSHOTS_RESTORE_ENABLED", "false")?,
         system_index_patterns: or("OSS_SYSTEM_INDEX_PATTERNS", ""),
     })
@@ -51,15 +51,15 @@ mod tests {
     }
 
     #[test]
-    fn the_reads_are_on_and_take_and_restore_off_until_set_and_each_stands_alone() {
+    fn the_reads_and_the_take_are_on_and_restore_off_until_set_and_each_stands_alone() {
         let defaults = config(&[]);
-        assert!(defaults.enabled && !defaults.take && !defaults.restore);
+        assert!(defaults.enabled && defaults.take && !defaults.restore);
         let snaps = config(&[("OSS_SNAPSHOTS_ENABLED", "false")]);
-        assert!(!snaps.enabled && !snaps.take && !snaps.restore);
-        let take = config(&[("OSS_SNAPSHOTS_TAKE_ENABLED", "true")]);
-        assert!(take.take && take.enabled && !take.restore);
+        assert!(!snaps.enabled && snaps.take && !snaps.restore);
+        let take = config(&[("OSS_SNAPSHOTS_TAKE_ENABLED", "false")]);
+        assert!(!take.take && take.enabled && !take.restore);
         let restore = config(&[("OSS_SNAPSHOTS_RESTORE_ENABLED", "true")]);
-        assert!(restore.restore && restore.enabled && !restore.take);
+        assert!(restore.restore && restore.enabled && restore.take);
         assert!(
             NodeConfig::from_lookup(lookup(&with(&[("OSS_SNAPSHOTS_RESTORE_ENABLED", "yes")])))
                 .is_err()

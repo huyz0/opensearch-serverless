@@ -2,7 +2,7 @@
 
 ## Serves
 
-[ADR 0042](../../adr/0042-snapshots-taken-shallow-first.md): a Rust node takes a shallow snapshot in the Java shell's protocol and record format, behind `serverless.snapshots.enabled` and `serverless.snapshots.take.enabled` (`serverless.snapshots.enabled` default true, the take default false).
+[ADR 0042](../../adr/0042-snapshots-taken-shallow-first.md): a Rust node takes a shallow snapshot in the Java shell's protocol and record format, behind `serverless.snapshots.enabled` and `serverless.snapshots.take.enabled` (`serverless.snapshots.enabled` default true, the take default true, per [snapshots-default-on](../snapshots-default-on/SPEC.md)).
 
 ## Acceptance criteria
 
@@ -13,7 +13,7 @@
 - AC-5: the janitor does not delete a blob of an index a snapshot names, tested after the marker is written and after the finish, over the emulator.
 - AC-6: with either switch off the take answers 501 and makes no request; a record over 16 MiB is 413 `snapshot_record_too_large`; a failed pool reservation is 429 (test hook named in the build); the write cap equals the read cap.
 - AC-7: budget rows `snapshot.take.requests` (11 for one index, one shard) and `snapshot.take_two.requests` (two indices, two shards each, proving the per-index and per-shard slopes), spent by a gated test; the count is the same for a 1 KB and a 100 MB index; a key over 255 bytes makes no LIST.
-- AC-8: a Java node lists, describes and plans a restore of a snapshot a Rust node took, by recorded fixtures and a Java-side test over a Rust-written record; the take switch stays off until this passes.
+- AC-8: a Java node lists, describes and plans a restore of a snapshot a Rust node took, by recorded fixtures and a Java-side test over a Rust-written record; the take switch was held off until this passed.
 
 ## Out of scope
 
