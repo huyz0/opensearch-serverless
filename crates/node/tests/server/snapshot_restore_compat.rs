@@ -41,6 +41,18 @@ fn a_restore_writes_the_descriptor_and_manifests_a_java_node_reads() {
         std::fs::write(dir.join("manifest-1.bin"), &manifest).unwrap();
         std::fs::write(dir.join("uuid.txt"), &uuid).unwrap();
     }
+    // An index a restore has not finished, as a crash leaves it, for the same check.
+    let marked = oss_format::mark_restoring(None).unwrap();
+    let mut half = oss_format::IndexRecord::new("half", "uhalf", 2);
+    half.settings = &marked;
+    r.descriptors
+        .create(&half, 1, &mut vec![0u8; 1 << 16])
+        .unwrap();
+    let held = read_register(&r, &oss_format::descriptor_key("", "half").unwrap());
+    if std::env::var_os("OSS_WRITE_FIXTURES").is_some() {
+        std::fs::write(dir.join("descriptor-marked.bin"), &held).unwrap();
+    }
+    assert!(std::fs::read(dir.join("descriptor-marked.bin")).is_ok());
     let committed =
         std::fs::read(dir.join("manifest-1.bin")).expect("run with OSS_WRITE_FIXTURES=1");
     let parsed = oss_format::CommitManifest::parse(&committed).expect("parses");
