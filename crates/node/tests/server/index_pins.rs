@@ -176,11 +176,22 @@ fn a_client_cannot_set_the_limits_or_another_analysis_key() {
     for extra in [
         r#","index.analysis.analyzer.ext_stem.limits.fuel":"1""#,
         r#","index.analysis.analyzer.ext_stem.tokenizer":"x""#,
-        r#","index.analysis.filter.f.type":"x""#,
     ] {
         let e = put(&r, "a", &body(extra, USES));
         assert_eq!(e.status, 400, "{extra}: {}", e.text());
     }
+    // Any other analysis key is refused by name, as every unread create setting is.
+    let e = put(
+        &r,
+        "a",
+        &body(r#","index.analysis.filter.f.type":"x""#, USES),
+    );
+    assert_eq!(e.status, 501, "{}", e.text());
+    assert!(
+        e.text().contains("index.analysis.filter.f.type"),
+        "{}",
+        e.text()
+    );
     assert_eq!((calls(&r), puts(&r)), (0, 0));
 }
 
@@ -235,6 +246,7 @@ fn a_pinned_descriptor_is_what_the_java_fixture_holds() {
         std::fs::create_dir_all(&dir).expect("dir");
         std::fs::write(dir.join("pinned-descriptor.bin"), bytes).expect("writes");
     }
+    #[allow(clippy::disallowed_methods, reason = "a test reads its fixture whole")]
     let held =
         std::fs::read(dir.join("pinned-descriptor.bin")).expect("run with OSS_WRITE_FIXTURES=1");
     // The uuid and the creation time differ run to run; the settings and the mapping must not.

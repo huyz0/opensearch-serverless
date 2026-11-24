@@ -105,7 +105,13 @@ impl IndexService {
         req: &Request<'_>,
         settings: &[(String, Option<String>)],
     ) -> Result<Vec<(Pin, ResolvedLimits)>, RestError> {
-        let pins = parse_pins(settings).map_err(|e| {
+        // ALLOC: the pin keys of one create, bounded by the body.
+        let own: Vec<(String, Option<String>)> = settings
+            .iter()
+            .filter(|(k, _)| is_pin_key(k))
+            .cloned()
+            .collect();
+        let pins = parse_pins(&own).map_err(|e| {
             // ALLOC: error path; one message.
             refuse(400, "illegal_argument_exception", e.to_string())
         })?;
@@ -171,17 +177,18 @@ impl IndexService {
             "the body of a create is larger than 1 MiB",
         )?;
         let mut asked = parse(1, Some(&body)).map_err(refusal)?;
-        let pins = self.pinned(req, &asked.settings)?;
-        asked
+        // A setting the node does not read is refused before the policy
+        // is asked anything, so the refusal costs no request.
+        // ALLOC: the non-pin settings of one create, bounded by the body.
+        let own: Vec<_> = asked
             .settings
-            .retain(|(k, _)| !k.starts_with("index.analysis."));
-        let (bucket_off, bucket_group) = bucket_settings(&asked.settings)?;
-        let cost = cost_settings(&asked.settings)?;
-        if asked.settings.iter().any(|(k, _)| !is_bucket_key(k)) {
-            return Err(unsupported(
-                "index settings at create are not supported by this node yet: create the index, then update its settings",
-            ));
-        }
+            .iter()
+            .filter(|(k, _)| !is_pin_key(k))
+            .cloned()
+            .collect();
+        crate::create_settings::refuse_others(&own, is_bucket_key)?;
+        let pins = self.pinned(req, &asked.settings)?;
+        asked.settings = own;
         if !asked.aliases.is_empty() {
             return Err(unsupported(
                 "aliases at create are not supported by this node yet: create the index, then add them",
@@ -196,15 +203,14 @@ impl IndexService {
                 let asked = templates
                     .apply(&index, asked, &mut marker, &mut doc)
                     .map_err(refusal)?;
-                if !asked.settings.is_empty() {
-                    return Err(unsupported(
-                        "the matching index template carries settings, which this node does not apply at create yet",
-                    ));
-                }
+                crate::create_settings::refuse_others(&asked.settings, is_bucket_key)?;
                 asked
             }
             None => asked,
         };
+        let (bucket_off, bucket_group) = bucket_settings(&asked.settings)?;
+        let cost = cost_settings(&asked.settings)?;
+        let read = crate::create_settings::checked(&asked.settings, asked.shards)?;
         if let Some(text) = asked.mapping.as_deref() {
             // `index.knn` cannot be given at create yet, so the node setting stands for it.
             let options = ParseOptions {
@@ -243,8 +249,8 @@ impl IndexService {
             ..cost
         };
         let rendered = render(&pins);
-        let tenancy_settings =
-            (!tenancy.is_empty()).then(|| crate::writer::tenancy_settings(&tenancy));
+        let tenancy_settings = (!tenancy.is_empty() || !read.is_empty())
+            .then(|| crate::writer::tenancy::tenancy_settings_with(&tenancy, &read));
         let settings = (!rendered.is_empty())
             .then(|| with_members(tenancy_settings.as_deref().unwrap_or(b"{}"), &rendered));
         if let Some(settings) = settings.as_ref().or(tenancy_settings.as_ref()) {
@@ -402,4 +408,10 @@ pub fn routes(router: Router, service: Arc<IndexService>) -> Result<Router, Rout
             &[],
             move |req: &mut Request<'_>, resp: &mut Response<'_>| service.exists(req, resp),
         )
+}
+
+/// Whether `key` sets an extension analyzer pin; other analysis settings
+/// stay for the create to refuse by name.
+fn is_pin_key(key: &str) -> bool {
+    key.starts_with("index.analysis.analyzer.ext_")
 }

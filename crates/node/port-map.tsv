@@ -166,3 +166,4 @@ src/warm_join/tests.rs	new		tests of the peer list, the fan-out cap and the batc
 src/boot/config/authoring.rs	new		the index template and ingest pipeline switches the OSS_* variables set
 src/extension_pins.rs	new		the pin policy over the module store: read, check, probe and resolve limits
 src/pin_policy.rs	new		what a create needs to pin analyzer modules, and the settings merge
+src/create_settings.rs	new		the index settings a create may carry: the three the node reads from the descriptor, checked, and a refusal naming any other key
