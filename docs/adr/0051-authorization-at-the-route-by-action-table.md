@@ -1,4 +1,4 @@
-# 0049: Authorization is decided at the route, from an action table, by the names in the path
+# 0051: Authorization is decided at the route, from an action table, by the names in the path
 
 **Status:** Accepted after independent review, 2026-11-24 (its findings are folded into the text above)
 

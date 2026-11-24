@@ -1,5 +1,5 @@
 //! What each route needs of a user, and the authorizer that asks
-//! ([ADR 0049](../../../docs/adr/0049-authorization-at-the-route-by-action-table.md)).
+//! ([ADR 0051](../../../docs/adr/0051-authorization-at-the-route-by-action-table.md)).
 
 use std::sync::Arc;
 

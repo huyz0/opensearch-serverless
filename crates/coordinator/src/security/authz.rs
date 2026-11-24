@@ -1,6 +1,6 @@
 //! What a user may do: the roles' cluster and index permissions, the action
 //! groups they name, and the plugin's wildcard rule
-//! ([ADR 0049](../../../../docs/adr/0049-authorization-at-the-route-by-action-table.md)).
+//! ([ADR 0051](../../../../docs/adr/0051-authorization-at-the-route-by-action-table.md)).
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::OnceLock;
