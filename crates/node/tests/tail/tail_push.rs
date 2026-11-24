@@ -317,6 +317,21 @@ fn past_the_queue_bound_a_shards_subscribers_and_queue_are_dropped() {
 }
 
 #[test]
+fn a_flush_starts_the_shards_count_over() {
+    let r = rig();
+    subscribe(&r, "n1", 0);
+    let n = MAX_QUEUED as i64;
+    r.push.acked("logs", U, 0, &recs(1..=n), true);
+    r.push.flush();
+    r.push.acked("logs", U, 0, &recs(n + 1..=2 * n), true);
+    assert_eq!(
+        r.serve.subscribers_of(U, 0),
+        ["n1"],
+        "the bound counts what is queued, not what was ever queued"
+    );
+}
+
+#[test]
 fn the_default_bound_is_twenty_thousand_records() {
     assert_eq!(MAX_QUEUED, 20_000);
 }

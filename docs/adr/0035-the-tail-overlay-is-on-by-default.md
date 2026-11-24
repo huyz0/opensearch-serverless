@@ -12,7 +12,7 @@ The tail overlay (a search served over the open commit and the acknowledged writ
 
 ## Not measured
 
-Memory and timers across many shards (the overlay builder charges `open_indexes` without evicting; the tail keep and push queues are per-shard bounded and the flush timer is per node, but no run with thousands of shards has been made), how often a reader refuses a search as behind and for how long over a long run (the refusal's release has no test of its own), and the `serving` and `owner` visibilities with the overlay on. A deployment that cares sets `OSS_TAIL_OVERLAY=false` or the index setting.
+The writer's side across many shards is measured (docs/specs/tail-overlay-scale/VERIFIED.md): about 2.4 to 3.1 KB a shard to 20,000 shards, and a queue that was quadratic in shards, fixed. The reader's side is not (the overlay builder charges `open_indexes` without evicting, and no run with thousands of shards has been made). Also not measured: how often a reader refuses a search as behind and for how long over a long run (the refusal's release has no test of its own), and the `serving` and `owner` visibilities with the overlay on. A deployment that cares sets `OSS_TAIL_OVERLAY=false` or the index setting.
 
 ## Consequences
 

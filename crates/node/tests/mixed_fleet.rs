@@ -365,3 +365,100 @@ fn hand_over(buckets: bool) {
     judge("AC-4 java", j2.addr, &ledger);
     j2.kill();
 }
+
+/// A TCP relay to `target` that counts the connections it takes, so a test
+/// can tell a request the Java node served from one a Rust node answered.
+fn counting_relay(
+    target: SocketAddr,
+) -> (SocketAddr, std::sync::Arc<std::sync::atomic::AtomicUsize>) {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("binds");
+    let addr = listener.local_addr().expect("an address");
+    let count = std::sync::Arc::new(AtomicUsize::new(0));
+    let seen = std::sync::Arc::clone(&count);
+    std::thread::spawn(move || {
+        for client in listener.incoming() {
+            let Ok(client) = client else { return };
+            seen.fetch_add(1, Ordering::SeqCst);
+            let Ok(server) = std::net::TcpStream::connect(target) else {
+                continue;
+            };
+            for (mut from, mut to) in [
+                (
+                    client.try_clone().expect("clone"),
+                    server.try_clone().expect("clone"),
+                ),
+                (server, client),
+            ] {
+                std::thread::spawn(move || {
+                    let _ = std::io::copy(&mut from, &mut to);
+                    let _ = to.shutdown(std::net::Shutdown::Write);
+                });
+            }
+        }
+    });
+    (addr, count)
+}
+
+/// A plugin request through a Rust node reaches the Java node behind it.
+///
+/// The shell here runs no plugin, so it answers a plugin path with the same
+/// "no handler found" a Rust node would; a relay in front of the Java node
+/// counts the connections that reach it, which tells who answered. This runs
+/// on the emulator's S3 front end: nothing here needs RustFS.
+#[test]
+#[ignore = "needs OSS_JAVA_BIN and OSS_JAVA_CP"]
+fn a_plugin_request_through_a_rust_node_is_answered_by_the_java_node() {
+    use std::sync::atomic::Ordering;
+    if std::env::var_os("OSS_JAVA_CP").is_none() || std::env::var_os("OSS_JAVA_BIN").is_none() {
+        eprintln!("skipped: OSS_JAVA_BIN and OSS_JAVA_CP are not set");
+        return;
+    }
+    let mut cluster = Cluster::new(TTL_MS, 1, false).expect("the emulated cluster");
+    let java = JavaNode::start("java-p", &temp("jp"), &cluster, false);
+    let (relay, reached) = counting_relay(java.addr);
+    let target = "/_plugins/_ism/policies?probe=1";
+
+    // AC-1: with no upstream a Rust node answers the plugin path itself.
+    let plain = cluster.add("rust-plain");
+    let own = cluster.call(plain, "GET", target, None);
+    assert_eq!(own.status, 400, "{}", own.text());
+    assert!(own.text().contains("no handler found"), "{}", own.text());
+    assert_eq!(reached.load(Ordering::SeqCst), 0);
+
+    // AC-2: with the Java node as upstream, the Java node answers.
+    cluster.set("OSS_PLUGIN_UPSTREAMS", &format!("http://{relay}"));
+    let proxied = cluster.add("rust-proxy");
+    let direct = call(java.addr, "GET", target, None);
+    let through = cluster.call(proxied, "GET", target, None);
+    assert_eq!(
+        (through.status, through.text()),
+        (direct.status, direct.text())
+    );
+    assert_eq!(
+        reached.load(Ordering::SeqCst),
+        1,
+        "one request reached the Java node"
+    );
+
+    // AC-3: a native route on the proxying node is still the Rust node's.
+    let health = cluster.call(proxied, "GET", "/_cluster/health", None);
+    assert_eq!(health.status, 200, "{}", health.text());
+    assert_eq!(
+        reached.load(Ordering::SeqCst),
+        1,
+        "a native route is not proxied"
+    );
+
+    // AC-4: a write through the proxy reaches the Java node, answered as it answers.
+    let body = "{\"x\":1}";
+    let path = "/_plugins/_ml/models/_search";
+    let direct = call(java.addr, "POST", path, Some(body));
+    let through = cluster.call(proxied, "POST", path, Some(body));
+    assert_eq!(
+        (through.status, through.text()),
+        (direct.status, direct.text())
+    );
+    assert_eq!(reached.load(Ordering::SeqCst), 2);
+    java.kill();
+}

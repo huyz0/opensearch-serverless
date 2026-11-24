@@ -24,3 +24,6 @@ Found on the way: the Java shell answers a bulk request that carries `Connection
 Not covered: a Rust node forwarding to a Java owner over transport (the reads here go to the store; the test sends each request to the node that owns or has taken the shard), writes by both kinds of node at once, and a soak longer than a few hand-overs.
 
 - AC-7: `a_bucketed_index_changes_hands_between_java_and_rust_without_losing_a_write` in crates/node/tests/mixed_fleet.rs; first run failed at "AC-2 rust after taking over" with `engine: corrupted index: file mismatch: object id does not match` (the taken-over member restored no commit and wrote a second segment of the same name), passes after the opener restores the member entry; 100 documents a batch, acknowledgements 1.4 s, 4.9 s and 4.3 s.
+
+- AC-8: `a_plugin_request_through_a_rust_node_is_answered_by_the_java_node` in crates/node/tests/mixed_fleet.rs, against a live Java shell on the emulated cluster (in-process S3 front end, no RustFS); passes. A bulk with `Connection: close` is not used.
+- AC-9: `a_plugin_request_through_a_rust_node_is_answered_by_the_java_node` again (`_cluster/health` stays native, count unchanged; POST `/_plugins/_ml/models/_search` proxied).

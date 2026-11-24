@@ -8,4 +8,5 @@ mod tail_fresh;
 mod tail_held;
 mod tail_keep;
 mod tail_push;
+mod tail_scale;
 mod tail_serve;

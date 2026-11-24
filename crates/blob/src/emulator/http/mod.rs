@@ -307,10 +307,18 @@ fn serve(shared: &Shared, stream: TcpStream) {
                 return;
             }
         };
+        // An `aws-chunked` body: the object is its decoded length.
+        let chunked = head
+            .header("content-encoding")
+            .is_some_and(|v| v.split(',').any(|t| t.trim() == "aws-chunked"));
+        let decoded = head
+            .header("x-amz-decoded-content-length")
+            .and_then(|v| v.parse::<u64>().ok());
         let mut body = SocketBody {
             reader: &mut reader,
-            len,
+            len: if chunked { decoded.unwrap_or(len) } else { len },
             left: len,
+            framing: chunked.then(wire::AwsChunks::default),
         };
         let reply = routes::respond(shared, &head, &mut body, &mut out);
         let drained = body.drain();

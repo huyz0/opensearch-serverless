@@ -400,7 +400,7 @@ pub fn assemble(
             search.close_view(id);
         }));
     }
-    let ingest = crate::index_assemble::ingest_pipelines(config, &store)?;
+    let ingest = crate::admin_assemble::ingest_pipelines(config, &store)?;
     let bulk = Arc::new(
         BulkService::new(
             Arc::clone(&role),
