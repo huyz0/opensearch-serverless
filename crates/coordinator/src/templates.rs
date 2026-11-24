@@ -436,9 +436,10 @@ fn deep_merge(into: &mut Vec<(String, Json)>, from: &[(String, Json)]) {
     }
 }
 
-/// As [`deep_merge`], except that the members of `properties` merge field
-/// by field.
-fn merge_mappings(into: &mut Vec<(String, Json)>, from: &[(String, Json)]) {
+/// Merges `from` over `into` as an index template's mappings merge: objects
+/// merge member by member, the members of `properties` field by field, and
+/// anything else is replaced by `from`'s.
+pub fn merge_mappings(into: &mut Vec<(String, Json)>, from: &[(String, Json)]) {
     for (key, value) in from {
         match (existing(into, key), value) {
             (Some(Json::Obj(left)), Json::Obj(right)) => {

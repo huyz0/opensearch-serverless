@@ -3,6 +3,7 @@
 
 pub mod admin;
 pub mod create;
+pub mod create_inherit;
 pub mod flat;
 pub mod mapping_update;
 pub mod rollover;
