@@ -7,13 +7,14 @@ use std::net::TcpListener;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use oss_blob::{BlobStore, Emulator, SliceSource};
+use oss_blob::{BlobStore, Emulator, S3Op, SliceSource};
 use oss_cluster::heads::shard_head_key;
 use oss_format::{IndexRecord, PitShard, PointInTime, ShardHead};
 use oss_mem::MemoryBudget;
 use oss_meta::{DeleteMode, DescriptorStore, PitClock, PointInTimeStore};
-use oss_node::index_delete::{DeleteService, NoSnapshots, routes};
+use oss_node::index_delete::{DeleteService, NoSnapshots, SnapshotPins, StoreSnapshotPins, routes};
 use oss_rest::{Router, Server};
+use oss_testkit::budget;
 
 const BUF: usize = 1 << 16;
 const NOW: u64 = 1_000_000;
@@ -26,6 +27,15 @@ struct Rig {
 }
 
 fn rig() -> Rig {
+    rig_with(|_| Arc::new(NoSnapshots))
+}
+
+/// A rig whose delete reads the snapshots in the store before it purges.
+fn pinned_rig() -> Rig {
+    rig_with(|store| Arc::new(StoreSnapshotPins::new(Arc::clone(store), "", 100, BUF)))
+}
+
+fn rig_with(pins: impl FnOnce(&Arc<dyn BlobStore>) -> Arc<dyn SnapshotPins>) -> Rig {
     let store = Arc::new(Emulator::new(1 << 28, 5));
     let clock = Arc::new(AtomicU64::new(NOW));
     let tick = Arc::clone(&clock);
@@ -37,7 +47,7 @@ fn rig() -> Rig {
             "",
             DeleteMode::Conditional,
             pit_clock,
-            Arc::new(NoSnapshots),
+            pins(&dynstore),
             BUF,
             2,
         )
@@ -280,4 +290,111 @@ fn a_large_index_is_purged_at_the_reclaim_and_a_pinned_shard_when_its_view_ends(
     r.clock.fetch_add(30 * 60_000, Ordering::Relaxed);
     r.service.drain().expect("drain");
     assert!(!present(&r, &kept), "purged once the view expired");
+}
+
+/// Reserves and protects a snapshot of `logs`, as a take does before it
+/// reads a shard.
+fn snapshot_of_logs(r: &Rig) -> (oss_meta::SnapshotTaker, oss_meta::Reservation) {
+    let blobs = r.store.clone() as Arc<dyn BlobStore>;
+    let taker = oss_meta::SnapshotTaker::new(Arc::clone(&blobs), "");
+    let d = DescriptorStore::new(blobs, "", DeleteMode::Conditional).expect("store");
+    let described = taker
+        .describe(&d, "logs", &mut vec![0u8; BUF])
+        .expect("described");
+    let draft = oss_format::SnapshotDraft {
+        repo: "backups".into(),
+        name: "daily".into(),
+        uuid: "s".into(),
+        storage_generation: Some("genAAAAAAAAAAAAAAAAAAA".into()),
+        shallow: true,
+        start_millis: 1,
+        end_millis: 1,
+        indices: vec![described.capture(Vec::new(), false)],
+    };
+    let mut value = vec![0u8; BUF];
+    let reservation = taker.reserve(&draft, &mut value).expect("reserved");
+    taker
+        .publish_marker(&reservation, &draft, &mut value)
+        .expect("marker");
+    (taker, reservation)
+}
+
+#[test]
+fn an_index_a_snapshot_names_keeps_its_bytes_and_another_is_purged() {
+    let r = pinned_rig();
+    create(&r, "logs", "u1", 2);
+    create(&r, "other", "u2", 1);
+    let (b0, b1) = (blob(&r, "logs", "u1", 0), blob(&r, "logs", "u1", 1));
+    let other = blob(&r, "other", "u2", 0);
+    let (_taker, _held) = snapshot_of_logs(&r);
+    assert_eq!(delete(&r, "/logs").status, 200);
+    assert!(descriptor_gone(&r, "logs"));
+    assert!(
+        present(&r, &b0) && present(&r, &b1),
+        "a snapshot names them"
+    );
+    assert_eq!(delete(&r, "/other").status, 200);
+    assert!(!present(&r, &other), "no snapshot names it");
+}
+
+#[test]
+fn without_the_snapshot_reading_a_delete_purges_what_a_snapshot_names() {
+    // The default: the delete does not read snapshots, so nothing is held.
+    let r = rig();
+    create(&r, "logs", "u1", 1);
+    let b0 = blob(&r, "logs", "u1", 0);
+    let (_taker, _held) = snapshot_of_logs(&r);
+    assert_eq!(delete(&r, "/logs").status, 200);
+    assert!(!present(&r, &b0));
+}
+
+#[test]
+fn a_released_snapshot_names_nothing_and_a_retried_drain_frees_the_bytes() {
+    let r = pinned_rig();
+    create(&r, "logs", "u1", 1);
+    let b0 = blob(&r, "logs", "u1", 0);
+    let (taker, _held) = snapshot_of_logs(&r);
+    assert_eq!(delete(&r, "/logs").status, 200);
+    assert!(present(&r, &b0));
+    assert!(
+        taker
+            .remove("backups", "daily", &mut vec![0u8; BUF])
+            .expect("removed")
+    );
+    // The pin is gone: the intent the delete left purges on the drain.
+    r.clock.fetch_add(10 * 60_000, Ordering::Relaxed);
+    r.service.drain().expect("drain");
+    assert!(!present(&r, &b0), "released: purged");
+}
+
+fn requests(r: &Rig) -> u64 {
+    S3Op::ALL.iter().map(|op| r.store.meter().count(*op)).sum()
+}
+
+#[test]
+fn a_delete_that_reads_the_snapshots_costs_what_the_budget_says() {
+    let r = pinned_rig();
+    create(&r, "logs", "u1", 1);
+    let (_taker, _held) = snapshot_of_logs(&r);
+    let before = requests(&r);
+    assert_eq!(delete(&r, "/logs").status, 200);
+    budget::check(
+        "index.delete_pinned.requests",
+        requests(&r) - before,
+        "a delete of an index one snapshot names",
+    );
+}
+
+#[test]
+fn a_store_that_fails_while_reading_the_snapshots_refuses_the_purge_as_a_store_error() {
+    let store = Arc::new(Emulator::new(1 << 28, 5));
+    let pins = StoreSnapshotPins::new(store.clone() as Arc<dyn BlobStore>, "", 100, BUF);
+    store.fail_next(S3Op::List, 1);
+    let err = pins.pinned("logs", "u1", 1).expect_err("the read failed");
+    assert!(matches!(err, oss_meta::MetaError::Blob(_)), "{err:?}");
+    // Healed, nothing names the index.
+    assert_eq!(
+        pins.pinned("logs", "u1", 1).expect("read"),
+        Vec::<u32>::new()
+    );
 }
