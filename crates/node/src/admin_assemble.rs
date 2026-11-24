@@ -193,6 +193,19 @@ mod tests {
         (store, budget)
     }
 
+    // docs/specs/snapshot-restore AC-2
+    #[test]
+    fn the_configured_patterns_are_the_system_indices() {
+        let config = Config {
+            system_index_patterns: ".kibana*, .tasks".to_owned(),
+            ..Config::new("", "n", [0; 6])
+        };
+        let system = system_indices(&config);
+        assert!(system.contains(".kibana_1") && system.contains(".tasks"));
+        assert!(!system.contains("logs"));
+        assert!(!system_indices(&Config::new("", "n", [0; 6])).contains(".kibana_1"));
+    }
+
     // docs/specs/security-authn AC-9
     #[test]
     fn security_on_without_an_administrator_does_not_start() {
