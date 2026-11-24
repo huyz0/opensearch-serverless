@@ -61,8 +61,6 @@ pub mod index_delete;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub mod index_route;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
-pub mod pin_policy;
-#[cfg(all(feature = "writer", feature = "coordinator"))]
 pub mod index_templates;
 #[cfg(feature = "writer")]
 pub mod ingest_run;
@@ -82,6 +80,8 @@ pub mod open_indexes;
 pub mod overlay_builder;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod page_cache_disk;
+#[cfg(all(feature = "writer", feature = "coordinator"))]
+pub mod pin_policy;
 #[cfg(feature = "writer")]
 pub mod pipeline_route;
 #[cfg(feature = "writer")]

@@ -229,16 +229,24 @@ fn a_pinned_descriptor_is_what_the_java_fixture_holds() {
         .expect("reads")
         .expect("register");
     let bytes = &buf[..found.len];
-    let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/extensions");
+    let dir =
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/extensions");
     if std::env::var_os("OSS_WRITE_FIXTURES").is_some() {
         std::fs::create_dir_all(&dir).expect("dir");
         std::fs::write(dir.join("pinned-descriptor.bin"), bytes).expect("writes");
     }
-    let held = std::fs::read(dir.join("pinned-descriptor.bin")).expect("run with OSS_WRITE_FIXTURES=1");
+    let held =
+        std::fs::read(dir.join("pinned-descriptor.bin")).expect("run with OSS_WRITE_FIXTURES=1");
     // The uuid and the creation time differ run to run; the settings and the mapping must not.
     let text = |b: &[u8]| String::from_utf8_lossy(b).into_owned();
     let (now, then) = (text(bytes), text(&held));
-    for part in ["\"settings\"", "serverless_module", HASH, "\"limits.fuel", "ext_stem"] {
+    for part in [
+        "\"settings\"",
+        "serverless_module",
+        HASH,
+        "\"limits.fuel",
+        "ext_stem",
+    ] {
         assert_eq!(now.contains(part), then.contains(part), "{part}");
     }
     assert!(then.contains("serverless_module"), "{then}");
