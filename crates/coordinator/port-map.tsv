@@ -47,3 +47,4 @@ src/security/mod.rs	new		the security configuration kinds and their answers
 src/security/schema.rs	new		the keys each kind accepts
 src/security/validate.rs	new		body validation as the security plugin does it
 src/security/render.rs	new		the plugin's acknowledgements and rendered documents
+src/snapshot_restore_admin.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/snapshot/SnapshotRequestBodies.java@bf347adb	the restore branch: body keys and refusals, rename, target names and the failures a restore answers (SnapshotHandler, SnapshotOperations.restore)
