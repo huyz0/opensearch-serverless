@@ -22,7 +22,66 @@ fn main() -> std::process::ExitCode {
         config.node_id,
         node.addr()
     );
-    // Runs until the process is killed; the lease then lapses in one lifetime.
+    if let Err(why) = wait_for_stop() {
+        eprintln!("opensearch-serverless node: {why}");
+        return std::process::ExitCode::FAILURE;
+    }
+    let report = match oss_node::boot::retire_within(node, config.retire_timeout_millis) {
+        oss_node::boot::Retired::Done(report) => report,
+        oss_node::boot::Retired::Overran => {
+            eprintln!(
+                "opensearch-serverless node: retiring outlasted its limit; leaving the shards to the lease"
+            );
+            return std::process::ExitCode::FAILURE;
+        }
+    };
+    println!(
+        "opensearch-serverless node {} retired: {} shards slept, {} heads given back, {} busy, {} failed, {} unfinished",
+        config.node_id,
+        report.hibernated,
+        report.given_back,
+        report.busy,
+        report.failed.len(),
+        report.unfinished
+    );
+    for failed in &report.failed {
+        eprintln!("opensearch-serverless node: not published: {failed}");
+    }
+    // 0: retired, or left to the lease (busy shards, a timeout of 0); 1: a
+    // shard failed to publish or the deadline passed first.
+    if report.failed.is_empty() && report.unfinished == 0 {
+        std::process::ExitCode::SUCCESS
+    } else {
+        std::process::ExitCode::FAILURE
+    }
+}
+
+/// Blocks until the process is told to stop (`SIGTERM`, `SIGINT`); a second
+/// signal while the node retires ends the process at once with status 130,
+/// and a killed process leaves its lease to lapse in one lifetime.
+#[cfg(all(unix, feature = "reader", feature = "writer"))]
+fn wait_for_stop() -> Result<(), String> {
+    use signal_hook::consts::{SIGINT, SIGTERM};
+    let mut signals = signal_hook::iterator::Signals::new([SIGTERM, SIGINT])
+        .map_err(|e| format!("no signal handler: {e}"))?;
+    let (first, wait) = std::sync::mpsc::sync_channel(1);
+    std::thread::spawn(move || {
+        let mut seen = 0usize;
+        for _ in signals.forever() {
+            seen = seen.saturating_add(1);
+            if seen == 1 {
+                let _ = first.try_send(());
+            } else {
+                std::process::exit(130);
+            }
+        }
+    });
+    wait.recv().map_err(|e| format!("signal thread ended: {e}"))
+}
+
+/// Without signals to wait for, runs until the process is killed.
+#[cfg(all(not(unix), feature = "reader", feature = "writer"))]
+fn wait_for_stop() -> Result<(), String> {
     loop {
         std::thread::park();
     }

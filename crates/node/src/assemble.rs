@@ -234,7 +234,7 @@ pub struct Assembled {
 
 /// A node listening.
 pub struct Running {
-    server: Server,
+    pub(crate) server: Server,
     /// The search service every `_search` goes through.
     pub search: Arc<SearchService<Shared>>,
     /// The role the write routes write through.

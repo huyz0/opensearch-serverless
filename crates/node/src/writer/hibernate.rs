@@ -92,6 +92,8 @@ pub struct HibernatePass {
     pub busy: usize,
     /// Idle shards whose publish failed, by `[uuid][shard]` and the reason.
     pub failed: Vec<String>,
+    /// Shards the pass did not reach because its deadline passed.
+    pub unfinished: usize,
 }
 
 impl WriterRole {
@@ -136,6 +138,17 @@ impl WriterRole {
     /// this process at the term the shard slept at. Answers how many heads
     /// were released. A shard none of which is due makes no request.
     pub fn give_back_idle(&self, after_millis: u64, now_millis: u64) -> usize {
+        self.give_back_until(after_millis, now_millis, u64::MAX)
+    }
+
+    /// [`Self::give_back_idle`] that stops at `deadline_millis` of the wall
+    /// clock; the records of shards it did not reach are put back.
+    pub(super) fn give_back_until(
+        &self,
+        after_millis: u64,
+        now_millis: u64,
+        deadline_millis: u64,
+    ) -> usize {
         let Some(opener) = &self.opener else {
             return 0;
         };
@@ -154,6 +167,10 @@ impl WriterRole {
         };
         let mut given = 0usize;
         for ((uuid, shard), slept) in due {
+            if super::now_millis() >= deadline_millis {
+                lock(&self.hibernation.asleep).insert((uuid, shard), slept);
+                continue;
+            }
             let Some(index) = self.names.name_of(&uuid) else {
                 continue;
             };
@@ -169,6 +186,18 @@ impl WriterRole {
     /// if nothing reached it meanwhile. Idleness is read from memory: a pass
     /// over shards none of which is idle makes no request.
     pub fn hibernate_idle(&self, idle_millis: u64, now_millis: u64) -> HibernatePass {
+        self.hibernate_idle_until(idle_millis, now_millis, u64::MAX)
+    }
+
+    /// [`Self::hibernate_idle`] that stops at `deadline_millis` of the wall
+    /// clock, counting the shards it did not reach as `unfinished`. Shards
+    /// pinned here are counted busy: they are held and stay so.
+    pub(super) fn hibernate_idle_until(
+        &self,
+        idle_millis: u64,
+        now_millis: u64,
+        deadline_millis: u64,
+    ) -> HibernatePass {
         let mut pass = HibernatePass::default();
         self.forget_stale(now_millis);
         let Some(publishing) = &self.publishing else {
@@ -179,8 +208,14 @@ impl WriterRole {
             .iter()
             .map(|(k, v)| (k.clone(), Arc::clone(v)))
             .collect();
-        for (key, slot) in held {
+        let total = held.len();
+        for (reached, (key, slot)) in held.into_iter().enumerate() {
+            if super::now_millis() >= deadline_millis {
+                pass.unfinished = total.saturating_sub(reached);
+                break;
+            }
             if self.pinned(&key.0) {
+                pass.busy = pass.busy.saturating_add(1);
                 continue;
             }
             let (used, max_seq_no) = {

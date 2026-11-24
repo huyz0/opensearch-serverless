@@ -120,6 +120,10 @@ pub struct NodeConfig {
     pub commit_push: bool,
     /// `serverless.activation.give_back_after_millis`; 0 never gives back.
     pub give_back_after_millis: u64,
+    /// `OSS_RETIRE_TIMEOUT_MS`: how long a node told to stop spends
+    /// publishing its shards and giving their heads back; 0 skips it and
+    /// leaves the shards to the lease.
+    pub retire_timeout_millis: u64,
     /// `serverless.activation.max_shards`; 0 is no cap.
     pub max_shards: usize,
     /// `serverless.activation.evict_after_millis`; 0 never evicts.
@@ -289,6 +293,7 @@ impl NodeConfig {
         let proactive_takeover = flag("OSS_PROACTIVE_TAKEOVER", "true")?;
         let hibernate_after_millis = bounded("OSS_HIBERNATE_AFTER_MS", "0", 0, 604_800_000)?;
         let give_back_after_millis = bounded("OSS_GIVE_BACK_AFTER_MS", "0", 0, 86_400_000)?;
+        let retire_timeout_millis = bounded("OSS_RETIRE_TIMEOUT_MS", "25000", 0, 3_600_000)?;
         let max_shards = bounded("OSS_MAX_SHARDS", "0", 0, 1_000_000)?;
         let evict_after_millis = bounded("OSS_EVICT_AFTER_MS", "60000", 0, 604_800_000)?;
         let evict_headroom_percent = bounded("OSS_EVICT_HEADROOM_PCT", "0", 0, 100)?;
@@ -379,6 +384,7 @@ impl NodeConfig {
             hibernate_after_millis,
             commit_push,
             give_back_after_millis,
+            retire_timeout_millis,
             max_shards: usize::try_from(max_shards).unwrap_or(0),
             evict_after_millis,
             evict_headroom_percent,

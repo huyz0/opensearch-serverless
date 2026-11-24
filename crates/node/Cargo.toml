@@ -65,6 +65,11 @@ oss-mem = { workspace = true, optional = true }
 # The plugin proxy's client (docs/adr/0043): plain HTTP(S) to Java nodes.
 ureq = { version = "=3.5.2", default-features = false, features = ["rustls"], optional = true }
 
+# The binary retires the node on SIGTERM and SIGINT (docs/adr/0048); a safe
+# iterator over the signals, no `unsafe` here.
+[target.'cfg(unix)'.dependencies]
+signal-hook = "=0.3.18"
+
 [dev-dependencies]
 serde_json = "=1.0.145"
 # The suite creates a RustFS bucket with one signed request.

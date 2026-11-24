@@ -125,3 +125,5 @@ src/writer/tenant_hooks.rs	new		what the tenant levels hang on a writer role: wh
 src/snapshot_take_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/snapshot/SnapshotOperations.java@bf347adb	handleCreate and capture: the order of a take and its cleanup
 src/writer/tenancy.rs	new		the billing settings of an index in its descriptor: bucket group, cost tier and cost budget, read when a writer opens a shard of it
 src/plugin_proxy.rs	new		the proxy of requests for plugins not ported to a Java node (ADR 0046); the Java shell runs those plugins itself
+src/boot/retire.rs	new		retiring a node on a stop signal: the shell leaves its lease to lapse
+src/writer/retire.rs	new		publishing and giving back every held shard when the node stops
