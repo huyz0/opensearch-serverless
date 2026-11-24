@@ -103,3 +103,83 @@ fn routes_are_listed_with_their_methods_and_prefix_routes_as_any() {
     assert!(router.has_authorizer());
     assert!(!Router::new().has_authorizer());
 }
+
+/// Admits everyone as `carol` and refuses nothing.
+struct Carol;
+
+impl oss_rest::Guard for Carol {
+    fn admit(&self, _: &oss_rest::Admission<'_>) -> oss_rest::Verdict {
+        oss_rest::Verdict::Allow(Some(Arc::from("carol")))
+    }
+}
+
+/// Refuses every request, saying who it acted as and whether its route is a prefix route.
+struct Says;
+
+impl Authorizer for Says {
+    fn authorize(&self, req: &Authorization<'_>) -> Option<Denial> {
+        Some(Denial {
+            status: 403,
+            content_type: "text/plain; charset=UTF-8",
+            body: format!("{:?} prefix={}", req.principal(), req.is_prefix()),
+            challenge: None,
+        })
+    }
+}
+
+// docs/specs/security-authz AC-8
+#[test]
+fn the_authorizer_is_told_who_the_guard_admitted_and_whether_the_route_is_a_prefix() {
+    let router = Router::new()
+        .route(Method::Get, "/open/{index}", &[], ok)
+        .expect("route")
+        .prefix("/plugins/x", ok)
+        .expect("prefix")
+        .with_guard(Arc::new(Carol))
+        .with_authorizer(Arc::new(Says));
+    let server = start(small(), router);
+    let mut c = Client::connect(server.local_addr());
+    let r = c.request(&get("/open/a"));
+    assert_eq!(r.body.as_slice(), &b"Some(\"carol\") prefix=false"[..]);
+    let r = c.request(&get("/plugins/x/y"));
+    assert_eq!(r.body.as_slice(), &b"Some(\"carol\") prefix=true"[..]);
+    server.shutdown();
+
+    let bare = Router::new()
+        .route(Method::Get, "/open/{index}", &[], ok)
+        .expect("route")
+        .with_authorizer(Arc::new(Says));
+    let server = start(small(), bare);
+    let mut c = Client::connect(server.local_addr());
+    let r = c.request(&get("/open/a"));
+    assert_eq!(
+        r.body.as_slice(),
+        &b"None prefix=false"[..],
+        "no guard, no name"
+    );
+    server.shutdown();
+}
+
+// docs/specs/security-authz AC-8
+#[test]
+fn a_refusal_keeps_the_connection_only_when_the_client_and_the_request_allow_it() {
+    let server = start(small(), router());
+    let mut c = Client::connect(server.local_addr());
+    assert_eq!(c.request(&get("/open/secret")).status, 403);
+    assert_eq!(
+        c.request(&get("/open/ok")).status,
+        200,
+        "and serves the next"
+    );
+    let r = c.request(b"GET /open/secret HTTP/1.1\r\nHost: t\r\nConnection: close\r\n\r\n");
+    assert_eq!(r.status, 403);
+    {
+        use std::io::Write;
+        let _ = c.writer().write_all(&get("/open/ok"));
+    }
+    assert!(
+        c.reply().is_err(),
+        "the client asked to close, so nothing more is served"
+    );
+    server.shutdown();
+}
