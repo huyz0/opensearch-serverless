@@ -22,6 +22,15 @@ use crate::tail_reader_link::Clock;
 
 type Key = (String, u32);
 
+/// Whether a shard's head is released: index name and shard.
+pub type Unowned = Arc<dyn Fn(&str, u32) -> bool + Send + Sync>;
+
+/// How long a verdict that a shard is unowned, or not, is kept.
+const UNOWNED_KEEP_MILLIS: i64 = 2_000;
+
+/// The most verdicts kept; a full cache is cleared.
+const UNOWNED_KEPT: usize = 4_096;
+
 /// Decides whether a shard held here may answer a search.
 pub struct TailFresh {
     held: Arc<TailHeld>,
@@ -38,6 +47,10 @@ pub struct TailFresh {
     /// Held while the writer is asked for a grant, so searches that find
     /// none ask once between them.
     asking: Mutex<HashMap<Key, Arc<Mutex<()>>>>,
+    /// Reads whether a shard's head is released, when wired.
+    unowned: Option<Unowned>,
+    /// The verdicts of `unowned`, with when each was read.
+    verdicts: Mutex<HashMap<Key, (i64, bool)>>,
     checks: AtomicU64,
     refusals: AtomicU64,
     unreachable: AtomicU64,
@@ -60,6 +73,8 @@ impl TailFresh {
             grants: AtomicBool::new(grants),
             applies: AtomicBool::new(false),
             asking: Mutex::new(HashMap::new()),
+            unowned: None,
+            verdicts: Mutex::new(HashMap::new()),
             checks: AtomicU64::new(0),
             refusals: AtomicU64::new(0),
             unreachable: AtomicU64::new(0),
@@ -72,6 +87,38 @@ impl TailFresh {
     pub fn applying(self, applies: bool) -> Self {
         self.applies.store(applies, Ordering::Relaxed);
         self
+    }
+
+    /// This check with `unowned` to read whether a shard's head is
+    /// released: a writer that no longer holds a shard (it let the shard go
+    /// after publishing everything and gave its head back) says only that
+    /// the shard is not its to answer for, and with no owner the commit is
+    /// all there is.
+    #[must_use]
+    pub fn with_unowned(mut self, unowned: Unowned) -> Self {
+        self.unowned = Some(unowned);
+        self
+    }
+
+    /// Whether the shard's head is released, as last read within
+    /// `UNOWNED_KEEP_MILLIS`.
+    fn is_unowned(&self, index: &str, uuid: &str, shard: u32) -> bool {
+        let Some(read) = &self.unowned else {
+            return false;
+        };
+        let now = (self.clock)();
+        let mut verdicts = self.verdicts.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some((at, unowned)) = verdicts.get(&(uuid.to_owned(), shard))
+            && now.saturating_sub(*at) < UNOWNED_KEEP_MILLIS
+        {
+            return *unowned;
+        }
+        if verdicts.len() >= UNOWNED_KEPT {
+            verdicts.clear();
+        }
+        let unowned = read(index, shard);
+        verdicts.insert((uuid.to_owned(), shard), (now, unowned));
+        unowned
     }
 
     /// Changes the mode a running check is in: whether grants are in force
@@ -222,6 +269,12 @@ impl TailFresh {
             claimed_through = answer.claimed_through;
         }
         if commit_checkpoint >= claimed_through {
+            return true;
+        }
+        // "Not this node's to say" with no node whose it is: the writer let
+        // the shard go and its head is released, so nothing newer than the
+        // commit was answered as refreshed.
+        if claimed_through == i64::MAX && self.is_unowned(index, uuid, shard) {
             return true;
         }
         self.refusals.fetch_add(1, Ordering::Relaxed);

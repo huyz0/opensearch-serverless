@@ -48,11 +48,19 @@ pub(super) fn wire(
     assembled: &mut Assembled,
     config: &NodeConfig,
     slots: &Slots,
-    client: Arc<Client>,
-    auth: Arc<Authenticator>,
+    (client, auth): (Arc<Client>, Arc<Authenticator>),
     membership: &Arc<Membership>,
     clock: Arc<dyn LeaseClock>,
+    store: Arc<dyn oss_blob::BlobStore>,
 ) -> Result<(), BootError> {
+    let heads = oss_cluster::heads::ShardHeadStore::new(
+        store,
+        &config.base,
+        Arc::clone(&clock),
+        config.lease_ttl_millis,
+        Arc::new(oss_cluster::LivenessOracle::new(Arc::clone(membership))),
+    )
+    .map_err(|e| BootError::Cluster(format!("tail overlay: {e}")))?;
     let parts = TailParts::over_transport(
         config.tail_overlay,
         &config.node_id,
@@ -61,7 +69,11 @@ pub(super) fn wire(
         Held(Arc::clone(membership)),
         clock,
     )
-    .with_visibility(visibility(config.refresh_visibility));
+    .with_visibility(visibility(config.refresh_visibility))
+    .with_unowned(Arc::new(move |index, shard| {
+        // A head that is gone or unreadable is not known to be released.
+        matches!(heads.read(index, shard), Ok(Some(head)) if head.owner_node_id.is_none())
+    }));
     let Some(registry) = assembled
         .wire_tail(parts)
         .map_err(|e| BootError::Cluster(format!("tail overlay: {e:?}")))?

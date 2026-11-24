@@ -22,7 +22,13 @@ impl WriterRole {
     pub fn refresh_owned(&self, index: &IndexInfo, shard: u32) -> Result<(), String> {
         match self.owner(index, shard) {
             Owner::Local => self.refresh(index, shard),
-            Owner::Node(node) => self.routes.refresh_remote(&node, index, shard),
+            Owner::Node(node) => {
+                let done = self.routes.refresh_remote(&node, index, shard);
+                if done.is_err() {
+                    self.unsteer(&index.uuid, shard);
+                }
+                done
+            }
         }
     }
 
