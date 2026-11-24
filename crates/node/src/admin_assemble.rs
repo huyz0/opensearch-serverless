@@ -11,6 +11,7 @@ use oss_rest::Router;
 use crate::assemble::{AssembleError, Config};
 use crate::cat_route::{self, CatService};
 use crate::cluster_route::{self, ClusterService};
+use crate::ingest_run::IngestPipelines;
 use crate::pipeline_route::{self, PipelineService};
 use crate::snapshot_route::{self, SnapshotService};
 use crate::snapshot_take_route::SnapshotTakeService;
@@ -86,4 +87,17 @@ fn plugin_routes(config: &Config, router: Router) -> Result<Router, AssembleErro
     Arc::new(proxy)
         .register(router)
         .map_err(AssembleError::Route)
+}
+
+/// The pipelines writes run, when the setting is on.
+pub(crate) fn ingest_pipelines(
+    config: &crate::assemble::Config,
+    store: &Arc<dyn BlobStore>,
+) -> Result<Option<Arc<IngestPipelines>>, crate::assemble::AssembleError> {
+    if !config.ingest_pipelines {
+        return Ok(None);
+    }
+    IngestPipelines::open(store, &config.base, config.pit_buffer_bytes)
+        .map(Some)
+        .map_err(|e| crate::assemble::AssembleError::Store(e.to_string()))
 }

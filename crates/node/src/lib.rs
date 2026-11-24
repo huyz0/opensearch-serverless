@@ -40,7 +40,7 @@ pub mod get_route;
 pub mod handlers;
 #[cfg(feature = "writer")]
 pub mod health_route;
-#[cfg(all(feature = "writer", feature = "coordinator"))]
+#[cfg(all(feature = "reader", feature = "writer", feature = "coordinator"))]
 mod index_assemble;
 #[cfg(feature = "writer")]
 pub mod index_cache;
@@ -87,6 +87,7 @@ pub mod search;
 pub mod settings;
 #[cfg(feature = "writer")]
 pub mod snapshot_route;
+#[cfg(feature = "writer")]
 pub mod snapshot_take_route;
 #[cfg(feature = "writer")]
 pub mod tail_await;
@@ -110,8 +111,9 @@ pub mod tail_reader_link;
 pub mod tail_serve;
 #[cfg(feature = "writer")]
 mod tail_subscription;
+#[cfg(feature = "writer")]
 pub mod template_route;
-#[cfg(all(feature = "reader", feature = "writer"))]
+#[cfg(feature = "writer")]
 pub mod tenants;
 #[cfg(any(feature = "reader", feature = "writer"))]
 pub(crate) mod time_value;
