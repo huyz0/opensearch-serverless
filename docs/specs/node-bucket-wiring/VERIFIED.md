@@ -5,3 +5,4 @@
 - AC-3: `a_member_shards_publish_lands_in_its_bucket_entry`
 - AC-4: `a_shard_of_an_unbucketed_index_publishes_to_its_own_register`
 - AC-5: `a_node_with_the_switch_off_has_no_bucket_wiring`
+- AC-6: `a_registered_node_reports_the_members_it_holds_open`

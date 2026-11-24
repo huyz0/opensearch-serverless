@@ -353,7 +353,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
             Arc::new(DescriptorIncarnation::new(Arc::clone(&descriptors))),
             INCARNATION_WINDOW,
         )),
-        buckets,
+        buckets: buckets.clone(),
     };
     let mut node_config = Config::new(
         &config.base,
@@ -380,6 +380,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     let mut assembled = assemble::assemble(&node_config, Arc::clone(&store), &budget, writer)
         .and_then(|a| a.with_health(health, &config.cluster))
         .map_err(BootError::Assemble)?;
+    support::register_open_shards(buckets.as_ref(), &config.node_id, &assembled.role);
     tail::wire(
         &mut assembled,
         config,

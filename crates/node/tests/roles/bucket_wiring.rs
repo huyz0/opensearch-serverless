@@ -236,3 +236,18 @@ fn a_shard_of_an_unbucketed_index_publishes_to_its_own_register() {
         "the bucket's member has no commit"
     );
 }
+
+#[test]
+fn a_registered_node_reports_the_members_it_holds_open() {
+    let r = rig("logs");
+    let names = Arc::new(oss_node::writer::ShardNames::default());
+    let role = Arc::new(r.role.with_names(Arc::clone(&names)));
+    names.insert("logs-uuid", "logs");
+    let heads = r.wiring.heads();
+    // Nothing is registered yet: no sibling is known open.
+    assert!(!heads.others_open_on(BUCKET, "node-1", "other").unwrap());
+    r.wiring.register_open("node-1", Arc::clone(&role));
+    assert!(heads.others_open_on(BUCKET, "node-1", "other").unwrap());
+    assert!(!heads.others_open_on(BUCKET, "node-1", "logs").unwrap());
+    assert!(!heads.others_open_on(BUCKET, "node-2", "other").unwrap());
+}

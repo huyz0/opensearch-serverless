@@ -15,6 +15,8 @@ use oss_meta::DescriptorStore;
 use oss_writer::bucket::{BucketCommits, BucketStore, ManifestWrite, MemberRegister};
 use oss_writer::publish::CommitRegister;
 
+use super::WriterRole;
+
 /// The bytes a descriptor read has room for.
 const DESCRIPTOR_BYTES: usize = 64 << 10;
 
@@ -68,6 +70,21 @@ impl BucketWiring {
     #[must_use]
     pub fn heads(&self) -> Arc<dyn BucketHeads> {
         Arc::clone(&self.heads) as Arc<dyn BucketHeads>
+    }
+
+    /// Tells the bucket heads that `node_id` holds open what `role` holds,
+    /// so giving back a member keeps the bucket while a sibling is open.
+    pub fn register_open(&self, node_id: &str, role: Arc<WriterRole>) {
+        self.heads.register(
+            node_id,
+            Box::new(move || {
+                // ALLOC: one entry a shard held, at most the shards of the node.
+                role.held_shards()
+                    .into_iter()
+                    .map(|h| (h.name, h.shard, h.uuid))
+                    .collect()
+            }),
+        );
     }
 
     /// Where the shard `shard` of the index `index` (incarnation `uuid`)
