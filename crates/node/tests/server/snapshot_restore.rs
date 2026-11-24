@@ -34,6 +34,12 @@ pub(crate) fn rig(restore: bool) -> Rig {
 }
 
 pub(crate) fn rig_with(restore: bool, system: &str) -> Rig {
+    rig_sized(restore, system, 64 << 20, 64)
+}
+
+/// A rig whose request-body pool holds `pool` bytes and whose restore moves
+/// each file through two buffers of `chunk` bytes.
+pub(crate) fn rig_sized(restore: bool, system: &str, pool: usize, chunk: usize) -> Rig {
     let store = Arc::new(Emulator::new(1 << 28, 5));
     let blobs = Arc::clone(&store) as Arc<dyn BlobStore>;
     let clock: oss_meta::PitClock = Arc::new(|| 1_700_000_000_000);
@@ -71,7 +77,7 @@ pub(crate) fn rig_with(restore: bool, system: &str) -> Rig {
             deletes,
             clock,
             restore,
-            64,
+            chunk,
         )
         .with_system_indices(Arc::new(
             oss_coordinator::system_indices::SystemIndices::parse(system),
@@ -81,7 +87,7 @@ pub(crate) fn rig_with(restore: bool, system: &str) -> Rig {
     let router = restore_routes(router, restorer).expect("restore routes");
     let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
     let config = BudgetConfig::new(256 << 20)
-        .with_pool(Pool::RequestBodies, 64 << 20)
+        .with_pool(Pool::RequestBodies, pool)
         .expect("fits");
     let budget = MemoryBudget::new(&config);
     let server =

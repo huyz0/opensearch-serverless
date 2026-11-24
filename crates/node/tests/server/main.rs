@@ -67,6 +67,7 @@ mod security_limits;
 mod security_route;
 mod snapshot_delete;
 mod snapshot_restore;
+mod snapshot_restore_bounds;
 mod snapshot_restore_compat;
 mod snapshot_restore_search;
 #[cfg(all(feature = "reader", feature = "writer"))]

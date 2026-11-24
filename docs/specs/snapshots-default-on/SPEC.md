@@ -1,8 +1,8 @@
-# Snapshot reads and the take on by default
+# Snapshot reads, the take and the restore on by default
 
 ## Serves
 
-[ADR 0038](../../adr/0038-snapshots-read-first.md): `serverless.snapshots.enabled` (`OSS_SNAPSHOTS_ENABLED`) defaults to true, so a node serves the snapshot and repository routes and a delete of an index reads the snapshots before it purges. `serverless.snapshots.take.enabled` (`OSS_SNAPSHOTS_TAKE_ENABLED`) defaults to true too, so a node takes, lists and deletes shallow snapshots. `serverless.snapshots.restore.enabled` stays false.
+[ADR 0038](../../adr/0038-snapshots-read-first.md): `serverless.snapshots.enabled` (`OSS_SNAPSHOTS_ENABLED`) defaults to true, so a node serves the snapshot and repository routes and a delete of an index reads the snapshots before it purges. `serverless.snapshots.take.enabled` (`OSS_SNAPSHOTS_TAKE_ENABLED`) defaults to true too, so a node takes, lists and deletes shallow snapshots. `serverless.snapshots.restore.enabled` (`OSS_SNAPSHOTS_RESTORE_ENABLED`) defaults to true as well, so a node restores a shallow snapshot a Rust or a Java node took.
 
 ## Change
 
@@ -16,11 +16,11 @@ Why it passes the switch rule ([principles](../../principles.md#switches-and-def
 
 ## Acceptance criteria
 
-- AC-1: a node started with no snapshot variable serves the read routes (`GET /_snapshot/{repo}` answers 404 `repository_missing_exception` for none) and the take (a take into a missing repository answers 404 `repository_missing_exception`), and answers 501 to a restore. Test: `a_node_with_no_variable_serves_the_snapshot_reads_and_the_take_but_not_the_restore`.
+- AC-1: a node started with no snapshot variable serves the read routes (`GET /_snapshot/{repo}` answers 404 `repository_missing_exception` for none) the take (a take into a missing repository answers 404 `repository_missing_exception`) and the restore (a restore of a missing snapshot answers 404 `snapshot_missing_exception`). Test: `a_node_with_no_variable_serves_the_snapshot_reads_the_take_and_the_restore`.
 - AC-2: `OSS_SNAPSHOTS_ENABLED=false` takes the routes away (the pre-change 400). Test: `the_variable_set_to_false_takes_the_snapshot_routes_away`.
-- AC-3: the three switches read as set: reads and take on, restore off, each settable alone; the take and the restore stay unserved unless `snapshots` is on as well. Test: `the_reads_and_the_take_are_on_and_restore_off_until_set_and_each_stands_alone`.
+- AC-3: the three switches read as set: all three on, each settable off alone; the take and the restore stay unserved unless `snapshots` is on as well. Test: `the_reads_the_take_and_the_restore_are_on_until_set_and_each_stands_alone`.
 - AC-4: a delete that reads the snapshots and finds none costs 11 requests, one LIST page more than one that does not read them. Test: `a_delete_that_reads_no_snapshots_costs_one_list_more_than_one_that_does_not`.
-- AC-5: with the take on in every Rust node, a Rust node takes a shallow snapshot of an index a Java node writes, deletes the index (the snapshot's blobs stay), a Java node describes the snapshot, restores it and finds what it captured, and the Rust node deletes the snapshot, which the Java node then reads as gone. Test: `a_snapshot_taken_beside_a_java_writer_survives_the_index_and_restores_on_java` (`crates/node/tests/mixed_fleet/snapshots.rs`, run by hand against RustFS and a live Java shell, as the mixed-fleet soak is).
+- AC-5: with the take on in every Rust node, a Rust node takes a shallow snapshot of an index a Java node writes, deletes the index (the snapshot's blobs stay), a Java node describes the snapshot, restores it and finds what it captured, the Rust node restores it too and finds the same, and the Rust node deletes the snapshot, which the Java node then reads as gone. Test: `a_snapshot_taken_beside_a_java_writer_survives_the_index_and_restores_on_java` (`crates/node/tests/mixed_fleet/snapshots.rs`, run by hand against RustFS and a live Java shell, as the mixed-fleet soak is).
 - AC-6: the take's fault tests run as they always have, whatever the switch: the take releases its name, removes its marker as the ADR says, and leaves nothing that names storage, with the Nth store call failing at each point. Tests: the AC-4 list of [snapshot-take](../snapshot-take/SPEC.md).
 
 ## S3 request budget
@@ -31,6 +31,10 @@ Row `index.delete_no_snapshots.requests` (11, exact); `index.delete_pinned.reque
 
 The existing `serverless.snapshots.enabled` and `serverless.snapshots.take.enabled`, now on by default; an operator turns it off with `OSS_SNAPSHOTS_ENABLED=false`. Both modes stay tested: the assembled-node tests run it off, the boot tests on.
 
+## A crash part-way through a restore
+
+A restore creates the index's descriptor first and copies each shard after it, as the Java shell's restore does, so a node that dies in between leaves the index visible with some shards restored and the rest empty. This is parity with the shell, not a regression, and a restore that fails without a crash removes what it made (AC-3 of [snapshot-restore](../snapshot-restore/SPEC.md)). The recovery is to delete the index and restore again. Writing the descriptor last would hide the half-restored index but would break [ADR 0028](../../adr/0028-orphan-shard-sweep.md)'s rule that a shard container exists only for an index whose descriptor does, so the orphan sweep could reclaim a live restore. A marker the janitor sweeps is the alternative and is new design; it is not built, and a restore interrupted by a crash is rare against the cost of one.
+
 ## Out of scope
 
-The restore default: it stays off until a crash part-way is cleaned up and its 429 and peak-memory tests have run. `serverless.system_indices.patterns` stays empty, as the Rust node loads no plugin that declares a system index; an operator who runs plugin indices on Java nodes names them.
+A restore that a crash leaves part-way: see below. `serverless.system_indices.patterns` stays empty, as the Rust node loads no plugin that declares a system index; an operator who runs plugin indices on Java nodes names them.
