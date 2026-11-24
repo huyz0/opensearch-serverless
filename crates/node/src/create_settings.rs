@@ -197,7 +197,7 @@ mod tests {
     #[test]
     fn other_keys_are_refused_together_sorted_and_own_keys_pass() {
         let set = given(&[
-            ("index.codec", "x"),
+            ("index.blocks.write", "x"),
             ("index.b", "1"),
             ("own", "1"),
             (REFRESH_INTERVAL, "1s"),
@@ -208,7 +208,7 @@ mod tests {
             err.as_exception()
                 .expect("a body")
                 .reason()
-                .contains("settings [index.b, index.codec]"),
+                .contains("settings [index.b, index.blocks.write]"),
             "{err:?}"
         );
         assert!(refuse_others(&given(&[("own", "1")]), |k| k == "own").is_ok());
