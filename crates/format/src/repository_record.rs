@@ -110,6 +110,7 @@ fn read_settings(
         let value = match json.expect_token()? {
             Token::Str(s) => s.into_owned(),
             Token::Int(_) | Token::OtherNumber => json.number_text().to_owned(),
+            // ALLOC: one bool as text, a setting's value.
             Token::Bool(b) => b.to_string(),
             _ => return Err(json.error("a repository setting is a string, number or boolean")),
         };
