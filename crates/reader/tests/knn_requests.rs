@@ -154,6 +154,9 @@ fn start_rustfs(bin: &std::ffi::OsStr) -> (RustFs, S3Store) {
 #[test]
 #[ignore = "a measurement, run by hand"]
 fn requests() {
+    // `WARM_AT_OPEN=1` reads every vector file at open, as the engine does by
+    // default; `0` (the default here) leaves that to the first `knn` search.
+    oss_reader::vector_warm::set_at_open(std::env::var("WARM_AT_OPEN").is_ok_and(|v| v == "1"));
     let docs = env("KNN_DOCS", 100_000);
     let dim = env("KNN_DIM", 128);
     let segment = env("KNN_SEGMENT", 10_000);

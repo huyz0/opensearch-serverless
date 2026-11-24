@@ -127,6 +127,8 @@ pub struct NodeConfig {
     pub security_refresh_millis: u64,
     /// `serverless.knn.enabled`.
     pub knn: bool,
+    /// `serverless.reader.vector_warm.at_open`.
+    pub vector_warm_at_open: bool,
     /// `OSS_EXTENSIONS_PERCENT`: the page cache's share the `extensions` pool takes; 0 reserves none.
     pub extensions_percent: usize,
     /// `OSS_EXTENSIONS_REPLAY_FUEL_FACTOR`: a replayed call's fuel and memory, times its record's.
@@ -319,6 +321,7 @@ impl NodeConfig {
             .collect();
         let hand_off = flag("OSS_HAND_OFF", "false")?;
         let knn = flag("OSS_KNN", "true")?;
+        let vector_warm_at_open = flag("OSS_VECTOR_WARM_AT_OPEN", "false")?;
         let extensions_percent =
             usize::try_from(bounded("OSS_EXTENSIONS_PERCENT", "0", 0, 20)?).unwrap_or(0);
         let extensions_replay_factor = bounded("OSS_EXTENSIONS_REPLAY_FUEL_FACTOR", "16", 1, 1024)?;
@@ -436,6 +439,7 @@ impl NodeConfig {
             security_admin,
             security_refresh_millis,
             knn,
+            vector_warm_at_open,
             extensions_percent,
             extensions_replay_factor,
             store_usage,

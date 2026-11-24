@@ -173,6 +173,8 @@ pub mod tenants;
 pub(crate) mod time_value;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod usage_route;
+#[cfg(feature = "reader")]
+pub mod vector_warm_setting;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod warm_boot;
 #[cfg(all(feature = "reader", feature = "writer"))]
