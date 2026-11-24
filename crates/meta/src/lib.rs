@@ -54,6 +54,7 @@ mod names;
 mod pit;
 mod probe;
 mod routing;
+mod snapshots;
 mod sweep;
 
 pub use alias_mutations::{AliasAt, AliasClock, AliasMutations};
@@ -82,4 +83,5 @@ pub use routing::{
     DEFAULT_ROUTING_CACHE_BYTES, DEFAULT_ROUTING_CACHE_MILLIS, DEFAULT_ROUTING_CACHE_PRUNE_ABOVE,
     RoutingCache,
 };
+pub use snapshots::{MAX_REPOSITORIES, SnapshotRead, SnapshotReadError, SnapshotReader};
 pub use sweep::{MARKERS_PREFIX, Sweep, Swept};

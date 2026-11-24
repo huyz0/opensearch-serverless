@@ -26,6 +26,7 @@ mod probe;
 mod reclaim;
 mod reclaim_modes;
 mod routing;
+mod snapshots;
 mod sweep;
 
 use std::sync::Arc;

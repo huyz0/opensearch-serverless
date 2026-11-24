@@ -4,9 +4,9 @@
 - AC-3: `a_value_that_is_cut_padded_or_odd_is_refused`, `the_released_value_is_no_snapshot`, `a_record_past_the_limit_is_refused_before_it_is_taken` (unit), `the_java_state_register_values_hold_their_record` (Java-written)
 - AC-4: NOT-RUN: not implemented yet; this slice is specified first.
 - AC-5: NOT-RUN: not implemented yet; this slice is specified first.
-- AC-6: NOT-RUN: not implemented yet; this slice is specified first.
+- AC-6: `a_released_register_hides_a_legacy_record_that_has_not_been_removed_yet`, `a_legacy_snapshot_is_read_after_its_absent_register_in_two_requests`, `a_record_that_is_not_the_snapshot_asked_for_is_refused` (crates/meta/tests/descriptors/snapshots.rs, emulator, S3 on loopback and fs); the route-level answer is NOT-RUN
 - AC-7: NOT-RUN: not implemented yet; this slice is specified first.
-- AC-8: NOT-RUN: not implemented yet; this slice is specified first.
-- AC-9: NOT-RUN: not implemented yet; this slice is specified first.
+- AC-8: `a_value_larger_than_the_buffer_is_too_large_not_partial` (store read, three backends); the 500 and 429 route answers are NOT-RUN
+- AC-9: `the_listing_omits_an_unreadable_record_and_costs_a_list_and_a_get_each`, `more_repositories_than_the_cap_are_refused` (store read); the route is NOT-RUN
 - AC-10: NOT-RUN: not implemented yet; this slice is specified first.
-- AC-11: NOT-RUN: not implemented yet; this slice is specified first.
+- AC-11: `a_repository_is_one_read_and_an_absent_one_is_none`, `a_snapshot_the_java_wrote_is_read_from_its_register_in_one_request`, `a_legacy_snapshot_is_read_after_its_absent_register_in_two_requests`, `a_missing_snapshot_costs_two_requests_and_a_released_one_costs_one`, `the_listing_omits_an_unreadable_record_and_costs_a_list_and_a_get_each` (exact counts on all three backends; table rows in docs/request-budgets.md are NOT-RUN)
