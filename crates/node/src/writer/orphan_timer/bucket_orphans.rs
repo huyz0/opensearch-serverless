@@ -83,7 +83,7 @@ impl BucketMemberSweep {
         }
     }
 
-    /// Judges the next [`BUCKETS_PER_SLICE`] buckets at `now_millis`, one
+    /// Judges the next `BUCKETS_PER_SLICE` buckets at `now_millis`, one
     /// LIST of one key a bucket, one GET of each manifest and one of each
     /// distinct member's descriptor, and one manifest swap a member taken out.
     ///
