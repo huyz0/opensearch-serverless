@@ -61,6 +61,8 @@ pub(super) fn wire(
         Arc::new(oss_cluster::LivenessOracle::new(Arc::clone(membership))),
     )
     .map_err(|e| BootError::Cluster(format!("tail overlay: {e}")))?;
+    let heads = Arc::new(heads);
+    let owners = Arc::clone(&heads);
     let parts = TailParts::over_transport(
         config.tail_overlay,
         &config.node_id,
@@ -73,6 +75,10 @@ pub(super) fn wire(
     .with_unowned(Arc::new(move |index, shard| {
         // A head that is gone or unreadable is not known to be released.
         matches!(heads.read(index, shard), Ok(Some(head)) if head.owner_node_id.is_none())
+    }))
+    .with_owner(Arc::new(move |index, shard| match owners.read(index, shard) {
+        Ok(Some(head)) => head.owner_node_id,
+        _ => None,
     }));
     let Some(registry) = assembled
         .wire_tail(parts)
