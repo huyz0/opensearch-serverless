@@ -266,6 +266,7 @@ mod tests {
         for bad in [
             with(r#"{"number_of_shards":1}"#),
             with(r#"{"uuid":"U"}"#),
+            with(r#"{"uuid":"","number_of_shards":1}"#),
             with(r#"{"uuid":"U","number_of_shards":-1}"#),
             with(r#"{"uuid":"U","number_of_shards":1,"settings":[]}"#),
             with(r#"{"uuid":"U","number_of_shards":1,"mapping":5}"#),
@@ -296,6 +297,25 @@ mod tests {
                 "{n}"
             );
         }
+    }
+
+    #[test]
+    fn a_null_mapping_and_a_quoted_number_are_read_as_the_java_reads_them() {
+        let record = br#"{"repo":"r","name":"s","shallow":true,"start_time_in_millis":1,"end_time_in_millis":2,
+            "indices":{"a":{"uuid":"U","number_of_shards":"3","mapping":null,
+            "shards":[{"shard":"0","term":"2","files":{"f":"t=2"},"lengths":{"f":"5"}}]}}}"#;
+        let got = RestoreIndex::find(record, "a").unwrap().unwrap();
+        assert_eq!(got.number_of_shards, 3);
+        assert_eq!(got.mapping, None);
+        assert_eq!(got.shards[0].term, 2);
+        assert_eq!(got.shards[0].lengths, [("f".to_owned(), 5)]);
+    }
+
+    #[test]
+    fn a_record_of_exactly_the_limit_is_read() {
+        let mut full = RECORD.to_vec();
+        full.resize(MAX_SNAPSHOT_RECORD_BYTES, b' ');
+        assert!(RestoreIndex::find(&full, "logs").unwrap().is_some());
     }
 
     #[test]
