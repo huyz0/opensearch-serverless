@@ -7,6 +7,8 @@
 // ARITH: batch sizes, chunk offsets and durations are small and bounded by the reply read.
 #![allow(clippy::arithmetic_side_effects, clippy::disallowed_methods)]
 
+#[path = "mixed_fleet/snapshots.rs"]
+mod snapshots;
 mod suite_rig;
 
 use std::collections::BTreeSet;
