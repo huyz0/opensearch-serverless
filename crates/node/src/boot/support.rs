@@ -179,6 +179,7 @@ pub(super) fn apply_janitor_and_hibernation(
     node.janitor_every = Duration::from_millis(config.janitor_every_millis);
     node.sweep.dry_run = config.janitor_dry_run;
     node.snapshots = config.snapshots_enabled;
+    node.snapshots_take = config.snapshots_take_enabled;
 }
 
 /// Starts the commit push: this node's writer tells its own reader of each

@@ -226,7 +226,7 @@ fn a_refusal_before_the_marker_writes_nothing() {
 
 /// Two live units, 1 and 3, in four slots; 0 and 2 are the halves of a split of
 /// 3 still pending, so a capture that counted them would ask for their commits.
-const LAYOUT: &[u8] = br#"{"mode":"adaptive","declared_shards":2,"next_unit_id":4,"units":[{"id":3,"first":"8000000000000000","last":"ffffffffffffffff"},{"id":1,"first":"0","last":"7fffffffffffffff"}],"pending_split":[{"id":3,"first":"8000000000000000","last":"ffffffffffffffff"},{"id":2,"first":"8000000000000000","last":"bfffffffffffffff"},{"id":0,"first":"c000000000000000","last":"ffffffffffffffff"}]}"#;
+pub(crate) const LAYOUT: &[u8] = br#"{"mode":"adaptive","declared_shards":2,"next_unit_id":4,"units":[{"id":3,"first":"8000000000000000","last":"ffffffffffffffff"},{"id":1,"first":"0","last":"7fffffffffffffff"}],"pending_split":[{"id":3,"first":"8000000000000000","last":"ffffffffffffffff"},{"id":2,"first":"8000000000000000","last":"bfffffffffffffff"},{"id":0,"first":"c000000000000000","last":"ffffffffffffffff"}]}"#;
 
 fn units(d: &DescriptorStore) {
     let record = IndexRecord {
