@@ -126,6 +126,20 @@ impl<K: Ord + Clone> LazyPublish<K> {
     /// A shard whose writes were never marked is aged from the first ask that
     /// finds it has some.
     pub fn due(&mut self, shard: &K, max_seq_no: i64, age: PublishAge, now_millis: u64) -> bool {
+        self.due_stretched(shard, max_seq_no, age, 1, now_millis)
+    }
+
+    /// [`Self::due`] with the age a write may wait multiplied by `stretch`
+    /// (1 leaves it): a tenant over its budget publishes less often. The
+    /// operation count still bounds the wait.
+    pub fn due_stretched(
+        &mut self,
+        shard: &K,
+        max_seq_no: i64,
+        age: PublishAge,
+        stretch: u64,
+        now_millis: u64,
+    ) -> bool {
         let through = self.shards.get(shard).and_then(|s| s.published_through);
         if max_seq_no < 0 || through.is_some_and(|t| max_seq_no <= t) {
             if let Some(state) = self.shards.get_mut(shard) {
@@ -155,7 +169,7 @@ impl<K: Ord + Clone> LazyPublish<K> {
         };
         if let Some(age_millis) = age_millis {
             let due_at = since
-                .saturating_add(age_millis)
+                .saturating_add(age_millis.saturating_mul(stretch.max(1)))
                 .div_ceil(self.policy.tick_millis)
                 .saturating_mul(self.policy.tick_millis);
             if now_millis >= due_at {
@@ -204,6 +218,46 @@ mod tests {
 
     fn lazy(age: u64, ops: u64, tick: u64) -> LazyPublish<&'static str> {
         LazyPublish::new(Policy::new(age, ops, tick))
+    }
+
+    // docs/specs/tenant-publish-stretch AC-1
+    #[test]
+    fn a_stretched_age_waits_that_many_times_longer_and_one_changes_nothing() {
+        for (stretch, due_at) in [(1, 1_000), (4, 4_000)] {
+            let mut l = lazy(1_000, 0, 250);
+            l.published("s", 0);
+            l.mark_written("s", 0);
+            assert!(
+                !l.due_stretched(&"s", 1, NODE, stretch, due_at - 250),
+                "{stretch}"
+            );
+            assert!(l.due_stretched(&"s", 1, NODE, stretch, due_at), "{stretch}");
+        }
+        // The plain ask is a stretch of one.
+        let mut l = lazy(1_000, 0, 250);
+        l.published("s", 0);
+        l.mark_written("s", 0);
+        assert!(l.due(&"s", 1, NODE, 1_000));
+    }
+
+    // docs/specs/tenant-publish-stretch AC-1
+    #[test]
+    fn a_stretch_does_not_lift_the_operation_bound_and_age_zero_is_never_stretched() {
+        // Three operations are due at once however long the age is stretched.
+        let mut l = lazy(1_000, 3, 250);
+        l.published("s", 0);
+        l.mark_written("s", 0);
+        assert!(!l.due_stretched(&"s", 2, NODE, 4, 10), "under the bound");
+        assert!(l.due_stretched(&"s", 3, NODE, 4, 10), "at the bound");
+        // A node at age zero publishes every pass, stretched or not; so does
+        // an index whose own age is zero.
+        let mut l = lazy(0, 0, 250);
+        l.published("s", 0);
+        assert!(l.due_stretched(&"s", 1, NODE, 4, 0));
+        let mut l = lazy(1_000, 0, 250);
+        l.published("s", 0);
+        l.mark_written("s", 0);
+        assert!(l.due_stretched(&"s", 1, PublishAge::Millis(0), 4, 0));
     }
 
     #[test]

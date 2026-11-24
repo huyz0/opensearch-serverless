@@ -12,7 +12,6 @@ mod capacity;
 mod dead_log_pass;
 mod dead_logs;
 mod get;
-mod group_sink;
 mod heads;
 mod hibernate;
 mod incarnation;
@@ -36,6 +35,7 @@ mod snapshot;
 mod tail;
 mod takeover;
 mod target;
+mod tenant_hooks;
 mod tombstone_pass;
 
 use std::collections::HashMap;
@@ -64,7 +64,6 @@ pub use dead_log_pass::{
     DeadLogParts, DeadLogPass, DeadLogReport, DeadMailbox, DeadSnapshot, REAPERS,
 };
 pub use dead_logs::{StoreCommits, StoreNodeLogs};
-pub use group_sink::GroupSink;
 pub use heads::{HeadAdmission, ShardNames};
 pub use hibernate::{
     GIVE_BACK_PER_PASS, HIBERNATE_AFTER_MILLIS, HibernatePass, KEEP_ASLEEP_MILLIS,
@@ -87,6 +86,7 @@ pub use routes::Routes;
 pub use tail::{CommitSink, RefreshVisibility, TailSink};
 pub use takeover::Takeover;
 pub use target::RoleTarget;
+pub use tenant_hooks::GroupSink;
 pub use tombstone_pass::{DeleteProbe, TombstoneParts, TombstonePass, TombstoneReport};
 
 /// Why an item did not go ahead.
