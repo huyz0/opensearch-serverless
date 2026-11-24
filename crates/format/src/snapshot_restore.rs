@@ -4,8 +4,8 @@
 //! is skipped, so memory is the one index's lists.
 
 use crate::error::{FormatError, corrupt};
-use crate::location::FileLocation;
 use crate::json::{Reader, Token};
+use crate::location::FileLocation;
 use crate::snapshot_pins::MAX_SNAPSHOT_RECORD_BYTES;
 
 const WHAT: &str = "snapshot record";
@@ -421,10 +421,16 @@ mod tests {
             r#"{"index.number_of_replicas":1}"#,
             r#"{"creation_date":"1"}"#,
         ] {
-            assert!(entry(settings, ok).refusal().unwrap().is_some(), "{settings}");
+            assert!(
+                entry(settings, ok).refusal().unwrap().is_some(),
+                "{settings}"
+            );
         }
         // A setting that only starts like an identity one is carried.
-        assert_eq!(entry(r#"{"index.uuid_hint":1}"#, ok).refusal().unwrap(), None);
+        assert_eq!(
+            entry(r#"{"index.uuid_hint":1}"#, ok).refusal().unwrap(),
+            None
+        );
         let no_length = r#"[{"shard":0,"term":1,"files":{"f":"t=1"}}]"#;
         assert!(entry("{}", no_length).refusal().unwrap().is_some());
         let packed = r#"[{"shard":0,"term":1,"files":{"f":"t=1/b#4:9"}}]"#;

@@ -89,11 +89,7 @@ fn an_index_is_restored_by_copying_each_file_and_landing_the_manifest() {
         assert_eq!(gets, 5, "{:?} {n:?}", b.kind);
         assert!(n.iter().all(|(op, _)| *op != List), "{:?}", b.kind);
         assert!(!n.iter().any(|(op, _)| *op == Delete), "{:?}", b.kind);
-        let puts: u64 = n
-            .iter()
-            .filter(|(op, _)| *op == Put)
-            .map(|(_, c)| c)
-            .sum();
+        let puts: u64 = n.iter().filter(|(op, _)| *op == Put).map(|(_, c)| c).sum();
         assert!(puts >= 4, "{:?} {n:?}", b.kind);
 
         let to = ShardRef {
@@ -108,7 +104,10 @@ fn an_index_is_restored_by_copying_each_file_and_landing_the_manifest() {
         let parsed = CommitManifest::parse(&manifest).unwrap();
         assert_eq!(parsed.term, 1);
         assert_eq!(parsed.writer, None);
-        assert!(parsed.wal_ordinal < 0 && parsed.stage_sequence < 0, "no log position");
+        assert!(
+            parsed.wal_ordinal < 0 && parsed.stage_sequence < 0,
+            "no log position"
+        );
         let whole = FileLocation::Whole { term_dir: "t=1" };
         assert_eq!(parsed.files().len(), 2);
         for file in parsed.files() {
@@ -179,7 +178,11 @@ fn a_source_shorter_than_recorded_fails_and_no_manifest_lands() {
         let base = from.base_path(BASE).unwrap();
         put(&*b.store, &format!("{base}t=3/_0.si"), b"0123");
         put(&*b.store, &format!("{base}t=3/pack"), b"abcdefghijklmnop");
-        assert!(restore(&b, "logs2", "U2", 4, RECORD).is_err(), "{:?}", b.kind);
+        assert!(
+            restore(&b, "logs2", "U2", 4, RECORD).is_err(),
+            "{:?}",
+            b.kind
+        );
         let to = ShardRef {
             index: "logs2",
             uuid: "U2",
