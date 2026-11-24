@@ -150,3 +150,5 @@ src/warm_peer/tests.rs	new		tests of the warm-copy peer answers over a real cach
 src/security_authz.rs	new		what each route needs of a user, and the authorizer over the node snapshot
 src/warm_handlers.rs	new		the transport handlers of the warm-copy actions on a reader: placement of the joiner, bounded answers, a cap on requests served at once
 src/warm_handlers/tests.rs	new		tests of the warm-copy handlers over a real cache
+src/search_warm.rs	new		what a node lists for a joining reader: its open shards and the prefix their page cache keys start with
+src/search_warm_tests.rs	new		tests of the listing over a real cache with a disk tier

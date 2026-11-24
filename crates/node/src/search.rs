@@ -369,6 +369,9 @@ mod shard_query;
 mod template;
 #[path = "search_validate.rs"]
 mod validate;
+#[cfg(all(feature = "reader", feature = "writer"))]
+#[path = "search_warm.rs"]
+mod warm;
 pub use shard_query::ShardQuery;
 #[cfg(feature = "coordinator")]
 #[path = "coordinate.rs"]
@@ -383,6 +386,9 @@ mod overlay;
 #[cfg(test)]
 #[path = "search_tests.rs"]
 mod tests;
+#[cfg(all(test, feature = "reader", feature = "writer"))]
+#[path = "search_warm_tests.rs"]
+mod warm_tests;
 
 /// Why a reader node did not start.
 #[derive(Debug)]

@@ -70,6 +70,11 @@ impl<T> Default for OpenSet<T> {
 }
 
 impl<T> OpenSet<T> {
+    /// The open indexes, in no order.
+    pub fn values(&self) -> impl Iterator<Item = &Arc<T>> {
+        self.indexes.values().map(|(held, _)| held)
+    }
+
     /// How many indexes are open.
     pub fn len(&self) -> usize {
         self.indexes.len()
