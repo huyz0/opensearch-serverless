@@ -3,7 +3,7 @@
 //! The Rust node serves no ISM, alerting, anomaly detection, ML Commons or
 //! learning-to-rank endpoint; the Java shell runs those plugins, so a request
 //! under their prefixes is handed to a configured Java upstream and its
-//! answer handed back (ADR 0043). The proxy streams in both directions
+//! answer handed back (ADR 0046). The proxy streams in both directions
 //! through one small buffer, makes no object-store request, and is off unless
 //! an upstream is set.
 

@@ -1,4 +1,4 @@
-# 0043: Requests for plugins that are not ported are proxied to Java nodes, behind a setting
+# 0046: Requests for plugins that are not ported are proxied to Java nodes, behind a setting
 
 **Status:** Accepted after independent review, 2026-11-24 (the review's ten changes are folded in below)
 

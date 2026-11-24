@@ -2,7 +2,7 @@
 
 ## Serves
 
-R15.4, under [ADR 0043](../../adr/0043-plugin-requests-are-proxied-to-java-nodes.md). ISM, alerting, anomaly detection, ML Commons and learning to rank run only in the Java shell; a client talking to a Rust node still reaches them.
+R15.4, under [ADR 0046](../../adr/0046-plugin-requests-are-proxied-to-java-nodes.md). ISM, alerting, anomaly detection, ML Commons and learning to rank run only in the Java shell; a client talking to a Rust node still reaches them.
 
 ## Change
 
