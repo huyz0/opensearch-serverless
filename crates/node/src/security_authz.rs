@@ -197,6 +197,8 @@ const ALL_ACCESS: &[&str] = &[
     "/_index_template/{name}",
     "/_ingest/pipeline",
     "/_ingest/pipeline/{id}",
+    "/_ingest/pipeline/_simulate",
+    "/_ingest/pipeline/{id}/_simulate",
     "/_snapshot",
     "/_snapshot/{repo}",
     "/_snapshot/{repo}/_verify",

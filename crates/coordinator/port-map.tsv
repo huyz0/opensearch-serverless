@@ -56,3 +56,4 @@ src/system_indices.rs	port	serverless/shell/src/main/java/org/opensearch/serverl
 src/glob.rs	new		the simple * match the template resolver already used, shared with the system index patterns
 src/security/authz.rs	new		what a user's roles allow: cluster and index permissions, action groups, the wildcard rule
 src/security/static_config.json	port	security/src/main/resources/static_config/static_action_groups.yml@3.10.0	the plugin's built-in action groups and roles, as shipped
+src/pipeline_simulate.rs	new		what the simulate routes decide: read the body, run the documents, answer each or its error

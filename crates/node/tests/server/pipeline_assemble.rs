@@ -12,6 +12,11 @@ use crate::assemble::{call, config, start, start_with};
 fn the_pipeline_routes_are_served_only_when_pipelines_are_on() {
     let (off, _) = start(256 << 20);
     assert_ne!(call(&off, "GET", "/_ingest/pipeline", None).status, 200);
+    let sim = Some(r#"{"docs":[{"_source":{}}]}"#);
+    assert_ne!(
+        call(&off, "POST", "/_ingest/pipeline/p/_simulate", sim).status,
+        200
+    );
     let on = Config {
         ingest_pipelines: true,
         ..config()
@@ -24,6 +29,18 @@ fn the_pipeline_routes_are_served_only_when_pipelines_are_on() {
     );
     let got = call(&r, "GET", "/_ingest/pipeline/p", None);
     assert!(got.text().contains("trim"), "{}", got.text());
+    let simulated = call(
+        &r,
+        "POST",
+        "/_ingest/pipeline/p/_simulate",
+        Some(r#"{"docs":[{"_source":{"a":" x "}}]}"#),
+    );
+    assert_eq!(simulated.status, 200, "{}", simulated.text());
+    assert!(
+        simulated.text().contains(r#""a":"x""#),
+        "{}",
+        simulated.text()
+    );
 }
 
 #[test]
