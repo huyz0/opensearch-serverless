@@ -10,7 +10,7 @@ use oss_blob::{BlobStore, PooledStore, Shared};
 use oss_format::MAX_POINT_IN_TIME_BYTES;
 use oss_janitor::gc;
 use oss_mem::{BufferPool, MemoryBudget, Pool, SMALL_BUFFER};
-use oss_meta::{DeleteMode, DescriptorStore, PitClock};
+use oss_meta::{DeleteMode, DescriptorStore, PitClock, PointInTimeStore};
 use oss_rest::{Router, Server, ServerConfig};
 use oss_writer::bulk::{BulkBudget, StreamConfig};
 use oss_writer::log::NodeLogCommitter;
@@ -111,8 +111,6 @@ pub struct Config {
     pub hand_off: bool,
     /// How far below the cap making room clears, as a percent of it.
     pub evict_headroom_percent: u64,
-    /// How many write groups of one shard may wait on the node log together.
-    pub write_pipeline_depth: usize,
     /// Indexes whose shards are never let go of.
     pub pinned_indexes: Vec<String>,
     /// What limits the writes waiting on the log.
@@ -170,7 +168,6 @@ impl Config {
             evict_after_millis: 60_000,
             hand_off: false,
             evict_headroom_percent: 0,
-            write_pipeline_depth: 1,
             pinned_indexes: Vec::new(),
             write_limit: oss_writer::admission::LimiterConfig::default(),
             janitor_every: Duration::from_secs(60),
@@ -244,8 +241,7 @@ pub struct Running {
 }
 
 impl Assembled {
-    /// Every route this node registered: its method (none for a prefix
-    /// route, which takes any) and pattern.
+    /// Every route registered: its method (none for a prefix route) and pattern.
     pub fn routes(&self) -> Vec<(Option<oss_rest::Method>, &'static str)> {
         self.router.routes()
     }
@@ -386,7 +382,6 @@ pub fn assemble(
     role.set_write_limiter(config.write_limit.build());
     role.set_hand_off(config.hand_off);
     role.set_evict_headroom_percent(config.evict_headroom_percent);
-    role.set_pipeline_depth(config.write_pipeline_depth);
     role.set_pinned_indexes(config.pinned_indexes.iter().cloned());
     role.set_shard_cap(crate::writer::ShardCap {
         max: config.max_shards,
@@ -403,7 +398,11 @@ pub fn assemble(
     }
     let role = Arc::new(role);
     let clock: PitClock = Arc::new(now_millis);
-    let [pits, janitor_pits, search_pits] = crate::pit_stores::three(&store, &config.base, &clock)?;
+    let new_pits = || {
+        PointInTimeStore::new(Arc::clone(&store), &config.base, Arc::clone(&clock))
+            .map_err(|e| AssembleError::Store(e.to_string()))
+    };
+    let (pits, janitor_pits, search_pits) = (new_pits()?, new_pits()?, new_pits()?);
     search.set_point_in_time(search_pits, Arc::clone(&clock), config.pit_buffer_bytes);
     let descriptors = DescriptorStore::new(Arc::clone(&store), &config.base, config.delete_mode)
         .map_err(|e| AssembleError::Store(e.to_string()))?;

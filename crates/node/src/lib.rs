@@ -78,8 +78,6 @@ mod page_cache_disk;
 pub mod pipeline_route;
 #[cfg(feature = "writer")]
 pub mod pit_route;
-#[cfg(all(feature = "reader", feature = "writer"))]
-mod pit_stores;
 #[cfg(feature = "writer")]
 pub mod plugin_proxy;
 #[cfg(feature = "reader")]

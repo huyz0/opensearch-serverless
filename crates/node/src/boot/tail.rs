@@ -53,6 +53,9 @@ pub(super) fn wire(
     clock: Arc<dyn LeaseClock>,
     store: Arc<dyn oss_blob::BlobStore>,
 ) -> Result<(), BootError> {
+    // The acknowledged mark the overlay reads moves with the pipeline.
+    let depth = usize::try_from(config.write_pipeline_depth).unwrap_or(1);
+    assembled.role.set_pipeline_depth(depth);
     let heads = oss_cluster::heads::ShardHeadStore::new(
         store,
         &config.base,

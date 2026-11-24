@@ -178,7 +178,6 @@ pub(super) fn apply_janitor_and_hibernation(
     node.security_admin.clone_from(&config.security_admin);
     node.security_refresh_millis = config.security_refresh_millis;
     node.evict_headroom_percent = config.evict_headroom_percent;
-    node.write_pipeline_depth = usize::try_from(config.write_pipeline_depth).unwrap_or(1);
     node.pinned_indexes.clone_from(&config.pinned_indexes);
     node.janitor_every = Duration::from_millis(config.janitor_every_millis);
     node.sweep.dry_run = config.janitor_dry_run;

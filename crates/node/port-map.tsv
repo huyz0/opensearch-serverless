@@ -151,4 +151,3 @@ src/writer/apply_group.rs	new		applying one write group to a shard engine and bu
 src/writer/pipeline.rs	new		a shard's staged groups: tickets, a sticky failure and the quiet count
 src/writer/pipelined.rs	new		a write group that waits on the node log without the slot lock
 src/security_authz.rs	new		what each route needs of a user, and the authorizer over the node snapshot
-src/pit_stores.rs	new		the three point-in-time stores a node builds over one store
