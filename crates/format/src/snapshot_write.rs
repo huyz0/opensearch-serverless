@@ -130,7 +130,9 @@ impl IndexCapture {
 
 fn put_vint(buf: &mut [u8], at: &mut usize, mut n: usize) {
     while n >= 0x80 {
-        put(buf, at, &[u8::try_from(n & 0x7f).unwrap_or(0) | 0x80]);
+        // Seven bits and the continuation bit, which adding sets as `|` would.
+        let low = u8::try_from(n & 0x7f).unwrap_or(0);
+        put(buf, at, &[low.saturating_add(0x80)]);
         n >>= 7;
     }
     put(buf, at, &[u8::try_from(n).unwrap_or(0)]);
