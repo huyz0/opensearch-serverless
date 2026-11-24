@@ -392,3 +392,28 @@ fn store_usage_is_off_by_default_and_bounded() {
         assert!(NodeConfig::from_lookup(lookup(&set)).is_err());
     }
 }
+
+// docs/specs/tenant-levels-wiring AC-6
+#[test]
+fn tenant_levels_observe_with_a_large_budget_unless_set() {
+    let c = NodeConfig::from_lookup(lookup(FS)).expect("valid");
+    assert_eq!(c.tenant_levels, "observe");
+    assert_eq!(c.tenant_budget_per_minute, 2_000);
+    let c = NodeConfig::from_lookup(lookup(&with(&[
+        ("OSS_TENANT_LEVELS", "enforce"),
+        ("OSS_TENANT_BUDGET_PER_MINUTE", "50"),
+    ])))
+    .expect("valid");
+    assert_eq!(c.tenant_levels, "enforce");
+    assert_eq!(c.tenant_budget_per_minute, 50);
+    for (pairs, needle) in [
+        (with(&[("OSS_TENANT_LEVELS", "maybe")]), "OSS_TENANT_LEVELS"),
+        (
+            with(&[("OSS_TENANT_BUDGET_PER_MINUTE", "0")]),
+            "OSS_TENANT_BUDGET_PER_MINUTE",
+        ),
+    ] {
+        let e = NodeConfig::from_lookup(lookup(&pairs)).expect_err("refused");
+        assert!(e.contains(needle), "{e} lacks {needle}");
+    }
+}
