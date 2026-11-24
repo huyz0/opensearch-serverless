@@ -250,3 +250,25 @@ fn a_give_back_threshold_beyond_the_day_a_record_is_kept_is_refused() {
         NodeConfig::from_lookup(lookup(&with(&[("OSS_GIVE_BACK_AFTER_MS", "86400000")]))).is_ok()
     );
 }
+
+#[test]
+fn the_commit_push_is_on_unless_the_variable_turns_it_off() {
+    assert!(
+        NodeConfig::from_lookup(lookup(FS))
+            .expect("valid")
+            .commit_push
+    );
+    let overlay =
+        NodeConfig::from_lookup(lookup(&with(&[("OSS_TAIL_OVERLAY", "true")]))).expect("valid");
+    assert!(!overlay.commit_push, "the overlay serves freshness");
+    let both = NodeConfig::from_lookup(lookup(&with(&[
+        ("OSS_TAIL_OVERLAY", "true"),
+        ("OSS_COMMIT_PUSH", "true"),
+    ])))
+    .expect("valid");
+    assert!(both.commit_push);
+    let off =
+        NodeConfig::from_lookup(lookup(&with(&[("OSS_COMMIT_PUSH", "false")]))).expect("valid");
+    assert!(!off.commit_push);
+    assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_COMMIT_PUSH", "maybe")]))).is_err());
+}

@@ -140,6 +140,9 @@ impl ShardFacts for RoleFacts {
 }
 
 struct Sink {
+    /// What this node's own reader holds of its writer's tail.
+    held: Arc<crate::tail_held::TailHeld>,
+    clock: crate::tail_reader_link::Clock,
     serve: Arc<TailServe>,
     keep: Arc<TailKeep>,
     push: Arc<TailPush>,
@@ -147,6 +150,11 @@ struct Sink {
 
 impl TailSink for Sink {
     fn acked(&self, index: &str, uuid: &str, shard: u32, records: &[WalRecord<'static>]) {
+        // The reader of this node is not pushed to over the transport: it
+        // takes what its own writer acknowledged here, when it follows the
+        // shard.
+        let own: Vec<_> = records.iter().map(crate::tail_serve::owned).collect();
+        let _ = self.held.take(uuid, shard, &own, (self.clock)());
         self.push.acked(index, uuid, shard, records, true);
     }
 
@@ -313,11 +321,16 @@ pub fn wire<S: oss_blob::BlobStore + 'static>(
     registry
         .add(
             PUSH_ACTION,
-            crate::tail_reader_link::TailPushHandler::new(Arc::clone(&wired.held), reader_clock),
+            crate::tail_reader_link::TailPushHandler::new(
+                Arc::clone(&wired.held),
+                Arc::clone(&reader_clock),
+            ),
         )
         .map_err(TailError::Handler)?;
     role.set_refresh_visibility(parts.visibility);
     role.set_tail_sink(Arc::new(Sink {
+        held: Arc::clone(&wired.held),
+        clock: Arc::clone(&reader_clock),
         serve,
         keep: Arc::clone(&keep),
         push: Arc::clone(&push),

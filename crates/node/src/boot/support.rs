@@ -173,3 +173,32 @@ pub(super) fn apply_janitor_and_hibernation(
     node.janitor_every = Duration::from_millis(config.janitor_every_millis);
     node.sweep.dry_run = config.janitor_dry_run;
 }
+
+/// Starts the commit push: this node's writer tells its own reader of each
+/// commit it publishes, and the readers of the shard through the transport.
+pub(super) fn wire_commit_push(
+    assembled: &crate::assemble::Assembled,
+    client: &Arc<oss_transport::client::Client>,
+    auth: &Arc<oss_transport::auth::Authenticator>,
+    membership: &Arc<Membership>,
+    config: &NodeConfig,
+) -> Result<(), BootError> {
+    use crate::push_link::{PlacementTargets, TransportPushLink};
+    use crate::push_sender::PushSender;
+    /// Readers a commit is pushed to besides the owner.
+    const READERS: usize = 2;
+    let targets = PlacementTargets::new(Held(Arc::clone(membership)), &config.node_id, READERS);
+    let link = TransportPushLink::new(
+        Arc::clone(client),
+        Arc::clone(auth),
+        Held(Arc::clone(membership)),
+    );
+    let sink = crate::commit_push::CommitPush::start(
+        PushSender::new(targets, link, true),
+        Arc::clone(&assembled.search) as Arc<dyn crate::commit_push::LocalTake>,
+        config.commit_push,
+    )
+    .map_err(|e| BootError::Cluster(format!("commit push thread: {e}")))?;
+    assembled.role.set_commit_sink(sink);
+    Ok(())
+}

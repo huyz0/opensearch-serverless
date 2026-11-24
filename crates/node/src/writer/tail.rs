@@ -28,6 +28,17 @@ pub trait TailSink: Send + Sync {
     }
 }
 
+/// Takes the commits publishes stage, to tell the readers of the shard.
+/// Called outside any lock of the role; it must not wait on a send.
+pub trait CommitSink: Send + Sync {
+    /// A publish of shard `shard` of `index` (with `uuid`) produced the
+    /// commit `manifest`, the register value it wrote.
+    ///
+    /// `taken_over`: the publish is the first of a node that has just taken
+    /// the shard over, so the readers hold a dead writer's commit and tail.
+    fn published(&self, index: &str, uuid: &str, shard: u32, manifest: &[u8], taken_over: bool);
+}
+
 /// How far a refreshing write is made visible before it is answered (the
 /// shell's `RefreshVisibility`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -89,6 +100,12 @@ impl WriterRole {
     /// and nothing changed, when a sink is set already.
     pub fn set_tail_sink(&self, sink: Arc<dyn TailSink>) -> bool {
         self.tail.set(sink).is_ok()
+    }
+
+    /// Tells `sink` of every commit a publish stages. False, and nothing
+    /// changed, when a sink is set already.
+    pub fn set_commit_sink(&self, sink: Arc<dyn CommitSink>) -> bool {
+        self.commits.set(sink).is_ok()
     }
 
     /// How far a refresh is made visible before it returns. `owner`, the

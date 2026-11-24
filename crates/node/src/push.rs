@@ -53,6 +53,26 @@ impl<S: BlobStore + 'static> SearchService<S> {
         drop(released);
         true
     }
+
+    /// Keeps `commit`, which this node's own writer published, for the next
+    /// open of the shard when it is not open now: the register may still name
+    /// a writer that has since died, and that open would follow it. Gives
+    /// whether the shard is open.
+    pub fn take_own(&self, index: &str, uuid: &str, shard: u32, commit: &[u8]) -> bool {
+        if self.take_push(index, uuid, shard, commit) {
+            return true;
+        }
+        let key = crate::search::open_shard::set_key(index, shard);
+        if self.lock().peek(&key).is_none() {
+            let _ = lock_pushed(&self.pushed).push(
+                &ShardKey::new(index, shard),
+                uuid,
+                commit,
+                self.now_millis(),
+            );
+        }
+        false
+    }
 }
 
 /// Answers `internal:serverless/commit/push` on a reader.
