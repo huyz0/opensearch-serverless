@@ -154,6 +154,8 @@ pub mod warm_expect;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod warm_handlers;
 #[cfg(all(feature = "reader", feature = "writer"))]
+pub mod warm_join;
+#[cfg(all(feature = "reader", feature = "writer"))]
 pub mod warm_peer;
 #[cfg(feature = "writer")]
 pub mod writer;
