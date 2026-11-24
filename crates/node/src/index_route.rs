@@ -14,7 +14,7 @@ use oss_format::IndexRecord;
 use oss_meta::{DescriptorStore, MetaError, PitClock, Target, new_id};
 use oss_rest::{Exception, JSON, Method, Request, Response, RestError, RouteError, Router};
 use oss_writer::bucket::policy;
-use oss_writer::mapping::Mapping;
+use oss_writer::mapping::{Mapping, ParseOptions};
 
 use crate::index_templates::TemplateSets;
 use crate::route_util::read_body;
@@ -58,6 +58,7 @@ pub struct IndexService {
     join: Option<BucketJoin>,
     leave: Option<BucketLeave>,
     templates: Option<Arc<TemplateSets>>,
+    knn: bool,
 }
 
 impl IndexService {
@@ -72,7 +73,16 @@ impl IndexService {
             join: None,
             leave: None,
             templates: None,
+            knn: false,
         }
+    }
+
+    /// Accepts a `knn_vector` field in a created index's mapping when `on`
+    /// (`serverless.knn.enabled`); off, it is refused as unsupported.
+    #[must_use]
+    pub fn with_knn(mut self, on: bool) -> Self {
+        self.knn = on;
+        self
     }
 
     /// Places each new one-shard index in a bucket through `join`, and
@@ -134,8 +144,14 @@ impl IndexService {
             None => asked,
         };
         if let Some(text) = asked.mapping.as_deref() {
-            Mapping::parse(text.as_bytes())
-                .map_err(|e| refuse(400, "mapper_parsing_exception", e.failed_to_parse().reason))?;
+            // `index.knn` cannot be given at create yet, so the node setting stands for it.
+            Mapping::parse_with(
+                text.as_bytes(),
+                ParseOptions {
+                    knn: self.knn.then_some(true),
+                },
+            )
+            .map_err(|e| refuse(400, "mapper_parsing_exception", e.failed_to_parse().reason))?;
         }
         req.body().reserve(self.buffer_bytes)?;
         // ALLOC: one buffer a create, buffer_bytes, reserved above.

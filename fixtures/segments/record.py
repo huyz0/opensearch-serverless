@@ -36,7 +36,7 @@ _compat = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_compat)
 send = _compat.send
 
-KEYS = ["name", "description", "recorded_from", "index", "mappings", "documents", "segment"]
+KEYS = ["name", "description", "recorded_from", "index", "settings", "mappings", "documents", "segment"]
 DUMP = os.path.join(HERE, "SegmentDump.java")
 
 
@@ -54,6 +54,7 @@ def record(base, data, lucene, path, server):
     index = fixture["index"]
     send(base, {"method": "DELETE", "path": f"/{index}", "query": {"ignore_unavailable": "true"}})
     create = {"settings": {"number_of_shards": 1, "number_of_replicas": 0, "refresh_interval": "-1"}}
+    create["settings"].update(fixture.get("settings", {}))
     if "mappings" in fixture:
         create["mappings"] = fixture["mappings"]
     check(*send(base, {"method": "PUT", "path": f"/{index}", "body": create})[::2], "create")

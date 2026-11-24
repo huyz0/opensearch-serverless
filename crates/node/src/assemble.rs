@@ -61,6 +61,8 @@ pub struct Config {
     /// Whether a create inherits from the index template that matches its
     /// name: one more GET on each create, none when off.
     pub index_templates: bool,
+    /// `serverless.knn.enabled`: whether a create accepts `knn_vector`.
+    pub knn: bool,
     /// Whether the read-only snapshot routes are served: `serverless.snapshots.enabled`.
     pub snapshots: bool,
     /// How a point in time's register is deleted.
@@ -116,6 +118,7 @@ impl Config {
             store_buffer_wait: Duration::from_secs(5),
             pit_buffer_bytes: MAX_POINT_IN_TIME_BYTES,
             index_templates: false,
+            knn: false,
             snapshots: false,
             delete_mode: DeleteMode::Tombstone,
             publish_every: Duration::from_millis(250),

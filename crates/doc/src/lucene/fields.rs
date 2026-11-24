@@ -3,7 +3,10 @@
 //! engine registers it with, as each field mapper's Lucene field types
 //! give it.
 
-use lucene_codecs::field_infos::{DocValuesSkipIndexType, DocValuesType, FieldInfo, IndexOptions};
+use lucene_codecs::field_infos::{
+    DocValuesSkipIndexType, DocValuesType, FieldInfo, IndexOptions, VectorEncoding,
+    VectorSimilarityFunction,
+};
 
 use crate::mapping::{FieldType, Leaf, NumType, Value};
 
@@ -37,6 +40,56 @@ pub enum Shape {
     Date,
     /// `T` or `F`.
     Bool,
+    /// A float vector, in a Lucene HNSW graph.
+    Vector,
+}
+
+/// What a `knn_vector` field gives its `FieldInfo` and its graph.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct VectorSpec {
+    /// The vector's length.
+    pub dimension: i32,
+    /// What the space type scores with.
+    pub similarity: VectorSimilarityFunction,
+    /// The graph's maximum connections a node (`m`).
+    pub m: i32,
+    /// The graph's beam width while building (`ef_construction`).
+    pub beam_width: i32,
+}
+
+/// The plugin's defaults for a `lucene` method: `KNNConstants`'
+/// `DEFAULT_METHOD_PARAMETER_M` and `DEFAULT_EF_CONSTRUCTION`.
+const DEFAULT_M: i32 = 16;
+const DEFAULT_EF_CONSTRUCTION: i32 = 100;
+
+impl VectorSpec {
+    fn of(leaf: &Leaf) -> Self {
+        let dimension = match leaf.get("dimension") {
+            Some(Value::Int(d)) => *d,
+            _ => 0,
+        };
+        let (space, m, beam_width) = match leaf.get("method") {
+            Some(Value::Method(method)) => (
+                method.space.as_deref().unwrap_or("l2"),
+                method.int_param("m").unwrap_or(DEFAULT_M),
+                method
+                    .int_param("ef_construction")
+                    .unwrap_or(DEFAULT_EF_CONSTRUCTION),
+            ),
+            _ => ("l2", DEFAULT_M, DEFAULT_EF_CONSTRUCTION),
+        };
+        let similarity = match space {
+            "cosinesimil" => VectorSimilarityFunction::Cosine,
+            "innerproduct" => VectorSimilarityFunction::MaximumInnerProduct,
+            _ => VectorSimilarityFunction::Euclidean,
+        };
+        Self {
+            dimension,
+            similarity,
+            m,
+            beam_width,
+        }
+    }
 }
 
 /// One mapped field as the engine sees it.
@@ -54,6 +107,8 @@ pub struct Spec {
     pub doc_values: bool,
     /// Whether its values are stored.
     pub store: bool,
+    /// The vector it indexes, for a `knn_vector`.
+    pub vector: Option<VectorSpec>,
 }
 
 fn flag(leaf: &Leaf, name: &str) -> bool {
@@ -121,9 +176,7 @@ impl Spec {
                 false,
             ),
             FieldType::Date => (Shape::Date, IndexOptions::None, index, false),
-            // Never reached: a document with a `knn_vector` value is refused
-            // as unsupported before a segment is built.
-            FieldType::Knn => (Shape::Keyword, IndexOptions::None, false, false),
+            FieldType::Knn => (Shape::Vector, IndexOptions::None, false, false),
             FieldType::Number(n) => {
                 let shape = match n {
                     NumType::Byte | NumType::Short | NumType::Integer => Shape::Int,
@@ -141,6 +194,7 @@ impl Spec {
             norms,
             doc_values,
             store,
+            vector: (leaf.ty() == FieldType::Knn).then(|| VectorSpec::of(leaf)),
         }
     }
 
@@ -164,7 +218,7 @@ impl Spec {
 
     /// Whether a value adds anything at all.
     pub fn adds_anything(&self) -> bool {
-        self.inverted() || self.points || self.doc_values || self.store
+        self.inverted() || self.points || self.doc_values || self.store || self.vector.is_some()
     }
 
     /// The `FieldInfo` the engine registers the field `name` with as
@@ -186,6 +240,9 @@ impl Spec {
                 DocValuesSkipIndexType::None
             };
             info = info.with_doc_values(ty, skip, -1);
+        }
+        if let Some(v) = self.vector {
+            info = info.with_vectors(v.dimension, VectorEncoding::Float32, v.similarity);
         }
         if self.points {
             let bytes = match self.shape {

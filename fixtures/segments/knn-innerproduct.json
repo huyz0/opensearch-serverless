@@ -1,0 +1,547 @@
+{
+  "name": "knn_vector segment, innerproduct",
+  "description": "A lucene-engine HNSW knn_vector field in the innerproduct space, a nested one, a document with none and a null; what the stock k-NN plugin writes (FieldInfo vector shape, attributes, vectors).",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "index": "compat-segment-knn-innerproduct",
+  "settings": {
+    "index.knn": true
+  },
+  "mappings": {
+    "properties": {
+      "v": {
+        "type": "knn_vector",
+        "dimension": 3,
+        "method": {
+          "name": "hnsw",
+          "engine": "lucene",
+          "space_type": "innerproduct",
+          "parameters": {
+            "m": 8,
+            "ef_construction": 50
+          }
+        }
+      },
+      "o": {
+        "properties": {
+          "v": {
+            "type": "knn_vector",
+            "dimension": 2,
+            "method": {
+              "name": "hnsw",
+              "engine": "lucene",
+              "space_type": "innerproduct"
+            }
+          }
+        }
+      },
+      "k": {
+        "type": "keyword"
+      }
+    }
+  },
+  "documents": [
+    {
+      "id": "1",
+      "source": {
+        "v": [
+          1,
+          2,
+          3
+        ],
+        "k": "a"
+      }
+    },
+    {
+      "id": "2",
+      "source": {
+        "v": [
+          0.5,
+          -1.25,
+          300.0
+        ],
+        "k": "b"
+      }
+    },
+    {
+      "id": "3",
+      "source": {
+        "k": "no vector"
+      }
+    },
+    {
+      "id": "4",
+      "source": {
+        "o": {
+          "v": [
+            7,
+            8
+          ]
+        },
+        "k": "nested"
+      }
+    },
+    {
+      "id": "5",
+      "source": {
+        "v": [
+          "1",
+          "2",
+          "3"
+        ]
+      }
+    },
+    {
+      "id": "6",
+      "source": {
+        "v": null,
+        "k": "null vector"
+      }
+    }
+  ],
+  "segment": {
+    "max_doc": 6,
+    "fields": [
+      {
+        "number": 0,
+        "name": "_id",
+        "index_options": "DOCS",
+        "doc_values": "NONE",
+        "skip_index": "NONE",
+        "omit_norms": true,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 1,
+        "name": "_seq_no",
+        "index_options": "NONE",
+        "doc_values": "NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          1,
+          1,
+          8
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 2,
+        "name": "_primary_term",
+        "index_options": "NONE",
+        "doc_values": "NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 3,
+        "name": "_source",
+        "index_options": "NONE",
+        "doc_values": "NONE",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 4,
+        "name": "_version",
+        "index_options": "NONE",
+        "doc_values": "NUMERIC",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 5,
+        "name": "v",
+        "index_options": "NONE",
+        "doc_values": "NONE",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false,
+        "vector": {
+          "dimension": 3,
+          "encoding": "FLOAT32",
+          "similarity": "MAXIMUM_INNER_PRODUCT",
+          "attributes": {
+            "PerFieldKnnVectorsFormat.format": "Lucene99HnswVectorsFormat",
+            "PerFieldKnnVectorsFormat.suffix": "0"
+          }
+        }
+      },
+      {
+        "number": 6,
+        "name": "k",
+        "index_options": "DOCS",
+        "doc_values": "SORTED_SET",
+        "skip_index": "NONE",
+        "omit_norms": true,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false
+      },
+      {
+        "number": 7,
+        "name": "o.v",
+        "index_options": "NONE",
+        "doc_values": "NONE",
+        "skip_index": "NONE",
+        "omit_norms": false,
+        "points": [
+          0,
+          0,
+          0
+        ],
+        "payloads": false,
+        "term_vectors": false,
+        "vector": {
+          "dimension": 2,
+          "encoding": "FLOAT32",
+          "similarity": "MAXIMUM_INNER_PRODUCT",
+          "attributes": {
+            "PerFieldKnnVectorsFormat.format": "Lucene99HnswVectorsFormat",
+            "PerFieldKnnVectorsFormat.suffix": "1"
+          }
+        }
+      }
+    ],
+    "docs": [
+      {
+        "stored": [
+          [
+            "_id",
+            "binary",
+            "hex:fe1f"
+          ],
+          [
+            "_source",
+            "binary",
+            "{\"v\":[1.0,2.0,3.0],\"k\":\"a\"}"
+          ]
+        ],
+        "inverted": {
+          "_id": {
+            "norm": null,
+            "terms": [
+              [
+                "hex:fe1f",
+                1
+              ]
+            ]
+          },
+          "k": {
+            "norm": null,
+            "terms": [
+              [
+                "a",
+                1
+              ]
+            ]
+          }
+        },
+        "doc_values": {
+          "_primary_term": 1,
+          "_seq_no": 0,
+          "_version": 1,
+          "k": [
+            "a"
+          ]
+        },
+        "points": {
+          "_seq_no": [
+            "hex:8000000000000000"
+          ]
+        },
+        "vectors": {
+          "v": [
+            1.0,
+            2.0,
+            3.0
+          ]
+        }
+      },
+      {
+        "stored": [
+          [
+            "_id",
+            "binary",
+            "hex:fe2f"
+          ],
+          [
+            "_source",
+            "binary",
+            "{\"v\":[0.5,-1.25,300.0],\"k\":\"b\"}"
+          ]
+        ],
+        "inverted": {
+          "_id": {
+            "norm": null,
+            "terms": [
+              [
+                "hex:fe2f",
+                1
+              ]
+            ]
+          },
+          "k": {
+            "norm": null,
+            "terms": [
+              [
+                "b",
+                1
+              ]
+            ]
+          }
+        },
+        "doc_values": {
+          "_primary_term": 1,
+          "_seq_no": 1,
+          "_version": 1,
+          "k": [
+            "b"
+          ]
+        },
+        "points": {
+          "_seq_no": [
+            "hex:8000000000000001"
+          ]
+        },
+        "vectors": {
+          "v": [
+            0.5,
+            -1.25,
+            300.0
+          ]
+        }
+      },
+      {
+        "stored": [
+          [
+            "_id",
+            "binary",
+            "hex:fe3f"
+          ],
+          [
+            "_source",
+            "binary",
+            "{\"k\":\"no vector\"}"
+          ]
+        ],
+        "inverted": {
+          "_id": {
+            "norm": null,
+            "terms": [
+              [
+                "hex:fe3f",
+                1
+              ]
+            ]
+          },
+          "k": {
+            "norm": null,
+            "terms": [
+              [
+                "no vector",
+                1
+              ]
+            ]
+          }
+        },
+        "doc_values": {
+          "_primary_term": 1,
+          "_seq_no": 2,
+          "_version": 1,
+          "k": [
+            "no vector"
+          ]
+        },
+        "points": {
+          "_seq_no": [
+            "hex:8000000000000002"
+          ]
+        }
+      },
+      {
+        "stored": [
+          [
+            "_id",
+            "binary",
+            "hex:fe4f"
+          ],
+          [
+            "_source",
+            "binary",
+            "{\"o\":{\"v\":[7.0,8.0]},\"k\":\"nested\"}"
+          ]
+        ],
+        "inverted": {
+          "_id": {
+            "norm": null,
+            "terms": [
+              [
+                "hex:fe4f",
+                1
+              ]
+            ]
+          },
+          "k": {
+            "norm": null,
+            "terms": [
+              [
+                "nested",
+                1
+              ]
+            ]
+          }
+        },
+        "doc_values": {
+          "_primary_term": 1,
+          "_seq_no": 3,
+          "_version": 1,
+          "k": [
+            "nested"
+          ]
+        },
+        "points": {
+          "_seq_no": [
+            "hex:8000000000000003"
+          ]
+        },
+        "vectors": {
+          "o.v": [
+            7.0,
+            8.0
+          ]
+        }
+      },
+      {
+        "stored": [
+          [
+            "_id",
+            "binary",
+            "hex:fe5f"
+          ],
+          [
+            "_source",
+            "binary",
+            "{\"v\":[1.0,2.0,3.0]}"
+          ]
+        ],
+        "inverted": {
+          "_id": {
+            "norm": null,
+            "terms": [
+              [
+                "hex:fe5f",
+                1
+              ]
+            ]
+          }
+        },
+        "doc_values": {
+          "_primary_term": 1,
+          "_seq_no": 4,
+          "_version": 1
+        },
+        "points": {
+          "_seq_no": [
+            "hex:8000000000000004"
+          ]
+        },
+        "vectors": {
+          "v": [
+            1.0,
+            2.0,
+            3.0
+          ]
+        }
+      },
+      {
+        "stored": [
+          [
+            "_id",
+            "binary",
+            "hex:fe6f"
+          ],
+          [
+            "_source",
+            "binary",
+            "{\"v\":null,\"k\":\"null vector\"}"
+          ]
+        ],
+        "inverted": {
+          "_id": {
+            "norm": null,
+            "terms": [
+              [
+                "hex:fe6f",
+                1
+              ]
+            ]
+          },
+          "k": {
+            "norm": null,
+            "terms": [
+              [
+                "null vector",
+                1
+              ]
+            ]
+          }
+        },
+        "doc_values": {
+          "_primary_term": 1,
+          "_seq_no": 5,
+          "_version": 1,
+          "k": [
+            "null vector"
+          ]
+        },
+        "points": {
+          "_seq_no": [
+            "hex:8000000000000005"
+          ]
+        }
+      }
+    ]
+  }
+}

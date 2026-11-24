@@ -153,3 +153,10 @@ fn a_method_without_a_dimension_is_told_the_dimension_is_missing() {
         "Failed to parse mapping [_doc]: Dimension value missing for vector: v"
     );
 }
+
+#[test]
+fn a_stored_mapping_with_a_vector_field_is_read_whatever_the_setting() {
+    let text = r#"{"properties":{"v":{"type":"knn_vector","dimension":3,"method":{"name":"hnsw","engine":"lucene","space_type":"l2"}}}}"#;
+    assert!(Mapping::parse(text.as_bytes()).is_err());
+    assert!(Mapping::from_descriptor(Some(text)).is_ok());
+}
