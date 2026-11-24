@@ -23,9 +23,7 @@ mod run {
     use oss_node::boot::{Node, NodeConfig, start};
     use oss_testkit::TempDir;
 
-    const ROUNDS: usize = 4;
     const RUN: Duration = Duration::from_secs(6);
-    const CLIENTS: usize = 8;
     const BULK: usize = 20;
 
     fn boot(root: &str, usage: &str) -> Node {
@@ -59,20 +57,23 @@ mod run {
 
     /// `CLIENTS` closed-loop writers for `RUN`: each request one bulk, each
     /// to its own index so the usage has several to count.
-    fn drive(node: &Node, round: usize) -> Vec<u64> {
+    fn drive(node: &Node, round: usize, clients: usize, same: bool) -> Vec<u64> {
         let addr = node.addr();
         let stop = AtomicBool::new(false);
         let next = AtomicU64::new(1);
         std::thread::scope(|s| {
-            let handles: Vec<_> = (0..CLIENTS)
+            let handles: Vec<_> = (0..clients)
                 .map(|c| {
                     let (stop, next) = (&stop, &next);
                     s.spawn(move || {
-                        let index = format!("w{round}-{c}");
-                        assert_eq!(
-                            support::request(addr, "PUT", &format!("/{index}"), None).status,
-                            200
-                        );
+                        let index = if same {
+                            format!("w{round}-s")
+                        } else {
+                            format!("w{round}-{c}")
+                        };
+                        // Several clients on one index: all but the first find it made.
+                        let made = support::request(addr, "PUT", &format!("/{index}"), None);
+                        assert!(made.status == 200 || same, "{}", made.text());
                         let mut seen = Vec::new();
                         while !stop.load(Ordering::Relaxed) {
                             let base = next.fetch_add(BULK as u64, Ordering::Relaxed);
@@ -117,25 +118,41 @@ mod run {
         );
     }
 
+    /// A number list from the environment, as `1,2,4`.
+    fn list(name: &str, default: &str) -> Vec<usize> {
+        std::env::var(name)
+            .unwrap_or_else(|_| default.to_owned())
+            .split(',')
+            .filter_map(|v| v.trim().parse().ok())
+            .collect()
+    }
+
+    /// `MEASURE_CLIENTS` (default 8), `MEASURE_ROUNDS` (default 4) and
+    /// `MEASURE_SAME_INDEX=1` (every client writes one index) shape the run.
     #[test]
     #[ignore = "a measurement, run by hand"]
     fn store_usage_on_and_off_for_a_write() {
-        let mut off = Vec::new();
-        let mut on = Vec::new();
-        for round in 0..ROUNDS {
-            for (usage, into) in [("false", &mut off), ("true", &mut on)] {
-                let dir = TempDir::new("store-usage-measure");
-                let root = dir.path().display().to_string();
-                let node = boot(&root, usage);
-                // One bulk first, so the node's start is not in the clock.
-                let _ = drive_warm(&node);
-                into.extend(drive(&node, round));
-                drop(node);
+        let rounds = list("MEASURE_ROUNDS", "4").first().copied().unwrap_or(4);
+        let same = std::env::var("MEASURE_SAME_INDEX").is_ok_and(|v| v == "1");
+        for clients in list("MEASURE_CLIENTS", "8") {
+            let mut off = Vec::new();
+            let mut on = Vec::new();
+            for round in 0..rounds {
+                for (usage, into) in [("false", &mut off), ("true", &mut on)] {
+                    let dir = TempDir::new("store-usage-measure");
+                    let root = dir.path().display().to_string();
+                    let node = boot(&root, usage);
+                    // One bulk first, so the node's start is not in the clock.
+                    let _ = drive_warm(&node);
+                    into.extend(drive(&node, round, clients, same));
+                    drop(node);
+                }
             }
+            let what = if same { "one index" } else { "an index each" };
+            println!("== {clients} clients on {what}, bulks of {BULK}, {rounds} rounds of {RUN:?}");
+            line("usage off", off);
+            line("usage on ", on);
         }
-        println!("== {CLIENTS} clients, bulks of {BULK}, {ROUNDS} rounds of {RUN:?}");
-        line("usage off", off);
-        line("usage on ", on);
     }
 
     fn drive_warm(node: &Node) -> u16 {
