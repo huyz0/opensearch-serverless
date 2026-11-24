@@ -7,12 +7,15 @@
 
 mod suite_rig;
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use oss_blob::S3Op;
 use suite_rig::{Cluster, wait_for};
 
 const INDICES: usize = 24;
+
+/// Rounds of timed writes, each one document to every index.
+const WRITE_ROUNDS: usize = 4;
 
 /// Every request kind's count, in `S3Op::ALL` order.
 fn counts(cluster: &Cluster) -> Vec<u64> {
@@ -33,9 +36,12 @@ fn show(label: &str, c: &[u64]) {
     println!("{label}: {}", named.join(" "));
 }
 
+/// The request counts of create, write, search and idle, then each timed write.
+type Measured = (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u64>, Vec<Duration>);
+
 /// The requests of creating, writing and searching `INDICES` one-shard
 /// indices on one node, then of it sitting idle.
-fn measure(buckets: bool) -> (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u64>) {
+fn measure(buckets: bool) -> Measured {
     let mut cluster = Cluster::new(3_000, 50, false).expect("emulator");
     if buckets {
         cluster.set("OSS_BUCKETS_ENABLED", "true");
@@ -76,11 +82,28 @@ fn measure(buckets: bool) -> (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u64>) {
     let searched = counts(&cluster);
     std::thread::sleep(Duration::from_secs(8));
     let idle = counts(&cluster);
+    // Further documents with refresh on, each write timed.
+    let mut times = Vec::new();
+    for round in 2..=WRITE_ROUNDS + 1 {
+        for i in 0..INDICES {
+            let started = Instant::now();
+            let put = cluster.call(
+                0,
+                "PUT",
+                &format!("/small-{i}/_doc/{round}?refresh=true"),
+                Some(r#"{"n":1}"#),
+            );
+            times.push(started.elapsed());
+            assert_eq!(put.status, 201, "{}", put.text());
+        }
+    }
+    times.sort();
     (
         minus(&created, &start),
         minus(&written, &created),
         minus(&searched, &written),
         minus(&idle, &searched),
+        times,
     )
 }
 
@@ -100,6 +123,15 @@ fn small_indices_cost_no_more_requests_in_buckets_once_created() {
     ] {
         show(&format!("{label} off"), a);
         show(&format!("{label} on "), b);
+    }
+    let at = |t: &[Duration], per_mille: usize| t[(t.len() * per_mille / 1000).min(t.len() - 1)];
+    for (label, t) in [("off", &off.4), ("on ", &on.4)] {
+        println!(
+            "write latency {label}: p50 {:?} p99 {:?} ({} writes)",
+            at(t, 500),
+            at(t, 990),
+            t.len()
+        );
     }
     // A search reads the same blobs from a bucket as from a shard register.
     assert_eq!(total(&off.2), total(&on.2));

@@ -122,6 +122,24 @@ impl BucketWiring {
         );
     }
 
+    /// The latest commit of the member `index_uuid` of `bucket` and its
+    /// version, `None` before its first commit.
+    ///
+    /// # Errors
+    ///
+    /// The bucket manifest could not be read, as text.
+    pub fn member_commit(
+        &self,
+        bucket: &str,
+        index_uuid: &str,
+    ) -> Result<Option<(Vec<u8>, u64)>, String> {
+        let read = self
+            .commits
+            .member_commit(bucket, index_uuid)
+            .map_err(|e| e.to_string())?;
+        Ok(read.map(|m| (m.commit, m.version)))
+    }
+
     /// Where the shard `shard` of the index `index` (incarnation `uuid`)
     /// records its commit: its bucket entry when its descriptor names a
     /// bucket, `None` for a shard of its own.

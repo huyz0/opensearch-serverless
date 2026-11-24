@@ -22,3 +22,5 @@ RUSTFS_BIN=<rustfs> OSS_JAVA_BIN=$(which java) OSS_JAVA_CP=<classpath> \
 Found on the way: the Java shell answers a bulk request that carries `Connection: close` with the head of a chunked reply and closes before the body, so the client gets `200` and nothing. The test keeps the connection open. Not fixed here (Java side).
 
 Not covered: a Rust node forwarding to a Java owner over transport (the reads here go to the store; the test sends each request to the node that owns or has taken the shard), writes by both kinds of node at once, and a soak longer than a few hand-overs.
+
+- AC-7: `a_bucketed_index_changes_hands_between_java_and_rust_without_losing_a_write` in crates/node/tests/mixed_fleet.rs; first run failed at "AC-2 rust after taking over" with `engine: corrupted index: file mismatch: object id does not match` (the taken-over member restored no commit and wrote a second segment of the same name), passes after the opener restores the member entry; 100 documents a batch, acknowledgements 1.4 s, 4.9 s and 4.3 s.

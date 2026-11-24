@@ -12,3 +12,4 @@
 - AC-8 (reader crate): `a_member_opens_to_the_files_its_entry_names_with_two_gets`, `a_bucketed_index_has_only_shard_zero`, `a_member_without_a_commit_or_a_manifest_entry_is_not_followable`
 - AC-7 (leaving): `a_create_that_fails_after_joining_leaves_the_bucket`, `leaving_takes_the_index_back_out_of_its_bucket`
 - AC-9: `a_create_names_its_group_by_the_bucket_group_setting`, `an_index_that_sets_the_bucket_policy_off_joins_none`, `a_bad_bucket_policy_is_refused_and_other_settings_still_are`
+- AC-10: `taking_over_small_indices_costs_fewer_requests_in_buckets` (every index answers with both documents after the takeover; seen failing with the opener reading no member commit: `small-0` found 1 document)

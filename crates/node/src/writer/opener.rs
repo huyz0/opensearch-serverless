@@ -17,7 +17,7 @@ use std::sync::Mutex;
 
 use super::hibernate::Slept;
 use super::{ShardSlot, Takeover, WriterRole, lock, publish_age_of};
-use oss_writer::takeover::restore;
+use oss_writer::takeover::{restore, restore_value};
 
 /// Why a shard cannot be opened here.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -61,6 +61,11 @@ pub trait ShardOpener: Send + Sync {
     }
 }
 
+/// Reads a bucket member's latest commit and its version: the bucket and the
+/// index uuid in, `None` before the member's first commit.
+pub type MemberCommitRead =
+    Arc<dyn Fn(&str, &str) -> Result<Option<(Vec<u8>, u64)>, String> + Send + Sync>;
+
 /// Opens shards whose head this process wins and which hold no commit yet.
 pub struct HeadOpener {
     heads: Arc<ShardHeadStore>,
@@ -71,6 +76,7 @@ pub struct HeadOpener {
     ephemeral_id: String,
     buffer_bytes: usize,
     takeover: Option<Takeover>,
+    member_commit: Option<MemberCommitRead>,
 }
 
 impl HeadOpener {
@@ -95,7 +101,16 @@ impl HeadOpener {
             ephemeral_id: ephemeral_id.to_owned(),
             buffer_bytes,
             takeover: None,
+            member_commit: None,
         }
+    }
+
+    /// Reads the commit of a bucket member from its bucket's manifest, where
+    /// a shard of its own would have a register.
+    #[must_use]
+    pub fn with_member_commits(mut self, read: MemberCommitRead) -> Self {
+        self.member_commit = Some(read);
+        self
     }
 
     /// Lets this opener take over shards that have a history: restore the
@@ -168,18 +183,8 @@ impl HeadOpener {
             uuid: &index.uuid,
             shard,
         };
-        let key = at.manifest_key(&self.base).map_err(|e| e.to_string())?;
         // ALLOC: one buffer a shard opened, buffer_bytes.
         let mut buf = vec![0u8; self.buffer_bytes];
-        let committed = self
-            .store
-            .read_register(&key, &mut buf)
-            .map_err(|e| e.to_string())?
-            .is_some();
-        let history = committed || !head.writers.is_empty();
-        if history && self.takeover.is_none() {
-            return Err(format!("[{}][{shard}]: {TAKEOVER}", index.name).into());
-        }
         let record = self
             .descriptors
             .get(&index.name, &mut buf)
@@ -189,6 +194,29 @@ impl HeadOpener {
                 // ALLOC: error path; one message.
                 format!("[{}] is no longer the index this write named", index.name)
             })?;
+        // A member of a bucket has its commit in the bucket's manifest, and no register.
+        let member = match (record.bucket.as_deref(), &self.member_commit) {
+            (Some(bucket), Some(read)) => Some(read(bucket, &index.uuid)?),
+            _ => None,
+        };
+        let bucketed = member.is_some();
+        let committed_own = if bucketed {
+            None
+        } else {
+            let key = at.manifest_key(&self.base).map_err(|e| e.to_string())?;
+            // ALLOC: one buffer a shard opened, buffer_bytes.
+            let mut reg = vec![0u8; self.buffer_bytes];
+            self.store
+                .read_register(&key, &mut reg)
+                .map_err(|e| e.to_string())?
+                .map(|_| ())
+        };
+        let member = member.flatten();
+        let committed = member.is_some() || committed_own.is_some();
+        let history = committed || !head.writers.is_empty();
+        if history && self.takeover.is_none() {
+            return Err(format!("[{}][{shard}]: {TAKEOVER}", index.name).into());
+        }
         let mapping = Mapping::from_descriptor(record.mapping.as_deref())
             .map_err(|e| e.failed_to_parse().to_string())?;
         let age = publish_age_of(record.settings);
@@ -197,9 +225,24 @@ impl HeadOpener {
             Some(takeover) => role.open_taken(index, shard, &head, mapping, takeover, |dir| {
                 // ALLOC: one buffer a restore, buffer_bytes.
                 let mut buf = vec![0u8; self.buffer_bytes];
-                restore(self.store.as_ref(), &self.base, &at, dir, &mut buf)
-                    .map(|_| ())
-                    .map_err(|e| e.to_string())
+                match (bucketed, &member) {
+                    (true, Some((value, version))) => restore_value(
+                        self.store.as_ref(),
+                        &self.base,
+                        &at,
+                        value,
+                        *version,
+                        dir,
+                        &mut buf,
+                    )
+                    .map(|_| ()),
+                    // A member with no commit yet restores nothing.
+                    (true, None) => Ok(()),
+                    (false, _) => {
+                        restore(self.store.as_ref(), &self.base, &at, dir, &mut buf).map(|_| ())
+                    }
+                }
+                .map_err(|e| e.to_string())
             })?,
         }
         role.set_publish_age(&index.uuid, shard, age);

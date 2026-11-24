@@ -20,4 +20,4 @@ pub use checkpoint::commit_checkpoint;
 pub use engine::ShardEngine;
 pub use head::{HeadWriters, Settled};
 pub use predecessors::{Predecessors, PredecessorsFactory};
-pub use restore::{RestoreError, Restored, restore};
+pub use restore::{RestoreError, Restored, restore, restore_value};

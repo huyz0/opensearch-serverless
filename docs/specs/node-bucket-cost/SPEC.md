@@ -27,19 +27,23 @@ A create in a bucket adds two GETs and one PUT (the open bucket register, the ma
 
 ### Takeover (`bucket_takeover_cost.rs`)
 
-24 one-shard indices written on n1, n2 started, n1 killed, then a document written to every index through n2 until each accepts it. The grouped runs name a group at create with `index.serverless.bucket_group` (the shell's rule: the setting, else the index name), here four tenants of six indices:
+24 one-shard indices written on n1, n2 started, n1 killed, then a document written to every index through n2 until each accepts it, then every index searched for both documents (a taken-over member restores its commit from its bucket entry; an earlier version of this test did not check that and measured a takeover that restored nothing). The grouped runs name a group at create with `index.serverless.bucket_group` (the shell's rule: the setting, else the index name), here four tenants of six indices:
 
 | | Off | On, four tenants | On, each its own group |
 |---|---|---|---|
-| requests | 341 GET, 26 GET-range, 4 HEAD, 138 PUT, 7 DELETE (516) | 351 GET, 3 GET-range, 4 HEAD, 70 PUT, 7 DELETE (435) | 371 GET, 3 GET-range, 4 HEAD, 81 PUT, 7 DELETE (466) |
-| time | 9.3 s | 9.2 s | 9.3 s |
+| requests | 343 GET, 26 GET-range, 4 HEAD, 138 PUT, 7 DELETE (518) | 326 GET, 26 GET-range, 4 HEAD, 94 PUT, 7 DELETE (457) | 347 GET, 26 GET-range, 4 HEAD, 105 PUT, 7 DELETE (489) |
+| time | 9.3 s | 9.3 s | 9.3 s |
 
-Grouped by tenant, a takeover makes 16% fewer requests and 49% fewer PUTs in the same time; with every index its own group it makes 10% fewer requests and 41% fewer PUTs.
+Grouped by tenant, a takeover makes 12% fewer requests and 32% fewer PUTs in the same time; with every index its own group, 6% fewer requests and 24% fewer PUTs.
+
+### Write latency (`bucket_cost.rs`)
+
+96 writes with refresh on over the 24 indices, one node, emulator with latency: p50 259.7 ms off and 260.0 ms on, p99 266.3 ms off and 263.8 ms on. Within 5%.
 
 ## What this does not measure
 
-Write p99, and a cluster-level `serverless.bucket` policy at create (a create reads the index setting and the node switch only).
+A cluster-level `serverless.bucket` policy at create (a create reads the index setting and the node switch only).
 
 ## Decision
 
-Per index, a bucket costs three more requests at create and, grouped by tenant, saves about three at one takeover: break even over a life with one takeover, a gain with more, and a loss for an index never taken over. That is not "no extra S3 requests", so the switch stays off by default. A create now takes the shell's `index.serverless.bucket_group` and `index.serverless.bucket` (auto or off), so a deployment that wants buckets can turn the node switch on and group by tenant.
+Per index, a bucket costs three more requests at create and, grouped by tenant, saves about 2.5 at one takeover (61 requests over 24 indices): a small loss over a life with one takeover, a gain with several, and a loss for an index never taken over. Writes, search, idle and write latency are level. That is not "no extra S3 requests", so the switch stays off by default. A create takes the shell's `index.serverless.bucket_group` and `index.serverless.bucket` (auto or off), so a deployment that wants buckets can turn the node switch on and group by tenant.

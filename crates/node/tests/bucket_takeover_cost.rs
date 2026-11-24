@@ -57,6 +57,25 @@ fn write_all(cluster: &Cluster, slot: usize, rounds: &str) {
     }
 }
 
+/// Every index answers with the document written before the takeover and the
+/// one written after it: the taken-over shard restored its commit.
+fn keeps_both_documents(cluster: &Cluster, slot: usize) {
+    for i in 0..INDICES {
+        let target = format!("/small-{i}");
+        let refreshed = cluster.call(slot, "POST", &format!("{target}/_refresh"), None);
+        assert_eq!(refreshed.status, 200, "{}", refreshed.text());
+        let found = cluster.call(
+            slot,
+            "POST",
+            &format!("{target}/_search"),
+            Some(r#"{"query":{"match_all":{}}}"#),
+        );
+        assert_eq!(found.status, 200, "{}", found.text());
+        let text = found.text();
+        assert!(text.contains(r#""total":{"value":2"#), "small-{i}: {text}");
+    }
+}
+
 /// The requests of the second node taking over `INDICES` indices, and how
 /// long it took.
 fn measure(buckets: bool, grouped: bool) -> (Vec<u64>, Duration) {
@@ -87,6 +106,7 @@ fn measure(buckets: bool, grouped: bool) -> (Vec<u64>, Duration) {
     write_all(&cluster, 1, "2");
     let took = started.elapsed();
     let now = counts(&cluster);
+    keeps_both_documents(&cluster, 1);
     (now.iter().zip(&before).map(|(a, b)| a - b).collect(), took)
 }
 
