@@ -74,7 +74,15 @@ mod run {
                             format!("w{round}-{c}")
                         };
                         // Several clients on one index: all but the first find it made.
-                        let made = support::request(addr, "PUT", &format!("/{index}"), None);
+                        // A burst of creates can meet the in-flight request breaker
+                        // (429); a client waits and asks again.
+                        let made = loop {
+                            let made = support::request(addr, "PUT", &format!("/{index}"), None);
+                            if made.status != 429 {
+                                break made;
+                            }
+                            std::thread::sleep(std::time::Duration::from_millis(200));
+                        };
                         assert!(made.status == 200 || same, "{}", made.text());
                         let mut seen = Vec::new();
                         while !stop.load(Ordering::Relaxed) {

@@ -15,6 +15,7 @@ use crate::cluster_route::{self, ClusterService};
 use crate::ingest_run::IngestPipelines;
 use crate::pipeline_route::{self, PipelineService};
 use crate::security_auth::{AuthGuard, Authenticator};
+use crate::security_authz::RouteAuthorizer;
 use crate::security_route::{self, SecurityService};
 use crate::security_state::{Clock, SecurityState};
 use crate::snapshot_route::{self, SnapshotService};
@@ -160,8 +161,11 @@ fn security(
     let router =
         security_route::routes(router, &Arc::new(service)).map_err(AssembleError::Route)?;
     let router = security_route::authinfo_route(router, &state).map_err(AssembleError::Route)?;
+    let authorizer = RouteAuthorizer::new(Arc::clone(&state));
     let guard = AuthGuard(Arc::new(Authenticator::new(state, clock)));
-    Ok(router.with_guard(Arc::new(guard)))
+    Ok(router
+        .with_guard(Arc::new(guard))
+        .with_authorizer(Arc::new(authorizer)))
 }
 
 #[cfg(test)]
@@ -220,5 +224,25 @@ mod tests {
         let config = Config::new("", "n", [0; 6]);
         let router = register(Router::new(), &store, &config, &budget).expect("registers");
         assert!(!router.has_guard());
+        assert!(!router.has_authorizer());
+    }
+
+    // docs/specs/security-authz AC-9
+    #[test]
+    fn with_security_on_a_guard_and_an_authorizer_are_installed() {
+        let (store, _) = parts();
+        let budget = MemoryBudget::new(
+            &BudgetConfig::new(256 << 20)
+                .with_pool(Pool::RequestBodies, 96 << 20)
+                .expect("fits"),
+        );
+        let config = Config {
+            security: true,
+            security_admin: Some(("a".into(), bcrypt::hash("p", 4).expect("hashes"))),
+            ..Config::new("", "n", [0; 6])
+        };
+        let router = register(Router::new(), &store, &config, &budget).expect("registers");
+        assert!(router.has_guard());
+        assert!(router.has_authorizer());
     }
 }

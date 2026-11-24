@@ -150,3 +150,4 @@ src/warm_peer/tests.rs	new		tests of the warm-copy peer answers over a real cach
 src/writer/apply_group.rs	new		applying one write group to a shard engine and building its log records
 src/writer/pipeline.rs	new		a shard's staged groups: tickets, a sticky failure and the quiet count
 src/writer/pipelined.rs	new		a write group that waits on the node log without the slot lock
+src/security_authz.rs	new		what each route needs of a user, and the authorizer over the node snapshot

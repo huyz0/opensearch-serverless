@@ -10,6 +10,7 @@
 //! error bodies. Search semantics live in the role crates; this crate knows
 //! HTTP.
 
+mod authorizer;
 mod body;
 mod checks;
 mod config;
@@ -30,6 +31,7 @@ mod router;
 mod server;
 mod timed;
 
+pub use authorizer::{Authorization, Authorizer};
 pub use body::Body;
 pub use config::{ConfigError, ServerConfig};
 pub use error::{Exception, Meta, RestError};

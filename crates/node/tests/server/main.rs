@@ -7,7 +7,7 @@
 mod support;
 
 #[cfg(all(feature = "reader", feature = "writer"))]
-mod assemble;
+pub mod assemble;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod boot;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
@@ -48,6 +48,8 @@ mod ingest_run;
 #[cfg(feature = "reader")]
 mod newest_ask;
 #[cfg(all(feature = "reader", feature = "writer"))]
+mod pipeline_assemble;
+#[cfg(all(feature = "reader", feature = "writer"))]
 mod pipeline_route;
 #[cfg(feature = "reader")]
 mod push_read;
@@ -55,10 +57,11 @@ mod push_read;
 mod read_forward;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod security_authn;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod security_authz;
 mod security_hardening;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod security_limits;
-#[cfg(all(feature = "reader", feature = "writer"))]
 mod security_route;
 mod snapshot_delete;
 mod snapshot_restore;

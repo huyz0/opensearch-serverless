@@ -243,6 +243,14 @@ pub struct Running {
     _cache_records: Option<oss_mem::Reservation>,
 }
 
+impl Assembled {
+    /// Every route this node registered: its method (none for a prefix
+    /// route, which takes any) and pattern.
+    pub fn routes(&self) -> Vec<(Option<oss_rest::Method>, &'static str)> {
+        self.router.routes()
+    }
+}
+
 impl Running {
     /// What the tail overlay holds, when it is on.
     pub fn tail(&self) -> Option<&TailNode> {
@@ -365,6 +373,7 @@ pub fn assemble(
         ),
         Box::new(now_millis),
     );
+    #[cfg(feature = "coordinator")]
     let bucket_wiring = writer.buckets.clone();
     if let Some(buckets) = writer.buckets {
         publishing = publishing.with_buckets(buckets);

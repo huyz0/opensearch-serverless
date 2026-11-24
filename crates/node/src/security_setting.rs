@@ -3,8 +3,8 @@
 use oss_types::settings::{BoolSetting, Scope, Setting};
 
 /// `serverless.security.enabled`: serve `/_plugins/_security/api/...`.
-/// Default `false`: the API stores configuration that nothing yet enforces
-/// on a request, so a node with it on and no authentication is open.
+/// With it on, every request is authenticated and authorized against the
+/// stored configuration. Default `false`: a node with it off is open.
 pub const SECURITY_ENABLED: BoolSetting = BoolSetting::new(
     "serverless.security.enabled",
     false,
