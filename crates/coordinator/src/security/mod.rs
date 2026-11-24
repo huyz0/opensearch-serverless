@@ -42,17 +42,6 @@ impl Kind {
         Self::ActionGroups,
     ];
 
-    /// The path segment of the kind's API: `roles`, `rolesmapping`, ...
-    pub const fn segment(self) -> &'static str {
-        match self {
-            Self::Roles => "roles",
-            Self::RolesMapping => "rolesmapping",
-            Self::InternalUsers => "internalusers",
-            Self::Tenants => "tenants",
-            Self::ActionGroups => "actiongroups",
-        }
-    }
-
     /// How the plugin names one document of the kind in its messages.
     pub const fn noun(self) -> &'static str {
         match self {
