@@ -10,6 +10,7 @@ use crate::json::out::Out;
 use crate::snapshot_state::SnapshotState;
 
 const WHAT: &str = "snapshot record";
+const MAX_COUNT_BYTES: usize = 5;
 const STATE: &str = "snapshot state";
 
 /// One shard's captured commit: the term and where each file is.
@@ -178,6 +179,54 @@ impl SnapshotState<'_> {
         Ok(at)
     }
 
+    /// Writes the value of a held name register whose record is `draft`,
+    /// building the record in place so one buffer serves both.
+    ///
+    /// # Errors
+    ///
+    /// As [`SnapshotState::write_held`]; `actual` is the whole value's length.
+    pub fn write_held_draft(
+        marker: &str,
+        draft: &SnapshotDraft,
+        finished: bool,
+        buf: &mut [u8],
+    ) -> Result<usize, FormatError> {
+        if !marker.is_ascii() {
+            return Err(corrupt(STATE, "a marker that is not ASCII"));
+        }
+        let mut head = 0;
+        put_vint(buf, &mut head, marker.len());
+        put(buf, &mut head, marker.as_bytes());
+        // A first pass over no buffer measures the record, so its count is
+        // written at its true width and the record is built where it stays.
+        let record_len = match draft.write(&mut []) {
+            Ok(n) => n,
+            Err(FormatError::TooLarge { actual, .. }) => {
+                usize::try_from(actual).unwrap_or(usize::MAX)
+            }
+            Err(other) => return Err(other),
+        };
+        let mut count = [0u8; MAX_COUNT_BYTES];
+        let mut counted = 0;
+        put_vint(&mut count, &mut counted, record_len);
+        let body = head.saturating_add(counted);
+        let end = body.saturating_add(record_len);
+        let total = end.saturating_add(1);
+        if total > buf.len() {
+            return Err(FormatError::TooLarge {
+                what: STATE,
+                limit: len64(buf.len()),
+                actual: len64(total),
+            });
+        }
+        put(buf, &mut head, count.get(..counted).unwrap_or_default());
+        draft.write(buf.get_mut(body..end).unwrap_or_default())?;
+        if let Some(flag) = buf.get_mut(end) {
+            *flag = u8::from(finished);
+        }
+        Ok(total)
+    }
+
     /// The value a deleted snapshot's register is left with.
     #[must_use]
     pub fn released_value() -> &'static [u8] {
@@ -298,5 +347,32 @@ mod tests {
         assert_eq!((back.len(), finished), (300, false));
         assert!(SnapshotState::write_held("é", b"{}", true, &mut buf).is_err());
         assert_eq!(SnapshotState::released_value(), br#"{"_released":true}"#);
+    }
+
+    #[test]
+    fn a_value_built_around_a_draft_equals_the_value_of_its_bytes() {
+        let draft = finished();
+        let record = write(&draft);
+        let mut a = vec![0u8; 4096];
+        let mut b = vec![0u8; 4096];
+        let n = SnapshotState::write_held("v2-ab#cd#ef", &record, true, &mut a).expect("a");
+        let m = SnapshotState::write_held_draft("v2-ab#cd#ef", &draft, true, &mut b).expect("b");
+        assert_eq!(a[..n], b[..m]);
+        // Exactly the length, one short, and too short for even the header.
+        let mut exact = vec![0u8; n];
+        assert_eq!(
+            SnapshotState::write_held_draft("v2-ab#cd#ef", &draft, true, &mut exact).expect("fits"),
+            n
+        );
+        for short in [n - 1, 8, 0] {
+            let mut buf = vec![0u8; short];
+            match SnapshotState::write_held_draft("v2-ab#cd#ef", &draft, true, &mut buf) {
+                Err(FormatError::TooLarge { actual, .. }) => {
+                    assert!(actual >= len64(n), "{actual}")
+                }
+                other => panic!("expected TooLarge, got {other:?}"),
+            }
+        }
+        assert!(SnapshotState::write_held_draft("é", &draft, true, &mut b).is_err());
     }
 }
