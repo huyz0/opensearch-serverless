@@ -40,4 +40,4 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0028](0028-orphan-shard-sweep.md) | Orphan-shard sweep: an opt-in, default-off backstop that lists one key per shard prefix | Accepted |
 | [0029](0029-giving-back-a-hibernated-head.md) | A hibernated shard gives its head back after a longer sleep | Accepted |
 | [0030](0030-writer-shard-cap.md) | A writer node holds at most a set number of shards and lets an idle one go to open the next | Accepted |
-| [0031](0031-document-sets.md) | Templates and pipelines are document sets behind one marker register | Proposed |
+| [0031](0031-document-sets.md) | Templates and pipelines are document sets behind one marker register | Accepted |
