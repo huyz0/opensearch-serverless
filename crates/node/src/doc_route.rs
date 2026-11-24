@@ -155,11 +155,10 @@ impl DocService {
         };
         let mut target = RoleTarget::new(&self.role);
         let mut ids = self.ids.generator();
-        let names = action
-            .pipeline
-            .as_deref()
-            .is_some_and(|p| p != "_none" && kind != Kind::Delete);
-        let mut pipelines = match (&self.ingest, names) {
+        // The index's own default or final pipeline may run whatever the
+        // request names, so with pipelines on a write that is not a delete
+        // holds the run's buffers, as a bulk does.
+        let mut pipelines = match (&self.ingest, kind != Kind::Delete) {
             (Some(set), true) => {
                 req.body().reserve(set.reserve_bytes())?;
                 Some(set.run())

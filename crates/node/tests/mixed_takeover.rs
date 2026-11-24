@@ -179,6 +179,8 @@ fn info() -> oss_writer::bulk::IndexInfo {
         partition_size: 1,
         routing_shards: 1,
         routing_required: false,
+        default_pipeline: None,
+        final_pipeline: None,
     }
 }
 

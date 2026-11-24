@@ -32,6 +32,10 @@ pub struct IndexInfo {
     pub routing_shards: u32,
     /// Whether its mapping sets `_routing.required`.
     pub routing_required: bool,
+    /// `index.default_pipeline`: runs when a write names none.
+    pub default_pipeline: Option<String>,
+    /// `index.final_pipeline`: runs after the first, whatever the write named.
+    pub final_pipeline: Option<String>,
 }
 
 /// Who applies a shard's group.
@@ -384,10 +388,17 @@ impl<'t, T: Target> Bulk<'t, T> {
             );
             return (item, None);
         }
-        if let Some(p) = a.pipeline.as_deref().filter(|p| *p != "_none") {
-            let runs = matches!(a.kind, Kind::Index | Kind::Create);
+        let runs = matches!(a.kind, Kind::Index | Kind::Create);
+        let first = a
+            .pipeline
+            .as_deref()
+            .or(info.default_pipeline.as_deref())
+            .filter(|p| *p != "_none");
+        let last = info.final_pipeline.as_deref().filter(|p| *p != "_none");
+        for p in [first, last].into_iter().flatten() {
+            let current = source.as_deref().unwrap_or(&op.source);
             let outcome = match self.ingest.as_deref_mut() {
-                Some(ingest) if runs => Some(ingest.run(p, &op.source)),
+                Some(ingest) if runs => Some(ingest.run(p, current)),
                 Some(_) => None,
                 None => Some(Err(IngestError::Missing)),
             };
