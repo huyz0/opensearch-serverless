@@ -478,3 +478,22 @@ fn a_write_runs_the_pipeline_it_names_only_when_pipelines_are_on() {
     );
     assert_eq!(refused.status, 400, "{}", refused.text());
 }
+
+#[test]
+fn a_write_that_may_name_a_pipeline_reserves_the_run_s_buffers() {
+    let on = Config {
+        ingest_pipelines: true,
+        ..config()
+    };
+    // A pool that cannot hold the run's two buffers refuses a write that names a pipeline.
+    let (r, _) = start_with(on, MAX_POINT_IN_TIME_BYTES);
+    let bulk = call(
+        &r,
+        "POST",
+        "/docs/_bulk",
+        Some("{\"index\":{\"_id\":\"1\"}}\n{\"n\":1}\n"),
+    );
+    assert_eq!(bulk.status, 429, "{}", bulk.text());
+    let single = call(&r, "PUT", "/docs/_doc/2?pipeline=p", Some(r#"{"n":2}"#));
+    assert_eq!(single.status, 429, "{}", single.text());
+}
