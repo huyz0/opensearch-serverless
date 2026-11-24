@@ -11,6 +11,7 @@ repository.workspace = true
 [dependencies]
 oss-types = { workspace = true }
 miniz_oxide = { version = "=0.9.1", default-features = false, features = ["with-alloc"] }
+sha2 = "=0.11.1"
 zstd-safe = { version = "=7.4.1", default-features = false, features = ["std"] }
 
 [lints]

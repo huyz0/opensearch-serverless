@@ -1,4 +1,4 @@
-# 0038: A tenant's cost is held to a budget by levels, in observe mode unless set to enforce
+# 0039: A tenant's cost is held to a budget by levels, in observe mode unless set to enforce
 
 **Status:** Accepted after independent review of the change, 2026-11-24
 

@@ -245,6 +245,10 @@ fn the_buckets_switch_is_off_by_default_and_reads_a_flag() {
         NodeConfig::from_lookup(lookup(&with(&[("OSS_BUCKETS_ENABLED", "true")]))).expect("valid");
     assert!(on.buckets_enabled);
     assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_BUCKETS_ENABLED", "yes")]))).is_err());
+    let snaps = NodeConfig::from_lookup(lookup(&with(&[("OSS_SNAPSHOTS_ENABLED", "true")])))
+        .expect("valid");
+    assert!(snaps.snapshots_enabled);
+    assert!(!on.snapshots_enabled);
 }
 
 #[test]
