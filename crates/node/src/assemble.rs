@@ -222,7 +222,7 @@ pub struct Assembled {
     janitor: JanitorTimer,
     drain: Drain,
     tail: Option<TailNode>,
-    budget: MemoryBudget,
+    pub(crate) budget: MemoryBudget,
     /// What the page cache's records are charged, held for the node's life.
     cache_records: Option<oss_mem::Reservation>,
 }

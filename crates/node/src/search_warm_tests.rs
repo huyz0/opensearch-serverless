@@ -9,7 +9,9 @@ use oss_mem::{BudgetConfig, BufferPool, MemoryBudget, Pool, SMALL_BUFFER};
 use oss_testkit::index::{Spec, blobs};
 
 use super::SearchService;
+use crate::warm_copy::Shards;
 use crate::warm_handlers::HeldShards;
+use oss_transport::actions::tail::ShardRef;
 
 fn service(dir: &std::path::Path) -> (Arc<SearchService<Emulator>>, Arc<PageCache>) {
     let config = BudgetConfig::new(64 << 20)
@@ -73,4 +75,43 @@ fn the_page_cache_a_service_reads_through_is_the_one_it_was_given() {
     let dir = oss_testkit::TempDir::new("search-warm-cache");
     let (service, cache) = service(dir.path());
     assert!(Arc::ptr_eq(service.page_cache(), &cache));
+}
+
+fn shard_ref(index: &str, shard: i32) -> ShardRef {
+    ShardRef {
+        index_name: index.to_owned(),
+        index_uuid: String::new(),
+        shard,
+    }
+}
+
+// docs/specs/reader-warm-copy AC-9
+#[test]
+fn a_shard_the_joiner_opens_accepts_the_pages_its_open_cached_and_no_other_shard_opens() {
+    let dir = oss_testkit::TempDir::new("search-warm-expected");
+    let (service, cache) = service(dir.path());
+    assert!(service.expected(&shard_ref("idx-none", 0)).is_none());
+    assert!(service.expected(&shard_ref("idx-a", -1)).is_none());
+    assert!(
+        service.expected(&shard_ref("idx-a", 5)).is_none(),
+        "no such shard"
+    );
+    assert_eq!(service.held().len(), 0, "a refused name opens nothing");
+
+    let expected = service.expected(&shard_ref("idx-a", 0)).expect("opens");
+    assert_eq!(service.held().len(), 1, "asking opened the shard");
+    let resident = cache.resident_pages(&["/idx-a/0/t="], 10_000).remove(0);
+    let mut accepted = 0;
+    for page in &resident {
+        let name = page.key.split('\u{0}').nth(1).expect("a name");
+        if cache.is_pinned_name(name) || !page.key.contains("\u{0}p\u{0}") {
+            continue;
+        }
+        assert_eq!(
+            expected.page_len(&page.key, page.page),
+            Some(u64::from(page.len))
+        );
+        accepted += 1;
+    }
+    assert!(accepted > 0, "an unpinned page was checked");
 }

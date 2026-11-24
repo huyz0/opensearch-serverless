@@ -395,3 +395,17 @@ pub(super) fn shared_in(
         None => log,
     }
 }
+
+/// A node's readiness: warming from its peers' hot pages when the config asks
+/// for it, ready at once otherwise.
+pub(super) fn readiness_for(config: &NodeConfig) -> crate::lifecycle::Readiness {
+    if config
+        .page_cache
+        .as_ref()
+        .is_some_and(|tier| tier.warm.is_some())
+    {
+        crate::lifecycle::Readiness::warming()
+    } else {
+        crate::lifecycle::Readiness::new()
+    }
+}
