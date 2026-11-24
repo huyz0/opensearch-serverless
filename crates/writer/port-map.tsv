@@ -68,3 +68,4 @@ src/admission/limiter.rs	port	serverless/shell/src/main/java/org/opensearch/serv
 src/admission/settings.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/WriteSettings.java@429b4cbc	the four backpressure settings with the shell defaults; max_in_flight is a plain default, not derived from cores
 src/bucket/settings.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/bucket/BucketSettings.java@429b4cbc	the five node settings, limits and the manifest write form; the policies and the group setting come with placement
 src/bucket/policy.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/bucket/BucketPolicy.java@429b4cbc	AUTO, OFF, check, wanted, group; the three policy and group settings
+src/bucket/placement.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/bucket/BucketPlacement.java@429b4cbc	score, observe, rank, ownerFor, keeps, the hold-down constants
