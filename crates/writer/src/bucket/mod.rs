@@ -10,6 +10,7 @@
 mod assign;
 mod commits;
 mod error;
+mod placement;
 pub mod policy;
 pub mod settings;
 mod store;
@@ -17,4 +18,7 @@ mod store;
 pub use assign::{BucketAssigner, Limits, STRIPES};
 pub use commits::{BucketCommits, MemberCommit, MemberOutcome, Swap};
 pub use error::BucketError;
+pub use placement::{
+    BucketPlacement, DEFAULT_HOLD_DOWN_MILLIS, KEEP_RANKS, LOAD_BOUND, MAX_HOLD_DOWN_MILLIS,
+};
 pub use store::{BucketRead, BucketStore, ManifestWrite, OpenRead, Swapped};
