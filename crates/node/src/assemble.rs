@@ -55,8 +55,7 @@ pub struct Config {
     pub bulk_holders: usize,
     /// How a `_bulk` body streams.
     pub bulk: StreamConfig,
-    /// How long a store call waits for a free I/O buffer before it is
-    /// refused as busy; zero refuses at once.
+    /// How long a store call waits for a free I/O buffer before it is refused as busy; zero refuses at once.
     pub store_buffer_wait: Duration,
     /// The buffer a point-in-time request holds.
     pub pit_buffer_bytes: usize,
@@ -80,9 +79,10 @@ pub struct Config {
     pub snapshots: bool,
     /// Whether a snapshot can be taken: `serverless.snapshots.take.enabled`, beside `snapshots`.
     pub snapshots_take: bool,
-    /// Whether a shallow snapshot can be restored:
-    /// `serverless.snapshots.restore.enabled`, beside `snapshots` and `snapshots_take`.
+    /// Whether a shallow snapshot can be restored: `serverless.snapshots.restore.enabled`.
     pub snapshots_restore: bool,
+    /// `serverless.system_indices.patterns`: comma-separated `*` patterns of the names a take and a restore refuse.
+    pub system_index_patterns: String,
     /// `serverless.plugins.upstreams`: Java nodes serving unported plugins; none proxies nothing.
     pub plugin_upstreams: Vec<String>,
     /// `serverless.plugins.max_request_bytes`: the most a proxied body may be.
@@ -154,6 +154,7 @@ impl Config {
             snapshots: false,
             snapshots_take: false,
             snapshots_restore: false,
+            system_index_patterns: String::new(),
             plugin_upstreams: Vec::new(),
             plugin_max_request_bytes: 10 << 20,
             plugin_timeout: Duration::from_secs(30),

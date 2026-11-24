@@ -35,6 +35,10 @@ pub(crate) fn rig(take: bool) -> Rig {
 }
 
 fn rig_in(take: bool, config: BudgetConfig) -> Rig {
+    rig_with(take, config, "")
+}
+
+fn rig_with(take: bool, config: BudgetConfig, system: &str) -> Rig {
     let store = Arc::new(Emulator::new(1 << 28, 5));
     let blobs = Arc::clone(&store) as Arc<dyn BlobStore>;
     let clock: oss_meta::PitClock = Arc::new(|| 1_700_000_000_000);
@@ -47,12 +51,17 @@ fn rig_in(take: bool, config: BudgetConfig) -> Rig {
     let descriptors =
         DescriptorStore::new(Arc::clone(&blobs), "", DeleteMode::Conditional).unwrap();
     let taker = take.then(|| {
-        Arc::new(SnapshotTakeService::new(
-            Arc::clone(&blobs),
-            "",
-            DescriptorStore::new(Arc::clone(&blobs), "", DeleteMode::Conditional).unwrap(),
-            clock,
-        ))
+        Arc::new(
+            SnapshotTakeService::new(
+                Arc::clone(&blobs),
+                "",
+                DescriptorStore::new(Arc::clone(&blobs), "", DeleteMode::Conditional).unwrap(),
+                clock,
+            )
+            .with_system_indices(Arc::new(
+                oss_coordinator::system_indices::SystemIndices::parse(system),
+            )),
+        )
     });
     let router = routes(Router::new(), &service, taker.as_ref()).expect("routes");
     let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
@@ -469,4 +478,21 @@ fn with_the_take_switch_off_a_take_answers_501() {
     repository(&r, true);
     let got = send(&r, "PUT", "/_snapshot/backups/daily", Some(TAKE));
     assert_eq!(got.status, 501, "{}", got.text());
+}
+
+#[test]
+fn a_system_index_is_not_captured_even_when_unavailable_is_ignored() {
+    let r = rig_with(true, roomy(), ".kibana*");
+    repository(&r, true);
+    index(&r, ".kibana_1", "u1", 1);
+    publish(&r, ".kibana_1", "u1", 0);
+    for body in [
+        r#"{"indices":".kibana_1"}"#,
+        r#"{"indices":".kibana_1","ignore_unavailable":true}"#,
+    ] {
+        let reply = send(&r, "PUT", "/_snapshot/backups/daily", Some(body));
+        assert_eq!(reply.status, 403, "{body}: {}", reply.text());
+        assert!(reply.text().contains("system_index"), "{}", reply.text());
+    }
+    assert!(!pinned(&r, ".kibana_1", "u1"), "nothing was captured");
 }

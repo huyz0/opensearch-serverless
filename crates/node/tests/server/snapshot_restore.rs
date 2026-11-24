@@ -23,13 +23,17 @@ use oss_testkit::budget;
 
 use crate::snapshot_take::TAKE;
 
-struct Rig {
-    server: Server,
-    store: Arc<Emulator>,
-    descriptors: DescriptorStore,
+pub(crate) struct Rig {
+    pub(crate) server: Server,
+    pub(crate) store: Arc<Emulator>,
+    pub(crate) descriptors: DescriptorStore,
 }
 
-fn rig(restore: bool) -> Rig {
+pub(crate) fn rig(restore: bool) -> Rig {
+    rig_with(restore, "")
+}
+
+pub(crate) fn rig_with(restore: bool, system: &str) -> Rig {
     let store = Arc::new(Emulator::new(1 << 28, 5));
     let blobs = Arc::clone(&store) as Arc<dyn BlobStore>;
     let clock: oss_meta::PitClock = Arc::new(|| 1_700_000_000_000);
@@ -59,15 +63,20 @@ fn rig(restore: bool) -> Rig {
         )
         .unwrap(),
     );
-    let restorer = Arc::new(SnapshotRestoreService::new(
-        Arc::clone(&blobs),
-        "",
-        descriptors(),
-        deletes,
-        clock,
-        restore,
-        64,
-    ));
+    let restorer = Arc::new(
+        SnapshotRestoreService::new(
+            Arc::clone(&blobs),
+            "",
+            descriptors(),
+            deletes,
+            clock,
+            restore,
+            64,
+        )
+        .with_system_indices(Arc::new(
+            oss_coordinator::system_indices::SystemIndices::parse(system),
+        )),
+    );
     let router = routes(Router::new(), &service, Some(&taker)).expect("routes");
     let router = restore_routes(router, restorer).expect("restore routes");
     let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
@@ -84,7 +93,7 @@ fn rig(restore: bool) -> Rig {
     }
 }
 
-fn send(r: &Rig, method: &str, target: &str, body: Option<&str>) -> support::Reply {
+pub(crate) fn send(r: &Rig, method: &str, target: &str, body: Option<&str>) -> support::Reply {
     support::request(
         r.server.local_addr(),
         method,
@@ -93,12 +102,12 @@ fn send(r: &Rig, method: &str, target: &str, body: Option<&str>) -> support::Rep
     )
 }
 
-fn requests(r: &Rig) -> u64 {
+pub(crate) fn requests(r: &Rig) -> u64 {
     S3Op::ALL.iter().map(|op| r.store.meter().count(*op)).sum()
 }
 
 /// An index of `shards` shards, each with one file `_0.si` of `bytes`.
-fn live_index(r: &Rig, name: &str, uuid: &str, shards: u32, bytes: &[u8]) {
+pub(crate) fn live_index(r: &Rig, name: &str, uuid: &str, shards: u32, bytes: &[u8]) {
     r.descriptors
         .create(
             &IndexRecord::new(name, uuid, shards),
@@ -128,7 +137,7 @@ fn live_index(r: &Rig, name: &str, uuid: &str, shards: u32, bytes: &[u8]) {
     }
 }
 
-fn read(r: &Rig, key: &str) -> Vec<u8> {
+pub(crate) fn read(r: &Rig, key: &str) -> Vec<u8> {
     let mut out = Vec::new();
     r.store
         .get(key, ByteRange::Full, &mut [0u8; 64], &mut |c: &[u8]| {
@@ -141,7 +150,7 @@ fn read(r: &Rig, key: &str) -> Vec<u8> {
 
 /// A rig holding a shallow snapshot `daily` of `logs`, whose two shards
 /// each hold one file of seven bytes.
-fn taken(restore: bool) -> Rig {
+pub(crate) fn taken(restore: bool) -> Rig {
     let r = rig(restore);
     let body =
         r#"{"type":"fs","settings":{"location":"x","remote_store_index_shallow_copy":true}}"#;
@@ -160,9 +169,9 @@ fn taken(restore: bool) -> Rig {
     r
 }
 
-const RESTORE: &str = "/_snapshot/backups/daily/_restore?wait_for_completion=true";
+pub(crate) const RESTORE: &str = "/_snapshot/backups/daily/_restore?wait_for_completion=true";
 
-fn restored_uuid(r: &Rig, name: &str) -> String {
+pub(crate) fn restored_uuid(r: &Rig, name: &str) -> String {
     let mut buf = vec![0u8; 1 << 16];
     let found = r
         .descriptors
@@ -203,7 +212,7 @@ fn a_restore_creates_the_index_and_copies_every_file() {
     );
 }
 
-fn read_register(r: &Rig, key: &str) -> Vec<u8> {
+pub(crate) fn read_register(r: &Rig, key: &str) -> Vec<u8> {
     let mut buf = vec![0u8; 1 << 16];
     let found = r
         .store
@@ -362,103 +371,4 @@ fn a_restore_not_asked_to_wait_answers_accepted_and_one_asked_answers_the_indice
         "{}",
         full.text()
     );
-}
-
-/// What a Rust restore wrote for `copy`, for a Java node to read
-/// (`fixtures/snapshots/rust-restore/`, `CheckRestore.java`). With
-/// `OSS_WRITE_FIXTURES` set the files are rewritten; otherwise the test
-/// checks they still parse.
-#[test]
-fn a_restore_writes_the_descriptor_and_manifests_a_java_node_reads() {
-    let r = taken(true);
-    let rename = r#"{"rename_pattern":"logs","rename_replacement":"copy"}"#;
-    assert_eq!(send(&r, "POST", RESTORE, Some(rename)).status, 200);
-    let uuid = restored_uuid(&r, "copy");
-    let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../fixtures/snapshots/rust-restore");
-    let descriptor = read_register(&r, &oss_format::descriptor_key("", "copy").unwrap());
-    let manifest = read_register(
-        &r,
-        &ShardRef {
-            index: "copy",
-            uuid: &uuid,
-            shard: 1,
-        }
-        .manifest_key("")
-        .unwrap(),
-    );
-    if std::env::var_os("OSS_WRITE_FIXTURES").is_some() {
-        std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(dir.join("descriptor.bin"), &descriptor).unwrap();
-        std::fs::write(dir.join("manifest-1.bin"), &manifest).unwrap();
-        std::fs::write(dir.join("uuid.txt"), &uuid).unwrap();
-    }
-    let committed =
-        std::fs::read(dir.join("manifest-1.bin")).expect("run with OSS_WRITE_FIXTURES=1");
-    let parsed = oss_format::CommitManifest::parse(&committed).expect("parses");
-    assert_eq!(parsed.term, 1);
-    assert!(std::fs::read(dir.join("descriptor.bin")).is_ok());
-}
-
-/// A finished shallow snapshot a Java node took, as `GenTake.java` wrote its
-/// register value, restored by a Rust node: each file lands whole in the new
-/// index's first term, whether the Java recorded it whole or packed.
-#[test]
-fn a_snapshot_a_java_node_took_is_restored_by_a_rust_node() {
-    let r = rig(true);
-    let body =
-        r#"{"type":"fs","settings":{"location":"x","remote_store_index_shallow_copy":true}}"#;
-    assert_eq!(
-        send(&r, "PUT", "/_snapshot/backups", Some(body)).status,
-        200
-    );
-    let state = std::fs::read(
-        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../fixtures/snapshots/java-take/state.bin"),
-    )
-    .expect("fixtures/snapshots/java-take/state.bin, written by GenTake.java");
-    r.store
-        .create_register(
-            &oss_format::snapshot_state_key("", "backups", "java-1").unwrap(),
-            &state,
-        )
-        .unwrap();
-    let from = ShardRef {
-        index: "logs",
-        uuid: "uuidjavalogs000000000A",
-        shard: 0,
-    };
-    let put = |key: &str, bytes: &[u8]| {
-        r.store
-            .put(key, &mut SliceSource::new(bytes), &mut [0u8; 64])
-            .unwrap();
-    };
-    let (si, _) = from
-        .blob_key("", "_0.si", &FileLocation::parse("t=3").unwrap())
-        .unwrap();
-    put(&si, b"0123456789");
-    let (pack, offset) = from
-        .blob_key("", "_0.cfs", &FileLocation::parse("t=3/pack#4:6").unwrap())
-        .unwrap();
-    assert_eq!(offset, 4);
-    put(&pack, b"xxxxABCDEFyy");
-    let rename = r#"{"rename_pattern":"logs","rename_replacement":"copy"}"#;
-    let reply = send(
-        &r,
-        "POST",
-        "/_snapshot/backups/java-1/_restore?wait_for_completion=true",
-        Some(rename),
-    );
-    assert_eq!(reply.status, 200, "{}", reply.text());
-    let uuid = restored_uuid(&r, "copy");
-    let to = ShardRef {
-        index: "copy",
-        uuid: &uuid,
-        shard: 0,
-    };
-    let whole = FileLocation::Whole { term_dir: "t=1" };
-    let (si_to, _) = to.blob_key("", "_0.si", &whole).unwrap();
-    let (cfs_to, _) = to.blob_key("", "_0.cfs", &whole).unwrap();
-    assert_eq!(read(&r, &si_to), b"0123456789");
-    assert_eq!(read(&r, &cfs_to), b"ABCDEF");
 }

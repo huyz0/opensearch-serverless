@@ -16,8 +16,10 @@ use oss_coordinator::snapshot_admin::{
 };
 use oss_coordinator::snapshot_take_admin::{
     ACCEPTED, already_exists, check_shards, conflict, index_not_found, is_alias, name_too_long,
-    nothing_published, record_too_large, request, unsupported_layout, unsupported_storage,
+    nothing_published, record_too_large, request, system_index, unsupported_layout,
+    unsupported_storage,
 };
+use oss_coordinator::system_indices::SystemIndices;
 use oss_format::{
     IndexCapture, MAX_REPOSITORY_RECORD_BYTES, MAX_SNAPSHOT_RECORD_BYTES, SnapshotDraft,
     SnapshotSummary,
@@ -36,6 +38,7 @@ pub struct SnapshotTakeService {
     taker: SnapshotTaker,
     descriptors: DescriptorStore,
     clock: PitClock,
+    system: Arc<SystemIndices>,
 }
 
 fn unavailable(e: &dyn std::fmt::Display) -> RestError {
@@ -82,7 +85,15 @@ impl SnapshotTakeService {
             taker: SnapshotTaker::new(store, base),
             descriptors,
             clock,
+            system: Arc::new(SystemIndices::none()),
         }
+    }
+
+    /// Refuses a take of any index `system` names, 403.
+    #[must_use]
+    pub fn with_system_indices(mut self, system: Arc<SystemIndices>) -> Self {
+        self.system = system;
+        self
     }
 
     /// The route's handler.
@@ -250,6 +261,9 @@ impl SnapshotTakeService {
         let mut described = Vec::new();
         let mut shards = 0usize;
         for index in &asked.indices {
+            if self.system.contains(index) {
+                return Err(refused(system_index(index)));
+            }
             match self.taker.describe(&self.descriptors, index, buf) {
                 Ok(d) => {
                     shards = shards.saturating_add(d.shard_count());
