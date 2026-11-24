@@ -111,6 +111,26 @@ impl ShardHeadStore {
         if let Some(member) = self.member_of(index, shard, index_uuid)? {
             return self.acquire_member(&member, index, shard, node_id, ephemeral_id);
         }
+        let first = self.acquire_once(index, shard, node_id, ephemeral_id, index_uuid)?;
+        // A race lost to a release leaves the head unowned, and a take that
+        // finds an unowned head wins it: once more is enough, since a release
+        // is made once a sleep.
+        match first {
+            Acquisition::HeldByAnother(ref head) if head.owner_node_id.is_none() => {
+                self.acquire_once(index, shard, node_id, ephemeral_id, index_uuid)
+            }
+            other => Ok(other),
+        }
+    }
+
+    fn acquire_once(
+        &self,
+        index: &str,
+        shard: u32,
+        node_id: &str,
+        ephemeral_id: &str,
+        index_uuid: Option<&str>,
+    ) -> Result<Acquisition, ClusterError> {
         let key = shard_head_key(&self.base, index, shard);
         let now = self.clock.now_millis();
         let claim = now.saturating_add(self.lease_ttl_millis);
@@ -176,6 +196,51 @@ impl ShardHeadStore {
             }),
             SwapOutcome::Conflict(_) => self.winner(&key),
         }
+    }
+
+    /// Gives the shard back: clears the owner of the head when it still
+    /// names this process at `term` for incarnation `index_uuid`, keeping
+    /// the term, the uuid and the writers: the caller has published
+    /// everything it acknowledged, so no successor needs its log, and one
+    /// naming it would make the same process fence its own epoch. The swap
+    /// is conditional on the generation read, so a head that moved is left. Answers whether it released: 2
+    /// requests.
+    ///
+    /// # Errors
+    ///
+    /// The store failing, or a head that does not parse.
+    pub fn release(
+        &self,
+        index: &str,
+        shard: u32,
+        node_id: &str,
+        ephemeral_id: &str,
+        term: i64,
+        index_uuid: &str,
+    ) -> Result<bool, ClusterError> {
+        let key = shard_head_key(&self.base, index, shard);
+        let Some((generation, current)) = self.read_raw(&key)? else {
+            return Ok(false);
+        };
+        if current.term != term
+            || !current.owned_by(node_id, ephemeral_id)
+            || current.owner_ephemeral_id.is_none() // a head naming a node alone is never given back
+            || current
+                .index_uuid
+                .as_deref()
+                .is_some_and(|u| u != index_uuid)
+        {
+            return Ok(false);
+        }
+        let mut next = current;
+        next.owner_node_id = None;
+        next.owner_ephemeral_id = None;
+        next.lease_expires_at_millis = 0;
+        Ok(matches!(
+            self.store
+                .swap_register(&key, generation, &next.to_bytes()?)?,
+            SwapOutcome::Applied(_)
+        ))
     }
 
     /// The head a lost race left: the winner's.

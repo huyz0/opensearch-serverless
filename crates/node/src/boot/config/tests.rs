@@ -230,3 +230,23 @@ fn the_janitor_deletes_unless_the_variable_makes_it_a_dry_run() {
         NodeConfig::from_lookup(lookup(&with(&[("OSS_JANITOR_DRY_RUN", "true")]))).expect("valid");
     assert!(dry.janitor_dry_run);
 }
+
+#[test]
+fn the_give_back_threshold_defaults_to_never_and_is_set_by_the_variable() {
+    let c = NodeConfig::from_lookup(lookup(FS)).expect("valid");
+    assert_eq!(c.give_back_after_millis, 0);
+    let c = NodeConfig::from_lookup(lookup(&with(&[("OSS_GIVE_BACK_AFTER_MS", "300000")])))
+        .expect("valid");
+    assert_eq!(c.give_back_after_millis, 300_000);
+    assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_GIVE_BACK_AFTER_MS", "soon")]))).is_err());
+}
+
+#[test]
+fn a_give_back_threshold_beyond_the_day_a_record_is_kept_is_refused() {
+    assert!(
+        NodeConfig::from_lookup(lookup(&with(&[("OSS_GIVE_BACK_AFTER_MS", "86400001")]))).is_err()
+    );
+    assert!(
+        NodeConfig::from_lookup(lookup(&with(&[("OSS_GIVE_BACK_AFTER_MS", "86400000")]))).is_ok()
+    );
+}

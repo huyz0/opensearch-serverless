@@ -14,7 +14,7 @@ Parity plan R8.3 (shard activation and eviction, hibernation of idle writers), i
 - **A write that raced the hibernation** (it took the shard's slot just before it slept) finds the slot asleep, lets it go and wakes the shard, rather than failing.
 - **Reads.** A refresh of a hibernated shard answers ok (nothing is unpublished). A get wakes the shard, as a write does, and answers from it, so a document that read before the shard slept reads after.
 - A node that restarts has a new ephemeral id and no memory of what slept, so a head it left is taken the ordinary way.
-- Not in this change: giving the head back after a longer idle (`serverless.activation.idle_after_millis`), warming the block cache before closing, and the writer mark of rollups.
+- Not in this change: warming the block cache before closing, and the writer mark of rollups.
 
 ## Acceptance criteria
 
