@@ -42,6 +42,7 @@ use crate::handlers::Registry;
 use crate::health_route::StoreHealth;
 use crate::index_cache::IndexCache;
 use crate::read_forward::{GetForwarder, GetHandler};
+use crate::usage_route;
 use crate::writer::{
     DeadLogParts, DeadLogPass, DeadMailbox, DeadSnapshot, DescriptorIncarnation, HeadAdmission,
     HeadOpener, LiveLeases, MembershipLeaseWrite, OrphanTimer, ShardNames, Takeover,
@@ -50,7 +51,7 @@ use crate::writer::{
 pub use config::{MIN_MEMORY_BYTES, NodeConfig, StoreChoice};
 pub use error::BootError;
 use renew::{Cadence, Renewal};
-use support::{Held, address_bytes, earlier_epochs, store_of};
+use support::{Held, address_bytes, earlier_epochs, store_of, usage_of};
 
 /// The roles a node's lease names.
 const ROLES: [&str; 2] = ["ingest", "search"];
@@ -151,7 +152,7 @@ fn cluster<E: std::fmt::Display>(e: E) -> BootError {
 ///
 /// A [`BootError`] naming what could not be set up.
 pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
-    let store = store_of(&config.store)?;
+    let (store, usage) = usage_of(store_of(&config.store)?, config);
     let budget = MemoryBudget::new(
         &config
             .budget()
@@ -375,6 +376,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     ));
     let mut assembled = assemble::assemble(&node_config, Arc::clone(&store), &budget, writer)
         .and_then(|a| a.with_health(health, &config.cluster))
+        .and_then(|a| usage_route::attach(a, usage, &config.node_id, &clock))
         .map_err(BootError::Assemble)?;
     if let Some(buckets) = &buckets {
         buckets.register_open(&config.node_id, Arc::clone(&assembled.role));

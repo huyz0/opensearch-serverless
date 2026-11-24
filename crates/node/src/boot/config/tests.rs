@@ -359,3 +359,22 @@ fn a_node_with_the_switch_off_has_no_bucket_wiring() {
             .is_some()
     );
 }
+
+// docs/specs/store-usage-wiring AC-1
+#[test]
+fn store_usage_is_off_by_default_and_bounded() {
+    let c = NodeConfig::from_lookup(lookup(FS)).expect("valid");
+    assert!(!c.store_usage);
+    assert_eq!(c.store_usage_max_indices, 1000);
+    let on = with(&[
+        ("OSS_STORE_USAGE", "true"),
+        ("OSS_STORE_USAGE_MAX_INDICES", "7"),
+    ]);
+    let c = NodeConfig::from_lookup(lookup(&on)).expect("valid");
+    assert!(c.store_usage);
+    assert_eq!(c.store_usage_max_indices, 7);
+    for bad in ["0", "1000001"] {
+        let set = with(&[("OSS_STORE_USAGE_MAX_INDICES", bad)]);
+        assert!(NodeConfig::from_lookup(lookup(&set)).is_err());
+    }
+}
