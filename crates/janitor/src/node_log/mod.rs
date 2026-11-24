@@ -125,13 +125,14 @@ impl<'a> Collector<'a> {
         let Some(name) = shard.index_name.as_deref() else {
             return Ok(false);
         };
-        match self.descriptors.get(name, buf)? {
+        let bucket = match self.descriptors.get(name, buf)? {
             // Deleted, or recreated under the name: nothing of this
             // incarnation is read again.
             None => return Ok(true),
             Some(record) if *record.uuid != *shard.index_uuid => return Ok(true),
-            Some(_) => {}
-        }
+            // ALLOC: one id, once a shard judged.
+            Some(record) => record.bucket.as_deref().map(str::to_owned),
+        };
         // A head still the dead node's own: settled or taken first, and
         // judged then.
         if self
@@ -148,7 +149,7 @@ impl<'a> Collector<'a> {
         Ok(
             match self
                 .commits
-                .committed(name, &shard.index_uuid, shard.shard)?
+                .committed(name, &shard.index_uuid, bucket.as_deref(), shard.shard)?
             {
                 Committed::Absent | Committed::Commit(None) => false,
                 Committed::Commit(Some(checkpoint)) => checkpoint >= held,

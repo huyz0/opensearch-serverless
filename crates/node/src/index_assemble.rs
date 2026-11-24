@@ -10,6 +10,7 @@ use oss_meta::{DescriptorStore, PitClock};
 use crate::index_delete::{DeleteService, NoSnapshots};
 use crate::index_route::IndexService;
 use crate::index_templates::TemplateSets;
+use crate::ingest_run::IngestPipelines;
 
 pub(crate) fn index_service(
     config: &crate::assemble::Config,
@@ -53,4 +54,17 @@ pub(crate) fn delete_service(
     )
     .map(Arc::new)
     .map_err(|e| crate::assemble::AssembleError::Store(e.to_string()))
+}
+
+/// The pipelines writes run, when the setting is on.
+pub(crate) fn ingest_pipelines(
+    config: &crate::assemble::Config,
+    store: &Arc<dyn BlobStore>,
+) -> Result<Option<Arc<IngestPipelines>>, crate::assemble::AssembleError> {
+    if !config.ingest_pipelines {
+        return Ok(None);
+    }
+    IngestPipelines::open(store, &config.base, config.pit_buffer_bytes)
+        .map(Some)
+        .map_err(|e| crate::assemble::AssembleError::Store(e.to_string()))
 }

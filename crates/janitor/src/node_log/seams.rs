@@ -73,10 +73,18 @@ pub enum Committed {
 
 /// The published commits of shards.
 pub trait Commits {
-    /// The commit of shard `shard` of incarnation `uuid` of `index`.
+    /// The commit of shard `shard` of incarnation `uuid` of `index`, held
+    /// in the manifest of `bucket` when the index is a bucket's member and
+    /// in the shard's own register otherwise.
     ///
     /// # Errors
     ///
     /// [`JanitorError`] when the manifest or the commit cannot be read.
-    fn committed(&self, index: &str, uuid: &str, shard: u32) -> Result<Committed, JanitorError>;
+    fn committed(
+        &self,
+        index: &str,
+        uuid: &str,
+        bucket: Option<&str>,
+        shard: u32,
+    ) -> Result<Committed, JanitorError>;
 }

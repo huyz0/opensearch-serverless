@@ -16,8 +16,9 @@ use oss_blob::BlobStore;
 use oss_format::{NodeLogEpoch, ShardKey, ShardRef};
 use oss_janitor::JanitorError;
 use oss_janitor::node_log::{Commits, Committed, FencedLog, NodeLogs};
+use oss_writer::bucket::{BucketStore, ManifestWrite};
 use oss_writer::log::{NodeLogStore, NodeLogTakeover};
-use oss_writer::takeover::{Predecessors, commit_checkpoint};
+use oss_writer::takeover::{Predecessors, commit_checkpoint, member_checkpoint};
 
 use super::predecessors::lease_epochs;
 
@@ -129,6 +130,7 @@ impl NodeLogs for StoreNodeLogs {
 /// Shards' published commits, read from their registers.
 pub struct StoreCommits {
     store: Arc<dyn BlobStore>,
+    buckets: BucketStore,
     base: String,
 }
 
@@ -137,6 +139,7 @@ impl StoreCommits {
     #[must_use]
     pub fn new(store: Arc<dyn BlobStore>, base: &str) -> Self {
         Self {
+            buckets: BucketStore::new(Arc::clone(&store), base, ManifestWrite::Json),
             store,
             // ALLOC: one name, once a node.
             base: base.to_owned(),
@@ -145,13 +148,22 @@ impl StoreCommits {
 }
 
 impl Commits for StoreCommits {
-    fn committed(&self, index: &str, uuid: &str, shard: u32) -> Result<Committed, JanitorError> {
+    fn committed(
+        &self,
+        index: &str,
+        uuid: &str,
+        bucket: Option<&str>,
+        shard: u32,
+    ) -> Result<Committed, JanitorError> {
         let at = ShardRef { index, uuid, shard };
-        Ok(
-            match commit_checkpoint(self.store.as_ref(), &self.base, &at).map_err(log_error)? {
-                None => Committed::Absent,
-                Some(checkpoint) => Committed::Commit(checkpoint),
-            },
-        )
+        let store = self.store.as_ref();
+        let found = match bucket {
+            Some(bucket) => member_checkpoint(store, &self.buckets, &self.base, bucket, &at),
+            None => commit_checkpoint(store, &self.base, &at),
+        };
+        Ok(match found.map_err(log_error)? {
+            None => Committed::Absent,
+            Some(checkpoint) => Committed::Commit(checkpoint),
+        })
     }
 }

@@ -30,6 +30,7 @@ src/bulk/reader.rs	port	serverless/shell/src/main/java/org/opensearch/serverless
 src/bulk/validate.rs	port	server/src/main/java/org/opensearch/action/bulk/BulkRequest.java@429b4cbc	validate over each item's IndexRequest, DeleteRequest and UpdateRequest checks
 src/bulk/budget.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/documents/BulkMemoryBudget.java@429b4cbc	the heap streamed slices may hold, granted in arrival order, and the 429 after the wait
 src/bulk/ids.rs	port	libs/common/src/main/java/org/opensearch/common/TimeBasedUUIDGenerator.java@429b4cbc	getBase64UUID: the ids of an index or create without one
+src/bulk/ingest.rs	new		the pipeline hook of a bulk: the node plugs the ingest engine in; the Java runs the ingest service in OpenSearch core
 src/bulk/run.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/documents/BulkDispatch.java@429b4cbc	route and apply: items grouped by shard in request order, a foreign group forwarded once
 src/bulk/response.rs	port	server/src/main/java/org/opensearch/action/bulk/BulkItemResponse.java@429b4cbc	the bulk response body: took, errors and each item's result or failure
 src/publish/mod.rs	new		the publish module's exports

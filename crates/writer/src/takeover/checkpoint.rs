@@ -7,6 +7,7 @@ use oss_format::{CommitManifest, ShardRef};
 
 use super::RestoreError;
 use super::restore::read_manifest;
+use crate::bucket::BucketStore;
 use crate::index::LOCAL_CHECKPOINT_KEY;
 
 /// The most a `segments_N` may be: it holds one entry a segment of the
@@ -51,14 +52,57 @@ pub fn commit_checkpoint(
     let Some((value, _)) = read_manifest(store, &key)? else {
         return Ok(None);
     };
-    let manifest = CommitManifest::parse(&value)?;
+    commit_checkpoint_of(store, base, shard, &value).map(Some)
+}
+
+/// The local checkpoint recorded in `bucket`'s entry for the member `uuid`
+/// of the shard `shard`: `None` when the bucket has no register, the index
+/// is not in it or it has no commit yet, as [`commit_checkpoint`] gives
+/// `None` for a shard with no register. One register read and one ranged GET.
+///
+/// # Errors
+///
+/// As [`commit_checkpoint`], and a bucket manifest that cannot be read.
+pub fn member_checkpoint(
+    store: &dyn BlobStore,
+    buckets: &BucketStore,
+    base: &str,
+    bucket: &str,
+    shard: &ShardRef<'_>,
+) -> Result<Option<Option<i64>>, RestoreError> {
+    let Some(entry) = buckets
+        .read_member(bucket, shard.uuid)
+        // ALLOC: error path; one message.
+        .map_err(|e| RestoreError::Directory(e.to_string()))?
+    else {
+        return Ok(None);
+    };
+    let Some(commit) = entry.member.and_then(|member| member.commit) else {
+        return Ok(None);
+    };
+    commit_checkpoint_of(store, base, shard, &commit).map(Some)
+}
+
+/// The local checkpoint the commit manifest `value` records, read from its
+/// newest `segments_N`: `Some(None)` when the commit records none.
+///
+/// # Errors
+///
+/// As [`commit_checkpoint`].
+pub fn commit_checkpoint_of(
+    store: &dyn BlobStore,
+    base: &str,
+    shard: &ShardRef<'_>,
+    value: &[u8],
+) -> Result<Option<i64>, RestoreError> {
+    let manifest = CommitManifest::parse(value)?;
     let newest = shard
         .resolve(base, &manifest)?
         .into_iter()
         .filter_map(|extent| generation(&extent.name).map(|g| (g, extent)))
         .max_by_key(|(g, _)| *g);
     let Some((generation, extent)) = newest else {
-        return Ok(Some(None));
+        return Ok(None);
     };
     let range = match extent.length {
         Some(len) => ByteRange::From {
@@ -73,7 +117,7 @@ pub fn commit_checkpoint(
     let mut buf = vec![0u8; 64 << 10];
     store.get(&extent.key, range, &mut buf, &mut sink)?;
     let infos = parse(&sink.0, generation).map_err(|e| RestoreError::Directory(e.to_string()))?;
-    Ok(Some(recorded(&infos.user_data)))
+    Ok(recorded(&infos.user_data))
 }
 
 /// The local checkpoint among a commit's user data, if it records one.

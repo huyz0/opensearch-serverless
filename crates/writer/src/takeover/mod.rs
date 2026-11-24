@@ -16,7 +16,7 @@ mod predecessors;
 mod restore;
 
 pub use adopt::{AdoptError, Adopted, Engine, adopt};
-pub use checkpoint::commit_checkpoint;
+pub use checkpoint::{commit_checkpoint, commit_checkpoint_of, member_checkpoint};
 pub use engine::ShardEngine;
 pub use head::{HeadWriters, Settled};
 pub use predecessors::{Predecessors, PredecessorsFactory};

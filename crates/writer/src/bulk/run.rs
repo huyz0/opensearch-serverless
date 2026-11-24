@@ -12,6 +12,7 @@ use crate::index::{Refused, Written, validation_failed};
 
 use super::action::Kind;
 use super::ids::IdGenerator;
+use super::ingest::{Ingest, IngestError};
 use super::reader::Op;
 use super::response::{Item, ItemResult, mapping_failure, mapping_status, shard_failure};
 use super::validate;
@@ -112,6 +113,7 @@ pub trait Target {
 pub struct Bulk<'t, T: Target> {
     target: &'t mut T,
     ids: &'t mut IdGenerator,
+    ingest: Option<&'t mut dyn Ingest>,
     now_millis: u64,
     refresh: bool,
     items: Vec<Item>,
@@ -131,6 +133,7 @@ impl<'t, T: Target> Bulk<'t, T> {
         Self {
             target,
             ids,
+            ingest: None,
             now_millis,
             refresh,
             // ALLOC: one item an operation; a few dozen bytes each, bounded by the body.
@@ -140,6 +143,14 @@ impl<'t, T: Target> Bulk<'t, T> {
             // ALLOC: one entry a shard written.
             written: Vec::new(),
         }
+    }
+
+    /// Runs the pipelines items name through `ingest`. Without one, an item
+    /// naming a pipeline fails as the shell does when it has none.
+    #[must_use]
+    pub fn with_ingest(mut self, ingest: &'t mut dyn Ingest) -> Self {
+        self.ingest = Some(ingest);
+        self
     }
 
     /// Checks, plans and applies one slice of the body's operations.
@@ -165,8 +176,22 @@ impl<'t, T: Target> Bulk<'t, T> {
         // items' slice positions.
         // ALLOC: one group a shard the slice writes, one entry an operation.
         let mut groups: Vec<((String, u32), Vec<usize>)> = Vec::new();
-        for op in ops {
-            let (item, shard) = self.plan(op, first);
+        // The operations a pipeline rewrote, by position in the slice.
+        // ALLOC: one slot an operation; empty unless the slice names a pipeline.
+        let mut rewritten: Vec<Option<Op>> = Vec::new();
+        for (n, op) in ops.iter().enumerate() {
+            let mut source = None;
+            let (item, shard) = self.plan(op, first, &mut source);
+            if let Some(source) = source {
+                rewritten.resize_with(ops.len(), || None);
+                if let Some(slot) = rewritten.get_mut(n) {
+                    *slot = Some(Op {
+                        // ALLOC: the rewritten operation; the action is cloned with its source.
+                        action: op.action.clone(),
+                        source,
+                    });
+                }
+            }
             if let Some(key) = shard {
                 let at = ids.len();
                 match groups.iter_mut().find(|(k, _)| *k == key) {
@@ -188,7 +213,10 @@ impl<'t, T: Target> Bulk<'t, T> {
                 .filter_map(|&at| {
                     Some(Planned {
                         position: base.saturating_add(at),
-                        op: ops.get(at)?,
+                        op: rewritten
+                            .get(at)
+                            .and_then(Option::as_ref)
+                            .or_else(|| ops.get(at))?,
                         id: ids.get(at)?.as_str(),
                     })
                 })
@@ -245,7 +273,14 @@ impl<'t, T: Target> Bulk<'t, T> {
 
     /// The item for `op` before it is applied, and the shard it goes to
     /// when it passed every check; a failing item carries its failure.
-    fn plan(&mut self, op: &Op, first: bool) -> (Item, Option<(String, u32)>) {
+    ///
+    /// `source` is set to the document a pipeline made of the item's.
+    fn plan(
+        &mut self,
+        op: &Op,
+        first: bool,
+        source: &mut Option<Vec<u8>>,
+    ) -> (Item, Option<(String, u32)>) {
         let a = &op.action;
         let action = if a.kind == Kind::Index && a.create {
             "create"
@@ -350,15 +385,35 @@ impl<'t, T: Target> Bulk<'t, T> {
             return (item, None);
         }
         if let Some(p) = a.pipeline.as_deref().filter(|p| *p != "_none") {
-            item.result = fail(
-                400,
-                // ALLOC: error path; one message.
-                Exception::new(
-                    "illegal_argument_exception",
-                    format!("pipeline with id [{p}] does not exist"),
-                ),
-            );
-            return (item, None);
+            let runs = matches!(a.kind, Kind::Index | Kind::Create);
+            let outcome = match self.ingest.as_deref_mut() {
+                Some(ingest) if runs => Some(ingest.run(p, &op.source)),
+                Some(_) => None,
+                None => Some(Err(IngestError::Missing)),
+            };
+            match outcome {
+                Some(Ok(made)) => *source = Some(made),
+                Some(Err(e)) => {
+                    item.result = match e {
+                        IngestError::Missing => fail(
+                            400,
+                            Exception::new(
+                                "illegal_argument_exception",
+                                // ALLOC: error path; one message.
+                                format!("pipeline with id [{p}] does not exist"),
+                            ),
+                        ),
+                        IngestError::Failed(reason) => {
+                            fail(400, Exception::new("illegal_argument_exception", reason))
+                        }
+                        IngestError::Unavailable(reason) => {
+                            fail(500, Exception::new("illegal_state_exception", reason))
+                        }
+                    };
+                    return (item, None);
+                }
+                None => {}
+            }
         }
         let routed = if a.routing.is_none() && info.routing_required {
             Err(RoutingError::RoutingMissing)
