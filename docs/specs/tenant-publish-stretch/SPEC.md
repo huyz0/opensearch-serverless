@@ -13,7 +13,7 @@ Roadmap R13.4, the first lever: at level 1 a tenant's writes wait four times lon
 
 ## Acceptance criteria
 
-- AC-1: with a stretch of 4 a shard with a 1 s age is due after 4 s, not before; with 1 it is due after 1 s; `due` is the same as a stretch of 1.
+- AC-1: with a stretch of 4 a shard with a 1 s age is due after 4 s, not before; with 1 it is due after 1 s; `due` is the same as a stretch of 1. The operation bound is not stretched, and an age of zero (the node's or the index's) publishes every pass whatever the stretch.
 - AC-2: an enforced tenant at level 1 answers 4, an observed or off one 1, an unrelated index 1, and a tenant with no level 1.
 - AC-3: a writer role asked for a stretch by index name applies it to that index's shards only, and takes one stretch.
 
@@ -31,4 +31,5 @@ Fewer: a stretched tenant publishes less often. No request is added.
 
 ## Risks
 
+- A node or index at age zero is never stretched: it publishes every pass by design, so level 1 does not reach it.
 - A longer wait is a longer time before a refresh-less write is searchable from a commit; writes a search needs are still pushed by the tail overlay, and a refresh publishes at once.

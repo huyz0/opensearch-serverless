@@ -240,6 +240,26 @@ mod tests {
         assert!(l.due(&"s", 1, NODE, 1_000));
     }
 
+    // docs/specs/tenant-publish-stretch AC-1
+    #[test]
+    fn a_stretch_does_not_lift_the_operation_bound_and_age_zero_is_never_stretched() {
+        // Three operations are due at once however long the age is stretched.
+        let mut l = lazy(1_000, 3, 250);
+        l.published("s", 0);
+        l.mark_written("s", 0);
+        assert!(!l.due_stretched(&"s", 2, NODE, 4, 10), "under the bound");
+        assert!(l.due_stretched(&"s", 3, NODE, 4, 10), "at the bound");
+        // A node at age zero publishes every pass, stretched or not; so does
+        // an index whose own age is zero.
+        let mut l = lazy(0, 0, 250);
+        l.published("s", 0);
+        assert!(l.due_stretched(&"s", 1, NODE, 4, 0));
+        let mut l = lazy(1_000, 0, 250);
+        l.published("s", 0);
+        l.mark_written("s", 0);
+        assert!(l.due_stretched(&"s", 1, PublishAge::Millis(0), 4, 0));
+    }
+
     #[test]
     fn a_shard_is_unpublished_while_it_holds_writes_no_publish_covers() {
         let mut l = lazy(1_000, 0, 250);
