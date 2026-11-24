@@ -32,6 +32,8 @@ publish = false
 repository = "https://github.com/huyz0/opensearch-serverless"
 
 [workspace.dependencies]
+# The restore's rename pattern (docs/specs/snapshot-restore): already in the tree through lucene-rust.
+regex = { version = "=1.13.1", default-features = false, features = ["std", "unicode", "perf"] }
 oss-types = { path = "crates/types" }
 oss-mem = { path = "crates/mem" }
 oss-testkit = { path = "crates/testkit" }
