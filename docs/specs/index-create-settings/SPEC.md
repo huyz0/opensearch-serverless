@@ -19,11 +19,11 @@ Any other key is refused 501 `unsupported_index_option`, naming each key sorted 
 ## Acceptance criteria
 
 - AC-1: a create that gives `index.refresh_interval`, `index.routing_partition_size` and `index.number_of_routing_shards` (valid, flat or nested) succeeds, and the descriptor's settings object holds them with the tenancy settings the request also gave. Test: `a_create_stores_the_settings_the_node_reads`.
-- AC-2: an invalid `index.refresh_interval` (not a time value, zero or negative other than `-1`) is refused 400 `illegal_argument_exception` naming the key, and no descriptor is made. Test: `a_bad_refresh_interval_is_refused_at_create`.
+- AC-2: an invalid `index.refresh_interval` (not a time value and not `-1`; `0` is a time value) is refused 400 `illegal_argument_exception` naming the key, and no descriptor is made. Test: `a_bad_refresh_interval_is_refused_at_create`.
 - AC-3: `index.routing_partition_size` below 1, not below the shard count (more than 1 shard), or not 1 (one shard), and an `index.number_of_routing_shards` that is below the shard count or not a multiple of it, are refused 400 `illegal_argument_exception` naming the key. Test: `routing_settings_are_checked_against_the_shard_count`.
 - AC-4: any other key is refused 501 `unsupported_index_option` naming every such key, sorted, and no descriptor is made. Test: `other_settings_are_refused_and_named`.
-- AC-5: the settings of the winning template reach the create; a key the request also gives takes the request's value; a template key outside the three is refused as in AC-4. Test: `a_templates_settings_apply_and_the_request_wins`.
-- AC-6: an index created with `index.refresh_interval` gets that publish age when its shard opens, and one created with a routing partition size routes by it. Test: `created_settings_reach_the_writer_and_the_router`.
+- AC-5: the settings of the winning template reach the create; a key the request also gives takes the request's value; a template key outside the three is refused as in AC-4. Tests: `a_templates_settings_apply_and_the_request_wins`, `a_template_setting_the_node_does_not_read_is_refused_not_dropped`.
+- AC-6: an index created with `index.refresh_interval` gets that publish age when its shard opens, and one created with a routing partition size routes by it. Test: `a_create_stores_the_settings_the_node_reads` (the publish age read back from the stored settings; the routing keys are stored as numbers, which the router reads).
 - AC-7: a create that gives no settings, or only tenancy settings, writes the same descriptor as before. Existing create tests pass unchanged.
 
 ## S3 request budget

@@ -15,7 +15,7 @@ The index-templates part of the snapshots, templates, ingest and auth milestone:
 ## Acceptance criteria
 
 - AC-1: With templates on, a create inherits mappings from the winning template and its components; a name no template matches is created as before. Test: `a_create_inherits_the_mapping_and_shards_of_the_matching_template`.
-- AC-2: A template carrying settings is refused and writes no descriptor. Test: `a_template_that_carries_settings_is_refused_not_dropped`.
+- AC-2: A template carrying a setting the node does not read is refused and writes no descriptor (the three it reads are stored, [index-create-settings](../index-create-settings/SPEC.md)). Test: `a_template_setting_the_node_does_not_read_is_refused_not_dropped`.
 - AC-3: With no template stored a create makes one GET (the index template marker) beside its own write, and no LIST. Test: `a_create_with_no_template_stored_reads_only_the_marker`.
 - AC-4: With templates off a create makes exactly the requests it made before. Test: `a_create_is_one_conditional_create_and_a_head_one_read`.
 
