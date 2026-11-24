@@ -62,6 +62,7 @@ fn captured(e: CaptureError, index: &str) -> RestError {
     match e {
         CaptureError::NoSuchIndex => refused(index_not_found(index)),
         CaptureError::IsAlias => refused(is_alias(index)),
+        CaptureError::Restoring => refuse(503, "cluster_block_exception", e.to_string()),
         CaptureError::Unsupported(_) => refused(unsupported_layout(index)),
         CaptureError::NothingPublished(shard) => refused(nothing_published(index, shard)),
         CaptureError::Replaced => refused(conflict("the index changed while it was captured")),
