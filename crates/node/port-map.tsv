@@ -148,3 +148,5 @@ src/snapshot_restore_route.rs	port	serverless/shell/src/main/java/org/opensearch
 src/warm_peer.rs	new		what a reader answers a joining reader with: the hot pages of the shards it would serve, and those pages from the cache without fetching
 src/warm_peer/tests.rs	new		tests of the warm-copy peer answers over a real cache with a disk tier
 src/security_authz.rs	new		what each route needs of a user, and the authorizer over the node snapshot
+src/warm_handlers.rs	new		the transport handlers of the warm-copy actions on a reader: placement of the joiner, bounded answers, a cap on requests served at once
+src/warm_handlers/tests.rs	new		tests of the warm-copy handlers over a real cache
