@@ -10,6 +10,12 @@ fn main() -> std::process::ExitCode {
             return std::process::ExitCode::from(2);
         }
     };
+    #[cfg(not(feature = "extensions"))]
+    if std::env::var("OSS_EXTENSIONS_PERCENT").is_ok_and(|v| v.trim() != "0") {
+        eprintln!(
+            "opensearch-serverless node: OSS_EXTENSIONS_PERCENT is ignored: built without the `extensions` feature"
+        );
+    }
     let node = match oss_node::boot::start(&config) {
         Ok(node) => node,
         Err(why) => {

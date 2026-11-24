@@ -9,7 +9,6 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use oss_janitor::settings::{ORPHAN_SLICE_BUDGET, ORPHAN_SLICE_INTERVAL_MILLIS};
-use oss_mem::{BudgetConfig, ConfigError as BudgetError, Pool};
 
 use crate::tail_overlay::REFRESH_VISIBILITY;
 
@@ -146,6 +145,8 @@ pub struct NodeConfig {
     pub security_refresh_millis: u64,
     /// `serverless.knn.enabled`.
     pub knn: bool,
+    /// `OSS_EXTENSIONS_PERCENT`: the page cache's share the `extensions` pool takes; 0 reserves none.
+    pub extensions_percent: usize,
     /// `OSS_STORE_USAGE`: count the store's requests and bytes per index
     /// and serve them at `GET /_serverless/usage`.
     pub store_usage: bool,
@@ -326,6 +327,8 @@ impl NodeConfig {
             .collect();
         let hand_off = flag("OSS_HAND_OFF", "false")?;
         let knn = flag("OSS_KNN", "false")?;
+        let extensions_percent =
+            usize::try_from(bounded("OSS_EXTENSIONS_PERCENT", "0", 0, 20)?).unwrap_or(0);
         let security = flag("OSS_SECURITY", "false")?;
         let security_refresh_millis = bounded("OSS_SECURITY_REFRESH_MS", "10000", 1000, 3_600_000)?;
         let security_admin = match (
@@ -435,6 +438,7 @@ impl NodeConfig {
             security_admin,
             security_refresh_millis,
             knn,
+            extensions_percent,
             store_usage,
             tenant_levels,
             tenant_budget_per_minute,
@@ -469,24 +473,9 @@ impl NodeConfig {
         self.lease_refresh_millis
             .map_or_else(|| self.renew_every(), Duration::from_millis)
     }
-
-    /// The node's memory split into pools by fixed shares.
-    ///
-    /// # Errors
-    ///
-    /// [`BudgetError`] when the shares do not fit the total.
-    pub fn budget(&self) -> Result<BudgetConfig, BudgetError> {
-        let share = |percent: usize| (self.memory_bytes / 100).saturating_mul(percent);
-        BudgetConfig::new(self.memory_bytes)
-            .with_pool(Pool::RequestBodies, share(20))?
-            .with_pool(Pool::QueryExecution, share(15))?
-            .with_pool(Pool::WriteBuffers, share(15))?
-            .with_pool(Pool::PageCache, share(20))?
-            .with_pool(Pool::Transport, share(10))?
-            .with_pool(Pool::OpenIndexes, share(20))
-    }
 }
 
+mod budget;
 #[cfg(test)]
 mod security_tests;
 #[cfg(test)]

@@ -44,6 +44,9 @@ writer = [
     "dep:bcrypt",
     "dep:ureq",
 ]
+# The extension module runtime and its upload route (docs/adr/0052). Off by default; with it
+# on, a node still serves nothing until OSS_EXTENSIONS_PERCENT gives it a pool.
+extensions = ["reader", "writer", "dep:oss-ext-wasm", "dep:oss-ext", "dep:sha2"]
 coordinator = ["dep:oss-coordinator", "dep:oss-blob", "dep:oss-transport", "dep:oss-doc", "dep:bcrypt"]
 
 [dependencies]
@@ -53,6 +56,9 @@ oss-writer = { workspace = true, optional = true }
 oss-coordinator = { workspace = true, optional = true }
 bcrypt = { workspace = true, optional = true }
 oss-doc = { workspace = true, optional = true }
+oss-ext = { workspace = true, optional = true }
+oss-ext-wasm = { workspace = true, optional = true }
+sha2 = { version = "=0.11.1", optional = true }
 oss-rest = { workspace = true, optional = true }
 oss-transport = { workspace = true, optional = true }
 oss-cluster = { workspace = true, optional = true }
@@ -75,6 +81,8 @@ ureq = { version = "=3.5.2", default-features = false, features = ["rustls"], op
 signal-hook = "=0.3.18"
 
 [dev-dependencies]
+# The extension upload tests build their modules from text.
+wat = "1"
 serde_json = "=1.0.145"
 # The suite creates a RustFS bucket with one signed request.
 ureq = { version = "=3.5.2", default-features = false, features = ["rustls"] }
