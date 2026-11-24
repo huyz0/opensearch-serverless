@@ -8,6 +8,7 @@
 //! nothing here lists. Appends are create-if-absent, so a fence in a slot
 //! stops the writer there.
 
+mod charge;
 mod committer;
 mod epochs;
 mod fence;

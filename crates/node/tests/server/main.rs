@@ -18,6 +18,8 @@ mod boot_give_back;
 mod boot_lease_load;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod boot_limit;
+#[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
+mod boot_usage;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod bulk_route;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]

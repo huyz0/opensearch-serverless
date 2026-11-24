@@ -116,3 +116,4 @@ src/index_templates.rs	port	serverless/shell/src/main/java/org/opensearch/server
 src/index_assemble.rs	new		builds the index service a node serves creates with from its settings
 src/template_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/TemplateHandler.java	the _index_template and _component_template routes over the document sets
 src/pipeline_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/PipelineHandler.java	the _ingest/pipeline put, get and delete routes over the document set; simulate is not here
+src/usage_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/UsageHandler.java@feature/serverlessshell	GET /_serverless/usage: node id, clock, and each index's cost units, requests and bytes

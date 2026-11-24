@@ -221,7 +221,7 @@ impl std::error::Error for AssembleError {}
 
 /// A node built and not yet listening.
 pub struct Assembled {
-    router: Router,
+    pub(crate) router: Router,
     /// The search service every `_search` goes through.
     pub search: Arc<SearchService<Shared>>,
     /// The role the write routes write through.

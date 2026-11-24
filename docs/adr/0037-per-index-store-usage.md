@@ -18,3 +18,7 @@ The meter counts requests for the whole node. Tenant limits and a bill by tenant
 - No request is added. Cost per attempt is two atomic adds and a thread-local read.
 - Memory is bounded by `max_indices` counter sets.
 - A thread that hands work to another loses the owner, and that work reads as node cost until the pool carries it; the totals stay right.
+
+## Wiring
+
+`OSS_STORE_USAGE` (default off) wraps the node's store and serves `GET /_serverless/usage`; see [store-usage-wiring](../specs/store-usage-wiring/SPEC.md). It stays off until a run shows write p99 within 5% with it on: it adds no request, but each attempt now takes two atomic adds and a thread-local read.
