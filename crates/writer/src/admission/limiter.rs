@@ -33,6 +33,15 @@ impl fmt::Display for Throttled {
 
 impl std::error::Error for Throttled {}
 
+/// The wait a pressure of `pressure` nanoseconds asks of a client, in whole
+/// seconds plus one, between 1 and 30.
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+fn retry_after_of(pressure: f64) -> u64 {
+    ((pressure as u64) / SECOND)
+        .saturating_add(1)
+        .clamp(1, MAX_RETRY_AFTER)
+}
+
 /// What the limiter is doing now.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Stats {
@@ -203,9 +212,7 @@ impl WriteLimiter {
         let current = s.waiting.len().saturating_add(1);
         if current > limit || (pressure > inner.budget as f64 && current > inner.min) {
             s.refused = s.refused.saturating_add(1);
-            let retry_after_secs = ((pressure as u64) / SECOND)
-                .saturating_add(1)
-                .clamp(1, MAX_RETRY_AFTER);
+            let retry_after_secs = retry_after_of(pressure);
             return Err(Throttled {
                 retry_after_secs,
                 // ALLOC: error path; one message.
@@ -225,6 +232,18 @@ impl WriteLimiter {
             inner: Arc::clone(&self.inner),
             key,
         })
+    }
+
+    /// What a refusal at `now` would tell a client to wait, in seconds, 1 to
+    /// 30: the pressure in whole seconds plus one.
+    #[allow(clippy::cast_precision_loss)]
+    pub fn retry_after(&self, now: u64) -> u64 {
+        let s = self.inner.lock();
+        let oldest_wait = s
+            .waiting
+            .first_key_value()
+            .map_or(0, |(_, at)| now.saturating_sub(*at));
+        retry_after_of(s.latency.max(oldest_wait as f64))
     }
 
     /// Records how one log append went: it took `elapsed` nanoseconds and
@@ -395,6 +414,15 @@ mod tests {
         let _b = l.admit(0).expect("admitted");
         let refused = l.admit(2 * SECOND).expect_err("the oldest has waited 2 s");
         assert_eq!(refused.retry_after_secs, 3);
+    }
+
+    #[test]
+    fn the_hint_a_refusal_would_give_is_asked_without_refusing() {
+        let l = limiter();
+        assert_eq!(l.retry_after(0), 1, "no pressure");
+        let _a = l.admit(0).expect("admitted");
+        assert_eq!(l.retry_after(2 * SECOND), 3, "the oldest has waited 2 s");
+        assert_eq!(l.retry_after(500 * SECOND), 30, "never over 30");
     }
 
     #[test]
