@@ -1,6 +1,6 @@
 {
-  "name": "knn query, innerproduct",
-  "description": "The knn query over a lucene-engine hnsw field with space_type innerproduct: scores, k, filter, min_score, max_distance and the refusals.",
+  "name": "knn query, l2",
+  "description": "The knn query over a lucene-engine hnsw field with space_type l2: scores, k, filter, min_score, max_distance and the refusals.",
   "recorded_from": {
     "distribution": "opensearch",
     "version": "3.10.0",
@@ -9,7 +9,7 @@
   "cleanup": [
     {
       "method": "DELETE",
-      "path": "/compat-knn-search-innerproduct",
+      "path": "/compat-knn-search-l2",
       "query": {
         "ignore_unavailable": "true"
       }
@@ -17,33 +17,33 @@
   ],
   "steps": [
     {
-      "name": "create compat-knn-search-innerproduct",
+      "name": "create compat-knn-search-l2",
       "request": {
-        "method": "PUT",
-        "path": "/compat-knn-search-innerproduct",
         "body": {
-          "settings": {
-            "index.knn": true,
-            "number_of_shards": 1,
-            "number_of_replicas": 0
-          },
           "mappings": {
             "properties": {
-              "v": {
-                "type": "knn_vector",
-                "dimension": 3,
-                "method": {
-                  "name": "hnsw",
-                  "engine": "lucene",
-                  "space_type": "innerproduct"
-                }
-              },
               "tag": {
                 "type": "keyword"
+              },
+              "v": {
+                "dimension": 3,
+                "method": {
+                  "engine": "lucene",
+                  "name": "hnsw",
+                  "space_type": "l2"
+                },
+                "type": "knn_vector"
               }
             }
+          },
+          "settings": {
+            "index.knn": true,
+            "number_of_replicas": 0,
+            "number_of_shards": 1
           }
-        }
+        },
+        "method": "PUT",
+        "path": "/compat-knn-search-l2"
       },
       "response": {
         "status": 200,
@@ -53,79 +53,81 @@
         "body": {
           "acknowledged": true,
           "shards_acknowledged": true,
-          "index": "compat-knn-search-innerproduct"
+          "index": "compat-knn-search-l2"
         }
       }
     },
     {
       "name": "bulk",
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
       "request": {
         "method": "POST",
-        "path": "/_bulk",
-        "query": {
-          "refresh": "true"
-        },
         "ndjson": [
           {
             "index": {
               "_id": "1",
-              "_index": "compat-knn-search-innerproduct"
+              "_index": "compat-knn-search-l2"
             }
           },
           {
+            "tag": "a",
             "v": [
               1,
               0,
               0
-            ],
-            "tag": "a"
+            ]
           },
           {
             "index": {
               "_id": "2",
-              "_index": "compat-knn-search-innerproduct"
+              "_index": "compat-knn-search-l2"
             }
           },
           {
+            "tag": "b",
             "v": [
               0,
               1,
               0
-            ],
-            "tag": "b"
+            ]
           },
           {
             "index": {
               "_id": "3",
-              "_index": "compat-knn-search-innerproduct"
+              "_index": "compat-knn-search-l2"
             }
           },
           {
+            "tag": "a",
             "v": [
               1,
               1,
               0
-            ],
-            "tag": "a"
+            ]
           },
           {
             "index": {
               "_id": "4",
-              "_index": "compat-knn-search-innerproduct"
+              "_index": "compat-knn-search-l2"
             }
           },
           {
+            "tag": "b",
             "v": [
               2,
               2,
               2
-            ],
-            "tag": "b"
+            ]
           },
           {
             "index": {
               "_id": "5",
-              "_index": "compat-knn-search-innerproduct"
+              "_index": "compat-knn-search-l2"
             }
           },
           {
@@ -134,33 +136,31 @@
           {
             "index": {
               "_id": "6",
-              "_index": "compat-knn-search-innerproduct"
+              "_index": "compat-knn-search-l2"
             }
           },
           {
-            "v": null,
-            "tag": "b"
+            "tag": "b",
+            "v": null
           }
-        ]
-      },
-      "normalise": [
-        {
-          "pointer": "/body/took",
-          "reason": "elapsed time"
+        ],
+        "path": "/_bulk",
+        "query": {
+          "refresh": "true"
         }
-      ],
+      },
       "response": {
         "status": 200,
         "headers": {
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 27,
+          "took": 17,
           "errors": false,
           "items": [
             {
               "index": {
-                "_index": "compat-knn-search-innerproduct",
+                "_index": "compat-knn-search-l2",
                 "_id": "1",
                 "_version": 1,
                 "result": "created",
@@ -177,7 +177,7 @@
             },
             {
               "index": {
-                "_index": "compat-knn-search-innerproduct",
+                "_index": "compat-knn-search-l2",
                 "_id": "2",
                 "_version": 1,
                 "result": "created",
@@ -194,7 +194,7 @@
             },
             {
               "index": {
-                "_index": "compat-knn-search-innerproduct",
+                "_index": "compat-knn-search-l2",
                 "_id": "3",
                 "_version": 1,
                 "result": "created",
@@ -211,7 +211,7 @@
             },
             {
               "index": {
-                "_index": "compat-knn-search-innerproduct",
+                "_index": "compat-knn-search-l2",
                 "_id": "4",
                 "_version": 1,
                 "result": "created",
@@ -228,7 +228,7 @@
             },
             {
               "index": {
-                "_index": "compat-knn-search-innerproduct",
+                "_index": "compat-knn-search-l2",
                 "_id": "5",
                 "_version": 1,
                 "result": "created",
@@ -245,7 +245,7 @@
             },
             {
               "index": {
-                "_index": "compat-knn-search-innerproduct",
+                "_index": "compat-knn-search-l2",
                 "_id": "6",
                 "_version": 1,
                 "result": "created",
@@ -266,37 +266,37 @@
     },
     {
       "name": "k 3",
-      "request": {
-        "method": "POST",
-        "path": "/compat-knn-search-innerproduct/_search",
-        "body": {
-          "query": {
-            "knn": {
-              "v": {
-                "vector": [
-                  1,
-                  0,
-                  0
-                ],
-                "k": 3
-              }
-            }
-          }
-        }
-      },
       "normalise": [
         {
           "pointer": "/body/took",
           "reason": "elapsed time"
         }
       ],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "k": 3,
+                "vector": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
       "response": {
         "status": 200,
         "headers": {
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 7,
+          "took": 2,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -309,45 +309,45 @@
               "value": 3,
               "relation": "eq"
             },
-            "max_score": 3.0,
+            "max_score": 1.0,
             "hits": [
               {
-                "_index": "compat-knn-search-innerproduct",
-                "_id": "4",
-                "_score": 3.0,
-                "_source": {
-                  "v": [
-                    2.0,
-                    2.0,
-                    2.0
-                  ],
-                  "tag": "b"
-                }
-              },
-              {
-                "_index": "compat-knn-search-innerproduct",
+                "_index": "compat-knn-search-l2",
                 "_id": "1",
-                "_score": 2.0,
+                "_score": 1.0,
                 "_source": {
+                  "tag": "a",
                   "v": [
                     1.0,
                     0.0,
                     0.0
-                  ],
-                  "tag": "a"
+                  ]
                 }
               },
               {
-                "_index": "compat-knn-search-innerproduct",
+                "_index": "compat-knn-search-l2",
                 "_id": "3",
-                "_score": 2.0,
+                "_score": 0.5,
                 "_source": {
+                  "tag": "a",
                   "v": [
                     1.0,
                     1.0,
                     0.0
-                  ],
-                  "tag": "a"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "2",
+                "_score": 0.33333334,
+                "_source": {
+                  "tag": "b",
+                  "v": [
+                    0.0,
+                    1.0,
+                    0.0
+                  ]
                 }
               }
             ]
@@ -357,37 +357,37 @@
     },
     {
       "name": "k larger than the vectors",
-      "request": {
-        "method": "POST",
-        "path": "/compat-knn-search-innerproduct/_search",
-        "body": {
-          "query": {
-            "knn": {
-              "v": {
-                "vector": [
-                  1,
-                  0,
-                  0
-                ],
-                "k": 10
-              }
-            }
-          }
-        }
-      },
       "normalise": [
         {
           "pointer": "/body/took",
           "reason": "elapsed time"
         }
       ],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "k": 10,
+                "vector": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
       "response": {
         "status": 200,
         "headers": {
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 3,
+          "took": 2,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -400,58 +400,58 @@
               "value": 4,
               "relation": "eq"
             },
-            "max_score": 3.0,
+            "max_score": 1.0,
             "hits": [
               {
-                "_index": "compat-knn-search-innerproduct",
-                "_id": "4",
-                "_score": 3.0,
+                "_index": "compat-knn-search-l2",
+                "_id": "1",
+                "_score": 1.0,
                 "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    0.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "3",
+                "_score": 0.5,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "2",
+                "_score": 0.33333334,
+                "_source": {
+                  "tag": "b",
+                  "v": [
+                    0.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "4",
+                "_score": 0.1,
+                "_source": {
+                  "tag": "b",
                   "v": [
                     2.0,
                     2.0,
                     2.0
-                  ],
-                  "tag": "b"
-                }
-              },
-              {
-                "_index": "compat-knn-search-innerproduct",
-                "_id": "1",
-                "_score": 2.0,
-                "_source": {
-                  "v": [
-                    1.0,
-                    0.0,
-                    0.0
-                  ],
-                  "tag": "a"
-                }
-              },
-              {
-                "_index": "compat-knn-search-innerproduct",
-                "_id": "3",
-                "_score": 2.0,
-                "_source": {
-                  "v": [
-                    1.0,
-                    1.0,
-                    0.0
-                  ],
-                  "tag": "a"
-                }
-              },
-              {
-                "_index": "compat-knn-search-innerproduct",
-                "_id": "2",
-                "_score": 1.0,
-                "_source": {
-                  "v": [
-                    0.0,
-                    1.0,
-                    0.0
-                  ],
-                  "tag": "b"
+                  ]
                 }
               }
             ]
@@ -461,31 +461,31 @@
     },
     {
       "name": "size under k",
-      "request": {
-        "method": "POST",
-        "path": "/compat-knn-search-innerproduct/_search",
-        "body": {
-          "query": {
-            "knn": {
-              "v": {
-                "vector": [
-                  1,
-                  0,
-                  0
-                ],
-                "k": 3
-              }
-            }
-          },
-          "size": 1
-        }
-      },
       "normalise": [
         {
           "pointer": "/body/took",
           "reason": "elapsed time"
         }
       ],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "k": 3,
+                "vector": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            }
+          },
+          "size": 1
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
       "response": {
         "status": 200,
         "headers": {
@@ -505,19 +505,19 @@
               "value": 3,
               "relation": "eq"
             },
-            "max_score": 3.0,
+            "max_score": 1.0,
             "hits": [
               {
-                "_index": "compat-knn-search-innerproduct",
-                "_id": "4",
-                "_score": 3.0,
+                "_index": "compat-knn-search-l2",
+                "_id": "1",
+                "_score": 1.0,
                 "_source": {
+                  "tag": "a",
                   "v": [
-                    2.0,
-                    2.0,
-                    2.0
-                  ],
-                  "tag": "b"
+                    1.0,
+                    0.0,
+                    0.0
+                  ]
                 }
               }
             ]
@@ -527,38 +527,38 @@
     },
     {
       "name": "from past the first hit",
-      "request": {
-        "method": "POST",
-        "path": "/compat-knn-search-innerproduct/_search",
-        "body": {
-          "query": {
-            "knn": {
-              "v": {
-                "vector": [
-                  1,
-                  0,
-                  0
-                ],
-                "k": 3
-              }
-            }
-          },
-          "from": 1
-        }
-      },
       "normalise": [
         {
           "pointer": "/body/took",
           "reason": "elapsed time"
         }
       ],
+      "request": {
+        "body": {
+          "from": 1,
+          "query": {
+            "knn": {
+              "v": {
+                "k": 3,
+                "vector": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
       "response": {
         "status": 200,
         "headers": {
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 2,
+          "took": 1,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -571,32 +571,32 @@
               "value": 3,
               "relation": "eq"
             },
-            "max_score": 3.0,
+            "max_score": 1.0,
             "hits": [
               {
-                "_index": "compat-knn-search-innerproduct",
-                "_id": "1",
-                "_score": 2.0,
+                "_index": "compat-knn-search-l2",
+                "_id": "3",
+                "_score": 0.5,
                 "_source": {
+                  "tag": "a",
                   "v": [
                     1.0,
-                    0.0,
+                    1.0,
                     0.0
-                  ],
-                  "tag": "a"
+                  ]
                 }
               },
               {
-                "_index": "compat-knn-search-innerproduct",
-                "_id": "3",
-                "_score": 2.0,
+                "_index": "compat-knn-search-l2",
+                "_id": "2",
+                "_score": 0.33333334,
                 "_source": {
+                  "tag": "b",
                   "v": [
-                    1.0,
+                    0.0,
                     1.0,
                     0.0
-                  ],
-                  "tag": "a"
+                  ]
                 }
               }
             ]
@@ -606,35 +606,35 @@
     },
     {
       "name": "filter",
-      "request": {
-        "method": "POST",
-        "path": "/compat-knn-search-innerproduct/_search",
-        "body": {
-          "query": {
-            "knn": {
-              "v": {
-                "vector": [
-                  1,
-                  0,
-                  0
-                ],
-                "k": 3,
-                "filter": {
-                  "term": {
-                    "tag": "b"
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
       "normalise": [
         {
           "pointer": "/body/took",
           "reason": "elapsed time"
         }
       ],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "filter": {
+                  "term": {
+                    "tag": "b"
+                  }
+                },
+                "k": 3,
+                "vector": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
       "response": {
         "status": 200,
         "headers": {
@@ -654,32 +654,32 @@
               "value": 2,
               "relation": "eq"
             },
-            "max_score": 3.0,
+            "max_score": 0.33333334,
             "hits": [
               {
-                "_index": "compat-knn-search-innerproduct",
-                "_id": "4",
-                "_score": 3.0,
-                "_source": {
-                  "v": [
-                    2.0,
-                    2.0,
-                    2.0
-                  ],
-                  "tag": "b"
-                }
-              },
-              {
-                "_index": "compat-knn-search-innerproduct",
+                "_index": "compat-knn-search-l2",
                 "_id": "2",
-                "_score": 1.0,
+                "_score": 0.33333334,
                 "_source": {
+                  "tag": "b",
                   "v": [
                     0.0,
                     1.0,
                     0.0
-                  ],
-                  "tag": "b"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "4",
+                "_score": 0.1,
+                "_source": {
+                  "tag": "b",
+                  "v": [
+                    2.0,
+                    2.0,
+                    2.0
+                  ]
                 }
               }
             ]
@@ -689,42 +689,42 @@
     },
     {
       "name": "filter, k 1",
-      "request": {
-        "method": "POST",
-        "path": "/compat-knn-search-innerproduct/_search",
-        "body": {
-          "query": {
-            "knn": {
-              "v": {
-                "vector": [
-                  1,
-                  0,
-                  0
-                ],
-                "k": 1,
-                "filter": {
-                  "term": {
-                    "tag": "b"
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
       "normalise": [
         {
           "pointer": "/body/took",
           "reason": "elapsed time"
         }
       ],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "filter": {
+                  "term": {
+                    "tag": "b"
+                  }
+                },
+                "k": 1,
+                "vector": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
       "response": {
         "status": 200,
         "headers": {
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 3,
+          "took": 4,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -737,19 +737,19 @@
               "value": 1,
               "relation": "eq"
             },
-            "max_score": 3.0,
+            "max_score": 0.33333334,
             "hits": [
               {
-                "_index": "compat-knn-search-innerproduct",
-                "_id": "4",
-                "_score": 3.0,
+                "_index": "compat-knn-search-l2",
+                "_id": "2",
+                "_score": 0.33333334,
                 "_source": {
+                  "tag": "b",
                   "v": [
-                    2.0,
-                    2.0,
-                    2.0
-                  ],
-                  "tag": "b"
+                    0.0,
+                    1.0,
+                    0.0
+                  ]
                 }
               }
             ]
@@ -759,42 +759,42 @@
     },
     {
       "name": "filter matching nothing",
-      "request": {
-        "method": "POST",
-        "path": "/compat-knn-search-innerproduct/_search",
-        "body": {
-          "query": {
-            "knn": {
-              "v": {
-                "vector": [
-                  1,
-                  0,
-                  0
-                ],
-                "k": 3,
-                "filter": {
-                  "term": {
-                    "tag": "zzz"
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
       "normalise": [
         {
           "pointer": "/body/took",
           "reason": "elapsed time"
         }
       ],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "filter": {
+                  "term": {
+                    "tag": "zzz"
+                  }
+                },
+                "k": 3,
+                "vector": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
       "response": {
         "status": 200,
         "headers": {
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 2,
+          "took": 1,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -815,19 +815,17 @@
     },
     {
       "name": "filter bool",
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
       "request": {
-        "method": "POST",
-        "path": "/compat-knn-search-innerproduct/_search",
         "body": {
           "query": {
             "knn": {
               "v": {
-                "vector": [
-                  1,
-                  0,
-                  0
-                ],
-                "k": 4,
                 "filter": {
                   "bool": {
                     "must_not": [
@@ -838,18 +836,20 @@
                       }
                     ]
                   }
-                }
+                },
+                "k": 4,
+                "vector": [
+                  1,
+                  0,
+                  0
+                ]
               }
             }
           }
-        }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
       },
-      "normalise": [
-        {
-          "pointer": "/body/took",
-          "reason": "elapsed time"
-        }
-      ],
       "response": {
         "status": 200,
         "headers": {
@@ -869,310 +869,32 @@
               "value": 2,
               "relation": "eq"
             },
-            "max_score": 3.0,
+            "max_score": 0.33333334,
             "hits": [
               {
-                "_index": "compat-knn-search-innerproduct",
-                "_id": "4",
-                "_score": 3.0,
-                "_source": {
-                  "v": [
-                    2.0,
-                    2.0,
-                    2.0
-                  ],
-                  "tag": "b"
-                }
-              },
-              {
-                "_index": "compat-knn-search-innerproduct",
+                "_index": "compat-knn-search-l2",
                 "_id": "2",
-                "_score": 1.0,
+                "_score": 0.33333334,
                 "_source": {
+                  "tag": "b",
                   "v": [
                     0.0,
                     1.0,
                     0.0
-                  ],
-                  "tag": "b"
+                  ]
                 }
-              }
-            ]
-          }
-        }
-      }
-    },
-    {
-      "name": "min_score",
-      "request": {
-        "method": "POST",
-        "path": "/compat-knn-search-innerproduct/_search",
-        "body": {
-          "query": {
-            "knn": {
-              "v": {
-                "vector": [
-                  1,
-                  0,
-                  0
-                ],
-                "min_score": 0.4
-              }
-            }
-          }
-        }
-      },
-      "normalise": [
-        {
-          "pointer": "/body/took",
-          "reason": "elapsed time"
-        }
-      ],
-      "response": {
-        "status": 200,
-        "headers": {
-          "content-type": "application/json; charset=UTF-8"
-        },
-        "body": {
-          "took": 5,
-          "timed_out": false,
-          "_shards": {
-            "total": 1,
-            "successful": 1,
-            "skipped": 0,
-            "failed": 0
-          },
-          "hits": {
-            "total": {
-              "value": 4,
-              "relation": "eq"
-            },
-            "max_score": 3.0,
-            "hits": [
+              },
               {
-                "_index": "compat-knn-search-innerproduct",
+                "_index": "compat-knn-search-l2",
                 "_id": "4",
-                "_score": 3.0,
+                "_score": 0.1,
                 "_source": {
+                  "tag": "b",
                   "v": [
                     2.0,
                     2.0,
                     2.0
-                  ],
-                  "tag": "b"
-                }
-              },
-              {
-                "_index": "compat-knn-search-innerproduct",
-                "_id": "1",
-                "_score": 2.0,
-                "_source": {
-                  "v": [
-                    1.0,
-                    0.0,
-                    0.0
-                  ],
-                  "tag": "a"
-                }
-              },
-              {
-                "_index": "compat-knn-search-innerproduct",
-                "_id": "3",
-                "_score": 2.0,
-                "_source": {
-                  "v": [
-                    1.0,
-                    1.0,
-                    0.0
-                  ],
-                  "tag": "a"
-                }
-              },
-              {
-                "_index": "compat-knn-search-innerproduct",
-                "_id": "2",
-                "_score": 1.0,
-                "_source": {
-                  "v": [
-                    0.0,
-                    1.0,
-                    0.0
-                  ],
-                  "tag": "b"
-                }
-              }
-            ]
-          }
-        }
-      }
-    },
-    {
-      "name": "max_distance",
-      "request": {
-        "method": "POST",
-        "path": "/compat-knn-search-innerproduct/_search",
-        "body": {
-          "query": {
-            "knn": {
-              "v": {
-                "vector": [
-                  1,
-                  0,
-                  0
-                ],
-                "max_distance": 1.0
-              }
-            }
-          }
-        }
-      },
-      "normalise": [
-        {
-          "pointer": "/body/took",
-          "reason": "elapsed time"
-        }
-      ],
-      "response": {
-        "status": 200,
-        "headers": {
-          "content-type": "application/json; charset=UTF-8"
-        },
-        "body": {
-          "took": 2,
-          "timed_out": false,
-          "_shards": {
-            "total": 1,
-            "successful": 1,
-            "skipped": 0,
-            "failed": 0
-          },
-          "hits": {
-            "total": {
-              "value": 3,
-              "relation": "eq"
-            },
-            "max_score": 3.0,
-            "hits": [
-              {
-                "_index": "compat-knn-search-innerproduct",
-                "_id": "4",
-                "_score": 3.0,
-                "_source": {
-                  "v": [
-                    2.0,
-                    2.0,
-                    2.0
-                  ],
-                  "tag": "b"
-                }
-              },
-              {
-                "_index": "compat-knn-search-innerproduct",
-                "_id": "1",
-                "_score": 2.0,
-                "_source": {
-                  "v": [
-                    1.0,
-                    0.0,
-                    0.0
-                  ],
-                  "tag": "a"
-                }
-              },
-              {
-                "_index": "compat-knn-search-innerproduct",
-                "_id": "3",
-                "_score": 2.0,
-                "_source": {
-                  "v": [
-                    1.0,
-                    1.0,
-                    0.0
-                  ],
-                  "tag": "a"
-                }
-              }
-            ]
-          }
-        }
-      }
-    },
-    {
-      "name": "max_distance with a filter",
-      "request": {
-        "method": "POST",
-        "path": "/compat-knn-search-innerproduct/_search",
-        "body": {
-          "query": {
-            "knn": {
-              "v": {
-                "vector": [
-                  1,
-                  0,
-                  0
-                ],
-                "max_distance": 1.0,
-                "filter": {
-                  "term": {
-                    "tag": "a"
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "normalise": [
-        {
-          "pointer": "/body/took",
-          "reason": "elapsed time"
-        }
-      ],
-      "response": {
-        "status": 200,
-        "headers": {
-          "content-type": "application/json; charset=UTF-8"
-        },
-        "body": {
-          "took": 2,
-          "timed_out": false,
-          "_shards": {
-            "total": 1,
-            "successful": 1,
-            "skipped": 0,
-            "failed": 0
-          },
-          "hits": {
-            "total": {
-              "value": 2,
-              "relation": "eq"
-            },
-            "max_score": 2.0,
-            "hits": [
-              {
-                "_index": "compat-knn-search-innerproduct",
-                "_id": "1",
-                "_score": 2.0,
-                "_source": {
-                  "v": [
-                    1.0,
-                    0.0,
-                    0.0
-                  ],
-                  "tag": "a"
-                }
-              },
-              {
-                "_index": "compat-knn-search-innerproduct",
-                "_id": "3",
-                "_score": 2.0,
-                "_source": {
-                  "v": [
-                    1.0,
-                    1.0,
-                    0.0
-                  ],
-                  "tag": "a"
+                  ]
                 }
               }
             ]
@@ -1182,38 +904,38 @@
     },
     {
       "name": "boost",
-      "request": {
-        "method": "POST",
-        "path": "/compat-knn-search-innerproduct/_search",
-        "body": {
-          "query": {
-            "knn": {
-              "v": {
-                "vector": [
-                  1,
-                  0,
-                  0
-                ],
-                "k": 3,
-                "boost": 2.0
-              }
-            }
-          }
-        }
-      },
       "normalise": [
         {
           "pointer": "/body/took",
           "reason": "elapsed time"
         }
       ],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "boost": 2.0,
+                "k": 3,
+                "vector": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
       "response": {
         "status": 200,
         "headers": {
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 2,
+          "took": 1,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -1226,45 +948,45 @@
               "value": 3,
               "relation": "eq"
             },
-            "max_score": 6.0,
+            "max_score": 2.0,
             "hits": [
               {
-                "_index": "compat-knn-search-innerproduct",
-                "_id": "4",
-                "_score": 6.0,
-                "_source": {
-                  "v": [
-                    2.0,
-                    2.0,
-                    2.0
-                  ],
-                  "tag": "b"
-                }
-              },
-              {
-                "_index": "compat-knn-search-innerproduct",
+                "_index": "compat-knn-search-l2",
                 "_id": "1",
-                "_score": 4.0,
+                "_score": 2.0,
                 "_source": {
+                  "tag": "a",
                   "v": [
                     1.0,
                     0.0,
                     0.0
-                  ],
-                  "tag": "a"
+                  ]
                 }
               },
               {
-                "_index": "compat-knn-search-innerproduct",
+                "_index": "compat-knn-search-l2",
                 "_id": "3",
-                "_score": 4.0,
+                "_score": 1.0,
                 "_source": {
+                  "tag": "a",
                   "v": [
                     1.0,
                     1.0,
                     0.0
-                  ],
-                  "tag": "a"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "2",
+                "_score": 0.6666667,
+                "_source": {
+                  "tag": "b",
+                  "v": [
+                    0.0,
+                    1.0,
+                    0.0
+                  ]
                 }
               }
             ]
@@ -1274,50 +996,50 @@
     },
     {
       "name": "inside bool must with a filter outside",
-      "request": {
-        "method": "POST",
-        "path": "/compat-knn-search-innerproduct/_search",
-        "body": {
-          "query": {
-            "bool": {
-              "must": [
-                {
-                  "knn": {
-                    "v": {
-                      "vector": [
-                        1,
-                        0,
-                        0
-                      ],
-                      "k": 2
-                    }
-                  }
-                }
-              ],
-              "filter": [
-                {
-                  "term": {
-                    "tag": "b"
-                  }
-                }
-              ]
-            }
-          }
-        }
-      },
       "normalise": [
         {
           "pointer": "/body/took",
           "reason": "elapsed time"
         }
       ],
+      "request": {
+        "body": {
+          "query": {
+            "bool": {
+              "filter": [
+                {
+                  "term": {
+                    "tag": "b"
+                  }
+                }
+              ],
+              "must": [
+                {
+                  "knn": {
+                    "v": {
+                      "k": 2,
+                      "vector": [
+                        1,
+                        0,
+                        0
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
       "response": {
         "status": 200,
         "headers": {
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 3,
+          "took": 1,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -1327,34 +1049,24 @@
           },
           "hits": {
             "total": {
-              "value": 1,
+              "value": 0,
               "relation": "eq"
             },
-            "max_score": 3.0,
-            "hits": [
-              {
-                "_index": "compat-knn-search-innerproduct",
-                "_id": "4",
-                "_score": 3.0,
-                "_source": {
-                  "v": [
-                    2.0,
-                    2.0,
-                    2.0
-                  ],
-                  "tag": "b"
-                }
-              }
-            ]
+            "max_score": null,
+            "hits": []
           }
         }
       }
     },
     {
       "name": "inside bool should",
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
       "request": {
-        "method": "POST",
-        "path": "/compat-knn-search-innerproduct/_search",
         "body": {
           "query": {
             "bool": {
@@ -1362,12 +1074,12 @@
                 {
                   "knn": {
                     "v": {
+                      "k": 2,
                       "vector": [
                         1,
                         0,
                         0
-                      ],
-                      "k": 2
+                      ]
                     }
                   }
                 },
@@ -1379,21 +1091,17 @@
               ]
             }
           }
-        }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
       },
-      "normalise": [
-        {
-          "pointer": "/body/took",
-          "reason": "elapsed time"
-        }
-      ],
       "response": {
         "status": 200,
         "headers": {
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 3,
+          "took": 2,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -1403,57 +1111,70 @@
           },
           "hits": {
             "total": {
-              "value": 4,
+              "value": 5,
               "relation": "eq"
             },
-            "max_score": 4.0,
+            "max_score": 1.0,
             "hits": [
               {
-                "_index": "compat-knn-search-innerproduct",
-                "_id": "4",
-                "_score": 4.0,
+                "_index": "compat-knn-search-l2",
+                "_id": "1",
+                "_score": 1.0,
                 "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    0.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "2",
+                "_score": 1.0,
+                "_source": {
+                  "tag": "b",
+                  "v": [
+                    0.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "4",
+                "_score": 1.0,
+                "_source": {
+                  "tag": "b",
                   "v": [
                     2.0,
                     2.0,
                     2.0
-                  ],
-                  "tag": "b"
+                  ]
                 }
               },
               {
-                "_index": "compat-knn-search-innerproduct",
-                "_id": "1",
-                "_score": 2.0,
-                "_source": {
-                  "v": [
-                    1.0,
-                    0.0,
-                    0.0
-                  ],
-                  "tag": "a"
-                }
-              },
-              {
-                "_index": "compat-knn-search-innerproduct",
-                "_id": "2",
-                "_score": 1.0,
-                "_source": {
-                  "v": [
-                    0.0,
-                    1.0,
-                    0.0
-                  ],
-                  "tag": "b"
-                }
-              },
-              {
-                "_index": "compat-knn-search-innerproduct",
+                "_index": "compat-knn-search-l2",
                 "_id": "6",
                 "_score": 1.0,
                 "_source": {
-                  "v": null,
-                  "tag": "b"
+                  "tag": "b",
+                  "v": null
+                }
+              },
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "3",
+                "_score": 0.5,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    1.0,
+                    0.0
+                  ]
                 }
               }
             ]
@@ -1463,38 +1184,38 @@
     },
     {
       "name": "track_total_hits false",
-      "request": {
-        "method": "POST",
-        "path": "/compat-knn-search-innerproduct/_search",
-        "body": {
-          "query": {
-            "knn": {
-              "v": {
-                "vector": [
-                  1,
-                  0,
-                  0
-                ],
-                "k": 3
-              }
-            }
-          },
-          "track_total_hits": false
-        }
-      },
       "normalise": [
         {
           "pointer": "/body/took",
           "reason": "elapsed time"
         }
       ],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "k": 3,
+                "vector": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            }
+          },
+          "track_total_hits": false
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
       "response": {
         "status": 200,
         "headers": {
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 3,
+          "took": 1,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -1503,45 +1224,45 @@
             "failed": 0
           },
           "hits": {
-            "max_score": 3.0,
+            "max_score": 1.0,
             "hits": [
               {
-                "_index": "compat-knn-search-innerproduct",
-                "_id": "4",
-                "_score": 3.0,
-                "_source": {
-                  "v": [
-                    2.0,
-                    2.0,
-                    2.0
-                  ],
-                  "tag": "b"
-                }
-              },
-              {
-                "_index": "compat-knn-search-innerproduct",
+                "_index": "compat-knn-search-l2",
                 "_id": "1",
-                "_score": 2.0,
+                "_score": 1.0,
                 "_source": {
+                  "tag": "a",
                   "v": [
                     1.0,
                     0.0,
                     0.0
-                  ],
-                  "tag": "a"
+                  ]
                 }
               },
               {
-                "_index": "compat-knn-search-innerproduct",
+                "_index": "compat-knn-search-l2",
                 "_id": "3",
-                "_score": 2.0,
+                "_score": 0.5,
                 "_source": {
+                  "tag": "a",
                   "v": [
                     1.0,
                     1.0,
                     0.0
-                  ],
-                  "tag": "a"
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "2",
+                "_score": 0.33333334,
+                "_source": {
+                  "tag": "b",
+                  "v": [
+                    0.0,
+                    1.0,
+                    0.0
+                  ]
                 }
               }
             ]
@@ -1551,38 +1272,38 @@
     },
     {
       "name": "source false",
-      "request": {
-        "method": "POST",
-        "path": "/compat-knn-search-innerproduct/_search",
-        "body": {
-          "query": {
-            "knn": {
-              "v": {
-                "vector": [
-                  1,
-                  0,
-                  0
-                ],
-                "k": 2
-              }
-            }
-          },
-          "_source": false
-        }
-      },
       "normalise": [
         {
           "pointer": "/body/took",
           "reason": "elapsed time"
         }
       ],
+      "request": {
+        "body": {
+          "_source": false,
+          "query": {
+            "knn": {
+              "v": {
+                "k": 2,
+                "vector": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
       "response": {
         "status": 200,
         "headers": {
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 3,
+          "took": 1,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -1595,17 +1316,17 @@
               "value": 2,
               "relation": "eq"
             },
-            "max_score": 3.0,
+            "max_score": 1.0,
             "hits": [
               {
-                "_index": "compat-knn-search-innerproduct",
-                "_id": "4",
-                "_score": 3.0
+                "_index": "compat-knn-search-l2",
+                "_id": "1",
+                "_score": 1.0
               },
               {
-                "_index": "compat-knn-search-innerproduct",
-                "_id": "1",
-                "_score": 2.0
+                "_index": "compat-knn-search-l2",
+                "_id": "3",
+                "_score": 0.5
               }
             ]
           }
@@ -1614,37 +1335,37 @@
     },
     {
       "name": "explain-free score ties",
-      "request": {
-        "method": "POST",
-        "path": "/compat-knn-search-innerproduct/_search",
-        "body": {
-          "query": {
-            "knn": {
-              "v": {
-                "vector": [
-                  0,
-                  0,
-                  1
-                ],
-                "k": 4
-              }
-            }
-          }
-        }
-      },
       "normalise": [
         {
           "pointer": "/body/took",
           "reason": "elapsed time"
         }
       ],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "k": 4,
+                "vector": [
+                  0,
+                  0,
+                  1
+                ]
+              }
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
       "response": {
         "status": 200,
         "headers": {
           "content-type": "application/json; charset=UTF-8"
         },
         "body": {
-          "took": 3,
+          "took": 1,
           "timed_out": false,
           "_shards": {
             "total": 1,
@@ -1657,58 +1378,58 @@
               "value": 4,
               "relation": "eq"
             },
-            "max_score": 3.0,
+            "max_score": 0.33333334,
             "hits": [
               {
-                "_index": "compat-knn-search-innerproduct",
-                "_id": "4",
-                "_score": 3.0,
+                "_index": "compat-knn-search-l2",
+                "_id": "1",
+                "_score": 0.33333334,
                 "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    0.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "2",
+                "_score": 0.33333334,
+                "_source": {
+                  "tag": "b",
+                  "v": [
+                    0.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "3",
+                "_score": 0.25,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "4",
+                "_score": 0.1,
+                "_source": {
+                  "tag": "b",
                   "v": [
                     2.0,
                     2.0,
                     2.0
-                  ],
-                  "tag": "b"
-                }
-              },
-              {
-                "_index": "compat-knn-search-innerproduct",
-                "_id": "1",
-                "_score": 1.0,
-                "_source": {
-                  "v": [
-                    1.0,
-                    0.0,
-                    0.0
-                  ],
-                  "tag": "a"
-                }
-              },
-              {
-                "_index": "compat-knn-search-innerproduct",
-                "_id": "2",
-                "_score": 1.0,
-                "_source": {
-                  "v": [
-                    0.0,
-                    1.0,
-                    0.0
-                  ],
-                  "tag": "b"
-                }
-              },
-              {
-                "_index": "compat-knn-search-innerproduct",
-                "_id": "3",
-                "_score": 1.0,
-                "_source": {
-                  "v": [
-                    1.0,
-                    1.0,
-                    0.0
-                  ],
-                  "tag": "a"
+                  ]
                 }
               }
             ]
@@ -1718,9 +1439,8 @@
     },
     {
       "name": "no k, distance or score",
+      "normalise": [],
       "request": {
-        "method": "POST",
-        "path": "/compat-knn-search-innerproduct/_search",
         "body": {
           "query": {
             "knn": {
@@ -1733,9 +1453,10 @@
               }
             }
           }
-        }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
       },
-      "normalise": [],
       "response": {
         "status": 400,
         "headers": {
@@ -1758,26 +1479,26 @@
     },
     {
       "name": "k and min_score",
+      "normalise": [],
       "request": {
-        "method": "POST",
-        "path": "/compat-knn-search-innerproduct/_search",
         "body": {
           "query": {
             "knn": {
               "v": {
+                "k": 2,
+                "min_score": 0.5,
                 "vector": [
                   1,
                   0,
                   0
-                ],
-                "k": 2,
-                "min_score": 0.5
+                ]
               }
             }
           }
-        }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
       },
-      "normalise": [],
       "response": {
         "status": 400,
         "headers": {
@@ -1800,25 +1521,25 @@
     },
     {
       "name": "k zero",
+      "normalise": [],
       "request": {
-        "method": "POST",
-        "path": "/compat-knn-search-innerproduct/_search",
         "body": {
           "query": {
             "knn": {
               "v": {
+                "k": 0,
                 "vector": [
                   1,
                   0,
                   0
-                ],
-                "k": 0
+                ]
               }
             }
           }
-        }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
       },
-      "normalise": [],
       "response": {
         "status": 400,
         "headers": {
@@ -1841,25 +1562,25 @@
     },
     {
       "name": "k above the limit",
+      "normalise": [],
       "request": {
-        "method": "POST",
-        "path": "/compat-knn-search-innerproduct/_search",
         "body": {
           "query": {
             "knn": {
               "v": {
+                "k": 20000,
                 "vector": [
                   1,
                   0,
                   0
-                ],
-                "k": 20000
+                ]
               }
             }
           }
-        }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
       },
-      "normalise": [],
       "response": {
         "status": 400,
         "headers": {
@@ -1882,9 +1603,8 @@
     },
     {
       "name": "no vector",
+      "normalise": [],
       "request": {
-        "method": "POST",
-        "path": "/compat-knn-search-innerproduct/_search",
         "body": {
           "query": {
             "knn": {
@@ -1893,9 +1613,10 @@
               }
             }
           }
-        }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
       },
-      "normalise": [],
       "response": {
         "status": 400,
         "headers": {
@@ -1918,21 +1639,21 @@
     },
     {
       "name": "empty vector",
+      "normalise": [],
       "request": {
-        "method": "POST",
-        "path": "/compat-knn-search-innerproduct/_search",
         "body": {
           "query": {
             "knn": {
               "v": {
-                "vector": [],
-                "k": 2
+                "k": 2,
+                "vector": []
               }
             }
           }
-        }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
       },
-      "normalise": [],
       "response": {
         "status": 400,
         "headers": {
@@ -1943,11 +1664,11 @@
             "root_cause": [
               {
                 "type": "x_content_parse_exception",
-                "reason": "[1:33] [knn] failed to parse field [vector]"
+                "reason": "[1:39] [knn] failed to parse field [vector]"
               }
             ],
             "type": "x_content_parse_exception",
-            "reason": "[1:33] [knn] failed to parse field [vector]",
+            "reason": "[1:39] [knn] failed to parse field [vector]",
             "caused_by": {
               "type": "illegal_argument_exception",
               "reason": "[knn] field 'vector' requires to be non-null and non-empty"
@@ -1959,26 +1680,26 @@
     },
     {
       "name": "unknown parameter",
+      "normalise": [],
       "request": {
-        "method": "POST",
-        "path": "/compat-knn-search-innerproduct/_search",
         "body": {
           "query": {
             "knn": {
               "v": {
+                "bogus": 1,
+                "k": 2,
                 "vector": [
                   1,
                   0,
                   0
-                ],
-                "k": 2,
-                "bogus": 1
+                ]
               }
             }
           }
-        }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
       },
-      "normalise": [],
       "response": {
         "status": 400,
         "headers": {
@@ -1989,11 +1710,11 @@
             "root_cause": [
               {
                 "type": "x_content_parse_exception",
-                "reason": "[1:46] [knn] unknown field [bogus]"
+                "reason": "[1:23] [knn] unknown field [bogus]"
               }
             ],
             "type": "x_content_parse_exception",
-            "reason": "[1:46] [knn] unknown field [bogus]"
+            "reason": "[1:23] [knn] unknown field [bogus]"
           },
           "status": 400
         }
@@ -2001,25 +1722,25 @@
     },
     {
       "name": "non-numeric component",
+      "normalise": [],
       "request": {
-        "method": "POST",
-        "path": "/compat-knn-search-innerproduct/_search",
         "body": {
           "query": {
             "knn": {
               "v": {
+                "k": 2,
                 "vector": [
                   1,
                   "x",
                   0
-                ],
-                "k": 2
+                ]
               }
             }
           }
-        }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
       },
-      "normalise": [],
       "response": {
         "status": 400,
         "headers": {
@@ -2030,11 +1751,11 @@
             "root_cause": [
               {
                 "type": "x_content_parse_exception",
-                "reason": "[1:35] [knn] failed to parse field [vector]"
+                "reason": "[1:41] [knn] failed to parse field [vector]"
               }
             ],
             "type": "x_content_parse_exception",
-            "reason": "[1:35] [knn] failed to parse field [vector]",
+            "reason": "[1:41] [knn] failed to parse field [vector]",
             "caused_by": {
               "type": "number_format_exception",
               "reason": "For input string: \"x\""
@@ -2046,9 +1767,8 @@
     },
     {
       "name": "flat form",
+      "normalise": [],
       "request": {
-        "method": "POST",
-        "path": "/compat-knn-search-innerproduct/_search",
         "body": {
           "query": {
             "knn": {
@@ -2059,9 +1779,10 @@
               ]
             }
           }
-        }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
       },
-      "normalise": [],
       "response": {
         "status": 400,
         "headers": {
@@ -2084,16 +1805,16 @@
     },
     {
       "name": "empty knn",
+      "normalise": [],
       "request": {
-        "method": "POST",
-        "path": "/compat-knn-search-innerproduct/_search",
         "body": {
           "query": {
             "knn": {}
           }
-        }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
       },
-      "normalise": [],
       "response": {
         "status": 400,
         "headers": {
@@ -2116,23 +1837,6 @@
     },
     {
       "name": "wrong dimension",
-      "request": {
-        "method": "POST",
-        "path": "/compat-knn-search-innerproduct/_search",
-        "body": {
-          "query": {
-            "knn": {
-              "v": {
-                "vector": [
-                  1,
-                  0
-                ],
-                "k": 2
-              }
-            }
-          }
-        }
-      },
       "normalise": [
         {
           "pointer": "/body/error/failed_shards/*/node",
@@ -2143,10 +1847,31 @@
           "reason": "index uuid, generated"
         },
         {
+          "pointer": "/body/error/caused_by/index_uuid",
+          "reason": "index uuid, generated"
+        },
+        {
           "pointer": "/body/error/failed_shards/*/reason/index_uuid",
           "reason": "index uuid, generated"
         }
       ],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "k": 2,
+                "vector": [
+                  1,
+                  0
+                ]
+              }
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
       "response": {
         "status": 400,
         "headers": {
@@ -2158,8 +1883,8 @@
               {
                 "type": "query_shard_exception",
                 "reason": "failed to create query: Query vector has invalid dimension: 2. Dimension should be: 3",
-                "index": "compat-knn-search-innerproduct",
-                "index_uuid": "_4UHQk0HS0q8lSn9jF95dA"
+                "index": "compat-knn-search-l2",
+                "index_uuid": "lXL_bnyVRXKN8NVwXrKo5w"
               }
             ],
             "type": "search_phase_execution_exception",
@@ -2169,13 +1894,13 @@
             "failed_shards": [
               {
                 "shard": 0,
-                "index": "compat-knn-search-innerproduct",
+                "index": "compat-knn-search-l2",
                 "node": "TUgouUHURqOUTvVkqg25VA",
                 "reason": {
                   "type": "query_shard_exception",
                   "reason": "failed to create query: Query vector has invalid dimension: 2. Dimension should be: 3",
-                  "index": "compat-knn-search-innerproduct",
-                  "index_uuid": "_4UHQk0HS0q8lSn9jF95dA",
+                  "index": "compat-knn-search-l2",
+                  "index_uuid": "lXL_bnyVRXKN8NVwXrKo5w",
                   "caused_by": {
                     "type": "illegal_argument_exception",
                     "reason": "Query vector has invalid dimension: 2. Dimension should be: 3"
@@ -2186,8 +1911,8 @@
             "caused_by": {
               "type": "query_shard_exception",
               "reason": "failed to create query: Query vector has invalid dimension: 2. Dimension should be: 3",
-              "index": "compat-knn-search-innerproduct",
-              "index_uuid": "_4UHQk0HS0q8lSn9jF95dA",
+              "index": "compat-knn-search-l2",
+              "index_uuid": "lXL_bnyVRXKN8NVwXrKo5w",
               "caused_by": {
                 "type": "illegal_argument_exception",
                 "reason": "Query vector has invalid dimension: 2. Dimension should be: 3"
@@ -2200,24 +1925,6 @@
     },
     {
       "name": "unknown field",
-      "request": {
-        "method": "POST",
-        "path": "/compat-knn-search-innerproduct/_search",
-        "body": {
-          "query": {
-            "knn": {
-              "nope": {
-                "vector": [
-                  1,
-                  0,
-                  0
-                ],
-                "k": 2
-              }
-            }
-          }
-        }
-      },
       "normalise": [
         {
           "pointer": "/body/error/failed_shards/*/node",
@@ -2228,10 +1935,32 @@
           "reason": "index uuid, generated"
         },
         {
+          "pointer": "/body/error/caused_by/index_uuid",
+          "reason": "index uuid, generated"
+        },
+        {
           "pointer": "/body/error/failed_shards/*/reason/index_uuid",
           "reason": "index uuid, generated"
         }
       ],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "nope": {
+                "k": 2,
+                "vector": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
       "response": {
         "status": 400,
         "headers": {
@@ -2243,8 +1972,8 @@
               {
                 "type": "query_shard_exception",
                 "reason": "failed to create query: Field 'nope' is not knn_vector type.",
-                "index": "compat-knn-search-innerproduct",
-                "index_uuid": "_4UHQk0HS0q8lSn9jF95dA"
+                "index": "compat-knn-search-l2",
+                "index_uuid": "lXL_bnyVRXKN8NVwXrKo5w"
               }
             ],
             "type": "search_phase_execution_exception",
@@ -2254,13 +1983,13 @@
             "failed_shards": [
               {
                 "shard": 0,
-                "index": "compat-knn-search-innerproduct",
+                "index": "compat-knn-search-l2",
                 "node": "TUgouUHURqOUTvVkqg25VA",
                 "reason": {
                   "type": "query_shard_exception",
                   "reason": "failed to create query: Field 'nope' is not knn_vector type.",
-                  "index": "compat-knn-search-innerproduct",
-                  "index_uuid": "_4UHQk0HS0q8lSn9jF95dA",
+                  "index": "compat-knn-search-l2",
+                  "index_uuid": "lXL_bnyVRXKN8NVwXrKo5w",
                   "caused_by": {
                     "type": "illegal_argument_exception",
                     "reason": "Field 'nope' is not knn_vector type."
@@ -2271,8 +2000,8 @@
             "caused_by": {
               "type": "query_shard_exception",
               "reason": "failed to create query: Field 'nope' is not knn_vector type.",
-              "index": "compat-knn-search-innerproduct",
-              "index_uuid": "_4UHQk0HS0q8lSn9jF95dA",
+              "index": "compat-knn-search-l2",
+              "index_uuid": "lXL_bnyVRXKN8NVwXrKo5w",
               "caused_by": {
                 "type": "illegal_argument_exception",
                 "reason": "Field 'nope' is not knn_vector type."
@@ -2285,24 +2014,6 @@
     },
     {
       "name": "keyword field",
-      "request": {
-        "method": "POST",
-        "path": "/compat-knn-search-innerproduct/_search",
-        "body": {
-          "query": {
-            "knn": {
-              "tag": {
-                "vector": [
-                  1,
-                  0,
-                  0
-                ],
-                "k": 2
-              }
-            }
-          }
-        }
-      },
       "normalise": [
         {
           "pointer": "/body/error/failed_shards/*/node",
@@ -2313,10 +2024,32 @@
           "reason": "index uuid, generated"
         },
         {
+          "pointer": "/body/error/caused_by/index_uuid",
+          "reason": "index uuid, generated"
+        },
+        {
           "pointer": "/body/error/failed_shards/*/reason/index_uuid",
           "reason": "index uuid, generated"
         }
       ],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "tag": {
+                "k": 2,
+                "vector": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
       "response": {
         "status": 400,
         "headers": {
@@ -2328,8 +2061,8 @@
               {
                 "type": "query_shard_exception",
                 "reason": "failed to create query: Field 'tag' is not knn_vector type.",
-                "index": "compat-knn-search-innerproduct",
-                "index_uuid": "_4UHQk0HS0q8lSn9jF95dA"
+                "index": "compat-knn-search-l2",
+                "index_uuid": "lXL_bnyVRXKN8NVwXrKo5w"
               }
             ],
             "type": "search_phase_execution_exception",
@@ -2339,13 +2072,13 @@
             "failed_shards": [
               {
                 "shard": 0,
-                "index": "compat-knn-search-innerproduct",
+                "index": "compat-knn-search-l2",
                 "node": "TUgouUHURqOUTvVkqg25VA",
                 "reason": {
                   "type": "query_shard_exception",
                   "reason": "failed to create query: Field 'tag' is not knn_vector type.",
-                  "index": "compat-knn-search-innerproduct",
-                  "index_uuid": "_4UHQk0HS0q8lSn9jF95dA",
+                  "index": "compat-knn-search-l2",
+                  "index_uuid": "lXL_bnyVRXKN8NVwXrKo5w",
                   "caused_by": {
                     "type": "illegal_argument_exception",
                     "reason": "Field 'tag' is not knn_vector type."
@@ -2356,8 +2089,8 @@
             "caused_by": {
               "type": "query_shard_exception",
               "reason": "failed to create query: Field 'tag' is not knn_vector type.",
-              "index": "compat-knn-search-innerproduct",
-              "index_uuid": "_4UHQk0HS0q8lSn9jF95dA",
+              "index": "compat-knn-search-l2",
+              "index_uuid": "lXL_bnyVRXKN8NVwXrKo5w",
               "caused_by": {
                 "type": "illegal_argument_exception",
                 "reason": "Field 'tag' is not knn_vector type."

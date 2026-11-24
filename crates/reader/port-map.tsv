@@ -198,3 +198,7 @@ src/aggs/bucket/composite_tests.rs	new		tests of the composite parser, reduce an
 src/aggs/metric/resolve.rs	port	server/src/main/java/org/opensearch/search/aggregations/support/ValuesSourceConfig.java@3.10.0	resolve and ValuesSourceRegistry.getAggregator field checks, moved out of collect.rs
 src/aggs/bucket/terms_sub_order.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/BucketSelectionStrategy.java@3.10.0	the shard and reduce ordering of a numeric terms by a sub-aggregation: every bucket kept, ordered by the value, cut to the size
 src/aggs/bucket/keyword_partition_tests.rs	new		tests of a partition-based include of a keyword terms against the reference hash
+src/dsl/queries/knn.rs	new		the k-NN plugin's knn query parser, written to the answers the stock 3.10.0 node recorded (fixtures/compat/knn-search); its Java source is not in this repository
+src/dsl/queries/knn_tests.rs	new		tests of knn.rs, against messages recorded from the stock node
+src/knn/mod.rs	new		the knn query run over a shard's segments as Lucene's AbstractKnnVectorQuery.rewrite does; lucene-rust holds the search
+src/knn/tests.rs	new		knn queries over a three-segment shard with vectors

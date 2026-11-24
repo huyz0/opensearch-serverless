@@ -18,13 +18,13 @@ Parity plan R15, k-NN native, step 3 of four. Steps 1 to 2c store a vector the w
 - AC-1: for each space, the recorded `knn-search-*` search steps over documents the Rust writer indexed return the recorded ids, order, scores and totals, for `k`, `k` larger than the vectors, `size`, `from`, `filter`, a filter that matches nothing, `boost`, `bool` `must`/`should`, `track_total_hits: false` and a document with no vector or a `null` one.
 - AC-2: every recorded refusal gives the recorded status, `type` and `reason`.
 - AC-3: `min_score`, `max_distance` and the other parameters not served are refused with the unsupported message and no search runs.
-- AC-4: the `knn` query in `post_filter`, an aggregation filter, `count` and `validate` is refused as unsupported.
+- AC-4: a `knn` query in `post_filter`, and in any tree built without the search's answers (an aggregation filter, `validate`), is refused as unsupported; the mapping reads a vector field's `dimension` and no other field's.
 - AC-5: a field that is not a `knn_vector` (unmapped, keyword) and a vector of the wrong dimension fail as the plugin's `query_shard_exception`.
-- AC-6: an index with no knn query reads the same blobs and makes the same requests as before (the reader's request budgets are unchanged).
+- AC-6: a search without a `knn` query opens its segments where it did before and runs no vector search; the reader's request budgets are unchanged.
 
 ## S3 request budget
 
-The vector files are read with the segment's other files: `.vec`, `.vex` and `.vem` go through the same pooled range reads, so a `knn` search adds GETs only for the files of a field it searches and no round trip beyond the rank phase's. Measured by the existing budget tests staying green and one new one over a knn index.
+A search without a `knn` query is unchanged (the existing budget tests stay green). A `knn` search reads the vector files of the field it searches through the same pooled range reads as the segment's other files; their request count is not measured here (the emulator tests run in memory), so it is NOT-RUN until the first measurement over RustFS.
 
 ## Switch
 
