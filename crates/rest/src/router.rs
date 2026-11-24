@@ -19,6 +19,7 @@
 use std::sync::Arc;
 
 use crate::error::RestError;
+use crate::guard::Guard;
 use crate::method::{Method, MethodSet};
 use crate::request::Request;
 use crate::response::Response;
@@ -113,6 +114,7 @@ pub struct Router {
     routes: Vec<Route>,
     /// Prefix routes, tried only when no ordinary route has the path and method.
     prefixes: Vec<Route>,
+    guard: Option<Arc<dyn Guard>>,
 }
 
 /// Where a path and method lead.
@@ -133,6 +135,18 @@ impl Router {
     /// An empty table.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Puts `guard` in front of every request this router serves.
+    #[must_use]
+    pub fn with_guard(mut self, guard: Arc<dyn Guard>) -> Self {
+        self.guard = Some(guard);
+        self
+    }
+
+    /// The guard, if one is set.
+    pub(crate) fn guard(&self) -> Option<&dyn Guard> {
+        self.guard.as_deref()
     }
 
     /// Registers `handler` for `method` on `pattern` (such as
