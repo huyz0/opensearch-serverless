@@ -25,6 +25,13 @@ type Key = (String, u32);
 /// Whether a shard's head is released: index name and shard.
 pub type Unowned = Arc<dyn Fn(&str, u32) -> bool + Send + Sync>;
 
+/// The node a shard's head names as its owner, if any: index name and shard.
+pub type Owner = Arc<dyn Fn(&str, u32) -> Option<String> + Send + Sync>;
+
+/// How long an owner read is kept: short, because it exists to find a node
+/// that has just taken the shard.
+const OWNER_KEEP_MILLIS: i64 = 250;
+
 /// How long a verdict that a shard is unowned, or not, is kept.
 const UNOWNED_KEEP_MILLIS: i64 = 2_000;
 
@@ -51,6 +58,10 @@ pub struct TailFresh {
     unowned: Option<Unowned>,
     /// The verdicts of `unowned`, with when each was read.
     verdicts: Mutex<HashMap<Key, (i64, bool)>>,
+    /// Reads which node a shard's head names, when wired.
+    owner: Option<Owner>,
+    /// The reads of `owner`, with when each was made.
+    owners: Mutex<HashMap<Key, (i64, Option<String>)>>,
     checks: AtomicU64,
     refusals: AtomicU64,
     unreachable: AtomicU64,
@@ -75,6 +86,8 @@ impl TailFresh {
             asking: Mutex::new(HashMap::new()),
             unowned: None,
             verdicts: Mutex::new(HashMap::new()),
+            owner: None,
+            owners: Mutex::new(HashMap::new()),
             checks: AtomicU64::new(0),
             refusals: AtomicU64::new(0),
             unreachable: AtomicU64::new(0),
@@ -98,6 +111,35 @@ impl TailFresh {
     pub fn with_unowned(mut self, unowned: Unowned) -> Self {
         self.unowned = Some(unowned);
         self
+    }
+
+    /// This check with `owner` to read which node holds a shard now: the
+    /// writer that staged the commit a reader holds may have handed the
+    /// shard on, and then only its current owner can say how far the writes
+    /// it answered as refreshed went.
+    #[must_use]
+    pub fn with_owner(mut self, owner: Owner) -> Self {
+        self.owner = Some(owner);
+        self
+    }
+
+    /// The node the shard's head names, as last read within
+    /// `OWNER_KEEP_MILLIS`.
+    fn current_owner(&self, index: &str, uuid: &str, shard: u32) -> Option<String> {
+        let read = self.owner.as_ref()?;
+        let now = (self.clock)();
+        let mut owners = self.owners.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some((at, owner)) = owners.get(&(uuid.to_owned(), shard))
+            && now.saturating_sub(*at) < OWNER_KEEP_MILLIS
+        {
+            return owner.clone();
+        }
+        if owners.len() >= UNOWNED_KEPT {
+            owners.clear();
+        }
+        let owner = read(index, shard);
+        owners.insert((uuid.to_owned(), shard), (now, owner.clone()));
+        owner
     }
 
     /// Whether the shard's head is released, as last read within
@@ -270,6 +312,19 @@ impl TailFresh {
         }
         if commit_checkpoint >= claimed_through {
             return true;
+        }
+        // "Not this node's to say" while the head names another node: the
+        // writer that staged this commit handed the shard on, and the node
+        // that holds it now is the one that knows how far its writes went.
+        if claimed_through == i64::MAX
+            && let Some(owner) = self.current_owner(index, uuid, shard)
+            && owner != writer
+            && let Some(answer) = self.ask(index, uuid, shard, &owner, commit_checkpoint, CHECK)
+        {
+            claimed_through = answer.claimed_through;
+            if commit_checkpoint >= claimed_through {
+                return true;
+            }
         }
         // "Not this node's to say" with no node whose it is: the writer let
         // the shard go and its head is released, so nothing newer than the

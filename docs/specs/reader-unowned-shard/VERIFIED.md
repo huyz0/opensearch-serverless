@@ -5,3 +5,4 @@
 - AC-3: `the_head_is_read_once_for_searches_within_the_keep` in crates/node/tests/tail/tail_fresh.rs
 - AC-4: `with_no_head_reader_a_writer_that_does_not_hold_the_shard_refuses` in crates/node/tests/tail/tail_fresh.rs
 - AC-5: `a_fleet_that_gains_an_empty_node_with_hand_off_off` in crates/node/tests/hand_off_evidence.rs
+- AC-6: `a_writer_that_handed_the_shard_on_sends_the_search_to_its_owner` in crates/node/tests/tail/tail_fresh.rs
