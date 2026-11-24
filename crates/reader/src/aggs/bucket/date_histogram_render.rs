@@ -9,10 +9,15 @@ use crate::aggs::bucket::BUCKET_LIMIT;
 use crate::aggs::bucket::date_histogram::{DateHistogramResult, reduce_results};
 use crate::aggs::metric::date_text::write_date;
 use crate::aggs::partial::Format;
+use lucene_aggs::bucket_aggs::DateRounding;
 
 /// A key as the field's date format prints it in the aggregation's zone:
 /// the local time, then `Z` for a zero offset or `+hh:mm`.
-fn write_zoned(out: &mut dyn Write, key: i64, zone_ms: i64) -> io::Result<()> {
+fn write_zoned(out: &mut dyn Write, key: i64, rounding: &DateRounding) -> io::Result<()> {
+    // A region zone's offset is the one in force at the key.
+    let zone_ms = rounding
+        .region
+        .map_or(rounding.zone_ms, |r| r.offset_ms(key));
     if zone_ms == 0 {
         return write_date(out, key);
     }
@@ -43,7 +48,7 @@ pub fn write_date_histogram(
     let reduced = reduce_results(&[result], BUCKET_LIMIT)
         .map_err(|made| io::Error::other(format!("too many buckets: {made}")))?;
     let keyed = reduced.spec.keyed;
-    let zone = reduced.spec.rounding.zone_ms;
+    let zone = &reduced.spec.rounding;
     out.write_all(if keyed {
         b"\"buckets\":{"
     } else {

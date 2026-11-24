@@ -7,6 +7,7 @@
 //! the engine applied the write releases the shard, which reopens from the
 //! log. A bulk group is applied item by item and staged with one commit.
 
+mod buckets;
 mod capacity;
 mod dead_log_pass;
 mod dead_logs;
@@ -53,9 +54,9 @@ use publishing::Key;
 use redirect::Redirects;
 use slot::ShardSlot;
 
+pub use buckets::BucketWiring;
 pub use capacity::{
-    EVICT_AFTER_MILLIS, HAND_OFF_ENABLED, MAX_SHARDS, SETTINGS as CAPACITY_SETTINGS, ShardCap,
-    ShardCapStats,
+    EVICT_AFTER_MILLIS, MAX_SHARDS, SETTINGS as CAPACITY_SETTINGS, ShardCap, ShardCapStats,
 };
 pub use dead_log_pass::{
     DeadLogParts, DeadLogPass, DeadLogReport, DeadMailbox, DeadSnapshot, REAPERS,

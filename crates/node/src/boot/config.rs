@@ -98,6 +98,9 @@ pub struct NodeConfig {
     /// `serverless.janitor.dry_run`: count what the janitor would delete and
     /// delete nothing. Off by default.
     pub janitor_dry_run: bool,
+    /// `serverless.buckets.enabled`: own and publish a shard whose index
+    /// descriptor names a bucket through the bucket. Off by default.
+    pub buckets_enabled: bool,
     /// `serverless.activation.hibernate_after_millis`; 0 never hibernates.
     pub hibernate_after_millis: u64,
     /// `serverless.search.commit_push.enabled`: a published commit is pushed
@@ -227,6 +230,7 @@ impl NodeConfig {
         };
         let janitor_every_millis = bounded("OSS_JANITOR_EVERY_MS", "60000", 1, u64::MAX)?;
         let janitor_dry_run = flag("OSS_JANITOR_DRY_RUN", "false")?;
+        let buckets_enabled = flag("OSS_BUCKETS_ENABLED", "false")?;
         let tail_overlay = flag("OSS_TAIL_OVERLAY", "false")?;
         let commit_push = flag(
             "OSS_COMMIT_PUSH",
@@ -280,6 +284,7 @@ impl NodeConfig {
             orphan_slice_budget: usize::try_from(orphan_slice_budget).unwrap_or(0),
             orphan_slice_millis: u64::try_from(orphan_slice_millis).unwrap_or(u64::MAX),
             janitor_dry_run,
+            buckets_enabled,
             hibernate_after_millis,
             commit_push,
             give_back_after_millis,

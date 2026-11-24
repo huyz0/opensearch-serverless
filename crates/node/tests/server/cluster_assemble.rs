@@ -97,6 +97,7 @@ fn writer(store: &Arc<Emulator>) -> Writer {
         opener: None,
         names: None,
         incarnation: None,
+        buckets: None,
     }
 }
 

@@ -442,6 +442,7 @@ fn parse_source_body(
                     DslError::illegal("Invalid interval specified, must be non-null and non-empty")
                 })?,
                 zone_ms,
+                region: None,
                 offset,
             },
         },

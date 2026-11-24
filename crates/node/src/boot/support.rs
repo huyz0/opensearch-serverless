@@ -267,3 +267,47 @@ pub(super) fn own_lease(
     lease.node_log = inherited.to_vec();
     lease
 }
+
+/// The bucket wiring, only when `serverless.buckets.enabled` is on.
+pub(super) fn bucket_wiring(
+    config: &NodeConfig,
+    store: &Arc<dyn BlobStore>,
+    descriptors: &Arc<oss_meta::DescriptorStore>,
+    clock: &Arc<dyn LeaseClock>,
+) -> Option<Arc<crate::writer::BucketWiring>> {
+    if !config.buckets_enabled {
+        return None;
+    }
+    // The default write form: the compact encoding, compressed when it pays.
+    let write = oss_writer::bucket::settings::manifest_write(&oss_types::settings::Empty)
+        .unwrap_or(oss_writer::bucket::ManifestWrite::Json);
+    Some(Arc::new(crate::writer::BucketWiring::new(
+        Arc::clone(store),
+        &config.base,
+        Arc::clone(descriptors),
+        Arc::clone(clock),
+        write,
+    )))
+}
+
+/// The shard head store, routing bucketed members when the wiring is built.
+pub(super) fn head_store(
+    config: &NodeConfig,
+    store: &Arc<dyn BlobStore>,
+    clock: &Arc<dyn LeaseClock>,
+    oracle: &Arc<oss_cluster::LivenessOracle>,
+    buckets: Option<&Arc<crate::writer::BucketWiring>>,
+) -> Result<Arc<oss_cluster::heads::ShardHeadStore>, BootError> {
+    let mut heads = oss_cluster::heads::ShardHeadStore::new(
+        Arc::clone(store),
+        &config.base,
+        Arc::clone(clock),
+        config.lease_ttl_millis,
+        Arc::clone(oracle),
+    )
+    .map_err(cluster)?;
+    if let Some(buckets) = buckets {
+        heads = heads.with_bucket_heads(buckets.heads());
+    }
+    Ok(Arc::new(heads))
+}

@@ -232,6 +232,19 @@ fn the_janitor_deletes_unless_the_variable_makes_it_a_dry_run() {
 }
 
 #[test]
+fn the_buckets_switch_is_off_by_default_and_reads_a_flag() {
+    assert!(
+        !NodeConfig::from_lookup(lookup(FS))
+            .expect("valid")
+            .buckets_enabled
+    );
+    let on =
+        NodeConfig::from_lookup(lookup(&with(&[("OSS_BUCKETS_ENABLED", "true")]))).expect("valid");
+    assert!(on.buckets_enabled);
+    assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_BUCKETS_ENABLED", "yes")]))).is_err());
+}
+
+#[test]
 fn the_give_back_threshold_defaults_to_never_and_is_set_by_the_variable() {
     let c = NodeConfig::from_lookup(lookup(FS)).expect("valid");
     assert_eq!(c.give_back_after_millis, 0);
@@ -296,4 +309,28 @@ fn hand_off_is_off_by_default_and_set_by_its_variable() {
     let c = NodeConfig::from_lookup(lookup(&with(&[("OSS_HAND_OFF", "true")]))).expect("valid");
     assert!(c.hand_off);
     assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_HAND_OFF", "yes")]))).is_err());
+}
+
+#[test]
+fn a_node_with_the_switch_off_has_no_bucket_wiring() {
+    use oss_blob::{BlobStore, Emulator};
+    use oss_cluster::{LeaseClock, SystemClock};
+    use oss_meta::{DeleteMode, DescriptorStore};
+    use std::sync::Arc;
+
+    let store: Arc<dyn BlobStore> = Arc::new(Emulator::new(1 << 20, 1));
+    let clock: Arc<dyn LeaseClock> = Arc::new(SystemClock);
+    let descriptors = |c: &NodeConfig| {
+        Arc::new(
+            DescriptorStore::new(Arc::clone(&store), &c.base, DeleteMode::Tombstone)
+                .expect("store"),
+        )
+    };
+    let off = NodeConfig::from_lookup(lookup(FS)).expect("valid");
+    assert!(
+        crate::boot::support::bucket_wiring(&off, &store, &descriptors(&off), &clock).is_none()
+    );
+    let on =
+        NodeConfig::from_lookup(lookup(&with(&[("OSS_BUCKETS_ENABLED", "true")]))).expect("valid");
+    assert!(crate::boot::support::bucket_wiring(&on, &store, &descriptors(&on), &clock).is_some());
 }
