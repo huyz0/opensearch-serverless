@@ -276,3 +276,42 @@ fn errors_say_what_failed() {
     let mut input = Input::new(&[0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00]);
     assert_eq!(input.vlong("v").unwrap(), i64::MAX);
 }
+
+/// AC-1 of docs/specs/refresh-large-tail: a string of ASCII is its length
+/// and its bytes, and one that is not takes the same path both ways as
+/// before.
+#[test]
+fn ascii_and_mixed_strings_round_trip_on_the_same_bytes() {
+    let long = "alpha beta ".repeat(1000);
+    for text in [
+        "",
+        "a",
+        "{\"a\":1}",
+        long.as_str(),
+        "é",
+        "ab\u{e9}cd",
+        "a\u{20ac}",
+        "\u{1f600}x",
+    ] {
+        let mut buf = Vec::new();
+        Output::new(&mut buf, 1 << 20).string(text).unwrap();
+        let units = text.encode_utf16().count();
+        // The count is of UTF-16 units; ASCII is one byte each.
+        if text.is_ascii() {
+            let mut count = Vec::new();
+            Output::new(&mut count, 8)
+                .vint(i32::try_from(units).unwrap())
+                .unwrap();
+            assert_eq!(&buf[..count.len()], &count[..]);
+            assert_eq!(&buf[count.len()..], text.as_bytes(), "{text:?}");
+        }
+        let mut input = Input::new(&buf);
+        assert_eq!(input.string("a string").unwrap(), text);
+        input.finish("a string").unwrap();
+    }
+    // A run of ASCII cut short is refused, not read as far as it goes.
+    let mut buf = Vec::new();
+    Output::new(&mut buf, 64).string("abcdef").unwrap();
+    buf.pop();
+    assert!(Input::new(&buf).string("a string").is_err());
+}

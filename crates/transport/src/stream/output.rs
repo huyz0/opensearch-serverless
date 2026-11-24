@@ -143,6 +143,13 @@ impl<'a> Output<'a> {
     /// [`WireError::TooLarge`] past the limit, or for a string of more chars
     /// than a Java string holds.
     pub fn string(&mut self, value: &str) -> Result<(), WireError> {
+        if value.is_ascii() {
+            // One byte a char, the same bytes the loop below writes.
+            let count = i32::try_from(value.len())
+                .map_err(|_| WireError::too_large("a string", i32::MAX as usize, value.len()))?;
+            self.vint(count)?;
+            return self.bytes(value.as_bytes());
+        }
         let chars = value.encode_utf16().count();
         let count = i32::try_from(chars)
             .map_err(|_| WireError::too_large("a string", i32::MAX as usize, chars))?;
