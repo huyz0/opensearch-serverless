@@ -57,3 +57,17 @@ fn a_missing_pipeline_and_a_failing_one_are_told_apart() {
     assert_eq!(run.run("none", b"{}"), Err(IngestError::Missing));
     assert!(matches!(run.run("bad", b"{}"), Err(IngestError::Failed(_))));
 }
+
+#[test]
+fn a_stored_pipeline_that_does_not_compile_fails_the_item() {
+    let (set, docs) = setup();
+    // Stored around the route's validation, as an older build might have.
+    put(&docs, "old", r#"{"processors":[{"set":{"field":"a"}}]}"#);
+    let mut run = set.run();
+    let Err(IngestError::Failed(reason)) = run.run("old", b"{}") else {
+        panic!("a pipeline that does not compile fails");
+    };
+    assert!(!reason.is_empty());
+    // Asked again, it fails the same way from what the run kept.
+    assert!(matches!(run.run("old", b"{}"), Err(IngestError::Failed(_))));
+}

@@ -20,7 +20,7 @@ Not done here: an index's `default_pipeline` and `final_pipeline` settings, and 
 - AC-2: A missing or failing pipeline fails that item alone with 400. Test: `a_missing_or_failing_pipeline_fails_that_item_alone`.
 - AC-3: A delete skips its pipeline, and with no ingest a named pipeline is missing. Test: `a_delete_skips_its_pipeline_and_without_ingest_a_pipeline_is_missing`.
 
-- AC-4: A run reads the set once for the request and tells a missing pipeline from a failing one. Tests: `a_run_keeps_the_set_it_read_for_the_request`, `a_missing_pipeline_and_a_failing_one_are_told_apart`.
+- AC-4: A run reads the set once for the request and tells a missing pipeline from a failing one. Tests: `a_run_keeps_the_set_it_read_for_the_request`, `a_missing_pipeline_and_a_failing_one_are_told_apart`, `a_stored_pipeline_that_does_not_compile_fails_the_item`.
 - AC-5: A node with pipelines on runs the pipeline a bulk item or a `_doc` write names, and one with them off refuses it. Test: `a_write_runs_the_pipeline_it_names_only_when_pipelines_are_on`, `a_write_that_may_name_a_pipeline_reserves_the_run_s_buffers`.
 
 ## S3 request budget
