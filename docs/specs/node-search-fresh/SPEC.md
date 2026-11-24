@@ -18,7 +18,7 @@ Parity plan R9.3 (refresh semantics), search half. Builds on [reader-tail-fresh]
 - AC-1: a shard behind the claim its writer reports is refused as a 503 `shard_behind_exception` shard failure on `_search`.
 - AC-2: the same refusal on `_count` and `_msearch`.
 - AC-3: a shard at or above the claim answers.
-- AC-4: a shard written by this node, and a check with grants off, ask nothing.
+- AC-4: a check with grants off asks nothing; a shard written by this node is asked about like any (its reader receives its writer's tail no other way, [node-commit-push](../node-commit-push/SPEC.md) AC-7).
 
 ## Test plan
 

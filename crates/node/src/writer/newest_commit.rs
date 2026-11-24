@@ -8,6 +8,15 @@ impl WriterRole {
     /// for readers that ask. False, and nothing remembered, when the shard
     /// is not held or the manifest is over [`MAX_NEWEST_BYTES`].
     pub fn staged(&self, index_uuid: &str, shard: u32, manifest: &[u8]) -> bool {
+        self.stage_commit(index_uuid, shard, manifest, false)
+    }
+
+    /// [`Self::staged`] for the first publish of a shard taken over.
+    pub fn staged_taken(&self, index_uuid: &str, shard: u32, manifest: &[u8]) -> bool {
+        self.stage_commit(index_uuid, shard, manifest, true)
+    }
+
+    fn stage_commit(&self, index_uuid: &str, shard: u32, manifest: &[u8], taken: bool) -> bool {
         if manifest.len() > MAX_NEWEST_BYTES {
             return false;
         }
@@ -21,6 +30,10 @@ impl WriterRole {
         }
         // ALLOC: one manifest a held shard, at most MAX_NEWEST_BYTES.
         lock(&self.newest).insert(key, Arc::from(manifest));
+        drop(shards);
+        if let (Some(sink), Some(index)) = (self.commits.get(), self.names.name_of(index_uuid)) {
+            sink.published(&index, index_uuid, shard, manifest, taken);
+        }
         true
     }
 

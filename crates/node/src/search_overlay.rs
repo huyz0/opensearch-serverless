@@ -55,16 +55,6 @@ impl<S: BlobStore + 'static> SearchService<S> {
         let Some(writer) = held.stage.writer() else {
             return Ok(());
         };
-        if writer == self.node_id {
-            // A shard its own node writes holds every write; the records it
-            // holds for the overlay are taken now, as a serving reader's are,
-            // rather than when the builder gets to them.
-            if let Some(source) = self.overlay.get() {
-                let commit: Arc<dyn CommitAccess> = Arc::clone(held) as _;
-                source.apply_pending(&held.shard.meta.uuid, held.shard_no, &held.stage, &commit);
-            }
-            return Ok(());
-        }
         let uuid = &held.shard.meta.uuid;
         // The engine is known to the source before the writer is asked for
         // a subscription: a shard opened after refreshed writes would
@@ -89,6 +79,13 @@ impl<S: BlobStore + 'static> SearchService<S> {
         ) {
             return Ok(());
         }
+        // A shard that cannot hold its writer's tail (it ran out of room, or
+        // the engine refused a record) would refuse every search until its
+        // commit changed: letting it go makes the next search open it afresh,
+        // on the newest commit the node knows, and ask for the tail again.
+        let key = crate::search::open_shard::set_key(&held.index, held.shard_no);
+        let released = self.lock().release(&key);
+        drop(released);
         // ALLOC: error path; one box and the names.
         Err(Box::new(SearchError::on_shard(
             503,

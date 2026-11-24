@@ -1,4 +1,4 @@
-# 0031: A refused single-document write carries a Retry-After read from the write limiter
+# 0033: A refused single-document write carries a Retry-After read from the write limiter
 
 **Status:** Accepted after independent review of the change, 2026-11-24
 

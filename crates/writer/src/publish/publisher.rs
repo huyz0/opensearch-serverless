@@ -14,6 +14,7 @@ use oss_format::{
 
 use super::PublishError;
 use super::blob::SegmentBlob;
+use super::commit_register::{CommitRegister, OwnRegister};
 use super::names::segment_name;
 use super::packed::{PackPlacement, Packable};
 use super::register::{Known, Last, fence};
@@ -42,7 +43,7 @@ pub struct Published {
 pub struct ShardPublisher {
     pub(super) store: Arc<dyn BlobStore>,
     base: String,
-    pub(super) manifest_key: String,
+    pub(super) register: Arc<dyn CommitRegister>,
     pub(super) ids: IdGenerator,
     last: Option<Last>,
     pub(super) packs: Option<PackPlacement>,
@@ -71,15 +72,25 @@ impl ShardPublisher {
         base: &str,
         shard: &ShardRef<'_>,
     ) -> Result<Self, PublishError> {
+        let register = OwnRegister::new(Arc::clone(&store), shard.manifest_key(base)?);
         Ok(Self {
             store,
             base: shard.base_path(base)?,
-            manifest_key: shard.manifest_key(base)?,
+            // ALLOC: one register a publisher.
+            register: Arc::new(register),
             ids: IdGenerator::random(),
             last: None,
             packs: None,
             swap_deadline: Duration::from_millis(SWAP_DEADLINE_MILLIS),
         })
+    }
+
+    /// Records this shard's commits somewhere other than its own manifest
+    /// register: a bucket member's entry in its bucket's manifest. Set before
+    /// the first publish.
+    pub fn commit_register(&mut self, register: Arc<dyn CommitRegister>) {
+        self.register = register;
+        self.last = None;
     }
 
     /// Sends this shard's next publishes' small segment blobs to node packs
@@ -166,10 +177,7 @@ impl ShardPublisher {
                 self.last = None;
                 return Err(PublishError::PackExpired);
             }
-            match self
-                .store
-                .swap_register(&self.manifest_key, generation, &manifest)?
-            {
+            match self.register.swap(generation, &manifest)? {
                 SwapOutcome::Applied(now) => {
                     self.last = Some(Last {
                         generation: now,

@@ -100,6 +100,11 @@ pub struct NodeConfig {
     pub janitor_dry_run: bool,
     /// `serverless.activation.hibernate_after_millis`; 0 never hibernates.
     pub hibernate_after_millis: u64,
+    /// `serverless.search.commit_push.enabled`: a published commit is pushed
+    /// to the other readers of its shard. On by default, off by default when the
+    /// tail overlay is on (the overlay serves freshness, and the push made its
+    /// readers reopen cold).
+    pub commit_push: bool,
     /// `serverless.activation.give_back_after_millis`; 0 never gives back.
     pub give_back_after_millis: u64,
     /// `serverless.activation.max_shards`; 0 is no cap.
@@ -221,6 +226,10 @@ impl NodeConfig {
         let janitor_every_millis = bounded("OSS_JANITOR_EVERY_MS", "60000", 1, u64::MAX)?;
         let janitor_dry_run = flag("OSS_JANITOR_DRY_RUN", "false")?;
         let tail_overlay = flag("OSS_TAIL_OVERLAY", "false")?;
+        let commit_push = flag(
+            "OSS_COMMIT_PUSH",
+            if tail_overlay { "false" } else { "true" },
+        )?;
         let proactive_takeover = flag("OSS_PROACTIVE_TAKEOVER", "true")?;
         let hibernate_after_millis = bounded("OSS_HIBERNATE_AFTER_MS", "0", 0, 604_800_000)?;
         let give_back_after_millis = bounded("OSS_GIVE_BACK_AFTER_MS", "0", 0, 86_400_000)?;
@@ -269,6 +278,7 @@ impl NodeConfig {
             orphan_slice_millis: u64::try_from(orphan_slice_millis).unwrap_or(u64::MAX),
             janitor_dry_run,
             hibernate_after_millis,
+            commit_push,
             give_back_after_millis,
             max_shards: usize::try_from(max_shards).unwrap_or(0),
             evict_after_millis,

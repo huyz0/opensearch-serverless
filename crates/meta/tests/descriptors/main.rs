@@ -13,6 +13,8 @@ mod budgets;
 mod changes;
 mod cluster_config;
 mod counts;
+mod doc_cache;
+mod doc_sets;
 mod index_lifecycle;
 mod lifecycle;
 mod listing;

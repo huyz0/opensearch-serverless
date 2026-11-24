@@ -49,6 +49,7 @@ pub struct Cluster {
     endpoint: String,
     ttl: u64,
     nodes: Vec<Option<Node>>,
+    ids: Vec<String>,
     settings: Vec<(String, String)>,
     _backing: Backing,
 }
@@ -150,6 +151,7 @@ impl Cluster {
                 endpoint,
                 ttl: ttl_ms,
                 nodes: Vec::new(),
+                ids: Vec::new(),
                 settings: Vec::new(),
                 _backing: backing,
             });
@@ -162,6 +164,7 @@ impl Cluster {
             endpoint: server.endpoint(),
             ttl: ttl_ms,
             nodes: Vec::new(),
+            ids: Vec::new(),
             settings: Vec::new(),
             _backing: Backing::Emulated(server),
         })
@@ -203,6 +206,7 @@ impl Cluster {
     pub fn add(&mut self, id: &str) -> usize {
         let node = start(&self.config(id)).expect("the node starts");
         self.nodes.push(Some(node));
+        self.ids.push(id.to_owned());
         self.nodes.len().saturating_sub(1)
     }
 
@@ -218,6 +222,22 @@ impl Cluster {
             Backing::Emulated(server) => server.store().meter().count(op),
             Backing::RustFs(..) => panic!("RustFS has no meter"),
         }
+    }
+
+    /// The slot of the node the head of `index` shard `shard` names as its
+    /// owner, read from the emulated store; `None` before any take, or when
+    /// the owner is not one of this cluster's nodes.
+    pub fn owner_slot(&self, index: &str, shard: u32) -> Option<usize> {
+        use oss_blob::BlobStore;
+        let Backing::Emulated(server) = &self._backing else {
+            panic!("the owner is read from the emulator");
+        };
+        let key = oss_cluster::heads::shard_head_key("", index, shard);
+        let mut buf = vec![0u8; 1 << 16];
+        let read = server.store().read_register(&key, &mut buf).ok()??;
+        let head = oss_format::ShardHead::parse(buf.get(..read.len)?).ok()?;
+        let owner = head.owner_node_id?;
+        self.ids.iter().position(|id| *id == owner)
     }
 
     /// The slots whose node runs.

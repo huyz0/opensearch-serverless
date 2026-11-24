@@ -79,7 +79,7 @@ pub use publish_age::publish_age_of;
 pub use publish_timer::PublishTimer;
 pub use publishing::{PublishPass, Publishing};
 pub use routes::Routes;
-pub use tail::{RefreshVisibility, TailSink};
+pub use tail::{CommitSink, RefreshVisibility, TailSink};
 pub use takeover::Takeover;
 pub use target::RoleTarget;
 pub use tombstone_pass::{DeleteProbe, TombstoneParts, TombstonePass, TombstoneReport};
@@ -119,6 +119,8 @@ pub struct WriterRole {
     newest: Mutex<Newest>,
     publishing: Option<Publishing>,
     tail: OnceLock<Arc<dyn TailSink>>,
+    /// Told of every commit a publish stages.
+    commits: OnceLock<Arc<dyn CommitSink>>,
     /// How far a refresh is made visible before it returns; the code of a
     /// [`RefreshVisibility`].
     visibility: AtomicU8,
@@ -161,6 +163,7 @@ impl WriterRole {
             newest: Mutex::new(HashMap::new()),
             publishing: None,
             tail: OnceLock::new(),
+            commits: OnceLock::new(),
             visibility: AtomicU8::new(0),
             opener: None,
             opening: Mutex::new(()),

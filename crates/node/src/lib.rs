@@ -24,6 +24,8 @@ pub mod cluster_live;
 pub mod cluster_owner;
 #[cfg(feature = "writer")]
 pub mod cluster_route;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod commit_push;
 #[cfg(feature = "writer")]
 pub mod descriptor_routes;
 #[cfg(feature = "writer")]

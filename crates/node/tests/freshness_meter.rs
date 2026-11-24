@@ -168,6 +168,11 @@ fn a_write_is_visible_on_the_other_nodes_within_the_shells_bar() {
         println!("FRESHMETER|lease refresh={ms} ms");
         cluster.set("OSS_LEASE_REFRESH_MS", &ms);
     }
+    // `METER_PUSH`: `false` turns the commit push off.
+    if let Ok(push) = std::env::var("METER_PUSH") {
+        println!("FRESHMETER|commit push={push}");
+        cluster.set("OSS_COMMIT_PUSH", &push);
+    }
     for id in ["n1", "n2", "n3"] {
         cluster.add(id);
     }
