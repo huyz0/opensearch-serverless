@@ -70,8 +70,7 @@ pub struct Config {
     pub snapshots: bool,
     /// Whether a snapshot can be taken: `serverless.snapshots.take.enabled`, beside `snapshots`.
     pub snapshots_take: bool,
-    /// `serverless.plugins.upstreams`: Java nodes that serve the plugins not
-    /// ported; none, the default, proxies nothing.
+    /// `serverless.plugins.upstreams`: Java nodes serving unported plugins; none proxies nothing.
     pub plugin_upstreams: Vec<String>,
     /// `serverless.plugins.max_request_bytes`: the most a proxied body may be.
     pub plugin_max_request_bytes: u64,
