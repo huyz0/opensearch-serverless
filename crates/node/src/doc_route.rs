@@ -11,6 +11,7 @@ use oss_writer::bulk::{Action, Bulk, IdGenerator, Kind, Op, doc_status, write_do
 use oss_writer::index::{Expect, MATCH_ANY, VersionType};
 
 use crate::bulk_route::refresh;
+use crate::ingest_run::IngestPipelines;
 use crate::writer::{RoleTarget, WriterRole};
 
 /// What an index or create request takes.
@@ -43,6 +44,7 @@ const UNASSIGNED: i64 = -2;
 pub struct DocService {
     role: Arc<WriterRole>,
     ids: Mutex<IdGenerator>,
+    ingest: Option<Arc<IngestPipelines>>,
 }
 
 fn now_millis() -> u64 {
@@ -87,7 +89,16 @@ impl DocService {
         Self {
             role,
             ids: Mutex::new(IdGenerator::new(0, address)),
+            ingest: None,
         }
+    }
+
+    /// The same service running the pipeline a request names, from `ingest`
+    /// when there is one.
+    #[must_use]
+    pub fn with_ingest(mut self, ingest: Option<Arc<IngestPipelines>>) -> Self {
+        self.ingest = ingest;
+        self
     }
 
     /// The request's body, held whole and charged to the request-body pool.
@@ -143,7 +154,21 @@ impl DocService {
         };
         let mut target = RoleTarget::new(&self.role);
         let mut ids = self.ids.lock().unwrap_or_else(PoisonError::into_inner);
+        let names = action
+            .pipeline
+            .as_deref()
+            .is_some_and(|p| p != "_none" && kind != Kind::Delete);
+        let mut pipelines = match (&self.ingest, names) {
+            (Some(set), true) => {
+                req.body().reserve(set.reserve_bytes())?;
+                Some(set.run())
+            }
+            _ => None,
+        };
         let mut run = Bulk::new(&mut target, &mut ids, now_millis(), refresh);
+        if let Some(pipelines) = pipelines.as_mut() {
+            run = run.with_ingest(pipelines);
+        }
         run.slice(&[Op { action, source }])?;
         let items = run.finish()?;
         let Some(item) = items.first() else {

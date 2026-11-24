@@ -113,6 +113,7 @@ src/commit_push/tests.rs	new		tests of the commit sink
 src/writer/capacity.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/reconcile/ShardEviction.java	the shard cap and making room for one shard (makeRoom); handing off to a member with room, headroom and pinned indexes are not ported yet
 src/writer/buckets.rs	new		the bucket wiring: descriptor-backed bucket heads and each member shard commit register, built only with the buckets switch on
 src/index_templates.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/indexadmin/IndexCreateRequest.java	template application at create over the cached template sets
+src/ingest_run.rs	new		the ingest pipelines a write runs: one snapshot of the set a request, pipelines compiled once; the Java has the ingest service in OpenSearch core
 src/index_assemble.rs	new		builds the index service a node serves creates with from its settings
 src/knn_setting.rs	new		the node setting that accepts the knn_vector type; the shell has it by installing the k-NN plugin
 src/template_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/TemplateHandler.java	the _index_template and _component_template routes over the document sets

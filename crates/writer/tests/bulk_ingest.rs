@@ -68,6 +68,7 @@ impl Ingest for Fake {
         match id {
             "up" => Ok(source.to_ascii_uppercase()),
             "bad" => Err(IngestError::Failed("it broke".into())),
+            "down" => Err(IngestError::Unavailable("store is down".into())),
             _ => Err(IngestError::Missing),
         }
     }
@@ -107,7 +108,11 @@ fn run(body: &str, with: bool) -> (Value, Vec<(String, String)>, usize) {
     };
     let mut out = Vec::new();
     write_response(&mut out, 0, &items).unwrap();
-    (serde_json::from_slice(&out).unwrap(), target.applied, fake.calls)
+    (
+        serde_json::from_slice(&out).unwrap(),
+        target.applied,
+        fake.calls,
+    )
 }
 
 fn item(id: &str, pipeline: &str) -> String {
@@ -131,7 +136,13 @@ fn the_document_a_pipeline_made_is_the_one_applied() {
 
 #[test]
 fn a_missing_or_failing_pipeline_fails_that_item_alone() {
-    let body = format!("{}{}{}", item("1", "nope"), item("2", "bad"), item("3", "up"));
+    let body = format!(
+        "{}{}{}{}",
+        item("1", "nope"),
+        item("2", "bad"),
+        item("3", "up"),
+        item("4", "down")
+    );
     let (response, applied, _) = run(&body, true);
     let items = response["items"].as_array().unwrap();
     assert_eq!(response["errors"], true);
@@ -143,6 +154,8 @@ fn a_missing_or_failing_pipeline_fails_that_item_alone() {
     assert_eq!(items[1]["index"]["status"], 400);
     assert_eq!(items[1]["index"]["error"]["reason"], "it broke");
     assert_eq!(items[2]["index"]["status"], 201);
+    assert_eq!(items[3]["index"]["status"], 500);
+    assert_eq!(items[3]["index"]["error"]["reason"], "store is down");
     assert_eq!(applied.len(), 1);
 }
 

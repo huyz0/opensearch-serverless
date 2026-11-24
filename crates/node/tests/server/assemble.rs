@@ -425,3 +425,56 @@ fn the_pipeline_routes_are_served_only_when_pipelines_are_on() {
     let got = call(&r, "GET", "/_ingest/pipeline/p", None);
     assert!(got.text().contains("trim"), "{}", got.text());
 }
+
+#[test]
+fn a_write_runs_the_pipeline_it_names_only_when_pipelines_are_on() {
+    let on = Config {
+        ingest_pipelines: true,
+        ..config()
+    };
+    let (r, store) = start_with(on, 256 << 20);
+    store
+        .create_register(
+            "indices/docs",
+            br#"{"name":"docs","uuid":"docs-uuid","number_of_shards":1,"mapping":"{\"properties\":{\"n\":{\"type\":\"integer\"}}}","settings":{}}"#,
+        )
+        .expect("descriptor");
+    let made = call(
+        &r,
+        "PUT",
+        "/_ingest/pipeline/seven",
+        Some(r#"{"processors":[{"set":{"field":"n","value":7}}]}"#),
+    );
+    assert_eq!(made.status, 200, "{}", made.text());
+    let bulk = concat!(
+        "{\"index\":{\"_id\":\"1\",\"pipeline\":\"seven\"}}\n{\"n\":1}\n",
+        "{\"index\":{\"_id\":\"2\",\"pipeline\":\"nope\"}}\n{\"n\":2}\n",
+        "{\"index\":{\"_id\":\"3\"}}\n{\"n\":3}\n",
+    );
+    let put = call(&r, "POST", "/docs/_bulk", Some(bulk));
+    assert_eq!(put.status, 200, "{}", put.text());
+    assert!(
+        put.text()
+            .contains("pipeline with id [nope] does not exist"),
+        "{}",
+        put.text()
+    );
+    let one = call(&r, "GET", "/docs/_doc/1", None);
+    assert!(one.text().contains("\"n\":7"), "{}", one.text());
+    assert!(call(&r, "GET", "/docs/_doc/2", None).status == 404);
+    let three = call(&r, "GET", "/docs/_doc/3", None);
+    assert!(three.text().contains("\"n\":3"), "{}", three.text());
+    let single = call(&r, "PUT", "/docs/_doc/4?pipeline=seven", Some(r#"{"n":4}"#));
+    assert_eq!(single.status, 201, "{}", single.text());
+    let four = call(&r, "GET", "/docs/_doc/4", None);
+    assert!(four.text().contains("\"n\":7"), "{}", four.text());
+
+    let (off, _) = start(256 << 20);
+    let refused = call(
+        &off,
+        "PUT",
+        "/docs/_doc/5?pipeline=seven",
+        Some(r#"{"n":5}"#),
+    );
+    assert_eq!(refused.status, 400, "{}", refused.text());
+}

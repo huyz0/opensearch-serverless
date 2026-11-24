@@ -12,6 +12,7 @@ use crate::index::{Refused, Written, validation_failed};
 
 use super::action::Kind;
 use super::ids::IdGenerator;
+use super::ingest::{Ingest, IngestError};
 use super::reader::Op;
 use super::response::{Item, ItemResult, mapping_failure, mapping_status, shard_failure};
 use super::validate;
@@ -106,28 +107,6 @@ pub trait Target {
         shard: u32,
         group: &[Planned<'_>],
     ) -> Vec<ItemResult>;
-}
-
-/// Why a pipeline did not produce a document.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum IngestError {
-    /// No pipeline has this id.
-    Missing,
-    /// A processor failed the document; the text is its message.
-    Failed(String),
-}
-
-/// Runs ingest pipelines for one bulk. An implementation is made for the
-/// request and may hold what it read (a snapshot of the pipelines) until the
-/// request ends, so a bulk reads the pipeline store once, not once an item.
-pub trait Ingest {
-    /// Runs pipeline `id` over `source` and answers the document to index.
-    ///
-    /// # Errors
-    ///
-    /// [`IngestError::Missing`] for an unknown pipeline, or the failure of
-    /// a processor, which fails that item alone.
-    fn run(&mut self, id: &str, source: &[u8]) -> Result<Vec<u8>, IngestError>;
 }
 
 /// A bulk request in progress.
@@ -415,12 +394,22 @@ impl<'t, T: Target> Bulk<'t, T> {
             match outcome {
                 Some(Ok(made)) => *source = Some(made),
                 Some(Err(e)) => {
-                    let reason = match e {
-                        // ALLOC: error path; one message.
-                        IngestError::Missing => format!("pipeline with id [{p}] does not exist"),
-                        IngestError::Failed(reason) => reason,
+                    item.result = match e {
+                        IngestError::Missing => fail(
+                            400,
+                            Exception::new(
+                                "illegal_argument_exception",
+                                // ALLOC: error path; one message.
+                                format!("pipeline with id [{p}] does not exist"),
+                            ),
+                        ),
+                        IngestError::Failed(reason) => {
+                            fail(400, Exception::new("illegal_argument_exception", reason))
+                        }
+                        IngestError::Unavailable(reason) => {
+                            fail(500, Exception::new("illegal_state_exception", reason))
+                        }
                     };
-                    item.result = fail(400, Exception::new("illegal_argument_exception", reason));
                     return (item, None);
                 }
                 None => {}

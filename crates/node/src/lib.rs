@@ -50,6 +50,8 @@ pub mod index_delete;
 pub mod index_route;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub mod index_templates;
+#[cfg(feature = "writer")]
+pub mod ingest_run;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub mod knn_setting;
 #[cfg(all(feature = "reader", feature = "writer"))]
