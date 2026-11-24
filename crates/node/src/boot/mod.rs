@@ -23,7 +23,6 @@ use oss_cluster::transport_secret::{CachedTransportSecrets, TransportSecretStore
 use oss_cluster::{
     EarlyRevoke, LeaseClock, LeaseConfig, LivenessOracle, Membership, SystemClock, TcpProbe,
 };
-use oss_format::NodeLease;
 use oss_mem::MemoryBudget;
 use oss_meta::{ChangeStripes, DeleteMode, DescriptorStore};
 use oss_rest::ServerConfig;
@@ -238,14 +237,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         .advertise
         .clone()
         .unwrap_or_else(|| transport_server.address().to_string());
-    let mut lease = NodeLease::new(&config.node_id, &ephemeral, &advertise, 0);
-    lease.version = Some(format!(
-        "{}{}",
-        crate::read_forward::BUILD_PREFIX,
-        env!("CARGO_PKG_VERSION")
-    ));
-    lease.set_roles(ROLES.map(str::to_owned));
-    lease.node_log = inherited.clone();
+    let lease = support::own_lease(config, &ephemeral, &advertise, &inherited);
 
     let oracle = Arc::new(LivenessOracle::new(Arc::clone(&membership)));
     let heads = Arc::new(
@@ -266,8 +258,12 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     let log =
         NodeLogStore::new(Arc::clone(&store), &config.base, &config.node_id).map_err(cluster)?;
     let lease_for_enrolment = lease.clone();
+    // What the lease tells peers this node holds; the renewal thread keeps it.
+    let load = Arc::new(crate::writer::LoadReport::default());
     let keeper = Arc::new(LeaseKeeper::new(
-        Box::new(MembershipLeaseWrite::new(Arc::clone(&membership), lease)),
+        Box::new(
+            MembershipLeaseWrite::new(Arc::clone(&membership), lease).with_load(Arc::clone(&load)),
+        ),
         log.clone(),
         inherited,
     ));
@@ -419,6 +415,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     let listener = TcpListener::bind(config.http)
         .map_err(|e| BootError::Bind(format!("{}: {e}", config.http)))?;
     let role = Arc::clone(&assembled.role);
+    let fleet = support::FleetTick::new(&role, load, &clock, config);
     let running = assembled
         .start(listener, ServerConfig::default(), &budget)
         .map_err(BootError::Assemble)?;
@@ -432,6 +429,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     let renewal = Renewal::spawn(cadence.tick_every(), move || {
         let now = Instant::now();
         if cadence.renew_due(now) {
+            fleet.renewing();
             let _ = keeper.renew(&committer);
         }
         if cadence.refresh_due(now)
@@ -439,6 +437,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         {
             cadence.refreshed(now);
             proactive.on_refresh(&refreshed, taking_clock.now_millis());
+            fleet.refreshed(&renewing);
             posting.post(DeadSnapshot {
                 live: refreshed.live,
                 dead: refreshed.dead_with_epochs,

@@ -1,12 +1,28 @@
 //! A cap on the shards this node holds, and making room under it.
 
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
-use oss_types::settings::{LongSetting, Scope, Setting};
+use oss_types::settings::{BoolSetting, LongSetting, Scope, Setting};
+
+use oss_cluster::placement::{FleetView, HAND_OFF_DOWN_TO_MEAN, Holding};
+use oss_format::NodeLease;
 
 use super::{Key, OpenRefused, ShardSlot, WriterRole, lock, now_millis};
 use oss_writer::bulk::IndexInfo;
 use std::sync::{Arc, Mutex};
+
+/// How far below its cap a node handing off lets go to, as a share of it.
+pub const HAND_OFF_DOWN_TO: f64 = 0.8;
+
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+fn floor_of(cap: usize, share: f64) -> usize {
+    (cap as f64 * share).floor() as usize
+}
+
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+fn ceil_of(value: f64) -> usize {
+    value.max(0.0).ceil() as usize
+}
 
 /// `serverless.activation.max_shards`: how many shards this node holds
 /// before it makes room or refuses. Default 0, no cap.
@@ -32,8 +48,23 @@ pub const EVICT_AFTER_MILLIS: LongSetting = LongSetting::new(
      another, in milliseconds. 0 never lets one go: the node at its cap refuses.",
 );
 
+/// `serverless.activation.hand_off.enabled`: hand idle shards to a member
+/// with room. Default false.
+pub const HAND_OFF_ENABLED: BoolSetting = BoolSetting::new(
+    "serverless.activation.hand_off.enabled",
+    false,
+    Scope::Node,
+    "Whether a writer node nearly at its shard cap, or far above the fleet's mean, lets go of \
+     idle shards so a member with room takes them on its next write. Off until measured to cost \
+     nothing it saves.",
+);
+
 /// Every setting this module defines, for the node's registry.
-pub static SETTINGS: &[&Setting] = &[MAX_SHARDS.setting(), EVICT_AFTER_MILLIS.setting()];
+pub static SETTINGS: &[&Setting] = &[
+    MAX_SHARDS.setting(),
+    EVICT_AFTER_MILLIS.setting(),
+    HAND_OFF_ENABLED.setting(),
+];
 
 /// The cap on held shards and when one may be given up for another.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -55,6 +86,8 @@ pub struct ShardCapStats {
     pub refused: u64,
     /// Shards given up to make room.
     pub evicted_for_room: u64,
+    /// Shards handed to a member with room.
+    pub handed_off: u64,
 }
 
 /// What a role counts at its cap.
@@ -62,6 +95,9 @@ pub struct ShardCapStats {
 pub(super) struct Counters {
     refused: AtomicU64,
     evicted: AtomicU64,
+    handed_off: AtomicU64,
+    /// Whether idle shards are handed to a member with room.
+    hand_off: AtomicBool,
 }
 
 impl WriterRole {
@@ -77,7 +113,66 @@ impl WriterRole {
             held: lock(&self.shards).len(),
             refused: self.counters.refused.load(Ordering::Relaxed),
             evicted_for_room: self.counters.evicted.load(Ordering::Relaxed),
+            handed_off: self.counters.handed_off.load(Ordering::Relaxed),
         }
+    }
+
+    /// Whether this node hands idle shards to a member with room.
+    pub fn set_hand_off(&self, on: bool) {
+        self.counters.hand_off.store(on, Ordering::Relaxed);
+    }
+
+    /// Hands idle shards off as the fleet's leases `members` say at
+    /// `lease_now` (their clock) with lease lifetime `ttl_millis`; how many
+    /// were let go. Nearly full with a member that has room: down to
+    /// [`HAND_OFF_DOWN_TO`] of the cap. Far above the fleet's mean with a
+    /// member below it: down to [`HAND_OFF_DOWN_TO_MEAN`] times the mean. At
+    /// most a tenth of the cap, and at least one, a pass. Nothing with the
+    /// setting off, no cap, or no eviction grace.
+    pub fn hand_off(
+        &self,
+        members: &[NodeLease],
+        lease_now: i64,
+        ttl_millis: i64,
+        local: &str,
+    ) -> usize {
+        let Some(cap) = self
+            .cap
+            .get()
+            .filter(|c| c.max > 0 && c.evict_after_millis > 0)
+        else {
+            return 0;
+        };
+        if !self.counters.hand_off.load(Ordering::Relaxed) {
+            return 0;
+        }
+        let held = lock(&self.shards).len();
+        let view = FleetView {
+            members,
+            now: lease_now,
+            ttl: ttl_millis,
+            local,
+            holding: Holding {
+                held: i32::try_from(held).unwrap_or(i32::MAX),
+                cap: i32::try_from(cap.max).unwrap_or(i32::MAX),
+            },
+        };
+        let floor = if view.nearly_full() && view.member_with_room().is_some() {
+            floor_of(cap.max, HAND_OFF_DOWN_TO)
+        } else if view.above_fleet_share() && view.member_below_mean().is_some() {
+            ceil_of(view.fleet_mean_held() * HAND_OFF_DOWN_TO_MEAN)
+        } else {
+            return 0;
+        };
+        let most = (cap.max / 10).max(1);
+        let mut handed = 0usize;
+        while handed < most && lock(&self.shards).len() > floor {
+            if !self.evict_one(now_millis(), true) {
+                break;
+            }
+            handed = handed.saturating_add(1);
+        }
+        handed
     }
 
     /// Room for one more shard under the cap, made by letting idle shards
@@ -105,14 +200,20 @@ impl WriterRole {
     /// only if nothing reached it meanwhile, and its head is given back; a
     /// head that cannot be given back stays this node's, the shard asleep.
     pub fn make_room(&self, now_millis: u64) -> usize {
+        usize::from(self.evict_one(now_millis, false))
+    }
+
+    /// [`Self::make_room`] for one shard, counted as handed off when
+    /// `handing_off` and as evicted for room otherwise.
+    fn evict_one(&self, now_millis: u64, handing_off: bool) -> bool {
         let Some(cap) = self.cap.get().filter(|c| c.evict_after_millis > 0) else {
-            return 0;
+            return false;
         };
         let Some((key, slot, used)) = self.idlest(now_millis, cap.evict_after_millis) else {
-            return 0;
+            return false;
         };
         let Some(index) = self.names.name_of(&key.0) else {
-            return 0;
+            return false;
         };
         if let Some(publishing) = &self.publishing {
             let max_seq_no = lock(&slot).max_seq_no();
@@ -125,7 +226,7 @@ impl WriterRole {
                         self.staged(&key.0, key.1, &done.manifest);
                     }
                     Ok(None) => {}
-                    Err(_) => return 0,
+                    Err(_) => return false,
                 }
             }
         }
@@ -138,7 +239,7 @@ impl WriterRole {
                 .as_ref()
                 .is_some_and(|p| p.unpublished(&key, held.max_seq_no()))
         {
-            return 0;
+            return false;
         }
         held.sleep();
         let term = held.term();
@@ -147,7 +248,12 @@ impl WriterRole {
         // a write arriving meanwhile finds it asleep and wakes it.
         self.remember_asleep(&key, term, now_millis);
         self.release(&key.0, key.1, &slot);
-        self.counters.evicted.fetch_add(1, Ordering::Relaxed);
+        let counter = if handing_off {
+            &self.counters.handed_off
+        } else {
+            &self.counters.evicted
+        };
+        counter.fetch_add(1, Ordering::Relaxed);
         let given = self
             .opener
             .as_ref()
@@ -156,7 +262,7 @@ impl WriterRole {
             // Given back: the record would wake a head that is no longer ours.
             self.take_asleep(&key.0, key.1);
         }
-        1
+        true
     }
 
     /// The held shard unused longest, if unused for `after_millis`.

@@ -76,6 +76,8 @@ pub struct Config {
     pub max_shards: usize,
     /// How long a shard must be unused before a node at its cap lets it go; 0 never.
     pub evict_after_millis: u64,
+    /// Whether idle shards are handed to a member with room.
+    pub hand_off: bool,
     /// What limits the writes waiting on the log.
     pub write_limit: oss_writer::admission::LimiterConfig,
     /// How often the janitor runs a pass.
@@ -113,6 +115,7 @@ impl Config {
             give_back_after_millis: 0,
             max_shards: 0,
             evict_after_millis: 60_000,
+            hand_off: false,
             write_limit: oss_writer::admission::LimiterConfig::default(),
             janitor_every: Duration::from_secs(60),
             sweep: gc::Config {
@@ -361,6 +364,7 @@ pub fn assemble(
         .with_hibernation(config.hibernate_after_millis)
         .with_give_back(config.give_back_after_millis);
     role.set_write_limiter(config.write_limit.build());
+    role.set_hand_off(config.hand_off);
     role.set_shard_cap(crate::writer::ShardCap {
         max: config.max_shards,
         evict_after_millis: config.evict_after_millis,

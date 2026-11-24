@@ -287,3 +287,13 @@ fn the_shard_cap_is_off_by_default_and_set_by_its_variables() {
     assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_MAX_SHARDS", "many")]))).is_err());
     assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_EVICT_AFTER_MS", "soon")]))).is_err());
 }
+
+// docs/specs/writer-hand-off AC-8
+#[test]
+fn hand_off_is_off_by_default_and_set_by_its_variable() {
+    let c = NodeConfig::from_lookup(lookup(FS)).expect("valid");
+    assert!(!c.hand_off);
+    let c = NodeConfig::from_lookup(lookup(&with(&[("OSS_HAND_OFF", "true")]))).expect("valid");
+    assert!(c.hand_off);
+    assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_HAND_OFF", "yes")]))).is_err());
+}

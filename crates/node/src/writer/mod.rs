@@ -54,7 +54,8 @@ use redirect::Redirects;
 use slot::ShardSlot;
 
 pub use capacity::{
-    EVICT_AFTER_MILLIS, MAX_SHARDS, SETTINGS as CAPACITY_SETTINGS, ShardCap, ShardCapStats,
+    EVICT_AFTER_MILLIS, HAND_OFF_ENABLED, MAX_SHARDS, SETTINGS as CAPACITY_SETTINGS, ShardCap,
+    ShardCapStats,
 };
 pub use dead_log_pass::{
     DeadLogParts, DeadLogPass, DeadLogReport, DeadMailbox, DeadSnapshot, REAPERS,
@@ -68,7 +69,7 @@ pub use hibernate::{
 pub use incarnation::{DescriptorIncarnation, FENCE_WINDOW, Incarnation};
 pub use janitor_pass::{HeldShard, JanitorPass, JanitorReport, PassLimits};
 pub use janitor_timer::{JanitorTimer, SweepConfig};
-pub use lease::MembershipLeaseWrite;
+pub use lease::{LoadReport, MembershipLeaseWrite};
 pub use opener::{HeadOpener, OpenRefused, ShardOpener};
 pub use orphan_timer::{LiveLeases, OrphanParts, OrphanTimer};
 pub use proactive::{

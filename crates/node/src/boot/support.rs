@@ -172,6 +172,7 @@ pub(super) fn apply_janitor_and_hibernation(
     node.give_back_after_millis = config.give_back_after_millis;
     node.max_shards = config.max_shards;
     node.evict_after_millis = config.evict_after_millis;
+    node.hand_off = config.hand_off;
     node.janitor_every = Duration::from_millis(config.janitor_every_millis);
     node.sweep.dry_run = config.janitor_dry_run;
 }
@@ -203,4 +204,66 @@ pub(super) fn wire_commit_push(
     .map_err(|e| BootError::Cluster(format!("commit push thread: {e}")))?;
     assembled.role.set_commit_sink(sink);
     Ok(())
+}
+
+/// What the renewal thread does for the fleet's sake: reports the node's
+/// load in the lease it renews, and hands idle shards off after a refresh.
+pub(super) struct FleetTick {
+    role: Arc<crate::writer::WriterRole>,
+    load: Arc<crate::writer::LoadReport>,
+    clock: Arc<dyn LeaseClock>,
+    ttl_millis: i64,
+    node_id: String,
+}
+
+impl FleetTick {
+    pub(super) fn new(
+        role: &Arc<crate::writer::WriterRole>,
+        load: Arc<crate::writer::LoadReport>,
+        clock: &Arc<dyn LeaseClock>,
+        config: &NodeConfig,
+    ) -> Self {
+        Self {
+            role: Arc::clone(role),
+            load,
+            clock: Arc::clone(clock),
+            ttl_millis: config.lease_ttl_millis,
+            // ALLOC: one id, once a node.
+            node_id: config.node_id.clone(),
+        }
+    }
+
+    /// Before a renewal: the load the lease is about to say.
+    pub(super) fn renewing(&self) {
+        let stats = self.role.shard_cap_stats();
+        self.load.set(stats.held, stats.max);
+    }
+
+    /// After a refresh: hands idle shards to a member with room, when set.
+    pub(super) fn refreshed(&self, membership: &Membership) {
+        self.role.hand_off(
+            &membership.current(),
+            self.clock.now_millis(),
+            self.ttl_millis,
+            &self.node_id,
+        );
+    }
+}
+
+/// The lease this node first describes itself with.
+pub(super) fn own_lease(
+    config: &NodeConfig,
+    ephemeral: &str,
+    advertise: &str,
+    inherited: &[NodeLogEpoch],
+) -> NodeLease {
+    let mut lease = NodeLease::new(&config.node_id, ephemeral, advertise, 0);
+    lease.version = Some(format!(
+        "{}{}",
+        crate::read_forward::BUILD_PREFIX,
+        env!("CARGO_PKG_VERSION")
+    ));
+    lease.set_roles(super::ROLES.map(str::to_owned));
+    lease.node_log = inherited.to_vec();
+    lease
 }
