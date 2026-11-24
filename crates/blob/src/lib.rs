@@ -19,6 +19,7 @@ pub mod chunk;
 pub mod emulator;
 pub mod error;
 pub mod fs;
+pub mod guard;
 pub mod meter;
 pub mod op;
 pub mod pooled;
