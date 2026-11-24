@@ -391,6 +391,47 @@ fn a_refresh_keeps_other_commit_data_and_one_copy_of_its_own() {
 }
 
 #[test]
+fn a_shard_made_from_nothing_commits_the_ids_a_java_engine_opens_on() {
+    let dir = ByteBuffersDirectory::new();
+    let clock = Arc::new(AtomicU64::new(0));
+    let commit_data = |dir: &ByteBuffersDirectory| {
+        let w = IndexWriter::open(dir, Vec::new(), "Lucene104", VERSION).expect("writer");
+        w.live_commit_data().to_vec()
+    };
+    let value = |data: &[(String, String)], key: &str| {
+        let found: Vec<&str> = data
+            .iter()
+            .filter(|(k, _)| k == key)
+            .map(|(_, v)| v.as_str())
+            .collect();
+        assert_eq!(found.len(), 1, "{key} appears once in {data:?}");
+        found[0].to_owned()
+    };
+    {
+        let mut s = shard(&dir, &clock);
+        s.index("a", br#"{"n":1}"#, false, &Expect::default())
+            .unwrap();
+        s.refresh().unwrap();
+    }
+    let data = commit_data(&dir);
+    let (translog, history) = (value(&data, "translog_uuid"), value(&data, "history_uuid"));
+    // InternalEngine's constructor refuses a commit with no translog_uuid.
+    assert_eq!(translog.len(), 22, "a base64 UUID: {translog}");
+    assert_eq!(history.len(), 22, "a base64 UUID: {history}");
+    assert_ne!(translog, history);
+    // A later commit, by the same or a reopened shard, keeps them.
+    {
+        let mut s = shard(&dir, &clock);
+        s.index("b", br#"{"n":2}"#, false, &Expect::default())
+            .unwrap();
+        s.refresh().unwrap();
+    }
+    let data = commit_data(&dir);
+    assert_eq!(value(&data, "translog_uuid"), translog);
+    assert_eq!(value(&data, "history_uuid"), history);
+}
+
+#[test]
 fn a_create_ignores_the_versioning_the_request_carried() {
     let dir = ByteBuffersDirectory::new();
     let clock = Arc::new(AtomicU64::new(0));
