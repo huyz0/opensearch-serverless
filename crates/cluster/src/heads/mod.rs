@@ -7,9 +7,11 @@
 //! `shards/<2 hex digits>-<index>#<shard>`, the digits the low byte of the
 //! murmur3 of `<index>#<shard>`, so heads spread over a bucket's key space.
 
+mod bucket;
 mod registers;
 mod store;
 
+pub use bucket::{BucketHeads, Member, bucket_head_index};
 pub use registers::{HeadAt, HeadRegisters};
 pub use store::{Acquisition, ShardHeadStore};
 
