@@ -4,7 +4,7 @@
 //! `innerBuild`'s rounding, at OpenSearch 3.10.0.
 
 use crate::aggs::bucket::date_histogram::{
-    DateHistogramSpec, DateRounding, DateUnit, RoundingKind, round_bound,
+    DateHistogramSpec, DateRounding, DateUnit, RegionZone, RoundingKind, round_bound,
 };
 use crate::aggs::bucket::histogram::HistogramOrder;
 use crate::aggs::bucket::histogram_parse::parse_order;
@@ -248,6 +248,7 @@ pub fn parse_date_histogram_body(
 ) -> Result<(String, DateHistogramSpec), DslError> {
     let mut field: Option<String> = None;
     let mut zone_ms = 0i64;
+    let mut region: Option<RegionZone> = None;
     let mut kind: Option<RoundingKind> = None;
     let mut interval_key: Option<&'static str> = None;
     let mut offset = 0i64;
@@ -363,17 +364,21 @@ pub fn parse_date_histogram_body(
                 });
             }
             "time_zone" => {
+                region = None;
                 zone_ms = if token == Kind::Number {
                     let hours = long_value(token, p.text())?;
                     hours.saturating_mul(3_600_000)
+                } else if let Some(fixed) = zone_millis(p.text()) {
+                    fixed
+                } else if let Some(named) = RegionZone::named(p.text()) {
+                    region = Some(named);
+                    0
                 } else {
-                    zone_millis(p.text()).ok_or_else(|| {
-                        // ALLOC: error path; one message.
-                        DslError::unsupported(&format!(
-                            "the [date_histogram] aggregation's time zone [{}]",
-                            p.text()
-                        ))
-                    })?
+                    // ALLOC: error path; one message.
+                    return Err(DslError::unsupported(&format!(
+                        "the [date_histogram] aggregation's time zone [{}]",
+                        p.text()
+                    )));
                 };
             }
             "offset" => {
@@ -422,6 +427,7 @@ pub fn parse_date_histogram_body(
     let rounding = DateRounding {
         kind,
         zone_ms,
+        region,
         offset,
     };
     let extended_bounds = check_and_round(name, "extended_bounds", extended.as_ref(), &rounding)?;

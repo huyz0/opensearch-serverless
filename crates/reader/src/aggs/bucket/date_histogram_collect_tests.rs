@@ -89,6 +89,24 @@ fn a_calendar_interval_counts_every_document_once() {
     assert_eq!(got.buckets, [(-3_600_000, 200)]);
 }
 
+// AC-8
+#[test]
+fn a_region_zones_days_start_at_its_local_midnight() {
+    let shard = shard("dh-region");
+    let (_, got) = dates(
+        &shard,
+        r#"{"aggs":{"h":{"date_histogram":{"field":"n","calendar_interval":"day","time_zone":"Asia/Tokyo"}}}}"#,
+    );
+    // Values 0 to 199 ms are 09:00 on 1970-01-01 in Tokyo (+09:00).
+    assert_eq!(got.buckets, [(-32_400_000, 200)]);
+    // Kolkata is at +05:30: the hour of 05:30 local starts half an hour before the epoch.
+    let (_, got) = dates(
+        &shard,
+        r#"{"aggs":{"h":{"date_histogram":{"field":"n","calendar_interval":"hour","time_zone":"Asia/Kolkata"}}}}"#,
+    );
+    assert_eq!(got.buckets, [(-1_800_000, 200)]);
+}
+
 #[test]
 fn the_buckets_are_those_of_the_querys_matches() {
     let shard = shard("dh-query");
