@@ -161,3 +161,4 @@ src/extension_store.rs	new		modules stored under the hash of their bytes, read o
 src/boot/config/budget.rs	new		the node memory budget split into pools by fixed shares
 src/warm_copy.rs	new		the joiner copy of one peer's hot pages: validated, batched and paced
 src/warm_copy/tests.rs	new		tests of the copy against a fake peer holding a warmed cache
+src/boot/config/authoring.rs	new		the index template and ingest pipeline switches the OSS_* variables set

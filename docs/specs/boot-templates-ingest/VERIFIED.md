@@ -1,0 +1,2 @@
+- AC-1: `a_booted_node_serves_the_template_and_pipeline_routes_only_when_each_is_set` (crates/node/tests/server/boot_templates_ingest.rs): PASS.
+- AC-2: `templates_and_pipelines_are_off_until_set_and_each_stands_alone` (crates/node/src/boot/config/authoring.rs): PASS.
