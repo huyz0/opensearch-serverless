@@ -89,3 +89,15 @@ pub(crate) fn refuse(bytes: &[u8]) -> Option<String> {
     }
     None
 }
+
+/// How many imports `bytes` declares; a module that cannot be read has none
+/// to count (it is refused elsewhere).
+pub(crate) fn import_count(bytes: &[u8]) -> usize {
+    let mut n = 0_usize;
+    for payload in Parser::new(0).parse_all(bytes).flatten() {
+        if let Payload::ImportSection(r) = payload {
+            n = n.saturating_add(r.count() as usize);
+        }
+    }
+    n
+}

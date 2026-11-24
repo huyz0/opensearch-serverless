@@ -7,6 +7,7 @@
 //! way whatever loads it. Nothing here runs a module or allocates by a size a
 //! module reports.
 
+pub mod analyzer;
 mod descriptor;
 mod error;
 mod json;

@@ -38,6 +38,8 @@ pub struct Parts<'a> {
     pub input: u32,
     pub output: u32,
     pub describe_len: Option<u32>,
+    /// Leave out the `oss` imports, as an analyzer module does.
+    pub bare: bool,
 }
 
 impl Default for Parts<'_> {
@@ -52,6 +54,7 @@ impl Default for Parts<'_> {
             input: IN,
             output: OUT,
             describe_len: None,
+            bare: false,
         }
     }
 }
@@ -65,8 +68,7 @@ pub fn build(p: &Parts<'_>) -> Vec<u8> {
     let text = format!(
         r#"(module
   {imports}
-  (import "oss" "log" (func $log (param i32 i32)))
-  (import "oss" "cancelled" (func $cancelled (result i32)))
+  {oss}
   (memory (export "memory") {memory})
   (data (i32.const 0) "{desc}")
   (data (i32.const 400) "{detail}")
@@ -80,6 +82,12 @@ pub fn build(p: &Parts<'_>) -> Vec<u8> {
   (func (export "oss_call") (param i32 i32 i32) (result i32) {body})
   {extra})"#,
         imports = p.imports,
+        oss = if p.bare {
+            ""
+        } else {
+            r#"(import "oss" "log" (func $log (param i32 i32)))
+  (import "oss" "cancelled" (func $cancelled (result i32)))"#
+        },
         memory = p.memory,
         desc = escaped(d),
         detail = escaped("bad\nnews"),
