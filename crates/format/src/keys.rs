@@ -126,6 +126,51 @@ pub fn point_in_time_state_key(base: &str, id: &str) -> Result<String, FormatErr
     Ok([base, POINT_IN_TIME_STATES_PREFIX, id].concat())
 }
 
+/// The key of a snapshot repository's record (`repositories/<name>`).
+///
+/// # Errors
+///
+/// [`FormatError::Corrupt`] for a base that is not empty and does not end in
+/// `/`.
+pub fn repository_key(base: &str, name: &str) -> Result<String, FormatError> {
+    check_base(base)?;
+    // ALLOC: one key, the length of its parts.
+    Ok([base, "repositories/", name].concat())
+}
+
+/// The key of a snapshot name's state register
+/// (`snapshot-states/<sha256 hex of "<repo>#<name>">`).
+///
+/// # Errors
+///
+/// As [`repository_key`].
+pub fn snapshot_state_key(base: &str, repo: &str, name: &str) -> Result<String, FormatError> {
+    use sha2::{Digest, Sha256};
+    check_base(base)?;
+    let digest = Sha256::digest([repo, "#", name].concat().as_bytes());
+    // ALLOC: one key, the length of its parts.
+    let mut key = [base, "snapshot-states/"].concat();
+    for byte in digest {
+        key.push(char::from(HEX[usize::from(byte >> 4)]));
+        key.push(char::from(HEX[usize::from(byte & 0x0f)]));
+    }
+    Ok(key)
+}
+
+/// The key of a snapshot's legacy record (`snapshots/<repo>#<name>`), read
+/// when its name has no state register.
+///
+/// # Errors
+///
+/// As [`repository_key`].
+pub fn snapshot_legacy_key(base: &str, repo: &str, name: &str) -> Result<String, FormatError> {
+    check_base(base)?;
+    // ALLOC: one key, the length of its parts.
+    Ok([base, "snapshots/", repo, "#", name].concat())
+}
+
+const HEX: &[u8; 16] = b"0123456789abcdef";
+
 fn check_id(id: &str) -> Result<(), FormatError> {
     if looks_like_an_id(id) {
         Ok(())
@@ -423,4 +468,32 @@ fn check_segment(part: &str) -> Result<(), FormatError> {
 /// term container and `#`), each of whose segments is a plain one.
 fn check_relative(blob: &str) -> Result<(), FormatError> {
     blob.split('/').try_for_each(check_segment)
+}
+
+#[cfg(test)]
+mod snapshot_key_tests {
+    use super::*;
+
+    #[test]
+    fn the_state_register_is_named_by_the_hash_of_repo_hash_name() {
+        // sha256("r#s"), as the Java's `HexFormat.formatHex` writes it.
+        assert_eq!(
+            snapshot_state_key("", "r", "s").expect("key"),
+            "snapshot-states/b551ef751e101d6416af3e2ed4eb3f40f15d3b2224ead0b234d914b4419fa644"
+        );
+        assert_eq!(
+            snapshot_state_key("d/", "r", "s").expect("key"),
+            "d/snapshot-states/b551ef751e101d6416af3e2ed4eb3f40f15d3b2224ead0b234d914b4419fa644"
+        );
+    }
+
+    #[test]
+    fn repository_and_legacy_snapshot_keys_join_their_parts() {
+        assert_eq!(repository_key("", "r").expect("key"), "repositories/r");
+        assert_eq!(
+            snapshot_legacy_key("d/", "r", "s").expect("key"),
+            "d/snapshots/r#s"
+        );
+        assert!(repository_key("d", "r").is_err());
+    }
 }
