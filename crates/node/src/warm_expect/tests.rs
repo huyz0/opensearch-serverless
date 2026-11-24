@@ -45,9 +45,12 @@ fn rig(dir: &std::path::Path, page_size: usize) -> Rig {
 }
 
 fn expected(rig: &Rig) -> Expected {
-    Expected::new(&rig.namespace, &rig.files, rig.cache.config().page_size, &|n| {
-        rig.cache.is_pinned_name(n)
-    })
+    Expected::new(
+        &rig.namespace,
+        &rig.files,
+        rig.cache.config().page_size,
+        &|n| rig.cache.is_pinned_name(n),
+    )
 }
 
 /// The shard opened and searched through the cache, so it holds the pages a
@@ -76,7 +79,10 @@ fn every_page_an_open_caches_is_one_the_joiner_would_accept_at_its_own_length() 
     warm(&rig);
     let accepted = expected(&rig);
     let prefix = format!("{}\u{0}", rig.namespace);
-    let resident = rig.cache.resident_pages(&[prefix.as_str()], 10_000).remove(0);
+    let resident = rig
+        .cache
+        .resident_pages(&[prefix.as_str()], 10_000)
+        .remove(0);
     assert!(!resident.is_empty(), "the open cached pages");
     let mut checked = 0;
     for page in &resident {
