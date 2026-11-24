@@ -141,3 +141,23 @@ fn a_module_with_imports_or_no_point_or_small_regions_cannot_be_pinned() {
         })
     );
 }
+
+#[test]
+fn a_refusal_says_what_rule_it_is() {
+    assert_eq!(
+        PinRefusal::NoPoint(2).to_string(),
+        "the module declares no `analyzer` point of version 2"
+    );
+    assert_eq!(
+        PinRefusal::Imports(3).to_string(),
+        "the module imports 3 functions and an analyzer imports none"
+    );
+    assert_eq!(
+        PinRefusal::RegionTooSmall {
+            declared: 10,
+            needed: 20
+        }
+        .to_string(),
+        "io_bytes is 10 and an analyzer needs at least 20"
+    );
+}
