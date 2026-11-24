@@ -45,7 +45,7 @@ def check(status, body, what):
         raise SystemExit(f"record: {what}: {status} {json.dumps(body)[:2000]}")
 
 
-def record(base, data, lucene, path, server):
+def record(base, data, lucene, path, server, keep=None):
     with open(path, encoding="utf-8") as f:
         fixture = json.load(f)
     unknown = set(fixture) - set(KEYS)
@@ -79,6 +79,10 @@ def record(base, data, lucene, path, server):
         for name in sorted(os.listdir(shard)):
             if name != "write.lock":
                 shutil.copyfile(os.path.join(shard, name), os.path.join(out, name))
+        if keep:
+            kept = os.path.join(keep, os.path.splitext(os.path.basename(path))[0])
+            shutil.rmtree(kept, ignore_errors=True)
+            shutil.copytree(out, kept)
         dump = subprocess.run(["java", "-cp", lucene, DUMP, out], check=True,
                               capture_output=True, text=True).stdout
     fixture["segment"] = json.loads(dump)
@@ -98,6 +102,7 @@ def main():
     parser.add_argument("--lucene", required=True, help="the server's lucene-core jar")
     parser.add_argument("--expect-version", default="3.10.0",
                         help="refuse a server whose version does not start with this")
+    parser.add_argument("--keep-files", help="also copy each fixture's raw segment files to <dir>/<fixture name>")
     parser.add_argument("fixtures", nargs="+")
     args = parser.parse_args()
     _, _, root = send(args.url, {"method": "GET", "path": "/"})
@@ -107,7 +112,7 @@ def main():
     server = {"distribution": version.get("distribution", "opensearch"),
               "version": version["number"], "build_hash": version["build_hash"]}
     for path in args.fixtures:
-        summary = record(args.url, args.data, args.lucene, path, server)
+        summary = record(args.url, args.data, args.lucene, path, server, args.keep_files)
         print(f"record: {path}: {summary}")
     return 0
 

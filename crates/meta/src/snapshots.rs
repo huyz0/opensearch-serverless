@@ -86,7 +86,11 @@ impl SnapshotReader {
 
     /// The plain blob at `key` read into the front of `buf`: its length, or
     /// `None` when there is none. Cost: one GET.
-    fn blob(&self, key: &str, buf: &mut [u8]) -> Result<Option<usize>, SnapshotReadError> {
+    pub(crate) fn blob(
+        &self,
+        key: &str,
+        buf: &mut [u8],
+    ) -> Result<Option<usize>, SnapshotReadError> {
         let mut scratch = [0u8; SCRATCH];
         let mut len = 0usize;
         let mut too_large = false;

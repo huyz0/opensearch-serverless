@@ -80,6 +80,9 @@ pub struct TailParts {
     /// Reads whether a shard's head is released; see
     /// [`crate::tail_fresh::TailFresh::with_unowned`].
     pub unowned: Option<crate::tail_fresh::Unowned>,
+    /// Reads which node a shard's head names; see
+    /// [`crate::tail_fresh::TailFresh::with_owner`].
+    pub owner: Option<crate::tail_fresh::Owner>,
 }
 
 impl TailParts {
@@ -108,6 +111,7 @@ impl TailParts {
             flush_every: Duration::from_millis(10),
             visibility: crate::writer::RefreshVisibility::Owner,
             unowned: None,
+            owner: None,
         }
     }
 
@@ -116,6 +120,13 @@ impl TailParts {
     #[must_use]
     pub fn with_unowned(mut self, unowned: crate::tail_fresh::Unowned) -> Self {
         self.unowned = Some(unowned);
+        self
+    }
+
+    /// These parts reading which node a shard's head names through `owner`.
+    #[must_use]
+    pub fn with_owner(mut self, owner: crate::tail_fresh::Owner) -> Self {
+        self.owner = Some(owner);
         self
     }
 
@@ -301,6 +312,9 @@ pub fn wire<S: oss_blob::BlobStore + 'static>(
     .applying(parts.visibility.waits());
     if let Some(unowned) = parts.unowned {
         fresh = fresh.with_unowned(unowned);
+    }
+    if let Some(owner) = parts.owner {
+        fresh = fresh.with_owner(owner);
     }
     let fresh = Arc::new(fresh);
     service.set_tail_fresh(Arc::clone(&fresh));

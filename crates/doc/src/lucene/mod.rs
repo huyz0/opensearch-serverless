@@ -9,6 +9,7 @@
 //! 3.10), and `IndexingChain.invert`'s positions, offsets and lengths.
 
 mod builder;
+pub mod derived;
 mod encode;
 pub(crate) mod fields;
 pub(crate) mod invert;
@@ -106,6 +107,9 @@ struct Slot {
 pub struct Indexer {
     analyzer: Analyzer,
     slots: HashMap<String, Slot>,
+    /// Whether a document's `_source` is stored with its vectors masked, for
+    /// a writer whose segments list the vector fields as derived.
+    derived_source: bool,
 }
 
 impl Default for Indexer {
@@ -122,7 +126,18 @@ impl Indexer {
             analyzer: Analyzer::standard(None),
             // ALLOC: one entry a field of the index, at most the mapping's total fields limit plus the metadata fields.
             slots: HashMap::new(),
+            derived_source: false,
         }
+    }
+
+    /// Stores a document's `_source` with each vector's value replaced by
+    /// `1` ([`derived::mask_vectors`]) when `on`. Only for a writer whose
+    /// segments list the vector fields under `derived_vector_fields` and
+    /// record the k-NN codec, or a reader would return the `1`.
+    #[must_use]
+    pub fn with_derived_source(mut self, on: bool) -> Self {
+        self.derived_source = on;
+        self
     }
 
     /// Every field numbered so far, with the spec it was registered with (`None` for a metadata
@@ -305,8 +320,21 @@ impl Indexer {
         let n = self.meta(numbers, MetaField::PrimaryTerm)?;
         out.doc_value(n, meta.primary_term);
         let n = self.meta(numbers, MetaField::Source)?;
-        // ALLOC: the document's source, kept as `_source`; bounded by the HTTP body bound.
-        out.stored(n, Stored::Binary(meta.source.to_vec()));
+        let vector_fields: Vec<&str> = doc
+            .fields
+            .iter()
+            .filter(|(_, v)| self.derived_source && matches!(v, FieldValue::Vector(_)))
+            .map(|(name, _)| name.as_str())
+            .collect();
+        out.stored(
+            n,
+            Stored::Binary(if vector_fields.is_empty() {
+                // ALLOC: the document's source, kept as `_source`; bounded by the HTTP body bound.
+                meta.source.to_vec()
+            } else {
+                derived::mask_vectors(meta.source, &vector_fields)?
+            }),
+        );
         let n = self.meta(numbers, MetaField::Version)?;
         out.doc_value(n, meta.version);
         for (name, value) in &doc.fields {

@@ -21,10 +21,12 @@ const W: &str = "writer";
 struct Fetcher {
     answers: Mutex<Vec<Option<FetchResponse>>>,
     asked: Mutex<Vec<(i64, i64)>>,
+    writers: Mutex<Vec<String>>,
 }
 
 impl TailFetcher for Fetcher {
-    fn fetch(&self, _: &str, request: &FetchRequest) -> Option<FetchResponse> {
+    fn fetch(&self, writer: &str, request: &FetchRequest) -> Option<FetchResponse> {
+        self.writers.lock().unwrap().push(writer.to_owned());
         self.asked
             .lock()
             .unwrap()
@@ -352,4 +354,56 @@ fn with_no_head_reader_a_writer_that_does_not_hold_the_shard_refuses() {
     let r = rig(true);
     r.fetcher.answers.lock().unwrap().push(not_mine());
     assert!(!ensure(&r, 5).0);
+}
+
+/// A rig whose check reads the head's owner as `owner`.
+fn rig_owner(owner: &'static str) -> Rig {
+    let mut r = rig(true);
+    let clock = {
+        let now = r.now.clone();
+        Arc::new(move || now.load(Ordering::SeqCst)) as oss_node::tail_reader_link::Clock
+    };
+    r.fresh = TailFresh::new(
+        r.held.clone(),
+        r.fetcher.clone(),
+        "me".to_owned(),
+        clock,
+        true,
+    )
+    .with_owner(Arc::new(move |_, _| Some(owner.to_owned())));
+    r
+}
+
+// docs/specs/reader-unowned-shard AC-6
+#[test]
+fn a_writer_that_handed_the_shard_on_sends_the_search_to_its_owner() {
+    let r = rig_owner("taker");
+    let mut answers = r.fetcher.answers.lock().unwrap();
+    answers.push(answer(NONE, false, i64::MAX));
+    answers.push(answer(NONE, false, 5));
+    drop(answers);
+    assert!(ensure(&r, 5).0, "the owner's claim is within the commit");
+    assert_eq!(*r.fetcher.writers.lock().unwrap(), [W, "taker"]);
+    assert_eq!(r.fresh.counts().1, 0);
+}
+
+// docs/specs/reader-unowned-shard AC-6
+#[test]
+fn a_commit_behind_the_owners_claim_still_refuses() {
+    let r = rig_owner("taker");
+    let mut answers = r.fetcher.answers.lock().unwrap();
+    answers.push(answer(NONE, false, i64::MAX));
+    answers.push(answer(NONE, false, 9));
+    drop(answers);
+    assert!(!ensure(&r, 5).0);
+    assert_eq!(r.fresh.counts().1, 1);
+}
+
+// docs/specs/reader-unowned-shard AC-6
+#[test]
+fn an_owner_that_is_the_writer_is_not_asked_twice() {
+    let r = rig_owner(W);
+    r.fetcher.answers.lock().unwrap().push(not_mine());
+    assert!(!ensure(&r, 5).0);
+    assert_eq!(r.fetcher.writers.lock().unwrap().len(), 1);
 }

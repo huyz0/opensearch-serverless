@@ -253,7 +253,7 @@ fn write_hit_list<S: BlobStore + 'static>(
         stored.id.clear();
         stored.source.clear();
         segment
-            .visit_stored_document(hit.doc.saturating_sub(segment.doc_base), stored)
+            .visit_source_document(hit.doc.saturating_sub(segment.doc_base), stored)
             .map_err(io::Error::other)?;
         if let Some(e) = stored.refused.take() {
             return Err(e);
