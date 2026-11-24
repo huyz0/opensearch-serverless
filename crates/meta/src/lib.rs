@@ -35,6 +35,8 @@
 //! - [`DocSet`]: index and component templates and ingest and search
 //!   pipelines, a few documents each, named by one marker register and
 //!   changed by one swap of it.
+//! - [`DocSet::snapshot`] and [`DocSetCache`]: every document of a set at the
+//!   cost of one marker read while it has not moved.
 //! - [`IndexLifecycle`]: creating and deleting an index, idempotent on a
 //!   retried create, and finishing a delete from the [`ReclaimQueue`] once a
 //!   writer that missed it has stopped.
@@ -43,6 +45,7 @@ mod alias_mutations;
 mod changes;
 mod cluster_config;
 mod descriptors;
+mod doc_cache;
 mod doc_set;
 mod error;
 mod lifecycle;
@@ -60,6 +63,7 @@ pub use descriptors::{
     BUCKET_MILLIS, DEFAULT_QUARANTINE_MILLIS, DeleteMode, DescriptorStore, Listener,
     REAP_DEADLINE_MILLIS, REAP_HANDOFF_MILLIS, Resolution, Target,
 };
+pub use doc_cache::{DEFAULT_DOC_CACHE_BYTES, DocSetCache, DocSnapshot};
 pub use doc_set::DocSet;
 pub use error::MetaError;
 pub use lifecycle::{
