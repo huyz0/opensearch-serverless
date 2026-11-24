@@ -13,6 +13,24 @@ fn refused(reason: String) -> ShardError {
     ShardError::bad_request(Failure::plain("illegal_argument_exception", reason))
 }
 
+/// `index.max_result_window`: refuses a window of `from + size` hits past it.
+pub(crate) fn check_window(window: usize) -> Result<(), ShardError> {
+    use crate::search::MAX_RESULT_WINDOW;
+    if window > MAX_RESULT_WINDOW {
+        return Err(ShardError::bad_request(Failure::plain(
+            "illegal_argument_exception",
+            // ALLOC: error path; one message.
+            format!(
+                "Result window is too large, from + size must be less than or equal to: \
+                 [{MAX_RESULT_WINDOW}] but was [{window}]. See the scroll api for a more \
+                 efficient way to request large data sets. This limit can be set by changing \
+                 the [index.max_result_window] index level setting."
+            ),
+        )));
+    }
+    Ok(())
+}
+
 /// Refuses `min_score`, `track_scores`, `terminate_after` and `post_filter`
 /// where they meet something this node does not serve with them.
 pub(crate) fn check(

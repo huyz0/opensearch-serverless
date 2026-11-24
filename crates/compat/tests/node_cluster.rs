@@ -42,6 +42,15 @@ struct Shell(HttpTarget);
 
 impl Target for Shell {
     fn send(&mut self, request: &Request) -> Result<Response, TargetError> {
+        // `index.knn` cannot be given at create yet: the node's
+        // `serverless.knn.enabled` stands for it, so the replay leaves it out.
+        let mut sent = request.clone();
+        if let oss_compat::Body::Json(body) = &mut sent.body
+            && let Some(settings) = body.get_mut("settings").and_then(|s| s.as_object_mut())
+        {
+            settings.remove("index.knn");
+        }
+        let request = &sent;
         let mut response = self.0.send(request)?;
         let create = request.method.as_str() == "PUT"
             && request.path.matches('/').count() == 1
@@ -136,6 +145,11 @@ fn writer(store: &Arc<Emulator>) -> Writer {
 
 /// Replays `fixture` against a fresh assembled node; the steps that differ.
 fn replay(fixture: Fixture) -> Vec<String> {
+    replay_with(fixture, false)
+}
+
+/// [`replay`] with the k-NN index setting on or off.
+fn replay_with(fixture: Fixture, knn: bool) -> Vec<String> {
     let fixtures = vec![fixture];
     let store = Arc::new(Emulator::new(1 << 28, 9));
     let budget = MemoryBudget::new(
@@ -148,6 +162,7 @@ fn replay(fixture: Fixture) -> Vec<String> {
     let config = Config {
         publish_every: Duration::from_millis(10),
         publish_age_millis: 0,
+        knn,
         ..Config::new("", "node-1", [0; 6])
     };
     let node = assemble(
@@ -199,6 +214,31 @@ fn an_assembled_node_answers_every_search_fixture_as_stock_opensearch_did() {
         .collect();
     assert!(fixtures.len() >= 7);
     let failed: Vec<String> = fixtures.into_iter().flat_map(replay).collect();
+    assert!(
+        failed.is_empty(),
+        "{} differ:\n{}",
+        failed.len(),
+        failed.join("\n")
+    );
+}
+
+#[test]
+fn an_assembled_node_answers_every_knn_search_fixture_as_the_stock_plugin_did() {
+    let fixtures: Vec<Fixture> = load_dir(&root().join("compat/knn-search"))
+        .expect("fixtures load")
+        .into_iter()
+        .filter(|(_, f)| f.name.starts_with("knn "))
+        .map(|(_, f)| f)
+        .map(|mut f| {
+            support::normalise_columns(&mut f);
+            f
+        })
+        .collect();
+    assert_eq!(fixtures.len(), 6, "a search and a radial fixture a space");
+    let failed: Vec<String> = fixtures
+        .into_iter()
+        .flat_map(|f| replay_with(f, true))
+        .collect();
     assert!(
         failed.is_empty(),
         "{} differ:\n{}",

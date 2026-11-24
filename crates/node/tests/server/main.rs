@@ -46,5 +46,6 @@ mod push_read;
 mod read_forward;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod snapshot_route;
+mod snapshot_take;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod template_route;

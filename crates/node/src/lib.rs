@@ -85,6 +85,7 @@ pub mod search;
 pub mod settings;
 #[cfg(feature = "writer")]
 pub mod snapshot_route;
+pub mod snapshot_take_route;
 #[cfg(feature = "writer")]
 pub mod tail_await;
 #[cfg(feature = "reader")]

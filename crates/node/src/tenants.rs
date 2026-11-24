@@ -14,11 +14,11 @@ use std::time::Duration;
 use oss_blob::guard::{Guardrails, Measure, Mode, TenantReport};
 use oss_blob::usage::{Ledger, NODE, OTHER};
 
-/// How often the ledger is read and the levels are stepped.
-pub const TICK: Duration = Duration::from_secs(10);
-
 /// The longest a paced write waits before it is refused.
 const MAX_WAIT_MILLIS: u64 = 5_000;
+
+/// By how much a tenant at level 1 or above has its publish age stretched.
+const PUBLISH_STRETCH: u64 = 4;
 
 /// The most indices whose group is remembered.
 const ROSTER_LIMIT: usize = 100_000;
@@ -107,12 +107,30 @@ impl TenantLevels {
         self.guard.tick(now, &measures);
     }
 
+    /// How many times longer `index`'s writes may wait to be published: 4 at
+    /// level 1 or above when levels are enforced, else 1.
+    pub fn publish_stretch(&self, index: &str, now: i64) -> u64 {
+        if self
+            .guard
+            .enforced_at(self.mode, &self.tenant_of(index), 1, now)
+        {
+            PUBLISH_STRETCH
+        } else {
+            1
+        }
+    }
+
+    /// Takes the levels a collector set from outside (`tenant=level,...`).
+    pub fn set_levels(&self, text: &str) {
+        self.guard.set_levels(text);
+    }
+
     /// Every tenant this node has seen, by name.
     pub fn report(&self, now: i64) -> Vec<(String, TenantReport)> {
         self.guard.report(now)
     }
 
-    /// Steps the levels every `every` (the node uses [`TICK`]) until the ledger is gone, which is
+    /// Steps the levels every `every` until the ledger is gone, which is
     /// when the node that made it has stopped.
     pub fn spawn_ticker(
         self: &Arc<Self>,

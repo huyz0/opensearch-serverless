@@ -9,6 +9,7 @@
 
 use std::io::Write;
 use std::sync::Arc;
+use std::time::Duration;
 
 use crate::assemble::{AssembleError, Assembled};
 use crate::tenants::TenantLevels;
@@ -204,7 +205,16 @@ pub fn attach(
             mode,
             config.tenant_budget_per_minute,
         ));
-        levels.spawn_ticker(crate::tenants::TICK, now);
+        let noted = Arc::clone(&levels);
+        assembled
+            .role
+            .set_group_sink(Arc::new(move |index, group| noted.note_group(index, group)));
+        let stretched = Arc::clone(&levels);
+        let at = Arc::clone(&now);
+        assembled.role.set_publish_stretch(Arc::new(move |index| {
+            stretched.publish_stretch(index, at())
+        }));
+        levels.spawn_ticker(Duration::from_millis(config.tenant_tick_millis), now);
         service = service.with_tenants(levels);
     }
     assembled.with_usage(service)

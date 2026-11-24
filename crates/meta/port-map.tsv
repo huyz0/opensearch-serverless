@@ -20,3 +20,5 @@ src/doc_set.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/tem
 src/doc_cache.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/template/TemplateCache.java@feature/serverlessshell	TemplateCache and TemplateStore.all as one snapshot; currency also compares names and keys; no per-revision content cache
 src/snapshots.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/repository/RepositoryStore.java@bf347adb	describeRepository, listRepositories, and SnapshotStore.state: read-only
 src/repositories.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/repository/RepositoryStore.java@bf347adb	putRepository and deleteRepository, with SnapshotStore.list as the in-use check
+src/snapshot_take.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/repository/SnapshotStore.java@bf347adb	create, finish and remove: the reservation, protective marker, finish and cleanup of a take
+src/snapshot_capture.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/snapshot/SnapshotOperations.java@bf347adb	capture: describing an index and reading each shard commit

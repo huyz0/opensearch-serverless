@@ -35,6 +35,7 @@ mod snapshot;
 mod tail;
 mod takeover;
 mod target;
+mod tenant_hooks;
 mod tombstone_pass;
 
 use std::collections::HashMap;
@@ -78,13 +79,14 @@ pub use proactive::{
     Config as ProactiveConfig, ProactiveTakeover, Report as ProactiveReport,
     SETTINGS as PROACTIVE_SETTINGS,
 };
-pub use publish_age::publish_age_of;
+pub use publish_age::{bucket_group_of, group_settings, publish_age_of};
 pub use publish_timer::PublishTimer;
 pub use publishing::{PublishPass, Publishing};
 pub use routes::Routes;
 pub use tail::{CommitSink, RefreshVisibility, TailSink};
 pub use takeover::Takeover;
 pub use target::RoleTarget;
+pub use tenant_hooks::GroupSink;
 pub use tombstone_pass::{DeleteProbe, TombstoneParts, TombstonePass, TombstoneReport};
 
 /// Why an item did not go ahead.
@@ -122,6 +124,8 @@ pub struct WriterRole {
     newest: Mutex<Newest>,
     publishing: Option<Publishing>,
     tail: OnceLock<Arc<dyn TailSink>>,
+    /// Told the bucket group of each index a shard of is opened.
+    groups: OnceLock<GroupSink>,
     /// Told of every commit a publish stages.
     commits: OnceLock<Arc<dyn CommitSink>>,
     /// How far a refresh is made visible before it returns; the code of a
@@ -166,6 +170,7 @@ impl WriterRole {
             newest: Mutex::new(HashMap::new()),
             publishing: None,
             tail: OnceLock::new(),
+            groups: OnceLock::new(),
             commits: OnceLock::new(),
             visibility: AtomicU8::new(0),
             opener: None,

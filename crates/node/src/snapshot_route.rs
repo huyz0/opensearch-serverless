@@ -23,6 +23,7 @@ use oss_meta::{
 use oss_rest::{JSON, Method, Request, Response, RestError, RouteError, Router};
 
 use crate::route_util::{read_body, refuse, refused};
+use crate::snapshot_take_route::SnapshotTakeService;
 
 /// The query parameters a snapshot read accepts and has nothing to do for.
 const PARAMS: &[&str] = &[
@@ -39,6 +40,16 @@ const WRITE_PARAMS: &[&str] = &[
     "cluster_manager_timeout",
     "timeout",
     "verify",
+    "ignore_unavailable",
+    "verbose",
+    "local",
+];
+
+/// What a take accepts besides the shell's hints.
+const TAKE_PARAMS: &[&str] = &[
+    "master_timeout",
+    "cluster_manager_timeout",
+    "wait_for_completion",
     "ignore_unavailable",
     "verbose",
     "local",
@@ -219,7 +230,11 @@ impl SnapshotService {
 /// # Errors
 ///
 /// A route registered twice.
-pub fn routes(router: Router, service: &Arc<SnapshotService>) -> Result<Router, RouteError> {
+pub fn routes(
+    router: Router,
+    service: &Arc<SnapshotService>,
+    take: Option<&Arc<SnapshotTakeService>>,
+) -> Result<Router, RouteError> {
     let mut router = router;
     for path in [
         "/_snapshot",
@@ -257,14 +272,33 @@ pub fn routes(router: Router, service: &Arc<SnapshotService>) -> Result<Router, 
         WRITE_PARAMS,
         move |req: &mut Request<'_>, resp: &mut Response<'_>| verifier.verify(req, resp),
     )?;
-    // Snapshots are not written yet.
-    for method in [Method::Put, Method::Post, Method::Delete] {
-        router = router.route(
-            method,
-            "/_snapshot/{repo}/{name}",
-            PARAMS,
-            |_req: &mut Request<'_>, _resp: &mut Response<'_>| Err(refused(unsupported_write())),
-        )?;
+    // A snapshot is taken only with the take switch on; deleting one is not served yet.
+    for method in [Method::Put, Method::Post] {
+        router = match take {
+            Some(take) => {
+                let take = Arc::clone(take);
+                router.route(
+                    method,
+                    "/_snapshot/{repo}/{name}",
+                    TAKE_PARAMS,
+                    move |req: &mut Request<'_>, resp: &mut Response<'_>| take.take(req, resp),
+                )?
+            }
+            None => router.route(
+                method,
+                "/_snapshot/{repo}/{name}",
+                PARAMS,
+                |_req: &mut Request<'_>, _resp: &mut Response<'_>| {
+                    Err(refused(unsupported_write()))
+                },
+            )?,
+        };
     }
+    router = router.route(
+        Method::Delete,
+        "/_snapshot/{repo}/{name}",
+        PARAMS,
+        |_req: &mut Request<'_>, _resp: &mut Response<'_>| Err(refused(unsupported_write())),
+    )?;
     Ok(router)
 }

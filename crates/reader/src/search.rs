@@ -258,29 +258,23 @@ pub fn search<S: BlobStore + 'static>(
     analyzer: &Analyzer,
 ) -> Result<Hits, ShardError> {
     let meta = &shard.meta;
-    let cx = QueryContext {
+    let mut cx = QueryContext {
         mapping: &meta.mapping,
         analyzer,
         max_doc: shard.reader.max_doc(),
+        knn: None,
     };
+    let (knn, early) = crate::knn::prepare(shard, source.query.as_ref(), &cx)
+        .map_err(|f| ShardError::bad_request(shard_failure(f, index, &meta.uuid)))?
+        .unzip();
+    cx.knn = knn.as_ref();
     let query = match &source.query {
         Some(q) => to_lucene(q, &cx),
         None => to_lucene(&crate::dsl::Query::MatchAll { boost: 1.0 }, &cx),
     }
     .map_err(|f| ShardError::bad_request(shard_failure(f, index, &meta.uuid)))?;
     let window = source.from.saturating_add(source.size);
-    if window > MAX_RESULT_WINDOW {
-        return Err(ShardError::bad_request(Failure::plain(
-            "illegal_argument_exception",
-            // ALLOC: error path; one message.
-            format!(
-                "Result window is too large, from + size must be less than or equal to: \
-                 [{MAX_RESULT_WINDOW}] but was [{window}]. See the scroll api for a more \
-                 efficient way to request large data sets. This limit can be set by changing \
-                 the [index.max_result_window] index level setting."
-            ),
-        )));
-    }
+    search_options::check_window(window)?;
     if let Some(what) = source.explain.then(|| explain::refusal(&query)).flatten() {
         return Err(ShardError::bad_request(Failure::plain(
             "illegal_argument_exception",
@@ -320,7 +314,10 @@ pub fn search<S: BlobStore + 'static>(
         .map_err(ShardError::engine)?;
     // ALLOC: one entry a segment.
     let norms: Vec<Option<&HashMap<String, FieldNorms<'_>>>> = owned.iter().map(Some).collect();
-    let mut opened = shard.reader.open_segments().map_err(ShardError::engine)?;
+    let mut opened = match early {
+        Some(opened) => opened,
+        None => shard.reader.open_segments().map_err(ShardError::engine)?,
+    };
     let top_plans = top_hits::plan(&source.aggs, shard, index)?;
     // The bucket limit holds before any filter is built as a query.
     for agg in &source.aggs {
@@ -431,7 +428,8 @@ pub fn search<S: BlobStore + 'static>(
 fn has_points(query: &BooleanQuery) -> bool {
     fn walk(c: &Clause) -> bool {
         match c {
-            Clause::Extended(_) => true,
+            // A knn query's answer is fixed documents, not points.
+            Clause::Extended(e) => !matches!(**e, ExtendedQuery::DocAndScore(_)),
             Clause::Boolean(b) => has_points(b),
             Clause::Boost(b) => walk(&b.inner),
             Clause::ConstantScore(c) => walk(&c.inner),

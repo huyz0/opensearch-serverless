@@ -27,6 +27,7 @@ mod sweep;
 /// contention, as the Java's.
 const ATTEMPTS: u32 = 16;
 
+pub(crate) use capture::live_units;
 pub use capture::{CaptureError, new_id};
 
 /// The clock a view's deadline is judged by, in milliseconds.

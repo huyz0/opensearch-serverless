@@ -1,0 +1,507 @@
+{
+  "name": "knn radial query, l2",
+  "description": "The radial forms (min_score, max_distance) of the knn query over a field with space_type l2; not served yet.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-radial-l2",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "create compat-knn-radial-l2",
+      "request": {
+        "body": {
+          "mappings": {
+            "properties": {
+              "tag": {
+                "type": "keyword"
+              },
+              "v": {
+                "dimension": 3,
+                "method": {
+                  "engine": "lucene",
+                  "name": "hnsw",
+                  "space_type": "l2"
+                },
+                "type": "knn_vector"
+              }
+            }
+          },
+          "settings": {
+            "index.knn": true,
+            "number_of_replicas": 0,
+            "number_of_shards": 1
+          }
+        },
+        "method": "PUT",
+        "path": "/compat-knn-radial-l2"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knn-radial-l2"
+        }
+      }
+    },
+    {
+      "name": "bulk",
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "ndjson": [
+          {
+            "index": {
+              "_id": "1",
+              "_index": "compat-knn-radial-l2"
+            }
+          },
+          {
+            "tag": "a",
+            "v": [
+              1,
+              0,
+              0
+            ]
+          },
+          {
+            "index": {
+              "_id": "2",
+              "_index": "compat-knn-radial-l2"
+            }
+          },
+          {
+            "tag": "b",
+            "v": [
+              0,
+              1,
+              0
+            ]
+          },
+          {
+            "index": {
+              "_id": "3",
+              "_index": "compat-knn-radial-l2"
+            }
+          },
+          {
+            "tag": "a",
+            "v": [
+              1,
+              1,
+              0
+            ]
+          },
+          {
+            "index": {
+              "_id": "4",
+              "_index": "compat-knn-radial-l2"
+            }
+          },
+          {
+            "tag": "b",
+            "v": [
+              2,
+              2,
+              2
+            ]
+          },
+          {
+            "index": {
+              "_id": "5",
+              "_index": "compat-knn-radial-l2"
+            }
+          },
+          {
+            "tag": "a"
+          },
+          {
+            "index": {
+              "_id": "6",
+              "_index": "compat-knn-radial-l2"
+            }
+          },
+          {
+            "tag": "b",
+            "v": null
+          }
+        ],
+        "path": "/_bulk",
+        "query": {
+          "refresh": "true"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 17,
+          "errors": false,
+          "items": [
+            {
+              "index": {
+                "_index": "compat-knn-radial-l2",
+                "_id": "1",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 0,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-knn-radial-l2",
+                "_id": "2",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 1,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-knn-radial-l2",
+                "_id": "3",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 2,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-knn-radial-l2",
+                "_id": "4",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 3,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-knn-radial-l2",
+                "_id": "5",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 4,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-knn-radial-l2",
+                "_id": "6",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 5,
+                "_primary_term": 1,
+                "status": 201
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "min_score",
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "min_score": 0.4,
+                "vector": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-radial-l2/_search"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-knn-radial-l2",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    0.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knn-radial-l2",
+                "_id": "3",
+                "_score": 0.5,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "max_distance",
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "max_distance": 1.0,
+                "vector": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-radial-l2/_search"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-knn-radial-l2",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    0.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knn-radial-l2",
+                "_id": "3",
+                "_score": 0.5,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "max_distance with a filter",
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "filter": {
+                  "term": {
+                    "tag": "a"
+                  }
+                },
+                "max_distance": 1.0,
+                "vector": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-radial-l2/_search"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-knn-radial-l2",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    0.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knn-radial-l2",
+                "_id": "3",
+                "_score": 0.5,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

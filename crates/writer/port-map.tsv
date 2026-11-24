@@ -74,3 +74,5 @@ src/publish/commit_register.rs	port	serverless/shell/src/main/java/org/opensearc
 src/bucket/member.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/bucket/BucketCommits.java@429b4cbc	member: a bucket member's commit register over swap_all
 src/log/charge.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/nodelog/NodeLogBlob.java@429b4cbc	Header.bytesByIndex: the bytes of a blob's slices by index, to share its PUT in the usage ledger
 src/index/knn.rs	new		the engine of a shard with knn_vector fields: the plugin's codec name and derived-source segment lists; the plugin does this in its codec service
+src/admission/limiter/edges.rs	new		the limiter's comparisons at their boundaries, tests only
+src/takeover/restore/tests.rs	new		the restore's stream cutting and error text, tests only

@@ -160,17 +160,17 @@ fn spread(
     buf: &mut [u8],
 ) -> Result<(), RestoreError> {
     let first = members.first().map_or(0, |m| m.offset);
-    let whole = members.len() == 1 && first == 0 && members.iter().all(|m| m.length.is_none());
+    // A blob of one file of unknown length has no end: the stream is the file.
     let end = members.iter().try_fold(first, |end, m| {
         m.length.map(|l| end.max(m.offset.saturating_add(l)))
     });
-    let range = match (whole, end) {
-        (false, Some(end)) if end > first => ByteRange::From {
+    let range = match end {
+        Some(end) if end > first => ByteRange::From {
             start: first,
             len: end.saturating_sub(first),
         },
-        (false, Some(_)) => return empty(members, dir),
-        _ => ByteRange::Full,
+        Some(_) => return empty(members, dir),
+        None => ByteRange::Full,
     };
     let mut sink = Spread {
         dir,
@@ -291,3 +291,6 @@ impl ChunkSink for Spread<'_> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests;

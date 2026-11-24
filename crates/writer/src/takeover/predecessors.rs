@@ -88,3 +88,108 @@ impl Predecessors {
 fn same_epochs(a: &[NodeLogEpoch], b: &[NodeLogEpoch]) -> bool {
     a.len() == b.len() && a.iter().zip(b).all(|(x, y)| x.epoch == y.epoch)
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    use oss_blob::{BlobStore, Emulator};
+
+    use super::*;
+    use crate::log::NodeLogStore;
+
+    fn epoch(epoch: i64, trim: i64) -> NodeLogEpoch {
+        NodeLogEpoch {
+            epoch,
+            trim,
+            landed: 0,
+        }
+    }
+
+    /// Predecessors whose factory counts its calls and reads `epochs`.
+    fn counting(epochs: Vec<NodeLogEpoch>) -> (Predecessors, Arc<AtomicU64>) {
+        let calls = Arc::new(AtomicU64::new(0));
+        let seen = Arc::clone(&calls);
+        let store: Arc<dyn BlobStore> = Arc::new(Emulator::new(1 << 20, 1));
+        let p = Predecessors::new(Box::new(move |writer| {
+            seen.fetch_add(1, Ordering::SeqCst);
+            let log = NodeLogStore::new(Arc::clone(&store), "", writer).expect("log");
+            Ok(Some(Arc::new(NodeLogTakeover::new(
+                log,
+                epochs.clone(),
+                "node-2",
+                2,
+            ))))
+        }));
+        (p, calls)
+    }
+
+    #[test]
+    fn a_log_named_by_the_same_epochs_is_the_one_made_before() {
+        let (p, calls) = counting(vec![epoch(1, 0)]);
+        let first = p.of("node-1").expect("made").expect("a log");
+        // A later trim point of the same epoch is the same log.
+        let again = p
+            .of_naming("node-1", &[epoch(1, 5)])
+            .expect("made")
+            .expect("a log");
+        assert!(Arc::ptr_eq(&first, &again));
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn a_log_named_by_other_epochs_is_made_again() {
+        let (p, calls) = counting(vec![epoch(1, 0)]);
+        let first = p.of("node-1").expect("made").expect("a log");
+        let other = p
+            .of_naming("node-1", &[epoch(2, 0)])
+            .expect("made")
+            .expect("a log");
+        assert!(!Arc::ptr_eq(&first, &other));
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+        let more = p
+            .of_naming("node-1", &[epoch(2, 0), epoch(3, 0)])
+            .expect("made")
+            .expect("a log");
+        assert!(!Arc::ptr_eq(&other, &more), "a longer list is another log");
+        assert_eq!(calls.load(Ordering::SeqCst), 3);
+    }
+
+    #[test]
+    fn naming_a_node_not_made_yet_makes_it_once() {
+        let (p, calls) = counting(vec![epoch(1, 0)]);
+        let log = p
+            .of_naming("node-1", &[epoch(1, 0)])
+            .expect("made")
+            .expect("a log, not none");
+        assert_eq!(log.predecessor(), "node-1");
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn forgetting_a_node_makes_it_again_on_the_next_ask() {
+        let (p, calls) = counting(vec![epoch(1, 0)]);
+        p.of("node-1").expect("made");
+        p.of("node-1").expect("known");
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        p.forget("node-1");
+        p.of("node-1").expect("made");
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn epoch_lists_are_the_same_when_their_epoch_numbers_are() {
+        assert!(same_epochs(&[], &[]));
+        assert!(same_epochs(
+            &[epoch(1, 0), epoch(2, 3)],
+            &[epoch(1, 9), epoch(2, 0)]
+        ));
+        assert!(!same_epochs(&[epoch(1, 0)], &[epoch(2, 0)]));
+        assert!(!same_epochs(
+            &[epoch(1, 0), epoch(2, 0)],
+            &[epoch(1, 0), epoch(3, 0)]
+        ));
+        assert!(!same_epochs(&[epoch(1, 0)], &[epoch(1, 0), epoch(2, 0)]));
+        assert!(!same_epochs(&[epoch(1, 0), epoch(2, 0)], &[epoch(1, 0)]));
+    }
+}

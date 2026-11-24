@@ -103,6 +103,8 @@ pub struct NodeConfig {
     pub buckets_enabled: bool,
     /// `serverless.snapshots.enabled`: serve the read-only snapshot routes. Off by default.
     pub snapshots_enabled: bool,
+    /// `serverless.snapshots.take.enabled`: take shallow snapshots, beside the snapshot routes. Off by default.
+    pub snapshots_take_enabled: bool,
     /// `serverless.activation.hibernate_after_millis`; 0 never hibernates.
     pub hibernate_after_millis: u64,
     /// `serverless.search.commit_push.enabled`: a published commit is pushed
@@ -137,6 +139,8 @@ pub struct NodeConfig {
     /// `OSS_TENANT_BUDGET_PER_MINUTE`: the cost units a minute a tenant may
     /// use before its level rises (the large tier).
     pub tenant_budget_per_minute: u64,
+    /// `OSS_TENANT_TICK_MS`: how often tenant levels are stepped.
+    pub tenant_tick_millis: u64,
     /// `serverless.write.backpressure.*`: what limits the writes waiting on
     /// the write log.
     pub write_limit: oss_writer::admission::LimiterConfig,
@@ -253,6 +257,7 @@ impl NodeConfig {
         let janitor_dry_run = flag("OSS_JANITOR_DRY_RUN", "false")?;
         let buckets_enabled = flag("OSS_BUCKETS_ENABLED", "false")?;
         let snapshots_enabled = flag("OSS_SNAPSHOTS_ENABLED", "false")?;
+        let snapshots_take_enabled = flag("OSS_SNAPSHOTS_TAKE_ENABLED", "false")?;
         let tail_overlay = flag("OSS_TAIL_OVERLAY", "true")?;
         let commit_push = flag(
             "OSS_COMMIT_PUSH",
@@ -286,6 +291,7 @@ impl NodeConfig {
         };
         let tenant_budget_per_minute =
             bounded("OSS_TENANT_BUDGET_PER_MINUTE", "2000", 1, 100_000_000)?;
+        let tenant_tick_millis = bounded("OSS_TENANT_TICK_MS", "10000", 10, 3_600_000)?;
         let write_limit = write_limit::read(&bounded)?;
         let proactive_reapers = bounded("OSS_PROACTIVE_REAPERS", "2", 1, 16)?;
         let proactive_max_concurrent = bounded("OSS_PROACTIVE_MAX_CONCURRENT", "4", 1, 64)?;
@@ -330,6 +336,7 @@ impl NodeConfig {
             janitor_dry_run,
             buckets_enabled,
             snapshots_enabled,
+            snapshots_take_enabled,
             hibernate_after_millis,
             commit_push,
             give_back_after_millis,
@@ -342,6 +349,7 @@ impl NodeConfig {
             store_usage,
             tenant_levels,
             tenant_budget_per_minute,
+            tenant_tick_millis,
             store_usage_max_indices: usize::try_from(store_usage_max_indices).unwrap_or(1000),
             proactive_takeover,
             proactive_reapers: usize::try_from(proactive_reapers).unwrap_or(2),

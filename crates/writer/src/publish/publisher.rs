@@ -173,7 +173,7 @@ impl ShardPublisher {
             let manifest = encode_manifest(term, Some(writer), &refs, wal_ordinal, -1)?;
             // Collection deletes a pack no manifest names once it is old
             // enough; a swap this late could name one already gone.
-            if packed_at.is_some_and(|at| at.elapsed() > self.swap_deadline) {
+            if packed_at.is_some_and(|at| expired(at.elapsed(), self.swap_deadline)) {
                 self.last = None;
                 return Err(PublishError::PackExpired);
             }
@@ -421,5 +421,24 @@ impl ShardPublisher {
         }
         blobs.push(blob);
         Ok(())
+    }
+}
+
+/// Whether a pack put `elapsed` ago is past the swap deadline: at exactly
+/// the deadline it is not.
+fn expired(elapsed: Duration, deadline: Duration) -> bool {
+    elapsed > deadline
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_pack_is_expired_only_past_the_deadline() {
+        let deadline = Duration::from_secs(5);
+        assert!(!expired(Duration::from_secs(4), deadline));
+        assert!(!expired(deadline, deadline));
+        assert!(expired(deadline + Duration::from_nanos(1), deadline));
     }
 }

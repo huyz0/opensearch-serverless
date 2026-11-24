@@ -1,0 +1,2105 @@
+{
+  "name": "knn query, l2",
+  "description": "The knn query over a lucene-engine hnsw field with space_type l2: scores, k, filter, min_score, max_distance and the refusals.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-knn-search-l2",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "create compat-knn-search-l2",
+      "request": {
+        "body": {
+          "mappings": {
+            "properties": {
+              "tag": {
+                "type": "keyword"
+              },
+              "v": {
+                "dimension": 3,
+                "method": {
+                  "engine": "lucene",
+                  "name": "hnsw",
+                  "space_type": "l2"
+                },
+                "type": "knn_vector"
+              }
+            }
+          },
+          "settings": {
+            "index.knn": true,
+            "number_of_replicas": 0,
+            "number_of_shards": 1
+          }
+        },
+        "method": "PUT",
+        "path": "/compat-knn-search-l2"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-knn-search-l2"
+        }
+      }
+    },
+    {
+      "name": "bulk",
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "ndjson": [
+          {
+            "index": {
+              "_id": "1",
+              "_index": "compat-knn-search-l2"
+            }
+          },
+          {
+            "tag": "a",
+            "v": [
+              1,
+              0,
+              0
+            ]
+          },
+          {
+            "index": {
+              "_id": "2",
+              "_index": "compat-knn-search-l2"
+            }
+          },
+          {
+            "tag": "b",
+            "v": [
+              0,
+              1,
+              0
+            ]
+          },
+          {
+            "index": {
+              "_id": "3",
+              "_index": "compat-knn-search-l2"
+            }
+          },
+          {
+            "tag": "a",
+            "v": [
+              1,
+              1,
+              0
+            ]
+          },
+          {
+            "index": {
+              "_id": "4",
+              "_index": "compat-knn-search-l2"
+            }
+          },
+          {
+            "tag": "b",
+            "v": [
+              2,
+              2,
+              2
+            ]
+          },
+          {
+            "index": {
+              "_id": "5",
+              "_index": "compat-knn-search-l2"
+            }
+          },
+          {
+            "tag": "a"
+          },
+          {
+            "index": {
+              "_id": "6",
+              "_index": "compat-knn-search-l2"
+            }
+          },
+          {
+            "tag": "b",
+            "v": null
+          }
+        ],
+        "path": "/_bulk",
+        "query": {
+          "refresh": "true"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 17,
+          "errors": false,
+          "items": [
+            {
+              "index": {
+                "_index": "compat-knn-search-l2",
+                "_id": "1",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 0,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-knn-search-l2",
+                "_id": "2",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 1,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-knn-search-l2",
+                "_id": "3",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 2,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-knn-search-l2",
+                "_id": "4",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 3,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-knn-search-l2",
+                "_id": "5",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 4,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-knn-search-l2",
+                "_id": "6",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 5,
+                "_primary_term": 1,
+                "status": 201
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "k 3",
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "k": 3,
+                "vector": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    0.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "3",
+                "_score": 0.5,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "2",
+                "_score": 0.33333334,
+                "_source": {
+                  "tag": "b",
+                  "v": [
+                    0.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "k larger than the vectors",
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "k": 10,
+                "vector": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 4,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    0.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "3",
+                "_score": 0.5,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "2",
+                "_score": 0.33333334,
+                "_source": {
+                  "tag": "b",
+                  "v": [
+                    0.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "4",
+                "_score": 0.1,
+                "_source": {
+                  "tag": "b",
+                  "v": [
+                    2.0,
+                    2.0,
+                    2.0
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "size under k",
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "k": 3,
+                "vector": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            }
+          },
+          "size": 1
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    0.0,
+                    0.0
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "from past the first hit",
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "request": {
+        "body": {
+          "from": 1,
+          "query": {
+            "knn": {
+              "v": {
+                "k": 3,
+                "vector": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "3",
+                "_score": 0.5,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "2",
+                "_score": 0.33333334,
+                "_source": {
+                  "tag": "b",
+                  "v": [
+                    0.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "filter",
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "filter": {
+                  "term": {
+                    "tag": "b"
+                  }
+                },
+                "k": 3,
+                "vector": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 0.33333334,
+            "hits": [
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "2",
+                "_score": 0.33333334,
+                "_source": {
+                  "tag": "b",
+                  "v": [
+                    0.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "4",
+                "_score": 0.1,
+                "_source": {
+                  "tag": "b",
+                  "v": [
+                    2.0,
+                    2.0,
+                    2.0
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "filter, k 1",
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "filter": {
+                  "term": {
+                    "tag": "b"
+                  }
+                },
+                "k": 1,
+                "vector": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 4,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 1,
+              "relation": "eq"
+            },
+            "max_score": 0.33333334,
+            "hits": [
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "2",
+                "_score": 0.33333334,
+                "_source": {
+                  "tag": "b",
+                  "v": [
+                    0.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "filter matching nothing",
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "filter": {
+                  "term": {
+                    "tag": "zzz"
+                  }
+                },
+                "k": 3,
+                "vector": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 0,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          }
+        }
+      }
+    },
+    {
+      "name": "filter bool",
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "filter": {
+                  "bool": {
+                    "must_not": [
+                      {
+                        "term": {
+                          "tag": "a"
+                        }
+                      }
+                    ]
+                  }
+                },
+                "k": 4,
+                "vector": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 0.33333334,
+            "hits": [
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "2",
+                "_score": 0.33333334,
+                "_source": {
+                  "tag": "b",
+                  "v": [
+                    0.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "4",
+                "_score": 0.1,
+                "_source": {
+                  "tag": "b",
+                  "v": [
+                    2.0,
+                    2.0,
+                    2.0
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "boost",
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "boost": 2.0,
+                "k": 3,
+                "vector": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 2.0,
+            "hits": [
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "1",
+                "_score": 2.0,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    0.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "3",
+                "_score": 1.0,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "2",
+                "_score": 0.6666667,
+                "_source": {
+                  "tag": "b",
+                  "v": [
+                    0.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "inside bool must with a filter outside",
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "request": {
+        "body": {
+          "query": {
+            "bool": {
+              "filter": [
+                {
+                  "term": {
+                    "tag": "b"
+                  }
+                }
+              ],
+              "must": [
+                {
+                  "knn": {
+                    "v": {
+                      "k": 2,
+                      "vector": [
+                        1,
+                        0,
+                        0
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 0,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          }
+        }
+      }
+    },
+    {
+      "name": "inside bool should",
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "request": {
+        "body": {
+          "query": {
+            "bool": {
+              "should": [
+                {
+                  "knn": {
+                    "v": {
+                      "k": 2,
+                      "vector": [
+                        1,
+                        0,
+                        0
+                      ]
+                    }
+                  }
+                },
+                {
+                  "term": {
+                    "tag": "b"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    0.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "2",
+                "_score": 1.0,
+                "_source": {
+                  "tag": "b",
+                  "v": [
+                    0.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "4",
+                "_score": 1.0,
+                "_source": {
+                  "tag": "b",
+                  "v": [
+                    2.0,
+                    2.0,
+                    2.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "6",
+                "_score": 1.0,
+                "_source": {
+                  "tag": "b",
+                  "v": null
+                }
+              },
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "3",
+                "_score": 0.5,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "track_total_hits false",
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "k": 3,
+                "vector": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            }
+          },
+          "track_total_hits": false
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    0.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "3",
+                "_score": 0.5,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "2",
+                "_score": 0.33333334,
+                "_source": {
+                  "tag": "b",
+                  "v": [
+                    0.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "source false",
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "request": {
+        "body": {
+          "_source": false,
+          "query": {
+            "knn": {
+              "v": {
+                "k": 2,
+                "vector": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "1",
+                "_score": 1.0
+              },
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "3",
+                "_score": 0.5
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "explain-free score ties",
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "k": 4,
+                "vector": [
+                  0,
+                  0,
+                  1
+                ]
+              }
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 4,
+              "relation": "eq"
+            },
+            "max_score": 0.33333334,
+            "hits": [
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "1",
+                "_score": 0.33333334,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    0.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "2",
+                "_score": 0.33333334,
+                "_source": {
+                  "tag": "b",
+                  "v": [
+                    0.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "3",
+                "_score": 0.25,
+                "_source": {
+                  "tag": "a",
+                  "v": [
+                    1.0,
+                    1.0,
+                    0.0
+                  ]
+                }
+              },
+              {
+                "_index": "compat-knn-search-l2",
+                "_id": "4",
+                "_score": 0.1,
+                "_source": {
+                  "tag": "b",
+                  "v": [
+                    2.0,
+                    2.0,
+                    2.0
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "no k, distance or score",
+      "normalise": [],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "vector": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "[knn] requires exactly one of k, distance or score to be set"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "[knn] requires exactly one of k, distance or score to be set"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "k and min_score",
+      "normalise": [],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "k": 2,
+                "min_score": 0.5,
+                "vector": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "[knn] requires exactly one of k, distance or score to be set"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "[knn] requires exactly one of k, distance or score to be set"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "k zero",
+      "normalise": [],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "k": 0,
+                "vector": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "[knn] requires k to be in the range (0, 10000]"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "[knn] requires k to be in the range (0, 10000]"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "k above the limit",
+      "normalise": [],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "k": 20000,
+                "vector": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "[knn] requires k to be in the range (0, 10000]"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "[knn] requires k to be in the range (0, 10000]"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "no vector",
+      "normalise": [],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "k": 2
+              }
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "[knn] requires query vector"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "[knn] requires query vector"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "empty vector",
+      "normalise": [],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "k": 2,
+                "vector": []
+              }
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "x_content_parse_exception",
+                "reason": "[1:39] [knn] failed to parse field [vector]"
+              }
+            ],
+            "type": "x_content_parse_exception",
+            "reason": "[1:39] [knn] failed to parse field [vector]",
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "[knn] field 'vector' requires to be non-null and non-empty"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "unknown parameter",
+      "normalise": [],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "bogus": 1,
+                "k": 2,
+                "vector": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "x_content_parse_exception",
+                "reason": "[1:23] [knn] unknown field [bogus]"
+              }
+            ],
+            "type": "x_content_parse_exception",
+            "reason": "[1:23] [knn] unknown field [bogus]"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "non-numeric component",
+      "normalise": [],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "k": 2,
+                "vector": [
+                  1,
+                  "x",
+                  0
+                ]
+              }
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "x_content_parse_exception",
+                "reason": "[1:41] [knn] failed to parse field [vector]"
+              }
+            ],
+            "type": "x_content_parse_exception",
+            "reason": "[1:41] [knn] failed to parse field [vector]",
+            "caused_by": {
+              "type": "number_format_exception",
+              "reason": "For input string: \"x\""
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "flat form",
+      "normalise": [],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "v": [
+                1,
+                0,
+                0
+              ]
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "[knn] requires exactly one of k, distance or score to be set"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "[knn] requires exactly one of k, distance or score to be set"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "empty knn",
+      "normalise": [],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {}
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "[knn] field 'vector' requires to be non-null and non-empty"
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "[knn] field 'vector' requires to be non-null and non-empty"
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "wrong dimension",
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "node id, random per node"
+        },
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "index uuid, generated"
+        },
+        {
+          "pointer": "/body/error/caused_by/index_uuid",
+          "reason": "index uuid, generated"
+        },
+        {
+          "pointer": "/body/error/failed_shards/*/reason/index_uuid",
+          "reason": "index uuid, generated"
+        }
+      ],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "v": {
+                "k": 2,
+                "vector": [
+                  1,
+                  0
+                ]
+              }
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "query_shard_exception",
+                "reason": "failed to create query: Query vector has invalid dimension: 2. Dimension should be: 3",
+                "index": "compat-knn-search-l2",
+                "index_uuid": "lXL_bnyVRXKN8NVwXrKo5w"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-knn-search-l2",
+                "node": "TUgouUHURqOUTvVkqg25VA",
+                "reason": {
+                  "type": "query_shard_exception",
+                  "reason": "failed to create query: Query vector has invalid dimension: 2. Dimension should be: 3",
+                  "index": "compat-knn-search-l2",
+                  "index_uuid": "lXL_bnyVRXKN8NVwXrKo5w",
+                  "caused_by": {
+                    "type": "illegal_argument_exception",
+                    "reason": "Query vector has invalid dimension: 2. Dimension should be: 3"
+                  }
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "query_shard_exception",
+              "reason": "failed to create query: Query vector has invalid dimension: 2. Dimension should be: 3",
+              "index": "compat-knn-search-l2",
+              "index_uuid": "lXL_bnyVRXKN8NVwXrKo5w",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Query vector has invalid dimension: 2. Dimension should be: 3"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "unknown field",
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "node id, random per node"
+        },
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "index uuid, generated"
+        },
+        {
+          "pointer": "/body/error/caused_by/index_uuid",
+          "reason": "index uuid, generated"
+        },
+        {
+          "pointer": "/body/error/failed_shards/*/reason/index_uuid",
+          "reason": "index uuid, generated"
+        }
+      ],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "nope": {
+                "k": 2,
+                "vector": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "query_shard_exception",
+                "reason": "failed to create query: Field 'nope' is not knn_vector type.",
+                "index": "compat-knn-search-l2",
+                "index_uuid": "lXL_bnyVRXKN8NVwXrKo5w"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-knn-search-l2",
+                "node": "TUgouUHURqOUTvVkqg25VA",
+                "reason": {
+                  "type": "query_shard_exception",
+                  "reason": "failed to create query: Field 'nope' is not knn_vector type.",
+                  "index": "compat-knn-search-l2",
+                  "index_uuid": "lXL_bnyVRXKN8NVwXrKo5w",
+                  "caused_by": {
+                    "type": "illegal_argument_exception",
+                    "reason": "Field 'nope' is not knn_vector type."
+                  }
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "query_shard_exception",
+              "reason": "failed to create query: Field 'nope' is not knn_vector type.",
+              "index": "compat-knn-search-l2",
+              "index_uuid": "lXL_bnyVRXKN8NVwXrKo5w",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Field 'nope' is not knn_vector type."
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "keyword field",
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "node id, random per node"
+        },
+        {
+          "pointer": "/body/error/root_cause/*/index_uuid",
+          "reason": "index uuid, generated"
+        },
+        {
+          "pointer": "/body/error/caused_by/index_uuid",
+          "reason": "index uuid, generated"
+        },
+        {
+          "pointer": "/body/error/failed_shards/*/reason/index_uuid",
+          "reason": "index uuid, generated"
+        }
+      ],
+      "request": {
+        "body": {
+          "query": {
+            "knn": {
+              "tag": {
+                "k": 2,
+                "vector": [
+                  1,
+                  0,
+                  0
+                ]
+              }
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/compat-knn-search-l2/_search"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "query_shard_exception",
+                "reason": "failed to create query: Field 'tag' is not knn_vector type.",
+                "index": "compat-knn-search-l2",
+                "index_uuid": "lXL_bnyVRXKN8NVwXrKo5w"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-knn-search-l2",
+                "node": "TUgouUHURqOUTvVkqg25VA",
+                "reason": {
+                  "type": "query_shard_exception",
+                  "reason": "failed to create query: Field 'tag' is not knn_vector type.",
+                  "index": "compat-knn-search-l2",
+                  "index_uuid": "lXL_bnyVRXKN8NVwXrKo5w",
+                  "caused_by": {
+                    "type": "illegal_argument_exception",
+                    "reason": "Field 'tag' is not knn_vector type."
+                  }
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "query_shard_exception",
+              "reason": "failed to create query: Field 'tag' is not knn_vector type.",
+              "index": "compat-knn-search-l2",
+              "index_uuid": "lXL_bnyVRXKN8NVwXrKo5w",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Field 'tag' is not knn_vector type."
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    }
+  ]
+}

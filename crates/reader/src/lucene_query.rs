@@ -34,6 +34,8 @@ pub struct QueryContext<'a> {
     pub analyzer: &'a Analyzer,
     /// The reader's `maxDoc`, which a match-all query covers.
     pub max_doc: i32,
+    /// The answers of the query's `knn` nodes, when the search ran them.
+    pub knn: Option<&'a crate::knn::KnnResults>,
 }
 
 /// `QueryShardContext.toQuery`'s wrapping: an exception that is not an
