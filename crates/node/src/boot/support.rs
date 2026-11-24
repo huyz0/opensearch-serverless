@@ -177,6 +177,7 @@ pub(super) fn apply_janitor_and_hibernation(
     node.pinned_indexes.clone_from(&config.pinned_indexes);
     node.janitor_every = Duration::from_millis(config.janitor_every_millis);
     node.sweep.dry_run = config.janitor_dry_run;
+    node.snapshots = config.snapshots_enabled;
 }
 
 /// Starts the commit push: this node's writer tells its own reader of each
