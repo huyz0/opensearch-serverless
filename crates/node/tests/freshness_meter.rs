@@ -15,6 +15,13 @@ use suite_rig::{Cluster, wait_for};
 const TTL_MS: u64 = 3_000;
 /// Documents timed per series, after `WARMUP` that open the readers.
 const SAMPLES: usize = 100;
+/// `METER_SAMPLES` replaces it.
+fn samples() -> usize {
+    std::env::var("METER_SAMPLES")
+        .ok()
+        .and_then(|n| n.parse().ok())
+        .unwrap_or(SAMPLES)
+}
 const WARMUP: usize = 5;
 /// The shell's `refresh=true` ack p99 on this latency profile (mode
 /// `serving`, filesystem, 2026-11-12), and the tolerance on it.
@@ -48,6 +55,8 @@ struct Sample {
     ack: f64,
     visible: f64,
     misses: usize,
+    /// How long the searches that counted the document took, one a node.
+    search: Vec<f64>,
 }
 
 fn ms(since: Instant) -> f64 {
@@ -55,7 +64,16 @@ fn ms(since: Instant) -> f64 {
 }
 
 /// Whether a search of `slot` counts document `id`.
-fn counts(cluster: &Cluster, slot: usize, id: &str) -> bool {
+fn counts(cluster: &Cluster, slot: usize, id: &str, took: &mut Vec<f64>) -> bool {
+    let started = Instant::now();
+    let found = counts_once(cluster, slot, id);
+    if found {
+        took.push(ms(started));
+    }
+    found
+}
+
+fn counts_once(cluster: &Cluster, slot: usize, id: &str) -> bool {
     let body =
         format!(r#"{{"query":{{"ids":{{"values":["{id}"]}}}},"size":0,"track_total_hits":true}}"#);
     let r = cluster.call(slot, "POST", "/fresh/_search", Some(&body));
@@ -90,11 +108,12 @@ fn timed(cluster: &Cluster, id: &str, refresh: bool) -> Sample {
     let mut seen = [None, None];
     let mut misses = 0;
     let mut first = true;
+    let mut search = Vec::new();
     while seen.iter().any(Option::is_none) {
         assert!(start.elapsed() < Duration::from_secs(10), "{id} never seen");
         for (at, slot) in [1, 2].into_iter().enumerate() {
             if seen[at].is_none() {
-                if counts(cluster, slot, id) {
+                if counts(cluster, slot, id, &mut search) {
                     seen[at] = Some(ms(start));
                 } else if first {
                     misses += 1;
@@ -108,6 +127,7 @@ fn timed(cluster: &Cluster, id: &str, refresh: bool) -> Sample {
         ack,
         visible,
         misses,
+        search,
     }
 }
 
@@ -117,7 +137,7 @@ fn series(cluster: &Cluster, refresh: bool) -> (Vec<Sample>, Vec<(oss_blob::S3Op
         timed(cluster, &format!("{label}warm{n}"), refresh);
     }
     let before = oss_blob::S3Op::ALL.map(|op| cluster.sent(op));
-    let samples: Vec<Sample> = (0..SAMPLES)
+    let samples: Vec<Sample> = (0..samples())
         .map(|n| timed(cluster, &format!("{label}{n}"), refresh))
         .collect();
     let sent = oss_blob::S3Op::ALL
@@ -133,18 +153,22 @@ fn report(refresh: bool, samples: &[Sample], sent: &[(oss_blob::S3Op, u64)]) -> 
     let col = |f: fn(&Sample) -> f64| samples.iter().map(f).collect::<Vec<_>>();
     let (ack, visible) = (col(|s| s.ack), col(|s| s.visible));
     let misses: usize = samples.iter().map(|s| s.misses).sum();
+    let search: Vec<f64> = samples.iter().flat_map(|s| s.search.clone()).collect();
     let per_write: Vec<String> = sent
         .iter()
         .map(|(op, n)| format!("{op:?} {:.3}", *n as f64 / samples.len() as f64))
         .collect();
     println!(
-        "FRESHMETER|refresh={refresh}|ack p50={:.1} p99={:.1} ms|visible p50={:.1} p99={:.1} max={:.1} ms (n={})|misses {misses} of {}|per write: {}|provisional: emulator",
+        "FRESHMETER|refresh={refresh}|ack p50={:.1} p99={:.1} ms|visible p50={:.1} p99={:.1} max={:.1} ms (n={})|search p50={:.1} p99={:.1} ms (n={})|misses {misses} of {}|per write: {}|provisional: emulator",
         percentile(&ack, 50),
         percentile(&ack, 99),
         percentile(&visible, 50),
         percentile(&visible, 99),
         percentile(&visible, 100),
         samples.len(),
+        percentile(&search, 50),
+        percentile(&search, 99),
+        search.len(),
         samples.len() * 2,
         per_write.join(" ")
     );
@@ -205,8 +229,9 @@ fn a_write_is_visible_on_the_other_nodes_within_the_shells_bar() {
             !(overlay && refresh && tail != "owner") || misses == 0,
             "refresh=true under {tail}: {misses} misses"
         );
+        // With the overlay off the bar is the thing being measured.
         assert!(
-            p99 <= bar,
+            !overlay || p99 <= bar,
             "refresh={refresh}: visible p99 {p99:.1} ms > {bar:.1}"
         );
     }

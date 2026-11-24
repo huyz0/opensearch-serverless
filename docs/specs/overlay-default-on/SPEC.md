@@ -21,4 +21,4 @@ Fewer: no commit is published per refresh to make a write visible. See VERIFIED.
 
 ## Switch
 
-Both settings stay: the node setting and the per-index one. Default on because the measurements show it wins everywhere that was measured (build rule).
+Both settings stay: the node setting and the per-index one. Default on because the measurements show it wins on everything measured (write ack, visibility, search latency, requests a write); what is not measured is listed in VERIFIED.md and ADR 0034.
