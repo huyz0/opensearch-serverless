@@ -95,15 +95,22 @@ impl WriterRole {
         slot: &Arc<Mutex<ShardSlot>>,
         only_if_due: bool,
     ) -> Result<Option<(Published, i64)>, String> {
+        // Groups in flight settle before the gate is taken, so one shard's
+        // wait does not hold up the other shards' publishes.
+        let pipe = lock(slot).pipeline();
+        pipe.wait_idle();
         let _gate = publishing.gate();
         let (snapshot, term, max_seq_no, logged) = {
-            let mut held = lock(slot);
+            // No group of the shard is in flight and none stages until the
+            // snapshot is taken, so every write in the commit is in the log.
+            let (mut held, _quiet) = super::pipelined::quiet_slot(slot);
             let max_seq_no = held.max_seq_no();
-            if only_if_due && (held.released() || !publishing.due(key, max_seq_no)) {
+            if held.failed() || only_if_due && (held.released() || !publishing.due(key, max_seq_no))
+            {
                 return Ok(None);
             }
-            // Every write is logged while the slot is held, so what the log
-            // holds of this shard now is in the commit the snapshot takes.
+            // What the log holds of this shard now is in the commit the
+            // snapshot takes.
             let logged = self
                 .committer
                 .last_position(held.key())

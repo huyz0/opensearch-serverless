@@ -28,6 +28,7 @@
 //! holding nothing unpublished is complete, deletable, and leaves the lease.
 
 mod join;
+mod staged;
 mod timings;
 mod track;
 mod types;
@@ -154,6 +155,27 @@ impl NodeLogCommitter {
         term: i64,
         records: &[WalRecord<'_>],
     ) -> Result<Option<Position>, CommitError> {
+        match self.stage(shard, term, records)? {
+            Some(staged) => staged.wait(self),
+            None => Ok(None),
+        }
+    }
+
+    /// Joins a shard's records to the windows without waiting for them: the
+    /// first half of [`Self::commit`]. `None` for no records. The staged
+    /// records are in the log's order of staging, so a caller that stages
+    /// under one lock fixes the order of its shard's records.
+    ///
+    /// # Errors
+    ///
+    /// [`CommitError`] if the records cannot be encoded or no window took them;
+    /// nothing is joined then.
+    pub fn stage(
+        &self,
+        shard: &ShardKey,
+        term: i64,
+        records: &[WalRecord<'_>],
+    ) -> Result<Option<staged::Staged>, CommitError> {
         if records.is_empty() {
             return Ok(None);
         }
@@ -171,40 +193,36 @@ impl NodeLogCommitter {
             .back_mut()
             .filter(|w| Arc::ptr_eq(&w.latch, &mine))
             .is_some_and(|w| std::mem::replace(&mut w.driven, true));
-        if driven {
+        drop(inner);
+        Ok(Some(staged::Staged::new(
+            shard.clone(),
+            joined,
+            mine,
+            driven,
+            joined_at,
+        )))
+    }
+
+    /// Waits for `mine` to land: drives it when this caller is its driver or
+    /// the driver left, else waits for the driver.
+    fn land(&self, staged: &staged::Staged) {
+        if staged.driven {
             // Another writer will write it, or the windows before it, when
             // due: wait for it to land without the lock.
-            drop(inner);
             let patience = self
                 .config
                 .window
                 .saturating_mul(4)
                 .max(Duration::from_secs(1));
-            if mine.wait(patience).is_none() {
+            if staged.mine.wait(patience).is_none() {
                 // Its driver left it: drive it here.
-                inner = self.lock();
-                inner = self.await_landed(inner, &mine);
-                drop(inner);
+                let inner = self.lock();
+                drop(self.await_landed(inner, &staged.mine));
             }
         } else {
-            inner = self.await_landed(inner, &mine);
-            drop(inner);
+            let inner = self.lock();
+            drop(self.await_landed(inner, &staged.mine));
         }
-        if let Some(result) = mine.get() {
-            self.timings.caller(joined_at, &result);
-        }
-        // Windows are written in order, one at a time, so the last landing
-        // means the others were written.
-        for latch in &joined {
-            let result = latch.get().ok_or(CommitError::Lost)?;
-            if let Some(failure) = result.failures.get(shard) {
-                return Err(failure.clone());
-            }
-        }
-        mine.get()
-            .and_then(|r| r.landed)
-            .map(Some)
-            .ok_or(CommitError::Lost)
     }
 
     /// Adds a shard's records to the window now open without waiting for it

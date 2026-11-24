@@ -13,6 +13,9 @@ use crate::id_lanes::IdLanes;
 use crate::ingest_run::IngestPipelines;
 use crate::writer::{RoleTarget, WriterRole};
 
+/// The least a bulk with a declared length takes from the budget.
+const MIN_GRANT: usize = 64 << 10;
+
 /// The request parameters a bulk takes.
 const PARAMS: &[&str] = &["refresh", "routing", "pipeline", "require_alias"];
 
@@ -104,6 +107,17 @@ impl BulkService {
             require_alias: req.param("require_alias").is_some_and(|v| v == "true"),
         };
         let refresh = refresh(req.param("refresh").as_deref())?;
+        let mut config = self.config;
+        if let Some(declared) = req.body().declared_length() {
+            // A small body holds a small share of the budget, so many of
+            // them wait for the log together; the parsed items take about
+            // twice the body.
+            let held = usize::try_from(declared)
+                .unwrap_or(usize::MAX)
+                .saturating_mul(2)
+                .max(MIN_GRANT);
+            config.slice_bytes = config.slice_bytes.min(held);
+        }
         let chunk = req.body().max_chunk().max(4096);
         // ALLOC: one read buffer a bulk, the body's largest chunk.
         let mut buffer = vec![0u8; chunk];
@@ -131,7 +145,7 @@ impl BulkService {
             &mut buffer,
             &defaults,
             &self.budget,
-            self.config,
+            config,
             &mut run,
         );
         if let Some(e) = body.failure.take() {

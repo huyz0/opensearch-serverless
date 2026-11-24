@@ -137,6 +137,8 @@ pub struct NodeConfig {
     pub evict_after_millis: u64,
     /// `serverless.activation.evict_headroom_percent`.
     pub evict_headroom_percent: u64,
+    /// `OSS_WRITE_PIPELINE_DEPTH`: write groups of one shard that wait on the log together.
+    pub write_pipeline_depth: u64,
     /// `serverless.activation.pinned_indexes`, split at commas.
     pub pinned_indexes: Vec<String>,
     /// `serverless.activation.hand_off.enabled`.
@@ -436,6 +438,7 @@ impl NodeConfig {
             max_shards: usize::try_from(max_shards).unwrap_or(0),
             evict_after_millis,
             evict_headroom_percent,
+            write_pipeline_depth: bounded("OSS_WRITE_PIPELINE_DEPTH", "1", 1, 64)?,
             pinned_indexes,
             hand_off,
             security,

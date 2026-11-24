@@ -76,3 +76,4 @@ src/log/charge.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/
 src/index/knn.rs	new		the engine of a shard with knn_vector fields: the plugin's codec name and derived-source segment lists; the plugin does this in its codec service
 src/admission/limiter/edges.rs	new		the limiter's comparisons at their boundaries, tests only
 src/takeover/restore/tests.rs	new		the restore's stream cutting and error text, tests only
+src/log/committer/staged.rs	new		records joined to the windows and waited for apart, so a caller can stage under a lock
