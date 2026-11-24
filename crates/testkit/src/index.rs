@@ -40,8 +40,15 @@ pub fn mapping(spec: &Spec) -> String {
     for x in 0..spec.texts {
         out.push_str(&format!(r#","x{x}":{{"type":"text"}}"#));
     }
-    if spec.vectors.is_some() {
-        out.push_str(r#","v":{"type":"knn_vector","dimension":3}"#);
+    if let Some(similarity) = spec.vectors {
+        let space = match similarity {
+            VectorSimilarityFunction::Cosine => "cosinesimil",
+            VectorSimilarityFunction::MaximumInnerProduct => "innerproduct",
+            _ => "l2",
+        };
+        out.push_str(&format!(
+            r#","v":{{"type":"knn_vector","dimension":3,"method":{{"name":"hnsw","engine":"lucene","space_type":"{space}"}}}}"#
+        ));
     }
     out.push_str("}}");
     out

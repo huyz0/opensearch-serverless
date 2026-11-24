@@ -56,9 +56,40 @@ pub struct Field {
     pub indexed: bool,
     /// `doc_values`, true by default.
     pub doc_values: bool,
-    /// A `knn_vector` field's `dimension`; its type is unsupported for every
-    /// query but `knn`.
-    pub knn_dimension: Option<u32>,
+    /// A `knn_vector` field's `dimension` and space; its type is unsupported
+    /// for every query but `knn`.
+    pub knn: Option<KnnField>,
+}
+
+/// The space a `knn_vector` field scores in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Space {
+    /// `l2`, the default.
+    L2,
+    /// `cosinesimil`.
+    CosineSimil,
+    /// `innerproduct`.
+    InnerProduct,
+}
+
+impl Space {
+    /// The name the plugin's messages give the space (`SpaceType.name()`).
+    pub fn name(self) -> &'static str {
+        match self {
+            Space::L2 => "L2",
+            Space::CosineSimil => "COSINESIMIL",
+            Space::InnerProduct => "INNER_PRODUCT",
+        }
+    }
+}
+
+/// What the `knn` query reads of a `knn_vector` field.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct KnnField {
+    /// The vectors' length.
+    pub dimension: u32,
+    /// The space the field's `space_type` names.
+    pub space: Space,
 }
 
 /// An index's fields by full name.
@@ -212,6 +243,7 @@ impl Mapping {
         let mut doc_values = true;
         let mut options = None;
         let mut dimension = None;
+        let mut space = None;
         while let Some(Kind::FieldName) = p.next_token() {
             let key = p.text();
             p.next_token();
@@ -221,6 +253,17 @@ impl Mapping {
                 "index" => indexed = text != "false",
                 "doc_values" => doc_values = text != "false",
                 "dimension" => dimension = text.parse::<u32>().ok(),
+                "space_type" => space = Some(text),
+                "method" if p.current_token() == Some(Kind::StartObject) => {
+                    while let Some(Kind::FieldName) = p.next_token() {
+                        let inner = p.text();
+                        p.next_token();
+                        if inner == "space_type" {
+                            space = Some(p.text());
+                        }
+                        p.skip_children();
+                    }
+                }
                 "analyzer" | "search_analyzer" if text == "standard" => {}
                 "analyzer"
                 | "search_analyzer"
@@ -285,7 +328,14 @@ impl Mapping {
                 ty,
                 indexed,
                 doc_values,
-                knn_dimension: dimension.filter(|_| is_knn),
+                knn: dimension.filter(|_| is_knn).map(|dimension| KnnField {
+                    dimension,
+                    space: match space {
+                        Some("cosinesimil") => Space::CosineSimil,
+                        Some("innerproduct") => Space::InnerProduct,
+                        _ => Space::L2,
+                    },
+                }),
             },
         );
         Ok(())

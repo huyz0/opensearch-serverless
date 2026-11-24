@@ -8,17 +8,19 @@
 //! identity.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use lucene_search::Clause;
-use lucene_search::extended_query::{DocAndScoreQuery, ExtendedQuery};
-use lucene_search::knn_search::{KnnTarget, knn_top_hits};
+use lucene_search::extended_query::{DocAndScoreQuery, DocumentClause, ExtendedQuery};
+use lucene_search::knn_search::{KnnLeafKind, KnnLeafQuery, KnnTarget, knn_top_hits};
 use lucene_search::multi_segment::OpenSegment;
 
 use crate::dsl::Query;
 use crate::dsl::queries::More;
-use crate::dsl::queries::knn::Knn;
+use crate::dsl::queries::knn::{Knn, Mode};
 use crate::failure::Failure;
 use crate::lucene_query::{QueryContext, build};
+use crate::mapping::{KnnField, Space};
 
 /// The answer of each `knn` node of a query.
 #[derive(Default)]
@@ -51,7 +53,7 @@ pub fn nodes(query: &Query) -> Vec<&Knn> {
                 }
             }
             Query::More(m) => match m.as_ref() {
-                More::Knn(k) => out.push(k),
+                More::Knn(k) if matches!(k.mode, Mode::TopK(_)) => out.push(k),
                 More::ConstantScore { filter, .. } => walk(filter, out),
                 More::DisMax { queries, .. } => queries.iter().for_each(|q| walk(q, out)),
                 More::FunctionScore(f, _) => {
@@ -80,9 +82,9 @@ fn illegal(reason: String) -> Failure {
 }
 
 /// Checks `knn` against the mapping, as the plugin's `KNNQueryBuilder.doToQuery`.
-fn check(knn: &Knn, cx: &QueryContext<'_>) -> Result<(), Failure> {
-    let dimension = match cx.mapping.get(&knn.field).and_then(|f| f.knn_dimension) {
-        Some(dimension) => dimension,
+fn check(knn: &Knn, cx: &QueryContext<'_>) -> Result<KnnField, Failure> {
+    let field = match cx.mapping.get(&knn.field).and_then(|f| f.knn) {
+        Some(field) => field,
         // ALLOC: error path; one message.
         None => {
             return Err(illegal(format!(
@@ -91,6 +93,7 @@ fn check(knn: &Knn, cx: &QueryContext<'_>) -> Result<(), Failure> {
             )));
         }
     };
+    let dimension = field.dimension;
     if usize::try_from(dimension).ok() != Some(knn.vector.len()) {
         // ALLOC: error path; one message.
         return Err(illegal(format!(
@@ -98,7 +101,7 @@ fn check(knn: &Knn, cx: &QueryContext<'_>) -> Result<(), Failure> {
             knn.vector.len()
         )));
     }
-    Ok(())
+    Ok(field)
 }
 
 /// Runs the `knn` queries of `query`, if it has any, over `shard`'s segments:
@@ -139,6 +142,7 @@ pub fn run(
     let bases: Vec<i32> = segments.iter().map(|s| s.doc_base).collect();
     for knn in nodes {
         check(knn, cx)?;
+        let Mode::TopK(k) = knn.mode else { continue };
         let filter = match &knn.filter {
             Some(f) => Some(build(f, cx)?),
             None => None,
@@ -147,8 +151,8 @@ pub fn run(
             segments,
             &knn.field,
             &KnnTarget::Float(knn.vector.clone()),
-            knn.k,
-            knn.k,
+            k,
+            k,
             filter.as_ref(),
         )
         .map_err(engine)?;
@@ -166,3 +170,48 @@ pub fn run(
 
 #[cfg(test)]
 mod tests;
+
+/// The score a document must reach for `mode` in `space`, as the plugin
+/// translates a distance to the space's Lucene score.
+fn threshold(mode: Mode, space: Space) -> Result<f32, Failure> {
+    let name = space.name();
+    match (mode, space) {
+        (Mode::MinScore(score), Space::L2 | Space::CosineSimil) if score > 1.0 => Err(illegal(
+            format!("[knn] requires score to be in the range [0, 1] for space type: {name}"),
+        )),
+        (Mode::MinScore(score), _) => Ok(score),
+        (Mode::MaxDistance(d), Space::L2 | Space::CosineSimil) if d < 0.0 => Err(illegal(format!(
+            "[knn] requires distance to be non-negative for space type: {name}"
+        ))),
+        (Mode::MaxDistance(d), Space::L2) => Ok(1.0 / (1.0 + d)),
+        (Mode::MaxDistance(d), Space::CosineSimil) => Ok((2.0 - d) / 2.0),
+        // The distance is the inner product itself, as the space scores it:
+        // one plus a positive product, one over one minus a negative one.
+        (Mode::MaxDistance(d), Space::InnerProduct) if d >= 0.0 => Ok(d + 1.0),
+        (Mode::MaxDistance(d), Space::InnerProduct) => Ok(1.0 / (1.0 - d)),
+        (Mode::TopK(_), _) => Err(illegal("[knn] a top-k query has no threshold".to_owned())),
+    }
+}
+
+/// A `knn` query of `min_score` or `max_distance`: every document scoring at
+/// least the threshold, found segment by segment, `filter` applied while the
+/// graph is walked.
+pub(crate) fn radial(knn: &Knn, cx: &QueryContext<'_>) -> Result<Clause, Failure> {
+    let field = check(knn, cx)?;
+    let min_score = threshold(knn.mode, field.space)?;
+    let leaf = KnnLeafQuery::new(
+        knn.field.clone(),
+        KnnTarget::Float(knn.vector.clone()),
+        KnnLeafKind::Radial { min_score },
+    )
+    .map_err(engine)?;
+    // ALLOC: one key a radial query, from the field and the vector.
+    let key = format!("knn:{}:{:?}:{:?}", knn.field, knn.mode, knn.vector);
+    // ALLOC: one box a radial query.
+    let mut clause = DocumentClause::new(key, Arc::new(leaf));
+    if let Some(filter) = &knn.filter {
+        clause = clause.with_filter(build(filter, cx)?);
+    }
+    // ALLOC: one box a radial query.
+    Ok(Clause::Extended(Box::new(ExtendedQuery::Document(clause))))
+}

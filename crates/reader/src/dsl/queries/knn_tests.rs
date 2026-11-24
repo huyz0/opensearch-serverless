@@ -31,14 +31,17 @@ fn a_field_with_a_vector_and_k_parses() {
     let k = knn(r#"{"knn":{"v":{"vector":[1,"2.5",0],"k":"3","boost":2}}}"#);
     assert_eq!(k.field, "v");
     assert_eq!(k.vector, vec![1.0, 2.5, 0.0]);
-    assert_eq!((k.k, k.boost), (3, 2.0));
+    assert_eq!((k.mode, k.boost), (knn::Mode::TopK(3), 2.0));
     assert_eq!(k.filter, None);
 }
 
 #[test]
 fn k_has_a_range_of_one_to_ten_thousand() {
-    let ok = |k: &str| knn(&format!(r#"{{"knn":{{"v":{{"vector":[1],"k":{k}}}}}}}"#)).k;
-    assert_eq!((ok("1"), ok("10000")), (1, 10_000));
+    let ok = |k: &str| knn(&format!(r#"{{"knn":{{"v":{{"vector":[1],"k":{k}}}}}}}"#)).mode;
+    assert_eq!(
+        (ok("1"), ok("10000")),
+        (knn::Mode::TopK(1), knn::Mode::TopK(10_000))
+    );
     for k in ["0", "-1", "10001"] {
         assert_eq!(
             reason(&format!(r#""vector":[1],"k":{k}"#)),
@@ -61,13 +64,34 @@ fn exactly_one_of_k_and_the_radial_forms_is_asked_for_before_the_vector() {
 }
 
 #[test]
-fn a_radial_form_alone_is_refused_as_unsupported() {
-    for param in ["min_score", "max_distance"] {
+fn a_radial_form_alone_is_a_score_or_a_distance() {
+    let mode = |param: &str| knn(&format!(r#"{{"knn":{{"v":{{"vector":[1],{param}}}}}}}"#)).mode;
+    assert_eq!(mode(r#""min_score":0.5"#), knn::Mode::MinScore(0.5));
+    assert_eq!(mode(r#""max_distance":"2""#), knn::Mode::MaxDistance(2.0));
+    // A distance may be zero or negative here: the space decides when it is built.
+    assert_eq!(mode(r#""max_distance":-1"#), knn::Mode::MaxDistance(-1.0));
+    for score in ["0", "-1"] {
         assert_eq!(
-            reason(&format!(r#""vector":[1],"{param}":0.5"#)),
-            "a radial [knn] query ([min_score] or [max_distance]) is not supported by this node yet"
+            reason(&format!(r#""vector":[1],"min_score":{score}"#)),
+            "[knn] requires minScore to be greater than 0"
         );
     }
+    assert_eq!(
+        reason(r#""vector":[1],"min_score":"x""#),
+        "[1:48] [knn] failed to parse field [min_score]"
+    );
+    assert_eq!(
+        reason(r#""vector":[1],"max_distance":[1]"#),
+        "[1:51] [knn] max_distance doesn't support values of type: START_ARRAY"
+    );
+    assert_eq!(
+        reason(r#""vector":[1],"min_score":1,"min_score":2"#),
+        "a repeated [knn] parameter [min_score] is not supported by this node yet"
+    );
+    assert_eq!(
+        reason(r#""vector":[1],"max_distance":1,"max_distance":2"#),
+        "a repeated [knn] parameter [max_distance] is not supported by this node yet"
+    );
 }
 
 #[test]
