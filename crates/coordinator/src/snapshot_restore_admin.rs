@@ -9,81 +9,13 @@
 use std::fmt::Write;
 
 use oss_doc::mapping::json::{Json, parse, write_str};
-use regex::Regex;
 
 use crate::indices::admin::check_name as check_index_name;
 use crate::route::resolve::Refusal;
 use crate::snapshot_admin::check_name;
+use crate::snapshot_restore_keys::check_keys;
+use crate::snapshot_restore_rename::Rename;
 use crate::snapshot_take_admin::{MAX_TAKE_INDICES, too_large};
-
-/// What a restore reads; everything else the Java accepts is refused with
-/// its reason, below.
-const KNOWN: [&str; 3] = ["indices", "rename_pattern", "rename_replacement"];
-
-/// Core's other restore fields, each with why it is refused: the shell's
-/// `RESTORE_REFUSED_KEYS`.
-const REFUSED: [(&str, &str); 15] = [
-    (
-        "partial",
-        "a restore here creates every shard of an index or refuses; there is no partial index to make",
-    ),
-    (
-        "include_global_state",
-        "there is no global state in a snapshot here to restore",
-    ),
-    (
-        "include_aliases",
-        "aliases are not captured in a snapshot here",
-    ),
-    (
-        "rename_alias_pattern",
-        "aliases are not captured in a snapshot here",
-    ),
-    (
-        "rename_alias_replacement",
-        "aliases are not captured in a snapshot here",
-    ),
-    (
-        "index_settings",
-        "the settings an index had when it was captured are restored with it, unchanged; change them on the restored index with PUT /{index}/_settings",
-    ),
-    (
-        "ignore_index_settings",
-        "the settings an index had when it was captured are restored with it, unchanged; change them on the restored index with PUT /{index}/_settings",
-    ),
-    (
-        "settings",
-        "repository settings are fixed when the repository is registered",
-    ),
-    (
-        "storage_type",
-        "a restored index is served from this deployment's own object store; there is no other storage type",
-    ),
-    (
-        "source_remote_store_repository",
-        "there is one object store here, and it is the repository",
-    ),
-    (
-        "source_remote_translog_repository",
-        "there is one object store here, and it is the repository",
-    ),
-    (
-        "alias_write_index_policy",
-        "aliases are not captured in a snapshot here",
-    ),
-    (
-        "ignore_unavailable",
-        "a restore names the indices it wants; one the snapshot did not capture is a 404",
-    ),
-    (
-        "allow_no_indices",
-        "a restore names the indices it wants; patterns are not matched against the snapshot",
-    ),
-    (
-        "expand_wildcards",
-        "a restore names the indices it wants; patterns are not matched against the snapshot",
-    ),
-];
 
 fn refuse(status: u16, kind: &'static str, reason: String) -> Refusal {
     Refusal {
@@ -105,23 +37,6 @@ fn text(value: &Json) -> String {
     }
 }
 
-/// How target names are made from source names.
-#[derive(Debug, Clone)]
-pub struct Rename {
-    pattern: Regex,
-    replacement: String,
-}
-
-impl Rename {
-    /// The target name for `source`: every match of the pattern replaced.
-    #[must_use]
-    pub fn apply(&self, source: &str) -> String {
-        self.pattern
-            .replace_all(source, self.replacement.as_str())
-            .into_owned()
-    }
-}
-
 /// What a restore was asked for.
 #[derive(Debug, Clone)]
 pub struct RestoreRequest {
@@ -130,83 +45,6 @@ pub struct RestoreRequest {
     pub indices: Option<Vec<String>>,
     /// The rename, when both its pattern and replacement were given.
     pub rename: Option<Rename>,
-}
-
-fn illegal(reason: String) -> Refusal {
-    refuse(400, "illegal_argument_exception", reason)
-}
-
-/// Java's `Matcher.replaceAll` replacement, in the `regex` crate's: `$n` and
-/// `${name}` name a group, `\x` is `x`, and any other `$` or a trailing `\`
-/// is refused as Java refuses it.
-fn replacement(java: &str, pattern: &Regex) -> Result<String, Refusal> {
-    let groups = pattern.captures_len().saturating_sub(1);
-    let mut out = String::with_capacity(java.len().saturating_add(8));
-    let mut chars = java.chars().peekable();
-    while let Some(c) = chars.next() {
-        match c {
-            '\\' => match chars.next() {
-                Some('$') => out.push_str("$$"),
-                Some(next) => out.push(next),
-                None => {
-                    return Err(illegal(
-                        "character to be escaped is missing in rename_replacement".to_owned(),
-                    ));
-                }
-            },
-            '$' => match chars.peek().copied() {
-                Some('{') => {
-                    chars.next();
-                    let mut name = String::new();
-                    loop {
-                        match chars.next() {
-                            Some('}') => break,
-                            Some(n) => name.push(n),
-                            None => {
-                                return Err(illegal(
-                                    "named capturing group is missing trailing '}' in rename_replacement"
-                                        .to_owned(),
-                                ));
-                            }
-                        }
-                    }
-                    if !pattern.capture_names().flatten().any(|n| n == name) {
-                        return Err(illegal(format!(
-                            "no group with name {{{name}}} in rename_pattern"
-                        )));
-                    }
-                    let _ = write!(out, "${{{name}}}");
-                }
-                Some(d) if d.is_ascii_digit() => {
-                    chars.next();
-                    let mut number =
-                        usize::from(u8::try_from(d).unwrap_or(b'0').saturating_sub(b'0'));
-                    if number > groups {
-                        return Err(illegal(format!("No group {number} in rename_pattern")));
-                    }
-                    // More digits are taken while the group still exists.
-                    while let Some(next) = chars.peek().copied().filter(char::is_ascii_digit) {
-                        let more = number.saturating_mul(10).saturating_add(usize::from(
-                            u8::try_from(next).unwrap_or(b'0').saturating_sub(b'0'),
-                        ));
-                        if more > groups {
-                            break;
-                        }
-                        number = more;
-                        chars.next();
-                    }
-                    let _ = write!(out, "${{{number}}}");
-                }
-                _ => {
-                    return Err(illegal(
-                        "Illegal group reference in rename_replacement".to_owned(),
-                    ));
-                }
-            },
-            other => out.push(other),
-        }
-    }
-    Ok(out)
 }
 
 /// The request of `POST /_snapshot/{repo}/{name}/_restore`, in the shell's
@@ -238,24 +76,7 @@ pub fn request(repo: &str, name: &str, body: Option<&[u8]>) -> Result<RestoreReq
             }
         },
     };
-    for (key, why) in REFUSED {
-        if members.iter().any(|(k, _)| k == key) {
-            return Err(refuse(
-                501,
-                "unsupported_restore",
-                // ALLOC: error path; one message.
-                format!("{key} is not supported: {why}"),
-            ));
-        }
-    }
-    if let Some((key, _)) = members.iter().find(|(k, _)| !KNOWN.contains(&k.as_str())) {
-        return Err(refuse(
-            400,
-            "unknown_parameter",
-            // ALLOC: error path; one message.
-            format!("Unknown parameter {key}"),
-        ));
-    }
+    check_keys(&members)?;
     let get = |key: &str| {
         members
             .iter()
@@ -276,6 +97,7 @@ pub fn request(repo: &str, name: &str, body: Option<&[u8]>) -> Result<RestoreReq
             Json::Str(list) => list
                 .split(',')
                 .filter(|piece| !piece.trim().is_empty())
+                // ALLOC: one name, bounded by the 1 MiB body.
                 .for_each(|piece| push(piece.trim().to_owned())),
             Json::Arr(items) => items.iter().for_each(|item| push(text(item))),
             _ => {}
@@ -283,20 +105,7 @@ pub fn request(repo: &str, name: &str, body: Option<&[u8]>) -> Result<RestoreReq
         indices
     });
     let rename = match (get("rename_pattern"), get("rename_replacement")) {
-        (Some(pattern), Some(with)) => {
-            let source = text(pattern);
-            let compiled = Regex::new(&source).map_err(|e| {
-                illegal(format!(
-                    "rename_pattern [{source}] is not a pattern this node can apply (no \
-                     backreferences or lookaround): {e}"
-                ))
-            })?;
-            let replacement = replacement(&text(with), &compiled)?;
-            Some(Rename {
-                pattern: compiled,
-                replacement,
-            })
-        }
+        (Some(pattern), Some(with)) => Some(Rename::new(&text(pattern), &text(with))?),
         _ => None,
     };
     Ok(RestoreRequest { indices, rename })
@@ -324,6 +133,7 @@ pub struct Target {
 /// index-name refusal for a target that is no name.
 pub fn plan(request: &RestoreRequest, captured: &[String]) -> Result<Vec<Target>, Refusal> {
     let requested: Vec<&String> = match &request.indices {
+        // ALLOC: one reference an index, at most the names given or captured.
         Some(named) => named.iter().collect(),
         None => captured.iter().collect(),
     };
@@ -491,7 +301,7 @@ mod tests {
 
     #[test]
     fn what_the_shell_refuses_is_refused_with_its_reason() {
-        for key in REFUSED.map(|(k, _)| k) {
+        for key in crate::snapshot_restore_keys::REFUSED.map(|(k, _)| k) {
             let (status, kind) = refused(&format!(r#"{{"{key}":true}}"#));
             assert_eq!((status, kind), (501, "unsupported_restore"), "{key}");
         }
@@ -515,7 +325,7 @@ mod tests {
     }
 
     #[test]
-    fn a_rename_needs_both_halves_and_replaces_every_match() {
+    fn a_rename_needs_both_halves() {
         assert!(ask(r#"{"rename_pattern":"a"}"#).unwrap().rename.is_none());
         assert!(
             ask(r#"{"rename_replacement":"b"}"#)
@@ -523,47 +333,10 @@ mod tests {
                 .rename
                 .is_none()
         );
-        let r =
-            ask(r#"{"rename_pattern":"logs-(.+)","rename_replacement":"restored-$1"}"#).unwrap();
-        let rename = r.rename.unwrap();
-        assert_eq!(rename.apply("logs-2026"), "restored-2026");
-        assert_eq!(rename.apply("metrics"), "metrics");
-        let r = ask(r#"{"rename_pattern":"o","rename_replacement":"0"}"#).unwrap();
-        assert_eq!(r.rename.unwrap().apply("foo"), "f00");
-    }
-
-    #[test]
-    fn replacements_follow_javas_rules() {
-        let apply = |pattern: &str, with: &str, name: &str| {
-            let body = format!(r#"{{"rename_pattern":{pattern:?},"rename_replacement":{with:?}}}"#);
-            ask(&body).map(|r| r.rename.unwrap().apply(name))
-        };
-        // Digits are taken while the group exists: $1 then a literal 0.
-        assert_eq!(apply("(a)", "$10", "a").unwrap(), "a0");
-        assert_eq!(
-            apply("(a)(b)(c)(d)(e)(f)(g)(h)(i)(j)", "$10", "abcdefghij").unwrap(),
-            "j"
-        );
-        assert_eq!(apply("(?P<x>a)", "<${x}>", "a").unwrap(), "<a>");
-        assert_eq!(apply("a", r"\$", "a").unwrap(), "$");
-        assert_eq!(apply("a", r"\n", "a").unwrap(), "n");
-        for bad in ["$", "$x", "$ ", "$2", "${nope}", "${open", r"\"] {
-            let r = apply("(a)", bad, "a").unwrap_err();
-            assert_eq!(
-                (r.status, r.kind),
-                (400, "illegal_argument_exception"),
-                "{bad}"
-            );
-        }
-        // Lookaround and backreferences cannot be applied.
-        for bad in ["(?=a)a", r"(a)\1", "("] {
-            let r = apply(bad, "x", "a").unwrap_err();
-            assert_eq!(
-                (r.status, r.kind),
-                (400, "illegal_argument_exception"),
-                "{bad}"
-            );
-        }
+        let both = ask(r#"{"rename_pattern":"a","rename_replacement":"b"}"#).unwrap();
+        assert_eq!(both.rename.unwrap().apply("cat"), "cbt");
+        let bad = ask(r#"{"rename_pattern":"(","rename_replacement":"b"}"#).unwrap_err();
+        assert_eq!(bad.kind, "illegal_argument_exception");
     }
 
     #[test]
