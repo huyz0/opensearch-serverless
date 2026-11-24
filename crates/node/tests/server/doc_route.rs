@@ -400,14 +400,11 @@ fn a_document_the_limiter_refuses_answers_429_with_a_retry_after() {
     let r = rig_limited(&support::budget_config(), Some(limiter.clone()));
     // Another write holds the one slot.
     let held = limiter.admit(0).expect("the slot");
+    // Appends have been taking 4 s: the hint is the pressure in whole seconds plus one.
+    limiter.on_append(0, 4_000_000_000, true);
     let refused = call(&r, "PUT", "/docs/_doc/1", Some(r#"{"n":1}"#));
     assert_eq!(refused.status, 429, "{}", refused.text());
-    let secs: u64 = refused
-        .header("retry-after")
-        .expect("a retry hint")
-        .parse()
-        .expect("whole seconds");
-    assert!((1..=30).contains(&secs), "{secs}");
+    assert_eq!(refused.header("retry-after"), Some("5"));
     drop(held);
     let ok = call(&r, "PUT", "/docs/_doc/1", Some(r#"{"n":1}"#));
     assert_eq!(ok.status, 201, "{}", ok.text());
