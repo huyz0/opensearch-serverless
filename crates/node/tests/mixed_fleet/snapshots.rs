@@ -49,6 +49,7 @@ fn a_snapshot_taken_beside_a_java_writer_survives_the_index_and_restores_on_java
         return;
     };
     cluster.set("OSS_SNAPSHOTS_TAKE_ENABLED", "true");
+    cluster.set("OSS_SNAPSHOTS_RESTORE_ENABLED", "true");
     let mut ledger = BTreeSet::new();
 
     // A Java node creates the index and writes; a Rust node with the take on reads it.

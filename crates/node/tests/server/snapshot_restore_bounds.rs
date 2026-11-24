@@ -7,10 +7,12 @@
 
 use oss_blob::{BlobStore, S3Op};
 use oss_format::{
-    IndexCapture, MAX_SNAPSHOT_RECORD_BYTES, ShardCapture, SnapshotDraft, SnapshotState,
+    IndexCapture, MAX_SNAPSHOT_RECORD_BYTES, ShardCapture, ShardRef, SnapshotDraft, SnapshotState,
 };
 
-use crate::snapshot_restore::{RESTORE, Rig, live_index, requests, rig_sized, send};
+use crate::snapshot_restore::{
+    RESTORE, Rig, live_index, read, requests, restored_uuid, rig_sized, send,
+};
 use crate::snapshot_take::TAKE;
 
 const POOL_SLACK: usize = 2 << 20;
@@ -73,6 +75,19 @@ fn a_file_larger_than_the_pool_leaves_is_copied_through_two_chunks() {
     assert_eq!(got.status, 200, "{}", got.text());
     let mut buf = vec![0u8; 1 << 16];
     assert!(r.descriptors.get("copy", &mut buf).unwrap().is_some());
+    let uuid = restored_uuid(&r, "copy");
+    for shard in 0..2 {
+        let at = ShardRef {
+            index: "copy",
+            uuid: &uuid,
+            shard,
+        };
+        let blob = format!("{}t=1/_0.si", at.base_path("").unwrap());
+        assert!(
+            read(&r, &blob) == file,
+            "shard {shard} holds the 6 MiB, byte for byte"
+        );
+    }
 }
 
 /// A held register of `draft` for `snapshot` of the repository `backups`.
@@ -151,5 +166,5 @@ fn a_restore_over_4096_shards_is_400_and_writes_nothing() {
     // The bound is exact: 4,096 shards pass it and fail later, for want of files.
     hold(&r, "fits", &draft("fits", 4096, 4096), true);
     let got = send(&r, "POST", "/_snapshot/backups/fits/_restore", Some("{}"));
-    assert_ne!(got.status, 400, "{}", got.text());
+    assert!(!got.text().contains("snapshot_too_large"), "{}", got.text());
 }
