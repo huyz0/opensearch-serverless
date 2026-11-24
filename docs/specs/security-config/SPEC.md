@@ -9,7 +9,7 @@ The security-subset part of R15 (k-NN, security, extensions, mixed-fleet soak): 
 `/_plugins/_security/api/{roles,rolesmapping,internalusers,tenants,actiongroups}/{name}`: `GET`, `PUT` and `DELETE`, over five document sets, validating and answering as the stock plugin 3.10.0 does (`fixtures/compat/security/security-{roles,rolesmapping,internalusers,tenants,actiongroups}.json`, recorded from the real plugin).
 
 - In `oss-format`: five `DocKind`s (`security/roles/` and the rest).
-- In `oss-rest` (`security/`): the model of each kind, body validation (unknown key, wrong datatype, mandatory and one-of keys, as recorded), the answers (`CREATED`, `OK`, `NOT_FOUND`, `Invalid configuration`) and the rendering of a stored document.
+- In `oss-coordinator` (`security/`): the model of each kind, body validation (unknown key, wrong datatype, mandatory and one-of keys, as recorded), the answers (`CREATED`, `OK`, `NOT_FOUND`, `Invalid configuration`) and the rendering of a stored document.
 - In `oss-node`: the store over `DocSet`, the routes beside the template routes, and the bcrypt hashing of a `password`. Registered only when `serverless.security.enabled` is on.
 
 Not in this change: authentication, authorization, the list form (`GET` with no name), `PATCH`, `hidden` and `reserved` entries beyond answering `false`, the `securityconfig` API, and tenants' enforcement.
