@@ -26,6 +26,8 @@ use crate::health_route::{self, HealthService, HealthSource};
 use crate::index_delete::{self, DeleteService, DrainTimer, NoSnapshots};
 #[cfg(feature = "coordinator")]
 use crate::index_route::{self, IndexService};
+#[cfg(feature = "coordinator")]
+use crate::index_templates::TemplateSets;
 use crate::pit_route::{self, PitService};
 use crate::refresh_route::{self, RefreshService};
 use crate::search::{self, SearchService};
@@ -58,6 +60,9 @@ pub struct Config {
     pub store_buffer_wait: Duration,
     /// The buffer a point-in-time request holds.
     pub pit_buffer_bytes: usize,
+    /// Whether a create inherits from the index template that matches its
+    /// name: one more GET on each create, none when off.
+    pub index_templates: bool,
     /// How a point in time's register is deleted.
     pub delete_mode: DeleteMode,
     /// How often the publish timer runs a pass.
@@ -106,6 +111,7 @@ impl Config {
             bulk: StreamConfig::default(),
             store_buffer_wait: Duration::from_secs(5),
             pit_buffer_bytes: MAX_POINT_IN_TIME_BYTES,
+            index_templates: false,
             delete_mode: DeleteMode::Tombstone,
             publish_every: Duration::from_millis(250),
             publish_age_millis: 1_000,
@@ -440,6 +446,11 @@ pub fn assemble(
             let buckets = Arc::clone(buckets);
             indices =
                 indices.with_bucket_join(Arc::new(move |name, uuid| buckets.join(name, uuid)));
+        }
+        if config.index_templates {
+            let sets = TemplateSets::open(&store, &config.base)
+                .map_err(|e| AssembleError::Store(e.to_string()))?;
+            indices = indices.with_templates(sets);
         }
         let indices = Arc::new(indices);
         let router = index_route::routes(router, indices).map_err(AssembleError::Route)?;

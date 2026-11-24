@@ -46,6 +46,8 @@ pub mod index_cache;
 pub mod index_delete;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub mod index_route;
+#[cfg(all(feature = "writer", feature = "coordinator"))]
+pub mod index_templates;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod lease_announce;
 #[cfg(feature = "writer")]
