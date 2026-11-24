@@ -86,7 +86,7 @@ pub use routes::Routes;
 pub use tail::{CommitSink, RefreshVisibility, TailSink};
 pub use takeover::Takeover;
 pub use target::RoleTarget;
-pub use tenant_hooks::GroupSink;
+pub use tenant_hooks::{GroupSink, WriteGate};
 pub use tombstone_pass::{DeleteProbe, TombstoneParts, TombstonePass, TombstoneReport};
 
 /// Why an item did not go ahead.
@@ -125,7 +125,7 @@ pub struct WriterRole {
     publishing: Option<Publishing>,
     tail: OnceLock<Arc<dyn TailSink>>,
     /// Told the bucket group of each index a shard of is opened.
-    groups: OnceLock<GroupSink>,
+    tenant: tenant_hooks::TenantHooks,
     /// Told of every commit a publish stages.
     commits: OnceLock<Arc<dyn CommitSink>>,
     /// How far a refresh is made visible before it returns; the code of a
@@ -170,7 +170,7 @@ impl WriterRole {
             newest: Mutex::new(HashMap::new()),
             publishing: None,
             tail: OnceLock::new(),
-            groups: OnceLock::new(),
+            tenant: tenant_hooks::TenantHooks::default(),
             commits: OnceLock::new(),
             visibility: AtomicU8::new(0),
             opener: None,
@@ -338,7 +338,7 @@ impl WriterRole {
     ) -> Vec<Result<Written, Failure>> {
         // Held to the end: the slot is given back once the group's records
         // have landed or failed.
-        let _admitted = match self.admit_group(group.len()) {
+        let _admitted = match self.admit_group(&index.name, group.len()) {
             Ok(permit) => permit,
             Err(refused) => return refused,
         };

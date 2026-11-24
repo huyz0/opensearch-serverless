@@ -8,7 +8,8 @@
 //! tenant.
 
 use std::collections::HashMap;
-use std::sync::{Arc, PoisonError, RwLock, Weak};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, PoisonError, RwLock, Weak};
 use std::time::Duration;
 
 use oss_blob::guard::{Guardrails, Measure, Mode, TenantReport};
@@ -38,6 +39,8 @@ pub struct TenantLevels {
     mode: Mode,
     ledger: Arc<Ledger>,
     groups: RwLock<HashMap<String, String>>,
+    /// Documents written so far, by index.
+    docs: Mutex<HashMap<String, Arc<AtomicU64>>>,
     budget_per_minute: u64,
 }
 
@@ -50,6 +53,7 @@ impl TenantLevels {
             mode,
             ledger,
             groups: RwLock::new(HashMap::new()),
+            docs: Mutex::new(HashMap::new()),
             budget_per_minute,
         }
     }
@@ -95,12 +99,26 @@ impl TenantLevels {
             let entry = cost.entry(self.tenant_of(&index)).or_insert(0);
             *entry = entry.saturating_add(usage.cost_milli_units());
         }
+        let mut docs: HashMap<String, u64> = HashMap::new(); // ALLOC: one entry a tenant, a tick.
+        for (index, count) in self
+            .docs
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .iter()
+        {
+            let entry = docs.entry(self.tenant_of(index)).or_insert(0);
+            *entry = entry.saturating_add(count.load(Ordering::Relaxed));
+        }
+        // A tenant that wrote documents and made no request yet still counts.
+        for tenant in docs.keys() {
+            cost.entry(tenant.clone()).or_insert(0); // ALLOC: one name a tenant, a tick.
+        }
         let measures: Vec<Measure<'_>> = cost
             .iter()
             .map(|(tenant, cost_milli)| Measure {
                 tenant,
                 cost_milli: *cost_milli,
-                docs: 0,
+                docs: docs.get(tenant).copied().unwrap_or(0),
                 budget_per_minute: self.budget_per_minute,
             })
             .collect(); // ALLOC: one measure a tenant, a tick.
@@ -118,6 +136,34 @@ impl TenantLevels {
         } else {
             1
         }
+    }
+
+    /// Counts `docs` documents written to `index` and says how long to hold
+    /// the write: milliseconds to wait, or the milliseconds a refused write
+    /// would have waited. Holds only an enforced tenant at level 3 over its
+    /// budget.
+    ///
+    /// # Errors
+    ///
+    /// The wait, in milliseconds, of a write that would wait past the
+    /// longest wait.
+    pub fn admit_write(&self, index: &str, docs: usize, now: i64) -> Result<u64, u64> {
+        let count = u64::try_from(docs).unwrap_or(u64::MAX);
+        if self.mode == Mode::Off {
+            return Ok(0);
+        }
+        {
+            let mut seen = self.docs.lock().unwrap_or_else(PoisonError::into_inner);
+            if let Some(total) = seen.get(index) {
+                total.fetch_add(count, Ordering::Relaxed);
+            } else if seen.len() < ROSTER_LIMIT {
+                // ALLOC: one counter and one name an index written to, bounded by the limit.
+                seen.insert(index.to_owned(), Arc::new(AtomicU64::new(count)));
+            }
+        }
+        self.guard
+            .pace_write(self.mode, &self.tenant_of(index), count, now)
+            .map_err(|refused| refused.retry_after_millis)
     }
 
     /// Takes the levels a collector set from outside (`tenant=level,...`).

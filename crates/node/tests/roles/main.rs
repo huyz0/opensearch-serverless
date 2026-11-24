@@ -14,6 +14,7 @@ mod orphan_timer;
 mod publish_age;
 mod publish_read;
 mod tombstone_pass;
+mod write_gate;
 mod writer_first;
 mod writer_heads;
 mod writer_janitor;

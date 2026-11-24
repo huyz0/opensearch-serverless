@@ -16,9 +16,14 @@ impl WriterRole {
     /// What a refused write is told to wait, in seconds; none when the role
     /// has no limiter.
     pub fn retry_after_secs(&self) -> Option<u64> {
-        self.limiter
+        let limiter = self
+            .limiter
             .get()
-            .map(|limiter| limiter.retry_after(self.limiter_now()))
+            .map(|limiter| limiter.retry_after(self.limiter_now()));
+        match (limiter, self.gate_retry_secs()) {
+            (Some(a), Some(b)) => Some(a.max(b)),
+            (a, b) => a.or(b),
+        }
     }
 
     /// Nanoseconds since this role started: the limiter's clock.
@@ -32,8 +37,15 @@ impl WriterRole {
     /// counts twice while it wakes.
     pub(super) fn admit_group(
         &self,
+        index: &str,
         items: usize,
     ) -> Result<Option<Permit>, Vec<Result<Written, Failure>>> {
+        if let Err(reason) = self.gate_write(index, items) {
+            return Err((0..items)
+                // ALLOC: one outcome and one message an item of a refused group.
+                .map(|_| Err(Failure::Throttled(reason.clone())))
+                .collect());
+        }
         let Some(limiter) = self.limiter.get() else {
             return Ok(None);
         };
