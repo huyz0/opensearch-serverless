@@ -70,3 +70,18 @@ fn the_shapes_left_to_a_java_writer_are_unsupported_not_invalid() {
         assert!(unsupported, "{doc}: {e:?}");
     }
 }
+
+#[test]
+fn an_infinity_is_previewed_with_its_sign() {
+    for (doc, shown) in [
+        (r#"{"v":[1e39,1,1]}"#, "Infinity"),
+        (r#"{"v":[-1e39,1,1]}"#, "-Infinity"),
+    ] {
+        let e = document::parse(&mapping(), "1", doc.as_bytes()).unwrap_err();
+        assert!(
+            e.reason
+                .ends_with(&format!("Preview of field's value: '{shown}'")),
+            "{e:?}"
+        );
+    }
+}

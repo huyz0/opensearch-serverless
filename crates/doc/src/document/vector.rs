@@ -58,7 +58,11 @@ fn checked(d: f64) -> Result<f32, Failure> {
     if f.is_infinite() {
         return Err(fail(
             MappingError::illegal_argument("KNN vector values cannot be infinity"),
-            if f > 0.0 { "Infinity" } else { "-Infinity" },
+            if f.is_sign_positive() {
+                "Infinity"
+            } else {
+                "-Infinity"
+            },
         ));
     }
     Ok(f)
