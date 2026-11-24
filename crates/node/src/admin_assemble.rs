@@ -12,6 +12,7 @@ use crate::assemble::{AssembleError, Config};
 use crate::cat_route::{self, CatService};
 use crate::cluster_route::{self, ClusterService};
 use crate::pipeline_route::{self, PipelineService};
+use crate::snapshot_route::{self, SnapshotService};
 use crate::template_route::{self, TemplateService};
 
 /// Registers `GET`/`PUT /_cluster/settings` and the `_cat` and `_list` index
@@ -29,6 +30,12 @@ pub(crate) fn register(
     let router = cluster_route::routes(router, Arc::new(settings)).map_err(AssembleError::Route)?;
     let router = cat_route::routes(router, Arc::new(CatService::new(descriptors)))
         .map_err(AssembleError::Route)?;
+    let router = if config.snapshots {
+        let service = Arc::new(SnapshotService::new(Arc::clone(store), &config.base));
+        snapshot_route::routes(router, &service).map_err(AssembleError::Route)?
+    } else {
+        router
+    };
     let router = if config.index_templates {
         let templates = TemplateService::new(store, &config.base, config.pit_buffer_bytes)
             .map_err(store_error)?;

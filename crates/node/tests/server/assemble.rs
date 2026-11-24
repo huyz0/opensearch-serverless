@@ -370,6 +370,20 @@ fn the_publish_timer_hibernates_an_idle_published_shard_only_when_the_threshold_
 }
 
 #[test]
+fn the_snapshot_routes_are_served_only_when_snapshots_are_on() {
+    let (off, _) = start(256 << 20);
+    assert_ne!(call(&off, "GET", "/_snapshot", None).status, 200);
+    assert_ne!(call(&off, "PUT", "/_snapshot/r", None).status, 501);
+    let on = Config {
+        snapshots: true,
+        ..config()
+    };
+    let (r, _) = start_with(on, 256 << 20);
+    assert_eq!(call(&r, "GET", "/_snapshot", None).status, 200);
+    assert_eq!(call(&r, "PUT", "/_snapshot/r", None).status, 501);
+}
+
+#[test]
 fn the_template_routes_are_served_only_when_templates_are_on() {
     let (off, _) = start(256 << 20);
     assert_ne!(call(&off, "GET", "/_index_template", None).status, 200);

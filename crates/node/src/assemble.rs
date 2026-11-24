@@ -64,6 +64,8 @@ pub struct Config {
     /// Whether `_ingest/pipeline` stores, reads and removes pipelines. A
     /// stored pipeline is not yet run by a write.
     pub ingest_pipelines: bool,
+    /// Whether the read-only snapshot routes are served: `serverless.snapshots.enabled`.
+    pub snapshots: bool,
     /// How a point in time's register is deleted.
     pub delete_mode: DeleteMode,
     /// How often the publish timer runs a pass.
@@ -118,6 +120,7 @@ impl Config {
             pit_buffer_bytes: MAX_POINT_IN_TIME_BYTES,
             index_templates: false,
             ingest_pipelines: false,
+            snapshots: false,
             delete_mode: DeleteMode::Tombstone,
             publish_every: Duration::from_millis(250),
             publish_age_millis: 1_000,

@@ -80,6 +80,8 @@ pub(crate) mod route_util;
 pub mod search;
 pub mod settings;
 #[cfg(feature = "writer")]
+pub mod snapshot_route;
+#[cfg(feature = "writer")]
 pub mod tail_await;
 #[cfg(feature = "reader")]
 pub mod tail_fresh;
@@ -101,7 +103,6 @@ pub mod tail_reader_link;
 pub mod tail_serve;
 #[cfg(feature = "writer")]
 mod tail_subscription;
-#[cfg(feature = "writer")]
 pub mod template_route;
 #[cfg(any(feature = "reader", feature = "writer"))]
 pub(crate) mod time_value;
