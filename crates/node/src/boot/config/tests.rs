@@ -355,8 +355,10 @@ fn headroom_and_pins_are_off_by_default_and_set_by_their_variables() {
 
 // docs/specs/knn-vector-index AC-4
 #[test]
-fn knn_is_off_by_default_and_set_by_its_variable() {
+fn knn_is_on_by_default_and_turned_off_by_its_variable() {
     let c = NodeConfig::from_lookup(lookup(FS)).expect("valid");
+    assert!(c.knn);
+    let c = NodeConfig::from_lookup(lookup(&with(&[("OSS_KNN", "false")]))).expect("valid");
     assert!(!c.knn);
     let c = NodeConfig::from_lookup(lookup(&with(&[("OSS_KNN", "true")]))).expect("valid");
     assert!(c.knn);

@@ -10,7 +10,7 @@ A Java node runs the stock k-NN plugin over the same blobs, so a segment the Rus
 
 - The indexer returns a document's vectors beside the document, and the writer hands both to lucene-rust, which writes the flat vectors and the HNSW graph (`m`, `ef_construction` from the mapping; defaults 16 and 100). `Indexer::document` keeps its signature, so a write path with no vector field builds what it built before.
 - The fast ingest plan declines a mapping with a vector field; the complete path takes it.
-- A node setting `serverless.knn.enabled` (`OSS_KNN`), off by default, makes the index admin accept `knn_vector`. Index settings cannot be given at create yet, so it stands for `index.knn`. A stored mapping is read with the type allowed, because it was checked on the way in. Off, an index with the type is refused as unsupported and stays on a Java writer. It turns on once the `knn` query serves the field.
+- A node setting `serverless.knn.enabled` (`OSS_KNN`), on by default since the `knn` query serves the field (measured: [docs/knn-measurements.md](../knn-measurements.md)), makes the index admin accept `knn_vector`. Index settings cannot be given at create yet, so it stands for `index.knn`. A stored mapping is read with the type allowed, because it was checked on the way in. Off, an index with the type is refused as unsupported and stays on a Java writer.
 - The tail overlay does not build vector documents: an index with unpublished vector writes is served from the commit alone until the overlay takes them.
 
 ## Derived source (amendment)

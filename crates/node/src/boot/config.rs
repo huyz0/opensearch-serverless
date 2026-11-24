@@ -330,7 +330,7 @@ impl NodeConfig {
             .map(str::to_owned)
             .collect();
         let hand_off = flag("OSS_HAND_OFF", "false")?;
-        let knn = flag("OSS_KNN", "false")?;
+        let knn = flag("OSS_KNN", "true")?;
         let extensions_percent =
             usize::try_from(bounded("OSS_EXTENSIONS_PERCENT", "0", 0, 20)?).unwrap_or(0);
         let security = flag("OSS_SECURITY", "false")?;
