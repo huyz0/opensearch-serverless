@@ -24,6 +24,7 @@ reader = [
     "dep:oss-format",
     "dep:oss-meta",
     "dep:oss-doc",
+    "dep:bcrypt",
 ]
 writer = [
     "dep:oss-writer",
@@ -39,14 +40,17 @@ writer = [
     "dep:oss-janitor",
     "dep:oss-mem",
     "dep:oss-coordinator",
+    "dep:oss-doc",
+    "dep:bcrypt",
 ]
-coordinator = ["dep:oss-coordinator", "dep:oss-blob", "dep:oss-transport", "dep:oss-doc"]
+coordinator = ["dep:oss-coordinator", "dep:oss-blob", "dep:oss-transport", "dep:oss-doc", "dep:bcrypt"]
 
 [dependencies]
 oss-types = { workspace = true }
 oss-reader = { workspace = true, optional = true }
 oss-writer = { workspace = true, optional = true }
 oss-coordinator = { workspace = true, optional = true }
+bcrypt = { workspace = true, optional = true }
 oss-doc = { workspace = true, optional = true }
 oss-rest = { workspace = true, optional = true }
 oss-transport = { workspace = true, optional = true }

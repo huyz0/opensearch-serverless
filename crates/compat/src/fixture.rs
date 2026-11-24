@@ -292,7 +292,11 @@ fn parse_step(v: &Value, at: &str) -> Result<Step, FixtureError> {
 }
 
 fn parse_request(v: &Value, at: &str) -> Result<Request, FixtureError> {
-    let obj = object(v, at, &["method", "path", "query", "body", "ndjson", "raw", "auth"])?;
+    let obj = object(
+        v,
+        at,
+        &["method", "path", "query", "body", "ndjson", "raw", "auth"],
+    )?;
     let method_at = format!("{at}.method");
     let method_text = string(required(obj, "method", at)?, &method_at)?;
     let method = Method::parse(method_text)

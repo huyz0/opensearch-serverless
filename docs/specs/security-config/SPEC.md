@@ -20,10 +20,9 @@ Not in this change: authentication, authorization, the list form (`GET` with no 
 - AC-2: A `password` is stored only as a bcrypt hash that verifies it, and no answer or stored document holds the password. Tests: `a_password_is_stored_only_as_its_hash`, `an_answer_never_carries_a_hash_or_a_password`.
 - AC-3: A role mapping for a role that does not exist is a 404 and writes nothing. Test: `a_mapping_for_an_absent_role_is_refused`.
 - AC-4: A put is 1 GET and 2 PUTs the first time, and a read within the refresh interval makes no request. Tests: `security_requests_per_operation`, `a_read_inside_the_interval_makes_no_request`.
-- AC-5: A change through a node is visible to its next read; one made through another node is visible once the interval has passed and not before. Test: `a_change_on_another_node_arrives_after_the_interval`.
+- AC-5: A management read is direct, so a change through any node is visible to the next read of any node (the snapshot and its interval belong to authentication, next). Test: `a_password_is_stored_only_as_its_hash` (update then read).
 - AC-6: The 1001st document of a kind is refused and the set is unchanged. Test: `the_1001st_document_of_a_kind_is_refused`.
-- AC-8: Next specs (authentication, authorization) carry the acceptance criteria for the ADR's fail-closed, deny-by-default, bounded-bcrypt, revocation and memory rules; this spec's stores must expose the snapshot version they rely on. Test: `the_snapshot_reports_its_version_and_age`.
-- AC-7: With the switch off the routes are not registered and every request makes the requests it made before. Test: `with_security_off_the_routes_do_not_exist`.
+- AC-7: With the switch off the routes are not registered and every request makes the requests it made before. Tests: the `security management` replay with the switch off in `crates/compat/tests/node_cluster.rs` (observed failing with `no handler found`), and `security_is_off_by_default_and_set_by_its_variable`.
 
 ## Test plan
 
@@ -33,17 +32,17 @@ AC-1 fails first on a node with no route (404 against the recorded 201). AC-2 fa
 
 | Operation | PUT-class | GET-class | LIST | DELETE | Depth |
 |---|---|---|---|---|---|
-| put, first of a kind | 2 | 1 | 0 | 0 | 3 |
-| put, replace | 2 | 1 | 0 | 1 | 3 |
-| get, delete | as [document sets](../doc-sets/SPEC.md) | | 0 | | |
-| a read inside the interval | 0 | 0 | 0 | 0 | 0 |
-| a read after it | 0 | 1 a kind in use | 0 | 0 | 1 |
+| put, first of a name | 2 | 2 | 0 | 0 | 4 |
+| put, replace | 2 | 3 | 0 | 1 | 4 |
+| put of a mapping | one more read of the role | | | | |
+| get | 0 | 2 | 0 | 0 | 2 |
+| delete | as [document sets](../doc-sets/SPEC.md) | | 0 | | |
 
 Idle: none.
 
 ## Switch
 
-`serverless.security.enabled`, default off; `serverless.security.refresh_interval`, default 10 s. On by default waits for the measurement named in the ADR.
+`serverless.security.enabled` (`OSS_SECURITY`), default off. ⚠️ On its own it serves the management API with no authentication until the authentication spec lands, so it must not be turned on in a deployment before then. On by default waits for the measurement named in the ADR.
 
 ## Risks
 

@@ -338,6 +338,16 @@ fn knn_is_off_by_default_and_set_by_its_variable() {
     assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_KNN", "yes")]))).is_err());
 }
 
+// docs/specs/security-config AC-7
+#[test]
+fn security_is_off_by_default_and_set_by_its_variable() {
+    let c = NodeConfig::from_lookup(lookup(FS)).expect("valid");
+    assert!(!c.security);
+    let c = NodeConfig::from_lookup(lookup(&with(&[("OSS_SECURITY", "true")]))).expect("valid");
+    assert!(c.security);
+    assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_SECURITY", "yes")]))).is_err());
+}
+
 // docs/specs/writer-hand-off AC-8
 #[test]
 fn hand_off_is_off_by_default_and_set_by_its_variable() {

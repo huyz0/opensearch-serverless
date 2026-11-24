@@ -20,6 +20,7 @@ fn providers() -> Vec<&'static [&'static Setting]> {
         crate::commit_push::SETTINGS,
         #[cfg(all(feature = "writer", feature = "coordinator"))]
         crate::knn_setting::SETTINGS,
+        crate::security_setting::SETTINGS,
         #[cfg(feature = "writer")]
         oss_writer::log::settings::SETTINGS,
         #[cfg(feature = "writer")]
@@ -71,7 +72,7 @@ mod tests {
             let reader = cfg!(feature = "reader");
             assert_eq!(
                 keys.len(),
-                6 + 6 * usize::from(reader)
+                7 + 6 * usize::from(reader)
                     + if writer { 37 + usize::from(reader) } else { 0 }
                     + usize::from(writer && cfg!(feature = "coordinator"))
             );

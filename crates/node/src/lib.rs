@@ -80,6 +80,9 @@ pub mod refresh_route;
 pub(crate) mod route_util;
 #[cfg(feature = "reader")]
 pub mod search;
+#[cfg(feature = "writer")]
+pub mod security_route;
+pub mod security_setting;
 pub mod settings;
 #[cfg(feature = "writer")]
 pub mod snapshot_route;

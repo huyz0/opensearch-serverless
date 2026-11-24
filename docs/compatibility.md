@@ -79,3 +79,9 @@ Invariant I-13 in [invariants.md](invariants.md) holds the suite to this: `crate
 ## `realtime=false` on a forwarded get
 
 A get of a shard another node owns is forwarded to its owner. The Java `ForwardedGetRequest` has no `realtime` field and its owner always reads realtime, and a Java peer refuses a message it did not read whole, so a `realtime=false` get cannot be sent to one with a new field. A node of this project publishes the build version `oss-rust/<version>` in its lease; to a peer whose lease says that, a get that is not realtime carries one trailing byte and is answered from refreshed data only. To any other peer the get is sent in the Java layout, and the owner reads realtime: the answer may then include a write not yet refreshed. A get served on the node that owns the shard honours `realtime` either way.
+
+## The security configuration API (`serverless.security.enabled`)
+
+**Matches** (the replay of `fixtures/compat/security/`, recorded from the stock security plugin 3.10.0): `GET`, `PUT` and `DELETE` of one document under `/_plugins/_security/api/{roles,rolesmapping,internalusers,tenants,actiongroups}/{name}`: the acknowledgements, the `Invalid configuration` and `Wrong datatype` bodies, a mapping for an absent role, and an internal user's hash never returned ([security-config](specs/security-config/SPEC.md)).
+
+**Differs**: the list form (`GET` with no name), `PATCH`, `hidden` and `reserved` documents, and the `securityconfig` API are not served. A key unknown to a nested entry is a 400 `Invalid configuration` where the plugin answers 500 with a Jackson message. A document kind holds at most 1,000 entries. The password policy is a minimum of 8 characters. Configuration lives in the object store, not an index: a change reaches another node within the refresh interval once authentication reads it ([ADR 0043](adr/0043-security-configuration-as-document-sets.md)). The routes serve no authentication yet.

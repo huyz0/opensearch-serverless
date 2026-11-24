@@ -122,3 +122,5 @@ src/snapshot_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverl
 src/tenants.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/usage/Guardrails.java@feature/serverlessshell	the node side of the tenant levels: roll the ledger up by tenant, step the policy every 10 s, report; no levels act yet
 src/writer/group_sink.rs	new		the call that tells the tenant levels an index's bucket group when a writer opens a shard of it
 src/snapshot_take_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/snapshot/SnapshotOperations.java@bf347adb	handleCreate and capture: the order of a take and its cleanup
+src/security_route.rs	new		the security configuration API over five document sets
+src/security_setting.rs	new		serverless.security.enabled

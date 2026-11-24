@@ -64,6 +64,10 @@ pub struct Config {
     /// Whether `_ingest/pipeline` stores, reads and removes pipelines. A
     /// stored pipeline is not yet run by a write.
     pub ingest_pipelines: bool,
+    /// `serverless.security.enabled`: serve the security configuration API.
+    pub security: bool,
+    /// The bcrypt cost an internal user's password is hashed at.
+    pub security_bcrypt_cost: u32,
     /// `serverless.knn.enabled`: whether a create accepts `knn_vector`.
     pub knn: bool,
     /// Whether the read-only snapshot routes are served: `serverless.snapshots.enabled`.
@@ -124,6 +128,8 @@ impl Config {
             pit_buffer_bytes: MAX_POINT_IN_TIME_BYTES,
             index_templates: false,
             ingest_pipelines: false,
+            security: false,
+            security_bcrypt_cost: crate::security_route::DEFAULT_COST,
             knn: false,
             snapshots: false,
             snapshots_take: false,
