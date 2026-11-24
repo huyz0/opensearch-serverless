@@ -23,3 +23,4 @@ src/ndjson.rs	port	server/src/main/java/org/opensearch/action/bulk/BulkRequestPa
 src/timed.rs	new		the blocked-time budget for slow peers; Netty needs none, a slow socket costs it no thread
 src/checks.rs	port	server/src/main/java/org/opensearch/rest/RestController.java@49f238ed	dispatchRequest content-type checks and handleBadRequest URI parsing, RestRequest#parseContentType, BaseRestHandler unrecognized parameters; framing refusals from Netty HttpObjectDecoder
 src/guard.rs	new		the check every request passes before its route is looked up
+src/router_tests.rs	new		tests for router.rs
