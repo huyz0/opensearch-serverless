@@ -370,6 +370,7 @@ pub fn assemble(
         ),
         Box::new(now_millis),
     );
+    #[cfg(feature = "coordinator")]
     let bucket_wiring = writer.buckets.clone();
     if let Some(buckets) = writer.buckets {
         publishing = publishing.with_buckets(buckets);

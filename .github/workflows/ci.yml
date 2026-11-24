@@ -125,6 +125,15 @@ jobs:
           key: lucene-rust-data-${{ hashFiles('Cargo.lock') }}
           restore-keys: lucene-rust-data-
 
+      # A workspace build unifies features, so a module that needs another
+      # role's feature only fails when a role builds alone.
+      - name: cargo check -p oss-node, each role alone
+        if: steps.changes.outputs.rust == 'true' && steps.changes.outputs.text_only == 'false'
+        run: |
+          for features in "" reader writer coordinator reader,writer reader,coordinator writer,coordinator; do
+            cargo check --locked -p oss-node --no-default-features --features "$features"
+          done
+
       - name: fmt, clippy, docs
         if: steps.changes.outputs.rust == 'true' && steps.changes.outputs.text_only == 'false'
         run: |
