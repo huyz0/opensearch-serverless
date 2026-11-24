@@ -175,6 +175,8 @@ pub(super) fn apply_janitor_and_hibernation(
     node.hand_off = config.hand_off;
     node.knn = config.knn;
     node.security = config.security;
+    node.security_admin.clone_from(&config.security_admin);
+    node.security_refresh_millis = config.security_refresh_millis;
     node.evict_headroom_percent = config.evict_headroom_percent;
     node.pinned_indexes.clone_from(&config.pinned_indexes);
     node.janitor_every = Duration::from_millis(config.janitor_every_millis);

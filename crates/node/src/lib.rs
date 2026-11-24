@@ -20,6 +20,8 @@ pub mod by_query;
 #[cfg(feature = "writer")]
 pub mod cat_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
+mod clock;
+#[cfg(all(feature = "reader", feature = "writer"))]
 pub mod cluster_live;
 #[cfg(feature = "writer")]
 pub mod cluster_owner;
@@ -88,8 +90,12 @@ pub mod search;
 #[cfg(feature = "reader")]
 pub mod search_slots;
 #[cfg(feature = "writer")]
+pub mod security_auth;
+#[cfg(feature = "writer")]
 pub mod security_route;
 pub mod security_setting;
+#[cfg(feature = "writer")]
+pub mod security_state;
 pub mod settings;
 #[cfg(feature = "writer")]
 pub mod snapshot_route;

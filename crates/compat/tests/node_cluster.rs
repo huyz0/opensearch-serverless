@@ -31,6 +31,9 @@ use oss_rest::ServerConfig;
 use oss_writer::log::{CommitterConfig, LeaseKeeper, NodeLogCommitter, NodeLogStore};
 use support::HttpTarget;
 
+/// The replayed administrator's password.
+const ADMIN_PASSWORD: &str = "Str0ng!Pass-9x";
+
 fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures")
 }
@@ -38,13 +41,16 @@ fn root() -> PathBuf {
 /// The node as OpenSearch's clients see it: its create-index answer also
 /// names the shard count, which stock OpenSearch's does not
 /// (docs/compatibility.md, "Differs"), so the replay compares the rest.
-struct Shell(HttpTarget);
+struct Shell(HttpTarget, Option<String>);
 
 impl Target for Shell {
     fn send(&mut self, request: &Request) -> Result<Response, TargetError> {
         // `index.knn` cannot be given at create yet: the node's
         // `serverless.knn.enabled` stands for it, so the replay leaves it out.
         let mut sent = request.clone();
+        if sent.auth.is_none() {
+            sent.auth.clone_from(&self.1);
+        }
         if let oss_compat::Body::Json(body) = &mut sent.body
             && let Some(settings) = body.get_mut("settings").and_then(|s| s.as_object_mut())
         {
@@ -159,7 +165,7 @@ fn replay_full(fixture: Fixture, knn: bool, security: bool) -> Vec<String> {
     let store = Arc::new(Emulator::new(1 << 28, 9));
     let budget = MemoryBudget::new(
         &BudgetConfig::new(256 << 20)
-            .with_pool(Pool::RequestBodies, 64 << 20)
+            .with_pool(Pool::RequestBodies, 96 << 20)
             .and_then(|c| c.with_pool(Pool::OpenIndexes, 32 << 20))
             .and_then(|c| c.with_pool(Pool::Transport, 8 << 20))
             .expect("fits"),
@@ -169,6 +175,12 @@ fn replay_full(fixture: Fixture, knn: bool, security: bool) -> Vec<String> {
         publish_age_millis: 0,
         knn,
         security,
+        security_admin: security.then(|| {
+            (
+                "admin".to_owned(),
+                bcrypt::hash(ADMIN_PASSWORD, 4).expect("hashes"),
+            )
+        }),
         security_bcrypt_cost: 4,
         ..Config::new("", "node-1", [0; 6])
     };
@@ -191,9 +203,12 @@ fn replay_full(fixture: Fixture, knn: bool, security: bool) -> Vec<String> {
             &budget,
         )
         .expect("starts");
-    let mut target = Shell(HttpTarget {
-        addr: running.addr(),
-    });
+    let mut target = Shell(
+        HttpTarget {
+            addr: running.addr(),
+        },
+        security.then(|| format!("admin:{ADMIN_PASSWORD}")),
+    );
     let report = run_suite(&mut target, &fixtures);
     let failed: Vec<String> = report
         .fixtures
@@ -263,6 +278,45 @@ fn an_assembled_node_answers_every_security_management_fixture_as_the_stock_plug
         .map(|(_, f)| f)
         .collect();
     assert_eq!(fixtures.len(), 5, "a fixture a kind");
+    let failed: Vec<String> = fixtures
+        .into_iter()
+        .flat_map(|f| replay_full(f, false, true))
+        .collect();
+    assert!(
+        failed.is_empty(),
+        "{} differ:\n{}",
+        failed.len(),
+        failed.join("\n")
+    );
+}
+
+/// The steps of the access fixture that authentication decides: who the
+/// caller is and what an unauthenticated one is told. The steps about what a
+/// user may do follow with authorization (docs/specs/security-authz).
+const AUTHN_STEPS: &[&str] = &[
+    "create user",
+    "create role",
+    "map",
+    "whoami",
+    "no credentials",
+    "wrong password",
+    "unknown user",
+    "security api denied",
+];
+
+#[test]
+fn an_assembled_node_authenticates_as_the_stock_plugin_did() {
+    let mut fixtures: Vec<Fixture> = load_dir(&root().join("compat/security"))
+        .expect("fixtures load")
+        .into_iter()
+        .filter(|(_, f)| f.name == "security authn and authz")
+        .map(|(_, f)| f)
+        .collect();
+    assert_eq!(fixtures.len(), 1);
+    fixtures[0]
+        .steps
+        .retain(|s| AUTHN_STEPS.contains(&s.name.as_str()));
+    assert_eq!(fixtures[0].steps.len(), AUTHN_STEPS.len());
     let failed: Vec<String> = fixtures
         .into_iter()
         .flat_map(|f| replay_full(f, false, true))

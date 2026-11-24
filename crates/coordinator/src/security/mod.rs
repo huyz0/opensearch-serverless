@@ -8,10 +8,14 @@
 //! defaults the plugin adds on a read are added when it is rendered.
 //! Decisions of authentication and authorization live in sibling modules.
 
+mod authn;
+mod config;
 mod render;
 mod schema;
 mod validate;
 
+pub use authn::{MAX_HEADER_BYTES, authinfo, basic};
+pub use config::{ALL_ACCESS, Config, Mapping, User};
 pub use render::{deleted, missing, render, saved};
 pub use validate::{
     MIN_PASSWORD_CHARS, needs_credentials, password_ok, validate, weak_password, with_hash,
@@ -41,6 +45,17 @@ impl Kind {
         Self::Tenants,
         Self::ActionGroups,
     ];
+
+    /// The path segment of the kind's API: `roles`, `rolesmapping`, ...
+    pub const fn segment(self) -> &'static str {
+        match self {
+            Self::Roles => "roles",
+            Self::RolesMapping => "rolesmapping",
+            Self::InternalUsers => "internalusers",
+            Self::Tenants => "tenants",
+            Self::ActionGroups => "actiongroups",
+        }
+    }
 
     /// How the plugin names one document of the kind in its messages.
     pub const fn noun(self) -> &'static str {

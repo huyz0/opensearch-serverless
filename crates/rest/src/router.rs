@@ -144,6 +144,11 @@ impl Router {
         self
     }
 
+    /// Whether a guard is set.
+    pub fn has_guard(&self) -> bool {
+        self.guard.is_some()
+    }
+
     /// The guard, if one is set.
     pub(crate) fn guard(&self) -> Option<&dyn Guard> {
         self.guard.as_deref()

@@ -218,10 +218,47 @@ impl Reply {
 
 /// Sends one request on its own connection and reads the reply to the end.
 pub fn request(addr: SocketAddr, method: &str, target: &str, body: Option<&[u8]>) -> Reply {
+    request_as(addr, method, target, body, None)
+}
+
+/// Standard base64 with padding.
+fn base64(bytes: &[u8]) -> String {
+    const A: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::new();
+    for chunk in bytes.chunks(3) {
+        let n = chunk.iter().fold(0u32, |n, b| (n << 8) | u32::from(*b)) << (8 * (3 - chunk.len()));
+        for i in 0..=chunk.len() {
+            out.push(char::from(A[((n >> (18 - 6 * i)) & 63) as usize]));
+        }
+        for _ in chunk.len()..3 {
+            out.push('=');
+        }
+    }
+    out
+}
+
+/// [`request`] with an `Authorization` header: `user:password` sent as basic
+/// credentials, or the text as written when it starts with `raw:`.
+pub fn request_as(
+    addr: SocketAddr,
+    method: &str,
+    target: &str,
+    body: Option<&[u8]>,
+    auth: Option<&str>,
+) -> Reply {
     let mut s = TcpStream::connect(addr).expect("connects");
     s.set_read_timeout(Some(Duration::from_secs(30)))
         .expect("timeout");
     let mut head = format!("{method} {target} HTTP/1.1\r\nhost: test\r\nconnection: close\r\n");
+    if let Some(a) = auth {
+        match a.strip_prefix("raw:") {
+            Some(raw) => head.push_str(&format!("authorization: {raw}\r\n")),
+            None => head.push_str(&format!(
+                "authorization: Basic {}\r\n",
+                base64(a.as_bytes())
+            )),
+        }
+    }
     if let Some(b) = body {
         head.push_str(&format!(
             "content-type: application/json\r\ncontent-length: {}\r\n",

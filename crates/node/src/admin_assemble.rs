@@ -5,6 +5,7 @@
 use std::sync::Arc;
 
 use oss_blob::BlobStore;
+use oss_mem::MemoryBudget;
 use oss_meta::DescriptorStore;
 use oss_rest::Router;
 
@@ -13,7 +14,9 @@ use crate::cat_route::{self, CatService};
 use crate::cluster_route::{self, ClusterService};
 use crate::ingest_run::IngestPipelines;
 use crate::pipeline_route::{self, PipelineService};
+use crate::security_auth::{AuthGuard, Authenticator};
 use crate::security_route::{self, SecurityService};
+use crate::security_state::{Clock, SecurityState};
 use crate::snapshot_route::{self, SnapshotService};
 use crate::snapshot_take_route::SnapshotTakeService;
 use crate::template_route::{self, TemplateService};
@@ -24,6 +27,7 @@ pub(crate) fn register(
     router: Router,
     store: &Arc<dyn BlobStore>,
     config: &Config,
+    budget: &MemoryBudget,
 ) -> Result<Router, AssembleError> {
     let store_error = |e: oss_meta::MetaError| AssembleError::Store(e.to_string());
     let settings = ClusterService::new(Arc::clone(store), &config.base, config.publish_tick_millis)
@@ -38,7 +42,7 @@ pub(crate) fn register(
             Arc::clone(store),
             &config.base,
             &config.node_id,
-            Arc::new(crate::assemble::now_millis),
+            Arc::new(crate::clock::now_millis),
         ));
         let take = if config.snapshots_take {
             let descriptors =
@@ -48,7 +52,7 @@ pub(crate) fn register(
                 Arc::clone(store),
                 &config.base,
                 descriptors,
-                Arc::new(crate::assemble::now_millis),
+                Arc::new(crate::clock::now_millis),
             )))
         } else {
             None
@@ -65,14 +69,7 @@ pub(crate) fn register(
         router
     };
     let router = if config.security {
-        let service = SecurityService::new(
-            store,
-            &config.base,
-            config.pit_buffer_bytes,
-            config.security_bcrypt_cost,
-        )
-        .map_err(store_error)?;
-        security_route::routes(router, &Arc::new(service)).map_err(AssembleError::Route)?
+        security(router, store, config, budget)?
     } else {
         router
     };
@@ -113,4 +110,101 @@ pub(crate) fn ingest_pipelines(
     IngestPipelines::open(store, &config.base, config.pit_buffer_bytes)
         .map(Some)
         .map_err(|e| crate::assemble::AssembleError::Store(e.to_string()))
+}
+
+/// The security routes, the authinfo route, and the guard that authenticates
+/// every request, over one snapshot of the configuration.
+fn security(
+    router: Router,
+    store: &Arc<dyn BlobStore>,
+    config: &Config,
+    budget: &MemoryBudget,
+) -> Result<Router, AssembleError> {
+    let admin = config.security_admin.clone().ok_or_else(|| {
+        AssembleError::Security(
+            "serverless.security.enabled needs an administrator (OSS_SECURITY_ADMIN_USER and OSS_SECURITY_ADMIN_HASH)"
+                .to_owned(),
+        )
+    })?;
+    if config.security_refresh_millis < 1000 {
+        return Err(AssembleError::Security(
+            "the security refresh interval is at least 1 s".to_owned(),
+        ));
+    }
+    let clock: Clock = Arc::new(crate::clock::now_millis);
+    let state = Arc::new(
+        SecurityState::new(
+            store,
+            &config.base,
+            config.pit_buffer_bytes,
+            config.security_refresh_millis,
+            admin,
+            budget,
+            Arc::clone(&clock),
+        )
+        .map_err(AssembleError::Security)?,
+    );
+    let service = SecurityService::new(
+        store,
+        &config.base,
+        config.pit_buffer_bytes,
+        config.security_bcrypt_cost,
+    )
+    .map_err(|e| AssembleError::Store(e.to_string()))?
+    .with_state(Arc::clone(&state));
+    let router =
+        security_route::routes(router, &Arc::new(service)).map_err(AssembleError::Route)?;
+    let router = security_route::authinfo_route(router, &state).map_err(AssembleError::Route)?;
+    let guard = AuthGuard(Arc::new(Authenticator::new(state, clock)));
+    Ok(router.with_guard(Arc::new(guard)))
+}
+
+#[cfg(test)]
+mod tests {
+    use oss_blob::Emulator;
+    use oss_mem::{BudgetConfig, Pool};
+
+    use super::*;
+
+    fn parts() -> (Arc<dyn BlobStore>, MemoryBudget) {
+        let store: Arc<dyn BlobStore> = Arc::new(Emulator::new(1 << 24, 1));
+        let budget = MemoryBudget::new(
+            &BudgetConfig::new(64 << 20)
+                .with_pool(Pool::RequestBodies, 32 << 20)
+                .expect("fits"),
+        );
+        (store, budget)
+    }
+
+    // docs/specs/security-authn AC-9
+    #[test]
+    fn security_on_without_an_administrator_does_not_start() {
+        let (store, budget) = parts();
+        let config = Config {
+            security: true,
+            ..Config::new("", "n", [0; 6])
+        };
+        let err = register(Router::new(), &store, &config, &budget)
+            .err()
+            .expect("refused");
+        assert!(matches!(err, AssembleError::Security(m) if m.contains("administrator")));
+        let too_often = Config {
+            security_admin: Some(("a".into(), "h".into())),
+            security_refresh_millis: 999,
+            ..config
+        };
+        assert!(matches!(
+            register(Router::new(), &store, &too_often, &budget).err(),
+            Some(AssembleError::Security(_))
+        ));
+    }
+
+    // docs/specs/security-authn AC-9
+    #[test]
+    fn with_security_off_no_guard_is_installed() {
+        let (store, budget) = parts();
+        let config = Config::new("", "n", [0; 6]);
+        let router = register(Router::new(), &store, &config, &budget).expect("registers");
+        assert!(!router.has_guard());
+    }
 }
