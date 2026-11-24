@@ -67,3 +67,17 @@ fn a_remove_that_fails_at_any_store_call_loses_nothing_and_a_retry_finishes() {
         assert_eq!(read(&store), None);
     }
 }
+
+#[test]
+fn a_take_failure_says_what_went_wrong() {
+    for (error, says) in [
+        (TakeError::NotShallow, "copies its data"),
+        (TakeError::AlreadyExists, "already exists"),
+        (TakeError::KeyTooLong, "too long"),
+        (TakeError::NoGeneration, "storage generation"),
+        (TakeError::Conflict("it moved"), "it moved"),
+        (TakeError::RecordTooLarge(9), "9 bytes"),
+    ] {
+        assert!(error.to_string().contains(says), "{error}");
+    }
+}
