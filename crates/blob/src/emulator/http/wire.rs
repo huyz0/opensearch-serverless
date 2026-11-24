@@ -149,11 +149,94 @@ pub(crate) fn percent_decode(text: &str) -> Option<String> {
 /// A request body read straight off the socket, `len` bytes long.
 pub(crate) struct SocketBody<'a> {
     pub(crate) reader: &'a mut BufReader<TcpStream>,
+    /// The object's length: the decoded length of an `aws-chunked` body.
     pub(crate) len: u64,
+    /// Bytes of the request body still on the wire.
     pub(crate) left: u64,
+    /// Set for an `aws-chunked` body: its framing.
+    pub(crate) framing: Option<AwsChunks>,
+}
+
+/// The state of an `aws-chunked` body (`<hex size>[;chunk-signature=..]\r\n`
+/// data `\r\n`, ending in a zero-size chunk and optional trailers), which the
+/// AWS SDKs send for a payload they sign or checksum as it streams.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct AwsChunks {
+    /// Bytes of the current chunk not yet read.
+    chunk_left: u64,
+    /// The zero-size chunk and its trailers were read.
+    done: bool,
 }
 
 impl SocketBody<'_> {
+    /// One line of an `aws-chunked` body, without its line end.
+    fn line(&mut self) -> BlobResult<Vec<u8>> {
+        // ALLOC: one chunk header or trailer line, at most 1 KiB.
+        let mut line = Vec::new();
+        let mut byte = [0u8; 1];
+        loop {
+            let n = self
+                .reader
+                .read(&mut byte)
+                .map_err(|_| BlobError::Stream("request body read failed"))?;
+            if n == 0 || line.len() > 1024 {
+                return Err(BlobError::Stream("a malformed aws-chunked body"));
+            }
+            self.left = self.left.saturating_sub(1);
+            match byte[0] {
+                b'\n' => {
+                    if line.last() == Some(&b'\r') {
+                        line.pop();
+                    }
+                    return Ok(line);
+                }
+                b => line.push(b),
+            }
+        }
+    }
+
+    fn fill_chunked(&mut self, mut framing: AwsChunks, buf: &mut [u8]) -> BlobResult<usize> {
+        let bad = || BlobError::Stream("a malformed aws-chunked body");
+        if framing.done {
+            return Ok(0);
+        }
+        if framing.chunk_left == 0 {
+            let line = self.line()?;
+            let size = line.split(|b| *b == b';').next().unwrap_or_default();
+            let size = std::str::from_utf8(size).map_err(|_| bad())?;
+            let size = u64::from_str_radix(size.trim(), 16).map_err(|_| bad())?;
+            if size == 0 {
+                // Trailers, up to the empty line.
+                while !self.line()?.is_empty() {}
+                framing.done = true;
+                self.framing = Some(framing);
+                return Ok(0);
+            }
+            framing.chunk_left = size;
+        }
+        let want = usize::try_from(framing.chunk_left)
+            .unwrap_or(usize::MAX)
+            .min(buf.len());
+        let Some(out) = buf.get_mut(..want).filter(|o| !o.is_empty()) else {
+            return Ok(0);
+        };
+        let n = self
+            .reader
+            .read(out)
+            .map_err(|_| BlobError::Stream("request body read failed"))?;
+        if n == 0 {
+            return Err(bad());
+        }
+        let n64 = u64::try_from(n).unwrap_or(u64::MAX);
+        self.left = self.left.saturating_sub(n64);
+        framing.chunk_left = framing.chunk_left.saturating_sub(n64);
+        if framing.chunk_left == 0 && !self.line()?.is_empty() {
+            return Err(bad());
+        }
+        self.framing = Some(framing);
+        Ok(n)
+    }
+
     /// Reads and drops what the handler left of the body, so the next
     /// request starts where it should. False if the client went away.
     pub(crate) fn drain(&mut self) -> bool {
@@ -174,6 +257,9 @@ impl ChunkSource for SocketBody<'_> {
     }
 
     fn fill(&mut self, buf: &mut [u8]) -> BlobResult<usize> {
+        if let Some(framing) = self.framing {
+            return self.fill_chunked(framing, buf);
+        }
         let want = usize::try_from(self.left)
             .unwrap_or(usize::MAX)
             .min(buf.len());

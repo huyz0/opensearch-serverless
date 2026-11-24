@@ -3,6 +3,7 @@
 //! end on loopback. Every test asserts exact request counts, on the
 //! client's meter and on the server.
 
+mod aws_chunked;
 mod deletes;
 mod gate;
 mod listing;
