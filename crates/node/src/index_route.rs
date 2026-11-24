@@ -59,6 +59,7 @@ pub struct IndexService {
     leave: Option<BucketLeave>,
     templates: Option<Arc<TemplateSets>>,
     knn: bool,
+    pipelines: bool,
 }
 
 impl IndexService {
@@ -74,6 +75,7 @@ impl IndexService {
             leave: None,
             templates: None,
             knn: false,
+            pipelines: false,
         }
     }
 
@@ -82,6 +84,15 @@ impl IndexService {
     #[must_use]
     pub fn with_knn(mut self, on: bool) -> Self {
         self.knn = on;
+        self
+    }
+
+    /// Accepts `index.default_pipeline` and `index.final_pipeline` at create
+    /// when `on` (`serverless.ingest.pipelines.enabled`); off, they are refused,
+    /// as every write to the index would fail on them.
+    #[must_use]
+    pub fn with_pipelines(mut self, on: bool) -> Self {
+        self.pipelines = on;
         self
     }
 
@@ -136,7 +147,7 @@ impl IndexService {
         };
         let (bucket_off, bucket_group) = bucket_settings(&asked.settings)?;
         let cost = cost_settings(&asked.settings)?;
-        let read = crate::create_settings::checked(&asked.settings, asked.shards)?;
+        let read = crate::create_settings::checked(&asked.settings, asked.shards, self.pipelines)?;
         if let Some(text) = asked.mapping.as_deref() {
             // `index.knn` cannot be given at create yet, so the node setting stands for it.
             Mapping::parse_with(

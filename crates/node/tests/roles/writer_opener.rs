@@ -412,6 +412,8 @@ fn an_index_recreated_since_the_group_was_planned_is_not_opened() {
         partition_size: 1,
         routing_shards: 1,
         routing_required: false,
+        default_pipeline: None,
+        final_pipeline: None,
     };
     let opener = HeadOpener::new(
         Arc::clone(&r.heads),
