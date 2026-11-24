@@ -1,8 +1,6 @@
-//! docs/specs/mixed-fleet-soak: Java shell nodes and Rust nodes as live
-//! processes on one RustFS bucket, handing a shard over by kill, judged by a
-//! ledger of every acknowledged document. Ignored unless `RUSTFS_BIN`,
-//! `OSS_JAVA_BIN` and `OSS_JAVA_CP` (the shell's production classpath) are set.
-
+//! docs/specs/mixed-fleet-soak: Java shell and Rust nodes as live processes on one RustFS
+//! bucket, handing a shard over by kill, judged by a ledger of every acknowledged document.
+//! Ignored unless `RUSTFS_BIN`, `OSS_JAVA_BIN` and `OSS_JAVA_CP` are set.
 #![cfg(all(feature = "reader", feature = "writer", feature = "coordinator"))]
 // ARITH: batch sizes, chunk offsets and durations are small and bounded by the reply read.
 #![allow(clippy::arithmetic_side_effects, clippy::disallowed_methods)]
