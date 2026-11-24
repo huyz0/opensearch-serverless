@@ -10,6 +10,12 @@ use oss_reader::overlay::{CommitAccess, OverlaySource, Ready, local_checkpoint};
 
 use super::{Held, SearchService};
 
+/// A shard held and the view a search of it runs on.
+pub(super) type FreshHeld<S> = (Arc<Held<S>>, Option<Arc<OpenShard<S>>>);
+
+/// How many times a shard refused as behind is opened afresh in one search.
+const REOPENS: u32 = 3;
+
 /// An overlay and the shard view made from it; `None` when the engine
 /// refused the view, so the refusal is not repeated on every search.
 pub(super) type OverlayView<S> = (Arc<Ready>, Option<Arc<OpenShard<S>>>);
@@ -46,6 +52,39 @@ impl<S: BlobStore + 'static> SearchService<S> {
     ) -> Result<Option<Arc<OpenShard<S>>>, Box<SearchError>> {
         self.fresh_check(held)?;
         Ok(self.overlay_view(held))
+    }
+
+    /// As [`Self::fresh_view`], and when the shard refuses because it is
+    /// behind (it was open on a commit that a publish has since passed, and
+    /// is let go), again over the shard opened afresh on the newest commit:
+    /// the open the next search would make, made now, so the caller is not
+    /// answered a 503 for a state the node mends by itself. A publish can
+    /// pass the new open too, so it is tried [`REOPENS`] times; a shard still
+    /// behind then answers the refusal.
+    pub(super) fn fresh_held(
+        &self,
+        held: Arc<Held<S>>,
+        single: bool,
+    ) -> Result<FreshHeld<S>, super::Answer> {
+        let mut held = held;
+        let mut reopened = 0;
+        loop {
+            match self.fresh_view(&held) {
+                Ok(view) => return Ok((held, view)),
+                Err(e)
+                    if e.status == 503
+                        && e.failure.kind == "shard_behind_exception"
+                        && reopened < REOPENS =>
+                {
+                    reopened = reopened.saturating_add(1);
+                    // ALLOC: the index name, once a reopen.
+                    let (index, shard) = (held.index.clone(), held.shard_no);
+                    drop(held);
+                    held = self.open_shard(&index, shard, single)?;
+                }
+                Err(e) => return Err(super::Answer::Search(e)),
+            }
+        }
     }
 
     fn fresh_check(&self, held: &Arc<Held<S>>) -> Result<(), Box<SearchError>> {

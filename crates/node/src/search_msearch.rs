@@ -326,7 +326,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
             return self.coordinate_bytes(index, source, started);
         }
         let held = self.shard(index)?;
-        let view = self.fresh_view(&held).map_err(Answer::Search)?;
+        let (held, view) = self.fresh_held(held, true)?;
         let shard = view.as_deref().unwrap_or(&held.shard);
         let mut grants: Vec<Reservation> = Vec::new();
         let mut reserve = |n: usize| {
