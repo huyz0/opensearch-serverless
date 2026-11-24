@@ -12,6 +12,7 @@ mod capacity;
 mod dead_log_pass;
 mod dead_logs;
 mod get;
+mod group_sink;
 mod heads;
 mod hibernate;
 mod incarnation;
@@ -63,6 +64,7 @@ pub use dead_log_pass::{
     DeadLogParts, DeadLogPass, DeadLogReport, DeadMailbox, DeadSnapshot, REAPERS,
 };
 pub use dead_logs::{StoreCommits, StoreNodeLogs};
+pub use group_sink::GroupSink;
 pub use heads::{HeadAdmission, ShardNames};
 pub use hibernate::{
     GIVE_BACK_PER_PASS, HIBERNATE_AFTER_MILLIS, HibernatePass, KEEP_ASLEEP_MILLIS,
@@ -79,9 +81,6 @@ pub use proactive::{
     SETTINGS as PROACTIVE_SETTINGS,
 };
 pub use publish_age::{bucket_group_of, group_settings, publish_age_of};
-
-/// Who is told an index's bucket group: index name and group.
-pub type GroupSink = Arc<dyn Fn(&str, &str) + Send + Sync>;
 pub use publish_timer::PublishTimer;
 pub use publishing::{PublishPass, Publishing};
 pub use routes::Routes;
@@ -226,19 +225,6 @@ impl WriterRole {
         if let Some(publishing) = &self.publishing {
             // ALLOC: one key, once a shard opened.
             publishing.set_age(&(uuid.to_owned(), shard), age);
-        }
-    }
-
-    /// Installs who is told the bucket group of an index when a shard of it
-    /// is opened. False when one is installed already.
-    pub fn set_group_sink(&self, sink: GroupSink) -> bool {
-        self.groups.set(sink).is_ok()
-    }
-
-    /// Tells the group sink that `index` bills to `group`.
-    pub(crate) fn note_group(&self, index: &str, group: &str) {
-        if let Some(sink) = self.groups.get() {
-            sink(index, group);
         }
     }
 
