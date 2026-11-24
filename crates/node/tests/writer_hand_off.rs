@@ -13,8 +13,9 @@ use std::time::Duration;
 use oss_blob::{BlobStore, S3Op};
 use oss_cluster::heads::shard_head_key;
 use oss_format::{NodeLease, ShardHead};
-use oss_node::writer::{ShardCap, Takeover};
+use oss_node::writer::{RoleTarget, ShardCap, Takeover};
 use oss_writer::bulk::ItemResult;
+use oss_writer::bulk::{Owner, Target};
 use support::*;
 
 const TTL: i64 = 30_000;
@@ -146,4 +147,58 @@ fn a_handed_off_shard_gives_its_head_back_and_reopens_with_its_documents() {
         }
         other => panic!("{other:?}"),
     }
+}
+
+fn owner_of(one: &Node, name: &str) -> Owner {
+    let mut info = info();
+    info.name = name.into();
+    info.uuid = format!("u{name}");
+    RoleTarget::new(&one.role).owner(&info, 0)
+}
+
+#[test]
+fn a_write_for_an_unheld_shard_goes_to_the_member_with_room_when_this_node_is_nearly_full() {
+    let (_c, one) = full(4, 4, true);
+    pass(&one, &[peer("node-2", 1, 10)]);
+    // The pass let one go; write it back so the node is nearly full again.
+    assert!(matches!(
+        write_in(&one.role, "a", "2"),
+        ItemResult::Written { .. }
+    ));
+    assert_eq!(one.role.shard_cap_stats().held, 4);
+    assert_eq!(owner_of(&one, "e"), Owner::Node("node-2".into()));
+    assert_eq!(one.role.shard_cap_stats().steered, 1);
+}
+
+#[test]
+fn a_held_shard_is_never_steered_away() {
+    let (_c, one) = full(4, 4, true);
+    pass(&one, &[peer("node-2", 1, 10)]);
+    assert!(matches!(
+        write_in(&one.role, "a", "2"),
+        ItemResult::Written { .. }
+    ));
+    assert_eq!(owner_of(&one, "b"), Owner::Local);
+    assert_eq!(one.role.shard_cap_stats().steered, 0);
+}
+
+#[test]
+fn a_write_is_not_steered_with_the_setting_off_or_a_node_with_room_or_no_member_with_room() {
+    let (_c, off) = full(4, 4, false);
+    off.role
+        .hand_off(&[peer("node-2", 1, 10)], 0, TTL, "node-1");
+    assert_ne!(owner_of(&off, "e"), Owner::Node("node-2".into()));
+
+    let (_c, roomy) = full(4, 2, true);
+    roomy
+        .role
+        .hand_off(&[peer("node-2", 1, 10)], 0, TTL, "node-1");
+    assert_ne!(owner_of(&roomy, "e"), Owner::Node("node-2".into()));
+
+    let (_c, packed) = full(4, 4, true);
+    packed
+        .role
+        .hand_off(&[peer("node-2", 9, 10)], 0, TTL, "node-1");
+    assert_ne!(owner_of(&packed, "e"), Owner::Node("node-2".into()));
+    assert_eq!(packed.role.shard_cap_stats().steered, 0);
 }

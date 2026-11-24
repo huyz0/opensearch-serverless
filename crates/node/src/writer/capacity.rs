@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use oss_types::settings::{BoolSetting, LongSetting, Scope, Setting};
 
-use oss_cluster::placement::{FleetView, HAND_OFF_DOWN_TO_MEAN, Holding};
+use oss_cluster::placement::{FleetView, HAND_OFF_DOWN_TO_MEAN, Holding, ShardKey};
 use oss_format::NodeLease;
 
 use super::{Key, OpenRefused, ShardSlot, WriterRole, lock, now_millis};
@@ -88,6 +88,8 @@ pub struct ShardCapStats {
     pub evicted_for_room: u64,
     /// Shards handed to a member with room.
     pub handed_off: u64,
+    /// Writes to an unheld shard sent on to a member with room.
+    pub steered: u64,
 }
 
 /// What a role counts at its cap.
@@ -98,6 +100,19 @@ pub(super) struct Counters {
     handed_off: AtomicU64,
     /// Whether idle shards are handed to a member with room.
     hand_off: AtomicBool,
+    /// Writes sent on to a member with room.
+    steered: AtomicU64,
+    /// The fleet as the last refresh saw it.
+    fleet: Mutex<Option<Fleet>>,
+}
+
+/// The members a refresh read, the time in their leases' clock, and who
+/// this node is.
+struct Fleet {
+    members: Vec<NodeLease>,
+    now: i64,
+    ttl: i64,
+    local: String,
 }
 
 impl WriterRole {
@@ -114,6 +129,7 @@ impl WriterRole {
             refused: self.counters.refused.load(Ordering::Relaxed),
             evicted_for_room: self.counters.evicted.load(Ordering::Relaxed),
             handed_off: self.counters.handed_off.load(Ordering::Relaxed),
+            steered: self.counters.steered.load(Ordering::Relaxed),
         }
     }
 
@@ -146,6 +162,14 @@ impl WriterRole {
         if !self.counters.hand_off.load(Ordering::Relaxed) {
             return 0;
         }
+        *lock(&self.counters.fleet) = Some(Fleet {
+            // ALLOC: one copy of the members a refresh, a handful of leases a node.
+            members: members.to_vec(),
+            now: lease_now,
+            ttl: ttl_millis,
+            // ALLOC: one id a refresh.
+            local: local.to_owned(),
+        });
         let held = lock(&self.shards).len();
         let view = FleetView {
             members,
@@ -173,6 +197,36 @@ impl WriterRole {
             handed = handed.saturating_add(1);
         }
         handed
+    }
+
+    /// The member a write to the unheld `shard` of `index` goes to instead
+    /// of opening it here: only with hand-off on, a cap set, this node
+    /// nearly full and a writer with room to take it. None otherwise.
+    pub(super) fn steer(&self, index: &IndexInfo, shard: u32) -> Option<String> {
+        if !self.counters.hand_off.load(Ordering::Relaxed) {
+            return None;
+        }
+        let cap = self.cap.get().filter(|c| c.max > 0)?;
+        let fleet = lock(&self.counters.fleet);
+        let fleet = fleet.as_ref()?;
+        let view = FleetView {
+            members: &fleet.members,
+            now: fleet.now,
+            ttl: fleet.ttl,
+            local: &fleet.local,
+            holding: Holding {
+                held: i32::try_from(lock(&self.shards).len()).unwrap_or(i32::MAX),
+                cap: i32::try_from(cap.max).unwrap_or(i32::MAX),
+            },
+        };
+        if !view.nearly_full() {
+            return None;
+        }
+        let key = ShardKey::new(&index.name, i32::try_from(shard).unwrap_or(i32::MAX));
+        let target = view.member_with_room().and_then(|_| view.writer_for(key))?;
+        self.counters.steered.fetch_add(1, Ordering::Relaxed);
+        // ALLOC: one id, on a steered write.
+        Some(target.to_owned())
     }
 
     /// Room for one more shard under the cap, made by letting idle shards

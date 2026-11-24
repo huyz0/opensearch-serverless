@@ -44,7 +44,7 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use oss_format::WalRecord;
 use oss_writer::admission::WriteLimiter;
-use oss_writer::bulk::{IndexInfo, Kind, Owner, Planned};
+use oss_writer::bulk::{IndexInfo, Kind, Planned};
 use oss_writer::index::{Refused, Written};
 use oss_writer::log::NodeLogCommitter;
 use oss_writer::publish::lazy::PublishAge;
@@ -303,17 +303,6 @@ impl WriterRole {
             if let Some(t) = self.tail.get() {
                 t.released(uuid, shard);
             }
-        }
-    }
-
-    /// Whether the group's shard is held here; otherwise who owns it.
-    pub(crate) fn owner(&self, index: &IndexInfo, shard: u32) -> Owner {
-        if self.held(&index.uuid, shard) {
-            Owner::Local
-        } else if let Some(holder) = self.redirect(&index.uuid, shard) {
-            Owner::Node(holder)
-        } else {
-            self.routes.owner(index, shard)
         }
     }
 
