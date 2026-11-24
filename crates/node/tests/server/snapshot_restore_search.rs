@@ -50,6 +50,18 @@ fn total(body: &str) -> u64 {
         .expect("a number")
 }
 
+fn copy_dir(from: &std::path::Path, to: &std::path::Path) {
+    std::fs::create_dir_all(to).expect("directory");
+    for entry in std::fs::read_dir(from).expect("reads").flatten() {
+        let target = to.join(entry.file_name());
+        if entry.path().is_dir() {
+            copy_dir(&entry.path(), &target);
+        } else {
+            std::fs::copy(entry.path(), target).expect("copies");
+        }
+    }
+}
+
 #[test]
 fn a_restored_index_answers_a_search_with_what_the_snapshot_captured() {
     let root = TempDir::new("restore-search");
@@ -152,6 +164,11 @@ fn a_restored_index_answers_a_search_with_what_the_snapshot_captured() {
         Some(TAKE),
     );
     assert_eq!(made.status, 200, "{}", made.text());
+    // For the Java check over a Rust take (fixtures/snapshots/README.md): the
+    // directory as the take left it, before the restore adds to it.
+    if let Some(out) = std::env::var_os("OSS_WRITE_BUCKET") {
+        copy_dir(root.path(), std::path::Path::new(&out));
+    }
     let restored = call(
         "POST",
         "/_snapshot/backups/daily/_restore?wait_for_completion=true",
