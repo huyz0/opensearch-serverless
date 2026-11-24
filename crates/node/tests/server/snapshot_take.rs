@@ -31,6 +31,10 @@ fn roomy() -> BudgetConfig {
 }
 
 fn rig(take: bool) -> Rig {
+    rig_in(take, roomy())
+}
+
+fn rig_in(take: bool, config: BudgetConfig) -> Rig {
     let store = Arc::new(Emulator::new(1 << 28, 5));
     let blobs = Arc::clone(&store) as Arc<dyn BlobStore>;
     let clock: oss_meta::PitClock = Arc::new(|| 1_700_000_000_000);
@@ -52,7 +56,7 @@ fn rig(take: bool) -> Rig {
     });
     let router = routes(Router::new(), &service, taker.as_ref()).expect("routes");
     let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
-    let budget = MemoryBudget::new(&roomy());
+    let budget = MemoryBudget::new(&config);
     let server =
         Server::start(listener, support::server_config(), router, &budget).expect("starts");
     Rig {
@@ -385,6 +389,78 @@ fn a_take_writes_the_register_and_marker_a_java_node_reads() {
         oss_format::SnapshotState::parse(&committed),
         Ok(oss_format::SnapshotState::Held { finished: true, .. })
     ));
+}
+
+/// What the janitor would pin for the deployment's snapshots.
+fn pinned(r: &Rig, index: &str, uuid: &str) -> bool {
+    let source = oss_janitor::orphans::SnapshotSource::new(
+        Arc::clone(&r.store) as Arc<dyn BlobStore>,
+        "",
+        100,
+        1 << 20,
+    );
+    let mut pins = oss_janitor::orphans::IndexPins::new(100);
+    source
+        .collect_with(&mut pins, &mut vec![0u8; 1 << 20])
+        .expect("reads");
+    pins.contains(index, uuid)
+}
+
+#[test]
+fn the_janitor_pins_an_index_from_the_protective_marker_and_after_the_finish() {
+    let r = rig(true);
+    repository(&r, true);
+    index(&r, "logs", "u1", 1);
+    publish(&r, "logs", "u1", 0);
+    assert!(!pinned(&r, "logs", "u1"), "no snapshot, no pin");
+    // The marker alone, before any commit is read.
+    let blobs = Arc::clone(&r.store) as Arc<dyn BlobStore>;
+    let taker = oss_meta::SnapshotTaker::new(Arc::clone(&blobs), "");
+    let described = taker
+        .describe(&r.descriptors, "logs", &mut vec![0u8; 1 << 16])
+        .unwrap();
+    let draft = |captured: bool| oss_format::SnapshotDraft {
+        repo: "backups".into(),
+        name: "held".into(),
+        uuid: "snap".into(),
+        storage_generation: Some("genAAAAAAAAAAAAAAAAAAA".into()),
+        shallow: true,
+        start_millis: 1,
+        end_millis: 1,
+        indices: vec![described.capture(Vec::new(), captured)],
+    };
+    let mut value = vec![0u8; 1 << 16];
+    let reservation = taker.reserve(&draft(true), &mut value).unwrap();
+    assert!(
+        !pinned(&r, "logs", "u1"),
+        "a reservation alone has no marker"
+    );
+    taker
+        .publish_marker(&reservation, &draft(false), &mut value)
+        .unwrap();
+    assert!(pinned(&r, "logs", "u1"), "pinned from the marker");
+    taker.abort(&reservation, &mut value).unwrap();
+    assert!(!pinned(&r, "logs", "u1"), "an aborted take pins nothing");
+    // A whole take through the route.
+    assert_eq!(
+        send(&r, "PUT", "/_snapshot/backups/daily", Some(TAKE)).status,
+        200
+    );
+    assert!(pinned(&r, "logs", "u1"), "pinned after the finish");
+    assert!(!pinned(&r, "logs", "other-uuid"), "only that incarnation");
+}
+
+#[test]
+fn a_take_the_body_pool_cannot_hold_is_429_and_makes_no_write() {
+    let r = rig_in(true, support::budget_config());
+    repository(&r, true);
+    index(&r, "logs", "u1", 1);
+    publish(&r, "logs", "u1", 0);
+    let before = requests(&r);
+    let got = send(&r, "PUT", "/_snapshot/backups/daily", Some(TAKE));
+    assert_eq!(got.status, 429, "{}", got.text());
+    assert_eq!(requests(&r), before, "nothing is read or written");
+    assert_eq!(send(&r, "GET", "/_snapshot/backups", None).status, 200);
 }
 
 #[test]
