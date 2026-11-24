@@ -199,6 +199,7 @@ const ALL_ACCESS: &[&str] = &[
     "/_snapshot",
     "/_snapshot/{repo}",
     "/_snapshot/{repo}/_verify",
+    "/_snapshot/{repo}/{name}/_restore",
     "/_snapshot/{repo}/{name}",
     "/_search/point_in_time",
     "/_search/point_in_time/_all",
