@@ -79,3 +79,7 @@ Invariant I-13 in [invariants.md](invariants.md) holds the suite to this: `crate
 ## `realtime=false` on a forwarded get
 
 A get of a shard another node owns is forwarded to its owner. The Java `ForwardedGetRequest` has no `realtime` field and its owner always reads realtime, and a Java peer refuses a message it did not read whole, so a `realtime=false` get cannot be sent to one with a new field. A node of this project publishes the build version `oss-rust/<version>` in its lease; to a peer whose lease says that, a get that is not realtime carries one trailing byte and is answered from refreshed data only. To any other peer the get is sent in the Java layout, and the owner reads realtime: the answer may then include a write not yet refreshed. A get served on the node that owns the shard honours `realtime` either way.
+
+## A `_bulk` with `Connection: close` on a Java shell node
+
+The Java shell answers a `_bulk` request that carries `Connection: close` with the head of a chunked reply and closes before the body, so the client reads `200` and no body. A Rust node answers it whole (`crates/rest/tests/peak_memory.rs` sends one). Found by the mixed-fleet soak ([mixed-fleet-soak](specs/mixed-fleet-soak/VERIFIED.md)). **Not fixed:** the Java shell is under a code freeze ([ADR 0001](adr/0001-strangler-and-crate-layout.md)), so the soak keeps its connection open; a client of a mixed fleet that cannot keep one open should read the bulk's effect from a later `_count`, not from the body.
