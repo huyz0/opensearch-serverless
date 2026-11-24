@@ -164,3 +164,5 @@ src/warm_copy/tests.rs	new		tests of the copy against a fake peer holding a warm
 src/warm_join.rs	new		who a joiner asks and the signed transport calls, with the bounded fan-out over peers
 src/warm_join/tests.rs	new		tests of the peer list, the fan-out cap and the batch memory reservation
 src/boot/config/authoring.rs	new		the index template and ingest pipeline switches the OSS_* variables set
+src/extension_pins.rs	new		the pin policy over the module store: read, check, probe and resolve limits
+src/pin_policy.rs	new		what a create needs to pin analyzer modules, and the settings merge

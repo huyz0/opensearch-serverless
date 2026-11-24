@@ -45,6 +45,8 @@ mod get_route;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod index_delete;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
+mod index_pins;
+#[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod index_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod ingest_run;

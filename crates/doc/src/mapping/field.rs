@@ -298,7 +298,9 @@ impl Leaf {
                         .get(analyzer)
                         .and_then(Value::text)
                         .unwrap_or("default");
-                    if !matches!(a, "default" | "standard") {
+                    // A pin's name is admitted here by its form; `Mapping::parse_with`
+                    // refuses it to a caller whose index does not pin analyzers.
+                    if !matches!(a, "default" | "standard") && !oss_ext::pin::is_pin_name(a) {
                         // ALLOC: mapping parse, merge or error path; bounded by the mapping text (MAX_MAPPING_BYTES).
                         return Err(MappingError::unsupported(&format!(
                             "analyzer [{a}] on field [{name}]"

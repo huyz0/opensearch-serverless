@@ -25,6 +25,7 @@ graph TD
     oss-coordinator --> oss-types
     oss-coordinator --> oss-writer
     oss-doc --> chunkjson
+    oss-doc --> oss-ext
     oss-doc --> oss-rest
     oss-ext
     oss-ext-wasm --> oss-ext

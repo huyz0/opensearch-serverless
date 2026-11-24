@@ -274,3 +274,22 @@ fn a_merge_layers_the_request_over_the_current_settings() {
 fn the_swap_is_tried_four_times() {
     assert_eq!(ATTEMPTS, 4);
 }
+
+// docs/specs/extension-analyzer AC-6: a pin is made at create and never changed
+#[test]
+fn an_analysis_setting_is_final_whatever_the_scope_says() {
+    for key in [
+        "index.analysis.analyzer.ext_a.type",
+        "index.analysis.analyzer.ext_a.module",
+        "index.analysis.analyzer.ext_a.limits.fuel",
+    ] {
+        let body = format!(r#"{{"{key}":"y"}}"#);
+        let (status, kind, reason) = refused(&body);
+        assert_eq!((status, kind), (400, "illegal_argument_exception"), "{key}");
+        assert_eq!(
+            reason,
+            format!("final index setting [{key}], not updateable"),
+            "{key}"
+        );
+    }
+}

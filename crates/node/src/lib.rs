@@ -34,6 +34,8 @@ pub mod commit_push;
 pub mod descriptor_routes;
 #[cfg(feature = "writer")]
 pub mod doc_route;
+#[cfg(all(feature = "extensions", feature = "writer", feature = "coordinator"))]
+pub mod extension_pins;
 #[cfg(all(feature = "extensions", feature = "writer"))]
 pub mod extension_route;
 #[cfg(all(feature = "extensions", feature = "writer"))]
@@ -58,6 +60,8 @@ pub mod index_cache;
 pub mod index_delete;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub mod index_route;
+#[cfg(all(feature = "writer", feature = "coordinator"))]
+pub mod pin_policy;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub mod index_templates;
 #[cfg(feature = "writer")]

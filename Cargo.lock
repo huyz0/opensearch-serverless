@@ -1293,6 +1293,7 @@ dependencies = [
  "lucene-index",
  "lucene-search",
  "lucene-store",
+ "oss-ext",
  "oss-rest",
 ]
 

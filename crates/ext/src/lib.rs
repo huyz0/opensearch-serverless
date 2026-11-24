@@ -11,6 +11,7 @@ pub mod analyzer;
 mod descriptor;
 mod error;
 mod json;
+pub mod pin;
 mod status;
 mod version;
 
