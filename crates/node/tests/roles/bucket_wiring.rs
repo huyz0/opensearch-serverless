@@ -252,3 +252,21 @@ fn a_registered_node_reports_the_members_it_holds_open() {
     assert!(!heads.others_open_on(BUCKET, "node-1", "logs").unwrap());
     assert!(!heads.others_open_on(BUCKET, "node-2", "other").unwrap());
 }
+
+#[test]
+fn a_join_places_the_index_in_a_bucket_listing_it_as_a_member() {
+    let r = rig("logs");
+    let bucket = r.wiring.join("fresh", "fresh-uuid").expect("joins");
+    assert!(!bucket.is_empty());
+    let read = BucketStore::new(
+        Arc::clone(&r.store) as Arc<dyn BlobStore>,
+        "",
+        ManifestWrite::Json,
+    )
+    .read(&bucket)
+    .expect("reads")
+    .expect("exists");
+    assert!(read.manifest.member("fresh-uuid").is_some());
+    // The same index again lands in the same bucket.
+    assert_eq!(r.wiring.join("fresh", "fresh-uuid").expect("joins"), bucket);
+}
