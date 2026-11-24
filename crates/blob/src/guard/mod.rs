@@ -16,7 +16,7 @@
 //!
 //! Levels act only where the caller enforces them ([`Mode::Enforce`]); in
 //! [`Mode::Observe`] they are computed and reported. At level three a write
-//! is paced to what fits the budget ([`pace`]).
+//! is paced to what fits the budget (`Guardrails::pace_write`).
 
 mod pace;
 
