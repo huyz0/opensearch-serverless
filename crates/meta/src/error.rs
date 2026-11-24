@@ -51,6 +51,15 @@ pub enum MetaError {
     /// Another writer recovered this alias mutation's reservation while it
     /// prepared hints (the Java's "alias preparation was superseded").
     Superseded,
+    /// A document name the Java refuses (`Names.validateId`): the message is
+    /// its own. Nothing was sent.
+    InvalidDocName(String),
+    /// A set already holds [`oss_format::MAX_DOCS`] documents and the put
+    /// names a new one (the Java's `TooManyTemplatesException`).
+    TooManyDocs,
+    /// The marker names a document whose bytes are not in the store, twice
+    /// over: the set is damaged.
+    MissingContent(String),
 }
 
 impl fmt::Display for MetaError {
@@ -72,6 +81,13 @@ impl fmt::Display for MetaError {
             Self::SettingsRefused(e) => e.fmt(f),
             Self::MissingMember(index) => write!(f, "alias member does not exist: {index}"),
             Self::Superseded => f.write_str("the alias mutation was superseded"),
+            Self::InvalidDocName(message) => f.write_str(message),
+            Self::TooManyDocs => {
+                write!(f, "a set holds at most {} documents", oss_format::MAX_DOCS)
+            }
+            Self::MissingContent(name) => {
+                write!(f, "[{name}] is indexed but its content is not in the store")
+            }
         }
     }
 }
@@ -89,7 +105,10 @@ impl std::error::Error for MetaError {
             | Self::Contended
             | Self::InvalidArgument(_)
             | Self::MissingMember(_)
-            | Self::Superseded => None,
+            | Self::Superseded
+            | Self::InvalidDocName(_)
+            | Self::TooManyDocs
+            | Self::MissingContent(_) => None,
         }
     }
 }
@@ -187,6 +206,21 @@ mod tests {
             (
                 MetaError::Superseded,
                 "the alias mutation was superseded",
+                false,
+            ),
+            (
+                MetaError::InvalidDocName("bad name".to_owned()),
+                "bad name",
+                false,
+            ),
+            (
+                MetaError::TooManyDocs,
+                "a set holds at most 1000 documents",
+                false,
+            ),
+            (
+                MetaError::MissingContent("t".to_owned()),
+                "[t] is indexed but its content is not in the store",
                 false,
             ),
         ] {
