@@ -380,7 +380,9 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     let mut assembled = assemble::assemble(&node_config, Arc::clone(&store), &budget, writer)
         .and_then(|a| a.with_health(health, &config.cluster))
         .map_err(BootError::Assemble)?;
-    support::register_open_shards(buckets.as_ref(), &config.node_id, &assembled.role);
+    if let Some(buckets) = &buckets {
+        buckets.register_open(&config.node_id, Arc::clone(&assembled.role));
+    }
     tail::wire(
         &mut assembled,
         config,

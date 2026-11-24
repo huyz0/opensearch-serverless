@@ -251,14 +251,3 @@ pub(super) fn head_store(
     }
     Ok(Arc::new(heads))
 }
-
-/// Tells the bucket heads which shards this node's writer role holds open.
-pub(super) fn register_open_shards(
-    buckets: Option<&Arc<crate::writer::BucketWiring>>,
-    node_id: &str,
-    role: &Arc<WriterRole>,
-) {
-    if let Some(buckets) = buckets {
-        buckets.register_open(node_id, Arc::clone(role));
-    }
-}
