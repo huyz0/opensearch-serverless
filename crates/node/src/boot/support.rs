@@ -170,6 +170,8 @@ pub(super) fn apply_janitor_and_hibernation(
 ) {
     node.hibernate_after_millis = config.hibernate_after_millis;
     node.give_back_after_millis = config.give_back_after_millis;
+    node.max_shards = config.max_shards;
+    node.evict_after_millis = config.evict_after_millis;
     node.janitor_every = Duration::from_millis(config.janitor_every_millis);
     node.sweep.dry_run = config.janitor_dry_run;
 }

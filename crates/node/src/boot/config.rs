@@ -102,6 +102,10 @@ pub struct NodeConfig {
     pub hibernate_after_millis: u64,
     /// `serverless.activation.give_back_after_millis`; 0 never gives back.
     pub give_back_after_millis: u64,
+    /// `serverless.activation.max_shards`; 0 is no cap.
+    pub max_shards: usize,
+    /// `serverless.activation.evict_after_millis`; 0 never evicts.
+    pub evict_after_millis: u64,
     /// `serverless.write.backpressure.*`: what limits the writes waiting on
     /// the write log.
     pub write_limit: oss_writer::admission::LimiterConfig,
@@ -220,6 +224,8 @@ impl NodeConfig {
         let proactive_takeover = flag("OSS_PROACTIVE_TAKEOVER", "true")?;
         let hibernate_after_millis = bounded("OSS_HIBERNATE_AFTER_MS", "0", 0, 604_800_000)?;
         let give_back_after_millis = bounded("OSS_GIVE_BACK_AFTER_MS", "0", 0, 86_400_000)?;
+        let max_shards = bounded("OSS_MAX_SHARDS", "0", 0, 1_000_000)?;
+        let evict_after_millis = bounded("OSS_EVICT_AFTER_MS", "60000", 0, 604_800_000)?;
         let write_limit = write_limit::read(&bounded)?;
         let proactive_reapers = bounded("OSS_PROACTIVE_REAPERS", "2", 1, 16)?;
         let proactive_max_concurrent = bounded("OSS_PROACTIVE_MAX_CONCURRENT", "4", 1, 64)?;
@@ -264,6 +270,8 @@ impl NodeConfig {
             janitor_dry_run,
             hibernate_after_millis,
             give_back_after_millis,
+            max_shards: usize::try_from(max_shards).unwrap_or(0),
+            evict_after_millis,
             proactive_takeover,
             proactive_reapers: usize::try_from(proactive_reapers).unwrap_or(2),
             proactive_max_concurrent: usize::try_from(proactive_max_concurrent).unwrap_or(4),
