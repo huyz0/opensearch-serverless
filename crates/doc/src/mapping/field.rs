@@ -161,7 +161,7 @@ impl Leaf {
             _ => super::types::KNN_NO_DIMENSION,
         };
         let method = match self.get("method") {
-            Some(Value::Method(m)) => Some(m.clone()),
+            Some(Value::Method(m)) => Some(super::knn::KnnMethod::clone(m)),
             _ => None,
         };
         let top = self
@@ -174,7 +174,7 @@ impl Leaf {
             self.ty.defs().iter().position(|d| d.name == "method"),
         ) && let Some(slot) = self.values.get_mut(i)
         {
-            *slot = Value::Method(m);
+            *slot = Value::Method(Box::new(m));
         }
         Ok(())
     }

@@ -54,7 +54,7 @@ pub(super) fn parse_value(
         Kind::NullBool => Value::Bool(parse_bool(node)?),
         Kind::KnnDimension => Value::Int(super::knn::parse_dimension(name, node)?),
         Kind::KnnDataType => Value::Str(super::knn::parse_data_type(node)?),
-        Kind::KnnMethod => Value::Method(super::knn::parse_method(node)?),
+        Kind::KnnMethod => Value::Method(Box::new(super::knn::parse_method(node)?)),
         Kind::KnnSpace => Value::Str(super::knn::parse_space(node)?),
         Kind::NullNumber => match ty {
             FieldType::Number(n) => Value::Number(numbers::parse(n, node, false)?),
