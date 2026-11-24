@@ -61,14 +61,25 @@ impl UsageService {
         self
     }
 
-    fn handle(&self, resp: &mut Response<'_>) -> Result<(), RestError> {
+    fn handle(&self, req: &Request<'_>, resp: &mut Response<'_>) -> Result<(), RestError> {
+        let top = match req.param("top") {
+            None => None,
+            Some(text) => match text.parse::<usize>() {
+                Ok(n) if n >= 1 => Some(n),
+                _ => {
+                    return Err(RestError::illegal_argument(format!(
+                        "[top] must be a whole number of at least 1, got [{text}]"
+                    )));
+                }
+            },
+        };
         // ALLOC: the body, one entry an index the ledger tracks.
         let mut out = Vec::new();
-        self.render(&mut out)?;
+        self.render(&mut out, top)?;
         resp.send(200, JSON, &out)
     }
 
-    fn render(&self, out: &mut Vec<u8>) -> Result<(), RestError> {
+    fn render(&self, out: &mut Vec<u8>, top: Option<usize>) -> Result<(), RestError> {
         out.write_all(b"{\"node_id\":")?;
         write_json_str(&mut *out, &self.node_id)?;
         write!(
@@ -77,7 +88,11 @@ impl UsageService {
             self.started_millis,
             (self.clock)()
         )?;
-        for (i, (name, usage)) in self.ledger.lines().iter().enumerate() {
+        let mut lines = self.ledger.lines();
+        if let Some(n) = top {
+            costliest(&mut lines, n);
+        }
+        for (i, (name, usage)) in lines.iter().enumerate() {
             if i > 0 {
                 out.write_all(b",")?;
             }
@@ -87,17 +102,31 @@ impl UsageService {
         }
         out.write_all(b"}")?;
         if let Some(tenants) = &self.tenants {
-            self.tenants_json(out, tenants)?;
+            self.tenants_json(out, tenants, top)?;
         }
         out.write_all(b"}")?;
         Ok(())
     }
 
-    fn tenants_json(&self, out: &mut Vec<u8>, tenants: &TenantLevels) -> std::io::Result<()> {
+    fn tenants_json(
+        &self,
+        out: &mut Vec<u8>,
+        tenants: &TenantLevels,
+        top: Option<usize>,
+    ) -> std::io::Result<()> {
         out.write_all(b",\"tenant_levels\":{\"mode\":\"")?;
         out.write_all(crate::tenants::word(tenants.mode()).as_bytes())?;
         out.write_all(b"\",\"tenants\":{")?;
-        for (i, (name, t)) in tenants.report((self.clock)()).iter().enumerate() {
+        let mut report = tenants.report((self.clock)());
+        if let Some(n) = top {
+            report.sort_by(|a, b| {
+                b.1.cost_per_minute
+                    .total_cmp(&a.1.cost_per_minute)
+                    .then_with(|| a.0.cmp(&b.0))
+            });
+            report.truncate(n);
+        }
+        for (i, (name, t)) in report.iter().enumerate() {
             if i > 0 {
                 out.write_all(b",")?;
             }
@@ -117,6 +146,20 @@ impl UsageService {
         }
         out.write_all(b"}}")
     }
+}
+
+/// Keeps the `n` costliest indices, highest first, then the lines that are
+/// no index's (`_node`, `_other`), which are always listed.
+fn costliest(lines: &mut Vec<(String, Arc<IndexUsage>)>, n: usize) {
+    let split = lines.len().saturating_sub(2);
+    let mut rest = lines.split_off(split);
+    lines.sort_by(|a, b| {
+        b.1.cost_milli_units()
+            .cmp(&a.1.cost_milli_units())
+            .then_with(|| a.0.cmp(&b.0))
+    });
+    lines.truncate(n);
+    lines.append(&mut rest);
 }
 
 /// `1234` thousandths as `1.234`.
@@ -157,8 +200,8 @@ pub fn routes(router: Router, service: Arc<UsageService>) -> Result<Router, Rout
     router.route(
         Method::Get,
         "/_serverless/usage",
-        &[],
-        move |_req: &mut Request<'_>, resp: &mut Response<'_>| service.handle(resp),
+        &["top"],
+        move |req: &mut Request<'_>, resp: &mut Response<'_>| service.handle(req, resp),
     )
 }
 
