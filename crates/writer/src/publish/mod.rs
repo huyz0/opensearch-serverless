@@ -8,6 +8,7 @@
 //! [`PackPlacement`] (default off).
 
 mod blob;
+mod commit_register;
 mod error;
 pub mod lazy;
 mod names;
@@ -15,6 +16,7 @@ mod packed;
 mod publisher;
 mod register;
 
+pub use commit_register::{CommitRegister, RegisterValue};
 pub use error::PublishError;
 pub use names::segment_name;
 pub use packed::PackPlacement;

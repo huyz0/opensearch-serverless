@@ -40,6 +40,7 @@ mod bucket_manifest;
 mod change_stripe;
 mod cluster_settings;
 mod descriptor;
+mod doc_set;
 mod error;
 mod index_record;
 mod json;
@@ -76,6 +77,10 @@ pub use change_stripe::{
 };
 pub use cluster_settings::{ClusterSettings, MAX_CLUSTER_SETTINGS_BYTES, Setting, SettingsRefused};
 pub use descriptor::{DescriptorRecord, IndexDescriptor, TOMBSTONE_PREFIX};
+pub use doc_set::{
+    DocKind, DocSetMarker, MAX_DOC_BYTES, MAX_DOC_NAME_BYTES, MAX_DOC_SET_MARKER_BYTES, MAX_DOCS,
+    doc_content_key, doc_set_marker_key,
+};
 pub use error::FormatError;
 pub use index_record::{EMPTY_SETTINGS, IndexRecord, MAX_SHARDS, NameRecord};
 pub use keys::{

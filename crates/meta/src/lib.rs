@@ -32,6 +32,9 @@
 //! - [`PointInTimeStore`]: frozen views of an index, each a state register
 //!   and an inventory marker that keeps its files, released, extended and
 //!   expired by compare-and-swap.
+//! - [`DocSet`]: index and component templates and ingest and search
+//!   pipelines, a few documents each, named by one marker register and
+//!   changed by one swap of it.
 //! - [`IndexLifecycle`]: creating and deleting an index, idempotent on a
 //!   retried create, and finishing a delete from the [`ReclaimQueue`] once a
 //!   writer that missed it has stopped.
@@ -40,6 +43,7 @@ mod alias_mutations;
 mod changes;
 mod cluster_config;
 mod descriptors;
+mod doc_set;
 mod error;
 mod lifecycle;
 mod listing;
@@ -56,6 +60,7 @@ pub use descriptors::{
     BUCKET_MILLIS, DEFAULT_QUARANTINE_MILLIS, DeleteMode, DescriptorStore, Listener,
     REAP_DEADLINE_MILLIS, REAP_HANDOFF_MILLIS, Resolution, Target,
 };
+pub use doc_set::DocSet;
 pub use error::MetaError;
 pub use lifecycle::{
     DEFAULT_RECLAIM_DELAY_MILLIS, Deleted, HeadAt, IndexLifecycle, Purged, ReclaimQueue,
@@ -63,8 +68,9 @@ pub use lifecycle::{
 };
 pub use names::{MAX_NAME_BYTES, NameError, NameRule, validate_index_or_alias, validate_prefix};
 pub use oss_format::{
-    AliasMutation, AliasRecord, ChangeKind, ClusterSettings, MAX_CLUSTER_SETTINGS_BYTES, PitFile,
-    PitShard, PointInTime, RELEASED, ReclaimIntent, STRIPES, Setting, SettingsRefused,
+    AliasMutation, AliasRecord, ChangeKind, ClusterSettings, DocKind, MAX_CLUSTER_SETTINGS_BYTES,
+    MAX_DOC_BYTES, MAX_DOC_SET_MARKER_BYTES, MAX_DOCS, PitFile, PitShard, PointInTime, RELEASED,
+    ReclaimIntent, STRIPES, Setting, SettingsRefused,
 };
 pub use pit::{CaptureError, PitClock, PointInTimeStore, new_id};
 pub use probe::PROBE_PREFIX;
