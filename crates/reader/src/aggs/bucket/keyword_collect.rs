@@ -60,7 +60,7 @@ pub fn reserved_bytes<S: BlobStore + 'static>(
     let (terms, segments, longest) = dictionary(shard, field);
     let kept = parent
         .kept
-        .saturating_mul(spec.shard_size.min(terms))
+        .saturating_mul(keeps(spec, terms))
         .min(BUCKET_LIMIT);
     let cells = parent.cells(terms);
     // The engine holds a state for every (owner, term) pair it sees, at
@@ -112,6 +112,17 @@ pub fn reserved_bytes<S: BlobStore + 'static>(
         )
         .saturating_add(zero)
         .saturating_add(filter)
+}
+
+/// How many buckets a shard keeps of each owner of a `terms` of `terms`
+/// dictionary terms: `shard_size`, or every term when the order is by a
+/// sub-aggregation, which is known only once they are all counted.
+pub fn keeps(spec: &TermsSpec, terms: usize) -> usize {
+    if spec.sub_order.is_some() {
+        terms
+    } else {
+        spec.shard_size.min(terms)
+    }
 }
 
 /// What a `terms` counts under: how many parent buckets the engine holds
@@ -169,8 +180,18 @@ pub fn node(field: &str, spec: &TermsSpec, accepted: Option<AcceptedOrds>) -> Ag
         // ALLOC: one term an aggregation, bounded by the request's.
         missing: spec.keyword.missing.as_ref().map(|m| m.as_bytes().to_vec()),
         accepted,
-        shard_size: spec.shard_size,
-        order: spec.order,
+        // Ordered by a sub-aggregation, the engine keeps every bucket (up to
+        // the limit) for the shard to order and cut.
+        shard_size: if spec.sub_order.is_some() {
+            BUCKET_LIMIT
+        } else {
+            spec.shard_size
+        },
+        order: if spec.sub_order.is_some() {
+            lucene_aggs::bucket_aggs::TermsOrder::KeyAsc
+        } else {
+            spec.order
+        },
         zero_buckets: spec.min_doc_count == 0,
         // ALLOC: empty; `keyword_subs` adds the sub-aggregations.
         subs: Vec::new(),

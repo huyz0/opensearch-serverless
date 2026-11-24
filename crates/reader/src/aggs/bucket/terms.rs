@@ -6,6 +6,7 @@ pub use lucene_aggs::bucket_aggs::TermsOrder;
 
 use crate::aggs::bucket::keyword_options::KeywordOptions;
 use crate::aggs::bucket::running;
+use crate::aggs::bucket::sub_order::SubOrder;
 use crate::aggs::bucket::sub_values::{BucketSubs, reduce_keyed};
 use crate::aggs::partial::Value;
 
@@ -31,6 +32,9 @@ pub struct TermsSpec {
     pub order: TermsOrder,
     /// The options only a keyword field reads.
     pub keyword: KeywordOptions,
+    /// Set when the order is by a metric sub-aggregation: the buckets are
+    /// ordered by it, and `order` is not read.
+    pub sub_order: Option<SubOrder>,
     /// `show_term_doc_count_error`: each bucket writes its error bound.
     pub show_error: bool,
 }
@@ -45,6 +49,7 @@ impl Default for TermsSpec {
             shard_min_doc_count: 0,
             order: TermsOrder::CountDesc,
             keyword: KeywordOptions::default(),
+            sub_order: None,
             show_error: false,
         }
     }
@@ -130,11 +135,14 @@ impl TermsResult {
 /// `InternalTerms.getDocCountError` of one shard's `terms`: what it may have
 /// cut, or -1 when that is unbounded.
 pub(super) fn shard_error<K>(spec: &TermsSpec, buckets: &[(K, u64)], reported: i64) -> i64 {
-    let key_ordered = matches!(spec.order, TermsOrder::KeyAsc | TermsOrder::KeyDesc);
+    let sub_ordered = spec.sub_order.is_some();
+    let key_ordered =
+        !sub_ordered && matches!(spec.order, TermsOrder::KeyAsc | TermsOrder::KeyDesc);
     if buckets.is_empty() || buckets.len() < spec.shard_size || key_ordered {
         return 0;
     }
     match spec.order {
+        _ if sub_ordered => -1,
         TermsOrder::CountDesc if reported > 0 => reported,
         TermsOrder::CountDesc => buckets
             .iter()

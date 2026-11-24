@@ -270,6 +270,7 @@ pub fn collect<S: BlobStore + 'static>(
         {
             return Err(refusal);
         }
+        keyword_subs::check_order(agg)?;
         resolved.push(resolve(agg, shard)?);
         crate::aggs::bucket::check_limits(agg)?;
         if agg.metric == Metric::Cardinality {
