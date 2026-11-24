@@ -8,6 +8,7 @@
 mod admin_assemble;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod assemble;
+mod assemble_error;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod boot;
 #[cfg(feature = "writer")]
@@ -86,6 +87,9 @@ pub(crate) mod route_util;
 pub mod search;
 #[cfg(feature = "reader")]
 pub mod search_slots;
+#[cfg(feature = "writer")]
+pub mod security_route;
+pub mod security_setting;
 pub mod settings;
 #[cfg(feature = "writer")]
 pub mod snapshot_route;

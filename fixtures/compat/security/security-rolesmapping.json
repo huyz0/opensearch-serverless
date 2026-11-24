@@ -1,0 +1,250 @@
+{
+  "name": "security rolesmapping",
+  "description": "A role mapping: create, read, update, delete, refuse.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/_plugins/_security/api/rolesmapping/compat-sec-a"
+    },
+    {
+      "method": "DELETE",
+      "path": "/_plugins/_security/api/rolesmapping/compat-sec-b"
+    },
+    {
+      "method": "DELETE",
+      "path": "/_plugins/_security/api/roles/compat-sec-a"
+    }
+  ],
+  "steps": [
+    {
+      "name": "create the role",
+      "request": {
+        "body": {
+          "cluster_permissions": [
+            "cluster_monitor"
+          ]
+        },
+        "method": "PUT",
+        "path": "/_plugins/_security/api/roles/compat-sec-a"
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "CREATED",
+          "message": "'compat-sec-a' created."
+        }
+      }
+    },
+    {
+      "name": "create",
+      "request": {
+        "body": {
+          "backend_roles": [
+            "b1"
+          ],
+          "users": [
+            "u1"
+          ]
+        },
+        "method": "PUT",
+        "path": "/_plugins/_security/api/rolesmapping/compat-sec-a"
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "CREATED",
+          "message": "'compat-sec-a' created."
+        }
+      }
+    },
+    {
+      "name": "get",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/rolesmapping/compat-sec-a"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-sec-a": {
+            "and_backend_roles": [],
+            "backend_roles": [
+              "b1"
+            ],
+            "hidden": false,
+            "hosts": [],
+            "reserved": false,
+            "users": [
+              "u1"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "update",
+      "request": {
+        "body": {
+          "hosts": [
+            "h"
+          ],
+          "users": [
+            "u2"
+          ]
+        },
+        "method": "PUT",
+        "path": "/_plugins/_security/api/rolesmapping/compat-sec-a"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "OK",
+          "message": "'compat-sec-a' updated."
+        }
+      }
+    },
+    {
+      "name": "get again",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/rolesmapping/compat-sec-a"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "compat-sec-a": {
+            "and_backend_roles": [],
+            "backend_roles": [],
+            "hidden": false,
+            "hosts": [
+              "h"
+            ],
+            "reserved": false,
+            "users": [
+              "u2"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "unknown key",
+      "request": {
+        "body": {
+          "bogus": 1
+        },
+        "method": "PUT",
+        "path": "/_plugins/_security/api/rolesmapping/compat-sec-b"
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "error",
+          "reason": "Invalid configuration",
+          "invalid_keys": {
+            "keys": "bogus"
+          },
+          "specify_one_of": {
+            "keys": "backend_roles,hosts,and_backend_roles,users"
+          }
+        }
+      }
+    },
+    {
+      "name": "delete",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_security/api/rolesmapping/compat-sec-a"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "OK",
+          "message": "'compat-sec-a' deleted."
+        }
+      }
+    },
+    {
+      "name": "get absent",
+      "request": {
+        "method": "GET",
+        "path": "/_plugins/_security/api/rolesmapping/compat-sec-a"
+      },
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "NOT_FOUND",
+          "message": "rolesmapping 'compat-sec-a' not found."
+        }
+      }
+    },
+    {
+      "name": "delete the role",
+      "request": {
+        "method": "DELETE",
+        "path": "/_plugins/_security/api/roles/compat-sec-a"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "OK",
+          "message": "'compat-sec-a' deleted."
+        }
+      }
+    },
+    {
+      "name": "map a role that is absent",
+      "request": {
+        "body": {
+          "users": [
+            "u1"
+          ]
+        },
+        "method": "PUT",
+        "path": "/_plugins/_security/api/rolesmapping/compat-sec-a"
+      },
+      "response": {
+        "status": 404,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "NOT_FOUND",
+          "message": "role 'compat-sec-a' not found."
+        }
+      }
+    }
+  ]
+}

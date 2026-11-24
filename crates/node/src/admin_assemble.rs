@@ -13,6 +13,7 @@ use crate::cat_route::{self, CatService};
 use crate::cluster_route::{self, ClusterService};
 use crate::ingest_run::IngestPipelines;
 use crate::pipeline_route::{self, PipelineService};
+use crate::security_route::{self, SecurityService};
 use crate::snapshot_route::{self, SnapshotService};
 use crate::snapshot_take_route::SnapshotTakeService;
 use crate::template_route::{self, TemplateService};
@@ -60,6 +61,18 @@ pub(crate) fn register(
         let templates = TemplateService::new(store, &config.base, config.pit_buffer_bytes)
             .map_err(store_error)?;
         template_route::routes(router, &Arc::new(templates)).map_err(AssembleError::Route)?
+    } else {
+        router
+    };
+    let router = if config.security {
+        let service = SecurityService::new(
+            store,
+            &config.base,
+            config.pit_buffer_bytes,
+            config.security_bcrypt_cost,
+        )
+        .map_err(store_error)?;
+        security_route::routes(router, &Arc::new(service)).map_err(AssembleError::Route)?
     } else {
         router
     };

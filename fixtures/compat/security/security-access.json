@@ -1,0 +1,522 @@
+{
+  "name": "security authn and authz",
+  "description": "A mapped user: allowed and denied index and cluster actions, 401s, the denied wildcard.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/_plugins/_security/api/rolesmapping/compat-sec-r"
+    },
+    {
+      "method": "DELETE",
+      "path": "/_plugins/_security/api/roles/compat-sec-r"
+    },
+    {
+      "method": "DELETE",
+      "path": "/_plugins/_security/api/internalusers/compat-sec-u"
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-sec-logs-1"
+    },
+    {
+      "method": "DELETE",
+      "path": "/compat-sec-other"
+    }
+  ],
+  "steps": [
+    {
+      "name": "create user",
+      "request": {
+        "body": {
+          "password": "Zz9!longEnoughPw1"
+        },
+        "method": "PUT",
+        "path": "/_plugins/_security/api/internalusers/compat-sec-u"
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "CREATED",
+          "message": "'compat-sec-u' created."
+        }
+      }
+    },
+    {
+      "name": "create role",
+      "request": {
+        "body": {
+          "cluster_permissions": [
+            "cluster_monitor",
+            "indices:data/write/bulk"
+          ],
+          "index_permissions": [
+            {
+              "allowed_actions": [
+                "read",
+                "write"
+              ],
+              "index_patterns": [
+                "compat-sec-logs-*"
+              ]
+            }
+          ]
+        },
+        "method": "PUT",
+        "path": "/_plugins/_security/api/roles/compat-sec-r"
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "CREATED",
+          "message": "'compat-sec-r' created."
+        }
+      }
+    },
+    {
+      "name": "map",
+      "request": {
+        "body": {
+          "users": [
+            "compat-sec-u"
+          ]
+        },
+        "method": "PUT",
+        "path": "/_plugins/_security/api/rolesmapping/compat-sec-r"
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "CREATED",
+          "message": "'compat-sec-r' created."
+        }
+      }
+    },
+    {
+      "name": "create allowed index",
+      "request": {
+        "body": {
+          "settings": {
+            "number_of_replicas": 0,
+            "number_of_shards": 1
+          }
+        },
+        "method": "PUT",
+        "path": "/compat-sec-logs-1"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-sec-logs-1"
+        }
+      }
+    },
+    {
+      "name": "create other index",
+      "request": {
+        "body": {
+          "settings": {
+            "number_of_replicas": 0,
+            "number_of_shards": 1
+          }
+        },
+        "method": "PUT",
+        "path": "/compat-sec-other"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-sec-other"
+        }
+      }
+    },
+    {
+      "name": "index as admin",
+      "request": {
+        "body": {
+          "a": 1
+        },
+        "method": "PUT",
+        "path": "/compat-sec-other/_doc/1",
+        "query": {
+          "refresh": "true"
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-sec-other",
+          "_id": "1",
+          "_version": 1,
+          "result": "created",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 0,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "whoami",
+      "normalise": [
+        {
+          "pointer": "/body/remote_address",
+          "reason": "client port"
+        }
+      ],
+      "request": {
+        "auth": "compat-sec-u:Zz9!longEnoughPw1",
+        "method": "GET",
+        "path": "/_plugins/_security/authinfo"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "user": "User [name=compat-sec-u, backend_roles=[], requestedTenant=null]",
+          "user_name": "compat-sec-u",
+          "user_requested_tenant": null,
+          "remote_address": "127.0.0.1:43774",
+          "backend_roles": [],
+          "custom_attribute_names": [],
+          "roles": [
+            "compat-sec-r"
+          ],
+          "tenants": {
+            "compat-sec-u": true
+          },
+          "principal": null,
+          "peer_certificates": "0",
+          "sso_logout_url": null
+        }
+      }
+    },
+    {
+      "name": "search allowed",
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "request": {
+        "auth": "compat-sec-u:Zz9!longEnoughPw1",
+        "body": {
+          "query": {
+            "match_all": {}
+          }
+        },
+        "method": "POST",
+        "path": "/compat-sec-logs-1/_search"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 0,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          }
+        }
+      }
+    },
+    {
+      "name": "search denied",
+      "request": {
+        "auth": "compat-sec-u:Zz9!longEnoughPw1",
+        "body": {
+          "query": {
+            "match_all": {}
+          }
+        },
+        "method": "POST",
+        "path": "/compat-sec-other/_search"
+      },
+      "response": {
+        "status": 403,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "security_exception",
+                "reason": "no permissions for [indices:data/read/search] and User [name=compat-sec-u, backend_roles=[], requestedTenant=null]"
+              }
+            ],
+            "type": "security_exception",
+            "reason": "no permissions for [indices:data/read/search] and User [name=compat-sec-u, backend_roles=[], requestedTenant=null]"
+          },
+          "status": 403
+        }
+      }
+    },
+    {
+      "name": "index allowed",
+      "request": {
+        "auth": "compat-sec-u:Zz9!longEnoughPw1",
+        "body": {
+          "a": 1
+        },
+        "method": "PUT",
+        "path": "/compat-sec-logs-1/_doc/1",
+        "query": {
+          "refresh": "true"
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "_index": "compat-sec-logs-1",
+          "_id": "1",
+          "_version": 1,
+          "result": "created",
+          "forced_refresh": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no": 0,
+          "_primary_term": 1
+        }
+      }
+    },
+    {
+      "name": "delete index denied",
+      "request": {
+        "auth": "compat-sec-u:Zz9!longEnoughPw1",
+        "method": "DELETE",
+        "path": "/compat-sec-logs-1"
+      },
+      "response": {
+        "status": 403,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "security_exception",
+                "reason": "no permissions for [indices:admin/delete] and User [name=compat-sec-u, backend_roles=[], requestedTenant=null]"
+              }
+            ],
+            "type": "security_exception",
+            "reason": "no permissions for [indices:admin/delete] and User [name=compat-sec-u, backend_roles=[], requestedTenant=null]"
+          },
+          "status": 403
+        }
+      }
+    },
+    {
+      "name": "create index denied",
+      "request": {
+        "auth": "compat-sec-u:Zz9!longEnoughPw1",
+        "body": {
+          "settings": {
+            "number_of_shards": 1
+          }
+        },
+        "method": "PUT",
+        "path": "/compat-sec-logs-2"
+      },
+      "response": {
+        "status": 403,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "security_exception",
+                "reason": "no permissions for [indices:admin/create] and User [name=compat-sec-u, backend_roles=[], requestedTenant=null]"
+              }
+            ],
+            "type": "security_exception",
+            "reason": "no permissions for [indices:admin/create] and User [name=compat-sec-u, backend_roles=[], requestedTenant=null]"
+          },
+          "status": 403
+        }
+      }
+    },
+    {
+      "name": "wildcard search",
+      "request": {
+        "auth": "compat-sec-u:Zz9!longEnoughPw1",
+        "body": {
+          "query": {
+            "match_all": {}
+          }
+        },
+        "method": "POST",
+        "path": "/compat-sec-*/_search"
+      },
+      "response": {
+        "status": 403,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "security_exception",
+                "reason": "no permissions for [indices:data/read/search] and User [name=compat-sec-u, backend_roles=[], requestedTenant=null]"
+              }
+            ],
+            "type": "security_exception",
+            "reason": "no permissions for [indices:data/read/search] and User [name=compat-sec-u, backend_roles=[], requestedTenant=null]"
+          },
+          "status": 403
+        }
+      }
+    },
+    {
+      "name": "cluster settings denied",
+      "request": {
+        "auth": "compat-sec-u:Zz9!longEnoughPw1",
+        "body": {
+          "persistent": {
+            "indices.recovery.max_bytes_per_sec": "50mb"
+          }
+        },
+        "method": "PUT",
+        "path": "/_cluster/settings"
+      },
+      "response": {
+        "status": 403,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "security_exception",
+                "reason": "no permissions for [cluster:admin/settings/update] and User [name=compat-sec-u, backend_roles=[], requestedTenant=null]"
+              }
+            ],
+            "type": "security_exception",
+            "reason": "no permissions for [cluster:admin/settings/update] and User [name=compat-sec-u, backend_roles=[], requestedTenant=null]"
+          },
+          "status": 403
+        }
+      }
+    },
+    {
+      "name": "no credentials",
+      "request": {
+        "auth": "",
+        "method": "GET",
+        "path": "/compat-sec-logs-1/_search"
+      },
+      "response": {
+        "status": 401,
+        "headers": {
+          "content-type": "text/plain; charset=UTF-8"
+        },
+        "body": "Unauthorized"
+      }
+    },
+    {
+      "name": "wrong password",
+      "request": {
+        "auth": "compat-sec-u:wrong",
+        "method": "GET",
+        "path": "/compat-sec-logs-1/_search"
+      },
+      "response": {
+        "status": 401,
+        "headers": {
+          "content-type": "text/plain; charset=UTF-8"
+        },
+        "body": "Unauthorized"
+      }
+    },
+    {
+      "name": "unknown user",
+      "request": {
+        "auth": "nobody:x",
+        "method": "GET",
+        "path": "/compat-sec-logs-1/_search"
+      },
+      "response": {
+        "status": 401,
+        "headers": {
+          "content-type": "text/plain; charset=UTF-8"
+        },
+        "body": "Unauthorized"
+      }
+    },
+    {
+      "name": "security api denied",
+      "request": {
+        "auth": "compat-sec-u:Zz9!longEnoughPw1",
+        "method": "GET",
+        "path": "/_plugins/_security/api/roles"
+      },
+      "response": {
+        "status": 403,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "status": "FORBIDDEN",
+          "message": "No permission to access REST API: User compat-sec-u with Security roles [compat-sec-r] does not have any role privileged for admin access. No client TLS certificate found in request"
+        }
+      }
+    }
+  ]
+}

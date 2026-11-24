@@ -358,6 +358,11 @@ fn validate_doc_name(name: &str, kind: DocKind) -> Result<(), MetaError> {
     let what = match kind {
         DocKind::IndexTemplate | DocKind::ComponentTemplate => "template",
         DocKind::IngestPipeline | DocKind::SearchPipeline => "pipeline",
+        DocKind::SecurityRoles
+        | DocKind::SecurityRolesMapping
+        | DocKind::SecurityInternalUsers
+        | DocKind::SecurityTenants
+        | DocKind::SecurityActionGroups => "security document",
     };
     let refuse = |why: String| {
         // ALLOC: one message, once, for a refused name
