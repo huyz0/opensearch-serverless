@@ -38,11 +38,16 @@ fn refusal(r: Refusal) -> RestError {
     refuse(r.status, r.kind, r.reason)
 }
 
+/// Places a new one-shard index in a bucket: its name and uuid in, the
+/// bucket's id out.
+pub type BucketJoin = Arc<dyn Fn(&str, &str) -> Result<String, String> + Send + Sync>;
+
 /// Serves the index admin routes over the descriptors.
 pub struct IndexService {
     descriptors: DescriptorStore,
     clock: PitClock,
     buffer_bytes: usize,
+    join: Option<BucketJoin>,
 }
 
 impl IndexService {
@@ -54,7 +59,15 @@ impl IndexService {
             descriptors,
             clock,
             buffer_bytes,
+            join: None,
         }
+    }
+
+    /// Places each new one-shard index in a bucket through `join`.
+    #[must_use]
+    pub fn with_bucket_join(mut self, join: BucketJoin) -> Self {
+        self.join = Some(join);
+        self
     }
 
     /// The body, read as it streams in, its growth reserved first.
@@ -115,6 +128,13 @@ impl IndexService {
         record.mapping = asked.mapping.as_deref().map(Cow::Borrowed);
         record.created_at_millis = now;
         record.created_version_id = CREATED_VERSION_ID;
+        if asked.shards == 1
+            && let Some(join) = &self.join
+        {
+            let bucket = join(&index, &uuid)
+                .map_err(|e| refuse(500, "index_create_failure", format!("bucket: {e}")))?;
+            record.bucket = Some(Cow::Owned(bucket));
+        }
         self.descriptors
             .create(&record, now, &mut buf)
             .map_err(|e| create_failure(&index, &uuid, &e))?;

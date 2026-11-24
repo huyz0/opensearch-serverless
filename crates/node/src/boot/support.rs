@@ -274,20 +274,23 @@ pub(super) fn bucket_wiring(
     store: &Arc<dyn BlobStore>,
     descriptors: &Arc<oss_meta::DescriptorStore>,
     clock: &Arc<dyn LeaseClock>,
-) -> Option<Arc<crate::writer::BucketWiring>> {
+) -> Result<Option<Arc<crate::writer::BucketWiring>>, BootError> {
+    use oss_writer::bucket::settings;
     if !config.buckets_enabled {
-        return None;
+        return Ok(None);
     }
-    // The default write form: the compact encoding, compressed when it pays.
-    let write = oss_writer::bucket::settings::manifest_write(&oss_types::settings::Empty)
-        .unwrap_or(oss_writer::bucket::ManifestWrite::Json);
-    Some(Arc::new(crate::writer::BucketWiring::new(
+    let defaults = &oss_types::settings::Empty;
+    let bad = |e: oss_types::settings::SettingError| BootError::Config(format!("buckets: {e}"));
+    let write = settings::manifest_write(defaults).map_err(bad)?;
+    let limits = settings::limits(defaults).map_err(bad)?;
+    Ok(Some(Arc::new(crate::writer::BucketWiring::new(
         Arc::clone(store),
         &config.base,
         Arc::clone(descriptors),
         Arc::clone(clock),
         write,
-    )))
+        limits,
+    ))))
 }
 
 /// The shard head store, routing bucketed members when the wiring is built.

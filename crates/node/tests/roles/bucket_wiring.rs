@@ -11,7 +11,7 @@ use oss_format::{
 };
 use oss_meta::{DeleteMode, DescriptorStore};
 use oss_node::writer::{BucketWiring, Publishing, RoleTarget, Routes, WriterRole};
-use oss_writer::bucket::{BucketCommits, BucketStore, ManifestWrite};
+use oss_writer::bucket::{BucketCommits, BucketStore, Limits, ManifestWrite};
 use oss_writer::bulk::{
     Bulk, BulkBudget, Defaults, IdGenerator, IndexInfo, ItemResult, Owner, Planned, StreamConfig,
     stream,
@@ -107,6 +107,7 @@ fn rig(index: &str) -> Rig {
         Arc::clone(&descriptors),
         clock,
         write,
+        Limits::new(1 << 20, 8, 1 << 16),
     ));
     let log = NodeLogStore::new(dynstore(), "", "node-1").expect("names");
     let committer = Arc::new(NodeLogCommitter::new(
@@ -235,4 +236,37 @@ fn a_shard_of_an_unbucketed_index_publishes_to_its_own_register() {
             .is_none(),
         "the bucket's member has no commit"
     );
+}
+
+#[test]
+fn a_registered_node_reports_the_members_it_holds_open() {
+    let r = rig("logs");
+    let names = Arc::new(oss_node::writer::ShardNames::default());
+    let role = Arc::new(r.role.with_names(Arc::clone(&names)));
+    names.insert("logs-uuid", "logs");
+    let heads = r.wiring.heads();
+    // Nothing is registered yet: no sibling is known open.
+    assert!(!heads.others_open_on(BUCKET, "node-1", "other").unwrap());
+    r.wiring.register_open("node-1", Arc::clone(&role));
+    assert!(heads.others_open_on(BUCKET, "node-1", "other").unwrap());
+    assert!(!heads.others_open_on(BUCKET, "node-1", "logs").unwrap());
+    assert!(!heads.others_open_on(BUCKET, "node-2", "other").unwrap());
+}
+
+#[test]
+fn a_join_places_the_index_in_a_bucket_listing_it_as_a_member() {
+    let r = rig("logs");
+    let bucket = r.wiring.join("fresh", "fresh-uuid").expect("joins");
+    assert!(!bucket.is_empty());
+    let read = BucketStore::new(
+        Arc::clone(&r.store) as Arc<dyn BlobStore>,
+        "",
+        ManifestWrite::Json,
+    )
+    .read(&bucket)
+    .expect("reads")
+    .expect("exists");
+    assert!(read.manifest.member("fresh-uuid").is_some());
+    // The same index again lands in the same bucket.
+    assert_eq!(r.wiring.join("fresh", "fresh-uuid").expect("joins"), bucket);
 }
