@@ -8,7 +8,7 @@
 //! The caller flushes after the linger and chooses the thread; waiting for
 //! readers to confirm is a separate piece.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use oss_format::WalRecord;
@@ -32,6 +32,24 @@ pub trait TailLink: Send + Sync {
     fn send(&self, target: &str, request: &PushRequest) -> Result<PushResponse, LinkError>;
 }
 
+/// What is queued, and how many records each shard has in it, so an
+/// acknowledgement checks its shard's bound without scanning the queue.
+#[derive(Default)]
+struct Queue {
+    entries: Vec<Queued>,
+    records: HashMap<(String, u32), usize>,
+}
+
+impl Queue {
+    /// Drops every entry of the shard.
+    fn forget(&mut self, uuid: &str, shard: u32) {
+        self.entries
+            .retain(|q| !(q.uuid == uuid && q.shard == shard));
+        // ALLOC: one key, on the rare path that lets a shard go.
+        self.records.remove(&(uuid.to_owned(), shard));
+    }
+}
+
 struct Queued {
     index: String,
     uuid: String,
@@ -46,7 +64,7 @@ pub struct TailPush {
     pub(crate) serve: Arc<TailServe>,
     link: Arc<dyn TailLink>,
     pub(crate) facts: Arc<dyn ShardFacts>,
-    queue: Mutex<Vec<Queued>>,
+    queue: Mutex<Queue>,
     /// Held while a flush drains, numbers and sends, so each node's pushes of
     /// a shard are numbered and sent in queue order.
     flushing: Mutex<()>,
@@ -65,12 +83,12 @@ impl TailPush {
             serve,
             link,
             facts,
-            queue: Mutex::new(Vec::new()),
+            queue: Mutex::new(Queue::default()),
             flushing: Mutex::new(()),
         }
     }
 
-    fn queue(&self) -> MutexGuard<'_, Vec<Queued>> {
+    fn queue(&self) -> MutexGuard<'_, Queue> {
         self.queue.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
@@ -92,8 +110,7 @@ impl TailPush {
         if !self.facts.overlay_on(uuid, shard) {
             if self.keep.keeps(uuid, shard) {
                 self.serve.stop(uuid, shard);
-                self.queue()
-                    .retain(|q| !(q.uuid == uuid && q.shard == shard));
+                self.queue().forget(uuid, shard);
             }
             return;
         }
@@ -107,21 +124,20 @@ impl TailPush {
         let Some(end) = self.keep.acked(uuid, shard, records, push) else {
             return;
         };
+        let count = records.len();
         // ALLOC: bounded by MAX_QUEUED a shard, enforced below
-        queue.push(Queued {
+        queue.entries.push(Queued {
             index: index.to_owned(),
             uuid: uuid.to_owned(),
             shard,
             records: records.iter().map(owned).collect(),
             end,
         });
-        let queued: usize = queue
-            .iter()
-            .filter(|q| q.uuid == uuid && q.shard == shard)
-            .map(|q| q.records.len())
-            .sum();
-        if queued > MAX_QUEUED {
-            queue.retain(|q| !(q.uuid == uuid && q.shard == shard));
+        // ALLOC: one key a shard, kept until its records are sent.
+        let queued = queue.records.entry((uuid.to_owned(), shard)).or_default();
+        *queued = queued.saturating_add(count);
+        if *queued > MAX_QUEUED {
+            queue.forget(uuid, shard);
             drop(queue);
             self.serve.unsubscribe_all(uuid, shard);
         }
@@ -131,23 +147,30 @@ impl TailPush {
     /// every queued shard it follows, and its answer is counted.
     pub fn flush(&self) {
         let _flushing = self.flushing.lock().unwrap_or_else(PoisonError::into_inner);
-        let drained = std::mem::take(&mut *self.queue());
+        let drained = {
+            let mut queue = self.queue();
+            queue.records.clear();
+            std::mem::take(&mut queue.entries)
+        };
         if drained.is_empty() {
             return;
         }
         // One entry per shard, in the order first acknowledged.
         let mut shards: Vec<Queued> = Vec::new();
+        let mut at: HashMap<(String, u32), usize> = HashMap::new();
         for queued in drained {
-            match shards
-                .iter_mut()
-                .find(|s| s.uuid == queued.uuid && s.shard == queued.shard)
-            {
+            // ALLOC: one key a shard a flush.
+            let key = (queued.uuid.clone(), queued.shard);
+            match at.get(&key).and_then(|i| shards.get_mut(*i)) {
                 Some(held) => {
                     held.records.extend(queued.records);
                     // Positions follow the queue's order.
                     held.end = queued.end;
                 }
-                None => shards.push(queued),
+                None => {
+                    at.insert(key, shards.len());
+                    shards.push(queued);
+                }
             }
         }
         type Numbered = Vec<(String, u32, Sent)>;
