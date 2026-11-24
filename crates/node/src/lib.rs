@@ -68,6 +68,8 @@ pub mod overlay_builder;
 pub mod pipeline_route;
 #[cfg(feature = "writer")]
 pub mod pit_route;
+#[cfg(feature = "writer")]
+pub mod plugin_proxy;
 #[cfg(feature = "reader")]
 pub mod push;
 #[cfg(feature = "writer")]

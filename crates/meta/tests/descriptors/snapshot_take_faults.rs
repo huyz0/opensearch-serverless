@@ -10,7 +10,7 @@ use oss_meta::{SnapshotReader, SnapshotTaker, TakeError};
 use crate::probe::{Quirk, Quirky};
 use crate::{BASE, all};
 
-fn draft(name: &str, generation: &str, captured: bool) -> SnapshotDraft {
+pub(crate) fn draft(name: &str, generation: &str, captured: bool) -> SnapshotDraft {
     SnapshotDraft {
         repo: "backups".into(),
         name: name.into(),
@@ -41,7 +41,7 @@ fn draft(name: &str, generation: &str, captured: bool) -> SnapshotDraft {
 
 /// A whole take: reserve, mark, finish. When one step fails the take is
 /// aborted, as the route does; the error is the first failure's.
-fn take(t: &SnapshotTaker, name: &str, generation: &str) -> Result<(), TakeError> {
+pub(crate) fn take(t: &SnapshotTaker, name: &str, generation: &str) -> Result<(), TakeError> {
     let mut v = vec![0u8; 1 << 16];
     let r = t.reserve(&draft(name, generation, false), &mut v)?;
     let run = |v: &mut [u8]| {
@@ -53,7 +53,7 @@ fn take(t: &SnapshotTaker, name: &str, generation: &str) -> Result<(), TakeError
     })
 }
 
-fn markers(store: &dyn BlobStore) -> usize {
+pub(crate) fn markers(store: &dyn BlobStore) -> usize {
     let mut n = 0;
     store
         // LIST: a test counting what a failed take left.
@@ -62,7 +62,7 @@ fn markers(store: &dyn BlobStore) -> usize {
     n
 }
 
-fn read(store: &Arc<dyn BlobStore>) -> Option<u32> {
+pub(crate) fn read(store: &Arc<dyn BlobStore>) -> Option<u32> {
     let mut buf = vec![0u8; 1 << 16];
     SnapshotReader::new(Arc::clone(store), BASE)
         .snapshot("backups", "daily", &mut buf)

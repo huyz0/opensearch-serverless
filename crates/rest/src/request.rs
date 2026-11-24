@@ -56,6 +56,16 @@ impl<'a> Request<'a> {
         self.head.header(self.head_buf, name)
     }
 
+    /// Every header as a name and value, in the order sent.
+    pub fn headers(&self) -> impl Iterator<Item = (&'a str, &'a str)> {
+        self.head.all(self.head_buf)
+    }
+
+    /// The raw query string, without the `?`.
+    pub fn raw_query(&self) -> &'a str {
+        self.query
+    }
+
     /// The body.
     pub fn body(&mut self) -> &mut Body<'a> {
         &mut self.body

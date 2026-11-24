@@ -17,7 +17,7 @@ use oss_format::{
 
 const SCRATCH: usize = 4 << 10;
 /// How often a reservation or a release retries a lost swap.
-const ATTEMPTS: usize = 16;
+pub(crate) const ATTEMPTS: usize = 16;
 /// The longest `<repo>#<name>` the Java resolves as one file name.
 const MAX_KEY_BYTES: usize = 255;
 
@@ -36,6 +36,9 @@ pub enum TakeError {
     KeyTooLong,
     /// The take was overtaken: another writer changed the name.
     Conflict(&'static str),
+    /// The snapshot copies its data (a standard snapshot), which a delete
+    /// here does not reclaim.
+    NotShallow,
     /// A record or register value does not fit the buffer; the value is the
     /// length it needs, or the buffer's length when that is not known.
     RecordTooLarge(u64),
@@ -48,6 +51,10 @@ impl std::fmt::Display for TakeError {
             Self::Blob(e) => write!(f, "{e}"),
             Self::NoGeneration => write!(f, "a take names a storage generation"),
             Self::AlreadyExists => write!(f, "the snapshot already exists"),
+            Self::NotShallow => write!(
+                f,
+                "the snapshot copies its data, which cannot be reclaimed here"
+            ),
             Self::KeyTooLong => write!(f, "the repository and snapshot names are too long"),
             Self::Conflict(why) => write!(f, "{why}"),
             Self::RecordTooLarge(n) => write!(f, "a snapshot record of {n} bytes does not fit"),
@@ -293,7 +300,11 @@ impl SnapshotTaker {
         Ok(Some((read.generation, ours)))
     }
 
-    fn read(&self, state_key: &str, value: &mut [u8]) -> Result<Option<RegisterRead>, TakeError> {
+    pub(crate) fn read(
+        &self,
+        state_key: &str,
+        value: &mut [u8],
+    ) -> Result<Option<RegisterRead>, TakeError> {
         let cap = value.len();
         match self.store.read_register(state_key, value) {
             Ok(read) => Ok(read),
@@ -314,7 +325,7 @@ impl SnapshotTaker {
     }
 }
 
-fn state(value: &[u8], read: RegisterRead) -> Result<SnapshotState<'_>, TakeError> {
+pub(crate) fn state(value: &[u8], read: RegisterRead) -> Result<SnapshotState<'_>, TakeError> {
     Ok(SnapshotState::parse(
         value.get(..read.len).unwrap_or_default(),
     )?)

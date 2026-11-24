@@ -105,6 +105,12 @@ pub struct NodeConfig {
     pub snapshots_enabled: bool,
     /// `serverless.snapshots.take.enabled`: take shallow snapshots, beside the snapshot routes. Off by default.
     pub snapshots_take_enabled: bool,
+    /// `serverless.plugins.upstreams`: `http(s)` bases of Java nodes that serve the plugins not ported; none by default.
+    pub plugin_upstreams: Vec<String>,
+    /// `serverless.plugins.max_request_bytes`.
+    pub plugin_max_request_bytes: u64,
+    /// `serverless.plugins.timeout`, in milliseconds.
+    pub plugin_timeout_millis: u64,
     /// `serverless.activation.hibernate_after_millis`; 0 never hibernates.
     pub hibernate_after_millis: u64,
     /// `serverless.search.commit_push.enabled`: a published commit is pushed
@@ -268,6 +274,15 @@ impl NodeConfig {
         let buckets_enabled = flag("OSS_BUCKETS_ENABLED", "false")?;
         let snapshots_enabled = flag("OSS_SNAPSHOTS_ENABLED", "false")?;
         let snapshots_take_enabled = flag("OSS_SNAPSHOTS_TAKE_ENABLED", "false")?;
+        let plugin_upstreams = or("OSS_PLUGIN_UPSTREAMS", "")
+            .split(',')
+            .map(str::trim)
+            .filter(|u| !u.is_empty())
+            .map(str::to_owned)
+            .collect::<Vec<_>>();
+        let plugin_max_request_bytes =
+            bounded("OSS_PLUGIN_MAX_REQUEST_BYTES", "10485760", 1, 1 << 40)?;
+        let plugin_timeout_millis = bounded("OSS_PLUGIN_TIMEOUT_MS", "30000", 1, 3_600_000)?;
         let tail_overlay = flag("OSS_TAIL_OVERLAY", "true")?;
         let commit_push = flag(
             "OSS_COMMIT_PUSH",
@@ -361,6 +376,9 @@ impl NodeConfig {
             buckets_enabled,
             snapshots_enabled,
             snapshots_take_enabled,
+            plugin_upstreams,
+            plugin_max_request_bytes,
+            plugin_timeout_millis,
             hibernate_after_millis,
             commit_push,
             give_back_after_millis,

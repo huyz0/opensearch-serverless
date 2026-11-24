@@ -256,6 +256,28 @@ fn the_buckets_switch_is_off_by_default_and_reads_a_flag() {
 }
 
 #[test]
+fn plugin_upstreams_are_off_by_default_and_listed_by_commas() {
+    let off = NodeConfig::from_lookup(lookup(&with(&[]))).expect("valid");
+    assert!(off.plugin_upstreams.is_empty());
+    assert_eq!(
+        (off.plugin_max_request_bytes, off.plugin_timeout_millis),
+        (10 << 20, 30_000)
+    );
+    let on = NodeConfig::from_lookup(lookup(&with(&[
+        ("OSS_PLUGIN_UPSTREAMS", " http://a:9200, https://b:9200 ,,"),
+        ("OSS_PLUGIN_MAX_REQUEST_BYTES", "2048"),
+        ("OSS_PLUGIN_TIMEOUT_MS", "500"),
+    ])))
+    .expect("valid");
+    assert_eq!(on.plugin_upstreams, ["http://a:9200", "https://b:9200"]);
+    assert_eq!(
+        (on.plugin_max_request_bytes, on.plugin_timeout_millis),
+        (2048, 500)
+    );
+    assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_PLUGIN_TIMEOUT_MS", "0")]))).is_err());
+}
+
+#[test]
 fn the_give_back_threshold_defaults_to_never_and_is_set_by_the_variable() {
     let c = NodeConfig::from_lookup(lookup(FS)).expect("valid");
     assert_eq!(c.give_back_after_millis, 0);

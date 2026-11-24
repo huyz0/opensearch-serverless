@@ -54,3 +54,5 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0042](0042-snapshots-taken-shallow-first.md) | Snapshots are taken shallow first, in the Java's protocol, behind the switch | Accepted |
 | [0043](0043-security-configuration-as-document-sets.md) | Security configuration is five document sets, enforced at the edge from a node cache | Accepted |
 | [0044](0044-ingest-pipelines-in-the-write-path.md) | Ingest pipelines run in the write path through a per-request hook, behind a switch | Proposed |
+| [0046](0046-plugin-requests-are-proxied-to-java-nodes.md) | Requests for plugins that are not ported are proxied to Java nodes, behind a setting | Accepted |
+| [0047](0047-search-slots.md) | Searches are admitted in order by a slot gate that shapes who waits, behind a setting | Proposed |

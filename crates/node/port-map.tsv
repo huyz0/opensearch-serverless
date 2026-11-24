@@ -126,3 +126,4 @@ src/snapshot_take_route.rs	port	serverless/shell/src/main/java/org/opensearch/se
 src/security_route.rs	new		the security configuration API over five document sets
 src/security_setting.rs	new		serverless.security.enabled
 src/writer/tenancy.rs	new		the billing settings of an index in its descriptor: bucket group, cost tier and cost budget, read when a writer opens a shard of it
+src/plugin_proxy.rs	new		the proxy of requests for plugins not ported to a Java node (ADR 0046); the Java shell runs those plugins itself

@@ -272,7 +272,7 @@ pub fn routes(
         WRITE_PARAMS,
         move |req: &mut Request<'_>, resp: &mut Response<'_>| verifier.verify(req, resp),
     )?;
-    // A snapshot is taken only with the take switch on; deleting one is not served yet.
+    // A snapshot is taken, and deleted, only with the take switch on.
     for method in [Method::Put, Method::Post] {
         router = match take {
             Some(take) => {
@@ -294,11 +294,22 @@ pub fn routes(
             )?,
         };
     }
-    router = router.route(
-        Method::Delete,
-        "/_snapshot/{repo}/{name}",
-        PARAMS,
-        |_req: &mut Request<'_>, _resp: &mut Response<'_>| Err(refused(unsupported_write())),
-    )?;
+    router = match take {
+        Some(take) => {
+            let take = Arc::clone(take);
+            router.route(
+                Method::Delete,
+                "/_snapshot/{repo}/{name}",
+                PARAMS,
+                move |req: &mut Request<'_>, resp: &mut Response<'_>| take.delete(req, resp),
+            )?
+        }
+        None => router.route(
+            Method::Delete,
+            "/_snapshot/{repo}/{name}",
+            PARAMS,
+            |_req: &mut Request<'_>, _resp: &mut Response<'_>| Err(refused(unsupported_write())),
+        )?,
+    };
     Ok(router)
 }
