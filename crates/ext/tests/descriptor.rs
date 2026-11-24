@@ -218,3 +218,201 @@ fn characters_of_every_width_are_read_whole() {
     let at_depth = format!(r#"{{"a":{}}}"#, "[".repeat(9) + &"]".repeat(9));
     assert!(parse(&at_depth).is_err());
 }
+
+fn with_name(name: &str) -> String {
+    GOOD.replace(r#""name":"tokenize_x""#, &format!(r#""name":"{name}""#))
+}
+
+fn with_point_id(id: &str) -> String {
+    GOOD.replace(r#""id":"analyzer""#, &format!(r#""id":"{id}""#))
+}
+
+// docs/specs/extension-abi AC-2
+#[test]
+fn an_error_never_carries_a_modules_text_raw() {
+    let slash = '\\';
+    let hostile = format!("x{slash}nERROR admin: granted{slash}u001b[31m{slash}u202e");
+    for text in [
+        GOOD.replace(r#""io_bytes""#, &format!(r#""{hostile}":1,"io_bytes""#)),
+        GOOD.replace(
+            r#""io_bytes""#,
+            &format!(r#""{hostile}":1,"{hostile}":2,"io_bytes""#),
+        ),
+    ] {
+        let e = parse(&text).expect_err("refused");
+        let shown = e.to_string();
+        assert!(
+            !shown.chars().any(|c| c.is_control() || c == '\u{202e}'),
+            "{shown:?}"
+        );
+        assert!(
+            shown.contains("ERROR admin"),
+            "the text is kept, made harmless: {shown:?}"
+        );
+    }
+    let long = "k".repeat(10_000);
+    let e = parse(&GOOD.replace(r#""io_bytes""#, &format!(r#""{long}":1,"io_bytes""#)))
+        .expect_err("refused");
+    assert!(
+        e.key().len() <= oss_ext::MAX_ERROR_DETAIL_BYTES,
+        "{}",
+        e.key().len()
+    );
+    assert!(e.to_string().len() < 400);
+}
+
+// docs/specs/extension-abi AC-2, AC-4
+#[test]
+fn the_ceiling_is_inclusive() {
+    let at = format!(
+        "{GOOD}{}",
+        " ".repeat(MAX_DESCRIPTOR_BYTES as usize - GOOD.len())
+    );
+    assert_eq!(at.len(), MAX_DESCRIPTOR_BYTES as usize);
+    assert!(parse(&at).is_ok(), "exactly the ceiling");
+    assert!(parse(&format!("{at} ")).is_err(), "one byte over");
+}
+
+// docs/specs/extension-abi AC-2
+#[test]
+fn sixty_four_points_are_allowed_and_sixty_five_are_not() {
+    let points = |n: usize| {
+        let list: Vec<String> = (0..n)
+            .map(|i| format!(r#"{{"id":"p{i}","version":"1.0.0"}}"#))
+            .collect();
+        GOOD.replace(
+            r#"[{"id":"analyzer","version":"1.0.0"}]"#,
+            &format!("[{}]", list.join(",")),
+        )
+    };
+    assert_eq!(parse(&points(64)).expect("64 allowed").points().len(), 64);
+    assert_eq!(key_of(&points(65)), "points");
+}
+
+// docs/specs/extension-abi AC-2
+#[test]
+fn the_boundaries_of_each_number_and_name_are_pinned() {
+    let top = GOOD.replace(
+        r#""max_concurrent_calls":4"#,
+        r#""max_concurrent_calls":1024"#,
+    );
+    assert_eq!(
+        parse(&top).expect("1024 allowed").max_concurrent_calls(),
+        1024
+    );
+    let one = GOOD.replace(r#""max_concurrent_calls":4"#, r#""max_concurrent_calls":1"#);
+    assert_eq!(parse(&one).expect("1 allowed").max_concurrent_calls(), 1);
+    let sixty_four = format!("a{}", "b".repeat(63));
+    assert!(parse(&with_name(&sixty_four)).is_ok(), "64 characters");
+    assert!(
+        parse(&with_name(&format!("{sixty_four}b"))).is_err(),
+        "65 characters"
+    );
+    assert!(parse(&with_name("a")).is_ok(), "one character");
+    // A module name may hold `-`, a point id may not; neither may start with a digit, `_` or `-`.
+    assert!(parse(&with_name("a-b")).is_ok());
+    assert_eq!(key_of(&with_point_id("a-b")), "points[0].id");
+    for bad in ["1a", "_a", "-a", "é", "aé", "A", "a b", "a.b"] {
+        assert!(parse(&with_name(bad)).is_err(), "{bad}");
+        assert!(parse(&with_point_id(bad)).is_err(), "{bad}");
+    }
+    assert!(parse(&with_point_id("a_b1")).is_ok());
+    assert!(parse(&with_name(&"a".repeat(64))).is_ok());
+}
+
+// docs/specs/extension-abi AC-2
+#[test]
+fn versions_are_exactly_numbers_joined_by_dots() {
+    for bad in [
+        "1.2.3.4",
+        "1..3",
+        "+1.0.0",
+        "1.2.4294967296",
+        "1.2.",
+        ".1.2",
+        "1.2.-3",
+        "1.2.3 ",
+    ] {
+        let text = GOOD.replace(r#""version":"1.2.3""#, &format!(r#""version":"{bad}""#));
+        assert_eq!(key_of(&text), "version", "{bad}");
+    }
+    for bad in [
+        "65536.0", "1.0.0", "1.65536", "01.0", "1.00", "a.b", "1.", ".0",
+    ] {
+        let text = GOOD.replace(r#""abi":"1.0""#, &format!(r#""abi":"{bad}""#));
+        assert_eq!(key_of(&text), "abi", "{bad}");
+    }
+    let max = GOOD.replace(r#""version":"1.2.3""#, r#""version":"4294967295.0.10""#);
+    assert_eq!(parse(&max).expect("parses").version(), (u32::MAX, 0, 10));
+    let abi = GOOD.replace(r#""abi":"1.0""#, r#""abi":"65535.65535""#);
+    assert_eq!(parse(&abi).expect("parses").abi(), (65535, 65535));
+}
+
+// docs/specs/extension-abi AC-2
+#[test]
+fn a_repeated_key_is_found_at_any_depth_and_after_unescaping() {
+    let in_limits = GOOD.replace(r#""points""#, r#""limits":{"fuel":1,"fuel":2},"points""#);
+    assert_eq!(key_of(&in_limits), "fuel");
+    let in_point = GOOD.replace(
+        r#"{"id":"analyzer","version":"1.0.0"}"#,
+        r#"{"id":"analyzer","id":"b","version":"1.0.0"}"#,
+    );
+    assert_eq!(key_of(&in_point), "id");
+    let slash = '\\';
+    let escaped = GOOD.replace(
+        r#""io_bytes""#,
+        &format!(r#""n{slash}u0061me":"x","io_bytes""#),
+    );
+    assert_eq!(
+        key_of(&escaped),
+        "name",
+        "an escaped spelling of a key is the same key"
+    );
+}
+
+// docs/specs/extension-abi AC-2
+#[test]
+fn nesting_is_allowed_to_the_limit_and_no_further() {
+    let nest = |n: usize| {
+        let inner = format!("{}1{}", "[".repeat(n), "]".repeat(n));
+        GOOD.replace(r#""points""#, &format!(r#""limits":{inner},"points""#))
+    };
+    // Both are refused as a limits value, but only the deeper one as JSON: the key says which.
+    assert_eq!(
+        key_of(&nest(7)),
+        "limits",
+        "within the depth the document parses"
+    );
+    assert_eq!(
+        key_of(&nest(8)),
+        "",
+        "past the depth it is not accepted as JSON"
+    );
+}
+
+// docs/specs/extension-abi AC-2
+#[test]
+fn text_around_the_value_and_odd_escapes_are_refused() {
+    for bad in [
+        format!("{}{GOOD}", '\u{feff}'),
+        format!("{GOOD}\0"),
+        format!("{GOOD}/* c */"),
+        format!("{GOOD},"),
+        GOOD.replace("tokenize_x", "tok\u{0}x"),
+    ] {
+        assert!(parse(&bad).is_err(), "{bad:?}");
+    }
+    let slash = '\\';
+    for esc in ["udc00", "ud83dA", "ud83d{slash}u0041", "u00zz", "u12"] {
+        let esc = esc.replace("{slash}", &slash.to_string());
+        let bad = format!("{slash}{esc}");
+        assert!(parse(&GOOD.replace("tokenize_x", &bad)).is_err(), "{bad}");
+    }
+    let nul = format!("a{slash}u0000b");
+    let text = GOOD.replace(r#""io_bytes""#, &format!(r#""{nul}":1,"io_bytes""#));
+    assert!(
+        parse(&text).is_err(),
+        "a NUL in a key is just an unknown key, shown harmlessly"
+    );
+    assert!(!parse(&text).unwrap_err().to_string().contains('\0'));
+}

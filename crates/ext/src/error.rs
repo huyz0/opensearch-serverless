@@ -37,13 +37,33 @@ pub struct CallError {
     detail: String,
 }
 
-/// A module's text made safe to log: lossy UTF-8, control characters
-/// replaced, cut to [`MAX_ERROR_DETAIL_BYTES`] on a character boundary.
-fn clean(raw: &[u8]) -> String {
+/// Whether a character must not reach a log: controls, line and paragraph
+/// separators, and the format characters that hide or reorder text.
+fn unprintable(c: char) -> bool {
+    c.is_control()
+        || matches!(
+            c,
+            '\u{ad}'
+                | '\u{200b}'..='\u{200f}'
+                | '\u{2028}'..='\u{202e}'
+                | '\u{2060}'..='\u{2064}'
+                | '\u{2066}'..='\u{2069}'
+                | '\u{feff}'
+        )
+}
+
+/// A module's text made safe to log: only the first few kilobytes are read
+/// (so a large invalid input costs no more than a small one), unprintable
+/// characters replaced, and the result cut to [`MAX_ERROR_DETAIL_BYTES`] on a
+/// character boundary.
+pub(crate) fn clean(raw: &[u8]) -> String {
+    let head = raw
+        .get(..MAX_ERROR_DETAIL_BYTES.saturating_mul(4))
+        .unwrap_or(raw);
     // ALLOC: one failure, at most MAX_ERROR_DETAIL_BYTES kept of the module's text.
     let mut out = String::new();
-    for c in String::from_utf8_lossy(raw).chars() {
-        let c = if c.is_control() { '?' } else { c };
+    for c in String::from_utf8_lossy(head).chars() {
+        let c = if unprintable(c) { '?' } else { c };
         if out.len().saturating_add(c.len_utf8()) > MAX_ERROR_DETAIL_BYTES {
             break;
         }

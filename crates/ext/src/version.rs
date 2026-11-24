@@ -45,17 +45,31 @@ pub const fn unpack_abi(packed: u32) -> (u16, u16) {
 ///
 /// [`VersionError`] naming which half was refused.
 pub fn abi_accepted(packed: u32) -> Result<(), VersionError> {
+    abi_accepted_against(ABI_MAJOR, ABI_MINOR, packed)
+}
+
+/// [`abi_accepted`] for a host speaking `host_major.host_minor`; another
+/// major is reported before a newer minor.
+///
+/// # Errors
+///
+/// [`VersionError`] naming which half was refused.
+pub fn abi_accepted_against(
+    host_major: u16,
+    host_minor: u16,
+    packed: u32,
+) -> Result<(), VersionError> {
     let (module_major, module_minor) = unpack_abi(packed);
-    if module_major != ABI_MAJOR {
+    if module_major != host_major {
         return Err(VersionError::OtherMajor {
             module: module_major,
-            host: ABI_MAJOR,
+            host: host_major,
         });
     }
-    if module_minor > ABI_MINOR {
+    if module_minor > host_minor {
         return Err(VersionError::NewerMinor {
             module: module_minor,
-            host: ABI_MINOR,
+            host: host_minor,
         });
     }
     Ok(())

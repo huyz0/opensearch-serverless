@@ -3,7 +3,7 @@
 
 use oss_ext::{
     ABI_VERSION, CallError, FailureKind, MAX_DESCRIPTOR_BYTES, Status, VersionError, abi_accepted,
-    pack_abi, status_of, unpack_abi,
+    abi_accepted_against, pack_abi, status_of, unpack_abi,
 };
 
 // docs/specs/extension-abi AC-1
@@ -105,4 +105,101 @@ fn the_ceilings_are_the_ones_the_spec_names() {
     assert_eq!(MAX_DESCRIPTOR_BYTES, 16 * 1024);
     assert_eq!(oss_ext::MAX_CONFIG_BYTES, 64 * 1024);
     assert_eq!(oss_ext::MAX_MODULE_BYTES, 8 * 1024 * 1024);
+}
+
+// docs/specs/extension-abi AC-1
+#[test]
+fn an_older_minor_is_accepted_and_another_major_is_reported_before_a_newer_minor() {
+    let host = (1, 3);
+    let against = |major, minor| abi_accepted_against(host.0, host.1, pack_abi(major, minor));
+    assert_eq!(against(1, 0), Ok(()));
+    assert_eq!(against(1, 3), Ok(()));
+    assert_eq!(
+        against(1, 4),
+        Err(VersionError::NewerMinor { module: 4, host: 3 })
+    );
+    assert_eq!(
+        against(2, 0),
+        Err(VersionError::OtherMajor { module: 2, host: 1 })
+    );
+    assert_eq!(
+        against(0, 0),
+        Err(VersionError::OtherMajor { module: 0, host: 1 })
+    );
+    assert_eq!(
+        against(2, 9),
+        Err(VersionError::OtherMajor { module: 2, host: 1 }),
+        "the major is judged first"
+    );
+}
+
+// docs/specs/extension-abi AC-3
+#[test]
+fn every_failure_kind_answers_its_status_and_only_three_keep_the_modules_detail() {
+    for (status, kind, http, keeps) in [
+        (
+            Status::BufferTooSmall,
+            FailureKind::OutputTooLarge,
+            400,
+            false,
+        ),
+        (
+            Status::InvalidArgument,
+            FailureKind::InvalidArgument,
+            400,
+            true,
+        ),
+        (Status::Unsupported, FailureKind::Unsupported, 502, false),
+        (Status::Limit, FailureKind::Limit, 400, true),
+        (Status::Cancelled, FailureKind::Cancelled, 400, false),
+        (Status::Module, FailureKind::ModuleFailed, 400, true),
+        (
+            Status::NotInitialized,
+            FailureKind::NotInitialized,
+            502,
+            false,
+        ),
+        (Status::Ok, FailureKind::Malformed, 502, false),
+    ] {
+        let e = CallError::from_status(status, b"detail");
+        assert_eq!(e.kind(), kind, "{status:?}");
+        assert_eq!(e.http_status(), http, "{status:?}");
+        assert_eq!(e.detail() == "detail", keeps, "{status:?}");
+        assert!(keeps || e.detail().is_empty(), "{status:?}");
+    }
+    assert_eq!(CallError::trap("x").kind(), FailureKind::Trap);
+}
+
+// docs/specs/extension-abi AC-3
+#[test]
+fn the_detail_keeps_exactly_the_ceiling_and_never_splits_a_character() {
+    let e = CallError::from_status(Status::Module, &vec![b'x'; 1000]);
+    assert_eq!(e.detail().len(), oss_ext::MAX_ERROR_DETAIL_BYTES);
+    let exact = vec![b'y'; oss_ext::MAX_ERROR_DETAIL_BYTES];
+    assert_eq!(
+        CallError::from_status(Status::Module, &exact)
+            .detail()
+            .len(),
+        256
+    );
+    // A three-byte character that would straddle byte 256 is left out whole.
+    let mut straddle = vec![b'z'; 255];
+    straddle.extend_from_slice("€".as_bytes());
+    let e = CallError::from_status(Status::Module, &straddle);
+    assert_eq!(e.detail().len(), 255);
+    assert!(e.detail().chars().all(|c| c == 'z'));
+    // A huge invalid input is read only as far as it is kept.
+    let huge = vec![0xffu8; 4 * 1024 * 1024];
+    assert!(CallError::from_status(Status::Module, &huge).detail().len() <= 256);
+}
+
+// docs/specs/extension-abi AC-3
+#[test]
+fn separators_and_format_characters_cannot_hide_or_reorder_a_log_line() {
+    for c in [
+        '\u{2028}', '\u{2029}', '\u{202e}', '\u{200b}', '\u{feff}', '\u{2066}', '\u{ad}', '\u{85}',
+    ] {
+        let e = CallError::from_status(Status::Module, format!("a{c}b").as_bytes());
+        assert_eq!(e.detail(), "a?b", "{:x}", c as u32);
+    }
 }

@@ -22,8 +22,8 @@ pub struct DescriptorError {
 impl DescriptorError {
     fn at(key: &str, reason: &'static str) -> Self {
         Self {
-            // ALLOC: one refusal, a key of the descriptor.
-            key: key.to_owned(),
+            // ALLOC: one refusal, a key of the descriptor, cut and cleaned as a module's text is.
+            key: crate::error::clean(key.as_bytes()),
             reason,
         }
     }
@@ -95,7 +95,9 @@ pub struct Descriptor {
 }
 
 impl Descriptor {
-    /// Parses and validates `bytes`.
+    /// Parses and validates `bytes`. A caller judges the module's ABI version
+    /// ([`crate::abi_accepted`]) first, so a module built for a newer ABI is
+    /// refused for that and not for a key this host does not know.
     ///
     /// # Errors
     ///

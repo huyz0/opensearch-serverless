@@ -29,6 +29,8 @@ pub enum Fail {
     Duplicate(String),
 }
 
+/// The deepest level a value may sit at, the root being 0: the root object and
+/// seven containers inside it, whose scalars sit at 8.
 const MAX_DEPTH: usize = 8;
 
 struct Reader<'a> {
