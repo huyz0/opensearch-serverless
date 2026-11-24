@@ -232,6 +232,18 @@ impl TenantLevels {
             .collect();
     }
 
+    /// The tenant of `index` and the level a search of it is held at: 0
+    /// unless levels are enforced.
+    pub fn search_lane(&self, index: &str, now: i64) -> (String, u8) {
+        let tenant = self.tenant_of(index);
+        let level = if self.mode == Mode::Enforce {
+            self.guard.level(&tenant, now)
+        } else {
+            0
+        };
+        (tenant, level)
+    }
+
     /// How many times longer `index`'s writes may wait to be published: 4 at
     /// level 1 or above when levels are enforced, else 1.
     pub fn publish_stretch(&self, index: &str, now: i64) -> u64 {

@@ -35,6 +35,7 @@ pub struct UsageService {
     started_millis: i64,
     clock: Arc<dyn Fn() -> i64 + Send + Sync>,
     tenants: Option<Arc<TenantLevels>>,
+    slots: Option<Arc<crate::search_slots::SearchSlots>>,
 }
 
 impl UsageService {
@@ -51,6 +52,7 @@ impl UsageService {
             started_millis,
             clock,
             tenants: None,
+            slots: None,
         }
     }
 
@@ -58,6 +60,13 @@ impl UsageService {
     #[must_use]
     pub fn with_tenants(mut self, tenants: Arc<TenantLevels>) -> Self {
         self.tenants = Some(tenants);
+        self
+    }
+
+    /// This service also reporting the search gate.
+    #[must_use]
+    pub fn with_search_slots(mut self, slots: Arc<crate::search_slots::SearchSlots>) -> Self {
+        self.slots = Some(slots);
         self
     }
 
@@ -103,6 +112,22 @@ impl UsageService {
         out.write_all(b"}")?;
         if let Some(tenants) = &self.tenants {
             self.tenants_json(out, tenants, top)?;
+        }
+        if let Some(slots) = &self.slots {
+            let r = slots.report();
+            write!(
+                out,
+                ",\"search_slots\":{{\"slots\":{},\"in_use\":{},\"waiting\":{},\"admitted\":{},\"waited\":{},\"past_wait\":{},\"overflow_full\":{},\"overflow_cap\":{},\"longest_wait_millis\":{}}}",
+                r.slots,
+                r.in_use,
+                r.waiting,
+                r.admitted,
+                r.waited,
+                r.past_wait,
+                r.overflow_full,
+                r.overflow_cap,
+                r.longest_wait_millis
+            )?;
         }
         out.write_all(b"}")?;
         Ok(())
@@ -231,6 +256,7 @@ pub fn attach(
     clock: &Arc<dyn oss_cluster::LeaseClock>,
 ) -> Result<Assembled, AssembleError> {
     let Some(ledger) = ledger else {
+        install_slots(&assembled, config, None, clock);
         return Ok(assembled);
     };
     let reader = Arc::clone(clock);
@@ -275,7 +301,37 @@ pub fn attach(
             paced.admit_write(index, docs, when())
         }));
         levels.spawn_ticker(Duration::from_millis(config.tenant_tick_millis), now);
+        if let Some(slots) = install_slots(&assembled, config, Some(&levels), clock) {
+            service = service.with_search_slots(slots);
+        }
         service = service.with_tenants(levels);
+    } else if let Some(slots) = install_slots(&assembled, config, None, clock) {
+        service = service.with_search_slots(slots);
     }
     assembled.with_usage(service)
+}
+
+/// Installs the search gate on the node's search service when it is on:
+/// tenants and levels come from `levels` when the tenant levels run, else a
+/// tenant is the index and the level is 0.
+fn install_slots(
+    assembled: &Assembled,
+    config: &crate::boot::NodeConfig,
+    levels: Option<&Arc<TenantLevels>>,
+    clock: &Arc<dyn oss_cluster::LeaseClock>,
+) -> Option<Arc<crate::search_slots::SearchSlots>> {
+    if config.search_slots.slots == 0 {
+        return None;
+    }
+    let gate = Arc::new(crate::search_slots::SearchSlots::new(&config.search_slots));
+    let lane: crate::search_slots::Lane = match levels {
+        Some(levels) => {
+            let levels = Arc::clone(levels);
+            let clock = Arc::clone(clock);
+            Box::new(move |index| levels.search_lane(index, clock.now_millis()))
+        }
+        None => Box::new(|index| (index.to_owned(), 0)), // ALLOC: one name a search.
+    };
+    let gated = crate::search_slots::Gated::new(Arc::clone(&gate), lane);
+    assembled.search.set_search_slots(gated).then_some(gate)
 }

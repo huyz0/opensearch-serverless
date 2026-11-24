@@ -85,6 +85,9 @@ pub struct SearchService<S: BlobStore + 'static> {
     /// Where a search of a point in time reads its view; none, and it is
     /// refused.
     pits: OnceLock<frozen::PitAccess>,
+    /// The gate that orders searches under pressure, with what names a
+    /// search's tenant and level; none, and every search runs at once.
+    slots: OnceLock<crate::search_slots::Gated>,
 }
 
 impl<S: BlobStore + 'static> SearchService<S> {
@@ -114,7 +117,13 @@ impl<S: BlobStore + 'static> SearchService<S> {
             fresh: OnceLock::new(),
             layers: OnceLock::new(),
             pits: OnceLock::new(),
+            slots: OnceLock::new(),
         }
+    }
+
+    /// Installs the search gate. False when one is installed already.
+    pub fn set_search_slots(&self, slots: crate::search_slots::Gated) -> bool {
+        self.slots.set(slots).is_ok()
     }
 
     /// Installs what a cold open asks for a staging writer's newest commit.
@@ -140,6 +149,19 @@ impl<S: BlobStore + 'static> SearchService<S> {
 
     /// Handles one `_search`.
     pub fn handle(&self, req: &mut Request<'_>, resp: &mut Response<'_>) -> Result<(), RestError> {
+        // Held to the end of the search, then the permit, if any, goes back.
+        let _admitted = self.slots.get().and_then(|slots| {
+            let index = req.path_param("index")?;
+            slots.admit(&index)
+        });
+        self.handle_admitted(req, resp)
+    }
+
+    fn handle_admitted(
+        &self,
+        req: &mut Request<'_>,
+        resp: &mut Response<'_>,
+    ) -> Result<(), RestError> {
         let started = Instant::now();
         let source = match read_source(req) {
             Ok(source) => source,
