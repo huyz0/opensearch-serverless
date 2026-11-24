@@ -16,7 +16,7 @@ A test in its own binary (`crates/node/tests/large_doc_soak.rs`, the counting al
 
 ## Observed, and not explained here
 
-Run in a debug build on one machine (provisional): the heap peak was 51 to 53 MB for 96 MiB sent, under half the bytes. The first count after the first `_refresh` returned 22 of 24 documents, in two runs out of two, and all 24 were seen about 1.6 s later. A refresh is meant to make every acknowledged write searchable at once, so this lag after a large bulk is a finding to look into (R9.3 `node-refresh-wait`: the bounded wait, then publish), not something this test accepts as designed. The test records the first count and the time to all 24.
+Run in a debug build on one machine (provisional): the heap peak was 51 to 53 MB for 96 MiB sent, under half the bytes. The first count after the first `_refresh` returned 22 of 24 documents, in two runs out of two, and all 24 were seen about 1.6 s later. The cause was not the refresh wait: a large tail fetch answered slowly because wire strings were encoded one byte at a time, fixed in [refresh-large-tail](../refresh-large-tail/SPEC.md). The test records the first count and the time to all 24.
 
 ## Test plan
 
