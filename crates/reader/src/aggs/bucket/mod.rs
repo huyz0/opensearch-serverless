@@ -105,6 +105,8 @@ mod keyword_options_tests;
 #[cfg(test)]
 mod keyword_order_tests;
 #[cfg(test)]
+mod keyword_partition_tests;
+#[cfg(test)]
 mod keyword_subs_tests;
 #[cfg(test)]
 mod keyword_terms_tests;
