@@ -139,6 +139,14 @@ pub struct NodeConfig {
     /// `OSS_TENANT_BUDGET_PER_MINUTE`: the cost units a minute a tenant may
     /// use before its level rises (the large tier).
     pub tenant_budget_per_minute: u64,
+    /// `OSS_TENANT_BUDGET_SMALL`: the small tier's budget.
+    pub tenant_budget_small: u64,
+    /// `OSS_TENANT_BUDGET_STANDARD`: the standard tier's budget.
+    pub tenant_budget_standard: u64,
+    /// `OSS_TENANT_DEFAULT_TIER`: the tier of an index that sets none,
+    /// `small`, `standard`, `large` or empty for the mode's (large in
+    /// observe, standard in enforce).
+    pub tenant_default_tier: &'static str,
     /// `OSS_TENANT_TICK_MS`: how often tenant levels are stepped.
     pub tenant_tick_millis: u64,
     /// `serverless.write.backpressure.*`: what limits the writes waiting on
@@ -291,6 +299,19 @@ impl NodeConfig {
         };
         let tenant_budget_per_minute =
             bounded("OSS_TENANT_BUDGET_PER_MINUTE", "2000", 1, 100_000_000)?;
+        let tenant_budget_small = bounded("OSS_TENANT_BUDGET_SMALL", "20", 1, 100_000_000)?;
+        let tenant_budget_standard = bounded("OSS_TENANT_BUDGET_STANDARD", "200", 1, 100_000_000)?;
+        let tenant_default_tier = match or("OSS_TENANT_DEFAULT_TIER", "").as_str() {
+            "" => "",
+            "small" => "small",
+            "standard" => "standard",
+            "large" => "large",
+            other => {
+                return Err(format!(
+                    "OSS_TENANT_DEFAULT_TIER is [{other}], not small, standard or large"
+                ));
+            }
+        };
         let tenant_tick_millis = bounded("OSS_TENANT_TICK_MS", "10000", 10, 3_600_000)?;
         let write_limit = write_limit::read(&bounded)?;
         let proactive_reapers = bounded("OSS_PROACTIVE_REAPERS", "2", 1, 16)?;
@@ -349,6 +370,9 @@ impl NodeConfig {
             store_usage,
             tenant_levels,
             tenant_budget_per_minute,
+            tenant_budget_small,
+            tenant_budget_standard,
+            tenant_default_tier,
             tenant_tick_millis,
             store_usage_max_indices: usize::try_from(store_usage_max_indices).unwrap_or(1000),
             proactive_takeover,

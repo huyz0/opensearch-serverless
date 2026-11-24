@@ -123,3 +123,4 @@ src/snapshot_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverl
 src/tenants.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/usage/Guardrails.java@feature/serverlessshell	the node side of the tenant levels: roll the ledger up by tenant, step the policy every 10 s, report; no levels act yet
 src/writer/tenant_hooks.rs	new		what the tenant levels hang on a writer role: who is told an index's bucket group when a shard of it opens, and how far a shard's publish age is stretched
 src/snapshot_take_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/snapshot/SnapshotOperations.java@bf347adb	handleCreate and capture: the order of a take and its cleanup
+src/writer/tenancy.rs	new		the billing settings of an index in its descriptor: bucket group, cost tier and cost budget, read when a writer opens a shard of it

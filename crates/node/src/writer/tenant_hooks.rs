@@ -1,5 +1,5 @@
 //! What a node's tenant levels hang on a writer role: who is told the
-//! bucket group of an index when a shard of it is opened, and how far a
+//! billing settings of an index when a shard of it is opened, and how far a
 //! shard's publish age is stretched, and how long a group of writes waits.
 
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -7,9 +7,10 @@ use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 use super::WriterRole;
+use super::tenancy::Tenancy;
 
-/// Who is told an index's bucket group: index name and group.
-pub type GroupSink = Arc<dyn Fn(&str, &str) + Send + Sync>;
+/// Who is told an index's billing settings: index name and settings.
+pub type TenancySink = Arc<dyn Fn(&str, &Tenancy) + Send + Sync>;
 
 /// What to do with a group of writes: the index's name and the documents in
 /// it in; milliseconds to hold it, or the milliseconds a refused one would
@@ -19,7 +20,7 @@ pub type WriteGate = Arc<dyn Fn(&str, usize) -> Result<u64, u64> + Send + Sync>;
 /// What the tenant levels hang on a role.
 #[derive(Default)]
 pub(super) struct TenantHooks {
-    groups: OnceLock<GroupSink>,
+    groups: OnceLock<TenancySink>,
     gate: OnceLock<WriteGate>,
     /// Whole seconds the last refusal asked a writer to wait; 0 when the
     /// last write was let through.
@@ -27,16 +28,16 @@ pub(super) struct TenantHooks {
 }
 
 impl WriterRole {
-    /// Installs who is told the bucket group of an index when a shard of it
-    /// is opened. False when one is installed already.
-    pub fn set_group_sink(&self, sink: GroupSink) -> bool {
+    /// Installs who is told the billing settings of an index when a shard
+    /// of it is opened. False when one is installed already.
+    pub fn set_tenancy_sink(&self, sink: TenancySink) -> bool {
         self.tenant.groups.set(sink).is_ok()
     }
 
-    /// Tells the group sink that `index` bills to `group`.
-    pub(crate) fn note_group(&self, index: &str, group: &str) {
+    /// Tells the sink the billing settings of `index`.
+    pub(crate) fn note_tenancy(&self, index: &str, tenancy: &Tenancy) {
         if let Some(sink) = self.tenant.groups.get() {
-            sink(index, group);
+            sink(index, tenancy);
         }
     }
 

@@ -33,6 +33,60 @@ pub fn word(mode: Mode) -> &'static str {
     }
 }
 
+/// The cost tiers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Tier {
+    /// 20 cost units a minute by default.
+    Small,
+    /// 200 by default.
+    Standard,
+    /// 2,000 by default.
+    Large,
+}
+
+impl Tier {
+    /// `small`, `standard` or `large`.
+    pub fn parse(word: &str) -> Option<Self> {
+        match word {
+            "small" => Some(Self::Small),
+            "standard" => Some(Self::Standard),
+            "large" => Some(Self::Large),
+            _ => None,
+        }
+    }
+}
+
+/// The budget of each tier, in cost units a minute.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TierBudgets {
+    /// The small tier.
+    pub small: u64,
+    /// The standard tier.
+    pub standard: u64,
+    /// The large tier.
+    pub large: u64,
+}
+
+impl Default for TierBudgets {
+    fn default() -> Self {
+        Self {
+            small: 20,
+            standard: 200,
+            large: 2_000,
+        }
+    }
+}
+
+impl TierBudgets {
+    fn of(self, tier: Tier) -> u64 {
+        match tier {
+            Tier::Small => self.small,
+            Tier::Standard => self.standard,
+            Tier::Large => self.large,
+        }
+    }
+}
+
 /// A node's tenant levels.
 pub struct TenantLevels {
     guard: Guardrails,
@@ -41,21 +95,42 @@ pub struct TenantLevels {
     groups: RwLock<HashMap<String, String>>,
     /// Documents written so far, by index.
     docs: Mutex<HashMap<String, Arc<AtomicU64>>>,
-    budget_per_minute: u64,
+    tiers: TierBudgets,
+    default_budget: u64,
+    /// Each index's own budget, where it sets a tier or a budget.
+    budgets: RwLock<HashMap<String, u64>>,
+    /// The budget each tenant was last judged against.
+    judged: Mutex<HashMap<String, u64>>,
 }
 
 impl TenantLevels {
     /// Levels over `ledger` in `mode`, every tenant held to
-    /// `budget_per_minute` cost units a minute.
+    /// `budget_per_minute` cost units a minute (the large tier).
     pub fn new(ledger: Arc<Ledger>, mode: Mode, budget_per_minute: u64) -> Self {
+        let tiers = TierBudgets {
+            large: budget_per_minute,
+            ..TierBudgets::default()
+        };
         Self {
             guard: Guardrails::new(MAX_WAIT_MILLIS),
             mode,
             ledger,
             groups: RwLock::new(HashMap::new()),
             docs: Mutex::new(HashMap::new()),
-            budget_per_minute,
+            tiers,
+            default_budget: budget_per_minute,
+            budgets: RwLock::new(HashMap::new()),
+            judged: Mutex::new(HashMap::new()),
         }
+    }
+
+    /// These levels with `tiers` as the tier budgets and `default` as the
+    /// tier of an index that sets none.
+    #[must_use]
+    pub fn with_tiers(mut self, tiers: TierBudgets, default: Tier) -> Self {
+        self.tiers = tiers;
+        self.default_budget = tiers.of(default);
+        self
     }
 
     /// The mode in force.
@@ -72,6 +147,27 @@ impl TenantLevels {
         } else if groups.len() < ROSTER_LIMIT || groups.contains_key(index) {
             // ALLOC: two names an index with a group, bounded by the limit.
             groups.insert(index.to_owned(), group.to_owned());
+        }
+    }
+
+    /// Remembers the billing settings of `index`: its group, and the budget
+    /// its budget or its tier names.
+    pub fn note_tenancy(&self, index: &str, tenancy: &crate::writer::Tenancy) {
+        self.note_group(index, tenancy.group.as_deref().unwrap_or(""));
+        let own = tenancy
+            .budget
+            .or_else(|| Tier::parse(tenancy.tier.as_deref()?).map(|t| self.tiers.of(t)));
+        let mut budgets = self.budgets.write().unwrap_or_else(PoisonError::into_inner);
+        match own {
+            Some(budget) => {
+                if budgets.len() < ROSTER_LIMIT || budgets.contains_key(index) {
+                    // ALLOC: one name an index with a budget, bounded by the limit.
+                    budgets.insert(index.to_owned(), budget);
+                }
+            }
+            None => {
+                budgets.remove(index);
+            }
         }
     }
 
@@ -92,13 +188,20 @@ impl TenantLevels {
         }
         // ALLOC: one entry a tenant, bounded by the ledger's lines, a tick.
         let mut cost: HashMap<String, u64> = HashMap::new();
+        let mut budget: HashMap<String, u64> = HashMap::new();
+        let own = self.budgets.read().unwrap_or_else(PoisonError::into_inner);
         for (index, usage) in self.ledger.lines() {
             if index == NODE || index == OTHER {
                 continue;
             }
-            let entry = cost.entry(self.tenant_of(&index)).or_insert(0);
+            let tenant = self.tenant_of(&index);
+            let mine = own.get(&index).copied().unwrap_or(self.default_budget);
+            let largest = budget.entry(tenant.clone()).or_insert(0); // ALLOC: one name a tenant, a tick.
+            *largest = (*largest).max(mine);
+            let entry = cost.entry(tenant).or_insert(0);
             *entry = entry.saturating_add(usage.cost_milli_units());
         }
+        drop(own);
         let mut docs: HashMap<String, u64> = HashMap::new(); // ALLOC: one entry a tenant, a tick.
         for (index, count) in self
             .docs
@@ -119,10 +222,14 @@ impl TenantLevels {
                 tenant,
                 cost_milli: *cost_milli,
                 docs: docs.get(tenant).copied().unwrap_or(0),
-                budget_per_minute: self.budget_per_minute,
+                budget_per_minute: budget.get(tenant).copied().unwrap_or(self.default_budget),
             })
             .collect(); // ALLOC: one measure a tenant, a tick.
         self.guard.tick(now, &measures);
+        *self.judged.lock().unwrap_or_else(PoisonError::into_inner) = measures
+            .iter()
+            .map(|m| (m.tenant.to_owned(), m.budget_per_minute)) // ALLOC: one name a tenant, a tick.
+            .collect();
     }
 
     /// How many times longer `index`'s writes may wait to be published: 4 at
@@ -169,6 +276,16 @@ impl TenantLevels {
     /// Takes the levels a collector set from outside (`tenant=level,...`).
     pub fn set_levels(&self, text: &str) {
         self.guard.set_levels(text);
+    }
+
+    /// The budget `tenant` was last judged against, in cost units a minute.
+    pub fn budget_of(&self, tenant: &str) -> u64 {
+        self.judged
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(tenant)
+            .copied()
+            .unwrap_or(self.default_budget)
     }
 
     /// Every tenant this node has seen, by name.
