@@ -102,3 +102,24 @@ fn a_method_that_can_be_neither_unsupported_nor_valid_is_refused_in_the_plugins_
         "{e:?}"
     );
 }
+
+#[test]
+fn each_unsupported_shape_says_which_it_is() {
+    let reason = |extra: &str| {
+        Mapping::parse_with(field(extra).as_bytes(), ON)
+            .unwrap_err()
+            .reason
+    };
+    assert_eq!(
+        reason(r#","method":{"name":"flat"}"#),
+        "knn_vector flat method"
+    );
+    assert_eq!(
+        reason(r#","method":{"name":"hnsw"}"#),
+        "knn_vector method with no engine (resolved to faiss)"
+    );
+    assert_eq!(
+        reason(r#","method":{"name":"hnsw","engine":"lucene","parameters":{"m":null}}"#),
+        "knn_vector null method parameter"
+    );
+}
