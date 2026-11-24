@@ -189,7 +189,9 @@ impl Scan<'_> {
             }
             self.pos = self.pos.saturating_add(1);
         }
-        if self.pos == start || in_string || depth != 0 {
+        // A value cut off by the end of the source is caught by the caller, which
+        // finds no `,` or `}` after it; an empty value is caught here.
+        if self.pos == start {
             return Err(cannot_place(
                 "the source is not the JSON object it was parsed as",
             ));
