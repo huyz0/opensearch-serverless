@@ -366,6 +366,26 @@ fn a_date_histogram_source_is_parsed_with_its_interval_zone_and_offset() {
 }
 
 #[test]
+fn a_date_histogram_source_takes_a_region_zone() {
+    let s = spec(
+        r#"{"sources":[{"d":{"date_histogram":{"field":"ts","calendar_interval":"day","time_zone":"Europe/Paris"}}}]}"#,
+    );
+    let SourceKind::DateHistogram { rounding } = s.sources[0].kind else {
+        panic!("not a date_histogram");
+    };
+    assert_eq!(rounding.region.expect("a region zone").id(), "Europe/Paris");
+    assert_eq!(rounding.zone_ms, 0);
+    // A later fixed offset replaces it.
+    let s = spec(
+        r#"{"sources":[{"d":{"date_histogram":{"field":"ts","calendar_interval":"day","time_zone":"Europe/Paris","time_zone":"+02:00"}}}]}"#,
+    );
+    let SourceKind::DateHistogram { rounding } = s.sources[0].kind else {
+        panic!("not a date_histogram");
+    };
+    assert_eq!((rounding.region, rounding.zone_ms), (None, 7_200_000));
+}
+
+#[test]
 fn a_date_histogram_source_needs_one_valid_interval() {
     let src = |body: &str| {
         format!(r#"{{"sources":[{{"d":{{"date_histogram":{{"field":"ts",{body}}}}}}}]}}"#)
@@ -381,7 +401,9 @@ fn a_date_histogram_source_needs_one_valid_interval() {
     );
     assert!(reason(&src(r#""fixed_interval":"0ms""#)).contains("Zero or negative time interval"));
     assert!(
-        reason(&src(r#""fixed_interval":"1d","time_zone":"Europe/Paris""#))
-            .contains("is not supported by this node yet")
+        reason(&src(
+            r#""fixed_interval":"1d","time_zone":"Europe/Nowhere""#
+        ))
+        .contains("is not supported by this node yet")
     );
 }

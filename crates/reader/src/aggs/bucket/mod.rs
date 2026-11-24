@@ -12,6 +12,7 @@ pub mod date_histogram;
 pub mod date_histogram_collect;
 pub mod date_histogram_parse;
 pub mod date_histogram_render;
+pub mod date_histogram_zone;
 pub mod filters;
 pub mod filters_collect;
 pub mod filters_parse;
@@ -84,6 +85,8 @@ mod composite_collect_tests;
 mod composite_tests;
 #[cfg(test)]
 mod date_histogram_collect_tests;
+#[cfg(test)]
+mod date_histogram_region_tests;
 #[cfg(test)]
 mod date_histogram_tests;
 #[cfg(test)]

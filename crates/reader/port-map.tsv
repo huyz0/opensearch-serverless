@@ -109,6 +109,8 @@ src/aggs/bucket/date_histogram_collect.rs	port	server/src/main/java/org/opensear
 src/aggs/bucket/date_histogram_render.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/histogram/InternalDateHistogram.java@3.10.0	Bucket.toXContent and doXContentBody
 src/aggs/bucket/date_histogram_tests.rs	new		tests of date_histogram parsing, reduce and writing
 src/aggs/bucket/date_histogram_collect_tests.rs	new		tests of date_histogram on a real index
+src/aggs/bucket/date_histogram_zone.rs	port	server/src/main/java/org/opensearch/common/time/DateUtils.java@3.10.0	ZoneId.of for a time_zone: a fixed offset, or an IANA region id (DateUtils.of)
+src/aggs/bucket/date_histogram_region_tests.rs	new		tests of date_histogram and composite time zones that are IANA regions
 src/aggs/bucket/histogram.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/histogram/InternalHistogram.java@3.10.0	HistogramAggregationBuilder defaults, InternalHistogram's state, reduce, addEmptyBuckets and the order sort
 src/aggs/bucket/histogram_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/histogram/HistogramAggregationBuilder.java@3.10.0	the ObjectParser keys, the setters' checks, DoubleBounds and the bounds check of innerBuild
 src/aggs/bucket/histogram_collect.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/histogram/NumericHistogramAggregator.java@3.10.0	the histogram node over lucene-aggs and AbstractHistogramAggregator's interval check

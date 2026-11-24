@@ -6,6 +6,7 @@
 use crate::aggs::bucket::date_histogram::{
     DateHistogramSpec, DateRounding, DateUnit, RegionZone, RoundingKind, round_bound,
 };
+use crate::aggs::bucket::date_histogram_zone::zone_of;
 use crate::aggs::bucket::histogram::HistogramOrder;
 use crate::aggs::bucket::histogram_parse::parse_order;
 use crate::aggs::metric::parse::long_value;
@@ -118,63 +119,6 @@ pub fn time_value_millis(text: &str, setting: &str) -> Result<i64, String> {
         "failed to parse setting [{setting}] with value [{text}] as a time value: unit is \
          missing or unrecognized"
     ))
-}
-
-/// A fixed-offset zone's offset in milliseconds, for the ids `ZoneId.of`
-/// reads as one: `Z`, `UTC`, `GMT`, `UT`, and `+h`, `+hh`, `+hh:mm`,
-/// `+hhmm`, `+hh:mm:ss` or `+hhmmss`, alone or after `UTC`, `GMT` or `UT`.
-pub(crate) fn zone_millis(id: &str) -> Option<i64> {
-    if matches!(id, "Z" | "UTC" | "GMT" | "UT") {
-        return Some(0);
-    }
-    let rest = ["UTC", "GMT", "UT"]
-        .iter()
-        .find_map(|p| id.strip_prefix(p))
-        .unwrap_or(id);
-    let sign = match rest.as_bytes().first()? {
-        b'+' => 1i64,
-        b'-' => -1i64,
-        _ => return None,
-    };
-    let body = rest.get(1..)?;
-    // ALLOC: at most three short slices.
-    let parts: Vec<&str> = if body.contains(':') {
-        body.split(':').collect()
-    } else if body.len() <= 2 {
-        // ALLOC: one slice.
-        vec![body]
-    } else if body.len() == 4 || body.len() == 6 {
-        body.as_bytes()
-            .chunks(2)
-            .map(|c| std::str::from_utf8(c).unwrap_or(""))
-            // ALLOC: at most three short slices.
-            .collect()
-    } else {
-        return None;
-    };
-    if parts.is_empty() || parts.len() > 3 {
-        return None;
-    }
-    let mut seconds = 0i64;
-    for (i, part) in parts.iter().enumerate() {
-        let ok_len = if i == 0 {
-            (1..=2).contains(&part.len())
-        } else {
-            part.len() == 2
-        };
-        if !ok_len || !part.bytes().all(|b| b.is_ascii_digit()) {
-            return None;
-        }
-        let n: i64 = part.parse().ok()?;
-        if i > 0 && n > 59 {
-            return None;
-        }
-        seconds = seconds.saturating_add(n.saturating_mul([3600, 60, 1][i]));
-    }
-    if seconds > 18 * 3600 {
-        return None;
-    }
-    Some(sign.saturating_mul(seconds).saturating_mul(1000))
 }
 
 /// One bound as the request gave it: epoch milliseconds, or a date.
@@ -364,21 +308,16 @@ pub fn parse_date_histogram_body(
                 });
             }
             "time_zone" => {
-                region = None;
-                zone_ms = if token == Kind::Number {
-                    let hours = long_value(token, p.text())?;
-                    hours.saturating_mul(3_600_000)
-                } else if let Some(fixed) = zone_millis(p.text()) {
-                    fixed
-                } else if let Some(named) = RegionZone::named(p.text()) {
-                    region = Some(named);
-                    0
+                (zone_ms, region) = if token == Kind::Number {
+                    (long_value(token, p.text())?.saturating_mul(3_600_000), None)
                 } else {
-                    // ALLOC: error path; one message.
-                    return Err(DslError::unsupported(&format!(
-                        "the [date_histogram] aggregation's time zone [{}]",
-                        p.text()
-                    )));
+                    zone_of(p.text()).ok_or_else(|| {
+                        // ALLOC: error path; one message.
+                        DslError::unsupported(&format!(
+                            "the [date_histogram] aggregation's time zone [{}]",
+                            p.text()
+                        ))
+                    })?
                 };
             }
             "offset" => {
