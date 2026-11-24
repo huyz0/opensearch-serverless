@@ -70,25 +70,33 @@ fn a_shard_writes_each_vector_it_indexes_and_an_update_adds_the_new_one() {
 
 // docs/adr/0038: a vector counts in the indexing buffer, which the node
 // bounds and flushes by, so vector documents cannot grow past it unseen.
+// A thousand ones is two thousand bytes of `_source` but four thousand bytes
+// of vector, so a buffer that holds the source alone stays under the bound.
 #[test]
 fn vectors_are_charged_to_the_indexing_buffer() {
+    const DIMENSION: usize = 1000;
+    const DOCS: usize = 50;
+    let mapping = format!(
+        r#"{{"properties":{{"v":{{"type":"knn_vector","dimension":{DIMENSION},"method":{{"name":"hnsw","engine":"lucene","space_type":"l2"}}}}}}}}"#
+    );
     let mapping =
-        Mapping::parse_with(MAPPING.as_bytes(), ParseOptions { knn: Some(true) }).expect("mapping");
+        Mapping::parse_with(mapping.as_bytes(), ParseOptions { knn: Some(true) }).expect("mapping");
     let dir = ByteBuffersDirectory::new();
     let mut w = IndexWriter::open(&dir, Vec::new(), "Lucene104", VERSION).expect("writer");
     w.enable_explicit_documents().expect("explicit");
     let mut shard = Shard::new(&dir, w, mapping, 1, Box::new(|| 0)).expect("shard");
-    for n in 0..50 {
-        index(&mut shard, &format!("p{n}"), r#"{"k":"plain"}"#);
+    let ones = vec!["1"; DIMENSION].join(",");
+    for n in 0..DOCS {
+        index(
+            &mut shard,
+            &format!("d{n}"),
+            &format!(r#"{{"v":[{ones}]}}"#),
+        );
     }
-    let plain = shard.indexing_buffer_bytes();
-    for n in 0..50 {
-        index(&mut shard, &format!("v{n}"), r#"{"v":[1,2,3],"k":"plain"}"#);
-    }
-    let with_vectors = shard.indexing_buffer_bytes();
-    // Fifty vectors of three floats are 600 bytes before the graph.
+    let buffered = shard.indexing_buffer_bytes();
     assert!(
-        with_vectors - plain >= 50 * 3 * 4,
-        "buffer grew {plain} -> {with_vectors}"
+        buffered >= DOCS * DIMENSION * 4,
+        "{DOCS} vectors of {DIMENSION} floats are {} bytes, the buffer holds {buffered}",
+        DOCS * DIMENSION * 4
     );
 }

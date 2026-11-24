@@ -1,6 +1,6 @@
 # 0038: A `knn_vector` is written into the segment as the stock k-NN plugin writes it
 
-**Status:** Proposed
+**Status:** Accepted after independent review, 2026-11-24
 
 ## Context
 
