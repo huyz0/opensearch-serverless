@@ -6,6 +6,7 @@
 //! role; only the `search` role leaves its lease, so no coordinator ranks it
 //! as a reader.
 
+#[cfg(all(feature = "reader", feature = "writer"))]
 mod routes;
 
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -13,11 +14,15 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use oss_cluster::placement::ROLE_SEARCH;
 use oss_format::NodeLease;
 
+#[cfg(all(feature = "reader", feature = "writer"))]
 pub use routes::routes;
 
+#[cfg(all(feature = "reader", feature = "writer"))]
 use std::sync::Arc;
+#[cfg(all(feature = "reader", feature = "writer"))]
 use std::time::Duration;
 
+#[cfg(all(feature = "reader", feature = "writer"))]
 use crate::assemble::{AssembleError, Assembled};
 
 /// A node's readiness, shared by its endpoints and its lease writer.
@@ -59,6 +64,7 @@ impl Readiness {
     }
 }
 
+#[cfg(all(feature = "reader", feature = "writer"))]
 impl Assembled {
     /// Registers `GET /_serverless/ready` and `POST /_serverless/drain` over
     /// `readiness`; a drain answers after `settle`.
