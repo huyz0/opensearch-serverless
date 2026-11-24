@@ -12,7 +12,7 @@ use oss_writer::bulk::IndexInfo;
 use std::sync::{Arc, Mutex};
 
 /// How far below its cap a node handing off lets go to, as a share of it.
-pub const HAND_OFF_DOWN_TO: f64 = 0.8;
+const HAND_OFF_DOWN_TO: f64 = 0.8;
 
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn floor_of(cap: usize, share: f64) -> usize {
@@ -125,7 +125,7 @@ impl WriterRole {
     /// Hands idle shards off as the fleet's leases `members` say at
     /// `lease_now` (their clock) with lease lifetime `ttl_millis`; how many
     /// were let go. Nearly full with a member that has room: down to
-    /// [`HAND_OFF_DOWN_TO`] of the cap. Far above the fleet's mean with a
+    /// `HAND_OFF_DOWN_TO` of the cap. Far above the fleet's mean with a
     /// member below it: down to [`HAND_OFF_DOWN_TO_MEAN`] times the mean. At
     /// most a tenth of the cap, and at least one, a pass. Nothing with the
     /// setting off, no cap, or no eviction grace.
