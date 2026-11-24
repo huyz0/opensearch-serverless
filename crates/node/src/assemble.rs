@@ -399,12 +399,11 @@ pub fn assemble(
     }
     let role = Arc::new(role);
     let clock: PitClock = Arc::new(now_millis);
-    let pits = PointInTimeStore::new(Arc::clone(&store), &config.base, Arc::clone(&clock))
-        .map_err(|e| AssembleError::Store(e.to_string()))?;
-    let janitor_pits = PointInTimeStore::new(Arc::clone(&store), &config.base, Arc::clone(&clock))
-        .map_err(|e| AssembleError::Store(e.to_string()))?;
-    let search_pits = PointInTimeStore::new(Arc::clone(&store), &config.base, Arc::clone(&clock))
-        .map_err(|e| AssembleError::Store(e.to_string()))?;
+    let new_pits = || {
+        PointInTimeStore::new(Arc::clone(&store), &config.base, Arc::clone(&clock))
+            .map_err(|e| AssembleError::Store(e.to_string()))
+    };
+    let (pits, janitor_pits, search_pits) = (new_pits()?, new_pits()?, new_pits()?);
     search.set_point_in_time(search_pits, Arc::clone(&clock), config.pit_buffer_bytes);
     let descriptors = DescriptorStore::new(Arc::clone(&store), &config.base, config.delete_mode)
         .map_err(|e| AssembleError::Store(e.to_string()))?;
