@@ -9,6 +9,7 @@
 //! concurrency gate, with every byte reserved first. No point is wired to a
 //! request path here.
 
+mod analyzer;
 mod config;
 mod gate;
 mod host;
@@ -16,6 +17,7 @@ mod module;
 mod reserve;
 mod validate;
 
+pub use analyzer::PinRefusal;
 pub use config::HostConfig;
 pub use host::{Host, LoadError};
 pub use module::Module;

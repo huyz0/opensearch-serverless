@@ -53,6 +53,7 @@ pub struct Module {
     reserver: Arc<dyn Reserver>,
     in_ptr: u32,
     out_ptr: u32,
+    imports: usize,
     _code: Reservation,
 }
 
@@ -169,12 +170,18 @@ impl Module {
             reserver,
             in_ptr,
             out_ptr,
+            imports: crate::validate::import_count(bytes),
             _code: code,
         })
     }
 
     fn open(&self, eff: Effective) -> Result<Session, CallError> {
         open(&self.shared, &self.pre, &self.rate, eff, &self.name)
+    }
+
+    /// How many imports the module declares.
+    pub(crate) fn import_count(&self) -> usize {
+        self.imports
     }
 
     /// The module's descriptor.

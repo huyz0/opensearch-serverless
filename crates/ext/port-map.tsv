@@ -5,3 +5,4 @@ src/status.rs	new		the status codes a module returns, zero success and every fai
 src/descriptor.rs	new		the strict parse of a module's descriptor: exact keys, no duplicates, bounded depth and size
 src/error.rs	new		the typed failure of a call and the HTTP status each maps to
 src/json.rs	new		a small strict JSON reader for a descriptor: bounded depth, no duplicate keys, integers apart from other numbers
+src/analyzer.rs	new		the analyzer point's wire form: a block of texts in, tokens out, validated before use
