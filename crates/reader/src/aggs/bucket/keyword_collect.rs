@@ -218,7 +218,15 @@ fn engine_error(e: &dyn std::fmt::Display) -> ShardError {
 enum Matcher {
     Regex(Box<RegexpPattern>),
     Set(Vec<Vec<u8>>),
+    /// A partition-based `include` (`PartitionedOrdinalsFilter`).
+    Partition {
+        partition: u32,
+        num_partitions: u32,
+    },
 }
+
+/// The seed of `IncludeExclude.HASH_PARTITIONING_SEED`.
+const HASH_PARTITIONING_SEED: i32 = 31;
 
 impl Matcher {
     fn new(filter: &TermFilter) -> Result<Self, ShardError> {
@@ -251,6 +259,13 @@ impl Matcher {
                 // ALLOC: one compiled pattern a filter, bounded by the request's.
                 Ok(Matcher::Regex(Box::new(compiled)))
             }
+            TermFilter::Partition {
+                partition,
+                num_partitions,
+            } => Ok(Matcher::Partition {
+                partition: *partition,
+                num_partitions: *num_partitions,
+            }),
             // ALLOC: one term a listed value; the body's size bounds them.
             TermFilter::Set(terms) => Ok(Matcher::Set(
                 terms.iter().map(|t| t.as_bytes().to_vec()).collect(),
@@ -262,6 +277,15 @@ impl Matcher {
         match self {
             Matcher::Regex(p) => p.dfa_matches(term).unwrap_or(false),
             Matcher::Set(terms) => terms.binary_search_by(|t| t.as_slice().cmp(term)).is_ok(),
+            Matcher::Partition {
+                partition,
+                num_partitions,
+            } => {
+                let hash =
+                    lucene_util::string_helper::murmurhash3_x86_32(term, HASH_PARTITIONING_SEED);
+                // `Math.floorMod` of an int by a positive count.
+                i64::from(hash).rem_euclid(i64::from(*num_partitions)) == i64::from(*partition)
+            }
         }
     }
 }

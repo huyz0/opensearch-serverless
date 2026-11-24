@@ -114,9 +114,8 @@ fn bad_filters_fail_as_opensearch_fails_them() {
 }
 
 #[test]
-fn partitions_and_non_string_missing_are_refused_as_not_supported_yet() {
+fn a_non_string_missing_and_a_null_are_refused_as_not_supported_yet() {
     for body in [
-        r#"{"field":"tag","include":{"partition":0,"num_partitions":2}}"#,
         r#"{"field":"tag","missing":5}"#,
         r#"{"field":"tag","include":[null]}"#,
     ] {
@@ -126,4 +125,65 @@ fn partitions_and_non_string_missing_are_refused_as_not_supported_yet() {
             reason(body)
         );
     }
+}
+
+// AC-1
+#[test]
+fn a_partition_include_is_parsed_and_checked_as_opensearch_checks_it() {
+    let o = options(r#"{"field":"tag","include":{"partition":1,"num_partitions":4}}"#);
+    assert_eq!(
+        o.include,
+        Some(TermFilter::Partition {
+            partition: 1,
+            num_partitions: 4
+        })
+    );
+    let o = options(r#"{"field":"tag","include":{"num_partitions":"4","partition":"3"}}"#);
+    assert_eq!(
+        o.include,
+        Some(TermFilter::Partition {
+            partition: 3,
+            num_partitions: 4
+        })
+    );
+    for (body, message) in [
+        (
+            r#"{"field":"tag","include":{"num_partitions":4}}"#,
+            "Missing [partition] parameter for partition-based include",
+        ),
+        (
+            r#"{"field":"tag","include":{"partition":1}}"#,
+            "Missing [num_partitions] parameter for partition-based include",
+        ),
+        (
+            r#"{"field":"tag","include":{"partition":4,"num_partitions":4}}"#,
+            "Partition must be >=0 and < numPartition which is 4",
+        ),
+        (
+            r#"{"field":"tag","include":{"partition":0,"num_partitions":0}}"#,
+            "Partition must be >=0 and < numPartition which is 0",
+        ),
+        (
+            r#"{"field":"tag","include":{"partition":-1,"num_partitions":4}}"#,
+            "Partition must be >=0 and < numPartition which is 4",
+        ),
+        (
+            r#"{"field":"tag","include":{"partition":0,"num_partitions":4,"x":1}}"#,
+            "Unknown parameter in Include/Exclude clause: x",
+        ),
+        (
+            r#"{"field":"tag","include":{"partition":0,"num_partitions":4},"exclude":["a"]}"#,
+            "Cannot specify any excludes when using a partition-based include",
+        ),
+        (
+            r#"{"field":"tag","exclude":["a"],"include":{"partition":0,"num_partitions":4}}"#,
+            "Cannot specify any excludes when using a partition-based include",
+        ),
+    ] {
+        assert!(reason(body).ends_with(message), "{body}: {}", reason(body));
+    }
+    assert!(
+        reason(r#"{"field":"tag","include":{"partition":0.5,"num_partitions":4}}"#)
+            .ends_with("is not supported by this node yet")
+    );
 }
