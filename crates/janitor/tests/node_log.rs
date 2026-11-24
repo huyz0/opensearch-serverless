@@ -98,10 +98,23 @@ impl NodeLogs for Log {
 }
 
 #[derive(Default)]
-struct Published(HashMap<(String, u32), Committed>);
+struct Published(
+    HashMap<(String, u32), Committed>,
+    /// The bucket each index's commit is held in, when it has one.
+    HashMap<String, String>,
+);
 
 impl Commits for Published {
-    fn committed(&self, _: &str, uuid: &str, shard: u32) -> Result<Committed, JanitorError> {
+    fn committed(
+        &self,
+        _: &str,
+        uuid: &str,
+        bucket: Option<&str>,
+        shard: u32,
+    ) -> Result<Committed, JanitorError> {
+        if self.1.get(uuid).map(String::as_str) != bucket {
+            return Ok(Committed::Absent);
+        }
         Ok(*self
             .0
             .get(&(uuid.to_owned(), shard))
@@ -186,6 +199,17 @@ impl Rig {
             .unwrap();
         self.log.named.push(ShardKey::new(uuid, 0, Some(name)));
         self.log.max.insert((uuid.to_owned(), 0), held);
+    }
+
+    /// Index `name` at `uuid` as a member of `bucket`.
+    fn member(&mut self, name: &str, uuid: &str, bucket: &str, held: i64) {
+        let mut buf = vec![0u8; 4096];
+        let mut record = IndexRecord::new(name, uuid, 1);
+        record.bucket = Some(bucket.into());
+        self.descriptors.create(&record, T0, &mut buf).unwrap();
+        self.log.named.push(ShardKey::new(uuid, 0, Some(name)));
+        self.log.max.insert((uuid.to_owned(), 0), held);
+        self.commits.1.insert(uuid.to_owned(), bucket.to_owned());
     }
 
     fn commit(&mut self, uuid: &str, committed: Committed) {
@@ -450,4 +474,17 @@ fn a_head_owned_by_another_node_is_judged_by_the_commit() {
     assert_eq!(rig.run(false), Collected::StillNeeded);
     rig.commit("u1", Committed::Commit(Some(10)));
     assert_eq!(rig.run(false), Collected::Collected);
+}
+
+#[test]
+fn a_bucket_members_commit_is_asked_of_its_bucket() {
+    let mut rig = Rig::new();
+    rig.member("logs", "u1", "b1", 10);
+    rig.commit("u1", Committed::Commit(Some(10)));
+    assert_eq!(rig.run(false), Collected::Collected);
+
+    let mut rig = Rig::new();
+    rig.member("logs", "u1", "b1", 10);
+    rig.commit("u1", Committed::Commit(Some(9)));
+    assert_eq!(rig.run(false), Collected::StillNeeded);
 }
