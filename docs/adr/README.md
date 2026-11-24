@@ -53,5 +53,6 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0041](0041-tenant-cost-levels.md) | A tenant's cost is held to a budget by levels, in observe mode unless set to enforce | Accepted |
 | [0042](0042-snapshots-taken-shallow-first.md) | Snapshots are taken shallow first, in the Java's protocol, behind the switch | Accepted |
 | [0044](0044-ingest-pipelines-in-the-write-path.md) | Ingest pipelines run in the write path through a per-request hook, behind a switch | Proposed |
+| [0045](0045-shallow-snapshot-restore.md) | A shallow snapshot is restored by copying its files into a new index, in the Java's order | Accepted |
 | [0046](0046-plugin-requests-are-proxied-to-java-nodes.md) | Requests for plugins that are not ported are proxied to Java nodes, behind a setting | Accepted |
 | [0047](0047-search-slots.md) | Searches are admitted in order by a slot gate that shapes who waits, behind a setting | Proposed |
