@@ -159,3 +159,5 @@ src/boot/config/tests/extensions.rs	new		tests for the extensions pool share
 src/extension_route.rs	new		the module upload route; extensions have no Java counterpart in the shell
 src/extension_store.rs	new		modules stored under the hash of their bytes, read once a node
 src/boot/config/budget.rs	new		the node memory budget split into pools by fixed shares
+src/warm_copy.rs	new		the joiner copy of one peer's hot pages: validated, batched and paced
+src/warm_copy/tests.rs	new		tests of the copy against a fake peer holding a warmed cache
