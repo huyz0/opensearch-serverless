@@ -29,6 +29,7 @@ mod repositories;
 mod routing;
 mod snapshot_capture;
 mod snapshot_take;
+mod snapshot_take_faults;
 mod snapshots;
 mod sweep;
 
