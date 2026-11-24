@@ -31,6 +31,7 @@ Not here: an index joining a bucket when created (so no index is a member yet), 
 ## S3 request budget
 
 With the switch off: unchanged. On: a member's head operations and publish are those of [bucket-heads](../bucket-heads/SPEC.md) and [bucket-member-register](../bucket-member-register/SPEC.md); the descriptor read that decides membership is one per index per hour. 0 LIST.
+- AC-9: a create accepts `index.serverless.bucket_group` (the group the index joins with, else its name) and `index.serverless.bucket` (`off` joins none, `auto` as unset, any other value 400); other create settings are still refused.
 
 ## Risks
 
