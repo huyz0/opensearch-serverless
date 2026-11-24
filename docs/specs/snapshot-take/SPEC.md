@@ -2,7 +2,7 @@
 
 ## Serves
 
-[ADR 0042](../../adr/0042-snapshots-taken-shallow-first.md): a Rust node takes a shallow snapshot in the Java shell's protocol and record format, behind `serverless.snapshots.enabled` and `serverless.snapshots.take.enabled` (both default false).
+[ADR 0042](../../adr/0042-snapshots-taken-shallow-first.md): a Rust node takes a shallow snapshot in the Java shell's protocol and record format, behind `serverless.snapshots.enabled` and `serverless.snapshots.take.enabled` (`serverless.snapshots.enabled` default true, the take default false).
 
 ## Acceptance criteria
 

@@ -414,3 +414,22 @@ fn a_removal_deletes_only_the_incarnation_it_names() {
     assert!(r.service.remove("logs", "u1").expect("removed"));
     assert!(descriptor_gone(&r, "logs"));
 }
+
+#[test]
+fn a_delete_that_reads_no_snapshots_costs_one_list_more_than_one_that_does_not() {
+    let r = pinned_rig();
+    create(&r, "logs", "u1", 1);
+    let before = requests(&r);
+    assert_eq!(delete(&r, "/logs").status, 200);
+    let spent = requests(&r) - before;
+    budget::check(
+        "index.delete_no_snapshots.requests",
+        spent,
+        "a delete that reads the snapshots and finds none",
+    );
+    let plain = rig();
+    create(&plain, "logs", "u1", 1);
+    let before = requests(&plain);
+    assert_eq!(delete(&plain, "/logs").status, 200);
+    assert_eq!(spent, requests(&plain) - before + 1, "one LIST page more");
+}
