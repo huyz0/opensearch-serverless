@@ -1,6 +1,6 @@
 # 0039: Repositories are registered and removed over REST, the Java's way, before snapshots are taken
 
-**Status:** Proposed, 2026-11-24 (awaiting independent review)
+**Status:** Accepted after independent review, 2026-11-24 (one round by a separate subagent given the ADR, the spec and the Java; it found the check order, `verify` as a URL parameter, the settings text form, comma lists on delete, the delete scan's prefixes and per-key reads, the orphan and race consequences, and the verify answer, all answered above)
 
 ## Context
 
