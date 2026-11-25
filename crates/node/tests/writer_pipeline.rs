@@ -316,3 +316,44 @@ fn a_node_that_takes_over_after_a_pipelined_node_keeps_every_acknowledged_write(
         }
     }
 }
+
+/// Records the first sequence number of each acknowledged group, in the
+/// order the sink was called.
+struct Records(Mutex<Vec<i64>>);
+
+impl TailSink for Records {
+    fn acked(&self, _: &str, _: &str, _: u32, records: &[WalRecord<'static>]) {
+        if let Some(first) = records.first() {
+            self.0.lock().expect("lock").push(first.seq_no());
+        }
+    }
+    fn published(&self, _: &str, _: u32, _: i64) {}
+    fn released(&self, _: &str, _: u32) {}
+}
+
+// AC-13
+#[test]
+fn groups_are_acknowledged_to_the_tail_in_sequence_order() {
+    let (_c, one) = rig(8);
+    let seen = Arc::new(Records(Mutex::new(Vec::new())));
+    assert!(one.role.set_tail_sink(seen.clone()));
+    let results = together(&one, &["a", "b", "c", "d", "e", "f"]);
+    assert!(results.iter().all(landed), "{results:?}");
+    let order = seen.0.lock().expect("lock").clone();
+    assert_eq!(order.len(), 6, "every group reached the tail: {order:?}");
+    assert!(order.windows(2).all(|w| w[0] < w[1]), "in order: {order:?}");
+}
+
+// AC-14
+#[test]
+fn at_the_largest_depth_sixty_four_groups_land_each_with_its_own_number() {
+    let (_c, one) = rig(64);
+    let ids: Vec<String> = (0..64).map(|n| format!("m{n}")).collect();
+    let refs: Vec<&str> = ids.iter().map(String::as_str).collect();
+    let results = together(&one, &refs);
+    assert!(results.iter().all(landed), "{results:?}");
+    let mut seqs: Vec<i64> = results.iter().map(seq).collect();
+    seqs.sort_unstable();
+    assert_eq!(seqs, (1..=64).collect::<Vec<i64>>(), "dense, none twice");
+    assert_eq!(one.role.max_seq_no("u1", 0), 64);
+}
