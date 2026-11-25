@@ -11,6 +11,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
+use oss_blob::S3Op;
 use oss_cluster::lease::SystemClock;
 use oss_cluster::transport_secret::TransportSecretStore;
 use oss_mem::{BudgetConfig, MemoryBudget, Pool};
@@ -80,8 +81,8 @@ fn rounds(cluster: &Cluster, from: usize, count: usize) -> Vec<Duration> {
 fn owner_write_time_with_and_without_forwarded_searches_at_the_pool_limit() {
     // OSS_LOAD_SEARCHERS searcher threads, OSS_LOAD_POOL as the node's limit,
     // OSS_LOAD_PAUSE_MS between one searcher's requests, OSS_LOAD_ROUNDS writes.
-    let searchers = knob("OSS_LOAD_SEARCHERS", 8);
-    let pool = knob("OSS_LOAD_POOL", 8);
+    let searchers = knob("OSS_LOAD_SEARCHERS", 2);
+    let pool = knob("OSS_LOAD_POOL", 2);
     let pause = Duration::from_millis(u64::try_from(knob("OSS_LOAD_PAUSE_MS", 0)).unwrap_or(0));
     let count = knob("OSS_LOAD_ROUNDS", 100);
     let mut cluster = Cluster::new(TTL_MS, 4, false).expect("emulated");
@@ -189,7 +190,9 @@ fn owner_write_time_with_and_without_forwarded_searches_at_the_pool_limit() {
     for round in 0..50 {
         write_round(&cluster, 20_000 + round);
     }
+    let before = S3Op::ALL.map(|op| cluster.sent(op));
     let alone = rounds(&cluster, 0, count);
+    let after_alone = S3Op::ALL.map(|op| cluster.sent(op));
 
     let stop = Arc::new(AtomicBool::new(false));
     let answered = Arc::new(AtomicU64::new(0));
@@ -215,6 +218,7 @@ fn owner_write_time_with_and_without_forwarded_searches_at_the_pool_limit() {
         .collect();
     std::thread::sleep(Duration::from_secs(1));
     let loaded = rounds(&cluster, 1_000, count);
+    let after_loaded = S3Op::ALL.map(|op| cluster.sent(op));
     stop.store(true, Ordering::Relaxed);
     for t in threads {
         t.join().expect("a searcher");
@@ -230,6 +234,25 @@ fn owner_write_time_with_and_without_forwarded_searches_at_the_pool_limit() {
         percentile(&loaded, 99),
         answered.load(Ordering::Relaxed),
         failed.load(Ordering::Relaxed),
+    );
+    eprintln!(
+        "AC11 requests per write round, alone {:?}, with searchers {:?} (all {} kinds, in S3Op::ALL order)",
+        S3Op::ALL
+            .iter()
+            .enumerate()
+            .map(|(i, _)| (after_alone[i] - before[i]) as f64 / count as f64)
+            .collect::<Vec<_>>(),
+        S3Op::ALL
+            .iter()
+            .enumerate()
+            .map(|(i, _)| (after_loaded[i] - after_alone[i]) as f64 / count as f64)
+            .collect::<Vec<_>>(),
+        S3Op::ALL.len(),
+    );
+    eprintln!(
+        "AC11 slowest rounds alone {:?}, with searchers {:?}",
+        &alone[alone.len().saturating_sub(5)..],
+        &loaded[loaded.len().saturating_sub(5)..],
     );
     assert!(
         answered.load(Ordering::Relaxed) > 0,

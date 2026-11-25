@@ -402,7 +402,7 @@ impl NodeConfig {
             3_600_000,
         )?;
         let search_shard_max_concurrent =
-            bounded("OSS_SEARCH_SHARD_ACTION_MAX_CONCURRENT", "8", 1, 256)?;
+            bounded("OSS_SEARCH_SHARD_ACTION_MAX_CONCURRENT", "2", 1, 256)?;
         let cluster_settings_poll_millis =
             bounded("OSS_CLUSTER_SETTINGS_POLL_MS", "30000", 1, 3_600_000)?;
         let refresh_visibility = REFRESH_VISIBILITY
@@ -473,7 +473,7 @@ impl NodeConfig {
             merge: crate::writer::MergeConfig::read(&get)?,
             search_shard_action,
             search_shard_max_lease_age_millis,
-            search_shard_max_concurrent: usize::try_from(search_shard_max_concurrent).unwrap_or(8),
+            search_shard_max_concurrent: usize::try_from(search_shard_max_concurrent).unwrap_or(2),
             tail_overlay,
             refresh_visibility,
             cluster_settings_poll_millis,
