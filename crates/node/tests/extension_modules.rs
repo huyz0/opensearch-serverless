@@ -38,6 +38,11 @@ fn escaped(bytes: &[u8]) -> String {
 /// An analyzer module (`point`), with or without an import and with a
 /// descriptor limit on fuel.
 fn module(point: &str, import: bool, fuel: Option<u64>) -> Vec<u8> {
+    module_with(point, import, fuel, "")
+}
+
+/// [`module`] whose call first runs `before`.
+fn module_with(point: &str, import: bool, fuel: Option<u64>, before: &str) -> Vec<u8> {
     let limits = fuel.map_or(String::new(), |f| format!(r#","limits":{{"fuel":{f}}}"#));
     let d = format!(
         r#"{{"name":"ana","version":"1.0.0","abi":"1.0","io_bytes":{IO},"max_concurrent_calls":8{limits},"points":[{{"id":"{point}","version":"1.0.0"}}]}}"#
@@ -63,6 +68,7 @@ fn module(point: &str, import: bool, fuel: Option<u64>) -> Vec<u8> {
   (func (export "oss_output_region") (result i32) (i32.const {out_at}))
   (func (export "oss_result_len") (result i32) (global.get $len))
   (func (export "oss_call") (param i32 i32 i32) (result i32)
+    {before}
     (memory.copy (i32.const {out_at}) (i32.const 1000) (i32.const {n}))
     (global.set $len (i32.const {n})) (i32.const 0)))"#,
         d = escaped(d.as_bytes()),
@@ -248,4 +254,47 @@ fn a_replay_that_exceeds_even_the_stretched_fuel_is_recorded_as_a_failure() {
     // A live write that fails is not a replay failure.
     assert!(analyzer.analyze("probe").is_err());
     assert_eq!(set.replay_failures(), 1);
+}
+
+// AC-8: the overlay's modules run under the record exactly and are not
+// refused by the tenant's share that live calls are held to.
+#[test]
+fn the_overlays_modules_are_not_refused_by_the_tenants_share() {
+    let r = rig(4);
+    let hash = put(
+        &r,
+        &module_with("analyzer", false, None, "(loop $l (br $l))"),
+    );
+    let set = Arc::new(
+        r.source
+            .open(&settings(&[("ext_a", &hash, 400_000_000)]), "t")
+            .expect("opens"),
+    );
+    let live = |set: &Arc<oss_node::extension_modules::ModuleSet>| {
+        let set = Arc::clone(set);
+        std::thread::spawn(move || {
+            let (_, a) = set.analyzers().next().expect("one");
+            a.analyze("probe").map(drop)
+        })
+    };
+    let spinners = [live(&set), live(&set)];
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    let (_, a) = set.analyzers().next().expect("one");
+    let busy = a.analyze("probe").unwrap_err();
+    assert_eq!(
+        busy.kind(),
+        oss_ext::FailureKind::Busy,
+        "the share is spent"
+    );
+    let tokens: &dyn oss_reader::pinned::PinnedTokens = set.as_ref();
+    let (_, overlay) = tokens.modules().into_iter().next().expect("one");
+    let e = overlay.analyze("probe").unwrap_err();
+    assert_ne!(
+        e.kind(),
+        oss_ext::FailureKind::Busy,
+        "an overlay build is let through and fails on its own fuel"
+    );
+    for s in spinners {
+        assert!(s.join().expect("joined").is_err());
+    }
 }

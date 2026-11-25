@@ -13,7 +13,7 @@ use oss_blob::BlobStore;
 use oss_ext::CallError;
 use oss_ext::analyzer::{Analyze, Token};
 use oss_ext::pin::{Pin, ResolvedLimits, read_pins};
-use oss_ext_wasm::{Host, LoadError, Module, Replay, Run};
+use oss_ext_wasm::{Host, LoadError, Module, Recovery, Replay, Run};
 use oss_mem::MemoryBudget;
 use oss_writer::mapping::json::{Json, parse};
 
@@ -22,6 +22,10 @@ use crate::extension_store::{self as store, StoreError};
 /// How long a replay waits for its reservation before the open is refused as
 /// retryable.
 const REPLAY_WAIT: Duration = Duration::from_secs(60);
+
+/// How long a tail overlay build waits for a call's reservation before the
+/// search answers a retryable 503.
+const OVERLAY_WAIT: Duration = Duration::from_secs(5);
 
 /// One pin's analyzer: a loaded module, the limits recorded for it, and the
 /// tenant its calls are counted to.
@@ -32,12 +36,20 @@ pub struct ModuleTokens {
     tenant: String,
     module_name: String,
     replaying: Arc<Replays>,
+    /// Set for the tail overlay's copy: calls skip the gate and the tenant's
+    /// share and wait this long for a reservation.
+    recovery: Option<Duration>,
 }
 
 impl Analyze for ModuleTokens {
     fn analyze(&self, text: &str) -> Result<Vec<Token>, CallError> {
         let replaying = self.replaying.on.load(Ordering::Acquire);
-        let run = if replaying {
+        let run = if let Some(wait) = self.recovery {
+            Run::Recovery(Recovery {
+                limits: self.limits,
+                wait,
+            })
+        } else if replaying {
             Run::Replay(Replay {
                 limits: self.limits,
                 factor: self.factor,
@@ -56,6 +68,23 @@ impl Analyze for ModuleTokens {
             })?;
         all.pop()
             .ok_or_else(|| CallError::malformed_because("no tokens for the text"))
+    }
+}
+
+impl ModuleTokens {
+    /// This analyzer as the tail overlay's build calls it: a recovery of
+    /// state, so not refused by the gate or the tenant's share.
+    fn for_overlay(&self) -> Arc<dyn Analyze> {
+        Arc::new(Self {
+            module: Arc::clone(&self.module),
+            limits: self.limits,
+            factor: self.factor,
+            // ALLOC: two names a pin, once an overlay build.
+            tenant: self.tenant.clone(),
+            module_name: self.module_name.clone(),
+            replaying: Arc::clone(&self.replaying),
+            recovery: Some(OVERLAY_WAIT),
+        })
     }
 }
 
@@ -214,6 +243,7 @@ impl ModuleSource {
                     // ALLOC: one name a pin.
                     module_name: pin.module.clone(),
                     replaying: Arc::clone(&replaying),
+                    recovery: None,
                 }),
             ));
         }
@@ -277,8 +307,9 @@ impl oss_reader::pinned::PinnedTokens for ModuleSet {
 
     fn modules(&self) -> Vec<(String, Arc<dyn Analyze>)> {
         // ALLOC: one entry a pin, at most four.
-        self.analyzers()
-            .map(|(name, a)| (name.to_owned(), a))
+        self.analyzers
+            .iter()
+            .map(|(name, t)| (name.clone(), t.for_overlay()))
             .collect()
     }
 }
