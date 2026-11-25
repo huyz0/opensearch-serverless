@@ -103,6 +103,27 @@ impl MappingError {
         Self::new("input_coercion_exception", reason)
     }
 
+    /// A failed module call, typed by what a caller can do about it: 429
+    /// `extension_busy` for capacity, 502 `extension_malformed` for a
+    /// module that broke the contract, 400 `extension_failed` for a failure a
+    /// retry would repeat. The write never falls back to a built-in analyzer.
+    pub fn extension(failure: &oss_ext::CallError) -> Self {
+        let ty = match failure.http_status() {
+            429 => "extension_busy",
+            502 => "extension_malformed",
+            _ => "extension_failed",
+        };
+        // ALLOC: error path; one message.
+        Self::new(
+            ty,
+            &format!(
+                "the analyzer module failed ({:?}): {}",
+                failure.kind(),
+                failure.detail()
+            ),
+        )
+    }
+
     /// `IllegalStateException`.
     pub fn illegal_state(reason: &str) -> Self {
         Self::new("illegal_state_exception", reason)
