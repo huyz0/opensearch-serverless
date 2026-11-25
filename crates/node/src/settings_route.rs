@@ -14,6 +14,7 @@ use oss_doc::mapping::json::{Json, parse as parse_json};
 use oss_meta::{DescriptorStore, MetaError, Target};
 use oss_rest::{JSON, Method, Request, Response, RestError, RouteError, Router};
 
+use crate::metadata_block;
 use crate::route_util::{read_body, refuse};
 
 /// The most bytes of a settings body.
@@ -116,38 +117,20 @@ impl Scope for Registry {
     }
 }
 
-/// Whether the stored settings set the block `key` to `true`.
-fn holds_block(settings: &[u8], key: &str) -> bool {
-    let Ok(Json::Obj(top)) = parse_json(settings) else {
-        return false;
-    };
-    // ALLOC: the stored settings, bounded by the descriptor.
-    let mut held: Vec<(String, Json)> = Vec::new();
-    flat_members(&top, "", &mut held);
-    held.iter()
-        .any(|(k, v)| k == key && text_of(v).trim() == "true")
-}
-
 /// The refusal of a settings change to an index with a metadata block,
 /// unless the change sets only block settings (so the block can be lifted).
 fn metadata_blocked(index: &str, settings: &[u8], requested: &[Setting]) -> Result<(), RestError> {
     if requested
         .iter()
         .all(|(k, _)| k.starts_with("index.blocks."))
-        || !holds_block(settings, "index.blocks.metadata")
     {
         return Ok(());
     }
-    Err(refuse(
-        403,
-        "cluster_block_exception",
-        // ALLOC: error path; one message.
-        format!("index [{index}] blocked by: [FORBIDDEN/9/index metadata (api)];"),
-    ))
+    metadata_block::check_settings(index, settings)
 }
 
 /// A setting's value as the text a request gives.
-fn text_of(value: &Json) -> String {
+pub(crate) fn text_of(value: &Json) -> String {
     match value {
         Json::Str(s) | Json::Num(s) => s.clone(),
         Json::Bool(b) => b.to_string(),
@@ -157,7 +140,11 @@ fn text_of(value: &Json) -> String {
 
 /// The members of a settings object with nested objects folded into dotted
 /// keys: `{"index":{"codec":"x"}}` reads as `index.codec`.
-fn flat_members(members: &[(String, Json)], prefix: &str, out: &mut Vec<(String, Json)>) {
+pub(crate) fn flat_members(
+    members: &[(String, Json)],
+    prefix: &str,
+    out: &mut Vec<(String, Json)>,
+) {
     for (key, value) in members {
         let name = if prefix.is_empty() {
             key.clone()

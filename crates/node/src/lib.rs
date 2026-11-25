@@ -86,6 +86,8 @@ pub mod lease_age;
 pub mod lease_announce;
 #[cfg(feature = "writer")]
 pub mod lifecycle;
+#[cfg(all(feature = "writer", feature = "coordinator"))]
+pub(crate) mod metadata_block;
 #[cfg(feature = "writer")]
 pub mod newest;
 #[cfg(feature = "reader")]
