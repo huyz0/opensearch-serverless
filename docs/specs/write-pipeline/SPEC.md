@@ -33,10 +33,13 @@ A write group held its shard's slot lock across the wait for the node log, so tw
 - AC-14: at the largest depth (64), sixty-four groups of one shard land, each with its own number, none twice.
 - AC-15: at depth 8, a bulk with one 300 KiB item among fifty tiny ones is applied whole.
 - AC-16: at depth 8, a field a write introduces is in the index's descriptor before the write is acknowledged (as at depth 1), so every node maps it.
+- AC-17: a window that lands behind a failed one (A's PUT fails, B's window is sent after it and lands, or lands and answers an error) leaves B refused, never acknowledged after A's missing one; the shard takes writes again and a node that takes over keeps what was acknowledged after.
+- AC-18: at depth 64, sixty-four bulks sharing one bulk budget never hold more bytes than the budget, each lands, and all is given back.
+- AC-19: a body larger than the share it holds (about 250 KiB of items against a 64 KiB slice) is applied in slices, each its own group and window, none holding more than the share.
 
 ## Test plan
 
-`crates/writer/tests/node_log_staged.rs` (AC-1), `crates/node/tests/writer_pipeline.rs` (AC-2 to AC-6, AC-9 to AC-14), `crates/node/tests/server/boot_write_concurrency.rs` (AC-7, AC-8, a booted node over a file store).
+`crates/writer/tests/node_log_staged.rs` (AC-1), `crates/node/tests/writer_pipeline.rs` (AC-2 to AC-6, AC-9 to AC-14) and `crates/node/tests/writer_pipeline_bounds.rs` (AC-17 to AC-19), `crates/node/tests/server/boot_write_concurrency.rs` (AC-7, AC-8, a booted node over a file store).
 
 ## S3 request budget
 
