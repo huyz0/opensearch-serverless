@@ -90,3 +90,31 @@ fn a_text_with_no_token_is_numbered_but_written_nowhere_alone_or_beside_others()
     let taken = run(mapping, &docs);
     assert!(taken[1..].iter().filter(|&&t| t).count() >= 3, "{taken:?}");
 }
+
+// docs/specs/extension-analyzer AC-10: a pinned field is never read by the
+// plan, which would analyze it with the built-in analyzer.
+#[test]
+fn a_document_with_a_pinned_analyzer_is_left_to_the_complete_path() {
+    let dir = ByteBuffersDirectory::new();
+    let mut side = side(&dir, r#"{"properties":{"t":{"type":"text"}}}"#);
+    let key = uid("id1").expect("uid");
+    let source = br#"{"t":"hello world"}"#;
+    // The plan reads the fields the engine has numbered.
+    side.slow("id0", 0, source);
+    assert!(
+        FastIngest::new()
+            .prepare(&side.indexer, &side.mapping, source, &key)
+            .is_some(),
+        "the same field with no pin is read by the plan"
+    );
+    side.mapping = oss_doc::mapping::Mapping::parse_pinned(
+        br#"{"properties":{"t":{"type":"text","analyzer":"ext_shout"}}}"#,
+        oss_doc::mapping::ParseOptions::default(),
+    )
+    .expect("mapping");
+    assert!(
+        FastIngest::new()
+            .prepare(&side.indexer, &side.mapping, source, &key)
+            .is_none()
+    );
+}
