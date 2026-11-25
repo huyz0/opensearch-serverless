@@ -81,7 +81,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
             }
         }
         let lead = Lead::new(&self.open, &key);
-        let (files, meta) = match self.find_commit(index, shard) {
+        let (files, meta, unpublished) = match self.find_commit(index, shard) {
             Ok(found) => found,
             Err(ReaderError::Format(oss_format::FormatError::NotFollowable {
                 reason: "no such shard",
@@ -106,7 +106,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
         if shard >= meta.number_of_shards {
             return Err(out_of_range(index, shard));
         }
-        let held = self.open_held(index, shard, files, meta, true)?;
+        let held = self.open_held(index, shard, files, meta, true, unpublished)?;
         Ok(lead.opened(held))
     }
 
@@ -120,6 +120,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
         files: ShardFiles,
         meta: oss_reader::IndexMeta,
         overlays: bool,
+        unpublished: bool,
     ) -> Result<Arc<Held<S>>, Answer> {
         let stage = files.stage().clone();
         // An index that pins analyzers needs their modules; a node that
@@ -187,6 +188,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
                 None
             },
             epoch: self.epoch,
+            unpublished,
         }))
     }
 
@@ -197,7 +199,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
         &self,
         index: &str,
         shard: u32,
-    ) -> Result<(ShardFiles, oss_reader::IndexMeta), ReaderError> {
+    ) -> Result<(ShardFiles, oss_reader::IndexMeta, bool), ReaderError> {
         let key = ShardKey::new(index, shard);
         let taken = lock_pushed(&self.pushed).take(&key, self.now_millis());
         if let Some(taken) = taken
@@ -210,7 +212,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
             )
             && meta.uuid == taken.uuid
         {
-            return Ok((files, meta));
+            return Ok((files, meta, false));
         }
         // No push, a push that is no commit, or one for an index since
         // recreated: the register decides, or the newer commit its writer
@@ -232,10 +234,13 @@ impl<S: BlobStore + 'static> SearchService<S> {
             Err(ReaderError::Blob(BlobError::NotFound))
                 if self.has_overlay_source() && self.fresh.get().is_some() =>
             {
-                let now = i64::try_from(crate::clock::now_millis()).unwrap_or(i64::MAX);
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX));
                 ShardFiles::open_unpublished_with_meta(&self.store, &self.base, index, shard, now)
+                    .map(|(files, meta)| (files, meta, true))
             }
-            other => other,
+            other => other.map(|(files, meta)| (files, meta, false)),
         }
     }
 }

@@ -220,7 +220,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
                     e => super::open_shard::open_failure(&view.index, e),
                 },
             )?;
-        let held = self.open_held(&view.index, shard, files, meta, false)?;
+        let held = self.open_held(&view.index, shard, files, meta, false, false)?;
         Ok(lead.opened(held))
     }
 }

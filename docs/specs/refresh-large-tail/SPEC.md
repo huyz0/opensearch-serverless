@@ -34,7 +34,7 @@ AC-2, `crates/node/tests/refresh_large_tail.rs`, was red six runs of six before 
 
 ## S3 request budget
 
-The string change adds or removes no store request. AC-3's change adds none to an open that finds a register; one that does not reads the head (one GET) as it did to decide the register was lost, and the descriptor once more for the empty commit.
+The string change adds or removes no store request. AC-3's change adds none to an open that finds a register; one that does not reads the head (one GET) as it did to decide the register was lost, then the descriptor and the head once more for the empty commit (five GETs in all, once an open). The empty commit answers a search only under a complete tail from the writer: a writer that does not answer, or whose tail has a gap because it has published (the register is lost), makes the search a 503 `shard_behind_exception`, never an empty 200.
 
 ## Switch
 

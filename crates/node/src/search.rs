@@ -55,6 +55,10 @@ pub(crate) struct Held<S: BlobStore + 'static> {
     /// Told when this engine lets go, so it can drop what it kept for it.
     source: Option<Arc<dyn OverlaySource>>,
     epoch: Instant,
+    /// Opened on the empty commit of a shard whose first publish has not
+    /// landed: a search of it is answered only under a tail the writer
+    /// confirmed as complete.
+    pub(crate) unpublished: bool,
 }
 
 /// How many shards' pushed commits a node keeps for the opens that follow.

@@ -189,6 +189,12 @@ impl TailFresh {
         )
     }
 
+    /// Whether the tail this node holds from `writer` covers every write the
+    /// writer acknowledged.
+    pub fn holds_tail(&self, uuid: &str, shard: u32, writer: &str) -> bool {
+        self.held.holds(uuid, shard, writer)
+    }
+
     fn granted(&self, uuid: &str, shard: u32, writer: &str) -> bool {
         self.held.granted(uuid, shard, writer, (self.clock)())
     }
