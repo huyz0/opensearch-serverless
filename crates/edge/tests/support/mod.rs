@@ -1,0 +1,242 @@
+//! A real HTTP/1.1 server with a few routes, and clients for it.
+
+#![allow(dead_code, missing_docs)]
+
+use std::io::Write;
+use std::net::{SocketAddr, TcpListener};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::time::Duration;
+
+use bytes::Bytes;
+use oss_mem::{BudgetConfig, MemoryBudget, Pool};
+use oss_rest::{JSON, Length, Method, Request, Response, Router, Server, ServerConfig};
+
+pub const WORKERS: usize = 16;
+/// The largest body the test server accepts.
+pub const MAX_BODY: u64 = 1 << 20;
+
+/// Handlers' shared state.
+#[derive(Default)]
+pub struct State {
+    pub release: AtomicBool,
+    pub holding: AtomicUsize,
+}
+
+pub fn budget(bytes: usize) -> MemoryBudget {
+    let config = BudgetConfig::new(bytes)
+        .with_pool(Pool::RequestBodies, bytes)
+        .expect("fits");
+    MemoryBudget::new(&config)
+}
+
+/// Routes: `/` and `/echo` answer JSON, `/sum` counts a body, `/big` streams 8 MiB chunked,
+/// `/hold` waits for `release`.
+pub fn start(state: &Arc<State>) -> (Server, MemoryBudget, SocketAddr) {
+    start_with(state, MAX_BODY)
+}
+
+/// As [`start`], with the node's `max_content_length` set.
+pub fn start_with(state: &Arc<State>, max_body: u64) -> (Server, MemoryBudget, SocketAddr) {
+    let budget = budget(64 << 20);
+    let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
+    let s = Arc::clone(state);
+    let router = Router::new()
+        .route(
+            Method::Get,
+            "/",
+            &[],
+            |req: &mut Request<'_>, resp: &mut Response<'_>| {
+                let host = req.header("host").unwrap_or("-").to_owned();
+                let xff = req.header("x-forwarded-for").unwrap_or("-").to_owned();
+                resp.send(
+                    200,
+                    JSON,
+                    format!("{{\"host\":\"{host}\",\"xff\":\"{xff}\"}}").as_bytes(),
+                )
+            },
+        )
+        .and_then(|r| {
+            r.route(
+                Method::Post,
+                "/sum",
+                &[],
+                |req: &mut Request<'_>, resp: &mut Response<'_>| {
+                    let mut total = 0usize;
+                    while let Some(chunk) = req.body().next_chunk()? {
+                        total = total.saturating_add(chunk.len());
+                    }
+                    resp.send(200, JSON, format!("{{\"bytes\":{total}}}").as_bytes())
+                },
+            )
+        })
+        .and_then(|r| {
+            r.route(
+                Method::Get,
+                "/big",
+                &[],
+                |_: &mut Request<'_>, resp: &mut Response<'_>| {
+                    let mut w = resp.start(200, Some(JSON), Length::Chunked, &[])?;
+                    let block = [b'x'; 4096];
+                    for _ in 0..2048 {
+                        w.write_all(&block)?;
+                    }
+                    w.finish()
+                },
+            )
+        })
+        .and_then(|r| {
+            r.route(
+                Method::Get,
+                "/hold",
+                &[],
+                move |_: &mut Request<'_>, resp: &mut Response<'_>| {
+                    s.holding.fetch_add(1, Ordering::AcqRel);
+                    while !s.release.load(Ordering::Acquire) {
+                        std::thread::sleep(Duration::from_millis(10));
+                    }
+                    s.holding.fetch_sub(1, Ordering::AcqRel);
+                    resp.send(200, JSON, b"{}")
+                },
+            )
+        })
+        .expect("routes");
+    let config = ServerConfig {
+        workers: WORKERS,
+        max_connections: 64,
+        body_buffers: 16,
+        max_content_length: max_body,
+        ..ServerConfig::default()
+    };
+    let server = Server::start(listener, config, router, &budget).expect("starts");
+    let addr = server.local_addr();
+    (server, budget, addr)
+}
+
+/// What one request answered.
+#[derive(Debug, PartialEq, Eq)]
+pub struct Answer {
+    pub status: u16,
+    pub content_type: Option<String>,
+    pub body: Vec<u8>,
+}
+
+/// An HTTP/1.1 request on its own connection.
+pub fn h1(addr: SocketAddr, method: &str, path: &str, host: &str, body: &[u8]) -> Answer {
+    use std::io::Read;
+    let mut s = std::net::TcpStream::connect(addr).expect("connects");
+    s.set_read_timeout(Some(Duration::from_secs(30)))
+        .expect("timeout");
+    let head = format!(
+        "{method} {path} HTTP/1.1\r\nhost: {host}\r\ncontent-type: application/json\r\nconnection: close\r\ncontent-length: {}\r\n\r\n",
+        body.len()
+    );
+    s.write_all(head.as_bytes()).expect("head");
+    s.write_all(body).expect("body");
+    let mut raw = Vec::new();
+    let mut piece = [0u8; 8192];
+    loop {
+        match s.read(&mut piece) {
+            Ok(0) | Err(_) => break,
+            Ok(n) => raw.extend_from_slice(&piece[..n]),
+        }
+    }
+    parse_h1(&raw)
+}
+
+fn parse_h1(raw: &[u8]) -> Answer {
+    let split = raw
+        .windows(4)
+        .position(|w| w == b"\r\n\r\n")
+        .expect("head end");
+    let head = String::from_utf8_lossy(&raw[..split]).into_owned();
+    let status = head
+        .split(' ')
+        .nth(1)
+        .expect("status")
+        .parse()
+        .expect("number");
+    let lower = head.to_ascii_lowercase();
+    let content_type = lower
+        .lines()
+        .find_map(|l| l.strip_prefix("content-type: "))
+        .map(str::to_owned);
+    let rest = &raw[split.saturating_add(4)..];
+    let body = if lower.contains("transfer-encoding: chunked") {
+        let mut out = Vec::new();
+        let mut at = 0;
+        loop {
+            let eol = rest[at..]
+                .windows(2)
+                .position(|w| w == b"\r\n")
+                .expect("size line")
+                .saturating_add(at);
+            let n = usize::from_str_radix(std::str::from_utf8(&rest[at..eol]).expect("utf8"), 16)
+                .expect("hex");
+            if n == 0 {
+                break;
+            }
+            let from = eol.saturating_add(2);
+            let to = from.saturating_add(n);
+            out.extend_from_slice(&rest[from..to]);
+            at = to.saturating_add(2);
+        }
+        out
+    } else {
+        rest.to_vec()
+    };
+    Answer {
+        status,
+        content_type,
+        body,
+    }
+}
+
+/// An HTTP/2 request over an established client connection.
+pub async fn h2_request(
+    send: &mut h2::client::SendRequest<Bytes>,
+    method: &str,
+    uri: &str,
+    body: Option<Bytes>,
+) -> Result<Answer, h2::Error> {
+    let request = http::Request::builder()
+        .method(method)
+        .uri(uri)
+        .header("content-type", "application/json")
+        .body(())
+        .expect("request");
+    let (response, mut stream) = send.send_request(request, body.is_none())?;
+    if let Some(body) = body {
+        stream.send_data(body, true)?;
+    }
+    let response = response.await?;
+    let status = response.status().as_u16();
+    let content_type = response
+        .headers()
+        .get("content-type")
+        .map(|v| v.to_str().expect("text").to_ascii_lowercase());
+    let mut recv = response.into_body();
+    let mut out = Vec::new();
+    while let Some(next) = recv.data().await {
+        let data = next?;
+        recv.flow_control().release_capacity(data.len())?;
+        out.extend_from_slice(&data);
+    }
+    Ok(Answer {
+        status,
+        content_type,
+        body: out,
+    })
+}
+
+/// A clear-text HTTP/2 client connection.
+pub async fn h2c(addr: SocketAddr) -> h2::client::SendRequest<Bytes> {
+    let tcp = tokio::net::TcpStream::connect(addr)
+        .await
+        .expect("connects");
+    let (send, conn) = h2::client::handshake(tcp).await.expect("handshake");
+    tokio::spawn(async move {
+        let _ = conn.await;
+    });
+    send
+}

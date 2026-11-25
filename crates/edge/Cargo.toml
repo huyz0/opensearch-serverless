@@ -1,0 +1,33 @@
+[package]
+name = "oss-edge"
+description = "opensearch-serverless: the protocol front: HTTP/2 over clear text and TLS, bridged to the HTTP/1.1 server (docs/adr/0058)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+oss-mem = { workspace = true }
+tokio = { version = "1", default-features = false, features = ["rt-multi-thread", "net", "io-util", "time", "sync", "macros"] }
+h2 = "0.4"
+http = "1"
+bytes = "1"
+httparse = "1"
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+
+[dev-dependencies]
+oss-rest = { workspace = true }
+oss-testkit = { workspace = true }
+tokio = { version = "1", default-features = false, features = ["rt-multi-thread", "net", "io-util", "time", "sync", "macros"] }
+# Test-only: a throwaway certificate for the TLS tests.
+rcgen = { version = "0.13", default-features = false, features = ["ring", "pem"] }
+
+# Its own binary: the counting allocator is process-wide.
+[[test]]
+name = "peak_memory"
+
+[lints]
+workspace = true

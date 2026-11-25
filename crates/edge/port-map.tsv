@@ -1,0 +1,8 @@
+rust_path	kind	java_source	note
+src/config.rs	new		protocol front, no Java counterpart
+src/lib.rs	new		protocol front, no Java counterpart
+src/serve.rs	new		protocol front, no Java counterpart
+src/stream.rs	new		protocol front, no Java counterpart
+src/tls.rs	new		protocol front, no Java counterpart
+src/translate.rs	new		protocol front, no Java counterpart
+src/upstream.rs	new		protocol front, no Java counterpart

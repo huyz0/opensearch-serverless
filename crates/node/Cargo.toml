@@ -12,6 +12,9 @@ repository.workspace = true
 # Each role is a build switch. The reader is the first role built
 # (docs/roadmap.md), so it is the only one on by default.
 default = ["reader"]
+# The protocol front: HTTP/2 over clear text and TLS, bridged to the HTTP/1.1 server (docs/adr/0058). Off by default; with it
+# off, an OSS_EDGE_* listener is refused at start rather than ignored.
+edge = ["dep:oss-edge", "dep:oss-rest", "dep:oss-mem"]
 reader = [
     "dep:oss-reader",
     "dep:oss-rest",
@@ -63,6 +66,7 @@ oss-ext = { workspace = true }
 oss-ext-wasm = { workspace = true, optional = true }
 sha2 = { version = "=0.11.1", optional = true }
 oss-rest = { workspace = true, optional = true }
+oss-edge = { workspace = true, optional = true }
 oss-transport = { workspace = true, optional = true }
 oss-cluster = { workspace = true, optional = true }
 oss-meta = { workspace = true, optional = true }

@@ -27,6 +27,7 @@ graph TD
     oss-doc --> chunkjson
     oss-doc --> oss-ext
     oss-doc --> oss-rest
+    oss-edge --> oss-mem
     oss-ext
     oss-ext-wasm --> oss-ext
     oss-format --> oss-types
@@ -42,6 +43,7 @@ graph TD
     oss-node -.-> oss-cluster
     oss-node -.-> oss-coordinator
     oss-node -.-> oss-doc
+    oss-node -.-> oss-edge
     oss-node --> oss-ext
     oss-node -.-> oss-ext-wasm
     oss-node -.-> oss-format

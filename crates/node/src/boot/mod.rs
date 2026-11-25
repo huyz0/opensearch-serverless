@@ -6,6 +6,7 @@
 //! cost a handover and never a write.
 
 mod config;
+mod edge;
 mod error;
 mod follow;
 mod join;
@@ -53,7 +54,10 @@ pub use config::{MIN_MEMORY_BYTES, NodeConfig, StoreChoice};
 pub use error::BootError;
 use renew::{Cadence, Renewal};
 pub use retire::{Retired, retire_within, within};
-use support::{Held, address_bytes, earlier_epochs, store_of, usage_of};
+use support::{
+    Held, INCARNATION_WINDOW, REPLAY_BUFFER, REPLAY_CAPACITY, address_bytes, earlier_epochs,
+    store_of, usage_of,
+};
 
 /// The most members a node's membership view holds.
 const MAX_MEMBERS: usize = 1024;
@@ -61,18 +65,10 @@ const MAX_MEMBERS: usize = 1024;
 /// The buffer a descriptor, a head or a lease is read through.
 const READ_BUFFER: usize = 1 << 20;
 
-/// The bytes a takeover's replay buffers before it commits locally.
-const REPLAY_BUFFER: usize = 16_777_216;
-
-/// The most request nonces the transport remembers.
-const REPLAY_CAPACITY: usize = 65_536;
-
-/// How long a held shard's index incarnation is trusted before it is read again.
-const INCARNATION_WINDOW: Duration = Duration::from_secs(600);
-
 /// A node running: dropping it stops its lease renewal, its servers, and
 /// releases its lease.
 pub struct Node {
+    edge: edge::Front,
     running: Option<Running>,
     transport: Option<TransportServer>,
     renewal: Option<Renewal>,
@@ -126,6 +122,7 @@ impl Node {
 
 impl Drop for Node {
     fn drop(&mut self) {
+        self.edge.stop();
         // The renewal stops first, so it cannot write the lease back.
         drop(self.renewal.take());
         drop(self.dead_logs.take());
@@ -422,6 +419,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     let running = assembled
         .start(listener, config.rest_config(), &budget)
         .map_err(BootError::Assemble)?;
+    let edge = edge::start(config, &running, &budget)?;
     // Dead nodes naming log epochs come from each renewal's refresh; a thread of its own collects them.
     let mailbox = Arc::new(DeadMailbox::default());
     let posting = Arc::clone(&mailbox);
@@ -487,6 +485,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     })
     .map_err(|e| BootError::Cluster(format!("dead log thread: {e}")))?;
     Ok(Node {
+        edge,
         transport: Some(transport_server),
         running: Some(running),
         renewal: Some(renewal),
