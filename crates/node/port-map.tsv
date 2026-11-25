@@ -195,3 +195,10 @@ src/index_route/mapping.rs	port	serverless/shell/src/main/java/org/opensearch/se
 src/search_queue.rs	new		the node side of the bounded search queue (ADR 0056); the shell has no queue off the workers
 src/boot/config/search_queue.rs	new		the search queue and connection settings
 src/boot/config/store_debug.rs	new		`StoreChoice`'s Debug, split out of config.rs to hold its size
+src/search_shard_action/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/transport/ForwardedWorkHandlers.java	the owner's side of handleSearch: refuses a shard it does not hold or a recreated index, answers from its own view while its lease is recent; the Java searches its shard directly
+src/search_shard_action/convert.rs	new		a forwarded search's source as the reader's search source, and the shard search it runs, tests of both (ADR 0057)
+src/search_shard_action/convert_tests.rs	new		a forwarded search's source as the reader's search source, and the shard search it runs, tests of both (ADR 0057)
+src/search_shard_action/local.rs	new		a forwarded search's source as the reader's search source, and the shard search it runs, tests of both (ADR 0057)
+src/search_shard_action/tests.rs	new		a forwarded search's source as the reader's search source, and the shard search it runs, tests of both (ADR 0057)
+src/lease_age.rs	new		when this node last renewed its own lease, for the handlers that must not answer from a stale one (ADR 0057)
+src/boot/search_shard.rs	new		the forwarded shard search action's slot and its install at boot (ADR 0057)

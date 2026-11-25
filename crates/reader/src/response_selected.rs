@@ -8,6 +8,7 @@ use oss_blob::BlobStore;
 
 use lucene_search::Explanation;
 
+use super::values::write_id;
 use super::{Fetch, HitView, Stored, prefetch, write_hit_list};
 use crate::OpenShard;
 use crate::aggs::metric::top_hits::TopHitsResult;
@@ -234,4 +235,110 @@ pub(crate) fn top_hits_body(total: u64, max_score: Option<f32>, hits: &[Vec<u8>]
     }
     out.extend_from_slice(b"]}");
     out
+}
+
+/// One hit of a shard as a forwarded search carries it: the stored fields
+/// and the doc values, not yet written as JSON.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Row {
+    /// The `_id` as a JSON string literal (quoted and escaped).
+    pub id_json: Vec<u8>,
+    /// The score; `None` when the hit was sorted by fields.
+    pub score: Option<f32>,
+    /// The `_version`, when the document has one.
+    pub version: Option<i64>,
+    /// The `_seq_no`, when the document has one.
+    pub seq_no: Option<i64>,
+    /// The `_primary_term`, when the document has one.
+    pub primary_term: Option<i64>,
+    /// The `_source` as the hits' `_source` filter writes it; empty when the
+    /// filter skips it or the document stored none.
+    pub source: Vec<u8>,
+}
+
+/// Each of `hits` as a [`Row`], in order; `reserve` grants the buffers a
+/// hit's `_id`, `_source` and scratch are read into.
+///
+/// # Errors
+///
+/// An error when a hit cannot be fetched.
+pub fn fetch_rows<S: BlobStore + 'static>(
+    shard: &OpenShard<S>,
+    hits: &Hits,
+    reserve: &mut dyn FnMut(usize) -> io::Result<()>,
+) -> io::Result<Vec<Row>> {
+    prefetch(shard, &[&hits.hits])?;
+    let mut stored = Stored::new(reserve);
+    let readers = shard.reader.segment_readers();
+    // ALLOC: one row a hit, at most the result window.
+    let mut rows = Vec::with_capacity(hits.hits.len());
+    for hit in &hits.hits {
+        let segment = readers
+            .iter()
+            .rev()
+            .find(|r| r.doc_base <= hit.doc)
+            .ok_or_else(|| io::Error::other("a hit outside every segment"))?;
+        let doc = hit.doc.saturating_sub(segment.doc_base);
+        let infos = segment.field_infos();
+        stored.id_field = infos.field_by_name("_id").map(|f| f.number);
+        stored.source_field = infos.field_by_name("_source").map(|f| f.number);
+        stored.id.clear();
+        stored.source.clear();
+        segment
+            .visit_source_document(doc, &mut stored)
+            .map_err(io::Error::other)?;
+        if let Some(e) = stored.refused.take() {
+            return Err(e);
+        }
+        // ALLOC: the id's literal, bounded by the stored id.
+        let mut id_json = Vec::new();
+        write_id(&mut id_json, &stored.id)?;
+        // ALLOC: the hit's source, reserved by `stored` as it was read.
+        let mut source = Vec::new();
+        if !hits.source.skip && !stored.source.is_empty() {
+            if hits.source.is_whole() {
+                source.extend_from_slice(&stored.source);
+            } else {
+                (stored.reserve)(crate::fetch::source_filter::scratch_bytes(
+                    stored.source.len(),
+                ))?;
+                crate::fetch::source_filter::write_filtered(
+                    &mut source,
+                    &hits.source,
+                    &stored.source,
+                )?;
+            }
+        }
+        let mut meta = Vec::new();
+        crate::fetch::hit_meta::write_meta(
+            &mut meta,
+            HitMeta {
+                version: true,
+                seq_no: true,
+            },
+            segment,
+            doc,
+        )?;
+        let meta = String::from_utf8_lossy(&meta);
+        let (version, seq_no, primary_term) = (
+            meta_value(&meta, "_version"),
+            meta_value(&meta, "_seq_no"),
+            meta_value(&meta, "_primary_term"),
+        );
+        rows.push(Row {
+            id_json,
+            score: hit.score,
+            version,
+            seq_no,
+            primary_term,
+            source,
+        });
+    }
+    Ok(rows)
+}
+
+/// The number after `,"name":` in what `write_meta` wrote, when it wrote it.
+pub(super) fn meta_value(meta: &str, name: &str) -> Option<i64> {
+    let after = meta.split_once(&format!(",\"{name}\":"))?.1;
+    after.split(',').next()?.parse().ok()
 }

@@ -10,7 +10,8 @@ The Rust node registers `internal:serverless/search/shard`. It verifies the MAC 
 
 ## Acceptance criteria
 
-- AC-1: `ForwardedSearchRequest` bytes written by the Java shell (fixtures, with the Java build that wrote them recorded) for each supported query, including non-default `boost`, `_name`, `range` `format` and `time_zone`, and `bool` `minimum_should_match`, decode to the request the Rust search takes.
+- AC-1: `ForwardedSearchRequest` bytes written by the Java shell (fixtures, with the Java build that wrote them recorded) for each supported query, including non-default `boost`, `_name`, `range` `format` and `time_zone`, and `bool` `minimum_should_match`, decode to the request the Rust search takes (a decoded request the reader does not run is AC-1c).
+- AC-1c: a decoded request with a named query or a `range` `format` is refused by name when the search is built, and every other fixture request becomes a search the reader runs.
 - AC-1b: a request with an unsupported query or field before later fields is refused naming the first unsupported item, and nothing after it is read.
 - AC-2: a `ForwardedSearchResponse` written for the same hits is equal byte for byte to the Java writer's fixture, at stream version 3.10.0, including the `false` aggregations flag.
 - AC-3: a forwarded search for a shard this node writes returns documents that are acknowledged and not yet published.

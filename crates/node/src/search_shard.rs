@@ -30,6 +30,21 @@ pub struct ShardQuery<S: BlobStore + 'static> {
 }
 
 impl<S: BlobStore + 'static> ShardQuery<S> {
+    /// Every hit of [`Self::hits`] as the fields a forwarded search carries
+    /// (see [`oss_reader::response::Row`]); `reserve` grants the buffers a
+    /// hit's fields are read into.
+    ///
+    /// # Errors
+    ///
+    /// An error when a hit cannot be fetched or its buffers are refused.
+    pub fn rows(
+        &self,
+        reserve: &mut dyn FnMut(usize) -> io::Result<()>,
+    ) -> io::Result<Vec<oss_reader::response::Row>> {
+        let shard = self.view.as_deref().unwrap_or(&self.held.shard);
+        oss_reader::response::fetch_rows(shard, &self.hits, reserve)
+    }
+
     /// Each hit at `positions` of [`Self::hits`] written as the shard's own
     /// response writes it, in the order given; `reserve` grants the buffers
     /// a hit's fields are read into.

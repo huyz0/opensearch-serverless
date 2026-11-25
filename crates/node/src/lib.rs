@@ -81,6 +81,8 @@ pub mod ingest_run;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub mod knn_setting;
 #[cfg(all(feature = "reader", feature = "writer"))]
+pub mod lease_age;
+#[cfg(all(feature = "reader", feature = "writer"))]
 pub mod lease_announce;
 #[cfg(feature = "writer")]
 pub mod lifecycle;
@@ -124,6 +126,8 @@ pub mod search;
 pub mod search_modules;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod search_queue;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod search_shard_action;
 #[cfg(feature = "reader")]
 pub mod search_slots;
 #[cfg(feature = "writer")]

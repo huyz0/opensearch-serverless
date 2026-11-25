@@ -189,6 +189,12 @@ pub struct NodeConfig {
     pub proactive_max_concurrent: usize,
     /// `serverless.takeover.proactive.pass_millis`.
     pub proactive_pass_millis: u64,
+    /// `serverless.search.shard_action.enabled`: the Java shell's forwarded shard search.
+    pub search_shard_action: bool,
+    /// `serverless.search.shard_action.max_lease_age_millis`.
+    pub search_shard_max_lease_age_millis: u64,
+    /// `serverless.search.shard_action.max_concurrent`.
+    pub search_shard_max_concurrent: usize,
     /// `serverless.search.tail_overlay.enabled`: whether writers push their
     /// acknowledged writes to readers and searches see them.
     pub tail_overlay: bool,
@@ -386,6 +392,15 @@ impl NodeConfig {
             ))
             .map_err(|e| format!("OSS_ORPHAN_SLICE_MS: {e}"))?;
         let proactive_pass_millis = bounded("OSS_PROACTIVE_PASS_MS", "60000", 1, 3_600_000)?;
+        let search_shard_action = flag("OSS_SEARCH_SHARD_ACTION", "true")?;
+        let search_shard_max_lease_age_millis = bounded(
+            "OSS_SEARCH_SHARD_ACTION_MAX_LEASE_AGE_MILLIS",
+            "10000",
+            1,
+            3_600_000,
+        )?;
+        let search_shard_max_concurrent =
+            bounded("OSS_SEARCH_SHARD_ACTION_MAX_CONCURRENT", "8", 1, 256)?;
         let cluster_settings_poll_millis =
             bounded("OSS_CLUSTER_SETTINGS_POLL_MS", "30000", 1, 3_600_000)?;
         let refresh_visibility = REFRESH_VISIBILITY
@@ -451,6 +466,9 @@ impl NodeConfig {
             proactive_rust_reapers_only,
             proactive_max_concurrent: usize::try_from(proactive_max_concurrent).unwrap_or(16),
             proactive_pass_millis,
+            search_shard_action,
+            search_shard_max_lease_age_millis,
+            search_shard_max_concurrent: usize::try_from(search_shard_max_concurrent).unwrap_or(8),
             tail_overlay,
             refresh_visibility,
             cluster_settings_poll_millis,

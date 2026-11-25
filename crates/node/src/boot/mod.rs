@@ -11,6 +11,7 @@ mod follow;
 mod join;
 mod renew;
 mod retire;
+mod search_shard;
 mod support;
 mod tail;
 mod transport;
@@ -219,6 +220,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         .add(GET_ACTION, late_get)
         .map_err(|e| BootError::Cluster(e.to_string()))?;
     join::register(&mut registry, &membership).map_err(|e| BootError::Cluster(e.to_string()))?;
+    let shard_action = search_shard::register(&mut registry, config)?;
     let mut handlers = registry.into_handlers();
     let tail_slots = tail::Slots::list(&mut handlers);
     let transport_server = TransportServer::bind(
@@ -402,17 +404,15 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         &config.node_id,
     ));
     late_slot.set(handler).ok();
-    let get_handler: Arc<dyn oss_transport::server::Handler> = Arc::new(GetHandler::new(
-        Arc::clone(&assembled.role),
-        &config.node_id,
-    ));
-    late_get_slot.set(get_handler).ok();
-    let push_handler: Arc<dyn oss_transport::server::Handler> =
-        Arc::new(crate::push::PushHandler::new(Arc::clone(&assembled.search)));
-    late_push_slot.set(push_handler).ok();
+    let get = GetHandler::new(Arc::clone(&assembled.role), &config.node_id);
+    late_get_slot.set(Arc::new(get)).ok();
+    let push = crate::push::PushHandler::new(Arc::clone(&assembled.search));
+    late_push_slot.set(Arc::new(push)).ok();
+    shard_action.install(&assembled.role, &assembled.search, config, &budget);
     support::wire_commit_push(&assembled, &client, &auth, &membership, config)?;
     // Enrolled last: a peer that sees the lease can reach everything it names.
     membership.renew(&lease_for_enrolment).map_err(cluster)?;
+    shard_action.age.mark();
     join::announce(&membership, client, &auth, &config.node_id, &ephemeral)
         .map_err(|e| BootError::Cluster(format!("lease announce thread: {e}")))?;
     let listener = TcpListener::bind(config.http)
@@ -433,7 +433,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         let now = Instant::now();
         if cadence.renew_due(now) {
             fleet.renewing();
-            let _ = keeper.renew(&committer);
+            let _ = keeper.renew(&committer).map(|_| shard_action.age.mark());
         }
         if cadence.refresh_due(now)
             && let Ok(refreshed) = renewing.refresh()
