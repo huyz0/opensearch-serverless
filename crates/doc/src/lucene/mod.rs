@@ -15,6 +15,7 @@ pub(crate) mod fields;
 pub(crate) mod invert;
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use lucene_analysis::Analyzer;
 use lucene_codecs::field_infos::FieldInfo;
@@ -23,9 +24,10 @@ use lucene_codecs::stored_fields::{FieldValue as Stored, StoredField};
 use lucene_index::index_writer::{
     DocumentVector, Error as EngineError, ExplicitDocument, IndexWriter,
 };
+use oss_ext::analyzer::Analyze;
 
 use crate::document::{FieldValue, ParsedDocument, hash_order};
-use crate::mapping::{Leaf, Mapper, Mapping, MappingError, Num, Object};
+use crate::mapping::{Leaf, Mapper, Mapping, MappingError, Num, Object, Value};
 
 use builder::Builder;
 use encode::{double_to_sortable_long, encode_id, float_to_sortable_int, int_point, long_point};
@@ -110,6 +112,8 @@ pub struct Indexer {
     /// Whether a document's `_source` is stored with its vectors masked, for
     /// a writer whose segments list the vector fields as derived.
     derived_source: bool,
+    /// The pinned analyzers of this index by the name a mapping gives them.
+    modules: HashMap<String, Arc<dyn Analyze>>,
 }
 
 impl Default for Indexer {
@@ -127,7 +131,18 @@ impl Indexer {
             // ALLOC: one entry a field of the index, at most the mapping's total fields limit plus the metadata fields.
             slots: HashMap::new(),
             derived_source: false,
+            // ALLOC: one entry a pin, at most four.
+            modules: HashMap::new(),
         }
+    }
+
+    /// Analyzes a field whose mapping names `name` with `analyzer`, the
+    /// module a pin loaded, in place of the built-in analyzer.
+    #[must_use]
+    pub fn with_module(mut self, name: &str, analyzer: Arc<dyn Analyze>) -> Self {
+        // ALLOC: one entry a pin.
+        self.modules.insert(name.to_owned(), analyzer);
+        self
     }
 
     /// Stores a document's `_source` with each vector's value replaced by
@@ -349,7 +364,12 @@ impl Indexer {
                 continue;
             }
             let number = self.slot(numbers, name, Some(spec), None)?;
-            self.value(&mut out, number, name, &spec, value)?;
+            let module = leaf
+                .get("analyzer")
+                .and_then(Value::text)
+                .and_then(|a| self.modules.get(a))
+                .map(Arc::as_ref);
+            self.value(&mut out, number, name, &spec, value, module)?;
             if spec.field_names() {
                 let n = self.meta(numbers, MetaField::FieldNames)?;
                 let mut end = 0;
@@ -386,12 +406,32 @@ impl Indexer {
         name: &str,
         spec: &Spec,
         value: &FieldValue,
+        module: Option<&dyn Analyze>,
     ) -> Result<(), MappingError> {
         match (spec.shape, value) {
             (Shape::Vector, FieldValue::Vector(components)) => out.vector(name, components),
             (Shape::Text { gap }, FieldValue::Text(text)) => {
                 if spec.inverted() {
-                    out.inverted(number, spec).text(&self.analyzer, text, gap)?;
+                    let inverted = out.inverted(number, spec);
+                    match module {
+                        Some(module) => {
+                            let tokens = module.analyze(text).map_err(|e| {
+                                // ALLOC: error path; one message.
+                                MappingError::illegal_state(&format!(
+                                    "the analyzer module failed ({:?}): {}",
+                                    e.kind(),
+                                    e.detail()
+                                ))
+                            })?;
+                            let units = text.encode_utf16().count();
+                            inverted.tokens(
+                                &tokens,
+                                i32::try_from(units).unwrap_or(i32::MAX),
+                                gap,
+                            )?;
+                        }
+                        None => inverted.text(&self.analyzer, text, gap)?,
+                    }
                 }
                 if spec.store {
                     // ALLOC: one stored value, bounded by the document's bytes.

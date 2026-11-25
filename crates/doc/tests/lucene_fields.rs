@@ -116,3 +116,47 @@ fn a_mapping_update_the_schema_cannot_take_is_refused() {
     // The field keeps its schema: the old mapping still indexes.
     index(&mut w, &mut indexer, &before, "3", r#"{"title":"e"}"#).unwrap();
 }
+
+/// A module that keeps a whole text as one upper-cased term, which no
+/// built-in analyzer does.
+struct Shout;
+
+impl oss_ext::analyzer::Analyze for Shout {
+    fn analyze(&self, text: &str) -> Result<Vec<oss_ext::analyzer::Token>, oss_ext::CallError> {
+        Ok(vec![oss_ext::analyzer::Token {
+            term: text.to_uppercase(),
+            start: 0,
+            end: u32::try_from(text.encode_utf16().count()).expect("small"),
+            increment: 1,
+        }])
+    }
+}
+
+// docs/specs/extension-analyzer AC-10
+#[test]
+fn a_field_with_a_pinned_analyzer_is_indexed_with_the_modules_terms() {
+    let m = Mapping::parse_pinned(
+        br#"{"properties":{"t":{"type":"text","analyzer":"ext_shout"},"p":{"type":"text"}}}"#,
+        oss_doc::mapping::ParseOptions::default(),
+    )
+    .expect("mapping");
+    let dir = ByteBuffersDirectory::new();
+    {
+        let mut w = IndexWriter::open(&dir, Vec::new(), "Lucene104", VERSION).expect("writer");
+        w.enable_explicit_documents().expect("explicit");
+        let mut indexer = Indexer::new().with_module("ext_shout", std::sync::Arc::new(Shout));
+        index(
+            &mut w,
+            &mut indexer,
+            &m,
+            "1",
+            r#"{"t":"Hello World","p":"Hello World"}"#,
+        )
+        .unwrap();
+        w.commit().expect("commit");
+    }
+    assert_eq!(doc_freqs(&dir, "t", "HELLO WORLD"), [1]);
+    assert_eq!(doc_freqs(&dir, "t", "hello"), [0]);
+    // A field with no pin keeps the built-in analyzer.
+    assert_eq!(doc_freqs(&dir, "p", "hello"), [1]);
+}
