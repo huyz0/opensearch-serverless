@@ -55,6 +55,8 @@ mod index_route;
 mod ingest_run;
 #[cfg(feature = "reader")]
 mod newest_ask;
+#[cfg(all(feature = "extensions", feature = "reader", feature = "writer"))]
+mod pinned_read;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod pipeline_assemble;
 #[cfg(all(feature = "reader", feature = "writer"))]

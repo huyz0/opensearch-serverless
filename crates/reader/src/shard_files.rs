@@ -277,13 +277,22 @@ pub(crate) fn index_of(register: &[u8]) -> Result<IndexDescriptor<'_>, ReaderErr
 
 /// What a search needs of the index `descriptor` describes.
 pub(crate) fn meta_of(descriptor: &IndexDescriptor<'_>) -> Result<IndexMeta, ReaderError> {
-    let mapping = crate::shared_mapping::shared_of(descriptor.mapping_escaped)?;
     if descriptor.settings.is_some_and(oss_format::is_restoring) {
         return Err(ReaderError::Restoring);
     }
     let settings = match descriptor.settings {
         Some(bytes) => oss_format::ClusterSettings::parse(bytes)?,
         None => oss_format::ClusterSettings::default(),
+    };
+    // An index that pins an analyzer reads its mapping with the pins it holds.
+    let pins: Vec<String> = crate::pin_settings::pins_of(&settings)?
+        .into_iter()
+        .map(|(pin, _)| pin.name)
+        .collect();
+    let mapping = if pins.is_empty() {
+        crate::shared_mapping::shared_of(descriptor.mapping_escaped)?
+    } else {
+        crate::shared_mapping::pinned_of(descriptor.mapping_escaped, &pins)?
     };
     Ok(IndexMeta {
         // ALLOC: one uuid an open index.
@@ -426,5 +435,40 @@ mod tests {
             },
         );
         assert!(!one.is_empty());
+    }
+
+    fn descriptor<'a>(mapping: &'a [u8], settings: &'a [u8]) -> IndexDescriptor<'a> {
+        IndexDescriptor {
+            name: "i".into(),
+            uuid: "u".into(),
+            number_of_shards: 1,
+            bucket: None,
+            has_unit_layout: false,
+            mapping_escaped: Some(mapping),
+            settings: Some(settings),
+        }
+    }
+
+    // docs/specs/extension-analyzer AC-13
+    #[test]
+    fn an_index_that_pins_reads_its_mapping_with_the_pin_and_one_that_does_not_cannot() {
+        let mapping = br#"{\"properties\":{\"t\":{\"type\":\"text\",\"analyzer\":\"ext_a\"}}}"#;
+        let hash = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        let pinned = format!(
+            r#"{{"index.analysis.analyzer.ext_a.type":"serverless_module",
+            "index.analysis.analyzer.ext_a.module":"{hash}",
+            "index.analysis.analyzer.ext_a.version":"1",
+            "index.analysis.analyzer.ext_a.limits.fuel":"500",
+            "index.analysis.analyzer.ext_a.limits.memory_bytes":"1048576",
+            "index.analysis.analyzer.ext_a.limits.deadline_ms":"50"}}"#
+        );
+        let meta = meta_of(&descriptor(mapping, pinned.as_bytes())).expect("reads");
+        let field = meta.mapping.get("t").expect("field");
+        assert_eq!(field.analyzer.as_deref(), Some("ext_a"));
+        let plain = meta_of(&descriptor(mapping, b"{}")).expect("reads");
+        assert!(matches!(
+            plain.mapping.get("t").expect("field").ty,
+            crate::mapping::FieldType::Unsupported(_)
+        ));
     }
 }

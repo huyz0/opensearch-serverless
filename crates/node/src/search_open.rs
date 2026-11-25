@@ -122,6 +122,20 @@ impl<S: BlobStore + 'static> SearchService<S> {
         overlays: bool,
     ) -> Result<Arc<Held<S>>, Answer> {
         let stage = files.stage().clone();
+        // An index that pins analyzers needs their modules; a node that
+        // cannot load them refuses it and never serves it with the standard
+        // analyzer.
+        let pins = oss_reader::pin_settings::pins_of(&meta.settings)
+            .map_err(|e| open_failure(index, e))?;
+        let opener = match (pins.is_empty(), self.modules.get()) {
+            (true, _) => None,
+            (false, Some(opener)) => Some(opener),
+            (false, None) => {
+                return Err(unavailable(
+                    "this node cannot run the analyzer modules the index pins".to_owned(),
+                ));
+            }
+        };
         let bytes = open_bytes(&files, &meta, &self.cache);
         let charge = self.charge(bytes).map_err(|e| {
             Answer::Rest(RestError::breaker(
@@ -133,21 +147,35 @@ impl<S: BlobStore + 'static> SearchService<S> {
         })?;
         // The prefetch's bytes are held for the open alone.
         let (prefetch, _prefetch_held) = self.open_prefetch(&files, &meta);
-        let opened = open_located_with(
-            Arc::clone(&self.store),
-            Arc::clone(&self.cache),
-            &self.base,
-            index,
-            shard,
-            files,
-            meta,
-            &prefetch,
-        )
-        .map_err(|e| open_failure(index, e))?;
+        // The modules load beside the commit's files: a module's key comes
+        // from the pins, not from anything the files hold, so a pinned index
+        // opens in the rounds an unpinned one does.
+        let (opened, loaded) = std::thread::scope(|scope| {
+            let loading = opener.map(|o| scope.spawn(move || o.open(index, pins)));
+            let opened = open_located_with(
+                Arc::clone(&self.store),
+                Arc::clone(&self.cache),
+                &self.base,
+                index,
+                shard,
+                files,
+                meta,
+                &prefetch,
+            );
+            (opened, loading.map(std::thread::ScopedJoinHandle::join))
+        });
+        let opened = opened.map_err(|e| open_failure(index, e))?;
+        let pinned = match loaded {
+            None => None,
+            Some(Ok(Ok(tokens))) => Some(tokens),
+            Some(Ok(Err(why))) => return Err(unavailable(why)),
+            Some(Err(_)) => return Err(unavailable("loading the modules panicked".to_owned())),
+        };
         // ALLOC: one open shard; the pool bounds them.
         Ok(Arc::new(Held {
             shard: opened,
             view: Mutex::new(None),
+            pinned,
             stage,
             // ALLOC: one name an open shard.
             index: index.to_owned(),
@@ -254,6 +282,16 @@ fn out_of_range(index: &str, shard: u32) -> Answer {
 }
 
 /// What a failed locate or open answers.
+/// The answer for a pinned index this node cannot serve: retryable, and
+/// never the standard analyzer's.
+fn unavailable(why: String) -> Answer {
+    // ALLOC: error path; one box.
+    Answer::Search(Box::new(SearchError::request(
+        503,
+        Failure::opensearch("extension_unavailable", why),
+    )))
+}
+
 pub(super) fn open_failure(index: &str, e: ReaderError) -> Answer {
     match e {
         ReaderError::Blob(BlobError::NotFound) | ReaderError::Deleted => {
@@ -289,4 +327,12 @@ fn index_not_found(index: &str) -> SearchError {
         .with_meta("resource.type", Meta::Str("index_or_alias".to_owned()))
         .with_meta("index_uuid", Meta::Str("_na_".to_owned())),
     )
+}
+
+impl<S: BlobStore + 'static> SearchService<S> {
+    /// Installs what loads the modules an index pins. False when one is
+    /// installed already.
+    pub fn set_modules(&self, opener: Arc<dyn crate::search_modules::ModuleOpener>) -> bool {
+        self.modules.set(opener).is_ok()
+    }
 }

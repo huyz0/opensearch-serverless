@@ -73,7 +73,7 @@ pub(crate) fn pin_policy(
     let policy = crate::extension_pins::ModulePins::new(
         Arc::clone(store),
         &config.base,
-        oss_ext_wasm::Host::new(oss_ext_wasm::HostConfig::default()),
+        crate::extension_host::host(),
         budget.clone(),
         admin,
     )

@@ -107,7 +107,7 @@ fn extensions(
     if budget.limit(oss_mem::Pool::Extensions) == 0 {
         return Ok(router);
     }
-    let host = oss_ext_wasm::Host::new(oss_ext_wasm::HostConfig::default());
+    let host = crate::extension_host::host();
     let service = crate::extension_route::ExtensionService::new(
         Arc::clone(store),
         &config.base,
@@ -264,7 +264,7 @@ mod tests {
             let service = crate::extension_route::ExtensionService::new(
                 Arc::clone(&store),
                 "",
-                oss_ext_wasm::Host::new(oss_ext_wasm::HostConfig::default()),
+                crate::extension_host::host(),
                 budget.clone(),
             );
             crate::extension_route::routes(router, Arc::new(service)).is_err()

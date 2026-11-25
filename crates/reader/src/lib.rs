@@ -23,6 +23,7 @@ pub mod mapping;
 pub mod numbers;
 pub mod open_cost;
 pub mod overlay;
+pub mod pin_settings;
 pub mod pinned;
 pub mod prefetch;
 pub mod rank_eval;

@@ -408,7 +408,7 @@ pub(super) fn with_extension_modules(
         let source = crate::extension_modules::ModuleSource::new(
             Arc::clone(store),
             &config.base,
-            oss_ext_wasm::Host::new(oss_ext_wasm::HostConfig::default()),
+            crate::extension_host::host(),
             budget.clone(),
             config.extensions_replay_factor,
         );

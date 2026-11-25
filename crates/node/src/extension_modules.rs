@@ -175,6 +175,20 @@ impl ModuleSource {
             .map(|(k, v)| (k.clone(), text_of(v)))
             .collect();
         let pins = read_pins(&flat).map_err(|e| unavailable(e.to_string()))?;
+        self.open_pins(pins, tenant)
+    }
+
+    /// As [`ModuleSource::open`], for pins already read from the settings.
+    ///
+    /// # Errors
+    ///
+    /// As [`ModuleSource::open`], minus the pins not reading.
+    pub fn open_pins(
+        &self,
+        pins: Vec<(Pin, ResolvedLimits)>,
+        tenant: &str,
+    ) -> Result<ModuleSet, String> {
+        let unavailable = |why: String| format!("extension_unavailable: {why}");
         let replaying = Arc::new(Replays::default());
         let mut loaded: HashMap<String, Arc<Module>> = HashMap::new();
         let mut analyzers = Vec::new();
@@ -244,6 +258,24 @@ fn text_of(v: &Json) -> Option<String> {
     }
 }
 
+impl oss_reader::pinned::PinnedTokens for ModuleSet {
+    fn tokens(&self, analyzer: &str, text: &str) -> Result<Vec<Token>, String> {
+        let Some((_, tokens)) = self.analyzers.iter().find(|(name, _)| name == analyzer) else {
+            // ALLOC: error path; one message.
+            return Err(format!(
+                "extension_unavailable: no analyzer [{analyzer}] is loaded"
+            ));
+        };
+        // ALLOC: error path; one message.
+        tokens.analyze(text).map_err(|e| {
+            format!(
+                "extension_unavailable: analyzer [{analyzer}]: {}",
+                e.detail()
+            )
+        })
+    }
+}
+
 impl crate::writer::PinnedModules for ModuleSet {
     fn analyzers(&self) -> Vec<(String, Arc<dyn Analyze>)> {
         // ALLOC: one entry a pin, at most four.
@@ -258,6 +290,17 @@ impl crate::writer::PinnedModules for ModuleSet {
 
     fn replay_failure(&self) -> Option<String> {
         ModuleSet::replay_failure(self)
+    }
+}
+
+impl crate::search_modules::ModuleOpener for ModuleSource {
+    fn open(
+        &self,
+        index: &str,
+        pins: Vec<(Pin, ResolvedLimits)>,
+    ) -> Result<Arc<dyn oss_reader::pinned::PinnedTokens>, String> {
+        let set = self.open_pins(pins, index)?;
+        Ok(Arc::new(set))
     }
 }
 
