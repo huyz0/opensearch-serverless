@@ -12,7 +12,7 @@
 use std::borrow::Cow;
 use std::sync::Arc;
 
-use oss_blob::{BlobError, BlobResult, BlobStore, ByteRange, ChunkSource, SwapOutcome};
+use oss_blob::{BlobError, BlobStore, SwapOutcome};
 use oss_format::{
     EMPTY_SETTINGS, FileLocation, FormatError, IndexRecord, ManifestEntry, RestoreIndex,
     RestoreShard, ShardRef, encode_manifest, mark_restoring,
@@ -20,10 +20,11 @@ use oss_format::{
 
 use crate::descriptors::{DescriptorStore, Target};
 use crate::error::MetaError;
+use crate::ranged_source::RangedSource;
 
 /// The term container a restored shard's files are written to: the new
 /// index's first term.
-const FIRST_TERM_DIR: &str = "t=1";
+pub(crate) const FIRST_TERM_DIR: &str = "t=1";
 
 /// Why a restore of one index failed.
 #[derive(Debug)]
@@ -92,8 +93,8 @@ pub struct CopyBuffers<'b> {
 
 /// Restores indices of shallow snapshots under one deployment's base.
 pub struct SnapshotRestorer {
-    store: Arc<dyn BlobStore>,
-    base: String,
+    pub(crate) store: Arc<dyn BlobStore>,
+    pub(crate) base: String,
 }
 
 impl SnapshotRestorer {
@@ -135,6 +136,35 @@ impl SnapshotRestorer {
         if let Some(why) = source.refusal()? {
             return Err(RestoreError::Unsupported(why));
         }
+        self.restore_with(
+            descriptors,
+            source,
+            target,
+            uuid,
+            now_millis,
+            record_buf,
+            |me| {
+                for shard in &source.shards {
+                    me.restore_shard(source, shard, target, uuid, buffers)?;
+                }
+                Ok(())
+            },
+        )
+    }
+
+    /// Creates the descriptor marked, runs `copy` to land every shard, then
+    /// unmarks: the order every restore keeps.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn restore_with(
+        &self,
+        descriptors: &DescriptorStore,
+        source: &RestoreIndex,
+        target: &str,
+        uuid: &str,
+        now_millis: i64,
+        record_buf: &mut [u8],
+        copy: impl FnOnce(&Self) -> Result<(), RestoreError>,
+    ) -> Result<(), RestoreError> {
         // The descriptor goes first, marked: a node that dies before the last
         // shard lands leaves an index every read and write refuses, not one
         // that answers from shards that are still empty.
@@ -142,9 +172,7 @@ impl SnapshotRestorer {
         let mut record = restored_record(source, target, uuid, now_millis);
         record.settings = &marked;
         let generation = descriptors.create(&record, now_millis, record_buf)?;
-        for shard in &source.shards {
-            self.restore_shard(source, shard, target, uuid, buffers)?;
-        }
+        copy(self)?;
         Self::unmark(
             descriptors,
             source,
@@ -260,7 +288,7 @@ impl SnapshotRestorer {
 
 /// The descriptor a restore of `source` as `target` starts from, with the
 /// settings still to be set.
-fn restored_record<'a>(
+pub(crate) fn restored_record<'a>(
     source: &'a RestoreIndex,
     target: &'a str,
     uuid: &'a str,
@@ -290,60 +318,6 @@ fn length_of(
         .ok_or(RestoreError::Unsupported(
             "a captured file has no recorded length",
         ))
-}
-
-/// A range of one blob as a PUT's body: each fill is one ranged read of at
-/// most the scratch buffer.
-struct RangedSource<'a> {
-    store: &'a dyn BlobStore,
-    key: &'a str,
-    start: u64,
-    length: u64,
-    done: u64,
-    scratch: &'a mut [u8],
-}
-
-impl ChunkSource for RangedSource<'_> {
-    fn len(&self) -> u64 {
-        self.length
-    }
-
-    fn fill(&mut self, buf: &mut [u8]) -> BlobResult<usize> {
-        let left = self.length.saturating_sub(self.done);
-        let want = usize::try_from(left).unwrap_or(usize::MAX).min(buf.len());
-        if want == 0 {
-            return Ok(0);
-        }
-        let range = ByteRange::From {
-            start: self.start.saturating_add(self.done),
-            len: u64::try_from(want).unwrap_or(u64::MAX),
-        };
-        let mut filled = 0usize;
-        let mut sink = |chunk: &[u8]| -> BlobResult<()> {
-            let end = filled.saturating_add(chunk.len());
-            buf.get_mut(filled..end)
-                .ok_or(BlobError::Stream("a read returned more than asked"))?
-                .copy_from_slice(chunk);
-            filled = end;
-            Ok(())
-        };
-        self.store
-            .get(self.key, range, &mut *self.scratch, &mut sink)?;
-        if filled != want {
-            return Err(BlobError::Stream(
-                "a captured file is shorter than recorded",
-            ));
-        }
-        self.done = self
-            .done
-            .saturating_add(u64::try_from(want).unwrap_or(u64::MAX));
-        Ok(want)
-    }
-
-    fn rewind(&mut self) -> BlobResult<()> {
-        self.done = 0;
-        Ok(())
-    }
 }
 
 #[cfg(test)]

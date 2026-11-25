@@ -53,6 +53,7 @@ mod listing;
 mod names;
 mod pit;
 mod probe;
+mod ranged_source;
 mod repositories;
 mod routing;
 mod snapshot_capture;
@@ -60,6 +61,7 @@ mod snapshot_remove;
 mod snapshot_restore;
 mod snapshot_take;
 mod snapshots;
+mod stock_restore;
 mod sweep;
 
 pub use alias_mutations::{AliasAt, AliasClock, AliasMutations};
@@ -95,4 +97,5 @@ pub use snapshot_take::{Reservation, SnapshotTaker, TakeError};
 pub use snapshots::{
     MAX_REPOSITORIES, RestoreRead, SnapshotRead, SnapshotReadError, SnapshotReader,
 };
+pub use stock_restore::{StockShardCopy, StockSource};
 pub use sweep::{MARKERS_PREFIX, Sweep, Swept};
