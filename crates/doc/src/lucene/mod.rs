@@ -13,47 +13,66 @@ pub mod derived;
 mod encode;
 pub(crate) mod fields;
 pub(crate) mod invert;
-mod numbers;
+mod parts;
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use lucene_analysis::Analyzer;
 use lucene_codecs::field_infos::FieldInfo;
+use lucene_codecs::per_field_knn_vectors::KnnVectorsFormat;
 use lucene_codecs::stored_fields::{FieldValue as Stored, StoredField};
-use lucene_index::index_writer::{DocumentVector, ExplicitDocument};
+use lucene_index::index_writer::{
+    DocumentVector, Error as EngineError, ExplicitDocument, IndexWriter,
+};
 use oss_ext::analyzer::Analyze;
 
 use crate::document::{FieldValue, ParsedDocument, hash_order};
-use crate::mapping::{Leaf, Mapper, Mapping, MappingError, Num, Object, Value};
+use crate::mapping::{Mapping, MappingError, Num, Value};
 
 use builder::Builder;
 use encode::{double_to_sortable_long, encode_id, float_to_sortable_int, int_point, long_point};
 pub(crate) use fields::{MetaField, Shape, Spec};
-pub use numbers::FieldNumbers;
+use parts::leaf;
+pub use parts::{Meta, uid};
 
-/// A document's metadata, given by the index request and the engine.
-#[derive(Clone, Copy, Debug)]
-pub struct Meta<'a> {
-    /// The document's id.
-    pub id: &'a str,
-    /// Its sequence number.
-    pub seq_no: i64,
-    /// The primary term it was indexed under.
-    pub primary_term: i64,
-    /// Its version.
-    pub version: i64,
-    /// Its source, stored as given.
-    pub source: &'a [u8],
+/// Where a field's number comes from: the engine's field numbers, which
+/// hold for every segment of an index writer and refuse a field whose
+/// schema changes (`FieldInfos.FieldNumbers.addOrGet` and
+/// `verifySameSchema`).
+pub trait FieldNumbers {
+    /// The number of the field `info` describes, registering it on first
+    /// sight; `info.number` is ignored.
+    ///
+    /// # Errors
+    ///
+    /// The engine's message when the field's schema differs from the one
+    /// it was registered with.
+    fn number(&mut self, info: FieldInfo) -> Result<i32, String>;
+
+    /// Routes the vector field `name` to an HNSW graph of `m` connections a
+    /// node and `beam_width`, as `PerFieldKnnVectorsFormat` does.
+    fn vector_graph(&mut self, _name: &str, _m: i32, _beam_width: i32) {}
 }
 
-/// `Uid.encodeId`: the bytes of the `_id` term for `id`.
-///
-/// # Errors
-///
-/// An empty id.
-pub fn uid(id: &str) -> Result<Vec<u8>, MappingError> {
-    encode_id(id)
+impl FieldNumbers for IndexWriter<'_> {
+    fn number(&mut self, info: FieldInfo) -> Result<i32, String> {
+        self.register_field(info).map_err(|e| match e {
+            EngineError::Explicit(message) => message,
+            // ALLOC: error path; one message.
+            other => other.to_string(),
+        })
+    }
+
+    fn vector_graph(&mut self, name: &str, m: i32, beam_width: i32) {
+        self.set_knn_vectors_format_for_field(
+            name,
+            KnnVectorsFormat::Hnsw {
+                max_conn: m,
+                beam_width,
+            },
+        );
+    }
 }
 
 /// A field the engine has numbered and the spec it was registered with.
@@ -452,31 +471,5 @@ impl Indexer {
             }
         }
         Ok(())
-    }
-}
-
-/// The leaf at `full`, a full field name, multi-fields included.
-fn leaf<'m>(root: &'m Object, full: &str) -> Option<&'m Leaf> {
-    let mut obj = root;
-    let mut rest = full;
-    loop {
-        let (head, tail) = rest
-            .split_once('.')
-            .map_or((rest, None), |(h, t)| (h, Some(t)));
-        match (obj.child(head)?, tail) {
-            (Mapper::Object(o), Some(t)) => {
-                obj = o;
-                rest = t;
-            }
-            (Mapper::Leaf(l), None) => return Some(l),
-            (Mapper::Leaf(l), Some(t)) => {
-                return l
-                    .multi_fields()
-                    .iter()
-                    .find(|(name, _)| name == t)
-                    .map(|(_, m)| m);
-            }
-            (Mapper::Object(_), None) => return None,
-        }
     }
 }
