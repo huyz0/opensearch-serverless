@@ -1,0 +1,1 @@
+{"snapshots":[{"name":"snap-1","uuid":"SnapUuidAaaaBbbbCccc01","state":1,"index_metadata_lookup":{"IdxLogsAaaa1":"mdLogs1"},"version":"3.10.0"}],"indices":{"logs":{"id":"IdxLogsAaaa1","shard_path_type":0,"snapshots":["SnapUuidAaaaBbbbCccc01"],"shard_generations":["gen0"]}},"index_metadata_identifiers":{"mdLogs1":"metaIdLogs1"}}
