@@ -28,6 +28,11 @@ use crate::snapshot_restore_route::{SnapshotRestoreService, restore_failed, unav
 /// The bytes a metadata or shard blob holds after inflating.
 const INFLATED_BYTES: usize = 64 << 20;
 
+/// The buffer a target's descriptor is read into.
+const CHECK_BYTES: usize = 1 << 16;
+/// The buffer a restored index's descriptor is written from.
+const DESCRIPTOR_BYTES: usize = 1 << 20;
+
 /// What a stock restore reads from, set by the node's configuration.
 pub struct StockRestoreSettings {
     /// `serverless.snapshots.stock.enabled`.
@@ -110,7 +115,12 @@ impl SnapshotRestoreService {
             .fanout
             .max(1)
             .saturating_mul(MAX_BLOB_BYTES.saturating_add(INFLATED_BYTES));
-        req.body().reserve(blobs.max(MAX_INDEX_N_BYTES))?;
+        // `index-N` stays held while the blob reads run.
+        req.body().reserve(
+            blobs
+                .saturating_add(MAX_INDEX_N_BYTES)
+                .saturating_add(CHECK_BYTES),
+        )?;
         let from = StockRepo::new(&source, "");
         let data = stock_load(&from).map_err(read_failed)?;
         let snap = data
@@ -119,7 +129,7 @@ impl SnapshotRestoreService {
         // ALLOC: one name an index, at most the repository's entry bound.
         let captured: Vec<String> = data.indices_of(snap).map(|i| i.name.clone()).collect();
         let targets = plan(asked, &captured).map_err(refused)?;
-        let mut check = vec![0u8; 1 << 16]; // ALLOC: one buffer a request, the descriptor's size.
+        let mut check = vec![0u8; CHECK_BYTES]; // ALLOC: one buffer a request, CHECK_BYTES, reserved above.
         for target in &targets {
             self.check_target(target, &mut check)?;
         }
@@ -143,11 +153,12 @@ impl SnapshotRestoreService {
         let copy = self.chunk_bytes;
         req.body().reserve(
             copy.saturating_mul(2)
-                .saturating_add(self.deletes.remove_bytes()),
+                .saturating_add(self.deletes.remove_bytes())
+                .saturating_add(DESCRIPTOR_BYTES),
         )?;
         // ALLOC: two buffers a request, `chunk_bytes` each, reserved above.
         let (mut read, mut write) = (vec![0u8; copy], vec![0u8; copy]);
-        let mut descriptor = vec![0u8; 1 << 20]; // ALLOC: one buffer a request, the descriptor's size.
+        let mut descriptor = vec![0u8; DESCRIPTOR_BYTES]; // ALLOC: one buffer a request, DESCRIPTOR_BYTES, reserved above.
         let now = i64::try_from((self.clock)()).unwrap_or(i64::MAX);
         let from_store = StockSource {
             store: &source,

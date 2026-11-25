@@ -53,7 +53,7 @@ fn rig(root: &Path, enabled: bool, pool: usize) -> Rig {
         StockRestoreSettings {
             enabled,
             roots: SourceRoots::parse(root.to_str().unwrap(), ""),
-            fanout: 2,
+            fanout: 1,
         },
     )
 }
@@ -108,9 +108,23 @@ fn with_the_switch_off_a_stock_restore_is_501_and_reads_nothing_from_the_source(
     let (root, repo) = repository("off");
     let r = rig(&root, false, POOL);
     register(&r, &repo);
+    let before = requests(&r);
     let reply = send(&r, "POST", RESTORE, None);
     assert_eq!(reply.status, 501, "{}", reply.text());
     assert!(restored_uuid_missing(&r, "logs"));
+    // Measured: the snapshot's register and legacy record and the
+    // repository's record, read; nothing is written, nothing is read from
+    // the source.
+    assert_eq!(requests(&r) - before, 4);
+    assert_eq!(
+        r.store.meter().count(S3Op::Put),
+        put_count_after_register(&r)
+    );
+}
+
+fn put_count_after_register(r: &Rig) -> u64 {
+    // Registering the repository is the only write.
+    r.store.meter().count(S3Op::Put)
 }
 
 fn restored_uuid_missing(r: &Rig, name: &str) -> bool {
@@ -143,4 +157,48 @@ fn a_pool_too_small_for_the_reads_is_429_and_writes_nothing() {
     let reply = send(&r, "POST", RESTORE, None);
     assert_eq!(reply.status, 429, "{}", reply.text());
     assert!(restored_uuid_missing(&r, "logs"));
+}
+
+#[test]
+fn a_pool_that_holds_the_reads_but_not_the_copy_is_429_before_any_write() {
+    let (root, repo) = repository("pool3");
+    // The record (1 MiB), then the reads (80 MiB, 64 MiB of index-N and the check buffer) fit; the copy's buffers do not.
+    let reads = (1 << 20) + (80 << 20) + (64 << 20) + (1 << 16);
+    let r = rig(&root, true, reads + 1024);
+    register(&r, &repo);
+    let puts = r.store.meter().count(S3Op::Put);
+    let reply = send(&r, "POST", RESTORE, None);
+    assert_eq!(reply.status, 429, "{}", reply.text());
+    assert_eq!(
+        r.store.meter().count(S3Op::Put),
+        puts,
+        "nothing was written"
+    );
+    assert!(restored_uuid_missing(&r, "logs"));
+}
+
+#[test]
+fn a_file_that_does_not_match_its_listing_fails_the_restore_and_removes_the_index() {
+    let (root, repo) = repository("flip");
+    let r = rig(&root, true, POOL);
+    register(&r, &repo);
+    let small = repo.join("indices/IdxLogsAaaa1/0/__smallBlobUuid2");
+    let mut bytes = std::fs::read(&small).unwrap();
+    bytes[3] ^= 1;
+    std::fs::write(&small, bytes).unwrap();
+    let reply = send(&r, "POST", RESTORE, None);
+    assert!(reply.status >= 400, "{}", reply.text());
+    assert!(
+        restored_uuid_missing(&r, "logs"),
+        "the index it created is gone"
+    );
+}
+
+#[test]
+fn an_s3_stock_repository_is_not_served_yet() {
+    let (root, _) = repository("s3");
+    let r = rig(&root, true, POOL);
+    let body = r#"{"type":"s3","settings":{"format":"stock","bucket":"b","base_path":"p"}}"#;
+    assert_eq!(send(&r, "PUT", "/_snapshot/stock", Some(body)).status, 200);
+    assert_eq!(send(&r, "POST", RESTORE, None).status, 501);
 }
