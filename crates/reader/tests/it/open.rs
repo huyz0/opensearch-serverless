@@ -146,10 +146,10 @@ fn the_mapping_source_is_kept_for_the_overlay_s_builder() {
     let store = store_with_fixtures();
     let (_files, meta) = ShardFiles::open_with_meta(&store, BASE, INDEX, 0).expect("meta");
     assert!(
-        meta.mapping_json.starts_with('{') && meta.mapping_json.contains("properties"),
+        meta.mapping.json().starts_with('{') && meta.mapping.json().contains("properties"),
         "{}",
-        meta.mapping_json
+        meta.mapping.json()
     );
-    oss_doc::mapping::Mapping::parse(meta.mapping_json.as_bytes())
+    oss_doc::mapping::Mapping::parse(meta.mapping.json().as_bytes())
         .expect("parses as the builder reads it");
 }

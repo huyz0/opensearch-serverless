@@ -9,7 +9,7 @@ use oss_reader::ShardFiles;
 use oss_testkit::index::{Spec, blobs};
 use oss_transport::actions::warm::{HotFile, HotPage, PageBytes};
 
-const PAGE: usize = 1024;
+const PAGE: usize = 128;
 
 fn cache(dir: &std::path::Path) -> Arc<PageCache> {
     Arc::new(
@@ -37,7 +37,7 @@ fn rig(dir: &std::path::Path) -> Rig {
     let budget = MemoryBudget::new(&config);
     let buffers = BufferPool::new(&budget, Pool::Transport, SMALL_BUFFER, 8).expect("fits");
     let store = PooledStore::new(Emulator::new(64 << 20, 1), buffers);
-    for (key, bytes) in blobs("", &Spec::new("idx", 400)) {
+    for (key, bytes) in blobs("", &Spec::new("idx", 3000)) {
         store.put(&key, &mut SliceSource::new(&bytes)).expect("put");
     }
     let store = Arc::new(store);
@@ -290,6 +290,39 @@ fn a_short_page_ends_that_peers_copy_and_the_target_drops_what_it_did_not_give()
         progress.copied(),
         "only what was taken is waited for"
     );
+}
+
+// docs/specs/reader-warm-copy AC-6, AC-7
+#[test]
+fn a_peer_failing_after_some_batches_keeps_what_it_gave_and_is_no_longer_waited_for() {
+    let a = oss_testkit::TempDir::new("warm-copy-midway");
+    let b = oss_testkit::TempDir::new("warm-copy-midway-joiner");
+    let peer = rig(a.path());
+    let joiner = cache(b.path());
+    let mut fake = Fake::new(&peer);
+    fake.corrupt_from_call = Some(1);
+    let progress = Progress::default();
+    let outcome = copy_from_peer(
+        &fake,
+        &Ours(Arc::clone(&peer.expected)),
+        &joiner,
+        &settings(1 << 20),
+        &Sleeps::default(),
+        &progress,
+        &never,
+    );
+    assert!(
+        fake.calls.get() >= 2,
+        "the failure came after a first batch"
+    );
+    assert_eq!(outcome, Outcome::Bad);
+    assert!(progress.copied() > 0, "the first batch was kept");
+    assert_eq!(
+        progress.named(),
+        progress.copied(),
+        "the target is what the peer gave, so the node is not held for the rest"
+    );
+    assert!(progress.reached(0.9));
 }
 
 // docs/specs/reader-warm-copy AC-6

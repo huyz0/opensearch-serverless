@@ -9,6 +9,8 @@
 mod made_from_nothing;
 #[path = "mixed_fleet/snapshots.rs"]
 mod snapshots;
+#[path = "mixed_fleet/soak.rs"]
+mod soak;
 mod suite_rig;
 
 use std::collections::BTreeSet;
@@ -25,6 +27,8 @@ const TTL_MS: u64 = 4_000;
 const HANDOVER_SLACK_SECS: u64 = 60;
 const BATCH: u32 = 100;
 const INDEX: &str = "mixed";
+/// The most documents one match-all returns: the default result window.
+const MAX_FOUND: u32 = 10_000;
 
 /// A forked Java shell node.
 struct JavaNode {
@@ -256,7 +260,7 @@ fn write(addr: SocketAddr, ids: std::ops::Range<u32>, ledger: &mut BTreeSet<u32>
 fn found(addr: SocketAddr) -> Vec<u32> {
     let body = format!(
         "{{\"size\":{},\"_source\":false,\"query\":{{\"match_all\":{{}}}}}}",
-        BATCH * 10
+        MAX_FOUND
     );
     let r = call(addr, "POST", &format!("/{INDEX}/_search"), Some(&body));
     assert_eq!(r.status, 200, "{}", r.text());

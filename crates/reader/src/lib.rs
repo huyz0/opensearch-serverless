@@ -33,6 +33,7 @@ mod search_sort;
 mod search_terminate;
 mod search_top;
 pub mod shard_files;
+mod shared_mapping;
 pub mod template;
 
 use std::sync::Arc;
@@ -46,6 +47,7 @@ pub use engine_store::EngineStore;
 pub use error::ReaderError;
 pub use prefetch::OpenPrefetch;
 pub use shard_files::{FileRange, IndexMeta, MAX_REGISTER_BYTES, ShardFiles};
+pub use shared_mapping::SharedMapping;
 
 /// One shard's latest published commit, open for search.
 pub struct OpenShard<S: BlobStore + 'static> {

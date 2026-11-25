@@ -94,11 +94,14 @@ fn routing_settings_are_checked_against_the_shard_count() {
 #[test]
 fn other_settings_are_refused_and_named() {
     let r = rig();
-    let body = r#"{"settings":{"codec":"x","refresh_interval":"1s","index.analysis.a":"y"}}"#;
+    let body =
+        r#"{"settings":{"blocks.write":"true","refresh_interval":"1s","index.analysis.a":"y"}}"#;
     let reply = call(&r, "PUT", "/o", Some(body));
     assert_eq!(reply.status, 501, "{}", reply.text());
     assert!(
-        reply.text().contains("[index.analysis.a, index.codec]"),
+        reply
+            .text()
+            .contains("[index.analysis.a, index.blocks.write]"),
         "{}",
         reply.text()
     );
@@ -132,9 +135,58 @@ fn a_template_setting_the_node_does_not_read_is_refused_not_dropped() {
     let r = templated_rig(&[(
         DocKind::IndexTemplate,
         "logs",
-        r#"{"index_patterns":["logs-*"],"template":{"settings":{"index":{"codec":"x"}}}}"#,
+        r#"{"index_patterns":["logs-*"],"template":{"settings":{"index":{"analysis":{"a":"x"}}}}}"#,
     )]);
     let reply = call(&r, "PUT", "/logs-1", None);
     assert_eq!(reply.status, 501);
     assert!(record(&r, "logs-1").is_none());
+}
+
+// docs/specs/core-index-settings AC-1 and AC-2
+#[test]
+fn core_settings_the_node_only_stores_are_accepted_and_kept() {
+    let r = rig();
+    let body = r#"{"settings":{"index":{"codec":"best_compression","priority":5,"translog":{"durability":"async"},"routing.allocation.require.box":"hot","search.slowlog.threshold.query.warn":"10s"},"refresh_interval":"2s"}}"#;
+    let reply = call(&r, "PUT", "/c", Some(body));
+    assert_eq!(reply.status, 200, "{}", reply.text());
+    assert_eq!(
+        settings_text(&r, "c"),
+        r#"{"index.codec":"best_compression","index.priority":5,"index.refresh_interval":"2s","index.routing.allocation.require.box":"hot","index.search.slowlog.threshold.query.warn":"10s","index.translog.durability":"async"}"#
+    );
+}
+
+// docs/specs/core-index-settings AC-3
+#[test]
+fn a_bad_core_value_is_refused_and_writes_nothing() {
+    let r = rig();
+    for (i, body) in [
+        r#"{"settings":{"index.codec":"gzip"}}"#,
+        r#"{"settings":{"index.priority":"high"}}"#,
+        r#"{"settings":{"index.queries.cache.enabled":"yes"}}"#,
+    ]
+    .iter()
+    .enumerate()
+    {
+        let name = format!("b{i}");
+        let reply = call(&r, "PUT", &format!("/{name}"), Some(body));
+        assert_eq!(reply.status, 400, "{body}: {}", reply.text());
+        assert!(record(&r, &name).is_none());
+    }
+}
+
+// docs/specs/core-index-settings AC-4
+#[test]
+fn a_core_setting_that_would_change_behaviour_is_still_refused() {
+    let r = rig();
+    let body = r#"{"settings":{"index.blocks.write":true,"index.codec":"lz4","index.max_result_window":50}}"#;
+    let reply = call(&r, "PUT", "/x", Some(body));
+    assert_eq!(reply.status, 501, "{}", reply.text());
+    assert!(
+        reply
+            .text()
+            .contains("[index.blocks.write, index.max_result_window]"),
+        "{}",
+        reply.text()
+    );
+    assert!(record(&r, "x").is_none());
 }

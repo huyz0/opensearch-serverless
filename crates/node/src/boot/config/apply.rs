@@ -9,6 +9,7 @@ use super::NodeConfig;
 pub(in crate::boot) fn apply(from: &NodeConfig, to: &mut crate::assemble::Config) {
     super::write_limit::apply(from, to);
     to.page_cache_disk = from.page_cache.as_ref().map(|d| (d.dir.clone(), d.bytes));
+    to.resident_page_bytes = from.resident_page_bytes;
 }
 
 impl NodeConfig {

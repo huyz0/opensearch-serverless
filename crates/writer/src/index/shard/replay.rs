@@ -2,6 +2,8 @@
 //! `InternalEngine` applies an operation recovered from a translog: with the
 //! sequence number, term and version the record carries.
 
+use std::sync::Arc;
+
 use lucene_index::buffered_updates::Term;
 use oss_format::WalRecord;
 
@@ -84,7 +86,7 @@ impl Shard<'_> {
             };
             if let Some(grown) = parsed.as_ref().and_then(|p| p.grown.as_ref()) {
                 // ALLOC: the grown mapping, bounded by the total fields limit.
-                self.mapping = grown.clone();
+                self.mapping = Arc::new(grown.clone());
                 self.fast.invalidate();
             }
             let soft = if live {

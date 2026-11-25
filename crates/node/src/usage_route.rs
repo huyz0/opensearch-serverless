@@ -36,6 +36,8 @@ pub struct UsageService {
     clock: Arc<dyn Fn() -> i64 + Send + Sync>,
     tenants: Option<Arc<TenantLevels>>,
     slots: Option<Arc<crate::search_slots::SearchSlots>>,
+    #[cfg(target_os = "linux")]
+    resident_pages: bool,
 }
 
 impl UsageService {
@@ -53,6 +55,8 @@ impl UsageService {
             clock,
             tenants: None,
             slots: None,
+            #[cfg(target_os = "linux")]
+            resident_pages: false,
         }
     }
 
@@ -67,6 +71,17 @@ impl UsageService {
     #[must_use]
     pub fn with_search_slots(mut self, slots: Arc<crate::search_slots::SearchSlots>) -> Self {
         self.slots = Some(slots);
+        self
+    }
+
+    /// This service also reporting the pager's resident pages.
+    #[must_use]
+    #[cfg_attr(not(target_os = "linux"), allow(unused_mut))]
+    pub fn with_resident_pages(mut self) -> Self {
+        #[cfg(target_os = "linux")]
+        {
+            self.resident_pages = true;
+        }
         self
     }
 
@@ -127,6 +142,21 @@ impl UsageService {
                 r.overflow_full,
                 r.overflow_cap,
                 r.longest_wait_millis
+            )?;
+        }
+        #[cfg(target_os = "linux")]
+        if self.resident_pages
+            && let Some(pager) = lucene_store::paged_input::Pager::global()
+        {
+            let s = pager.stats();
+            write!(
+                out,
+                ",\"resident_pages\":{{\"budget_bytes\":{},\"resident_bytes\":{},\"faults\":{},\"refaults\":{},\"evictions\":{}}}",
+                pager.budget(),
+                pager.resident_bytes(),
+                s.faults,
+                s.refaults,
+                s.evictions
             )?;
         }
         out.write_all(b"}")?;
@@ -267,6 +297,9 @@ pub fn attach(
         clock.now_millis(),
         Arc::clone(&now),
     );
+    if config.resident_page_bytes != 0 {
+        service = service.with_resident_pages();
+    }
     let mode =
         oss_blob::guard::Mode::parse(config.tenant_levels).unwrap_or(oss_blob::guard::Mode::Off);
     if mode != oss_blob::guard::Mode::Off {

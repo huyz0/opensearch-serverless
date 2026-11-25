@@ -137,6 +137,10 @@ impl IndexSource for DescriptorRoutes {
     }
 }
 
+/// How long a bucket member stays a candidate before the sweep takes it out:
+/// far longer than a create takes between its join and its descriptor.
+const BUCKET_MEMBER_GRACE_MILLIS: i64 = 3_600_000;
+
 /// The orphan-shard sweep, which the one node ranked to sweep runs once every
 /// `OSS_ORPHAN_SLICE_MS`; nothing for a budget of 0.
 pub(super) fn orphan_sweep(
@@ -144,10 +148,11 @@ pub(super) fn orphan_sweep(
     store: &Arc<dyn BlobStore>,
     budget: &MemoryBudget,
     clock: Arc<dyn LeaseClock>,
-    live: Arc<LiveLeases>,
     dry_run: bool,
-) -> Option<OrphanTimer> {
-    OrphanTimer::spawn(
+    buckets: Option<Arc<crate::writer::BucketWiring>>,
+) -> (Option<OrphanTimer>, Arc<LiveLeases>) {
+    let live = Arc::new(LiveLeases::default());
+    let timer = OrphanTimer::spawn(
         OrphanParts {
             store: Arc::clone(store),
             base: config.base.clone(),
@@ -157,9 +162,12 @@ pub(super) fn orphan_sweep(
             every: Duration::from_millis(config.orphan_slice_millis),
             dry_run,
             clock: Arc::new(move || u64::try_from(clock.now_millis()).unwrap_or(0)),
+            buckets,
+            bucket_grace_millis: BUCKET_MEMBER_GRACE_MILLIS,
         },
-        live,
-    )
+        Arc::clone(&live),
+    );
+    (timer, live)
 }
 
 /// The janitor's rhythm and switch and the hibernation threshold, from the

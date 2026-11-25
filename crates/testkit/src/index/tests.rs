@@ -54,3 +54,43 @@ fn a_vector_spec_writes_its_files_and_names_its_dimension() {
         .sum();
     assert!(total >= 10 * 8 * 4, "{total} bytes");
 }
+
+#[test]
+fn blobs_hold_the_descriptor_with_its_settings_the_manifest_and_every_file() {
+    let spec = Spec::new("x", 4).with_settings(r#"{"a.b":"c"}"#);
+    let out = blobs("pre/", &spec);
+    // Segment ids are random, so the files are read back from the blobs.
+    let shard = "pre/segments/x#x-uuid#0/";
+    let files: Vec<(String, Vec<u8>)> = out[2..]
+        .iter()
+        .map(|(k, b)| {
+            (
+                k.strip_prefix(&format!("{shard}t=1/"))
+                    .expect("file key")
+                    .to_owned(),
+                b.clone(),
+            )
+        })
+        .collect();
+    assert!(files.iter().any(|(n, _)| n.starts_with("segments_")));
+    let text = |bytes: &[u8]| String::from_utf8_lossy(&bytes[8..]).into_owned();
+    assert_eq!(out[0].0, "pre/indices/x");
+    let descriptor = text(&out[0].1);
+    assert!(descriptor.contains(r#""name":"x""#), "{descriptor}");
+    assert!(
+        descriptor.contains(r#""settings":{"a.b":"c"}"#),
+        "{descriptor}"
+    );
+    assert_eq!(out[1].0, format!("{shard}manifest"));
+    let manifest = text(&out[1].1);
+    for (name, bytes) in &files {
+        assert!(manifest.contains(&format!(r#""{name}":"t=1""#)), "{name}");
+        assert!(manifest.contains(&format!(r#""{name}":{}"#, bytes.len())));
+        let blob = out
+            .iter()
+            .find(|(k, _)| *k == format!("{shard}t=1/{name}"))
+            .expect("file blob");
+        assert_eq!(&blob.1, bytes);
+        assert!(!bytes.is_empty());
+    }
+}

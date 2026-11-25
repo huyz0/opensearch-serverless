@@ -26,4 +26,4 @@ Switch off, or an unbucketed index: unchanged, 0 extra. A bucketed index: one GE
 
 ## Risks
 
-- A node that dies between the descriptor delete and the leave leaves an unused member entry, as a node that dies between a join and the descriptor write does; nothing clears those yet.
+- A node that dies between the descriptor delete and the leave leaves an unused member entry; [bucket-member-orphans](../bucket-member-orphans/SPEC.md) takes it out.

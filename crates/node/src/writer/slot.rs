@@ -5,6 +5,8 @@ use lucene_store::ByteBuffersDirectory;
 use oss_format::{ShardHead, ShardKey};
 use oss_writer::bulk::Kind;
 use oss_writer::index::{Expect, Fetched, Refused, Shard, Written};
+use std::sync::Arc;
+
 use oss_writer::mapping::Mapping;
 use oss_writer::publish::ShardPublisher;
 use oss_writer::takeover::{Adopted, ShardEngine, adopt};
@@ -41,7 +43,7 @@ impl ShardSlot {
     pub(super) fn open(
         key: ShardKey,
         term: i64,
-        mapping: Mapping,
+        mapping: Arc<Mapping>,
         clock: fn() -> u64,
         fill: impl FnOnce(&ByteBuffersDirectory) -> Result<(), String>,
     ) -> Result<Self, String> {

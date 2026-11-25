@@ -39,9 +39,9 @@ impl WriterRole {
         index: &IndexInfo,
         shard: u32,
         term: i64,
-        mapping: Mapping,
+        mapping: impl Into<Arc<Mapping>>,
     ) -> Result<(), String> {
-        self.open_shard_from(index, shard, term, mapping, |_| Ok(()), |_| Ok(None))
+        self.open_shard_from(index, shard, term, mapping.into(), |_| Ok(()), |_| Ok(None))
             .map(|_| ())
     }
 
@@ -54,7 +54,7 @@ impl WriterRole {
         index: &IndexInfo,
         shard: u32,
         term: i64,
-        mapping: Mapping,
+        mapping: Arc<Mapping>,
         fill: impl FnOnce(&ByteBuffersDirectory) -> Result<(), String>,
         settle: impl FnOnce(&mut ShardSlot) -> Result<Option<Published>, String>,
     ) -> Result<Option<Published>, String> {
@@ -96,7 +96,7 @@ impl WriterRole {
         index: &IndexInfo,
         shard: u32,
         head: &ShardHead,
-        mapping: Mapping,
+        mapping: Arc<Mapping>,
         takeover: &Takeover,
         fill: impl FnOnce(&ByteBuffersDirectory) -> Result<(), String>,
     ) -> Result<(), String> {

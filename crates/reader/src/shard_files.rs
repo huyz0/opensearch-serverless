@@ -22,7 +22,7 @@ use oss_format::{
 
 use crate::commit_push::{NewestSource, Stage, newer_commit};
 use crate::error::ReaderError;
-use crate::mapping::Mapping;
+use crate::shared_mapping::SharedMapping;
 
 /// The largest register blob (descriptor or commit manifest) the reader
 /// reads. The shell's manifests list at most 16,384 files of about 100
@@ -48,10 +48,8 @@ pub struct IndexMeta {
     /// How many shards the index has.
     pub number_of_shards: u32,
     /// The index's fields; empty when the descriptor holds no mapping.
-    pub mapping: Mapping,
-    /// The mapping's JSON source as the document builder reads it; empty when
-    /// the descriptor holds none.
-    pub mapping_json: Arc<str>,
+    /// Indexes with the same mapping text share one.
+    pub mapping: Arc<SharedMapping>,
     /// The index's settings, flat by dotted key; empty when the descriptor
     /// holds none.
     pub settings: oss_format::ClusterSettings,
@@ -279,13 +277,7 @@ pub(crate) fn index_of(register: &[u8]) -> Result<IndexDescriptor<'_>, ReaderErr
 
 /// What a search needs of the index `descriptor` describes.
 pub(crate) fn meta_of(descriptor: &IndexDescriptor<'_>) -> Result<IndexMeta, ReaderError> {
-    let (mapping, mapping_json) = match descriptor.mapping_escaped {
-        Some(escaped) => {
-            let json = Mapping::unescape(escaped)?;
-            (Mapping::from_json(&json)?, Arc::<str>::from(json))
-        }
-        None => (Mapping::default(), Arc::<str>::from("")),
-    };
+    let mapping = crate::shared_mapping::shared_of(descriptor.mapping_escaped)?;
     if descriptor.settings.is_some_and(oss_format::is_restoring) {
         return Err(ReaderError::Restoring);
     }
@@ -298,7 +290,6 @@ pub(crate) fn meta_of(descriptor: &IndexDescriptor<'_>) -> Result<IndexMeta, Rea
         uuid: descriptor.uuid.to_string(),
         number_of_shards: descriptor.number_of_shards,
         mapping,
-        mapping_json,
         settings,
     })
 }

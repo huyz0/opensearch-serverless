@@ -6,6 +6,8 @@
 
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod admin_assemble;
+#[cfg(all(feature = "writer", feature = "coordinator"))]
+pub mod alias_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod assemble;
 #[cfg(all(feature = "reader", feature = "writer"))]
@@ -30,6 +32,8 @@ pub mod cluster_owner;
 pub mod cluster_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod commit_push;
+#[cfg(all(feature = "writer", feature = "coordinator"))]
+pub(crate) mod core_settings;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub(crate) mod create_settings;
 #[cfg(feature = "writer")]
@@ -165,6 +169,8 @@ pub mod warm_handlers;
 pub mod warm_join;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod warm_peer;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod warm_setting;
 #[cfg(feature = "writer")]
 pub mod writer;
 

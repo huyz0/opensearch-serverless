@@ -142,7 +142,7 @@ fn a_bad_name_is_refused_before_any_request() {
 fn what_cannot_be_created_writes_nothing() {
     let r = rig();
     for (name, body, status) in [
-        ("a", r#"{"settings":{"codec":"best_compression"}}"#, 501),
+        ("a", r#"{"settings":{"blocks.write":true}}"#, 501),
         ("f", r#"{"settings":{"refresh_interval":"fast"}}"#, 400),
         ("b", r#"{"aliases":{"x":{}}}"#, 501),
         ("c", "[1]", 400),
@@ -341,7 +341,7 @@ fn a_bad_bucket_policy_is_refused_and_other_settings_still_are() {
     let (r, _) = bucketed_rig();
     let bad = r#"{"settings":{"index.serverless.bucket":"maybe"}}"#;
     assert_eq!(call(&r, "PUT", "/x", Some(bad)).status, 400);
-    let other = r#"{"settings":{"index.serverless.bucket_group":"t","index.codec":"x"}}"#;
+    let other = r#"{"settings":{"index.serverless.bucket_group":"t","index.blocks.write":"true"}}"#;
     assert_eq!(call(&r, "PUT", "/y", Some(other)).status, 501);
 }
 

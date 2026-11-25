@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
-use oss_blob::{BlobStore, Emulator};
+use oss_blob::{BlobStore, Emulator, Rounds, Shared};
 use oss_cluster::heads::ShardHeadStore;
 use oss_cluster::{
     LeaseClock, LeaseConfig, LivenessOracle, Membership, MembershipDelta, Refreshed, SystemClock,
@@ -51,6 +51,19 @@ impl LeaseClock for Later {
 pub struct Cluster {
     pub store: Arc<Emulator>,
     pub descriptors: Arc<DescriptorStore>,
+    /// Set by [`cluster_rounds`]: every node reaches the emulator through
+    /// this wrapper, which measures round-trip depth.
+    pub rounds: Option<Arc<Rounds<Shared>>>,
+}
+
+impl Cluster {
+    /// The store a node talks to: the round counter when there is one.
+    pub fn io(&self) -> Arc<dyn BlobStore> {
+        match &self.rounds {
+            Some(rounds) => rounds.clone(),
+            None => self.store.clone(),
+        }
+    }
 }
 
 pub struct Node {
@@ -84,7 +97,23 @@ pub fn cluster() -> Cluster {
         DescriptorStore::new(Arc::clone(&dynstore), "", DeleteMode::Tombstone)
             .expect("descriptors"),
     );
-    Cluster { store, descriptors }
+    Cluster {
+        store,
+        descriptors,
+        rounds: None,
+    }
+}
+
+/// A cluster whose nodes reach the store through a round counter.
+pub fn cluster_rounds() -> Cluster {
+    let mut c = cluster();
+    let store: Arc<dyn BlobStore> = c.store.clone();
+    let rounds = Arc::new(Rounds::new(Shared::new(store)));
+    c.descriptors = Arc::new(
+        DescriptorStore::new(rounds.clone(), "", DeleteMode::Tombstone).expect("descriptors"),
+    );
+    c.rounds = Some(rounds);
+    c
 }
 
 /// A node `id`; one that is `later` judges leases and head claims an hour on,
@@ -133,7 +162,7 @@ pub fn node_checked(
     };
     let membership = Arc::new(
         Membership::new(
-            c.store.clone(),
+            c.io(),
             "",
             Arc::clone(&clock),
             LeaseConfig {
@@ -144,7 +173,7 @@ pub fn node_checked(
         )
         .expect("membership"),
     );
-    let dynstore: Arc<dyn BlobStore> = c.store.clone();
+    let dynstore: Arc<dyn BlobStore> = c.io();
     let eph = format!("e{}", &id[5..]);
     let heads = Arc::new(
         ShardHeadStore::new(

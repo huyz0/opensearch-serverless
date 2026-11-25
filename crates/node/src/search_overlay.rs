@@ -181,7 +181,7 @@ impl<S: BlobStore + 'static> CommitAccess for Held<S> {
     }
 
     fn mapping_json(&self) -> &str {
-        &self.shard.meta.mapping_json
+        self.shard.meta.mapping.json()
     }
 
     fn index_name(&self) -> &str {
