@@ -56,7 +56,7 @@ The held figure is the in-memory directory, which a node does not keep (segments
 | 1 | open the shard | Get=2, GetRange=13 | Get=2, GetRange=13 |
 | 1 | first search | 0 | 0 |
 
-A `knn` search makes no request a term search does not, and no LIST. The open reads the whole index (47 MB read at open in both rows, whatever the segment count), so the searches have nothing left to fetch: this is the reader's open prefetch, which does not depend on the vectors. What an index of many gigabytes of vectors costs to open is not measured here, and a host whose page cache spills to disk was not tried.
+A `knn` search makes no request a term search does not, and no LIST. The open reads the whole index (47 MB read at open in both rows, whatever the segment count), so the searches have nothing left to fetch: the cause is the engine's warm of every vector file at open, not the open prefetch (docs/specs/reader-vector-warm moves it to the first `knn` search: the term row then reads 2.67 MB in 43 requests, the `knn` row the same 47 MB in 53 requests, on the emulator and RustFS 1.0.6). What an index of many gigabytes of vectors costs to open is not measured here, and a host whose page cache spills to disk was not tried.
 
 ## Verdict
 

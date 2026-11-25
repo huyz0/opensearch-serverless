@@ -52,6 +52,11 @@ pub struct ServerConfig {
     /// How often an idle worker checks whether a waiting connection should
     /// take its place.
     pub idle_poll: Duration,
+    /// The most searches parked off the workers waiting for their tenant's
+    /// turn (ADR 0056); 0 is off and the router's hook is never called.
+    pub search_queue_size: usize,
+    /// How long a parked search waits before it is answered 429.
+    pub search_queue_wait: Duration,
 }
 
 impl Default for ServerConfig {
@@ -73,6 +78,8 @@ impl Default for ServerConfig {
             min_transfer_rate: 8 << 10,
             slow_grace: Duration::from_secs(10),
             idle_poll: Duration::from_millis(50),
+            search_queue_size: 0,
+            search_queue_wait: Duration::from_secs(30),
         }
     }
 }
@@ -86,6 +93,8 @@ pub enum ConfigError {
     FewerConnectionsThanWorkers,
     /// The write buffer cannot hold a response head.
     WriteBufferTooSmall,
+    /// The search queue is larger than the connections that may wait.
+    QueueLargerThanWaitingConnections,
 }
 
 /// The smallest write buffer: room for a status line and the headers the
@@ -114,6 +123,12 @@ impl ServerConfig {
         }
         if self.max_connections < self.workers {
             return Err(ConfigError::FewerConnectionsThanWorkers);
+        }
+        if self.search_queue_size > self.max_connections.saturating_sub(self.workers) {
+            return Err(ConfigError::QueueLargerThanWaitingConnections);
+        }
+        if self.search_queue_size > 0 && self.search_queue_wait.is_zero() {
+            return Err(ConfigError::Zero("search_queue_wait"));
         }
         if self.write_buffer_size < MIN_WRITE_BUFFER {
             return Err(ConfigError::WriteBufferTooSmall);

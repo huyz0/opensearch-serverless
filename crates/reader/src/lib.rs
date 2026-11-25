@@ -23,10 +23,13 @@ pub mod mapping;
 pub mod numbers;
 pub mod open_cost;
 pub mod overlay;
+pub mod pin_settings;
+pub mod pinned;
 pub mod prefetch;
 pub mod rank_eval;
 pub mod response;
 pub mod search;
+mod search_error;
 mod search_options;
 mod search_post_filter;
 mod search_sort;
@@ -35,6 +38,7 @@ mod search_top;
 pub mod shard_files;
 mod shared_mapping;
 pub mod template;
+pub mod vector_warm;
 
 use std::sync::Arc;
 

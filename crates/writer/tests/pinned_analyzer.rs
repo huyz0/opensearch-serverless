@@ -70,5 +70,35 @@ fn a_module_that_fails_refuses_the_write() {
     let e = shard
         .index("1", br#"{"t":"Hello"}"#, false, &Expect::default())
         .expect_err("refused");
-    assert!(matches!(e, Refused::Mapping(_)), "{e:?}");
+    let Refused::Mapping(e) = e else {
+        panic!("{e:?}")
+    };
+    assert_eq!(e.ty, "extension_failed", "a limit is the input's, 400");
+}
+
+struct Failing(fn() -> CallError);
+
+impl Analyze for Failing {
+    fn analyze(&self, _: &str) -> Result<Vec<Token>, CallError> {
+        Err((self.0)())
+    }
+}
+
+// docs/specs/extension-analyzer AC-2, AC-16
+#[test]
+fn a_failure_is_typed_by_what_a_caller_can_do() {
+    for (make, ty) in [
+        (CallError::busy as fn() -> CallError, "extension_busy"),
+        (|| CallError::malformed(9), "extension_malformed"),
+        (|| CallError::trap("unreachable"), "extension_failed"),
+    ] {
+        let dir = ByteBuffersDirectory::new();
+        let mut shard = shard(&dir, Arc::new(Failing(make)));
+        let Err(Refused::Mapping(e)) =
+            shard.index("1", br#"{"t":"Hello"}"#, false, &Expect::default())
+        else {
+            panic!("refused")
+        };
+        assert_eq!(e.ty, ty);
+    }
 }

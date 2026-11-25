@@ -109,6 +109,16 @@ mod run {
         );
     }
 
+    /// The two modes compared: no gate and no queue, then the gate with 8
+    /// slots, or with `QUEUE` set the queue of 500 (`OSS_SEARCH_QUEUE_SIZE`).
+    fn modes() -> [(&'static str, &'static str); 2] {
+        if std::env::var_os("QUEUE").is_some() {
+            [("0", "0"), ("0", "500")]
+        } else {
+            [("0", "0"), ("8", "0")]
+        }
+    }
+
     /// `NOISY_CLIENTS`, default 40.
     fn noisy_clients() -> usize {
         std::env::var("NOISY_CLIENTS")
@@ -135,8 +145,14 @@ mod run {
     /// One configuration: a fresh search-only node, `bound` resident bytes
     /// ("" for none), the gate with `slots`; the noisy and quiet latencies and
     /// the store's GETs during the run.
-    fn round(c: &mut Cluster, id: &str, slots: &str, bound: &str) -> (Vec<u64>, Vec<u64>, u64) {
+    fn round(
+        c: &mut Cluster,
+        id: &str,
+        (slots, queue): (&str, &str),
+        bound: &str,
+    ) -> (Vec<u64>, Vec<u64>, u64) {
         c.set("OSS_SEARCH_SLOTS", slots);
+        c.set("OSS_SEARCH_QUEUE_SIZE", queue);
         c.set("OSS_RESIDENT_PAGE_BYTES", bound);
         let slot = c.add(id);
         ready(c, slot);
@@ -187,25 +203,22 @@ mod run {
                 (Vec::new(), Vec::new(), 0_u64),
             ];
             for r in 0..ROUNDS {
-                for (k, slots) in ["0", "8"].into_iter().enumerate() {
+                for (k, mode) in modes().into_iter().enumerate() {
                     c.set(
                         "OSS_PAGE_CACHE_DIR",
-                        &dir.join(format!("{slots}-{}-{r}", bound.len()))
+                        &dir.join(format!("{k}-{}-{r}", bound.len()))
                             .display()
                             .to_string(),
                     );
-                    let (q, n, gets) = round(
-                        &mut c,
-                        &format!("s{slots}{}-{r}", bound.len()),
-                        slots,
-                        bound,
-                    );
+                    let (q, n, gets) =
+                        round(&mut c, &format!("s{k}{}-{r}", bound.len()), mode, bound);
                     all[k].0.extend(q);
                     all[k].1.extend(n);
                     all[k].2 += gets;
                 }
             }
-            for (k, slots) in ["0", "8"].into_iter().enumerate() {
+            for (k, mode) in modes().into_iter().enumerate() {
+                let slots = format!("{mode:?}");
                 let (q, n, gets) = std::mem::take(&mut all[k]);
                 println!(
                     "== {label}, slots {slots}: store GETs {gets} over {ROUNDS} rounds of {RUN:?}"

@@ -255,6 +255,20 @@ impl Mapping {
         }
     }
 
+    /// As [`Mapping::from_descriptor`], for an index whose descriptor pins
+    /// analyzers (ADR 0053): an `ext_` analyzer name is accepted, the create
+    /// having checked that the index pins it.
+    ///
+    /// # Errors
+    ///
+    /// As [`Mapping::parse`].
+    pub fn from_descriptor_pinned(text: Option<&str>) -> Result<Self, MappingError> {
+        match text {
+            None => Ok(Mapping::default()),
+            Some(t) => Self::parse_pinned(t.as_bytes(), ParseOptions { knn: Some(true) }),
+        }
+    }
+
     /// The root object.
     pub fn root(&self) -> &Object {
         &self.root

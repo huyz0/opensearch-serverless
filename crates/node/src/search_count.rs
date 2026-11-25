@@ -15,7 +15,7 @@ use lucene_analysis::Analyzer;
 use oss_blob::BlobStore;
 use oss_reader::dsl::SearchSource;
 use oss_reader::failure::{SearchError, ShardFailure};
-use oss_reader::search::{hits_bytes, search};
+use oss_reader::search::{hits_bytes, search_with};
 use oss_rest::{JSON, Length, Method, Request, Response, RestError, RouteError, Router};
 use std::sync::Arc;
 
@@ -105,7 +105,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
         let shard = view.as_deref().unwrap_or(&held.shard);
         req.body().reserve(hits_bytes(&source, shard))?;
         let analyzer = Analyzer::standard(None);
-        let hits = match search(shard, &index, &source, &analyzer) {
+        let hits = match search_with(shard, &index, &source, &analyzer, held.pinned.as_deref()) {
             Ok(hits) => hits,
             Err(e) => {
                 let shard_failure = ShardFailure {

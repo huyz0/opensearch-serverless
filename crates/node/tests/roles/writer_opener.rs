@@ -6,93 +6,40 @@ use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::time::Duration;
 
 use oss_blob::{BlobStore, Emulator};
+
+use super::writer_opener_rig::{Counting, Forwarding};
 use oss_cluster::heads::{Acquisition, ShardHeadStore};
 use oss_cluster::{LeaseConfig, LivenessOracle, Membership, SystemClock};
 use oss_format::{FileLocation, IndexRecord, ManifestEntry, NodeLease, ShardRef, encode_manifest};
 use oss_meta::{DeleteMode, DescriptorStore};
 use oss_node::descriptor_routes::DescriptorRoutes;
 use oss_node::writer::{
-    DescriptorIncarnation, HeadAdmission, HeadOpener, MembershipLeaseWrite, OpenRefused,
-    Publishing, RoleTarget, Routes, ShardNames, ShardOpener, WriterRole,
+    DescriptorIncarnation, HeadAdmission, HeadOpener, MembershipLeaseWrite, ModuleLoader,
+    Publishing, RoleTarget, ShardNames, ShardOpener, WriterRole,
 };
-use oss_rest::Exception;
 use oss_writer::bulk::{
-    Bulk, BulkBudget, Defaults, IdGenerator, IndexInfo, ItemResult, Owner, Planned, StreamConfig,
-    stream,
+    Bulk, BulkBudget, Defaults, IdGenerator, IndexInfo, ItemResult, StreamConfig, stream,
 };
-use oss_writer::index::{Outcome, Written};
 use oss_writer::log::{CommitterConfig, LeaseKeeper, NodeLogCommitter, NodeLogStore};
 use oss_writer::publish::lazy::Policy;
 
 const MAPPING: &str = r#"{"properties":{"n":{"type":"integer"}}}"#;
 
-/// An opener that counts what it is asked.
-struct Counting {
-    inner: HeadOpener,
-    calls: Arc<AtomicUsize>,
-}
-
-impl ShardOpener for Counting {
-    fn open(&self, role: &WriterRole, index: &IndexInfo, shard: u32) -> Result<(), OpenRefused> {
-        self.calls.fetch_add(1, Ordering::SeqCst);
-        self.inner.open(role, index, shard)
-    }
-}
-
-/// Routes that place every shard here and answer a forward as `answer` says,
-/// counting the forwards and naming where each went.
-struct Forwarding {
-    inner: DescriptorRoutes,
-    sent: Mutex<Vec<String>>,
-    fail: AtomicBool,
-}
-
-impl Routes for Forwarding {
-    fn index(&self, name: &str) -> Option<IndexInfo> {
-        self.inner.index(name)
-    }
-
-    fn owner(&self, index: &IndexInfo, shard: u32) -> Owner {
-        self.inner.owner(index, shard)
-    }
-
-    fn forward(&self, node: &str, _: &IndexInfo, _: u32, group: &[Planned<'_>]) -> Vec<ItemResult> {
-        self.sent.lock().expect("lock").push(node.to_owned());
-        group
-            .iter()
-            .map(|_| {
-                if self.fail.load(Ordering::SeqCst) {
-                    ItemResult::Failed {
-                        status: 503,
-                        error: Exception::new("unavailable_shards_exception", "the holder is gone"),
-                    }
-                } else {
-                    ItemResult::Written {
-                        written: Written {
-                            outcome: Outcome::Created,
-                            version: 1,
-                            seq_no: 0,
-                            primary_term: 1,
-                        },
-                        forced_refresh: false,
-                    }
-                }
-            })
-            .collect()
-    }
-}
-
-struct Rig {
-    forwards: Arc<Forwarding>,
-    calls: Arc<AtomicUsize>,
-    store: Arc<Emulator>,
-    role: Arc<WriterRole>,
-    heads: Arc<ShardHeadStore>,
-    descriptors: Arc<DescriptorStore>,
-    clock: Arc<AtomicU64>,
+pub(super) struct Rig {
+    pub(super) forwards: Arc<Forwarding>,
+    pub(super) calls: Arc<AtomicUsize>,
+    pub(super) store: Arc<Emulator>,
+    pub(super) role: Arc<WriterRole>,
+    pub(super) heads: Arc<ShardHeadStore>,
+    pub(super) descriptors: Arc<DescriptorStore>,
+    pub(super) clock: Arc<AtomicU64>,
 }
 
 fn rig(opener: bool) -> Rig {
+    rig_with(opener, None)
+}
+
+pub(super) fn rig_with(opener: bool, modules: Option<Arc<dyn ModuleLoader>>) -> Rig {
     let store = Arc::new(Emulator::new(64 << 20, 1));
     let dynstore: Arc<dyn BlobStore> = store.clone();
     let clock = Arc::new(SystemClock);
@@ -179,16 +126,20 @@ fn rig(opener: bool) -> Rig {
             Duration::from_secs(600),
         );
     if opener {
+        let mut inner = HeadOpener::new(
+            Arc::clone(&heads),
+            Arc::clone(&descriptors),
+            Arc::clone(&dynstore),
+            "",
+            "node-1",
+            "e1",
+            1 << 16,
+        );
+        if let Some(loader) = modules {
+            inner = inner.with_modules(loader);
+        }
         role = role.with_opener(Arc::new(Counting {
-            inner: HeadOpener::new(
-                Arc::clone(&heads),
-                Arc::clone(&descriptors),
-                Arc::clone(&dynstore),
-                "",
-                "node-1",
-                "e1",
-                1 << 16,
-            ),
+            inner,
             calls: Arc::clone(&calls),
         }));
     }
@@ -221,9 +172,13 @@ fn create(r: &Rig, name: &str, uuid: &str) {
 }
 
 fn create_with(r: &Rig, name: &str, uuid: &str, settings: &[u8]) {
+    create_mapped(r, name, uuid, settings, MAPPING);
+}
+
+pub(super) fn create_mapped(r: &Rig, name: &str, uuid: &str, settings: &[u8], mapping: &str) {
     let mut record = IndexRecord::new(name, uuid, 1);
     record.settings = settings;
-    record.mapping = Some(std::borrow::Cow::Borrowed(MAPPING));
+    record.mapping = Some(std::borrow::Cow::Owned(mapping.to_owned()));
     r.descriptors
         .create(&record, 1, &mut vec![0u8; 1 << 16])
         .expect("created");
@@ -231,6 +186,10 @@ fn create_with(r: &Rig, name: &str, uuid: &str, settings: &[u8]) {
 
 /// Writes one document to `index` shard 0 and answers the item.
 fn write(role: &WriterRole, index: &str, id: &str) -> ItemResult {
+    write_doc(role, index, id, r#"{"n":1}"#)
+}
+
+pub(super) fn write_doc(role: &WriterRole, index: &str, id: &str, doc: &str) -> ItemResult {
     let defaults = Defaults {
         index: Some(index.into()),
         ..Defaults::default()
@@ -244,7 +203,7 @@ fn write(role: &WriterRole, index: &str, id: &str) -> ItemResult {
     let mut ids = IdGenerator::new(0, [0; 6]);
     let mut buffer = [0u8; 4096];
     let mut run = Bulk::new(&mut target, &mut ids, 1, false);
-    let body = format!("{{\"index\":{{\"_id\":\"{id}\"}}}}\n{{\"n\":1}}\n");
+    let body = format!("{{\"index\":{{\"_id\":\"{id}\"}}}}\n{doc}\n");
     stream(
         &mut body.as_bytes(),
         &mut buffer,
@@ -257,7 +216,7 @@ fn write(role: &WriterRole, index: &str, id: &str) -> ItemResult {
     run.finish().expect("finishes").remove(0).result
 }
 
-fn failed(result: &ItemResult) -> (u16, String) {
+pub(super) fn failed(result: &ItemResult) -> (u16, String) {
     match result {
         ItemResult::Failed { status, error } => (*status, error.reason().to_owned()),
         other => panic!("{other:?}"),

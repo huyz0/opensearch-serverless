@@ -56,6 +56,7 @@ graph TD
     oss-reader --> oss-blob
     oss-reader --> oss-cluster
     oss-reader --> oss-doc
+    oss-reader --> oss-ext
     oss-reader --> oss-format
     oss-reader --> oss-rest
     oss-reader --> oss-types

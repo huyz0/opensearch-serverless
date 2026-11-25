@@ -36,6 +36,52 @@ pub struct QueryContext<'a> {
     pub max_doc: i32,
     /// The answers of the query's `knn` nodes, when the search ran them.
     pub knn: Option<&'a crate::knn::KnnResults>,
+    /// What analyses a pinned field's text; none on a node that cannot run a
+    /// pin, which then refuses a query on such a field.
+    pub pinned: Option<&'a dyn crate::pinned::PinnedTokens>,
+}
+
+/// The query `text` makes on the text field `field`: with the pin the field
+/// names when it has one, never with the standard analyzer. `quoted` and
+/// `slop` make a phrase; `occur` joins the words of anything else.
+///
+/// # Errors
+///
+/// `illegal_argument_exception` for the analyzer's refusal, and
+/// `extension_unavailable` when the pin cannot run here or fails: the
+/// query is refused rather than answered from the standard analyzer.
+pub(crate) fn text_query(
+    cx: &QueryContext<'_>,
+    field: &str,
+    text: &str,
+    occur: Occur,
+    quoted: bool,
+    slop: u32,
+) -> Result<Option<Clause>, Failure> {
+    let builder = QueryBuilder::new(cx.analyzer);
+    let illegal = |e: lucene_search::Error| {
+        // ALLOC: error path; one message.
+        Failure::plain("illegal_argument_exception", e.to_string())
+    };
+    let Some(pin) = cx.mapping.get(field).and_then(|f| f.analyzer.as_deref()) else {
+        return builder
+            .create_field_query_from_text(occur, field, text, quoted, slop)
+            .map_err(illegal);
+    };
+    let Some(pinned) = cx.pinned else {
+        return Err(Failure::plain(
+            "extension_unavailable",
+            // ALLOC: error path; one message.
+            format!("field [{field}] is analysed by [{pin}], which this node cannot run"),
+        ));
+    };
+    let tokens = pinned
+        .tokens(pin, text)
+        .map_err(|why| Failure::plain("extension_unavailable", why))?;
+    let mut stream = crate::pinned::ListStream::new(tokens);
+    builder
+        .create_field_query(&mut stream, occur, field, quoted, slop)
+        .map_err(illegal)
 }
 
 /// `QueryShardContext.toQuery`'s wrapping: an exception that is not an
@@ -288,12 +334,7 @@ pub(crate) fn match_query(
         Operator::Or => Occur::Should,
         Operator::And => Occur::Must,
     };
-    let built = QueryBuilder::new(cx.analyzer)
-        .create_boolean_query_with(field, value.text(), occur)
-        .map_err(|e| {
-            // ALLOC: error path; one message.
-            Failure::plain("illegal_argument_exception", e.to_string())
-        })?;
+    let built = text_query(cx, field, value.text(), occur, false, 0)?;
     let Some(clause) = built else {
         return Ok(if zero_terms_all {
             match_all(cx)

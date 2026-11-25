@@ -145,14 +145,9 @@ impl Inverted {
         let Some(module) = module else {
             return self.text(analyzer, text, gap);
         };
-        let tokens = module.analyze(text).map_err(|e| {
-            // ALLOC: error path; one message.
-            MappingError::illegal_state(&format!(
-                "the analyzer module failed ({:?}): {}",
-                e.kind(),
-                e.detail()
-            ))
-        })?;
+        let tokens = module
+            .analyze(text)
+            .map_err(|e| MappingError::extension(&e))?;
         let units = text.encode_utf16().count();
         self.tokens(&tokens, i32::try_from(units).unwrap_or(i32::MAX), gap)
     }

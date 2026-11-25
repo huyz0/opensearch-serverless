@@ -101,6 +101,13 @@ impl Handler for GetHandler {
 pub const BUILD_PREFIX: &str = "oss-rust/";
 
 fn peer_reads_realtime(lease: &oss_format::NodeLease) -> bool {
+    same_build(lease)
+}
+
+/// Whether a member's lease names a node of this build family (the
+/// [`BUILD_PREFIX`] version): one that reads the tail overlay and runs the
+/// proactive takeover. A lease with no version is not.
+pub(crate) fn same_build(lease: &oss_format::NodeLease) -> bool {
     lease
         .version
         .as_deref()

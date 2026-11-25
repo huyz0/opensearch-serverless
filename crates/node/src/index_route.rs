@@ -17,6 +17,9 @@ use oss_rest::{Exception, JSON, Method, Request, Response, RestError, RouteError
 use oss_writer::bucket::policy;
 use oss_writer::mapping::{Mapping, ParseOptions};
 
+mod backing;
+mod mapping;
+
 use crate::index_templates::TemplateSets;
 use crate::pin_policy::{PinPolicy, with_members};
 use crate::route_util::read_body;
@@ -134,6 +137,9 @@ impl IndexService {
                 "pinning an analyzer module needs the all_access role",
             ));
         }
+        policy
+            .allowed()
+            .map_err(|why| refuse(400, "extension_unavailable", why))?;
         // ALLOC: one entry a pin, at most four.
         let mut out = Vec::with_capacity(pins.len());
         for pin in pins {
@@ -176,6 +182,11 @@ impl IndexService {
         self
     }
 
+    /// The template sets a create layers, when the node reads them.
+    pub(crate) fn templates(&self) -> Option<&Arc<TemplateSets>> {
+        self.templates.as_ref()
+    }
+
     /// `PUT /{index}`.
     pub fn create(&self, req: &mut Request<'_>, resp: &mut Response<'_>) -> Result<(), RestError> {
         let index = req
@@ -187,7 +198,19 @@ impl IndexService {
             MAX_CREATE_BYTES,
             "the body of a create is larger than 1 MiB",
         )?;
-        let mut asked = parse(1, Some(&body)).map_err(refusal)?;
+        let asked = parse(1, Some(&body)).map_err(refusal)?;
+        let (_, shards) = self.create_asked(req, &index, asked)?;
+        resp.send(200, JSON, create_ack(&index, shards).as_bytes())
+    }
+
+    /// Creates `index` as the request `asked` says: the pins split off, the
+    /// templates layered, the settings read. The uuid and the shard count.
+    pub(crate) fn create_asked(
+        &self,
+        req: &mut Request<'_>,
+        index: &str,
+        mut asked: oss_coordinator::indices::create::CreateRequest,
+    ) -> Result<(String, u32), RestError> {
         // A setting the node does not read is refused before the policy
         // is asked anything, so the refusal costs no request.
         // ALLOC: the non-pin settings of one create, bounded by the body.
@@ -211,14 +234,31 @@ impl IndexService {
                 // ALLOC: two scratch buffers a create, buffer_bytes each, reserved above.
                 let mut marker = vec![0u8; self.buffer_bytes];
                 let mut doc = vec![0u8; self.buffer_bytes];
-                let asked = templates
-                    .apply(&index, asked, &mut marker, &mut doc)
-                    .map_err(refusal)?;
+                let applied = templates
+                    .apply(index, asked, &mut marker, &mut doc)
+                    .map_err(refusal);
+                drop((marker, doc));
+                self.unscratch(req);
+                let asked = applied?;
                 crate::create_settings::refuse_others(&asked.settings, is_bucket_key)?;
                 asked
             }
             None => asked,
         };
+        let shards = asked.shards;
+        let uuid = self.build(req, index, asked, &pins)?;
+        Ok((uuid, shards))
+    }
+
+    /// Creates the index `index` as `asked` says, after the templates and
+    /// pins are settled; the uuid it was created with.
+    fn build(
+        &self,
+        req: &mut Request<'_>,
+        index: &str,
+        asked: oss_coordinator::indices::create::CreateRequest,
+        pins: &[(Pin, ResolvedLimits)],
+    ) -> Result<String, RestError> {
         let (bucket_off, bucket_group) = bucket_settings(&asked.settings)?;
         let cost = cost_settings(&asked.settings)?;
         let read = crate::create_settings::checked(&asked.settings, asked.shards, self.pipelines)?;
@@ -251,7 +291,7 @@ impl IndexService {
         let mut buf = vec![0u8; self.buffer_bytes];
         let uuid = new_id().map_err(|e| refuse(500, "index_create_failure", e.to_string()))?;
         let now = i64::try_from((self.clock)()).unwrap_or(i64::MAX);
-        let mut record = IndexRecord::new(&index, &uuid, asked.shards);
+        let mut record = IndexRecord::new(index, &uuid, asked.shards);
         record.mapping = asked.mapping.as_deref().map(Cow::Borrowed);
         record.created_at_millis = now;
         record.created_version_id = CREATED_VERSION_ID;
@@ -259,7 +299,7 @@ impl IndexService {
             group: bucket_group.clone(),
             ..cost
         };
-        let rendered = render(&pins);
+        let rendered = render(pins);
         let tenancy_settings = (!tenancy.is_empty() || !read.is_empty())
             .then(|| crate::writer::tenancy::tenancy_settings_with(&tenancy, &read));
         let settings = (!rendered.is_empty())
@@ -271,8 +311,8 @@ impl IndexService {
             && !bucket_off
             && let Some(join) = &self.join
         {
-            let group = bucket_group.as_deref().unwrap_or(&index);
-            let bucket = join(group, &index, &uuid)
+            let group = bucket_group.as_deref().unwrap_or(index);
+            let bucket = join(group, index, &uuid)
                 .map_err(|e| refuse(500, "index_create_failure", format!("bucket: {e}")))?;
             record.bucket = Some(Cow::Owned(bucket));
         }
@@ -281,9 +321,9 @@ impl IndexService {
             if let (Some(leave), Some(bucket)) = (&self.leave, record.bucket.as_deref()) {
                 let _ = leave(bucket, &uuid);
             }
-            return Err(create_failure(&index, &uuid, &e));
+            return Err(create_failure(index, &uuid, &e));
         }
-        resp.send(200, JSON, create_ack(&index, asked.shards).as_bytes())
+        Ok(uuid)
     }
 
     /// `HEAD /{index}`.
@@ -406,6 +446,7 @@ fn create_failure(index: &str, uuid: &str, e: &MetaError) -> RestError {
 /// A route registered twice.
 pub fn routes(router: Router, service: Arc<IndexService>) -> Result<Router, RouteError> {
     let create = Arc::clone(&service);
+    let exists = Arc::clone(&service);
     router
         .route(
             Method::Put,
@@ -417,8 +458,9 @@ pub fn routes(router: Router, service: Arc<IndexService>) -> Result<Router, Rout
             Method::Head,
             "/{index}",
             &[],
-            move |req: &mut Request<'_>, resp: &mut Response<'_>| service.exists(req, resp),
+            move |req: &mut Request<'_>, resp: &mut Response<'_>| exists.exists(req, resp),
         )
+        .and_then(|router| mapping::routes(router, &service))
 }
 
 /// Whether `key` sets an extension analyzer pin; other analysis settings

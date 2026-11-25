@@ -28,6 +28,13 @@ pub trait PushTargets: Sync {
     /// The readers of shard `shard` of `index`, best first, other than this
     /// node.
     fn readers(&self, index: &str, shard: u32) -> Vec<String>;
+
+    /// The readers of [`PushTargets::readers`] that are not of this build:
+    /// the ones that cannot take the writer's tail overlay and need each
+    /// commit instead. None unless the targets can tell the builds apart.
+    fn other_build_readers(&self, _index: &str, _shard: u32) -> Vec<String> {
+        Vec::new()
+    }
 }
 
 /// How a push reaches one reader.
@@ -55,6 +62,8 @@ pub struct Published<'a> {
     pub mapping_version: i64,
     /// The descriptor's settings version, or -1.
     pub settings_version: i64,
+    /// Whether only the readers of another build hear of it.
+    pub other_builds_only: bool,
 }
 
 /// Sends published commits to readers.
@@ -86,7 +95,12 @@ impl<T: PushTargets, L: PushLink> PushSender<T, L> {
         if !self.enabled {
             return;
         }
-        let targets = self.targets.readers(published.index, published.shard);
+        let targets = if published.other_builds_only {
+            self.targets
+                .other_build_readers(published.index, published.shard)
+        } else {
+            self.targets.readers(published.index, published.shard)
+        };
         if targets.is_empty() {
             return;
         }
@@ -228,6 +242,7 @@ mod tests {
             commit: b"commit-bytes",
             mapping_version: 4,
             settings_version: 2,
+            other_builds_only: false,
         }
     }
 

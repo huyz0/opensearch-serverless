@@ -35,3 +35,14 @@ fn the_names_a_mapping_uses_are_listed_once_each_in_order() {
     let plain = Mapping::parse(br#"{"properties":{"a":{"type":"text"}}}"#).expect("parses");
     assert!(plain.ext_analyzer_names().is_empty());
 }
+
+#[test]
+fn a_stored_mapping_is_read_with_its_pins_only_when_the_index_has_them() {
+    assert!(
+        Mapping::from_descriptor(Some(M)).is_err(),
+        "no pin: refused"
+    );
+    let m = Mapping::from_descriptor_pinned(Some(M)).expect("an index with pins");
+    assert_eq!(m.ext_analyzer_names(), ["ext_other", "ext_stem"]);
+    assert!(Mapping::from_descriptor_pinned(None).is_ok());
+}

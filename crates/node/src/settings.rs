@@ -15,6 +15,8 @@ fn providers() -> Vec<&'static [&'static Setting]> {
         #[cfg(feature = "reader")]
         crate::search::open_prefetch::SETTINGS,
         #[cfg(feature = "reader")]
+        crate::vector_warm_setting::SETTINGS,
+        #[cfg(feature = "reader")]
         crate::tail_overlay::SETTINGS,
         #[cfg(all(feature = "reader", feature = "writer"))]
         crate::commit_push::SETTINGS,
@@ -23,6 +25,8 @@ fn providers() -> Vec<&'static [&'static Setting]> {
         #[cfg(all(feature = "writer", feature = "coordinator"))]
         crate::knn_setting::SETTINGS,
         crate::security_setting::SETTINGS,
+        #[cfg(feature = "extensions")]
+        crate::extension_setting::SETTINGS,
         #[cfg(feature = "writer")]
         oss_writer::log::settings::SETTINGS,
         #[cfg(feature = "writer")]
@@ -74,10 +78,15 @@ mod tests {
             let reader = cfg!(feature = "reader");
             assert_eq!(
                 keys.len(),
-                7 + 6 * usize::from(reader)
+                7 + 7 * usize::from(reader)
                     + if writer { 38 + usize::from(reader) } else { 0 }
                     + usize::from(reader && writer)
                     + usize::from(writer && cfg!(feature = "coordinator"))
+                    + usize::from(cfg!(feature = "extensions"))
+            );
+            assert_eq!(
+                keys.contains(&"serverless.extensions.pins.allowed"),
+                cfg!(feature = "extensions")
             );
             assert_eq!(
                 keys.contains(&"serverless.reader.newest_commit_ask"),

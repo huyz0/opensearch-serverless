@@ -109,12 +109,14 @@ impl JavaNode {
         let mut child = command.spawn().expect("the Java node forks");
         let started = Instant::now();
         let addr = loop {
-            if let Ok(line) = std::fs::read_to_string(&ready) {
-                let http = line
+            // The file may be read between its creation and its content.
+            if let Ok(line) = std::fs::read_to_string(&ready)
+                && let Some(http) = line
                     .split_whitespace()
                     .find_map(|t| t.strip_prefix("http="))
-                    .expect("an http address");
-                break http.parse().expect("a socket address");
+                && let Ok(addr) = http.parse()
+            {
+                break addr;
             }
             assert!(
                 child.try_wait().expect("polls").is_none(),

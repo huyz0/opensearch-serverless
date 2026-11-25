@@ -3,7 +3,6 @@
 //! The lookup is a function, so a test supplies variables without touching
 //! the process environment.
 
-use std::fmt;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -16,8 +15,10 @@ pub(super) mod apply;
 pub(super) mod authoring;
 pub(super) mod page_cache;
 pub(super) mod roles;
+pub(super) mod search_queue;
 pub(super) mod search_slots;
 pub(super) mod snapshots;
+mod store_debug;
 pub(super) mod write_limit;
 
 /// The smallest memory total the pools' shares make workable.
@@ -46,28 +47,6 @@ pub enum StoreChoice {
     },
 }
 
-impl fmt::Debug for StoreChoice {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Fs { root } => f.debug_struct("Fs").field("root", root).finish(),
-            Self::S3 {
-                endpoint,
-                bucket,
-                region,
-                access_key,
-                ..
-            } => f
-                .debug_struct("S3")
-                .field("endpoint", endpoint)
-                .field("bucket", bucket)
-                .field("region", region)
-                .field("access_key", access_key)
-                .field("secret_key", &"<redacted>")
-                .finish(),
-        }
-    }
-}
-
 /// How a node is configured.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NodeConfig {
@@ -83,8 +62,7 @@ pub struct NodeConfig {
     pub http: SocketAddr,
     /// Where the transport server listens (port 0 for any free port).
     pub transport: SocketAddr,
-    /// The transport address this node's lease carries; the address the
-    /// server bound when unset.
+    /// The transport address this node's lease carries; the bound one when unset.
     pub advertise: Option<String>,
     /// The node's memory, split into pools.
     pub memory_bytes: usize,
@@ -119,16 +97,14 @@ pub struct NodeConfig {
     pub drain_settle_millis: u64,
     /// `serverless.activation.hibernate_after_millis`; 0 never hibernates.
     pub hibernate_after_millis: u64,
-    /// `serverless.search.commit_push.enabled`: a published commit is pushed
-    /// to the other readers of its shard. On by default, off by default when the
-    /// tail overlay is on (the overlay serves freshness, and the push made its
-    /// readers reopen cold).
+    /// `serverless.search.commit_push.enabled`: push a published commit to the
+    /// shard's other readers. On, but off by default with the tail overlay on
+    /// (the overlay serves freshness, and the push made its readers reopen cold).
     pub commit_push: bool,
     /// `serverless.activation.give_back_after_millis`; 0 never gives back.
     pub give_back_after_millis: u64,
-    /// `OSS_RETIRE_TIMEOUT_MS`: how long a node told to stop spends
-    /// publishing its shards and giving their heads back; 0 skips it and
-    /// leaves the shards to the lease.
+    /// `OSS_RETIRE_TIMEOUT_MS`: how long a node told to stop spends publishing
+    /// its shards and giving their heads back; 0 skips it (the lease takes them).
     pub retire_timeout_millis: u64,
     /// `serverless.activation.max_shards`; 0 is no cap.
     pub max_shards: usize,
@@ -136,6 +112,8 @@ pub struct NodeConfig {
     pub evict_after_millis: u64,
     /// `serverless.activation.evict_headroom_percent`.
     pub evict_headroom_percent: u64,
+    /// `OSS_WRITE_PIPELINE_DEPTH`: write groups of one shard that wait on the log together.
+    pub write_pipeline_depth: u64,
     /// `serverless.activation.pinned_indexes`, split at commas.
     pub pinned_indexes: Vec<String>,
     /// `serverless.activation.hand_off.enabled`.
@@ -148,8 +126,12 @@ pub struct NodeConfig {
     pub security_refresh_millis: u64,
     /// `serverless.knn.enabled`.
     pub knn: bool,
+    /// `serverless.reader.vector_warm.at_open`.
+    pub vector_warm_at_open: bool,
     /// `OSS_EXTENSIONS_PERCENT`: the page cache's share the `extensions` pool takes; 0 reserves none.
     pub extensions_percent: usize,
+    /// `OSS_EXTENSIONS_REPLAY_FUEL_FACTOR`: a replayed call's fuel and memory, times its record's.
+    pub extensions_replay_factor: u64,
     /// `OSS_STORE_USAGE`: count the store's requests and bytes per index
     /// and serve them at `GET /_serverless/usage`.
     pub store_usage: bool,
@@ -179,6 +161,8 @@ pub struct NodeConfig {
     /// `OSS_SEARCH_*`: the gate that orders searches under pressure;
     /// `slots` 0 is off.
     pub search_slots: crate::search_slots::Config,
+    /// `OSS_SEARCH_QUEUE_*` and `OSS_HTTP_MAX_CONNECTIONS`; `size` 0 is off.
+    pub search_queue: crate::search_queue::Config,
     /// `OSS_PAGE_CACHE_DIR` and `OSS_PAGE_CACHE_BYTES`: a disk tier for the
     /// page cache; none keeps nothing past a read.
     pub page_cache: Option<page_cache::DiskCache>,
@@ -206,6 +190,12 @@ pub struct NodeConfig {
     pub proactive_max_concurrent: usize,
     /// `serverless.takeover.proactive.pass_millis`.
     pub proactive_pass_millis: u64,
+    /// `serverless.search.shard_action.enabled`: the Java shell's forwarded shard search.
+    pub search_shard_action: bool,
+    /// `serverless.search.shard_action.max_lease_age_millis`.
+    pub search_shard_max_lease_age_millis: u64,
+    /// `serverless.search.shard_action.max_concurrent`.
+    pub search_shard_max_concurrent: usize,
     /// `serverless.search.tail_overlay.enabled`: whether writers push their
     /// acknowledged writes to readers and searches see them.
     pub tail_overlay: bool,
@@ -338,6 +328,7 @@ impl NodeConfig {
         let knn = flag("OSS_KNN", "true")?;
         let extensions_percent =
             usize::try_from(bounded("OSS_EXTENSIONS_PERCENT", "0", 0, 20)?).unwrap_or(0);
+        let extensions_replay_factor = bounded("OSS_EXTENSIONS_REPLAY_FUEL_FACTOR", "16", 1, 1024)?;
         let security = flag("OSS_SECURITY", "false")?;
         let security_refresh_millis = bounded("OSS_SECURITY_REFRESH_MS", "10000", 1000, 3_600_000)?;
         let security_admin = match (
@@ -387,7 +378,7 @@ impl NodeConfig {
         let roles = roles::read(get("OSS_ROLES"))?;
         let proactive_rust_reapers_only = flag("OSS_PROACTIVE_RUST_REAPERS_ONLY", "true")?;
         let proactive_reapers = bounded("OSS_PROACTIVE_REAPERS", "2", 1, 16)?;
-        let proactive_max_concurrent = bounded("OSS_PROACTIVE_MAX_CONCURRENT", "4", 1, 64)?;
+        let proactive_max_concurrent = bounded("OSS_PROACTIVE_MAX_CONCURRENT", "16", 1, 64)?;
         let tombstone_sweep_millis = bounded("OSS_TOMBSTONE_SWEEP_MS", "3600000", 0, 604_800_000)?;
         let orphan_slice_budget = ORPHAN_SLICE_BUDGET
             .parse(&or(
@@ -401,7 +392,16 @@ impl NodeConfig {
                 &ORPHAN_SLICE_INTERVAL_MILLIS.default().to_string(),
             ))
             .map_err(|e| format!("OSS_ORPHAN_SLICE_MS: {e}"))?;
-        let proactive_pass_millis = bounded("OSS_PROACTIVE_PASS_MS", "30000", 1, 3_600_000)?;
+        let proactive_pass_millis = bounded("OSS_PROACTIVE_PASS_MS", "60000", 1, 3_600_000)?;
+        let search_shard_action = flag("OSS_SEARCH_SHARD_ACTION", "true")?;
+        let search_shard_max_lease_age_millis = bounded(
+            "OSS_SEARCH_SHARD_ACTION_MAX_LEASE_AGE_MILLIS",
+            "10000",
+            1,
+            3_600_000,
+        )?;
+        let search_shard_max_concurrent =
+            bounded("OSS_SEARCH_SHARD_ACTION_MAX_CONCURRENT", "8", 1, 256)?;
         let cluster_settings_poll_millis =
             bounded("OSS_CLUSTER_SETTINGS_POLL_MS", "30000", 1, 3_600_000)?;
         let refresh_visibility = REFRESH_VISIBILITY
@@ -425,6 +425,7 @@ impl NodeConfig {
             tombstone_sweep_millis,
             write_limit,
             search_slots,
+            search_queue: search_queue::read(&bounded, search_slots.slots)?,
             page_cache,
             resident_page_bytes,
             roles,
@@ -445,13 +446,16 @@ impl NodeConfig {
             max_shards: usize::try_from(max_shards).unwrap_or(0),
             evict_after_millis,
             evict_headroom_percent,
+            write_pipeline_depth: bounded("OSS_WRITE_PIPELINE_DEPTH", "1", 1, 64)?,
             pinned_indexes,
             hand_off,
             security,
             security_admin,
             security_refresh_millis,
             knn,
+            vector_warm_at_open: flag("OSS_VECTOR_WARM_AT_OPEN", "false")?,
             extensions_percent,
+            extensions_replay_factor,
             store_usage,
             tenant_levels,
             tenant_budget_per_minute,
@@ -463,17 +467,15 @@ impl NodeConfig {
             proactive_takeover,
             proactive_reapers: usize::try_from(proactive_reapers).unwrap_or(2),
             proactive_rust_reapers_only,
-            proactive_max_concurrent: usize::try_from(proactive_max_concurrent).unwrap_or(4),
+            proactive_max_concurrent: usize::try_from(proactive_max_concurrent).unwrap_or(16),
             proactive_pass_millis,
+            search_shard_action,
+            search_shard_max_lease_age_millis,
+            search_shard_max_concurrent: usize::try_from(search_shard_max_concurrent).unwrap_or(8),
             tail_overlay,
             refresh_visibility,
             cluster_settings_poll_millis,
         })
-    }
-
-    /// Whether the node takes writes: its lease names `ingest`.
-    pub fn takes_writes(&self) -> bool {
-        self.roles.contains(&"ingest")
     }
 
     /// How often the lease is renewed: a third of its lifetime.

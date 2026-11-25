@@ -1,5 +1,12 @@
 //! `OSS_ROLES`: the roles a node's lease names.
 
+impl super::NodeConfig {
+    /// Whether the node takes writes: its lease names `ingest`.
+    pub fn takes_writes(&self) -> bool {
+        self.roles.contains(&"ingest")
+    }
+}
+
 /// The roles a node can take.
 const KNOWN: [&str; 2] = ["ingest", "search"];
 

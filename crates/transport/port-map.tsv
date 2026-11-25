@@ -24,3 +24,6 @@ src/actions/tail.rs	port	serverless/shell/src/main/java/org/opensearch/serverles
 src/actions/read.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/forwarding/ForwardedGetRequest.java@429b4cbc	with ForwardedGetResponse: writeTo and the StreamInput constructors
 src/actions/lease.rs	new		the lease announce; Rust nodes only, the Java shell has no such action
 src/actions/warm.rs	new		the warm-copy messages between Rust nodes: the hot-set ask and answer, the page ask and answer; Java answers these actions with an unknown-action refusal
+src/actions/search_shard/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/forwarding/ForwardedSearchRequest.java@429b4cbc	the request and the fields of SearchSourceBuilder.writeTo, read in order and refused at the first one not run
+src/actions/search_shard/query.rs	port	server/src/main/java/org/opensearch/index/query/AbstractQueryBuilder.java@429b4cbc	the query builders' StreamInput constructors for match_all, term, terms, range, bool, ids and exists
+src/actions/search_shard/response.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/forwarding/ForwardedSearchResponse.java@429b4cbc	writeTo with SearchHit.writeTo for the hit fields a coordinator merges

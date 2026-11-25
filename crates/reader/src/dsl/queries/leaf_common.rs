@@ -2,11 +2,10 @@
 //! text that analyzes to nothing, which `ZeroTermsQuery.NULL` turns into a
 //! dropped clause.
 
-use lucene_search::query_builder::QueryBuilder;
 use lucene_search::query_visitor::Occur;
 use lucene_search::{BoostQuery, Clause};
 
-use crate::lucene_query::QueryContext;
+use crate::lucene_query::{QueryContext, text_query};
 use crate::mapping::FieldType;
 
 /// Whether `text` has no term to search in any of `fields`: only text
@@ -18,7 +17,6 @@ pub(super) fn no_terms<'f>(
     text: &str,
     slop: Option<u32>,
 ) -> bool {
-    let builder = QueryBuilder::new(cx.analyzer);
     fields.all(|field| {
         let text_field = cx
             .mapping
@@ -27,13 +25,10 @@ pub(super) fn no_terms<'f>(
         text_field
             && match slop {
                 None => matches!(
-                    builder.create_boolean_query_with(field, text, Occur::Should),
+                    text_query(cx, field, text, Occur::Should, false, 0),
                     Ok(None)
                 ),
-                Some(s) => matches!(
-                    builder.create_phrase_query_with_slop(field, text, s),
-                    Ok(None)
-                ),
+                Some(s) => matches!(text_query(cx, field, text, Occur::Must, true, s), Ok(None)),
             }
     })
 }

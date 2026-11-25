@@ -158,9 +158,12 @@ pub(crate) fn swap(
 ) -> BlobResult<SwapOutcome> {
     check_key(key)?;
     check_value(value)?;
-    if expected != ABSENT_GENERATION
-        && let Some(known) = store.known().get(key).filter(|k| k.generation == expected)
-    {
+    if expected == ABSENT_GENERATION {
+        // The conditional create is the whole check: a register that
+        // exists refuses it, so no read of the generation comes first.
+        return create(store, key, value);
+    }
+    if let Some(known) = store.known().get(key).filter(|k| k.generation == expected) {
         let next = next_generation(expected)?;
         return write(store, key, next, value, Precondition::Matches(&known.etag));
     }

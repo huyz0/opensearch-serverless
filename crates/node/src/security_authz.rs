@@ -114,6 +114,26 @@ const RULES: &[(&[Method], &str, Rule)] = &[
         Rule::Index("indices:admin/exists"),
     ),
     (
+        &[Method::Get],
+        "/{index}/_mapping",
+        Rule::Index("indices:admin/mappings/get"),
+    ),
+    (
+        &[Method::Get],
+        "/{index}/_mappings",
+        Rule::Index("indices:admin/mappings/get"),
+    ),
+    (
+        &[Method::Put, Method::Post],
+        "/{index}/_mapping",
+        Rule::Index("indices:admin/mapping/put"),
+    ),
+    (
+        &[Method::Put, Method::Post],
+        "/{index}/_mappings",
+        Rule::Index("indices:admin/mapping/put"),
+    ),
+    (
         GET_POST,
         "/{index}/_refresh",
         Rule::Index("indices:admin/refresh"),
@@ -200,6 +220,10 @@ const ALL_ACCESS: &[&str] = &[
     "/_ingest/pipeline/_simulate",
     "/_ingest/pipeline/{id}/_simulate",
     "/_aliases",
+    "/_data_stream",
+    "/{index}/_rollover",
+    "/{index}/_rollover/{new_index}",
+    "/_data_stream/{name}",
     "/_scripts/{id}",
     "/_scripts/{id}/{context}",
     "/_alias",

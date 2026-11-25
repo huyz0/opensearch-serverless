@@ -228,3 +228,78 @@ fn no_position_or_one_beyond_the_result_hits_is_refused() {
     assert!(run(&[0, 3]).is_err());
     assert_eq!(run(&[2]).expect("last").len(), 1);
 }
+
+fn rows(
+    shard: &OpenShard<Emulator>,
+    body: &str,
+    reserve: &mut dyn FnMut(usize) -> std::io::Result<()>,
+) -> std::io::Result<Vec<super::Row>> {
+    let source = parse_chunks([body.as_bytes()]).expect("parses");
+    let hits = search(shard, "idx", &source, &Analyzer::standard(None)).expect("searches");
+    super::fetch_rows(shard, &hits, reserve)
+}
+
+#[test]
+fn a_row_carries_the_hit_s_id_score_and_source_as_the_response_writes_them() {
+    let shard = shard();
+    let rows = rows(&shard, r#"{"size":3}"#, &mut |_| Ok(())).expect("rows");
+    assert_eq!(rows.len(), 3);
+    let rendered = render_selected_result_hits(
+        &shard,
+        "idx",
+        "node",
+        &{
+            let source = parse_chunks([br#"{"size":3}"#.as_slice()]).expect("parses");
+            search(&shard, "idx", &source, &Analyzer::standard(None)).expect("searches")
+        },
+        &[0, 1, 2],
+        &mut |_| Ok(()),
+    )
+    .expect("renders");
+    for (row, hit) in rows.iter().zip(rendered) {
+        let hit = String::from_utf8(hit).expect("utf-8");
+        let id = String::from_utf8(row.id_json.clone()).expect("utf-8");
+        assert!(id.starts_with('"') && id.ends_with('"'), "{id}");
+        assert!(hit.contains(&format!(r#""_id":{id}"#)), "{hit}");
+        let source = String::from_utf8(row.source.clone()).expect("utf-8");
+        assert!(source.starts_with('{'), "{source}");
+        assert!(hit.contains(&format!(r#""_source":{source}"#)), "{hit}");
+        assert!(row.score.is_some());
+    }
+}
+
+#[test]
+fn a_skipped_source_is_empty_and_a_filtered_one_is_written_filtered() {
+    let shard = shard();
+    let skipped = rows(&shard, r#"{"size":1,"_source":false}"#, &mut |_| Ok(())).expect("rows");
+    assert!(skipped[0].source.is_empty());
+    let whole = rows(&shard, r#"{"size":1}"#, &mut |_| Ok(())).expect("rows");
+    let filtered = rows(
+        &shard,
+        r#"{"size":1,"_source":{"includes":["no-such-field"]}}"#,
+        &mut |_| Ok(()),
+    )
+    .expect("rows");
+    assert_ne!(filtered[0].source, whole[0].source);
+    assert_eq!(filtered[0].source.first(), Some(&b'{'));
+}
+
+#[test]
+fn a_refused_reservation_ends_the_fetch() {
+    let shard = shard();
+    let refused = rows(&shard, r#"{"size":1}"#, &mut |_| {
+        Err(std::io::Error::other("no room"))
+    });
+    assert!(refused.is_err());
+}
+
+#[test]
+fn the_meta_a_row_carries_is_read_from_what_write_meta_writes() {
+    use super::selected::meta_value;
+    let written = r#","_version":3,"_seq_no":-7,"_primary_term":2"#;
+    assert_eq!(meta_value(written, "_version"), Some(3));
+    assert_eq!(meta_value(written, "_seq_no"), Some(-7));
+    assert_eq!(meta_value(written, "_primary_term"), Some(2));
+    assert_eq!(meta_value(r#","_version":3"#, "_seq_no"), None);
+    assert_eq!(meta_value("", "_version"), None);
+}

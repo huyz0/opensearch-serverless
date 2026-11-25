@@ -70,10 +70,21 @@ fn an_hour_of_passes_over_idle_held_shards_asks_for_nothing() {
     pass.run(gc_config(false));
     let before = requests(&c);
     an_hour(&one.role, &pass, 1_000);
+    let hour = requests(&c) - before;
     budget::check(
         "held_idle.index_requests_target",
-        requests(&c) - before,
+        hour,
         "an hour of the publish, hibernate and janitor passes over four idle held shards",
+    );
+    budget::check(
+        "held_idle.index_requests_per_hour",
+        hour,
+        "the same hour: every request the writer's passes made, on any index",
+    );
+    budget::check(
+        "held_idle.node_requests_per_hour",
+        hour,
+        "the same hour: the passes make no request of their own either (lease renewal is lease.idle.*)",
     );
     assert_eq!(one.role.held_shards().len(), SHARDS as usize);
 }
@@ -95,4 +106,21 @@ fn an_hour_of_passes_over_hibernated_shards_asks_for_nothing() {
         "an hour of the publish, hibernate and janitor passes over four hibernated shards",
     );
     assert_eq!(one.role.hibernated(), SHARDS as usize);
+}
+
+// docs/specs/writer-budgets AC-4
+#[test]
+fn an_hour_of_passes_after_four_indices_were_released_asks_for_nothing() {
+    let (c, one) = held();
+    let pass = janitor(&c, &one.role);
+    let report = one.role.retire(1_000, u64::MAX);
+    assert_eq!(report.given_back, SHARDS as usize, "{report:?}");
+    let before = requests(&c);
+    an_hour(&one.role, &pass, 2_000);
+    budget::check(
+        "idle_released.node_requests_per_hour",
+        requests(&c) - before,
+        "an hour of the writer's passes once four written shards were released",
+    );
+    assert_eq!(one.role.held_shards().len(), 0);
 }

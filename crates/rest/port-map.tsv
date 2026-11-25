@@ -26,3 +26,7 @@ src/guard.rs	new		the check every request passes before its route is looked up
 src/router_tests.rs	new		tests for router.rs
 src/authorizer.rs	new		the check a request passes once its route is found, before any of it is read
 src/conn_linger_tests.rs	new		the connection linger tests, split from conn.rs; no Java counterpart
+src/admission.rs	new		the hook that lets a node queue searches off the workers (ADR 0056); OpenSearch has a fixed search pool with a queue, no per-tenant rule
+src/parked.rs	new		the search queue of parked connections (ADR 0056)
+src/shared.rs	new		the state every worker shares, split from conn.rs
+src/linger.rs	new		the graceful close of a connection, split from conn.rs

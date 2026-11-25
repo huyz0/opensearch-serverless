@@ -29,7 +29,7 @@ use oss_reader::dsl::{DslError, MAX_RECORDED_BYTES, Recorder, SearchSource, sour
 use oss_reader::failure::{SearchError, ShardFailure};
 use oss_reader::overlay::OverlaySource;
 use oss_reader::response::write_response;
-use oss_reader::search::{hits_bytes, search};
+use oss_reader::search::{hits_bytes, search_with};
 use oss_rest::{JSON, Length, Method, Request, Response, RestError, RouteError, Router};
 
 /// The query parameters `_search` takes.
@@ -41,6 +41,9 @@ pub(crate) struct Held<S: BlobStore + 'static> {
     pub(crate) shard: OpenShard<S>,
     /// The shard with an overlay on top, for the overlay it was made from.
     view: Mutex<Option<overlay::OverlayView<S>>>,
+    /// What analyses the fields the index pins an analyzer for, held for as
+    /// long as the index is open; none for an index that pins nothing.
+    pub(crate) pinned: Option<Arc<dyn oss_reader::pinned::PinnedTokens>>,
     /// Where the commit it is open on sits among its writer's.
     pub(crate) stage: Stage,
     /// The index's name.
@@ -88,6 +91,8 @@ pub struct SearchService<S: BlobStore + 'static> {
     /// The gate that orders searches under pressure, with what names a
     /// search's tenant and level; none, and every search runs at once.
     slots: OnceLock<crate::search_slots::Gated>,
+    /// Loads the modules an index pins; none, and such an index is refused.
+    modules: OnceLock<Arc<dyn crate::search_modules::ModuleOpener>>,
 }
 
 impl<S: BlobStore + 'static> SearchService<S> {
@@ -118,6 +123,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
             layers: OnceLock::new(),
             pits: OnceLock::new(),
             slots: OnceLock::new(),
+            modules: OnceLock::new(),
         }
     }
 
@@ -202,7 +208,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
         let shard = view.as_deref().unwrap_or(&held.shard);
         req.body().reserve(hits_bytes(&source, shard))?;
         let analyzer = Analyzer::standard(None);
-        let hits = match search(shard, &index, &source, &analyzer) {
+        let hits = match search_with(shard, &index, &source, &analyzer, held.pinned.as_deref()) {
             Ok(hits) => hits,
             Err(e) => {
                 let shard_failure = ShardFailure {

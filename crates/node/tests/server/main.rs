@@ -26,6 +26,8 @@ mod boot_ready_drain;
 mod boot_retire;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod boot_roles;
+mod boot_rollover_count;
+mod boot_search_queue;
 mod boot_search_slots;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod boot_snapshots;
@@ -41,6 +43,8 @@ mod bulk_route;
 mod by_query_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod cluster_assemble;
+#[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
+mod data_stream_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod doc_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
@@ -55,6 +59,8 @@ mod index_route;
 mod ingest_run;
 #[cfg(feature = "reader")]
 mod newest_ask;
+#[cfg(all(feature = "extensions", feature = "reader", feature = "writer"))]
+mod pinned_read;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod pipeline_assemble;
 #[cfg(all(feature = "reader", feature = "writer"))]
@@ -63,6 +69,9 @@ mod pipeline_route;
 mod push_read;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod read_forward;
+#[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
+mod rollover_route;
+mod rollover_shape;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod script_route;
 #[cfg(all(feature = "reader", feature = "writer"))]

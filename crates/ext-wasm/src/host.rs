@@ -63,7 +63,8 @@ impl fmt::Display for LoadError {
 
 impl std::error::Error for LoadError {}
 
-/// The WASM host: one engine for every module.
+/// The WASM host: one engine for every module. A clone is the same host.
+#[derive(Clone)]
 pub struct Host {
     shared: Arc<Shared>,
 }

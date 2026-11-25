@@ -48,10 +48,10 @@ pub const REAPERS: LongSetting = LongSetting::new(
 );
 
 /// `serverless.takeover.proactive.max_concurrent`: shards one pass takes at
-/// a time. Default 4.
+/// a time. Default 16.
 pub const MAX_CONCURRENT: LongSetting = LongSetting::new(
     "serverless.takeover.proactive.max_concurrent",
-    4,
+    16,
     1,
     64,
     Scope::Node,
@@ -59,10 +59,10 @@ pub const MAX_CONCURRENT: LongSetting = LongSetting::new(
 );
 
 /// `serverless.takeover.proactive.pass_millis`: how long a pass may start
-/// takes for. Default 30,000.
+/// takes for. Default 60,000.
 pub const PASS_MILLIS: LongSetting = LongSetting::new(
     "serverless.takeover.proactive.pass_millis",
-    30_000,
+    60_000,
     1,
     3_600_000,
     Scope::Node,
@@ -183,16 +183,6 @@ impl Attempt {
     }
 }
 
-/// Whether a member is a node of this build family (the `oss-rust/` version
-/// prefix), the only kind that can run the pass. It does not say the node has
-/// the pass switched on, or is new enough to have it.
-fn same_build(lease: &NodeLease) -> bool {
-    lease
-        .version
-        .as_deref()
-        .is_some_and(|v| v.starts_with(crate::read_forward::BUILD_PREFIX))
-}
-
 /// The proactive take of a dead node's shards.
 pub struct ProactiveTakeover {
     node_id: String,
@@ -257,7 +247,10 @@ impl ProactiveTakeover {
                 let only = self.config.rust_reapers_only;
                 let reapers = reapers_for(
                     &dead.node_id,
-                    refreshed.live.iter().filter(|l| !only || same_build(l)),
+                    refreshed
+                        .live
+                        .iter()
+                        .filter(|l| !only || crate::read_forward::same_build(l)),
                     self.config.reapers,
                 );
                 let Some(rank) = reapers.iter().position(|id| *id == self.node_id) else {

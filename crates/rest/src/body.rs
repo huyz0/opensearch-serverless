@@ -211,6 +211,14 @@ impl<'a> Body<'a> {
         result.map_err(|e| RestError::circuit_breaking(&e, BREAKER_LABEL))
     }
 
+    /// Gives back `bytes` of what [`Body::reserve`] took, for data the
+    /// handler has dropped; more than is reserved gives back all of it.
+    pub fn release(&mut self, bytes: usize) {
+        if let Some(r) = &mut self.retained {
+            r.shrink(bytes.min(r.bytes()));
+        }
+    }
+
     /// Bytes reserved through [`Body::reserve`].
     pub fn reserved(&self) -> usize {
         self.retained.as_ref().map_or(0, Reservation::bytes)

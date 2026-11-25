@@ -1,0 +1,16 @@
+# Verified
+
+- AC-1: `terms_range_ids_and_exists_read` and `bool_keeps_every_clause_and_minimum_should_match` in crates/transport/tests/search_shard.rs, against `fixtures/search-shard/java-3.10.0.txt` written by `fixtures/search-shard/WriteSearchShard.java` on the Java shell at e71d4233 (3.10.0-SNAPSHOT)
+- AC-1c: `every_fixture_request_becomes_a_source_the_reader_accepts_or_is_refused_as_named` and `a_named_query_is_refused_for_the_answer_cannot_say_which_matched` in crates/node/src/search_shard_action/convert_tests.rs
+- AC-1b: `the_first_unsupported_item_is_named_and_nothing_after_it_is_read` in crates/transport/tests/search_shard.rs
+- AC-2: `an_answer_with_hits_is_what_the_java_shell_writes_byte_for_byte` in crates/transport/tests/search_shard.rs
+- AC-3: `an_owner_answers_from_its_unpublished_tail_and_asks_the_store_for_nothing` in crates/node/tests/search_shard_action.rs, over an overlay source that stands for the writer's tail (NOT-RUN: with the writer's own tail on a Rust node, in the wide soak)
+- AC-4: `a_shard_not_held_is_refused_before_anything_is_searched`, `another_uuid_is_refused_before_anything_is_searched` and `a_search_that_outlasts_the_lease_answers_nothing` in crates/node/src/search_shard_action/tests.rs (nothing is searched for the first two, so no blob request)
+- AC-4b: `a_node_that_never_renewed_or_renewed_long_ago_refuses` and `a_held_shard_with_a_fresh_lease_answers_in_the_java_layout` in crates/node/src/search_shard_action/tests.rs
+- AC-5: NOT-RUN: the request limits are held by `a_request_over_a_limit_is_refused_and_one_at_it_is_not` and the answer limit by `an_answer_past_the_limit_is_refused_whole` in crates/transport/tests/search_shard.rs, the version by `an_older_peer_an_unknown_index_and_an_unsupported_query_are_refused_by_name` in crates/node/src/search_shard_action/tests.rs; the MAC is the registry's (`an_unsigned_request_never_reaches_a_handler` in crates/node/tests/handlers.rs), not run against this action
+- AC-6: NOT-RUN: the request's `now` is read and not applied; the reader's own clock evaluates date math.
+- AC-7: NOT-RUN: ties keep the shard's document order, not `_id` order; not built.
+- AC-8: `a_full_pool_refuses_the_search_and_a_finished_one_frees_its_slot` in crates/node/src/search_shard_action/tests.rs
+- AC-9: `the_action_is_registered_when_the_setting_is_on_and_not_when_it_is_off` in crates/node/src/boot/search_shard.rs, and `the_forwarded_search_action_is_on_and_each_setting_is_read_and_bounded` in crates/node/src/boot/config/tests.rs (NOT-RUN: a Java request served with it on, in the wide soak)
+- AC-10: NOT-RUN: not built yet.
+- AC-11: NOT-RUN: not built yet.

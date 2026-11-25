@@ -90,6 +90,33 @@ fn each_operation_sends_what_the_spec_budgets() {
     }
 }
 
+// AC-3: a swap from the absent generation is the conditional create.
+#[test]
+fn a_swap_from_absent_is_one_conditional_put_on_an_object_store() {
+    for b in all() {
+        if b.kind == Kind::Fs {
+            continue;
+        }
+        let s = &*b.store;
+        let m = s.meter();
+        let (outcome, n) = counted(m, || {
+            s.swap_register("a/k", oss_blob::register::ABSENT_GENERATION, b"first")
+                .unwrap()
+        });
+        assert!(matches!(outcome, SwapOutcome::Applied(_)), "{:?}", b.kind);
+        assert_eq!(n, [(Put, 1)], "{:?} swap from absent", b.kind);
+        assert_eq!(read(s, "a/k").map(|r| r.1), Some(b"first".to_vec()));
+        // Another writer got there first: refused, in the same one request.
+        let (outcome, n) = counted(m, || {
+            s.swap_register("a/k", oss_blob::register::ABSENT_GENERATION, b"second")
+                .unwrap()
+        });
+        assert!(matches!(outcome, SwapOutcome::Conflict(_)), "{:?}", b.kind);
+        assert_eq!(n, [(Put, 1)], "{:?} swap from absent, refused", b.kind);
+        assert_eq!(read(s, "a/k").map(|r| r.1), Some(b"first".to_vec()));
+    }
+}
+
 // AC-4
 #[test]
 fn a_stale_remembered_version_costs_one_refused_put_never_a_wrong_write() {

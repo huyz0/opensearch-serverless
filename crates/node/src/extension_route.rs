@@ -81,7 +81,7 @@ impl ExtensionService {
                 "another module is being uploaded; retry",
             ));
         }
-        let _place = Place(&self.uploading);
+        let place = Place(&self.uploading);
         let declared = req.body().declared_length();
         if declared.is_some_and(|n| n > u64::from(MAX_MODULE_BYTES)) {
             return Err(RestError::too_large());
@@ -114,6 +114,9 @@ impl ExtensionService {
             r#"{{"id":"{hash}","name":"{}","version":"{a}.{b}.{c}","created":{created}}}"#,
             d.name()
         );
+        // The place is free before the answer leaves, so a client that got
+        // its answer can upload again at once.
+        drop(place);
         resp.send(if created { 201 } else { 200 }, JSON, body.as_bytes())
     }
 }

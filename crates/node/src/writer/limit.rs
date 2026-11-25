@@ -65,3 +65,11 @@ impl WriterRole {
         }
     }
 }
+
+/// `n` outcomes, each refused as unavailable for `reason`.
+pub(super) fn unavailable(n: usize, reason: impl Fn() -> String) -> Vec<Result<Written, Failure>> {
+    // ALLOC: one outcome an item of the group.
+    (0..n)
+        .map(|_| Err(Failure::Unavailable(reason())))
+        .collect()
+}

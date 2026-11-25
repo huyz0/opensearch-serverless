@@ -16,6 +16,7 @@ use crate::lucene::{Indexer, Meta, uid};
 use crate::mapping::{Mapping, MappingError};
 
 mod get;
+mod growth;
 mod replay;
 mod soft;
 
@@ -99,6 +100,7 @@ pub struct Shard<'d> {
     indexer: Indexer,
     fast: FastIngest,
     mapping: Arc<Mapping>,
+    growth: Option<Mapping>,
     versions: VersionMap,
     reader: Option<DirectoryReader>,
     primary_term: i64,
@@ -140,6 +142,7 @@ impl<'d> Shard<'d> {
             indexer: Indexer::new(),
             fast: FastIngest::new(),
             mapping: mapping.into(),
+            growth: None,
             versions: VersionMap::default(),
             reader: None,
             primary_term,
@@ -348,6 +351,7 @@ impl<'d> Shard<'d> {
             // ALLOC: the grown mapping, bounded by the total fields limit; this shard's own.
             self.mapping = Arc::new(grown.clone());
             self.fast.invalidate();
+            self.note_growth(parsed.as_ref().and_then(|p| p.update.as_ref()));
         }
         let current = self.current(id, &key)?;
         let p = plan(id, current, &expect).map_err(Refused::Conflict)?;

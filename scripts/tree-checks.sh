@@ -21,6 +21,8 @@ check-alloc.py
 check-s3-access.py
 check-test-endpoints.py
 check-budgets.py
+check-extension-pins.py
+check-analyzer-sites.py
 check-arith-allows.py
 check-dev-notes.py
 check-port-map.py

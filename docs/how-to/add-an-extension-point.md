@@ -10,4 +10,12 @@ Rules for a new point:
 - An index pins `{module, point, version, sha256}`; a node without the pinned module refuses the index.
 - Host calls a module makes are charged to the tenant's request counters, and module limits (fuel, memory, deadline) answer 429 when exceeded, never a silent fallback.
 
-**Checks:** none yet; the ABI crate brings its own.
+A worked example is the `analyzer` point ([ADR 0053](../adr/0053-the-analyzer-extension-point.md), [spec](../specs/extension-analyzer/SPEC.md)). Its order of work, which a new point follows:
+
+1. The point's codec and a module run as that point (`oss-ext`, `oss-ext-wasm`), with the host refusing malformed output.
+2. The index pins the module at create (a setting the coordinator validates, resolves limits for and records), gated by a cluster setting that stays off.
+3. Every site that would build the thing a built-in builds takes the module instead or refuses: the writer, replay and takeover, the reader's open and its queries, the overlay, highlighting. A node that cannot run the pin refuses and never falls back.
+4. A failed call answers by what a caller can do (429, 502, 400), not a generic 500.
+5. The soak, replay equality and measurements are recorded before the setting is turned on anywhere.
+
+**Checks:** `scripts/check-extension-pins.py` (no shipped configuration turns analyzer pins on) and `scripts/check-analyzer-sites.py` (a new file that builds a built-in analyzer is reviewed against pins).

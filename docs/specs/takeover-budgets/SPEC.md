@@ -12,6 +12,7 @@ Two request-budget rows move from `blocked` to `enforced`: `take.released.reques
 
 - AC-1: the first write by a node to a shard whose writer retired costs the requests in row `take.released.requests`, asserted by the meter, and no LIST.
 - AC-2: the same write waits through the round trips in row `take.released.round_trips`.
+- AC-4: the same take on a RustFS process costs the same requests and round trips as the emulator's rows, over the real S3 client.
 - AC-3: every document written before the retire and by the second node is found after the take.
 
 ## Test plan
