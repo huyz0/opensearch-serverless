@@ -53,6 +53,10 @@ impl ShardSlot {
         mapping: Arc<Mapping>,
         modules: Option<&dyn super::takeover::PinnedModules>,
         clock: fn() -> u64,
+        merging: Option<(
+            oss_writer::index::MergeSettings,
+            Arc<dyn oss_writer::index::MergeGate>,
+        )>,
         fill: impl FnOnce(&ByteBuffersDirectory) -> Result<(), String>,
     ) -> Result<Self, String> {
         let owner = ByteBuffersDirectory::new();
@@ -61,6 +65,9 @@ impl ShardSlot {
             let (w, derived) = oss_writer::index::knn::open_writer(dir, &mapping)?;
             Shard::new(dir, w, mapping, term, Box::new(clock)).map(|s| {
                 let mut s = s.with_derived_source(derived);
+                if let Some((settings, gate)) = merging {
+                    s = s.with_merging(settings, gate);
+                }
                 // A pinned field is indexed by its module, never by the
                 // built-in analyzer.
                 for (name, analyzer) in modules.map(|m| m.analyzers()).unwrap_or_default() {
