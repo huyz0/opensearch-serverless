@@ -84,6 +84,8 @@ fn a_window_that_lands_behind_a_failed_one_is_refused_either_way_it_ends() {
             .expect("the shard takes writes again");
         if how == Release::Land {
             assert!(seq(&again) > 2, "numbered past B: {again:?}");
+        } else {
+            assert!(seq(&again) < 2, "B counts as unpublished: {again:?}");
         }
         // A node that takes over finds that write, whatever its number.
         let calls = Arc::new(AtomicUsize::new(0));
