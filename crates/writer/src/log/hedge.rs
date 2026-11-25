@@ -95,16 +95,20 @@ impl NodeLogStore {
             .charge
             .as_ref()
             .map(|c| (c.clone(), Charge::weights(blob)));
+        // The hedge's PUTs count for what the window's do.
+        let scope = oss_blob::cost::capture_scope();
         let put = |which: Which| -> bool {
-            let (store, key, blob, tx, charge) = (
+            let (store, key, blob, tx, charge, scope) = (
                 Arc::clone(&self.store),
                 Arc::clone(&key),
                 Arc::clone(blob),
                 tx.clone(),
                 charge.clone(),
+                scope.clone(),
             );
             // ALLOC: one boxed job a PUT, at most two an append.
             spawn.spawn(Box::new(move || {
+                let _scope = oss_blob::cost::enter_scope(scope);
                 let put = || create(store.as_ref(), &key, &blob);
                 let answer = match &charge {
                     Some((charge, weights)) => charge.run(weights, put),
