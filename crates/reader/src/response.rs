@@ -334,7 +334,7 @@ mod selected;
 #[path = "response_values.rs"]
 mod values;
 
-pub use selected::{render_selected_hits, render_selected_result_hits};
+pub use selected::{Row, fetch_rows, render_selected_hits, render_selected_result_hits};
 use values::write_score;
 pub use values::{write_id, write_java_float};
 

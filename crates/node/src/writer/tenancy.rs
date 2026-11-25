@@ -58,6 +58,13 @@ pub fn tenancy_of(settings: &[u8]) -> Tenancy {
 /// The descriptor settings JSON of an index with `tenancy`.
 #[must_use]
 pub fn tenancy_settings(tenancy: &Tenancy) -> Vec<u8> {
+    tenancy_settings_with(tenancy, &[])
+}
+
+/// The descriptor settings JSON of an index with `tenancy` and the `extra`
+/// settings, given as key and text value, a whole number written as one.
+#[must_use]
+pub fn tenancy_settings_with(tenancy: &Tenancy, extra: &[(String, String)]) -> Vec<u8> {
     // ALLOC: one small body, once an index created.
     let mut out = vec![b'{'];
     let mut first = true;
@@ -83,6 +90,15 @@ pub fn tenancy_settings(tenancy: &Tenancy) -> Vec<u8> {
     if let Some(budget) = tenancy.budget {
         member(BUDGET_KEY, &|o| {
             o.extend_from_slice(budget.to_string().as_bytes())
+        });
+    }
+    for (key, value) in extra {
+        member(key, &|o| {
+            if value.bytes().all(|b| b.is_ascii_digit()) && !value.is_empty() {
+                o.extend_from_slice(value.as_bytes());
+            } else {
+                let _ = oss_rest::write_json_str(o, value);
+            }
         });
     }
     out.push(b'}');

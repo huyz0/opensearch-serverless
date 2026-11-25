@@ -24,6 +24,9 @@ src/fast/mod.rs	new		the plan-based fast path in front of the complete one: per-
 src/fast/plan.rs	new		a mapping compiled to the ingest plan blob, naming only fields the indexer has numbered
 src/lucene/builder.rs	new		the Lucene document under construction: stored values, postings, doc values and points
 src/mapping/knn.rs	new		the k-NN plugin's knn_vector mapper for a float vector in a Lucene HNSW graph: KNNVectorFieldMapper.TypeParser, KNNMethodContext.parse and the Lucene method validation (opensearch-project/k-NN 3.10.0.0)
+src/mapping/intern.rs	new		a node-wide table of parsed mappings by descriptor text, so shards of one mapping share one parse; the shell shares mappings through its SharedMappings and MapperService hook
 src/mapping/read.rs	port	server/src/main/java/org/opensearch/index/mapper/ParametrizedFieldMapper.java@429b4cbc	the parameter parsers of Parameter (boolParam, intParam, boostParam, stringParam, restrictedStringParam, metaParam) and the k-NN builder's own, split out of field.rs
 src/document/vector.rs	new		the k-NN plugin's reading of a float vector value: KNNVectorFieldMapper.parseCreateField (opensearch-project/k-NN 3.10.0.0)
 src/lucene/derived.rs	new		the stored _source of a document with vectors, each vector value replaced by 1 as the k-NN plugin's derived source stores it; the plugin masks inside its stored fields format
+src/lucene/invert/tests.rs	new		tests of the tokens of a pinned module in a field's postings
+src/lucene/parts.rs	new		a document's metadata, the _id term and the mapping leaf of a field name, moved out of lucene/mod.rs to keep it under the module size limit

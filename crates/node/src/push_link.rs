@@ -68,6 +68,23 @@ impl<L: Leases> PushTargets for PlacementTargets<L> {
             .map(str::to_owned)
             .collect()
     }
+
+    fn other_build_readers(&self, index: &str, shard: u32) -> Vec<String> {
+        let leases = self.leases.current();
+        let key = ShardKey::new(index, i32::try_from(shard).unwrap_or(i32::MAX));
+        // ALLOC: at most the ranked readers, a hot shard's few.
+        readers_for(key, leases.iter(), ROLE_SEARCH, self.readers.max(2))
+            .into_iter()
+            .filter(|id| *id != self.self_id)
+            .filter(|id| {
+                leases
+                    .iter()
+                    .find(|l| l.node_id == *id)
+                    .is_some_and(|l| !crate::read_forward::same_build(l))
+            })
+            .map(str::to_owned)
+            .collect()
+    }
 }
 
 /// Sends pushes over the transport client, signed.

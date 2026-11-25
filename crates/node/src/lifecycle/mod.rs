@@ -1,10 +1,10 @@
 //! Whether a node takes new work: ready once it listens, draining once an
 //! operator says so.
 //!
-//! Ported from the shell's `SearchReadiness` (without its warming state, which
-//! needs the hot-set copy). A draining node keeps its shards and its `ingest`
-//! role; only the `search` role leaves its lease, so no coordinator ranks it
-//! as a reader.
+//! Ported from the shell's `SearchReadiness`. A warming node, one still
+//! taking its peers' hot pages, and a draining node both keep their shards and
+//! their `ingest` role; only the `search` role leaves the lease, so no
+//! coordinator ranks either as a reader until warming ends.
 
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod routes;
@@ -29,6 +29,7 @@ use crate::assemble::{AssembleError, Assembled};
 #[derive(Debug, Default)]
 pub struct Readiness {
     draining: AtomicBool,
+    warming: AtomicBool,
 }
 
 impl Readiness {
@@ -38,10 +39,37 @@ impl Readiness {
         Self::default()
     }
 
+    /// A node that is not ready until [`Readiness::finish_warming`].
+    #[must_use]
+    pub fn warming() -> Self {
+        Self {
+            draining: AtomicBool::new(false),
+            warming: AtomicBool::new(true),
+        }
+    }
+
     /// Whether the node takes new work.
     #[must_use]
     pub fn ready(&self) -> bool {
-        !self.draining.load(Ordering::Acquire)
+        !self.draining.load(Ordering::Acquire) && !self.warming.load(Ordering::Acquire)
+    }
+
+    /// What the node is doing: `draining`, `warming` or `ready`. A drain
+    /// wins over warming.
+    #[must_use]
+    pub fn state(&self) -> &'static str {
+        if self.draining.load(Ordering::Acquire) {
+            "draining"
+        } else if self.warming.load(Ordering::Acquire) {
+            "warming"
+        } else {
+            "ready"
+        }
+    }
+
+    /// Ends warming; the node is ready unless it drains.
+    pub fn finish_warming(&self) {
+        self.warming.store(false, Ordering::Release);
     }
 
     /// Starts draining; whether this call did (false when already draining).

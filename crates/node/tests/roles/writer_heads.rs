@@ -124,6 +124,8 @@ fn a_writer_reads_the_incarnation_once_a_window_and_refuses_a_replaced_index() {
             partition_size: 1,
             routing_shards: 1,
             routing_required: false,
+            default_pipeline: None,
+            final_pipeline: None,
         }
     }
     fn write(role: &WriterRole, id: &str) -> bool {

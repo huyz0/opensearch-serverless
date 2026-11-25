@@ -114,6 +114,26 @@ const RULES: &[(&[Method], &str, Rule)] = &[
         Rule::Index("indices:admin/exists"),
     ),
     (
+        &[Method::Get],
+        "/{index}/_mapping",
+        Rule::Index("indices:admin/mappings/get"),
+    ),
+    (
+        &[Method::Get],
+        "/{index}/_mappings",
+        Rule::Index("indices:admin/mappings/get"),
+    ),
+    (
+        &[Method::Put, Method::Post],
+        "/{index}/_mapping",
+        Rule::Index("indices:admin/mapping/put"),
+    ),
+    (
+        &[Method::Put, Method::Post],
+        "/{index}/_mappings",
+        Rule::Index("indices:admin/mapping/put"),
+    ),
+    (
         GET_POST,
         "/{index}/_refresh",
         Rule::Index("indices:admin/refresh"),
@@ -172,6 +192,7 @@ pub const HANDLER: &[&str] = &[
 /// Routes that are `all_access` for every method, each named so that a
 /// route added without a row is seen. See the ADR for why each is here.
 const ALL_ACCESS: &[&str] = &[
+    "/_serverless/extensions/modules",
     "/_analyze",
     "/_field_caps",
     "/_msearch",
@@ -196,6 +217,19 @@ const ALL_ACCESS: &[&str] = &[
     "/_index_template/{name}",
     "/_ingest/pipeline",
     "/_ingest/pipeline/{id}",
+    "/_ingest/pipeline/_simulate",
+    "/_ingest/pipeline/{id}/_simulate",
+    "/_aliases",
+    "/_data_stream",
+    "/{index}/_rollover",
+    "/{index}/_rollover/{new_index}",
+    "/_data_stream/{name}",
+    "/_scripts/{id}",
+    "/_scripts/{id}/{context}",
+    "/_alias",
+    "/_alias/{name}",
+    "/{index}/_alias",
+    "/{index}/_alias/{name}",
     "/_snapshot",
     "/_snapshot/{repo}",
     "/_snapshot/{repo}/_verify",

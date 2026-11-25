@@ -228,3 +228,42 @@ fn the_targets_are_the_ranked_search_nodes_other_than_this_one() {
             .is_empty()
     );
 }
+
+// docs/specs/mixed-fleet-push AC-1
+#[test]
+fn only_the_ranked_readers_of_another_build_are_told_of_every_commit() {
+    let versioned = |id: &str, version: Option<&str>| {
+        let mut l = lease(id, &[ROLE_SEARCH], "127.0.0.1:9", false);
+        l.version = version.map(str::to_owned);
+        l
+    };
+    let all: Vec<NodeLease> = (1..=6)
+        .map(|n| {
+            let id = format!("n{n}");
+            // n1 to n3 are of this build, n4 and n5 another's, n6 names none.
+            match n {
+                1..=3 => versioned(&id, Some("oss-rust/0.1.0")),
+                4 | 5 => versioned(&id, Some("3.0.0")),
+                _ => versioned(&id, None),
+            }
+        })
+        .collect();
+    let ranked: Vec<String> = readers_for(ShardKey::new("logs", 5), all.iter(), ROLE_SEARCH, 6)
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+    let me = "writer";
+    let targets = PlacementTargets::new(leases(all), me, 4);
+    let told = targets.other_build_readers("logs", 5);
+    let want: Vec<String> = ranked
+        .iter()
+        .take(4)
+        .filter(|id| matches!(id.as_str(), "n4" | "n5" | "n6"))
+        .cloned()
+        .collect();
+    assert_eq!(told, want, "ranked {ranked:?}");
+    assert!(
+        !told.is_empty(),
+        "the ranking puts another build in the top: {ranked:?}"
+    );
+}

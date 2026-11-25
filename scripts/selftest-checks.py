@@ -147,6 +147,12 @@ CASES = [
     (["check-harness.py"], "reference to a missing script", {"AGENTS.md": "Run `scripts/gone.sh`.\n"}),
     (["check-harness.py"], "AGENTS.md over its budget", {"AGENTS.md": "x" * 6000}),
     (["check-harness.py"], "tree check with no mechanical-gates row", {"docs/mechanical-gates.md": ""}),
+    (["check-extension-pins.py"], "a shipped configuration turning pins on",
+     {"deploy/node.yml": "serverless.extensions.pins.allowed: true\n"}),
+    (["check-extension-pins.py"], "a shell script turning pins on",
+     {"scripts/run.sh": "export X='\"serverless.extensions.pins.allowed\": true'\n"}),
+    (["check-analyzer-sites.py"], "a new site building a built-in analyzer",
+     {"crates/reader/src/fresh.rs": "let a = Analyzer::standard(None);\n"}),
     (["check-harness.py"], "check script nothing runs", {"scripts/check-orphan.py": ""}),
     (["check-harness.py"], "check script named only in a comment",
      {"scripts/check-orphan.py": "", "scripts/gate.sh": "# check-orphan.py is run elsewhere\n"}),
@@ -177,6 +183,11 @@ CASES = [
 
 # (argv, description, overrides) that must pass: a rule moved, not dropped.
 OK_CASES = [
+    (["check-analyzer-sites.py"], "a listed site and a test file build analyzers",
+     {"crates/reader/src/fetch/highlight.rs": "let a = Analyzer::keyword();\n",
+      "crates/reader/src/fresh_tests.rs": "let a = Analyzer::standard(None);\n"}),
+    (["check-extension-pins.py"], "pins left off in a configuration",
+     {"deploy/node.yml": "serverless.extensions.pins.allowed: false\n"}),
     (MSG_CI, "ci mode accepts a fix with no Spec and a free-form subject", {"msg.txt": "Repair a thing\n"}),
     (PR, "docs PR title needs no Spec", {}),
     (PR, "fix PR with Spec: none", {"title.txt": "fix(x): repair a thing\n", "body.md": CLEAN_BODY + "\nSpec: none (typo)\n"}),

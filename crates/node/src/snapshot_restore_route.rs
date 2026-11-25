@@ -16,6 +16,7 @@ use oss_coordinator::snapshot_restore_admin::{
     target_exists, unsupported_content,
 };
 use oss_coordinator::snapshot_take_admin::{ACCEPTED, check_shards};
+use oss_coordinator::system_indices::{SystemIndices, restore_refusal};
 use oss_format::{MAX_REPOSITORY_RECORD_BYTES, MAX_SNAPSHOT_RECORD_BYTES, RestoreIndex};
 use oss_meta::{
     CopyBuffers, DescriptorStore, MetaError, PitClock, RestoreError, RestoreRead,
@@ -45,6 +46,7 @@ pub struct SnapshotRestoreService {
     deletes: Arc<DeleteService>,
     clock: PitClock,
     chunk_bytes: usize,
+    system: Arc<SystemIndices>,
 }
 
 fn unavailable(e: &dyn std::fmt::Display) -> RestError {
@@ -85,7 +87,15 @@ impl SnapshotRestoreService {
             deletes,
             clock,
             chunk_bytes,
+            system: Arc::new(SystemIndices::none()),
         }
+    }
+
+    /// Refuses a restore of any index `system` names, or into one, 403.
+    #[must_use]
+    pub fn with_system_indices(mut self, system: Arc<SystemIndices>) -> Self {
+        self.system = system;
+        self
     }
 
     /// The route's handler.
@@ -224,6 +234,11 @@ impl SnapshotRestoreService {
                 .map_err(|e| refuse(500, "snapshot_unreadable", e.to_string()))?;
             if let Some(why) = refusal {
                 return Err(refused(unsupported_content(&target.source, why)));
+            }
+            for name in [&target.source, &target.target] {
+                if self.system.contains(name) {
+                    return Err(refused(restore_refusal(name)));
+                }
             }
             validate_index_or_alias(&target.target).map_err(|e| {
                 // ALLOC: error path; the rule's words.

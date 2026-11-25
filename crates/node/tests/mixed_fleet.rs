@@ -1,12 +1,18 @@
-//! docs/specs/mixed-fleet-soak: Java shell nodes and Rust nodes as live
-//! processes on one RustFS bucket, handing a shard over by kill, judged by a
-//! ledger of every acknowledged document. Ignored unless `RUSTFS_BIN`,
-//! `OSS_JAVA_BIN` and `OSS_JAVA_CP` (the shell's production classpath) are set.
-
+//! docs/specs/mixed-fleet-soak: Java shell and Rust nodes as live processes on one RustFS
+//! bucket, handing a shard over by kill, judged by a ledger of every acknowledged document.
+//! Ignored unless `RUSTFS_BIN`, `OSS_JAVA_BIN` and `OSS_JAVA_CP` are set.
 #![cfg(all(feature = "reader", feature = "writer", feature = "coordinator"))]
 // ARITH: batch sizes, chunk offsets and durations are small and bounded by the reply read.
 #![allow(clippy::arithmetic_side_effects, clippy::disallowed_methods)]
 
+#[path = "mixed_fleet/made_from_nothing.rs"]
+mod made_from_nothing;
+#[path = "mixed_fleet/snapshots.rs"]
+mod snapshots;
+#[path = "mixed_fleet/soak.rs"]
+mod soak;
+#[path = "mixed_fleet/soak_wide.rs"]
+mod soak_wide;
 mod suite_rig;
 
 use std::collections::BTreeSet;
@@ -23,6 +29,8 @@ const TTL_MS: u64 = 4_000;
 const HANDOVER_SLACK_SECS: u64 = 60;
 const BATCH: u32 = 100;
 const INDEX: &str = "mixed";
+/// The most documents one match-all returns: the default result window.
+const MAX_FOUND: u32 = 10_000;
 
 /// A forked Java shell node.
 struct JavaNode {
@@ -101,12 +109,14 @@ impl JavaNode {
         let mut child = command.spawn().expect("the Java node forks");
         let started = Instant::now();
         let addr = loop {
-            if let Ok(line) = std::fs::read_to_string(&ready) {
-                let http = line
+            // The file may be read between its creation and its content.
+            if let Ok(line) = std::fs::read_to_string(&ready)
+                && let Some(http) = line
                     .split_whitespace()
                     .find_map(|t| t.strip_prefix("http="))
-                    .expect("an http address");
-                break http.parse().expect("a socket address");
+                && let Ok(addr) = http.parse()
+            {
+                break addr;
             }
             assert!(
                 child.try_wait().expect("polls").is_none(),
@@ -138,18 +148,17 @@ impl Drop for JavaNode {
 /// One REST call, read to the end of its framing, with the connection kept
 /// open: asked to `connection: close`, the Java shell sends the head of a
 /// chunked bulk reply and closes without the body.
-fn call(addr: SocketAddr, method: &str, target: &str, body: Option<&str>) -> Reply {
+fn try_call(addr: SocketAddr, method: &str, target: &str, body: Option<&str>) -> Option<Reply> {
     use std::io::{Read, Write};
-    let mut s = std::net::TcpStream::connect(addr).expect("connects");
-    s.set_read_timeout(Some(Duration::from_secs(60)))
-        .expect("timeout");
+    let mut s = std::net::TcpStream::connect(addr).ok()?;
+    s.set_read_timeout(Some(Duration::from_secs(60))).ok()?;
     let body = body.unwrap_or("");
     let head = format!(
         "{method} {target} HTTP/1.1\r\nhost: test\r\ncontent-type: application/json\r\ncontent-length: {}\r\n\r\n",
         body.len()
     );
-    s.write_all(head.as_bytes()).expect("sends head");
-    s.write_all(body.as_bytes()).expect("sends body");
+    s.write_all(head.as_bytes()).ok()?;
+    s.write_all(body.as_bytes()).ok()?;
     let mut raw = Vec::new();
     let mut buf = [0u8; 16 << 10];
     let framed = |raw: &[u8]| -> Option<Reply> {
@@ -194,16 +203,19 @@ fn call(addr: SocketAddr, method: &str, target: &str, body: Option<&str>) -> Rep
     };
     loop {
         if let Some(reply) = framed(&raw) {
-            return reply;
+            return Some(reply);
         }
         match s.read(&mut buf) {
-            Ok(0) | Err(_) => panic!(
-                "the reply to {method} {target} ended early: {:?}",
-                String::from_utf8_lossy(&raw)
-            ),
+            Ok(0) | Err(_) => return None,
             Ok(n) => raw.extend_from_slice(&buf[..n]),
         }
     }
+}
+
+/// [`try_call`] for a node that must answer.
+fn call(addr: SocketAddr, method: &str, target: &str, body: Option<&str>) -> Reply {
+    try_call(addr, method, target, body)
+        .unwrap_or_else(|| panic!("{method} {target} on {addr} got no complete reply"))
 }
 
 struct Reply {
@@ -254,7 +266,7 @@ fn write(addr: SocketAddr, ids: std::ops::Range<u32>, ledger: &mut BTreeSet<u32>
 fn found(addr: SocketAddr) -> Vec<u32> {
     let body = format!(
         "{{\"size\":{},\"_source\":false,\"query\":{{\"match_all\":{{}}}}}}",
-        BATCH * 10
+        MAX_FOUND
     );
     let r = call(addr, "POST", &format!("/{INDEX}/_search"), Some(&body));
     assert_eq!(r.status, 200, "{}", r.text());

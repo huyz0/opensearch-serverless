@@ -12,15 +12,16 @@ use std::io::{self, Write};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpListener, TcpStream};
 use std::panic::{self, AssertUnwindSafe};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
-use std::sync::mpsc::{Receiver, SyncSender, TrySendError, sync_channel};
+use std::sync::mpsc::{Receiver, RecvTimeoutError, SyncSender, TrySendError, sync_channel};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::thread::{self, JoinHandle};
 
-use oss_mem::{BufferPool, Exhausted, MemoryBudget, Pool};
+use oss_mem::{BufferPool, Exhausted, MemoryBudget, Pool, Reservation};
 
 use crate::body::BodyBuffers;
 use crate::config::{ConfigError, ServerConfig};
-use crate::conn::{Shared, Worker, serve};
+use crate::conn::{Replay, Shared, Worker, serve};
+use crate::parked::{Entry, QueueStats, SearchQueue};
 use crate::router::Router;
 
 /// Why the server did not start.
@@ -62,6 +63,8 @@ pub struct Server {
     counters: Arc<Counters>,
     acceptor: Option<JoinHandle<()>>,
     workers: Vec<JoinHandle<()>>,
+    /// What the search queue's entries may take, held for the server's life.
+    _queue_memory: Option<Reservation>,
 }
 
 /// The 503 a connection past `max_connections` gets before it is closed.
@@ -92,6 +95,26 @@ impl Server {
             config.body_buffer_size,
             config.body_buffers,
         )?);
+        // The queue's entries each copy up to one head buffer: charged at
+        // start, so a full queue cannot starve the body buffers.
+        let admission = router
+            .search_admission()
+            .filter(|_| config.search_queue_size > 0);
+        let queue_memory = match &admission {
+            Some(_) => Some(budget.try_reserve(
+                Pool::RequestBodies,
+                config.search_queue_size.saturating_mul(head_size),
+            )?),
+            None => None,
+        };
+        let queue = admission.map(|admission| {
+            SearchQueue::new(
+                admission,
+                config.search_queue_size,
+                config.search_queue_wait,
+                config.idle_poll,
+            )
+        });
         let addr = listener.local_addr()?;
         let (tx, rx) = sync_channel::<TcpStream>(config.max_connections);
         let rx = Arc::new(Mutex::new(rx));
@@ -102,6 +125,7 @@ impl Server {
             bodies,
             queued: AtomicUsize::new(0),
             shutdown: AtomicBool::new(false),
+            queue,
         });
         let counters = Arc::new(Counters::default());
         // ALLOC: startup only; one handle per worker.
@@ -134,6 +158,7 @@ impl Server {
             counters,
             acceptor: Some(acceptor),
             workers,
+            _queue_memory: queue_memory,
         })
     }
 
@@ -157,6 +182,15 @@ impl Server {
         self.counters.accepted.load(Ordering::Acquire)
     }
 
+    /// What the search queue holds and has done; all zero with no queue.
+    pub fn search_queue(&self) -> QueueStats {
+        self.shared
+            .queue
+            .as_ref()
+            .map(SearchQueue::stats)
+            .unwrap_or_default()
+    }
+
     /// Stops accepting, lets each worker finish the request it is serving,
     /// closes idle connections within one idle poll, and joins every thread.
     pub fn shutdown(mut self) {
@@ -166,8 +200,17 @@ impl Server {
         if let Some(a) = self.acceptor.take() {
             let _ = a.join();
         }
+        // Parked searches are answered at once, not after the searches that
+        // hold the workers; what a worker parks while stopping is drained
+        // after the join.
+        if let Some(queue) = &self.shared.queue {
+            queue.drain(&self.counters.open);
+        }
         for w in self.workers.drain(..) {
             let _ = w.join();
+        }
+        if let Some(queue) = &self.shared.queue {
+            queue.drain(&self.counters.open);
         }
     }
 }
@@ -231,17 +274,73 @@ fn accept(
 
 fn work(mut worker: Worker, rx: &Mutex<Receiver<TcpStream>>, shared: &Shared, counters: &Counters) {
     loop {
-        let next = rx.lock().unwrap_or_else(PoisonError::into_inner).recv();
-        let Ok(stream) = next else { return };
-        shared.queued.fetch_sub(1, Ordering::AcqRel);
-        counters.accepted.fetch_add(1, Ordering::AcqRel);
-        let open = Open(counters);
-        // A handler's panic is answered inside `serve`; one anywhere else
-        // drops this connection, not the worker.
-        let _ = panic::catch_unwind(AssertUnwindSafe(|| serve(&mut worker, &stream, shared)));
-        drop(stream);
-        drop(open);
+        // A resumed search has waited already: it goes before new connections.
+        if let Some(queue) = &shared.queue
+            && let Some((entry, permit)) = queue.take_resumed()
+        {
+            let replay = Replay {
+                bytes: entry.bytes,
+                permit,
+            };
+            run(&mut worker, entry.stream, shared, counters, Some(replay));
+            // The permit may have gone unused (a denied replay, a failed
+            // read): a parked search of that tenant may run now.
+            queue.offer();
+            queue.sweep(&counters.open);
+            continue;
+        }
+        let next = {
+            let rx = rx.lock().unwrap_or_else(PoisonError::into_inner);
+            match &shared.queue {
+                // Wakes to take resumed entries and to sweep the queue.
+                Some(_) => rx.recv_timeout(shared.config.idle_poll),
+                None => rx.recv().map_err(|_| RecvTimeoutError::Disconnected),
+            }
+        };
+        match next {
+            Ok(stream) => {
+                shared.queued.fetch_sub(1, Ordering::AcqRel);
+                counters.accepted.fetch_add(1, Ordering::AcqRel);
+                run(&mut worker, stream, shared, counters, None);
+                // Under steady load the idle timeout never fires: sweep here
+                // (rate-limited inside) so waits end and closed peers go.
+                if let Some(queue) = &shared.queue {
+                    queue.sweep(&counters.open);
+                }
+            }
+            Err(RecvTimeoutError::Timeout) => {
+                if let Some(queue) = &shared.queue {
+                    queue.sweep(&counters.open);
+                }
+            }
+            Err(RecvTimeoutError::Disconnected) => return,
+        }
     }
+}
+
+/// Serves one connection, new or resumed; a connection parked by the search
+/// queue stays counted open until its entry leaves the queue.
+fn run(
+    worker: &mut Worker,
+    stream: TcpStream,
+    shared: &Shared,
+    counters: &Counters,
+    replay: Option<Replay>,
+) {
+    let open = Open(counters);
+    // A handler's panic is answered inside `serve`; one anywhere else
+    // drops this connection, not the worker.
+    let served = panic::catch_unwind(AssertUnwindSafe(|| serve(worker, &stream, shared, replay)));
+    if let (Ok(Some(ticket)), Some(queue)) = (served, &shared.queue) {
+        std::mem::forget(open);
+        queue.park(
+            Entry::new(stream, ticket.bytes, ticket.tenant),
+            &counters.open,
+        );
+        return;
+    }
+    drop(stream);
+    drop(open);
 }
 
 #[cfg(test)]

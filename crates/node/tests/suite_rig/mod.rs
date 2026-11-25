@@ -19,7 +19,8 @@ use oss_blob::s3::sigv4::{self, Credentials, Scope, UNSIGNED_PAYLOAD};
 use oss_blob::{Emulator, S3Op};
 use oss_node::boot::{Node, NodeConfig, start};
 
-pub use support::Reply;
+#[allow(unused_imports)]
+pub use support::{Reply, request};
 
 const ACCESS: &str = "suiteaccess";
 const SECRET: &str = "suitesecret";
@@ -282,6 +283,15 @@ impl Cluster {
             .take()
             .expect("the node is running")
             .crash();
+    }
+
+    /// Retires the node in `slot`, publishing what it holds so a node
+    /// started after reads it.
+    pub fn retire(&mut self, slot: usize) {
+        let _ = self.nodes[slot]
+            .take()
+            .expect("the node is running")
+            .retire(60_000);
     }
 
     /// One REST call to the node in `slot`.

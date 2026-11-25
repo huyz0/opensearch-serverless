@@ -2,7 +2,7 @@
 
 ## Serves
 
-[ADR 0040](../../adr/0040-repository-registration.md): a Rust node registers, re-registers, verifies and removes a snapshot repository over REST, writing the record the Java shell writes, behind `serverless.snapshots.enabled` (default false).
+[ADR 0040](../../adr/0040-repository-registration.md): a Rust node registers, re-registers, verifies and removes a snapshot repository over REST, writing the record the Java shell writes, behind `serverless.snapshots.enabled` (default true).
 
 ## Acceptance criteria
 

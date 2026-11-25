@@ -8,6 +8,7 @@ use lucene_store::ByteBuffersDirectory;
 use oss_format::{ShardHead, ShardKey};
 use oss_writer::bulk::Kind;
 use oss_writer::index::{Expect, Fetched, Refused, Shard, Written};
+
 use oss_writer::mapping::Mapping;
 use oss_writer::publish::ShardPublisher;
 use oss_writer::takeover::{Adopted, ShardEngine, adopt};
@@ -49,7 +50,8 @@ impl ShardSlot {
     pub(super) fn open(
         key: ShardKey,
         term: i64,
-        mapping: Mapping,
+        mapping: Arc<Mapping>,
+        modules: Option<&dyn super::takeover::PinnedModules>,
         clock: fn() -> u64,
         fill: impl FnOnce(&ByteBuffersDirectory) -> Result<(), String>,
     ) -> Result<Self, String> {
@@ -57,8 +59,15 @@ impl ShardSlot {
         fill(&owner)?;
         let cell = Cell::try_new(owner, |dir| {
             let (w, derived) = oss_writer::index::knn::open_writer(dir, &mapping)?;
-            Shard::new(dir, w, mapping, term, Box::new(clock))
-                .map(|s| s.with_derived_source(derived))
+            Shard::new(dir, w, mapping, term, Box::new(clock)).map(|s| {
+                let mut s = s.with_derived_source(derived);
+                // A pinned field is indexed by its module, never by the
+                // built-in analyzer.
+                for (name, analyzer) in modules.map(|m| m.analyzers()).unwrap_or_default() {
+                    s = s.with_module(&name, analyzer);
+                }
+                s
+            })
         })?;
         Ok(Self {
             cell,
@@ -123,6 +132,12 @@ impl ShardSlot {
             Kind::Delete => shard.delete(id, expect),
             _ => shard.index_routed(id, source, routing, create, expect),
         })
+    }
+
+    /// What the writes applied since the last call added to the shard's
+    /// mapping, for the descriptor to hold.
+    pub(super) fn take_growth(&mut self) -> Option<Mapping> {
+        self.cell.with_dependent_mut(|_, shard| shard.take_growth())
     }
 
     /// The highest sequence number the engine assigned, negative for none.

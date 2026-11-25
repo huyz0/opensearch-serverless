@@ -52,7 +52,7 @@ src/cat_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/r
 src/cluster_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/ClusterSettingsHandler.java@429b4cbc	the register read and write; the plugin check and the node-local apply are not here
 src/health_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/ClusterHealthHandler.java@429b4cbc	the route, the wait loop and the answer; the judging is oss-coordinator; the source reads the membership and heads
 src/route_util.rs	new		a refusal as the edge error, a flag, a table sent: shared by the cluster, health and cat routes
-src/index_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/indexadmin/IndexAdminHandler.java	the create and exists routes over the descriptor store; delete, GET, mapping and settings routes are not here yet
+src/index_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/indexadmin/IndexAdminHandler.java	the create and exists routes over the descriptor store; delete, GET /{index} and settings routes are not here yet; the mapping routes are in index_route/mapping.rs
 src/index_delete/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/indexadmin/IndexAdminHandler.java	the delete route over IndexLifecycle, and the reclaim drain
 src/index_delete/heads.rs	new		ShardHeads over the shard head registers
 src/index_delete/pins.rs	new		ShardPins over the live points in time, with a snapshot source hook
@@ -106,6 +106,7 @@ src/writer/limit.rs	new		the write limiter admits a group before anything is app
 src/boot/config/write_limit.rs	new		the OSS_WRITE_* variables of the write limiter, split out of the boot config to keep it under the size limit
 src/search_template.rs	port	modules/lang-mustache/src/main/java/org/opensearch/script/mustache/RestSearchTemplateAction.java	_render/template and _search/template: render an inline template, then search the rendered body
 src/writer/orphan_timer.rs	new		which node runs the orphan-shard sweep, on a timer, from the live members; the shell runs collectOrphanedShards from its reconciler on every janitor node
+src/writer/orphan_timer/bucket_orphans.rs	new		takes out a bucket member whose index is gone, at a second sighting after a grace; the shell leaves a member behind when a node dies between a join and its descriptor, and nothing clears it
 src/boot/error.rs	new		BootError, moved out of boot/mod.rs for its size
 src/boot/config/tests.rs	new		the configuration tests, moved out of boot/config.rs for its size
 src/search_rank_eval.rs	port	modules/rank-eval/src/main/java/org/opensearch/index/rankeval/TransportRankEvalAction.java	_rank_eval: run each rated request as a search and score its hits, with the Java response maps order
@@ -150,4 +151,59 @@ src/warm_peer/tests.rs	new		tests of the warm-copy peer answers over a real cach
 src/writer/apply_group.rs	new		applying one write group to a shard engine and building its log records
 src/writer/pipeline.rs	new		a shard's staged groups: tickets, a sticky failure and the quiet count
 src/writer/pipelined.rs	new		a write group that waits on the node log without the slot lock
+src/boot/config/snapshots.rs	new		the snapshot switches and system index patterns the OSS_* variables set
 src/security_authz.rs	new		what each route needs of a user, and the authorizer over the node snapshot
+src/warm_handlers.rs	new		the transport handlers of the warm-copy actions on a reader: placement of the joiner, bounded answers, a cap on requests served at once
+src/warm_handlers/tests.rs	new		tests of the warm-copy handlers over a real cache
+src/search_warm.rs	new		what a node lists for a joining reader: its open shards and the prefix their page cache keys start with
+src/search_warm_tests.rs	new		tests of the listing over a real cache with a disk tier
+src/warm_expect.rs	new		what a joiner accepts from a peer: the plain pages of the open commit, each at its own length
+src/warm_expect/tests.rs	new		tests that every page an open caches is accepted and every other is refused
+src/boot/config/tests/extensions.rs	new		tests for the extensions pool share
+src/extension_route.rs	new		the module upload route; extensions have no Java counterpart in the shell
+src/extension_store.rs	new		modules stored under the hash of their bytes, read once a node
+src/boot/config/budget.rs	new		the node memory budget split into pools by fixed shares
+src/warm_copy.rs	new		the joiner copy of one peer's hot pages: validated, batched and paced
+src/warm_copy/tests.rs	new		tests of the copy against a fake peer holding a warmed cache
+src/warm_join.rs	new		who a joiner asks and the signed transport calls, with the bounded fan-out over peers
+src/warm_join/tests.rs	new		tests of the peer list, the fan-out cap and the batch memory reservation
+src/boot/config/authoring.rs	new		the index template and ingest pipeline switches the OSS_* variables set
+src/extension_pins.rs	new		the pin policy over the module store: read, check, probe and resolve limits
+src/pin_policy.rs	new		what a create needs to pin analyzer modules, and the settings merge
+src/create_settings.rs	new		the index settings a create may carry: the three the node reads from the descriptor, checked, and a refusal naming any other key
+src/core_settings.rs	new		the core index settings a create stores without reading them, checked as core checks them; the shell's index scoped settings registry
+src/warm_boot.rs	new		when a warming node is let in: at the ready share of the bytes named, at max_wait, or when the copy is done
+src/warm_boot/tests.rs	new		tests of the three ways a warming node is let in
+src/boot/tail/joining.rs	new		the warm-up of a joining reader on its own thread, ending when enough is in or the wait runs out
+src/warm_setting.rs	new		the per-index switch that leaves an index out of warm copy
+src/alias_route/mod.rs	new		alias add, remove and read routes over the alias mutation protocol; names are literal, the Java's patterns need a listing
+src/alias_route/parse.rs	new		the names, write flag and action list an alias request asks for
+src/boot/config/tests/resident.rs	new		tests for the resident page bound and search queue settings
+src/data_stream_route/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/indexadmin/DataStreamHandler.java	the put, get and delete routes over the stream's alias record; names are literal, the Java's patterns and comma lists need a listing, and the backing index has no `_data_stream_timestamp` mapper
+src/data_stream_route/render.rs	new		the body of a stream read as core renders it
+src/index_route/backing.rs	new		the first backing index of a stream, created under the template that wins the stream's name
+src/rollover_route/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/indexadmin/RolloverHandler.java	the rollover route for an alias or a data stream: the index first, then one swap of the record; `max_docs` and a body that shapes the index are refused
+src/rollover_route/render.rs	new		the body of a rollover answer as core renders it
+src/script_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/StoredScriptHandler.java	the put, get and delete routes over the scripts document set; the Java compiles a script at put, this node stores it uncompiled and refuses a named context
+src/boot/config/tests/proactive.rs	new		tests for the proactive takeover reaper switch
+src/extension_modules.rs	new		the analyzers an index's pins name, loaded once a distinct module when a shard opens, called under the recorded limits or a replay's
+tests/extension_modules.rs	new		tests of the open-time load, the recorded limits and the replay stretch
+tests/roles/writer_opener_pins.rs	new		tests of a writer opening the shard of an index that pins analyzer modules
+tests/roles/writer_opener_rig.rs	new		the opener rig's counting opener and forwarding routes, moved out of writer_opener.rs
+src/extension_setting.rs	new		the cluster setting that lets a create carry an analyzer pin
+src/extension_host.rs	new		the node's one WASM host, shared by every user of modules
+src/search_modules.rs	new		what loads the modules an index pins for a search node
+src/writer/growth.rs	new		the writer role holds a group's new fields in the descriptor before the group is logged (MappingGrowthPath is the library), split out of the writer module to keep it under the size limit
+src/index_route/mapping.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/indexadmin/MappingUpdateHandler.java	the _mapping read of IndexAdminHandler and the update: one concrete index, the descriptor swap tried ATTEMPTS times over coordinator plan; the action gate and the reconciler refresh are not ported here
+src/search_queue.rs	new		the node side of the bounded search queue (ADR 0056); the shell has no queue off the workers
+src/boot/config/search_queue.rs	new		the search queue and connection settings
+src/boot/config/store_debug.rs	new		`StoreChoice`'s Debug, split out of config.rs to hold its size
+src/search_shard_action/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/transport/ForwardedWorkHandlers.java	the owner's side of handleSearch: refuses a shard it does not hold or a recreated index, answers from its own view while its lease is recent; the Java searches its shard directly
+src/search_shard_action/convert.rs	new		a forwarded search's source as the reader's search source, and the shard search it runs, tests of both (ADR 0057)
+src/search_shard_action/convert_tests.rs	new		a forwarded search's source as the reader's search source, and the shard search it runs, tests of both (ADR 0057)
+src/search_shard_action/local.rs	new		a forwarded search's source as the reader's search source, and the shard search it runs, tests of both (ADR 0057)
+src/search_shard_action/tests.rs	new		a forwarded search's source as the reader's search source, and the shard search it runs, tests of both (ADR 0057)
+src/lease_age.rs	new		when this node last renewed its own lease, for the handlers that must not answer from a stale one (ADR 0057)
+src/boot/search_shard.rs	new		the forwarded shard search action's slot and its install at boot (ADR 0057)
+src/vector_warm_setting.rs	new		whether a segment's vector files are read whole at open or at the first knn search; the shell has no such switch
+src/boot/config/tests/vector_warm.rs	new		tests of the vector warm variable

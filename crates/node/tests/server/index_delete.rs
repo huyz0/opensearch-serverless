@@ -36,23 +36,32 @@ fn pinned_rig() -> Rig {
 }
 
 fn rig_with(pins: impl FnOnce(&Arc<dyn BlobStore>) -> Arc<dyn SnapshotPins>) -> Rig {
+    rig_leaving(pins, None)
+}
+
+fn rig_leaving(
+    pins: impl FnOnce(&Arc<dyn BlobStore>) -> Arc<dyn SnapshotPins>,
+    leave: Option<oss_node::index_route::BucketLeave>,
+) -> Rig {
     let store = Arc::new(Emulator::new(1 << 28, 5));
     let clock = Arc::new(AtomicU64::new(NOW));
     let tick = Arc::clone(&clock);
     let pit_clock: PitClock = Arc::new(move || tick.load(Ordering::Relaxed));
     let dynstore: Arc<dyn BlobStore> = store.clone();
-    let service = Arc::new(
-        DeleteService::new(
-            &dynstore,
-            "",
-            DeleteMode::Conditional,
-            pit_clock,
-            pins(&dynstore),
-            BUF,
-            2,
-        )
-        .expect("service"),
-    );
+    let service = DeleteService::new(
+        &dynstore,
+        "",
+        DeleteMode::Conditional,
+        pit_clock,
+        pins(&dynstore),
+        BUF,
+        2,
+    )
+    .expect("service");
+    let service = Arc::new(match leave {
+        Some(leave) => service.with_bucket_leave(leave),
+        None => service,
+    });
     let router = routes(Router::new(), Arc::clone(&service)).expect("routes");
     let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
     let budget = MemoryBudget::new(&support::budget_config());
@@ -70,13 +79,13 @@ fn delete(r: &Rig, target: &str) -> support::Reply {
     support::request(r.server.local_addr(), "DELETE", target, None)
 }
 
+fn descriptors(r: &Rig) -> DescriptorStore {
+    let store = r.store.clone() as Arc<dyn BlobStore>;
+    DescriptorStore::new(store, "", DeleteMode::Conditional).expect("store")
+}
+
 fn create(r: &Rig, name: &str, uuid: &str, shards: u32) {
-    let d = DescriptorStore::new(
-        r.store.clone() as Arc<dyn BlobStore>,
-        "",
-        DeleteMode::Conditional,
-    )
-    .expect("store");
+    let d = descriptors(r);
     d.create(
         &IndexRecord::new(name, uuid, shards),
         1,
@@ -116,12 +125,7 @@ fn head(r: &Rig, name: &str, uuid: &str, shard: u32, owner: Option<&str>) -> Str
 }
 
 fn descriptor_gone(r: &Rig, name: &str) -> bool {
-    let d = DescriptorStore::new(
-        r.store.clone() as Arc<dyn BlobStore>,
-        "",
-        DeleteMode::Conditional,
-    )
-    .expect("store");
+    let d = descriptors(r);
     d.get(name, &mut vec![0u8; BUF]).expect("get").is_none()
 }
 
@@ -413,4 +417,77 @@ fn a_removal_deletes_only_the_incarnation_it_names() {
     assert!(!descriptor_gone(&r, "logs"), "another incarnation stays");
     assert!(r.service.remove("logs", "u1").expect("removed"));
     assert!(descriptor_gone(&r, "logs"));
+}
+
+#[test]
+fn a_delete_that_reads_no_snapshots_costs_one_list_more_than_one_that_does_not() {
+    let r = pinned_rig();
+    create(&r, "logs", "u1", 1);
+    let before = requests(&r);
+    assert_eq!(delete(&r, "/logs").status, 200);
+    let spent = requests(&r) - before;
+    budget::check(
+        "index.delete_no_snapshots.requests",
+        spent,
+        "a delete that reads the snapshots and finds none",
+    );
+    let plain = rig();
+    create(&plain, "logs", "u1", 1);
+    let before = requests(&plain);
+    assert_eq!(delete(&plain, "/logs").status, 200);
+    assert_eq!(spent, requests(&plain) - before + 1, "one LIST page more");
+}
+
+type Left = Arc<std::sync::Mutex<Vec<(String, String)>>>;
+
+fn leaving(fail: bool) -> (Rig, Left) {
+    let seen: Left = Arc::default();
+    let log = Arc::clone(&seen);
+    let rig = rig_leaving(
+        |_| Arc::new(NoSnapshots),
+        Some(Arc::new(move |bucket, uuid| {
+            log.lock().unwrap().push((bucket.into(), uuid.into()));
+            if fail { Err("busy".into()) } else { Ok(()) }
+        })),
+    );
+    (rig, seen)
+}
+
+fn create_in(r: &Rig, name: &str, uuid: &str, bucket: Option<&str>) {
+    let d = descriptors(r);
+    let mut record = IndexRecord::new(name, uuid, 1);
+    record.bucket = bucket.map(|b| std::borrow::Cow::Owned(b.to_owned()));
+    d.create(&record, 1, &mut vec![0u8; BUF]).expect("created");
+}
+
+// docs/specs/bucket-member-on-delete AC-1
+#[test]
+fn a_delete_takes_a_bucketed_index_out_of_its_bucket() {
+    let (r, seen) = leaving(false);
+    create_in(&r, "a", "ua", Some("b-1"));
+    create_in(&r, "plain", "up", None);
+    assert_eq!(delete(&r, "/a").status, 200);
+    assert_eq!(delete(&r, "/plain").status, 200);
+    assert_eq!(*seen.lock().unwrap(), [("b-1".to_owned(), "ua".to_owned())]);
+}
+
+// docs/specs/bucket-member-on-delete AC-2
+#[test]
+fn a_bucket_that_will_not_let_go_does_not_fail_the_delete() {
+    let (r, seen) = leaving(true);
+    create_in(&r, "a", "ua", Some("b-1"));
+    assert_eq!(delete(&r, "/a").status, 200);
+    assert_eq!(seen.lock().unwrap().len(), 1);
+}
+
+// docs/specs/bucket-member-on-delete AC-3
+#[test]
+fn a_missing_index_and_a_remove_of_another_incarnation_leave_nothing() {
+    let (r, seen) = leaving(false);
+    assert_eq!(delete(&r, "/ghost").status, 404);
+    create_in(&r, "a", "ua", Some("b-1"));
+    assert!(!r.service.remove("a", "other").expect("removes"));
+    assert!(seen.lock().unwrap().is_empty());
+    assert!(r.service.remove("a", "ua").expect("removes"));
+    assert_eq!(seen.lock().unwrap().len(), 1);
 }

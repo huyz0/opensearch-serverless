@@ -12,7 +12,9 @@ repository.workspace = true
 oss-types = { workspace = true }
 oss-blob = { workspace = true }
 oss-format = { workspace = true }
+oss-cluster = { workspace = true }
 oss-doc = { workspace = true }
+oss-ext = { workspace = true }
 oss-rest = { workspace = true }
 lucene-store = { workspace = true }
 lucene-index = { workspace = true }
@@ -29,6 +31,8 @@ lucene-engine = { workspace = true }
 oss-blob = { workspace = true, features = ["emulator"] }
 oss-mem = { workspace = true }
 oss-testkit = { workspace = true, features = ["index"] }
+# Test-only: creates the bucket of a RustFS the request-count measurement runs against.
+ureq = { version = "=3.5.2", default-features = false, features = ["rustls"] }
 
 [lints]
 workspace = true

@@ -33,7 +33,7 @@ pub enum Value {
     /// A numeric field's `null_value`, already of the field's type.
     Number(numbers::Num),
     /// A `knn_vector` field's `method`.
-    Method(super::knn::KnnMethod),
+    Method(Box<super::knn::KnnMethod>),
 }
 
 impl Value {

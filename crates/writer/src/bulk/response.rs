@@ -78,6 +78,8 @@ pub fn mapping_failure(e: &MappingError) -> Exception {
 pub fn mapping_status(e: &MappingError) -> u16 {
     match e.ty {
         "illegal_state_exception" => 500,
+        "extension_busy" => 429,
+        "extension_malformed" => 502,
         _ => 400,
     }
 }
@@ -203,5 +205,18 @@ mod tests {
         };
         assert_eq!(mapping_status(&refusal("illegal_state_exception")), 500);
         assert_eq!(mapping_status(&refusal("mapper_parsing_exception")), 400);
+    }
+
+    // docs/specs/extension-analyzer AC-2, AC-16: a failed module call answers by what a caller can do.
+    #[test]
+    fn a_failed_module_call_answers_by_its_kind() {
+        let refusal = |ty| MappingError {
+            ty,
+            reason: String::new(),
+            caused_by: None,
+        };
+        assert_eq!(mapping_status(&refusal("extension_busy")), 429);
+        assert_eq!(mapping_status(&refusal("extension_malformed")), 502);
+        assert_eq!(mapping_status(&refusal("extension_failed")), 400);
     }
 }

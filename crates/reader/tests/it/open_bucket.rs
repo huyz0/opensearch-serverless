@@ -114,7 +114,7 @@ fn a_bucketed_index_has_only_shard_zero() {
 }
 
 #[test]
-fn a_member_without_a_commit_or_a_manifest_entry_is_not_followable() {
+fn a_member_without_a_commit_is_empty_and_one_without_a_manifest_entry_is_not_followable() {
     let store = store_with_fixtures();
     let (_, meta) = ShardFiles::open_with_meta(&store, BASE, INDEX, 0).expect("plain");
     bucketed(
@@ -122,8 +122,8 @@ fn a_member_without_a_commit_or_a_manifest_entry_is_not_followable() {
         &meta.uuid,
         Some(BucketMember::first(INDEX, None).expect("member")),
     );
-    let err = ShardFiles::open(&store, BASE, INDEX, 0).expect_err("no commit");
-    assert!(err.to_string().contains("no commit"), "{err}");
+    let empty = ShardFiles::open(&store, BASE, INDEX, 0).expect("never written");
+    assert_eq!(empty.len(), 1, "the one empty commit");
     bucketed(&store, &meta.uuid, None);
     let err = ShardFiles::open(&store, BASE, INDEX, 0).expect_err("not a member");
     assert!(err.to_string().contains("not a member"), "{err}");

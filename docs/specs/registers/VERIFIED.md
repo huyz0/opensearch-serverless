@@ -6,7 +6,7 @@ Manual JVM check, once, not in the gate: `a_swap_waits_for_another_processes_pos
 
 - AC-1: `a_register_is_created_swapped_and_deleted_by_generation`, `a_register_is_its_generation_then_its_value`, `initial_generations_are_in_the_javas_range`, `a_generation_steps_by_one_within_the_signed_range`
 - AC-2: `one_of_racing_swaps_applies_and_its_value_is_stored`, `one_of_racing_creates_applies_and_its_value_is_stored`
-- AC-3: `each_operation_sends_what_the_spec_budgets`
+- AC-3: `each_operation_sends_what_the_spec_budgets`; and `a_swap_from_absent_is_one_conditional_put_on_an_object_store` in crates/blob/tests/registers/counts.rs, seen failing first (GetRange 1 and Put 1 before the change) and now 1 Put, a refused one also 1 Put, on the emulator and S3 over loopback. An empty object at the key is refused as a conflict, no longer a protocol error (`an_empty_object_is_no_register`).
 - AC-4: `a_stale_remembered_version_costs_one_refused_put_never_a_wrong_write`, `two_clients_swap_one_register_without_losing_a_write`, `a_swap_of_a_deleted_register_is_a_conflict`, `holds_at_most_its_cap_forgetting_the_oldest`
 - AC-5: `a_swap_whose_response_was_lost_finds_its_own_write`, `a_create_refused_on_retry_by_another_writers_register_is_a_conflict`
 - AC-6: `a_register_the_java_shell_wrote_reads_with_its_generation`

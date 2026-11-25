@@ -34,7 +34,7 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0022](0022-nested-bucket-aggregations.md) | Nested bucket aggregations: one engine tree, a total bucket bound, a product-aware reservation | Accepted |
 | [0023](0023-routing-stored-in-engine-documents.md) | A routed document stores its routing as a `_routing` field in the segment | Accepted |
 | [0024](0024-node-packs-in-the-writer.md) | Node packs in the writer: one PUT for the segments a node publishes together | Accepted |
-| [0025](0025-node-pack-collection.md) | Node pack collection | Proposed |
+| [0025](0025-node-pack-collection.md) | Node pack collection | Accepted |
 | [0026](0026-bucket-manifests-in-the-writer.md) | Bucket manifests in the writer: the shell's register, written as JSON first | Accepted |
 | [0027](0027-hibernating-idle-writers.md) | An idle writer hibernates: engine closed, head kept | Accepted |
 | [0028](0028-orphan-shard-sweep.md) | Orphan-shard sweep: an opt-in, default-off backstop that lists one key per shard prefix | Accepted |
@@ -53,7 +53,7 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0041](0041-tenant-cost-levels.md) | A tenant's cost is held to a budget by levels, in observe mode unless set to enforce | Accepted |
 | [0042](0042-snapshots-taken-shallow-first.md) | Snapshots are taken shallow first, in the Java's protocol, behind the switch | Accepted |
 | [0043](0043-security-configuration-as-document-sets.md) | Security configuration is five document sets, enforced at the edge from a node cache | Accepted |
-| [0044](0044-ingest-pipelines-in-the-write-path.md) | Ingest pipelines run in the write path through a per-request hook, behind a switch | Proposed |
+| [0044](0044-ingest-pipelines-in-the-write-path.md) | Ingest pipelines run in the write path through a per-request hook, behind a switch | Accepted |
 | [0045](0045-shallow-snapshot-restore.md) | A shallow snapshot is restored by copying its files into a new index, in the Java's order | Accepted |
 | [0046](0046-plugin-requests-are-proxied-to-java-nodes.md) | Requests for plugins that are not ported are proxied to Java nodes, behind a setting | Accepted |
 | [0047](0047-search-slots.md) | Searches are admitted in order by a slot gate that shapes who waits, behind a setting | Accepted |
@@ -61,3 +61,8 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0050](0050-writes-to-one-shard-share-a-commit-window.md) | Writes to one shard share a commit window: the slot lock is released before the wait | Accepted |
 | [0051](0051-authorization-at-the-route-by-action-table.md) | Authorization is decided at the route, from an action table, by the names in the path | Accepted |
 | [0052](0052-extension-modules-on-a-wasm-abi.md) | Extension modules are sandboxed WASM on a bytes-in, bytes-out ABI, content-addressed in the store; no point is wired yet | Accepted |
+| [0053](0053-the-analyzer-extension-point.md) | The analyzer point: an index pins a WASM module as a named analyzer at creation; every node runs it or refuses | Accepted |
+| [0054](0054-parsed-mappings-are-shared-by-content.md) | Parsed mappings are shared across shards by content, in memory; the descriptor keeps its mapping inline | Accepted |
+| [0055](0055-proactive-takeover-reapers-are-nodes-of-this-build.md) | Proactive takeover picks its reapers only among live nodes of this build | Accepted |
+| [0056](0056-over-share-searches-wait-off-the-workers-in-a-bounded-queue.md) | A tenant's searches over its share of the workers wait off the workers in a bounded queue, and are refused with 429 past its size | Accepted |
+| [0057](0057-a-rust-owner-answers-the-java-search-shard-action.md) | A Rust owner answers the Java search-shard action for a shard it writes, over a decoded subset of the request | Accepted |

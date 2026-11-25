@@ -14,11 +14,11 @@ use std::sync::Arc;
 
 use oss_blob::{BlobError, BlobResult, BlobStore, ByteRange, ChunkSource, SwapOutcome};
 use oss_format::{
-    FileLocation, FormatError, IndexRecord, ManifestEntry, RestoreIndex, RestoreShard, ShardRef,
-    encode_manifest,
+    EMPTY_SETTINGS, FileLocation, FormatError, IndexRecord, ManifestEntry, RestoreIndex,
+    RestoreShard, ShardRef, encode_manifest, mark_restoring,
 };
 
-use crate::descriptors::DescriptorStore;
+use crate::descriptors::{DescriptorStore, Target};
 use crate::error::MetaError;
 
 /// The term container a restored shard's files are written to: the new
@@ -135,17 +135,73 @@ impl SnapshotRestorer {
         if let Some(why) = source.refusal()? {
             return Err(RestoreError::Unsupported(why));
         }
-        let mut record = IndexRecord::new(target, uuid, source.number_of_shards);
-        record.mapping = source.mapping.as_deref().map(Cow::Borrowed);
-        record.created_at_millis = now_millis;
-        if let Some(settings) = &source.settings {
-            record.settings = settings;
-        }
-        descriptors.create(&record, now_millis, record_buf)?;
+        // The descriptor goes first, marked: a node that dies before the last
+        // shard lands leaves an index every read and write refuses, not one
+        // that answers from shards that are still empty.
+        let marked = mark_restoring(source.settings.as_deref())?;
+        let mut record = restored_record(source, target, uuid, now_millis);
+        record.settings = &marked;
+        let generation = descriptors.create(&record, now_millis, record_buf)?;
         for shard in &source.shards {
             self.restore_shard(source, shard, target, uuid, buffers)?;
         }
-        Ok(())
+        Self::unmark(
+            descriptors,
+            source,
+            target,
+            uuid,
+            now_millis,
+            generation,
+            record_buf,
+        )
+    }
+
+    /// Writes the index's own settings back over the marked ones: one swap
+    /// from the create's generation, and if a change got there first (an
+    /// alias, say) the same swap from what that left.
+    #[allow(clippy::too_many_arguments)]
+    fn unmark(
+        descriptors: &DescriptorStore,
+        source: &RestoreIndex,
+        target: &str,
+        uuid: &str,
+        now_millis: i64,
+        generation: u64,
+        record_buf: &mut [u8],
+    ) -> Result<(), RestoreError> {
+        let own = source.settings.as_deref().unwrap_or(EMPTY_SETTINGS);
+        let mut record = restored_record(source, target, uuid, now_millis);
+        record.settings = own;
+        if descriptors
+            .update(&record, generation, record_buf)?
+            .is_some()
+        {
+            return Ok(());
+        }
+        // ALLOC: one buffer, only when a change got there first, as large as the record buffer.
+        let mut read = vec![0u8; record_buf.len()];
+        for _ in 0..UNMARK_ATTEMPTS {
+            let held = descriptors.resolve(target, &mut read)?;
+            let Target::Index(mut current) = held.target else {
+                return Err(RestoreError::Unsupported(
+                    "the index was deleted while it was restored",
+                ));
+            };
+            // The name may be a new index by now, made after a delete: leave it be.
+            if current.uuid != uuid || !oss_format::is_restoring(current.settings) {
+                return Err(RestoreError::Unsupported(
+                    "the index was replaced while it was restored",
+                ));
+            }
+            current.settings = own;
+            if descriptors
+                .update(&current, held.generation, record_buf)?
+                .is_some()
+            {
+                return Ok(());
+            }
+        }
+        Err(RestoreError::Meta(MetaError::Contended))
     }
 
     fn restore_shard(
@@ -201,6 +257,23 @@ impl SnapshotRestorer {
         }
     }
 }
+
+/// The descriptor a restore of `source` as `target` starts from, with the
+/// settings still to be set.
+fn restored_record<'a>(
+    source: &'a RestoreIndex,
+    target: &'a str,
+    uuid: &'a str,
+    now_millis: i64,
+) -> IndexRecord<'a> {
+    let mut record = IndexRecord::new(target, uuid, source.number_of_shards);
+    record.mapping = source.mapping.as_deref().map(Cow::Borrowed);
+    record.created_at_millis = now_millis;
+    record
+}
+
+/// How many times the unmarking swap is tried against changes that race it.
+const UNMARK_ATTEMPTS: usize = 4;
 
 /// The length the record states for `name`, or its location's range.
 fn length_of(
@@ -270,5 +343,141 @@ impl ChunkSource for RangedSource<'_> {
     fn rewind(&mut self) -> BlobResult<()> {
         self.done = 0;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::descriptors::DeleteMode;
+    use oss_blob::Emulator;
+
+    const RECORD: &[u8] = br#"{"repo":"r","name":"s","shallow":true,"start_time_in_millis":1,"end_time_in_millis":2,
+      "indices":{"logs":{"uuid":"U1","number_of_shards":1,"settings":{"index":{"x":1}},"shards":[]}}}"#;
+
+    fn marked_index() -> (DescriptorStore, RestoreIndex, u64) {
+        let store: Arc<dyn BlobStore> = Arc::new(Emulator::new(1 << 20, 1));
+        let d = DescriptorStore::new(store, "", DeleteMode::Conditional).unwrap();
+        let source = RestoreIndex::find(RECORD, "logs").unwrap().unwrap();
+        let marked = mark_restoring(source.settings.as_deref()).unwrap();
+        let mut record = restored_record(&source, "logs2", "U2", 1);
+        record.settings = &marked;
+        let generation = d.create(&record, 1, &mut vec![0u8; 4096]).unwrap();
+        (d, source, generation)
+    }
+
+    #[test]
+    fn a_change_that_moved_the_register_is_kept_and_the_mark_still_goes() {
+        let (d, source, generation) = marked_index();
+        // Another change lands first: the register's generation is no longer the create's.
+        let mut buf = vec![0u8; 4096];
+        let mut current = d.get("logs2", &mut buf).unwrap().unwrap();
+        current.aliased_by = vec![Cow::Borrowed("everything")];
+        d.update(&current, generation, &mut vec![0u8; 4096])
+            .unwrap()
+            .unwrap();
+        SnapshotRestorer::unmark(
+            &d,
+            &source,
+            "logs2",
+            "U2",
+            1,
+            generation,
+            &mut vec![0u8; 4096],
+        )
+        .unwrap();
+        let mut buf = vec![0u8; 4096];
+        let got = d.get("logs2", &mut buf).unwrap().unwrap();
+        assert!(!oss_format::is_restoring(got.settings));
+        assert_eq!(got.settings, br#"{"index":{"x":1}}"#);
+        assert_eq!(
+            got.aliased_by,
+            vec![Cow::Borrowed("everything")],
+            "the racing change is kept"
+        );
+    }
+
+    #[test]
+    fn an_index_made_again_under_the_name_is_left_alone() {
+        let (d, source, generation) = marked_index();
+        d.delete("logs2").unwrap();
+        let other = IndexRecord::new("logs2", "U9", 3);
+        d.create(&other, 2, &mut vec![0u8; 4096]).unwrap();
+        let err = SnapshotRestorer::unmark(
+            &d,
+            &source,
+            "logs2",
+            "U2",
+            1,
+            generation,
+            &mut vec![0u8; 4096],
+        )
+        .unwrap_err();
+        assert!(matches!(err, RestoreError::Unsupported(_)), "{err}");
+        let mut buf = vec![0u8; 4096];
+        let got = d.get("logs2", &mut buf).unwrap().unwrap();
+        assert_eq!((got.uuid.as_ref(), got.number_of_shards), ("U9", 3));
+        assert_eq!(
+            got.settings, EMPTY_SETTINGS,
+            "the new index's settings are untouched"
+        );
+    }
+
+    #[test]
+    fn another_restores_index_under_the_name_is_left_alone_and_so_is_an_unmarked_one() {
+        let (d, source, generation) = marked_index();
+        let marked = mark_restoring(None).unwrap();
+        // Made again by another restore: marked, but not this restore's uuid.
+        d.delete("logs2").unwrap();
+        let mut other = IndexRecord::new("logs2", "U9", 1);
+        other.settings = &marked;
+        d.create(&other, 2, &mut vec![0u8; 4096]).unwrap();
+        let err = SnapshotRestorer::unmark(
+            &d,
+            &source,
+            "logs2",
+            "U2",
+            1,
+            generation,
+            &mut vec![0u8; 4096],
+        )
+        .unwrap_err();
+        assert!(matches!(err, RestoreError::Unsupported(_)), "{err}");
+        let mut buf = vec![0u8; 4096];
+        assert!(oss_format::is_restoring(
+            d.get("logs2", &mut buf).unwrap().unwrap().settings
+        ));
+        // This restore's uuid, but already unmarked by someone: nothing to clear.
+        d.delete("logs2").unwrap();
+        d.create(&IndexRecord::new("logs2", "U2", 1), 3, &mut vec![0u8; 4096])
+            .unwrap();
+        let err = SnapshotRestorer::unmark(
+            &d,
+            &source,
+            "logs2",
+            "U2",
+            1,
+            generation,
+            &mut vec![0u8; 4096],
+        )
+        .unwrap_err();
+        assert!(matches!(err, RestoreError::Unsupported(_)), "{err}");
+    }
+
+    #[test]
+    fn an_index_deleted_during_its_restore_is_no_success() {
+        let (d, source, generation) = marked_index();
+        d.delete("logs2").unwrap();
+        let err = SnapshotRestorer::unmark(
+            &d,
+            &source,
+            "logs2",
+            "U2",
+            1,
+            generation,
+            &mut vec![0u8; 4096],
+        )
+        .unwrap_err();
+        assert!(matches!(err, RestoreError::Unsupported(_)), "{err}");
     }
 }

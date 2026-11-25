@@ -48,6 +48,8 @@ fn an_index_created_without_settings_has_the_routing_defaults() {
             partition_size: 1,
             routing_shards: 3,
             routing_required: false,
+            default_pipeline: None,
+            final_pipeline: None,
         }
     );
 }
@@ -156,4 +158,34 @@ fn every_shard_is_local_and_a_forward_fails_each_item() {
             other => panic!("{other:?}"),
         }
     }
+}
+
+// docs/specs/index-default-pipelines AC-4
+#[test]
+fn the_routes_read_the_default_and_final_pipelines() {
+    let (_, d, routes) = rig();
+    put(
+        &d,
+        "flat",
+        1,
+        r#"{"index.default_pipeline":"a","index.final_pipeline":"b"}"#,
+        None,
+    );
+    let info = routes.index("flat").expect("found");
+    assert_eq!(info.default_pipeline.as_deref(), Some("a"));
+    assert_eq!(info.final_pipeline.as_deref(), Some("b"));
+    put(
+        &d,
+        "nested",
+        1,
+        r#"{"index":{"default_pipeline":"c"}}"#,
+        None,
+    );
+    let info = routes.index("nested").expect("found");
+    assert_eq!(info.default_pipeline.as_deref(), Some("c"));
+    assert_eq!(info.final_pipeline, None);
+    put(&d, "empty", 1, r#"{"index.default_pipeline":""}"#, None);
+    assert_eq!(routes.index("empty").expect("found").default_pipeline, None);
+    put(&d, "none", 1, "{}", None);
+    assert_eq!(routes.index("none").expect("found").final_pipeline, None);
 }

@@ -26,6 +26,8 @@ pub enum CaptureError {
     NoSuchIndex,
     /// The name is an alias, which freezes only index by index.
     IsAlias,
+    /// A restore is copying the index, or was interrupted before it finished.
+    Restoring,
     /// The index is one this slice cannot freeze.
     Unsupported(&'static str),
     /// A shard has published nothing, so there is no commit to freeze, and a
@@ -42,6 +44,7 @@ impl fmt::Display for CaptureError {
         match self {
             Self::NoSuchIndex => f.write_str("no such index"),
             Self::IsAlias => f.write_str("the name is an alias, not one index"),
+            Self::Restoring => f.write_str(oss_format::RESTORING_WHY),
             Self::Unsupported(why) => f.write_str(why),
             Self::NothingPublished(shard) => write!(
                 f,
@@ -148,6 +151,9 @@ impl PointInTimeStore {
     ) -> Result<PointInTime, CaptureError> {
         let (uuid, shards, bucket) = match descriptors.resolve(index, buf)?.target {
             Target::Index(record) => {
+                if oss_format::is_restoring(record.settings) {
+                    return Err(CaptureError::Restoring);
+                }
                 // A bucketed index is one shard, whose commit is in its bucket.
                 let units = if record.bucket.is_some() {
                     // ALLOC: the one shard, once a capture.

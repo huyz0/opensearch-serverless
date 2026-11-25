@@ -2,6 +2,7 @@
 //! as its own process under nextest. One binary links once, where twenty linked twenty times.
 
 mod boot_tombstone;
+mod bucket_orphans;
 mod bucket_wiring;
 mod bulk_handler;
 mod cluster_live;
@@ -20,6 +21,8 @@ mod writer_heads;
 mod writer_janitor;
 mod writer_newest;
 mod writer_opener;
+mod writer_opener_pins;
+mod writer_opener_rig;
 mod writer_publish;
 mod writer_publish_timer;
 mod writer_role;

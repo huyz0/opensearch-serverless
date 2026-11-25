@@ -11,6 +11,7 @@ mod follow;
 mod join;
 mod renew;
 mod retire;
+mod search_shard;
 mod support;
 mod tail;
 mod transport;
@@ -26,7 +27,6 @@ use oss_cluster::{
 };
 use oss_mem::MemoryBudget;
 use oss_meta::{ChangeStripes, DeleteMode, DescriptorStore};
-use oss_rest::ServerConfig;
 use oss_transport::actions::read::GET_ACTION;
 use oss_transport::actions::write::BULK_ACTION;
 use oss_transport::auth::{AuthConfig, Authenticator};
@@ -46,7 +46,7 @@ use crate::read_forward::{GetForwarder, GetHandler};
 use crate::usage_route;
 use crate::writer::{
     DeadLogParts, DeadLogPass, DeadMailbox, DeadSnapshot, DescriptorIncarnation, HeadAdmission,
-    HeadOpener, LiveLeases, OrphanTimer, ShardNames, ShardOpener, Takeover,
+    HeadOpener, OrphanTimer, ShardNames, ShardOpener, Takeover,
 };
 
 pub use config::{MIN_MEMORY_BYTES, NodeConfig, StoreChoice};
@@ -220,6 +220,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         .add(GET_ACTION, late_get)
         .map_err(|e| BootError::Cluster(e.to_string()))?;
     join::register(&mut registry, &membership).map_err(|e| BootError::Cluster(e.to_string()))?;
+    let shard_action = search_shard::register(&mut registry, config)?;
     let mut handlers = registry.into_handlers();
     let tail_slots = tail::Slots::list(&mut handlers);
     let transport_server = TransportServer::bind(
@@ -253,7 +254,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     let lease_for_enrolment = lease.clone();
     // What the lease tells peers this node holds; the renewal thread keeps it.
     let load = Arc::new(crate::writer::LoadReport::default());
-    let readiness = Arc::new(crate::lifecycle::Readiness::new());
+    let readiness = Arc::new(support::readiness_for(config));
     let keeper = Arc::new(LeaseKeeper::new(
         support::lease_writer(&membership, lease, &load, &readiness),
         log.clone(),
@@ -292,6 +293,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     )
     .with_takeover(takeover);
     let opener = support::with_member_commits(opener, buckets.as_ref());
+    let opener = support::with_extension_modules(opener, config, &store, &budget);
     // One cache of the indexes this node reads, shared by every route that
     // resolves one; its confirmations are the change stripes every node
     // records its descriptor changes in.
@@ -380,6 +382,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     let mut assembled = assemble::assemble(&node_config, Arc::clone(&store), &budget, writer)
         .and_then(|a| a.with_health(health, &config.cluster))
         .and_then(|a| a.with_lifecycle(Arc::clone(&readiness), config.drain_settle()))
+        .map(|a| crate::search_queue::install(a, config))
         .and_then(|a| usage_route::attach(a, usage, config, &clock))
         .map_err(BootError::Assemble)?;
     if let Some(buckets) = &buckets {
@@ -389,7 +392,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         &mut assembled,
         config,
         &tail_slots,
-        (Arc::clone(&client), Arc::clone(&auth)),
+        (&client, &auth, &readiness),
         &membership,
         Arc::clone(&clock),
         Arc::clone(&store),
@@ -401,17 +404,15 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         &config.node_id,
     ));
     late_slot.set(handler).ok();
-    let get_handler: Arc<dyn oss_transport::server::Handler> = Arc::new(GetHandler::new(
-        Arc::clone(&assembled.role),
-        &config.node_id,
-    ));
-    late_get_slot.set(get_handler).ok();
-    let push_handler: Arc<dyn oss_transport::server::Handler> =
-        Arc::new(crate::push::PushHandler::new(Arc::clone(&assembled.search)));
-    late_push_slot.set(push_handler).ok();
+    let get = GetHandler::new(Arc::clone(&assembled.role), &config.node_id);
+    late_get_slot.set(Arc::new(get)).ok();
+    let push = crate::push::PushHandler::new(Arc::clone(&assembled.search));
+    late_push_slot.set(Arc::new(push)).ok();
+    shard_action.install(&assembled.role, &assembled.search, config, &budget);
     support::wire_commit_push(&assembled, &client, &auth, &membership, config)?;
     // Enrolled last: a peer that sees the lease can reach everything it names.
     membership.renew(&lease_for_enrolment).map_err(cluster)?;
+    shard_action.age.mark();
     join::announce(&membership, client, &auth, &config.node_id, &ephemeral)
         .map_err(|e| BootError::Cluster(format!("lease announce thread: {e}")))?;
     let listener = TcpListener::bind(config.http)
@@ -419,7 +420,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     let role = Arc::clone(&assembled.role);
     let fleet = support::FleetTick::new(&role, load, &clock, config);
     let running = assembled
-        .start(listener, ServerConfig::default(), &budget)
+        .start(listener, config.rest_config(), &budget)
         .map_err(BootError::Assemble)?;
     // Dead nodes naming log epochs come from each renewal's refresh; a thread of its own collects them.
     let mailbox = Arc::new(DeadMailbox::default());
@@ -432,7 +433,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         let now = Instant::now();
         if cadence.renew_due(now) {
             fleet.renewing();
-            let _ = keeper.renew(&committer);
+            let _ = keeper.renew(&committer).map(|_| shard_action.age.mark());
         }
         if cadence.refresh_due(now)
             && let Ok(refreshed) = renewing.refresh()
@@ -468,14 +469,13 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         },
     );
     let dry_run = node_config.sweep.dry_run;
-    let live_members = Arc::new(LiveLeases::default());
-    let orphan_sweep = support::orphan_sweep(
+    let (orphan_sweep, live_members) = support::orphan_sweep(
         config,
         &store,
         &budget,
         Arc::clone(&clock),
-        Arc::clone(&live_members),
         dry_run,
+        buckets.clone(),
     );
     let tombstones = support::tombstone_pass(config, &store, &budget, Arc::clone(&clock));
     let dead_logs = Renewal::spawn_named("dead-log-pass", node_config.janitor_every, move || {

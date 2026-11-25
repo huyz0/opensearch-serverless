@@ -57,6 +57,21 @@ fn number(settings: &[(String, Json)], key: &str) -> Option<u32> {
     }
 }
 
+/// The pipeline id `key` names in settings JSON, flat or nested; none when
+/// unset or empty.
+fn text(settings: &[(String, Json)], key: &str) -> Option<String> {
+    let value = settings
+        .iter()
+        .find(|(k, _)| k == key)
+        .map(|(_, v)| v)
+        .or_else(|| nested(settings, key))?;
+    match value {
+        // ALLOC: one id, only for an index that sets one.
+        Json::Str(id) if !id.is_empty() => Some(id.to_string()),
+        _ => None,
+    }
+}
+
 fn nested<'a>(settings: &'a [(String, Json)], key: &str) -> Option<&'a Json> {
     let mut members = settings;
     let mut parts = key.split('.').peekable();
@@ -112,6 +127,10 @@ impl DescriptorRoutes {
         let Target::Index(record) = held.target else {
             return None;
         };
+        // An index a restore has not finished takes no write.
+        if oss_format::is_restoring(record.settings) {
+            return None;
+        }
         let settings = match parse(record.settings) {
             Ok(Json::Obj(members)) => members,
             _ => Vec::new(),
@@ -130,6 +149,31 @@ impl DescriptorRoutes {
             partition_size: number(&settings, "index.routing_partition_size").unwrap_or(1),
             routing_shards: number(&settings, "index.number_of_routing_shards").unwrap_or(shards),
             routing_required,
+            default_pipeline: text(&settings, "index.default_pipeline"),
+            final_pipeline: text(&settings, "index.final_pipeline"),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use oss_blob::{BlobStore, Emulator};
+    use oss_format::{IndexRecord, mark_restoring};
+    use oss_meta::DeleteMode;
+
+    #[test]
+    fn an_index_a_restore_has_not_finished_takes_no_write() {
+        let store: Arc<dyn BlobStore> = Arc::new(Emulator::new(1 << 20, 1));
+        let descriptors = DescriptorStore::new(store, "", DeleteMode::Conditional).unwrap();
+        let whole = IndexRecord::new("whole", "u1", 1);
+        descriptors.create(&whole, 1, &mut vec![0u8; 4096]).unwrap();
+        let marked = mark_restoring(None).unwrap();
+        let mut half = IndexRecord::new("half", "u2", 1);
+        half.settings = &marked;
+        descriptors.create(&half, 1, &mut vec![0u8; 4096]).unwrap();
+        let routes = DescriptorRoutes::new(descriptors, 4096);
+        assert!(routes.index("whole").is_some());
+        assert!(routes.index("half").is_none());
     }
 }

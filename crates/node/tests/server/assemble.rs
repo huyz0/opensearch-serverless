@@ -45,6 +45,8 @@ fn info() -> IndexInfo {
         partition_size: 1,
         routing_shards: 1,
         routing_required: false,
+        default_pipeline: None,
+        final_pipeline: None,
     }
 }
 
@@ -68,6 +70,16 @@ fn budget(request_bodies: usize, open_indexes: usize) -> MemoryBudget {
             .with_pool(Pool::RequestBodies, request_bodies)
             .and_then(|c| c.with_pool(Pool::OpenIndexes, open_indexes))
             .and_then(|c| c.with_pool(Pool::Transport, 8 << 20))
+            .and_then(|c| {
+                c.with_pool(
+                    Pool::Extensions,
+                    if cfg!(feature = "extensions") {
+                        64 << 20
+                    } else {
+                        0
+                    },
+                )
+            })
             .expect("fits"),
     )
 }

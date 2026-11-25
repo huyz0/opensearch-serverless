@@ -2,10 +2,13 @@
 //! delete: the version lookup, the plan, a sequence number for each write
 //! that goes ahead, and the Lucene update or tombstone it makes.
 
-use lucene_index::buffered_updates::{DocValuesUpdate, Term};
+use std::sync::Arc;
+
+use lucene_index::buffered_updates::Term;
 use lucene_index::index_writer::IndexWriter;
 use lucene_search::directory_reader::DirectoryReader;
 use lucene_store::Directory;
+use oss_ext::analyzer::Analyze;
 
 use crate::document;
 use crate::fast::FastIngest;
@@ -13,9 +16,12 @@ use crate::lucene::{Indexer, Meta, uid};
 use crate::mapping::{Mapping, MappingError};
 
 mod get;
+mod growth;
 mod replay;
+mod soft;
 
 pub use get::Fetched;
+use soft::soft_delete;
 
 use super::lookup;
 use super::plan::{Current, Expect, plan};
@@ -30,6 +36,13 @@ pub const MAX_SEQ_NO_KEY: &str = "max_seq_no";
 
 /// `SequenceNumbers.LOCAL_CHECKPOINT_KEY`.
 pub const LOCAL_CHECKPOINT_KEY: &str = "local_checkpoint";
+
+/// `Translog.TRANSLOG_UUID_KEY`: the translog a commit belongs to, which
+/// `InternalEngine`'s constructor requires of the commit it opens.
+pub const TRANSLOG_UUID_KEY: &str = "translog_uuid";
+
+/// `Engine.HISTORY_UUID_KEY`.
+pub const HISTORY_UUID_KEY: &str = "history_uuid";
 
 /// What a write did.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -86,7 +99,8 @@ pub struct Shard<'d> {
     writer: IndexWriter<'d>,
     indexer: Indexer,
     fast: FastIngest,
-    mapping: Mapping,
+    mapping: Arc<Mapping>,
+    growth: Option<Mapping>,
     versions: VersionMap,
     reader: Option<DirectoryReader>,
     primary_term: i64,
@@ -109,7 +123,7 @@ impl<'d> Shard<'d> {
     pub fn new(
         dir: &'d dyn Directory,
         writer: IndexWriter<'d>,
-        mapping: Mapping,
+        mapping: impl Into<Arc<Mapping>>,
         primary_term: i64,
         clock: Box<dyn Fn() -> u64 + Send + 'd>,
     ) -> Result<Self, String> {
@@ -127,7 +141,8 @@ impl<'d> Shard<'d> {
             writer,
             indexer: Indexer::new(),
             fast: FastIngest::new(),
-            mapping,
+            mapping: mapping.into(),
+            growth: None,
             versions: VersionMap::default(),
             reader: None,
             primary_term,
@@ -144,6 +159,14 @@ impl<'d> Shard<'d> {
     #[must_use]
     pub fn with_derived_source(mut self, on: bool) -> Self {
         self.indexer = std::mem::take(&mut self.indexer).with_derived_source(on);
+        self
+    }
+
+    /// Indexes the fields whose mapping names `name` as their analyzer with
+    /// `module`, the module a pin loaded, never with the built-in analyzer.
+    #[must_use]
+    pub fn with_module(mut self, name: &str, module: Arc<dyn Analyze>) -> Self {
+        self.indexer = std::mem::take(&mut self.indexer).with_module(name, module);
         self
     }
 
@@ -214,6 +237,16 @@ impl<'d> Shard<'d> {
             .collect();
         // ALLOC: one number's text a refresh.
         let seq = self.max_seq_no.to_string();
+        // A shard made from nothing carries the ids `Store.createEmpty` gives,
+        // so a Java writer taking it over finds the translog UUID its engine
+        // requires; a commit that has them keeps them.
+        for key in [TRANSLOG_UUID_KEY, HISTORY_UUID_KEY] {
+            if !data.iter().any(|(k, _)| k == key) {
+                let id = oss_meta::new_id().map_err(|e| message(&e))?;
+                // ALLOC: a key's text, twice on a shard's first commit.
+                data.push((key.to_owned(), id));
+            }
+        }
         // ALLOC: two entries of commit user data a refresh.
         data.push((LOCAL_CHECKPOINT_KEY.to_owned(), seq.clone()));
         data.push((MAX_SEQ_NO_KEY.to_owned(), seq));
@@ -315,9 +348,10 @@ impl<'d> Shard<'d> {
         // The Java publishes a document's mapping update before the engine
         // plans it, so the update holds even when the write conflicts.
         if let Some(grown) = parsed.as_ref().and_then(|p| p.grown.as_ref()) {
-            // ALLOC: the grown mapping, bounded by the total fields limit.
-            self.mapping = grown.clone();
+            // ALLOC: the grown mapping, bounded by the total fields limit; this shard's own.
+            self.mapping = Arc::new(grown.clone());
             self.fast.invalidate();
+            self.note_growth(parsed.as_ref().and_then(|p| p.update.as_ref()));
         }
         let current = self.current(id, &key)?;
         let p = plan(id, current, &expect).map_err(Refused::Conflict)?;
@@ -463,15 +497,4 @@ impl<'d> Shard<'d> {
 fn message(e: &dyn std::fmt::Display) -> String {
     // ALLOC: error path; one message.
     e.to_string()
-}
-
-/// `Lucene.newSoftDeletesField()` as an update of every document with `_id`
-/// `uid`.
-fn soft_delete(uid: &[u8]) -> DocValuesUpdate {
-    DocValuesUpdate::Numeric {
-        // ALLOC: one term a replaced document.
-        term: Term::new("_id", uid.to_vec()),
-        field: "__soft_deletes".to_owned(),
-        value: Some(1),
-    }
 }

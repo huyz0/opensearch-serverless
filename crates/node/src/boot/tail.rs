@@ -7,6 +7,7 @@ use std::sync::{Arc, OnceLock};
 use oss_cluster::LeaseClock;
 use oss_cluster::Membership;
 use oss_transport::actions::tail::{FETCH_ACTION, PUSH_ACTION};
+use oss_transport::actions::warm::{HOT_SET_ACTION, PAGES_ACTION};
 use oss_transport::auth::Authenticator;
 use oss_transport::client::Client;
 use oss_transport::server::{Handler, Handlers};
@@ -14,8 +15,15 @@ use oss_transport::server::{Handler, Handlers};
 use super::support::Held;
 use super::{BootError, NodeConfig, transport::Late};
 use crate::assemble::Assembled;
+use crate::handlers::Registry;
+use crate::lifecycle::Readiness;
 use crate::tail_node::TailParts;
+use crate::warm_handlers::{Gate, HotSetHandler, Limits, PagesHandler};
 use crate::writer::RefreshVisibility;
+
+mod joining;
+
+use joining::Joining;
 
 type Slot = Arc<OnceLock<Arc<dyn Handler>>>;
 
@@ -23,21 +31,27 @@ type Slot = Arc<OnceLock<Arc<dyn Handler>>>;
 pub(super) struct Slots {
     fetch: Slot,
     push: Slot,
+    hot_set: Slot,
+    pages: Slot,
 }
 
 impl Slots {
-    /// Lists both actions in `handlers`, refusing until they are set. They
-    /// are not behind the node's own signature check: what is set later is
-    /// already behind one.
+    /// Lists the tail and warm-copy actions in `handlers`, refusing until
+    /// they are set. They are not behind the node's own signature check:
+    /// what is set later is already behind one.
     pub(super) fn list(handlers: &mut Handlers) -> Self {
-        let fetch = Late::default();
-        let push = Late::default();
+        let (fetch, push) = (Late::default(), Late::default());
+        let (hot_set, pages) = (Late::default(), Late::default());
         let slots = Self {
             fetch: fetch.slot(),
             push: push.slot(),
+            hot_set: hot_set.slot(),
+            pages: pages.slot(),
         };
         handlers.insert(FETCH_ACTION.to_owned(), Arc::new(fetch));
         handlers.insert(PUSH_ACTION.to_owned(), Arc::new(push));
+        handlers.insert(HOT_SET_ACTION.to_owned(), Arc::new(hot_set));
+        handlers.insert(PAGES_ACTION.to_owned(), Arc::new(pages));
         slots
     }
 }
@@ -48,7 +62,7 @@ pub(super) fn wire(
     assembled: &mut Assembled,
     config: &NodeConfig,
     slots: &Slots,
-    (client, auth): (Arc<Client>, Arc<Authenticator>),
+    (client, auth, readiness): (&Arc<Client>, &Arc<Authenticator>, &Arc<Readiness>),
     membership: &Arc<Membership>,
     clock: Arc<dyn LeaseClock>,
     store: Arc<dyn oss_blob::BlobStore>,
@@ -56,6 +70,8 @@ pub(super) fn wire(
     // The acknowledged mark the overlay reads moves with the pipeline.
     let depth = usize::try_from(config.write_pipeline_depth).unwrap_or(1);
     assembled.role.set_pipeline_depth(depth);
+    install_warm(assembled, config, slots, auth, membership)?;
+    join_warm(assembled, config, (client, auth), membership, readiness);
     let heads = oss_cluster::heads::ShardHeadStore::new(
         store,
         &config.base,
@@ -69,8 +85,8 @@ pub(super) fn wire(
     let parts = TailParts::over_transport(
         config.tail_overlay,
         &config.node_id,
-        client,
-        auth,
+        Arc::clone(client),
+        Arc::clone(auth),
         Held(Arc::clone(membership)),
         clock,
     )
@@ -95,6 +111,84 @@ pub(super) fn wire(
     Ok(())
 }
 
+/// Answers a joining reader's warm-copy asks when `config` asks for it:
+/// the handlers sit behind the node's signature check like the tail's.
+fn install_warm(
+    assembled: &Assembled,
+    config: &NodeConfig,
+    slots: &Slots,
+    auth: &Arc<Authenticator>,
+    membership: &Arc<Membership>,
+) -> Result<(), BootError> {
+    let Some(warm) = config.page_cache.as_ref().and_then(|tier| tier.warm) else {
+        return Ok(());
+    };
+    let cache = Arc::clone(assembled.search.page_cache());
+    let limits = Limits {
+        width: usize::try_from(warm.width).unwrap_or(usize::MAX),
+        max_shards: usize::try_from(warm.max_shards).unwrap_or(usize::MAX),
+        max_bytes: warm.max_bytes,
+        max_concurrent: usize::try_from(warm.max_concurrent).unwrap_or(usize::MAX),
+    };
+    let gate = Arc::new(Gate::default());
+    let mut registry = Registry::new(Arc::clone(auth));
+    registry
+        .add(
+            HOT_SET_ACTION,
+            HotSetHandler::new(
+                Arc::clone(&cache),
+                Arc::clone(&assembled.search),
+                Held(Arc::clone(membership)),
+                limits,
+                Arc::clone(&gate),
+            ),
+        )
+        .and_then(|()| {
+            registry.add(
+                PAGES_ACTION,
+                PagesHandler::new(cache, Arc::clone(&assembled.search), limits, gate),
+            )
+        })
+        .map_err(|e| BootError::Cluster(format!("warm copy: {e:?}")))?;
+    slots.fill(registry.into_handlers());
+    Ok(())
+}
+
+/// Warms this node from its peers on a thread of its own, then lets it in:
+/// the node answers 503 on ready and holds no `search` role until it holds
+/// `ready_percent` of the bytes its peers named or `max_wait` passes. A node
+/// not asked to warm is already ready.
+fn join_warm(
+    assembled: &Assembled,
+    config: &NodeConfig,
+    (client, auth): (&Arc<Client>, &Arc<Authenticator>),
+    membership: &Arc<Membership>,
+    readiness: &Arc<Readiness>,
+) {
+    let Some(warm) = config.page_cache.as_ref().and_then(|tier| tier.warm) else {
+        return;
+    };
+    let job = Joining {
+        warm,
+        node_id: config.node_id.clone(),
+        client: Arc::clone(client),
+        auth: Arc::clone(auth),
+        membership: Arc::clone(membership),
+        search: Arc::clone(&assembled.search),
+        budget: assembled.budget.clone(),
+        readiness: Arc::clone(readiness),
+    };
+    // A node that cannot start the thread serves cold rather than never
+    // becoming ready.
+    if std::thread::Builder::new()
+        .name("warm-join".to_owned())
+        .spawn(move || job.run())
+        .is_err()
+    {
+        readiness.finish_warming();
+    }
+}
+
 /// The visibility mode `word` names; the default, `owner`, for any other.
 pub(super) fn visibility(word: &str) -> RefreshVisibility {
     RefreshVisibility::parse(word).unwrap_or_default()
@@ -107,6 +201,8 @@ impl Slots {
             let slot = match action.as_str() {
                 FETCH_ACTION => &self.fetch,
                 PUSH_ACTION => &self.push,
+                HOT_SET_ACTION => &self.hot_set,
+                PAGES_ACTION => &self.pages,
                 _ => continue,
             };
             slot.set(handler).ok();
@@ -152,6 +248,20 @@ mod tests {
         assert!(visibility("serving").waits());
         assert!(!visibility("owner").waits());
         assert_eq!(visibility("nonsense"), RefreshVisibility::Owner);
+    }
+
+    #[test]
+    fn both_warm_actions_are_listed_and_refuse_until_their_handlers_are_given() {
+        let mut handlers = Handlers::new();
+        let slots = Slots::list(&mut handlers);
+        assert!(ask(&handlers, HOT_SET_ACTION).is_err());
+        assert!(ask(&handlers, PAGES_ACTION).is_err());
+        let mut given = Handlers::new();
+        given.insert(HOT_SET_ACTION.to_owned(), Arc::new(Answers(b"h")));
+        given.insert(PAGES_ACTION.to_owned(), Arc::new(Answers(b"p")));
+        slots.fill(given);
+        assert_eq!(ask(&handlers, HOT_SET_ACTION).expect("answers"), b"h");
+        assert_eq!(ask(&handlers, PAGES_ACTION).expect("answers"), b"p");
     }
 
     #[test]

@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use lucene_analysis::Analyzer;
 use lucene_codecs::field_infos::IndexOptions;
 use lucene_index::index_writer::{InvertedField, InvertedTerm};
+use oss_ext::analyzer::{Analyze, Token};
 
 use super::encode::norm;
 use crate::mapping::MappingError;
@@ -127,6 +128,67 @@ impl Inverted {
         Ok(())
     }
 
+    /// An analyzed value: the tokens of `module` when the field pins one,
+    /// else those of the built-in `analyzer`.
+    ///
+    /// # Errors
+    ///
+    /// The module's failure, which is never answered by the built-in
+    /// analyzer, or a position past what a posting holds.
+    pub fn analyzed(
+        &mut self,
+        analyzer: &Analyzer,
+        module: Option<&dyn Analyze>,
+        text: &str,
+        gap: i32,
+    ) -> Result<(), MappingError> {
+        let Some(module) = module else {
+            return self.text(analyzer, text, gap);
+        };
+        let tokens = module
+            .analyze(text)
+            .map_err(|e| MappingError::extension(&e))?;
+        let units = text.encode_utf16().count();
+        self.tokens(&tokens, i32::try_from(units).unwrap_or(i32::MAX), gap)
+    }
+
+    /// The tokens a pinned module made of one value of `units` UTF-16 units,
+    /// after the gap when it is not the field's first. The host has checked
+    /// them, so the increments and offsets are the module's own and only
+    /// the gaps are the host's.
+    ///
+    /// # Errors
+    ///
+    /// A position or an offset past what a posting holds.
+    pub fn tokens(&mut self, tokens: &[Token], units: i32, gap: i32) -> Result<(), MappingError> {
+        if self.seen {
+            self.position = self.position.saturating_add(gap);
+            self.offset = self.offset.saturating_add(OFFSET_GAP);
+        }
+        self.seen = true;
+        let base = self.offset;
+        for t in tokens {
+            let increment = i32::try_from(t.increment).map_err(|_| {
+                MappingError::illegal_state("a token's position increment is too large")
+            })?;
+            let (start, end) = (i32::try_from(t.start), i32::try_from(t.end));
+            let (Ok(start), Ok(end)) = (start, end) else {
+                return Err(MappingError::illegal_state("a token's offset is too large"));
+            };
+            self.position = self.position.saturating_add(increment);
+            if increment == 0 {
+                self.overlap = self.overlap.saturating_add(1);
+            }
+            self.length = self.length.saturating_add(1);
+            self.add(
+                t.term.as_bytes(),
+                Some((base.saturating_add(start), base.saturating_add(end))),
+            );
+        }
+        self.offset = self.offset.saturating_add(units);
+        Ok(())
+    }
+
     /// The engine's field, or the field's number alone when no value gave
     /// a token: the field is still one of the segment's, with no postings.
     pub fn finish(self) -> Result<InvertedField, i32> {
@@ -148,3 +210,6 @@ impl Inverted {
         })
     }
 }
+
+#[cfg(test)]
+mod tests;

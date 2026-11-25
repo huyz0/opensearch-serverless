@@ -94,6 +94,15 @@ pub fn plan(
                 .collect()
         };
         for name in names {
+            if mapping.get(name).is_some_and(|f| f.analyzer.is_some()) {
+                if entry.contains('*') {
+                    continue;
+                }
+                // ALLOC: error path; one message.
+                return Err(refused(format!(
+                    "highlighting [{name}], which pins an analyzer, is not supported by this node yet"
+                )));
+            }
             let keyword = match mapping.get(name).map(|f| &f.ty) {
                 Some(FieldType::Text) => false,
                 Some(FieldType::Keyword) => true,

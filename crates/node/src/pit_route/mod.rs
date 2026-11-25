@@ -259,6 +259,7 @@ fn capture_refusal(index: &str, e: CaptureError) -> RestError {
         CaptureError::IsAlias => unsupported(format!(
             "[{index}] is an alias, and a point in time here is taken over one index; take one over each of its indices"
         )),
+        CaptureError::Restoring => refuse(503, "cluster_block_exception", e.to_string()),
         CaptureError::Unsupported(why) => unsupported(why),
         CaptureError::NothingPublished(shard) => refuse(
             409,

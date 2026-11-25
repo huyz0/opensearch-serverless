@@ -161,7 +161,7 @@ impl Leaf {
             _ => super::types::KNN_NO_DIMENSION,
         };
         let method = match self.get("method") {
-            Some(Value::Method(m)) => Some(m.clone()),
+            Some(Value::Method(m)) => Some(super::knn::KnnMethod::clone(m)),
             _ => None,
         };
         let top = self
@@ -174,7 +174,7 @@ impl Leaf {
             self.ty.defs().iter().position(|d| d.name == "method"),
         ) && let Some(slot) = self.values.get_mut(i)
         {
-            *slot = Value::Method(m);
+            *slot = Value::Method(Box::new(m));
         }
         Ok(())
     }
@@ -298,7 +298,9 @@ impl Leaf {
                         .get(analyzer)
                         .and_then(Value::text)
                         .unwrap_or("default");
-                    if !matches!(a, "default" | "standard") {
+                    // A pin's name is admitted here by its form; `Mapping::parse_with`
+                    // refuses it to a caller whose index does not pin analyzers.
+                    if !matches!(a, "default" | "standard") && !oss_ext::pin::is_pin_name(a) {
                         // ALLOC: mapping parse, merge or error path; bounded by the mapping text (MAX_MAPPING_BYTES).
                         return Err(MappingError::unsupported(&format!(
                             "analyzer [{a}] on field [{name}]"

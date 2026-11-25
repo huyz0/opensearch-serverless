@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
-use oss_blob::{BlobStore, Emulator};
+use oss_blob::{BlobStore, Emulator, Rounds, Shared};
 use oss_cluster::heads::ShardHeadStore;
 use oss_cluster::{
     LeaseClock, LeaseConfig, LivenessOracle, Membership, MembershipDelta, Refreshed, SystemClock,
@@ -29,7 +29,10 @@ use oss_writer::log::{
 use oss_writer::publish::lazy::Policy;
 use oss_writer::takeover::{HeadWriters, Predecessors};
 
+mod rustfs;
 mod sweep;
+#[allow(unused_imports)]
+pub use rustfs::{RustFs, cluster_rustfs, cluster_rustfs_rounds};
 #[allow(unused_imports)]
 pub use sweep::*;
 
@@ -51,6 +54,31 @@ impl LeaseClock for Later {
 pub struct Cluster {
     pub store: Arc<Emulator>,
     pub descriptors: Arc<DescriptorStore>,
+    /// Set by [`cluster_rounds`]: every node reaches the emulator through
+    /// this wrapper, which measures round-trip depth.
+    pub rounds: Option<Arc<Rounds<Shared>>>,
+    /// Set by [`cluster_rustfs_rounds`]: the store is RustFS, and `store`
+    /// above is an unused emulator.
+    pub external: Option<Arc<dyn BlobStore>>,
+    pub _rustfs: Option<RustFs>,
+}
+
+impl Cluster {
+    /// The store a node talks to: the round counter when there is one.
+    pub fn io(&self) -> Arc<dyn BlobStore> {
+        match &self.rounds {
+            Some(rounds) => rounds.clone(),
+            None => self.base(),
+        }
+    }
+
+    /// The store under any round counter: RustFS or the emulator.
+    pub fn base(&self) -> Arc<dyn BlobStore> {
+        match &self.external {
+            Some(store) => store.clone(),
+            None => self.store.clone(),
+        }
+    }
 }
 
 pub struct Node {
@@ -60,7 +88,12 @@ pub struct Node {
 }
 
 pub fn cluster() -> Cluster {
-    let store = Arc::new(Emulator::new(64 << 20, 1));
+    cluster_of(64 << 20)
+}
+
+/// A cluster whose emulator holds `bytes`.
+pub fn cluster_of(bytes: u64) -> Cluster {
+    let store = Arc::new(Emulator::new(bytes, 1));
     let dynstore: Arc<dyn BlobStore> = store.clone();
     let membership = Arc::new(
         Membership::new(
@@ -84,7 +117,25 @@ pub fn cluster() -> Cluster {
         DescriptorStore::new(Arc::clone(&dynstore), "", DeleteMode::Tombstone)
             .expect("descriptors"),
     );
-    Cluster { store, descriptors }
+    Cluster {
+        store,
+        descriptors,
+        rounds: None,
+        external: None,
+        _rustfs: None,
+    }
+}
+
+/// A cluster whose nodes reach the store through a round counter.
+pub fn cluster_rounds() -> Cluster {
+    let mut c = cluster();
+    let store: Arc<dyn BlobStore> = c.store.clone();
+    let rounds = Arc::new(Rounds::new(Shared::new(store)));
+    c.descriptors = Arc::new(
+        DescriptorStore::new(rounds.clone(), "", DeleteMode::Tombstone).expect("descriptors"),
+    );
+    c.rounds = Some(rounds);
+    c
 }
 
 /// A node `id`; one that is `later` judges leases and head claims an hour on,
@@ -133,7 +184,7 @@ pub fn node_checked(
     };
     let membership = Arc::new(
         Membership::new(
-            c.store.clone(),
+            c.io(),
             "",
             Arc::clone(&clock),
             LeaseConfig {
@@ -144,7 +195,7 @@ pub fn node_checked(
         )
         .expect("membership"),
     );
-    let dynstore: Arc<dyn BlobStore> = c.store.clone();
+    let dynstore: Arc<dyn BlobStore> = c.io();
     let eph = format!("e{}", &id[5..]);
     let heads = Arc::new(
         ShardHeadStore::new(
@@ -234,6 +285,8 @@ pub fn info_n(shards: u32) -> IndexInfo {
         partition_size: 1,
         routing_shards: shards,
         routing_required: false,
+        default_pipeline: None,
+        final_pipeline: None,
     }
 }
 
@@ -303,7 +356,7 @@ pub fn takeover_as(
                 term,
             ))))
         }))),
-        heads: HeadWriters::new(c.store.clone(), ""),
+        heads: HeadWriters::new(c.base(), ""),
         max_buffer_bytes: 1 << 20,
     }
 }
@@ -335,6 +388,8 @@ pub fn first_writer(c: &Cluster) -> Node {
     one
 }
 
+/// A pass pinned at four at once for 30 s: the old defaults, which these
+/// suites keep covering; the shipped defaults are 16 and 60 s.
 pub fn config(enabled: bool) -> ProactiveConfig {
     ProactiveConfig {
         enabled,
@@ -342,6 +397,7 @@ pub fn config(enabled: bool) -> ProactiveConfig {
         max_concurrent: 4,
         pass: Duration::from_secs(30),
         stagger_millis: 10_000,
+        rust_reapers_only: false,
     }
 }
 
@@ -407,19 +463,15 @@ pub fn janitor(c: &Cluster, role: &Arc<WriterRole>) -> oss_node::writer::Janitor
     use oss_node::writer::{JanitorPass, PassLimits};
 
     let clock = Arc::new(AtomicU64::new(1_000));
-    let pits = PointInTimeStore::new(
-        c.store.clone() as Arc<dyn BlobStore>,
-        "",
-        Arc::new(move || clock.load(Ordering::SeqCst)),
-    )
-    .expect("pits");
+    let pits = PointInTimeStore::new(c.base(), "", Arc::new(move || clock.load(Ordering::SeqCst)))
+        .expect("pits");
     let budget = MemoryBudget::new(
         &BudgetConfig::new(64 << 20)
             .with_pool(oss_mem::Pool::RequestBodies, 1 << 20)
             .expect("fits"),
     );
     JanitorPass::new(
-        c.store.clone() as Arc<dyn BlobStore>,
+        c.base(),
         "",
         Arc::clone(role),
         pits,

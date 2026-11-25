@@ -31,6 +31,7 @@ fn built(body: &str) -> Result<BooleanQuery, Failure> {
         analyzer: &analyzer,
         max_doc: 5,
         knn: None,
+        pinned: None,
     };
     let source = parse_chunks([format!(r#"{{"query":{body}}}"#).as_bytes()]).expect("parses");
     to_lucene(source.query.as_ref().expect("a query"), &cx)
@@ -104,6 +105,7 @@ fn terms_follows_the_field_type() {
                 analyzer: &Analyzer::standard(None),
                 max_doc: 5,
                 knn: None,
+                pinned: None,
             },
             "published",
             &crate::dsl::Value::Str(v.into()),
@@ -336,6 +338,7 @@ fn an_empty_dis_max_matches_nothing() {
         analyzer: &analyzer,
         max_doc: 5,
         knn: None,
+        pinned: None,
     };
     let empty = super::More::DisMax {
         queries: vec![],
@@ -368,6 +371,7 @@ fn terms_of(n: usize) -> Result<Clause, Failure> {
         analyzer: &analyzer,
         max_doc: 5,
         knn: None,
+        pinned: None,
     };
     // A body this long passes the recorder's bound only if the bound grows,
     // so the query is made directly.

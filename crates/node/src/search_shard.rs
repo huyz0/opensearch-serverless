@@ -15,7 +15,7 @@ use oss_reader::OpenShard;
 use oss_reader::dsl::SearchSource;
 use oss_reader::failure::{Failure, SearchError, ShardFailure};
 use oss_reader::response::render_selected_result_hits;
-use oss_reader::search::{Hits, hits_bytes, search};
+use oss_reader::search::{Hits, hits_bytes, search_with};
 
 use super::open_shard::into_error;
 use super::{Held, SearchService};
@@ -30,6 +30,21 @@ pub struct ShardQuery<S: BlobStore + 'static> {
 }
 
 impl<S: BlobStore + 'static> ShardQuery<S> {
+    /// Every hit of [`Self::hits`] as the fields a forwarded search carries
+    /// (see [`oss_reader::response::Row`]); `reserve` grants the buffers a
+    /// hit's fields are read into.
+    ///
+    /// # Errors
+    ///
+    /// An error when a hit cannot be fetched or its buffers are refused.
+    pub fn rows(
+        &self,
+        reserve: &mut dyn FnMut(usize) -> io::Result<()>,
+    ) -> io::Result<Vec<oss_reader::response::Row>> {
+        let shard = self.view.as_deref().unwrap_or(&self.held.shard);
+        oss_reader::response::fetch_rows(shard, &self.hits, reserve)
+    }
+
     /// Each hit at `positions` of [`Self::hits`] written as the shard's own
     /// response writes it, in the order given; `reserve` grants the buffers
     /// a hit's fields are read into.
@@ -157,7 +172,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
         let analyzer = Analyzer::standard(None);
         let hits = {
             let open = view.as_deref().unwrap_or(&held.shard);
-            search(open, index, source, &analyzer).map_err(|e| {
+            search_with(open, index, source, &analyzer, held.pinned.as_deref()).map_err(|e| {
                 // ALLOC: error path; the index name and the node id.
                 Box::new(SearchError::on_shard(
                     e.status,

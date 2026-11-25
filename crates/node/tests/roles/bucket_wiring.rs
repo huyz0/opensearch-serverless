@@ -64,6 +64,8 @@ fn info(name: &str) -> IndexInfo {
         partition_size: 1,
         routing_shards: 1,
         routing_required: false,
+        default_pipeline: None,
+        final_pipeline: None,
     }
 }
 
@@ -314,12 +316,12 @@ fn a_reader_opens_a_member_from_its_bucket_entry() {
 }
 
 #[test]
-fn a_member_with_no_commit_yet_is_not_followable() {
+fn a_member_with_no_commit_yet_opens_as_an_empty_shard() {
     use oss_reader::shard_files::ShardFiles;
     let r = rig("logs");
     let store = reader_store(&r);
-    let err = ShardFiles::open_with_meta(&store, "", "logs", 0).expect_err("no commit");
-    assert!(err.to_string().contains("no commit"), "{err}");
+    let (files, _) = ShardFiles::open_with_meta(&store, "", "logs", 0).expect("opens empty");
+    assert_eq!(files.len(), 1, "the one empty commit");
 }
 
 #[test]

@@ -181,11 +181,15 @@ impl<S: BlobStore + 'static> CommitAccess for Held<S> {
     }
 
     fn mapping_json(&self) -> &str {
-        &self.shard.meta.mapping_json
+        self.shard.meta.mapping.json()
     }
 
     fn index_name(&self) -> &str {
         &self.index
+    }
+
+    fn modules(&self) -> Vec<(String, Arc<dyn oss_ext::analyzer::Analyze>)> {
+        self.pinned.as_ref().map_or_else(Vec::new, |p| p.modules())
     }
 }
 

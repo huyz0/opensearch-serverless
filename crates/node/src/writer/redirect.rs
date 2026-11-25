@@ -5,8 +5,9 @@ use std::collections::HashMap;
 
 use oss_rest::{Exception, Meta};
 use oss_writer::bulk::{IndexInfo, ItemResult, Owner, Planned, item_result};
+use oss_writer::index::Written;
 
-use super::{Failure, OpenRefused, WriterRole, lock, unavailable};
+use super::{Failure, NOT_OWNER, OpenRefused, WriterRole, lock, unavailable};
 
 /// The holder of each shard another live node holds, by index uuid and shard.
 pub(super) type Redirects = HashMap<(String, u32), String>;
@@ -54,7 +55,40 @@ impl WriterRole {
             lock(&self.redirects).remove(&(index.uuid.clone(), shard));
             self.unsteer(&index.uuid, shard);
         }
+        if results.first().is_some_and(refused_as_not_owner) {
+            return self.take_after_refusal(node, index, shard, group, results);
+        }
         results
+    }
+
+    /// A peer that answered it does not own the shard: the placement named it,
+    /// but the shard head does not. Reads the head as a write would and
+    /// applies the group where it names, once; if the head names no one else,
+    /// this node takes the shard, as the peer's own convention for a refused
+    /// steered write says the sender does.
+    fn take_after_refusal(
+        &self,
+        node: &str,
+        index: &IndexInfo,
+        shard: u32,
+        group: &[Planned<'_>],
+        refused: Vec<ItemResult>,
+    ) -> Vec<ItemResult> {
+        match self.slot_or_open(index, shard) {
+            Ok(slot) => {
+                let outcomes = self.group_on(slot, index, shard, group);
+                items_of(outcomes, index, shard)
+            }
+            Err(OpenRefused {
+                holder: Some(holder),
+                ..
+            }) if holder != node => {
+                // ALLOC: one entry a shard another node holds.
+                lock(&self.redirects).insert((index.uuid.clone(), shard), holder.clone());
+                self.routes.forward(&holder, index, shard, group)
+            }
+            Err(_) => refused,
+        }
     }
 
     /// Applies a group to a shard held here, staged and acknowledged as a
@@ -83,28 +117,42 @@ impl WriterRole {
                 Err(refused) => unavailable(group.len(), || refused.reason.clone()),
             }
         };
-        outcomes
-            .into_iter()
-            .map(|outcome| match outcome {
-                Ok(w) => item_result(Ok(w), index, shard),
-                Err(Failure::Refused(r)) => item_result(Err(r), index, shard),
-                Err(Failure::Throttled(reason)) => ItemResult::Failed {
-                    status: 429,
-                    error: Exception::new("es_rejected_execution_exception", reason)
-                        // ALLOC: three short fields an item that failed.
-                        .with_meta("index", Meta::Str(index.name.clone()))
-                        .with_meta("shard", Meta::Str(shard.to_string()))
-                        .with_meta("index_uuid", Meta::Str(index.uuid.clone())),
-                },
-                Err(Failure::Unavailable(reason)) => ItemResult::Failed {
-                    status: 503,
-                    error: Exception::new("node_log_exception", reason)
-                        // ALLOC: three short fields an item that failed.
-                        .with_meta("index", Meta::Str(index.name.clone()))
-                        .with_meta("shard", Meta::Str(shard.to_string()))
-                        .with_meta("index_uuid", Meta::Str(index.uuid.clone())),
-                },
-            })
-            .collect()
+        items_of(outcomes, index, shard)
     }
+}
+
+/// Whether a forward was refused because the peer does not own the shard.
+fn refused_as_not_owner(result: &ItemResult) -> bool {
+    matches!(result, ItemResult::Failed { error, .. } if error.kind() == NOT_OWNER)
+}
+
+/// The items of a group as a bulk answers them.
+fn items_of(
+    outcomes: Vec<Result<Written, Failure>>,
+    index: &IndexInfo,
+    shard: u32,
+) -> Vec<ItemResult> {
+    outcomes
+        .into_iter()
+        .map(|outcome| match outcome {
+            Ok(w) => item_result(Ok(w), index, shard),
+            Err(Failure::Refused(r)) => item_result(Err(r), index, shard),
+            Err(Failure::Throttled(reason)) => ItemResult::Failed {
+                status: 429,
+                error: Exception::new("es_rejected_execution_exception", reason)
+                    // ALLOC: three short fields an item that failed.
+                    .with_meta("index", Meta::Str(index.name.clone()))
+                    .with_meta("shard", Meta::Str(shard.to_string()))
+                    .with_meta("index_uuid", Meta::Str(index.uuid.clone())),
+            },
+            Err(Failure::Unavailable(reason)) => ItemResult::Failed {
+                status: 503,
+                error: Exception::new("node_log_exception", reason)
+                    // ALLOC: three short fields an item that failed.
+                    .with_meta("index", Meta::Str(index.name.clone()))
+                    .with_meta("shard", Meta::Str(shard.to_string()))
+                    .with_meta("index_uuid", Meta::Str(index.uuid.clone())),
+            },
+        })
+        .collect()
 }

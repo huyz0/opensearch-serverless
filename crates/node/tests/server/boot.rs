@@ -362,9 +362,19 @@ fn a_booted_node_reaps_the_log_of_a_node_that_died() {
     // lapsed it fences the log, which adds a blob to it. Nothing takes the
     // shard over, so the log is still needed and is not deleted.
     let second = start(&config_with(dir.path(), "n2", "3000", Some("100"))).expect("starts");
-    wait_for("the dead node's log was never fenced", || {
-        log_blobs(dir.path(), "n1") > before
-    });
+    // A loaded runner can starve the pass for a long while; the wait is on the
+    // log changing, and a failure says what the log and the cluster looked like.
+    let started = Instant::now();
+    while log_blobs(dir.path(), "n1") <= before {
+        assert!(
+            started.elapsed() < Duration::from_secs(90),
+            "the dead node's log was never fenced: {} blobs against {before} before, \
+             the second node sees {} nodes",
+            log_blobs(dir.path(), "n1"),
+            nodes_seen(&second),
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
     drop(second);
 }
 

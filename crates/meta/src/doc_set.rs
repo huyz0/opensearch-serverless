@@ -358,6 +358,7 @@ fn validate_doc_name(name: &str, kind: DocKind) -> Result<(), MetaError> {
     let what = match kind {
         DocKind::IndexTemplate | DocKind::ComponentTemplate => "template",
         DocKind::IngestPipeline | DocKind::SearchPipeline => "pipeline",
+        DocKind::StoredScript => "script",
         DocKind::SecurityRoles
         | DocKind::SecurityRolesMapping
         | DocKind::SecurityInternalUsers

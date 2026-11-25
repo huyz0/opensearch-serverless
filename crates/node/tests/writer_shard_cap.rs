@@ -39,6 +39,8 @@ fn index_a() -> IndexInfo {
         partition_size: 1,
         routing_shards: 1,
         routing_required: false,
+        default_pipeline: None,
+        final_pipeline: None,
     }
 }
 
@@ -112,6 +114,29 @@ fn at_the_cap_an_idle_shard_goes_to_open_the_next() {
     assert_eq!(stats.max, 2);
     assert_eq!(stats.evicted_for_room, 1);
     assert_eq!(stats.refused, 0);
+}
+
+// docs/specs/takeover-scale AC-4: opens at once still keep the cap.
+#[test]
+fn opens_at_once_under_a_cap_open_the_cap_and_refuse_the_rest() {
+    let (_c, one) = capped(2, 60_000);
+    let landed_count = std::thread::scope(|s| {
+        let handles: Vec<_> = ["a", "b", "c"]
+            .into_iter()
+            .map(|index| {
+                let role = &one.role;
+                s.spawn(move || landed(&write_in(role, index, "1")))
+            })
+            .collect();
+        handles
+            .into_iter()
+            .map(|h| h.join().expect("joins"))
+            .filter(|landed| *landed)
+            .count()
+    });
+    assert_eq!(landed_count, 2);
+    assert_eq!(one.role.held_shards().len(), 2);
+    assert_eq!(one.role.shard_cap_stats().refused, 1);
 }
 
 #[test]

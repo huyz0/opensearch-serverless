@@ -22,7 +22,7 @@ use oss_format::{
 
 use crate::commit_push::{NewestSource, Stage, newer_commit};
 use crate::error::ReaderError;
-use crate::mapping::Mapping;
+use crate::shared_mapping::SharedMapping;
 
 /// The largest register blob (descriptor or commit manifest) the reader
 /// reads. The shell's manifests list at most 16,384 files of about 100
@@ -48,10 +48,8 @@ pub struct IndexMeta {
     /// How many shards the index has.
     pub number_of_shards: u32,
     /// The index's fields; empty when the descriptor holds no mapping.
-    pub mapping: Mapping,
-    /// The mapping's JSON source as the document builder reads it; empty when
-    /// the descriptor holds none.
-    pub mapping_json: Arc<str>,
+    /// Indexes with the same mapping text share one.
+    pub mapping: Arc<SharedMapping>,
     /// The index's settings, flat by dotted key; empty when the descriptor
     /// holds none.
     pub settings: oss_format::ClusterSettings,
@@ -141,12 +139,24 @@ impl ShardFiles {
         let value = match (pushed, bucket) {
             (Some(value), _) => value,
             (None, Some(bucket)) => {
-                held = member_commit(store, base, bucket, &descriptor.uuid)?;
+                match member_commit(store, base, bucket, &descriptor.uuid)? {
+                    Some(commit) => held = commit,
+                    // The bucket's entry says nothing was ever committed.
+                    None => return Ok((Self::never_written(), meta)),
+                }
                 held.as_slice()
             }
             (None, None) => {
-                register_bytes =
-                    read_register(store, &shard_ref.manifest_key(base)?, MAX_REGISTER_BYTES)?;
+                match read_register(store, &shard_ref.manifest_key(base)?, MAX_REGISTER_BYTES) {
+                    Ok(bytes) => register_bytes = bytes,
+                    // The index was created and nothing was published.
+                    Err(ReaderError::Blob(oss_blob::BlobError::NotFound))
+                        if never_activated(store, base, &descriptor, shard)? =>
+                    {
+                        return Ok((Self::never_written(), meta));
+                    }
+                    Err(e) => return Err(e),
+                }
                 Register::parse(&register_bytes)?.value
             }
         };
@@ -187,6 +197,31 @@ impl ShardFiles {
             },
             meta,
         ))
+    }
+
+    /// The commit of a shard that never held a document: one engine file of
+    /// no segments, held in memory, so a search of it finds no hits and
+    /// reads no object.
+    fn never_written() -> Self {
+        // ALLOC: one entry, the empty commit's file.
+        let mut files = BTreeMap::new();
+        if let Some((name, bytes)) = crate::empty_commit::file() {
+            files.insert(
+                // ALLOC: one name, a first open of a never-written shard.
+                name.clone(),
+                FileRange {
+                    // ALLOC: one key, with the name above.
+                    key: crate::empty_commit::INLINE_KEY.to_owned(),
+                    offset: 0,
+                    length: bytes.len() as u64,
+                },
+            );
+        }
+        Self {
+            term: 0,
+            stage: Stage::new(0, None, -1),
+            files,
+        }
     }
 
     /// A commit assembled from `term` and its resolved `files`.
@@ -242,23 +277,28 @@ pub(crate) fn index_of(register: &[u8]) -> Result<IndexDescriptor<'_>, ReaderErr
 
 /// What a search needs of the index `descriptor` describes.
 pub(crate) fn meta_of(descriptor: &IndexDescriptor<'_>) -> Result<IndexMeta, ReaderError> {
-    let (mapping, mapping_json) = match descriptor.mapping_escaped {
-        Some(escaped) => {
-            let json = Mapping::unescape(escaped)?;
-            (Mapping::from_json(&json)?, Arc::<str>::from(json))
-        }
-        None => (Mapping::default(), Arc::<str>::from("")),
-    };
+    if descriptor.settings.is_some_and(oss_format::is_restoring) {
+        return Err(ReaderError::Restoring);
+    }
     let settings = match descriptor.settings {
         Some(bytes) => oss_format::ClusterSettings::parse(bytes)?,
         None => oss_format::ClusterSettings::default(),
+    };
+    // An index that pins an analyzer reads its mapping with the pins it holds.
+    let pins: Vec<String> = crate::pin_settings::pins_of(&settings)?
+        .into_iter()
+        .map(|(pin, _)| pin.name)
+        .collect();
+    let mapping = if pins.is_empty() {
+        crate::shared_mapping::shared_of(descriptor.mapping_escaped)?
+    } else {
+        crate::shared_mapping::pinned_of(descriptor.mapping_escaped, &pins)?
     };
     Ok(IndexMeta {
         // ALLOC: one uuid an open index.
         uuid: descriptor.uuid.to_string(),
         number_of_shards: descriptor.number_of_shards,
         mapping,
-        mapping_json,
         settings,
     })
 }
@@ -270,25 +310,49 @@ fn not_followable(reason: &'static str) -> ReaderError {
     })
 }
 
-/// The commit a bucketed index's entry in its bucket's manifest holds: one
-/// GET of the manifest register.
+/// The commit a bucketed index's entry in its bucket's manifest holds, none
+/// before its first publish: one GET of the manifest register.
 fn member_commit<S: BlobStore>(
     store: &PooledStore<S>,
     base: &str,
     bucket: &str,
     uuid: &str,
-) -> Result<Vec<u8>, ReaderError> {
+) -> Result<Option<Vec<u8>>, ReaderError> {
     let bytes = read_register(
         store,
         &bucket_manifest_key(base, bucket)?,
         MAX_REGISTER_BYTES,
     )?;
     let entry = parse_bucket_member(Register::parse(&bytes)?.value, uuid)?;
-    entry
+    Ok(entry
         .member
         .ok_or_else(|| not_followable("the index is not a member of its bucket"))?
-        .commit
-        .ok_or_else(|| not_followable("the bucket holds no commit of the index yet"))
+        .commit)
+}
+
+/// Whether no writer ever took shard `shard` of the index `descriptor`
+/// describes: its head is absent, or was left by an earlier index of the
+/// name. A shard that was taken and has no commit register lost it, which
+/// is an error, not an empty shard. One GET, only when the register is
+/// missing.
+fn never_activated<S: BlobStore>(
+    store: &PooledStore<S>,
+    base: &str,
+    descriptor: &IndexDescriptor<'_>,
+    shard: u32,
+) -> Result<bool, ReaderError> {
+    let key = oss_cluster::heads::shard_head_key(base, &descriptor.name, shard);
+    match read_register(store, &key, MAX_REGISTER_BYTES) {
+        Ok(bytes) => {
+            let head = oss_format::ShardHead::parse(Register::parse(&bytes)?.value)?;
+            Ok(head
+                .index_uuid
+                .as_deref()
+                .is_some_and(|uuid| uuid != descriptor.uuid))
+        }
+        Err(ReaderError::Blob(oss_blob::BlobError::NotFound)) => Ok(true),
+        Err(e) => Err(e),
+    }
 }
 
 /// Reads a whole register blob, refusing one over `max` bytes.
@@ -371,5 +435,40 @@ mod tests {
             },
         );
         assert!(!one.is_empty());
+    }
+
+    fn descriptor<'a>(mapping: &'a [u8], settings: &'a [u8]) -> IndexDescriptor<'a> {
+        IndexDescriptor {
+            name: "i".into(),
+            uuid: "u".into(),
+            number_of_shards: 1,
+            bucket: None,
+            has_unit_layout: false,
+            mapping_escaped: Some(mapping),
+            settings: Some(settings),
+        }
+    }
+
+    // docs/specs/extension-analyzer AC-13
+    #[test]
+    fn an_index_that_pins_reads_its_mapping_with_the_pin_and_one_that_does_not_cannot() {
+        let mapping = br#"{\"properties\":{\"t\":{\"type\":\"text\",\"analyzer\":\"ext_a\"}}}"#;
+        let hash = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        let pinned = format!(
+            r#"{{"index.analysis.analyzer.ext_a.type":"serverless_module",
+            "index.analysis.analyzer.ext_a.module":"{hash}",
+            "index.analysis.analyzer.ext_a.version":"1",
+            "index.analysis.analyzer.ext_a.limits.fuel":"500",
+            "index.analysis.analyzer.ext_a.limits.memory_bytes":"1048576",
+            "index.analysis.analyzer.ext_a.limits.deadline_ms":"50"}}"#
+        );
+        let meta = meta_of(&descriptor(mapping, pinned.as_bytes())).expect("reads");
+        let field = meta.mapping.get("t").expect("field");
+        assert_eq!(field.analyzer.as_deref(), Some("ext_a"));
+        let plain = meta_of(&descriptor(mapping, b"{}")).expect("reads");
+        assert!(matches!(
+            plain.mapping.get("t").expect("field").ty,
+            crate::mapping::FieldType::Unsupported(_)
+        ));
     }
 }

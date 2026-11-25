@@ -48,10 +48,10 @@ pub const REAPERS: LongSetting = LongSetting::new(
 );
 
 /// `serverless.takeover.proactive.max_concurrent`: shards one pass takes at
-/// a time. Default 4.
+/// a time. Default 16.
 pub const MAX_CONCURRENT: LongSetting = LongSetting::new(
     "serverless.takeover.proactive.max_concurrent",
-    4,
+    16,
     1,
     64,
     Scope::Node,
@@ -59,15 +59,25 @@ pub const MAX_CONCURRENT: LongSetting = LongSetting::new(
 );
 
 /// `serverless.takeover.proactive.pass_millis`: how long a pass may start
-/// takes for. Default 30,000.
+/// takes for. Default 60,000.
 pub const PASS_MILLIS: LongSetting = LongSetting::new(
     "serverless.takeover.proactive.pass_millis",
-    30_000,
+    60_000,
     1,
     3_600_000,
     Scope::Node,
     "How long a pass over one dead node starts taking shards for, in milliseconds; shards it \
      did not reach are taken by a later pass or by the next write.",
+);
+
+/// `serverless.takeover.proactive.rust_reapers_only`: pick the reapers among
+/// the live members of this build only. Default `true`.
+pub const RUST_REAPERS_ONLY: BoolSetting = BoolSetting::new(
+    "serverless.takeover.proactive.rust_reapers_only",
+    true,
+    Scope::Node,
+    "Choose the nodes that take a dead node's shards only among live members of this build: a \
+     node of another build never runs the pass, so a shard left to it would wait for a write.",
 );
 
 /// The longest log header a pass reads: a header over it is refused from its
@@ -80,6 +90,7 @@ pub static SETTINGS: &[&Setting] = &[
     REAPERS.setting(),
     MAX_CONCURRENT.setting(),
     PASS_MILLIS.setting(),
+    RUST_REAPERS_ONLY.setting(),
 ];
 
 /// The pass's settings, as the node read them.
@@ -93,6 +104,8 @@ pub struct Config {
     pub max_concurrent: usize,
     /// The `PASS_MILLIS` setting.
     pub pass: Duration,
+    /// The `RUST_REAPERS_ONLY` setting.
+    pub rust_reapers_only: bool,
     /// How long each reaper after the first waits past the lease's expiry:
     /// one refresh interval, per rank.
     pub stagger_millis: i64,
@@ -231,8 +244,15 @@ impl ProactiveTakeover {
                 if dead.node_log.is_empty() {
                     return false;
                 }
-                let reapers =
-                    reapers_for(&dead.node_id, refreshed.live.iter(), self.config.reapers);
+                let only = self.config.rust_reapers_only;
+                let reapers = reapers_for(
+                    &dead.node_id,
+                    refreshed
+                        .live
+                        .iter()
+                        .filter(|l| !only || crate::read_forward::same_build(l)),
+                    self.config.reapers,
+                );
                 let Some(rank) = reapers.iter().position(|id| *id == self.node_id) else {
                     return false;
                 };

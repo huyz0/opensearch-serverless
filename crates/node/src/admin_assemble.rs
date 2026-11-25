@@ -29,7 +29,7 @@ pub(crate) fn register(
     store: &Arc<dyn BlobStore>,
     config: &Config,
     budget: &MemoryBudget,
-) -> Result<Router, AssembleError> {
+) -> Result<(Router, Option<Arc<SecurityState>>), AssembleError> {
     let store_error = |e: oss_meta::MetaError| AssembleError::Store(e.to_string());
     let settings = ClusterService::new(Arc::clone(store), &config.base, config.publish_tick_millis)
         .map_err(store_error)?;
@@ -49,12 +49,15 @@ pub(crate) fn register(
             let descriptors =
                 DescriptorStore::new(Arc::clone(store), &config.base, config.delete_mode)
                     .map_err(store_error)?;
-            Some(Arc::new(SnapshotTakeService::new(
-                Arc::clone(store),
-                &config.base,
-                descriptors,
-                Arc::new(crate::clock::now_millis),
-            )))
+            Some(Arc::new(
+                SnapshotTakeService::new(
+                    Arc::clone(store),
+                    &config.base,
+                    descriptors,
+                    Arc::new(crate::clock::now_millis),
+                )
+                .with_system_indices(system_indices(config)),
+            ))
         } else {
             None
         };
@@ -69,18 +72,60 @@ pub(crate) fn register(
     } else {
         router
     };
-    let router = if config.security {
-        security(router, store, config, budget)?
+    let (router, state) = if config.security {
+        let (router, state) = security(router, store, config, budget)?;
+        (router, Some(state))
     } else {
-        router
+        (router, None)
     };
+    let router = extensions(router, store, config, budget)?;
     let router = plugin_routes(config, router)?;
+    let scripts =
+        crate::script_route::ScriptService::new(store, &config.base, config.pit_buffer_bytes)
+            .map_err(store_error)?;
+    let router =
+        crate::script_route::routes(router, &Arc::new(scripts)).map_err(AssembleError::Route)?;
     if !config.ingest_pipelines {
-        return Ok(router);
+        return Ok((router, state));
     }
     let pipelines =
         PipelineService::new(store, &config.base, config.pit_buffer_bytes).map_err(store_error)?;
-    pipeline_route::routes(router, &Arc::new(pipelines)).map_err(AssembleError::Route)
+    let router =
+        pipeline_route::routes(router, &Arc::new(pipelines)).map_err(AssembleError::Route)?;
+    Ok((router, state))
+}
+
+/// The module upload route, when the node is built with extensions and has a
+/// pool for them; without either, nothing is loaded and the route does not exist.
+#[cfg(feature = "extensions")]
+fn extensions(
+    router: Router,
+    store: &Arc<dyn BlobStore>,
+    config: &Config,
+    budget: &MemoryBudget,
+) -> Result<Router, AssembleError> {
+    if budget.limit(oss_mem::Pool::Extensions) == 0 {
+        return Ok(router);
+    }
+    let host = crate::extension_host::host();
+    let service = crate::extension_route::ExtensionService::new(
+        Arc::clone(store),
+        &config.base,
+        host,
+        budget.clone(),
+    );
+    crate::extension_route::routes(router, Arc::new(service)).map_err(AssembleError::Route)
+}
+
+/// Without the `extensions` feature the setting is ignored.
+#[cfg(not(feature = "extensions"))]
+fn extensions(
+    router: Router,
+    _store: &Arc<dyn BlobStore>,
+    _config: &Config,
+    _budget: &MemoryBudget,
+) -> Result<Router, AssembleError> {
+    Ok(router)
 }
 
 /// The prefix routes of the plugins not ported, proxied to the Java upstreams
@@ -120,7 +165,7 @@ fn security(
     store: &Arc<dyn BlobStore>,
     config: &Config,
     budget: &MemoryBudget,
-) -> Result<Router, AssembleError> {
+) -> Result<(Router, Arc<SecurityState>), AssembleError> {
     let admin = config.security_admin.clone().ok_or_else(|| {
         AssembleError::Security(
             "serverless.security.enabled needs an administrator (OSS_SECURITY_ADMIN_USER and OSS_SECURITY_ADMIN_HASH)"
@@ -162,10 +207,20 @@ fn security(
         security_route::routes(router, &Arc::new(service)).map_err(AssembleError::Route)?;
     let router = security_route::authinfo_route(router, &state).map_err(AssembleError::Route)?;
     let authorizer = RouteAuthorizer::new(Arc::clone(&state));
-    let guard = AuthGuard(Arc::new(Authenticator::new(state, clock)));
-    Ok(router
+    let guard = AuthGuard(Arc::new(Authenticator::new(Arc::clone(&state), clock)));
+    let router = router
         .with_guard(Arc::new(guard))
-        .with_authorizer(Arc::new(authorizer)))
+        .with_authorizer(Arc::new(authorizer));
+    Ok((router, state))
+}
+
+/// The names a take and a restore refuse, as the node is configured.
+pub(crate) fn system_indices(
+    config: &crate::assemble::Config,
+) -> Arc<oss_coordinator::system_indices::SystemIndices> {
+    Arc::new(oss_coordinator::system_indices::SystemIndices::parse(
+        &config.system_index_patterns,
+    ))
 }
 
 #[cfg(test)]
@@ -183,6 +238,45 @@ mod tests {
                 .expect("fits"),
         );
         (store, budget)
+    }
+
+    // docs/specs/snapshot-restore AC-2
+    #[test]
+    fn the_configured_patterns_are_the_system_indices() {
+        let config = Config {
+            system_index_patterns: ".kibana*, .tasks".to_owned(),
+            ..Config::new("", "n", [0; 6])
+        };
+        let system = system_indices(&config);
+        assert!(system.contains(".kibana_1") && system.contains(".tasks"));
+        assert!(!system.contains("logs"));
+        assert!(!system_indices(&Config::new("", "n", [0; 6])).contains(".kibana_1"));
+    }
+
+    // docs/specs/extension-abi AC-8
+    #[cfg(feature = "extensions")]
+    #[test]
+    fn the_upload_route_exists_only_with_an_extensions_pool() {
+        let taken = |budget: &MemoryBudget| {
+            let (store, _) = parts();
+            let config = Config::new("", "n", [0; 6]);
+            let router = extensions(Router::new(), &store, &config, budget).expect("assembled");
+            let service = crate::extension_route::ExtensionService::new(
+                Arc::clone(&store),
+                "",
+                crate::extension_host::host(),
+                budget.clone(),
+            );
+            crate::extension_route::routes(router, Arc::new(service)).is_err()
+        };
+        let (_, off) = parts();
+        assert!(!taken(&off), "no pool, no route");
+        let on = MemoryBudget::new(
+            &BudgetConfig::new(64 << 20)
+                .with_pool(Pool::Extensions, 16 << 20)
+                .expect("fits"),
+        );
+        assert!(taken(&on), "a pool, the route");
     }
 
     // docs/specs/security-authn AC-9
@@ -222,7 +316,7 @@ mod tests {
     fn with_security_off_no_guard_is_installed() {
         let (store, budget) = parts();
         let config = Config::new("", "n", [0; 6]);
-        let router = register(Router::new(), &store, &config, &budget).expect("registers");
+        let (router, _) = register(Router::new(), &store, &config, &budget).expect("registers");
         assert!(!router.has_guard());
         assert!(!router.has_authorizer());
     }
@@ -241,7 +335,7 @@ mod tests {
             security_admin: Some(("a".into(), bcrypt::hash("p", 4).expect("hashes"))),
             ..Config::new("", "n", [0; 6])
         };
-        let router = register(Router::new(), &store, &config, &budget).expect("registers");
+        let (router, _) = register(Router::new(), &store, &config, &budget).expect("registers");
         assert!(router.has_guard());
         assert!(router.has_authorizer());
     }

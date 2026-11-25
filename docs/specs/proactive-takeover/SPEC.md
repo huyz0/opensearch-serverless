@@ -1,5 +1,7 @@
 # Proactive takeover of the shards a dead node's log names
 
+> Defaults of `max_concurrent` and `pass_millis` below are the original 4 and 30,000; they are 16 and 60,000 since [takeover-concurrency-default](../takeover-concurrency-default/SPEC.md).
+
 ## Serves
 
 Parity plan R8.2 and [ADR 0021](../../adr/0021-proactive-takeover-from-the-node-log.md): a dead node's shards that hold unpublished writes are taken before a write asks, without a claims registry. Builds on [node takeover](../node-takeover/SPEC.md), [writer takeover](../writer-takeover/SPEC.md), [node log takeover](../node-log-replay/SPEC.md) and [janitor node log](../janitor-node-log/SPEC.md).
@@ -9,7 +11,7 @@ Parity plan R8.2 and [ADR 0021](../../adr/0021-proactive-takeover-from-the-node-
 - `oss-node` (feature `writer`) gains `ProactiveTakeover`: given a dead member (expired or revoked lease that names log epochs) and the node's leases, only when this node is one of the dead node's reapers (the first `serverless.takeover.proactive.reapers`, default 2, live ingest writers by `reapers_for`; the second starts at the first refresh at or after the lease's expiry plus one refresh interval that still sees epochs named) it fences the epochs as the successor, reads the shards the log names (`NodeLogTakeover::named`), checks each (descriptor and head) and takes those still needed through the existing `HeadOpener` take (acquire, restore, replay, publish, settle).
 - `oss-cluster`'s refresh reports a dead member whose lease names epochs (new API; it reads nothing the refresh does not read, or one counted lease read). The node calls the pass when it sees a dead member naming epochs, at most once per (dead node, epoch set) until the epochs change; it is bounded by `serverless.takeover.proactive.max_concurrent` (default 4) and a per-pass deadline `serverless.takeover.proactive.pass_millis` (default 30,000). Each take reserves its engine's worst case from the node pool first; no room defers the shard.
 - A writer's shard key now carries the index's name, as the Java's does (the log header's v2 form names each index once): without it a header names a shard by uuid alone and a successor cannot address the head. Key equality and order ignore the name, so no existing comparison changes; the janitor's collector, which treats a nameless shard as not published past, can now judge a Rust node's log.
-- `boot` reads the four settings from `OSS_PROACTIVE_TAKEOVER` (default `false`), `OSS_PROACTIVE_REAPERS` (2, 1 to 16), `OSS_PROACTIVE_MAX_CONCURRENT` (4, 1 to 64) and `OSS_PROACTIVE_PASS_MS` (30,000, 1 to 3,600,000), as it reads every setting today, and calls `ProactiveTakeover::on_refresh` from the lease renewal's refresh with the stagger one renewal interval; the pass shares the opener's `Predecessors`.
+- `boot` reads the five settings from `OSS_PROACTIVE_TAKEOVER` (default `false`), `OSS_PROACTIVE_REAPERS` (2, 1 to 16), `OSS_PROACTIVE_MAX_CONCURRENT` (4, 1 to 64) and `OSS_PROACTIVE_PASS_MS` (30,000, 1 to 3,600,000), `OSS_PROACTIVE_RUST_REAPERS_ONLY` (default `true`), as it reads every setting today, and calls `ProactiveTakeover::on_refresh` from the lease renewal's refresh with the stagger one renewal interval; the pass shares the opener's `Predecessors`.
 - A switch, `serverless.takeover.proactive.enabled`, default **off**; flipped in its own PR on the evidence ADR 0021 lists.
 - Not changed: lazy takeover (stays the fallback, unchanged with the switch off or on), the head, the log and register formats, the janitor crate's collector (it frees the log once the takes publish; the node reuses the reaper's fence for it through an adapter, AC-19), claims (none written or read), bucket heads, per-shard logs of a Java node.
 
@@ -34,8 +36,9 @@ Parity plan R8.2 and [ADR 0021](../../adr/0021-proactive-takeover-from-the-node-
 - AC-18: a write routed by placement to a shard a reaper holds reaches it or hands it off within a request bound stated in the budget row.
 - AC-19: the janitor's collect of the dead node after a pass reuses the reaper's fence (no second fence create) and the new refresh surface distinguishes a revoked member from an expired one.
 - AC-21: a pass that fails or is deferred is not retried every refresh: its next attempt waits one stagger, then twice as long each time, up to 64 staggers.
+- AC-22: with `serverless.takeover.proactive.rust_reapers_only` on (default), the reapers of a dead node are drawn only among live members whose lease `version` starts with this build's prefix (ADR 0055); off, from all live ingest members.
 - AC-20: a header over `max_header_bytes` is refused and its shards stay lazy.
-- AC-17: the four settings (`enabled`, `reapers`, `max_concurrent`, `pass_millis`) are registered and validated; a java-written node log (the recorded fixtures) is read by the pass.
+- AC-17: the five settings (`enabled`, `reapers`, `max_concurrent`, `pass_millis`, `rust_reapers_only`) are registered and validated; a java-written node log (the recorded fixtures) is read by the pass.
 
 ## Test plan
 
@@ -54,3 +57,4 @@ Per dead node, per reaper (not per node): the fence of its epochs and their head
 - A reaper that fences a node only partitioned: it loses the epoch and opens a new one, as with any takeover.
 - Memory from restoring many shards at once after a zone loss: bounded by AC-6.
 - A node taking a shard it will not be routed writes for: a stale digest can make reapers disagree: AC-9. No REST surface changes, so no compatibility criterion.
+- AC-23: a forward the peer refused as not owner (the typed `[serverless:not_owner]`) is not the end of the write: the sender reads the shard head as a write would and applies the group where it names, once; when no live node holds the shard it takes it itself. The refusal is the peer's own convention for a steered write the sender takes itself.

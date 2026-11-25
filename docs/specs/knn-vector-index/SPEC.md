@@ -27,4 +27,4 @@ None added: a segment with vectors is published as one blob like any other, and 
 
 ## Switch
 
-`serverless.knn.enabled`, a node setting, off by default: the type has no measured downside only once step 3 serves it, so it is on after the `knn` query exists. Existing tests pin the off behaviour; the new ones cover on.
+`serverless.knn.enabled`, a node setting, on by default since the `knn` query serves the field and [docs/knn-measurements.md](../../knn-measurements.md) measured no downside (no request added, flush memory bounded by the buffer). It was off until then. `OSS_KNN=false` is the old behaviour, and the tests that pin it set it explicitly; the new default has its own.

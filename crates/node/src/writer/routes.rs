@@ -3,6 +3,10 @@
 use oss_writer::bulk::{IndexInfo, ItemResult, Owner, Planned};
 use oss_writer::index::Fetched;
 
+/// The kind a forward's failure carries when the peer answered that it does
+/// not own the shard.
+pub const NOT_OWNER: &str = "not_shard_owner_exception";
+
 /// What a writer asks of the rest of the cluster: which indexes exist,
 /// who owns a shard it does not hold, and how to send that owner a group.
 pub trait Routes: Send + Sync {

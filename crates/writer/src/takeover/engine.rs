@@ -49,7 +49,15 @@ impl Engine for ShardEngine<'_, '_> {
 
     fn replay(&mut self, record: &WalRecord<'_>) -> Result<bool, String> {
         // ALLOC: one message, on a refused record.
-        self.shard.replay(record).map_err(|e| format!("{e:?}"))
+        self.shard.replay(record).map_err(|e| {
+            if record.has_sequence_identity() {
+                // ALLOC: one message, on a refused record.
+                format!("seq_no {}: {e:?}", record.seq_no())
+            } else {
+                // ALLOC: one message, on a refused record.
+                format!("{e:?}")
+            }
+        })
     }
 
     fn buffered_bytes(&self) -> usize {

@@ -6,6 +6,8 @@
 #[path = "../support/mod.rs"]
 mod support;
 
+#[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
+mod alias_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod assemble;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
@@ -24,9 +26,14 @@ mod boot_ready_drain;
 mod boot_retire;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod boot_roles;
+mod boot_search_queue;
 mod boot_search_slots;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
+mod boot_snapshots;
+mod boot_templates_ingest;
+#[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod boot_usage;
+mod boot_warm_join;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod boot_write_concurrency;
 #[cfg(all(feature = "reader", feature = "writer"))]
@@ -35,6 +42,8 @@ mod bulk_route;
 mod by_query_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod cluster_assemble;
+#[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
+mod data_stream_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod doc_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
@@ -42,11 +51,15 @@ mod get_route;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod index_delete;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
+mod index_pins;
+#[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod index_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod ingest_run;
 #[cfg(feature = "reader")]
 mod newest_ask;
+#[cfg(all(feature = "extensions", feature = "reader", feature = "writer"))]
+mod pinned_read;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod pipeline_assemble;
 #[cfg(all(feature = "reader", feature = "writer"))]
@@ -55,6 +68,10 @@ mod pipeline_route;
 mod push_read;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod read_forward;
+#[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
+mod rollover_route;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod script_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod security_authn;
 #[cfg(all(feature = "reader", feature = "writer"))]
@@ -65,6 +82,8 @@ mod security_limits;
 mod security_route;
 mod snapshot_delete;
 mod snapshot_restore;
+mod snapshot_restore_bounds;
+mod snapshot_restore_compat;
 mod snapshot_restore_search;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod snapshot_route;

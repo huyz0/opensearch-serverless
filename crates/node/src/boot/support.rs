@@ -90,6 +90,7 @@ pub(super) fn proactive_takeover(
             reapers: config.proactive_reapers,
             max_concurrent: config.proactive_max_concurrent,
             pass: Duration::from_millis(config.proactive_pass_millis),
+            rust_reapers_only: config.proactive_rust_reapers_only,
             stagger_millis: i64::try_from(config.renew_every().as_millis()).unwrap_or(i64::MAX),
         },
         role,
@@ -137,6 +138,10 @@ impl IndexSource for DescriptorRoutes {
     }
 }
 
+/// How long a bucket member stays a candidate before the sweep takes it out:
+/// far longer than a create takes between its join and its descriptor.
+const BUCKET_MEMBER_GRACE_MILLIS: i64 = 3_600_000;
+
 /// The orphan-shard sweep, which the one node ranked to sweep runs once every
 /// `OSS_ORPHAN_SLICE_MS`; nothing for a budget of 0.
 pub(super) fn orphan_sweep(
@@ -144,10 +149,11 @@ pub(super) fn orphan_sweep(
     store: &Arc<dyn BlobStore>,
     budget: &MemoryBudget,
     clock: Arc<dyn LeaseClock>,
-    live: Arc<LiveLeases>,
     dry_run: bool,
-) -> Option<OrphanTimer> {
-    OrphanTimer::spawn(
+    buckets: Option<Arc<crate::writer::BucketWiring>>,
+) -> (Option<OrphanTimer>, Arc<LiveLeases>) {
+    let live = Arc::new(LiveLeases::default());
+    let timer = OrphanTimer::spawn(
         OrphanParts {
             store: Arc::clone(store),
             base: config.base.clone(),
@@ -157,9 +163,12 @@ pub(super) fn orphan_sweep(
             every: Duration::from_millis(config.orphan_slice_millis),
             dry_run,
             clock: Arc::new(move || u64::try_from(clock.now_millis()).unwrap_or(0)),
+            buckets,
+            bucket_grace_millis: BUCKET_MEMBER_GRACE_MILLIS,
         },
-        live,
-    )
+        Arc::clone(&live),
+    );
+    (timer, live)
 }
 
 /// The janitor's rhythm and switch and the hibernation threshold, from the
@@ -181,9 +190,8 @@ pub(super) fn apply_janitor_and_hibernation(
     node.pinned_indexes.clone_from(&config.pinned_indexes);
     node.janitor_every = Duration::from_millis(config.janitor_every_millis);
     node.sweep.dry_run = config.janitor_dry_run;
-    node.snapshots = config.snapshots_enabled;
-    node.snapshots_take = config.snapshots_take_enabled;
-    node.snapshots_restore = config.snapshots_restore_enabled;
+    super::config::snapshots::apply(config, node);
+    super::config::authoring::apply(config, node);
     node.plugin_upstreams.clone_from(&config.plugin_upstreams);
     node.plugin_max_request_bytes = config.plugin_max_request_bytes;
     node.plugin_timeout = Duration::from_millis(config.plugin_timeout_millis);
@@ -386,6 +394,30 @@ pub(super) fn with_member_commits(
     }
 }
 
+/// `opener`, running the analyzer modules an index pins when the node has
+/// the runtime and a pool for it. Without either the opener refuses a
+/// pinned index and never serves it with the built-in analyzer.
+pub(super) fn with_extension_modules(
+    opener: crate::writer::HeadOpener,
+    config: &NodeConfig,
+    store: &Arc<dyn BlobStore>,
+    budget: &MemoryBudget,
+) -> crate::writer::HeadOpener {
+    #[cfg(feature = "extensions")]
+    if budget.limit(oss_mem::Pool::Extensions) > 0 {
+        let source = crate::extension_modules::ModuleSource::new(
+            Arc::clone(store),
+            &config.base,
+            crate::extension_host::host(),
+            budget.clone(),
+            config.extensions_replay_factor,
+        );
+        return opener.with_modules(Arc::new(source));
+    }
+    let _ = (config, store, budget);
+    opener
+}
+
 /// `log`, its PUTs shared among the indices in them when store usage is on.
 pub(super) fn shared_in(
     log: oss_writer::log::NodeLogStore,
@@ -394,5 +426,19 @@ pub(super) fn shared_in(
     match ledger {
         Some(ledger) => log.with_usage(Arc::clone(ledger)),
         None => log,
+    }
+}
+
+/// A node's readiness: warming from its peers' hot pages when the config asks
+/// for it, ready at once otherwise.
+pub(super) fn readiness_for(config: &NodeConfig) -> crate::lifecycle::Readiness {
+    if config
+        .page_cache
+        .as_ref()
+        .is_some_and(|tier| tier.warm.is_some())
+    {
+        crate::lifecycle::Readiness::warming()
+    } else {
+        crate::lifecycle::Readiness::new()
     }
 }

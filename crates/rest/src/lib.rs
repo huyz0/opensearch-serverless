@@ -10,6 +10,7 @@
 //! error bodies. Search semantics live in the role crates; this crate knows
 //! HTTP.
 
+mod admission;
 mod authorizer;
 mod body;
 mod checks;
@@ -21,16 +22,20 @@ mod head;
 mod inbound;
 pub mod json;
 mod json_out;
+mod linger;
 mod method;
 pub mod ndjson;
 mod params;
+mod parked;
 mod query;
 mod request;
 mod response;
 mod router;
 mod server;
+mod shared;
 mod timed;
 
+pub use admission::{Decision, Permit, QueueEvent, SearchAdmission};
 pub use authorizer::{Authorization, Authorizer};
 pub use body::Body;
 pub use config::{ConfigError, ServerConfig};
@@ -39,6 +44,7 @@ pub use guard::{Admission, Denial, Guard, Verdict};
 pub use head::Version;
 pub use json_out::write_str as write_json_str;
 pub use method::{Method, MethodSet};
+pub use parked::QueueStats;
 pub use query::decode_component;
 pub use request::Request;
 pub use response::{BodyWriter, JSON, Length, Response};

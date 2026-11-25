@@ -20,6 +20,7 @@ mod date_text;
 mod dates;
 mod error;
 mod field;
+mod intern;
 pub mod json;
 mod knn;
 mod numbers;
@@ -31,6 +32,7 @@ mod types;
 pub use dates::{Format, Formats};
 pub use error::{MappingError, UNSUPPORTED};
 pub use field::Leaf;
+pub use intern::{MappingInterner, TextInterner};
 pub use numbers::{Num, NumType, java_parse_double};
 pub use object::{Dynamic, Mapper, Object};
 pub use params::Value;
@@ -41,6 +43,7 @@ pub use types::{
 use json::Json;
 pub(crate) use object::join;
 use object::remaining;
+use oss_ext::pin::NAME_PREFIX;
 use params::{named_bool, parse_bool};
 
 /// `index.mapping.total_fields.limit`'s default.
@@ -72,6 +75,9 @@ impl Default for Mapping {
     }
 }
 
+/// The parameters that name an analyzer.
+const ANALYZER_KEYS: [&str; 3] = ["analyzer", "search_analyzer", "search_quote_analyzer"];
+
 /// What a caller of [`Mapping::parse_with`] indexes beyond the default.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ParseOptions {
@@ -99,11 +105,66 @@ impl Mapping {
     ///
     /// As [`Mapping::parse`].
     pub fn parse_with(text: &[u8], options: ParseOptions) -> Result<Self, MappingError> {
+        Self::parse_inner(text, options, false)
+    }
+
+    /// As [`Mapping::parse_with`], for an index that pins analyzers (ADR
+    /// 0053): a name of the form `ext_...` is accepted, and the caller checks
+    /// that each is one the index pins ([`Mapping::ext_analyzer_names`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`Mapping::parse`].
+    pub fn parse_pinned(text: &[u8], options: ParseOptions) -> Result<Self, MappingError> {
+        Self::parse_inner(text, options, true)
+    }
+
+    fn parse_inner(text: &[u8], options: ParseOptions, pinned: bool) -> Result<Self, MappingError> {
         let mapping = Self::parse_unwrapped(text).map_err(MappingError::failed_to_parse)?;
         mapping.check_knn(options)?;
+        if !pinned {
+            mapping.check_ext_analyzers()?;
+        }
         // `MapperService` checks the limits after the parse, unwrapped.
         mapping.check_limits()?;
         Ok(mapping)
+    }
+
+    /// A pinned analyzer name is accepted only by a caller whose index pins
+    /// analyzers; every other caller refuses it as it refuses any analyzer
+    /// this writer does not have.
+    fn check_ext_analyzers(&self) -> Result<(), MappingError> {
+        for (name, leaf) in self.leaves() {
+            for key in ANALYZER_KEYS {
+                let a = leaf.get(key).and_then(Value::text);
+                if let Some(a) = a.filter(|a| a.starts_with(NAME_PREFIX)) {
+                    // ALLOC: mapping parse, merge or error path; bounded by the mapping text (MAX_MAPPING_BYTES).
+                    return Err(MappingError::unsupported(&format!(
+                        "analyzer [{a}] on field [{name}]"
+                    )));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// The pinned analyzer names the mapping's fields use, sorted and
+    /// listed once each.
+    pub fn ext_analyzer_names(&self) -> Vec<String> {
+        // ALLOC: one name a distinct pinned analyzer, at most one a field.
+        let mut names: Vec<String> = Vec::new();
+        for (_, leaf) in self.leaves() {
+            for key in ANALYZER_KEYS {
+                let a = leaf.get(key).and_then(Value::text);
+                if let Some(a) = a.filter(|a| a.starts_with(NAME_PREFIX)) {
+                    // ALLOC: as above.
+                    names.push(a.to_owned());
+                }
+            }
+        }
+        names.sort();
+        names.dedup();
+        names
     }
 
     /// A `knn_vector` field is accepted only by a caller that indexes it,
@@ -191,6 +252,20 @@ impl Mapping {
         match text {
             None => Ok(Mapping::default()),
             Some(t) => Self::parse_with(t.as_bytes(), ParseOptions { knn: Some(true) }),
+        }
+    }
+
+    /// As [`Mapping::from_descriptor`], for an index whose descriptor pins
+    /// analyzers (ADR 0053): an `ext_` analyzer name is accepted, the create
+    /// having checked that the index pins it.
+    ///
+    /// # Errors
+    ///
+    /// As [`Mapping::parse`].
+    pub fn from_descriptor_pinned(text: Option<&str>) -> Result<Self, MappingError> {
+        match text {
+            None => Ok(Mapping::default()),
+            Some(t) => Self::parse_pinned(t.as_bytes(), ParseOptions { knn: Some(true) }),
         }
     }
 

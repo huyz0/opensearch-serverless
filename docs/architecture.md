@@ -25,7 +25,10 @@ graph TD
     oss-coordinator --> oss-types
     oss-coordinator --> oss-writer
     oss-doc --> chunkjson
+    oss-doc --> oss-ext
     oss-doc --> oss-rest
+    oss-ext
+    oss-ext-wasm --> oss-ext
     oss-format --> oss-types
     oss-janitor --> oss-blob
     oss-janitor --> oss-cluster
@@ -39,6 +42,8 @@ graph TD
     oss-node -.-> oss-cluster
     oss-node -.-> oss-coordinator
     oss-node -.-> oss-doc
+    oss-node --> oss-ext
+    oss-node -.-> oss-ext-wasm
     oss-node -.-> oss-format
     oss-node -.-> oss-janitor
     oss-node -.-> oss-mem
@@ -49,7 +54,9 @@ graph TD
     oss-node --> oss-types
     oss-node -.-> oss-writer
     oss-reader --> oss-blob
+    oss-reader --> oss-cluster
     oss-reader --> oss-doc
+    oss-reader --> oss-ext
     oss-reader --> oss-format
     oss-reader --> oss-rest
     oss-reader --> oss-types
@@ -62,6 +69,7 @@ graph TD
     oss-writer --> oss-blob
     oss-writer --> oss-cluster
     oss-writer --> oss-doc
+    oss-writer --> oss-ext
     oss-writer --> oss-format
     oss-writer --> oss-meta
     oss-writer --> oss-rest

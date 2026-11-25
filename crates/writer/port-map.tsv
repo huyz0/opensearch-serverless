@@ -77,3 +77,6 @@ src/index/knn.rs	new		the engine of a shard with knn_vector fields: the plugin's
 src/admission/limiter/edges.rs	new		the limiter's comparisons at their boundaries, tests only
 src/takeover/restore/tests.rs	new		the restore's stream cutting and error text, tests only
 src/log/committer/staged.rs	new		records joined to the windows and waited for apart, so a caller can stage under a lock
+src/index/shard/soft.rs	new		the soft-delete update of a replaced or deleted document, moved out of shard.rs to keep it under the module size limit
+tests/pinned_analyzer.rs	new		tests of a shard indexing a pinned field with its module
+src/index/shard/growth.rs	new		what a shard's writes added to its mapping, kept for the descriptor, split out of the shard to keep it under the size limit

@@ -35,7 +35,9 @@ pub struct Publishing {
     node_id: String,
     clock: Box<dyn Fn() -> u64 + Send + Sync>,
     lazy: Mutex<LazyPublish<Key>>,
-    publishers: Mutex<HashMap<Key, ShardPublisher>>,
+    /// One publisher a shard, each behind its own lock: publishes of
+    /// different shards run together.
+    publishers: Mutex<HashMap<Key, Arc<Mutex<ShardPublisher>>>>,
     /// Held from taking a commit's snapshot to its publish, so commits are
     /// published in the order they were taken.
     gate: Mutex<()>,
@@ -105,10 +107,16 @@ impl Publishing {
         lock(&self.lazy).mark_written(key.clone(), now);
     }
 
-    /// `key` was released or opened again: it is due once more.
+    /// `key` was released or opened again: it is due once more. A publish of
+    /// the dropped publisher still in flight is waited for, as it was when one
+    /// lock covered every publisher, so a publisher made next never overlaps it.
     pub(super) fn forget(&self, key: &Key) {
         lock(&self.lazy).forget(key);
-        lock(&self.publishers).remove(key);
+        let dropped = lock(&self.publishers).remove(key);
+        if let Some(dropped) = dropped {
+            // Held and let go: waits for a publish under way.
+            drop(lock(&dropped));
+        }
         lock(&self.ages).remove(key);
     }
 
@@ -156,26 +164,31 @@ impl Publishing {
         index: &str,
         run: impl FnOnce(&mut ShardPublisher, &str, u64) -> Result<T, String>,
     ) -> Result<T, String> {
-        let mut publishers = lock(&self.publishers);
-        if !publishers.contains_key(key) {
-            let shard = ShardRef {
-                index,
-                uuid: &key.0,
-                shard: key.1,
-            };
-            let mut made = ShardPublisher::new(Arc::clone(&self.store), &self.base, &shard)
-                .map_err(|e| e.to_string())?;
-            if let Some(buckets) = &self.buckets
-                && let Some(register) = buckets.register(index, key.1, &key.0)?
-            {
-                made.commit_register(register);
+        let known = lock(&self.publishers).get(key).map(Arc::clone);
+        let publisher = match known {
+            Some(publisher) => publisher,
+            None => {
+                // Made outside the map's lock: a bucketed shard reads its
+                // register to make one.
+                let shard = ShardRef {
+                    index,
+                    uuid: &key.0,
+                    shard: key.1,
+                };
+                let mut made = ShardPublisher::new(Arc::clone(&self.store), &self.base, &shard)
+                    .map_err(|e| e.to_string())?;
+                if let Some(buckets) = &self.buckets
+                    && let Some(register) = buckets.register(index, key.1, &key.0)?
+                {
+                    made.commit_register(register);
+                }
+                // A publisher another caller made first is the one kept.
+                // ALLOC: one publisher a shard.
+                let made = Arc::new(Mutex::new(made));
+                Arc::clone(lock(&self.publishers).entry(key.clone()).or_insert(made))
             }
-            // ALLOC: one publisher a shard.
-            publishers.insert(key.clone(), made);
-        }
-        let publisher = publishers
-            .get_mut(key)
-            .ok_or_else(|| String::from("no publisher"))?;
-        run(publisher, &self.node_id, (self.clock)())
+        };
+        let mut publisher = lock(&publisher);
+        run(&mut publisher, &self.node_id, (self.clock)())
     }
 }

@@ -1,6 +1,6 @@
 //! The node configuration's tests.
-
 use super::*;
+use oss_mem::Pool;
 
 pub(super) fn lookup<'a>(pairs: &'a [(&'a str, &'a str)]) -> impl Fn(&str) -> Option<String> + 'a {
     move |key| {
@@ -73,7 +73,7 @@ fn proactive_takeover_is_on_with_the_settings_defaults_and_each_is_read() {
             c.proactive_max_concurrent,
             c.proactive_pass_millis
         ),
-        (2, 4, 30_000)
+        (2, 16, 60_000)
     );
     let on = NodeConfig::from_lookup(lookup(&with(&[
         ("OSS_PROACTIVE_TAKEOVER", "true"),
@@ -221,7 +221,17 @@ fn the_pools_fit_and_every_pool_is_given_bytes() {
     let b = c.budget().expect("fits");
     let sum: usize = Pool::ALL.iter().map(|p| b.pool(*p)).sum();
     assert!(sum <= c.memory_bytes);
-    assert!(Pool::ALL.iter().all(|p| b.pool(*p) > 0));
+    assert!(
+        Pool::ALL
+            .iter()
+            .filter(|p| **p != Pool::Extensions)
+            .all(|p| b.pool(*p) > 0)
+    );
+    assert_eq!(
+        b.pool(Pool::Extensions),
+        0,
+        "no extensions pool unless asked"
+    );
     assert_eq!(b.pool(Pool::OpenIndexes), c.memory_bytes / 100 * 20);
 }
 
@@ -245,19 +255,6 @@ fn the_buckets_switch_is_off_by_default_and_reads_a_flag() {
         NodeConfig::from_lookup(lookup(&with(&[("OSS_BUCKETS_ENABLED", "true")]))).expect("valid");
     assert!(on.buckets_enabled);
     assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_BUCKETS_ENABLED", "yes")]))).is_err());
-    let snaps = NodeConfig::from_lookup(lookup(&with(&[("OSS_SNAPSHOTS_ENABLED", "true")])))
-        .expect("valid");
-    assert!(snaps.snapshots_enabled);
-    assert!(!on.snapshots_enabled);
-    assert!(!snaps.snapshots_take_enabled);
-    let take = NodeConfig::from_lookup(lookup(&with(&[("OSS_SNAPSHOTS_TAKE_ENABLED", "true")])))
-        .expect("valid");
-    assert!(take.snapshots_take_enabled && !take.snapshots_enabled);
-    assert!(!take.snapshots_restore_enabled);
-    let restore =
-        NodeConfig::from_lookup(lookup(&with(&[("OSS_SNAPSHOTS_RESTORE_ENABLED", "true")])))
-            .expect("valid");
-    assert!(restore.snapshots_restore_enabled && !restore.snapshots_take_enabled);
 }
 
 #[test]
@@ -357,8 +354,10 @@ fn headroom_and_pins_are_off_by_default_and_set_by_their_variables() {
 
 // docs/specs/knn-vector-index AC-4
 #[test]
-fn knn_is_off_by_default_and_set_by_its_variable() {
+fn knn_is_on_by_default_and_turned_off_by_its_variable() {
     let c = NodeConfig::from_lookup(lookup(FS)).expect("valid");
+    assert!(c.knn);
+    let c = NodeConfig::from_lookup(lookup(&with(&[("OSS_KNN", "false")]))).expect("valid");
     assert!(!c.knn);
     let c = NodeConfig::from_lookup(lookup(&with(&[("OSS_KNN", "true")]))).expect("valid");
     assert!(c.knn);
@@ -494,3 +493,8 @@ fn tenant_tier_budgets_default_to_twenty_two_hundred_and_two_thousand() {
         assert!(e.contains(needle), "{e} lacks {needle}");
     }
 }
+
+mod extensions;
+mod proactive;
+mod resident;
+mod vector_warm;

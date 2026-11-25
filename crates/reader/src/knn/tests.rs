@@ -283,6 +283,7 @@ fn a_tree_built_without_the_searchs_answers_refuses_the_knn_node() {
         analyzer: &analyzer,
         max_doc: 1,
         knn: None,
+        pinned: None,
     };
     let source =
         parse_chunks([format!(r#"{{"query":{}}}"#, knn(r#""vector":[1,2,3],"k":1"#)).as_bytes()])
@@ -296,6 +297,7 @@ fn a_tree_built_without_the_searchs_answers_refuses_the_knn_node() {
     let empty = crate::knn::KnnResults::default();
     let cx = QueryContext {
         knn: Some(&empty),
+        pinned: None,
         ..cx
     };
     assert!(to_lucene(source.query.as_ref().expect("query"), &cx).is_err());

@@ -11,6 +11,7 @@ pub mod aggs;
 pub mod commit_push;
 pub mod date;
 pub mod dsl;
+mod empty_commit;
 pub mod engine_store;
 pub mod error;
 pub mod failure;
@@ -22,17 +23,22 @@ pub mod mapping;
 pub mod numbers;
 pub mod open_cost;
 pub mod overlay;
+pub mod pin_settings;
+pub mod pinned;
 pub mod prefetch;
 pub mod rank_eval;
 pub mod response;
 pub mod search;
+mod search_error;
 mod search_options;
 mod search_post_filter;
 mod search_sort;
 mod search_terminate;
 mod search_top;
 pub mod shard_files;
+mod shared_mapping;
 pub mod template;
+pub mod vector_warm;
 
 use std::sync::Arc;
 
@@ -45,6 +51,7 @@ pub use engine_store::EngineStore;
 pub use error::ReaderError;
 pub use prefetch::OpenPrefetch;
 pub use shard_files::{FileRange, IndexMeta, MAX_REGISTER_BYTES, ShardFiles};
+pub use shared_mapping::SharedMapping;
 
 /// One shard's latest published commit, open for search.
 pub struct OpenShard<S: BlobStore + 'static> {

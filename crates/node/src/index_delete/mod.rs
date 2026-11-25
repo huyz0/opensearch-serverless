@@ -13,11 +13,13 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use oss_blob::BlobStore;
-use oss_coordinator::indices::admin::{check_name, delete_ack, delete_failed, no_such_index};
+use oss_coordinator::indices::admin::{
+    BACKING_INDEX_PREFIX, check_name, delete_ack, delete_failed, no_such_index, write_index_refusal,
+};
 use oss_coordinator::route::resolve::Refusal;
 use oss_meta::{
     AliasClock, AliasMutations, DescriptorStore, IndexLifecycle, MetaError, PitClock,
-    PointInTimeStore, ReclaimQueue,
+    PointInTimeStore, ReclaimQueue, Target,
 };
 use oss_rest::{Exception, JSON, Method, Request, Response, RestError, RouteError, Router};
 
@@ -52,6 +54,7 @@ pub struct DeleteService {
     clock: PitClock,
     buffer_bytes: usize,
     inline_purge_max_shards: u32,
+    leave: Option<crate::index_route::BucketLeave>,
 }
 
 impl DeleteService {
@@ -82,7 +85,25 @@ impl DeleteService {
             clock,
             buffer_bytes,
             inline_purge_max_shards,
+            leave: None,
         })
+    }
+
+    /// Takes a deleted bucketed index's member out of its bucket through
+    /// `leave`: one GET and one PUT of the bucket's manifest, none for an
+    /// index that joined no bucket.
+    #[must_use]
+    pub fn with_bucket_leave(mut self, leave: crate::index_route::BucketLeave) -> Self {
+        self.leave = Some(leave);
+        self
+    }
+
+    /// Best effort: the descriptor is gone, so an entry left behind is never
+    /// served, and the delete does not fail for it.
+    fn leave_bucket(&self, deleted: &oss_meta::Deleted) {
+        if let (Some(leave), Some(bucket)) = (&self.leave, deleted.bucket.as_deref()) {
+            let _ = leave(bucket, &deleted.uuid);
+        }
     }
 
     fn now(&self) -> i64 {
@@ -130,6 +151,11 @@ impl DeleteService {
         }
         req.body()
             .reserve(self.buffer_bytes.saturating_mul(BUFFERS))?;
+        if index.starts_with(BACKING_INDEX_PREFIX)
+            && let Some(stream) = self.stream_writing_to(&index)?
+        {
+            return Err(refusal(write_index_refusal(&index, &stream)));
+        }
         let now = || self.now();
         let pause = |d: Duration| std::thread::sleep(d);
         let deleted = self
@@ -137,7 +163,10 @@ impl DeleteService {
             .delete_index(&index, None, self.now())
             .map_err(|e| refuse(500, "index_delete_failure", e.to_string()))?;
         match deleted {
-            Some(_) => resp.send(200, JSON, delete_ack(&index).as_bytes()),
+            Some(done) => {
+                self.leave_bucket(&done);
+                resp.send(200, JSON, delete_ack(&index).as_bytes())
+            }
             // The pass found no index, or a change to it won the race.
             None => Err(refusal(if self.exists(&index) {
                 delete_failed(&index, true)
@@ -145,6 +174,32 @@ impl DeleteService {
                 no_such_index(&index)
             })),
         }
+    }
+
+    /// The data stream whose write index `index` is, found through the
+    /// aliases its descriptor hints: one read, and one more for each hint.
+    fn stream_writing_to(&self, index: &str) -> Result<Option<String>, RestError> {
+        // ALLOC: one buffer, only for a name that begins with the backing prefix.
+        let mut buf = vec![0u8; self.buffer_bytes];
+        let failed = |e: MetaError| refuse(500, "index_delete_failure", e.to_string());
+        let hints: Vec<String> = match self.descriptors.get(index, &mut buf).map_err(failed)? {
+            // ALLOC: one name a hint, bounded by the descriptor.
+            Some(record) => record.aliased_by.iter().map(|n| n.to_string()).collect(),
+            None => return Ok(None),
+        };
+        for name in hints {
+            if let Target::Alias(alias) = self
+                .descriptors
+                .resolve(&name, &mut buf)
+                .map_err(failed)?
+                .target
+                && alias.data_stream
+                && alias.write_index() == Some(index)
+            {
+                return Ok(Some(name));
+            }
+        }
+        Ok(None)
     }
 
     /// What [`DeleteService::remove`] holds while it runs, for a caller to
@@ -165,10 +220,13 @@ impl DeleteService {
     pub fn remove(&self, index: &str, uuid: &str) -> Result<bool, MetaError> {
         let now = || self.now();
         let pause = |d: Duration| std::thread::sleep(d);
-        Ok(self
+        let deleted = self
             .lifecycle(&now, &pause)
-            .delete_index(index, Some(uuid), self.now())?
-            .is_some())
+            .delete_index(index, Some(uuid), self.now())?;
+        if let Some(done) = &deleted {
+            self.leave_bucket(done);
+        }
+        Ok(deleted.is_some())
     }
 
     fn exists(&self, index: &str) -> bool {

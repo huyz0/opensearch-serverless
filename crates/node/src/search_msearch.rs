@@ -19,7 +19,7 @@ use oss_reader::dsl::tokens::Kind;
 use oss_reader::dsl::{DslError, MAX_RECORDED_BYTES, Recorder, SearchSource};
 use oss_reader::failure::{SearchError, ShardFailure};
 use oss_reader::response::write_response;
-use oss_reader::search::{hits_bytes, search};
+use oss_reader::search::{hits_bytes, search_with};
 use oss_rest::json::Tokenizer;
 use oss_rest::ndjson::{LineSink, Splitter};
 use oss_rest::{
@@ -339,20 +339,21 @@ impl<S: BlobStore + 'static> SearchService<S> {
         };
         reserve(hits_bytes(source, shard)).map_err(|e| Answer::Rest(RestError::from(e)))?;
         let analyzer = Analyzer::standard(None);
-        let hits = search(shard, index, source, &analyzer).map_err(|e| {
-            let shard_failure = ShardFailure {
-                // ALLOC: error path; the index name.
-                index: index.to_owned(),
-                shard: 0,
-                // ALLOC: error path; the node id.
-                node: self.node_id.clone(),
-            };
-            Answer::Search(Box::new(SearchError::on_shard(
-                e.status,
-                e.failure,
-                shard_failure,
-            )))
-        })?;
+        let hits =
+            search_with(shard, index, source, &analyzer, held.pinned.as_deref()).map_err(|e| {
+                let shard_failure = ShardFailure {
+                    // ALLOC: error path; the index name.
+                    index: index.to_owned(),
+                    shard: 0,
+                    // ALLOC: error path; the node id.
+                    node: self.node_id.clone(),
+                };
+                Answer::Search(Box::new(SearchError::on_shard(
+                    e.status,
+                    e.failure,
+                    shard_failure,
+                )))
+            })?;
         let took = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
         // ALLOC: one response, bounded by the reservations above.
         let mut out = Vec::new();

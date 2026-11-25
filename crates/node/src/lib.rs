@@ -6,6 +6,8 @@
 
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod admin_assemble;
+#[cfg(all(feature = "writer", feature = "coordinator"))]
+pub mod alias_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod assemble;
 #[cfg(all(feature = "reader", feature = "writer"))]
@@ -30,10 +32,28 @@ pub mod cluster_owner;
 pub mod cluster_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod commit_push;
+#[cfg(all(feature = "writer", feature = "coordinator"))]
+pub(crate) mod core_settings;
+#[cfg(all(feature = "writer", feature = "coordinator"))]
+pub(crate) mod create_settings;
+#[cfg(all(feature = "writer", feature = "coordinator"))]
+pub mod data_stream_route;
 #[cfg(feature = "writer")]
 pub mod descriptor_routes;
 #[cfg(feature = "writer")]
 pub mod doc_route;
+#[cfg(feature = "extensions")]
+pub mod extension_host;
+#[cfg(all(feature = "extensions", feature = "writer"))]
+pub mod extension_modules;
+#[cfg(all(feature = "extensions", feature = "writer", feature = "coordinator"))]
+pub mod extension_pins;
+#[cfg(all(feature = "extensions", feature = "writer"))]
+pub mod extension_route;
+#[cfg(feature = "extensions")]
+pub mod extension_setting;
+#[cfg(all(feature = "extensions", feature = "writer"))]
+pub mod extension_store;
 #[cfg(feature = "writer")]
 pub mod forward;
 #[cfg(feature = "writer")]
@@ -61,6 +81,8 @@ pub mod ingest_run;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub mod knn_setting;
 #[cfg(all(feature = "reader", feature = "writer"))]
+pub mod lease_age;
+#[cfg(all(feature = "reader", feature = "writer"))]
 pub mod lease_announce;
 #[cfg(feature = "writer")]
 pub mod lifecycle;
@@ -74,6 +96,8 @@ pub mod open_indexes;
 pub mod overlay_builder;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod page_cache_disk;
+#[cfg(all(feature = "writer", feature = "coordinator"))]
+pub mod pin_policy;
 #[cfg(feature = "writer")]
 pub mod pipeline_route;
 #[cfg(feature = "writer")]
@@ -90,10 +114,20 @@ pub mod push_sender;
 pub mod read_forward;
 #[cfg(feature = "writer")]
 pub mod refresh_route;
+#[cfg(all(feature = "writer", feature = "coordinator"))]
+pub mod rollover_route;
 #[cfg(feature = "writer")]
 pub(crate) mod route_util;
+#[cfg(feature = "writer")]
+pub mod script_route;
 #[cfg(feature = "reader")]
 pub mod search;
+#[cfg(feature = "reader")]
+pub mod search_modules;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod search_queue;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod search_shard_action;
 #[cfg(feature = "reader")]
 pub mod search_slots;
 #[cfg(feature = "writer")]
@@ -143,8 +177,22 @@ pub mod tenants;
 pub(crate) mod time_value;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod usage_route;
+#[cfg(feature = "reader")]
+pub mod vector_warm_setting;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod warm_boot;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod warm_copy;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod warm_expect;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod warm_handlers;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod warm_join;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod warm_peer;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod warm_setting;
 #[cfg(feature = "writer")]
 pub mod writer;
 

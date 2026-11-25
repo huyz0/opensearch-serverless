@@ -36,6 +36,9 @@ pub struct UsageService {
     clock: Arc<dyn Fn() -> i64 + Send + Sync>,
     tenants: Option<Arc<TenantLevels>>,
     slots: Option<Arc<crate::search_slots::SearchSlots>>,
+    queue: Option<Arc<crate::search_queue::QueueAdmission>>,
+    #[cfg(target_os = "linux")]
+    resident_pages: bool,
 }
 
 impl UsageService {
@@ -53,6 +56,9 @@ impl UsageService {
             clock,
             tenants: None,
             slots: None,
+            queue: None,
+            #[cfg(target_os = "linux")]
+            resident_pages: false,
         }
     }
 
@@ -67,6 +73,24 @@ impl UsageService {
     #[must_use]
     pub fn with_search_slots(mut self, slots: Arc<crate::search_slots::SearchSlots>) -> Self {
         self.slots = Some(slots);
+        self
+    }
+
+    /// This service also reporting the search queue.
+    #[must_use]
+    pub fn with_search_queue(mut self, queue: Arc<crate::search_queue::QueueAdmission>) -> Self {
+        self.queue = Some(queue);
+        self
+    }
+
+    /// This service also reporting the pager's resident pages.
+    #[must_use]
+    #[cfg_attr(not(target_os = "linux"), allow(unused_mut))]
+    pub fn with_resident_pages(mut self) -> Self {
+        #[cfg(target_os = "linux")]
+        {
+            self.resident_pages = true;
+        }
         self
     }
 
@@ -127,6 +151,36 @@ impl UsageService {
                 r.overflow_full,
                 r.overflow_cap,
                 r.longest_wait_millis
+            )?;
+        }
+        if let Some(queue) = &self.queue {
+            let r = queue.report();
+            write!(
+                out,
+                ",\"search_queue\":{{\"running\":{},\"parked\":{},\"deferred\":{},\"resumed\":{},\"refused\":{},\"expired\":{},\"dropped\":{},\"longest_wait_millis\":{}}}",
+                r.running,
+                r.parked,
+                r.deferred,
+                r.resumed,
+                r.refused,
+                r.expired,
+                r.dropped,
+                r.longest_wait_millis
+            )?;
+        }
+        #[cfg(target_os = "linux")]
+        if self.resident_pages
+            && let Some(pager) = lucene_store::paged_input::Pager::global()
+        {
+            let s = pager.stats();
+            write!(
+                out,
+                ",\"resident_pages\":{{\"budget_bytes\":{},\"resident_bytes\":{},\"faults\":{},\"refaults\":{},\"evictions\":{}}}",
+                pager.budget(),
+                pager.resident_bytes(),
+                s.faults,
+                s.refaults,
+                s.evictions
             )?;
         }
         out.write_all(b"}")?;
@@ -267,6 +321,12 @@ pub fn attach(
         clock.now_millis(),
         Arc::clone(&now),
     );
+    if config.resident_page_bytes != 0 {
+        service = service.with_resident_pages();
+    }
+    if let Some(queue) = &assembled.search_queue {
+        service = service.with_search_queue(Arc::clone(queue));
+    }
     let mode =
         oss_blob::guard::Mode::parse(config.tenant_levels).unwrap_or(oss_blob::guard::Mode::Off);
     if mode != oss_blob::guard::Mode::Off {

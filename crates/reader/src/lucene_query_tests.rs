@@ -15,6 +15,7 @@ fn built(body: &str) -> Result<BooleanQuery, Failure> {
         analyzer: &analyzer,
         max_doc: 5,
         knn: None,
+        pinned: None,
     };
     let source = parse_chunks([body.as_bytes()]).expect("parses");
     to_lucene(source.query.as_ref().expect("a query"), &cx)

@@ -202,3 +202,10 @@ src/dsl/queries/knn.rs	new		the k-NN plugin's knn query parser, written to the a
 src/dsl/queries/knn_tests.rs	new		tests of knn.rs, against messages recorded from the stock node
 src/knn/mod.rs	new		the knn query run over a shard's segments as Lucene's AbstractKnnVectorQuery.rewrite does; lucene-rust holds the search
 src/knn/tests.rs	new		knn queries over a three-segment shard with vectors
+src/empty_commit.rs	new		the commit of an index nobody wrote to, built once by the engine and served from memory; the Java shell has no reader for it
+src/shared_mapping.rs	new		no Java counterpart: the Java shell holds a MapperService per index; this keeps one parsed mapping per distinct mapping text
+src/pinned.rs	new		the tokens a pinned analyzer makes for a query, as a stream the query builder reads
+src/search_error.rs	new		ShardError, moved out of search.rs
+src/mapping_tests.rs	new		tests of mapping.rs
+src/pin_settings.rs	new		the analyzer pins an index's settings hold
+src/vector_warm.rs	new		reads the vector files of every segment in one batch at the first knn search; Lucene mmaps and leaves it to the OS

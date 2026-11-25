@@ -10,6 +10,7 @@ repository.workspace = true
 
 [dependencies]
 oss-rest = { workspace = true }
+oss-ext = { workspace = true }
 chunkjson = { workspace = true }
 lucene-analysis = { workspace = true }
 lucene-codecs = { workspace = true }

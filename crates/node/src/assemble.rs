@@ -55,8 +55,7 @@ pub struct Config {
     pub bulk_holders: usize,
     /// How a `_bulk` body streams.
     pub bulk: StreamConfig,
-    /// How long a store call waits for a free I/O buffer before it is
-    /// refused as busy; zero refuses at once.
+    /// How long a store call waits for a free I/O buffer before it is refused as busy; zero refuses at once.
     pub store_buffer_wait: Duration,
     /// The buffer a point-in-time request holds.
     pub pit_buffer_bytes: usize,
@@ -80,9 +79,10 @@ pub struct Config {
     pub snapshots: bool,
     /// Whether a snapshot can be taken: `serverless.snapshots.take.enabled`, beside `snapshots`.
     pub snapshots_take: bool,
-    /// Whether a shallow snapshot can be restored:
-    /// `serverless.snapshots.restore.enabled`, beside `snapshots` and `snapshots_take`.
+    /// Whether a shallow snapshot can be restored: `serverless.snapshots.restore.enabled`.
     pub snapshots_restore: bool,
+    /// `serverless.system_indices.patterns`: comma-separated `*` patterns of the names a take and a restore refuse.
+    pub system_index_patterns: String,
     /// `serverless.plugins.upstreams`: Java nodes serving unported plugins; none proxies nothing.
     pub plugin_upstreams: Vec<String>,
     /// `serverless.plugins.max_request_bytes`: the most a proxied body may be.
@@ -129,6 +129,9 @@ pub struct Config {
     /// A disk tier for the page cache: its directory and the most bytes of
     /// slots it holds; none keeps nothing past a read.
     pub page_cache_disk: Option<(std::path::PathBuf, u64)>,
+    /// The most bytes of demand-filled pages kept resident; 0 leaves the
+    /// engine's default.
+    pub resident_page_bytes: u64,
 }
 
 impl Config {
@@ -154,6 +157,7 @@ impl Config {
             snapshots: false,
             snapshots_take: false,
             snapshots_restore: false,
+            system_index_patterns: String::new(),
             plugin_upstreams: Vec::new(),
             plugin_max_request_bytes: 10 << 20,
             plugin_timeout: Duration::from_secs(30),
@@ -182,6 +186,7 @@ impl Config {
             reclaim_every: Duration::from_secs(60),
             janitor_max_views: 10_000,
             page_cache_disk: None,
+            resident_page_bytes: 0,
         }
     }
 }
@@ -221,9 +226,10 @@ pub struct Assembled {
     janitor: JanitorTimer,
     drain: Drain,
     tail: Option<TailNode>,
-    budget: MemoryBudget,
+    pub(crate) budget: MemoryBudget,
     /// What the page cache's records are charged, held for the node's life.
     cache_records: Option<oss_mem::Reservation>,
+    pub(crate) search_queue: Option<Arc<crate::search_queue::QueueAdmission>>,
 }
 
 /// A node listening.
@@ -240,13 +246,6 @@ pub struct Running {
     _cache_records: Option<oss_mem::Reservation>,
 }
 
-impl Assembled {
-    /// Every route registered: its method (none for a prefix route) and pattern.
-    pub fn routes(&self) -> Vec<(Option<oss_rest::Method>, &'static str)> {
-        self.router.routes()
-    }
-}
-
 impl Running {
     /// What the tail overlay holds, when it is on.
     pub fn tail(&self) -> Option<&TailNode> {
@@ -260,6 +259,11 @@ impl Running {
 }
 
 impl Assembled {
+    /// Every route registered: its method (none for a prefix route) and pattern.
+    pub fn routes(&self) -> Vec<(Option<oss_rest::Method>, &'static str)> {
+        self.router.routes()
+    }
+
     /// Registers `GET /_cluster/health[/{index}]` and `GET /_cat/health` over
     /// `source`, answering as the cluster named `cluster`. The assembly does
     /// not make a source: it needs the node's membership, which the caller
@@ -358,6 +362,7 @@ pub fn assemble(
         &config.node_id,
         budget,
     ));
+    crate::search_modules::install(&search, &store, &config.base, budget);
     let mut publishing = Publishing::new(
         Arc::clone(&store),
         &config.base,
@@ -402,6 +407,7 @@ pub fn assemble(
         PointInTimeStore::new(Arc::clone(&store), &config.base, Arc::clone(&clock))
             .map_err(|e| AssembleError::Store(e.to_string()))
     };
+    role.set_mapping_growth(&store, config)?;
     let (pits, janitor_pits, search_pits) = (new_pits()?, new_pits()?, new_pits()?);
     search.set_point_in_time(search_pits, Arc::clone(&clock), config.pit_buffer_bytes);
     let descriptors = DescriptorStore::new(Arc::clone(&store), &config.base, config.delete_mode)
@@ -412,12 +418,10 @@ pub fn assemble(
         Arc::clone(&clock),
         config.pit_buffer_bytes,
     ));
-    {
-        let search = Arc::clone(&search);
-        pit.set_release_hook(Arc::new(move |id| {
-            search.close_view(id);
-        }));
-    }
+    let closing = Arc::clone(&search);
+    pit.set_release_hook(Arc::new(move |id| {
+        closing.close_view(id);
+    }));
     let ingest = crate::admin_assemble::ingest_pipelines(config, &store)?;
     let bulk = Arc::new(
         BulkService::new(
@@ -438,25 +442,21 @@ pub fn assemble(
     let router = refresh_route::routes(router, Arc::new(RefreshService::new(Arc::clone(&role))))
         .map_err(AssembleError::Route)?;
     let router = pit_route::routes(router, pit).map_err(AssembleError::Route)?;
-    let router = crate::admin_assemble::register(router, &store, config, budget)?;
+    let (router, _sec) = crate::admin_assemble::register(router, &store, config, budget)?;
     #[cfg(feature = "coordinator")]
     let (router, drain) = {
-        // Every update and delete is recorded in the change stripes, which
-        // is what lets a writer confirm an index it kept without reading it.
-        let stripes = oss_meta::ChangeStripes::new(Arc::clone(&store), &config.base)
-            .map_err(|e| AssembleError::Store(e.to_string()))?;
-        let indices = crate::index_assemble::index_service(
-            config,
-            &store,
-            &clock,
-            bucket_wiring.as_ref(),
-            stripes,
-        )?;
-        let router = index_route::routes(router, indices).map_err(AssembleError::Route)?;
-        let deletes = crate::index_assemble::delete_service(config, &store, &clock)?;
+        use crate::index_assemble::{index_service, pin_policy, stream_routes};
+        let pins = pin_policy(config, &store, budget, _sec)?;
+        let indices = index_service(config, &store, &clock, bucket_wiring.as_ref(), pins)?;
+        let aliases = crate::index_assemble::alias_service(config, &store, &clock)?;
+        let router = crate::alias_route::routes(router, aliases).map_err(AssembleError::Route)?;
+        let deletes =
+            crate::index_assemble::delete_service(config, &store, &clock, bucket_wiring.as_ref())?;
         let router =
             crate::index_assemble::restore_routes(router, config, &store, &clock, &deletes)?;
         let drain = DrainTimer::spawn(Arc::clone(&deletes), config.reclaim_every);
+        let router = stream_routes(router, config, &store, &clock, &indices, &deletes)?;
+        let router = index_route::routes(router, indices).map_err(AssembleError::Route)?;
         let router = index_delete::routes(router, deletes).map_err(AssembleError::Route)?;
         let by_query = Arc::new(crate::by_query::ByQueryService::new(
             Arc::clone(&role),
@@ -486,6 +486,7 @@ pub fn assemble(
     let sweep = config.sweep;
     let janitor = JanitorTimer::spawn(pass, config.janitor_every, Box::new(move || sweep));
     Ok(Assembled {
+        search_queue: None,
         router,
         search,
         role,

@@ -8,7 +8,10 @@ use super::NodeConfig;
 /// from: the write limit and the page cache's disk tier.
 pub(in crate::boot) fn apply(from: &NodeConfig, to: &mut crate::assemble::Config) {
     super::write_limit::apply(from, to);
+    // Process-wide, as the engine's read advice is: once, before a shard opens.
+    oss_reader::vector_warm::set_at_open(from.vector_warm_at_open);
     to.page_cache_disk = from.page_cache.as_ref().map(|d| (d.dir.clone(), d.bytes));
+    to.resident_page_bytes = from.resident_page_bytes;
 }
 
 impl NodeConfig {

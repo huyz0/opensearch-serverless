@@ -84,9 +84,27 @@ pub fn parse(body: Option<&[u8]>, scope: &impl Scope) -> Result<Vec<Setting>, Re
     if requested.is_empty() {
         return Err(bad_request("missing_body", "no settings were given"));
     }
+    analysis_is_final(&requested)?;
     unknown(&requested, scope)?;
     refuse(&requested, scope)?;
     Ok(requested)
+}
+
+/// A pinned analyzer is set at create and never changed
+/// ([ADR 0053](../../../../docs/adr/0053-the-analyzer-extension-point.md)),
+/// as stock OpenSearch's `index.analysis.*` is final on an open index.
+fn analysis_is_final(requested: &[Setting]) -> Result<(), Refusal> {
+    match requested
+        .iter()
+        .find(|(key, _)| key.starts_with("index.analysis.analyzer.ext_"))
+    {
+        None => Ok(()),
+        Some((key, _)) => Err(bad_request(
+            "illegal_argument_exception",
+            // ALLOC: one message, bounded by the key.
+            format!("final index setting [{key}], not updateable"),
+        )),
+    }
 }
 
 /// `[a, b]`, the way a sorted set prints.

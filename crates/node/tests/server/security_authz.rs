@@ -94,6 +94,44 @@ fn a_limited_user_does_what_its_role_grants_and_is_told_what_it_lacks() {
     );
 }
 
+// docs/specs/security-authz AC-1, AC-4; docs/specs/node-index-mapping-get AC-7
+#[test]
+fn reading_a_mapping_needs_the_mappings_get_action() {
+    let r = node_with(LOGS_RW);
+    assert_eq!(send(&r, ADMIN, "PUT", "/docs", None).0, 200);
+    let denied = send(&r, USER, "GET", "/docs/_mapping", None);
+    assert_eq!(denied.0, 403, "{denied:?}");
+    assert!(
+        denied.1.contains("indices:admin/mappings/get"),
+        "{denied:?}"
+    );
+    assert_eq!(send(&r, USER, "GET", "/docs/_mappings", None).0, 403);
+    assert_eq!(send(&r, ADMIN, "GET", "/docs/_mapping", None).0, 200);
+}
+
+// docs/specs/node-index-mapping-put AC-7
+#[test]
+fn updating_a_mapping_needs_the_mapping_put_action() {
+    // `read` does not grant it; `write` does, as the security plugin's group has it.
+    let read_only = r#"{"cluster_permissions":[],
+        "index_permissions":[{"index_patterns":["docs*"],"allowed_actions":["read"]}]}"#;
+    let r = node_with(read_only);
+    assert_eq!(send(&r, ADMIN, "PUT", "/docs", None).0, 200);
+    let body = r#"{"properties":{"n":{"type":"integer"}}}"#;
+    for method in ["PUT", "POST"] {
+        let denied = send(&r, USER, method, "/docs/_mapping", Some(body));
+        assert_eq!(denied.0, 403, "{method}: {denied:?}");
+        assert!(denied.1.contains("indices:admin/mapping/put"), "{denied:?}");
+    }
+    assert_eq!(send(&r, ADMIN, "PUT", "/docs/_mapping", Some(body)).0, 200);
+    let writer = node_with(LOGS_RW);
+    assert_eq!(send(&writer, ADMIN, "PUT", "/docs", None).0, 200);
+    assert_eq!(
+        send(&writer, USER, "PUT", "/docs/_mapping", Some(body)).0,
+        200
+    );
+}
+
 // docs/specs/security-authz AC-2
 #[test]
 fn a_comma_list_or_encoded_name_is_checked_element_by_element() {
@@ -243,4 +281,19 @@ fn an_index_created_with_an_alias_is_not_made_for_a_user_who_may_only_create() {
         Some(r#"{"aliases":{"payroll_alias":{}}}"#),
     );
     assert!(reply.0 != 200 && reply.0 != 201, "{reply:?}");
+}
+
+// docs/specs/extension-abi: uploading a module is an administrator's act.
+#[cfg(feature = "extensions")]
+#[test]
+fn only_an_administrator_may_upload_a_module() {
+    let r = node_with(LOGS_RW);
+    let target = "/_serverless/extensions/modules";
+    let limited = send(&r, USER, "PUT", target, Some("not a module"));
+    assert_eq!(limited.0, 403, "{limited:?}");
+    let admin = send(&r, ADMIN, "PUT", target, Some("not a module"));
+    assert_eq!(
+        admin.0, 400,
+        "past the check, refused for what it is: {admin:?}"
+    );
 }

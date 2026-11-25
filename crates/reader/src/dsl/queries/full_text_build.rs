@@ -7,14 +7,16 @@
 
 use std::collections::HashMap;
 
-use lucene_search::query_builder::QueryBuilder;
+use lucene_search::query_visitor::Occur;
 use lucene_search::{BoostQuery, Clause, DisjunctionMaxQuery};
 
 use crate::dsl::queries::build::simple_match;
 use crate::dsl::queries::full_text::{MultiMatch, MultiType};
 use crate::dsl::values::Value;
 use crate::failure::Failure;
-use crate::lucene_query::{QueryContext, field_type, match_all, match_none, match_query, term};
+use crate::lucene_query::{
+    QueryContext, field_type, match_all, match_none, match_query, term, text_query,
+};
 use crate::mapping::FieldType;
 
 fn zero_terms(cx: &QueryContext<'_>, all: bool) -> Clause {
@@ -36,12 +38,7 @@ pub fn phrase(
     if *ty != FieldType::Text {
         return term(cx, field, value);
     }
-    let built = QueryBuilder::new(cx.analyzer)
-        .create_phrase_query_with_slop(field, value.text(), slop)
-        .map_err(|e| {
-            // ALLOC: error path; one message.
-            Failure::plain("illegal_argument_exception", e.to_string())
-        })?;
+    let built = text_query(cx, field, value.text(), Occur::Must, true, slop)?;
     Ok(built.unwrap_or_else(|| zero_terms(cx, zero_terms_all)))
 }
 
