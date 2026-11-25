@@ -233,7 +233,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
                 Err(Answer::Rest(e)) => return Err(e),
                 Err(Answer::Search(e)) => return send(resp, &e),
             };
-            let json = &held.shard.meta.mapping_json;
+            let json = held.shard.meta.mapping.json();
             let mapping = if json.is_empty() {
                 Mapping::default()
             } else {

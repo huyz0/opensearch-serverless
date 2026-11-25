@@ -24,25 +24,24 @@ const LOCK_SHARDS: usize = 16;
 /// The fewest entries a lock shard holds before it is swept.
 const SWEEP_FLOOR: usize = 64;
 
-#[derive(Default)]
-struct Table {
-    entries: HashMap<Arc<str>, Weak<Mapping>>,
+struct Table<T> {
+    entries: HashMap<Arc<str>, Weak<T>>,
     /// Sweep dead entries once the table holds this many.
     sweep_at: usize,
 }
 
-/// Parsed mappings by descriptor text, shared across shards.
-pub struct MappingInterner {
-    tables: Vec<Mutex<Table>>,
+/// Values parsed from a text, one live copy a distinct text.
+pub struct TextInterner<T> {
+    tables: Vec<Mutex<Table<T>>>,
 }
 
-impl Default for MappingInterner {
+impl<T> Default for TextInterner<T> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl MappingInterner {
+impl<T> TextInterner<T> {
     /// An empty table.
     #[must_use]
     pub fn new() -> Self {
@@ -58,7 +57,7 @@ impl MappingInterner {
         Self { tables }
     }
 
-    fn table(&self, text: &str) -> &Mutex<Table> {
+    fn table(&self, text: &str) -> &Mutex<Table<T>> {
         let mut hasher = DefaultHasher::new();
         text.hash(&mut hasher);
         let at = usize::try_from(hasher.finish()).unwrap_or(0);
@@ -67,18 +66,17 @@ impl MappingInterner {
         self.tables.get(at).unwrap_or(&self.tables[0])
     }
 
-    /// The parsed mapping of descriptor text `text`, shared with every other
-    /// holder of the same text; a missing mapping is the empty one.
+    /// The value of `text`, shared with every other holder of the same text;
+    /// `parse` runs on a miss, outside any lock.
     ///
     /// # Errors
     ///
-    /// As [`Mapping::from_descriptor`]; a text that does not parse is not
-    /// stored.
-    pub fn get(&self, text: Option<&str>) -> Result<Arc<Mapping>, MappingError> {
-        let Some(text) = text else {
-            // ALLOC: the empty mapping, a few words.
-            return Ok(Arc::new(Mapping::default()));
-        };
+    /// Whatever `parse` returns; a text that does not parse is not stored.
+    pub fn get_with<E>(
+        &self,
+        text: &str,
+        parse: impl FnOnce(&str) -> Result<T, E>,
+    ) -> Result<Arc<T>, E> {
         let table = self.table(text);
         {
             let mut held = table.lock().unwrap_or_else(PoisonError::into_inner);
@@ -91,8 +89,8 @@ impl MappingInterner {
             }
         }
         // A miss parses outside the lock: a slow parse blocks no hit.
-        // ALLOC: one parsed mapping, bounded by the mapping text limit.
-        let parsed = Arc::new(Mapping::from_descriptor(Some(text))?);
+        // ALLOC: one parsed value, bounded by the text limit.
+        let parsed = Arc::new(parse(text)?);
         let mut held = table.lock().unwrap_or_else(PoisonError::into_inner);
         // A racing miss that finished first wins, so the text keeps one copy.
         if let Some(Some(shared)) = held.entries.get(text).map(Weak::upgrade) {
@@ -102,7 +100,7 @@ impl MappingInterner {
             held.entries.retain(|_, weak| weak.strong_count() > 0);
             held.sweep_at = held.entries.len().saturating_mul(2).max(SWEEP_FLOOR);
         }
-        // ALLOC: one key a distinct live mapping, the length of its text.
+        // ALLOC: one key a distinct live value, the length of its text.
         held.entries
             .insert(Arc::from(text), Arc::downgrade(&parsed));
         Ok(parsed)
@@ -136,5 +134,47 @@ impl MappingInterner {
                     .count()
             })
             .sum()
+    }
+}
+
+/// Parsed mappings by descriptor text, shared across shards.
+#[derive(Default)]
+pub struct MappingInterner {
+    table: TextInterner<Mapping>,
+}
+
+impl MappingInterner {
+    /// An empty table.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// The parsed mapping of descriptor text `text`, shared with every other
+    /// holder of the same text; a missing mapping is the empty one.
+    ///
+    /// # Errors
+    ///
+    /// As [`Mapping::from_descriptor`]; a text that does not parse is not
+    /// stored.
+    pub fn get(&self, text: Option<&str>) -> Result<Arc<Mapping>, MappingError> {
+        let Some(text) = text else {
+            // ALLOC: the empty mapping, a few words.
+            return Ok(Arc::new(Mapping::default()));
+        };
+        self.table
+            .get_with(text, |t| Mapping::from_descriptor(Some(t)))
+    }
+
+    /// How many entries the table holds, dead ones included.
+    #[must_use]
+    pub fn entries(&self) -> usize {
+        self.table.entries()
+    }
+
+    /// How many entries are held by a shard.
+    #[must_use]
+    pub fn live(&self) -> usize {
+        self.table.live()
     }
 }

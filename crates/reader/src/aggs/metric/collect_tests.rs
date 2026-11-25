@@ -196,11 +196,13 @@ fn a_search_reserves_its_aggregation_state_with_its_hits() {
 #[test]
 fn fields_the_node_cannot_read_yet_or_without_doc_values_fail_the_shard() {
     let mut shard = shard("aggs-types");
-    shard.meta.mapping = crate::mapping::Mapping::from_json(
-        r#"{"properties":{"n":{"type":"long","doc_values":false},"d":{"type":"double"},
+    shard.meta.mapping = std::sync::Arc::new(
+        crate::SharedMapping::from_json(
+            r#"{"properties":{"n":{"type":"long","doc_values":false},"d":{"type":"double"},
             "b":{"type":"byte"}}}"#,
-    )
-    .expect("mapping");
+        )
+        .expect("mapping"),
+    );
     let refused = |body: &str| run(&shard, body).expect_err("refused");
     let e = refused(r#"{"aggs":{"a":{"sum":{"field":"n"}}}}"#);
     assert_eq!(e.status, 400);
