@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use oss_blob::{BlobStore, ByteRange, Emulator};
-use oss_format::{FileLocation, RestoreIndex, ShardRef, StockFile};
+use oss_format::{FileLocation, ManifestEntry, RestoreIndex, ShardRef, StockFile, encode_manifest};
 use oss_meta::{
     CopyBuffers, DeleteMode, DescriptorStore, RestoreError, SnapshotRestorer, StockShardCopy,
     StockSource,
@@ -161,9 +161,23 @@ fn every_file_lands_whole_at_any_buffer_size() {
             uuid: "NEW",
             shard: 0,
         };
+        let whole = FileLocation::Whole { term_dir: "t=1" }.encode();
+        let entries = [
+            ("_0.cfs", w.big.len()),
+            ("_1.si", w.small.len()),
+            ("_2.si", w.files[2].length as usize),
+        ]
+        .map(|(name, length)| ManifestEntry {
+            name,
+            location: whole.clone(),
+            length: length as u64,
+        });
+        // A register holds a small header before its value.
+        let stored = read(&*w.dst, &to.manifest_key("").unwrap());
+        let expected = encode_manifest(1, None, &entries, -1, -1).unwrap();
         assert!(
-            w.dst.head(&to.manifest_key("").unwrap()).unwrap().is_some(),
-            "the manifest landed"
+            stored.ends_with(&expected),
+            "the manifest landed with its files"
         );
     }
 }
@@ -212,6 +226,12 @@ fn a_name_that_is_not_a_blob_name_is_refused_before_any_read() {
     let mut bad = w.files.clone();
     bad[1].name = "../x".into();
     assert!(restore(&w, &bad, 16).is_err());
+    // A virtual file reads no key, so only the check refuses its name.
+    let w = world();
+    let mut bad = w.files.clone();
+    bad[2].name = "v__a/b".into();
+    assert!(restore(&w, &bad, 16).is_err(), "virtual name");
+    let w = world();
     let mut bad = w.files.clone();
     bad[1].physical_name = "a/b".into();
     assert!(restore(&w, &bad, 16).is_err());

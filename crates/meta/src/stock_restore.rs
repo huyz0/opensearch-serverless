@@ -175,12 +175,12 @@ impl<'a> StockFileSource<'a> {
     /// The bytes of chunk `part`: all of them but the last chunk's shorter.
     fn part_len(&self, part: u64) -> u64 {
         match self.file.part_size {
-            Some(size) if self.file.parts() > 1 => self
+            Some(size) => self
                 .file
                 .length
                 .saturating_sub(part.saturating_mul(size))
                 .min(size),
-            _ => self.file.length,
+            None => self.file.length,
         }
     }
 }
