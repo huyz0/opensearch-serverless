@@ -311,11 +311,17 @@ impl WriterRole {
             ))
         };
         let opener = self.opener.as_ref().ok_or_else(not_open)?;
-        let _opening = lock(&self.opening);
+        let _opening = lock(self.opening.stripe(&index.uuid, shard));
         // Another group may have opened it while this one waited.
         if let Some(slot) = self.slot(&index.uuid, shard) {
             return Ok(slot);
         }
+        // With a cap, opens go one at a time: the cap is read, then spent.
+        let _admitting = self
+            .cap
+            .get()
+            .filter(|c| c.max > 0)
+            .map(|_| lock(&self.opening.admitting));
         self.admit_open(index, shard)?;
         // A shard woken and put to sleep again before it is looked up is
         // woken again; a threshold near zero is the only way to see it.
@@ -326,6 +332,40 @@ impl WriterRole {
             }
         }
         Err(not_open())
+    }
+}
+
+/// The locks of opens: a stripe of 64 a shard maps to, so one shard opens
+/// once while shards of different stripes open at once, and `admitting`,
+/// held across a whole open when a shard cap is set so the cap is judged
+/// against every open before it.
+pub(super) struct OpenLocks {
+    stripes: [Mutex<()>; 64],
+    admitting: Mutex<()>,
+}
+
+impl Default for OpenLocks {
+    fn default() -> Self {
+        Self {
+            stripes: std::array::from_fn(|_| Mutex::new(())),
+            admitting: Mutex::new(()),
+        }
+    }
+}
+
+impl OpenLocks {
+    /// The lock of `shard` of the index `uuid`.
+    fn stripe(&self, uuid: &str, shard: u32) -> &Mutex<()> {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        uuid.hash(&mut hasher);
+        shard.hash(&mut hasher);
+        let at = hasher
+            .finish()
+            .checked_rem(self.stripes.len() as u64)
+            .and_then(|at| usize::try_from(at).ok())
+            .unwrap_or(0);
+        &self.stripes[at]
     }
 }
 
