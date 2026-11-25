@@ -32,11 +32,14 @@ const ACKNOWLEDGED: &str = "{\"acknowledged\":true}";
 /// implemented: storing one and ignoring it would break the promise the
 /// client made by setting it.
 fn behaviour_changing(key: &str) -> bool {
-    matches!(
-        key,
-        "index.blocks.read" | "index.blocks.metadata" | "index.max_result_window"
-    )
+    matches!(key, "index.blocks.read" | "index.blocks.metadata")
 }
+
+/// The most hits a search window may be set to: a search's hits are held in
+/// memory, so the node bounds the window (the reader's `MAX_RESULT_WINDOW`).
+const WINDOW_CEILING: u32 = 10_000;
+
+const WINDOW_KEY: &str = "index.max_result_window";
 
 /// The write blocks a bulk reads from the descriptor.
 fn write_block_key(key: &str) -> bool {
@@ -71,6 +74,20 @@ impl Scope for Registry {
                 Some(other) => Err(format!(
                     "failed to parse value [{other}] for setting [{key}] as a boolean: only [true] or [false] are allowed"
                 )),
+            });
+        }
+        if key == WINDOW_KEY {
+            return Kind::Ours(match value.map(str::trim) {
+                None => Ok(()),
+                Some(text) => match text.parse::<u32>() {
+                    Ok(w) if (1..=WINDOW_CEILING).contains(&w) => Ok(()),
+                    Ok(w) if w > WINDOW_CEILING => Err(format!(
+                        "[{key}] of [{w}] is above the most this node holds, [{WINDOW_CEILING}]: a search's hits are kept in memory"
+                    )),
+                    _ => Err(format!(
+                        "failed to parse value [{text}] for setting [{key}], must be >= 1"
+                    )),
+                },
             });
         }
         if crate::create_settings::is_static(key) || crate::index_route::is_bucket_key(key) {

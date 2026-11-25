@@ -264,7 +264,7 @@ pub fn search_with<S: BlobStore + 'static>(
     }
     .map_err(|f| ShardError::of_query(shard_failure(f, index, &meta.uuid)))?;
     let window = source.from.saturating_add(source.size);
-    search_options::check_window(window)?;
+    search_options::check_window(window, meta.max_result_window())?;
     if let Some(what) = source.explain.then(|| explain::refusal(&query)).flatten() {
         return Err(ShardError::bad_request(Failure::plain(
             "illegal_argument_exception",

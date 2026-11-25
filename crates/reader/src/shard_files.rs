@@ -471,4 +471,21 @@ mod tests {
             crate::mapping::FieldType::Unsupported(_)
         ));
     }
+
+    // docs/specs/index-max-result-window AC-1, AC-4
+    #[test]
+    fn an_index_reads_its_result_window_and_a_bad_value_leaves_the_default() {
+        let window = |settings: &str| {
+            meta_of(&descriptor(b"{}", settings.as_bytes()))
+                .expect("reads")
+                .max_result_window()
+        };
+        assert_eq!(window("{}"), 10_000);
+        assert_eq!(window(r#"{"index.max_result_window":"50"}"#), 50);
+        assert_eq!(window(r#"{"index.max_result_window":"10000"}"#), 10_000);
+        for bad in ["0", "-1", "soon", "10001", ""] {
+            let settings = format!(r#"{{"index.max_result_window":"{bad}"}}"#);
+            assert_eq!(window(&settings), 10_000, "{bad}");
+        }
+    }
 }

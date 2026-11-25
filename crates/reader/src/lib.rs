@@ -28,6 +28,7 @@ pub mod pinned;
 pub mod prefetch;
 pub mod rank_eval;
 pub mod response;
+mod result_window;
 pub mod search;
 mod search_error;
 mod search_options;
