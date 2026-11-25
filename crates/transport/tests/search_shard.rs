@@ -354,6 +354,17 @@ fn a_request_with_another_query_is_refused_by_the_writer() {
 }
 
 #[test]
+fn a_named_match_all_is_refused_by_the_writer() {
+    // The writer writes the name as absent, so a name would be dropped.
+    let mut request = read("match_all").expect("reads");
+    request.source.query.as_mut().expect("a query").name = Some(s("q"));
+    assert!(matches!(
+        request_bytes(&request),
+        Err(Refusal::UnsupportedQuery(_))
+    ));
+}
+
+#[test]
 fn a_written_request_reads_back_the_same() {
     let mut request = read("no_query").expect("reads");
     request.index = s("logs");
