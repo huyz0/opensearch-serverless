@@ -212,3 +212,157 @@ fn text_is_escaped() {
         r#""a\"\\\n\u0001z""#
     );
 }
+
+/// A SMILE vint: 7 bits a byte, the last byte flagged 0x80 and holding 6.
+fn vint(mut v: u64) -> Vec<u8> {
+    let mut out = vec![0x80 | (v & 0x3F) as u8];
+    v >>= 6;
+    while v > 0 {
+        out.push((v & 0x7F) as u8);
+        v >>= 7;
+    }
+    out.reverse();
+    out
+}
+
+fn zigzag(v: i64) -> u64 {
+    ((v << 1) ^ (v >> 63)) as u64
+}
+
+/// Bytes as SMILE 7-bit groups: the bit stream cut in sevens, the last cut
+/// right-aligned.
+fn seven_bit(bytes: &[u8]) -> Vec<u8> {
+    let bits: Vec<u8> = bytes
+        .iter()
+        .flat_map(|b| (0..8).rev().map(move |i| (b >> i) & 1))
+        .collect();
+    bits.chunks(7)
+        .map(|c| c.iter().fold(0u8, |a, b| (a << 1) | b))
+        .collect()
+}
+
+fn bigint(len: usize) -> Vec<u8> {
+    let mut v = vint(len as u64);
+    v.extend(seven_bit(&vec![1u8; len]));
+    v
+}
+
+#[test]
+fn a_big_integer_is_refused_one_byte_past_its_limit() {
+    let at = |n: usize| {
+        let mut b = vec![0x26];
+        b.extend(bigint(n));
+        doc(0, &b)
+    };
+    assert!(plain(&at(32)).is_ok());
+    assert!(matches!(plain(&at(33)), Err(FormatError::TooLarge { .. })));
+}
+
+#[test]
+fn big_integers_are_refused_past_their_total() {
+    let limits = SmileLimits {
+        bigint_total: 64,
+        ..SmileLimits::default()
+    };
+    let two = |n: usize| {
+        let mut b = vec![0xF8, 0x26];
+        b.extend(bigint(n));
+        b.push(0x26);
+        b.extend(bigint(n));
+        b.push(0xF9);
+        doc(0, &b)
+    };
+    assert!(run(&two(32), &limits).is_ok());
+    assert!(matches!(
+        run(&two(33), &limits),
+        Err(FormatError::TooLarge { .. })
+    ));
+}
+
+#[test]
+fn a_decimal_scale_is_refused_one_past_its_limit() {
+    let at = |scale: i64| {
+        let mut b = vec![0x2A];
+        b.extend(vint(zigzag(scale)));
+        b.extend(bigint(1));
+        doc(0, &b)
+    };
+    assert!(plain(&at(10_000)).is_ok());
+    assert!(plain(&at(-10_000)).is_ok());
+    assert!(matches!(
+        plain(&at(10_001)),
+        Err(FormatError::TooLarge { .. } | FormatError::Corrupt { .. })
+    ));
+    assert!(plain(&at(-10_001)).is_err());
+}
+
+#[test]
+fn an_int_wider_than_32_bits_is_refused() {
+    let mut b = vec![0x24];
+    b.extend(vint(zigzag(i64::from(i32::MAX))));
+    assert_eq!(plain(&doc(0, &b)).expect("i32::MAX"), "2147483647");
+    let mut b = vec![0x24];
+    b.extend(vint(zigzag(i64::from(i32::MAX) + 1)));
+    assert!(plain(&doc(0, &b)).is_err());
+}
+
+#[test]
+fn the_output_cap_counts_from_where_this_call_started() {
+    let limits = SmileLimits {
+        output_bytes: 8,
+        ..SmileLimits::default()
+    };
+    let bytes = doc(0, &[0x43, b'a', b'b', b'c', b'd']); // "abcd" is 6 bytes quoted
+    let mut out = vec![b'x'; 1000];
+    smile_to_json(&bytes, &limits, &mut out).expect("6 bytes fit in 8 after a long prefix");
+    assert_eq!(out.len(), 1006);
+    let tight = SmileLimits {
+        output_bytes: 5,
+        ..SmileLimits::default()
+    };
+    assert!(matches!(
+        smile_to_json(&bytes, &tight, &mut Vec::new()),
+        Err(FormatError::TooLarge { .. })
+    ));
+}
+
+#[test]
+fn a_shared_name_table_wraps_at_1024_and_the_documents_still_read() {
+    // 1,025 distinct names, then the 1,025th again: the table restarted at
+    // 1,024, so the name is the first of the new table (index 0).
+    let mut body = vec![0xFA];
+    for i in 0..1025u32 {
+        let name = format!("k{i:04}");
+        body.push(0x80 | (name.len() as u8 - 1));
+        body.extend(name.as_bytes());
+        body.push(0x21);
+    }
+    body.push(0x40); // shared name 0 of the restarted table: "k1024"
+    body.push(0x21);
+    body.push(0xFB);
+    let json = plain(&doc(1, &body)).expect("wrapped table");
+    assert!(json.ends_with(r#""k1024":null,"k1024":null}"#), "{json}");
+}
+
+#[test]
+fn control_and_multibyte_characters_escape_as_json() {
+    let s = "\u{8}\u{c}\u{7f}é\u{1F600}";
+    let mut body = vec![0x80 + (s.len() as u8 - 2)];
+    body.extend(s.as_bytes());
+    let json = plain(&doc(0, &body)).expect("escapes");
+    let back: String = serde_json::from_str(&json).expect("valid JSON");
+    assert_eq!(back, s);
+    assert!(json.contains("\\u0008") && json.contains("\\u000c"), "{json}");
+}
+
+#[test]
+fn hostile_binary_lengths_are_refused() {
+    // 0xFD raw binary claiming far more than the input holds.
+    let mut b = vec![0xFD];
+    b.extend(vint(u64::from(u32::MAX)));
+    assert!(plain(&doc(4, &b)).is_err());
+    // 0xE8 7-bit binary the same.
+    let mut b = vec![0xE8];
+    b.extend(vint(u64::from(u32::MAX)));
+    assert!(plain(&doc(0, &b)).is_err());
+}

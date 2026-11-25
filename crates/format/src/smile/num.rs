@@ -37,7 +37,7 @@ pub(super) fn float_bits(c: &mut Cursor<'_>, bytes: usize) -> Result<u64, Format
         }
         acc = (acc << 7) | u128::from(b);
     }
-    u64::try_from(acc & u128::from(u64::MAX)).map_err(|_| corrupt(WHAT, "a float"))
+    u64::try_from(acc).map_err(|_| corrupt(WHAT, "a float wider than 64 bits"))
 }
 
 /// Decodes `n` bytes held as 7-bit groups: 7 bytes in 8 groups, then `r`

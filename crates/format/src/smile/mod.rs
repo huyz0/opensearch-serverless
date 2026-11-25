@@ -23,10 +23,15 @@ pub struct Limits {
     pub depth: usize,
     /// The longest string, name or binary, in bytes.
     pub string_bytes: usize,
-    /// The most bytes of JSON written.
+    /// The most bytes of JSON written (what this call adds to the buffer).
     pub output_bytes: usize,
-    /// The most bytes of a big integer.
+    /// The most bytes of one big integer.
     pub bigint_bytes: usize,
+    /// The most bytes of big integers in the whole document: converting one
+    /// to decimal costs time in proportion to its bytes squared.
+    pub bigint_total: usize,
+    /// The largest decimal scale, in either direction.
+    pub scale: i64,
 }
 
 impl Default for Limits {
@@ -35,7 +40,9 @@ impl Default for Limits {
             depth: 64,
             string_bytes: 16 << 20,
             output_bytes: 64 << 20,
-            bigint_bytes: 4096,
+            bigint_bytes: 32,
+            bigint_total: 4096,
+            scale: 10_000,
         }
     }
 }
@@ -90,6 +97,8 @@ enum Ctx {
 struct Decoder<'a, 'o> {
     c: Cursor<'a>,
     out: &'o mut Vec<u8>,
+    base: usize,
+    bigint_used: usize,
     lim: Limits,
     shared_names: bool,
     shared_values: bool,
@@ -120,6 +129,8 @@ pub fn to_json(input: &[u8], limits: &Limits, out: &mut Vec<u8>) -> Result<(), F
     }
     let mut d = Decoder {
         c,
+        base: out.len(),
+        bigint_used: 0,
         out,
         lim: *limits,
         shared_names: flags & 1 != 0,
@@ -174,13 +185,18 @@ impl<'a> Decoder<'a, '_> {
         }
     }
 
+    /// The bytes this call has added to the buffer.
+    fn written(&self) -> usize {
+        self.out.len().saturating_sub(self.base)
+    }
+
     fn put(&mut self, bytes: &[u8]) -> Result<(), FormatError> {
-        let total = self.out.len().checked_add(bytes.len());
+        let total = self.written().checked_add(bytes.len());
         if total.is_none_or(|t| t > self.lim.output_bytes) {
             return Err(FormatError::TooLarge {
                 what: "JSON from a SMILE document",
                 limit: len64(self.lim.output_bytes),
-                actual: len64(self.out.len().saturating_add(bytes.len())),
+                actual: len64(self.written().saturating_add(bytes.len())),
             });
         }
         // ALLOC: the output, up to lim.output_bytes.
@@ -219,6 +235,9 @@ impl<'a> Decoder<'a, '_> {
             0x23 => self.put(b"true"),
             0x24 | 0x25 => {
                 let n = num::unzigzag(num::vint(&mut self.c)?);
+                if b == 0x24 && i32::try_from(n).is_err() {
+                    return Err(corrupt(WHAT, "a 32-bit integer wider than 32 bits"));
+                }
                 // ALLOC: an integer's text, at most 20 bytes.
                 self.put(n.to_string().as_bytes())
             }
@@ -228,7 +247,9 @@ impl<'a> Decoder<'a, '_> {
             }
             0x28 => {
                 let bits = num::float_bits(&mut self.c, 5)?;
-                let f = f32::from_bits(u32::try_from(bits).unwrap_or(0));
+                let bits =
+                    u32::try_from(bits).map_err(|_| corrupt(WHAT, "a float wider than 32 bits"))?;
+                let f = f32::from_bits(bits);
                 // ALLOC: a float's text, at most 25 bytes.
                 self.float(f64::from(f), format!("{f:e}"))
             }
@@ -239,6 +260,13 @@ impl<'a> Decoder<'a, '_> {
             }
             0x2A => {
                 let scale = num::unzigzag(num::vint(&mut self.c)?);
+                if scale.unsigned_abs() > self.lim.scale.unsigned_abs() {
+                    return Err(FormatError::TooLarge {
+                        what: "SMILE decimal scale",
+                        limit: self.lim.scale.unsigned_abs(),
+                        actual: scale.unsigned_abs(),
+                    });
+                }
                 let unscaled = self.big()?;
                 self.put(num::with_scale(&unscaled, scale).as_bytes())
             }
@@ -359,6 +387,14 @@ impl<'a> Decoder<'a, '_> {
                 actual: len64(n),
             });
         }
+        self.bigint_used = self.bigint_used.saturating_add(n);
+        if self.bigint_used > self.lim.bigint_total {
+            return Err(FormatError::TooLarge {
+                what: "SMILE big integers in one document",
+                limit: len64(self.lim.bigint_total),
+                actual: len64(self.bigint_used),
+            });
+        }
         Ok(num::decimal(&num::decode7(&mut self.c, n)?))
     }
 
@@ -370,12 +406,12 @@ impl<'a> Decoder<'a, '_> {
     }
 
     fn base64(&mut self, bytes: &[u8]) -> Result<(), FormatError> {
-        let room = self.lim.output_bytes.saturating_sub(self.out.len());
+        let room = self.lim.output_bytes.saturating_sub(self.written());
         if num::base64_len(bytes.len()) > len64(room.saturating_sub(2)) {
             return Err(FormatError::TooLarge {
                 what: "JSON from a SMILE document",
                 limit: len64(self.lim.output_bytes),
-                actual: len64(self.out.len()).saturating_add(num::base64_len(bytes.len())),
+                actual: len64(self.written()).saturating_add(num::base64_len(bytes.len())),
             });
         }
         // ALLOC: the encoded text, bounded by the room left in the output.
