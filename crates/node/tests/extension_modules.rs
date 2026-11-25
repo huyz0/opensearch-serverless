@@ -225,3 +225,27 @@ fn a_write_runs_under_the_recorded_fuel_and_a_replay_under_it_stretched() {
     set.replaying(false);
     assert!(analyzer.analyze("probe").is_err());
 }
+
+// AC-12
+#[test]
+fn a_replay_that_exceeds_even_the_stretched_fuel_is_recorded_as_a_failure() {
+    let r = rig(4);
+    let hash = put(&r, &module("analyzer", false, None));
+    // An eighth of what a call needs is too little at four times as well.
+    let tiny = (least_fuel(&r, &hash) / 8).max(1);
+    let set = r
+        .source
+        .open(&settings(&[("ext_a", &hash, tiny)]), "t")
+        .expect("opens");
+    let (_, analyzer) = set.analyzers().next().expect("one");
+    set.replaying(true);
+    assert!(analyzer.analyze("probe").is_err());
+    set.replaying(false);
+    let why = set.replay_failure().expect("the failure is kept");
+    assert!(why.contains(&hash), "{why}");
+    assert_eq!(set.replay_failures(), 1);
+    assert!(set.replay_failure().is_none(), "taking it clears it");
+    // A live write that fails is not a replay failure.
+    assert!(analyzer.analyze("probe").is_err());
+    assert_eq!(set.replay_failures(), 1);
+}
