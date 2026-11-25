@@ -219,7 +219,10 @@ impl<S: BlobStore + 'static> SearchService<S> {
     ) -> Result<Vec<u8>, SearchFailure<ShardError>> {
         let params = Params {
             from: source.from,
-            size: source.size,
+            // A search pipeline's truncate_hits cuts the merge window, so the rows past it are never fetched; each shard is still asked for from + size.
+            size: source
+                .response_size_cap
+                .map_or(source.size, |c| c.min(source.size)),
             sorts: sorts(&source.sort),
             track_total_hits_up_to: source
                 .track_total_hits

@@ -13,6 +13,8 @@ pub mod assemble;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod assemble_error;
 #[cfg(all(feature = "reader", feature = "writer"))]
+mod assemble_writer;
+#[cfg(all(feature = "reader", feature = "writer"))]
 pub mod boot;
 #[cfg(feature = "writer")]
 pub mod bulk_handler;
@@ -126,6 +128,8 @@ pub mod script_route;
 pub mod search;
 #[cfg(feature = "reader")]
 pub mod search_modules;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod search_pipeline_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod search_queue;
 #[cfg(all(feature = "reader", feature = "writer"))]

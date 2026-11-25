@@ -105,3 +105,20 @@ pub fn render(found: &[(&str, &[u8])]) -> String {
     out.push('}');
     out
 }
+
+/// Checks a search pipeline definition before it is stored.
+///
+/// # Errors
+///
+/// 400 `invalid_pipeline` for a body that is not a definition, an unknown
+/// processor or option or a bad value; 501 `not_implemented` for a
+/// processor OpenSearch has and this node does not build, naming it.
+pub fn validate_search(body: &[u8]) -> Result<(), Refusal> {
+    match oss_reader::search_pipeline::SearchPipeline::compile(body) {
+        Ok(_) => Ok(()),
+        Err(oss_reader::search_pipeline::Refused::Invalid(m)) => Err(invalid(m)),
+        Err(oss_reader::search_pipeline::Refused::Unsupported(m)) => {
+            Err(Refusal::new(501, "not_implemented", m))
+        }
+    }
+}

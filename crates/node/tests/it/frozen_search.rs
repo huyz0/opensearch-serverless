@@ -370,3 +370,29 @@ fn a_view_of_two_shards_does_not_read_the_live_commits() {
     assert_eq!(r.status, 200, "{}", r.text());
     assert!(r.text().contains(r#""_shards":{"total":2,"successful":2"#));
 }
+
+// docs/specs/search-pipelines AC-9: a view's search takes the same pipeline.
+#[test]
+fn a_search_of_a_view_takes_a_search_pipeline() {
+    use crate::search_pipeline::{CUT, Held};
+    let rig = rig(1, u64::MAX / 2);
+    assert!(rig.node.service.set_search_pipelines(Arc::new(Held(
+        std::collections::HashMap::from([("cut", CUT)])
+    ))));
+    let body = format!(r#"{{"pit":{{"id":"{ID}"}},"query":{{"match_all":{{}}}},"size":10}}"#);
+    let all = request(rig.node.addr(), "POST", "/_search", Some(body.as_bytes()));
+    let cut = request(
+        rig.node.addr(),
+        "POST",
+        "/_search?search_pipeline=cut",
+        Some(body.as_bytes()),
+    );
+    assert_eq!(cut.status, 200, "{}", cut.text());
+    assert_eq!(all.text().matches(r#""_index":"#).count(), 5);
+    assert_eq!(
+        cut.text().matches(r#""_index":"#).count(),
+        1,
+        "{}",
+        cut.text()
+    );
+}

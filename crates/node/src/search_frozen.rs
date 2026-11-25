@@ -110,7 +110,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
             .reserve(hits_bytes(source, &held.shard))
             .map_err(Answer::Rest)?;
         let analyzer = lucene_analysis::Analyzer::standard(None);
-        let hits = match search(&held.shard, &view.index, source, &analyzer) {
+        let mut hits = match search(&held.shard, &view.index, source, &analyzer) {
             Ok(hits) => hits,
             Err(e) => {
                 let failure = ShardFailure {
@@ -125,6 +125,9 @@ impl<S: BlobStore + 'static> SearchService<S> {
                 )));
             }
         };
+        if let Some(cap) = source.response_size_cap {
+            hits.truncate(cap);
+        }
         let took = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
         let io = |e: std::io::Error| Answer::Rest(RestError::from(e));
         let mut body = resp
