@@ -11,6 +11,8 @@ use std::sync::{Arc, Mutex};
 
 use lucene_store::ByteBuffersDirectory;
 use oss_node::overlay_builder::TailFetcher;
+use oss_reader::commit_push::Stage;
+use oss_reader::overlay::{CommitAccess, ExtensionRefusal, OverlaySource, Ready};
 use oss_testkit::TempDir;
 use oss_transport::actions::tail::{FetchRequest, FetchResponse};
 
@@ -156,5 +158,46 @@ fn a_shard_with_no_overlay_answers_under_owner_and_serving_and_is_refused_under_
             String::from_utf8_lossy(&reply.body)
         );
         assert_eq!(asked(&claims) > 0, asks, "{mode}: writer asks");
+    }
+}
+
+/// A source whose builds fail on a module: it holds no overlay and says why.
+struct Refusing(&'static str);
+
+impl OverlaySource for Refusing {
+    fn ready(
+        &self,
+        _: &str,
+        _: u32,
+        _: &Stage,
+        _: &Arc<dyn CommitAccess>,
+        _: u64,
+    ) -> Option<Arc<Ready>> {
+        None
+    }
+
+    fn extension_refusal(&self, _: &str, _: u32, _: &Stage) -> Option<ExtensionRefusal> {
+        Some(ExtensionRefusal {
+            ty: self.0,
+            reason: "the module did not answer".to_owned(),
+        })
+    }
+}
+
+// docs/specs/extension-analyzer AC-8: a search never falls back to the
+// built-in analyzer when the pinned module cannot run.
+#[test]
+fn a_shard_whose_module_failed_the_overlay_build_answers_a_typed_refusal() {
+    for (ty, status) in [("extension_unavailable", 503), ("extension_busy", 429)] {
+        let root = TempDir::new("fresh-extension");
+        let dir = ByteBuffersDirectory::new();
+        let fx = fixture(root.path(), &dir, &["a", "b"]);
+        checked(&fx, i64::MAX, true);
+        assert!(fx.service.set_overlay_source(Arc::new(Refusing(ty))));
+        let reply = fx.search();
+        let body = String::from_utf8_lossy(&reply.body);
+        assert_eq!(reply.status, status, "{body}");
+        assert!(body.contains(ty), "{body}");
+        assert!(!body.contains("shard_behind_exception"), "{body}");
     }
 }
