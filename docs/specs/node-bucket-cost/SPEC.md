@@ -9,7 +9,7 @@ The bucket switch stays off unless it costs no more than the default (the build 
 ## Acceptance criteria
 
 - AC-1: with the switch on, a node started from configuration creates a one-shard index, writes a document, refreshes and searches it; the index's descriptor names a bucket whose manifest exists, and the shard has no register of its own. With the switch off the same requests leave a shard register and a descriptor with no bucket.
-- AC-2: a search of a bucketed index makes the same number of requests as a search of an unbucketed one.
+- AC-2: a search of a bucketed index makes the same ranged reads and puts as a search of an unbucketed one, and no more than one more plain read: the node re-reads the transport secrets once every lease TTL, and a search window of about 150 ms holds that read or not by where its clock stands.
 - AC-3: writing a document to each of 24 indices (refresh on) and 8 s of idleness each make within a tenth of the requests they make with the switch off.
 - AC-5: a second node taking over 24 one-shard indices after the first is killed makes fewer requests, and fewer PUTs, with the switch on.
 - AC-4: creating a one-shard index in a bucket costs more than the descriptor alone but at most three times it.
