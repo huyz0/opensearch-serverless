@@ -246,3 +246,58 @@ fn a_replay_indexes_the_same_positions_and_offsets_as_the_live_write() {
     }
     assert_eq!(postings_of(&live_dir, "QUICK")[0], (0, 1, 4, 9));
 }
+
+/// A Lucene file without its codec header (magic, name, version, segment id,
+/// suffix) and its 16-byte footer, which carry what differs between two
+/// writers of the same segment: the id and the checksum over it.
+fn body(file: &[u8]) -> &[u8] {
+    // The magic, the name, the version and the segment id, then the suffix.
+    let after_id = [4, 1, usize::from(file[4]), 4, 16]
+        .iter()
+        .fold(0_usize, |a, n| a.saturating_add(*n));
+    let at = after_id
+        .saturating_add(1)
+        .saturating_add(usize::from(file[after_id]));
+    &file[at..file.len().saturating_sub(16)]
+}
+
+// docs/specs/extension-analyzer AC-12: replay reproduces the postings files
+#[test]
+fn a_replay_writes_the_same_postings_files_as_the_live_write() {
+    use lucene_store::Directory;
+    let mapping: &[u8] =
+        br#"{"properties":{"t":{"type":"text","analyzer":"ext_shout","index_options":"offsets"}}}"#;
+    let live_dir = ByteBuffersDirectory::new();
+    let mut live = shard_over(&live_dir, Arc::new(Words), mapping);
+    let replay_dir = ByteBuffersDirectory::new();
+    let mut replayed = shard_over(&replay_dir, Arc::new(Words), mapping);
+    for (n, source) in SOURCES.iter().enumerate() {
+        live.index(
+            &format!("d{n}"),
+            source.as_bytes(),
+            false,
+            &Expect::default(),
+        )
+        .expect("indexed");
+        let seq = i64::try_from(n).expect("small");
+        let record =
+            oss_format::WalRecord::index(format!("d{n}"), (*source).to_owned(), seq, 1, seq + 1);
+        assert!(replayed.replay(&record).expect("replayed"));
+    }
+    live.refresh().expect("refresh");
+    replayed.refresh().expect("refresh");
+    let find = |dir: &ByteBuffersDirectory, ext: &str| {
+        let name = dir
+            .list_all()
+            .expect("lists")
+            .into_iter()
+            .find(|f| f.ends_with(ext))
+            .unwrap_or_else(|| panic!("a {ext} file"));
+        dir.open(&name).expect("opens").as_ref().to_vec()
+    };
+    for ext in [".doc", ".pos", ".tim", ".tip"] {
+        let (a, b) = (find(&live_dir, ext), find(&replay_dir, ext));
+        assert!(!body(&a).is_empty(), "{ext} has content");
+        assert_eq!(body(&a), body(&b), "{ext}: the same bytes after the header");
+    }
+}
