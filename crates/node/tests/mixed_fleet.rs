@@ -11,6 +11,8 @@ mod made_from_nothing;
 mod snapshots;
 #[path = "mixed_fleet/soak.rs"]
 mod soak;
+#[path = "mixed_fleet/soak_wide.rs"]
+mod soak_wide;
 mod suite_rig;
 
 use std::collections::BTreeSet;
@@ -144,18 +146,17 @@ impl Drop for JavaNode {
 /// One REST call, read to the end of its framing, with the connection kept
 /// open: asked to `connection: close`, the Java shell sends the head of a
 /// chunked bulk reply and closes without the body.
-fn call(addr: SocketAddr, method: &str, target: &str, body: Option<&str>) -> Reply {
+fn try_call(addr: SocketAddr, method: &str, target: &str, body: Option<&str>) -> Option<Reply> {
     use std::io::{Read, Write};
-    let mut s = std::net::TcpStream::connect(addr).expect("connects");
-    s.set_read_timeout(Some(Duration::from_secs(60)))
-        .expect("timeout");
+    let mut s = std::net::TcpStream::connect(addr).ok()?;
+    s.set_read_timeout(Some(Duration::from_secs(60))).ok()?;
     let body = body.unwrap_or("");
     let head = format!(
         "{method} {target} HTTP/1.1\r\nhost: test\r\ncontent-type: application/json\r\ncontent-length: {}\r\n\r\n",
         body.len()
     );
-    s.write_all(head.as_bytes()).expect("sends head");
-    s.write_all(body.as_bytes()).expect("sends body");
+    s.write_all(head.as_bytes()).ok()?;
+    s.write_all(body.as_bytes()).ok()?;
     let mut raw = Vec::new();
     let mut buf = [0u8; 16 << 10];
     let framed = |raw: &[u8]| -> Option<Reply> {
@@ -200,16 +201,19 @@ fn call(addr: SocketAddr, method: &str, target: &str, body: Option<&str>) -> Rep
     };
     loop {
         if let Some(reply) = framed(&raw) {
-            return reply;
+            return Some(reply);
         }
         match s.read(&mut buf) {
-            Ok(0) | Err(_) => panic!(
-                "the reply to {method} {target} ended early: {:?}",
-                String::from_utf8_lossy(&raw)
-            ),
+            Ok(0) | Err(_) => return None,
             Ok(n) => raw.extend_from_slice(&buf[..n]),
         }
     }
+}
+
+/// [`try_call`] for a node that must answer.
+fn call(addr: SocketAddr, method: &str, target: &str, body: Option<&str>) -> Reply {
+    try_call(addr, method, target, body)
+        .unwrap_or_else(|| panic!("{method} {target} on {addr} got no complete reply"))
 }
 
 struct Reply {
