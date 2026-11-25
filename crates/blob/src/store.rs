@@ -203,7 +203,9 @@ pub trait BlobStore: Send + Sync {
     /// Replaces the register's value with `value` if it holds generation
     /// `expected` ([`crate::register::ABSENT_GENERATION`] for none), and
     /// moves it to the next generation. Of racing swaps from one
-    /// generation, at most one applies.
+    /// generation, at most one applies. On an object store a swap from
+    /// absent is the conditional create, so its conflict reports no
+    /// generation.
     fn swap_register(&self, key: &str, expected: u64, value: &[u8]) -> BlobResult<SwapOutcome>;
 
     /// Creates the register with `value` at a new random generation if
