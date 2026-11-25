@@ -107,3 +107,61 @@ fn write_and_refresh_latency_with_merging_on_and_off() {
         );
     }
 }
+
+/// A reader's cold open of the shard `rounds` refreshes left: its time and
+/// the requests it made, and a match-all count.
+fn cold_open(merge: bool, rounds: u32) -> (std::time::Duration, u64, i32, usize) {
+    use lucene_store::page_cache::{PageCache, PageCacheConfig};
+    use oss_blob::PooledStore;
+    use oss_mem::BufferPool;
+    let c = cluster();
+    create_n(&c, "logs", "u1", 1);
+    let one = node(&c, "node-1", 1, false, None);
+    if merge {
+        let mut config = MergeConfig::off();
+        config.enabled = true;
+        let budget = MemoryBudget::new(
+            &BudgetConfig::new(256 << 20)
+                .with_pool(Pool::OpenIndexes, 128 << 20)
+                .expect("fits"),
+        );
+        one.role.set_merging(&config, &budget);
+    }
+    let info = info_n(1);
+    for round in 0..rounds {
+        write_id(&one.role, &format!("doc-{round}"));
+        one.role.refresh(&info, 0).expect("published");
+    }
+    let pools = BudgetConfig::new(8 << 20)
+        .with_pool(Pool::Transport, 8 << 20)
+        .expect("fits");
+    let buffers =
+        BufferPool::new(&MemoryBudget::new(&pools), Pool::Transport, 64 << 10, 16).expect("fits");
+    let pooled = std::sync::Arc::new(PooledStore::new(oss_blob::Shared::new(c.base()), buffers));
+    let cache = std::sync::Arc::new(PageCache::new(PageCacheConfig::default()).expect("cache"));
+    let before = c.store.meter().total();
+    let start = std::time::Instant::now();
+    let open = oss_reader::open_shard(pooled, cache, "", "logs", 0).expect("opens");
+    let took = start.elapsed();
+    (
+        took,
+        c.store.meter().total() - before,
+        open.reader.num_docs(),
+        open.reader.segment_readers().len(),
+    )
+}
+
+// docs/specs/writer-segment-merge AC-8: run with --ignored --nocapture;
+// the numbers are provisional (in-process emulator, no network latency).
+#[test]
+#[ignore = "a measurement, not a gate"]
+fn a_readers_cold_open_with_merging_on_and_off() {
+    for _ in 0..3 {
+        let off = cold_open(false, 300);
+        let on = cold_open(true, 300);
+        eprintln!(
+            "AC8 cold open off {:?} {} requests {} docs {} segments | on {:?} {} requests {} docs {} segments",
+            off.0, off.1, off.2, off.3, on.0, on.1, on.2, on.3
+        );
+    }
+}

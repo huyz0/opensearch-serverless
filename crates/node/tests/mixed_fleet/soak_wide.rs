@@ -353,6 +353,12 @@ fn several_live_nodes_take_concurrent_writes_while_one_is_killed_each_cycle() {
             {
                 break;
             }
+            // The judge's match-all reads MAX_FOUND hits; a cycle's writes
+            // must not carry the index past it.
+            if shared.next.load(Ordering::Acquire) >= MAX_FOUND.saturating_sub(2_000) {
+                eprintln!("WIDE stop: {cycle} cycles, the index is near the judge's read bound");
+                break;
+            }
             std::thread::sleep(window);
             // Kill one node while the writers go on, and bring a fresh one.
             let at = usize::try_from(cycle).unwrap_or(0) % live.len();
