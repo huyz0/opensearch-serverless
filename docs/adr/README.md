@@ -55,8 +55,8 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0043](0043-security-configuration-as-document-sets.md) | Security configuration is five document sets, enforced at the edge from a node cache | Accepted |
 | [0044](0044-ingest-pipelines-in-the-write-path.md) | Ingest pipelines run in the write path through a per-request hook, behind a switch | Accepted |
 | [0045](0045-shallow-snapshot-restore.md) | A shallow snapshot is restored by copying its files into a new index, in the Java's order | Accepted |
-| [0046](0046-plugin-requests-are-proxied-to-java-nodes.md) | Requests for plugins that are not ported are proxied to Java nodes, behind a setting | Proposed |
-| [0047](0047-search-slots.md) | Searches are admitted in order by a slot gate that shapes who waits, behind a setting | Proposed |
+| [0046](0046-plugin-requests-are-proxied-to-java-nodes.md) | Requests for plugins that are not ported are proxied to Java nodes, behind a setting | Accepted |
+| [0047](0047-search-slots.md) | Searches are admitted in order by a slot gate that shapes who waits, behind a setting | Accepted |
 | [0048](0048-retiring-a-node.md) | A node told to stop publishes its shards and gives their heads back | Accepted |
 | [0050](0050-writes-to-one-shard-share-a-commit-window.md) | Writes to one shard share a commit window: the slot lock is released before the wait | Accepted |
 | [0051](0051-authorization-at-the-route-by-action-table.md) | Authorization is decided at the route, from an action table, by the names in the path | Accepted |
@@ -67,4 +67,4 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0056](0056-over-share-searches-wait-off-the-workers-in-a-bounded-queue.md) | A tenant's searches over its share of the workers wait off the workers in a bounded queue, and are refused with 429 past its size | Accepted |
 | [0057](0057-a-rust-owner-answers-the-java-search-shard-action.md) | A Rust owner answers the Java search-shard action for a shard it writes, over a decoded subset of the request | Accepted |
 | [0058](0058-modern-protocols-front.md) | HTTP/2, HTTP/3 and gRPC are served by an in-process front that bridges to the HTTP/1.1 server | Accepted |
-| [0059](0059-the-writer-merges-a-shards-small-segments.md) | The writer merges a shard's small segments, behind a setting | Proposed |
+| [0059](0059-the-writer-merges-a-shards-small-segments.md) | The writer merges a shard's small segments, behind a setting | Accepted |
