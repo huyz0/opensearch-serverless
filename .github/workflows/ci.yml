@@ -35,6 +35,10 @@ env:
   CARGO_PROFILE_DEV_DEBUG: "0"
   CARGO_PROFILE_TEST_DEBUG: "0"
   RUST_BACKTRACE: "1"
+  # Every test process, and so every mutant's, has a cap on its memory: a
+  # mutant that loops while it allocates fails its own test instead of
+  # killing the runner (scripts/memcap-runner.sh).
+  CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: ${{ github.workspace }}/scripts/memcap-runner.sh
 
 jobs:
   ci:
