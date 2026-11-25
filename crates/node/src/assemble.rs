@@ -408,6 +408,7 @@ pub fn assemble(
         PointInTimeStore::new(Arc::clone(&store), &config.base, Arc::clone(&clock))
             .map_err(|e| AssembleError::Store(e.to_string()))
     };
+    role.set_mapping_growth(&store, config)?;
     let (pits, janitor_pits, search_pits) = (new_pits()?, new_pits()?, new_pits()?);
     search.set_point_in_time(search_pits, Arc::clone(&clock), config.pit_buffer_bytes);
     let descriptors = DescriptorStore::new(Arc::clone(&store), &config.base, config.delete_mode)
@@ -418,12 +419,10 @@ pub fn assemble(
         Arc::clone(&clock),
         config.pit_buffer_bytes,
     ));
-    {
-        let search = Arc::clone(&search);
-        pit.set_release_hook(Arc::new(move |id| {
-            search.close_view(id);
-        }));
-    }
+    let closing = Arc::clone(&search);
+    pit.set_release_hook(Arc::new(move |id| {
+        closing.close_view(id);
+    }));
     let ingest = crate::admin_assemble::ingest_pipelines(config, &store)?;
     let bulk = Arc::new(
         BulkService::new(

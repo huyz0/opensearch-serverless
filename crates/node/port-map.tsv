@@ -185,3 +185,4 @@ tests/roles/writer_opener_rig.rs	new		the opener rig's counting opener and forwa
 src/extension_setting.rs	new		the cluster setting that lets a create carry an analyzer pin
 src/extension_host.rs	new		the node's one WASM host, shared by every user of modules
 src/search_modules.rs	new		what loads the modules an index pins for a search node
+src/writer/growth.rs	new		the writer role holds a group's new fields in the descriptor before the group is logged (MappingGrowthPath is the library), split out of the writer module to keep it under the size limit

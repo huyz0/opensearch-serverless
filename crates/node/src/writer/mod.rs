@@ -12,6 +12,7 @@ mod capacity;
 mod dead_log_pass;
 mod dead_logs;
 mod get;
+mod growth;
 mod heads;
 mod hibernate;
 mod incarnation;
@@ -19,6 +20,7 @@ mod janitor_pass;
 mod janitor_timer;
 mod lease;
 mod limit;
+use limit::unavailable;
 mod newest_commit;
 mod opener;
 mod orphan_timer;
@@ -127,6 +129,8 @@ pub struct WriterRole {
     newest: Mutex<Newest>,
     publishing: Option<Publishing>,
     tail: OnceLock<Arc<dyn TailSink>>,
+    /// Holds in the descriptor what a write added to an index's mapping.
+    growth: OnceLock<oss_writer::mapping_growth::MappingGrowth>,
     /// Told the bucket group of each index a shard of is opened.
     tenant: tenant_hooks::TenantHooks,
     /// Told of every commit a publish stages.
@@ -173,6 +177,7 @@ impl WriterRole {
             newest: Mutex::new(HashMap::new()),
             publishing: None,
             tail: OnceLock::new(),
+            growth: OnceLock::new(),
             tenant: tenant_hooks::TenantHooks::default(),
             commits: OnceLock::new(),
             visibility: AtomicU8::new(0),
@@ -459,7 +464,7 @@ impl WriterRole {
             }
         }
         let appended_at = self.limiter_now();
-        let committed = self.committer.commit(slot.key(), slot.term(), &records);
+        let committed = self.commit_group(&mut slot, index, &records);
         if !records.is_empty() {
             self.appended(appended_at, committed.is_ok());
         }
@@ -482,19 +487,10 @@ impl WriterRole {
             for at in staged {
                 if let Some(o) = outcomes.get_mut(at) {
                     // ALLOC: error path; one message an item.
-                    *o = Err(Failure::Unavailable(format!(
-                        "the write could not be made durable: {e}"
-                    )));
+                    *o = Err(Failure::Unavailable(e.clone()));
                 }
             }
         }
         outcomes
     }
-}
-
-fn unavailable(n: usize, reason: impl Fn() -> String) -> Vec<Result<Written, Failure>> {
-    // ALLOC: one outcome an item of the group.
-    (0..n)
-        .map(|_| Err(Failure::Unavailable(reason())))
-        .collect()
 }

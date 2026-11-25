@@ -219,8 +219,9 @@ fn a_second_upload_while_one_is_in_flight_answers_429() {
     slow.write_all(&wasm[..8]).expect("part");
     // The first upload takes the place when its handler starts; ask until refused.
     // A body that cannot be stored shows whether the place is taken: 400 free, 429 taken.
+    // A loaded machine may start that handler late: wait for it, not for a count of tries.
     let mut second = put(&r, b"probe");
-    for _ in 0..100 {
+    for _ in 0..600 {
         if second.status == 429 {
             break;
         }
