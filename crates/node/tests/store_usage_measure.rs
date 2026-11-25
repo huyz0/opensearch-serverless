@@ -24,6 +24,7 @@ mod run {
     use oss_testkit::TempDir;
 
     const RUN: Duration = Duration::from_secs(6);
+    static REJECTED: AtomicU64 = AtomicU64::new(0);
     const BULK: usize = 20;
 
     fn boot(root: &str, usage: &str) -> Node {
@@ -33,6 +34,7 @@ mod run {
             "OSS_FS_ROOT" => Some(root.to_owned()),
             "OSS_HTTP_ADDR" | "OSS_TRANSPORT_ADDR" => Some("127.0.0.1:0".to_owned()),
             "OSS_STORE_USAGE" => Some(usage.to_owned()),
+            "OSS_WRITE_PIPELINE_DEPTH" => std::env::var("MEASURE_DEPTH").ok(),
             _ => None,
         };
         start(&NodeConfig::from_lookup(lookup).expect("valid")).expect("starts")
@@ -95,6 +97,12 @@ mod run {
                                 "{}",
                                 &reply.text()[..reply.text().len().min(300)]
                             );
+                            if !reply.text().contains("\"errors\":false") {
+                                // The write limiter refused it: counted, not timed.
+                                REJECTED.fetch_add(1, Ordering::Relaxed);
+                                std::thread::sleep(Duration::from_millis(100));
+                                continue;
+                            }
                             seen.push(u64::try_from(at.elapsed().as_micros()).unwrap_or(u64::MAX));
                         }
                         seen
@@ -118,8 +126,9 @@ mod run {
     fn line(what: &str, mut seen: Vec<u64>) {
         seen.sort_unstable();
         println!(
-            "{what}: bulks={} p50={:.1}ms p99={:.1}ms max={:.1}ms",
+            "{what}: bulks={} rejected={} p50={:.1}ms p99={:.1}ms max={:.1}ms",
             seen.len(),
+            REJECTED.swap(0, Ordering::Relaxed),
             pct(&seen, 0.5),
             pct(&seen, 0.99),
             pct(&seen, 1.0)

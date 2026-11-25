@@ -7,6 +7,7 @@
 //! the engine applied the write releases the shard, which reopens from the
 //! log. A bulk group is applied item by item and staged with one commit.
 
+mod apply_group;
 mod buckets;
 mod capacity;
 mod dead_log_pass;
@@ -24,6 +25,8 @@ use limit::unavailable;
 mod newest_commit;
 mod opener;
 mod orphan_timer;
+mod pipeline;
+mod pipelined;
 mod predecessors;
 mod proactive;
 mod publish_age;
@@ -43,13 +46,14 @@ mod tenant_hooks;
 mod tombstone_pass;
 
 use std::collections::HashMap;
-use std::sync::atomic::AtomicU8;
+use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
+use apply_group::{Applied, apply_group};
 use oss_format::WalRecord;
 use oss_writer::admission::WriteLimiter;
-use oss_writer::bulk::{IndexInfo, Kind, Planned};
+use oss_writer::bulk::{IndexInfo, Planned};
 use oss_writer::index::{Refused, Written};
 use oss_writer::log::NodeLogCommitter;
 use oss_writer::publish::lazy::PublishAge;
@@ -148,6 +152,8 @@ pub struct WriterRole {
     /// The most shards held, when set.
     cap: OnceLock<ShardCap>,
     counters: capacity::Counters,
+    /// How many groups of one shard may wait on the log together.
+    pipeline_depth: AtomicUsize,
 }
 
 pub(crate) fn now_millis() -> u64 {
@@ -188,6 +194,7 @@ impl WriterRole {
             hibernation: hibernate::Hibernation::default(),
             cap: OnceLock::new(),
             counters: capacity::Counters::default(),
+            pipeline_depth: AtomicUsize::new(1),
         }
     }
 
@@ -195,7 +202,7 @@ impl WriterRole {
     /// held here.
     pub fn max_seq_no(&self, uuid: &str, shard: u32) -> i64 {
         self.slot(uuid, shard)
-            .map_or(-1, |slot| lock(&slot).max_seq_no())
+            .map_or(-1, |slot| lock(&slot).acked_seq_no())
     }
 
     /// The names of held indexes are kept in `names`, which admission
@@ -368,8 +375,21 @@ impl WriterRole {
                 Ok(true) => {}
                 Ok(false) => {
                     // The index was deleted and created again: this shard
-                    // serves a deleted one.
-                    self.release(&index.uuid, shard, &slot);
+                    // serves a deleted one. Groups of it in flight finish
+                    // first; the last one out releases it.
+                    // `failed` is set under the slot lock, so no group is
+                    // between its check and its ticket.
+                    let mut held = lock(&slot);
+                    let pipe = held.pipeline();
+                    pipe.fail();
+                    let idle = !pipe.busy();
+                    if idle {
+                        held.release();
+                    }
+                    drop(held);
+                    if idle {
+                        self.release(&index.uuid, shard, &slot);
+                    }
                     return unavailable(group.len(), || {
                         // ALLOC: error path; one message.
                         format!(
@@ -380,6 +400,9 @@ impl WriterRole {
                 }
                 Err(e) => return unavailable(group.len(), || e.clone()),
             }
+        }
+        if self.pipeline_depth.load(Ordering::Relaxed) > 1 {
+            return self.group_pipelined(&slot, index, shard, group);
         }
         let held = Arc::clone(&slot);
         let mut slot = lock(&slot);
@@ -397,72 +420,11 @@ impl WriterRole {
                 )
             });
         }
-        // ALLOC: one outcome and one record an item of the group.
-        let mut outcomes: Vec<Result<Written, Failure>> = Vec::with_capacity(group.len());
-        let mut records: Vec<WalRecord<'_>> = Vec::with_capacity(group.len());
-        let mut staged: Vec<usize> = Vec::with_capacity(group.len());
-        for item in group {
-            let a = &item.op.action;
-            let source = match std::str::from_utf8(&item.op.source) {
-                Ok(s) => s,
-                Err(_) if a.kind == Kind::Delete => "",
-                Err(_) => {
-                    outcomes.push(Err(Failure::Unavailable(
-                        // ALLOC: error path; one message.
-                        "the document source is not valid UTF-8".to_owned(),
-                    )));
-                    continue;
-                }
-            };
-            let routing = a.routing.as_deref().filter(|r| !r.is_empty());
-            // Checked before the engine runs: a write the engine took must
-            // always have a record to stage.
-            if let Err(e) = WalRecord::index(item.id, source, 0, 0, 0).with_routing(routing) {
-                outcomes.push(Err(Failure::Unavailable(e.to_string())));
-                continue;
-            }
-            match slot.apply(
-                a.kind,
-                item.id,
-                &item.op.source,
-                routing,
-                a.create,
-                &a.expect,
-            ) {
-                Ok(written) => {
-                    let record = if a.kind == Kind::Delete {
-                        WalRecord::deletion(
-                            item.id,
-                            written.seq_no,
-                            written.primary_term,
-                            written.version,
-                        )
-                    } else {
-                        WalRecord::index(
-                            item.id,
-                            source,
-                            written.seq_no,
-                            written.primary_term,
-                            written.version,
-                        )
-                    };
-                    // The routing was checked above, so this keeps the record.
-                    let record = record.with_routing(routing).unwrap_or_else(|_| {
-                        WalRecord::index(
-                            item.id,
-                            source,
-                            written.seq_no,
-                            written.primary_term,
-                            written.version,
-                        )
-                    });
-                    staged.push(outcomes.len());
-                    records.push(record);
-                    outcomes.push(Ok(written));
-                }
-                Err(refused) => outcomes.push(Err(Failure::Refused(refused))),
-            }
-        }
+        let Applied {
+            mut outcomes,
+            records,
+            staged,
+        } = apply_group(&mut slot, group);
         let appended_at = self.limiter_now();
         let committed = self.commit_group(&mut slot, index, &records);
         if !records.is_empty() {
