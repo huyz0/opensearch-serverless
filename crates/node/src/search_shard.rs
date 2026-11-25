@@ -15,7 +15,7 @@ use oss_reader::OpenShard;
 use oss_reader::dsl::SearchSource;
 use oss_reader::failure::{Failure, SearchError, ShardFailure};
 use oss_reader::response::render_selected_result_hits;
-use oss_reader::search::{Hits, hits_bytes, search};
+use oss_reader::search::{Hits, hits_bytes, search_with};
 
 use super::open_shard::into_error;
 use super::{Held, SearchService};
@@ -157,7 +157,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
         let analyzer = Analyzer::standard(None);
         let hits = {
             let open = view.as_deref().unwrap_or(&held.shard);
-            search(open, index, source, &analyzer).map_err(|e| {
+            search_with(open, index, source, &analyzer, held.pinned.as_deref()).map_err(|e| {
                 // ALLOC: error path; the index name and the node id.
                 Box::new(SearchError::on_shard(
                     e.status,

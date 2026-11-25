@@ -42,8 +42,18 @@ impl SharedMapping {
     ///
     /// When `json` is not a mapping.
     pub fn from_json(json: &str) -> Result<Self, ReaderError> {
+        Self::from_json_pinned(json, &[])
+    }
+
+    /// The mapping read from its JSON source for an index that holds the
+    /// analyzer pins `pins`, shared with nothing.
+    ///
+    /// # Errors
+    ///
+    /// When `json` is not a mapping.
+    pub fn from_json_pinned(json: &str, pins: &[String]) -> Result<Self, ReaderError> {
         Ok(Self {
-            mapping: Mapping::from_json(json)?,
+            mapping: Mapping::from_json_pinned(json, pins)?,
             json: Arc::from(json),
         })
     }
@@ -82,6 +92,27 @@ pub fn shared_of(escaped: Option<&[u8]>) -> Result<Arc<SharedMapping>, ReaderErr
     table().get_with(text, |t| {
         SharedMapping::from_json(&Mapping::unescape(t.as_bytes())?)
     })
+}
+
+/// The mapping of an index that holds the analyzer pins `pins`, parsed for
+/// that index alone: the same text means another mapping under another
+/// pin, and an index that pins is rare, so the table does not hold it.
+///
+/// # Errors
+///
+/// When the text is not a mapping.
+pub fn pinned_of(
+    escaped: Option<&[u8]>,
+    pins: &[String],
+) -> Result<Arc<SharedMapping>, ReaderError> {
+    let Some(escaped) = escaped else {
+        // ALLOC: the empty mapping, a few words.
+        return Ok(Arc::new(SharedMapping::empty()));
+    };
+    Ok(Arc::new(SharedMapping::from_json_pinned(
+        &Mapping::unescape(escaped)?,
+        pins,
+    )?))
 }
 
 /// How many mappings the table holds live.

@@ -40,6 +40,8 @@ pub(crate) mod create_settings;
 pub mod descriptor_routes;
 #[cfg(feature = "writer")]
 pub mod doc_route;
+#[cfg(feature = "extensions")]
+pub mod extension_host;
 #[cfg(all(feature = "extensions", feature = "writer"))]
 pub mod extension_modules;
 #[cfg(all(feature = "extensions", feature = "writer", feature = "coordinator"))]
@@ -114,6 +116,8 @@ pub(crate) mod route_util;
 pub mod script_route;
 #[cfg(feature = "reader")]
 pub mod search;
+#[cfg(feature = "reader")]
+pub mod search_modules;
 #[cfg(feature = "reader")]
 pub mod search_slots;
 #[cfg(feature = "writer")]

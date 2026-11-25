@@ -363,6 +363,7 @@ pub fn assemble(
         &config.node_id,
         budget,
     ));
+    crate::search_modules::install(&search, &store, &config.base, budget);
     let mut publishing = Publishing::new(
         Arc::clone(&store),
         &config.base,
@@ -418,12 +419,10 @@ pub fn assemble(
         Arc::clone(&clock),
         config.pit_buffer_bytes,
     ));
-    {
-        let search = Arc::clone(&search);
-        pit.set_release_hook(Arc::new(move |id| {
-            search.close_view(id);
-        }));
-    }
+    let closing = Arc::clone(&search);
+    pit.set_release_hook(Arc::new(move |id| {
+        closing.close_view(id);
+    }));
     let ingest = crate::admin_assemble::ingest_pipelines(config, &store)?;
     let bulk = Arc::new(
         BulkService::new(
@@ -444,11 +443,11 @@ pub fn assemble(
     let router = refresh_route::routes(router, Arc::new(RefreshService::new(Arc::clone(&role))))
         .map_err(AssembleError::Route)?;
     let router = pit_route::routes(router, pit).map_err(AssembleError::Route)?;
-    let (router, security_state) = crate::admin_assemble::register(router, &store, config, budget)?;
+    let (router, _sec) = crate::admin_assemble::register(router, &store, config, budget)?;
     #[cfg(feature = "coordinator")]
     let (router, drain) = {
         use crate::index_assemble::{index_service, pin_policy};
-        let pins = pin_policy(config, &store, budget, security_state)?;
+        let pins = pin_policy(config, &store, budget, _sec)?;
         let indices = index_service(config, &store, &clock, bucket_wiring.as_ref(), pins)?;
         let router = index_route::routes(router, indices).map_err(AssembleError::Route)?;
         let aliases = crate::index_assemble::alias_service(config, &store, &clock)?;
