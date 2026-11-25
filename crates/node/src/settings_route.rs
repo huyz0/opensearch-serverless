@@ -6,11 +6,12 @@
 //! key against the node's registry, swaps the descriptor with the merged
 //! settings and bumps `settings_version`.
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use oss_coordinator::indices::settings_update::{ATTEMPTS, Kind, Scope, Setting, merge, parse};
 use oss_doc::mapping::json::{Json, parse as parse_json};
-use oss_meta::{DescriptorStore, Target};
+use oss_meta::{DescriptorStore, MetaError, Target};
 use oss_rest::{JSON, Method, Request, Response, RestError, RouteError, Router};
 
 use crate::route_util::{read_body, refuse};
@@ -25,6 +26,9 @@ const PARAMS: &[&str] = &[
     "timeout",
     "preserve_existing",
 ];
+
+/// The most indices one update may name by pattern.
+const PATTERN_CAP: usize = 1_000;
 
 const ACKNOWLEDGED: &str = "{\"acknowledged\":true}";
 
@@ -189,6 +193,7 @@ pub struct SettingsService {
     descriptors: DescriptorStore,
     buffer_bytes: usize,
     registry: Registry,
+    pattern_cap: usize,
 }
 
 impl SettingsService {
@@ -200,14 +205,21 @@ impl SettingsService {
             descriptors,
             buffer_bytes,
             registry: Registry { pipelines },
+            pattern_cap: PATTERN_CAP,
         }
     }
 
+    /// Lowers the most indices a pattern may match.
+    #[must_use]
+    pub fn with_pattern_cap(mut self, cap: usize) -> Self {
+        self.pattern_cap = cap;
+        self
+    }
+
     fn update(&self, req: &mut Request<'_>, resp: &mut Response<'_>) -> Result<(), RestError> {
-        let index = req
+        let expression = req
             .path_param("index")
-            .map(|n| n.into_owned())
-            .ok_or_else(|| RestError::illegal_argument("an index is required"))?;
+            .map_or_else(|| "_all".to_owned(), |n| n.into_owned());
         let preserve = req.param("preserve_existing").as_deref() == Some("true");
         let body = read_body(
             req,
@@ -230,29 +242,116 @@ impl SettingsService {
         // ALLOC: two buffers a request, buffer_bytes each, reserved above.
         let mut read = vec![0u8; self.buffer_bytes];
         let mut write = vec![0u8; self.buffer_bytes];
+        // Every name is resolved before the first write, so a name that is
+        // no index refuses the whole request.
+        let targets = self.targets(&expression, &mut read)?;
+        for index in &targets {
+            self.update_one(index, &requested, preserve, &mut read, &mut write)?;
+        }
+        resp.send(200, JSON, ACKNOWLEDGED.as_bytes())
+    }
+
+    /// The indices `expression` stands for: names, trailing-`*` prefix
+    /// patterns, `_all` and aliases, each once, in order.
+    fn targets(&self, expression: &str, buf: &mut [u8]) -> Result<Vec<String>, RestError> {
+        // ALLOC: one entry a name or match, bounded by the expression and the cap a pattern.
+        let mut order: Vec<String> = Vec::new();
+        let mut seen: HashSet<String> = HashSet::new();
+        let mut add = |name: String, order: &mut Vec<String>| {
+            if seen.insert(name.clone()) {
+                order.push(name);
+            }
+        };
+        for name in expression.split(',').map(str::trim) {
+            if name.is_empty() {
+                return Err(RestError::illegal_argument("an empty index name was given"));
+            }
+            let name = if name == "_all" { "*" } else { name };
+            if let Some(prefix) = name.strip_suffix('*')
+                && !prefix.contains(['*', '?'])
+            {
+                let matched = self
+                    .descriptors
+                    .names_with_prefix(prefix, self.pattern_cap)
+                    .map_err(|e| match e {
+                        MetaError::TooManyMatches { .. } => refuse(
+                            400,
+                            "too_many_indices",
+                            // ALLOC: error path; one message.
+                            format!("[{name}] matches more than {} indices", self.pattern_cap),
+                        ),
+                        other => failed(&other.to_string()),
+                    })?;
+                for m in matched {
+                    // A pattern filters what exists: an alias or a tombstone is no index.
+                    let held = self
+                        .descriptors
+                        .resolve(&m, buf)
+                        .map_err(|e| failed(&e.to_string()))?;
+                    if matches!(held.target, Target::Index(_)) {
+                        add(m, &mut order);
+                    }
+                }
+            } else if name.contains(['*', '?']) {
+                return Err(refuse(
+                    501,
+                    "unsupported_setting",
+                    // ALLOC: error path; one message.
+                    format!(
+                        "only a trailing-wildcard pattern is supported, and [{name}] is not one"
+                    ),
+                ));
+            } else {
+                let held = self
+                    .descriptors
+                    .resolve(name, buf)
+                    .map_err(|e| failed(&e.to_string()))?;
+                match held.target {
+                    Target::Index(_) => add(name.to_owned(), &mut order),
+                    Target::Alias(alias) => {
+                        for member in &alias.indices {
+                            add(member.to_string(), &mut order);
+                        }
+                    }
+                    Target::Absent => return Err(crate::get_route::index_not_found(name)),
+                }
+            }
+        }
+        Ok(order)
+    }
+
+    /// One index: the merged settings swapped in, retried against a
+    /// generation that moved.
+    fn update_one(
+        &self,
+        index: &str,
+        requested: &[Setting],
+        preserve: bool,
+        read: &mut [u8],
+        write: &mut [u8],
+    ) -> Result<(), RestError> {
         for _ in 0..ATTEMPTS {
             let held = self
                 .descriptors
-                .resolve(&index, &mut read)
+                .resolve(index, read)
                 .map_err(|e| failed(&e.to_string()))?;
             let Target::Index(record) = held.target else {
-                return Err(crate::get_route::index_not_found(&index));
+                return Err(crate::get_route::index_not_found(index));
             };
-            let Some(text) =
-                apply(record.settings, &requested, preserve).map_err(|e| failed(&e))?
+            let Some(text) = apply(record.settings, requested, preserve).map_err(|e| failed(&e))?
             else {
-                return resp.send(200, JSON, ACKNOWLEDGED.as_bytes());
+                return Ok(());
             };
             let mut next = record.clone();
             next.settings = text.as_bytes();
             next.settings_version = next.settings_version.saturating_add(1);
             if self
                 .descriptors
-                .update(&next, held.generation, &mut write)
+                .update(&next, held.generation, write)
                 .map_err(|e| failed(&e.to_string()))?
                 .is_some()
             {
-                return resp.send(200, JSON, ACKNOWLEDGED.as_bytes());
+                return Ok(());
             }
         }
         Err(refuse(
@@ -269,17 +368,25 @@ fn failed(reason: &str) -> RestError {
     refuse(500, "settings_update_failure", reason.to_owned())
 }
 
-/// The settings update route: `PUT /{index}/_settings`.
+/// The settings update routes: `PUT /{index}/_settings` and `PUT /_settings`.
 ///
 /// # Errors
 ///
 /// A route registered twice.
 pub fn routes(router: Router, service: &Arc<SettingsService>) -> Result<Router, RouteError> {
+    let all = Arc::clone(service);
     let service = Arc::clone(service);
-    router.route(
-        Method::Put,
-        "/{index}/_settings",
-        PARAMS,
-        move |req: &mut Request<'_>, resp: &mut Response<'_>| service.update(req, resp),
-    )
+    router
+        .route(
+            Method::Put,
+            "/{index}/_settings",
+            PARAMS,
+            move |req: &mut Request<'_>, resp: &mut Response<'_>| service.update(req, resp),
+        )?
+        .route(
+            Method::Put,
+            "/_settings",
+            PARAMS,
+            move |req: &mut Request<'_>, resp: &mut Response<'_>| all.update(req, resp),
+        )
 }
