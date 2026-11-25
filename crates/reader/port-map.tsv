@@ -211,3 +211,4 @@ src/pin_settings.rs	new		the analyzer pins an index's settings hold
 src/vector_warm.rs	new		reads the vector files of every segment in one batch at the first knn search; Lucene mmaps and leaves it to the OS
 src/result_window.rs	new		the per-index result window read from the descriptor settings; core reads it from its index settings
 src/settings_tests.rs	new		tests for what an index's settings do to its open
+src/search_pipeline.rs	port	modules/search-pipeline-common/src/main/java/org/opensearch/search/pipeline/common/OversampleRequestProcessor.java	oversample, truncate_hits and filter_query only; the response side is folded into response_size_cap

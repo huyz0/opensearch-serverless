@@ -23,6 +23,7 @@ mod open_prefetch_layout;
 mod rank_eval;
 mod search;
 mod search_hits;
+mod search_pipeline;
 mod search_template;
 mod shards;
 mod validate_query;

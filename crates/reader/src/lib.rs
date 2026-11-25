@@ -32,6 +32,7 @@ mod result_window;
 pub mod search;
 mod search_error;
 mod search_options;
+pub mod search_pipeline;
 mod search_post_filter;
 mod search_sort;
 mod search_terminate;

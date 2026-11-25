@@ -31,9 +31,10 @@ use oss_reader::overlay::OverlaySource;
 use oss_reader::response::write_response;
 use oss_reader::search::{hits_bytes, search_with};
 use oss_rest::{JSON, Length, Method, Request, Response, RestError, RouteError, Router};
+pub use search_pipeline_run::{PipelineFault, PipelineSource};
 
 /// The query parameters `_search` takes.
-pub const SEARCH_PARAMS: &[&str] = &["size", "from"];
+pub const SEARCH_PARAMS: &[&str] = &["size", "from", "search_pipeline"];
 
 /// An open index and its charge to the `open_indexes` pool, released when
 /// the last search holding it finishes.
@@ -93,6 +94,9 @@ pub struct SearchService<S: BlobStore + 'static> {
     slots: OnceLock<crate::search_slots::Gated>,
     /// Loads the modules an index pins; none, and such an index is refused.
     modules: OnceLock<Arc<dyn crate::search_modules::ModuleOpener>>,
+    /// Where `?search_pipeline=` finds its pipelines; none, and naming one
+    /// is refused.
+    pipelines: OnceLock<Arc<dyn PipelineSource>>,
 }
 
 impl<S: BlobStore + 'static> SearchService<S> {
@@ -124,6 +128,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
             pits: OnceLock::new(),
             slots: OnceLock::new(),
             modules: OnceLock::new(),
+            pipelines: OnceLock::new(),
         }
     }
 
@@ -169,11 +174,16 @@ impl<S: BlobStore + 'static> SearchService<S> {
         resp: &mut Response<'_>,
     ) -> Result<(), RestError> {
         let started = Instant::now();
-        let source = match read_source(req) {
+        let mut source = match read_source(req) {
             Ok(source) => source,
             Err(Answer::Rest(e)) => return Err(e),
             Err(Answer::Search(e)) => return send(resp, &e),
         };
+        match self.run_pipeline(req, &mut source) {
+            Ok(()) => {}
+            Err(Answer::Rest(e)) => return Err(e),
+            Err(Answer::Search(e)) => return send(resp, &e),
+        }
         let Some(index) = req.path_param("index") else {
             return match self.handle_pit(req, resp, &source, started) {
                 Ok(()) => Ok(()),
@@ -208,7 +218,8 @@ impl<S: BlobStore + 'static> SearchService<S> {
         let shard = view.as_deref().unwrap_or(&held.shard);
         req.body().reserve(hits_bytes(&source, shard))?;
         let analyzer = Analyzer::standard(None);
-        let hits = match search_with(shard, &index, &source, &analyzer, held.pinned.as_deref()) {
+        let mut hits = match search_with(shard, &index, &source, &analyzer, held.pinned.as_deref())
+        {
             Ok(hits) => hits,
             Err(e) => {
                 let shard_failure = ShardFailure {
@@ -224,6 +235,9 @@ impl<S: BlobStore + 'static> SearchService<S> {
                 );
             }
         };
+        if let Some(cap) = source.response_size_cap {
+            hits.truncate(cap);
+        }
         let took = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
         let mut body = resp.start(200, Some(JSON), Length::Chunked, &[])?;
         let pool = req.body();
@@ -388,6 +402,8 @@ pub use coordinate::ShardError;
 pub mod open_prefetch;
 #[path = "search_overlay.rs"]
 mod overlay;
+#[path = "search_pipeline_run.rs"]
+mod search_pipeline_run;
 
 #[cfg(test)]
 #[path = "search_tests.rs"]

@@ -108,6 +108,9 @@ pub struct SearchSource {
     pub highlight: Option<HighlightSpec>,
     /// `pit`: the point in time the search runs on.
     pub pit: Option<PitRef>,
+    /// Set by a search pipeline's `truncate_hits`: the hits answered are
+    /// cut to this many. The search itself still asks for `size`.
+    pub response_size_cap: Option<usize>,
 }
 
 impl Default for SearchSource {
@@ -135,6 +138,7 @@ impl Default for SearchSource {
             seq_no_primary_term: false,
             highlight: None,
             pit: None,
+            response_size_cap: None,
         }
     }
 }
