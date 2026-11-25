@@ -287,3 +287,27 @@ fn a_depth_of_two_bounds_the_groups_of_a_shard_in_flight() {
         "{windows} PUTs: depth 2 held six groups together"
     );
 }
+
+// AC-12
+#[test]
+fn a_node_that_takes_over_after_a_pipelined_node_keeps_every_acknowledged_write() {
+    let (c, one) = rig(8);
+    let results = together(&one, &["a", "b", "c", "d"]);
+    assert!(results.iter().all(landed), "{results:?}");
+    let top = results.iter().map(seq).max().expect("some");
+    let calls = Arc::new(AtomicUsize::new(0));
+    let take = takeover(&c, &one, &calls);
+    c.store.set_latency(S3Op::Put, Latency::default());
+    let two = node(&c, "node-2", 2, true, Some(take));
+    // Every acknowledged write is found again, and the next number is past
+    // the highest acknowledged.
+    for id in ["a", "b", "c", "d"] {
+        match write(&two.role, id) {
+            ItemResult::Written { written, .. } => {
+                assert_eq!(written.outcome, Outcome::Updated, "{id} was kept");
+                assert!(written.seq_no > top, "{id} numbered past {top}");
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+}

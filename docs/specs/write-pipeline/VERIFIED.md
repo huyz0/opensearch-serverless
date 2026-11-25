@@ -11,6 +11,7 @@
 - AC-9: `a_refresh_while_groups_are_in_flight_waits_for_them_and_returns` (crates/node/tests/writer_pipeline.rs).
 - AC-10: `a_refresh_after_a_failed_window_does_not_hang_and_the_shard_goes_on` (crates/node/tests/writer_pipeline.rs).
 - AC-11: `a_depth_of_two_bounds_the_groups_of_a_shard_in_flight` (crates/node/tests/writer_pipeline.rs).
+- AC-12: `a_node_that_takes_over_after_a_pipelined_node_keeps_every_acknowledged_write` (crates/node/tests/writer_pipeline.rs).
 
 Scaling (provisional, crates/node/tests/store_usage_measure.rs with `MEASURE_DEPTH`, a debug build on 4 cores over a file store, bulks of 20 documents, a 250 ms window, 64 bulk holders): clients on one index, p50 a bulk, depth 1 against depth 16: 16 clients 3,803 ms against 254 ms; 64 clients 10,388 ms against 521 ms. Depth 1 with 16 and 64 clients also saw the write limiter refuse 52 and 198 bulks as the object store looked slow (an append taking about 5 s); depth 16 refused none at 16 clients and 69 at 64.
 
