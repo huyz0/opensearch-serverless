@@ -136,8 +136,8 @@ pub struct WriterRole {
     visibility: AtomicU8,
     /// What opens a shard a write names and this node does not hold.
     opener: Option<Arc<dyn ShardOpener>>,
-    /// Held while the opener runs, so racing groups open a shard once.
-    opening: Mutex<()>,
+    /// What keeps a shard to one open while others open at once.
+    opening: opener::OpenLocks,
     /// The live node whose head holds a shard this node was asked to write.
     redirects: Mutex<Redirects>,
     hibernation: hibernate::Hibernation,
@@ -177,7 +177,7 @@ impl WriterRole {
             commits: OnceLock::new(),
             visibility: AtomicU8::new(0),
             opener: None,
-            opening: Mutex::new(()),
+            opening: opener::OpenLocks::default(),
             // ALLOC: one entry a shard another node holds that this node was asked to write.
             redirects: Mutex::new(HashMap::new()),
             hibernation: hibernate::Hibernation::default(),
