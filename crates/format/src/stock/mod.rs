@@ -85,8 +85,9 @@ fn header_end(blob: &[u8], codec: &str) -> Result<usize, FormatError> {
     }
     // The codec name is a Lucene string: a little-endian 7-bit length, then
     // that many bytes.
-    let (mut len, mut at, mut shift) = (0usize, 4usize, 0u32);
-    loop {
+    let (mut len, mut at, mut done) = (0usize, 4usize, false);
+    // Three bytes carry 21 bits, far past the longest name read.
+    for shift in [0u32, 7, 14] {
         let b = *blob.get(at).ok_or(FormatError::Truncated {
             what: WHAT,
             needed: 0,
@@ -95,12 +96,12 @@ fn header_end(blob: &[u8], codec: &str) -> Result<usize, FormatError> {
         at = at.saturating_add(1);
         len |= usize::from(b & 0x7F).wrapping_shl(shift);
         if b & 0x80 == 0 {
+            done = true;
             break;
         }
-        shift = shift.saturating_add(7);
-        if shift > 14 {
-            return Err(corrupt(WHAT, "the codec name length is too long"));
-        }
+    }
+    if !done {
+        return Err(corrupt(WHAT, "the codec name length is too long"));
     }
     if len > MAX_CODEC_BYTES {
         return Err(corrupt(WHAT, "the codec name is too long"));
