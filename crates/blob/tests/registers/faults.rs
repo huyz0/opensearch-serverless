@@ -58,12 +58,14 @@ fn an_empty_object_is_no_register() {
                 "{swapped:?}"
             );
         } else {
-            // No generation to compare: refused, never overwritten blind.
+            // The conditional create finds an object there: refused, never
+            // overwritten blind.
             assert!(
-                matches!(swapped, Err(BlobError::Protocol(_))),
+                matches!(swapped, Ok(SwapOutcome::Conflict(_))),
                 "{:?}: {swapped:?}",
                 b.kind
             );
+            assert_eq!(read(s, "e/k"), None, "{:?} still empty", b.kind);
         }
     }
 }
