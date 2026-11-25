@@ -215,3 +215,75 @@ fn a_panic_while_acknowledging_fails_the_slot_and_hangs_nothing() {
     assert_eq!(tries.load(Ordering::Relaxed), 3, "every thread came out");
     assert!(!one.role.held("u1", 0), "the slot was released");
 }
+
+// AC-9
+#[test]
+fn a_refresh_while_groups_are_in_flight_waits_for_them_and_returns() {
+    let (_c, one) = rig(8);
+    let finished = Arc::new(AtomicUsize::new(0));
+    let writers: Vec<_> = (0..3)
+        .map(|n| {
+            let role = Arc::clone(&one.role);
+            let finished = Arc::clone(&finished);
+            std::thread::spawn(move || {
+                let result = write(&role, &format!("r{n}"));
+                finished.fetch_add(1, Ordering::SeqCst);
+                result
+            })
+        })
+        .collect();
+    std::thread::sleep(PUT / 3);
+    assert_eq!(
+        finished.load(Ordering::SeqCst),
+        0,
+        "still waiting for the log"
+    );
+    let asked = Instant::now();
+    one.role.refresh_owned(&info(), 0).expect("refreshes");
+    // The publish waited for the window the groups were in, about what was
+    // left of its PUT.
+    assert!(asked.elapsed() >= PUT / 2, "{:?}", asked.elapsed());
+    let results: Vec<_> = writers
+        .into_iter()
+        .map(|h| h.join().expect("ends"))
+        .collect();
+    assert!(results.iter().all(landed), "{results:?}");
+}
+
+// AC-10
+#[test]
+fn a_refresh_after_a_failed_window_does_not_hang_and_the_shard_goes_on() {
+    let (c, one) = rig(8);
+    c.store.fail_next(S3Op::Put, 1);
+    let writers: Vec<_> = (0..3)
+        .map(|n| {
+            let role = Arc::clone(&one.role);
+            std::thread::spawn(move || write(&role, &format!("f{n}")))
+        })
+        .collect();
+    std::thread::sleep(PUT / 3);
+    // Ok or an error is both fine: it must come back, and publish nothing
+    // unlogged.
+    let _ = one.role.refresh_owned(&info(), 0);
+    for h in writers {
+        assert!(!landed(&h.join().expect("ends")));
+    }
+    c.store.set_latency(S3Op::Put, Latency::default());
+    let again = (0..3).any(|_| landed(&write(&one.role, "after")));
+    assert!(again, "the shard takes writes again");
+}
+
+// AC-11
+#[test]
+fn a_depth_of_two_bounds_the_groups_of_a_shard_in_flight() {
+    let (_c, one) = rig(2);
+    let started = Instant::now();
+    let results = together(&one, &["a", "b", "c", "d", "e", "f"]);
+    let took = started.elapsed();
+    assert!(results.iter().all(landed), "{results:?}");
+    // Six groups, two at a time: at least three windows one after another.
+    assert!(
+        took >= PUT * 2,
+        "{took:?}: depth 2 held six groups together"
+    );
+}
