@@ -115,31 +115,7 @@ impl Hits {
     }
 }
 
-/// A failure on the shard, with the HTTP status it answers with.
-#[derive(Clone, Debug, PartialEq)]
-pub struct ShardError {
-    /// The status.
-    pub status: u16,
-    /// The exception.
-    pub failure: Failure,
-}
-
-impl ShardError {
-    pub(crate) fn bad_request(failure: Failure) -> Self {
-        Self {
-            status: 400,
-            failure,
-        }
-    }
-
-    pub(crate) fn engine(e: impl std::fmt::Display) -> Self {
-        Self {
-            status: 500,
-            // ALLOC: error path; one message.
-            failure: Failure::opensearch("exception", e.to_string()),
-        }
-    }
-}
+pub use crate::search_error::ShardError;
 
 /// The longest term Lucene indexes (`IndexWriter.MAX_TERM_LENGTH`): the
 /// most bytes one keyword sort value can hold.
@@ -257,12 +233,26 @@ pub fn search<S: BlobStore + 'static>(
     source: &SearchSource,
     analyzer: &Analyzer,
 ) -> Result<Hits, ShardError> {
+    search_with(shard, index, source, analyzer, None)
+}
+
+/// As [`search`], with `pinned` analysing the text fields an index pins an
+/// analyzer for; without it a query on one is refused as
+/// `extension_unavailable`.
+pub fn search_with<S: BlobStore + 'static>(
+    shard: &OpenShard<S>,
+    index: &str,
+    source: &SearchSource,
+    analyzer: &Analyzer,
+    pinned: Option<&dyn crate::pinned::PinnedTokens>,
+) -> Result<Hits, ShardError> {
     let meta = &shard.meta;
     let mut cx = QueryContext {
         mapping: &meta.mapping,
         analyzer,
         max_doc: shard.reader.max_doc(),
         knn: None,
+        pinned,
     };
     let (knn, early) = crate::knn::prepare(shard, source.query.as_ref(), &cx)
         .map_err(|f| ShardError::bad_request(shard_failure(f, index, &meta.uuid)))?
@@ -272,7 +262,7 @@ pub fn search<S: BlobStore + 'static>(
         Some(q) => to_lucene(q, &cx),
         None => to_lucene(&crate::dsl::Query::MatchAll { boost: 1.0 }, &cx),
     }
-    .map_err(|f| ShardError::bad_request(shard_failure(f, index, &meta.uuid)))?;
+    .map_err(|f| ShardError::of_query(shard_failure(f, index, &meta.uuid)))?;
     let window = source.from.saturating_add(source.size);
     search_options::check_window(window)?;
     if let Some(what) = source.explain.then(|| explain::refusal(&query)).flatten() {

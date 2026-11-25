@@ -52,6 +52,10 @@ pub enum FieldType {
 pub struct Field {
     /// The type.
     pub ty: FieldType,
+    /// The pin a `text` field is analysed with, when the index pins one
+    /// ([ADR 0053](../../../docs/adr/0053-the-analyzer-extension-point.md));
+    /// none for the standard analyzer.
+    pub analyzer: Option<String>,
     /// `index`, true by default.
     pub indexed: bool,
     /// `doc_values`, true by default.
@@ -169,6 +173,13 @@ impl Mapping {
 
     /// Reads a mapping's JSON source.
     pub fn from_json(json: &str) -> Result<Self, MappingError> {
+        Self::from_json_pinned(json, &[])
+    }
+
+    /// Reads a mapping's JSON source for an index whose settings pin the
+    /// analyzers `pins`: a `text` field that names one is searched with it,
+    /// and any other analyzer leaves the field unsupported.
+    pub fn from_json_pinned(json: &str, pins: &[String]) -> Result<Self, MappingError> {
         let mut rec = Recorder::new(MAX_MAPPING_BYTES);
         let mut tokenizer = Tokenizer::new(Limits::default());
         tokenizer.feed(json.as_bytes(), &mut rec)?;
@@ -184,7 +195,7 @@ impl Mapping {
             p.next_token();
             p.next_token();
         }
-        mapping.object(&mut p, "")?;
+        mapping.object(&mut p, "", pins)?;
         Ok(mapping)
     }
 
@@ -209,12 +220,17 @@ impl Mapping {
     }
 
     /// The body of a mapping or object field: on its start, reads to its end.
-    fn object(&mut self, p: &mut Parser<'_>, prefix: &str) -> Result<(), MappingError> {
+    fn object(
+        &mut self,
+        p: &mut Parser<'_>,
+        prefix: &str,
+        pins: &[String],
+    ) -> Result<(), MappingError> {
         while let Some(Kind::FieldName) = p.next_token() {
             let key = p.text();
             p.next_token();
             if key == "properties" && p.current_token() == Some(Kind::StartObject) {
-                self.properties(p, prefix)?;
+                self.properties(p, prefix, pins)?;
             } else {
                 p.skip_children();
             }
@@ -223,7 +239,12 @@ impl Mapping {
     }
 
     /// `properties`: on its start, reads to its end.
-    fn properties(&mut self, p: &mut Parser<'_>, prefix: &str) -> Result<(), MappingError> {
+    fn properties(
+        &mut self,
+        p: &mut Parser<'_>,
+        prefix: &str,
+        pins: &[String],
+    ) -> Result<(), MappingError> {
         while let Some(Kind::FieldName) = p.next_token() {
             // ALLOC: one full name a field, at most MAX_FIELDS.
             let name = format!("{prefix}{}", p.text());
@@ -231,19 +252,25 @@ impl Mapping {
                 // ALLOC: error path; one message.
                 return Err(MappingError(format!("field [{name}] is not an object")));
             }
-            self.field(p, &name)?;
+            self.field(p, &name, pins)?;
         }
         Ok(())
     }
 
     /// One field's definition: on its start, reads to its end.
-    fn field(&mut self, p: &mut Parser<'_>, name: &str) -> Result<(), MappingError> {
+    fn field(
+        &mut self,
+        p: &mut Parser<'_>,
+        name: &str,
+        pins: &[String],
+    ) -> Result<(), MappingError> {
         let mut ty = None;
         let mut indexed = true;
         let mut doc_values = true;
         let mut options = None;
         let mut dimension = None;
         let mut space = None;
+        let (mut analyzer, mut search, mut quote) = (None, None, None);
         while let Some(Kind::FieldName) = p.next_token() {
             let key = p.text();
             p.next_token();
@@ -264,23 +291,21 @@ impl Mapping {
                         p.skip_children();
                     }
                 }
-                "analyzer" | "search_analyzer" if text == "standard" => {}
-                "analyzer"
-                | "search_analyzer"
-                | "normalizer"
-                | "format"
-                | "search_quote_analyzer" => {
+                "analyzer" => analyzer = Some(text),
+                "search_analyzer" => search = Some(text),
+                "search_quote_analyzer" => quote = Some(text),
+                "normalizer" | "format" => {
                     options = Some(key);
                 }
                 "properties" => {
                     // ALLOC: one prefix an object field, at most MAX_FIELDS.
                     let prefix = format!("{name}.");
-                    self.properties(p, &prefix)?;
+                    self.properties(p, &prefix, pins)?;
                 }
                 "fields" => {
                     // ALLOC: one prefix a field with multi-fields, at most MAX_FIELDS.
                     let prefix = format!("{name}.");
-                    self.properties(p, &prefix)?;
+                    self.properties(p, &prefix, pins)?;
                 }
                 _ => p.skip_children(),
             }
@@ -289,6 +314,22 @@ impl Mapping {
             // An object field: its sub-fields are already in.
             return Ok(());
         };
+        // A pin the index holds, named by the analyzer and by no other
+        // search analyzer, is how the field is searched.
+        let pinned = analyzer
+            .filter(|a| ty == "text" && pins.iter().any(|p| p == a))
+            .filter(|a| search.is_none_or(|s| s == *a) && quote.is_none_or(|q| q == *a));
+        if pinned.is_none() {
+            if analyzer.is_some_and(|a| a != "standard") {
+                options = options.or(Some("analyzer"));
+            }
+            if search.is_some_and(|a| a != "standard") {
+                options = options.or(Some("search_analyzer"));
+            }
+            if quote.is_some() {
+                options = options.or(Some("search_quote_analyzer"));
+            }
+        }
         let is_knn = ty == "knn_vector";
         let ty = match (ty, options) {
             (other, Some(option)) => {
@@ -326,6 +367,8 @@ impl Mapping {
             name.to_owned(),
             Field {
                 ty,
+                // ALLOC: one name a pinned field, at most MAX_FIELDS.
+                analyzer: pinned.map(str::to_owned),
                 indexed,
                 doc_values,
                 knn: dimension.filter(|_| is_knn).map(|dimension| KnnField {
@@ -343,101 +386,5 @@ impl Mapping {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn ty(m: &Mapping, name: &str) -> Option<FieldType> {
-        m.get(name).map(|f| f.ty.clone())
-    }
-
-    #[test]
-    fn types_objects_and_multi_fields() {
-        let m = Mapping::from_json(
-            r#"{"dynamic":"strict","properties":{"title":{"type":"text","fields":{"raw":{"type":"keyword"}}},
-            "year":{"type":"integer"},"n":{"type":"long","index":false},"b":{"type":"byte"},"s":{"type":"short","doc_values":false},
-            "when":{"type":"date"},"user":{"properties":{"name":{"type":"keyword"},"meta":{"enabled":false}}},
-            "geo":{"type":"geo_point"},"en":{"type":"text","analyzer":"english"},"std":{"type":"text","analyzer":"standard"},
-            "lower":{"type":"keyword","normalizer":"lowercase"},"d2":{"type":"date","format":"yyyy"}}}"#,
-        )
-        .expect("parses");
-        assert_eq!(ty(&m, "title"), Some(FieldType::Text));
-        assert_eq!(ty(&m, "title.raw"), Some(FieldType::Keyword));
-        assert_eq!(ty(&m, "std"), Some(FieldType::Text));
-        assert_eq!(
-            ty(&m, "year").map(|t| matches!(
-                t,
-                FieldType::Int {
-                    name: "integer",
-                    ..
-                }
-            )),
-            Some(true)
-        );
-        assert_eq!(
-            ty(&m, "b").map(|t| matches!(
-                t,
-                FieldType::Int {
-                    min: -128,
-                    max: 127,
-                    ..
-                }
-            )),
-            Some(true)
-        );
-        assert_eq!(
-            ty(&m, "s").map(|t| matches!(t, FieldType::Int { name: "short", .. })),
-            Some(true)
-        );
-        assert_eq!(m.get("s").map(|f| f.doc_values), Some(false));
-        assert_eq!(ty(&m, "n"), Some(FieldType::Long));
-        assert_eq!(m.get("n").map(|f| f.indexed), Some(false));
-        assert_eq!(ty(&m, "when"), Some(FieldType::Date));
-        assert_eq!(ty(&m, "user.name"), Some(FieldType::Keyword));
-        assert_eq!(ty(&m, "user"), None, "an object is not a field");
-        assert_eq!(
-            ty(&m, "geo"),
-            Some(FieldType::Unsupported("a [geo_point] field".into()))
-        );
-        assert_eq!(
-            ty(&m, "en"),
-            Some(FieldType::Unsupported(
-                "a [text] field with [analyzer]".into()
-            ))
-        );
-        assert!(matches!(ty(&m, "lower"), Some(FieldType::Unsupported(_))));
-        assert!(matches!(ty(&m, "d2"), Some(FieldType::Unsupported(_))));
-        assert_eq!(m.len(), 13);
-        assert!(!m.is_empty());
-    }
-
-    #[test]
-    fn the_escaped_form_and_the_typed_form() {
-        let m =
-            Mapping::from_escaped(br#"{\"_doc\":{\"properties\":{\"t\":{\"type\":\"text\"}}}}"#)
-                .expect("parses");
-        assert_eq!(ty(&m, "t"), Some(FieldType::Text));
-        assert!(Mapping::from_json("{}").expect("empty").is_empty());
-    }
-
-    #[test]
-    fn malformed_mappings_are_refused() {
-        assert!(Mapping::from_json("[]").is_err());
-        assert!(Mapping::from_json(r#"{"properties":{"a":1}}"#).is_err());
-        assert!(Mapping::from_json("{").is_err());
-        assert!(Mapping::from_escaped(br#"\q"#).is_err());
-        let many: Vec<String> = (0..=MAX_FIELDS)
-            .map(|i| format!(r#""f{i}":{{"type":"long"}}"#))
-            .collect();
-        let json = format!(r#"{{"properties":{{{}}}}}"#, many.join(","));
-        assert_eq!(
-            Mapping::from_json(&json),
-            Err(MappingError(format!("more than [{MAX_FIELDS}] fields")))
-        );
-        let at_limit = format!(r#"{{"properties":{{{}}}}}"#, many[..MAX_FIELDS].join(","));
-        assert_eq!(
-            Mapping::from_json(&at_limit).map(|m| m.len()),
-            Ok(MAX_FIELDS)
-        );
-        assert_eq!(MappingError("x".into()).to_string(), "mapping: x");
-    }
-}
+#[path = "mapping_tests.rs"]
+mod tests;

@@ -282,6 +282,18 @@ impl Leaves<'_, '_> {
     /// lowercasing, a keyword field's none.
     fn normalized(&self, field: &str, text: &str) -> Result<String, Failure> {
         match field_type(self.cx, field)? {
+            Some(FieldType::Text)
+                if self
+                    .cx
+                    .mapping
+                    .get(field)
+                    .is_some_and(|f| f.analyzer.is_some()) =>
+            {
+                // ALLOC: error path; one message.
+                Err(crate::lucene_query::unsupported(&format!(
+                    "a prefix, wildcard or fuzzy term on [{field}], which a pinned analyzer analyses"
+                )))
+            }
             Some(FieldType::Text) => {
                 let bytes = self
                     .cx
