@@ -1,5 +1,7 @@
 # Proactive takeover of the shards a dead node's log names
 
+> Defaults of `max_concurrent` and `pass_millis` below are the original 4 and 30,000; they are 16 and 60,000 since [takeover-concurrency-default](../takeover-concurrency-default/SPEC.md).
+
 ## Serves
 
 Parity plan R8.2 and [ADR 0021](../../adr/0021-proactive-takeover-from-the-node-log.md): a dead node's shards that hold unpublished writes are taken before a write asks, without a claims registry. Builds on [node takeover](../node-takeover/SPEC.md), [writer takeover](../writer-takeover/SPEC.md), [node log takeover](../node-log-replay/SPEC.md) and [janitor node log](../janitor-node-log/SPEC.md).
@@ -55,3 +57,4 @@ Per dead node, per reaper (not per node): the fence of its epochs and their head
 - A reaper that fences a node only partitioned: it loses the epoch and opens a new one, as with any takeover.
 - Memory from restoring many shards at once after a zone loss: bounded by AC-6.
 - A node taking a shard it will not be routed writes for: a stale digest can make reapers disagree: AC-9. No REST surface changes, so no compatibility criterion.
+- AC-23: a forward the peer refused as not owner (the typed `[serverless:not_owner]`) is not the end of the write: the sender reads the shard head as a write would and applies the group where it names, once; when no live node holds the shard it takes it itself. The refusal is the peer's own convention for a steered write the sender takes itself.

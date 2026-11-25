@@ -48,10 +48,10 @@ pub const REAPERS: LongSetting = LongSetting::new(
 );
 
 /// `serverless.takeover.proactive.max_concurrent`: shards one pass takes at
-/// a time. Default 4.
+/// a time. Default 16.
 pub const MAX_CONCURRENT: LongSetting = LongSetting::new(
     "serverless.takeover.proactive.max_concurrent",
-    4,
+    16,
     1,
     64,
     Scope::Node,
@@ -59,10 +59,10 @@ pub const MAX_CONCURRENT: LongSetting = LongSetting::new(
 );
 
 /// `serverless.takeover.proactive.pass_millis`: how long a pass may start
-/// takes for. Default 30,000.
+/// takes for. Default 60,000.
 pub const PASS_MILLIS: LongSetting = LongSetting::new(
     "serverless.takeover.proactive.pass_millis",
-    30_000,
+    60_000,
     1,
     3_600_000,
     Scope::Node,

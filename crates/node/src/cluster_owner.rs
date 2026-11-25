@@ -98,6 +98,10 @@ fn failed_all(
         .collect()
 }
 
+/// What a peer's refusal carries when it does not own the shard: the typed
+/// marker its message ends with.
+const NOT_OWNER_MARK: &str = "[serverless:not_owner]";
+
 /// The wire form of one item, or why it cannot be sent.
 fn operation<'i>(item: &'i Planned<'_>) -> Result<BulkOperation<'i>, &'static str> {
     let a = &item.op.action;
@@ -293,7 +297,13 @@ impl<S: IndexSource, L: Leases, B: BulkSend> Routes for ClusterRoutes<S, L, B> {
                     );
                 }
                 Err(e) => {
-                    return failed_all(group, 503, "unavailable_shards_exception", &e.to_string());
+                    let why = e.to_string();
+                    let kind = if why.contains(NOT_OWNER_MARK) {
+                        crate::writer::NOT_OWNER
+                    } else {
+                        "unavailable_shards_exception"
+                    };
+                    return failed_all(group, 503, kind, &why);
                 }
             }
         }

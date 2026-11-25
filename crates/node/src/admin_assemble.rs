@@ -79,6 +79,11 @@ pub(crate) fn register(
     };
     let router = extensions(router, store, config, budget)?;
     let router = plugin_routes(config, router)?;
+    let scripts =
+        crate::script_route::ScriptService::new(store, &config.base, config.pit_buffer_bytes)
+            .map_err(store_error)?;
+    let router =
+        crate::script_route::routes(router, &Arc::new(scripts)).map_err(AssembleError::Route)?;
     if !config.ingest_pipelines {
         return Ok(router);
     }

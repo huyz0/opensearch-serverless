@@ -84,7 +84,7 @@ pub use proactive::{
 pub use publish_age::publish_age_of;
 pub use publish_timer::PublishTimer;
 pub use publishing::{PublishPass, Publishing};
-pub use routes::Routes;
+pub use routes::{NOT_OWNER, Routes};
 pub use tail::{CommitSink, RefreshVisibility, TailSink};
 pub use takeover::{ModuleLoader, PinnedModules, Takeover};
 pub use target::RoleTarget;

@@ -64,3 +64,4 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0053](0053-the-analyzer-extension-point.md) | The analyzer point: an index pins a WASM module as a named analyzer at creation; every node runs it or refuses | Accepted |
 | [0054](0054-parsed-mappings-are-shared-by-content.md) | Parsed mappings are shared across shards by content, in memory; the descriptor keeps its mapping inline | Accepted |
 | [0055](0055-proactive-takeover-reapers-are-nodes-of-this-build.md) | Proactive takeover picks its reapers only among live nodes of this build | Accepted |
+| [0056](0056-over-share-searches-wait-off-the-workers-in-a-bounded-queue.md) | A tenant's searches over its share of the workers wait off the workers in a bounded queue, and are refused with 429 past its size | Accepted |
