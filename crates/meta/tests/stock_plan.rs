@@ -267,3 +267,22 @@ fn a_missing_blob_fails_the_plan_naming_it() {
         other => panic!("{other}"),
     }
 }
+
+#[test]
+fn every_plan_error_says_what_it_is() {
+    let errors = [
+        StockPlanError::UnknownSnapshot("s1".into()),
+        StockPlanError::UnknownIndex("i1".into()),
+        StockPlanError::Unsupported("why1".into()),
+        StockPlanError::TooLarge("things"),
+        StockPlanError::Corrupt("oops"),
+        StockPlanError::Read(StockReadError::Missing("k1".into())),
+    ];
+    let texts: Vec<String> = errors.iter().map(ToString::to_string).collect();
+    for (t, needle) in texts
+        .iter()
+        .zip(["s1", "i1", "why1", "things", "oops", "k1"])
+    {
+        assert!(t.contains(needle), "{t}");
+    }
+}
