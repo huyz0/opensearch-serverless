@@ -141,8 +141,8 @@ pub use stock::{
     EnvelopeLimits as StockEnvelopeLimits, MAX_ALIASES as STOCK_MAX_ALIASES,
     MAX_CHUNKS as STOCK_MAX_CHUNKS, MAX_FILES as STOCK_MAX_FILES,
     MAX_SETTINGS as STOCK_MAX_SETTINGS, RepositoryData as StockRepositoryData, StockFile,
-    StockIndex, StockIndexMetadata, StockShardSnapshot, StockSnapshot, is_blob_name,
-    to_json as stock_blob_to_json, verified_body as stock_verified_body,
+    StockIndex, StockIndexMetadata, StockNative, StockRefusal, StockShardSnapshot, StockSnapshot,
+    is_blob_name, to_json as stock_blob_to_json, verified_body as stock_verified_body,
 };
 pub use tombstone::{MAX_TOMBSTONE_BYTES, Tombstone, tombstone_bucket, tombstone_bucket_start};
 

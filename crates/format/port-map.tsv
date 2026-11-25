@@ -53,3 +53,4 @@ src/stock/mod.rs	new		the envelope of a stock repository's metadata blobs (Lucen
 src/stock/repository_data.rs	new		the index-N blob (RepositoryData) of a stock repository, read bounded and with every id checked before it joins a blob key; the Java has RepositoryData.snapshotsFromXContent
 src/stock/shard_snapshot.rs	new		the shard snapshot blob (snap-<uuid>.dat) of a stock repository, read bounded; the Java has BlobStoreIndexShardSnapshot and its FileInfo
 src/stock/index_metadata.rs	new		the index metadata blob (meta-<id>.dat) of a stock repository, read bounded to the settings, mapping and aliases a restore uses; the Java has IndexMetadata.fromXContent
+src/stock/native_index.rs	new		the stock index as the native restore's inputs (shard count, mapping, kept settings); no Java counterpart, the shell restores a stock index through IndexMetadata

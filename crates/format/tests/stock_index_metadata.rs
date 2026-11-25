@@ -6,7 +6,7 @@
 
 use oss_format::{
     FormatError, STOCK_MAX_ALIASES, STOCK_MAX_SETTINGS, StockEnvelopeLimits, StockIndexMetadata,
-    stock_blob_to_json,
+    StockRefusal, stock_blob_to_json,
 };
 
 #[allow(clippy::disallowed_methods)] // ARITH: a test reads a recorded fixture.
@@ -129,4 +129,68 @@ fn the_limits_hold_at_their_count_and_one_past() {
         parse(&aliases(STOCK_MAX_ALIASES + 1)),
         Err(FormatError::TooLarge { .. })
     ));
+}
+
+fn keeps(key: &str) -> bool {
+    key == "index.refresh_interval"
+}
+
+fn with(settings: &str) -> StockIndexMetadata {
+    parse(&format!(
+        r#"{{"a":{{"state":"open","settings":{{{settings}}}}}}}"#
+    ))
+    .expect("reads")
+}
+
+#[test]
+fn the_recorded_index_becomes_a_native_one() {
+    let m = StockIndexMetadata::parse(&json("index-metadata.plain.dat")).expect("reads");
+    let n = m
+        .native(&|k| k == "index.refresh_interval")
+        .expect("native");
+    assert_eq!(n.number_of_shards, 2);
+    assert_eq!(n.mapping, m.mapping);
+    // Only what the node keeps is left: identity and replicas are dropped.
+    let text = String::from_utf8(n.settings).expect("utf8");
+    assert!(text.starts_with('{') && text.ends_with('}'), "{text}");
+    assert!(
+        !text.contains("uuid") && !text.contains("replicas"),
+        "{text}"
+    );
+}
+
+#[test]
+fn settings_are_kept_dropped_or_refused() {
+    let m = with(
+        r#""index.number_of_shards":"3","index.uuid":"u","index.refresh_interval":"5s","index.number_of_replicas":"1""#,
+    );
+    let n = m.native(&keeps).expect("native");
+    assert_eq!(n.number_of_shards, 3);
+    assert_eq!(n.settings, br#"{"index.refresh_interval":"5s"}"#);
+    let m = with(r#""index.number_of_shards":"1","index.odd":"x""#);
+    assert_eq!(
+        m.native(&keeps),
+        Err(StockRefusal::Setting("index.odd".into()))
+    );
+}
+
+#[test]
+fn a_shard_count_and_a_partition_size_are_checked() {
+    for count in [
+        r#""index.number_of_shards":"0""#,
+        r#""index.number_of_shards":"x""#,
+        "",
+    ] {
+        assert_eq!(with(count).native(&keeps), Err(StockRefusal::NoShardCount));
+    }
+    let size = |n: &str| {
+        with(&format!(
+            r#""index.number_of_shards":"1","index.routing_partition_size":"{n}""#
+        ))
+        .native(&keeps)
+    };
+    assert!(size("1").is_ok());
+    assert_eq!(size("2"), Err(StockRefusal::PartitionSize));
+    assert_eq!(size("x"), Err(StockRefusal::PartitionSize));
+    assert!(!StockRefusal::PartitionSize.to_string().is_empty());
 }
