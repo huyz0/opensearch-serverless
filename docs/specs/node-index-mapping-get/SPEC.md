@@ -20,10 +20,11 @@ Parity plan R7.4, index admin REST: the read-back of what an index's mapping hol
 - AC-4: a field a write added by dynamic mapping is in the answer once the write is acknowledged, on every node.
 - AC-5: a GET costs one register read and nothing else.
 - AC-6: the descriptor buffer is charged to the request-body pool as the HEAD's is; the parameters the Java consumes without effect (`local`, `include_defaults`, `ignore_unavailable`, `allow_no_indices`, `expand_wildcards`, the timeouts, `wait_for_active_shards`, `include_type_name`, `flat_settings`) are accepted.
+- AC-7: with security on, the route needs `indices:admin/mappings/get` on the index, and has a row in the action table.
 
 ## Test plan
 
-`crates/node/tests/server/index_route/mapping_get.rs` over the emulator for AC-1 to AC-3, AC-5 and AC-6; AC-4 extends `crates/node/tests/dynamic_mapping.rs`.
+`crates/node/tests/server/index_route/mapping_get.rs` over the emulator for AC-1 to AC-3, AC-5 and AC-6; AC-4 extends `crates/node/tests/dynamic_mapping.rs`; AC-7 is `crates/node/tests/server/security_authz.rs`.
 
 ## S3 request budget
 
