@@ -55,3 +55,4 @@ Per dead node, per reaper (not per node): the fence of its epochs and their head
 - A reaper that fences a node only partitioned: it loses the epoch and opens a new one, as with any takeover.
 - Memory from restoring many shards at once after a zone loss: bounded by AC-6.
 - A node taking a shard it will not be routed writes for: a stale digest can make reapers disagree: AC-9. No REST surface changes, so no compatibility criterion.
+- AC-23: a forward the peer refused as not owner (the typed `[serverless:not_owner]`) is not the end of the write: the sender reads the shard head as a write would and applies the group where it names, once; when no live node holds the shard it takes it itself. The refusal is the peer's own convention for a steered write the sender takes itself.
