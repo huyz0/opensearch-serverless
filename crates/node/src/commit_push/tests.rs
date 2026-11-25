@@ -20,6 +20,19 @@ impl LocalTake for Locals {
 
 struct One;
 
+/// A reader of another build, told of every commit.
+struct Other;
+
+impl PushTargets for Other {
+    fn readers(&self, _: &str, _: u32) -> Vec<String> {
+        vec!["this-build".to_owned()]
+    }
+
+    fn other_build_readers(&self, _: &str, _: u32) -> Vec<String> {
+        vec!["other-build".to_owned()]
+    }
+}
+
 impl PushTargets for One {
     fn readers(&self, _: &str, _: u32) -> Vec<String> {
         vec!["reader".to_owned()]
@@ -145,4 +158,33 @@ fn without_the_send_only_a_takeovers_first_commit_goes_to_the_readers() {
     release_tx.send(()).expect("released");
     push.stop();
     assert_eq!(sent.load(Ordering::SeqCst), 1);
+}
+
+// docs/specs/mixed-fleet-push AC-2
+#[test]
+fn without_the_send_every_commit_still_goes_to_the_readers_of_another_build() {
+    struct Names(Mutex<Vec<String>>);
+    impl PushLink for Arc<Names> {
+        fn send(&self, target: &str, _: &PushRequest) -> Result<bool, LinkError> {
+            self.0.lock().expect("lock").push(target.to_owned());
+            Ok(true)
+        }
+    }
+    let locals = Arc::new(Locals(Mutex::new(Vec::new())));
+    let names = Arc::new(Names(Mutex::new(Vec::new())));
+    let push = CommitPush::start(
+        PushSender::new(Other, Arc::clone(&names), true),
+        Arc::clone(&locals) as Arc<dyn LocalTake>,
+        false,
+    )
+    .expect("starts");
+    push.published("logs", "u1", 0, b"routine", false);
+    push.published("logs", "u1", 1, b"taken", true);
+    push.stop();
+    // The routine commit went to the other build only; a takeover's first to
+    // the ranked readers of this one.
+    assert_eq!(
+        *names.0.lock().expect("lock"),
+        ["other-build", "this-build"]
+    );
 }
