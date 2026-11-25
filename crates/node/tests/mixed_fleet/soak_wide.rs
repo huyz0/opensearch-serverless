@@ -138,10 +138,8 @@ fn probe(store: &oss_blob::S3Store, shards: u32) {
             head.writers
         );
         let mut ids: Vec<String> = head.writers.clone();
-        if let Some(owner) = &head.owner_node_id {
-            if !ids.contains(owner) {
-                ids.push(owner.clone());
-            }
+        if let Some(owner) = head.owner_node_id.as_ref().filter(|o| !ids.contains(o)) {
+            ids.push(owner.clone());
         }
         for id in ids {
             eprintln!("WIDE probe   {}", lease(&id));
