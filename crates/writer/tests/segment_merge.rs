@@ -216,3 +216,63 @@ fn segments_the_cap_leaves_alone_never_ask_the_gate() {
     assert_eq!(segments(&dir), 30);
     assert_eq!(shard.merge_failures(), 0);
 }
+
+// docs/specs/writer-segment-merge AC-3: the files of a merged commit, whatever
+// their form, are the files a publish uploads and a reader opens.
+#[test]
+fn a_merged_commit_lists_plain_files_that_all_exist() {
+    let dir = ByteBuffersDirectory::new();
+    let mut shard = shard(&dir, Some(Arc::new(Gate::default())));
+    write_refreshing(&mut shard, 60);
+    let files = shard.committed_files().expect("files");
+    let compound = files.iter().filter(|f| f.ends_with(".cfs")).count();
+    eprintln!(
+        "MERGED FILES {} files, {compound} compound: {files:?}",
+        files.len()
+    );
+    assert_eq!(live_docs(&dir), 60);
+    for name in &files {
+        assert!(
+            lucene_store::Directory::file_length(&dir, name).is_ok(),
+            "{name} is listed and missing"
+        );
+    }
+}
+
+/// The bytes of the files a shard's last commit names, after `rounds` writes
+/// of 40 ids, each id written `rounds / 40` times.
+fn committed_bytes(merge: bool, rounds: u32) -> (u64, usize) {
+    let dir = ByteBuffersDirectory::new();
+    let gate = merge.then(|| Arc::new(Gate::default()));
+    let mut shard = shard(&dir, gate);
+    for i in 0..rounds {
+        let body = format!("{{\"n\":{i}}}");
+        shard
+            .index(
+                &(i % 40).to_string(),
+                body.as_bytes(),
+                false,
+                &Expect::default(),
+            )
+            .expect("indexed");
+        shard.refresh().expect("refresh");
+    }
+    let files = shard.committed_files().expect("files");
+    let bytes = files
+        .iter()
+        .map(|f| lucene_store::Directory::file_length(&dir, f).expect("length"))
+        .sum();
+    (bytes, segments(&dir))
+}
+
+// docs/specs/writer-segment-merge AC-11: a merge keeps soft-deleted documents
+// (retention None), so a shard with updates holds about what it held without
+// merging, in far fewer files.
+#[test]
+fn a_merge_with_updates_holds_about_the_bytes_of_not_merging() {
+    let (off, off_segments) = committed_bytes(false, 400);
+    let (on, on_segments) = committed_bytes(true, 400);
+    eprintln!("AC11 off {off} bytes in {off_segments} segments, on {on} bytes in {on_segments}");
+    assert!(on_segments < off_segments / 4);
+    assert!(on <= off, "{on} bytes merged against {off} unmerged");
+}
