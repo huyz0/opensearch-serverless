@@ -37,3 +37,14 @@ Forces: no extra store request ([principles](../principles.md)); bounded memory 
 - **A request id on every store call.** Changes the store trait and every call site for a number that thread scopes give for the few hand-offs.
 - **A trailer.** Not every client reads them, and the HTTP/1.1 server answers the common case with a whole body.
 - **A per-request share of the window's PUT now.** Needs the window to carry each asking joiner and a splitting scope on the driver and hedge threads (`writer::log::committer`, `hedge`), which is a change to the write path's hot code; left for a follow-up with its own measurement.
+
+## Amendment: a write's share of its commit window
+
+**Status:** Proposed; needs an independent review and the owner's decision, because it touches the write path's hot code ([spec](../specs/request-cost-window/SPEC.md)).
+
+Decision 3 left the window's PUT unreported and named a null scope and `shared=log`; neither was built (the request scope reached the window's driver, so the one writer that happened to drive a window was charged all of its PUT and the others none). This amendment replaces them with the follow-up the alternatives list ends on.
+
+- A window keeps the counters of each writer that joined it with a request scope and the bytes that writer put in. The thread that writes the window enters a **splitting scope** for the whole write (the epoch's lease, admissions, the blob), and the hedge threads of its PUT enter the same one. Every store request and byte count made in it adds to each asking writer its bytes' share of the window's total bytes, in thousandths of a request. A writer that did not ask contributes its bytes to the total and is charged nothing, so the shares add up to at most the window's PUT.
+- A write that asks therefore reports a share of the log PUT, not `put=0` and not the whole blob; `scope=node` still says the number is a lower bound. `shared=log` is not used.
+- Cost: a thread-local read and, for a writer that asked, one entry in the window and a clone of its counters' handle; nothing for a write that did not. No store request is added and none changes: the window's requests are the same with and without a scope. Both modes are tested.
+- Rejected here: charging the whole PUT to the driver (what happened without a scope, and it depends on which thread wins the window); charging it to every asking writer (the shares would add to more than the PUT).
