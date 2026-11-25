@@ -387,7 +387,7 @@ impl NodeConfig {
         let roles = roles::read(get("OSS_ROLES"))?;
         let proactive_rust_reapers_only = flag("OSS_PROACTIVE_RUST_REAPERS_ONLY", "true")?;
         let proactive_reapers = bounded("OSS_PROACTIVE_REAPERS", "2", 1, 16)?;
-        let proactive_max_concurrent = bounded("OSS_PROACTIVE_MAX_CONCURRENT", "4", 1, 64)?;
+        let proactive_max_concurrent = bounded("OSS_PROACTIVE_MAX_CONCURRENT", "16", 1, 64)?;
         let tombstone_sweep_millis = bounded("OSS_TOMBSTONE_SWEEP_MS", "3600000", 0, 604_800_000)?;
         let orphan_slice_budget = ORPHAN_SLICE_BUDGET
             .parse(&or(
@@ -401,7 +401,7 @@ impl NodeConfig {
                 &ORPHAN_SLICE_INTERVAL_MILLIS.default().to_string(),
             ))
             .map_err(|e| format!("OSS_ORPHAN_SLICE_MS: {e}"))?;
-        let proactive_pass_millis = bounded("OSS_PROACTIVE_PASS_MS", "30000", 1, 3_600_000)?;
+        let proactive_pass_millis = bounded("OSS_PROACTIVE_PASS_MS", "60000", 1, 3_600_000)?;
         let cluster_settings_poll_millis =
             bounded("OSS_CLUSTER_SETTINGS_POLL_MS", "30000", 1, 3_600_000)?;
         let refresh_visibility = REFRESH_VISIBILITY
@@ -463,7 +463,7 @@ impl NodeConfig {
             proactive_takeover,
             proactive_reapers: usize::try_from(proactive_reapers).unwrap_or(2),
             proactive_rust_reapers_only,
-            proactive_max_concurrent: usize::try_from(proactive_max_concurrent).unwrap_or(4),
+            proactive_max_concurrent: usize::try_from(proactive_max_concurrent).unwrap_or(16),
             proactive_pass_millis,
             tail_overlay,
             refresh_visibility,
