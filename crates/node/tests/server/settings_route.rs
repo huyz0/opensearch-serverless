@@ -8,6 +8,7 @@ use std::sync::Arc;
 use oss_blob::{BlobStore, Emulator};
 use oss_mem::MemoryBudget;
 use oss_meta::{DeleteMode, DescriptorStore, PitClock, Target};
+use oss_node::alias_route::{AliasService, routes as alias_routes};
 use oss_node::index_route::{IndexService, routes as index_routes};
 use oss_node::settings_route::{SettingsService, routes};
 use oss_rest::{Router, Server};
@@ -30,11 +31,23 @@ fn descriptors(store: &Arc<Emulator>) -> DescriptorStore {
 }
 
 fn rig() -> Rig {
+    rig_capped(1_000)
+}
+
+fn rig_capped(cap: usize) -> Rig {
     let store = Arc::new(Emulator::new(1 << 28, 5));
     let clock: PitClock = Arc::new(|| 1_234_567);
+    let aliases = Arc::new(AliasService::new(
+        descriptors(&store),
+        Arc::clone(&clock),
+        BUF,
+        30_000,
+    ));
     let indices = Arc::new(IndexService::new(descriptors(&store), clock, BUF));
-    let settings = Arc::new(SettingsService::new(descriptors(&store), BUF, false));
+    let settings =
+        Arc::new(SettingsService::new(descriptors(&store), BUF, false).with_pattern_cap(cap));
     let router = index_routes(Router::new(), indices).expect("routes");
+    let router = alias_routes(router, aliases).expect("routes");
     let router = routes(router, &settings).expect("routes");
     let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
     let budget = MemoryBudget::new(&support::budget_config());
@@ -196,4 +209,102 @@ fn a_result_window_is_stored_where_the_reader_reads_it() {
         oss_reader::search::MAX_RESULT_WINDOW + 1
     );
     assert_eq!(call(&r, "PUT", "/a/_settings", Some(&over)).status, 400);
+}
+
+/// The settings version of index `name`, none when it is no index.
+fn version(r: &Rig, name: &str) -> Option<i64> {
+    let mut buf = vec![0u8; BUF];
+    match descriptors(&r.store)
+        .resolve(name, &mut buf)
+        .expect("reads")
+        .target
+    {
+        Target::Index(rec) => Some(rec.settings_version),
+        _ => None,
+    }
+}
+
+fn with_indices(names: &[&str]) -> Rig {
+    let r = rig();
+    for name in names {
+        assert_eq!(call(&r, "PUT", &format!("/{name}"), None).status, 200);
+    }
+    r
+}
+
+const SET: &str = r#"{"index.priority":2}"#;
+
+// docs/specs/settings-update-many AC-1
+#[test]
+fn a_list_of_names_updates_each() {
+    let r = with_indices(&["b", "c"]);
+    let before = [version(&r, "a"), version(&r, "b"), version(&r, "c")];
+    let reply = call(&r, "PUT", "/a,b/_settings", Some(SET));
+    assert_eq!((reply.status, reply.text().as_str()), (200, ACK));
+    assert_eq!(version(&r, "a"), before[0].map(|v| v + 1));
+    assert_eq!(version(&r, "b"), before[1].map(|v| v + 1));
+    assert_eq!(version(&r, "c"), before[2]);
+}
+
+// AC-2
+#[test]
+fn a_prefix_pattern_updates_what_it_matches_and_none_is_acknowledged() {
+    let r = with_indices(&["logs-1", "logs-2", "other"]);
+    let reply = call(&r, "PUT", "/logs-*/_settings", Some(SET));
+    assert_eq!(reply.status, 200, "{}", reply.text());
+    assert_eq!(version(&r, "logs-1"), Some(2));
+    assert_eq!(version(&r, "logs-2"), Some(2));
+    assert_eq!(version(&r, "other"), Some(1));
+    let none = call(&r, "PUT", "/nothing-*/_settings", Some(SET));
+    assert_eq!((none.status, none.text().as_str()), (200, ACK));
+}
+
+// AC-3
+#[test]
+fn an_alias_stands_for_its_members_and_a_repeat_updates_once() {
+    let r = with_indices(&["b"]);
+    assert_eq!(call(&r, "PUT", "/a/_alias/both", None).status, 200);
+    assert_eq!(call(&r, "PUT", "/b/_alias/both", None).status, 200);
+    let reply = call(&r, "PUT", "/both,a,a*/_settings", Some(SET));
+    assert_eq!(reply.status, 200, "{}", reply.text());
+    assert_eq!(version(&r, "a"), Some(2));
+    assert_eq!(version(&r, "b"), Some(2));
+}
+
+// AC-4
+#[test]
+fn every_index_is_named_by_all_a_star_or_no_name() {
+    for target in ["/_settings", "/_all/_settings", "/*/_settings"] {
+        let r = with_indices(&["b"]);
+        let reply = call(&r, "PUT", target, Some(SET));
+        assert_eq!(reply.status, 200, "{target}: {}", reply.text());
+        assert_eq!((version(&r, "a"), version(&r, "b")), (Some(2), Some(2)));
+    }
+}
+
+// AC-5, AC-6
+#[test]
+fn a_refusal_before_the_first_write_changes_nothing() {
+    let r = with_indices(&["b"]);
+    let bad = call(&r, "PUT", "/a,b/_settings", Some(r#"{"index.nope":1}"#));
+    assert_eq!(bad.status, 400);
+    let missing = call(&r, "PUT", "/a,nope,b/_settings", Some(SET));
+    assert_eq!(missing.status, 404, "{}", missing.text());
+    let inner = call(&r, "PUT", "/a,l*g/_settings", Some(SET));
+    assert_eq!(inner.status, 501, "{}", inner.text());
+    assert!(inner.text().contains("l*g"));
+    assert_eq!((version(&r, "a"), version(&r, "b")), (Some(1), Some(1)));
+}
+
+// docs/specs/settings-update-many AC-4
+#[test]
+fn a_pattern_past_the_cap_is_refused_and_changes_nothing() {
+    let r = rig_capped(2);
+    for name in ["b", "c"] {
+        assert_eq!(call(&r, "PUT", &format!("/{name}"), None).status, 200);
+    }
+    let reply = call(&r, "PUT", "/_settings", Some(SET));
+    assert_eq!(reply.status, 400, "{}", reply.text());
+    assert!(reply.text().contains("too_many_indices"));
+    assert_eq!(version(&r, "a"), Some(1));
 }
