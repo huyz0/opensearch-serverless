@@ -249,7 +249,7 @@ fn is_leap(year: i64) -> bool {
     (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
 }
 
-fn days_in_month(year: i64, month: i64) -> i64 {
+pub(crate) fn days_in_month(year: i64, month: i64) -> i64 {
     match month {
         2 if is_leap(year) => 29,
         2 => 28,
@@ -262,7 +262,7 @@ fn days_in_month(year: i64, month: i64) -> i64 {
 /// `days_from_civil`), for a year of at most four digits.
 // ARITH: a year of 0..=9999 keeps every intermediate within a few million.
 #[allow(clippy::arithmetic_side_effects)]
-fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
+pub(crate) fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
     let y = if month <= 2 { year - 1 } else { year };
     let era = y.div_euclid(400);
     let yoe = y - era * 400;

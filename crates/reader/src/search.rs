@@ -264,6 +264,7 @@ pub fn search_with<S: BlobStore + 'static>(
         max_doc: shard.reader.max_doc(),
         knn: None,
         pinned,
+        now_millis: source.now_millis,
     };
     let (knn, early) = crate::knn::prepare(shard, source.query.as_ref(), &cx)
         .map_err(|f| ShardError::bad_request(shard_failure(f, index, &meta.uuid)))?
