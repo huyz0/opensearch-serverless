@@ -343,7 +343,7 @@ impl NodeConfig {
                 );
             }
         };
-        let store_usage = flag("OSS_STORE_USAGE", "false")?;
+        let store_usage = flag("OSS_STORE_USAGE", "true")?;
         let store_usage_max_indices = bounded("OSS_STORE_USAGE_MAX_INDICES", "1000", 1, 1_000_000)?;
         let tenant_levels = match or("OSS_TENANT_LEVELS", "observe").as_str() {
             "off" => "off",

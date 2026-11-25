@@ -19,3 +19,18 @@ Run by hand: `cargo test -p oss-node --all-features --test store_usage_measure -
 | 3 | 400 bulks, p50 507.9 ms, p99 515.6 ms | 400 bulks, p50 508.6 ms, p99 530.2 ms (+3%) |
 
 Run 1 had a slow stretch with usage on (one round) and runs 2 and 3 do not repeat it, so the cost on p99 is not established either way: two runs are within 5% and one is not. The default stays off until a run repeats clean. Before the write-concurrency fix every write on a node waited alone for its own commit window, which hid any such cost (the same test then measured about 120 bulks, p50 2,034 ms, with either setting).
+
+### Six more runs, after the pipeline work (provisional)
+
+The same command on the same setup, now at about 254 ms a bulk (one window), 768 bulks a leg (the earlier runs were slower because every write waited for its own window):
+
+| Run | Usage off p99 | Usage on p99 | Change |
+|---|---|---|---|
+| 1 | 268.0 ms | 302.5 ms | +12.9% |
+| 2 | 261.9 ms | 265.8 ms | +1.5% |
+| 3 | 260.5 ms | 267.6 ms | +2.7% |
+| 4 | 260.2 ms | 263.0 ms | +1.1% |
+| 5 | 262.3 ms | 261.5 ms | -0.3% |
+| 6 | 260.7 ms | 262.6 ms | +0.7% |
+
+The p50 is the same in every run (254.0 to 254.3 ms) and no write was rejected. Run 1 is the first after a build and, like the earlier slow stretch, ran one round long (usage on, max 332.8 ms); runs 2 to 6 repeat clean, five in a row within 5% (median +1.1%). Taking the earlier three runs too, seven of nine are within 5%, and the two that are not were the first run after a build, with the slow stretch not reproduced by any later run. The default is on: the cost is two atomic adds and a thread-local read a store attempt, measured within 5% of write p99, with no added request. `OSS_STORE_USAGE=false` turns it off, and both settings are tested.
