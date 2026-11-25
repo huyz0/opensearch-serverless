@@ -1,6 +1,6 @@
 # 0057: A Rust owner answers the Java search-shard action
 
-**Status:** Proposed, 2026-11-25
+**Status:** Accepted after independent review (three rounds), 2026-11-25; the lease-age bound was accepted by the owner
 
 ## Context
 
