@@ -14,3 +14,4 @@
 - AC-9: `the_action_is_registered_when_the_setting_is_on_and_not_when_it_is_off` in crates/node/src/boot/search_shard.rs, and `the_forwarded_search_action_is_on_and_each_setting_is_read_and_bounded` in crates/node/src/boot/config/tests.rs (NOT-RUN: a Java request served with it on, in the wide soak)
 - AC-10: NOT-RUN: not built yet.
 - AC-11: NOT-RUN: not built yet.
+- AC-12: `a_request_the_java_shell_wrote_is_written_back_byte_for_byte` (the fixtures `match_all`, `no_query` and `options`), `a_request_with_another_query_is_refused_by_the_writer` and `a_written_request_reads_back_the_same` in crates/transport/tests/search_shard.rs. The first run of the byte test failed on `options`: the model keeps a timeout in milliseconds and Java wrote 2 seconds, so the writer chooses the largest exact unit. NOT-RUN: a Java node reading a Rust-written request
