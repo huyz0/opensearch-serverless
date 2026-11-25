@@ -15,7 +15,7 @@ use oss_transport::frame::VariableHeader;
 use oss_transport::server::{Handler, Request};
 use oss_transport::stream::{Input, Output};
 use oss_transport::version::WireVersion;
-use oss_writer::bulk::{IndexInfo, ItemResult, Owner, Planned};
+use oss_writer::bulk::{IndexInfo, ItemResult, Owner, Planned, WriteBlock};
 use oss_writer::log::{
     CommitterConfig, EpochLease, NodeLogCommitter, NodeLogStore, Refusal, ShardAdmission,
 };
@@ -51,11 +51,14 @@ fn info() -> IndexInfo {
     }
 }
 
-struct Indexes;
+struct Indexes(WriteBlock);
 
 impl Routes for Indexes {
     fn index(&self, name: &str) -> Option<IndexInfo> {
-        (name == "docs").then(info)
+        (name == "docs").then(|| IndexInfo {
+            write_block: self.0,
+            ..info()
+        })
     }
 
     fn owner(&self, _: &IndexInfo, _: u32) -> Owner {
@@ -68,6 +71,10 @@ impl Routes for Indexes {
 }
 
 fn handler() -> (BulkHandler, Arc<WriterRole>) {
+    handler_with(WriteBlock::None)
+}
+
+fn handler_with(block: WriteBlock) -> (BulkHandler, Arc<WriterRole>) {
     let store = Arc::new(Emulator::new(1 << 28, 9));
     let log = NodeLogStore::new(store as Arc<dyn BlobStore>, "", "node-1").expect("names");
     let committer = Arc::new(NodeLogCommitter::new(
@@ -80,7 +87,7 @@ fn handler() -> (BulkHandler, Arc<WriterRole>) {
             ..CommitterConfig::default()
         },
     ));
-    let routes: Arc<dyn Routes> = Arc::new(Indexes);
+    let routes: Arc<dyn Routes> = Arc::new(Indexes(block));
     let role = Arc::new(WriterRole::new(committer, Arc::clone(&routes)));
     role.open_shard(
         &info(),
@@ -244,4 +251,26 @@ fn a_shard_that_cannot_be_opened_fails_its_items_not_the_request() {
     let answer = send(&handler, &request(1, vec![op("a", "{}"), op("b", "{}")])).expect("answered");
     assert_eq!(answer.outcomes.len(), 2);
     assert!(answer.outcomes.iter().all(|o| o.failure.is_some()));
+}
+
+// docs/specs/index-blocks AC-1, AC-2: the owner refuses what the block stops,
+// whatever the sender's view of the index was.
+#[test]
+fn an_owner_refuses_the_items_a_write_block_stops() {
+    let (handler, role) = handler_with(WriteBlock::AllowDelete);
+    let mut gone = op("b", "{}");
+    gone.deletion = true;
+    let answer = send(&handler, &request(0, vec![op("a", "{\"n\":1}"), gone])).expect("answers");
+    let failure = answer.outcomes[0].failure.as_deref().expect("refused");
+    assert!(failure.contains("blocked by: [FORBIDDEN/12/"), "{failure}");
+    assert!(answer.outcomes[1].failure.is_none());
+    role.refresh(&info(), 0).expect("refreshes");
+    assert!(role.get(&info(), 0, "a", true).expect("reads").is_none());
+
+    let (handler, role) = handler_with(WriteBlock::Full);
+    let answer = send(&handler, &request(0, vec![op("a", "{\"n\":1}")])).expect("answers");
+    let failure = answer.outcomes[0].failure.as_deref().expect("refused");
+    assert!(failure.contains("blocked by: [FORBIDDEN/8/"), "{failure}");
+    role.refresh(&info(), 0).expect("refreshes");
+    assert!(role.get(&info(), 0, "a", true).expect("reads").is_none());
 }

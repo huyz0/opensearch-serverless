@@ -20,7 +20,7 @@ pub enum WriteBlock {
 
 impl WriteBlock {
     /// The refusal for a write of `kind` to `index`, none when it passes.
-    pub(super) fn refusal(self, kind: &Kind, index: &str) -> Option<Exception> {
+    pub fn refusal(self, kind: &Kind, index: &str) -> Option<Exception> {
         let block = match self {
             Self::Full => "FORBIDDEN/8/index write (api)",
             Self::AllowDelete if !matches!(kind, Kind::Delete) => {
