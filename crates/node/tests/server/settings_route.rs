@@ -108,7 +108,8 @@ fn a_refused_update_changes_nothing() {
         (r#"{"index.number_of_shards":3}"#, 501),
         (r#"{"index.refresh_interval":"soon"}"#, 400),
         (r#"{"index.codec":"best_compression"}"#, 501),
-        (r#"{"index.blocks.read":true}"#, 501),
+        (r#"{"index.blocks.read":"yes"}"#, 400),
+        (r#"{"index.blocks.metadata":2}"#, 400),
         (r#"{"index.blocks.write":"yes"}"#, 400),
         (r#"{"index.max_result_window":10001}"#, 400),
         (r#"{"index.max_result_window":0}"#, 400),
@@ -307,4 +308,34 @@ fn a_pattern_past_the_cap_is_refused_and_changes_nothing() {
     assert_eq!(reply.status, 400, "{}", reply.text());
     assert!(reply.text().contains("too_many_indices"));
     assert_eq!(version(&r, "a"), Some(1));
+}
+
+// docs/specs/index-blocks-read-metadata AC-3, AC-4
+#[test]
+fn a_metadata_block_refuses_a_settings_change_but_not_lifting_itself() {
+    let r = rig();
+    let set = r#"{"index.blocks.metadata":true}"#;
+    assert_eq!(call(&r, "PUT", "/a/_settings", Some(set)).status, 200);
+    let before = stored(&r);
+    let reply = call(&r, "PUT", "/a/_settings", Some(SET));
+    assert_eq!(reply.status, 403, "{}", reply.text());
+    assert!(reply.text().contains("cluster_block_exception"));
+    assert!(reply.text().contains("FORBIDDEN/9/index metadata (api)"));
+    assert_eq!(stored(&r), before);
+    // A change that sets only block settings goes through, so the block can lift.
+    let both = r#"{"index.blocks.read":true,"index.blocks.metadata":false}"#;
+    assert_eq!(call(&r, "PUT", "/a/_settings", Some(both)).status, 200);
+    assert_eq!(call(&r, "PUT", "/a/_settings", Some(SET)).status, 200);
+}
+
+// AC-5
+#[test]
+fn a_metadata_blocked_index_among_several_refuses_before_any_write() {
+    let r = with_indices(&["b"]);
+    let set = r#"{"index.blocks.metadata":true}"#;
+    assert_eq!(call(&r, "PUT", "/b/_settings", Some(set)).status, 200);
+    let (a, b) = (version(&r, "a"), version(&r, "b"));
+    let reply = call(&r, "PUT", "/a,b/_settings", Some(SET));
+    assert_eq!(reply.status, 403, "{}", reply.text());
+    assert_eq!((version(&r, "a"), version(&r, "b")), (a, b));
 }

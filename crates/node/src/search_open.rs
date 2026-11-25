@@ -303,6 +303,11 @@ pub(super) fn open_failure(index: &str, e: ReaderError) -> Answer {
             let failure = Failure::opensearch("cluster_block_exception", e.to_string());
             Answer::Search(Box::new(SearchError::request(503, failure)))
         }
+        ReaderError::ReadBlocked(_) => {
+            // ALLOC: error path; one message and one box.
+            let failure = Failure::opensearch("cluster_block_exception", e.to_string());
+            Answer::Search(Box::new(SearchError::request(403, failure)))
+        }
         e => {
             // ALLOC: error path; one message.
             let failure = Failure::opensearch("exception", e.to_string());

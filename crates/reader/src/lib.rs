@@ -36,6 +36,8 @@ mod search_post_filter;
 mod search_sort;
 mod search_terminate;
 mod search_top;
+#[cfg(test)]
+mod settings_tests;
 pub mod shard_files;
 mod shared_mapping;
 pub mod template;

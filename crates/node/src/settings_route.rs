@@ -32,24 +32,22 @@ const PATTERN_CAP: usize = 1_000;
 
 const ACKNOWLEDGED: &str = "{\"acknowledged\":true}";
 
-/// Core settings that change what a node does, and are refused until each is
-/// implemented: storing one and ignoring it would break the promise the
-/// client made by setting it.
-fn behaviour_changing(key: &str) -> bool {
-    matches!(key, "index.blocks.read" | "index.blocks.metadata")
-}
-
 /// The most hits a search window may be set to: a search's hits are held in
 /// memory, so the node bounds the window (the reader's `MAX_RESULT_WINDOW`).
 const WINDOW_CEILING: u32 = 10_000;
 
 const WINDOW_KEY: &str = "index.max_result_window";
 
-/// The write blocks a bulk reads from the descriptor.
+/// The block settings: the write blocks a bulk reads from the descriptor, the
+/// read block a reader opens with, and the metadata block this route checks.
 fn write_block_key(key: &str) -> bool {
     matches!(
         key,
-        "index.blocks.write" | "index.blocks.read_only" | "index.blocks.read_only_allow_delete"
+        "index.blocks.write"
+            | "index.blocks.read_only"
+            | "index.blocks.read_only_allow_delete"
+            | "index.blocks.read"
+            | "index.blocks.metadata"
     )
 }
 
@@ -61,15 +59,13 @@ struct Registry {
 impl Scope for Registry {
     fn classify(&self, key: &str, value: Option<&str>) -> Kind {
         // Core declares these; the update's own refusals answer for them.
-        if behaviour_changing(key)
-            || matches!(
-                key,
-                "index.number_of_shards"
-                    | "index.number_of_replicas"
-                    | "index.search.default_pipeline"
-                    | "index.serverless.shard_mode"
-            )
-        {
+        if matches!(
+            key,
+            "index.number_of_shards"
+                | "index.number_of_replicas"
+                | "index.search.default_pipeline"
+                | "index.serverless.shard_mode"
+        ) {
             return Kind::Core { dynamic: true };
         }
         if write_block_key(key) {
@@ -118,6 +114,36 @@ impl Scope for Registry {
                 }),
         )
     }
+}
+
+/// Whether the stored settings set the block `key` to `true`.
+fn holds_block(settings: &[u8], key: &str) -> bool {
+    let Ok(Json::Obj(top)) = parse_json(settings) else {
+        return false;
+    };
+    // ALLOC: the stored settings, bounded by the descriptor.
+    let mut held: Vec<(String, Json)> = Vec::new();
+    flat_members(&top, "", &mut held);
+    held.iter()
+        .any(|(k, v)| k == key && text_of(v).trim() == "true")
+}
+
+/// The refusal of a settings change to an index with a metadata block,
+/// unless the change sets only block settings (so the block can be lifted).
+fn metadata_blocked(index: &str, settings: &[u8], requested: &[Setting]) -> Result<(), RestError> {
+    if requested
+        .iter()
+        .all(|(k, _)| k.starts_with("index.blocks."))
+        || !holds_block(settings, "index.blocks.metadata")
+    {
+        return Ok(());
+    }
+    Err(refuse(
+        403,
+        "cluster_block_exception",
+        // ALLOC: error path; one message.
+        format!("index [{index}] blocked by: [FORBIDDEN/9/index metadata (api)];"),
+    ))
 }
 
 /// A setting's value as the text a request gives.
@@ -228,16 +254,6 @@ impl SettingsService {
         )?;
         let requested =
             parse(Some(&body), &self.registry).map_err(|r| refuse(r.status, r.kind, r.reason))?;
-        if let Some((key, _)) = requested.iter().find(|(k, _)| behaviour_changing(k)) {
-            return Err(refuse(
-                501,
-                "unsupported_setting",
-                // ALLOC: error path; one message.
-                format!(
-                    "{key} is not supported: it changes what a node does, and this node would store it and not act on it"
-                ),
-            ));
-        }
         req.body().reserve(self.buffer_bytes.saturating_mul(2))?;
         // ALLOC: two buffers a request, buffer_bytes each, reserved above.
         let mut read = vec![0u8; self.buffer_bytes];
@@ -245,6 +261,21 @@ impl SettingsService {
         // Every name is resolved before the first write, so a name that is
         // no index refuses the whole request.
         let targets = self.targets(&expression, &mut read)?;
+        // A metadata block refuses the whole request before the first write.
+        if !requested
+            .iter()
+            .all(|(k, _)| k.starts_with("index.blocks."))
+        {
+            for index in &targets {
+                let held = self
+                    .descriptors
+                    .resolve(index, &mut read)
+                    .map_err(|e| failed(&e.to_string()))?;
+                if let Target::Index(record) = held.target {
+                    metadata_blocked(index, record.settings, &requested)?;
+                }
+            }
+        }
         for index in &targets {
             self.update_one(index, &requested, preserve, &mut read, &mut write)?;
         }
