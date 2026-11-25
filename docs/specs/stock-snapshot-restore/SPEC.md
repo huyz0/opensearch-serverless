@@ -6,20 +6,21 @@ Parity plan R14.8, [ADR 0060](../../adr/0060-stock-snapshot-restore-reads-a-sour
 
 ## Acceptance criteria
 
-- AC-1: A SMILE decoder turns the SMILE documents a stock repository writes (`meta-*.dat`, `snap-*.dat`, shard `snap-*.dat`) into the JSON the same document would have as JSON: every value type, shared key and string back-references, long and big numbers, raw binary as base64; a document nested deeper than 64 levels or longer than its bound is refused. Test: a table of documents recorded from a stock node, each compared with its JSON, plus decoder unit tests for each token class.
-- AC-2: A blob in the stock envelope (Lucene header with the codec name and version 1, SMILE or compressed SMILE body, Lucene footer) is read only after its footer checksum verifies; a wrong codec name, a short blob or a bad checksum is refused naming the blob.
-- AC-3: The repository's current generation is read from `index.latest` and `index-N` parsed as `RepositoryData`: the snapshots with their uuid and state, the indices with their ids and each shard's generation. A repository without `index.latest` is refused 400 and makes no LIST.
-- AC-4: A restore of a stock snapshot creates each index under its name or under `rename_pattern`/`rename_replacement`, from `meta-<uuid>.dat` of its snapshot, with the mapping and the settings a Rust index may keep, a new uuid and the shard count; each shard's files are copied whole (a `.partN` chunk set joined in order) into the first-term directory and a manifest landed. The restored index answers a search with what the stock snapshot captured. Test: a snapshot recorded from a stock OpenSearch 3.10 node, restored, searched, with the stock node's own answers recorded beside it.
-- AC-5: A file whose bytes read do not match the recorded length, or whose chunks are missing, fails the restore, and every index it created is deleted as the native restore's failures are.
-- AC-6: The restore refuses, before any write: `include_global_state`, a partial or failed snapshot, a source-only snapshot, a Lucene version the reader does not open, and every option the native restore refuses (501); a snapshot or index not in the repository (404); a missing `index.latest` (400).
-- AC-7: `fs` locations are resolved under the roots in `OSS_STOCK_REPO_ROOTS`; a location outside them, or a path that escapes by `..` or a symlink, is refused 400 and nothing is read.
-- AC-8: With `serverless.snapshots.stock.enabled` off (the default) a stock repository registers and its restore answers 501 with no request; the native repository's rows in the request-budget table are unchanged.
-- AC-9: Requests are `index.latest`, `index-N`, one snapshot blob, one metadata blob an index, one shard generation blob and one shard snapshot blob a shard, then one write and one ranged read for each buffer of each file, and the restore's descriptor and manifest writes; no LIST. Rows in `docs/request-budgets.md`.
-- AC-10: The restored index is marked until every manifest has landed, exactly as [snapshot-restore](../snapshot-restore/SPEC.md) AC-9.
+The native restore's name resolution, refusals and cleanup are reused ([snapshot-restore](../snapshot-restore/SPEC.md) AC-2, AC-3, AC-8, AC-9 are inherited, not re-specified).
+
+- AC-1: A SMILE decoder in `oss-format` turns the SMILE documents a stock repository writes into the JSON the same document would have as JSON: every value type, shared keys and shared string back-references, int, long, big integer, float, double and big decimal, raw binary as base64. Bounds: depth 64, 1,024 shared keys, 1,024 shared strings, a string of 16 MiB, 64 MiB of output, reserved before allocated. Tests: documents recorded from a stock OpenSearch 3.10 node (how: `fixtures/snapshots/stock/README.md`) each equal to its JSON, a unit test for each token class, and a hostile-input test for each bound (a bomb of nested arrays, a back-reference past the table, a truncated length, a document over the output cap).
+- AC-2: A blob in the stock envelope (Lucene header with the codec name and version 1, SMILE or compressed SMILE body, Lucene footer) is decoded only after its footer checksum verifies, and a compressed body only up to 64 MiB decompressed; a wrong codec name, a short blob, a bad checksum or a decompression bomb is refused naming the blob.
+- AC-3: The generation is read from `index.latest` and `index-N` (at most 64 MiB, one buffer from the request-body pool) parsed as `RepositoryData`: the snapshots with uuid and state, the indices with ids. A repository without `index.latest` is refused 400 and makes no LIST.
+- AC-4: A restore creates each requested index under its name or its rename, from its `meta-<uuid>.dat`, with the mapping and settings a Rust index may keep, a new uuid and the stock shard count, and each shard's files copied whole into the first-term directory with a manifest landed. The restored index answers a search with what the stock snapshot captured. Test: a recorded stock 3.10 snapshot restored and searched, with the stock node's own answers recorded beside it.
+- AC-5: A file whose length, or Lucene footer CRC, does not match the stock file list, or whose chunks are missing, fails the restore and every index it created is deleted, with its blobs. Tests: a planted truncated file, a planted flipped byte, a planted missing chunk (fixtures named in the README).
+- AC-6: Refused before any write: `include_global_state`, a partial or failed snapshot, a source-only snapshot, a Lucene version the reader does not open, a routing partition size above 1, a mapping a create would refuse, a shard of more than 10,000 files or a file of more than 10,000 chunks (501); an unknown snapshot or index (404); a missing `index.latest` (400); more than 100 indices or 4,096 shards (400 `snapshot_too_large`); and what the native restore refuses (501 for a key it does not serve, 400 for an unknown one).
+- AC-7: A source outside the allow-lists is refused 400 and nothing is read: an `fs` location outside `OSS_STOCK_REPO_ROOTS`, or reached by `..` or a symlink (tested on Unix; the CI runners are Linux), and an `s3` bucket and prefix outside `OSS_STOCK_REPO_S3_ROOTS` or overlapping this deployment's own bucket and prefix. The source store answers every write and delete with an error (tested for each method).
+- AC-8: With `serverless.snapshots.stock.enabled` off (the default) a stock repository registers and its restore answers 501 with no request; with it on, the AC-4 restore passes. The native repository's budget rows are unchanged.
+- AC-9: Requests are the four rounds of the ADR (`index.latest`; `index-N`; the snapshot blob and one metadata blob for each requested index; one shard blob for each shard), then one write and one ranged read for each buffer of each file, then the restore's descriptor and manifest writes; no LIST, on `fs` and on the RustFS leg alike (the test asserts zero LISTs on both), and the metadata of indices not requested is not read. Budget rows `snapshot.stock_restore.requests` (one index, one shard, the fixture's files), `snapshot.stock_restore.round_trips` (the four rounds, then the copy) and `snapshot.stock_restore_cleanup.requests` (a failed restore of that index), each exact, with the counts recorded when the fixture is recorded.
 
 ## Test plan
 
-AC-1 and AC-2: unit tests in the document crate and the format crate. AC-3 to AC-10: server tests over an `fs` store holding a recorded stock repository under `fixtures/snapshots/stock/` (generated by a script against an OpenSearch 3.10 node; the README says how). A RustFS leg holds AC-9 over `s3`.
+AC-1 and AC-2: unit tests in the document crate and the format crate. AC-3 to AC-9: server tests over an `fs` store holding a recorded stock repository under `fixtures/snapshots/stock/` (generated by a script against an OpenSearch 3.10 node; the README says how). A RustFS leg holds AC-9 over `s3`.
 
 ## S3 request budget
 
@@ -27,7 +28,7 @@ See AC-9; the restore's cost scales with files and bytes, not with indices idle.
 
 ## Bounds
 
-The SMILE decoder and the metadata blobs are bounded (decoded size, depth 64, a blob read through the request-body pool); data files stream through one buffer as the native restore's copy does.
+As numbers in the ADR: `index-N` 64 MiB, a metadata or shard blob 16 MiB (64 MiB decompressed), 100 indices, 4,096 shards, 10,000 files a shard, 10,000 chunks a file, SMILE depth 64, 1,024 shared keys and strings, 16 MiB a string, 64 MiB of output. Data files stream through one buffer as the native restore's copy does.
 
 ## Switch
 
@@ -35,8 +36,8 @@ The SMILE decoder and the metadata blobs are bounded (decoded size, depth 64, a 
 
 ## Risks
 
-A stock repository written by a version whose layout differs (the 3.x layout is the one supported); a path the operator names that holds other data (held by the allow-list and the read-only store).
+A stock repository written by a version whose layout differs (the 3.x layout is the one supported); a source the operator names that holds other data (held by the allow-lists, the refusal of this deployment's own bucket, and the read-only store); the same snapshot restored twice at once (the native restore's own property).
 
 ## Build order
 
-1. SMILE decoder (AC-1). 2. Envelope and `RepositoryData` (AC-2, AC-3). 3. Metadata to descriptor (AC-4 mapping and settings). 4. Shard copy and manifest (AC-4 files, AC-5, AC-9). 5. Route, allow-list and switch (AC-6 to AC-8, AC-10).
+1. SMILE decoder in `oss-format` (AC-1). 2. Envelope and `RepositoryData` (AC-2, AC-3). 3. Metadata to descriptor (AC-4 mapping and settings, AC-6). 4. Shard copy with CRC and manifest (AC-4 files, AC-5, AC-9). 5. Source stores, allow-lists, route and switch (AC-7, AC-8). Each step updates `docs/compatibility.md` and the request-budget rows it spends.
