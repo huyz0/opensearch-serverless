@@ -19,4 +19,4 @@
 
 Scaling (provisional, crates/node/tests/store_usage_measure.rs with `MEASURE_DEPTH`, a debug build on 4 cores over a file store, bulks of 20 documents, a 250 ms window, 64 bulk holders): clients on one index, p50 a bulk, depth 1 against depth 16: 16 clients 3,803 ms against 254 ms; 64 clients 10,388 ms against 521 ms. Depth 1 with 16 and 64 clients also saw the write limiter refuse 52 and 198 bulks as the object store looked slow (an append taking about 5 s); depth 16 refused none at 16 clients and 69 at 64.
 
-The default stays 1 until the rest of the ADR's tests exist. At depth 8: the whole `oss-node` test suite passes with depth 8; at one client p50 254.8 ms and p99 259.1 ms at depth 1 against 255.1 and 259.6 ms at depth 16 (provisional, same setup), a difference under 1%; PUTs a window are unchanged (AC-3 asserts no more PUTs than groups).
+The default is 8. At depth 8: the whole `oss-node` test suite passes with depth 8; at one client p50 254.8 ms and p99 259.1 ms at depth 1 against 255.1 and 259.6 ms at depth 16 (provisional, same setup), a difference under 1%; PUTs a window are unchanged (AC-3 asserts no more PUTs than groups).
