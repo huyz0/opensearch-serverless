@@ -394,3 +394,48 @@ fn binary_text_fits_the_output_cap_exactly_and_not_a_byte_less() {
         Err(FormatError::TooLarge { .. })
     ));
 }
+
+#[test]
+fn short_unicode_strings_read_at_every_length_from_34_to_65_bytes() {
+    // 0xA0 is a 34-byte unicode string, 0xBF a 65-byte one.
+    for len in [34usize, 40, 65] {
+        let s: String = "é".repeat(len / 2) + &"a".repeat(len % 2);
+        assert_eq!(s.len(), len);
+        let mut body = vec![0xA0 + (len - 34) as u8];
+        body.extend(s.as_bytes());
+        assert_eq!(
+            plain(&doc(0, &body)).expect("short unicode"),
+            format!("\"{s}\""),
+            "{len} bytes"
+        );
+    }
+}
+
+#[test]
+fn a_long_shared_value_reference_reaches_entries_past_255() {
+    // 301 distinct four-character strings fill the value table; the
+    // reference 0xED 0x2C is (1 << 8) + 44 = 300, the last one.
+    let mut body = vec![0xF8];
+    for i in 0..301u32 {
+        body.push(0x43);
+        body.extend(format!("s{i:03}").as_bytes());
+    }
+    body.extend([0xED, 0x2C, 0xF9]);
+    let json = plain(&doc(2, &body)).expect("long reference");
+    assert!(json.ends_with(r#","s300","s300"]"#), "{json}");
+}
+
+#[test]
+fn a_long_shared_name_reference_reaches_entries_past_255() {
+    // 301 distinct four-character names fill the table; 0x31 0x2C is
+    // (1 << 8) + 44 = 300, the last one.
+    let mut body = vec![0xFA];
+    for i in 0..301u32 {
+        body.push(0x83);
+        body.extend(format!("k{i:03}").as_bytes());
+        body.push(0x21);
+    }
+    body.extend([0x31, 0x2C, 0x21, 0xFB]);
+    let json = plain(&doc(1, &body)).expect("long name reference");
+    assert!(json.ends_with(r#""k300":null,"k300":null}"#), "{json}");
+}
