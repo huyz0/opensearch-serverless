@@ -73,7 +73,12 @@ pub struct Node {
 }
 
 pub fn cluster() -> Cluster {
-    let store = Arc::new(Emulator::new(64 << 20, 1));
+    cluster_of(64 << 20)
+}
+
+/// A cluster whose emulator holds `bytes`.
+pub fn cluster_of(bytes: u64) -> Cluster {
+    let store = Arc::new(Emulator::new(bytes, 1));
     let dynstore: Arc<dyn BlobStore> = store.clone();
     let membership = Arc::new(
         Membership::new(
@@ -373,6 +378,7 @@ pub fn config(enabled: bool) -> ProactiveConfig {
         max_concurrent: 4,
         pass: Duration::from_secs(30),
         stagger_millis: 10_000,
+        rust_reapers_only: false,
     }
 }
 

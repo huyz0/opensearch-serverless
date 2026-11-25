@@ -170,3 +170,75 @@ fn a_dead_node_whose_lease_names_no_epochs_is_not_due_and_a_pass_makes_no_reques
     assert_eq!(calls.load(Ordering::SeqCst), 0, "no lease read for it");
     assert!(two.role.held_shards().is_empty());
 }
+
+// docs/specs/proactive-takeover AC-22
+#[test]
+fn reapers_are_chosen_only_among_live_nodes_of_this_build_when_asked() {
+    let c = cluster();
+    let one = first_writer(&c);
+    let calls = Arc::new(AtomicUsize::new(0));
+    let take = takeover(&c, &one, &calls);
+    let predecessors = Arc::clone(&take.predecessors);
+    let two = node(&c, "node-2", 2, true, Some(take));
+    let ids = ["n1", "n2", "n3", "n4", "n5", "n6"];
+    let mut r = refreshed(&ids, dead(&one));
+    let mut live = r.live.to_vec();
+    for lease in &mut live {
+        // Only n5 and n6 are of this build; the rest are another build's.
+        lease.version = match lease.node_id.as_str() {
+            "n5" | "n6" => Some(format!("{}0.1.0", oss_node::read_forward::BUILD_PREFIX)),
+            "n1" => None,
+            _ => Some("3.0.0".to_owned()),
+        };
+    }
+    r.live = live.into();
+    let of = |id: &str, only: bool| {
+        let mut cfg = config(true);
+        cfg.rust_reapers_only = only;
+        ProactiveTakeover::new(id, cfg, Arc::clone(&two.role), Arc::clone(&predecessors))
+    };
+    for id in ids {
+        let acts = !of(id, true).due(&r, i64::MAX).is_empty();
+        assert_eq!(acts, id == "n5" || id == "n6", "{id} with the switch on");
+    }
+    let off: Vec<_> = ids
+        .iter()
+        .filter(|id| !of(id, false).due(&r, i64::MAX).is_empty())
+        .collect();
+    assert_eq!(off.len(), 2, "the switch off keeps the old choice: {off:?}");
+}
+
+// docs/specs/proactive-takeover AC-22
+#[test]
+fn with_no_live_node_of_this_build_nobody_is_a_reaper_and_the_next_waits_its_turn() {
+    let c = cluster();
+    let one = first_writer(&c);
+    let calls = Arc::new(AtomicUsize::new(0));
+    let take = takeover(&c, &one, &calls);
+    let predecessors = Arc::clone(&take.predecessors);
+    let two = node(&c, "node-2", 2, true, Some(take));
+    let ids = ["n1", "n2", "n3"];
+    let mut r = refreshed(&ids, dead(&one));
+    let mut live = r.live.to_vec();
+    for lease in &mut live {
+        lease.version = Some("3.0.0".to_owned());
+    }
+    r.live = live.clone().into();
+    let of = |id: &str| {
+        let mut cfg = config(true);
+        cfg.rust_reapers_only = true;
+        ProactiveTakeover::new(id, cfg, Arc::clone(&two.role), Arc::clone(&predecessors))
+    };
+    for id in ids {
+        assert!(of(id).due(&r, i64::MAX).is_empty(), "{id}");
+    }
+    // Two of this build: the second waits one stagger past the first.
+    for lease in &mut live {
+        lease.version = Some(format!("{}0.1.0", oss_node::read_forward::BUILD_PREFIX));
+    }
+    r.live = live.into();
+    let ranked = reapers_for("node-1", r.live.iter(), 2);
+    assert_eq!(of(ranked[0]).due(&r, 1_000).len(), 1);
+    assert!(of(ranked[1]).due(&r, 10_999).is_empty());
+    assert_eq!(of(ranked[1]).due(&r, 11_000).len(), 1);
+}

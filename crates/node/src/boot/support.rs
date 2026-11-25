@@ -90,6 +90,7 @@ pub(super) fn proactive_takeover(
             reapers: config.proactive_reapers,
             max_concurrent: config.proactive_max_concurrent,
             pass: Duration::from_millis(config.proactive_pass_millis),
+            rust_reapers_only: config.proactive_rust_reapers_only,
             stagger_millis: i64::try_from(config.renew_every().as_millis()).unwrap_or(i64::MAX),
         },
         role,

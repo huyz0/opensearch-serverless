@@ -70,6 +70,16 @@ pub const PASS_MILLIS: LongSetting = LongSetting::new(
      did not reach are taken by a later pass or by the next write.",
 );
 
+/// `serverless.takeover.proactive.rust_reapers_only`: pick the reapers among
+/// the live members of this build only. Default `true`.
+pub const RUST_REAPERS_ONLY: BoolSetting = BoolSetting::new(
+    "serverless.takeover.proactive.rust_reapers_only",
+    true,
+    Scope::Node,
+    "Choose the nodes that take a dead node's shards only among live members of this build: a \
+     node of another build never runs the pass, so a shard left to it would wait for a write.",
+);
+
 /// The longest log header a pass reads: a header over it is refused from its
 /// prefix and its shards are left to the lazy path.
 pub const MAX_HEADER_BYTES: u64 = 8 << 20;
@@ -80,6 +90,7 @@ pub static SETTINGS: &[&Setting] = &[
     REAPERS.setting(),
     MAX_CONCURRENT.setting(),
     PASS_MILLIS.setting(),
+    RUST_REAPERS_ONLY.setting(),
 ];
 
 /// The pass's settings, as the node read them.
@@ -93,6 +104,8 @@ pub struct Config {
     pub max_concurrent: usize,
     /// The `PASS_MILLIS` setting.
     pub pass: Duration,
+    /// The `RUST_REAPERS_ONLY` setting.
+    pub rust_reapers_only: bool,
     /// How long each reaper after the first waits past the lease's expiry:
     /// one refresh interval, per rank.
     pub stagger_millis: i64,
@@ -170,6 +183,16 @@ impl Attempt {
     }
 }
 
+/// Whether a member is a node of this build family (the `oss-rust/` version
+/// prefix), the only kind that can run the pass. It does not say the node has
+/// the pass switched on, or is new enough to have it.
+fn same_build(lease: &NodeLease) -> bool {
+    lease
+        .version
+        .as_deref()
+        .is_some_and(|v| v.starts_with(crate::read_forward::BUILD_PREFIX))
+}
+
 /// The proactive take of a dead node's shards.
 pub struct ProactiveTakeover {
     node_id: String,
@@ -231,8 +254,12 @@ impl ProactiveTakeover {
                 if dead.node_log.is_empty() {
                     return false;
                 }
-                let reapers =
-                    reapers_for(&dead.node_id, refreshed.live.iter(), self.config.reapers);
+                let only = self.config.rust_reapers_only;
+                let reapers = reapers_for(
+                    &dead.node_id,
+                    refreshed.live.iter().filter(|l| !only || same_build(l)),
+                    self.config.reapers,
+                );
                 let Some(rank) = reapers.iter().position(|id| *id == self.node_id) else {
                     return false;
                 };

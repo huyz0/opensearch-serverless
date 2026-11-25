@@ -177,3 +177,4 @@ src/alias_route/mod.rs	new		alias add, remove and read routes over the alias mut
 src/alias_route/parse.rs	new		the names, write flag and action list an alias request asks for
 src/boot/config/tests/resident.rs	new		tests for the resident page bound setting
 src/script_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/StoredScriptHandler.java	the put, get and delete routes over the scripts document set; the Java compiles a script at put, this node stores it uncompiled and refuses a named context
+src/boot/config/tests/proactive.rs	new		tests for the proactive takeover reaper switch

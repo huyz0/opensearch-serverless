@@ -75,7 +75,7 @@ mod tests {
             assert_eq!(
                 keys.len(),
                 7 + 6 * usize::from(reader)
-                    + if writer { 37 + usize::from(reader) } else { 0 }
+                    + if writer { 38 + usize::from(reader) } else { 0 }
                     + usize::from(reader && writer)
                     + usize::from(writer && cfg!(feature = "coordinator"))
             );
@@ -114,6 +114,7 @@ mod tests {
                 "serverless.takeover.proactive.reapers",
                 "serverless.takeover.proactive.max_concurrent",
                 "serverless.takeover.proactive.pass_millis",
+                "serverless.takeover.proactive.rust_reapers_only",
                 "serverless.activation.hibernate_after_millis",
                 "serverless.activation.give_back_after_millis",
                 "serverless.activation.max_shards",

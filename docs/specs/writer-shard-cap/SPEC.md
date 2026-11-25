@@ -42,4 +42,4 @@ Held by `evicting_a_published_shard_costs_one_put_and_a_shard_with_unpublished_w
 
 - With hibernation and give-back off (their defaults), a shard evicted whose head could not be released stays recorded asleep, its head naming this node, until it is written again or the record is a day old; the record count is bounded by those failed releases.
 - An eviction under steady demand above the cap thrashes: each open evicts what the next one needs. `evict_after_millis` is the guard, as in the Java: a shard used within it is never evicted, so a node whose shards are all hot refuses, and the refusal counter reads that as capacity.
-- Opens are serialised by the role's opening lock, so an eviction's requests delay other opens while it runs.
+- With a cap set, opens are serialised (one lock for the whole open), so an eviction's requests delay other opens while it runs; without a cap, opens of different shards run together (docs/specs/takeover-scale).
