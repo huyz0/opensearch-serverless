@@ -167,4 +167,8 @@ fn an_owner_answers_from_its_unpublished_tail_and_asks_the_store_for_nothing() {
         "{text}"
     );
     assert!(!text.contains(r#"{"n":1}"#), "the replaced source is gone");
+    // Every hit scores 1.0, so they tie: they keep the shard's document
+    // order, the rewritten `a` before the new `c`, as Lucene's top docs do.
+    let (seven, nine) = (text.find(r#"{"n":7}"#), text.find(r#"{"n":9}"#));
+    assert!(seven < nine, "tied hits keep document order: {text}");
 }
