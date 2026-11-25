@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use lucene_search::directory_reader::DirectoryReader;
 use oss_doc::mapping::Mapping;
+use oss_ext::analyzer::Analyze;
 use oss_format::WalRecord;
 
 use super::{BuildError, Copies, Overlay, candidate_ids, find_copies, local_checkpoint};
@@ -73,14 +74,35 @@ pub fn build_ready(
     records: &[WalRecord<'_>],
     max_bytes: usize,
 ) -> Result<Ready, BuildError> {
+    build_ready_with(commit, mapping_json, records, max_bytes, &[])
+}
+
+/// As [`build_ready`], indexing the fields that pin an analyzer with the
+/// module `modules` names.
+///
+/// # Errors
+///
+/// As [`build_ready`].
+pub fn build_ready_with(
+    commit: &DirectoryReader,
+    mapping_json: &str,
+    records: &[WalRecord<'_>],
+    max_bytes: usize,
+    modules: &[(String, Arc<dyn Analyze>)],
+) -> Result<Ready, BuildError> {
     let checkpoint = local_checkpoint(commit);
     let ids = candidate_ids(records, checkpoint)?;
     let copies = find_copies(commit, &ids)?;
-    let mapping =
-        Mapping::from_descriptor((!mapping_json.trim().is_empty()).then_some(mapping_json))
-            // ALLOC: one message on a failed build.
-            .map_err(|e| BuildError::Engine(format!("mapping: {e:?}")))?;
-    let overlay = Overlay::build_over(&mapping, records, checkpoint, max_bytes, &copies)?;
+    let text = (!mapping_json.trim().is_empty()).then_some(mapping_json);
+    let mapping = if modules.is_empty() {
+        Mapping::from_descriptor(text)
+    } else {
+        Mapping::from_descriptor_pinned(text)
+    }
+    // ALLOC: one message on a failed build.
+    .map_err(|e| BuildError::Engine(format!("mapping: {e:?}")))?;
+    let overlay =
+        Overlay::build_over_with(&mapping, records, checkpoint, max_bytes, &copies, modules)?;
     Ok(Ready::new(overlay, copies))
 }
 
@@ -95,6 +117,13 @@ pub trait CommitAccess: Send + Sync {
 
     /// The name of the index the commit belongs to.
     fn index_name(&self) -> &str;
+
+    /// The analyzers the index's pins loaded, by pin name; none for an
+    /// index that pins nothing.
+        // ALLOC: empty; no allocation.
+        Vec::new()
+        Vec::new()
+    }
 }
 
 /// Where a node's searches get the overlay of a shard. A search never

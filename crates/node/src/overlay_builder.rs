@@ -21,8 +21,8 @@ use oss_format::WalRecord;
 use oss_mem::{MemoryBudget, Pool, Reservation};
 use oss_reader::commit_push::Stage;
 use oss_reader::overlay::{
-    CommitAccess, OverlaySource, Ready, build_ready, estimate_bytes, kept_bytes, local_checkpoint,
-    mask_bytes,
+    CommitAccess, OverlaySource, Ready, build_ready_with, estimate_bytes, kept_bytes,
+    local_checkpoint, mask_bytes,
 };
 use oss_transport::actions::tail::{FetchRequest, FetchResponse, NEW, Record, ShardRef};
 use oss_transport::stream::TaskId;
@@ -421,11 +421,12 @@ impl Inner {
             return;
         };
         self.builds.fetch_add(1, Ordering::Relaxed);
-        let Ok(ready) = build_ready(
+        let Ok(ready) = build_ready_with(
             job.commit.reader(),
             job.commit.mapping_json(),
             &records,
             estimate,
+            &job.commit.modules(),
         ) else {
             return;
         };

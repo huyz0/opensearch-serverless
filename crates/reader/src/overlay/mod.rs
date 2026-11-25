@@ -12,6 +12,7 @@ mod source;
 mod view;
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use lucene_index::index_writer::IndexWriter;
 use lucene_index::segment_info::LuceneVersion;
@@ -21,10 +22,11 @@ use oss_doc::document;
 use oss_doc::fast::FastIngest;
 use oss_doc::lucene::{Indexer, Meta};
 use oss_doc::mapping::Mapping;
+use oss_ext::analyzer::Analyze;
 use oss_format::WalRecord;
 
 pub use commit::{Copies, Copy, find_copies, local_checkpoint, mask_bytes};
-pub use source::{CommitAccess, OverlaySource, Ready, build_ready};
+pub use source::{CommitAccess, OverlaySource, Ready, build_ready, build_ready_with};
 pub use view::{Masks, combine};
 
 /// The most distinct ids one overlay replaces or deletes; more leaves the
@@ -203,6 +205,23 @@ impl Overlay {
         max_bytes: usize,
         copies: &Copies,
     ) -> Result<Self, BuildError> {
+        Self::build_over_with(mapping, records, local_checkpoint, max_bytes, copies, &[])
+    }
+
+    /// As [`Self::build_over`], indexing the fields that pin an analyzer
+    /// with the module `modules` names.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::build`].
+    pub fn build_over_with(
+        mapping: &Mapping,
+        records: &[WalRecord<'_>],
+        local_checkpoint: i64,
+        max_bytes: usize,
+        copies: &Copies,
+        modules: &[(String, Arc<dyn Analyze>)],
+    ) -> Result<Self, BuildError> {
         // Nothing is allocated for the index until both caps have passed.
         let (kept, ids) = latest(records, local_checkpoint, copies)?;
         let estimate = estimate_kept(&kept);
@@ -220,6 +239,9 @@ impl Overlay {
                 IndexWriter::open(&directory, Vec::new(), "Lucene104", VERSION).map_err(engine)?;
             writer.enable_explicit_documents().map_err(engine)?;
             let mut indexer = Indexer::new();
+            for (name, module) in modules {
+                indexer = indexer.with_module(name, Arc::clone(module));
+            }
             let mut fast = FastIngest::new();
             // ALLOC: one document a kept index record, at most MAX_IDS.
             let mut docs = Vec::new();
