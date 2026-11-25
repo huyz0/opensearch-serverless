@@ -10,7 +10,7 @@ use oss_blob::BlobStore;
 use oss_coordinator::indices::create::CreateRequest;
 use oss_coordinator::indices::create_inherit::inherit;
 use oss_coordinator::route::resolve::Refusal;
-use oss_coordinator::templates::resolve;
+use oss_coordinator::templates::{Inherited, resolve};
 use oss_format::DocKind;
 use oss_meta::{DocSet, DocSetCache, MetaError};
 
@@ -63,21 +63,39 @@ impl TemplateSets {
         marker: &mut [u8],
         body: &mut [u8],
     ) -> Result<CreateRequest, Refusal> {
+        match self.inherited(index, marker, body)? {
+            Some(inherited) => inherit(request, &inherited),
+            None => Ok(request),
+        }
+    }
+
+    /// What the template that matches `name` gives an index; `None` when no
+    /// template is stored. The requests are those of [`TemplateSets::apply`].
+    ///
+    /// # Errors
+    ///
+    /// A [`Refusal`] for an unreadable store or template.
+    pub fn inherited(
+        &self,
+        name: &str,
+        marker: &mut [u8],
+        body: &mut [u8],
+    ) -> Result<Option<Inherited>, Refusal> {
         let templates = self
             .index
             .snapshot(&self.index_cache, marker, body)
             .map_err(failed)?;
         let mut docs = templates.docs().peekable();
         if docs.peek().is_none() {
-            return Ok(request);
+            return Ok(None);
         }
         let components = self
             .component
             .snapshot(&self.component_cache, marker, body)
             .map_err(failed)?;
-        let inherited = resolve(docs, |name| components.get(name), index)
-            .map_err(|e| Refusal::new(400, "invalid_index_template_exception", e.to_string()))?;
-        inherit(request, &inherited)
+        resolve(docs, |n| components.get(n), name)
+            .map(Some)
+            .map_err(|e| Refusal::new(400, "invalid_index_template_exception", e.to_string()))
     }
 }
 

@@ -13,11 +13,13 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use oss_blob::BlobStore;
-use oss_coordinator::indices::admin::{check_name, delete_ack, delete_failed, no_such_index};
+use oss_coordinator::indices::admin::{
+    BACKING_INDEX_PREFIX, check_name, delete_ack, delete_failed, no_such_index, write_index_refusal,
+};
 use oss_coordinator::route::resolve::Refusal;
 use oss_meta::{
     AliasClock, AliasMutations, DescriptorStore, IndexLifecycle, MetaError, PitClock,
-    PointInTimeStore, ReclaimQueue,
+    PointInTimeStore, ReclaimQueue, Target,
 };
 use oss_rest::{Exception, JSON, Method, Request, Response, RestError, RouteError, Router};
 
@@ -149,6 +151,11 @@ impl DeleteService {
         }
         req.body()
             .reserve(self.buffer_bytes.saturating_mul(BUFFERS))?;
+        if index.starts_with(BACKING_INDEX_PREFIX)
+            && let Some(stream) = self.stream_writing_to(&index)?
+        {
+            return Err(refusal(write_index_refusal(&index, &stream)));
+        }
         let now = || self.now();
         let pause = |d: Duration| std::thread::sleep(d);
         let deleted = self
@@ -167,6 +174,32 @@ impl DeleteService {
                 no_such_index(&index)
             })),
         }
+    }
+
+    /// The data stream whose write index `index` is, found through the
+    /// aliases its descriptor hints: one read, and one more for each hint.
+    fn stream_writing_to(&self, index: &str) -> Result<Option<String>, RestError> {
+        // ALLOC: one buffer, only for a name that begins with the backing prefix.
+        let mut buf = vec![0u8; self.buffer_bytes];
+        let failed = |e: MetaError| refuse(500, "index_delete_failure", e.to_string());
+        let hints: Vec<String> = match self.descriptors.get(index, &mut buf).map_err(failed)? {
+            // ALLOC: one name a hint, bounded by the descriptor.
+            Some(record) => record.aliased_by.iter().map(|n| n.to_string()).collect(),
+            None => return Ok(None),
+        };
+        for name in hints {
+            if let Target::Alias(alias) = self
+                .descriptors
+                .resolve(&name, &mut buf)
+                .map_err(failed)?
+                .target
+                && alias.data_stream
+                && alias.write_index() == Some(index)
+            {
+                return Ok(Some(name));
+            }
+        }
+        Ok(None)
     }
 
     /// What [`DeleteService::remove`] holds while it runs, for a caller to

@@ -36,6 +36,8 @@ pub mod commit_push;
 pub(crate) mod core_settings;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub(crate) mod create_settings;
+#[cfg(all(feature = "writer", feature = "coordinator"))]
+pub mod data_stream_route;
 #[cfg(feature = "writer")]
 pub mod descriptor_routes;
 #[cfg(feature = "writer")]

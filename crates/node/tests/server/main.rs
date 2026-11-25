@@ -42,6 +42,8 @@ mod bulk_route;
 mod by_query_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod cluster_assemble;
+#[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
+mod data_stream_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod doc_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
