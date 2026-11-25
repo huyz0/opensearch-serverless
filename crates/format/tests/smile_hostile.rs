@@ -439,3 +439,22 @@ fn a_long_shared_name_reference_reaches_entries_past_255() {
     let json = plain(&doc(1, &body)).expect("long name reference");
     assert!(json.ends_with(r#""k300":null,"k300":null}"#), "{json}");
 }
+
+#[test]
+fn a_binary_is_refused_one_byte_past_the_string_limit() {
+    let limits = SmileLimits {
+        string_bytes: 3,
+        ..SmileLimits::default()
+    };
+    let of = |n: usize| {
+        let mut body = vec![0xFD];
+        body.extend(vint(n as u64));
+        body.extend(vec![0u8; n]);
+        doc(4, &body)
+    };
+    assert!(run(&of(3), &limits).is_ok());
+    assert!(matches!(
+        run(&of(4), &limits),
+        Err(FormatError::TooLarge { .. })
+    ));
+}
