@@ -84,7 +84,7 @@ src/search_validate.rs	port	server/src/main/java/org/opensearch/rest/action/admi
 src/writer/dead_logs.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/shard/ShardSettlement.java	collectNodeLog reads: the fenced epochs, the shard names in the headers, the commit checkpoint
 src/search_field_caps.rs	port	server/src/main/java/org/opensearch/rest/action/admin/indices/RestFieldCapabilitiesAction.java	_field_caps over named indices: type, searchable and aggregatable per field, merged by type
 src/writer/dead_log_pass.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/reconcile/BackgroundReconciler.java	which dead nodes a node reaps, the collection pass over them and the wait that backs off
-src/search_msearch.rs	port	server/src/main/java/org/opensearch/rest/action/search/RestMultiSearchAction.java	_msearch: header and body lines streamed, each search run as its line ends, items written as they finish
+src/search_msearch.rs	port	server/src/main/java/org/opensearch/rest/action/search/RestMultiSearchAction.java	_msearch and _msearch/template: header and body lines streamed, each search run as its line ends, items written as they finish
 src/search_analyze.rs	port	server/src/main/java/org/opensearch/action/admin/indices/analyze/TransportAnalyzeAction.java	_analyze: simpleAnalyze over the standard and keyword analyzers, positions and offsets across texts
 src/index_cache.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/metadata/ServerlessIndexResolver.java	the routing cache of an index, confirmed by the change stripes
 src/boot/support.rs	new		the store a configuration names, the epochs an earlier process left and the id bytes of a node
@@ -211,3 +211,8 @@ src/vector_warm_setting.rs	new		whether a segment's vector files are read whole 
 src/boot/config/tests/vector_warm.rs	new		tests of the vector warm variable
 src/usage_extensions.rs	new		what each tenant's extension module calls cost, in the usage body
 src/metadata_block.rs	new		the index.blocks.metadata check shared by the settings, alias and delete routes
+src/assemble_writer.rs	new		the Writer struct, moved out of assemble.rs for its size
+src/search_pipeline_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/SearchPipelineHandler.java	put, get and delete routes over the document set; the stored pipeline a search names is read here
+src/search_pipeline_run.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/SearchPlanner.java	the search_pipeline parameter: pipeline_missing, _none, the request side before the search
+src/writer/merging.rs	new		the node gate and settings for merging a shard small segments: one merge at a time inside a memory reservation (ADR 0059)
+src/writer/configure.rs	new		what the node configuration sets on the writer role, split out of assembly to keep it under the size limit

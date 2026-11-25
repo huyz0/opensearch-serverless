@@ -1,6 +1,7 @@
 //! Tests; compiled only under `#[cfg(test)]` from the parent module.
 
 use super::*;
+use crate::date;
 use crate::dsl::parse_chunks;
 
 const MAPPING: &str = r#"{"properties":{"title":{"type":"text"},"tag":{"type":"keyword"},
@@ -8,6 +9,10 @@ const MAPPING: &str = r#"{"properties":{"title":{"type":"text"},"tag":{"type":"k
     "geo":{"type":"geo_point"},"hidden":{"type":"keyword","index":false}}}"#;
 
 fn built(body: &str) -> Result<BooleanQuery, Failure> {
+    built_at(body, None)
+}
+
+fn built_at(body: &str, now_millis: Option<i64>) -> Result<BooleanQuery, Failure> {
     let mapping = Mapping::from_json(MAPPING).expect("mapping");
     let analyzer = Analyzer::standard(None);
     let cx = QueryContext {
@@ -16,6 +21,7 @@ fn built(body: &str) -> Result<BooleanQuery, Failure> {
         max_doc: 5,
         knn: None,
         pinned: None,
+        now_millis,
     };
     let source = parse_chunks([body.as_bytes()]).expect("parses");
     to_lucene(source.query.as_ref().expect("a query"), &cx)
@@ -298,4 +304,19 @@ fn minimum_should_match_specs() {
     }
     let f = calculate_min_should_match(1, "5%x").expect_err("fails");
     assert_eq!(f.reason, "For input string: \"5%\"");
+}
+
+#[test]
+fn now_in_a_date_range_is_the_instant_given_and_refused_without_one() {
+    let now = date::parse_to_millis("2002-07-01T10:15:30Z", false).expect("date");
+    let body = r#"{"query":{"range":{"published":{"gte":"now-1h","lt":"now/d+1d"}}}}"#;
+    let q = built_at(body, Some(now)).expect("builds");
+    let from = now - 3_600_000;
+    let to = date::parse_to_millis("2002-07-02", false).expect("date") - 1;
+    assert_eq!(q.must, vec![longs("published", from, to)]);
+    let refused = built(body).expect_err("no instant");
+    assert!(
+        format!("{refused:?}").contains("not supported"),
+        "{refused:?}"
+    );
 }

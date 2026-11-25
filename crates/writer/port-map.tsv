@@ -81,3 +81,6 @@ src/index/shard/soft.rs	new		the soft-delete update of a replaced or deleted doc
 tests/pinned_analyzer.rs	new		tests of a shard indexing a pinned field with its module
 src/index/shard/growth.rs	new		what a shard's writes added to its mapping, kept for the descriptor, split out of the shard to keep it under the size limit
 src/bulk/block.rs	new		the write block a bulk reads from an index and the refusal it answers; core applies it through cluster state
+src/index/shard/commit.rs	new		a shard refresh and the files of its last commit, split out of the shard to keep it under the size limit
+src/index/shard/merge.rs	new		merging a shard small segments after a refresh under a node gate; the engine merges inside commit with no gate (ADR 0059)
+tests/segment_merge.rs	new		tests of a shard merging small segments under a gate

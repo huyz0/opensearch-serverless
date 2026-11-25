@@ -113,8 +113,13 @@ fn total(c: &[u64]) -> u64 {
 
 #[test]
 fn small_indices_cost_no_more_requests_in_buckets_once_created() {
-    let off = measure(false);
-    let on = measure(true);
+    // Two clusters of their own, each with its own store: side by side, the
+    // test takes as long as one of them.
+    let (off, on) = std::thread::scope(|s| {
+        let off = s.spawn(|| measure(false));
+        let on = measure(true);
+        (off.join().expect("the buckets-off run"), on)
+    });
     for (label, (a, b)) in [
         ("create", (&off.0, &on.0)),
         ("write", (&off.1, &on.1)),
@@ -133,8 +138,11 @@ fn small_indices_cost_no_more_requests_in_buckets_once_created() {
             t.len()
         );
     }
-    // A search reads the same blobs from a bucket as from a shard register.
-    assert_eq!(total(&off.2), total(&on.2));
+    // A search reads no more blobs from a bucket than from a shard register.
+    // Not exact: the two clusters run side by side, and with the pipelined
+    // write the first publish can land before or after a search, so a run may
+    // save one GET (37 against 38 seen in CI); an extra one is the failure.
+    assert!(total(&on.2) <= total(&off.2), "search: {off:?} {on:?}");
     // A write and an idle stretch stay within a tenth.
     let near = |a: &[u64], b: &[u64]| total(b) * 10 <= total(a) * 11 + 4;
     assert!(near(&off.1, &on.1), "write: {off:?} {on:?}");

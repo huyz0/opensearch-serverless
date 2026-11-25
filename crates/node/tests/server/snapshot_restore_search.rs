@@ -24,7 +24,7 @@ use oss_node::snapshot_route::{SnapshotService, routes};
 use oss_node::snapshot_take_route::SnapshotTakeService;
 use oss_rest::Router;
 use oss_testkit::TempDir;
-use oss_writer::index::{Expect, Shard};
+use oss_writer::index::{Expect, MergeGate, MergeGuard, MergeSettings, Shard};
 use oss_writer::mapping::Mapping;
 use oss_writer::publish::ShardPublisher;
 
@@ -60,6 +60,60 @@ fn copy_dir(from: &std::path::Path, to: &std::path::Path) {
             std::fs::copy(entry.path(), target).expect("copies");
         }
     }
+}
+
+/// The snapshot and restore routes over `blobs`, on a server of their own.
+fn admin(
+    blobs: &Arc<dyn BlobStore>,
+    descriptors: impl Fn() -> DescriptorStore,
+) -> oss_rest::Server {
+    let clock: oss_meta::PitClock = Arc::new(|| 1_700_000_000_000);
+    let service = Arc::new(SnapshotService::new(
+        Arc::clone(blobs),
+        "",
+        "node-1",
+        Arc::clone(&clock),
+    ));
+    let taker = Arc::new(SnapshotTakeService::new(
+        Arc::clone(blobs),
+        "",
+        descriptors(),
+        Arc::clone(&clock),
+    ));
+    let deletes = Arc::new(
+        DeleteService::new(
+            blobs,
+            "",
+            DeleteMode::Conditional,
+            Arc::clone(&clock),
+            Arc::new(NoSnapshots),
+            1 << 16,
+            8,
+        )
+        .unwrap(),
+    );
+    let restorer = Arc::new(SnapshotRestoreService::new(
+        Arc::clone(blobs),
+        "",
+        descriptors(),
+        deletes,
+        clock,
+        true,
+        1 << 16,
+    ));
+    let router = routes(Router::new(), &service, Some(&taker)).expect("routes");
+    let router = restore_routes(router, restorer).expect("restore routes");
+    let config = BudgetConfig::new(256 << 20)
+        .with_pool(Pool::RequestBodies, 64 << 20)
+        .expect("fits");
+    let budget = MemoryBudget::new(&config);
+    oss_rest::Server::start(
+        TcpListener::bind("127.0.0.1:0").expect("binds"),
+        support::server_config(),
+        router,
+        &budget,
+    )
+    .expect("starts")
 }
 
 #[test]
@@ -105,53 +159,7 @@ fn a_restored_index_answers_a_search_with_what_the_snapshot_captured() {
         .expect("published");
 
     // Snapshot it and restore it as `copy`, over REST.
-    let clock: oss_meta::PitClock = Arc::new(|| 1_700_000_000_000);
-    let service = Arc::new(SnapshotService::new(
-        Arc::clone(&blobs),
-        "",
-        "node-1",
-        Arc::clone(&clock),
-    ));
-    let taker = Arc::new(SnapshotTakeService::new(
-        Arc::clone(&blobs),
-        "",
-        descriptors(),
-        Arc::clone(&clock),
-    ));
-    let deletes = Arc::new(
-        DeleteService::new(
-            &blobs,
-            "",
-            DeleteMode::Conditional,
-            Arc::clone(&clock),
-            Arc::new(NoSnapshots),
-            1 << 16,
-            8,
-        )
-        .unwrap(),
-    );
-    let restorer = Arc::new(SnapshotRestoreService::new(
-        Arc::clone(&blobs),
-        "",
-        descriptors(),
-        deletes,
-        clock,
-        true,
-        1 << 16,
-    ));
-    let router = routes(Router::new(), &service, Some(&taker)).expect("routes");
-    let router = restore_routes(router, restorer).expect("restore routes");
-    let config = BudgetConfig::new(256 << 20)
-        .with_pool(Pool::RequestBodies, 64 << 20)
-        .expect("fits");
-    let budget = MemoryBudget::new(&config);
-    let admin = oss_rest::Server::start(
-        TcpListener::bind("127.0.0.1:0").expect("binds"),
-        support::server_config(),
-        router,
-        &budget,
-    )
-    .expect("starts");
+    let admin = admin(&blobs, descriptors);
     let call = |method: &str, target: &str, body: Option<&str>| {
         support::request(admin.local_addr(), method, target, body.map(str::as_bytes))
     };
@@ -239,4 +247,135 @@ fn a_restored_index_answers_a_search_with_what_the_snapshot_captured() {
         .expect("reads")
         .expect("there");
     assert!(!oss_format::is_restoring(kept.settings));
+}
+
+struct Open;
+
+impl MergeGate for Open {
+    fn try_start(&self, _: u64) -> Option<Box<dyn MergeGuard>> {
+        Some(Box::new(()))
+    }
+}
+
+// docs/specs/writer-segment-merge AC-10: a snapshot taken before a merging
+// writer's later commits restores what it captured, after those commits
+// merged away the segments it names.
+#[test]
+fn a_snapshot_taken_before_merges_restores_what_it_captured_after_them() {
+    let root = TempDir::new("restore-merged");
+    let store = Arc::new(FsStore::new(root.path()).expect("store"));
+    let blobs = Arc::clone(&store) as Arc<dyn BlobStore>;
+    let descriptors =
+        || DescriptorStore::new(Arc::clone(&blobs), "", DeleteMode::Conditional).unwrap();
+    let mut record = IndexRecord::new("logs", "u1", 1);
+    record.mapping = Some(Cow::Borrowed(MAPPING));
+    descriptors()
+        .create(&record, 1, &mut vec![0u8; 1 << 16])
+        .expect("created");
+    let dir = ByteBuffersDirectory::new();
+    let mut w = IndexWriter::open(&dir, Vec::new(), "Lucene104", VERSION).expect("writer");
+    w.enable_explicit_documents().expect("explicit");
+    let mut shard = Shard::new(
+        &dir,
+        w,
+        Mapping::parse(MAPPING.as_bytes()).expect("mapping"),
+        3,
+        Box::new(|| 0),
+    )
+    .expect("shard")
+    .with_merging(
+        MergeSettings {
+            segments_per_tier: 2,
+            max_merge_at_once: 4,
+            max_merged_segment_bytes: 64 << 20,
+        },
+        Arc::new(Open),
+    );
+    let at = ShardRef {
+        index: "logs",
+        uuid: "u1",
+        shard: 0,
+    };
+    let mut publisher = ShardPublisher::new(Arc::clone(&blobs), "", &at).expect("publisher");
+    let mut round = |shard: &mut Shard<'_>, id: usize| {
+        shard
+            .index(&id.to_string(), br#"{"n":1}"#, false, &Expect::default())
+            .expect("indexed");
+        shard.refresh().expect("refresh");
+        let files = shard.committed_files().expect("files");
+        publisher
+            .publish(
+                &dir,
+                &files,
+                3,
+                "node-1",
+                i64::try_from(id).expect("small"),
+                0,
+            )
+            .expect("published");
+    };
+    for id in 0..3 {
+        round(&mut shard, id);
+    }
+    let admin = admin(&blobs, descriptors);
+    let call = |method: &str, target: &str, body: Option<&str>| {
+        support::request(admin.local_addr(), method, target, body.map(str::as_bytes))
+    };
+    let repo =
+        r#"{"type":"fs","settings":{"location":"x","remote_store_index_shallow_copy":true}}"#;
+    assert_eq!(call("PUT", "/_snapshot/backups", Some(repo)).status, 200);
+    let made = call(
+        "PUT",
+        "/_snapshot/backups/daily?wait_for_completion=true",
+        Some(TAKE),
+    );
+    assert_eq!(made.status, 200, "{}", made.text());
+    for id in 3..24 {
+        round(&mut shard, id);
+    }
+    let segments = lucene_search::directory_reader::DirectoryReader::open(&dir)
+        .expect("opens")
+        .segment_readers()
+        .len();
+    assert!(segments < 12, "merging ran: {segments} segments");
+    let restored = call(
+        "POST",
+        "/_snapshot/backups/daily/_restore?wait_for_completion=true",
+        Some(r#"{"rename_pattern":"logs","rename_replacement":"copy"}"#),
+    );
+    assert_eq!(restored.status, 200, "{}", restored.text());
+    let reader_config = BudgetConfig::new(8 << 20)
+        .with_pool(Pool::Transport, 8 << 20)
+        .expect("fits");
+    let buffers = BufferPool::new(
+        &MemoryBudget::new(&reader_config),
+        Pool::Transport,
+        SMALL_BUFFER,
+        16,
+    )
+    .expect("fits");
+    let reading = Arc::new(PooledStore::new(
+        FsStore::new(root.path()).expect("store"),
+        buffers,
+    ));
+    let reader_budget = MemoryBudget::new(&support::budget_config());
+    let (reader, _service) = start_reader(
+        TcpListener::bind("127.0.0.1:0").expect("binds"),
+        support::server_config(),
+        reading,
+        "",
+        "reader-1",
+        &reader_budget,
+    )
+    .expect("starts");
+    for (name, want) in [("logs", 24), ("copy", 3)] {
+        let found = support::request(
+            reader.local_addr(),
+            "POST",
+            &format!("/{name}/_search"),
+            Some(br#"{"size":0}"#),
+        );
+        assert_eq!(found.status, 200, "{name}: {}", found.text());
+        assert_eq!(total(&found.text()), want, "{name}: {}", found.text());
+    }
 }

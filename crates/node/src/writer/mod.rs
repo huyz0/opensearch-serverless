@@ -10,6 +10,8 @@
 mod apply_group;
 mod buckets;
 mod capacity;
+#[cfg(feature = "reader")]
+mod configure;
 mod dead_log_pass;
 mod dead_logs;
 mod get;
@@ -21,7 +23,9 @@ mod janitor_pass;
 mod janitor_timer;
 mod lease;
 mod limit;
+mod merging;
 use limit::unavailable;
+pub use merging::{MergeConfig, SETTINGS as MERGE_SETTINGS};
 mod newest_commit;
 mod opener;
 mod orphan_timer;
@@ -154,6 +158,11 @@ pub struct WriterRole {
     counters: capacity::Counters,
     /// How many groups of one shard may wait on the log together.
     pipeline_depth: AtomicUsize,
+    /// How a shard this role opens merges its segments, when it does.
+    merging: OnceLock<(
+        oss_writer::index::MergeSettings,
+        Arc<merging::NodeMergeGate>,
+    )>,
 }
 
 pub(crate) fn now_millis() -> u64 {
@@ -195,6 +204,7 @@ impl WriterRole {
             cap: OnceLock::new(),
             counters: capacity::Counters::default(),
             pipeline_depth: AtomicUsize::new(1),
+            merging: OnceLock::new(),
         }
     }
 

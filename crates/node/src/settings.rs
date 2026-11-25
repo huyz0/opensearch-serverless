@@ -47,6 +47,8 @@ fn providers() -> Vec<&'static [&'static Setting]> {
         crate::writer::HIBERNATE_SETTINGS,
         #[cfg(feature = "writer")]
         crate::writer::CAPACITY_SETTINGS,
+        #[cfg(feature = "writer")]
+        crate::writer::MERGE_SETTINGS,
     ]
 }
 
@@ -79,7 +81,7 @@ mod tests {
             assert_eq!(
                 keys.len(),
                 7 + 7 * usize::from(reader)
-                    + if writer { 38 + usize::from(reader) } else { 0 }
+                    + if writer { 42 + usize::from(reader) } else { 0 }
                     + usize::from(reader && writer)
                     + usize::from(writer && cfg!(feature = "coordinator"))
                     + usize::from(cfg!(feature = "extensions"))
@@ -131,6 +133,10 @@ mod tests {
                 "serverless.activation.evict_headroom_percent",
                 "serverless.activation.pinned_indexes",
                 "serverless.activation.hand_off.enabled",
+                "serverless.writer.merge.enabled",
+                "serverless.writer.merge.segments_per_tier",
+                "serverless.writer.merge.max_merge_at_once",
+                "serverless.writer.merge.max_merged_segment_mb",
             ] {
                 assert_eq!(keys.contains(&key), writer, "{key}");
             }

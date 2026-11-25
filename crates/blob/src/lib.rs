@@ -15,6 +15,7 @@
 
 mod children;
 pub mod chunk;
+pub mod cost;
 #[cfg(feature = "emulator")]
 pub mod emulator;
 pub mod error;

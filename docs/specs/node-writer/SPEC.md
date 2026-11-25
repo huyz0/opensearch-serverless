@@ -25,6 +25,7 @@ Parity plan R7.6 (node wiring and roles), first piece; the write path of `NodeWr
 - AC-8: a delete and a custom-routed index in one group are staged in the same blob, and `refresh` reaches the engine of a held shard and refuses one not held.
 - AC-10: a writer waiting on a shard whose stage failed is refused too: the slot is marked released under its lock, so none lands on an engine holding the refused write.
 - AC-9: one item applied alone through `Target::apply` is staged too.
+- AC-11: a refresh of a shard this node does not hold is what a write would be: sent to the live node that holds it (remembering it), or, when none does, the shard is opened here and refreshed. A role that cannot open shards still refuses. Without it a refresh asked of the node the leases name, while a live node holds the shard, was refused "is not open on this node" for as long as the placement and the head disagreed, and a write whose group had been forwarded on was never acknowledged.
 
 ## Test plan
 

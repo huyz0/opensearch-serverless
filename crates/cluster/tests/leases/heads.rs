@@ -74,13 +74,16 @@ fn a_live_owner_keeps_the_shard_and_nothing_is_written() {
     fleet.clock.advance(TTL - 1);
     fleet.node().renew(&lease("n1")).unwrap();
     fleet.clock.advance(2);
-    let before = fleet.count(S3Op::Put);
+    let (puts, gets) = (fleet.count(S3Op::Put), fleet.count(S3Op::Get));
     let Acquisition::HeldByAnother(head) = heads.acquire("logs", 0, "n2", "en2", None).unwrap()
     else {
         panic!("refused");
     };
     assert!(head.owned_by("n1", "en1"));
-    assert_eq!(fleet.count(S3Op::Put), before, "no write");
+    assert_eq!(fleet.count(S3Op::Put), puts, "no write");
+    let spent = fleet.count(S3Op::Get) - gets;
+    // The head and the owner's lease; only an unowned head is read again.
+    assert_eq!(spent, 2, "reads");
 }
 
 #[test]

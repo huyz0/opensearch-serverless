@@ -69,3 +69,4 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0058](0058-modern-protocols-front.md) | HTTP/2, HTTP/3 and gRPC are served by an in-process front that bridges to the HTTP/1.1 server | Accepted |
 | [0059](0059-the-writer-merges-a-shards-small-segments.md) | The writer merges a shard's small segments, behind a setting | Accepted |
 | [0060](0060-stock-snapshot-restore-reads-a-source-repository.md) | A stock snapshot is restored by reading its repository through a source store | Accepted |
+| [0061](0061-a-request-reports-its-own-store-requests.md) | A request that asks reports the store requests it made, in a response header | Accepted |

@@ -115,7 +115,12 @@ impl<S: BlobStore + 'static> SearchService<S> {
             writer,
             local_checkpoint(&held.shard.reader),
             &take,
-        ) {
+        ) && (!held.unpublished || fresh.holds_tail(uuid, held.shard_no, writer))
+        {
+            // An empty commit stands for a first publish still to come: with
+            // no complete tail from the writer (it did not answer, or its tail
+            // has a gap because it published, so the register is lost) the
+            // shard is behind, not empty.
             return Ok(());
         }
         // A shard that cannot hold its writer's tail (it ran out of room, or
@@ -125,6 +130,22 @@ impl<S: BlobStore + 'static> SearchService<S> {
         let key = crate::search::open_shard::set_key(&held.index, held.shard_no);
         let released = self.lock().release(&key);
         drop(released);
+        // A module that failed the build is why the shard is behind: say so.
+        if let Some(source) = self.overlay.get()
+            && let Some(refusal) = source.extension_refusal(uuid, held.shard_no, &held.stage)
+        {
+            let (status, ty) = refusal_answer(refusal.ty);
+            // ALLOC: error path; one box and the names.
+            return Err(Box::new(SearchError::on_shard(
+                status,
+                Failure::plain(ty, refusal.reason),
+                ShardFailure {
+                    index: held.index.clone(),
+                    shard: held.shard_no,
+                    node: self.node_id.clone(),
+                },
+            )));
+        }
         // ALLOC: error path; one box and the names.
         Err(Box::new(SearchError::on_shard(
             503,
@@ -198,6 +219,33 @@ impl<S: BlobStore + 'static> Drop for Held<S> {
         if let Some(source) = &self.source {
             let now = u64::try_from(self.epoch.elapsed().as_millis()).unwrap_or(u64::MAX);
             source.closed(&self.shard.meta.uuid, self.shard_no, &self.stage, now);
+        }
+    }
+}
+
+/// The status and type a search answers when a module failed the overlay
+/// build: capacity is a 429, anything else a retryable 503.
+fn refusal_answer(ty: &str) -> (u16, &'static str) {
+    if ty == "extension_busy" {
+        (429, "extension_busy")
+    } else {
+        (503, "extension_unavailable")
+    }
+}
+
+#[cfg(test)]
+mod refusal_tests {
+    use super::refusal_answer;
+
+    #[test]
+    fn capacity_is_a_429_and_any_other_module_failure_a_retryable_503() {
+        assert_eq!(refusal_answer("extension_busy"), (429, "extension_busy"));
+        for ty in [
+            "extension_failed",
+            "extension_malformed",
+            "extension_unavailable",
+        ] {
+            assert_eq!(refusal_answer(ty), (503, "extension_unavailable"), "{ty}");
         }
     }
 }

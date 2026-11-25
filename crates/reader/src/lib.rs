@@ -10,6 +10,7 @@
 pub mod aggs;
 pub mod commit_push;
 pub mod date;
+pub mod date_math;
 pub mod dsl;
 mod empty_commit;
 pub mod engine_store;
@@ -32,6 +33,7 @@ mod result_window;
 pub mod search;
 mod search_error;
 mod search_options;
+pub mod search_pipeline;
 mod search_post_filter;
 mod search_sort;
 mod search_terminate;

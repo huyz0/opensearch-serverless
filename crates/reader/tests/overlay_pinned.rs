@@ -12,7 +12,7 @@ use oss_doc::mapping::Mapping;
 use oss_ext::CallError;
 use oss_ext::analyzer::{Analyze, Token};
 use oss_format::WalRecord;
-use oss_reader::overlay::{build_ready, build_ready_with};
+use oss_reader::overlay::{BuildError, build_ready, build_ready_with};
 
 const MAPPING: &str =
     r#"{"properties":{"name":{"type":"keyword"},"t":{"type":"text","analyzer":"ext_a"}}}"#;
@@ -62,4 +62,34 @@ fn a_pinned_mapping_without_its_module_does_not_build() {
     let mapping = Mapping::from_descriptor_pinned(Some(MAPPING)).expect("mapping");
     let (_dir, commit) = common::commit_of(&mapping, &[&[("a", r#"{"name":"x"}"#, 1)]]);
     assert!(build_ready(&commit, MAPPING, &[record()], 4 << 20).is_err());
+}
+
+struct Failing(fn() -> CallError);
+
+impl Analyze for Failing {
+    fn analyze(&self, _: &str) -> Result<Vec<Token>, CallError> {
+        Err((self.0)())
+    }
+}
+
+// AC-8: a failed module call fails the build, typed by what a caller can do
+#[test]
+fn a_failed_module_call_fails_the_build_typed() {
+    let mapping = Mapping::from_descriptor_pinned(Some(MAPPING)).expect("mapping");
+    let (_dir, commit) = common::commit_of(&mapping, &[&[("a", r#"{"name":"x"}"#, 1)]]);
+    let failed: fn() -> CallError = || CallError::from_status(oss_ext::Status::Limit, b"nope");
+    for (fail, ty) in [
+        (failed, "extension_failed"),
+        (CallError::busy as fn() -> CallError, "extension_busy"),
+    ] {
+        let modules: Vec<(String, Arc<dyn Analyze>)> =
+            vec![("ext_a".to_owned(), Arc::new(Failing(fail)))];
+        let err = build_ready_with(&commit, MAPPING, &[record()], 4 << 20, &modules)
+            .map(drop)
+            .expect_err("does not build");
+        assert!(
+            matches!(&err, BuildError::Extension { id, ty: t, .. } if id == "d" && *t == ty),
+            "{ty}: {err:?}"
+        );
+    }
 }

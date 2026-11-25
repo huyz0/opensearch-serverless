@@ -291,7 +291,9 @@ impl<'a> Decoder<'a, '_> {
                 self.base64(&bytes)
             }
             0xEC..=0xEF => {
-                let index = (usize::from(b & 3) << 8) | usize::from(self.c.byte()?);
+                let index = usize::from(b & 3)
+                    .wrapping_shl(8)
+                    .wrapping_add(usize::from(self.c.byte()?));
                 let s = self.shared(&self.values, index, self.shared_values)?;
                 self.string(s)
             }
@@ -311,7 +313,9 @@ impl<'a> Decoder<'a, '_> {
         match b {
             0x20 => Ok(""),
             0x30..=0x33 => {
-                let index = (usize::from(b & 3) << 8) | usize::from(self.c.byte()?);
+                let index = usize::from(b & 3)
+                    .wrapping_shl(8)
+                    .wrapping_add(usize::from(self.c.byte()?));
                 self.shared(&self.names, index, self.shared_names)
             }
             0x34 => {
@@ -331,10 +335,12 @@ impl<'a> Decoder<'a, '_> {
         }
     }
 
+    /// A name of `len` bytes. It joins the table either way: a document
+    /// that does not share names never reads the table.
     fn name(&mut self, len: usize) -> Result<&'a str, FormatError> {
         let raw = self.c.take(len)?;
         let s = std::str::from_utf8(raw).map_err(|_| corrupt(WHAT, "a name that is not UTF-8"))?;
-        if self.shared_names && len <= MAX_SHARED_LEN {
+        if len <= MAX_SHARED_LEN {
             remember(&mut self.names, s);
         }
         Ok(s)
@@ -344,7 +350,7 @@ impl<'a> Decoder<'a, '_> {
         let raw = self.c.take(len)?;
         let s =
             std::str::from_utf8(raw).map_err(|_| corrupt(WHAT, "a string that is not UTF-8"))?;
-        if self.shared_values && len <= MAX_SHARED_LEN {
+        if len <= MAX_SHARED_LEN {
             remember(&mut self.values, s);
         }
         self.string(s)

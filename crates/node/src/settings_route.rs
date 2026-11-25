@@ -55,6 +55,7 @@ fn write_block_key(key: &str) -> bool {
 /// What this node's registry says of an index setting.
 struct Registry {
     pipelines: bool,
+    search_pipelines: bool,
 }
 
 impl Scope for Registry {
@@ -62,11 +63,9 @@ impl Scope for Registry {
         // Core declares these; the update's own refusals answer for them.
         if matches!(
             key,
-            "index.number_of_shards"
-                | "index.number_of_replicas"
-                | "index.search.default_pipeline"
-                | "index.serverless.shard_mode"
-        ) {
+            "index.number_of_shards" | "index.number_of_replicas" | "index.serverless.shard_mode"
+        ) || (key == "index.search.default_pipeline" && !self.search_pipelines)
+        {
             return Kind::Core { dynamic: true };
         }
         if write_block_key(key) {
@@ -91,6 +90,9 @@ impl Scope for Registry {
                 },
             });
         }
+        if key == crate::writer::COST_TIER || key == crate::writer::COST_BUDGET {
+            return Kind::Ours(cost_value(key, value));
+        }
         if crate::create_settings::is_static(key) || crate::index_route::is_bucket_key(key) {
             return Kind::Core { dynamic: false };
         }
@@ -107,13 +109,32 @@ impl Scope for Registry {
         let pair = [(key.to_owned(), Some(value.to_owned()))];
         // The shard count a pairwise check needs is not read for a dynamic key.
         Kind::Ours(
-            crate::create_settings::checked(&pair, 1, self.pipelines)
+            crate::create_settings::checked(&pair, 1, self.pipelines, self.search_pipelines)
                 .map(|_| ())
                 .map_err(|e| {
                     e.as_exception()
                         .map_or_else(String::new, |x| x.reason().to_owned())
                 }),
         )
+    }
+}
+
+/// Whether `value` is one `key` (a cost tier or budget) takes; none removes it.
+fn cost_value(key: &str, value: Option<&str>) -> Result<(), String> {
+    let Some(value) = value else {
+        return Ok(());
+    };
+    if key == crate::writer::COST_TIER {
+        return match crate::tenants::Tier::parse(value) {
+            Some(_) => Ok(()),
+            // ALLOC: error path; one message.
+            None => Err(format!("{key} is [{value}], not small, standard or large")),
+        };
+    }
+    match value.trim().parse::<u64>() {
+        Ok(budget) if budget > 0 => Ok(()),
+        // ALLOC: error path; one message.
+        _ => Err(format!("{key} is [{value}], not a positive whole number")),
     }
 }
 
@@ -207,6 +228,8 @@ pub struct SettingsService {
     buffer_bytes: usize,
     registry: Registry,
     pattern_cap: usize,
+    /// Told the billing settings of an index after an update changed them.
+    role: Option<Arc<crate::writer::WriterRole>>,
 }
 
 impl SettingsService {
@@ -217,9 +240,29 @@ impl SettingsService {
         Self {
             descriptors,
             buffer_bytes,
-            registry: Registry { pipelines },
+            registry: Registry {
+                pipelines,
+                search_pipelines: false,
+            },
             pattern_cap: PATTERN_CAP,
+            role: None,
         }
+    }
+
+    /// Has `role` told the billing settings of an index an update changed,
+    /// so this node's tenant levels judge it by them at once.
+    #[must_use]
+    pub fn with_role(mut self, role: Arc<crate::writer::WriterRole>) -> Self {
+        self.role = Some(role);
+        self
+    }
+
+    /// Whether `index.search.default_pipeline` is accepted: on when the node
+    /// runs search pipelines.
+    #[must_use]
+    pub fn with_search_pipelines(mut self, on: bool) -> Self {
+        self.registry.search_pipelines = on;
+        self
     }
 
     /// Lowers the most indices a pattern may match.
@@ -369,6 +412,9 @@ impl SettingsService {
                 .map_err(|e| failed(&e.to_string()))?
                 .is_some()
             {
+                if let Some(role) = &self.role {
+                    role.note_tenancy(index, &crate::writer::tenancy_of(text.as_bytes()));
+                }
                 return Ok(());
             }
         }
@@ -407,4 +453,34 @@ pub fn routes(router: Router, service: &Arc<SettingsService>) -> Result<Router, 
             PARAMS,
             move |req: &mut Request<'_>, resp: &mut Response<'_>| all.update(req, resp),
         )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::cost_value;
+
+    const TIER: &str = "index.serverless.cost.tier";
+    const BUDGET: &str = "index.serverless.cost.budget";
+
+    // docs/specs/tenant-cost-settings-update AC-1
+    #[test]
+    fn a_tier_is_one_of_three_and_a_budget_a_positive_whole_number() {
+        assert!(cost_value(TIER, Some("small")).is_ok());
+        assert!(cost_value(TIER, None).is_ok());
+        assert!(cost_value(BUDGET, Some(" 7 ")).is_ok());
+        assert!(cost_value(BUDGET, None).is_ok());
+        assert!(
+            cost_value(TIER, Some("huge"))
+                .unwrap_err()
+                .contains("not small")
+        );
+        for bad in ["0", "-1", "lots", ""] {
+            assert!(
+                cost_value(BUDGET, Some(bad))
+                    .unwrap_err()
+                    .contains("positive whole number"),
+                "{bad}"
+            );
+        }
+    }
 }

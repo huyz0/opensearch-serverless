@@ -31,21 +31,27 @@ use super::{Answer, SearchService, bad_request};
 /// The most bytes a header line may record.
 const MAX_HEADER_BYTES: usize = 64 << 10;
 
-/// The routes of `_msearch`, with and without an index, by GET and POST.
+/// The routes of `_msearch` and `_msearch/template`, with and without an
+/// index, by GET and POST.
 pub(super) fn routes<S: BlobStore + 'static>(
     router: Router,
     service: Arc<SearchService<S>>,
 ) -> Result<Router, RouteError> {
     let mut router = router;
     for method in [Method::Get, Method::Post] {
-        for path in ["/_msearch", "/{index}/_msearch"] {
+        for (path, template) in [
+            ("/_msearch", false),
+            ("/{index}/_msearch", false),
+            ("/_msearch/template", true),
+            ("/{index}/_msearch/template", true),
+        ] {
             let service = Arc::clone(&service);
             router = router.route(
                 method,
                 path,
                 &[],
                 move |req: &mut Request<'_>, resp: &mut Response<'_>| {
-                    service.handle_msearch(req, resp)
+                    service.msearch(req, resp, template)
                 },
             )?;
         }
@@ -113,6 +119,8 @@ fn header_index(rec: &Recorder, parts: bool, default: Option<&str>) -> Result<St
 struct Items<'s, 'r, 'a, S: BlobStore + 'static> {
     service: &'s SearchService<S>,
     default: Option<String>,
+    /// Each body line is a template request, not a search body.
+    template: bool,
     resp: Option<&'r mut Response<'a>>,
     out: Option<BodyWriter<'r, 'a>>,
     items: usize,
@@ -132,11 +140,13 @@ impl<'s, 'r, 'a, S: BlobStore + 'static> Items<'s, 'r, 'a, S> {
     fn new(
         service: &'s SearchService<S>,
         default: Option<String>,
+        template: bool,
         resp: &'r mut Response<'a>,
     ) -> Self {
         Self {
             service,
             default,
+            template,
             resp: Some(resp),
             out: None,
             items: 0,
@@ -198,7 +208,21 @@ impl<'s, 'r, 'a, S: BlobStore + 'static> Items<'s, 'r, 'a, S> {
         out.finish()
     }
 
-    fn run(&self, index: &str, source: &SearchSource) -> Vec<u8> {
+    /// The search the body line is: parsed, or rendered from its template.
+    fn item_source(&self) -> Result<SearchSource, Answer> {
+        if self.template {
+            self.service.template_item(&self.body)
+        } else {
+            SearchSource::parse(&self.body).map_err(bad_request)
+        }
+    }
+
+    fn run(&self, index: &str, source: &mut SearchSource) -> Vec<u8> {
+        // Held until the item is answered.
+        let _pipeline = match self.service.run_item_pipeline(index, source) {
+            Ok(held) => held,
+            Err(answer) => return answer_item(answer),
+        };
         match self.service.search_bytes(index, source) {
             // The response ends with `}`; the item's status goes before it.
             Ok(mut bytes) => {
@@ -258,9 +282,9 @@ impl<S: BlobStore + 'static> LineSink for Items<'_, '_, '_, S> {
         ) {
             (Err(item), _) => item,
             (Ok(_), Some(e)) => answer_item(bad_request(e)),
-            (Ok(index), None) => match SearchSource::parse(&self.body) {
-                Ok(source) => self.run(&index, &source),
-                Err(e) => answer_item(bad_request(e)),
+            (Ok(index), None) => match self.item_source() {
+                Ok(mut source) => self.run(&index, &mut source),
+                Err(answer) => answer_item(answer),
             },
         };
         self.body = Recorder::new(MAX_RECORDED_BYTES);
@@ -277,9 +301,27 @@ impl<S: BlobStore + 'static> SearchService<S> {
         req: &mut Request<'_>,
         resp: &mut Response<'_>,
     ) -> Result<(), RestError> {
+        self.msearch(req, resp, false)
+    }
+
+    /// Handles one `_msearch/template`.
+    pub fn handle_msearch_template(
+        &self,
+        req: &mut Request<'_>,
+        resp: &mut Response<'_>,
+    ) -> Result<(), RestError> {
+        self.msearch(req, resp, true)
+    }
+
+    fn msearch(
+        &self,
+        req: &mut Request<'_>,
+        resp: &mut Response<'_>,
+        template: bool,
+    ) -> Result<(), RestError> {
         let started = Instant::now();
         let default = req.path_param("index").map(std::borrow::Cow::into_owned);
-        let mut items = Items::new(self, default, resp);
+        let mut items = Items::new(self, default, template, resp);
         let mut splitter = Splitter::new();
         let body = req.body();
         loop {
@@ -339,8 +381,8 @@ impl<S: BlobStore + 'static> SearchService<S> {
         };
         reserve(hits_bytes(source, shard)).map_err(|e| Answer::Rest(RestError::from(e)))?;
         let analyzer = Analyzer::standard(None);
-        let hits =
-            search_with(shard, index, source, &analyzer, held.pinned.as_deref()).map_err(|e| {
+        let mut hits = search_with(shard, index, source, &analyzer, held.pinned.as_deref())
+            .map_err(|e| {
                 let shard_failure = ShardFailure {
                     // ALLOC: error path; the index name.
                     index: index.to_owned(),
@@ -354,6 +396,9 @@ impl<S: BlobStore + 'static> SearchService<S> {
                     shard_failure,
                 )))
             })?;
+        if let Some(cap) = source.response_size_cap {
+            hits.truncate(cap);
+        }
         let took = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
         // ALLOC: one response, bounded by the reservations above.
         let mut out = Vec::new();

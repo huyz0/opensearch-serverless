@@ -26,7 +26,9 @@ use oss_ext::analyzer::Analyze;
 use oss_format::WalRecord;
 
 pub use commit::{Copies, Copy, find_copies, local_checkpoint, mask_bytes};
-pub use source::{CommitAccess, OverlaySource, Ready, build_ready, build_ready_with};
+pub use source::{
+    CommitAccess, ExtensionRefusal, OverlaySource, Ready, build_ready, build_ready_with,
+};
 pub use view::{Masks, combine};
 
 /// The most distinct ids one overlay replaces or deletes; more leaves the
@@ -78,6 +80,16 @@ pub enum BuildError {
     },
     /// The in-memory index could not be written or opened.
     Engine(String),
+    /// A pinned analyzer's module call failed for a record: not the
+    /// record's fault, so the caller refuses the search, retryably.
+    Extension {
+        /// The record's id.
+        id: String,
+        /// The typed failure (`extension_busy`, `extension_failed`, ...).
+        ty: &'static str,
+        /// What the module said.
+        reason: String,
+    },
 }
 
 impl std::fmt::Display for BuildError {
@@ -90,6 +102,7 @@ impl std::fmt::Display for BuildError {
                 max_bytes,
             } => write!(f, "{estimate} bytes over the {max_bytes} reserved"),
             Self::Engine(reason) => write!(f, "in-memory index: {reason}"),
+            Self::Extension { id, ty, reason } => write!(f, "record {id}: {ty}: {reason}"),
         }
     }
 }
@@ -284,8 +297,19 @@ impl Overlay {
                                 &parsed,
                                 &meta,
                             )
-                            // ALLOC: one message on a failed build.
-                            .map_err(|e| refuse(format!("{e:?}")))?;
+                            .map_err(|e| {
+                                if e.ty.starts_with("extension_") {
+                                    // ALLOC: one id and message on a failed build.
+                                    BuildError::Extension {
+                                        id: r.id().to_owned(),
+                                        ty: e.ty,
+                                        reason: e.reason,
+                                    }
+                                } else {
+                                    // ALLOC: one message on a failed build.
+                                    refuse(format!("{e:?}"))
+                                }
+                            })?;
                         if let Some(next) = parsed.grown.take() {
                             grown = Some(next);
                         }
