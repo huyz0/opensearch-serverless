@@ -5,6 +5,7 @@ mod deletes;
 mod faults;
 mod listing;
 mod reads;
+mod request_cost;
 mod usage;
 mod writes;
 
