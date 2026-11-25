@@ -175,3 +175,4 @@ src/boot/tail/joining.rs	new		the warm-up of a joining reader on its own thread,
 src/warm_setting.rs	new		the per-index switch that leaves an index out of warm copy
 src/alias_route/mod.rs	new		alias add, remove and read routes over the alias mutation protocol; names are literal, the Java's patterns need a listing
 src/alias_route/parse.rs	new		the names, write flag and action list an alias request asks for
+src/boot/config/tests/resident.rs	new		tests for the resident page bound setting
