@@ -33,6 +33,22 @@ const CREATE_PARAMS: &[&str] = &[
     "wait_for_active_shards",
 ];
 
+/// The query parameters a mapping read accepts and has nothing to do for: one
+/// node, no replicas, no closed or hidden indices, nothing to wait for.
+const MAPPING_PARAMS: &[&str] = &[
+    "local",
+    "include_defaults",
+    "ignore_unavailable",
+    "allow_no_indices",
+    "expand_wildcards",
+    "master_timeout",
+    "cluster_manager_timeout",
+    "timeout",
+    "wait_for_active_shards",
+    "include_type_name",
+    "flat_settings",
+];
+
 /// The OpenSearch version id the descriptors this node creates carry.
 const CREATED_VERSION_ID: i32 = 0;
 
@@ -308,6 +324,42 @@ impl IndexService {
         };
         resp.send(status, JSON, b"")
     }
+
+    /// `GET /{index}/_mapping` and `/_mappings`: the stored mapping of one
+    /// concrete index, as the Java renders its descriptor's mapping.
+    pub fn mapping(&self, req: &mut Request<'_>, resp: &mut Response<'_>) -> Result<(), RestError> {
+        let index = req
+            .path_param("index")
+            .ok_or_else(|| RestError::illegal_argument("an index is required"))?;
+        check_name(&index, false).map_err(refusal)?;
+        req.body().reserve(self.buffer_bytes)?;
+        // ALLOC: one buffer a request, buffer_bytes, reserved above.
+        let mut buf = vec![0u8; self.buffer_bytes];
+        // A name no index may have (a list, a wildcard) is not an index, not a failure.
+        let target = match self.descriptors.resolve(&index, &mut buf) {
+            Ok(held) => held.target,
+            Err(MetaError::InvalidName(_)) => Target::Absent,
+            Err(e) => return Err(refuse(500, "index_lookup_failure", e.to_string())),
+        };
+        let Target::Index(record) = target else {
+            return Err(refuse(
+                404,
+                "index_not_found",
+                // ALLOC: error path; one message.
+                format!("no such index: {index}"),
+            ));
+        };
+        let mapping = record.mapping.as_deref().unwrap_or("{}");
+        // ALLOC: the answer, the name and the stored mapping, bounded by the descriptor buffer.
+        let mut body: Vec<u8> = Vec::with_capacity(mapping.len().saturating_add(64));
+        body.push(b'{');
+        oss_rest::write_json_str(&mut body, &record.name)
+            .map_err(|e| refuse(500, "index_lookup_failure", e.to_string()))?;
+        body.extend_from_slice(b":{\"mappings\":");
+        body.extend_from_slice(mapping.as_bytes());
+        body.extend_from_slice(b"}}");
+        resp.send(200, JSON, &body)
+    }
 }
 
 /// Whether `key` is one of the two bucket settings a create accepts.
@@ -409,6 +461,8 @@ fn create_failure(index: &str, uuid: &str, e: &MetaError) -> RestError {
 /// A route registered twice.
 pub fn routes(router: Router, service: Arc<IndexService>) -> Result<Router, RouteError> {
     let create = Arc::clone(&service);
+    let mapping = Arc::clone(&service);
+    let mappings = Arc::clone(&service);
     router
         .route(
             Method::Put,
@@ -421,6 +475,18 @@ pub fn routes(router: Router, service: Arc<IndexService>) -> Result<Router, Rout
             "/{index}",
             &[],
             move |req: &mut Request<'_>, resp: &mut Response<'_>| service.exists(req, resp),
+        )?
+        .route(
+            Method::Get,
+            "/{index}/_mapping",
+            MAPPING_PARAMS,
+            move |req: &mut Request<'_>, resp: &mut Response<'_>| mapping.mapping(req, resp),
+        )?
+        .route(
+            Method::Get,
+            "/{index}/_mappings",
+            MAPPING_PARAMS,
+            move |req: &mut Request<'_>, resp: &mut Response<'_>| mappings.mapping(req, resp),
         )
 }
 
