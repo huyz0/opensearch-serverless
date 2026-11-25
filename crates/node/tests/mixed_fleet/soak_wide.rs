@@ -191,17 +191,6 @@ fn judge_all(addr: SocketAddr, ledger: &BTreeSet<u32>, top: u32) -> Result<(), S
 fn missing_per_shard(live: &[(Kind, Handle, SocketAddr)], ledger: &BTreeSet<u32>, top: u32) {
     let routing = oss_cluster::routing::DocumentRouting::legacy(4, 1).expect("routing");
     for (k, _, a) in live {
-        for body in [
-            r#"{"size":2,"_source":true,"query":{"match_all":{}}}"#,
-            r#"{"size":2,"query":{"range":{"n":{"gte":0}}}}"#,
-        ] {
-            let r = call(*a, "POST", &format!("/{INDEX}/_search"), Some(body));
-            let text: String = r.text().chars().take(500).collect();
-            eprintln!("WIDE diag raw {} node {a} {body}: {} {text}", k.name(), r.status);
-        }
-        let m = call(*a, "GET", &format!("/{INDEX}/_mapping"), None);
-        let text: String = m.text().chars().take(300).collect();
-        eprintln!("WIDE diag mapping {} node {a}: {text}", k.name());
         let found: BTreeSet<u32> = match found_range(*a, 0, top) {
             Ok(ids) => ids.into_iter().collect(),
             Err(why) => {
