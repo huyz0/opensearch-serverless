@@ -107,6 +107,7 @@ impl WriterRole {
             // No group of the shard is in flight and none stages until the
             // snapshot is taken, so every write in the commit is in the log.
             let (mut held, _quiet) = super::pipelined::quiet_slot(slot);
+            // QUIESCED: no group of the shard is in flight until the snapshot.
             let max_seq_no = held.max_seq_no();
             if held.failed() || held.released() || only_if_due && !publishing.due(key, max_seq_no) {
                 return Ok(None);

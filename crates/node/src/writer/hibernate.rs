@@ -249,6 +249,7 @@ impl WriterRole {
                 || held.released()
                 || held.failed()
                 || held.used_at() != used
+                // QUIESCED: `quiet_slot` above holds the shard's groups back.
                 || publishing.unpublished(&key, held.max_seq_no())
             {
                 pass.busy = pass.busy.saturating_add(1);
@@ -315,7 +316,7 @@ impl WriterRole {
         };
         if let Some(slot) = self.slot(uuid, shard) {
             // ALLOC: one key a wake.
-            publishing.published(&(uuid.to_owned(), shard), lock(&slot).max_seq_no());
+            publishing.published(&(uuid.to_owned(), shard), lock(&slot).acked_seq_no());
         }
     }
 }

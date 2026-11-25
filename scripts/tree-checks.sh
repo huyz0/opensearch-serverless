@@ -18,6 +18,7 @@ check-crate-layout.py
 check-module-size.py
 check-unsafe.py
 check-alloc.py
+check-acked.py
 check-s3-access.py
 check-test-endpoints.py
 check-budgets.py

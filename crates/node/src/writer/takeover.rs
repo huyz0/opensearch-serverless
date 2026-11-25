@@ -131,6 +131,7 @@ impl WriterRole {
         self.names.insert(&index.uuid, &index.name);
         // ALLOC: one key a shard opened.
         let key = (index.uuid.clone(), shard);
+        // QUIESCED: a slot just opened has no group in flight.
         let max_seq_no = slot.max_seq_no();
         // Lock order: shards, then newest, everywhere both are held.
         let mut shards = lock(&self.shards);

@@ -409,6 +409,7 @@ impl WriterRole {
             || self
                 .publishing
                 .as_ref()
+                // QUIESCED: `quiet_slot` above holds the shard's groups back.
                 .is_some_and(|p| p.unpublished(&key, held.max_seq_no()))
         {
             return false;
