@@ -95,7 +95,8 @@ fn a_refused_update_changes_nothing() {
         (r#"{"index.number_of_shards":3}"#, 501),
         (r#"{"index.refresh_interval":"soon"}"#, 400),
         (r#"{"index.codec":"best_compression"}"#, 501),
-        (r#"{"index.blocks.write":true}"#, 501),
+        (r#"{"index.blocks.read":true}"#, 501),
+        (r#"{"index.blocks.write":"yes"}"#, 400),
         (r#"{"index.max_result_window":50}"#, 501),
         ("", 400),
     ] {
@@ -143,4 +144,25 @@ fn a_null_removes_and_preserve_existing_keeps() {
     let reset = r#"{"index.refresh_interval":null}"#;
     assert_eq!(call(&r, "PUT", "/a/_settings", Some(reset)).status, 200);
     assert!(!stored(&r).0.contains("refresh_interval"));
+}
+
+// docs/specs/index-blocks AC-3, AC-4
+#[test]
+fn a_write_block_set_through_the_route_is_what_a_bulk_reads_and_false_lifts_it() {
+    use oss_node::descriptor_routes::DescriptorRoutes;
+    use oss_node::writer::Routes;
+    use oss_writer::bulk::WriteBlock;
+    let r = rig();
+    let routes = DescriptorRoutes::new(descriptors(&r.store), BUF);
+    let block = || routes.index("a").expect("found").write_block;
+    assert_eq!(block(), WriteBlock::None);
+    let on = r#"{"index.blocks.write":true}"#;
+    assert_eq!(call(&r, "PUT", "/a/_settings", Some(on)).status, 200);
+    assert_eq!(block(), WriteBlock::Full);
+    let delete = r#"{"index.blocks.write":null,"index.blocks.read_only_allow_delete":"true"}"#;
+    assert_eq!(call(&r, "PUT", "/a/_settings", Some(delete)).status, 200);
+    assert_eq!(block(), WriteBlock::AllowDelete);
+    let off = r#"{"index.blocks.read_only_allow_delete":false}"#;
+    assert_eq!(call(&r, "PUT", "/a/_settings", Some(off)).status, 200);
+    assert_eq!(block(), WriteBlock::None);
 }

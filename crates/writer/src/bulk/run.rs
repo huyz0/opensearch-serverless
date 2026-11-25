@@ -8,6 +8,8 @@ use std::collections::HashMap;
 use oss_cluster::routing::{DocumentRouting, RoutingError};
 use oss_rest::{Exception, Meta, RestError};
 
+use super::block::WriteBlock;
+
 use crate::index::{Refused, Written, validation_failed};
 
 use super::action::Kind;
@@ -36,6 +38,8 @@ pub struct IndexInfo {
     pub default_pipeline: Option<String>,
     /// `index.final_pipeline`: runs after the first, whatever the write named.
     pub final_pipeline: Option<String>,
+    /// The write block its settings name.
+    pub write_block: WriteBlock,
 }
 
 /// Who applies a shard's group.
@@ -386,6 +390,10 @@ impl<'t, T: Target> Bulk<'t, T> {
                 .with_meta("index", Meta::Str(item.index.clone()))
                 .with_meta("index_uuid", Meta::Str("_na_".into())),
             );
+            return (item, None);
+        }
+        if let Some(e) = info.write_block.refusal(&a.kind, &info.name) {
+            item.result = fail(403, e);
             return (item, None);
         }
         let runs = matches!(a.kind, Kind::Index | Kind::Create);

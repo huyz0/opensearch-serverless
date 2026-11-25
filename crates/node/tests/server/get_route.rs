@@ -47,6 +47,7 @@ fn info(name: &str, shards: u32, routing_required: bool) -> IndexInfo {
         partition_size: 1,
         routing_shards: shards,
         routing_required,
+        write_block: Default::default(),
         default_pipeline: None,
         final_pipeline: None,
     }

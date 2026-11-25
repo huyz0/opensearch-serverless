@@ -7,11 +7,12 @@
 
 use std::sync::Arc;
 
+use oss_rest::Exception;
 use oss_transport::actions::write::{BulkOperation, BulkOutcome, BulkRequest, BulkResponse};
 use oss_transport::exception::RemoteException;
 use oss_transport::server::{Handler, Request};
 use oss_transport::stream::{Input, Output};
-use oss_writer::bulk::{Action, ItemResult, Kind, Op, Planned};
+use oss_writer::bulk::{Action, IndexInfo, ItemResult, Kind, Op, Planned};
 use oss_writer::index::{Expect, Outcome, VersionType};
 
 use crate::writer::{Routes, WriterRole};
@@ -95,6 +96,44 @@ fn outcome(id: &str, result: ItemResult) -> BulkOutcome {
     }
 }
 
+impl BulkHandler {
+    /// Applies `group`, refusing each item the index's write block stops: a
+    /// sender's cached view of the index may be older than this owner's.
+    fn apply(&self, index: &IndexInfo, shard: u32, group: &[Planned<'_>]) -> Vec<ItemResult> {
+        let refused: Vec<Option<Exception>> = group
+            .iter()
+            .map(|p| index.write_block.refusal(&p.op.action.kind, &index.name))
+            // ALLOC: one entry an operation.
+            .collect();
+        if refused.iter().all(Option::is_none) {
+            return self.role.apply_group(index, shard, group);
+        }
+        // ALLOC: the items the block lets through, at most the group.
+        let allowed: Vec<Planned<'_>> = group
+            .iter()
+            .zip(&refused)
+            .filter(|(_, r)| r.is_none())
+            .map(|(p, _)| Planned {
+                position: p.position,
+                op: p.op,
+                id: p.id,
+            })
+            .collect();
+        let mut applied = self.role.apply_group(index, shard, &allowed).into_iter();
+        refused
+            .into_iter()
+            .map(|r| match r {
+                Some(error) => ItemResult::Failed { status: 403, error },
+                None => applied.next().unwrap_or_else(|| ItemResult::Failed {
+                    status: 500,
+                    error: Exception::new("illegal_state_exception", "an item went unanswered"),
+                }),
+            })
+            // ALLOC: one result an operation.
+            .collect()
+    }
+}
+
 impl Handler for BulkHandler {
     fn handle(&self, request: &Request<'_>, out: &mut Output<'_>) -> Result<(), RemoteException> {
         let mut bulk = BulkRequest::read(&mut Input::new(request.message))
@@ -130,7 +169,7 @@ impl Handler for BulkHandler {
             })
             // ALLOC: one entry an operation.
             .collect();
-        let results = self.role.apply_group(&index, shard, &group);
+        let results = self.apply(&index, shard, &group);
         let refreshed = bulk.refresh && self.role.refresh(&index, shard).is_ok();
         let response = BulkResponse {
             owner_node_id: self.node_id.clone(),

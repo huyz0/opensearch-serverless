@@ -124,6 +124,7 @@ fn a_writer_reads_the_incarnation_once_a_window_and_refuses_a_replaced_index() {
             partition_size: 1,
             routing_shards: 1,
             routing_required: false,
+            write_block: Default::default(),
             default_pipeline: None,
             final_pipeline: None,
         }

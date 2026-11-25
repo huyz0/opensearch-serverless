@@ -48,6 +48,7 @@ fn an_index_created_without_settings_has_the_routing_defaults() {
             partition_size: 1,
             routing_shards: 3,
             routing_required: false,
+            write_block: Default::default(),
             default_pipeline: None,
             final_pipeline: None,
         }
@@ -188,4 +189,43 @@ fn the_routes_read_the_default_and_final_pipelines() {
     assert_eq!(routes.index("empty").expect("found").default_pipeline, None);
     put(&d, "none", 1, "{}", None);
     assert_eq!(routes.index("none").expect("found").final_pipeline, None);
+}
+
+// docs/specs/index-blocks AC-1, AC-2
+#[test]
+fn the_routes_read_the_write_blocks_flat_nested_bool_or_text() {
+    use oss_writer::bulk::WriteBlock;
+    let (_, d, routes) = rig();
+    for (name, settings, want) in [
+        ("none", "{}", WriteBlock::None),
+        ("off", r#"{"index.blocks.write":"false"}"#, WriteBlock::None),
+        ("text", r#"{"index.blocks.write":"true"}"#, WriteBlock::Full),
+        (
+            "bool",
+            r#"{"index.blocks.read_only":true}"#,
+            WriteBlock::Full,
+        ),
+        (
+            "nested",
+            r#"{"index":{"blocks":{"write":"true"}}}"#,
+            WriteBlock::Full,
+        ),
+        (
+            "delete",
+            r#"{"index.blocks.read_only_allow_delete":"true"}"#,
+            WriteBlock::AllowDelete,
+        ),
+        (
+            "both",
+            r#"{"index.blocks.read_only_allow_delete":"true","index.blocks.write":"true"}"#,
+            WriteBlock::Full,
+        ),
+    ] {
+        put(&d, name, 1, settings, None);
+        assert_eq!(
+            routes.index(name).expect("found").write_block,
+            want,
+            "{name}"
+        );
+    }
 }
