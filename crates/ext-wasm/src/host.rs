@@ -9,6 +9,7 @@ use oss_ext::{DescriptorError, MAX_MODULE_BYTES, VersionError};
 use wasmtime::{Config, Engine};
 
 use crate::config::HostConfig;
+use crate::meter::Meter;
 use crate::module::Module;
 use crate::reserve::Reserver;
 use crate::validate;
@@ -23,6 +24,7 @@ const COMPILE_FACTOR: u64 = 16;
 pub(crate) struct Shared {
     pub(crate) engine: Engine,
     pub(crate) config: HostConfig,
+    pub(crate) meter: Meter,
     stop: Arc<AtomicBool>,
 }
 
@@ -101,9 +103,15 @@ impl Host {
             shared: Arc::new(Shared {
                 engine,
                 config,
+                meter: Meter::default(),
                 stop,
             }),
         }
+    }
+
+    /// What each tenant's calls have cost since this host started.
+    pub fn meter(&self) -> &Meter {
+        &self.shared.meter
     }
 
     /// Validates, compiles and describes the module `bytes`.

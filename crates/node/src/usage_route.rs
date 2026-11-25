@@ -168,6 +168,8 @@ impl UsageService {
                 r.longest_wait_millis
             )?;
         }
+        #[cfg(feature = "extensions")]
+        crate::usage_extensions::write(out, crate::extension_host::host().meter().snapshot(), top)?;
         #[cfg(target_os = "linux")]
         if self.resident_pages
             && let Some(pager) = lucene_store::paged_input::Pager::global()
