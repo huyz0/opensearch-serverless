@@ -111,8 +111,16 @@ struct Rendered {
 /// Reads the request and renders its template, reserving the text.
 fn render_request(req: &mut Request<'_>) -> Result<Rendered, Answer> {
     let rec = record_body(req)?;
-    let request = TemplateRequest::parse(&rec).map_err(bad_request)?;
-    drop(rec);
+    let rendered = render_recorded(&rec)?;
+    req.body()
+        .reserve(rendered.text.len())
+        .map_err(Answer::Rest)?;
+    Ok(rendered)
+}
+
+/// Renders the template request `rec` recorded.
+fn render_recorded(rec: &Recorder) -> Result<Rendered, Answer> {
+    let request = TemplateRequest::parse(rec).map_err(bad_request)?;
     if request.profile {
         return Err(Answer::Rest(not_supported(
             "a template request with [profile]",
@@ -138,7 +146,6 @@ fn render_request(req: &mut Request<'_>) -> Result<Rendered, Answer> {
     let params = request.params.unwrap_or(Val::Map(Vec::new()));
     let text = render(&source, &params, MAX_RENDERED_BYTES)
         .map_err(|e| Answer::Rest(template_error(e, &source)))?;
-    req.body().reserve(text.len()).map_err(Answer::Rest)?;
     Ok(Rendered {
         text,
         explain: request.explain,
@@ -157,6 +164,22 @@ pub(super) fn rendered_source(text: &str, explain: bool) -> Result<SearchSource,
 }
 
 impl<S: BlobStore + 'static> SearchService<S> {
+    /// The search an `_msearch/template` item's body line stands for: its
+    /// template rendered, the text held in the request-body pool while it is
+    /// parsed.
+    pub(super) fn template_item(&self, rec: &Recorder) -> Result<SearchSource, Answer> {
+        let rendered = render_recorded(rec)?;
+        let _held = self
+            .budget
+            .try_reserve(oss_mem::Pool::RequestBodies, rendered.text.len())
+            .map_err(|_| {
+                Answer::Rest(RestError::from(std::io::Error::other(
+                    "the request-body pool is full",
+                )))
+            })?;
+        rendered_source(&rendered.text, rendered.explain).map_err(bad_request)
+    }
+
     /// Handles one `_render/template`.
     pub fn handle_render_template(
         &self,

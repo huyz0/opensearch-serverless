@@ -40,6 +40,8 @@ Invariant I-13 in [invariants.md](invariants.md) holds the suite to this: `crate
 
 ## `_msearch` on a reader node
 
+`GET|POST /_msearch/template` and `/{index}/_msearch/template` take a template request on each body line and answer as `_msearch` does ([msearch-template](specs/msearch-template/SPEC.md)); the refusals of `_search/template` and `_msearch` both apply.
+
 `GET|POST /_msearch` and `/{index}/_msearch` run the searches of an NDJSON body, header line then body line, each as `_search` runs it, and answer `{"responses":[...],"took":N}` with each item's `"status"` ([msearch-api](specs/msearch-api/SPEC.md)). A failing item answers its own error body and the others run. **Refused** (the item answers 400 `illegal_argument_exception`): header keys other than `index`, an `index` that is an array, a pattern, `_all` or a list, and an item with no index; every URL parameter is refused. **Differs:** the answer streams, so `took` is the last key and a fault after the first item is an item, not a 400; a malformed header or body line fails its item and the later lines run, where OpenSearch fails the request; searches run one at a time.
 
 ## `_analyze` on a reader node

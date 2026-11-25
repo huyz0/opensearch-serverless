@@ -17,6 +17,7 @@ mod count;
 mod field_caps;
 mod frozen_search;
 mod msearch;
+mod msearch_template;
 mod never_written;
 mod open_prefetch;
 mod open_prefetch_layout;

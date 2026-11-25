@@ -199,6 +199,8 @@ fn routes_whose_indices_are_in_the_body_or_that_are_proxied_need_all_access() {
     for (m, t) in [
         ("POST", "/_msearch"),
         ("POST", "/docs/_msearch"),
+        ("POST", "/_msearch/template"),
+        ("POST", "/docs/_msearch/template"),
         ("POST", "/_search"),
         ("POST", "/docs/_delete_by_query"),
         ("PUT", "/_index_template/t"),
