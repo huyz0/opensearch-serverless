@@ -112,6 +112,8 @@ CASES = [
      {"crates/reader/src/lib.rs": "//! S.\nfn f() -> Vec<u8> { Vec::new() }\n"}),
     (["check-alloc.py"], "unbounded channel even with a comment",
      {"crates/reader/src/lib.rs": "//! S.\n// ALLOC: fine\nfn f() { let _ = std::sync::mpsc::channel::<u8>(); }\n"}),
+    (["check-acked.py"], "an engine sequence read with no reason",
+     {"crates/node/src/writer/slot.rs": "//! S.\nfn f(s: &S) -> i64 { s.max_seq_no() }\n"}),
     (["check-arith-allows.py"], "allow without proof",
      {"crates/reader/src/lib.rs": "//! S.\n#[allow(clippy::arithmetic_side_effects)]\nfn f(a: u8) -> u8 { a + 1 }\n"}),
     (["check-dev-notes.py"], "milestone id in a comment", {"crates/reader/src/lib.rs": "//! S.\n// added in M3\n"}),

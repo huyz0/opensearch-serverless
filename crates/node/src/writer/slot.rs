@@ -142,6 +142,7 @@ impl ShardSlot {
 
     /// The highest sequence number the engine assigned, negative for none.
     pub(super) fn max_seq_no(&self) -> i64 {
+        // QUIESCED: the raw engine mark; callers hold a quiesce or take `acked_seq_no`.
         self.cell.with_dependent(|_, shard| shard.max_seq_no())
     }
 
@@ -171,6 +172,7 @@ impl ShardSlot {
     pub(super) fn acked_seq_no(&self) -> i64 {
         match self.unacked.front() {
             Some(first) => first.saturating_sub(1),
+            // ACKED: nothing is staged, so the engine's mark is the acknowledged one.
             None => self.max_seq_no(),
         }
     }
