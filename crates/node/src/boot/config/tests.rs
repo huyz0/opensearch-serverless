@@ -1,5 +1,4 @@
 //! The node configuration's tests.
-
 use super::*;
 use oss_mem::Pool;
 
