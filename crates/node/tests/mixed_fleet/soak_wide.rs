@@ -67,6 +67,24 @@ fn found_range(addr: SocketAddr, lo: u32, hi: u32) -> Result<Vec<u32>, String> {
         // A node just started may not serve search yet: judged again within the slack.
         return Err(format!("search answered {}: {}", r.status, r.text()));
     }
+    let text = r.text();
+    if let Some(shards) = text.split("\"_shards\":").nth(1) {
+        let failed: u32 = shards
+            .split("\"failed\":")
+            .nth(1)
+            .map(|rest| {
+                rest.chars()
+                    .take_while(char::is_ascii_digit)
+                    .collect::<String>()
+            })
+            .and_then(|n| n.parse().ok())
+            .unwrap_or(0);
+        if failed > 0 {
+            // Not lost documents: a shard the node refused to answer for.
+            let why: String = shards.chars().take(400).collect();
+            return Err(format!("PARTIAL answer, {failed} shard(s) failed: {why}"));
+        }
+    }
     Ok(r.text()
         .split("\"_id\":")
         .skip(1)
@@ -80,6 +98,53 @@ fn found_range(addr: SocketAddr, lo: u32, hi: u32) -> Result<Vec<u32>, String> {
                 .expect("a numeric id")
         })
         .collect())
+}
+
+/// Prints, for each shard of `INDEX`, the head's owner and its claim, and the
+/// lease of the owner and of each node the head names, as Java reads them.
+fn probe(store: &oss_blob::S3Store, shards: u32) {
+    use oss_blob::BlobStore;
+    let read = |key: &str| {
+        let mut buf = vec![0u8; 1 << 16];
+        let got = store.read_register(key, &mut buf).ok().flatten()?;
+        buf.get(..got.len).map(<[u8]>::to_vec)
+    };
+    let lease = |id: &str| -> String {
+        let key = oss_format::lease_key("", id).expect("a key");
+        match read(&key).and_then(|b| oss_format::NodeLease::parse(&b).ok()) {
+            Some(l) => format!(
+                "lease {id}: ephemeral={} expires={} revoked={} version={:?} epochs={:?}",
+                l.ephemeral_id, l.expires_at_millis, l.revoked, l.version, l.node_log
+            ),
+            None => format!("lease {id}: none"),
+        }
+    };
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis());
+    eprintln!("WIDE probe now={now}");
+    for shard in 0..shards {
+        let key = oss_cluster::heads::shard_head_key("", INDEX, shard);
+        let Some(head) = read(&key).and_then(|b| oss_format::ShardHead::parse(&b).ok()) else {
+            eprintln!("WIDE probe shard {shard}: no head");
+            continue;
+        };
+        eprintln!(
+            "WIDE probe shard {shard}: term={} owner={:?} ephemeral={:?} claim_expires={} writers={:?}",
+            head.term,
+            head.owner_node_id,
+            head.owner_ephemeral_id,
+            head.lease_expires_at_millis,
+            head.writers
+        );
+        let mut ids: Vec<String> = head.writers.clone();
+        if let Some(owner) = head.owner_node_id.as_ref().filter(|o| !ids.contains(o)) {
+            ids.push(owner.clone());
+        }
+        for id in ids {
+            eprintln!("WIDE probe   {}", lease(&id));
+        }
+    }
 }
 
 /// Whether the node at `addr` finds exactly the ledger, range by range, within the slack.
@@ -240,6 +305,16 @@ fn several_live_nodes_take_concurrent_writes_while_one_is_killed_each_cycle() {
     let window = Duration::from_secs(knob("OSS_SOAK_WINDOW_SECONDS", 8));
     let mut cluster =
         Cluster::new(TTL_MS, 1, std::env::var_os("RUSTFS_BIN").is_some()).expect("a store");
+    let probe_store = {
+        let (endpoint, bucket, region, access, secret) = cluster.store();
+        oss_blob::S3Store::new(oss_blob::S3Config::new(
+            &endpoint,
+            bucket,
+            region,
+            oss_blob::Credentials::new(access, secret),
+        ))
+        .expect("a probe store")
+    };
     let shared = Shared {
         nodes: Mutex::new(Vec::new()),
         ledger: Mutex::new(BTreeSet::new()),
@@ -337,6 +412,7 @@ fn several_live_nodes_take_concurrent_writes_while_one_is_killed_each_cycle() {
                 }
             }
             if !errors.is_empty() {
+                probe(&probe_store, 4);
                 // Does a write to every shard, which makes a node take each
                 // one over, make the missing documents visible?
                 let java_addr = live
