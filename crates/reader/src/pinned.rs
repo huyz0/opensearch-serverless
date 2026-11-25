@@ -4,7 +4,9 @@
 //! stream over the answer, as it does from a built-in analyzer's.
 
 use lucene_analysis::{AnalysisError, AttributeSource, TokenStream};
-use oss_ext::analyzer::Token;
+use std::sync::Arc;
+
+use oss_ext::analyzer::{Analyze, Token};
 
 /// What a node gives a query to analyse a pinned field's text.
 pub trait PinnedTokens: Send + Sync {
@@ -15,6 +17,12 @@ pub trait PinnedTokens: Send + Sync {
     /// The words of the refusal; the query fails retryably and never falls
     /// back to the built-in analyzer.
     fn tokens(&self, analyzer: &str, text: &str) -> Result<Vec<Token>, String>;
+
+    /// The loaded analyzers by pin name, for building what indexes text.
+    fn modules(&self) -> Vec<(String, Arc<dyn Analyze>)> {
+        // ALLOC: empty; no allocation.
+        Vec::new()
+    }
 }
 
 /// Tokens as a stream the query builder reads.

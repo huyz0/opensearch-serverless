@@ -274,6 +274,13 @@ impl oss_reader::pinned::PinnedTokens for ModuleSet {
             )
         })
     }
+
+    fn modules(&self) -> Vec<(String, Arc<dyn Analyze>)> {
+        // ALLOC: one entry a pin, at most four.
+        self.analyzers()
+            .map(|(name, a)| (name.to_owned(), a))
+            .collect()
+    }
 }
 
 impl crate::writer::PinnedModules for ModuleSet {

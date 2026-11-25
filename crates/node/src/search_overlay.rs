@@ -187,6 +187,10 @@ impl<S: BlobStore + 'static> CommitAccess for Held<S> {
     fn index_name(&self) -> &str {
         &self.index
     }
+
+    fn modules(&self) -> Vec<(String, Arc<dyn oss_ext::analyzer::Analyze>)> {
+        self.pinned.as_ref().map_or_else(Vec::new, |p| p.modules())
+    }
 }
 
 impl<S: BlobStore + 'static> Drop for Held<S> {
