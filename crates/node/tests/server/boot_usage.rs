@@ -162,3 +162,48 @@ fn a_tenants_module_calls_appear_on_the_usage_route_of_a_running_node() {
         "{counters}"
     );
 }
+
+// docs/specs/tenant-cost-settings-update AC-1, AC-2, AC-3
+#[test]
+fn a_settings_update_moves_a_tenant_to_another_budget_at_once() {
+    let dir = TempDir::new("boot-tenant-budget");
+    let node = boot(dir.path(), Some("true"));
+    let made = call(
+        &node,
+        "PUT",
+        "/costly",
+        Some(r#"{"settings":{"index.serverless.cost.tier":"small"}}"#),
+    );
+    assert_eq!(made.status, 200, "{}", made.text());
+    let put = call(&node, "PUT", "/costly/_doc/1", Some(r#"{"n":1}"#));
+    assert_eq!(put.status, 201, "{}", put.text());
+    let budget_is = |wanted: &str| {
+        let started = std::time::Instant::now();
+        loop {
+            let body = call(&node, "GET", "/_serverless/usage", None).text();
+            if body.contains("\"costly\":{\"level\"") && body.contains(wanted) {
+                return;
+            }
+            assert!(started.elapsed().as_secs() < 10, "{wanted}: {body}");
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+    };
+    budget_is("\"budget_per_minute\":20,");
+    let update = |body: &str| call(&node, "PUT", "/costly/_settings", Some(body));
+    let moved = update(r#"{"index.serverless.cost.budget":"7"}"#);
+    assert_eq!(moved.status, 200, "{}", moved.text());
+    budget_is("\"budget_per_minute\":7,");
+    for bad in [
+        r#"{"index.serverless.cost.tier":"huge"}"#,
+        r#"{"index.serverless.cost.budget":"0"}"#,
+        r#"{"index.serverless.cost.budget":"lots"}"#,
+    ] {
+        let refused = update(bad);
+        assert_eq!(refused.status, 400, "{bad}: {}", refused.text());
+    }
+    let group = update(r#"{"index.serverless.bucket_group":"other"}"#);
+    assert_eq!(group.status, 501, "{}", group.text());
+    let cleared = update(r#"{"index.serverless.cost.budget":null}"#);
+    assert_eq!(cleared.status, 200, "{}", cleared.text());
+    budget_is("\"budget_per_minute\":20,");
+}
