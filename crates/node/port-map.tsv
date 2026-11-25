@@ -216,3 +216,4 @@ src/search_pipeline_route.rs	port	serverless/shell/src/main/java/org/opensearch/
 src/search_pipeline_run.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/SearchPlanner.java	the search_pipeline parameter: pipeline_missing, _none, the request side before the search
 src/writer/merging.rs	new		the node gate and settings for merging a shard small segments: one merge at a time inside a memory reservation (ADR 0059)
 src/writer/configure.rs	new		what the node configuration sets on the writer role, split out of assembly to keep it under the size limit
+src/cost_header.rs	new		the cost header value of a request that asked (ADR 0061); the shell has none

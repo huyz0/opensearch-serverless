@@ -151,8 +151,15 @@ impl<S: BlobStore + 'static> SearchService<S> {
         // The modules load beside the commit's files: a module's key comes
         // from the pins, not from anything the files hold, so a pinned index
         // opens in the rounds an unpinned one does.
+        // The request this open is for, if it asked what it costs.
+        let request = oss_blob::cost::capture();
         let (opened, loaded) = std::thread::scope(|scope| {
-            let loading = opener.map(|o| scope.spawn(move || o.open(index, pins)));
+            let loading = opener.map(|o| {
+                scope.spawn(move || {
+                    let _scope = oss_blob::cost::enter(request);
+                    o.open(index, pins)
+                })
+            });
             let opened = open_located_with(
                 Arc::clone(&self.store),
                 Arc::clone(&self.cache),

@@ -122,6 +122,7 @@ pub struct Router {
     guard: Option<Arc<dyn Guard>>,
     authorizer: Option<Arc<dyn Authorizer>>,
     admission: Option<Arc<dyn SearchAdmission>>,
+    cost: Option<Arc<dyn crate::cost::CostScope>>,
 }
 
 /// Where a path and method lead.
@@ -163,6 +164,18 @@ impl Router {
     pub fn with_search_admission(mut self, admission: Arc<dyn SearchAdmission>) -> Self {
         self.admission = Some(admission);
         self
+    }
+
+    /// Lets a request that asks for it be told what its store requests cost.
+    #[must_use]
+    pub fn with_cost_scope(mut self, scope: Arc<dyn crate::cost::CostScope>) -> Self {
+        self.cost = Some(scope);
+        self
+    }
+
+    /// The cost accounting, if one is set.
+    pub(crate) fn cost_scope(&self) -> Option<&Arc<dyn crate::cost::CostScope>> {
+        self.cost.as_ref()
     }
 
     /// The search admission hook, if one is set.

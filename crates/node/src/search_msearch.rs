@@ -177,6 +177,9 @@ impl<'s, 'r, 'a, S: BlobStore + 'static> Items<'s, 'r, 'a, S> {
             let Some(resp) = self.resp.take() else {
                 return Ok(());
             };
+            // The head goes out before the later sub-searches run: a cost
+            // header would be partial.
+            resp.without_cost_header();
             let mut out = resp.start(200, Some(JSON), Length::Chunked, &[])?;
             out.write_all(b"{\"responses\":[")?;
             self.out = Some(out);

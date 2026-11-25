@@ -207,3 +207,83 @@ fn a_settings_update_moves_a_tenant_to_another_budget_at_once() {
     assert_eq!(cleared.status, 200, "{}", cleared.text());
     budget_is("\"budget_per_minute\":20,");
 }
+
+/// One request on its own connection with extra request headers; the reply's
+/// head, lowercased, and its status.
+fn with_headers(node: &Node, method: &str, target: &str, extra: &str, body: &str) -> (u16, String) {
+    use std::io::{Read, Write};
+    let mut s = std::net::TcpStream::connect(node.addr()).expect("connects");
+    let head = format!(
+        "{method} {target} HTTP/1.1\r\nhost: test\r\nconnection: close\r\n{extra}content-type: application/json\r\ncontent-length: {}\r\n\r\n",
+        body.len()
+    );
+    s.write_all(head.as_bytes()).expect("sends");
+    s.write_all(body.as_bytes()).expect("sends");
+    let mut raw = Vec::new();
+    let mut chunk = [0u8; 8192];
+    loop {
+        match s.read(&mut chunk) {
+            Ok(0) | Err(_) => break,
+            Ok(n) => raw.extend_from_slice(&chunk[..n]),
+        }
+    }
+    let text = String::from_utf8_lossy(&raw).to_lowercase();
+    let status = text
+        .split(' ')
+        .nth(1)
+        .and_then(|s| s.parse().ok())
+        .expect("a status");
+    let head_end = text.find("\r\n\r\n").unwrap_or(text.len());
+    (status, text[..head_end].to_owned())
+}
+
+fn cost_of(head: &str) -> Option<&str> {
+    head.lines()
+        .find_map(|l| l.strip_prefix("x-opensearch-serverless-cost: "))
+}
+
+const ASK: &str = "x-opensearch-serverless-cost: report\r\n";
+
+// docs/specs/request-cost-header AC-1, AC-2, AC-3, AC-5
+#[test]
+fn a_request_that_asks_is_told_what_its_store_requests_cost() {
+    let dir = TempDir::new("boot-cost-header");
+    let node = boot(dir.path(), Some("true"));
+    assert_eq!(call(&node, "PUT", "/costs", None).status, 200);
+    let put = call(&node, "PUT", "/costs/_doc/1", Some(r#"{"n":1}"#));
+    assert_eq!(put.status, 201, "{}", put.text());
+    assert_eq!(call(&node, "POST", "/costs/_refresh", None).status, 200);
+    let (status, head) = with_headers(&node, "POST", "/costs/_search", ASK, "{}");
+    assert_eq!(status, 200, "{head}");
+    let value = cost_of(&head).unwrap_or_else(|| panic!("a cost header: {head}"));
+    assert!(
+        value.starts_with("get=") && value.contains(";bytes_read="),
+        "{value}"
+    );
+    assert!(value.ends_with(";node=n1;scope=node"), "{value}");
+    assert!(
+        !value.contains("units=0.000"),
+        "a search reads the store: {value}"
+    );
+    let (status, head) = with_headers(&node, "POST", "/costs/_search", "", "{}");
+    assert_eq!(status, 200, "{head}");
+    assert!(cost_of(&head).is_none(), "no ask, no header: {head}");
+    let msearch = "{\"index\":\"costs\"}\n{}\n";
+    let (status, head) = with_headers(&node, "POST", "/_msearch", ASK, msearch);
+    assert_eq!(status, 200, "{head}");
+    assert!(
+        cost_of(&head).is_none(),
+        "a streamed head carries none: {head}"
+    );
+}
+
+// docs/specs/request-cost-header AC-4
+#[test]
+fn a_node_with_store_usage_off_sends_no_cost_header() {
+    let dir = TempDir::new("boot-cost-header-off");
+    let node = boot(dir.path(), Some("false"));
+    assert_eq!(call(&node, "PUT", "/costs", None).status, 200);
+    let (status, head) = with_headers(&node, "POST", "/costs/_search", ASK, "{}");
+    assert_eq!(status, 200, "{head}");
+    assert!(cost_of(&head).is_none(), "{head}");
+}
