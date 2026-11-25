@@ -68,6 +68,7 @@ graph TD
     oss-writer --> oss-blob
     oss-writer --> oss-cluster
     oss-writer --> oss-doc
+    oss-writer --> oss-ext
     oss-writer --> oss-format
     oss-writer --> oss-meta
     oss-writer --> oss-rest

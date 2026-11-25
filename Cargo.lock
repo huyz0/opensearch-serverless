@@ -1458,6 +1458,7 @@ dependencies = [
  "oss-blob",
  "oss-cluster",
  "oss-doc",
+ "oss-ext",
  "oss-format",
  "oss-meta",
  "oss-rest",

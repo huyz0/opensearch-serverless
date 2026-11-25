@@ -2,10 +2,13 @@
 //! delete: the version lookup, the plan, a sequence number for each write
 //! that goes ahead, and the Lucene update or tombstone it makes.
 
-use lucene_index::buffered_updates::{DocValuesUpdate, Term};
+use std::sync::Arc;
+
+use lucene_index::buffered_updates::Term;
 use lucene_index::index_writer::IndexWriter;
 use lucene_search::directory_reader::DirectoryReader;
 use lucene_store::Directory;
+use oss_ext::analyzer::Analyze;
 
 use crate::document;
 use crate::fast::FastIngest;
@@ -14,8 +17,10 @@ use crate::mapping::{Mapping, MappingError};
 
 mod get;
 mod replay;
+mod soft;
 
 pub use get::Fetched;
+use soft::soft_delete;
 
 use super::lookup;
 use super::plan::{Current, Expect, plan};
@@ -151,6 +156,14 @@ impl<'d> Shard<'d> {
     #[must_use]
     pub fn with_derived_source(mut self, on: bool) -> Self {
         self.indexer = std::mem::take(&mut self.indexer).with_derived_source(on);
+        self
+    }
+
+    /// Indexes the fields whose mapping names `name` as their analyzer with
+    /// `module`, the module a pin loaded, never with the built-in analyzer.
+    #[must_use]
+    pub fn with_module(mut self, name: &str, module: Arc<dyn Analyze>) -> Self {
+        self.indexer = std::mem::take(&mut self.indexer).with_module(name, module);
         self
     }
 
@@ -480,15 +493,4 @@ impl<'d> Shard<'d> {
 fn message(e: &dyn std::fmt::Display) -> String {
     // ALLOC: error path; one message.
     e.to_string()
-}
-
-/// `Lucene.newSoftDeletesField()` as an update of every document with `_id`
-/// `uid`.
-fn soft_delete(uid: &[u8]) -> DocValuesUpdate {
-    DocValuesUpdate::Numeric {
-        // ALLOC: one term a replaced document.
-        term: Term::new("_id", uid.to_vec()),
-        field: "__soft_deletes".to_owned(),
-        value: Some(1),
-    }
 }
