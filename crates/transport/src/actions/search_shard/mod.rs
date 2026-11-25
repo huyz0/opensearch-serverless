@@ -247,3 +247,57 @@ impl Request {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn millis(count: i64, unit: u8) -> Result<i64, Refusal> {
+        let mut zigzag = u64::from_ne_bytes(count.to_ne_bytes()) << 1;
+        if count < 0 {
+            zigzag = !zigzag;
+        }
+        let mut bytes = Vec::new();
+        loop {
+            let low = u8::try_from(zigzag & 0x7f).unwrap();
+            zigzag >>= 7;
+            if zigzag == 0 {
+                bytes.push(low);
+                break;
+            }
+            bytes.push(low | 0x80);
+        }
+        bytes.push(unit);
+        time_value(&mut Input::new(&bytes))
+    }
+
+    #[test]
+    fn a_timeout_unit_scales_to_milliseconds() {
+        assert_eq!(millis(5_000_000, 0).unwrap(), 5);
+        assert_eq!(millis(5_000, 1).unwrap(), 5);
+        assert_eq!(millis(5, 2).unwrap(), 5);
+        assert_eq!(millis(5, 3).unwrap(), 5_000);
+        assert_eq!(millis(5, 4).unwrap(), 300_000);
+        assert_eq!(millis(5, 5).unwrap(), 18_000_000);
+        assert_eq!(millis(5, 6).unwrap(), 432_000_000);
+    }
+
+    #[test]
+    fn a_bad_unit_or_an_oversized_timeout_is_refused() {
+        assert!(millis(5, 7).is_err());
+        assert!(matches!(
+            millis(i64::MAX / 2, 6),
+            Err(Refusal::TooLarge("timeout"))
+        ));
+    }
+
+    #[test]
+    fn an_optional_boolean_refuses_only_true() {
+        for (byte, refused) in [(0_u8, false), (1, true), (2, false)] {
+            let got = not_true(&mut Input::new(&[byte]), "explain");
+            assert_eq!(matches!(got, Err(Refusal::Unsupported("explain"))), refused);
+            assert_eq!(got.is_ok(), !refused);
+        }
+        assert!(not_true(&mut Input::new(&[3]), "explain").is_err());
+    }
+}
