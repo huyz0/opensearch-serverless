@@ -293,7 +293,14 @@ impl Assembled {
     ///
     /// [`AssembleError::Route`] when the route is registered twice.
     pub fn with_usage(mut self, service: UsageService) -> Result<Self, AssembleError> {
-        self.router = routes(self.router, Arc::new(service)).map_err(AssembleError::Route)?;
+        // A request that asks is told what its store requests cost: only a
+        // node with a ledger has the tap that counts them.
+        let router = self
+            .router
+            .with_cost_scope(Arc::new(crate::cost_header::NodeCostScope::new(
+                &service.node_id,
+            )));
+        self.router = routes(router, Arc::new(service)).map_err(AssembleError::Route)?;
         Ok(self)
     }
 }

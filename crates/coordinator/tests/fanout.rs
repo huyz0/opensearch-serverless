@@ -138,3 +138,21 @@ fn nobody_answering_gives_the_lowest_failure_and_nothing_gives_nothing() {
         }
     );
 }
+
+// docs/specs/request-cost-header AC-7
+#[test]
+fn the_helper_threads_carry_the_scope_of_the_request_that_asked() {
+    let cost = oss_blob::cost::RequestCost::new();
+    let _scope = oss_blob::cost::enter(Some(cost));
+    let items: Vec<u32> = (0..8).collect();
+    let out = run(4, &items, |_| {
+        thread::sleep(Duration::from_millis(5));
+        Ok::<bool, ()>(oss_blob::cost::capture().is_some())
+    });
+    assert!(out.into_iter().all(|r| r.expect("ok")));
+    drop(_scope);
+    let none = run(4, &items, |_| {
+        Ok::<bool, ()>(oss_blob::cost::capture().is_some())
+    });
+    assert!(none.into_iter().all(|r| !r.expect("ok")));
+}

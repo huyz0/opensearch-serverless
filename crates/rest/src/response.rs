@@ -51,6 +51,8 @@ pub struct Response<'a> {
     http10: bool,
     connection: Option<&'static str>,
     echo: [(&'static str, Option<&'a str>); 2],
+    /// What this request's store requests cost, when it asked.
+    cost: Option<std::sync::Arc<dyn crate::cost::CostSession>>,
 }
 
 impl std::fmt::Debug for Response<'_> {
@@ -80,7 +82,20 @@ impl<'a> Response<'a> {
             http10: false,
             connection,
             echo: [("x-opaque-id", opaque_id), ("x-request-id", request_id)],
+            cost: None,
         }
+    }
+
+    /// Has the response head carry what `session` has counted when it is
+    /// written.
+    pub(crate) fn set_cost(&mut self, session: std::sync::Arc<dyn crate::cost::CostSession>) {
+        self.cost = Some(session);
+    }
+
+    /// Leaves the cost header off: for a handler that writes its head
+    /// before its work is done, where the number would be partial.
+    pub fn without_cost_header(&mut self) {
+        self.cost = None;
     }
 
     /// Marks the client as HTTP/1.0, which cannot read a chunked body: one
@@ -123,6 +138,13 @@ impl<'a> Response<'a> {
         }
         for (name, value) in headers {
             write!(head, "{name}: {value}\r\n")?;
+        }
+        if let Some(cost) = &self.cost {
+            write!(
+                head,
+                "x-opensearch-serverless-cost: {}\r\n",
+                cost.header_value()
+            )?;
         }
         if let Some(ct) = content_type {
             write!(head, "content-type: {ct}\r\n")?;

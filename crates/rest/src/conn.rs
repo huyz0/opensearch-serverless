@@ -363,6 +363,12 @@ fn handle(ctx: Ctx<'_>, inbound: &mut Inbound<&Timed<'_>, &mut [u8]>, stream: &T
             return deny(&mut resp, &denial, wants_open, has_body);
         }
     }
+    if let Some(scope) = shared.router.cost_scope()
+        && crate::cost::asks(head.header(buf, crate::cost::REQUEST_HEADER))
+    {
+        // Only after the guard and the authorizer let the request through.
+        resp.set_cost(scope.begin());
+    }
     if has_body && let Err(e) = content_type(head, buf) {
         return refuse(&mut resp, &e, wants_open, true);
     }

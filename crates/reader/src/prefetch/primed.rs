@@ -22,10 +22,18 @@ impl Primed {
     pub fn fetch<S: BlobStore>(store: &PooledStore<S>, ranges: &[Range]) -> Self {
         let mut primed = Self::default();
         for batch in ranges.chunks(MAX_CONCURRENT) {
+            // The request these reads are for, if it asked what it costs.
+            let request = oss_blob::cost::capture();
             let fetched: Vec<Option<Vec<u8>>> = std::thread::scope(|scope| {
                 let handles: Vec<_> = batch
                     .iter()
-                    .map(|range| scope.spawn(move || read(store, range)))
+                    .map(|range| {
+                        let request = request.clone();
+                        scope.spawn(move || {
+                            let _scope = oss_blob::cost::enter(request);
+                            read(store, range)
+                        })
+                    })
                     // ALLOC: one handle a range, at most MAX_CONCURRENT.
                     .collect();
                 handles

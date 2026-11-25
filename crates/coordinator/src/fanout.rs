@@ -60,9 +60,14 @@ where
     let slots: Vec<Slot<T, E>> = items.iter().map(|_| Mutex::new(None)).collect();
     let next = AtomicUsize::new(0);
     let helpers = concurrency.max(1).min(items.len()).saturating_sub(1);
+    // The request these calls are for, if it asked what it costs.
+    let request = oss_blob::cost::capture();
     thread::scope(|scope| {
         for _ in 0..helpers {
-            scope.spawn(|| drain(&next, items, &slots, &call));
+            scope.spawn(|| {
+                let _scope = oss_blob::cost::enter(request.clone());
+                drain(&next, items, &slots, &call);
+            });
         }
         drain(&next, items, &slots, &call);
     });

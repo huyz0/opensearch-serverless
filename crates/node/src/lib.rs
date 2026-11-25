@@ -36,6 +36,8 @@ pub mod cluster_route;
 pub mod commit_push;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub(crate) mod core_settings;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod cost_header;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub(crate) mod create_settings;
 #[cfg(all(feature = "writer", feature = "coordinator"))]

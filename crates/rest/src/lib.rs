@@ -16,6 +16,7 @@ mod body;
 mod checks;
 mod config;
 mod conn;
+pub mod cost;
 mod error;
 mod guard;
 mod head;
