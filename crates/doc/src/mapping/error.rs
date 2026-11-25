@@ -190,3 +190,20 @@ impl fmt::Display for MappingError {
 }
 
 impl std::error::Error for MappingError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use oss_ext::CallError;
+
+    // docs/specs/extension-analyzer AC-2, AC-16
+    #[test]
+    fn a_failed_module_call_is_typed_by_what_a_caller_can_do() {
+        let ty = |e: CallError| MappingError::extension(&e).ty;
+        assert_eq!(ty(CallError::busy()), "extension_busy");
+        assert_eq!(ty(CallError::malformed(9)), "extension_malformed");
+        assert_eq!(ty(CallError::trap("unreachable")), "extension_failed");
+        let e = MappingError::extension(&CallError::trap("unreachable"));
+        assert!(e.reason.contains("unreachable"), "{}", e.reason);
+    }
+}
