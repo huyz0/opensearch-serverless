@@ -4,6 +4,7 @@
 pub mod lease;
 pub mod push;
 pub mod read;
+pub mod search_shard;
 pub mod tail;
 pub mod warm;
 pub mod write;
