@@ -276,14 +276,14 @@ fn a_refresh_after_a_failed_window_does_not_hang_and_the_shard_goes_on() {
 // AC-11
 #[test]
 fn a_depth_of_two_bounds_the_groups_of_a_shard_in_flight() {
-    let (_c, one) = rig(2);
-    let started = Instant::now();
+    let (c, one) = rig(2);
+    let before = puts(&c);
     let results = together(&one, &["a", "b", "c", "d", "e", "f"]);
-    let took = started.elapsed();
     assert!(results.iter().all(landed), "{results:?}");
     // Six groups, two at a time: at least three windows one after another.
+    let windows = puts(&c) - before;
     assert!(
-        took >= PUT * 2,
-        "{took:?}: depth 2 held six groups together"
+        windows >= 3,
+        "{windows} PUTs: depth 2 held six groups together"
     );
 }
