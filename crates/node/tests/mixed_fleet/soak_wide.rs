@@ -59,11 +59,13 @@ fn spawn(kind: Kind, n: u64, cluster: &mut Cluster) -> (Handle, SocketAddr) {
 
 /// Ids of `INDEX` with `n` in `lo..hi`, as the node at `addr` finds them.
 fn found_range(addr: SocketAddr, lo: u32, hi: u32) -> Result<Vec<u32>, String> {
-    // A match-all filtered here: a range over `n` finds nothing while the
-    // index mapping is empty, which would read as every document lost.
+    // Match-all, filtered here: a range finds nothing while the mapping is empty.
     let body =
         format!("{{\"size\":{MAX_FOUND},\"_source\":false,\"query\":{{\"match_all\":{{}}}}}}");
-    let r = call(addr, "POST", &format!("/{INDEX}/_search"), Some(&body));
+    // No complete reply in the read timeout is reported, naming the node.
+    let Some(r) = try_call(addr, "POST", &format!("/{INDEX}/_search"), Some(&body)) else {
+        return Err("search got no complete reply".into());
+    };
     if r.status != 200 {
         // A node just started may not serve search yet: judged again within the slack.
         return Err(format!("search answered {}: {}", r.status, r.text()));

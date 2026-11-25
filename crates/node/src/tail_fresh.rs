@@ -240,6 +240,30 @@ impl TailFresh {
         commit_checkpoint: i64,
         apply_pending: &dyn Fn(),
     ) -> bool {
+        self.ensure_from(
+            index,
+            uuid,
+            shard,
+            writer,
+            commit_checkpoint,
+            apply_pending,
+            true,
+        )
+    }
+
+    /// [`Self::ensure_fresh`], with `may_redirect` when a writer that does not
+    /// answer may be replaced by the node the head names.
+    #[allow(clippy::too_many_arguments)]
+    fn ensure_from(
+        &self,
+        index: &str,
+        uuid: &str,
+        shard: u32,
+        writer: &str,
+        commit_checkpoint: i64,
+        apply_pending: &dyn Fn(),
+        may_redirect: bool,
+    ) -> bool {
         let (grants, applies) = self.mode();
         if !grants {
             if applies {
@@ -292,6 +316,24 @@ impl TailFresh {
         if self.granted(uuid, shard, writer) || (subscribed && self.held.holds(uuid, shard, writer))
         {
             return true;
+        }
+        // The writer that staged this commit is gone, and the head may name
+        // the node that took the shard: its writes are acknowledged by that
+        // node, which is the one to ask (and to subscribe to).
+        if unanswered
+            && may_redirect
+            && let Some(owner) = self.current_owner(index, uuid, shard)
+            && owner != writer
+        {
+            return self.ensure_from(
+                index,
+                uuid,
+                shard,
+                &owner,
+                commit_checkpoint,
+                apply_pending,
+                false,
+            );
         }
         if unanswered {
             // The writer did not answer, or this node's leases show it gone:
