@@ -7,3 +7,4 @@ src/gate.rs	new		the per-module and per-tenant concurrency gate
 src/reserve.rs	new		the pool trait a caller supplies
 src/config.rs	new		the host limits a descriptor may only lower
 src/analyzer.rs	new		a module as an analyzer: the pin check and a block of texts through it
+src/meter.rs	new		what each tenant's module calls cost: calls, fuel, bytes in and out

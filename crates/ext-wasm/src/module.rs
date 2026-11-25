@@ -296,6 +296,24 @@ impl Module {
         input: &[u8],
         run: Run,
     ) -> Result<Vec<u8>, CallError> {
+        let mut spent = 0;
+        let out = self.run_call(tenant, point, input, run, &mut spent);
+        // A call refused before it ran (the gate, the pool, the input) costs nothing.
+        if spent > 0 || out.is_ok() {
+            let sent = out.as_ref().map_or(0, Vec::len);
+            self.shared.meter.record(tenant, spent, input.len(), sent);
+        }
+        out
+    }
+
+    fn run_call(
+        &self,
+        tenant: &str,
+        point: usize,
+        input: &[u8],
+        run: Run,
+        spent: &mut u64,
+    ) -> Result<Vec<u8>, CallError> {
         let io = self.descriptor.io_bytes();
         if point >= self.descriptor.points().len() {
             return Err(CallError::from_status(Status::Unsupported, b""));
@@ -336,9 +354,11 @@ impl Module {
         let point = i32::try_from(point).unwrap_or(i32::MAX);
         let in_len = i32::try_from(input.len()).unwrap_or(i32::MAX);
         let cap = i32::try_from(io).unwrap_or(i32::MAX);
-        let code = f
-            .call(&mut s.store, (point, in_len, cap))
-            .map_err(|e| failed(&e))?;
+        let called = f.call(&mut s.store, (point, in_len, cap));
+        *spent = eff
+            .fuel
+            .saturating_sub(s.store.get_fuel().unwrap_or(eff.fuel));
+        let code = called.map_err(|e| failed(&e))?;
         let status = status_of(code).map_err(CallError::malformed)?;
         let n = len(&mut s)?;
         let mem = s.memory.data_size(&s.store);

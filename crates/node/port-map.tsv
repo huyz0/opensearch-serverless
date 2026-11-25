@@ -208,3 +208,4 @@ src/lease_age.rs	new		when this node last renewed its own lease, for the handler
 src/boot/search_shard.rs	new		the forwarded shard search action's slot and its install at boot (ADR 0057)
 src/vector_warm_setting.rs	new		whether a segment's vector files are read whole at open or at the first knn search; the shell has no such switch
 src/boot/config/tests/vector_warm.rs	new		tests of the vector warm variable
+src/usage_extensions.rs	new		what each tenant's extension module calls cost, in the usage body

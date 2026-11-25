@@ -175,6 +175,8 @@ pub mod template_route;
 pub mod tenants;
 #[cfg(any(feature = "reader", feature = "writer"))]
 pub(crate) mod time_value;
+#[cfg(all(feature = "extensions", feature = "reader", feature = "writer"))]
+mod usage_extensions;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod usage_route;
 #[cfg(feature = "reader")]
