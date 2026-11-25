@@ -29,10 +29,13 @@ A write group held its shard's slot lock across the wait for the node log, so tw
 - AC-10: a refresh after a failed window comes back, publishes nothing unlogged, and the shard takes writes again.
 - AC-11: at depth 2, six groups of one shard take at least three windows in turn.
 - AC-12: a node that takes over from a pipelined one finds every acknowledged write and numbers past the highest.
+- AC-13: groups of a shard in flight reach the tail sink in sequence order.
+- AC-14: at the largest depth (64), sixty-four groups of one shard land, each with its own number, none twice.
+- AC-15: at depth 8, a bulk with one 300 KiB item among fifty tiny ones is applied whole.
 
 ## Test plan
 
-`crates/writer/tests/node_log_staged.rs` (AC-1), `crates/node/tests/writer_pipeline.rs` (AC-2 to AC-6, AC-9 to AC-11), `crates/node/tests/server/boot_write_concurrency.rs` (AC-7, AC-8, a booted node over a file store).
+`crates/writer/tests/node_log_staged.rs` (AC-1), `crates/node/tests/writer_pipeline.rs` (AC-2 to AC-6, AC-9 to AC-14), `crates/node/tests/server/boot_write_concurrency.rs` (AC-7, AC-8, a booted node over a file store).
 
 ## S3 request budget
 
