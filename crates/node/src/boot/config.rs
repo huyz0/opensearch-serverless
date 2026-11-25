@@ -167,11 +167,9 @@ pub struct NodeConfig {
     pub edge: edge::EdgeSettings,
     /// `OSS_PAGE_CACHE_DIR` and `OSS_PAGE_CACHE_BYTES`: a disk tier for the page cache.
     pub page_cache: Option<page_cache::DiskCache>,
-    /// `OSS_RESIDENT_PAGE_BYTES`: the most bytes of demand-filled pages the
-    /// node keeps resident; 0 leaves the engine's default.
+    /// `OSS_RESIDENT_PAGE_BYTES`: most demand-filled page bytes kept resident; 0 is the default.
     pub resident_page_bytes: u64,
-    /// `OSS_ROLES`: the roles the node's lease names, `ingest` and `search`;
-    /// none is a coordinating-only node.
+    /// `OSS_ROLES`: the lease's roles, `ingest` and `search`; none is coordinating-only.
     pub roles: Vec<&'static str>,
     /// How often the one sweeping node removes expired tombstones; 0 is off.
     pub tombstone_sweep_millis: u64,
