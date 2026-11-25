@@ -64,6 +64,8 @@ mod push_read;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod read_forward;
 #[cfg(all(feature = "reader", feature = "writer"))]
+mod script_route;
+#[cfg(all(feature = "reader", feature = "writer"))]
 mod security_authn;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod security_authz;

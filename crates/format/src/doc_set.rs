@@ -49,6 +49,8 @@ pub enum DocKind {
     IngestPipeline,
     /// Search pipelines, `search_pipelines/`.
     SearchPipeline,
+    /// Stored scripts, `scripts/`.
+    StoredScript,
     /// Security roles, `security/roles/`.
     SecurityRoles,
     /// Security role mappings, `security/rolesmapping/`.
@@ -69,6 +71,7 @@ impl DocKind {
             Self::ComponentTemplate => "templates/component/",
             Self::IngestPipeline => "pipelines/",
             Self::SearchPipeline => "search_pipelines/",
+            Self::StoredScript => "scripts/",
             Self::SecurityRoles => "security/roles/",
             Self::SecurityRolesMapping => "security/rolesmapping/",
             Self::SecurityInternalUsers => "security/internalusers/",
