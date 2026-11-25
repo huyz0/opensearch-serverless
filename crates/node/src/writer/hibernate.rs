@@ -220,7 +220,7 @@ impl WriterRole {
             }
             let (used, max_seq_no) = {
                 let slot = lock(&slot);
-                (slot.used_at(), slot.max_seq_no())
+                (slot.used_at(), slot.acked_seq_no())
             };
             if now_millis.saturating_sub(used) < idle_millis {
                 continue;
@@ -244,9 +244,10 @@ impl WriterRole {
                     }
                 }
             }
-            let mut held = lock(&slot);
+            let (mut held, quiet) = super::pipelined::quiet_slot(&slot);
             if held.asleep()
                 || held.released()
+                || held.failed()
                 || held.used_at() != used
                 || publishing.unpublished(&key, held.max_seq_no())
             {
@@ -264,6 +265,8 @@ impl WriterRole {
                 },
             );
             self.release(&key.0, key.1, &slot);
+            drop(held);
+            drop(quiet);
             pass.hibernated = pass.hibernated.saturating_add(1);
         }
         pass

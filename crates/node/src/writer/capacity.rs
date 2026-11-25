@@ -387,7 +387,7 @@ impl WriterRole {
             return false;
         };
         if let Some(publishing) = &self.publishing {
-            let max_seq_no = lock(&slot).max_seq_no();
+            let max_seq_no = lock(&slot).acked_seq_no();
             if publishing.unpublished(&key, max_seq_no) {
                 match self.publish_shard(publishing, &key, &index, &slot, false) {
                     Ok(Some((done, max_seq_no))) => {
@@ -401,9 +401,10 @@ impl WriterRole {
                 }
             }
         }
-        let mut held = lock(&slot);
+        let (mut held, quiet) = super::pipelined::quiet_slot(&slot);
         if held.asleep()
             || held.released()
+            || held.failed()
             || held.used_at() != used
             || self
                 .publishing
@@ -419,6 +420,7 @@ impl WriterRole {
         // a write arriving meanwhile finds it asleep and wakes it.
         self.remember_asleep(&key, term, now_millis);
         self.release(&key.0, key.1, &slot);
+        drop(quiet);
         let counter = if handing_off {
             &self.counters.handed_off
         } else {
