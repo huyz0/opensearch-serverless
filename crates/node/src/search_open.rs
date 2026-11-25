@@ -215,7 +215,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
         // No push, a push that is no commit, or one for an index since
         // recreated: the register decides, or the newer commit its writer
         // says it staged after it.
-        match self.newest.get() {
+        let opened = match self.newest.get() {
             Some(source) => ShardFiles::open_asking_with_meta(
                 &self.store,
                 &self.base,
@@ -224,6 +224,18 @@ impl<S: BlobStore + 'static> SearchService<S> {
                 source.as_ref(),
             ),
             None => ShardFiles::open_with_meta(&self.store, &self.base, index, shard),
+        };
+        match opened {
+            // The writer took the shard and its first publish has not
+            // landed: what it wrote is in its tail, which the overlay and
+            // the freshness check below read. Only with both installed.
+            Err(ReaderError::Blob(BlobError::NotFound))
+                if self.has_overlay_source() && self.fresh.get().is_some() =>
+            {
+                let now = i64::try_from(crate::clock::now_millis()).unwrap_or(i64::MAX);
+                ShardFiles::open_unpublished_with_meta(&self.store, &self.base, index, shard, now)
+            }
+            other => other,
         }
     }
 }

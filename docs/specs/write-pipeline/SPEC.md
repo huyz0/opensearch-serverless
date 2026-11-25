@@ -32,6 +32,7 @@ A write group held its shard's slot lock across the wait for the node log, so tw
 - AC-13: groups of a shard in flight reach the tail sink in sequence order.
 - AC-14: at the largest depth (64), sixty-four groups of one shard land, each with its own number, none twice.
 - AC-15: at depth 8, a bulk with one 300 KiB item among fifty tiny ones is applied whole.
+- AC-16: at depth 8, a field a write introduces is in the index's descriptor before the write is acknowledged (as at depth 1), so every node maps it.
 
 ## Test plan
 
