@@ -99,7 +99,10 @@ pub fn registration(
             _ => {}
         }
     }
-    if repo_type != NATIVE_TYPE {
+    let stock = settings.iter().any(|(k, v)| k == STOCK_KEY && v == STOCK);
+    if stock {
+        check_stock(&repo_type, &settings)?;
+    } else if repo_type != NATIVE_TYPE {
         return Err(refuse(
             501,
             "unsupported_repository_type",
@@ -125,6 +128,77 @@ pub fn registration(
         created_at_millis: now_millis,
         settings,
     })
+}
+
+/// The setting that makes a repository a stock OpenSearch one.
+const STOCK_KEY: &str = "format";
+/// Its value.
+const STOCK: &str = "stock";
+
+/// What a stock `fs` repository sets, and what it must.
+const STOCK_FS: (&[&str], &str) = (&["format", "location"], "location");
+/// What a stock `s3` repository sets, and what it must.
+const STOCK_S3: (&[&str], &str) = (&["format", "bucket", "base_path", "readonly"], "bucket");
+
+/// Settings of a stock repository in OpenSearch that this node does not
+/// serve: refused 501 where any other unknown key is refused 400.
+const STOCK_UNSERVED: &[&str] = &[
+    "compress",
+    "chunk_size",
+    "max_restore_bytes_per_sec",
+    "max_snapshot_bytes_per_sec",
+    "client",
+    "endpoint",
+    "region",
+    "storage_class",
+    "canned_acl",
+    "server_side_encryption",
+    "buffer_size",
+    "path_style_access",
+    "access_key",
+    "secret_key",
+    "session_token",
+    "remote_store_index_shallow_copy",
+];
+
+/// The settings of a stock repository: its type is `fs` or `s3`, it sets
+/// only the keys that type serves, and it names where it is.
+fn check_stock(repo_type: &str, settings: &[(String, String)]) -> Result<(), Refusal> {
+    let (allowed, required) = match repo_type {
+        "fs" => STOCK_FS,
+        "s3" => STOCK_S3,
+        other => {
+            return Err(refuse(
+                501,
+                "unsupported_repository_type",
+                // ALLOC: error path; one message.
+                format!("a stock repository is type 'fs' or 's3', not '{other}'"),
+            ));
+        }
+    };
+    for (key, _) in settings {
+        if allowed.contains(&key.as_str()) {
+            continue;
+        }
+        if STOCK_UNSERVED.contains(&key.as_str()) {
+            return Err(refuse(
+                501,
+                "unsupported_repository_setting",
+                // ALLOC: error path; one message.
+                format!("stock repository setting [{key}] is not supported"),
+            ));
+        }
+        // ALLOC: error path; one message.
+        return Err(bad(&format!("unknown stock repository setting [{key}]")));
+    }
+    let named = settings
+        .iter()
+        .any(|(k, v)| k == required && !v.trim().is_empty());
+    if !named {
+        // ALLOC: error path; one message.
+        return Err(bad(&format!("missing required setting [{required}]")));
+    }
+    Ok(())
 }
 
 fn bad(reason: &str) -> Refusal {
@@ -314,6 +388,79 @@ mod tests {
                 r#"{"type":"fs","crypto_settings":null,"settings":null,"verify":false}"#
             )
             .is_ok()
+        );
+    }
+
+    fn stock(body: &str) -> Result<RepositoryRecord, Refusal> {
+        put("src", body)
+    }
+
+    #[test]
+    fn a_stock_fs_or_s3_repository_registers_with_the_keys_it_serves() {
+        let fs = stock(r#"{"type":"fs","settings":{"format":"stock","location":"/srv/repo"}}"#)
+            .expect("fs");
+        assert_eq!(fs.repo_type, "fs");
+        assert!(fs.is_stock());
+        let s3 = stock(
+            r#"{"type":"s3","settings":{"format":"stock","bucket":"b","base_path":"p","readonly":true}}"#,
+        )
+        .expect("s3");
+        assert_eq!(s3.repo_type, "s3");
+        assert!(s3.is_stock());
+        // The default type is fs, as for a native repository.
+        assert!(stock(r#"{"settings":{"format":"stock","location":"/x"}}"#).is_ok());
+        assert!(
+            !put("n", r#"{"settings":{"location":"x"}}"#)
+                .unwrap()
+                .is_stock()
+        );
+    }
+
+    #[test]
+    fn a_stock_repository_is_refused_for_what_it_does_not_serve() {
+        let kind = |body: &str| stock(body).unwrap_err();
+        let k = kind(r#"{"type":"gcs","settings":{"format":"stock","bucket":"b"}}"#);
+        assert_eq!((k.status, k.kind), (501, "unsupported_repository_type"));
+        for key in ["compress", "chunk_size", "endpoint", "region", "access_key"] {
+            let k = kind(&format!(
+                r#"{{"settings":{{"format":"stock","location":"/x","{key}":"v"}}}}"#
+            ));
+            assert_eq!(
+                (k.status, k.kind),
+                (501, "unsupported_repository_setting"),
+                "{key}"
+            );
+        }
+        // A key the fs type does not serve but s3 does, and one nobody knows.
+        for body in [
+            r#"{"settings":{"format":"stock","location":"/x","bucket":"b"}}"#,
+            r#"{"type":"s3","settings":{"format":"stock","bucket":"b","location":"/x"}}"#,
+            r#"{"settings":{"format":"stock","location":"/x","nonsense":"1"}}"#,
+        ] {
+            let k = kind(body);
+            assert_eq!(
+                (k.status, k.kind),
+                (400, "illegal_argument_exception"),
+                "{body}"
+            );
+        }
+        // Where it is must be named.
+        for body in [
+            r#"{"settings":{"format":"stock"}}"#,
+            r#"{"settings":{"format":"stock","location":" "}}"#,
+            r#"{"type":"s3","settings":{"format":"stock","base_path":"p"}}"#,
+        ] {
+            let k = kind(body);
+            assert_eq!(k.status, 400, "{body}");
+            assert!(k.reason.contains("missing required"), "{}", k.reason);
+        }
+        let k =
+            kind(r#"{"crypto_settings":{"a":1},"settings":{"format":"stock","location":"/x"}}"#);
+        assert_eq!(k.kind, "unsupported_repository_setting");
+        // Another format value is not stock, and a native repository is as before.
+        assert_eq!(
+            kind(r#"{"type":"s3","settings":{"format":"other","bucket":"b"}}"#).kind,
+            "unsupported_repository_type"
         );
     }
 

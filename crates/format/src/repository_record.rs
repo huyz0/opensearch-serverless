@@ -102,6 +102,15 @@ impl RepositoryRecord {
         out.finish(WHAT)
     }
 
+    /// Whether this is a stock OpenSearch repository read for a restore:
+    /// the setting `format` is `stock`.
+    #[must_use]
+    pub fn is_stock(&self) -> bool {
+        self.settings
+            .iter()
+            .any(|(k, v)| k == "format" && v == "stock")
+    }
+
     /// Whether snapshots here are shallow unless a request says otherwise.
     #[must_use]
     pub fn shallow_by_default(&self) -> bool {
@@ -196,6 +205,19 @@ mod tests {
         let r = RepositoryRecord::parse(br#"{"name":"r","created_at":"7"}"#).expect("reads");
         assert_eq!((r.repo_type.as_str(), r.created_at_millis), ("fs", 7));
         assert!(r.settings.is_empty() && !r.shallow_by_default());
+    }
+
+    #[test]
+    fn only_the_stock_format_makes_a_repository_stock() {
+        let read = |settings: &str| {
+            let json =
+                format!(r#"{{"name":"r","type":"fs","created_at":1,"settings":{settings}}}"#);
+            RepositoryRecord::parse(json.as_bytes()).expect("reads")
+        };
+        assert!(read(r#"{"format":"stock","location":"x"}"#).is_stock());
+        assert!(!read(r#"{"format":"native"}"#).is_stock());
+        assert!(!read(r#"{"location":"stock"}"#).is_stock());
+        assert!(!read("{}").is_stock());
     }
 
     #[test]
