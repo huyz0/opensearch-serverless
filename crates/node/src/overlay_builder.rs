@@ -21,8 +21,8 @@ use oss_format::WalRecord;
 use oss_mem::{MemoryBudget, Pool, Reservation};
 use oss_reader::commit_push::Stage;
 use oss_reader::overlay::{
-    CommitAccess, OverlaySource, Ready, build_ready_with, estimate_bytes, kept_bytes,
-    local_checkpoint, mask_bytes,
+    BuildError, CommitAccess, ExtensionRefusal, OverlaySource, Ready, build_ready_with,
+    estimate_bytes, kept_bytes, local_checkpoint, mask_bytes,
 };
 use oss_transport::actions::tail::{FetchRequest, FetchResponse, NEW, Record, ShardRef};
 use oss_transport::stream::TaskId;
@@ -75,6 +75,8 @@ struct Slot {
     /// The bytes the pool refused the latest build: tried again once the
     /// pool has that much free, though no record changed.
     refused: Option<usize>,
+    /// The module failure that stopped the latest build, until one succeeds.
+    extension: Option<ExtensionRefusal>,
 }
 
 struct Job {
@@ -254,6 +256,7 @@ impl OverlaySource for OverlayBuilder {
                     built: None,
                     attempted: None,
                     refused: None,
+                    extension: None,
                 },
             );
         }
@@ -327,6 +330,20 @@ impl OverlaySource for OverlayBuilder {
         }
     }
 
+    fn extension_refusal(
+        &self,
+        index_uuid: &str,
+        shard: u32,
+        stage: &Stage,
+    ) -> Option<ExtensionRefusal> {
+        // ALLOC: one key a refused search.
+        let key = (index_uuid.to_owned(), shard);
+        lock(&self.inner.slots)
+            .get(&key)
+            .filter(|slot| slot.stage == *stage)
+            .and_then(|slot| slot.extension.clone())
+    }
+
     fn closed(&self, index_uuid: &str, shard: u32, stage: &Stage, now_millis: u64) {
         let now = i64::try_from(now_millis).unwrap_or(i64::MAX);
         let key = (index_uuid.to_owned(), shard);
@@ -339,6 +356,16 @@ impl OverlaySource for OverlayBuilder {
 }
 
 impl Inner {
+    /// Keeps a module failure of a build for the search that finds the shard
+    /// behind, and forgets a failure of another kind.
+    fn note_extension(&self, job: &Job, e: &BuildError) {
+        if let Some(slot) = lock(&self.slots).get_mut(&job.key)
+            && slot.stage == job.stage
+        {
+            slot.extension = ExtensionRefusal::of(e);
+        }
+    }
+
     /// One build less pending.
     fn finish(&self) {
         let mut control = lock(&self.control);
@@ -421,14 +448,18 @@ impl Inner {
             return;
         };
         self.builds.fetch_add(1, Ordering::Relaxed);
-        let Ok(ready) = build_ready_with(
+        let ready = match build_ready_with(
             job.commit.reader(),
             job.commit.mapping_json(),
             &records,
             estimate,
             &job.commit.modules(),
-        ) else {
-            return;
+        ) {
+            Ok(ready) => ready,
+            Err(e) => {
+                self.note_extension(job, &e);
+                return;
+            }
         };
         // The peak is over: the pool holds what the finished overlay keeps.
         let kept = kept_bytes(&records, ready.overlay().stored_bytes())
@@ -438,6 +469,7 @@ impl Inner {
         if let Some(slot) = slots.get_mut(&job.key)
             && slot.stage == job.stage
         {
+            slot.extension = None;
             slot.built = Some(Built {
                 ready: Arc::new(ready),
                 through,

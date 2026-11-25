@@ -112,6 +112,11 @@ fn put(r: &Rig, wasm: &[u8]) -> String {
 
 /// The settings JSON a descriptor with these pins carries.
 fn settings(pins: &[(&str, &str, u64)]) -> Vec<u8> {
+    settings_in(pins, 10_000)
+}
+
+/// [`settings`] with the deadline each pin records.
+fn settings_in(pins: &[(&str, &str, u64)], deadline_ms: u64) -> Vec<u8> {
     let pins: Vec<(Pin, ResolvedLimits)> = pins
         .iter()
         .map(|(name, hash, fuel)| {
@@ -124,7 +129,7 @@ fn settings(pins: &[(&str, &str, u64)]) -> Vec<u8> {
                 ResolvedLimits {
                     fuel: *fuel,
                     memory_bytes: 16 << 20,
-                    deadline_ms: 10_000,
+                    deadline_ms,
                 },
             )
         })
@@ -267,7 +272,7 @@ fn the_overlays_modules_are_not_refused_by_the_tenants_share() {
     );
     let set = Arc::new(
         r.source
-            .open(&settings(&[("ext_a", &hash, 400_000_000)]), "t")
+            .open(&settings_in(&[("ext_a", &hash, 1 << 40)], 1_500), "t")
             .expect("opens"),
     );
     let live = |set: &Arc<oss_node::extension_modules::ModuleSet>| {
