@@ -182,3 +182,4 @@ src/extension_modules.rs	new		the analyzers an index's pins name, loaded once a 
 tests/extension_modules.rs	new		tests of the open-time load, the recorded limits and the replay stretch
 tests/roles/writer_opener_pins.rs	new		tests of a writer opening the shard of an index that pins analyzer modules
 tests/roles/writer_opener_rig.rs	new		the opener rig's counting opener and forwarding routes, moved out of writer_opener.rs
+src/extension_setting.rs	new		the cluster setting that lets a create carry an analyzer pin

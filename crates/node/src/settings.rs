@@ -23,6 +23,8 @@ fn providers() -> Vec<&'static [&'static Setting]> {
         #[cfg(all(feature = "writer", feature = "coordinator"))]
         crate::knn_setting::SETTINGS,
         crate::security_setting::SETTINGS,
+        #[cfg(feature = "extensions")]
+        crate::extension_setting::SETTINGS,
         #[cfg(feature = "writer")]
         oss_writer::log::settings::SETTINGS,
         #[cfg(feature = "writer")]
@@ -78,6 +80,11 @@ mod tests {
                     + if writer { 38 + usize::from(reader) } else { 0 }
                     + usize::from(reader && writer)
                     + usize::from(writer && cfg!(feature = "coordinator"))
+                    + usize::from(cfg!(feature = "extensions"))
+            );
+            assert_eq!(
+                keys.contains(&"serverless.extensions.pins.allowed"),
+                cfg!(feature = "extensions")
             );
             assert_eq!(
                 keys.contains(&"serverless.reader.newest_commit_ask"),

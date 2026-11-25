@@ -394,6 +394,30 @@ pub(super) fn with_member_commits(
     }
 }
 
+/// `opener`, running the analyzer modules an index pins when the node has
+/// the runtime and a pool for it. Without either the opener refuses a
+/// pinned index and never serves it with the built-in analyzer.
+pub(super) fn with_extension_modules(
+    opener: crate::writer::HeadOpener,
+    config: &NodeConfig,
+    store: &Arc<dyn BlobStore>,
+    budget: &MemoryBudget,
+) -> crate::writer::HeadOpener {
+    #[cfg(feature = "extensions")]
+    if budget.limit(oss_mem::Pool::Extensions) > 0 {
+        let source = crate::extension_modules::ModuleSource::new(
+            Arc::clone(store),
+            &config.base,
+            oss_ext_wasm::Host::new(oss_ext_wasm::HostConfig::default()),
+            budget.clone(),
+            config.extensions_replay_factor,
+        );
+        return opener.with_modules(Arc::new(source));
+    }
+    let _ = (config, store, budget);
+    opener
+}
+
 /// `log`, its PUTs shared among the indices in them when store usage is on.
 pub(super) fn shared_in(
     log: oss_writer::log::NodeLogStore,

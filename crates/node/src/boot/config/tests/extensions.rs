@@ -32,3 +32,17 @@ fn without_the_feature_the_variable_takes_no_memory() {
     assert_eq!(b.pool(Pool::Extensions), 0);
     assert_eq!(b.pool(Pool::PageCache), c.memory_bytes / 100 * 20);
 }
+
+// docs/specs/extension-analyzer AC-12
+#[test]
+fn the_replay_fuel_factor_is_sixteen_and_one_to_a_thousand_and_twenty_four() {
+    let read = |v: &str| {
+        NodeConfig::from_lookup(lookup(&with(&[("OSS_EXTENSIONS_REPLAY_FUEL_FACTOR", v)])))
+    };
+    let unset = NodeConfig::from_lookup(lookup(&with(&[]))).expect("valid");
+    assert_eq!(unset.extensions_replay_factor, 16);
+    assert_eq!(read("1").expect("valid").extensions_replay_factor, 1);
+    assert_eq!(read("1024").expect("valid").extensions_replay_factor, 1024);
+    assert!(read("0").is_err());
+    assert!(read("1025").is_err());
+}

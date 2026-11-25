@@ -150,6 +150,8 @@ pub struct NodeConfig {
     pub knn: bool,
     /// `OSS_EXTENSIONS_PERCENT`: the page cache's share the `extensions` pool takes; 0 reserves none.
     pub extensions_percent: usize,
+    /// `OSS_EXTENSIONS_REPLAY_FUEL_FACTOR`: a replayed call's fuel and memory, times its record's.
+    pub extensions_replay_factor: u64,
     /// `OSS_STORE_USAGE`: count the store's requests and bytes per index
     /// and serve them at `GET /_serverless/usage`.
     pub store_usage: bool,
@@ -338,6 +340,7 @@ impl NodeConfig {
         let knn = flag("OSS_KNN", "true")?;
         let extensions_percent =
             usize::try_from(bounded("OSS_EXTENSIONS_PERCENT", "0", 0, 20)?).unwrap_or(0);
+        let extensions_replay_factor = bounded("OSS_EXTENSIONS_REPLAY_FUEL_FACTOR", "16", 1, 1024)?;
         let security = flag("OSS_SECURITY", "false")?;
         let security_refresh_millis = bounded("OSS_SECURITY_REFRESH_MS", "10000", 1000, 3_600_000)?;
         let security_admin = match (
@@ -452,6 +455,7 @@ impl NodeConfig {
             security_refresh_millis,
             knn,
             extensions_percent,
+            extensions_replay_factor,
             store_usage,
             tenant_levels,
             tenant_budget_per_minute,

@@ -134,6 +134,9 @@ impl IndexService {
                 "pinning an analyzer module needs the all_access role",
             ));
         }
+        policy
+            .allowed()
+            .map_err(|why| refuse(400, "extension_unavailable", why))?;
         // ALLOC: one entry a pin, at most four.
         let mut out = Vec::with_capacity(pins.len());
         for pin in pins {
