@@ -26,6 +26,12 @@ pub trait PinnedModules: Send + Sync {
     /// Runs the analyzers as a replay of logged writes when `on`, and as live
     /// writes when not.
     fn replaying(&self, on: bool);
+
+    /// The replay call that failed, taken: the module and why. A shard
+    /// whose replay failed one does not open.
+    fn replay_failure(&self) -> Option<String> {
+        None
+    }
 }
 
 /// Loads the modules an index's pins name, from its descriptor settings.
@@ -182,5 +188,56 @@ impl WriterRole {
             })
         })
         .map(|_| ())
+        .map_err(|e| replay_failed(modules, e))
+    }
+}
+
+/// `error` as `extension_replay_failed` when a module's call failed the
+/// replay, naming the module and the record's sequence number that the
+/// engine's message carries; any other error as it is.
+fn replay_failed(modules: Option<&dyn PinnedModules>, error: String) -> String {
+    match modules.and_then(PinnedModules::replay_failure) {
+        Some(why) => format!("extension_replay_failed: {why}: {error}"),
+        None => error,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use oss_ext::analyzer::Analyze;
+
+    use super::{PinnedModules, replay_failed};
+
+    struct Failed(Option<String>);
+
+    impl PinnedModules for Failed {
+        fn analyzers(&self) -> Vec<(String, Arc<dyn Analyze>)> {
+            Vec::new()
+        }
+
+        fn replaying(&self, _: bool) {}
+
+        fn replay_failure(&self) -> Option<String> {
+            self.0.clone()
+        }
+    }
+
+    #[test]
+    fn a_failed_module_call_names_the_module_and_the_record() {
+        let m = Failed(Some("module [abc]: out of fuel".into()));
+        let e = replay_failed(Some(&m), "applying a record: seq_no 41: x".into());
+        assert_eq!(
+            e,
+            "extension_replay_failed: module [abc]: out of fuel: applying a record: seq_no 41: x"
+        );
+    }
+
+    #[test]
+    fn any_other_error_and_an_index_without_pins_pass_through() {
+        let none = Failed(None);
+        assert_eq!(replay_failed(Some(&none), "head: x".into()), "head: x");
+        assert_eq!(replay_failed(None, "head: x".into()), "head: x");
     }
 }

@@ -5,7 +5,8 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Mutex, PoisonError};
 use std::time::Duration;
 
 use oss_blob::BlobStore;
@@ -29,12 +30,14 @@ pub struct ModuleTokens {
     limits: ResolvedLimits,
     factor: u64,
     tenant: String,
-    replaying: Arc<AtomicBool>,
+    module_name: String,
+    replaying: Arc<Replays>,
 }
 
 impl Analyze for ModuleTokens {
     fn analyze(&self, text: &str) -> Result<Vec<Token>, CallError> {
-        let run = if self.replaying.load(Ordering::Acquire) {
+        let replaying = self.replaying.on.load(Ordering::Acquire);
+        let run = if replaying {
             Run::Replay(Replay {
                 limits: self.limits,
                 factor: self.factor,
@@ -43,16 +46,40 @@ impl Analyze for ModuleTokens {
         } else {
             Run::Recorded(self.limits)
         };
-        let mut all = self.module.analyze_as(&self.tenant, &[text], run)?;
+        let mut all = self
+            .module
+            .analyze_as(&self.tenant, &[text], run)
+            .inspect_err(|e| {
+                if replaying {
+                    self.replaying.failed(&self.module_name, e);
+                }
+            })?;
         all.pop()
             .ok_or_else(|| CallError::malformed_because("no tokens for the text"))
+    }
+}
+
+/// Whether a set's calls are a replay's, and the replay call that failed.
+#[derive(Default)]
+struct Replays {
+    on: AtomicBool,
+    failures: AtomicU64,
+    last: Mutex<Option<String>>,
+}
+
+impl Replays {
+    fn failed(&self, module: &str, why: &CallError) {
+        self.failures.fetch_add(1, Ordering::Relaxed);
+        // ALLOC: one message, on a failed replay call.
+        *self.last.lock().unwrap_or_else(PoisonError::into_inner) =
+            Some(format!("module [{module}]: {why:?}"));
     }
 }
 
 /// The analyzers of one index, by the names its mapping gives them.
 pub struct ModuleSet {
     analyzers: Vec<(String, Arc<ModuleTokens>)>,
-    replaying: Arc<AtomicBool>,
+    replaying: Arc<Replays>,
 }
 
 impl ModuleSet {
@@ -76,7 +103,22 @@ impl ModuleSet {
     /// Runs every call from now under the stretched limits and the
     /// admission of a replay when `on`, and as a live write again when not.
     pub fn replaying(&self, on: bool) {
-        self.replaying.store(on, Ordering::Release);
+        self.replaying.on.store(on, Ordering::Release);
+    }
+
+    /// The replay call that failed, if one did since it was last taken:
+    /// the module and why. The shard that was replaying does not open.
+    pub fn replay_failure(&self) -> Option<String> {
+        self.replaying
+            .last
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take()
+    }
+
+    /// How many replay calls have failed over the life of the set.
+    pub fn replay_failures(&self) -> u64 {
+        self.replaying.failures.load(Ordering::Relaxed)
     }
 }
 
@@ -133,7 +175,7 @@ impl ModuleSource {
             .map(|(k, v)| (k.clone(), text_of(v)))
             .collect();
         let pins = read_pins(&flat).map_err(|e| unavailable(e.to_string()))?;
-        let replaying = Arc::new(AtomicBool::new(false));
+        let replaying = Arc::new(Replays::default());
         let mut loaded: HashMap<String, Arc<Module>> = HashMap::new();
         let mut analyzers = Vec::new();
         for (pin, limits) in pins {
@@ -155,6 +197,8 @@ impl ModuleSource {
                     factor: self.factor,
                     // ALLOC: one name a pin.
                     tenant: tenant.to_owned(),
+                    // ALLOC: one name a pin.
+                    module_name: pin.module.clone(),
                     replaying: Arc::clone(&replaying),
                 }),
             ));
@@ -210,6 +254,10 @@ impl crate::writer::PinnedModules for ModuleSet {
 
     fn replaying(&self, on: bool) {
         ModuleSet::replaying(self, on);
+    }
+
+    fn replay_failure(&self) -> Option<String> {
+        ModuleSet::replay_failure(self)
     }
 }
 
