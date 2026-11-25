@@ -74,6 +74,7 @@ impl Target for Count {
             partition_size: 1,
             routing_shards: 1,
             routing_required: false,
+            write_block: Default::default(),
             default_pipeline: None,
             final_pipeline: None,
         })

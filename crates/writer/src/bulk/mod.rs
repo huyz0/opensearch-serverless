@@ -4,6 +4,7 @@
 //! shard, and every item answered in request order.
 
 mod action;
+mod block;
 mod budget;
 mod ids;
 mod ingest;
@@ -18,6 +19,7 @@ use std::time::Duration;
 use oss_rest::RestError;
 
 pub use action::{Action, Defaults, Kind};
+pub use block::WriteBlock;
 pub use budget::{BulkBudget, Grant};
 pub use ids::IdGenerator;
 pub use ingest::{Ingest, IngestError};

@@ -32,7 +32,18 @@ const ACKNOWLEDGED: &str = "{\"acknowledged\":true}";
 /// implemented: storing one and ignoring it would break the promise the
 /// client made by setting it.
 fn behaviour_changing(key: &str) -> bool {
-    key.starts_with("index.blocks.") || key == "index.max_result_window"
+    matches!(
+        key,
+        "index.blocks.read" | "index.blocks.metadata" | "index.max_result_window"
+    )
+}
+
+/// The write blocks a bulk reads from the descriptor.
+fn write_block_key(key: &str) -> bool {
+    matches!(
+        key,
+        "index.blocks.write" | "index.blocks.read_only" | "index.blocks.read_only_allow_delete"
+    )
 }
 
 /// What this node's registry says of an index setting.
@@ -53,6 +64,14 @@ impl Scope for Registry {
             )
         {
             return Kind::Core { dynamic: true };
+        }
+        if write_block_key(key) {
+            return Kind::Ours(match value {
+                None | Some("true" | "false") => Ok(()),
+                Some(other) => Err(format!(
+                    "failed to parse value [{other}] for setting [{key}] as a boolean: only [true] or [false] are allowed"
+                )),
+            });
         }
         if crate::create_settings::is_static(key) || crate::index_route::is_bucket_key(key) {
             return Kind::Core { dynamic: false };

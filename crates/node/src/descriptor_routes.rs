@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use oss_meta::{DescriptorStore, Target};
 use oss_rest::Exception;
-use oss_writer::bulk::{IndexInfo, ItemResult, Owner, Planned};
+use oss_writer::bulk::{IndexInfo, ItemResult, Owner, Planned, WriteBlock};
 use oss_writer::mapping::Mapping;
 use oss_writer::mapping::json::{Json, parse};
 
@@ -54,6 +54,31 @@ fn number(settings: &[(String, Json)], key: &str) -> Option<u32> {
     match value {
         Json::Num(text) | Json::Str(text) => text.trim().parse().ok(),
         _ => None,
+    }
+}
+
+/// Whether the boolean setting `key` is `true`, as a bool or as text, flat or nested.
+fn is_on(settings: &[(String, Json)], key: &str) -> bool {
+    let value = settings
+        .iter()
+        .find(|(k, _)| k == key)
+        .map(|(_, v)| v)
+        .or_else(|| nested(settings, key));
+    match value {
+        Some(Json::Bool(on)) => *on,
+        Some(Json::Str(text)) => text.trim() == "true",
+        _ => false,
+    }
+}
+
+/// The write block the index's settings name.
+fn write_block(settings: &[(String, Json)]) -> WriteBlock {
+    if is_on(settings, "index.blocks.write") || is_on(settings, "index.blocks.read_only") {
+        WriteBlock::Full
+    } else if is_on(settings, "index.blocks.read_only_allow_delete") {
+        WriteBlock::AllowDelete
+    } else {
+        WriteBlock::None
     }
 }
 
@@ -149,6 +174,7 @@ impl DescriptorRoutes {
             partition_size: number(&settings, "index.routing_partition_size").unwrap_or(1),
             routing_shards: number(&settings, "index.number_of_routing_shards").unwrap_or(shards),
             routing_required,
+            write_block: write_block(&settings),
             default_pipeline: text(&settings, "index.default_pipeline"),
             final_pipeline: text(&settings, "index.final_pipeline"),
         })

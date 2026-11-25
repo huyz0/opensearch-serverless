@@ -10,7 +10,7 @@ The writer's `IndexInfo` (what a bulk knows of an index, read from the descripto
 
 ## Acceptance criteria
 
-- AC-1: with `index.blocks.write` or `index.blocks.read_only` `true`, every bulk item (index, create, update, delete) against the index fails 403 `cluster_block_exception`, reason `index [name] blocked by: [FORBIDDEN/8/index write (api)];`, and nothing is written.
+- AC-1: with `index.blocks.write` or `index.blocks.read_only` `true`, every bulk item (index, create and delete; a bulk `update` item is refused 501 by this node already) against the index fails 403 `cluster_block_exception`, reason `index [name] blocked by: [FORBIDDEN/8/index write (api)];`, and nothing is written.
 - AC-2: with only `index.blocks.read_only_allow_delete` `true`, an index, create or update item fails 403 with `index [name] blocked by: [FORBIDDEN/12/disk usage exceeded flood-stage watermark, index has read-only-allow-delete block];` and a delete item succeeds.
 - AC-3: setting a block to `false`, or removing it with null, lets writes through again.
 - AC-4: a block set through the settings route is seen by a bulk within one confirmation window, with no extra request: the block is read from the descriptor a bulk already reads.

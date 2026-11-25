@@ -70,6 +70,7 @@ impl Local {
             partition_size: get("routing_partition_size", 1),
             routing_shards: get("number_of_routing_shards", shards),
             routing_required: mapping.routing_required(),
+            write_block: Default::default(),
             default_pipeline: None,
             final_pipeline: None,
         };
