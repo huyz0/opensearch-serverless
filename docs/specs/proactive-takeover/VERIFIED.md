@@ -38,3 +38,5 @@
   and `a_dead_member_naming_epochs_is_reported_on_every_refresh_with_no_extra_read` in crates/cluster/tests/leases/refresh.rs
 - AC-20: `a_header_over_the_cap_is_refused_and_its_shards_stay_lazy` in crates/node/tests/proactive_faults.rs
 - AC-21: `a_pass_that_failed_waits_a_stagger_and_then_twice_as_long` in crates/node/tests/proactive_takeover.rs
+- AC-22: `reapers_are_chosen_only_among_live_nodes_of_this_build_when_asked` in crates/node/tests/proactive_takeover.rs and `proactive_reapers_are_of_this_build_by_default_and_the_switch_is_read` in crates/node/src/boot/config/tests.rs
+  and `with_no_live_node_of_this_build_nobody_is_a_reaper_and_the_next_waits_its_turn` in crates/node/tests/proactive_takeover.rs
