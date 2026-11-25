@@ -151,6 +151,11 @@ impl DeleteService {
         }
         req.body()
             .reserve(self.buffer_bytes.saturating_mul(BUFFERS))?;
+        {
+            // ALLOC: one register buffer, held for the one descriptor read.
+            let mut buf = vec![0u8; self.buffer_bytes];
+            crate::metadata_block::check(&self.descriptors, &index, &mut buf)?;
+        }
         if index.starts_with(BACKING_INDEX_PREFIX)
             && let Some(stream) = self.stream_writing_to(&index)?
         {

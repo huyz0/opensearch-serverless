@@ -16,6 +16,7 @@ use oss_node::index_delete::{DeleteService, NoSnapshots, routes as delete_routes
 use oss_node::index_route::{IndexService, routes as index_routes};
 use oss_node::index_templates::TemplateSets;
 use oss_node::rollover_route::{DocCount, RolloverService, routes};
+use oss_node::settings_route::{SettingsService, routes as settings_routes};
 use oss_rest::{Router, Server};
 use oss_testkit::budget;
 
@@ -127,6 +128,8 @@ pub(crate) fn rig_full(
     let router = stream_routes(router, streams).expect("routes");
     let router = routes(router, rollover).expect("routes");
     let router = delete_routes(router, deletes).expect("routes");
+    let settings = Arc::new(SettingsService::new(descriptors(), BUF, false));
+    let router = settings_routes(router, &settings).expect("routes");
     let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
     let budget = MemoryBudget::new(&support::budget_config());
     let server =

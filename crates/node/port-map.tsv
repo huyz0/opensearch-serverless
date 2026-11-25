@@ -187,7 +187,7 @@ src/rollover_route/count.rs	new		the document count `max_docs` asks of the old i
 src/rollover_route/render.rs	new		the body of a rollover answer as core renders it
 src/script_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/StoredScriptHandler.java	the put, get and delete routes over the scripts document set; the Java compiles a script at put, this node stores it uncompiled and refuses a named context
 src/boot/config/tests/proactive.rs	new		tests for the proactive takeover reaper switch
-src/settings_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/indexadmin/SettingsUpdateHandler.java	the update of one index: the registry behind the coordinator's decisions, the descriptor swap and the settings version; blocks and result window refused until implemented; no all-indices form yet
+src/settings_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/indexadmin/SettingsUpdateHandler.java	the update of one index: the registry behind the coordinator's decisions, the descriptor swap and the settings version; the all-indices form is the second route
 src/extension_modules.rs	new		the analyzers an index's pins name, loaded once a distinct module when a shard opens, called under the recorded limits or a replay's
 tests/extension_modules.rs	new		tests of the open-time load, the recorded limits and the replay stretch
 tests/roles/writer_opener_pins.rs	new		tests of a writer opening the shard of an index that pins analyzer modules
@@ -210,3 +210,4 @@ src/boot/search_shard.rs	new		the forwarded shard search action's slot and its i
 src/vector_warm_setting.rs	new		whether a segment's vector files are read whole at open or at the first knn search; the shell has no such switch
 src/boot/config/tests/vector_warm.rs	new		tests of the vector warm variable
 src/usage_extensions.rs	new		what each tenant's extension module calls cost, in the usage body
+src/metadata_block.rs	new		the index.blocks.metadata check shared by the settings, alias and delete routes
