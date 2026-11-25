@@ -373,6 +373,7 @@ pub fn config(enabled: bool) -> ProactiveConfig {
         max_concurrent: 4,
         pass: Duration::from_secs(30),
         stagger_millis: 10_000,
+        rust_reapers_only: false,
     }
 }
 

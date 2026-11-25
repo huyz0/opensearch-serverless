@@ -200,6 +200,8 @@ pub struct NodeConfig {
     pub proactive_takeover: bool,
     /// `serverless.takeover.proactive.reapers`.
     pub proactive_reapers: usize,
+    /// `serverless.takeover.proactive.rust_reapers_only`.
+    pub proactive_rust_reapers_only: bool,
     /// `serverless.takeover.proactive.max_concurrent`.
     pub proactive_max_concurrent: usize,
     /// `serverless.takeover.proactive.pass_millis`.
@@ -383,6 +385,7 @@ impl NodeConfig {
         let page_cache = page_cache::read(&or("OSS_PAGE_CACHE_DIR", ""), &bounded, &flag)?;
         let resident_page_bytes = page_cache::read_resident(&bounded)?;
         let roles = roles::read(get("OSS_ROLES"))?;
+        let proactive_rust_reapers_only = flag("OSS_PROACTIVE_RUST_REAPERS_ONLY", "true")?;
         let proactive_reapers = bounded("OSS_PROACTIVE_REAPERS", "2", 1, 16)?;
         let proactive_max_concurrent = bounded("OSS_PROACTIVE_MAX_CONCURRENT", "4", 1, 64)?;
         let tombstone_sweep_millis = bounded("OSS_TOMBSTONE_SWEEP_MS", "3600000", 0, 604_800_000)?;
@@ -459,6 +462,7 @@ impl NodeConfig {
             store_usage_max_indices: usize::try_from(store_usage_max_indices).unwrap_or(1000),
             proactive_takeover,
             proactive_reapers: usize::try_from(proactive_reapers).unwrap_or(2),
+            proactive_rust_reapers_only,
             proactive_max_concurrent: usize::try_from(proactive_max_concurrent).unwrap_or(4),
             proactive_pass_millis,
             tail_overlay,

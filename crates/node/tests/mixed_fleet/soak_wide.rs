@@ -58,13 +58,16 @@ fn spawn(kind: Kind, n: u64, cluster: &mut Cluster) -> (Handle, SocketAddr) {
 }
 
 /// Ids of `INDEX` with `n` in `lo..hi`, as the node at `addr` finds them.
-fn found_range(addr: SocketAddr, lo: u32, hi: u32) -> Vec<u32> {
+fn found_range(addr: SocketAddr, lo: u32, hi: u32) -> Result<Vec<u32>, String> {
     let body = format!(
         "{{\"size\":{MAX_FOUND},\"_source\":false,\"query\":{{\"range\":{{\"n\":{{\"gte\":{lo},\"lt\":{hi}}}}}}}}}"
     );
     let r = call(addr, "POST", &format!("/{INDEX}/_search"), Some(&body));
-    assert_eq!(r.status, 200, "{}", r.text());
-    r.text()
+    if r.status != 200 {
+        // A node just started may not serve search yet: judged again within the slack.
+        return Err(format!("search answered {}: {}", r.status, r.text()));
+    }
+    Ok(r.text()
         .split("\"_id\":")
         .skip(1)
         .map(|rest| {
@@ -76,7 +79,7 @@ fn found_range(addr: SocketAddr, lo: u32, hi: u32) -> Vec<u32> {
                 .parse()
                 .expect("a numeric id")
         })
-        .collect()
+        .collect())
 }
 
 /// Whether the node at `addr` finds exactly the ledger, range by range, within the slack.
@@ -88,7 +91,13 @@ fn judge_all(addr: SocketAddr, ledger: &BTreeSet<u32>, top: u32) -> Result<(), S
         let mut lo = 0;
         while lo < top && bad.is_none() {
             let hi = (lo + RANGE).min(top);
-            let ids = found_range(addr, lo, hi);
+            let ids = match found_range(addr, lo, hi) {
+                Ok(ids) => ids,
+                Err(why) => {
+                    bad = Some(why);
+                    break;
+                }
+            };
             let set: BTreeSet<u32> = ids.iter().copied().collect();
             let want: BTreeSet<u32> = ledger.range(lo..hi).copied().collect();
             if set != want || ids.len() != want.len() {
@@ -129,6 +138,8 @@ struct Shared {
     first_try: [AtomicU64; 2],
     max_ack_ms: AtomicU64,
     retries: AtomicU64,
+    /// The first replies that were not an acknowledgement, by target kind.
+    refusals: Mutex<Vec<String>>,
 }
 
 fn writer(me: usize, kind: Kind, s: &Shared) {
@@ -166,8 +177,27 @@ fn writer(me: usize, kind: Kind, s: &Shared) {
             if attempt == 0 {
                 s.tried[idx].fetch_add(1, Ordering::AcqRel);
             }
-            let ok = try_call(addr, "POST", "/_bulk?refresh=true", Some(&body))
+            let reply = try_call(addr, "POST", "/_bulk?refresh=true", Some(&body));
+            let ok = reply
+                .as_ref()
                 .is_some_and(|r| r.status == 200 && r.text().contains("\"errors\":false"));
+            if !ok {
+                let what = reply.as_ref().map_or_else(
+                    || "no complete reply".to_owned(),
+                    |r| {
+                        format!(
+                            "{} {}",
+                            r.status,
+                            r.text().chars().take(1500).collect::<String>()
+                        )
+                    },
+                );
+                let mut seen = s.refusals.lock().expect("refusals");
+                let line = format!("{} node, try {attempt}: {what}", target_kind.name());
+                if seen.len() < 40 && !seen.iter().any(|l| l == &line) {
+                    seen.push(line);
+                }
+            }
             if ok {
                 if attempt == 0 {
                     s.first_try[idx].fetch_add(1, Ordering::AcqRel);
@@ -222,6 +252,7 @@ fn several_live_nodes_take_concurrent_writes_while_one_is_killed_each_cycle() {
         first_try: [AtomicU64::new(0), AtomicU64::new(0)],
         max_ack_ms: AtomicU64::new(0),
         retries: AtomicU64::new(0),
+        refusals: Mutex::new(Vec::new()),
     };
     let mut live: Vec<(Kind, Handle, SocketAddr)> = Vec::new();
     let mut counter = 0_u64;
@@ -279,6 +310,14 @@ fn several_live_nodes_take_concurrent_writes_while_one_is_killed_each_cycle() {
             shared.nodes.lock().expect("nodes").push((kind, addr));
             live.insert(at, (kind, handle, addr));
             std::thread::sleep(window);
+            if knob("OSS_SOAK_NUDGE", 0) > 0 {
+                // A write to every shard makes a node take each one over, as
+                // a Java reader needs after a Rust owner dies.
+                let first = shared.next.fetch_add(40, Ordering::AcqRel);
+                let mut done = BTreeSet::new();
+                write(live[0].2, first..first + 40, &mut done);
+                shared.ledger.lock().expect("ledger").extend(done);
+            }
             // Stop the writers between bulks, then judge every live node.
             shared.paused.store(true, Ordering::Release);
             while !shared.idle.iter().all(|i| i.load(Ordering::Acquire))
@@ -335,6 +374,9 @@ fn several_live_nodes_take_concurrent_writes_while_one_is_killed_each_cycle() {
         }
         shared.stop.store(true, Ordering::Release);
     });
+    for line in shared.refusals.lock().expect("refusals").iter() {
+        eprintln!("WIDE refusal {line}");
+    }
     if let Some(why) = shared.failed.lock().expect("failed").take() {
         panic!("{why}");
     }
