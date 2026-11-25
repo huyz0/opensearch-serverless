@@ -177,8 +177,23 @@ impl SnapshotRestoreService {
         };
         // ALLOC: one entry an index, at most the plan's bound.
         let mut created: Vec<(String, String)> = Vec::new();
+        // Every index's settings are checked before the first write.
+        // ALLOC: one descriptor an index, at most the plan's bound.
+        let mut natives: Vec<RestoreIndex> = Vec::new();
+        for target in &targets {
+            let Some(index) = planned.indices.iter().find(|i| i.name == target.source) else {
+                return Err(refused(index_not_captured(&target.source)));
+            };
+            let mut native = native_of(index);
+            native.settings = crate::restore_settings::apply(
+                &asked.settings,
+                native.settings.take(),
+                native.number_of_shards,
+            )?;
+            natives.push(native);
+        }
         let mut run = |created: &mut Vec<(String, String)>| -> Result<(), RestError> {
-            for target in &targets {
+            for (target, native) in targets.iter().zip(&natives) {
                 let Some(index) = planned.indices.iter().find(|i| i.name == target.source) else {
                     return Err(refused(index_not_captured(&target.source)));
                 };
@@ -199,7 +214,7 @@ impl SnapshotRestoreService {
                     .restore_stock_index(
                         &self.descriptors,
                         &from_store,
-                        &native_of(index),
+                        native,
                         &copies,
                         &target.target,
                         &uuid,

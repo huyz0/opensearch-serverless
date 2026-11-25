@@ -12,8 +12,8 @@ use oss_node::stock_restore_route::StockRestoreSettings;
 
 use crate::snapshot_restore::{Rig, read, requests, restored_uuid, rig_stock, send};
 
-const RESTORE: &str = "/_snapshot/stock/snap-1/_restore?wait_for_completion=true";
-const POOL: usize = 200 << 20;
+pub(crate) const RESTORE: &str = "/_snapshot/stock/snap-1/_restore?wait_for_completion=true";
+pub(crate) const POOL: usize = 200 << 20;
 
 fn copy(from: &Path, to: &Path) {
     std::fs::create_dir_all(to).unwrap();
@@ -30,7 +30,7 @@ fn copy(from: &Path, to: &Path) {
 
 /// A copy of the fixture repository under a fresh directory, the root a
 /// node may read, and the repository's own path.
-fn repository(tag: &str) -> (PathBuf, PathBuf) {
+pub(crate) fn repository(tag: &str) -> (PathBuf, PathBuf) {
     let root = std::env::temp_dir().join(format!("oss-stock-{tag}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
     let root_dir = root.join("roots");
@@ -44,7 +44,7 @@ fn repository(tag: &str) -> (PathBuf, PathBuf) {
     (root_dir, repo)
 }
 
-fn rig(root: &Path, enabled: bool, pool: usize) -> Rig {
+pub(crate) fn rig(root: &Path, enabled: bool, pool: usize) -> Rig {
     rig_stock(
         true,
         "",
@@ -59,7 +59,7 @@ fn rig(root: &Path, enabled: bool, pool: usize) -> Rig {
     )
 }
 
-fn register(r: &Rig, location: &Path) {
+pub(crate) fn register(r: &Rig, location: &Path) {
     let body = format!(
         r#"{{"type":"fs","settings":{{"format":"stock","location":"{}"}}}}"#,
         location.display()
@@ -128,7 +128,7 @@ fn put_count_after_register(r: &Rig) -> u64 {
     r.store.meter().count(S3Op::Put)
 }
 
-fn restored_uuid_missing(r: &Rig, name: &str) -> bool {
+pub(crate) fn restored_uuid_missing(r: &Rig, name: &str) -> bool {
     r.descriptors
         .get(name, &mut vec![0u8; 1 << 16])
         .unwrap()

@@ -1,4 +1,4 @@
-//! The keys of a restore's body: the three it reads, the fifteen the shell
+//! The keys of a restore's body: the five it reads, the thirteen it
 //! refuses with a reason, and the rest it does not know
 //! (`SnapshotRequestBodies.RESTORE_KNOWN_KEYS` and `RESTORE_REFUSED_KEYS`).
 
@@ -7,11 +7,17 @@ use oss_doc::mapping::json::Json;
 use crate::route::resolve::Refusal;
 
 /// What a restore reads; the rest is refused below.
-const KNOWN: [&str; 3] = ["indices", "rename_pattern", "rename_replacement"];
+const KNOWN: [&str; 5] = [
+    "indices",
+    "rename_pattern",
+    "rename_replacement",
+    "index_settings",
+    "ignore_index_settings",
+];
 
 /// Core's other restore fields, each with why it is refused: the shell's
 /// `RESTORE_REFUSED_KEYS`.
-pub(crate) const REFUSED: [(&str, &str); 15] = [
+pub(crate) const REFUSED: [(&str, &str); 13] = [
     (
         "partial",
         "a restore here creates every shard of an index or refuses; there is no partial index to make",
@@ -31,14 +37,6 @@ pub(crate) const REFUSED: [(&str, &str); 15] = [
     (
         "rename_alias_replacement",
         "aliases are not captured in a snapshot here",
-    ),
-    (
-        "index_settings",
-        "the settings an index had when it was captured are restored with it, unchanged; change them on the restored index with PUT /{index}/_settings",
-    ),
-    (
-        "ignore_index_settings",
-        "the settings an index had when it was captured are restored with it, unchanged; change them on the restored index with PUT /{index}/_settings",
     ),
     (
         "settings",

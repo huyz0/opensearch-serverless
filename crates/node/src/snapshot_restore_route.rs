@@ -14,6 +14,7 @@ use oss_coordinator::snapshot_restore_admin::{
     Target, in_progress, plan, render_restored, request, restore_conflict, restore_disabled,
     target_exists, unsupported_content,
 };
+use oss_coordinator::snapshot_restore_settings::SettingsChange;
 use oss_coordinator::snapshot_take_admin::{ACCEPTED, check_shards};
 use oss_coordinator::system_indices::{SystemIndices, restore_refusal};
 use oss_format::{MAX_REPOSITORY_RECORD_BYTES, MAX_SNAPSHOT_RECORD_BYTES, RestoreIndex};
@@ -169,7 +170,7 @@ impl SnapshotRestoreService {
         // ALLOC: one name an index, at most the take's bound.
         let captured: Vec<String> = summary.indices.iter().map(|i| i.name.clone()).collect();
         let targets = plan(&asked, &captured).map_err(refused)?;
-        let sources = self.check(record, &targets)?;
+        let sources = self.check(record, &targets, &asked.settings)?;
         let shards = sources
             .iter()
             .fold(0usize, |n, s| n.saturating_add(s.shards.len()));
@@ -250,7 +251,12 @@ impl SnapshotRestoreService {
     /// Reads every source's entry and refuses what cannot be restored, and
     /// every target that names an index or alias already, before anything
     /// is written.
-    fn check(&self, record: &[u8], targets: &[Target]) -> Result<Vec<RestoreIndex>, RestError> {
+    fn check(
+        &self,
+        record: &[u8],
+        targets: &[Target],
+        change: &SettingsChange,
+    ) -> Result<Vec<RestoreIndex>, RestError> {
         // ALLOC: one entry an index, at most the take's bound.
         let mut sources = Vec::with_capacity(targets.len());
         // ALLOC: one buffer a request, the descriptor's size.
@@ -258,7 +264,7 @@ impl SnapshotRestoreService {
         for target in targets {
             let found = RestoreIndex::find(record, &target.source)
                 .map_err(|e| refuse(500, "snapshot_unreadable", e.to_string()))?;
-            let Some(source) = found else {
+            let Some(mut source) = found else {
                 return Err(refused(
                     oss_coordinator::snapshot_restore_admin::index_not_captured(&target.source),
                 ));
@@ -270,6 +276,11 @@ impl SnapshotRestoreService {
                 return Err(refused(unsupported_content(&target.source, why)));
             }
             self.check_target(target, &mut buf)?;
+            source.settings = crate::restore_settings::apply(
+                change,
+                source.settings.take(),
+                source.number_of_shards,
+            )?;
             sources.push(source);
         }
         Ok(sources)

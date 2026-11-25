@@ -15,6 +15,7 @@ use crate::route::resolve::Refusal;
 use crate::snapshot_admin::check_name;
 use crate::snapshot_restore_keys::check_keys;
 use crate::snapshot_restore_rename::Rename;
+use crate::snapshot_restore_settings::SettingsChange;
 use crate::snapshot_take_admin::{MAX_TAKE_INDICES, too_large};
 
 fn refuse(status: u16, kind: &'static str, reason: String) -> Refusal {
@@ -45,6 +46,8 @@ pub struct RestoreRequest {
     pub indices: Option<Vec<String>>,
     /// The rename, when both its pattern and replacement were given.
     pub rename: Option<Rename>,
+    /// What the created indices' settings drop and take on.
+    pub settings: SettingsChange,
 }
 
 /// The request of `POST /_snapshot/{repo}/{name}/_restore`, in the shell's
@@ -108,7 +111,12 @@ pub fn request(repo: &str, name: &str, body: Option<&[u8]>) -> Result<RestoreReq
         (Some(pattern), Some(with)) => Some(Rename::new(&text(pattern), &text(with))?),
         _ => None,
     };
-    Ok(RestoreRequest { indices, rename })
+    let settings = SettingsChange::parse(get("index_settings"), get("ignore_index_settings"))?;
+    Ok(RestoreRequest {
+        indices,
+        rename,
+        settings,
+    })
 }
 
 /// One index to restore: what the snapshot calls it and what it becomes.
@@ -343,6 +351,7 @@ mod tests {
     fn targets_are_resolved_whole_before_anything_is_written() {
         let captured = names(&["a", "b"]);
         let all = RestoreRequest {
+            settings: crate::snapshot_restore_settings::SettingsChange::default(),
             indices: None,
             rename: None,
         };
@@ -361,6 +370,7 @@ mod tests {
             ]
         );
         let missing = RestoreRequest {
+            settings: crate::snapshot_restore_settings::SettingsChange::default(),
             indices: Some(names(&["a", "zzz"])),
             rename: None,
         };
@@ -373,6 +383,7 @@ mod tests {
         assert_eq!(plan(&reserved, &captured).unwrap_err().status, 501);
         let many: Vec<String> = (0..=MAX_TAKE_INDICES).map(|i| format!("i{i}")).collect();
         let big = RestoreRequest {
+            settings: crate::snapshot_restore_settings::SettingsChange::default(),
             indices: None,
             rename: None,
         };
