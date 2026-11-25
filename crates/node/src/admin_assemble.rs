@@ -29,7 +29,7 @@ pub(crate) fn register(
     store: &Arc<dyn BlobStore>,
     config: &Config,
     budget: &MemoryBudget,
-) -> Result<Router, AssembleError> {
+) -> Result<(Router, Option<Arc<SecurityState>>), AssembleError> {
     let store_error = |e: oss_meta::MetaError| AssembleError::Store(e.to_string());
     let settings = ClusterService::new(Arc::clone(store), &config.base, config.publish_tick_millis)
         .map_err(store_error)?;
@@ -72,10 +72,11 @@ pub(crate) fn register(
     } else {
         router
     };
-    let router = if config.security {
-        security(router, store, config, budget)?
+    let (router, state) = if config.security {
+        let (router, state) = security(router, store, config, budget)?;
+        (router, Some(state))
     } else {
-        router
+        (router, None)
     };
     let router = extensions(router, store, config, budget)?;
     let router = plugin_routes(config, router)?;
@@ -85,11 +86,13 @@ pub(crate) fn register(
     let router =
         crate::script_route::routes(router, &Arc::new(scripts)).map_err(AssembleError::Route)?;
     if !config.ingest_pipelines {
-        return Ok(router);
+        return Ok((router, state));
     }
     let pipelines =
         PipelineService::new(store, &config.base, config.pit_buffer_bytes).map_err(store_error)?;
-    pipeline_route::routes(router, &Arc::new(pipelines)).map_err(AssembleError::Route)
+    let router =
+        pipeline_route::routes(router, &Arc::new(pipelines)).map_err(AssembleError::Route)?;
+    Ok((router, state))
 }
 
 /// The module upload route, when the node is built with extensions and has a
@@ -162,7 +165,7 @@ fn security(
     store: &Arc<dyn BlobStore>,
     config: &Config,
     budget: &MemoryBudget,
-) -> Result<Router, AssembleError> {
+) -> Result<(Router, Arc<SecurityState>), AssembleError> {
     let admin = config.security_admin.clone().ok_or_else(|| {
         AssembleError::Security(
             "serverless.security.enabled needs an administrator (OSS_SECURITY_ADMIN_USER and OSS_SECURITY_ADMIN_HASH)"
@@ -204,10 +207,11 @@ fn security(
         security_route::routes(router, &Arc::new(service)).map_err(AssembleError::Route)?;
     let router = security_route::authinfo_route(router, &state).map_err(AssembleError::Route)?;
     let authorizer = RouteAuthorizer::new(Arc::clone(&state));
-    let guard = AuthGuard(Arc::new(Authenticator::new(state, clock)));
-    Ok(router
+    let guard = AuthGuard(Arc::new(Authenticator::new(Arc::clone(&state), clock)));
+    let router = router
         .with_guard(Arc::new(guard))
-        .with_authorizer(Arc::new(authorizer)))
+        .with_authorizer(Arc::new(authorizer));
+    Ok((router, state))
 }
 
 /// The names a take and a restore refuse, as the node is configured.
@@ -312,7 +316,7 @@ mod tests {
     fn with_security_off_no_guard_is_installed() {
         let (store, budget) = parts();
         let config = Config::new("", "n", [0; 6]);
-        let router = register(Router::new(), &store, &config, &budget).expect("registers");
+        let (router, _) = register(Router::new(), &store, &config, &budget).expect("registers");
         assert!(!router.has_guard());
         assert!(!router.has_authorizer());
     }
@@ -331,7 +335,7 @@ mod tests {
             security_admin: Some(("a".into(), bcrypt::hash("p", 4).expect("hashes"))),
             ..Config::new("", "n", [0; 6])
         };
-        let router = register(Router::new(), &store, &config, &budget).expect("registers");
+        let (router, _) = register(Router::new(), &store, &config, &budget).expect("registers");
         assert!(router.has_guard());
         assert!(router.has_authorizer());
     }

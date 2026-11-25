@@ -46,6 +46,8 @@ pub mod extension_modules;
 pub mod extension_pins;
 #[cfg(all(feature = "extensions", feature = "writer"))]
 pub mod extension_route;
+#[cfg(feature = "extensions")]
+pub mod extension_setting;
 #[cfg(all(feature = "extensions", feature = "writer"))]
 pub mod extension_store;
 #[cfg(feature = "writer")]

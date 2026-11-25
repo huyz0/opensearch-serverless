@@ -155,3 +155,39 @@ fn authority_is_the_policys_own_answer() {
     assert!(rig(true).policy.authorised(Some("admin")));
     assert!(!rig(false).policy.authorised(None));
 }
+
+// docs/specs/extension-analyzer AC-9: the cluster setting gates a pin.
+#[test]
+fn a_pin_waits_for_the_cluster_setting_and_follows_it_back_off() {
+    let r = rig(true);
+    let policy = ModulePins::new(
+        Arc::clone(&r.store) as Arc<dyn BlobStore>,
+        "",
+        Host::new(HostConfig::default()),
+        MemoryBudget::new(&BudgetConfig::new(64 << 20)),
+        Arc::new(|_| true),
+    )
+    .gated_by_the_cluster_setting()
+    .expect("gate");
+    let config = oss_meta::ClusterConfig::new(Arc::clone(&r.store) as Arc<dyn BlobStore>, "")
+        .expect("config");
+    let mut buf = vec![0u8; 1 << 20];
+    let key = "serverless.extensions.pins.allowed";
+    let gets = r.store.meter().count(S3Op::Get);
+    assert!(policy.allowed().is_err(), "no register: off");
+    budget::check(
+        "extension.pin_allowed.requests",
+        r.store.meter().count(S3Op::Get) - gets,
+        "one GET of the cluster register",
+    );
+    config
+        .update(&[(key, Some("true"))], &mut buf)
+        .expect("set");
+    assert!(policy.allowed().is_ok(), "true: on");
+    config
+        .update(&[(key, Some("false"))], &mut buf)
+        .expect("set");
+    assert!(policy.allowed().is_err(), "false: off again");
+    // A policy not gated allows, for a caller that checks elsewhere.
+    assert!(r.policy.allowed().is_ok());
+}

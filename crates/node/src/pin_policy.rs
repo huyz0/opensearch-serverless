@@ -10,6 +10,17 @@ pub trait PinPolicy: Send + Sync {
     /// module; the role needed is `all_access`.
     fn authorised(&self, principal: Option<&str>) -> bool;
 
+    /// Whether this cluster lets a create carry a pin
+    /// (`serverless.extensions.pins.allowed`). Asked only when a create
+    /// carries one, so a create without a pin costs nothing.
+    ///
+    /// # Errors
+    ///
+    /// The words of the refusal, also when the setting could not be read.
+    fn allowed(&self) -> Result<(), String> {
+        Ok(())
+    }
+
     /// Reads the module and says whether it can be the pin's analyzer, with
     /// the limits its calls will run under, resolved now.
     ///

@@ -9,7 +9,10 @@ use oss_blob::{BlobError, BlobStore};
 use oss_ext::pin::{Pin, ResolvedLimits};
 use oss_ext_wasm::{Host, LoadError};
 use oss_mem::MemoryBudget;
+use oss_types::settings::Live;
 
+use crate::cluster_live::ClusterFeed;
+use crate::extension_setting::PINS_ALLOWED;
 use crate::extension_store::{self as store, StoreError};
 use crate::pin_policy::PinPolicy;
 
@@ -28,6 +31,7 @@ pub struct ModulePins {
     host: Host,
     budget: MemoryBudget,
     admin: Admin,
+    gate: Option<ClusterFeed>,
 }
 
 impl ModulePins {
@@ -48,13 +52,46 @@ impl ModulePins {
             host,
             budget,
             admin,
+            gate: None,
         }
+    }
+
+    /// Lets a pin through only while the cluster register says
+    /// `serverless.extensions.pins.allowed` is `true`, read once for each
+    /// create that carries a pin and never for one that does not. Without
+    /// this the policy allows, for a caller that decides elsewhere.
+    ///
+    /// # Errors
+    ///
+    /// A base that is not empty and does not end in `/`.
+    pub fn gated_by_the_cluster_setting(mut self) -> Result<Self, oss_meta::MetaError> {
+        self.gate = Some(ClusterFeed::new(
+            Arc::clone(&self.store),
+            &self.base,
+            Arc::new(Live::new()),
+        )?);
+        Ok(self)
     }
 }
 
 impl PinPolicy for ModulePins {
     fn authorised(&self, principal: Option<&str>) -> bool {
         (self.admin)(principal)
+    }
+
+    fn allowed(&self) -> Result<(), String> {
+        let Some(gate) = &self.gate else {
+            return Ok(());
+        };
+        gate.read()
+            .map_err(|e| format!("the cluster settings could not be read: {e}"))?;
+        if PINS_ALLOWED.get(&*gate.live().current()).unwrap_or(false) {
+            Ok(())
+        } else {
+            Err("pinned analyzers are not enabled on this cluster \
+                 (serverless.extensions.pins.allowed)"
+                .to_owned())
+        }
     }
 
     fn check(&self, pin: &Pin) -> Result<ResolvedLimits, String> {
