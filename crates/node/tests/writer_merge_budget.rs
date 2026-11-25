@@ -110,7 +110,16 @@ fn write_and_refresh_latency_with_merging_on_and_off() {
 
 /// A reader's cold open of the shard `rounds` refreshes left: its time and
 /// the requests it made, and a match-all count.
-fn cold_open(merge: bool, rounds: u32) -> (std::time::Duration, u64, i32, usize) {
+fn cold_open(
+    merge: bool,
+    rounds: u32,
+) -> (
+    std::time::Duration,
+    u64,
+    i32,
+    usize,
+    [std::time::Duration; 2],
+) {
     use lucene_store::page_cache::{PageCache, PageCacheConfig};
     use oss_blob::PooledStore;
     use oss_mem::BufferPool;
@@ -143,11 +152,29 @@ fn cold_open(merge: bool, rounds: u32) -> (std::time::Duration, u64, i32, usize)
     let start = std::time::Instant::now();
     let open = oss_reader::open_shard(pooled, cache, "", "logs", 0).expect("opens");
     let took = start.elapsed();
+    let requests = c.store.meter().total() - before;
+    // The first search reads what the open did not; the second is warm.
+    let mut rec = oss_reader::dsl::Recorder::new(oss_reader::dsl::MAX_RECORDED_BYTES);
+    let mut tokenizer = oss_reader::dsl::source::tokenizer();
+    tokenizer
+        .feed(br#"{"size":10,"query":{"match_all":{}}}"#, &mut rec)
+        .expect("feeds");
+    tokenizer.finish(&mut rec).expect("ends");
+    let source = oss_reader::dsl::SearchSource::parse(&rec).expect("parses");
+    let analyzer = lucene_analysis::Analyzer::standard(None);
+    let mut searches = [std::time::Duration::ZERO; 2];
+    for slot in &mut searches {
+        let start = std::time::Instant::now();
+        let hits = oss_reader::search::search(&open, "logs", &source, &analyzer).expect("searches");
+        *slot = start.elapsed();
+        drop(hits);
+    }
     (
         took,
-        c.store.meter().total() - before,
+        requests,
         open.reader.num_docs(),
         open.reader.segment_readers().len(),
+        searches,
     )
 }
 
@@ -160,8 +187,19 @@ fn a_readers_cold_open_with_merging_on_and_off() {
         let off = cold_open(false, 300);
         let on = cold_open(true, 300);
         eprintln!(
-            "AC8 cold open off {:?} {} requests {} docs {} segments | on {:?} {} requests {} docs {} segments",
-            off.0, off.1, off.2, off.3, on.0, on.1, on.2, on.3
+            "AC8 cold open off {:?} {} requests {} docs {} segments, search cold {:?} warm {:?} | on {:?} {} requests {} docs {} segments, search cold {:?} warm {:?}",
+            off.0,
+            off.1,
+            off.2,
+            off.3,
+            off.4[0],
+            off.4[1],
+            on.0,
+            on.1,
+            on.2,
+            on.3,
+            on.4[0],
+            on.4[1]
         );
     }
 }

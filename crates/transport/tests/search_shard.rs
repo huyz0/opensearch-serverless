@@ -320,3 +320,60 @@ fn an_answer_past_the_limit_is_refused_whole() {
         Err(WireError::TooLarge { .. })
     ));
 }
+
+fn request_bytes(request: &Request) -> Result<Vec<u8>, Refusal> {
+    let mut buf = Vec::new();
+    request.write(&mut Output::new(&mut buf, 1 << 20))?;
+    Ok(buf)
+}
+
+#[test]
+fn a_request_the_java_shell_wrote_is_written_back_byte_for_byte() {
+    // Every fixture whose query the writer encodes (match-all, or none): the
+    // bytes are the Java writer's, the options one included.
+    let mut equal = Vec::new();
+    for name in ["match_all", "no_query", "options"] {
+        let request = read(name).expect("reads");
+        assert_eq!(
+            request_bytes(&request).expect("writes"),
+            bytes(&format!("request.{name}")),
+            "request.{name}"
+        );
+        equal.push(name);
+    }
+    assert_eq!(equal.len(), 3);
+}
+
+#[test]
+fn a_request_with_another_query_is_refused_by_the_writer() {
+    let request = read("term").expect("reads");
+    assert!(matches!(
+        request_bytes(&request),
+        Err(Refusal::UnsupportedQuery(_))
+    ));
+}
+
+#[test]
+fn a_named_match_all_is_refused_by_the_writer() {
+    // The writer writes the name as absent, so a name would be dropped.
+    let mut request = read("match_all").expect("reads");
+    request.source.query.as_mut().expect("a query").name = Some(s("q"));
+    assert!(matches!(
+        request_bytes(&request),
+        Err(Refusal::UnsupportedQuery(_))
+    ));
+}
+
+#[test]
+fn a_written_request_reads_back_the_same() {
+    let mut request = read("no_query").expect("reads");
+    request.index = s("logs");
+    request.shard = 3;
+    request.index_uuid = None;
+    request.now_millis = 42;
+    request.source.size = 17;
+    request.source.track_total_hits_up_to = Some(1000);
+    let back =
+        Request::read(&request_bytes(&request).expect("writes"), &Bounds::DEFAULT).expect("reads");
+    assert_eq!(back, request);
+}

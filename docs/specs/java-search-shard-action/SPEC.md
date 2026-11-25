@@ -24,6 +24,7 @@ The Rust node registers `internal:serverless/search/shard`. It verifies the MAC 
 - AC-9: with the setting off the action is not registered and the Java request gets `action_not_found`; with it on the same Java-built request is served.
 - AC-10: in the wide mixed-fleet soak (`crates/node/tests/mixed_fleet/soak_wide.rs`, whose judge sends `match_all`, inside the subset) every answer of every node has `_shards.failed == 0` within `HANDOVER_SLACK_SECS` (60 s) of the judge starting, after a Java node is killed.
 - AC-11: write p99 on the owner stays within 5% of its value without forwarded searches while forwarded searches run at the pool's limit (provisional, emulator); the default of the switch follows this result.
+- AC-12: `Request::write` writes a forwarded search for a source with no query or a match-all query in the bytes the Java shell writes, so a Rust coordinator and a load test can send one; a source with another query is refused by the writer, and the timeout is written in the largest exact unit.
 
 ## S3 request budget
 

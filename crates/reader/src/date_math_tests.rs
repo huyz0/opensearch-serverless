@@ -100,3 +100,45 @@ fn an_instant_at_the_ends_of_the_range_is_refused_or_read_and_never_panics() {
         }
     }
 }
+
+#[test]
+fn civil_inverts_days_from_civil_over_every_month_of_many_years() {
+    for year in (-500..=2600)
+        .step_by(7)
+        .chain([1600, 1900, 2000, 2024, 2100])
+    {
+        for month in 1..=12 {
+            let last = days_in_month(year, month);
+            for day in [1, 2, 15, 28, last] {
+                let days = days_from_civil(year, month, day);
+                assert_eq!(civil(days), (year, month, day), "{year}-{month}-{day}");
+            }
+        }
+    }
+}
+
+#[test]
+fn a_range_bound_includes_or_steps_past_the_instant() {
+    // `gte` takes the instant, `gt` the millisecond after the rounded-up one.
+    assert_eq!(lower_bound_at("now", true, Some(NOW)), Ok(NOW));
+    assert_eq!(lower_bound_at("now", false, Some(NOW)), Ok(NOW + 1));
+    assert_eq!(
+        lower_bound_at("now/d", true, Some(NOW)),
+        Ok(d("2002-07-01"))
+    );
+    assert_eq!(
+        lower_bound_at("now/d", false, Some(NOW)),
+        Ok(d("2002-07-02"))
+    );
+    // `lte` takes the rounded-up instant, `lt` the millisecond before it.
+    assert_eq!(upper_bound_at("now", true, Some(NOW)), Ok(NOW));
+    assert_eq!(upper_bound_at("now", false, Some(NOW)), Ok(NOW - 1));
+    assert_eq!(
+        upper_bound_at("now/d", true, Some(NOW)),
+        Ok(d("2002-07-02") - 1)
+    );
+    assert_eq!(
+        upper_bound_at("now/d", false, Some(NOW)),
+        Ok(d("2002-07-01") - 1)
+    );
+}

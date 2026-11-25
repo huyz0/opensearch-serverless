@@ -9,7 +9,7 @@ Roadmap R13.4: the budget a tenant's cost is judged against, by tier, as in the 
 - An index can be created with `index.serverless.cost.tier` (`small`, `standard` or `large`) and `index.serverless.cost.budget` (cost units a minute, a positive whole number; it wins over the tier). Both are kept in the descriptor's settings next to the bucket group, and a writer node that opens a shard of the index tells the levels. Any other index setting is still refused at create.
 - Node settings: `OSS_TENANT_BUDGET_SMALL` (20), `OSS_TENANT_BUDGET_STANDARD` (200), `OSS_TENANT_BUDGET_PER_MINUTE` (2,000, the large tier), and `OSS_TENANT_DEFAULT_TIER` (`small`, `standard`, `large`; unset it is `large` in `observe`, so no one is flagged before budgets are chosen, and `standard` in `enforce`).
 - A tenant's budget is the largest of its indices' budgets (an index with none has the default tier's). The tick judges each tenant against it, and the usage report shows it as `budget_per_minute`.
-- Not in this change: changing tier or budget of an existing index (the node has no index settings update yet), a cluster setting for the tier budgets.
+- Not in this change: a cluster setting for the tier budgets. Changing the tier or budget of an existing index is [tenant-cost-settings-update](../tenant-cost-settings-update/SPEC.md).
 
 ## Acceptance criteria
 
@@ -35,4 +35,3 @@ Rides `OSS_TENANT_LEVELS`: in `observe` the budgets only decide which level is r
 ## Risks
 
 - A tenant of one big index and many small ones is judged against the big one's budget (the largest wins), so a noisy small index hides behind it.
-- A tier cannot change until the node has an index settings update.

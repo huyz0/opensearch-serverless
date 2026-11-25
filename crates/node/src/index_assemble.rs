@@ -190,6 +190,7 @@ pub(crate) fn settings_routes(
     router: oss_rest::Router,
     config: &crate::assemble::Config,
     store: &Arc<dyn BlobStore>,
+    role: &Arc<crate::writer::WriterRole>,
 ) -> Result<oss_rest::Router, crate::assemble::AssembleError> {
     let stripes = oss_meta::ChangeStripes::new(Arc::clone(store), &config.base)
         .map_err(|e| crate::assemble::AssembleError::Store(e.to_string()))?;
@@ -202,7 +203,8 @@ pub(crate) fn settings_routes(
             config.pit_buffer_bytes,
             config.ingest_pipelines,
         )
-        .with_search_pipelines(config.search_pipelines),
+        .with_search_pipelines(config.search_pipelines)
+        .with_role(Arc::clone(role)),
     );
     crate::settings_route::routes(router, &service).map_err(crate::assemble::AssembleError::Route)
 }
@@ -218,7 +220,6 @@ pub(crate) fn stream_routes<S: BlobStore + 'static>(
     deletes: &Arc<DeleteService>,
     search: &Arc<crate::search::SearchService<S>>,
 ) -> Result<oss_rest::Router, crate::assemble::AssembleError> {
-    let router = settings_routes(router, config, store)?;
     let descriptors = || {
         let stripes = oss_meta::ChangeStripes::new(Arc::clone(store), &config.base)
             .map_err(|e| crate::assemble::AssembleError::Store(e.to_string()))?;
