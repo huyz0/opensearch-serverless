@@ -10,7 +10,7 @@ use oss_doc::mapping::json::write_str;
 use crate::route::resolve::Refusal;
 
 /// The prefix of a data stream's backing indices, which a create may not use.
-const BACKING_INDEX_PREFIX: &str = ".ds-";
+pub const BACKING_INDEX_PREFIX: &str = ".ds-";
 
 /// Which part of an index a GET renders.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -75,17 +75,19 @@ pub fn view_of(path: &str, setting_name: Option<&str>) -> View {
 ///
 /// A [`Refusal`] naming the stream, when `stream` is one.
 pub fn delete_check(index: &str, stream: Option<&str>) -> Result<(), Refusal> {
-    match stream {
-        None => Ok(()),
-        Some(stream) => Err(Refusal::new(
-            400,
-            "illegal_argument_exception",
-            // ALLOC: one message, bounded by the names.
-            format!(
-                "index [{index}] is the write index for data stream [{stream}] and cannot be deleted"
-            ),
-        )),
-    }
+    stream.map_or(Ok(()), |stream| Err(write_index_refusal(index, stream)))
+}
+
+/// The refusal for deleting `index`, the write index of `stream`.
+pub fn write_index_refusal(index: &str, stream: &str) -> Refusal {
+    Refusal::new(
+        400,
+        "illegal_argument_exception",
+        // ALLOC: one message, bounded by the names.
+        format!(
+            "index [{index}] is the write index for data stream [{stream}] and cannot be deleted"
+        ),
+    )
 }
 
 /// The refusal for a delete that deleted nothing: a conflict when the index

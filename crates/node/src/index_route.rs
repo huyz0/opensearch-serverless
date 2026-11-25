@@ -17,6 +17,7 @@ use oss_rest::{Exception, JSON, Method, Request, Response, RestError, RouteError
 use oss_writer::bucket::policy;
 use oss_writer::mapping::{Mapping, ParseOptions};
 
+mod backing;
 mod mapping;
 
 use crate::index_templates::TemplateSets;
@@ -181,6 +182,11 @@ impl IndexService {
         self
     }
 
+    /// The template sets a create layers, when the node reads them.
+    pub(crate) fn templates(&self) -> Option<&Arc<TemplateSets>> {
+        self.templates.as_ref()
+    }
+
     /// `PUT /{index}`.
     pub fn create(&self, req: &mut Request<'_>, resp: &mut Response<'_>) -> Result<(), RestError> {
         let index = req
@@ -224,6 +230,20 @@ impl IndexService {
             }
             None => asked,
         };
+        let shards = asked.shards;
+        self.build(req, &index, asked, &pins)?;
+        resp.send(200, JSON, create_ack(&index, shards).as_bytes())
+    }
+
+    /// Creates the index `index` as `asked` says, after the templates and
+    /// pins are settled; the uuid it was created with.
+    fn build(
+        &self,
+        req: &mut Request<'_>,
+        index: &str,
+        asked: oss_coordinator::indices::create::CreateRequest,
+        pins: &[(Pin, ResolvedLimits)],
+    ) -> Result<String, RestError> {
         let (bucket_off, bucket_group) = bucket_settings(&asked.settings)?;
         let cost = cost_settings(&asked.settings)?;
         let read = crate::create_settings::checked(&asked.settings, asked.shards, self.pipelines)?;
@@ -256,7 +276,7 @@ impl IndexService {
         let mut buf = vec![0u8; self.buffer_bytes];
         let uuid = new_id().map_err(|e| refuse(500, "index_create_failure", e.to_string()))?;
         let now = i64::try_from((self.clock)()).unwrap_or(i64::MAX);
-        let mut record = IndexRecord::new(&index, &uuid, asked.shards);
+        let mut record = IndexRecord::new(index, &uuid, asked.shards);
         record.mapping = asked.mapping.as_deref().map(Cow::Borrowed);
         record.created_at_millis = now;
         record.created_version_id = CREATED_VERSION_ID;
@@ -264,7 +284,7 @@ impl IndexService {
             group: bucket_group.clone(),
             ..cost
         };
-        let rendered = render(&pins);
+        let rendered = render(pins);
         let tenancy_settings = (!tenancy.is_empty() || !read.is_empty())
             .then(|| crate::writer::tenancy::tenancy_settings_with(&tenancy, &read));
         let settings = (!rendered.is_empty())
@@ -276,8 +296,8 @@ impl IndexService {
             && !bucket_off
             && let Some(join) = &self.join
         {
-            let group = bucket_group.as_deref().unwrap_or(&index);
-            let bucket = join(group, &index, &uuid)
+            let group = bucket_group.as_deref().unwrap_or(index);
+            let bucket = join(group, index, &uuid)
                 .map_err(|e| refuse(500, "index_create_failure", format!("bucket: {e}")))?;
             record.bucket = Some(Cow::Owned(bucket));
         }
@@ -286,9 +306,9 @@ impl IndexService {
             if let (Some(leave), Some(bucket)) = (&self.leave, record.bucket.as_deref()) {
                 let _ = leave(bucket, &uuid);
             }
-            return Err(create_failure(&index, &uuid, &e));
+            return Err(create_failure(index, &uuid, &e));
         }
-        resp.send(200, JSON, create_ack(&index, asked.shards).as_bytes())
+        Ok(uuid)
     }
 
     /// `HEAD /{index}`.
