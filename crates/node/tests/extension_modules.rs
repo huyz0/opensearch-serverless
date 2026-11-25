@@ -303,3 +303,75 @@ fn the_overlays_modules_are_not_refused_by_the_tenants_share() {
         assert!(s.join().expect("joined").is_err());
     }
 }
+
+/// The writer's shard over `dir`, a text field `t` that pins `ext_a` when
+/// `pinned` and is built in otherwise.
+fn shard_of<'d>(
+    dir: &'d lucene_store::ByteBuffersDirectory,
+    pinned: Option<Arc<dyn oss_ext::analyzer::Analyze>>,
+) -> oss_writer::index::Shard<'d> {
+    use oss_writer::mapping::{Mapping, ParseOptions};
+    let analyzer = if pinned.is_some() {
+        r#","analyzer":"ext_a""#
+    } else {
+        ""
+    };
+    let json = format!(r#"{{"properties":{{"t":{{"type":"text"{analyzer}}}}}}}"#);
+    let mapping = Mapping::parse_pinned(json.as_bytes(), ParseOptions::default()).expect("mapping");
+    let (writer, derived) = oss_writer::index::knn::open_writer(dir, &mapping).expect("writer");
+    let shard = oss_writer::index::Shard::new(dir, writer, mapping, 1, Box::new(|| 0))
+        .expect("shard")
+        .with_derived_source(derived);
+    match pinned {
+        Some(m) => shard.with_module("ext_a", m),
+        None => shard,
+    }
+}
+
+/// Run by hand: `cargo test -p oss-node --release --all-features --test
+/// extension_modules -- --ignored --nocapture`.
+#[test]
+#[ignore = "a measurement, run by hand"]
+fn the_cost_of_a_pinned_write_against_the_built_in_analyzer() {
+    let r = rig(4);
+    let hash = put(&r, &module("analyzer", false, None));
+    let set = r
+        .source
+        .open(&settings(&[("ext_a", &hash, 50_000_000)]), "t")
+        .expect("opens");
+    let (_, module) = set.analyzers().next().expect("one");
+    let text = "the quick brown fox jumps over the lazy dog ".repeat(4);
+    let source = format!(r#"{{"t":"{text}"}}"#);
+    let mut report = Vec::new();
+    for (name, pinned) in [("built-in", None), ("pinned", Some(module))] {
+        let dir = lucene_store::ByteBuffersDirectory::new();
+        let mut shard = shard_of(&dir, pinned);
+        let mut nanos: Vec<u128> = Vec::new();
+        for n in 0..5_200 {
+            let at = std::time::Instant::now();
+            shard
+                .index(
+                    &format!("d{n}"),
+                    source.as_bytes(),
+                    false,
+                    &oss_writer::index::Expect::default(),
+                )
+                .expect("indexed");
+            if n >= 200 {
+                nanos.push(at.elapsed().as_nanos());
+            }
+        }
+        nanos.sort_unstable();
+        let at = |q: usize| nanos[nanos.len() * q / 100 - 1] / 1000;
+        report.push(format!(
+            "{name}: p50 {} us, p99 {} us, max {} us",
+            at(50),
+            at(99),
+            nanos[nanos.len() - 1] / 1000
+        ));
+    }
+    println!(
+        "5,000 writes of a 176-byte text after 200 warm-up:\n{}",
+        report.join("\n")
+    );
+}

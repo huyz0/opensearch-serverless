@@ -102,3 +102,63 @@ fn an_index_created_with_a_bucket_group_bills_to_that_tenant() {
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
 }
+
+/// A module that follows the ABI and answers every call with the three bytes
+/// `abc`.
+#[cfg(feature = "extensions")]
+fn answering_module() -> Vec<u8> {
+    const DESCRIPTOR: &str = r#"{"name":"usage_test","version":"1.0.0","abi":"1.0","io_bytes":1024,"max_concurrent_calls":4,"points":[{"id":"echo","version":"1.0.0"}]}"#;
+    let escaped: String = DESCRIPTOR.bytes().map(|b| format!("\\{b:02x}")).collect();
+    wat::parse_str(format!(
+        r#"(module
+  (memory (export "memory") 4)
+  (data (i32.const 0) "{escaped}")
+  (data (i32.const 1000) "abc")
+  (func (export "oss_abi_version") (result i32) (i32.const 65536))
+  (func (export "oss_describe") (result i32)
+    (memory.copy (i32.const 131072) (i32.const 0) (i32.const {len})) (i32.const {len}))
+  (func (export "oss_input_region") (result i32) (i32.const 65536))
+  (func (export "oss_output_region") (result i32) (i32.const 131072))
+  (func (export "oss_result_len") (result i32) (i32.const 3))
+  (func (export "oss_call") (param i32 i32 i32) (result i32)
+    (memory.copy (i32.const 131072) (i32.const 1000) (i32.const 3)) (i32.const 0)))"#,
+        len = DESCRIPTOR.len()
+    ))
+    .expect("valid module")
+}
+
+// docs/specs/extension-analyzer AC-17: the counters are on the usage route
+#[cfg(feature = "extensions")]
+#[test]
+fn a_tenants_module_calls_appear_on_the_usage_route_of_a_running_node() {
+    let dir = TempDir::new("boot-usage-extensions");
+    let node = boot(dir.path(), Some("true"));
+    let before = call(&node, "GET", "/_serverless/usage", None).text();
+    assert!(
+        !before.contains("usage-route-tenant"),
+        "no calls yet for this tenant: {before}"
+    );
+    let module = oss_node::extension_host::host()
+        .load(
+            &answering_module(),
+            std::sync::Arc::new(oss_ext_wasm::Unbounded),
+        )
+        .expect("loads");
+    for _ in 0..3 {
+        assert_eq!(
+            module
+                .call("usage-route-tenant", 0, b"hello")
+                .expect("call"),
+            b"abc"
+        );
+    }
+    let body = call(&node, "GET", "/_serverless/usage", None).text();
+    let at = body
+        .find("\"usage-route-tenant\":{\"calls\":3,")
+        .unwrap_or_else(|| panic!("the tenant's counters are in the body: {body}"));
+    let counters = &body[at..];
+    assert!(
+        counters.contains("\"input_bytes\":15,\"output_bytes\":9}"),
+        "{counters}"
+    );
+}

@@ -113,8 +113,13 @@ fn total(c: &[u64]) -> u64 {
 
 #[test]
 fn small_indices_cost_no_more_requests_in_buckets_once_created() {
-    let off = measure(false);
-    let on = measure(true);
+    // Two clusters of their own, each with its own store: side by side, the
+    // test takes as long as one of them.
+    let (off, on) = std::thread::scope(|s| {
+        let off = s.spawn(|| measure(false));
+        let on = measure(true);
+        (off.join().expect("the buckets-off run"), on)
+    });
     for (label, (a, b)) in [
         ("create", (&off.0, &on.0)),
         ("write", (&off.1, &on.1)),
