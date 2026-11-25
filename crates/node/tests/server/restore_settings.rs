@@ -19,23 +19,48 @@ const RENAME: &str = r#""rename_pattern":"logs","rename_replacement":"copy""#;
 #[test]
 fn index_settings_are_stored_on_the_restored_index() {
     let r = taken(true);
-    let body = format!(r#"{{{RENAME},"index_settings":{{"index.refresh_interval":"7s"}}}}"#);
+    let body = format!(r#"{{{RENAME},"index_settings":{{"index.refresh_interval":" 7s "}}}}"#);
     let reply = send(&r, "POST", RESTORE, Some(&body));
     assert_eq!(reply.status, 200, "{}", reply.text());
-    assert!(settings_of(&r, "copy").contains("7s"));
+    assert_eq!(
+        settings_of(&r, "copy"),
+        r#"{"index.refresh_interval":"7s"}"#
+    );
 }
 
 #[test]
-fn a_request_with_neither_key_costs_what_one_with_empty_keys_costs() {
+fn ignore_and_null_remove_a_captured_setting() {
+    let r = taken(true);
+    let set = format!(
+        r#"{{{RENAME},"index_settings":{{"index.refresh_interval":"7s","index.codec":"best_compression"}}}}"#
+    );
+    assert_eq!(send(&r, "POST", RESTORE, Some(&set)).status, 200);
+    // The null leaf removes the given key and ignore removes the other.
+    let body = r#"{"rename_pattern":"logs","rename_replacement":"two","index_settings":{"index.refresh_interval":null},"ignore_index_settings":["index.codec"]}"#;
+    assert_eq!(send(&r, "POST", RESTORE, Some(body)).status, 200);
+    assert_eq!(settings_of(&r, "two"), "{}");
+}
+
+#[test]
+fn a_wildcard_that_is_not_trailing_is_400() {
+    let r = taken(true);
+    let body = format!(r#"{{{RENAME},"ignore_index_settings":["index.*.foo"]}}"#);
+    assert_eq!(send(&r, "POST", RESTORE, Some(&body)).status, 400);
+}
+
+#[test]
+fn a_request_with_both_keys_costs_what_one_with_neither_costs() {
     let a = taken(true);
     let b = taken(true);
     let (a0, b0) = (requests(&a), requests(&b));
     let plain = format!("{{{RENAME}}}");
-    let empty = format!(r#"{{{RENAME},"index_settings":{{}},"ignore_index_settings":[]}}"#);
+    let empty = format!(
+        r#"{{{RENAME},"index_settings":{{"index.refresh_interval":"7s"}},"ignore_index_settings":["index.codec"]}}"#
+    );
     assert_eq!(send(&a, "POST", RESTORE, Some(&plain)).status, 200);
     assert_eq!(send(&b, "POST", RESTORE, Some(&empty)).status, 200);
     assert_eq!(requests(&a) - a0, requests(&b) - b0);
-    assert_eq!(settings_of(&a, "copy"), settings_of(&b, "copy"));
+    assert_ne!(settings_of(&a, "copy"), settings_of(&b, "copy"));
 }
 
 #[test]

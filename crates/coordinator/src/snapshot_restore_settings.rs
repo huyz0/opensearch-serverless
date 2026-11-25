@@ -61,7 +61,11 @@ impl SettingsChange {
     pub fn parse(set: Option<&Json>, ignore: Option<&Json>) -> Result<Self, Refusal> {
         let set = match set {
             None => Vec::new(), // ALLOC: error path; one message.
-            Some(Json::Obj(members)) => flatten(members),
+            // ALLOC: one entry a given setting, bounded by the 1 MiB body.
+            Some(Json::Obj(members)) => flatten(members)
+                .into_iter()
+                .map(|(k, v)| (k, v.map(|v| v.trim().to_owned()))) // ALLOC: one value each.
+                .collect(),
             Some(_) => return Err(illegal("index_settings must be an object".to_owned())), // ALLOC: error path; one message.
         };
         let ignore = match ignore {
@@ -87,6 +91,15 @@ impl SettingsChange {
                 ));
             }
         };
+        // ALLOC: error path; one message.
+        if let Some(name) = ignore
+            .iter()
+            .find(|n| n.trim_end_matches('*').contains('*'))
+        {
+            return Err(illegal(format!(
+                "ignore_index_settings [{name}]: only a trailing * is supported"
+            )));
+        }
         for (key, value) in &set {
             if FIXED.contains(&key.as_str()) {
                 let verb = if value.is_some() { "modify" } else { "remove" };
