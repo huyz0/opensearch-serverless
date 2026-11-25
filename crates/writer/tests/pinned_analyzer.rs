@@ -116,11 +116,11 @@ impl Analyze for Words {
                 out.push(Token {
                     term: word.to_uppercase(),
                     start: at,
-                    end: at + n,
+                    end: at.saturating_add(n),
                     increment: 1,
                 });
             }
-            at += n + 1;
+            at = at.saturating_add(n).saturating_add(1);
         }
         Ok(out)
     }
