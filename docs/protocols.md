@@ -10,7 +10,7 @@ What a client can speak to the Rust node and to the Java shell (`huyz0/OpenSearc
 | HTTP/2 clear text (h2c) | **no** | yes, on both of its HTTP transports | already on |
 | HTTP/2 over TLS (ALPN `h2`) | **no**, no inbound TLS | **no**, the shell has no TLS of its own | yes, once a plugin supplies TLS parameters (the security plugin does) |
 | HTTP/3 (QUIC, ALPN `h3`) | **no** | **no**, off by default and TLS only | yes: `http.protocol.http3.enabled: true` with TLS parameters, and a platform with the QUIC native library |
-| gRPC | **no** | **no**: the transport exists upstream, nothing in the shell starts it | needs a small shell change (start auxiliary transports) |
+| gRPC | **no** | **yes** with `aux.transport.types: [transport-grpc]` and the plugin; before the shell change below it registered and never started | one setting |
 
 ## Evidence
 
@@ -38,12 +38,12 @@ By code, at `feature/serverlessshell` `e71d4233`. The shell picks its HTTP trans
 - **gRPC**: `modules/transport-grpc` is an auxiliary transport (`aux.transport.types: [transport-grpc]`, port range `aux.transport.transport-grpc.port`), serving `DocumentService.Bulk` and `SearchService.Search`, `CreatePit` and `DeletePit` from `opensearch-protobufs`, over Netty HTTP/2 with optional TLS. Upstream's `Node` starts auxiliary transports through `NetworkModule#getAuxServerTransportList`; the shell builds its own `NetworkModule` (`NodeServiceBuilders#buildNetworkModule`) and nothing under `serverless/` reads that list, so the transport is registered when its plugin loads and never started.
 - **TLS in the shell**: none of its own; the security plugin supplies it (`serverless/README.md`, `tlsTest`).
 
-**Not run live:** no Java node was started for this table. A live Java check is part of the plan.
+**Run live, 2026-11-25** (`ServerlessProtocolsTests`, `ServerlessGrpcTests` in `serverless/testkit`, on the shell change that starts auxiliary transports): an HTTP/2 request over clear text is answered as HTTP/2, and the same as HTTP/1.1, on `netty4` and on `reactor-netty4`; a gRPC health call to a shell node loading the stock `transport-grpc` plugin returns `SERVING`; the auxiliary-transport lifecycle test failed before the change (started 0 times, expected 1) and passes after. **Not run:** HTTP/2 over TLS and HTTP/3 on the shell; they rely on upstream's own tests (`Netty4Http2IT`, `Netty4Http3IT`) and on TLS parameters from a plugin.
 
 ## Gaps, in order
 
 1. **Rust: HTTP/2 and inbound TLS.** The largest gap; everything else on the Rust side builds on it. [ADR 0058](adr/0058-modern-protocols-front.md), decisions 1 to 5.
-2. **Java: start the gRPC auxiliary transport.** A small change in the shell, and the only thing between it and gRPC.
+2. **Java: start the gRPC auxiliary transport.** Done (the shell change above).
 3. **Rust: gRPC**, on the HTTP/2 front, serving the services upstream serves. ADR 0058, decision 6.
 4. **Rust: HTTP/3.** QUIC and a certificate; last because it needs everything above.
 5. **Java: TLS of its own**, if a deployment wants HTTP/3 or ALPN `h2` without the security plugin. Not planned: it needs a decision on where certificates come from; options are in the spec.
