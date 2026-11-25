@@ -44,4 +44,4 @@ Unchanged in kind: a window is still one PUT. More groups ride one window, so a 
 
 ## Switch
 
-`OSS_WRITE_PIPELINE_DEPTH`, node scope, default 1 (today's behaviour). It moves to a deeper default when the ADR's remaining tests exist (forced wake order, the quiesce of publish, hibernate and evict, a crash and reopen, and the memory bound) and the measurements hold; the node suites already pass at depth 8 and p99 at one client is within 1% of depth 1.
+`OSS_WRITE_PIPELINE_DEPTH`, node scope, default 8; 1 is the earlier behaviour, and its tests pin it. The ADR's tests exist (AC-9 to AC-16), the node suites pass at depth 8, and p99 at one client is within 1% of depth 1.

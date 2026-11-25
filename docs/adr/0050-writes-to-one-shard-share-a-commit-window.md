@@ -75,4 +75,4 @@ Each test is named by an `AC-n` in `docs/specs/write-pipeline/SPEC.md` with its 
 
 ## Switch
 
-`OSS_WRITE_PIPELINE_DEPTH`, default 1 (today's behaviour). It moves to a deeper default only when the crash and forced-order tests above pass and a measurement shows no worse p99 at one client, no extra store requests, and the gain at many clients; until then the downsides listed above (a failed window fails the groups in flight, reads can see unlogged writes, a quiesce stalls writes for a window) are not accepted by default.
+`OSS_WRITE_PIPELINE_DEPTH`, default 8; 1 keeps the earlier path. The crash and forced-order tests above pass and a measurement shows no worse p99 at one client and no extra store requests. The downsides listed above (a failed window fails the groups in flight, reads can see unlogged writes, a quiesce stalls writes for a window) are accepted by the owner's review of this default.
