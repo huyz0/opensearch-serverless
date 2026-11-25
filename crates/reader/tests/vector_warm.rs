@@ -24,8 +24,8 @@ use oss_testkit::index::{Spec, blobs, spec_vector};
 
 static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
 
-const DOCS: usize = 40_000;
-const DIM: usize = 64;
+const DOCS: usize = 16_000;
+const DIM: usize = 128;
 const SEGMENT: usize = 8_000;
 
 type Store = Arc<PooledStore<Rounds<Emulator>>>;
@@ -37,7 +37,17 @@ fn spec() -> Spec {
         .with_vector_dimension(DIM)
 }
 
-fn store(spec: &Spec) -> (Store, usize) {
+/// The index's blobs, built once: a build costs more than a search.
+fn built() -> &'static (Vec<(String, Vec<u8>)>, usize) {
+    static BUILT: std::sync::OnceLock<(Vec<(String, Vec<u8>)>, usize)> = std::sync::OnceLock::new();
+    BUILT.get_or_init(|| {
+        let all: Vec<(String, Vec<u8>)> = blobs("", &spec()).into_iter().collect();
+        let bytes = all.iter().map(|(_, b)| b.len()).sum();
+        (all, bytes)
+    })
+}
+
+fn store() -> (Store, usize) {
     let config = BudgetConfig::new(64 << 20)
         .with_pool(Pool::Transport, 64 << 20)
         .expect("fits");
@@ -47,12 +57,11 @@ fn store(spec: &Spec) -> (Store, usize) {
         Rounds::new(Emulator::new(1 << 30, 1)),
         buffers,
     ));
-    let mut bytes = 0;
-    for (key, blob) in blobs("", spec) {
-        bytes += blob.len();
-        store.put(&key, &mut SliceSource::new(&blob)).expect("put");
+    let (all, bytes) = built();
+    for (key, blob) in all {
+        store.put(key, &mut SliceSource::new(blob)).expect("put");
     }
-    (store, bytes)
+    (store, *bytes)
 }
 
 /// What one cold open and the searches after it cost.
@@ -71,7 +80,7 @@ struct Cost {
 
 fn measure(at_open: bool, body: &str) -> Cost {
     vector_warm::set_at_open(at_open);
-    let (store, index_bytes) = store(&spec());
+    let (store, index_bytes) = store();
     let rounds = store.store();
     let cache = Arc::new(PageCache::new(PageCacheConfig::default()).expect("page cache"));
     rounds.reset(Duration::from_millis(5));
