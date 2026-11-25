@@ -133,3 +133,23 @@ pub(crate) fn alias_service(
         ALIAS_LEASE_TTL_MILLIS,
     )))
 }
+
+/// The settings update route over the same descriptors and change stripes as
+/// the index routes.
+pub(crate) fn settings_routes(
+    router: oss_rest::Router,
+    config: &crate::assemble::Config,
+    store: &Arc<dyn BlobStore>,
+) -> Result<oss_rest::Router, crate::assemble::AssembleError> {
+    let stripes = oss_meta::ChangeStripes::new(Arc::clone(store), &config.base)
+        .map_err(|e| crate::assemble::AssembleError::Store(e.to_string()))?;
+    let descriptors = DescriptorStore::new(Arc::clone(store), &config.base, config.delete_mode)
+        .map_err(|e| crate::assemble::AssembleError::Store(e.to_string()))?
+        .record_changes_in(stripes);
+    let service = Arc::new(crate::settings_route::SettingsService::new(
+        descriptors,
+        config.pit_buffer_bytes,
+        config.ingest_pipelines,
+    ));
+    crate::settings_route::routes(router, &service).map_err(crate::assemble::AssembleError::Route)
+}

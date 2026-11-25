@@ -124,6 +124,8 @@ pub mod security_setting;
 pub mod security_state;
 pub mod settings;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
+pub mod settings_route;
+#[cfg(all(feature = "writer", feature = "coordinator"))]
 pub mod snapshot_restore_route;
 #[cfg(feature = "writer")]
 pub mod snapshot_route;

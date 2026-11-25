@@ -73,6 +73,8 @@ mod security_hardening;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod security_limits;
 mod security_route;
+#[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
+mod settings_route;
 mod snapshot_delete;
 mod snapshot_restore;
 mod snapshot_restore_bounds;

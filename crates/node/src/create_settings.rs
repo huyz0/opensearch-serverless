@@ -26,6 +26,24 @@ const READ: [&str; 5] = [
     FINAL_PIPELINE,
 ];
 
+/// Whether `key` is a setting a create reads or stores.
+pub(crate) fn is_known(key: &str) -> bool {
+    READ.contains(&key) || crate::core_settings::accepts(key)
+}
+
+/// Whether `key` is a known setting that only a create may set: it is read
+/// when a shard opens, or core declares it static.
+pub(crate) fn is_static(key: &str) -> bool {
+    matches!(
+        key,
+        PARTITION_SIZE
+            | ROUTING_SHARDS
+            | "index.codec"
+            | "index.queries.cache.enabled"
+            | "index.shard.check_on_startup"
+    )
+}
+
 fn refuse(status: u16, kind: &'static str, reason: impl Into<String>) -> RestError {
     RestError::exception(status, Exception::new(kind, reason))
 }
