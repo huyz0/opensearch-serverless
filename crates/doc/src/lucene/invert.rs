@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use lucene_analysis::Analyzer;
 use lucene_codecs::field_infos::IndexOptions;
 use lucene_index::index_writer::{InvertedField, InvertedTerm};
-use oss_ext::analyzer::Token;
+use oss_ext::analyzer::{Analyze, Token};
 
 use super::encode::norm;
 use crate::mapping::MappingError;
@@ -126,6 +126,35 @@ impl Inverted {
         self.position = self.position.saturating_add(end_increment);
         self.offset = self.offset.saturating_add(end_offset);
         Ok(())
+    }
+
+    /// An analyzed value: the tokens of `module` when the field pins one,
+    /// else those of the built-in `analyzer`.
+    ///
+    /// # Errors
+    ///
+    /// The module's failure, which is never answered by the built-in
+    /// analyzer, or a position past what a posting holds.
+    pub fn analyzed(
+        &mut self,
+        analyzer: &Analyzer,
+        module: Option<&dyn Analyze>,
+        text: &str,
+        gap: i32,
+    ) -> Result<(), MappingError> {
+        let Some(module) = module else {
+            return self.text(analyzer, text, gap);
+        };
+        let tokens = module.analyze(text).map_err(|e| {
+            // ALLOC: error path; one message.
+            MappingError::illegal_state(&format!(
+                "the analyzer module failed ({:?}): {}",
+                e.kind(),
+                e.detail()
+            ))
+        })?;
+        let units = text.encode_utf16().count();
+        self.tokens(&tokens, i32::try_from(units).unwrap_or(i32::MAX), gap)
     }
 
     /// The tokens a pinned module made of one value of `units` UTF-16 units,
