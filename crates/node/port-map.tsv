@@ -175,7 +175,7 @@ src/boot/tail/joining.rs	new		the warm-up of a joining reader on its own thread,
 src/warm_setting.rs	new		the per-index switch that leaves an index out of warm copy
 src/alias_route/mod.rs	new		alias add, remove and read routes over the alias mutation protocol; names are literal, the Java's patterns need a listing
 src/alias_route/parse.rs	new		the names, write flag and action list an alias request asks for
-src/boot/config/tests/resident.rs	new		tests for the resident page bound setting
+src/boot/config/tests/resident.rs	new		tests for the resident page bound and search queue settings
 src/script_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/StoredScriptHandler.java	the put, get and delete routes over the scripts document set; the Java compiles a script at put, this node stores it uncompiled and refuses a named context
 src/boot/config/tests/proactive.rs	new		tests for the proactive takeover reaper switch
 src/extension_modules.rs	new		the analyzers an index's pins name, loaded once a distinct module when a shard opens, called under the recorded limits or a replay's
@@ -187,3 +187,6 @@ src/extension_host.rs	new		the node's one WASM host, shared by every user of mod
 src/search_modules.rs	new		what loads the modules an index pins for a search node
 src/writer/growth.rs	new		the writer role holds a group's new fields in the descriptor before the group is logged (MappingGrowthPath is the library), split out of the writer module to keep it under the size limit
 src/index_route/mapping.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/indexadmin/MappingUpdateHandler.java	the _mapping read of IndexAdminHandler and the update: one concrete index, the descriptor swap tried ATTEMPTS times over coordinator plan; the action gate and the reconciler refresh are not ported here
+src/search_queue.rs	new		the node side of the bounded search queue (ADR 0056); the shell has no queue off the workers
+src/boot/config/search_queue.rs	new		the search queue and connection settings
+src/boot/config/store_debug.rs	new		`StoreChoice`'s Debug, split out of config.rs to hold its size

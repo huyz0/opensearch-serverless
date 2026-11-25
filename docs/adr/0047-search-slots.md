@@ -1,6 +1,6 @@
 # 0047: Searches are admitted in order by a slot gate that shapes who waits, behind a setting
 
-**Status:** Accepted after independent review (five rounds), 2026-11-24
+**Status:** Accepted after independent review (five rounds), 2026-11-24. The never-refuse rule is amended for the queue lane by [ADR 0056](0056-over-share-searches-wait-off-the-workers-in-a-bounded-queue.md); the gate itself still never refuses.
 
 ## Context
 

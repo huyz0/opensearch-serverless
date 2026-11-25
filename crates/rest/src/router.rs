@@ -18,6 +18,7 @@
 
 use std::sync::Arc;
 
+use crate::admission::SearchAdmission;
 use crate::authorizer::Authorizer;
 use crate::error::RestError;
 use crate::guard::Guard;
@@ -120,6 +121,7 @@ pub struct Router {
     prefixes: Vec<Route>,
     guard: Option<Arc<dyn Guard>>,
     authorizer: Option<Arc<dyn Authorizer>>,
+    admission: Option<Arc<dyn SearchAdmission>>,
 }
 
 /// Where a path and method lead.
@@ -154,6 +156,18 @@ impl Router {
     pub fn with_authorizer(mut self, authorizer: Arc<dyn Authorizer>) -> Self {
         self.authorizer = Some(authorizer);
         self
+    }
+
+    /// Lets `admission` park a request until its tenant's turn, when the
+    /// server's `search_queue_size` is above 0.
+    pub fn with_search_admission(mut self, admission: Arc<dyn SearchAdmission>) -> Self {
+        self.admission = Some(admission);
+        self
+    }
+
+    /// The search admission hook, if one is set.
+    pub(crate) fn search_admission(&self) -> Option<Arc<dyn SearchAdmission>> {
+        self.admission.clone()
     }
 
     /// Whether an authorizer is set.

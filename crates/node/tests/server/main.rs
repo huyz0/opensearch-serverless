@@ -26,6 +26,7 @@ mod boot_ready_drain;
 mod boot_retire;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod boot_roles;
+mod boot_search_queue;
 mod boot_search_slots;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod boot_snapshots;

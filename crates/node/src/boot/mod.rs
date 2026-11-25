@@ -26,7 +26,6 @@ use oss_cluster::{
 };
 use oss_mem::MemoryBudget;
 use oss_meta::{ChangeStripes, DeleteMode, DescriptorStore};
-use oss_rest::ServerConfig;
 use oss_transport::actions::read::GET_ACTION;
 use oss_transport::actions::write::BULK_ACTION;
 use oss_transport::auth::{AuthConfig, Authenticator};
@@ -381,6 +380,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     let mut assembled = assemble::assemble(&node_config, Arc::clone(&store), &budget, writer)
         .and_then(|a| a.with_health(health, &config.cluster))
         .and_then(|a| a.with_lifecycle(Arc::clone(&readiness), config.drain_settle()))
+        .map(|a| crate::search_queue::install(a, config))
         .and_then(|a| usage_route::attach(a, usage, config, &clock))
         .map_err(BootError::Assemble)?;
     if let Some(buckets) = &buckets {
@@ -420,7 +420,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     let role = Arc::clone(&assembled.role);
     let fleet = support::FleetTick::new(&role, load, &clock, config);
     let running = assembled
-        .start(listener, ServerConfig::default(), &budget)
+        .start(listener, config.rest_config(), &budget)
         .map_err(BootError::Assemble)?;
     // Dead nodes naming log epochs come from each renewal's refresh; a thread of its own collects them.
     let mailbox = Arc::new(DeadMailbox::default());
