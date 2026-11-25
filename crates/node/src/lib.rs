@@ -106,6 +106,8 @@ pub mod read_forward;
 pub mod refresh_route;
 #[cfg(feature = "writer")]
 pub(crate) mod route_util;
+#[cfg(feature = "writer")]
+pub mod script_route;
 #[cfg(feature = "reader")]
 pub mod search;
 #[cfg(feature = "reader")]
