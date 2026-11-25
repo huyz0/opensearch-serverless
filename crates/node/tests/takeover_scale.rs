@@ -13,8 +13,8 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 use std::time::{Duration, Instant};
 
+use oss_blob::S3Op;
 use oss_blob::emulator::faults::Latency;
-use oss_blob::{BlobStore, S3Op};
 use oss_node::writer::ProactiveTakeover;
 use proactive_support::*;
 
@@ -33,7 +33,17 @@ fn takeover_time(max_concurrent: usize) -> Duration {
 /// As [`takeover_time`], the pass allowed `pass` to start takes: its time and
 /// how many shards it took.
 fn takeover_within(max_concurrent: usize, pass_for: Duration) -> (Duration, usize, usize) {
-    let c = cluster_of(4 << 30);
+    takeover_on(cluster_of(4 << 30), true, max_concurrent, pass_for)
+}
+
+/// As [`takeover_within`] on `c`; `shaped` puts the soak's request latency on
+/// the emulator, and is false over RustFS, whose own latency is the measure.
+fn takeover_on(
+    c: Cluster,
+    shaped: bool,
+    max_concurrent: usize,
+    pass_for: Duration,
+) -> (Duration, usize, usize) {
     create_n(&c, "logs", "u1", SHARDS);
     let one = node(&c, "node-1", 1, false, None);
     // Three documents a shard on average: nearly every shard gets one.
@@ -47,30 +57,33 @@ fn takeover_within(max_concurrent: usize, pass_for: Duration) -> (Duration, usiz
     let two = node(&c, "node-2", 2, true, Some(take));
     // Mean 23.5 ms a request: the soak's 20 ms with 1 request in 50 at 200 ms.
     for op in [S3Op::Get, S3Op::GetRange, S3Op::Head, S3Op::Put, S3Op::List] {
-        c.store.set_latency(
-            op,
-            Latency {
-                base: Duration::from_millis(20),
-                jitter: Duration::from_millis(7),
-            },
-        );
+        if shaped {
+            c.store.set_latency(
+                op,
+                Latency {
+                    base: Duration::from_millis(20),
+                    jitter: Duration::from_millis(7),
+                },
+            );
+        }
     }
+    let base = c.base();
     let mut cfg = config(true);
     cfg.max_concurrent = max_concurrent;
     cfg.pass = pass_for;
     let pass = ProactiveTakeover::new("node-2", cfg, Arc::clone(&two.role), predecessors);
-    let total = |c: &Cluster| c.store.meter().total();
-    let lists = c.store.meter().count(S3Op::List);
-    let requests = total(&c);
+    let total = || base.meter().total();
+    let lists = base.meter().count(S3Op::List);
+    let requests = total();
     let start = Instant::now();
     let report = pass.pass(&dead(&one));
     let took = start.elapsed();
     assert_eq!(report.taken, named.len(), "{report:?}");
-    assert_eq!(c.store.meter().count(S3Op::List), lists, "no LIST");
+    assert_eq!(base.meter().count(S3Op::List), lists, "no LIST");
     eprintln!(
         "takeover of {} shards, {max_concurrent} at once: {took:?}, {:.1} requests a shard",
         named.len(),
-        (total(&c) - requests) as f64 / named.len() as f64
+        (total() - requests) as f64 / named.len() as f64
     );
     for op in [S3Op::Get, S3Op::GetRange, S3Op::Head, S3Op::Put, S3Op::List] {
         c.store.set_latency(op, Latency::default());
@@ -84,6 +97,24 @@ fn takeover_within(max_concurrent: usize, pass_for: Duration) -> (Duration, usiz
         );
     }
     (took, report.taken, named.len())
+}
+
+/// The same takeover on a RustFS process: one pass at the shipped settings,
+/// every shard taken within a tenth of the Java's time.
+// docs/specs/takeover-scale AC-5
+#[test]
+#[ignore = "needs RUSTFS_BIN; run by hand with --release --nocapture"]
+fn a_dead_nodes_thousand_shards_are_taken_on_rustfs_within_a_tenth_of_the_java_time() {
+    let Some(c) = cluster_rustfs(false) else {
+        eprintln!("skipped: RUSTFS_BIN is not set");
+        return;
+    };
+    let (took, taken, named) = takeover_on(c, false, 16, Duration::from_secs(60));
+    eprintln!("RUSTFS: {taken} of {named} shards in {took:?}; Java {JAVA_MILLIS} ms");
+    assert!(
+        took.as_millis() <= u128::from(JAVA_MILLIS) * 11 / 10,
+        "took {took:?} against the Java's {JAVA_MILLIS} ms"
+    );
 }
 
 // docs/specs/takeover-scale AC-1, AC-2, AC-3

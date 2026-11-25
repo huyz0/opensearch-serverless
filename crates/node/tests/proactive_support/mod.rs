@@ -29,7 +29,10 @@ use oss_writer::log::{
 use oss_writer::publish::lazy::Policy;
 use oss_writer::takeover::{HeadWriters, Predecessors};
 
+mod rustfs;
 mod sweep;
+#[allow(unused_imports)]
+pub use rustfs::{RustFs, cluster_rustfs, cluster_rustfs_rounds};
 #[allow(unused_imports)]
 pub use sweep::*;
 
@@ -54,6 +57,10 @@ pub struct Cluster {
     /// Set by [`cluster_rounds`]: every node reaches the emulator through
     /// this wrapper, which measures round-trip depth.
     pub rounds: Option<Arc<Rounds<Shared>>>,
+    /// Set by [`cluster_rustfs_rounds`]: the store is RustFS, and `store`
+    /// above is an unused emulator.
+    pub external: Option<Arc<dyn BlobStore>>,
+    pub _rustfs: Option<RustFs>,
 }
 
 impl Cluster {
@@ -61,6 +68,14 @@ impl Cluster {
     pub fn io(&self) -> Arc<dyn BlobStore> {
         match &self.rounds {
             Some(rounds) => rounds.clone(),
+            None => self.base(),
+        }
+    }
+
+    /// The store under any round counter: RustFS or the emulator.
+    pub fn base(&self) -> Arc<dyn BlobStore> {
+        match &self.external {
+            Some(store) => store.clone(),
             None => self.store.clone(),
         }
     }
@@ -106,6 +121,8 @@ pub fn cluster_of(bytes: u64) -> Cluster {
         store,
         descriptors,
         rounds: None,
+        external: None,
+        _rustfs: None,
     }
 }
 
@@ -339,7 +356,7 @@ pub fn takeover_as(
                 term,
             ))))
         }))),
-        heads: HeadWriters::new(c.store.clone(), ""),
+        heads: HeadWriters::new(c.base(), ""),
         max_buffer_bytes: 1 << 20,
     }
 }
@@ -446,19 +463,15 @@ pub fn janitor(c: &Cluster, role: &Arc<WriterRole>) -> oss_node::writer::Janitor
     use oss_node::writer::{JanitorPass, PassLimits};
 
     let clock = Arc::new(AtomicU64::new(1_000));
-    let pits = PointInTimeStore::new(
-        c.store.clone() as Arc<dyn BlobStore>,
-        "",
-        Arc::new(move || clock.load(Ordering::SeqCst)),
-    )
-    .expect("pits");
+    let pits = PointInTimeStore::new(c.base(), "", Arc::new(move || clock.load(Ordering::SeqCst)))
+        .expect("pits");
     let budget = MemoryBudget::new(
         &BudgetConfig::new(64 << 20)
             .with_pool(oss_mem::Pool::RequestBodies, 1 << 20)
             .expect("fits"),
     );
     JanitorPass::new(
-        c.store.clone() as Arc<dyn BlobStore>,
+        c.base(),
         "",
         Arc::clone(role),
         pits,

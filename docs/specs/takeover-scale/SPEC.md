@@ -14,6 +14,7 @@ An evidence test, run by hand, takes the 1,000 shards a dead node's log names th
 - AC-2: after the pass no shard lost a document: its highest sequence number on the new node equals the dead node's.
 - AC-3: the pass's wall time with 16 takes at once is at most 1.10 times the Java's recorded 1,000-shard takeover (57.0 s, segment_blob with log commits, in the project's soak notes); the figure at the `max_concurrent` this change found (4) is reported beside it, and the default moved in [takeover-concurrency-default](../takeover-concurrency-default/SPEC.md).
 - AC-4: opens of different shards of one dead node's log overlap: seven held from seven threads take under three times what one takes. A role-wide open lock and a publisher map locked across each publish made them run one at a time (411 s for 938 shards, at 4 and at 16 alike).
+- AC-5: the same pass at the shipped settings over a RustFS process takes every named shard in at most 1.10 times the Java's time, with the same document and LIST checks.
 
 ## Test plan
 
