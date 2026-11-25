@@ -1,6 +1,6 @@
 # 0058: HTTP/2, HTTP/3 and gRPC are served by an in-process front that bridges to the HTTP/1.1 server
 
-**Status:** Proposed. Independent review 2026-11-25: accept with changes, all folded in below (connection bounds, worker accounting, a forgery-proof client address, smuggling rules, flow control, HTTP/3 and gRPC limits). Amends [ADR 0006](0006-http-stack.md): the async runtime and inbound TLS it ruled out are allowed, in the front only.
+**Status:** Accepted after independent review, 2026-11-25 (accept with changes, all folded in below: connection bounds, worker accounting, a forgery-proof client address, smuggling rules, flow control, HTTP/3 and gRPC limits). Amends [ADR 0006](0006-http-stack.md): the async runtime and inbound TLS it ruled out are allowed, in the front only.
 
 ## Context
 
