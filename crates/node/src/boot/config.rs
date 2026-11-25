@@ -62,8 +62,7 @@ pub struct NodeConfig {
     pub http: SocketAddr,
     /// Where the transport server listens (port 0 for any free port).
     pub transport: SocketAddr,
-    /// The transport address this node's lease carries; the address the
-    /// server bound when unset.
+    /// The transport address this node's lease carries; the bound one when unset.
     pub advertise: Option<String>,
     /// The node's memory, split into pools.
     pub memory_bytes: usize,
@@ -98,16 +97,14 @@ pub struct NodeConfig {
     pub drain_settle_millis: u64,
     /// `serverless.activation.hibernate_after_millis`; 0 never hibernates.
     pub hibernate_after_millis: u64,
-    /// `serverless.search.commit_push.enabled`: a published commit is pushed
-    /// to the other readers of its shard. On by default, off by default when the
-    /// tail overlay is on (the overlay serves freshness, and the push made its
-    /// readers reopen cold).
+    /// `serverless.search.commit_push.enabled`: push a published commit to the
+    /// shard's other readers. On, but off by default with the tail overlay on
+    /// (the overlay serves freshness, and the push made its readers reopen cold).
     pub commit_push: bool,
     /// `serverless.activation.give_back_after_millis`; 0 never gives back.
     pub give_back_after_millis: u64,
-    /// `OSS_RETIRE_TIMEOUT_MS`: how long a node told to stop spends
-    /// publishing its shards and giving their heads back; 0 skips it and
-    /// leaves the shards to the lease.
+    /// `OSS_RETIRE_TIMEOUT_MS`: how long a node told to stop spends publishing
+    /// its shards and giving their heads back; 0 skips it (the lease takes them).
     pub retire_timeout_millis: u64,
     /// `serverless.activation.max_shards`; 0 is no cap.
     pub max_shards: usize,
@@ -321,7 +318,6 @@ impl NodeConfig {
             .collect();
         let hand_off = flag("OSS_HAND_OFF", "false")?;
         let knn = flag("OSS_KNN", "true")?;
-        let vector_warm_at_open = flag("OSS_VECTOR_WARM_AT_OPEN", "false")?;
         let extensions_percent =
             usize::try_from(bounded("OSS_EXTENSIONS_PERCENT", "0", 0, 20)?).unwrap_or(0);
         let extensions_replay_factor = bounded("OSS_EXTENSIONS_REPLAY_FUEL_FACTOR", "16", 1, 1024)?;
@@ -439,7 +435,7 @@ impl NodeConfig {
             security_admin,
             security_refresh_millis,
             knn,
-            vector_warm_at_open,
+            vector_warm_at_open: flag("OSS_VECTOR_WARM_AT_OPEN", "false")?,
             extensions_percent,
             extensions_replay_factor,
             store_usage,
