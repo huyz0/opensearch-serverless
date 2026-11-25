@@ -52,7 +52,7 @@ src/cat_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/r
 src/cluster_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/ClusterSettingsHandler.java@429b4cbc	the register read and write; the plugin check and the node-local apply are not here
 src/health_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/ClusterHealthHandler.java@429b4cbc	the route, the wait loop and the answer; the judging is oss-coordinator; the source reads the membership and heads
 src/route_util.rs	new		a refusal as the edge error, a flag, a table sent: shared by the cluster, health and cat routes
-src/index_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/indexadmin/IndexAdminHandler.java	the create and exists routes over the descriptor store; delete, GET, mapping and settings routes are not here yet
+src/index_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/indexadmin/IndexAdminHandler.java	the create and exists routes over the descriptor store; delete, GET /{index} and settings routes are not here yet; the mapping routes are in index_route/mapping.rs
 src/index_delete/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/indexadmin/IndexAdminHandler.java	the delete route over IndexLifecycle, and the reclaim drain
 src/index_delete/heads.rs	new		ShardHeads over the shard head registers
 src/index_delete/pins.rs	new		ShardPins over the live points in time, with a snapshot source hook
@@ -186,3 +186,4 @@ src/extension_setting.rs	new		the cluster setting that lets a create carry an an
 src/extension_host.rs	new		the node's one WASM host, shared by every user of modules
 src/search_modules.rs	new		what loads the modules an index pins for a search node
 src/writer/growth.rs	new		the writer role holds a group's new fields in the descriptor before the group is logged (MappingGrowthPath is the library), split out of the writer module to keep it under the size limit
+src/index_route/mapping.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/indexadmin/MappingUpdateHandler.java	the _mapping read of IndexAdminHandler and the update: one concrete index, the descriptor swap tried ATTEMPTS times over coordinator plan; the action gate and the reconciler refresh are not ported here

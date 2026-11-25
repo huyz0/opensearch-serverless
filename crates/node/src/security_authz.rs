@@ -124,6 +124,16 @@ const RULES: &[(&[Method], &str, Rule)] = &[
         Rule::Index("indices:admin/mappings/get"),
     ),
     (
+        &[Method::Put, Method::Post],
+        "/{index}/_mapping",
+        Rule::Index("indices:admin/mapping/put"),
+    ),
+    (
+        &[Method::Put, Method::Post],
+        "/{index}/_mappings",
+        Rule::Index("indices:admin/mapping/put"),
+    ),
+    (
         GET_POST,
         "/{index}/_refresh",
         Rule::Index("indices:admin/refresh"),
