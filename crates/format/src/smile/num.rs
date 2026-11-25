@@ -16,7 +16,7 @@ pub(super) fn vint(c: &mut Cursor<'_>) -> Result<u64, FormatError> {
             acc = (acc << 6) | u128::from(b & 0x3F);
             return u64::try_from(acc).map_err(|_| corrupt(WHAT, "an integer wider than 64 bits"));
         }
-        acc = (acc << 7) | u128::from(b);
+        acc = acc.wrapping_shl(7).wrapping_add(u128::from(b));
     }
     Err(corrupt(WHAT, "an integer of more than ten bytes"))
 }
@@ -35,7 +35,7 @@ pub(super) fn float_bits(c: &mut Cursor<'_>, bytes: usize) -> Result<u64, Format
         if b & 0x80 != 0 {
             return Err(corrupt(WHAT, "a float byte with its top bit set"));
         }
-        acc = (acc << 7) | u128::from(b);
+        acc = acc.wrapping_shl(7).wrapping_add(u128::from(b));
     }
     u64::try_from(acc).map_err(|_| corrupt(WHAT, "a float wider than 64 bits"))
 }
@@ -65,9 +65,10 @@ pub(super) fn decode7(c: &mut Cursor<'_>, n: usize) -> Result<Vec<u8>, FormatErr
         if u32::from(g) >> width != 0 {
             return Err(corrupt(WHAT, "a 7-bit group wider than its width"));
         }
-        acc = (acc << width) | u32::from(g);
+        acc = acc.wrapping_shl(width).wrapping_add(u32::from(g));
         bits = bits.saturating_add(width);
-        while bits >= 8 && out.len() < n {
+        // The groups hold exactly 8 * n bits, so this never passes n bytes.
+        while bits >= 8 {
             bits = bits.saturating_sub(8);
             out.push(u8::try_from((acc >> bits) & 0xFF).unwrap_or(0));
             acc &= !(u32::MAX.wrapping_shl(bits));
