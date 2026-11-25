@@ -1,0 +1,1 @@
+{"_doc":{"properties":{"title":{"type":"text"},"body":{"type":"text"},"tag":{"type":"keyword"},"ts":{"type":"date"}}}}

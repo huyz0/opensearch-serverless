@@ -1318,6 +1318,7 @@ dependencies = [
  "miniz_oxide",
  "oss-testkit",
  "oss-types",
+ "serde_json",
  "sha2 0.11.1",
  "zstd-safe",
 ]
