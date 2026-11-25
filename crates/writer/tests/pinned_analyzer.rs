@@ -35,7 +35,15 @@ impl Analyze for Broken {
 }
 
 fn shard<'d>(dir: &'d ByteBuffersDirectory, module: Arc<dyn Analyze>) -> Shard<'d> {
-    let mapping = Mapping::parse_pinned(MAPPING, ParseOptions::default()).expect("mapping");
+    shard_over(dir, module, MAPPING)
+}
+
+fn shard_over<'d>(
+    dir: &'d ByteBuffersDirectory,
+    module: Arc<dyn Analyze>,
+    mapping: &[u8],
+) -> Shard<'d> {
+    let mapping = Mapping::parse_pinned(mapping, ParseOptions::default()).expect("mapping");
     let (writer, derived) = open_writer(dir, &mapping).expect("writer");
     Shard::new(dir, writer, mapping, 1, Box::new(|| 0))
         .expect("shard")
@@ -179,4 +187,62 @@ fn a_replay_indexes_the_same_terms_as_the_live_write() {
     assert_eq!(a, b, "the same documents frequency for every term");
     assert_eq!(a.iter().find(|t| t.0 == "QUICK").expect("term").1, 2);
     assert_eq!(a.iter().find(|t| t.0 == "quick").expect("term").1, 0);
+}
+
+/// Every (doc, position, start, end) a term has, read through the postings.
+fn postings_of(dir: &ByteBuffersDirectory, term: &str) -> Vec<(i32, i32, i32, i32)> {
+    use lucene_search::reader::{LeafReader, PostingsFlags};
+    let reader = DirectoryReader::open(dir).expect("open");
+    let seg = &reader.segment_readers()[0];
+    let terms = seg.terms("t").expect("terms").expect("field");
+    let mut it = terms.iterator().expect("iterator");
+    if !it.try_seek_exact(term.as_bytes()).expect("seek") {
+        return Vec::new();
+    }
+    let mut postings = it.postings(PostingsFlags::Offsets).expect("postings");
+    let mut out = Vec::new();
+    while postings.next_doc().expect("doc") != i32::MAX {
+        for _ in 0..postings.freq() {
+            let pos = postings.next_position().expect("position");
+            out.push((
+                postings.doc_id(),
+                pos,
+                postings.start_offset(),
+                postings.end_offset(),
+            ));
+        }
+    }
+    out
+}
+
+// docs/specs/extension-analyzer AC-12: replay reproduces positions and offsets too
+#[test]
+fn a_replay_indexes_the_same_positions_and_offsets_as_the_live_write() {
+    let mapping: &[u8] =
+        br#"{"properties":{"t":{"type":"text","analyzer":"ext_shout","index_options":"offsets"}}}"#;
+    let live_dir = ByteBuffersDirectory::new();
+    let mut live = shard_over(&live_dir, Arc::new(Words), mapping);
+    let replay_dir = ByteBuffersDirectory::new();
+    let mut replayed = shard_over(&replay_dir, Arc::new(Words), mapping);
+    for (n, source) in SOURCES.iter().enumerate() {
+        live.index(
+            &format!("d{n}"),
+            source.as_bytes(),
+            false,
+            &Expect::default(),
+        )
+        .expect("indexed");
+        let seq = i64::try_from(n).expect("small");
+        let record =
+            oss_format::WalRecord::index(format!("d{n}"), (*source).to_owned(), seq, 1, seq + 1);
+        assert!(replayed.replay(&record).expect("replayed"));
+    }
+    live.refresh().expect("refresh");
+    replayed.refresh().expect("refresh");
+    for term in ["THE", "QUICK", "FOX", "END", "DOG"] {
+        let (a, b) = (postings_of(&live_dir, term), postings_of(&replay_dir, term));
+        assert!(!a.is_empty(), "{term} is indexed");
+        assert_eq!(a, b, "{term}: positions and offsets");
+    }
+    assert_eq!(postings_of(&live_dir, "QUICK")[0], (0, 1, 4, 9));
 }
