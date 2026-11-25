@@ -348,7 +348,7 @@ impl IndexService {
 }
 
 /// Whether `key` is one of the two bucket settings a create accepts.
-fn is_bucket_key(key: &str) -> bool {
+pub(crate) fn is_bucket_key(key: &str) -> bool {
     key == policy::INDEX_POLICY.key()
         || key == policy::GROUP.key()
         || key == crate::writer::COST_TIER

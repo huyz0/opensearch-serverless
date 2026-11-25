@@ -187,6 +187,7 @@ src/rollover_route/count.rs	new		the document count `max_docs` asks of the old i
 src/rollover_route/render.rs	new		the body of a rollover answer as core renders it
 src/script_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/StoredScriptHandler.java	the put, get and delete routes over the scripts document set; the Java compiles a script at put, this node stores it uncompiled and refuses a named context
 src/boot/config/tests/proactive.rs	new		tests for the proactive takeover reaper switch
+src/settings_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/indexadmin/SettingsUpdateHandler.java	the update of one index: the registry behind the coordinator's decisions, the descriptor swap and the settings version; blocks and result window refused until implemented; no all-indices form yet
 src/extension_modules.rs	new		the analyzers an index's pins name, loaded once a distinct module when a shard opens, called under the recorded limits or a replay's
 tests/extension_modules.rs	new		tests of the open-time load, the recorded limits and the replay stretch
 tests/roles/writer_opener_pins.rs	new		tests of a writer opening the shard of an index that pins analyzer modules
