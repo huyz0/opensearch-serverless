@@ -166,6 +166,21 @@ impl MappingInterner {
             .get_with(text, |t| Mapping::from_descriptor(Some(t)))
     }
 
+    /// As [`MappingInterner::get`], for an index whose descriptor pins
+    /// analyzers ([`Mapping::from_descriptor_pinned`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`Mapping::from_descriptor_pinned`].
+    pub fn get_pinned(&self, text: Option<&str>) -> Result<Arc<Mapping>, MappingError> {
+        let Some(text) = text else {
+            // ALLOC: the empty mapping, a few words.
+            return Ok(Arc::new(Mapping::default()));
+        };
+        self.table
+            .get_with(text, |t| Mapping::from_descriptor_pinned(Some(t)))
+    }
+
     /// How many entries the table holds, dead ones included.
     #[must_use]
     pub fn entries(&self) -> usize {

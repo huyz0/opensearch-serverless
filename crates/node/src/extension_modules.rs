@@ -199,3 +199,27 @@ fn text_of(v: &Json) -> Option<String> {
         _ => None,
     }
 }
+
+impl crate::writer::PinnedModules for ModuleSet {
+    fn analyzers(&self) -> Vec<(String, Arc<dyn Analyze>)> {
+        // ALLOC: one entry a pin, at most four.
+        self.analyzers()
+            .map(|(name, a)| (name.to_owned(), a))
+            .collect()
+    }
+
+    fn replaying(&self, on: bool) {
+        ModuleSet::replaying(self, on);
+    }
+}
+
+impl crate::writer::ModuleLoader for ModuleSource {
+    fn load(
+        &self,
+        settings: &[u8],
+        tenant: &str,
+    ) -> Result<Option<Arc<dyn crate::writer::PinnedModules>>, String> {
+        let set = self.open(settings, tenant)?;
+        Ok((!set.is_empty()).then(|| Arc::new(set) as Arc<dyn crate::writer::PinnedModules>))
+    }
+}

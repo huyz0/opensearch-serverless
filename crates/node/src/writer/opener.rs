@@ -16,7 +16,8 @@ use oss_writer::mapping::MappingInterner;
 use std::sync::Mutex;
 
 use super::hibernate::Slept;
-use super::{ShardSlot, Takeover, WriterRole, lock, publish_age_of};
+use super::takeover::Opening;
+use super::{ModuleLoader, ShardSlot, Takeover, WriterRole, lock, publish_age_of};
 use oss_writer::takeover::{restore, restore_value};
 
 /// Why a shard cannot be opened here.
@@ -77,6 +78,7 @@ pub struct HeadOpener {
     buffer_bytes: usize,
     takeover: Option<Takeover>,
     member_commit: Option<MemberCommitRead>,
+    modules: Option<Arc<dyn ModuleLoader>>,
     /// The parsed mappings of the shards this opener opened, shared by text.
     mappings: MappingInterner,
 }
@@ -104,8 +106,17 @@ impl HeadOpener {
             buffer_bytes,
             takeover: None,
             member_commit: None,
+            modules: None,
             mappings: MappingInterner::new(),
         }
+    }
+
+    /// Loads the modules an index's pins name when a shard of it opens. An
+    /// index with a pin is not opened without it.
+    #[must_use]
+    pub fn with_modules(mut self, loader: Arc<dyn ModuleLoader>) -> Self {
+        self.modules = Some(loader);
+        self
     }
 
     /// Reads the commit of a bucket member from its bucket's manifest, where
@@ -155,6 +166,25 @@ impl HeadOpener {
         index: &IndexInfo,
         shard: u32,
     ) -> Result<(), OpenRefused> {
+        // ALLOC: one buffer a shard opened, buffer_bytes.
+        let mut buf = vec![0u8; self.buffer_bytes];
+        let record = self
+            .descriptors
+            .get(&index.name, &mut buf)
+            .map_err(|e| e.to_string())?
+            .filter(|record| record.uuid == index.uuid)
+            .ok_or_else(|| {
+                // ALLOC: error path; one message.
+                format!("[{}] is no longer the index this write named", index.name)
+            })?;
+        // The modules a pin names are read before the head is claimed: a node
+        // that cannot run a pin never fences a shard it cannot serve.
+        let pinned = match &self.modules {
+            Some(loader) => loader
+                .load(record.settings, &index.name)
+                .map_err(OpenRefused::from)?,
+            None => None,
+        };
         let slept = role.take_asleep(&index.uuid, shard);
         let ours = self.still_ours(index, shard, slept);
         let woke = ours.is_some();
@@ -192,17 +222,6 @@ impl HeadOpener {
             uuid: &index.uuid,
             shard,
         };
-        // ALLOC: one buffer a shard opened, buffer_bytes.
-        let mut buf = vec![0u8; self.buffer_bytes];
-        let record = self
-            .descriptors
-            .get(&index.name, &mut buf)
-            .map_err(|e| e.to_string())?
-            .filter(|record| record.uuid == index.uuid)
-            .ok_or_else(|| {
-                // ALLOC: error path; one message.
-                format!("[{}] is no longer the index this write named", index.name)
-            })?;
         // A member of a bucket has its commit in the bucket's manifest, and no register.
         let member = match (record.bucket.as_deref(), &self.member_commit) {
             (Some(bucket), Some(read)) => Some(read(bucket, &index.uuid)?),
@@ -226,18 +245,26 @@ impl HeadOpener {
         if history && self.takeover.is_none() {
             return Err(format!("[{}][{shard}]: {TAKEOVER}", index.name).into());
         }
-        let mapping = self
-            .mappings
-            .get(record.mapping.as_deref())
-            .map_err(|e| e.failed_to_parse().to_string())?;
+        let mapping = if pinned.is_some() {
+            self.mappings.get_pinned(record.mapping.as_deref())
+        } else {
+            self.mappings.get(record.mapping.as_deref())
+        }
+        .map_err(|e| e.failed_to_parse().to_string())?;
         let age = publish_age_of(record.settings);
         let tenancy = super::tenancy::tenancy_of(record.settings);
         if !tenancy.is_empty() {
             role.note_tenancy(&index.name, &tenancy);
         }
+        let opening = Opening {
+            mapping,
+            modules: pinned.as_deref(),
+        };
         match self.takeover.as_ref().filter(|_| history) {
-            None => role.open_shard(index, shard, head.term, mapping)?,
-            Some(takeover) => role.open_taken(index, shard, &head, mapping, takeover, |dir| {
+            None => role
+                .open_shard_from(index, shard, head.term, opening, |_| Ok(()), |_| Ok(None))
+                .map(|_| ())?,
+            Some(takeover) => role.open_taken(index, shard, &head, opening, takeover, |dir| {
                 // ALLOC: one buffer a restore, buffer_bytes.
                 let mut buf = vec![0u8; self.buffer_bytes];
                 match (bucketed, &member) {
