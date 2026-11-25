@@ -19,8 +19,8 @@ pub trait PinnedTokens: Send + Sync {
     fn tokens(&self, analyzer: &str, text: &str) -> Result<Vec<Token>, String>;
 
     /// The loaded analyzers by pin name, for building what indexes text.
+    fn modules(&self) -> Vec<(String, Arc<dyn Analyze>)> {
         // ALLOC: empty; no allocation.
-        Vec::new()
         Vec::new()
     }
 }

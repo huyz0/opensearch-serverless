@@ -120,8 +120,8 @@ pub trait CommitAccess: Send + Sync {
 
     /// The analyzers the index's pins loaded, by pin name; none for an
     /// index that pins nothing.
+    fn modules(&self) -> Vec<(String, Arc<dyn Analyze>)> {
         // ALLOC: empty; no allocation.
-        Vec::new()
         Vec::new()
     }
 }
