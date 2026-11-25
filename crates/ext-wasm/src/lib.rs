@@ -22,5 +22,5 @@ pub use analyzer::PinRefusal;
 pub use config::HostConfig;
 pub use host::{Host, LoadError};
 pub use meter::{MAX_TENANTS, Meter, OTHER, Usage};
-pub use module::{Module, Replay, Run};
+pub use module::{Module, Recovery, Replay, Run};
 pub use reserve::{Reservation, Reserver, Unbounded};
