@@ -70,6 +70,7 @@ mod snapshot_record;
 mod snapshot_restore;
 mod snapshot_state;
 mod snapshot_write;
+mod stock;
 mod tombstone;
 mod transport_secret;
 mod unit_layout;
@@ -136,6 +137,13 @@ pub use snapshot_record::{SnapshotIndex, SnapshotSummary};
 pub use snapshot_restore::{RestoreIndex, RestoreShard};
 pub use snapshot_state::SnapshotState;
 pub use snapshot_write::{IndexCapture, ShardCapture, SnapshotDraft};
+pub use stock::{
+    EnvelopeLimits as StockEnvelopeLimits, MAX_ALIASES as STOCK_MAX_ALIASES,
+    MAX_CHUNKS as STOCK_MAX_CHUNKS, MAX_FILES as STOCK_MAX_FILES,
+    MAX_SETTINGS as STOCK_MAX_SETTINGS, RepositoryData as StockRepositoryData, StockFile,
+    StockIndex, StockIndexMetadata, StockNative, StockRefusal, StockShardSnapshot, StockSnapshot,
+    is_blob_name, to_json as stock_blob_to_json, verified_body as stock_verified_body,
+};
 pub use tombstone::{MAX_TOMBSTONE_BYTES, Tombstone, tombstone_bucket, tombstone_bucket_start};
 
 /// Node pack format constants and the header-length probe.
