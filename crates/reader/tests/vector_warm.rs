@@ -189,3 +189,32 @@ fn a_knn_search_reads_the_same_bytes_in_no_more_requests_or_round_trips() {
     assert_eq!(new.hits, old.hits);
     assert_eq!(measure(false, TERM).hits, measure(true, TERM).hits);
 }
+
+// docs/specs/reader-vector-warm AC-6
+#[test]
+fn a_refused_warm_leaves_the_search_to_its_own_reads_with_the_same_answer() {
+    let _one = ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());
+    if !needs_demand_paging() {
+        return;
+    }
+    let body = knn_body();
+    let clean = measure(false, &body);
+    vector_warm::set_at_open(false);
+    let (store, _) = store();
+    let rounds = store.store();
+    let cache = Arc::new(PageCache::new(PageCacheConfig::default()).expect("page cache"));
+    let shard: OpenShard<_> = open_shard(store.clone(), cache, "", "kn", 0).expect("opens");
+    // The warm's ranged reads are the first the search makes: refuse three.
+    rounds.inner().fail_next(S3Op::GetRange, 3);
+    let source = parse_chunks([body.as_bytes()]).expect("parses");
+    let analyzer = Analyzer::standard(None);
+    let hits = search(&shard, "kn", &source, &analyzer);
+    let hits = hits.unwrap_or_else(|e| panic!("a refused read must not fail the search: {e:?}"));
+    let got: Vec<(i32, Option<u32>)> = hits
+        .hits
+        .iter()
+        .map(|h| (h.doc, h.score.map(f32::to_bits)))
+        .collect();
+    assert_eq!(got, clean.hits, "the same answer as with no refusal");
+    assert_eq!(rounds.meter().errors(), 3, "the three refusals were met");
+}
