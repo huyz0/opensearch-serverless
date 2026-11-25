@@ -105,3 +105,27 @@ pub(super) fn write_score(out: &mut dyn Write, score: Option<f32>) -> io::Result
         None => out.write_all(b"null"),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{id_text, write_id};
+
+    // docs/specs/java-search-shard-action AC-7: the text ties are ordered by
+    // is the text a hit's `_id` is written as.
+    #[test]
+    fn an_id_decodes_as_a_hit_writes_it() {
+        let cases: [(&[u8], &str); 5] = [
+            (&[0xff, b'd', b'o', b'c'], "doc"),
+            (&[0xfe, 0x12, 0x3f], "123"),
+            (&[0xfe, 0x12, 0x34], "1234"),
+            (&[0xfd, 0xfb, 0xff], "-_8"),
+            (&[], ""),
+        ];
+        for (stored, text) in cases {
+            assert_eq!(id_text(stored), text.as_bytes(), "{stored:?}");
+            let mut written = Vec::new();
+            write_id(&mut written, stored).expect("writes");
+            assert_eq!(written, format!("\"{text}\"").into_bytes(), "{stored:?}");
+        }
+    }
+}
