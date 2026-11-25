@@ -66,3 +66,4 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0055](0055-proactive-takeover-reapers-are-nodes-of-this-build.md) | Proactive takeover picks its reapers only among live nodes of this build | Accepted |
 | [0056](0056-over-share-searches-wait-off-the-workers-in-a-bounded-queue.md) | A tenant's searches over its share of the workers wait off the workers in a bounded queue, and are refused with 429 past its size | Accepted |
 | [0057](0057-a-rust-owner-answers-the-java-search-shard-action.md) | A Rust owner answers the Java search-shard action for a shard it writes, over a decoded subset of the request | Accepted |
+| [0058](0058-modern-protocols-front.md) | HTTP/2, HTTP/3 and gRPC are served by an in-process front that bridges to the HTTP/1.1 server | Proposed |
