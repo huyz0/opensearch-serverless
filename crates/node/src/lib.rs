@@ -112,6 +112,8 @@ pub mod push_sender;
 pub mod read_forward;
 #[cfg(feature = "writer")]
 pub mod refresh_route;
+#[cfg(all(feature = "writer", feature = "coordinator"))]
+pub mod rollover_route;
 #[cfg(feature = "writer")]
 pub(crate) mod route_util;
 #[cfg(feature = "writer")]

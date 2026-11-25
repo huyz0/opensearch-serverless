@@ -20,10 +20,7 @@ impl IndexService {
         let Some(templates) = &self.templates else {
             return Err(no_stream_template(stream));
         };
-        req.body().reserve(self.buffer_bytes.saturating_mul(2))?;
-        // ALLOC: two scratch buffers a create, buffer_bytes each, reserved above.
-        let mut marker = vec![0u8; self.buffer_bytes];
-        let mut doc = vec![0u8; self.buffer_bytes];
+        let (mut marker, mut doc) = self.scratch(req)?;
         let inherited = templates
             .inherited(stream, &mut marker, &mut doc)
             .map_err(refusal)?;
@@ -31,13 +28,73 @@ impl IndexService {
             return Err(no_stream_template(stream));
         };
         let timestamp = inherited.timestamp_field();
-        let asked = parse(1, None).map_err(refusal)?;
-        let mut asked = oss_coordinator::indices::create_inherit::inherit(asked, &inherited)
-            .map_err(refusal)?;
-        asked.mapping = Some(with_timestamp(asked.mapping.take(), &timestamp)?);
-        crate::create_settings::refuse_others(&asked.settings, is_bucket_key)?;
-        let uuid = self.build(req, backing, asked, &[])?;
+        let uuid = self.stream_index(req, backing, Some(&inherited), &timestamp)?;
         Ok((uuid, timestamp))
+    }
+
+    /// Creates the backing index `backing` of an existing data stream, as
+    /// [`IndexService::create_backing`] does, under the template that wins
+    /// `stream` if there still is one; the timestamp is the stream's own.
+    pub(crate) fn create_next_backing(
+        &self,
+        req: &mut Request<'_>,
+        backing: &str,
+        stream: &str,
+        timestamp: &str,
+    ) -> Result<String, RestError> {
+        let inherited = match &self.templates {
+            Some(templates) => {
+                let (mut marker, mut doc) = self.scratch(req)?;
+                templates
+                    .inherited(stream, &mut marker, &mut doc)
+                    .map_err(refusal)?
+            }
+            None => None,
+        };
+        self.stream_index(req, backing, inherited.as_ref(), timestamp)
+    }
+
+    /// Creates the index `name` a rollover of an alias moves to, as
+    /// `PUT /{index}` with no body creates it.
+    pub(crate) fn create_rolled(
+        &self,
+        req: &mut Request<'_>,
+        name: &str,
+    ) -> Result<String, RestError> {
+        let mut asked = parse(1, None).map_err(refusal)?;
+        if let Some(templates) = &self.templates {
+            let (mut marker, mut doc) = self.scratch(req)?;
+            asked = templates
+                .apply(name, asked, &mut marker, &mut doc)
+                .map_err(refusal)?;
+        }
+        crate::create_settings::refuse_others(&asked.settings, is_bucket_key)?;
+        self.build(req, name, asked, &[])
+    }
+
+    /// The two scratch buffers a template read uses, reserved from the
+    /// request-body pool first.
+    fn scratch(&self, req: &mut Request<'_>) -> Result<(Vec<u8>, Vec<u8>), RestError> {
+        req.body().reserve(self.buffer_bytes.saturating_mul(2))?;
+        // ALLOC: two scratch buffers a create, buffer_bytes each, reserved above.
+        Ok((vec![0u8; self.buffer_bytes], vec![0u8; self.buffer_bytes]))
+    }
+
+    fn stream_index(
+        &self,
+        req: &mut Request<'_>,
+        backing: &str,
+        inherited: Option<&oss_coordinator::templates::Inherited>,
+        timestamp: &str,
+    ) -> Result<String, RestError> {
+        let mut asked = parse(1, None).map_err(refusal)?;
+        if let Some(inherited) = inherited {
+            asked = oss_coordinator::indices::create_inherit::inherit(asked, inherited)
+                .map_err(refusal)?;
+        }
+        asked.mapping = Some(with_timestamp(asked.mapping.take(), timestamp)?);
+        crate::create_settings::refuse_others(&asked.settings, is_bucket_key)?;
+        self.build(req, backing, asked, &[])
     }
 }
 
