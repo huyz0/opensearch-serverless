@@ -189,3 +189,37 @@ fn a_blob_past_its_limit_is_refused() {
         "a blob at the limit is read, and refused for what it holds"
     );
 }
+
+#[test]
+fn a_store_failure_is_a_store_error_not_a_size_error() {
+    let (inner, ro) = repo();
+    let r = StockRepo::new(&ro, PREFIX);
+    inner.fail_next(S3Op::Get, 100);
+    assert!(matches!(
+        r.snapshot_info("SnapUuid1"),
+        Err(StockReadError::Blob(_))
+    ));
+}
+
+#[test]
+fn every_error_says_what_it_is() {
+    let (inner, ro) = repo();
+    let r = StockRepo::new(&ro, PREFIX);
+    put(&*inner, "snap-Big.dat", &[0u8; 1]);
+    let errors = [
+        StockReadError::Missing("k1".into()),
+        StockReadError::TooLarge {
+            key: "k2".into(),
+            limit: 5,
+        },
+        StockReadError::BadName("a name"),
+        StockReadError::Blob(oss_blob::BlobError::Denied),
+        r.snapshot_info("Big").unwrap_err(),
+    ];
+    let texts: Vec<String> = errors.iter().map(ToString::to_string).collect();
+    for (i, t) in texts.iter().enumerate() {
+        assert!(!t.is_empty());
+        assert!(texts.iter().skip(i + 1).all(|o| o != t), "{t}");
+    }
+    assert!(texts[0].contains("k1") && texts[1].contains("k2"));
+}
