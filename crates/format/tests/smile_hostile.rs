@@ -369,3 +369,28 @@ fn hostile_binary_lengths_are_refused() {
     b.extend(vint(u64::from(u32::MAX)));
     assert!(plain(&doc(0, &b)).is_err());
 }
+
+#[test]
+fn whitespace_escapes_are_the_short_forms_and_a_space_stays_a_space() {
+    // Tiny ASCII "a b\r\t\n" is six bytes.
+    let body = [0x45, b'a', b' ', b'b', b'\r', b'\t', b'\n'];
+    assert_eq!(plain(&doc(0, &body)).expect("whitespace"), r#""a b\r\t\n""#);
+}
+
+#[test]
+fn binary_text_fits_the_output_cap_exactly_and_not_a_byte_less() {
+    // Three raw bytes are four base64 characters and two quotes: six bytes.
+    let mut body = vec![0xFD];
+    body.extend(vint(3));
+    body.extend([0, 0, 0]);
+    let bytes = doc(4, &body);
+    let cap = |n: usize| SmileLimits {
+        output_bytes: n,
+        ..SmileLimits::default()
+    };
+    assert_eq!(run(&bytes, &cap(6)).expect("fits exactly"), r#""AAAA""#);
+    assert!(matches!(
+        run(&bytes, &cap(5)),
+        Err(FormatError::TooLarge { .. })
+    ));
+}

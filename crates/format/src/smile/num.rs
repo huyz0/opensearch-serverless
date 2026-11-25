@@ -2,7 +2,7 @@
 //! zigzag, floats as 7-bit groups, big integers, 7-bit binary, base64.
 
 use super::Cursor;
-use crate::error::{FormatError, corrupt, len64};
+use crate::error::{FormatError, corrupt};
 
 const WHAT: &str = "SMILE document";
 
@@ -13,7 +13,7 @@ pub(super) fn vint(c: &mut Cursor<'_>) -> Result<u64, FormatError> {
     for _ in 0..10 {
         let b = c.byte()?;
         if b & 0x80 != 0 {
-            acc = (acc << 6) | u128::from(b & 0x3F);
+            acc = acc.wrapping_shl(6).wrapping_add(u128::from(b & 0x3F));
             return u64::try_from(acc).map_err(|_| corrupt(WHAT, "an integer wider than 64 bits"));
         }
         acc = acc.wrapping_shl(7).wrapping_add(u128::from(b));
@@ -159,24 +159,19 @@ pub(super) fn with_scale(unscaled: &str, scale: i64) -> String {
     }
 }
 
-/// Standard base64 with padding.
-pub(super) fn base64(bytes: &[u8], out: &mut String) {
+/// One group of up to three bytes as four base64 characters, padded.
+pub(super) fn base64_group(chunk: &[u8]) -> [u8; 4] {
     const A: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    for chunk in bytes.chunks(3) {
-        let at = |i: usize| u32::from(chunk.get(i).copied().unwrap_or(0));
-        let n = (at(0) << 16) | (at(1) << 8) | at(2);
-        for (i, shift) in [18u32, 12, 6, 0].into_iter().enumerate() {
-            if i <= chunk.len() {
-                let six = usize::try_from((n >> shift) & 0x3F).unwrap_or(0);
-                out.push(char::from(A.get(six).copied().unwrap_or(b'=')));
-            } else {
-                out.push('=');
-            }
+    let at = |i: usize| u32::from(chunk.get(i).copied().unwrap_or(0));
+    let n = (at(0).wrapping_shl(16))
+        .wrapping_add(at(1).wrapping_shl(8))
+        .wrapping_add(at(2));
+    let mut out = [b'='; 4];
+    for (i, (slot, shift)) in out.iter_mut().zip([18u32, 12, 6, 0]).enumerate() {
+        if i <= chunk.len() {
+            let six = usize::try_from((n >> shift) & 0x3F).unwrap_or(0);
+            *slot = A.get(six).copied().unwrap_or(b'=');
         }
     }
-}
-
-/// The encoded size of `n` bytes in base64.
-pub(super) fn base64_len(n: usize) -> u64 {
-    len64(n).div_ceil(3).saturating_mul(4)
+    out
 }

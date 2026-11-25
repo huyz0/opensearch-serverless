@@ -405,21 +405,13 @@ impl<'a> Decoder<'a, '_> {
         self.put(text.as_bytes())
     }
 
+    /// Binary as a base64 string, written a group at a time so the output
+    /// cap is met before more is encoded than fits.
     fn base64(&mut self, bytes: &[u8]) -> Result<(), FormatError> {
-        let room = self.lim.output_bytes.saturating_sub(self.written());
-        if num::base64_len(bytes.len()) > len64(room.saturating_sub(2)) {
-            return Err(FormatError::TooLarge {
-                what: "JSON from a SMILE document",
-                limit: len64(self.lim.output_bytes),
-                actual: len64(self.written()).saturating_add(num::base64_len(bytes.len())),
-            });
-        }
-        // ALLOC: the encoded text, bounded by the room left in the output.
-        let mut text =
-            String::with_capacity(usize::try_from(num::base64_len(bytes.len())).unwrap_or(0));
-        num::base64(bytes, &mut text);
         self.put(b"\"")?;
-        self.put(text.as_bytes())?;
+        for chunk in bytes.chunks(3) {
+            self.put(&num::base64_group(chunk))?;
+        }
         self.put(b"\"")
     }
 
