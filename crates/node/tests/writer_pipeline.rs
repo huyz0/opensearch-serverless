@@ -16,6 +16,7 @@ use oss_blob::emulator::faults::Latency;
 use oss_blob::{BlobStore, S3Op};
 use oss_format::WalRecord;
 use oss_node::writer::{TailSink, Takeover};
+use oss_testkit::budget;
 use oss_writer::bulk::ItemResult;
 use oss_writer::index::Outcome;
 use support::*;
@@ -91,7 +92,11 @@ fn groups_in_flight_together_all_land_in_one_put() {
         "four groups took {:?}",
         started.elapsed()
     );
-    assert!(puts(&c) - before <= 4);
+    budget::check(
+        "write.pipelined.requests",
+        puts(&c) - before,
+        "four groups of one shard at depth 8",
+    );
     let mut seqs: Vec<i64> = results.iter().map(seq).collect();
     seqs.sort_unstable();
     assert_eq!(seqs, [1, 2, 3, 4], "each its own number");
