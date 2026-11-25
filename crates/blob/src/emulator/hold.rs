@@ -66,17 +66,27 @@ impl Hold {
         let mut state = lock(&self.state);
         state.arrived = true;
         self.changed.notify_all();
+        // A test that never releases would pin this thread for good.
+        let give_up = Instant::now().checked_add(MAX_HOLD);
         loop {
             if let Some(how) = state.release {
                 return how;
             }
+            let left = give_up.and_then(|d| d.checked_duration_since(Instant::now()));
+            let Some(left) = left else {
+                return Release::Fail;
+            };
             state = self
                 .changed
-                .wait(state)
-                .unwrap_or_else(PoisonError::into_inner);
+                .wait_timeout(state, left)
+                .unwrap_or_else(PoisonError::into_inner)
+                .0;
         }
     }
 }
+
+/// How long a request waits for its release before it fails.
+const MAX_HOLD: Duration = Duration::from_secs(60);
 
 /// The holds waiting for the next requests of each kind.
 #[derive(Debug)]
