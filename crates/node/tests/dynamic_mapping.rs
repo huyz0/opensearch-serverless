@@ -15,7 +15,13 @@ fn found(cluster: &Cluster, slot: usize) -> bool {
     r.status == 200 && r.text().contains(&format!("\"value\":{DOCS}"))
 }
 
-// AC-2
+/// Whether the mapping the node in `slot` reads back holds field `n`.
+fn mapped(cluster: &Cluster, slot: usize) -> bool {
+    let r = cluster.call(slot, "GET", "/dyn/_mapping", None);
+    r.status == 200 && r.text().contains(r#""n":{"type":"long"}"#)
+}
+
+// docs/specs/node-index-mapping-get AC-4; docs/specs/dynamic-mapping-durable AC-2
 #[test]
 fn a_range_query_on_a_dynamically_mapped_field_finds_every_document_on_every_node() {
     let mut cluster = Cluster::new(3_000, 4, false).expect("emulated");
@@ -44,5 +50,6 @@ fn a_range_query_on_a_dynamically_mapped_field_finds_every_document_on_every_nod
         wait_for("the range query finds every document", 40, || {
             found(&cluster, slot)
         });
+        wait_for("the mapping holds the field", 40, || mapped(&cluster, slot));
     }
 }

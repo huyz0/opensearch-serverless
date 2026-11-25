@@ -94,6 +94,21 @@ fn a_limited_user_does_what_its_role_grants_and_is_told_what_it_lacks() {
     );
 }
 
+// docs/specs/security-authz AC-1, AC-4; docs/specs/node-index-mapping-get AC-7
+#[test]
+fn reading_a_mapping_needs_the_mappings_get_action() {
+    let r = node_with(LOGS_RW);
+    assert_eq!(send(&r, ADMIN, "PUT", "/docs", None).0, 200);
+    let denied = send(&r, USER, "GET", "/docs/_mapping", None);
+    assert_eq!(denied.0, 403, "{denied:?}");
+    assert!(
+        denied.1.contains("indices:admin/mappings/get"),
+        "{denied:?}"
+    );
+    assert_eq!(send(&r, USER, "GET", "/docs/_mappings", None).0, 403);
+    assert_eq!(send(&r, ADMIN, "GET", "/docs/_mapping", None).0, 200);
+}
+
 // docs/specs/security-authz AC-2
 #[test]
 fn a_comma_list_or_encoded_name_is_checked_element_by_element() {
