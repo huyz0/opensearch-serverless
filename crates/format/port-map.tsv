@@ -51,3 +51,4 @@ src/smile/mod.rs	new		the SMILE-to-JSON decoder for a stock repository's metadat
 src/smile/num.rs	new		SMILE's variable integers, floats, 7-bit binary, big numbers and base64
 src/stock/mod.rs	new		the envelope of a stock repository's metadata blobs (Lucene header, optional DFL deflate, footer CRC), read bounded; the Java has ChecksumBlobStoreFormat and CodecUtil
 src/stock/repository_data.rs	new		the index-N blob (RepositoryData) of a stock repository, read bounded and with every id checked before it joins a blob key; the Java has RepositoryData.snapshotsFromXContent
+src/stock/shard_snapshot.rs	new		the shard snapshot blob (snap-<uuid>.dat) of a stock repository, read bounded; the Java has BlobStoreIndexShardSnapshot and its FileInfo

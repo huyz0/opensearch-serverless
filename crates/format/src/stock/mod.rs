@@ -6,11 +6,13 @@
 //! everything before it. The checksum is verified before the body is read.
 
 mod repository_data;
+mod shard_snapshot;
 
 use crate::error::{FormatError, corrupt, len64};
 use crate::smile::{self, Limits as SmileLimits};
 
 pub use repository_data::{RepositoryData, StockIndex, StockSnapshot, is_blob_name};
+pub use shard_snapshot::{MAX_CHUNKS, MAX_FILES, StockFile, StockShardSnapshot};
 
 const WHAT: &str = "stock repository blob";
 
