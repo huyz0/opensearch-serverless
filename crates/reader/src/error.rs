@@ -20,6 +20,8 @@ pub enum ReaderError {
     Alias,
     /// A restore is copying the index, or was interrupted before it finished.
     Restoring,
+    /// The index sets `index.blocks.read`: it is not opened for a read.
+    ReadBlocked(String),
     /// The engine could not open the commit's segments.
     Open(lucene_search::directory_reader::Error),
     /// A register blob is larger than [`crate::MAX_REGISTER_BYTES`].
@@ -44,6 +46,9 @@ impl fmt::Display for ReaderError {
             ReaderError::Deleted => f.write_str("the index was deleted"),
             ReaderError::Alias => f.write_str("the name is an alias, not an index"),
             ReaderError::Restoring => f.write_str(oss_format::RESTORING_WHY),
+            ReaderError::ReadBlocked(index) => {
+                write!(f, "index [{index}] blocked by: [FORBIDDEN/7/index read (api)];")
+            }
             ReaderError::Open(e) => write!(f, "engine: {e}"),
             ReaderError::RegisterTooLarge => f.write_str("register blob larger than its limit"),
             ReaderError::UnknownLength(name) => write!(f, "manifest gives no length for {name}"),

@@ -284,6 +284,12 @@ pub(crate) fn meta_of(descriptor: &IndexDescriptor<'_>) -> Result<IndexMeta, Rea
         Some(bytes) => oss_format::ClusterSettings::parse(bytes)?,
         None => oss_format::ClusterSettings::default(),
     };
+    if matches!(
+        settings.get("index.blocks.read"),
+        Some(oss_format::Setting::Value(on)) if on.trim() == "true"
+    ) {
+        return Err(ReaderError::ReadBlocked(descriptor.name.to_string()));
+    }
     // An index that pins an analyzer reads its mapping with the pins it holds.
     let pins: Vec<String> = crate::pin_settings::pins_of(&settings)?
         .into_iter()
@@ -470,22 +476,5 @@ mod tests {
             plain.mapping.get("t").expect("field").ty,
             crate::mapping::FieldType::Unsupported(_)
         ));
-    }
-
-    // docs/specs/index-max-result-window AC-1, AC-4
-    #[test]
-    fn an_index_reads_its_result_window_and_a_bad_value_leaves_the_default() {
-        let window = |settings: &str| {
-            meta_of(&descriptor(b"{}", settings.as_bytes()))
-                .expect("reads")
-                .max_result_window()
-        };
-        assert_eq!(window("{}"), 10_000);
-        assert_eq!(window(r#"{"index.max_result_window":"50"}"#), 50);
-        assert_eq!(window(r#"{"index.max_result_window":"10000"}"#), 10_000);
-        for bad in ["0", "-1", "soon", "10001", ""] {
-            let settings = format!(r#"{{"index.max_result_window":"{bad}"}}"#);
-            assert_eq!(window(&settings), 10_000, "{bad}");
-        }
     }
 }

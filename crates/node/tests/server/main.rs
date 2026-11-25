@@ -68,6 +68,8 @@ mod pipeline_route;
 #[cfg(feature = "reader")]
 mod push_read;
 #[cfg(all(feature = "reader", feature = "writer"))]
+mod read_block;
+#[cfg(all(feature = "reader", feature = "writer"))]
 mod read_forward;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod rollover_route;
