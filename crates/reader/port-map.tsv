@@ -203,3 +203,4 @@ src/dsl/queries/knn_tests.rs	new		tests of knn.rs, against messages recorded fro
 src/knn/mod.rs	new		the knn query run over a shard's segments as Lucene's AbstractKnnVectorQuery.rewrite does; lucene-rust holds the search
 src/knn/tests.rs	new		knn queries over a three-segment shard with vectors
 src/empty_commit.rs	new		the commit of an index nobody wrote to, built once by the engine and served from memory; the Java shell has no reader for it
+src/shared_mapping.rs	new		no Java counterpart: the Java shell holds a MapperService per index; this keeps one parsed mapping per distinct mapping text
