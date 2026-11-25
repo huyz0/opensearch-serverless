@@ -10,6 +10,9 @@ pub const MIN_STREAM_BUFFER: usize = 16 * 1024;
 /// Concurrent streams one connection may open; the connection window is this many stream windows.
 pub const STREAMS_PER_CONNECTION: usize = 16;
 
+/// The default longest gRPC message: 4 MiB.
+pub const DEFAULT_GRPC_MESSAGE: usize = 4 << 20;
+
 /// What the front serves and how much of it.
 #[derive(Debug, Clone)]
 pub struct EdgeConfig {
@@ -17,6 +20,10 @@ pub struct EdgeConfig {
     pub h2c: Option<SocketAddr>,
     /// TCP with TLS and ALPN `h2` then `http/1.1`; `None` opens no port.
     pub tls: Option<SocketAddr>,
+    /// gRPC over HTTP/2; TLS when a certificate is configured, clear text otherwise; `None` opens no port.
+    pub grpc: Option<SocketAddr>,
+    /// The longest gRPC message in either direction, in bytes.
+    pub grpc_max_message: usize,
     /// PEM certificate chain, required with `tls`.
     pub cert: Option<PathBuf>,
     /// PEM private key, required with `tls`.
@@ -52,6 +59,8 @@ impl EdgeConfig {
         Self {
             h2c: None,
             tls: None,
+            grpc: None,
+            grpc_max_message: DEFAULT_GRPC_MESSAGE,
             cert: None,
             key: None,
             upstream,
@@ -71,13 +80,19 @@ impl EdgeConfig {
     /// Whether any listener is configured.
     #[must_use]
     pub fn enabled(&self) -> bool {
-        self.h2c.is_some() || self.tls.is_some()
+        self.h2c.is_some() || self.tls.is_some() || self.grpc.is_some()
     }
 
     /// The bytes charged to the request-body pool when the front starts:
-    /// `max_streams x 2 x stream_buffer + max_connections x connection_overhead`.
+    /// `max_streams x 2 x stream_buffer + max_connections x connection_overhead`, and with a gRPC
+    /// listener `max_streams x grpc_max_message` for the message each call decodes whole.
     #[must_use]
     pub fn charge(&self) -> usize {
+        let messages = if self.grpc.is_some() {
+            self.max_streams.saturating_mul(self.grpc_max_message)
+        } else {
+            0
+        };
         self.max_streams
             .saturating_mul(2)
             .saturating_mul(self.stream_buffer)
@@ -85,6 +100,7 @@ impl EdgeConfig {
                 self.max_connections
                     .saturating_mul(self.connection_overhead),
             )
+            .saturating_add(messages)
     }
 
     /// Checks the settings against each other.
@@ -111,6 +127,9 @@ impl EdgeConfig {
             return Err(format!(
                 "edge stream_buffer must be at least {MIN_STREAM_BUFFER} bytes and fit 32 bits"
             ));
+        }
+        if self.grpc.is_some() && self.grpc_max_message == 0 {
+            return Err("edge grpc_max_message must be at least 1".into());
         }
         if self.threads == 0 {
             return Err("edge threads must be at least 1".into());

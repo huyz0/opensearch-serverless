@@ -7,6 +7,7 @@
 //! request-body pool when it starts.
 
 mod config;
+mod grpc;
 mod serve;
 mod stream;
 mod tls;
@@ -21,7 +22,7 @@ use oss_mem::{Exhausted, MemoryBudget, Pool, Reservation};
 use tokio::runtime::{Builder, Runtime};
 use tokio::sync::{Semaphore, watch};
 
-pub use config::{EdgeConfig, MIN_STREAM_BUFFER, STREAMS_PER_CONNECTION};
+pub use config::{DEFAULT_GRPC_MESSAGE, EdgeConfig, MIN_STREAM_BUFFER, STREAMS_PER_CONNECTION};
 
 /// Why the front did not start.
 #[derive(Debug)]
@@ -48,6 +49,7 @@ pub struct Edge {
     stop: watch::Sender<bool>,
     h2c: Option<SocketAddr>,
     tls: Option<SocketAddr>,
+    grpc: Option<SocketAddr>,
     _reservation: Reservation,
 }
 
@@ -60,8 +62,8 @@ impl Edge {
     /// or key is unusable, or a socket cannot be bound.
     pub fn start(config: EdgeConfig, budget: &MemoryBudget) -> Result<Self, EdgeError> {
         config.validate().map_err(EdgeError::Config)?;
-        let acceptor = match (&config.tls, &config.cert, &config.key) {
-            (Some(_), Some(cert), Some(key)) => {
+        let acceptor = match (&config.cert, &config.key) {
+            (Some(cert), Some(key)) if config.tls.is_some() || config.grpc.is_some() => {
                 Some(tls::acceptor(cert, key).map_err(EdgeError::Tls)?)
             }
             _ => None,
@@ -71,11 +73,20 @@ impl Edge {
             .map_err(EdgeError::Memory)?;
         let h2c = config.h2c.map(TcpListener::bind).transpose()?;
         let tls_listener = config.tls.map(TcpListener::bind).transpose()?;
-        for l in h2c.iter().chain(tls_listener.iter()) {
+        let grpc_listener = config.grpc.map(TcpListener::bind).transpose()?;
+        for l in h2c
+            .iter()
+            .chain(tls_listener.iter())
+            .chain(grpc_listener.iter())
+        {
             l.set_nonblocking(true)?;
         }
         let h2c_addr = h2c.as_ref().map(TcpListener::local_addr).transpose()?;
         let tls_addr = tls_listener
+            .as_ref()
+            .map(TcpListener::local_addr)
+            .transpose()?;
+        let grpc_addr = grpc_listener
             .as_ref()
             .map(TcpListener::local_addr)
             .transpose()?;
@@ -97,15 +108,27 @@ impl Edge {
                 runtime.spawn(serve::accept_loop(
                     l,
                     None,
+                    serve::Kind::Http,
                     Arc::clone(&shared),
                     watcher.clone(),
                 ));
             }
-            if let (Some(l), Some(a)) = (tls_listener, acceptor) {
+            if let (Some(l), Some(a)) = (tls_listener, acceptor.clone()) {
                 let l = tokio::net::TcpListener::from_std(l)?;
                 runtime.spawn(serve::accept_loop(
                     l,
                     Some(a),
+                    serve::Kind::Http,
+                    Arc::clone(&shared),
+                    watcher.clone(),
+                ));
+            }
+            if let Some(l) = grpc_listener {
+                let l = tokio::net::TcpListener::from_std(l)?;
+                runtime.spawn(serve::accept_loop(
+                    l,
+                    acceptor,
+                    serve::Kind::Grpc,
                     Arc::clone(&shared),
                     watcher.clone(),
                 ));
@@ -116,6 +139,7 @@ impl Edge {
             stop,
             h2c: h2c_addr,
             tls: tls_addr,
+            grpc: grpc_addr,
             _reservation: reservation,
         })
     }
@@ -130,6 +154,12 @@ impl Edge {
     #[must_use]
     pub fn tls_addr(&self) -> Option<SocketAddr> {
         self.tls
+    }
+
+    /// The bound gRPC address.
+    #[must_use]
+    pub fn grpc_addr(&self) -> Option<SocketAddr> {
+        self.grpc
     }
 
     /// Stops accepting, drops open connections and returns the memory.

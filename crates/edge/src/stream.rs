@@ -171,7 +171,7 @@ async fn download(
     }
 }
 
-async fn send_all(send: &mut SendStream<Bytes>, mut data: Bytes) -> Result<(), ()> {
+pub(crate) async fn send_all(send: &mut SendStream<Bytes>, mut data: Bytes) -> Result<(), ()> {
     while !data.is_empty() {
         send.reserve_capacity(data.len());
         let granted = std::future::poll_fn(|cx| send.poll_capacity(cx))

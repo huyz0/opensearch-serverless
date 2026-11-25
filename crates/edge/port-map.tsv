@@ -6,3 +6,8 @@ src/stream.rs	new		protocol front, no Java counterpart
 src/tls.rs	new		protocol front, no Java counterpart
 src/translate.rs	new		protocol front, no Java counterpart
 src/upstream.rs	new		protocol front, no Java counterpart
+src/grpc/call.rs	new		gRPC front; Java serves gRPC through its own Netty transport
+src/grpc/frame.rs	new		gRPC front; Java serves gRPC through its own Netty transport
+src/grpc/health.rs	new		gRPC front; Java serves gRPC through its own Netty transport
+src/grpc/mod.rs	new		gRPC front; Java serves gRPC through its own Netty transport
+src/grpc/status.rs	new		gRPC front; Java serves gRPC through its own Netty transport

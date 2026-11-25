@@ -50,6 +50,10 @@ pub(super) fn start(
         oss_edge::EdgeConfig::new(upstream_of(running.addr()), config.rest_config().workers);
     edge.h2c = s.h2c;
     edge.tls = s.tls;
+    edge.grpc = s.grpc;
+    edge.grpc_max_message = s
+        .grpc_max_message
+        .min(usize::try_from(config.rest_config().max_content_length).unwrap_or(usize::MAX));
     edge.cert.clone_from(&s.cert);
     edge.key.clone_from(&s.key);
     if let Some(n) = s.max_streams {
@@ -76,7 +80,7 @@ pub(super) fn start(
     let _ = upstream_of;
     if config.edge.enabled() {
         return Err(BootError::Config(
-            "OSS_EDGE_H2C_ADDR or OSS_EDGE_TLS_ADDR is set, and this build has no `edge` feature"
+            "OSS_EDGE_H2C_ADDR, OSS_EDGE_TLS_ADDR or OSS_EDGE_GRPC_ADDR is set, and this build has no `edge` feature"
                 .into(),
         ));
     }

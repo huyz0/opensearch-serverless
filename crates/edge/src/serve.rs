@@ -11,12 +11,23 @@ use tokio::time::timeout;
 use tokio_rustls::TlsAcceptor;
 
 use crate::config::STREAMS_PER_CONNECTION;
+use crate::grpc;
 use crate::stream::{self, Shared};
+
+/// What a listener speaks.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Kind {
+    /// HTTP/2 bridged stream by stream.
+    Http,
+    /// gRPC calls.
+    Grpc,
+}
 
 /// Accepts on `listener` until `stop` fires; a connection past `max_connections` is closed unread.
 pub(crate) async fn accept_loop(
     listener: TcpListener,
     tls: Option<TlsAcceptor>,
+    kind: Kind,
     shared: Arc<Shared>,
     mut stop: watch::Receiver<bool>,
 ) {
@@ -39,7 +50,7 @@ pub(crate) async fn accept_loop(
                     let _permit = permit;
                     tokio::select! {
                         _ = stop.changed() => {}
-                        () = connection(socket, tls, shared) => {}
+                        () = connection(socket, tls, kind, shared) => {}
                     }
                 });
             }
@@ -47,19 +58,19 @@ pub(crate) async fn accept_loop(
     }
 }
 
-async fn connection(socket: TcpStream, tls: Option<TlsAcceptor>, shared: Arc<Shared>) {
+async fn connection(socket: TcpStream, tls: Option<TlsAcceptor>, kind: Kind, shared: Arc<Shared>) {
     let _ = socket.set_nodelay(true);
     let handshake = shared.config.handshake_timeout;
     let Some(acceptor) = tls else {
-        h2_connection(socket, shared).await;
+        h2_connection(socket, kind, shared).await;
         return;
     };
     let Ok(Ok(secured)) = timeout(handshake, acceptor.accept(socket)).await else {
         return;
     };
     if secured.get_ref().1.alpn_protocol() == Some(b"h2".as_slice()) {
-        h2_connection(secured, shared).await;
-    } else {
+        h2_connection(secured, kind, shared).await;
+    } else if kind == Kind::Http {
         passthrough(secured, shared).await;
     }
 }
@@ -90,6 +101,7 @@ impl Drop for Active {
 
 async fn h2_connection<IO: AsyncRead + AsyncWrite + Unpin + Send + 'static>(
     io: IO,
+    kind: Kind,
     shared: Arc<Shared>,
 ) {
     let window = u32::try_from(shared.config.stream_buffer).unwrap_or(u32::MAX);
@@ -122,7 +134,10 @@ async fn h2_connection<IO: AsyncRead + AsyncWrite + Unpin + Send + 'static>(
         let shared = Arc::clone(&shared);
         tokio::spawn(async move {
             let _guard = guard;
-            stream::serve(request, respond, shared).await;
+            match kind {
+                Kind::Http => stream::serve(request, respond, shared).await,
+                Kind::Grpc => grpc::serve(request, respond, shared).await,
+            }
         });
     }
 }

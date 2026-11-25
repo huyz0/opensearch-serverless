@@ -15,6 +15,10 @@ pub struct EdgeSettings {
     pub h2c: Option<SocketAddr>,
     /// `OSS_EDGE_TLS_ADDR`: TLS with ALPN `h2` and `http/1.1`.
     pub tls: Option<SocketAddr>,
+    /// `OSS_EDGE_GRPC_ADDR`: gRPC over HTTP/2, over TLS when a certificate is set.
+    pub grpc: Option<SocketAddr>,
+    /// `OSS_EDGE_GRPC_MAX_MESSAGE`, in bytes; held under `max_content_length`.
+    pub grpc_max_message: usize,
     /// `OSS_EDGE_TLS_CERT`: the PEM certificate chain.
     pub cert: Option<PathBuf>,
     /// `OSS_EDGE_TLS_KEY`: the PEM private key.
@@ -39,7 +43,7 @@ impl EdgeSettings {
     /// Whether any listener is set.
     #[must_use]
     pub fn enabled(&self) -> bool {
-        self.h2c.is_some() || self.tls.is_some()
+        self.h2c.is_some() || self.tls.is_some() || self.grpc.is_some()
     }
 }
 
@@ -63,6 +67,8 @@ pub(in crate::boot) fn read(
     Ok(EdgeSettings {
         h2c: addr("OSS_EDGE_H2C_ADDR")?,
         tls: addr("OSS_EDGE_TLS_ADDR")?,
+        grpc: addr("OSS_EDGE_GRPC_ADDR")?,
+        grpc_max_message: count(bounded("OSS_EDGE_GRPC_MAX_MESSAGE", "4194304", 1, 1 << 30)?),
         cert: path("OSS_EDGE_TLS_CERT"),
         key: path("OSS_EDGE_TLS_KEY"),
         max_streams,

@@ -21,6 +21,10 @@ pub const MAX_BODY: u64 = 1 << 20;
 pub struct State {
     pub release: AtomicBool,
     pub holding: AtomicUsize,
+    /// `/_cluster/health` answers 503 while set.
+    pub unhealthy: AtomicBool,
+    /// `/_cluster/health` waits for `release` while set.
+    pub hold_health: AtomicBool,
 }
 
 pub fn budget(bytes: usize) -> MemoryBudget {
@@ -41,6 +45,7 @@ pub fn start_with(state: &Arc<State>, max_body: u64) -> (Server, MemoryBudget, S
     let budget = budget(64 << 20);
     let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
     let s = Arc::clone(state);
+    let hs = Arc::clone(state);
     let router = Router::new()
         .route(
             Method::Get,
@@ -97,6 +102,26 @@ pub fn start_with(state: &Arc<State>, max_body: u64) -> (Server, MemoryBudget, S
                     }
                     s.holding.fetch_sub(1, Ordering::AcqRel);
                     resp.send(200, JSON, b"{}")
+                },
+            )
+        })
+        .and_then(|r| {
+            let h = Arc::clone(&hs);
+            r.route(
+                Method::Get,
+                "/_cluster/health",
+                &[],
+                move |_: &mut Request<'_>, resp: &mut Response<'_>| {
+                    while h.hold_health.load(Ordering::Acquire)
+                        && !h.release.load(Ordering::Acquire)
+                    {
+                        std::thread::sleep(Duration::from_millis(10));
+                    }
+                    if h.unhealthy.load(Ordering::Acquire) {
+                        resp.send(503, JSON, b"{\"status\":\"red\"}")
+                    } else {
+                        resp.send(200, JSON, b"{\"status\":\"green\"}")
+                    }
                 },
             )
         })
@@ -239,4 +264,79 @@ pub async fn h2c(addr: SocketAddr) -> h2::client::SendRequest<Bytes> {
         let _ = conn.await;
     });
     send
+}
+
+/// One gRPC call over an established clear-text HTTP/2 connection.
+#[derive(Debug)]
+pub struct Reply {
+    pub http_status: u16,
+    pub content_type: Option<String>,
+    /// `grpc-status`, from the headers (Trailers-Only) or the trailers.
+    pub grpc_status: Option<u8>,
+    pub grpc_message: Option<String>,
+    /// The messages, prefix removed.
+    pub messages: Vec<Vec<u8>>,
+}
+
+/// The wire form of one message with the given compression flag.
+pub fn grpc_frame(flag: u8, message: &[u8]) -> Bytes {
+    let mut out = vec![flag];
+    out.extend_from_slice(&u32::try_from(message.len()).expect("fits").to_be_bytes());
+    out.extend_from_slice(message);
+    Bytes::from(out)
+}
+
+/// Sends `frames` as the request body to `path` and reads the whole reply.
+pub async fn grpc_call(
+    send: &mut h2::client::SendRequest<Bytes>,
+    path: &str,
+    extra: &[(&str, &str)],
+    frames: Bytes,
+) -> Result<Reply, h2::Error> {
+    let mut builder = http::Request::builder()
+        .method("POST")
+        .uri(format!("http://node{path}"))
+        .header("content-type", "application/grpc")
+        .header("te", "trailers");
+    for (k, v) in extra {
+        builder = builder.header(*k, *v);
+    }
+    let request = builder.body(()).expect("request");
+    let (response, mut stream) = send.send_request(request, false)?;
+    stream.send_data(frames, true)?;
+    let response = response.await?;
+    let http_status = response.status().as_u16();
+    let header =
+        |h: &http::HeaderMap, name: &str| h.get(name).map(|v| v.to_str().expect("text").to_owned());
+    let content_type = header(response.headers(), "content-type");
+    let mut grpc_status = header(response.headers(), "grpc-status").map(|v| v.parse().expect("n"));
+    let mut grpc_message = header(response.headers(), "grpc-message");
+    let mut recv = response.into_body();
+    let mut raw = Vec::new();
+    while let Some(next) = recv.data().await {
+        let data = next?;
+        recv.flow_control().release_capacity(data.len())?;
+        raw.extend_from_slice(&data);
+    }
+    if let Some(t) = recv.trailers().await? {
+        grpc_status = header(&t, "grpc-status").map(|v| v.parse().expect("n"));
+        grpc_message = header(&t, "grpc-message");
+    }
+    let mut messages = Vec::new();
+    let mut at = 0usize;
+    while at < raw.len() {
+        let size = at.saturating_add(1)..at.saturating_add(5);
+        let n = u32::from_be_bytes(raw[size].try_into().expect("four")) as usize;
+        let from = at.saturating_add(5);
+        let to = from.saturating_add(n);
+        messages.push(raw[from..to].to_vec());
+        at = to;
+    }
+    Ok(Reply {
+        http_status,
+        content_type,
+        grpc_status,
+        grpc_message,
+        messages,
+    })
 }
