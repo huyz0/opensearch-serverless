@@ -107,7 +107,8 @@ impl StockSnapshotInfo {
             return Some("the snapshot is a remote-store shallow copy");
         }
         let id = self.version_id ^ OPENSEARCH_MASK;
-        if self.version_id & OPENSEARCH_MASK == 0 || !(OLDEST..=NEWEST).contains(&id) {
+        // An id without the mask set lands far above NEWEST once it is flipped.
+        if !(OLDEST..=NEWEST).contains(&id) {
             return Some(
                 "the snapshot was written by an OpenSearch version this node does not read",
             );

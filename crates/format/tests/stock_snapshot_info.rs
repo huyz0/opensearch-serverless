@@ -153,3 +153,12 @@ fn the_index_list_holds_at_its_count_and_not_past() {
         Err(FormatError::TooLarge { .. })
     ));
 }
+
+#[test]
+fn unknown_fields_and_a_null_flag_are_skipped_and_the_first_snapshot_wins() {
+    let s = parse(
+        r#"{"x":{"snapshot":3},"snapshot":{"name":"a","uuid":"u","state":"SUCCESS","include_global_state":null,"metadata":{"k":[1]}},"y":[1],"snapshot":3}"#,
+    )
+    .expect("reads");
+    assert_eq!((s.name.as_str(), s.include_global_state), ("a", None));
+}
