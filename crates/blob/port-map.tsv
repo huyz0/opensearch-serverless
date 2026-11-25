@@ -13,6 +13,7 @@ src/s3/request.rs	port	plugins/repository-s3/src/main/java/org/opensearch/reposi
 src/s3/retry.rs	new		retries with capped exponential backoff and full jitter, every attempt metered; the Java shell relies on the AWS SDK's retry strategy, which hides attempts
 src/s3/sigv4.rs	new		AWS Signature V4, checked against AWS's published test suite; the Java shell signs through the AWS SDK
 src/s3/xml.rs	new		streaming ListObjectsV2 page reader and error-code extraction; the Java shell parses through the AWS SDK
+src/emulator/hold.rs	new		test-only holds that keep chosen requests waiting until released, so a test forces the order several requests in flight answer in
 src/emulator/http/mod.rs	new		S3 HTTP front end over the emulator for testing the client on loopback; the Java test kit uses FsBlobStore or a RustFS container instead
 src/emulator/http/routes.rs	new		the front end's SigV4 check and S3 request handling
 src/emulator/http/wire.rs	new		the front end's bounded HTTP/1.1 request reading and response writing
