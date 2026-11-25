@@ -194,3 +194,16 @@ fn a_shard_count_and_a_partition_size_are_checked() {
     assert_eq!(size("x"), Err(StockRefusal::PartitionSize));
     assert!(!StockRefusal::PartitionSize.to_string().is_empty());
 }
+
+#[test]
+fn several_kept_settings_are_joined_in_order() {
+    let m =
+        with(r#""index.number_of_shards":"1","index.refresh_interval":"5s","index.codec":"zstd""#);
+    let n = m
+        .native(&|k| k == "index.refresh_interval" || k == "index.codec")
+        .expect("native");
+    assert_eq!(
+        n.settings,
+        br#"{"index.refresh_interval":"5s","index.codec":"zstd"}"#
+    );
+}

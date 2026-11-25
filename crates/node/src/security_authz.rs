@@ -418,4 +418,20 @@ mod tests {
             "a method with no row for a known pattern is not allowed through"
         );
     }
+
+    // docs/specs/stock-snapshot-restore AC-7: registering a stock repository
+    // is a cluster-admin act, as every repository and snapshot route is.
+    #[test]
+    fn every_repository_and_snapshot_route_needs_all_access() {
+        for method in [Method::Put, Method::Post, Method::Get, Method::Delete] {
+            for pattern in [
+                "/_snapshot/{repo}",
+                "/_snapshot/{repo}/_verify",
+                "/_snapshot/{repo}/{name}",
+                "/_snapshot/{repo}/{name}/_restore",
+            ] {
+                assert_eq!(rule_of(false, Some(method), pattern), Rule::AllAccess);
+            }
+        }
+    }
 }
