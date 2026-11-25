@@ -111,6 +111,22 @@ fn total(c: &[u64]) -> u64 {
     c.iter().sum()
 }
 
+/// A search reads no more blobs from a bucket than from a shard register.
+///
+/// The ranged reads and the writes are exact: only a search makes them. A
+/// plain read is not: the node re-reads the transport secrets from the store
+/// once every lease TTL (3 s here) on whichever request finds them due, and
+/// the 24 searches take about 150 ms, so a window holds one such read or none
+/// by where its clock stands. The two clusters run side by side with clocks
+/// of their own, so one run saves a read (37 against 38 in CI, either way
+/// round) and the next does not. A search that read one more blob per search
+/// would add 24, so one is the noise and two is the failure.
+fn search_costs_no_more(off: &[u64], on: &[u64]) -> bool {
+    let at = |c: &[u64], op: S3Op| c[S3Op::ALL.iter().position(|o| *o == op).expect("op")];
+    let others = |c: &[u64]| total(c) - at(c, S3Op::Get);
+    others(on) <= others(off) && at(on, S3Op::Get) <= at(off, S3Op::Get) + 1
+}
+
 #[test]
 fn small_indices_cost_no_more_requests_in_buckets_once_created() {
     // Two clusters of their own, each with its own store: side by side, the
@@ -138,11 +154,10 @@ fn small_indices_cost_no_more_requests_in_buckets_once_created() {
             t.len()
         );
     }
-    // A search reads no more blobs from a bucket than from a shard register.
-    // Not exact: the two clusters run side by side, and with the pipelined
-    // write the first publish can land before or after a search, so a run may
-    // save one GET (37 against 38 seen in CI); an extra one is the failure.
-    assert!(total(&on.2) <= total(&off.2), "search: {off:?} {on:?}");
+    assert!(
+        search_costs_no_more(&off.2, &on.2),
+        "search: {off:?} {on:?}"
+    );
     // A write and an idle stretch stay within a tenth.
     let near = |a: &[u64], b: &[u64]| total(b) * 10 <= total(a) * 11 + 4;
     assert!(near(&off.1, &on.1), "write: {off:?} {on:?}");
@@ -153,4 +168,28 @@ fn small_indices_cost_no_more_requests_in_buckets_once_created() {
         total(&on.0) <= total(&off.0) * 4,
         "a create costs at most three more requests than its descriptor"
     );
+}
+
+/// The counts of a search window in `S3Op::ALL` order, from its plain reads
+/// and ranged reads.
+#[cfg(test)]
+fn window(gets: u64, ranged: u64) -> Vec<u64> {
+    S3Op::ALL
+        .iter()
+        .map(|op| match op {
+            S3Op::Get => gets,
+            S3Op::GetRange => ranged,
+            _ => 0,
+        })
+        .collect()
+}
+
+#[test]
+fn a_search_window_may_hold_one_more_secret_read_but_not_two_or_a_ranged_read() {
+    // CI saw 37 plain reads without buckets and 38 with.
+    assert!(search_costs_no_more(&window(37, 24), &window(38, 24)));
+    assert!(search_costs_no_more(&window(38, 24), &window(37, 24)));
+    assert!(search_costs_no_more(&window(38, 24), &window(38, 24)));
+    assert!(!search_costs_no_more(&window(37, 24), &window(39, 24)));
+    assert!(!search_costs_no_more(&window(38, 24), &window(38, 25)));
 }
