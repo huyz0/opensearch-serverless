@@ -161,3 +161,26 @@ fn a_refusal_says_what_rule_it_is() {
         "io_bytes is 10 and an analyzer needs at least 20"
     );
 }
+
+#[test]
+fn an_analysis_runs_under_the_limits_it_is_given() {
+    use oss_ext::pin::ResolvedLimits;
+    use oss_ext_wasm::Run;
+    let m = load(&analyzer(&canned(), 1024, "analyzer", true)).expect("loads");
+    let enough = ResolvedLimits {
+        fuel: 10_000_000,
+        memory_bytes: 64 * 1024 * 1024,
+        deadline_ms: 10_000,
+    };
+    let live = m.analyze("t", &["ab", "cd"]).expect("live");
+    assert_eq!(
+        m.analyze_as("t", &["ab", "cd"], Run::Recorded(enough))
+            .expect("recorded"),
+        live
+    );
+    let none = ResolvedLimits { fuel: 1, ..enough };
+    let e = m
+        .analyze_as("t", &["ab", "cd"], Run::Recorded(none))
+        .unwrap_err();
+    assert_eq!(e.kind(), FailureKind::Limit);
+}
