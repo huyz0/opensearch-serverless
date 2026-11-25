@@ -156,3 +156,44 @@ fn invalid_arguments_fail_before_any_request() {
     assert_eq!(e.meter().total(), 0);
     assert_eq!(e.meter().errors(), 0);
 }
+
+// AC-14
+#[test]
+fn a_held_request_waits_for_its_release_and_takes_the_outcome_given() {
+    use oss_blob::emulator::hold::Release;
+    use std::sync::Arc;
+    let e = Arc::new(emulator());
+    let holds = e.hold_next(S3Op::Put, 3);
+    let run = |key: &'static str| {
+        let e = Arc::clone(&e);
+        std::thread::spawn(move || e.put(key, &mut SliceSource::new(b"x"), &mut [0u8; 64]))
+    };
+    // The n-th request of the kind takes the n-th hold, in the order the
+    // requests arrive.
+    let first = run("a");
+    assert!(holds[0].wait_arrived(Duration::from_secs(10)));
+    let second = run("b");
+    assert!(holds[1].wait_arrived(Duration::from_secs(10)));
+    let third = run("c");
+    assert!(holds[2].wait_arrived(Duration::from_secs(10)));
+    // Nothing lands while held, and each request is counted on arrival.
+    assert_eq!(e.object_count(), 0);
+    assert_eq!(e.meter().count(S3Op::Put), 3);
+    // Released out of the order they arrived in.
+    holds[2].release(Release::Land);
+    assert_eq!(third.join().unwrap(), Ok(()));
+    assert_eq!(e.object_count(), 1);
+    holds[0].release(Release::Fail);
+    assert_eq!(first.join().unwrap(), Err(BlobError::Unavailable));
+    assert_eq!(e.object_count(), 1, "a failed request stored nothing");
+    holds[1].release(Release::LandThenFail);
+    assert_eq!(second.join().unwrap(), Err(BlobError::Unavailable));
+    assert_eq!(
+        e.object_count(),
+        2,
+        "a landed one is stored, though it failed"
+    );
+    // A fourth request is not held.
+    crate::put(&*e, "d", b"x");
+    assert_eq!(e.object_count(), 3);
+}

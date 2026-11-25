@@ -14,6 +14,7 @@
 mod body;
 mod delete;
 pub mod faults;
+pub mod hold;
 pub mod http;
 mod register;
 
@@ -34,6 +35,7 @@ use crate::store::{
 };
 use body::{span, stream};
 use faults::{Decision, Faults, Latency, OpControl, SplitMix64};
+use hold::{Hold, Holds, Release};
 
 /// The bytes a GET is about to send.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -76,6 +78,7 @@ pub struct Emulator {
     capacity: u64,
     objects: Mutex<Objects>,
     control: Mutex<[OpControl; S3Op::ALL.len()]>,
+    holds: Holds,
     meter: Meter,
     known: KnownVersions,
 }
@@ -101,6 +104,7 @@ impl Emulator {
                 ),
                 ..OpControl::default()
             })),
+            holds: Holds::new(),
             meter: Meter::new(),
             known: KnownVersions::default(),
         }
@@ -144,6 +148,13 @@ impl Emulator {
         if let Some(c) = lock(&self.control).get_mut(op.index()) {
             c.lose_next = n;
         }
+    }
+
+    /// Holds the next `n` requests of kind `op`, each at its own hold in
+    /// the order they arrive, until the hold is released: a request is
+    /// counted when it arrives and does nothing while held.
+    pub fn hold_next(&self, op: S3Op, n: u32) -> Vec<Arc<Hold>> {
+        self.holds.queue(op, n)
     }
 
     /// Bytes of object bodies stored now.
@@ -295,9 +306,16 @@ impl Emulator {
         else {
             return Err(BlobError::Unavailable);
         };
+        // The hold is taken on arrival, so the n-th request takes the n-th.
+        let held = self.holds.take(op);
         if !delay.is_zero() {
             std::thread::sleep(delay);
         }
+        let (fault, lose_response) = match held.map(|hold| hold.hold()) {
+            Some(Release::Fail) => (Some(BlobError::Unavailable), false),
+            Some(Release::LandThenFail) => (None, true),
+            Some(Release::Land) | None => (fault, lose_response),
+        };
         let result = match fault {
             Some(err) => Err(err),
             None if lose_response => work().and(Err(BlobError::Unavailable)),
