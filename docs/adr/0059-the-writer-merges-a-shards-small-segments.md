@@ -1,6 +1,6 @@
 # 0059: The writer merges a shard's small segments
 
-**Status:** Accepted after independent review (one round, 2026-11-25: its blocking findings on reclaim, pins, soft deletes and memory are answered in decisions 3, 4 and 6)
+**Status:** Proposed (one independent review round done; a second review of the revision is pending)
 
 ## Context
 
