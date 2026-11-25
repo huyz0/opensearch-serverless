@@ -115,7 +115,12 @@ impl<S: BlobStore + 'static> SearchService<S> {
             writer,
             local_checkpoint(&held.shard.reader),
             &take,
-        ) {
+        ) && (!held.unpublished || fresh.holds_tail(uuid, held.shard_no, writer))
+        {
+            // An empty commit stands for a first publish still to come: with
+            // no complete tail from the writer (it did not answer, or its tail
+            // has a gap because it published, so the register is lost) the
+            // shard is behind, not empty.
             return Ok(());
         }
         // A shard that cannot hold its writer's tail (it ran out of room, or

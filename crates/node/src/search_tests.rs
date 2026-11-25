@@ -241,6 +241,7 @@ fn concurrent_first_searches_open_once_and_close_nothing_else() {
         charge,
         source: None,
         epoch: std::time::Instant::now(),
+        unpublished: false,
     })));
     for w in workers {
         assert!(w.join().expect("worker"));

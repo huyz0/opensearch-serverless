@@ -290,3 +290,25 @@ fn a_bulk_with_one_large_item_among_small_ones_is_applied_with_a_pipeline() {
     );
     assert_eq!(text.matches("\"result\":\"created\"").count(), 51);
 }
+
+// AC-16
+#[test]
+fn a_field_a_pipelined_write_introduces_is_held_in_the_descriptor() {
+    let dir = TempDir::new("write-concurrency-growth");
+    let node = boot_with(dir.path(), "8");
+    let addr = node.addr();
+    assert_eq!(support::request(addr, "PUT", "/grow", None).status, 200);
+    let body = "{\"index\":{\"_index\":\"grow\",\"_id\":\"1\"}}\n{\"added\":7}\n";
+    let reply = support::request(addr, "POST", "/_bulk", Some(body.as_bytes()));
+    assert!(
+        reply.text().contains("\"errors\":false"),
+        "{}",
+        reply.text()
+    );
+    // The mapping is read from the descriptor, not from the shard.
+    let mapping = support::request(addr, "GET", "/grow/_mapping", None).text();
+    assert!(
+        mapping.contains(r#""added":{"type":"long"}"#),
+        "the descriptor holds the field: {mapping}"
+    );
+}

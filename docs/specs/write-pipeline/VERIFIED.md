@@ -15,6 +15,7 @@
 - AC-13: `groups_are_acknowledged_to_the_tail_in_sequence_order` (crates/node/tests/writer_pipeline.rs).
 - AC-14: `at_the_largest_depth_sixty_four_groups_land_each_with_its_own_number` (crates/node/tests/writer_pipeline.rs).
 - AC-15: `a_bulk_with_one_large_item_among_small_ones_is_applied_with_a_pipeline` (crates/node/tests/server/boot_write_concurrency.rs).
+- AC-16: `a_field_a_pipelined_write_introduces_is_held_in_the_descriptor` (crates/node/tests/server/boot_write_concurrency.rs). Seen failing before the pipelined path held the growth (the mapping read back without the field).
 
 Scaling (provisional, crates/node/tests/store_usage_measure.rs with `MEASURE_DEPTH`, a debug build on 4 cores over a file store, bulks of 20 documents, a 250 ms window, 64 bulk holders): clients on one index, p50 a bulk, depth 1 against depth 16: 16 clients 3,803 ms against 254 ms; 64 clients 10,388 ms against 521 ms. Depth 1 with 16 and 64 clients also saw the write limiter refuse 52 and 198 bulks as the object store looked slow (an append taking about 5 s); depth 16 refused none at 16 clients and 69 at 64.
 
