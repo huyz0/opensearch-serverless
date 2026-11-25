@@ -198,7 +198,19 @@ impl IndexService {
             MAX_CREATE_BYTES,
             "the body of a create is larger than 1 MiB",
         )?;
-        let mut asked = parse(1, Some(&body)).map_err(refusal)?;
+        let asked = parse(1, Some(&body)).map_err(refusal)?;
+        let (_, shards) = self.create_asked(req, &index, asked)?;
+        resp.send(200, JSON, create_ack(&index, shards).as_bytes())
+    }
+
+    /// Creates `index` as the request `asked` says: the pins split off, the
+    /// templates layered, the settings read. The uuid and the shard count.
+    pub(crate) fn create_asked(
+        &self,
+        req: &mut Request<'_>,
+        index: &str,
+        mut asked: oss_coordinator::indices::create::CreateRequest,
+    ) -> Result<(String, u32), RestError> {
         // A setting the node does not read is refused before the policy
         // is asked anything, so the refusal costs no request.
         // ALLOC: the non-pin settings of one create, bounded by the body.
@@ -222,17 +234,20 @@ impl IndexService {
                 // ALLOC: two scratch buffers a create, buffer_bytes each, reserved above.
                 let mut marker = vec![0u8; self.buffer_bytes];
                 let mut doc = vec![0u8; self.buffer_bytes];
-                let asked = templates
-                    .apply(&index, asked, &mut marker, &mut doc)
-                    .map_err(refusal)?;
+                let applied = templates
+                    .apply(index, asked, &mut marker, &mut doc)
+                    .map_err(refusal);
+                drop((marker, doc));
+                self.unscratch(req);
+                let asked = applied?;
                 crate::create_settings::refuse_others(&asked.settings, is_bucket_key)?;
                 asked
             }
             None => asked,
         };
         let shards = asked.shards;
-        self.build(req, &index, asked, &pins)?;
-        resp.send(200, JSON, create_ack(&index, shards).as_bytes())
+        let uuid = self.build(req, index, asked, &pins)?;
+        Ok((uuid, shards))
     }
 
     /// Creates the index `index` as `asked` says, after the templates and

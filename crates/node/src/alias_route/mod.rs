@@ -289,6 +289,35 @@ fn meta_failed(e: &MetaError, change: &Change) -> RestError {
     }
 }
 
+/// What an alias named in a rollover body asks: its name checked as a
+/// literal and its write flag read, other keys refused as an alias change
+/// refuses them.
+pub(crate) fn body_alias(
+    name: &str,
+    props: &[(String, Json)],
+) -> Result<(String, Option<bool>), RestError> {
+    parse::check_literal(name)?;
+    Ok((name.to_owned(), write_flag(props)?))
+}
+
+/// Adds `index` to `alias`, as an `add` action of `POST /_aliases` does.
+pub(crate) fn add_alias(
+    m: &mut AliasMutations<'_>,
+    index: &str,
+    alias: &str,
+    write: Option<bool>,
+) -> Result<(), RestError> {
+    apply(
+        m,
+        &Change {
+            add: true,
+            index: index.to_owned(),
+            alias: alias.to_owned(),
+            write,
+        },
+    )
+}
+
 /// Applies one change, retrying when another writer swapped the alias first.
 fn apply(m: &mut AliasMutations<'_>, change: &Change) -> Result<(), RestError> {
     for _ in 0..ATTEMPTS {

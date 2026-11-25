@@ -185,13 +185,14 @@ pub(crate) fn alias_service(
 
 /// Adds the data stream and rollover routes: backing indices are made by `indices` and
 /// removed by `deletes`.
-pub(crate) fn stream_routes(
+pub(crate) fn stream_routes<S: BlobStore + 'static>(
     router: oss_rest::Router,
     config: &crate::assemble::Config,
     store: &Arc<dyn BlobStore>,
     clock: &PitClock,
     indices: &Arc<IndexService>,
     deletes: &Arc<DeleteService>,
+    search: &Arc<crate::search::SearchService<S>>,
 ) -> Result<oss_rest::Router, crate::assemble::AssembleError> {
     let descriptors = || {
         let stripes = oss_meta::ChangeStripes::new(Arc::clone(store), &config.base)
@@ -200,14 +201,19 @@ pub(crate) fn stream_routes(
             .map(|d| d.record_changes_in(stripes))
             .map_err(|e| crate::assemble::AssembleError::Store(e.to_string()))
     };
-    let rollover = Arc::new(crate::rollover_route::RolloverService::new(
-        Arc::clone(indices),
-        Arc::clone(deletes),
-        descriptors()?,
-        Arc::clone(clock),
-        config.pit_buffer_bytes,
-        ALIAS_LEASE_TTL_MILLIS,
-    ));
+    let rollover = Arc::new(
+        crate::rollover_route::RolloverService::new(
+            Arc::clone(indices),
+            Arc::clone(deletes),
+            descriptors()?,
+            Arc::clone(clock),
+            config.pit_buffer_bytes,
+            ALIAS_LEASE_TTL_MILLIS,
+        )
+        .with_counter(Arc::new(crate::rollover_route::SearchCount::new(
+            Arc::clone(search),
+        ))),
+    );
     let service = Arc::new(crate::data_stream_route::DataStreamService::new(
         Arc::clone(indices),
         Arc::clone(deletes),
