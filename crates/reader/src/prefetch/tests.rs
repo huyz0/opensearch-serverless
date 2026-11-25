@@ -123,3 +123,50 @@ fn an_open_whose_prefetch_is_refused_still_opens_and_reads_every_document() {
     let (_, _, shard) = cold_open(&store, "tight", &OpenPrefetch::default());
     assert_eq!(shard.reader.num_docs(), 40);
 }
+
+struct NoIndex;
+
+impl oss_blob::usage::Classifier for NoIndex {
+    fn index_of<'a>(&self, _key: &'a str) -> Option<&'a str> {
+        None
+    }
+}
+
+// docs/specs/request-cost-header AC-6
+#[test]
+fn the_reads_of_the_prefetch_threads_count_in_the_request_that_asked() {
+    let config = BudgetConfig::new(4 << 20)
+        .with_pool(Pool::Transport, 4 << 20)
+        .expect("fits");
+    let budget = MemoryBudget::new(&config);
+    let buffers = BufferPool::new(&budget, Pool::Transport, SMALL_BUFFER, 8).expect("fits");
+    let ledger = Arc::new(oss_blob::usage::Ledger::new(8));
+    let store = PooledStore::new(
+        oss_blob::UsageStore::new(Emulator::new(1 << 20, 1), ledger, Arc::new(NoIndex)),
+        buffers,
+    );
+    store
+        .put("a/blob", &mut SliceSource::new(&[7u8; 64]))
+        .expect("put");
+    let range = |start: u64| Range {
+        key: "a/blob".to_owned(),
+        start,
+        len: 4,
+        members: vec![super::Member {
+            name: format!("f{start}"),
+            at: 0,
+            len: 4,
+        }],
+    };
+    let cost = oss_blob::cost::RequestCost::new();
+    let primed = {
+        let _scope = oss_blob::cost::enter(Some(Arc::clone(&cost)));
+        Primed::fetch(&store, &[range(0), range(8), range(16)])
+    };
+    assert!(!primed.is_empty());
+    assert_eq!(cost.requests(oss_blob::S3Op::GetRange), 3);
+    // Without a scope on the calling thread the same reads count nowhere.
+    let other = oss_blob::cost::RequestCost::new();
+    let _ = Primed::fetch(&store, &[range(0)]);
+    assert_eq!(other.requests(oss_blob::S3Op::GetRange), 0);
+}

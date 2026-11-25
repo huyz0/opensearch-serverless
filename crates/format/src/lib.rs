@@ -63,12 +63,14 @@ mod repository_record;
 mod restore_mark;
 mod segment_blob;
 mod shard_head;
+mod smile;
 mod snapshot_keys;
 mod snapshot_pins;
 mod snapshot_record;
 mod snapshot_restore;
 mod snapshot_state;
 mod snapshot_write;
+mod stock;
 mod tombstone;
 mod transport_secret;
 mod unit_layout;
@@ -125,6 +127,7 @@ pub use segment_blob::{
     encode_header as encode_segment_header,
 };
 pub use shard_head::{MAX_SHARD_HEAD_BYTES, MAX_WRITERS, ShardHead};
+pub use smile::{Limits as SmileLimits, to_json as smile_to_json};
 pub use snapshot_keys::{
     repository_key, sha256_hex, snapshot_legacy_key, snapshot_marker_prefixes, snapshot_state_key,
     snapshot_state_key_of_hash,
@@ -134,6 +137,13 @@ pub use snapshot_record::{SnapshotIndex, SnapshotSummary};
 pub use snapshot_restore::{RestoreIndex, RestoreShard};
 pub use snapshot_state::SnapshotState;
 pub use snapshot_write::{IndexCapture, ShardCapture, SnapshotDraft};
+pub use stock::{
+    EnvelopeLimits as StockEnvelopeLimits, MAX_ALIASES as STOCK_MAX_ALIASES,
+    MAX_CHUNKS as STOCK_MAX_CHUNKS, MAX_FILES as STOCK_MAX_FILES,
+    MAX_SETTINGS as STOCK_MAX_SETTINGS, RepositoryData as StockRepositoryData, StockFile,
+    StockIndex, StockIndexMetadata, StockNative, StockRefusal, StockShardSnapshot, StockSnapshot,
+    is_blob_name, to_json as stock_blob_to_json, verified_body as stock_verified_body,
+};
 pub use tombstone::{MAX_TOMBSTONE_BYTES, Tombstone, tombstone_bucket, tombstone_bucket_start};
 
 /// Node pack format constants and the header-length probe.

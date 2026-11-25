@@ -65,3 +65,21 @@ fn a_malformed_aws_chunked_body_stores_nothing() {
         );
     }
 }
+
+/// A chunk header line is read up to 1024 bytes, its carriage return counted.
+#[test]
+fn a_chunk_header_line_of_1024_bytes_with_its_return_is_read_and_one_byte_more_is_refused() {
+    let f = fixture();
+    let ep = f.server.endpoint();
+    let header = |len: usize| format!("5;x={}", "a".repeat(len - "5;x=".len()));
+    let wire = |len: usize| format!("{}\r\nhello\r\n0\r\n\r\n", header(len));
+    let r = chunked_put(&ep, "exact", &wire(1023), 5);
+    assert_eq!(status(&r), "200", "{r}");
+    assert_eq!(
+        get_all(f.server.store(), "exact", ByteRange::Full).unwrap(),
+        b"hello"
+    );
+    let r = chunked_put(&ep, "over", &wire(1024), 5);
+    assert_ne!(status(&r), "200", "{r}");
+    assert!(get_all(f.server.store(), "over", ByteRange::Full).is_err());
+}

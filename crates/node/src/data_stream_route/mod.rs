@@ -171,6 +171,9 @@ impl DataStreamService {
         let mut backing = Vec::with_capacity(at.alias.indices.len());
         for index in &at.alias.indices {
             if let Some(d) = self.descriptors.get(index, &mut buf).map_err(read_failed)? {
+                // Before the stream's record goes, so a blocked backing
+                // index leaves the stream whole.
+                crate::metadata_block::check_settings(index, d.settings)?;
                 backing.push((index.to_string(), d.uuid.into_owned()));
             }
         }

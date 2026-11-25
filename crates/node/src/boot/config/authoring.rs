@@ -10,6 +10,8 @@ pub struct AuthoringConfig {
     pub index_templates: bool,
     /// `serverless.ingest.pipelines.enabled`: serve the pipeline routes and run the pipeline a write names. Off by default.
     pub ingest_pipelines: bool,
+    /// `serverless.search.pipelines.enabled`: serve the search pipeline routes and run the pipeline a search names. Off by default.
+    pub search_pipelines: bool,
 }
 
 /// Reads the switches with `flag`.
@@ -19,6 +21,7 @@ pub(in crate::boot) fn read(
     Ok(AuthoringConfig {
         index_templates: flag("OSS_INDEX_TEMPLATES", "false")?,
         ingest_pipelines: flag("OSS_INGEST_PIPELINES", "false")?,
+        search_pipelines: flag("OSS_SEARCH_PIPELINES", "false")?,
     })
 }
 
@@ -26,6 +29,7 @@ pub(in crate::boot) fn read(
 pub(in crate::boot) fn apply(from: &NodeConfig, to: &mut crate::assemble::Config) {
     to.index_templates = from.authoring.index_templates;
     to.ingest_pipelines = from.authoring.ingest_pipelines;
+    to.search_pipelines = from.authoring.search_pipelines;
 }
 
 #[cfg(test)]
@@ -47,7 +51,13 @@ mod tests {
         assert!(templates.index_templates && !templates.ingest_pipelines);
         let pipelines = config(&[("OSS_INGEST_PIPELINES", "true")]);
         assert!(pipelines.ingest_pipelines && !pipelines.index_templates);
-        for name in ["OSS_INDEX_TEMPLATES", "OSS_INGEST_PIPELINES"] {
+        let search = config(&[("OSS_SEARCH_PIPELINES", "true")]);
+        assert!(search.search_pipelines && !search.ingest_pipelines && !defaults.search_pipelines);
+        for name in [
+            "OSS_INDEX_TEMPLATES",
+            "OSS_INGEST_PIPELINES",
+            "OSS_SEARCH_PIPELINES",
+        ] {
             assert!(NodeConfig::from_lookup(lookup(&with(&[(name, "yes")]))).is_err());
         }
     }

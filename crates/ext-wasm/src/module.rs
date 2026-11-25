@@ -56,6 +56,17 @@ pub struct Replay {
     pub wait: Duration,
 }
 
+/// A recovery of state that is not a replay (a tail overlay build): the
+/// recorded limits exactly, never refused by the gate or the tenant's share,
+/// waiting for its reservation up to `wait`.
+#[derive(Clone, Copy, Debug)]
+pub struct Recovery {
+    /// What the index recorded when its pin was made.
+    pub limits: oss_ext::pin::ResolvedLimits,
+    /// How long a call waits for its reservation before it answers busy.
+    pub wait: Duration,
+}
+
 /// How a call is run.
 #[derive(Clone, Copy, Debug)]
 pub enum Run {
@@ -65,13 +76,15 @@ pub enum Run {
     Recorded(oss_ext::pin::ResolvedLimits),
     /// A replay: never refused by the gate.
     Replay(Replay),
+    /// A tail overlay build: the recorded limits, never refused by the gate.
+    Recovery(Recovery),
 }
 
 impl Run {
     fn effective(self, own: Effective) -> Effective {
         match self {
             Run::Live => own,
-            Run::Recorded(l) => Effective {
+            Run::Recorded(l) | Run::Recovery(Recovery { limits: l, .. }) => Effective {
                 fuel: l.fuel,
                 memory: l.memory_bytes,
                 deadline_ms: l.deadline_ms,
@@ -326,7 +339,9 @@ impl Module {
         }
         let eff = run.effective(self.effective);
         let (_permit, _hold) = match run {
-            Run::Replay(replay) => (None, self.reserve_within(eff, replay.wait)?),
+            Run::Replay(Replay { wait, .. }) | Run::Recovery(Recovery { wait, .. }) => {
+                (None, self.reserve_within(eff, wait)?)
+            }
             Run::Live | Run::Recorded(_) => {
                 let permit = self.gate.enter(tenant).ok_or_else(CallError::busy)?;
                 let hold = self

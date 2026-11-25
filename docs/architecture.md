@@ -93,7 +93,7 @@ lucene-rust, the engine and the only sibling project used as code, comes in belo
 | `oss-transport` | OpenSearch's native transport wire, spoken with Java nodes | [crates/transport](../crates/transport/README.md) |
 | `oss-cluster` | fleet membership by node leases, placement computed from them, and document routing | [crates/cluster](../crates/cluster/README.md) |
 | `oss-reader` | published-commit reads, page cache, query phase | [crates/reader](../crates/reader/README.md) |
-| `oss-writer` | node write log, segment build and upload, publish | [crates/writer](../crates/writer/README.md) |
+| `oss-writer` | node write log, segment build and upload, publish, and merging a shard's small segments behind a setting ([ADR 0059](adr/0059-the-writer-merges-a-shards-small-segments.md)) | [crates/writer](../crates/writer/README.md) |
 | `oss-janitor` | the cleanup role: reclaim segment blobs no commit names, behind a dry run | [crates/janitor](../crates/janitor/README.md) |
 | `oss-coordinator` | REST, routing, fan-out, reduce | [crates/coordinator](../crates/coordinator/README.md) |
 | `oss-node` | process wiring, role selection | [crates/node](../crates/node/README.md) |

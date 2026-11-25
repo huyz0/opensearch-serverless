@@ -112,14 +112,22 @@ impl WriterRole {
             .and_then(|o| o.as_ref().ok())
             .map_or(0, |w| w.seq_no);
         let appended_at = self.limiter_now();
-        let window = match self.committer.stage(slot.key(), slot.term(), &records) {
+        // The descriptor holds the fields the group added before its records
+        // are staged, so a reader never finds a document whose field it
+        // cannot map.
+        let staged_window = self.hold_growth(&mut slot, index).and_then(|()| {
+            self.committer
+                .stage(slot.key(), slot.term(), &records)
+                .map_err(|e| e.to_string())
+        });
+        let window = match staged_window {
             Ok(Some(window)) => window,
             Ok(None) => return outcomes,
             Err(e) => {
                 // The engine holds writes the log does not.
                 pipe.fail();
                 self.appended(appended_at, false);
-                refuse(&mut outcomes, &staged, &e.to_string());
+                refuse(&mut outcomes, &staged, &e);
                 if !pipe.busy() {
                     slot.release();
                     drop(slot);

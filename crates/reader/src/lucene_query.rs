@@ -20,7 +20,7 @@ use lucene_search::{
     TermQuery,
 };
 
-use crate::date;
+use crate::date_math;
 use crate::dsl::{BoolQuery, Operator, Query, Value};
 use crate::failure::{Failure, Meta};
 use crate::mapping::{FieldType, Mapping};
@@ -39,6 +39,9 @@ pub struct QueryContext<'a> {
     /// What analyses a pinned field's text; none on a node that cannot run a
     /// pin, which then refuses a query on such a field.
     pub pinned: Option<&'a dyn crate::pinned::PinnedTokens>,
+    /// The instant `now` in date math means; a date math `now` is refused
+    /// without one.
+    pub now_millis: Option<i64>,
 }
 
 /// The query `text` makes on the text field `field`: with the pin the field
@@ -241,7 +244,7 @@ pub(crate) fn term(cx: &QueryContext<'_>, field: &str, value: &Value) -> Result<
             let v = numbers::parse_long(value)?;
             point(PointRangeQuery::long_range(field, &[v], &[v]))?
         }
-        FieldType::Date => date_range(field, Some(value), Some(value), true, true)?,
+        FieldType::Date => date_range(cx, field, Some(value), Some(value), true, true)?,
         FieldType::Unsupported(_) => return Err(unsupported("this field type")),
     })
 }
@@ -257,6 +260,7 @@ pub(crate) fn point(q: lucene_search::Result<PointRangeQuery>) -> Result<Clause,
 
 /// `DateFieldType.rangeQuery` over the default format.
 fn date_range(
+    cx: &QueryContext<'_>,
     field: &str,
     from: Option<&Value>,
     to: Option<&Value>,
@@ -264,15 +268,13 @@ fn date_range(
     include_upper: bool,
 ) -> Result<Clause, Failure> {
     let lower = match from {
-        Some(v) => {
-            date::lower_bound(v.text(), include_lower).map_err(|e| e.into_failure(v.text()))?
-        }
+        Some(v) => date_math::lower_bound_at(v.text(), include_lower, cx.now_millis)
+            .map_err(|e| e.into_failure(v.text()))?,
         None => i64::MIN,
     };
     let upper = match to {
-        Some(v) => {
-            date::upper_bound(v.text(), include_upper).map_err(|e| e.into_failure(v.text()))?
-        }
+        Some(v) => date_math::upper_bound_at(v.text(), include_upper, cx.now_millis)
+            .map_err(|e| e.into_failure(v.text()))?,
         None => i64::MAX,
     };
     if lower > upper {
@@ -304,7 +306,7 @@ pub(crate) fn range(
             Some((l, u)) => point(PointRangeQuery::long_range(field, &[l], &[u])),
             None => Ok(match_none()),
         },
-        FieldType::Date => date_range(field, from, to, include_lower, include_upper),
+        FieldType::Date => date_range(cx, field, from, to, include_lower, include_upper),
         FieldType::Text | FieldType::Keyword | FieldType::Unsupported(_) => {
             // ALLOC: error path; one message.
             Err(unsupported(&format!(

@@ -25,6 +25,7 @@ struct Fake {
     ran: std::sync::Mutex<Vec<(String, u32)>>,
     wait: Duration,
     fail: Option<u16>,
+    now: std::sync::Mutex<Vec<Option<i64>>>,
 }
 
 impl Fake {
@@ -35,6 +36,7 @@ impl Fake {
             ran: std::sync::Mutex::default(),
             wait: Duration::ZERO,
             fail: None,
+            now: std::sync::Mutex::default(),
         }
     }
 }
@@ -52,10 +54,11 @@ impl Shards for Fake {
         &self,
         index: &str,
         shard: u32,
-        _: &SearchSource,
+        source: &SearchSource,
         reserve: &dyn Fn(usize) -> io::Result<()>,
     ) -> Result<Found, Box<SearchError>> {
         self.ran.lock().unwrap().push((index.to_owned(), shard));
+        self.now.lock().unwrap().push(source.now_millis);
         std::thread::sleep(self.wait);
         if let Some(status) = self.fail {
             return Err(Box::new(SearchError::request(
@@ -237,4 +240,19 @@ fn the_pool_gives_back_what_a_search_reserved() {
     let h = handler(Fake::held(), &fresh(), 10_000);
     assert!(ask(&h, &fixture("request.match_all"), WireVersion::SHELL).is_ok());
     assert_eq!(h.budget.in_use(Pool::QueryExecution), 0);
+}
+
+#[test]
+fn the_search_runs_at_the_instant_the_request_carries() {
+    let fake = Arc::new(Fake::held());
+    let h = shared(Arc::clone(&fake), &fresh(), 10_000);
+    let message = fixture("request.match_all");
+    let asked = oss_transport::actions::search_shard::Request::read(
+        &message,
+        &oss_transport::actions::search_shard::Bounds::DEFAULT,
+    )
+    .unwrap()
+    .now_millis;
+    ask(&h, &message, WireVersion::SHELL).unwrap();
+    assert_eq!(*fake.now.lock().unwrap(), vec![Some(asked)]);
 }

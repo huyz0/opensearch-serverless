@@ -14,10 +14,19 @@ The cause was not the refresh wait. A refresh the wait confirms publishes nothin
 
 Not changed: `FETCH_TIMEOUT`, the dead-writer rule, the wire format.
 
+## Change: a shard owned and not yet published
+
+The first lazy publish of a shard can still be in flight when a refresh and a count come, and a reader that finds the commit register missing for a shard whose head says it was taken answered 404 (it takes that for a lost register). A writer that lets groups of one shard wait together ([write-pipeline](../write-pipeline/SPEC.md)) starts that publish later in a long bulk, so the count after the first refresh failed at depth 8.
+
+- `ShardFiles::open_unpublished_with_meta` opens the empty commit, naming the head's owner as its writer, when the register is missing and the head names a live owner (not past its lease) for this incarnation of the index. Any other head, no head, or a bucketed index is the `NotFound` as before.
+- The node's open takes it only when an overlay source and the freshness check are installed, so a search then asks the owner for the tail the empty commit lacks, as for any commit.
+
 ## Acceptance criteria
+
 
 - AC-1: a string round-trips on the same bytes as before, ASCII or not, and an ASCII run cut short is refused.
 - AC-2: the first `_count` after a `_refresh` that follows a bulk of five 3 MiB documents counts all five.
+- AC-3: the same with `OSS_WRITE_PIPELINE_DEPTH` 8, where the first lazy publish starts late and the reader finds the shard owned with no commit register: it opens the empty commit naming the owner as writer, and asks the owner for the tail. A register missing under any other head is still the lost-register error.
 
 ## Test plan
 
@@ -25,7 +34,7 @@ AC-2, `crates/node/tests/refresh_large_tail.rs`, was red six runs of six before 
 
 ## S3 request budget
 
-Unchanged: no store request is added or removed; the change is in how bytes are encoded in memory.
+The string change adds or removes no store request. AC-3's change adds none to an open that finds a register; one that does not reads the head (one GET) as it did to decide the register was lost, then the descriptor and the head once more for the empty commit (five GETs in all, once an open). The empty commit answers a search only under a complete tail from the writer: a writer that does not answer, or whose tail has a gap because it has published (the register is lost), makes the search a 503 `shard_behind_exception`, never an empty 200.
 
 ## Switch
 

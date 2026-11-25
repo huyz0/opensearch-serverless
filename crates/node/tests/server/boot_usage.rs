@@ -102,3 +102,188 @@ fn an_index_created_with_a_bucket_group_bills_to_that_tenant() {
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
 }
+
+/// A module that follows the ABI and answers every call with the three bytes
+/// `abc`.
+#[cfg(feature = "extensions")]
+fn answering_module() -> Vec<u8> {
+    const DESCRIPTOR: &str = r#"{"name":"usage_test","version":"1.0.0","abi":"1.0","io_bytes":1024,"max_concurrent_calls":4,"points":[{"id":"echo","version":"1.0.0"}]}"#;
+    let escaped: String = DESCRIPTOR.bytes().map(|b| format!("\\{b:02x}")).collect();
+    wat::parse_str(format!(
+        r#"(module
+  (memory (export "memory") 4)
+  (data (i32.const 0) "{escaped}")
+  (data (i32.const 1000) "abc")
+  (func (export "oss_abi_version") (result i32) (i32.const 65536))
+  (func (export "oss_describe") (result i32)
+    (memory.copy (i32.const 131072) (i32.const 0) (i32.const {len})) (i32.const {len}))
+  (func (export "oss_input_region") (result i32) (i32.const 65536))
+  (func (export "oss_output_region") (result i32) (i32.const 131072))
+  (func (export "oss_result_len") (result i32) (i32.const 3))
+  (func (export "oss_call") (param i32 i32 i32) (result i32)
+    (memory.copy (i32.const 131072) (i32.const 1000) (i32.const 3)) (i32.const 0)))"#,
+        len = DESCRIPTOR.len()
+    ))
+    .expect("valid module")
+}
+
+// docs/specs/extension-analyzer AC-17: the counters are on the usage route
+#[cfg(feature = "extensions")]
+#[test]
+fn a_tenants_module_calls_appear_on_the_usage_route_of_a_running_node() {
+    let dir = TempDir::new("boot-usage-extensions");
+    let node = boot(dir.path(), Some("true"));
+    let before = call(&node, "GET", "/_serverless/usage", None).text();
+    assert!(
+        !before.contains("usage-route-tenant"),
+        "no calls yet for this tenant: {before}"
+    );
+    let module = oss_node::extension_host::host()
+        .load(
+            &answering_module(),
+            std::sync::Arc::new(oss_ext_wasm::Unbounded),
+        )
+        .expect("loads");
+    for _ in 0..3 {
+        assert_eq!(
+            module
+                .call("usage-route-tenant", 0, b"hello")
+                .expect("call"),
+            b"abc"
+        );
+    }
+    let body = call(&node, "GET", "/_serverless/usage", None).text();
+    let at = body
+        .find("\"usage-route-tenant\":{\"calls\":3,")
+        .unwrap_or_else(|| panic!("the tenant's counters are in the body: {body}"));
+    let counters = &body[at..];
+    assert!(
+        counters.contains("\"input_bytes\":15,\"output_bytes\":9}"),
+        "{counters}"
+    );
+}
+
+// docs/specs/tenant-cost-settings-update AC-1, AC-2, AC-3
+#[test]
+fn a_settings_update_moves_a_tenant_to_another_budget_at_once() {
+    let dir = TempDir::new("boot-tenant-budget");
+    let node = boot(dir.path(), Some("true"));
+    let made = call(
+        &node,
+        "PUT",
+        "/costly",
+        Some(r#"{"settings":{"index.serverless.cost.tier":"small"}}"#),
+    );
+    assert_eq!(made.status, 200, "{}", made.text());
+    let put = call(&node, "PUT", "/costly/_doc/1", Some(r#"{"n":1}"#));
+    assert_eq!(put.status, 201, "{}", put.text());
+    let budget_is = |wanted: &str| {
+        let started = std::time::Instant::now();
+        loop {
+            let body = call(&node, "GET", "/_serverless/usage", None).text();
+            if body.contains("\"costly\":{\"level\"") && body.contains(wanted) {
+                return;
+            }
+            assert!(started.elapsed().as_secs() < 10, "{wanted}: {body}");
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+    };
+    budget_is("\"budget_per_minute\":20,");
+    let update = |body: &str| call(&node, "PUT", "/costly/_settings", Some(body));
+    let moved = update(r#"{"index.serverless.cost.budget":"7"}"#);
+    assert_eq!(moved.status, 200, "{}", moved.text());
+    budget_is("\"budget_per_minute\":7,");
+    for bad in [
+        r#"{"index.serverless.cost.tier":"huge"}"#,
+        r#"{"index.serverless.cost.budget":"0"}"#,
+        r#"{"index.serverless.cost.budget":"lots"}"#,
+    ] {
+        let refused = update(bad);
+        assert_eq!(refused.status, 400, "{bad}: {}", refused.text());
+    }
+    let group = update(r#"{"index.serverless.bucket_group":"other"}"#);
+    assert_eq!(group.status, 501, "{}", group.text());
+    let cleared = update(r#"{"index.serverless.cost.budget":null}"#);
+    assert_eq!(cleared.status, 200, "{}", cleared.text());
+    budget_is("\"budget_per_minute\":20,");
+}
+
+/// One request on its own connection with extra request headers; the reply's
+/// head, lowercased, and its status.
+fn with_headers(node: &Node, method: &str, target: &str, extra: &str, body: &str) -> (u16, String) {
+    use std::io::{Read, Write};
+    let mut s = std::net::TcpStream::connect(node.addr()).expect("connects");
+    let head = format!(
+        "{method} {target} HTTP/1.1\r\nhost: test\r\nconnection: close\r\n{extra}content-type: application/json\r\ncontent-length: {}\r\n\r\n",
+        body.len()
+    );
+    s.write_all(head.as_bytes()).expect("sends");
+    s.write_all(body.as_bytes()).expect("sends");
+    let mut raw = Vec::new();
+    let mut chunk = [0u8; 8192];
+    loop {
+        match s.read(&mut chunk) {
+            Ok(0) | Err(_) => break,
+            Ok(n) => raw.extend_from_slice(&chunk[..n]),
+        }
+    }
+    let text = String::from_utf8_lossy(&raw).to_lowercase();
+    let status = text
+        .split(' ')
+        .nth(1)
+        .and_then(|s| s.parse().ok())
+        .expect("a status");
+    let head_end = text.find("\r\n\r\n").unwrap_or(text.len());
+    (status, text[..head_end].to_owned())
+}
+
+fn cost_of(head: &str) -> Option<&str> {
+    head.lines()
+        .find_map(|l| l.strip_prefix("x-opensearch-serverless-cost: "))
+}
+
+const ASK: &str = "x-opensearch-serverless-cost: report\r\n";
+
+// docs/specs/request-cost-header AC-1, AC-2, AC-3, AC-5
+#[test]
+fn a_request_that_asks_is_told_what_its_store_requests_cost() {
+    let dir = TempDir::new("boot-cost-header");
+    let node = boot(dir.path(), Some("true"));
+    assert_eq!(call(&node, "PUT", "/costs", None).status, 200);
+    let put = call(&node, "PUT", "/costs/_doc/1", Some(r#"{"n":1}"#));
+    assert_eq!(put.status, 201, "{}", put.text());
+    assert_eq!(call(&node, "POST", "/costs/_refresh", None).status, 200);
+    let (status, head) = with_headers(&node, "POST", "/costs/_search", ASK, "{}");
+    assert_eq!(status, 200, "{head}");
+    let value = cost_of(&head).unwrap_or_else(|| panic!("a cost header: {head}"));
+    assert!(
+        value.starts_with("get=") && value.contains(";bytes_read="),
+        "{value}"
+    );
+    assert!(value.ends_with(";node=n1;scope=node"), "{value}");
+    assert!(
+        !value.contains("units=0.000"),
+        "a search reads the store: {value}"
+    );
+    let (status, head) = with_headers(&node, "POST", "/costs/_search", "", "{}");
+    assert_eq!(status, 200, "{head}");
+    assert!(cost_of(&head).is_none(), "no ask, no header: {head}");
+    let msearch = "{\"index\":\"costs\"}\n{}\n";
+    let (status, head) = with_headers(&node, "POST", "/_msearch", ASK, msearch);
+    assert_eq!(status, 200, "{head}");
+    assert!(
+        cost_of(&head).is_none(),
+        "a streamed head carries none: {head}"
+    );
+}
+
+// docs/specs/request-cost-header AC-4
+#[test]
+fn a_node_with_store_usage_off_sends_no_cost_header() {
+    let dir = TempDir::new("boot-cost-header-off");
+    let node = boot(dir.path(), Some("false"));
+    assert_eq!(call(&node, "PUT", "/costs", None).status, 200);
+    let (status, head) = with_headers(&node, "POST", "/costs/_search", ASK, "{}");
+    assert_eq!(status, 200, "{head}");
+    assert!(cost_of(&head).is_none(), "{head}");
+}

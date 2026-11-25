@@ -125,9 +125,18 @@ fn measure(buckets: bool, grouped: bool) -> (Vec<u64>, Duration) {
 
 #[test]
 fn taking_over_small_indices_costs_fewer_requests_in_buckets() {
-    let (off, off_took) = measure(false, true);
-    let (on, on_took) = measure(true, true);
-    let (own, own_took) = measure(true, false);
+    // Three clusters of their own, each with its own store: side by side,
+    // the test takes as long as the slowest of them.
+    let ((off, off_took), (on, on_took), (own, own_took)) = std::thread::scope(|s| {
+        let off = s.spawn(|| measure(false, true));
+        let on = s.spawn(|| measure(true, true));
+        let own = measure(true, false);
+        (
+            off.join().expect("the buckets-off run"),
+            on.join().expect("the tenant-grouped run"),
+            own,
+        )
+    });
     show("takeover off      ", &off, off_took);
     show("takeover on, tenants", &on, on_took);
     show("takeover on, own group", &own, own_took);

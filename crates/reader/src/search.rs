@@ -102,6 +102,17 @@ pub struct Hits {
 }
 
 impl Hits {
+    /// Keeps the first `cap` hits and, with them, their explanations; the
+    /// total and the aggregations are not touched.
+    pub fn truncate(&mut self, cap: usize) {
+        self.hits.truncate(cap);
+        if self.explanations.len() > cap {
+            self.explanations.truncate(cap);
+        }
+    }
+}
+
+impl Hits {
     /// What the response writes the hits from.
     pub(crate) fn view(&self) -> crate::response::HitView<'_> {
         crate::response::HitView {
@@ -253,6 +264,7 @@ pub fn search_with<S: BlobStore + 'static>(
         max_doc: shard.reader.max_doc(),
         knn: None,
         pinned,
+        now_millis: source.now_millis,
     };
     let (knn, early) = crate::knn::prepare(shard, source.query.as_ref(), &cx)
         .map_err(|f| ShardError::bad_request(shard_failure(f, index, &meta.uuid)))?

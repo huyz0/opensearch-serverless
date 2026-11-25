@@ -85,6 +85,17 @@ pub(crate) fn register(
             .map_err(store_error)?;
     let router =
         crate::script_route::routes(router, &Arc::new(scripts)).map_err(AssembleError::Route)?;
+    let router = if config.search_pipelines {
+        let searching = crate::search_pipeline_route::SearchPipelines::open(
+            store,
+            &config.base,
+            oss_format::MAX_DOC_BYTES,
+        )
+        .map_err(store_error)?;
+        crate::search_pipeline_route::routes(router, &searching).map_err(AssembleError::Route)?
+    } else {
+        router
+    };
     if !config.ingest_pipelines {
         return Ok((router, state));
     }
@@ -143,6 +154,25 @@ fn plugin_routes(config: &Config, router: Router) -> Result<Router, AssembleErro
     Arc::new(proxy)
         .register(router)
         .map_err(AssembleError::Route)
+}
+
+/// Gives the search service the pipelines `?search_pipeline=` names, when
+/// the setting is on.
+pub(crate) fn search_pipelines<S: BlobStore + 'static>(
+    config: &crate::assemble::Config,
+    store: &Arc<dyn BlobStore>,
+    search: &crate::search::SearchService<S>,
+) -> Result<(), crate::assemble::AssembleError> {
+    if config.search_pipelines {
+        let pipelines = crate::search_pipeline_route::SearchPipelines::open(
+            store,
+            &config.base,
+            oss_format::MAX_DOC_BYTES,
+        )
+        .map_err(|e| crate::assemble::AssembleError::Store(e.to_string()))?;
+        search.set_search_pipelines(pipelines);
+    }
+    Ok(())
 }
 
 /// The pipelines writes run, when the setting is on.

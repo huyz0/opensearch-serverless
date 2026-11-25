@@ -258,17 +258,20 @@ pub(crate) struct LedgerTap(pub(crate) Arc<Ledger>);
 
 impl MeterTap for LedgerTap {
     fn request(&self, op: S3Op) {
+        crate::cost::add_request(op);
         self.0
             .charge(ONE_REQUEST, &|usage, n| usage.add_requests(op, n));
     }
 
     fn bytes_read(&self, n: u64) {
+        crate::cost::add_bytes_read(n);
         self.0.charge(n, &|usage, n| {
             usage.bytes_read.fetch_add(n, Ordering::Relaxed);
         });
     }
 
     fn bytes_written(&self, n: u64) {
+        crate::cost::add_bytes_written(n);
         self.0.charge(n, &|usage, n| {
             usage.bytes_written.fetch_add(n, Ordering::Relaxed);
         });

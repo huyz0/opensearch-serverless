@@ -9,6 +9,7 @@
 
 mod query;
 mod response;
+mod write;
 
 pub use query::{Limits, Node, Query, Value};
 pub use response::{Hit, MAX_BYTES, Response};

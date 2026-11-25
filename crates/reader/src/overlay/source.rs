@@ -126,6 +126,32 @@ pub trait CommitAccess: Send + Sync {
     }
 }
 
+/// Why a shard's overlay could not be built: a pinned analyzer's module call
+/// failed, which a search answers retryably instead of serving without the
+/// tail.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ExtensionRefusal {
+    /// `extension_busy` (capacity) or another `extension_*` type.
+    pub ty: &'static str,
+    /// What the module said.
+    pub reason: String,
+}
+
+impl ExtensionRefusal {
+    /// The refusal a failed build is, when a module call failed it.
+    #[must_use]
+    pub fn of(e: &BuildError) -> Option<Self> {
+        match e {
+            BuildError::Extension { ty, reason, .. } => Some(Self {
+                ty,
+                // ALLOC: one message on a failed build.
+                reason: reason.clone(),
+            }),
+            _ => None,
+        }
+    }
+}
+
 /// Where a node's searches get the overlay of a shard. A search never
 /// starts a build: the source answers with what is finished, or nothing.
 pub trait OverlaySource: Send + Sync {
@@ -152,6 +178,17 @@ pub trait OverlaySource: Send + Sync {
         _stage: &Stage,
         _commit: &Arc<dyn CommitAccess>,
     ) {
+    }
+
+    /// The module failure that stopped the latest build of this shard's
+    /// overlay, if one did. None by default.
+    fn extension_refusal(
+        &self,
+        _index_uuid: &str,
+        _shard: u32,
+        _stage: &Stage,
+    ) -> Option<ExtensionRefusal> {
+        None
     }
 
     /// The engine open on shard `shard` of `index_uuid` at `stage` let go:

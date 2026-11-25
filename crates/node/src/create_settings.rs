@@ -18,12 +18,16 @@ pub(crate) const DEFAULT_PIPELINE: &str = "index.default_pipeline";
 /// `index.final_pipeline`: the pipeline every write runs last.
 pub(crate) const FINAL_PIPELINE: &str = "index.final_pipeline";
 
-const READ: [&str; 5] = [
+/// `index.search.default_pipeline`: the pipeline a search that names none runs.
+pub(crate) const SEARCH_DEFAULT_PIPELINE: &str = "index.search.default_pipeline";
+
+const READ: [&str; 6] = [
     REFRESH_INTERVAL,
     PARTITION_SIZE,
     ROUTING_SHARDS,
     DEFAULT_PIPELINE,
     FINAL_PIPELINE,
+    SEARCH_DEFAULT_PIPELINE,
 ];
 
 /// Whether `key` is a setting a create reads or stores.
@@ -82,11 +86,13 @@ pub(crate) fn refuse_others(
 
 /// The checked values of the settings the node reads, for an index of
 /// `shards`; a null is dropped. The pipeline settings are accepted when
-/// `pipelines` says the node runs them. Sorted by key.
+/// `pipelines` says the node runs them, and the search default when `search`
+/// says it runs search pipelines. Sorted by key.
 pub(crate) fn checked(
     settings: &[(String, Option<String>)],
     shards: u32,
     pipelines: bool,
+    search: bool,
 ) -> Result<Vec<(String, String)>, RestError> {
     // ALLOC: at most three entries.
     let mut out: Vec<(String, String)> = Vec::new();
@@ -135,6 +141,19 @@ pub(crate) fn checked(
                     return Err(bad(format!("{key} must not be empty")));
                 }
             }
+            SEARCH_DEFAULT_PIPELINE => {
+                if !search {
+                    return Err(refuse(
+                        501,
+                        "unsupported_index_option",
+                        // ALLOC: error path; one message.
+                        format!("{key} is not supported: this node does not run search pipelines"),
+                    ));
+                }
+                if value.is_empty() {
+                    return Err(bad(format!("{key} must not be empty")));
+                }
+            }
             _ => {
                 if !crate::core_settings::check(key, value)? {
                     continue;
@@ -170,7 +189,7 @@ mod tests {
     fn the_three_are_kept_sorted_and_a_null_is_dropped() {
         let mut set = given(&[(ROUTING_SHARDS, "8"), (REFRESH_INTERVAL, "5s")]);
         set.push((PARTITION_SIZE.to_owned(), None));
-        let kept = checked(&set, 4, false).expect("valid");
+        let kept = checked(&set, 4, false, false).expect("valid");
         assert_eq!(
             kept,
             vec![
@@ -184,13 +203,13 @@ mod tests {
     fn a_refresh_interval_is_a_time_value_or_minus_one() {
         for good in ["1s", "500ms", "0", "-1"] {
             assert!(
-                checked(&given(&[(REFRESH_INTERVAL, good)]), 1, false).is_ok(),
+                checked(&given(&[(REFRESH_INTERVAL, good)]), 1, false, false).is_ok(),
                 "{good}"
             );
         }
         for bad in ["fast", "1", "-2", "1.5s", ""] {
             assert!(
-                checked(&given(&[(REFRESH_INTERVAL, bad)]), 1, false).is_err(),
+                checked(&given(&[(REFRESH_INTERVAL, bad)]), 1, false, false).is_err(),
                 "{bad}"
             );
         }
@@ -198,7 +217,8 @@ mod tests {
 
     #[test]
     fn the_partition_size_is_below_the_shard_count_or_one_for_one_shard() {
-        let size = |n: &str, shards| checked(&given(&[(PARTITION_SIZE, n)]), shards, false).is_ok();
+        let size =
+            |n: &str, shards| checked(&given(&[(PARTITION_SIZE, n)]), shards, false, false).is_ok();
         assert!(size("1", 1) && !size("2", 1) && !size("0", 1));
         assert!(size("1", 4) && size("3", 4) && !size("4", 4) && !size("0", 4));
         assert!(!size("x", 4));
@@ -207,7 +227,7 @@ mod tests {
     #[test]
     fn the_routing_shards_are_a_multiple_of_the_shard_count() {
         let routing =
-            |n: &str, shards| checked(&given(&[(ROUTING_SHARDS, n)]), shards, false).is_ok();
+            |n: &str, shards| checked(&given(&[(ROUTING_SHARDS, n)]), shards, false, false).is_ok();
         assert!(routing("4", 4) && routing("8", 4) && routing("1024", 4));
         assert!(!routing("2", 4) && !routing("6", 4) && !routing("0", 4) && !routing("x", 4));
     }

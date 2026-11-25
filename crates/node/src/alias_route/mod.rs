@@ -8,6 +8,7 @@ use std::borrow::Cow;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::metadata_block;
 use oss_doc::mapping::json::{Json, parse as parse_json};
 use oss_format::AliasRecord;
 use oss_meta::{AliasClock, AliasMutations, DescriptorStore, MetaError, PitClock, Target};
@@ -56,6 +57,11 @@ impl AliasService {
         }
     }
 
+    /// Refuses when any of `indices` holds the metadata block.
+    fn unblocked(&self, indices: &[&str]) -> Result<(), RestError> {
+        metadata_block::check_all(&self.descriptors, indices, self.buffer_bytes)
+    }
+
     fn mutate<R>(
         &self,
         req: &mut Request<'_>,
@@ -96,7 +102,10 @@ impl AliasService {
             alias,
             write,
         };
-        self.mutate(req, |m| apply(m, &change))?;
+        self.mutate(req, |m| {
+            self.unblocked(&[change.index.as_str()])?;
+            apply(m, &change)
+        })?;
         resp.send(200, JSON, ACK)
     }
 
@@ -109,7 +118,10 @@ impl AliasService {
             alias,
             write: None,
         };
-        self.mutate(req, |m| apply(m, &change))?;
+        self.mutate(req, |m| {
+            self.unblocked(&[change.index.as_str()])?;
+            apply(m, &change)
+        })?;
         resp.send(200, JSON, ACK)
     }
 
@@ -117,7 +129,9 @@ impl AliasService {
     pub fn actions(&self, req: &mut Request<'_>, resp: &mut Response<'_>) -> Result<(), RestError> {
         let body = read_body(req, MAX_BODY_BYTES, "the body is larger than 64 KiB")?;
         let changes = parse_actions(&body)?;
+        let named: Vec<&str> = changes.iter().map(|c| c.index.as_str()).collect();
         self.mutate(req, |m| {
+            self.unblocked(&named)?;
             for change in &changes {
                 apply(m, change)?;
             }

@@ -13,6 +13,8 @@ pub mod assemble;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod assemble_error;
 #[cfg(all(feature = "reader", feature = "writer"))]
+mod assemble_writer;
+#[cfg(all(feature = "reader", feature = "writer"))]
 pub mod boot;
 #[cfg(feature = "writer")]
 pub mod bulk_handler;
@@ -34,6 +36,8 @@ pub mod cluster_route;
 pub mod commit_push;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub(crate) mod core_settings;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod cost_header;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub(crate) mod create_settings;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
@@ -86,6 +90,8 @@ pub mod lease_age;
 pub mod lease_announce;
 #[cfg(feature = "writer")]
 pub mod lifecycle;
+#[cfg(all(feature = "writer", feature = "coordinator"))]
+pub(crate) mod metadata_block;
 #[cfg(feature = "writer")]
 pub mod newest;
 #[cfg(feature = "reader")]
@@ -124,6 +130,8 @@ pub mod script_route;
 pub mod search;
 #[cfg(feature = "reader")]
 pub mod search_modules;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod search_pipeline_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod search_queue;
 #[cfg(all(feature = "reader", feature = "writer"))]

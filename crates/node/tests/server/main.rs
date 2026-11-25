@@ -57,6 +57,8 @@ mod index_pins;
 mod index_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod ingest_run;
+#[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
+mod metadata_block;
 #[cfg(feature = "reader")]
 mod newest_ask;
 #[cfg(all(feature = "extensions", feature = "reader", feature = "writer"))]
@@ -76,6 +78,10 @@ mod rollover_route;
 mod rollover_shape;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod script_route;
+#[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
+mod search_default_pipeline_setting;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod search_pipeline_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod security_authn;
 #[cfg(all(feature = "reader", feature = "writer"))]

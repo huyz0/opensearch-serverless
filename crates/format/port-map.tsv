@@ -47,3 +47,10 @@ src/snapshot_state.rs	port	serverless/shell/src/main/java/org/opensearch/serverl
 src/snapshot_keys.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/repository/SnapshotPaths.java@bf347adb	repository, snapshot state and marker keys
 src/snapshot_write.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/repository/SnapshotRecord.java@bf347adb	toBytes, and SnapshotStore.encode for the register value
 src/restore_mark.rs	new		the setting a restore holds on an index while it copies; the shell has no such mark and leaves a half-restored index unmarked
+src/smile/mod.rs	new		the SMILE-to-JSON decoder for a stock repository's metadata, bounded; the Java has Jackson's SmileParser (a dependency there)
+src/smile/num.rs	new		SMILE's variable integers, floats, 7-bit binary, big numbers and base64
+src/stock/mod.rs	new		the envelope of a stock repository's metadata blobs (Lucene header, optional DFL deflate, footer CRC), read bounded; the Java has ChecksumBlobStoreFormat and CodecUtil
+src/stock/repository_data.rs	new		the index-N blob (RepositoryData) of a stock repository, read bounded and with every id checked before it joins a blob key; the Java has RepositoryData.snapshotsFromXContent
+src/stock/shard_snapshot.rs	new		the shard snapshot blob (snap-<uuid>.dat) of a stock repository, read bounded; the Java has BlobStoreIndexShardSnapshot and its FileInfo
+src/stock/index_metadata.rs	new		the index metadata blob (meta-<id>.dat) of a stock repository, read bounded to the settings, mapping and aliases a restore uses; the Java has IndexMetadata.fromXContent
+src/stock/native_index.rs	new		the stock index as the native restore's inputs (shard count, mapping, kept settings); no Java counterpart, the shell restores a stock index through IndexMetadata

@@ -24,6 +24,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
+  actions: read
   contents: read
   pull-requests: write
 
@@ -34,13 +35,20 @@ env:
   CARGO_PROFILE_DEV_DEBUG: "0"
   CARGO_PROFILE_TEST_DEBUG: "0"
   RUST_BACKTRACE: "1"
+  # Every test process, and so every mutant's, has a cap on its memory: a
+  # mutant that loops while it allocates fails its own test instead of
+  # killing the runner (scripts/memcap-runner.sh).
+  CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: ${{ github.workspace }}/scripts/memcap-runner.sh
 
 jobs:
   ci:
     # Drafts cost nothing until they are marked ready.
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # A cold cache (a root manifest change) rebuilds every dependency: about 6
+    # extra minutes before the tests step. The mutants step has its own 7 minute
+    # cap (MUTANTS_TIME), and nextest kills a hung test after 10.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
@@ -89,6 +97,15 @@ jobs:
           fi
           exit $rc
 
+      # A text-only run proves nothing about the code, and reports the same
+      # check name as the code run on this commit: it passes only if a code
+      # run on the commit passed every step (scripts/ci-code-run.py).
+      - name: code run on this commit (text edits only)
+        if: github.event_name == 'pull_request' && steps.changes.outputs.text_only == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/ci-code-run.py "$GITHUB_REPOSITORY" "${{ github.event.pull_request.head.sha }}" "$GITHUB_RUN_ID"
+
       - name: commit messages
         if: github.event_name == 'pull_request' && steps.changes.outputs.text_only == 'false'
         env:
@@ -110,10 +127,15 @@ jobs:
         if: steps.changes.outputs.rust == 'true' && steps.changes.outputs.text_only == 'false'
         run: rustup show
 
-      # Only main writes the cache, so PR branches cannot fill the 10 GB.
+      # Only main writes the cache, so PR branches cannot fill the 10 GB. The
+      # action's key hashes the crates' manifests and Cargo.lock but not the
+      # root manifest, whose [profile] tables change every compiled artifact:
+      # without `key`, a profile change hit the old cache exactly, rebuilt the
+      # engine crates in every run, and never saved the new build.
       - uses: Swatinem/rust-cache@v2
         if: steps.changes.outputs.rust == 'true' && steps.changes.outputs.text_only == 'false'
         with:
+          key: root-${{ hashFiles('Cargo.toml') }}
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
       # lucene-rust's build script downloads its data jars (hash-pinned) from
@@ -173,3 +195,9 @@ jobs:
         env:
           MUTANTS_IN_PLACE: "1"
         run: MUTANTS_BASE=origin/${{ github.base_ref }} scripts/mutants.sh --pr
+
+      # Last, and only when every step above passed: what ci-code-run.py looks
+      # for in a text-only run's wake.
+      - name: code checked
+        if: steps.changes.outputs.text_only == 'false'
+        run: echo "every step passed"

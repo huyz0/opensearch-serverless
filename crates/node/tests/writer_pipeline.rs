@@ -16,6 +16,7 @@ use oss_blob::emulator::faults::Latency;
 use oss_blob::{BlobStore, S3Op};
 use oss_format::WalRecord;
 use oss_node::writer::{TailSink, Takeover};
+use oss_testkit::budget;
 use oss_writer::bulk::ItemResult;
 use oss_writer::index::Outcome;
 use support::*;
@@ -91,7 +92,11 @@ fn groups_in_flight_together_all_land_in_one_put() {
         "four groups took {:?}",
         started.elapsed()
     );
-    assert!(puts(&c) - before <= 4);
+    budget::check(
+        "write.pipelined.requests",
+        puts(&c) - before,
+        "four groups of one shard at depth 8",
+    );
     let mut seqs: Vec<i64> = results.iter().map(seq).collect();
     seqs.sort_unstable();
     assert_eq!(seqs, [1, 2, 3, 4], "each its own number");
@@ -214,4 +219,141 @@ fn a_panic_while_acknowledging_fails_the_slot_and_hangs_nothing() {
     });
     assert_eq!(tries.load(Ordering::Relaxed), 3, "every thread came out");
     assert!(!one.role.held("u1", 0), "the slot was released");
+}
+
+// AC-9
+#[test]
+fn a_refresh_while_groups_are_in_flight_waits_for_them_and_returns() {
+    let (_c, one) = rig(8);
+    let finished = Arc::new(AtomicUsize::new(0));
+    let writers: Vec<_> = (0..3)
+        .map(|n| {
+            let role = Arc::clone(&one.role);
+            let finished = Arc::clone(&finished);
+            std::thread::spawn(move || {
+                let result = write(&role, &format!("r{n}"));
+                finished.fetch_add(1, Ordering::SeqCst);
+                result
+            })
+        })
+        .collect();
+    std::thread::sleep(PUT / 3);
+    assert_eq!(
+        finished.load(Ordering::SeqCst),
+        0,
+        "still waiting for the log"
+    );
+    let asked = Instant::now();
+    one.role.refresh_owned(&info(), 0).expect("refreshes");
+    // The publish waited for the window the groups were in, about what was
+    // left of its PUT.
+    assert!(asked.elapsed() >= PUT / 2, "{:?}", asked.elapsed());
+    let results: Vec<_> = writers
+        .into_iter()
+        .map(|h| h.join().expect("ends"))
+        .collect();
+    assert!(results.iter().all(landed), "{results:?}");
+}
+
+// AC-10
+#[test]
+fn a_refresh_after_a_failed_window_does_not_hang_and_the_shard_goes_on() {
+    let (c, one) = rig(8);
+    c.store.fail_next(S3Op::Put, 1);
+    let writers: Vec<_> = (0..3)
+        .map(|n| {
+            let role = Arc::clone(&one.role);
+            std::thread::spawn(move || write(&role, &format!("f{n}")))
+        })
+        .collect();
+    std::thread::sleep(PUT / 3);
+    // Ok or an error is both fine: it must come back, and publish nothing
+    // unlogged.
+    let _ = one.role.refresh_owned(&info(), 0);
+    for h in writers {
+        assert!(!landed(&h.join().expect("ends")));
+    }
+    c.store.set_latency(S3Op::Put, Latency::default());
+    let again = (0..3).any(|_| landed(&write(&one.role, "after")));
+    assert!(again, "the shard takes writes again");
+}
+
+// AC-11
+#[test]
+fn a_depth_of_two_bounds_the_groups_of_a_shard_in_flight() {
+    let (c, one) = rig(2);
+    let before = puts(&c);
+    let results = together(&one, &["a", "b", "c", "d", "e", "f"]);
+    assert!(results.iter().all(landed), "{results:?}");
+    // Six groups, two at a time: at least three windows one after another.
+    let windows = puts(&c) - before;
+    assert!(
+        windows >= 3,
+        "{windows} PUTs: depth 2 held six groups together"
+    );
+}
+
+// AC-12
+#[test]
+fn a_node_that_takes_over_after_a_pipelined_node_keeps_every_acknowledged_write() {
+    let (c, one) = rig(8);
+    let results = together(&one, &["a", "b", "c", "d"]);
+    assert!(results.iter().all(landed), "{results:?}");
+    let top = results.iter().map(seq).max().expect("some");
+    let calls = Arc::new(AtomicUsize::new(0));
+    let take = takeover(&c, &one, &calls);
+    c.store.set_latency(S3Op::Put, Latency::default());
+    let two = node(&c, "node-2", 2, true, Some(take));
+    // Every acknowledged write is found again, and the next number is past
+    // the highest acknowledged.
+    for id in ["a", "b", "c", "d"] {
+        match write(&two.role, id) {
+            ItemResult::Written { written, .. } => {
+                assert_eq!(written.outcome, Outcome::Updated, "{id} was kept");
+                assert!(written.seq_no > top, "{id} numbered past {top}");
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+}
+
+/// Records the first sequence number of each acknowledged group, in the
+/// order the sink was called.
+struct Records(Mutex<Vec<i64>>);
+
+impl TailSink for Records {
+    fn acked(&self, _: &str, _: &str, _: u32, records: &[WalRecord<'static>]) {
+        if let Some(first) = records.first() {
+            self.0.lock().expect("lock").push(first.seq_no());
+        }
+    }
+    fn published(&self, _: &str, _: u32, _: i64) {}
+    fn released(&self, _: &str, _: u32) {}
+}
+
+// AC-13
+#[test]
+fn groups_are_acknowledged_to_the_tail_in_sequence_order() {
+    let (_c, one) = rig(8);
+    let seen = Arc::new(Records(Mutex::new(Vec::new())));
+    assert!(one.role.set_tail_sink(seen.clone()));
+    let results = together(&one, &["a", "b", "c", "d", "e", "f"]);
+    assert!(results.iter().all(landed), "{results:?}");
+    let order = seen.0.lock().expect("lock").clone();
+    assert_eq!(order.len(), 6, "every group reached the tail: {order:?}");
+    assert!(order.windows(2).all(|w| w[0] < w[1]), "in order: {order:?}");
+}
+
+// AC-14
+#[test]
+fn at_the_largest_depth_sixty_four_groups_land_each_with_its_own_number() {
+    let (_c, one) = rig(64);
+    let ids: Vec<String> = (0..64).map(|n| format!("m{n}")).collect();
+    let refs: Vec<&str> = ids.iter().map(String::as_str).collect();
+    let results = together(&one, &refs);
+    assert!(results.iter().all(landed), "{results:?}");
+    let mut seqs: Vec<i64> = results.iter().map(seq).collect();
+    seqs.sort_unstable();
+    assert_eq!(seqs, (1..=64).collect::<Vec<i64>>(), "dense, none twice");
+    assert_eq!(one.role.max_seq_no("u1", 0), 64);
 }

@@ -147,3 +147,68 @@ fn a_bucketed_index_with_no_bucket_manifest_is_an_error() {
         "{err}"
     );
 }
+
+fn put_owned_head<S: oss_blob::BlobStore>(store: &PooledStore<S>, uuid: &str, lease: i64) {
+    let head = ShardHead {
+        index: NAME.into(),
+        shard: 0,
+        term: 3,
+        owner_node_id: Some("writer-1".into()),
+        owner_ephemeral_id: Some("e1".into()),
+        lease_expires_at_millis: lease,
+        index_uuid: Some(uuid.into()),
+        writers: Vec::new(),
+    };
+    put(
+        store,
+        &oss_cluster::heads::shard_head_key(BASE, NAME, 0),
+        &register(&head.to_bytes().expect("head")),
+    );
+}
+
+const NOW: i64 = 1_000;
+
+// docs/specs/refresh-large-tail AC-3
+#[test]
+fn a_shard_owned_and_not_yet_published_opens_empty_with_its_owner_as_writer() {
+    let store = store_with_fixtures();
+    describe(&store, None);
+    put_owned_head(&store, "never-uuid", NOW + 1);
+    let (files, meta) =
+        ShardFiles::open_unpublished_with_meta(&store, BASE, NAME, 0, NOW).expect("opens");
+    assert_eq!(files.len(), 1, "the one empty commit");
+    assert_eq!(files.stage().writer(), Some("writer-1"));
+    assert_eq!(meta.uuid, "never-uuid");
+}
+
+// docs/specs/refresh-large-tail AC-3
+#[test]
+fn an_owner_whose_lease_ran_out_or_an_earlier_index_or_no_head_is_not_found() {
+    let store = store_with_fixtures();
+    describe(&store, None);
+    let lost = |store: &_| {
+        matches!(
+            ShardFiles::open_unpublished_with_meta(store, BASE, NAME, 0, NOW),
+            Err(ReaderError::Blob(oss_blob::BlobError::NotFound))
+        )
+    };
+    assert!(lost(&store), "no head");
+    put_owned_head(&store, "never-uuid", NOW);
+    assert!(lost(&store), "the lease ended at now");
+    put_owned_head(&store, "an-earlier-uuid", NOW + 1);
+    assert!(lost(&store), "another incarnation");
+    put_head(&store, "never-uuid");
+    assert!(lost(&store), "released");
+}
+
+// docs/specs/refresh-large-tail AC-3
+#[test]
+fn a_bucketed_index_is_not_found_when_asked_for_an_unpublished_commit() {
+    let store = store_with_fixtures();
+    describe(&store, Some(BUCKET));
+    put_owned_head(&store, "never-uuid", NOW + 1);
+    assert!(matches!(
+        ShardFiles::open_unpublished_with_meta(&store, BASE, NAME, 0, NOW),
+        Err(ReaderError::Blob(oss_blob::BlobError::NotFound))
+    ));
+}

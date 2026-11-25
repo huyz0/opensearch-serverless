@@ -84,7 +84,7 @@ src/search_validate.rs	port	server/src/main/java/org/opensearch/rest/action/admi
 src/writer/dead_logs.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/shard/ShardSettlement.java	collectNodeLog reads: the fenced epochs, the shard names in the headers, the commit checkpoint
 src/search_field_caps.rs	port	server/src/main/java/org/opensearch/rest/action/admin/indices/RestFieldCapabilitiesAction.java	_field_caps over named indices: type, searchable and aggregatable per field, merged by type
 src/writer/dead_log_pass.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/reconcile/BackgroundReconciler.java	which dead nodes a node reaps, the collection pass over them and the wait that backs off
-src/search_msearch.rs	port	server/src/main/java/org/opensearch/rest/action/search/RestMultiSearchAction.java	_msearch: header and body lines streamed, each search run as its line ends, items written as they finish
+src/search_msearch.rs	port	server/src/main/java/org/opensearch/rest/action/search/RestMultiSearchAction.java	_msearch and _msearch/template: header and body lines streamed, each search run as its line ends, items written as they finish
 src/search_analyze.rs	port	server/src/main/java/org/opensearch/action/admin/indices/analyze/TransportAnalyzeAction.java	_analyze: simpleAnalyze over the standard and keyword analyzers, positions and offsets across texts
 src/index_cache.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/metadata/ServerlessIndexResolver.java	the routing cache of an index, confirmed by the change stripes
 src/boot/support.rs	new		the store a configuration names, the epochs an earlier process left and the id bytes of a node
@@ -187,7 +187,7 @@ src/rollover_route/count.rs	new		the document count `max_docs` asks of the old i
 src/rollover_route/render.rs	new		the body of a rollover answer as core renders it
 src/script_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/StoredScriptHandler.java	the put, get and delete routes over the scripts document set; the Java compiles a script at put, this node stores it uncompiled and refuses a named context
 src/boot/config/tests/proactive.rs	new		tests for the proactive takeover reaper switch
-src/settings_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/indexadmin/SettingsUpdateHandler.java	the update of one index: the registry behind the coordinator's decisions, the descriptor swap and the settings version; blocks and result window refused until implemented; no all-indices form yet
+src/settings_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/indexadmin/SettingsUpdateHandler.java	the update of one index: the registry behind the coordinator's decisions, the descriptor swap and the settings version; the all-indices form is the second route
 src/extension_modules.rs	new		the analyzers an index's pins name, loaded once a distinct module when a shard opens, called under the recorded limits or a replay's
 tests/extension_modules.rs	new		tests of the open-time load, the recorded limits and the replay stretch
 tests/roles/writer_opener_pins.rs	new		tests of a writer opening the shard of an index that pins analyzer modules
@@ -212,3 +212,10 @@ src/boot/config/tests/vector_warm.rs	new		tests of the vector warm variable
 src/usage_extensions.rs	new		what each tenant's extension module calls cost, in the usage body
 src/boot/edge.rs	new		starts the HTTP/2 front beside the HTTP/1.1 server; the Java transports serve HTTP/2 themselves
 src/boot/config/edge.rs	new		OSS_EDGE_* settings of the HTTP/2 front
+src/metadata_block.rs	new		the index.blocks.metadata check shared by the settings, alias and delete routes
+src/assemble_writer.rs	new		the Writer struct, moved out of assemble.rs for its size
+src/search_pipeline_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/SearchPipelineHandler.java	put, get and delete routes over the document set; the stored pipeline a search names is read here
+src/search_pipeline_run.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/SearchPlanner.java	the search_pipeline parameter: pipeline_missing, _none, the request side before the search
+src/writer/merging.rs	new		the node gate and settings for merging a shard small segments: one merge at a time inside a memory reservation (ADR 0059)
+src/writer/configure.rs	new		what the node configuration sets on the writer role, split out of assembly to keep it under the size limit
+src/cost_header.rs	new		the cost header value of a request that asked (ADR 0061); the shell has none

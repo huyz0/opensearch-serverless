@@ -108,6 +108,30 @@ pub struct SearchSource {
     pub highlight: Option<HighlightSpec>,
     /// `pit`: the point in time the search runs on.
     pub pit: Option<PitRef>,
+    /// Set by a search pipeline's `truncate_hits`: the hits answered are
+    /// cut to this many. The search itself still asks for `size`.
+    pub response_size_cap: Option<usize>,
+    /// `search_pipeline`: the stored pipeline the body names.
+    pub search_pipeline: Option<String>,
+    /// The instant `now` in date math means: set by a caller that has one
+    /// (a forwarded search carries its coordinator's), none otherwise, and a
+    /// `now` in a range is then refused.
+    pub now_millis: Option<i64>,
+}
+
+impl SearchSource {
+    /// This source, or the refusal a body gets where no search pipeline runs
+    /// (a by-query search, a rendered template).
+    ///
+    /// # Errors
+    ///
+    /// [`DslError`] when the body names a `search_pipeline`.
+    pub fn refuse_pipeline(self) -> Result<Self, DslError> {
+        match self.search_pipeline {
+            Some(_) => Err(unsupported("search_pipeline")),
+            None => Ok(self),
+        }
+    }
 }
 
 impl Default for SearchSource {
@@ -135,6 +159,9 @@ impl Default for SearchSource {
             seq_no_primary_term: false,
             highlight: None,
             pit: None,
+            response_size_cap: None,
+            search_pipeline: None,
+            now_millis: None,
         }
     }
 }
@@ -234,6 +261,10 @@ impl SearchSource {
             "track_scores" => self.track_scores = bool_value(p)?,
             "version" => self.version = bool_value(p)?,
             "seq_no_primary_term" => self.seq_no_primary_term = bool_value(p)?,
+            "search_pipeline" if kind == Kind::String && !p.text().is_empty() => {
+                // ALLOC: one id, bounded by the recorded body.
+                self.search_pipeline = Some(p.text().to_owned());
+            }
             known if VALUE_KEYS.contains(&known) => return Err(unsupported(known)),
             _ => return Err(unknown_key(p, kind, name)),
         }
