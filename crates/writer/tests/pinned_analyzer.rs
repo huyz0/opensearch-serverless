@@ -102,3 +102,81 @@ fn a_failure_is_typed_by_what_a_caller_can_do() {
         assert_eq!(e.ty, ty);
     }
 }
+
+/// One token a word, upper-cased, with the word's own offsets.
+struct Words;
+
+impl Analyze for Words {
+    fn analyze(&self, text: &str) -> Result<Vec<Token>, CallError> {
+        let mut out = Vec::new();
+        let mut at = 0_u32;
+        for word in text.split(' ') {
+            let n = u32::try_from(word.encode_utf16().count()).expect("small");
+            if n > 0 {
+                out.push(Token {
+                    term: word.to_uppercase(),
+                    start: at,
+                    end: at + n,
+                    increment: 1,
+                });
+            }
+            at += n + 1;
+        }
+        Ok(out)
+    }
+}
+
+const SOURCES: [&str; 4] = [
+    r#"{"t":"the quick brown fox"}"#,
+    r#"{"t":"jumps over the lazy dog"}"#,
+    r#"{"t":"quick quick quick"}"#,
+    r#"{"t":"the end"}"#,
+];
+
+fn terms_of(dir: &ByteBuffersDirectory) -> Vec<(String, i32)> {
+    let reader = DirectoryReader::open(dir).expect("open");
+    let seg = &reader.segment_readers()[0];
+    [
+        "THE", "QUICK", "BROWN", "FOX", "JUMPS", "OVER", "LAZY", "DOG", "END", "the", "quick",
+    ]
+    .iter()
+    .map(|t| {
+        (
+            (*t).to_owned(),
+            seg.doc_freq("t", t.as_bytes()).expect("freq"),
+        )
+    })
+    .collect()
+}
+
+// docs/specs/extension-analyzer AC-12: replay reproduces what the live write indexed
+#[test]
+fn a_replay_indexes_the_same_terms_as_the_live_write() {
+    let live_dir = ByteBuffersDirectory::new();
+    let mut live = shard(&live_dir, Arc::new(Words));
+    for (n, source) in SOURCES.iter().enumerate() {
+        live.index(
+            &format!("d{n}"),
+            source.as_bytes(),
+            false,
+            &Expect::default(),
+        )
+        .expect("indexed");
+    }
+    live.refresh().expect("refresh");
+
+    let replay_dir = ByteBuffersDirectory::new();
+    let mut replayed = shard(&replay_dir, Arc::new(Words));
+    for (n, source) in SOURCES.iter().enumerate() {
+        let seq = i64::try_from(n).expect("small");
+        let record =
+            oss_format::WalRecord::index(format!("d{n}"), (*source).to_owned(), seq, 1, seq + 1);
+        assert!(replayed.replay(&record).expect("replayed"));
+    }
+    replayed.refresh().expect("refresh");
+
+    let (a, b) = (terms_of(&live_dir), terms_of(&replay_dir));
+    assert_eq!(a, b, "the same documents frequency for every term");
+    assert_eq!(a.iter().find(|t| t.0 == "QUICK").expect("term").1, 2);
+    assert_eq!(a.iter().find(|t| t.0 == "quick").expect("term").1, 0);
+}
