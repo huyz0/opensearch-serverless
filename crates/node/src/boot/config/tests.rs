@@ -74,7 +74,7 @@ fn proactive_takeover_is_on_with_the_settings_defaults_and_each_is_read() {
             c.proactive_max_concurrent,
             c.proactive_pass_millis
         ),
-        (2, 4, 30_000)
+        (2, 16, 60_000)
     );
     let on = NodeConfig::from_lookup(lookup(&with(&[
         ("OSS_PROACTIVE_TAKEOVER", "true"),
