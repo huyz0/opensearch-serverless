@@ -407,3 +407,36 @@ fn an_owner_that_is_the_writer_is_not_asked_twice() {
     assert!(!ensure(&r, 5).0);
     assert_eq!(r.fetcher.writers.lock().unwrap().len(), 1);
 }
+
+// A writer that staged the commit is gone and the head names the node that
+// took the shard: that node, not the dead one, knows what was acknowledged.
+#[test]
+fn a_dead_writer_with_a_live_owner_sends_the_search_to_the_owner() {
+    let r = rig_owner("taker");
+    let mut answers = r.fetcher.answers.lock().unwrap();
+    answers.push(None);
+    answers.push(answer(NONE, false, 9));
+    drop(answers);
+    assert!(!ensure(&r, 5).0, "the owner's claim is past the commit");
+    assert_eq!(*r.fetcher.writers.lock().unwrap(), [W, "taker"]);
+    assert_eq!(r.fresh.counts().1, 1);
+}
+
+#[test]
+fn a_dead_writer_and_an_owner_within_the_commit_let_the_search_answer() {
+    let r = rig_owner("taker");
+    let mut answers = r.fetcher.answers.lock().unwrap();
+    answers.push(None);
+    answers.push(answer(NONE, false, 5));
+    drop(answers);
+    assert!(ensure(&r, 5).0);
+    assert_eq!(*r.fetcher.writers.lock().unwrap(), [W, "taker"]);
+}
+
+#[test]
+fn a_dead_writer_that_is_also_the_owner_is_not_asked_again() {
+    let r = rig_owner(W);
+    r.fetcher.answers.lock().unwrap().push(None);
+    assert!(ensure(&r, 5).0);
+    assert_eq!(r.fetcher.writers.lock().unwrap().len(), 1);
+}
