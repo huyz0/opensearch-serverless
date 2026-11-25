@@ -24,12 +24,14 @@ pub mod guard;
 pub mod meter;
 pub mod op;
 pub mod pooled;
+pub mod read_only;
 pub mod register;
 #[cfg(feature = "emulator")]
 mod rounds;
 pub mod s3;
 pub mod settings;
 mod shared;
+pub mod source_roots;
 pub mod store;
 pub mod usage;
 mod usage_store;
@@ -42,6 +44,7 @@ pub use fs::FsStore;
 pub use meter::Meter;
 pub use op::{PriceClass, S3Op};
 pub use pooled::PooledStore;
+pub use read_only::ReadOnlyStore;
 pub use register::{RegisterRead, SwapOutcome};
 #[cfg(feature = "emulator")]
 pub use rounds::Rounds;
@@ -50,6 +53,7 @@ pub use s3::sigv4::Credentials;
 pub use s3::{S3Config, S3Store};
 pub use settings::StoreSettings;
 pub use shared::Shared;
+pub use source_roots::{RootError, SourceRoots};
 pub use store::{
     BlobStore, ByteRange, CreateOutcome, GetOutcome, ListPage, MAX_DELETE_KEYS, MAX_KEY_BYTES,
     MAX_LIST_KEYS, ObjectMeta,

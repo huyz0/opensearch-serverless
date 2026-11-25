@@ -40,3 +40,5 @@ src/usage_store.rs	port	serverless/shell/src/main/java/org/opensearch/serverless
 src/guard/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/usage/Guardrails.java@feature/serverlessshell	levels from cost against a budget (tick, step, level, set levels); no clock, no settings, the caller names both
 src/guard/pace.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/usage/Guardrails.java@feature/serverlessshell	paceWrite: a token bucket of documents at the rate the budget allows; the caller sleeps
 src/cost.rs	new		the counters and thread scope of one request's store requests (ADR 0061); the shell has no per-request cost
+src/read_only.rs	new		a store that answers every write, delete and listing with an error: the source of a stock snapshot restore; the shell reads a stock repository through its own BlobStoreRepository
+src/source_roots.rs	new		the operator allow-lists of directories and bucket/prefix roots a stock restore may read, and the refusal of this deployment's own bucket; no Java counterpart
