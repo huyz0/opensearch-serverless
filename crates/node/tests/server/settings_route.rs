@@ -97,7 +97,9 @@ fn a_refused_update_changes_nothing() {
         (r#"{"index.codec":"best_compression"}"#, 501),
         (r#"{"index.blocks.read":true}"#, 501),
         (r#"{"index.blocks.write":"yes"}"#, 400),
-        (r#"{"index.max_result_window":50}"#, 501),
+        (r#"{"index.max_result_window":10001}"#, 400),
+        (r#"{"index.max_result_window":0}"#, 400),
+        (r#"{"index.max_result_window":"x"}"#, 400),
         ("", 400),
     ] {
         let reply = call(&r, "PUT", "/a/_settings", Some(body));
@@ -165,4 +167,33 @@ fn a_write_block_set_through_the_route_is_what_a_bulk_reads_and_false_lifts_it()
     let off = r#"{"index.blocks.read_only_allow_delete":false}"#;
     assert_eq!(call(&r, "PUT", "/a/_settings", Some(off)).status, 200);
     assert_eq!(block(), WriteBlock::None);
+}
+
+// docs/specs/index-max-result-window AC-5, AC-6
+#[test]
+fn a_result_window_is_stored_where_the_reader_reads_it() {
+    let r = rig();
+    let reply = call(
+        &r,
+        "PUT",
+        "/a/_settings",
+        Some(r#"{"index.max_result_window":50}"#),
+    );
+    assert_eq!(reply.status, 200, "{}", reply.text());
+    let settings = oss_format::ClusterSettings::parse(stored(&r).0.as_bytes()).expect("parses");
+    assert_eq!(
+        settings.get("index.max_result_window"),
+        Some(&oss_format::Setting::Value("50".into()))
+    );
+    // The node's ceiling here is the reader's.
+    let at = format!(
+        r#"{{"index.max_result_window":{}}}"#,
+        oss_reader::search::MAX_RESULT_WINDOW
+    );
+    assert_eq!(call(&r, "PUT", "/a/_settings", Some(&at)).status, 200);
+    let over = format!(
+        r#"{{"index.max_result_window":{}}}"#,
+        oss_reader::search::MAX_RESULT_WINDOW + 1
+    );
+    assert_eq!(call(&r, "PUT", "/a/_settings", Some(&over)).status, 400);
 }

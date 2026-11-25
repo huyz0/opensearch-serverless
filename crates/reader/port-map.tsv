@@ -209,3 +209,4 @@ src/search_error.rs	new		ShardError, moved out of search.rs
 src/mapping_tests.rs	new		tests of mapping.rs
 src/pin_settings.rs	new		the analyzer pins an index's settings hold
 src/vector_warm.rs	new		reads the vector files of every segment in one batch at the first knn search; Lucene mmaps and leaves it to the OS
+src/result_window.rs	new		the per-index result window read from the descriptor settings; core reads it from its index settings

@@ -13,16 +13,16 @@ fn refused(reason: String) -> ShardError {
     ShardError::bad_request(Failure::plain("illegal_argument_exception", reason))
 }
 
-/// `index.max_result_window`: refuses a window of `from + size` hits past it.
-pub(crate) fn check_window(window: usize) -> Result<(), ShardError> {
-    use crate::search::MAX_RESULT_WINDOW;
-    if window > MAX_RESULT_WINDOW {
+/// `index.max_result_window`: refuses a window of `from + size` hits past
+/// `limit`, the index's own.
+pub(crate) fn check_window(window: usize, limit: usize) -> Result<(), ShardError> {
+    if window > limit {
         return Err(ShardError::bad_request(Failure::plain(
             "illegal_argument_exception",
             // ALLOC: error path; one message.
             format!(
                 "Result window is too large, from + size must be less than or equal to: \
-                 [{MAX_RESULT_WINDOW}] but was [{window}]. See the scroll api for a more \
+                 [{limit}] but was [{window}]. See the scroll api for a more \
                  efficient way to request large data sets. This limit can be set by changing \
                  the [index.max_result_window] index level setting."
             ),
@@ -71,4 +71,24 @@ pub(crate) fn check(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::check_window;
+
+    // docs/specs/index-max-result-window AC-2, AC-3
+    #[test]
+    fn a_window_past_the_indexs_limit_is_refused_naming_that_limit() {
+        assert!(check_window(50, 50).is_ok());
+        let e = check_window(51, 50).expect_err("refused");
+        let reason = e.failure.reason;
+        assert!(
+            reason.contains("less than or equal to: [50] but was [51]"),
+            "{reason}"
+        );
+        assert!(reason.contains("[index.max_result_window]"), "{reason}");
+        assert!(check_window(10_000, 10_000).is_ok());
+        assert!(check_window(10_001, 10_000).is_err());
+    }
 }
