@@ -28,6 +28,7 @@ A write group held its shard's slot lock across the wait for the node log, so tw
 - AC-9: a refresh while groups are in flight waits for their window, then publishes and returns.
 - AC-10: a refresh after a failed window comes back, publishes nothing unlogged, and the shard takes writes again.
 - AC-11: at depth 2, six groups of one shard take at least three windows in turn.
+- AC-12: a node that takes over from a pipelined one finds every acknowledged write and numbers past the highest.
 
 ## Test plan
 
