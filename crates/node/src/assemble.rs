@@ -13,7 +13,6 @@ use oss_mem::{BufferPool, MemoryBudget, Pool, SMALL_BUFFER};
 use oss_meta::{DeleteMode, DescriptorStore, PitClock, PointInTimeStore};
 use oss_rest::{Router, Server, ServerConfig};
 use oss_writer::bulk::{BulkBudget, StreamConfig};
-use oss_writer::log::NodeLogCommitter;
 use oss_writer::publish::lazy::Policy;
 
 use crate::bulk_route::{self, BulkService};
@@ -30,10 +29,7 @@ use crate::pit_route::{self, PitService};
 use crate::refresh_route::{self, RefreshService};
 use crate::search::{self, SearchService};
 use crate::tail_node::{self, TailError, TailNode, TailParts};
-use crate::writer::{
-    Incarnation, JanitorPass, JanitorTimer, PassLimits, PublishTimer, Publishing, Routes,
-    ShardNames, ShardOpener, WriterRole,
-};
+use crate::writer::{JanitorPass, JanitorTimer, PassLimits, PublishTimer, Publishing, WriterRole};
 
 pub use crate::assemble_error::AssembleError;
 
@@ -59,12 +55,12 @@ pub struct Config {
     pub store_buffer_wait: Duration,
     /// The buffer a point-in-time request holds.
     pub pit_buffer_bytes: usize,
-    /// Whether a create inherits from the index template that matches its
-    /// name: one more GET on each create, none when off.
+    /// Whether a create inherits from the matching index template (one more GET).
     pub index_templates: bool,
-    /// Whether `_ingest/pipeline` stores, reads and removes pipelines. A
-    /// stored pipeline is run by the writes that name it.
+    /// Whether ingest pipelines are served and run by the writes that name them.
     pub ingest_pipelines: bool,
+    /// Whether search pipelines are served and a search may name one.
+    pub search_pipelines: bool,
     /// `serverless.security.enabled`: serve the security configuration API.
     pub security: bool,
     /// The static administrator's name and bcrypt hash, needed with security on.
@@ -109,6 +105,8 @@ pub struct Config {
     pub evict_after_millis: u64,
     /// Whether idle shards are handed to a member with room.
     pub hand_off: bool,
+    /// Merging a shard's small segments.
+    pub merge: crate::writer::MergeConfig,
     /// How far below the cap making room clears, as a percent of it.
     pub evict_headroom_percent: u64,
     /// Indexes whose shards are never let go of.
@@ -149,6 +147,7 @@ impl Config {
             pit_buffer_bytes: MAX_POINT_IN_TIME_BYTES,
             index_templates: false,
             ingest_pipelines: false,
+            search_pipelines: false,
             security: false,
             security_admin: None,
             security_refresh_millis: 10_000,
@@ -171,6 +170,7 @@ impl Config {
             max_shards: 0,
             evict_after_millis: 60_000,
             hand_off: false,
+            merge: crate::writer::MergeConfig::off(),
             evict_headroom_percent: 0,
             pinned_indexes: Vec::new(),
             write_limit: oss_writer::admission::LimiterConfig::default(),
@@ -197,23 +197,7 @@ type Drain = Option<DrainTimer>;
 #[cfg(not(feature = "coordinator"))]
 type Drain = Option<()>;
 
-/// What the writer role is built on.
-pub struct Writer {
-    /// The node's one write log.
-    pub committer: Arc<NodeLogCommitter>,
-    /// Which indexes exist and who owns a shard this node does not hold.
-    pub routes: Arc<dyn Routes>,
-    /// What opens a shard a write names and the node does not hold yet.
-    pub opener: Option<Arc<dyn ShardOpener>>,
-    /// The names the committer's admission finds a shard's head by, shared
-    /// with it; none, and the role keeps its own.
-    pub names: Option<Arc<ShardNames>>,
-    /// Confirms an open shard's index is still the incarnation it was
-    /// opened for, at most once a window.
-    pub incarnation: Option<(Arc<dyn Incarnation>, Duration)>,
-    /// Bucket members' heads and commits; none when buckets are off.
-    pub buckets: Option<Arc<crate::writer::BucketWiring>>,
-}
+pub use crate::assemble_writer::Writer;
 
 /// A node built and not yet listening.
 pub struct Assembled {
@@ -384,14 +368,7 @@ pub fn assemble(
         .with_publishing(publishing)
         .with_hibernation(config.hibernate_after_millis)
         .with_give_back(config.give_back_after_millis);
-    role.set_write_limiter(config.write_limit.build());
-    role.set_hand_off(config.hand_off);
-    role.set_evict_headroom_percent(config.evict_headroom_percent);
-    role.set_pinned_indexes(config.pinned_indexes.iter().cloned());
-    role.set_shard_cap(crate::writer::ShardCap {
-        max: config.max_shards,
-        evict_after_millis: config.evict_after_millis,
-    });
+    role.configure(config, budget);
     if let Some(opener) = writer.opener {
         role = role.with_opener(opener);
     }
@@ -410,6 +387,7 @@ pub fn assemble(
     role.set_mapping_growth(&store, config)?;
     let (pits, janitor_pits, search_pits) = (new_pits()?, new_pits()?, new_pits()?);
     search.set_point_in_time(search_pits, Arc::clone(&clock), config.pit_buffer_bytes);
+    crate::admin_assemble::search_pipelines(config, &store, &search)?;
     let descriptors = DescriptorStore::new(Arc::clone(&store), &config.base, config.delete_mode)
         .map_err(|e| AssembleError::Store(e.to_string()))?;
     let pit = Arc::new(PitService::new(

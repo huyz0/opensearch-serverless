@@ -265,3 +265,25 @@ fn a_pit_that_is_not_an_id_and_a_keep_alive_is_refused() {
     assert!(reason(r#"{"pit":{"id":"X","extra":1}}"#).contains("[pit] unknown field [extra]"));
     assert!(reason(r#"{"pit":{}}"#).contains("[pit] Required [id]"));
 }
+
+#[test]
+fn a_body_names_a_search_pipeline_by_string_only() {
+    let named = source(r#"{"search_pipeline":"cut","size":2}"#).expect("parses");
+    assert_eq!(named.search_pipeline.as_deref(), Some("cut"));
+    assert_eq!(source("{}").expect("parses").search_pipeline, None);
+    for body in [
+        r#"{"search_pipeline":""}"#,
+        r#"{"search_pipeline":null}"#,
+        r#"{"search_pipeline":7}"#,
+        r#"{"search_pipeline":{"response_processors":[]}}"#,
+    ] {
+        assert!(source(body).is_err(), "{body}");
+    }
+}
+
+#[test]
+fn a_caller_that_runs_no_pipeline_refuses_one() {
+    let named = source(r#"{"search_pipeline":"cut"}"#).expect("parses");
+    assert!(named.refuse_pipeline().is_err());
+    assert!(source("{}").expect("parses").refuse_pipeline().is_ok());
+}

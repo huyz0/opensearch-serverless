@@ -5,7 +5,7 @@
 use oss_blob::BlobStore;
 use oss_coordinator::docs::by_query::Hit;
 use oss_doc::mapping::json::{Json, parse};
-use oss_reader::dsl::parse_chunks;
+use oss_reader::dsl::{SearchSource, parse_chunks};
 use oss_rest::{Exception, RestError};
 
 use super::ShardMatches;
@@ -24,10 +24,12 @@ impl<S: BlobStore + 'static> SearchMatches<S> {
 
     /// Runs `body` on one shard and reads each hit back.
     fn run(&self, index: &str, shard: u32, body: &str) -> Result<Vec<Hit>, RestError> {
-        let source = parse_chunks([body.as_bytes()]).map_err(|e| {
-            let f = e.into_failure();
-            RestError::exception(400, Exception::new(f.kind, f.reason))
-        })?;
+        let source = parse_chunks([body.as_bytes()])
+            .and_then(SearchSource::refuse_pipeline)
+            .map_err(|e| {
+                let f = e.into_failure();
+                RestError::exception(400, Exception::new(f.kind, f.reason))
+            })?;
         let found = self
             .search
             .query_shard(index, shard, &source)

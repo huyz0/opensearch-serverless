@@ -44,7 +44,8 @@ pub(crate) fn index_service(
     Ok(Arc::new(
         indices
             .with_knn(config.knn)
-            .with_pipelines(config.ingest_pipelines),
+            .with_pipelines(config.ingest_pipelines)
+            .with_search_pipelines(config.search_pipelines),
     ))
 }
 
@@ -195,11 +196,14 @@ pub(crate) fn settings_routes(
     let descriptors = DescriptorStore::new(Arc::clone(store), &config.base, config.delete_mode)
         .map_err(|e| crate::assemble::AssembleError::Store(e.to_string()))?
         .record_changes_in(stripes);
-    let service = Arc::new(crate::settings_route::SettingsService::new(
-        descriptors,
-        config.pit_buffer_bytes,
-        config.ingest_pipelines,
-    ));
+    let service = Arc::new(
+        crate::settings_route::SettingsService::new(
+            descriptors,
+            config.pit_buffer_bytes,
+            config.ingest_pipelines,
+        )
+        .with_search_pipelines(config.search_pipelines),
+    );
     crate::settings_route::routes(router, &service).map_err(crate::assemble::AssembleError::Route)
 }
 

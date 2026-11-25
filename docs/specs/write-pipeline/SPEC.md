@@ -25,10 +25,18 @@ A write group held its shard's slot lock across the wait for the node log, so tw
 - AC-6: a panic while a group's acknowledgement runs leaves no thread hung and the slot released.
 - AC-7: 16 clients writing one index at once, a depth of 16, finish within 1.2 s (serialised they need 4 s).
 - AC-8: 64 clients with small bulks to indexes of their own finish within 1.2 s (eight at a time, the old budget share, they need 2 s).
+- AC-9: a refresh while groups are in flight waits for their window, then publishes and returns.
+- AC-10: a refresh after a failed window comes back, publishes nothing unlogged, and the shard takes writes again.
+- AC-11: at depth 2, six groups of one shard take at least three windows in turn.
+- AC-12: a node that takes over from a pipelined one finds every acknowledged write and numbers past the highest.
+- AC-13: groups of a shard in flight reach the tail sink in sequence order.
+- AC-14: at the largest depth (64), sixty-four groups of one shard land, each with its own number, none twice.
+- AC-15: at depth 8, a bulk with one 300 KiB item among fifty tiny ones is applied whole.
+- AC-16: at depth 8, a field a write introduces is in the index's descriptor before the write is acknowledged (as at depth 1), so every node maps it.
 
 ## Test plan
 
-`crates/writer/tests/node_log_staged.rs` (AC-1), `crates/node/tests/writer_pipeline.rs` (AC-2 to AC-6), `crates/node/tests/server/boot_write_concurrency.rs` (AC-7, AC-8, a booted node over a file store).
+`crates/writer/tests/node_log_staged.rs` (AC-1), `crates/node/tests/writer_pipeline.rs` (AC-2 to AC-6, AC-9 to AC-14), `crates/node/tests/server/boot_write_concurrency.rs` (AC-7, AC-8, a booted node over a file store).
 
 ## S3 request budget
 

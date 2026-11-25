@@ -408,3 +408,72 @@ fn a_record_that_cannot_be_applied_marks_the_shard_skipped_so_it_holds_no_grant(
     assert_eq!(fx.builder.builds(), 0);
     assert!(!fx.held.granted("u1", 0, "w", 1_000), "no grant without it");
 }
+
+/// A commit whose mapping pins an analyzer on `t` to a module that fails.
+struct Pinned {
+    inner: Arc<dyn CommitAccess>,
+}
+
+impl CommitAccess for Pinned {
+    fn reader(&self) -> &lucene_search::directory_reader::DirectoryReader {
+        self.inner.reader()
+    }
+
+    fn mapping_json(&self) -> &str {
+        r#"{"properties":{"n":{"type":"long"},"t":{"type":"text","analyzer":"ext_a"}}}"#
+    }
+
+    fn index_name(&self) -> &str {
+        "logs"
+    }
+
+    fn modules(&self) -> Vec<(String, Arc<dyn oss_ext::analyzer::Analyze>)> {
+        struct Fails;
+        impl oss_ext::analyzer::Analyze for Fails {
+            fn analyze(
+                &self,
+                _: &str,
+            ) -> Result<Vec<oss_ext::analyzer::Token>, oss_ext::CallError> {
+                Err(oss_ext::CallError::busy())
+            }
+        }
+        vec![("ext_a".to_owned(), Arc::new(Fails))]
+    }
+}
+
+// docs/specs/extension-analyzer AC-8
+#[test]
+fn a_build_whose_module_call_fails_keeps_why_for_the_search_that_finds_the_shard_behind() {
+    let mut fx = fixture(16 << 20);
+    fx.commit = Arc::new(Pinned {
+        inner: Arc::clone(&fx.commit),
+    });
+    fx.push(&[Record {
+        source: r#"{"t":"some words"}"#.to_owned(),
+        ..index("d", 0, 100)
+    }]);
+    let _ = fx.ready();
+    assert!(fx.builder.settle(), "a build never finished");
+    assert!(fx.ready().is_none(), "nothing is served without the tail");
+    let refusal = fx
+        .builder
+        .extension_refusal("u1", 0, &stage(1))
+        .expect("the module failure is kept");
+    assert_eq!(refusal.ty, "extension_busy");
+    assert!(
+        fx.builder.extension_refusal("u1", 0, &stage(2)).is_none(),
+        "another stage is another engine"
+    );
+}
+
+#[test]
+fn a_build_that_fails_for_another_reason_keeps_no_module_failure() {
+    let fx = fixture(16 << 20);
+    fx.push(&[Record {
+        source: r#"{"n":"not a number"}"#.to_owned(),
+        ..index("d", 0, 100)
+    }]);
+    let _ = fx.ready();
+    assert!(fx.builder.settle(), "a build never finished");
+    assert!(fx.builder.extension_refusal("u1", 0, &stage(1)).is_none());
+}

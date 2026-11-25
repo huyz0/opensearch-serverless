@@ -190,6 +190,8 @@ pub struct NodeConfig {
     pub proactive_max_concurrent: usize,
     /// `serverless.takeover.proactive.pass_millis`.
     pub proactive_pass_millis: u64,
+    /// `serverless.writer.merge.*`: merging a shard's small segments.
+    pub merge: crate::writer::MergeConfig,
     /// `serverless.search.shard_action.enabled`: the Java shell's forwarded shard search.
     pub search_shard_action: bool,
     /// `serverless.search.shard_action.max_lease_age_millis`.
@@ -199,8 +201,7 @@ pub struct NodeConfig {
     /// `serverless.search.tail_overlay.enabled`: whether writers push their
     /// acknowledged writes to readers and searches see them.
     pub tail_overlay: bool,
-    /// `serverless.search.refresh_visibility`: `owner`, `serving` or
-    /// `everywhere`.
+    /// `serverless.search.refresh_visibility`: `owner`, `serving` or `everywhere`.
     pub refresh_visibility: &'static str,
     /// `OSS_CLUSTER_SETTINGS_POLL_MS`: how often a node with the tail overlay
     /// on reads the cluster settings register, in milliseconds.
@@ -469,6 +470,7 @@ impl NodeConfig {
             proactive_rust_reapers_only,
             proactive_max_concurrent: usize::try_from(proactive_max_concurrent).unwrap_or(16),
             proactive_pass_millis,
+            merge: crate::writer::MergeConfig::read(&get)?,
             search_shard_action,
             search_shard_max_lease_age_millis,
             search_shard_max_concurrent: usize::try_from(search_shard_max_concurrent).unwrap_or(8),

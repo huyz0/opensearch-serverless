@@ -15,12 +15,15 @@ use crate::fast::FastIngest;
 use crate::lucene::{Indexer, Meta, uid};
 use crate::mapping::{Mapping, MappingError};
 
+mod commit;
 mod get;
 mod growth;
+mod merge;
 mod replay;
 mod soft;
 
 pub use get::Fetched;
+pub use merge::{MergeGate, MergeGuard, MergeSettings};
 use soft::soft_delete;
 
 use super::lookup;
@@ -103,6 +106,8 @@ pub struct Shard<'d> {
     growth: Option<Mapping>,
     versions: VersionMap,
     reader: Option<DirectoryReader>,
+    merging: Option<merge::Merging>,
+    merge_failures: u64,
     primary_term: i64,
     max_seq_no: i64,
     last_write_millis: u64,
@@ -145,6 +150,8 @@ impl<'d> Shard<'d> {
             growth: None,
             versions: VersionMap::default(),
             reader: None,
+            merging: None,
+            merge_failures: 0,
             primary_term,
             max_seq_no,
             last_write_millis: opened,
@@ -216,62 +223,6 @@ impl<'d> Shard<'d> {
         self.writer
             .ram_bytes_used()
             .saturating_add(self.versions.ram_bytes())
-    }
-
-    /// Commits what the writer holds and looks up versions in the new
-    /// segments, keeping only deletes in the version map.
-    ///
-    /// # Errors
-    ///
-    /// The commit or the new reader failing.
-    pub fn refresh(&mut self) -> Result<(), String> {
-        // A primary's writes complete in order, so the local checkpoint is
-        // the highest sequence number given.
-        let mut data: Vec<(String, String)> = self
-            .writer
-            .live_commit_data()
-            .iter()
-            .filter(|(k, _)| k != MAX_SEQ_NO_KEY && k != LOCAL_CHECKPOINT_KEY)
-            // ALLOC: the commit's user data, a few entries, once a refresh.
-            .cloned()
-            .collect();
-        // ALLOC: one number's text a refresh.
-        let seq = self.max_seq_no.to_string();
-        // A shard made from nothing carries the ids `Store.createEmpty` gives,
-        // so a Java writer taking it over finds the translog UUID its engine
-        // requires; a commit that has them keeps them.
-        for key in [TRANSLOG_UUID_KEY, HISTORY_UUID_KEY] {
-            if !data.iter().any(|(k, _)| k == key) {
-                let id = oss_meta::new_id().map_err(|e| message(&e))?;
-                // ALLOC: a key's text, twice on a shard's first commit.
-                data.push((key.to_owned(), id));
-            }
-        }
-        // ALLOC: two entries of commit user data a refresh.
-        data.push((LOCAL_CHECKPOINT_KEY.to_owned(), seq.clone()));
-        data.push((MAX_SEQ_NO_KEY.to_owned(), seq));
-        self.writer.set_live_commit_data(data);
-        self.writer.commit().map_err(|e| message(&e))?;
-        self.open_reader()?;
-        self.versions.refreshed();
-        self.versions
-            .prune_deletes((self.clock)(), GC_DELETES_MILLIS);
-        Ok(())
-    }
-
-    /// The files of the last commit, `segments_N` included: what a publish
-    /// of the commit `refresh` made uploads.
-    ///
-    /// # Errors
-    ///
-    /// A segment's files not listing.
-    pub fn committed_files(&self) -> Result<Vec<String>, String> {
-        lucene_index::index_file_deleter::files_of_infos(
-            self.dir,
-            self.writer.segment_infos(),
-            true,
-        )
-        .map_err(|e| message(&e))
     }
 
     fn current(&self, id: &str, uid: &[u8]) -> Result<Option<Current>, Refused> {

@@ -24,6 +24,8 @@ use crate::commit_push::{NewestSource, Stage, newer_commit};
 use crate::error::ReaderError;
 use crate::shared_mapping::SharedMapping;
 
+mod unpublished;
+
 /// The largest register blob (descriptor or commit manifest) the reader
 /// reads. The shell's manifests list at most 16,384 files of about 100
 /// bytes each.

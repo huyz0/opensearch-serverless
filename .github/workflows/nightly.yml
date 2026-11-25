@@ -55,7 +55,7 @@ jobs:
         run: |
           case "$JOB" in
             coverage)       scripts/coverage.sh --locked --fail-under-lines 95 ;;
-            slow-tests)     cargo test --locked --workspace --all-features -- --ignored ;;
+            slow-tests)     scripts/slow-tests.sh ;;
             # The prebuilt cargo-fuzz defaults to its own musl target, which
             # cannot link a sanitizer: name the gnu target.
             fuzz)           rustup toolchain install nightly-2026-11-13 --profile minimal &&

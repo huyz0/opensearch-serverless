@@ -18,15 +18,15 @@ A shard's writer opens its `IndexWriter` with a tiered merge policy. After a ref
 - AC-6: a Java node takes over a shard whose commit holds merged segments, including a k-NN index, and finds every document (mixed fleet, `crates/node/tests/mixed_fleet.rs`).
 - AC-7: in the wide soak, each shard's latest commit lists at most 24 segments at the end of every cycle, and every answer of every node has `_shards.failed == 0` within `HANDOVER_SLACK_SECS` of the judge starting ([java-search-shard-action](../java-search-shard-action/SPEC.md) AC-10).
 - AC-8: refresh time and bulk acknowledgement time (p50, p99), and the time of a search and of a cold open of the shard, with merging on are each within 5% of off or better, over the same load on an emulator (provisional); the default of the switch follows this result.
-- AC-9: a refresh that merges plus its publish spends the exact count of `docs/request-budgets.md` row `writer.merge.requests` (the same refresh and publish with merging off, or fewer), and the test fails on one request above it.
+- AC-9: thirty write-and-refresh rounds of one shard, each published, make exactly the blob requests and PUTs merging off makes (row `write.merge.requests` of `docs/request-budgets.md`, held exact), and at least one merge ran (a merge replaces the segment a refresh just wrote before it is uploaded, so the PUT count does not rise).
 - AC-10: a reader following pushed commits across a merge answers correctly at every commit and fetches the merged segment once; a point-in-time view and a snapshot taken before a merge read and restore after the merge, and after a takeover and a janitor sweep that honours the pins; the sweep's LIST pages are recorded.
 - AC-11: soft-deletes retention stays `None`: a merge keeps a soft-deleted document, and the spec records the bytes a shard holds after a merge with updates against without them.
 
-- AC-12: `serverless.writer.merge.enabled` is a cluster default overridable per index and the other settings are node-scope, with the precedence `docs/principles.md` states, in a settings-registry test; `docs/invariants.md`, `docs/request-budgets.md`, `crates/writer/README.md` and `docs/architecture.md` are updated in the PR that builds it.
+- AC-12: the four settings are registered node-scope in the settings registry (`serverless.writer.merge.enabled`, `segments_per_tier`, `max_merge_at_once`, `max_merged_segment_mb`), off by default and bounded; a per-index override is a follow-up; `docs/invariants.md`, `docs/request-budgets.md`, `crates/writer/README.md` and `docs/architecture.md` are updated in the PR that builds it.
 
 ## S3 request budget
 
-`writer.merge.requests`: a refresh that merges makes no blob request. A publish uploads one blob per live segment it has not uploaded; merging does not raise that count and lowers it when a merge covers segments not yet uploaded. Cost in bytes: a merged segment is uploaded once, so a byte is uploaded at most once per tier it passes through (write amplification of about the number of tiers, a log of the shard's size over the floor); the spec measures it.
+the merge-on-versus-off comparison of AC-9: a refresh that merges makes no blob request. A publish uploads one blob per live segment it has not uploaded; merging does not raise that count and lowers it when a merge covers segments not yet uploaded. Cost in bytes: a merged segment is uploaded once, so a byte is uploaded at most once per tier it passes through (write amplification of about the number of tiers, a log of the shard's size over the floor); the spec measures it.
 
 ## Switch
 

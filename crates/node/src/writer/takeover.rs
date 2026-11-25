@@ -125,6 +125,7 @@ impl WriterRole {
             opening.mapping,
             opening.modules,
             now_millis,
+            self.merging_for_open(),
             fill,
         )?;
         let done = settle(&mut slot)?;
