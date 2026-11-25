@@ -168,3 +168,15 @@ fn a_usage_store_names_itself_without_its_contents() {
     let (s, _) = store(1);
     assert_eq!(format!("{s:?}"), "UsageStore");
 }
+
+// AC-1
+#[test]
+fn a_call_gives_the_thread_back_to_no_index_when_it_ends() {
+    let (s, ledger) = store(8);
+    put(&s, "i/a/one", b"x");
+    // A request the meter sees outside any call is the node's, not the
+    // last call's index.
+    s.meter().record(S3Op::Put);
+    assert_eq!(line(&ledger, "a").requests(S3Op::Put), ONE_REQUEST);
+    assert_eq!(line(&ledger, NODE).requests(S3Op::Put), ONE_REQUEST);
+}

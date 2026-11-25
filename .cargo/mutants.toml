@@ -169,4 +169,17 @@ exclude_re = [
     # `drop_below`'s early return only skips building the keep flags: a
     # shard with no bucket under the minimum drops nothing either way.
     "crates/reader/src/aggs/bucket/terms.rs:.*replace \\|\\| with && in drop_below",
+    # A \u escape's value joins four hex digits over a nibble below 16:
+    # disjoint bits, where `|` and `^` give the same number.
+    "crates/chunkjson/src/string.rs:.*replace \\| with \\^ in Tokenizer::lex_string",
+    # The SWAR flags of the quote, backslash and control tests join under
+    # `|`; at the lowest flag, the only one read, a single test flags the
+    # byte (a borrow raises flags above a true hit only), so `^` agrees.
+    "crates/chunkjson/src/string.rs:.*replace \\| with \\^ in scan_plain",
+    # A colon met at the top of the fast loop takes the arm; without it the
+    # default arm hands the byte to the slow path, which makes the same step.
+    "crates/chunkjson/src/feed.rs:.*delete match arm \\(Expect::Colon, b':'\\) in Tokenizer::fast",
+    # At level zero a fall back under budget only stamps `changed_at`, which
+    # a later climb overwrites before anything reads it.
+    "crates/blob/src/guard/mod.rs:.*replace > with >= in step",
 ]

@@ -318,6 +318,18 @@ mod tests {
     use super::*;
 
     #[test]
+    fn split_tail_reports_only_a_character_cut_short() {
+        // Complete characters of two and three bytes end nothing partial.
+        assert_eq!(split_tail("a\u{e9}".as_bytes()), None);
+        assert_eq!(split_tail("a\u{20ac}".as_bytes()), None);
+        assert_eq!(split_tail(b"abc"), None);
+        // One byte short of a two-byte, and one and two short of a three-byte.
+        assert_eq!(split_tail(&"\u{e9}".as_bytes()[..1]), Some((1, 2)));
+        assert_eq!(split_tail(&"\u{20ac}".as_bytes()[..1]), Some((1, 3)));
+        assert_eq!(split_tail(&"\u{20ac}".as_bytes()[..2]), Some((2, 3)));
+    }
+
+    #[test]
     fn scan_plain_stops_at_the_first_special_byte_in_any_lane() {
         for special in [b'"', b'\\', 0x00, 0x1f, b'\n'] {
             for at in 0..20 {

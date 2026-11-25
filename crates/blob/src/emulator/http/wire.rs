@@ -179,7 +179,10 @@ impl SocketBody<'_> {
                 .reader
                 .read(&mut byte)
                 .map_err(|_| BlobError::Stream("request body read failed"))?;
-            if n == 0 || line.len() > 1024 {
+            if n == 0 {
+                return Err(BlobError::Stream("a malformed aws-chunked body"));
+            }
+            if line.len() > 1024 {
                 return Err(BlobError::Stream("a malformed aws-chunked body"));
             }
             self.left = self.left.saturating_sub(1);
