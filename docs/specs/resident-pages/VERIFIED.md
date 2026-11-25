@@ -8,4 +8,4 @@
 
 Finding behind the spec: lucene-rust's pager already bounds resident pages (`Pager::set_budget`, default 1 GiB, process-wide); the node never set it. No lucene-rust change.
 
-Measured here (provisional: fs store, no request latency, one cloud sandbox): resident 9,175,040 B after the unbounded run. NOT-RUN: `scripts/gate.sh`, coverage, mutants; the cold-cache search-lane measurement (docs/specs/search-slots) on a store with latency.
+Measured here (provisional: fs store, no request latency, one cloud sandbox): resident 9,175,040 B after the unbounded run. Store GETs with the bound on, emulator with latency, 40 noisy clients: 39 to 55 in 8 s unbounded against about 2,100 with a 4 MiB bound; noisy p50 3 ms against 1.1 s. That is the cost of a bound below the working set, so the default stays 0. The cold-cache search-lane measurement is in docs/specs/search-slots/VERIFIED.md. NOT-RUN: `scripts/gate.sh`, coverage, mutants.
