@@ -8,6 +8,7 @@ use std::sync::{Arc, Mutex};
 
 use oss_writer::publish::Published;
 
+use super::OpenRefused;
 use super::publishing::Key;
 use super::slot::ShardSlot;
 use super::{Publishing, WriterRole, lock};
@@ -39,16 +40,33 @@ impl WriterRole {
     ///
     /// The shard not held, or the engine's or the publish's.
     pub fn refresh(&self, index: &IndexInfo, shard: u32) -> Result<(), String> {
-        let Some(slot) = self.slot(&index.uuid, shard) else {
-            if self.asleep(&index.uuid, shard) {
+        let slot = match self.slot(&index.uuid, shard) {
+            Some(slot) => slot,
+            None if self.asleep(&index.uuid, shard) => {
                 // Everything it took is in a published commit.
                 return Ok(());
             }
-            // ALLOC: error path; one message.
-            return Err(format!(
-                "[{}][{shard}] is not open on this node",
-                index.name
-            ));
+            // Asked as the owner of a shard it has not opened: the writes
+            // acknowledged for it are in the node logs, and opening it, as a
+            // write would, replays them before the refresh.
+            None => match self.slot_or_open(index, shard) {
+                Ok(slot) => slot,
+                Err(OpenRefused {
+                    holder: Some(holder),
+                    ..
+                }) => {
+                    // A live node holds it: the refresh goes where a write
+                    // would have, and the next call finds it.
+                    // ALLOC: one entry a shard another node holds.
+                    lock(&self.redirects).insert((index.uuid.clone(), shard), holder.clone());
+                    let done = self.routes.refresh_remote(&holder, index, shard);
+                    if done.is_err() {
+                        lock(&self.redirects).remove(&(index.uuid.clone(), shard));
+                    }
+                    return done;
+                }
+                Err(refused) => return Err(refused.reason),
+            },
         };
         lock(&slot).refresh()?;
         let Some(publishing) = &self.publishing else {
