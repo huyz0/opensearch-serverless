@@ -49,14 +49,13 @@ impl StockFile {
     /// How many blobs hold the file: one, or `ceil(length / part_size)`.
     pub fn parts(&self) -> u64 {
         match self.part_size {
-            Some(size) if self.length > 0 => {
-                // `size` is at least 1.
-                self.length
-                    .saturating_sub(1)
-                    .checked_div(size)
-                    .map_or(1, |d| d.saturating_add(1))
-            }
-            _ => 1,
+            // `size` is at least 1, and a file of no bytes is one chunk.
+            Some(size) => self
+                .length
+                .saturating_sub(1)
+                .checked_div(size)
+                .map_or(1, |d| d.saturating_add(1)),
+            None => 1,
         }
     }
 
@@ -175,8 +174,7 @@ fn file(r: &mut Reader<'_>) -> Result<StockFile, FormatError> {
 fn text(r: &mut Reader<'_>, key: bool) -> Result<String, FormatError> {
     match r.expect_token()? {
         Token::Str(s) if !key || is_blob_name(&s) => Ok(s.into_owned()),
-        Token::Str(_) => Err(r.error("a name that is not safe in a blob key")),
-        _ => Err(r.error("expected a string")),
+        _ => Err(r.error("expected a string, safe in a blob key where it is one")),
     }
 }
 

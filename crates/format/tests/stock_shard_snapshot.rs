@@ -92,8 +92,12 @@ fn the_parts_of_a_file_are_its_length_over_its_part_size_rounded_up() {
     assert_eq!(parts(1, 5), 1);
     assert_eq!(parts(5, 5), 1);
     assert_eq!(parts(0, 5), 1);
-    // A part size of zero means the file is not split.
+    // A part size of zero means the file is not split, and is not kept.
     assert_eq!(parts(1_000, 0), 1);
+    let zero =
+        one(r#"{"name":"__a","physical_name":"_0.cfs","length":9,"checksum":"c","part_size":0}"#)
+            .expect("parses");
+    assert_eq!(zero.files[0].part_size, None);
 }
 
 #[test]
@@ -164,10 +168,11 @@ fn an_inline_copy_is_standard_base64_and_nothing_else() {
     for bad in ["A", "AQI!", "AQ-_", "AR==", "AQJ=", "A Q=="] {
         assert!(inline(bad).is_err(), "{bad}");
     }
-    // The inline copy is bounded: 64 KiB decoded is the most.
-    let at = |bytes: usize| inline(&"A".repeat(bytes.div_ceil(3) * 4));
-    assert!(at(65_535).is_ok());
-    assert!(matches!(at(65_540), Err(FormatError::TooLarge { .. })));
+    // The inline copy is bounded: 64 KiB decoded is the most, and the
+    // decoded size of n unpadded characters is n * 3 / 4, rounded down.
+    let chars = |n: usize| inline(&"A".repeat(n));
+    assert_eq!(chars(87_382).unwrap().map(|v| v.len()), Some(65_536));
+    assert!(matches!(chars(87_383), Err(FormatError::TooLarge { .. })));
 }
 
 #[test]
