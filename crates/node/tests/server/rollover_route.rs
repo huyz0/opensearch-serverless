@@ -15,27 +15,54 @@ use oss_node::data_stream_route::{DataStreamService, routes as stream_routes};
 use oss_node::index_delete::{DeleteService, NoSnapshots, routes as delete_routes};
 use oss_node::index_route::{IndexService, routes as index_routes};
 use oss_node::index_templates::TemplateSets;
-use oss_node::rollover_route::{RolloverService, routes};
+use oss_node::rollover_route::{DocCount, RolloverService, routes};
 use oss_rest::{Router, Server};
 use oss_testkit::budget;
 
-const BUF: usize = 1 << 16;
+pub(crate) const BUF: usize = 1 << 16;
 const TTL: i64 = 30_000;
 const NOW: u64 = 1_000_000;
 const DAY: u64 = 86_400_000;
 const LOGS: &str = r#"{"index_patterns":["logs-*"],"data_stream":{},"template":{"mappings":{"properties":{"msg":{"type":"text"}}}}}"#;
 
-struct Rig {
-    server: Server,
-    store: Arc<Emulator>,
-    clock: Arc<AtomicU64>,
+pub(crate) struct Rig {
+    pub(crate) server: Server,
+    pub(crate) store: Arc<Emulator>,
+    pub(crate) clock: Arc<AtomicU64>,
 }
 
-fn rig() -> Rig {
+pub(crate) fn rig() -> Rig {
     rig_with(None)
 }
 
 fn rig_with(join: Option<oss_node::index_route::BucketJoin>) -> Rig {
+    rig_full(join, None)
+}
+
+/// A count of documents set by the test, remembering what it was asked.
+pub(crate) struct Counted {
+    pub(crate) docs: AtomicU64,
+    pub(crate) asked: std::sync::Mutex<Vec<(String, u32)>>,
+}
+
+impl DocCount for Counted {
+    fn count(
+        &self,
+        index: &str,
+        shards: u32,
+    ) -> Result<u64, oss_coordinator::route::resolve::Refusal> {
+        self.asked
+            .lock()
+            .expect("lock")
+            .push((index.to_owned(), shards));
+        Ok(self.docs.load(Ordering::Relaxed))
+    }
+}
+
+pub(crate) fn rig_full(
+    join: Option<oss_node::index_route::BucketJoin>,
+    counter: Option<Arc<Counted>>,
+) -> Rig {
     let store = Arc::new(Emulator::new(1 << 28, 5));
     let blobs = || Arc::clone(&store) as Arc<dyn BlobStore>;
     let mut marker = vec![0u8; BUF];
@@ -77,14 +104,18 @@ fn rig_with(join: Option<oss_node::index_route::BucketJoin>) -> Rig {
         BUF,
         TTL,
     ));
-    let rollover = Arc::new(RolloverService::new(
+    let mut rollover = RolloverService::new(
         Arc::clone(&indices),
         Arc::clone(&deletes),
         descriptors(),
         Arc::clone(&clock),
         BUF,
         TTL,
-    ));
+    );
+    if let Some(counter) = counter {
+        rollover = rollover.with_counter(counter);
+    }
+    let rollover = Arc::new(rollover);
     let aliases = Arc::new(AliasService::new(
         descriptors(),
         Arc::clone(&clock),
@@ -107,7 +138,7 @@ fn rig_with(join: Option<oss_node::index_route::BucketJoin>) -> Rig {
     }
 }
 
-fn call(r: &Rig, method: &str, target: &str, body: Option<&str>) -> support::Reply {
+pub(crate) fn call(r: &Rig, method: &str, target: &str, body: Option<&str>) -> support::Reply {
     support::request(
         r.server.local_addr(),
         method,
@@ -116,7 +147,7 @@ fn call(r: &Rig, method: &str, target: &str, body: Option<&str>) -> support::Rep
     )
 }
 
-fn json(reply: &support::Reply) -> serde_json::Value {
+pub(crate) fn json(reply: &support::Reply) -> serde_json::Value {
     serde_json::from_str(&reply.text()).unwrap_or_else(|e| panic!("{e}: {}", reply.text()))
 }
 
@@ -134,7 +165,7 @@ fn kind(reply: &support::Reply) -> String {
         .to_owned()
 }
 
-fn indices_of(r: &Rig, stream: &str) -> Vec<String> {
+pub(crate) fn indices_of(r: &Rig, stream: &str) -> Vec<String> {
     let got = json(&call(r, "GET", &format!("/_data_stream/{stream}"), None));
     got["data_streams"][0]["indices"]
         .as_array()
@@ -315,7 +346,7 @@ fn what_cannot_roll_is_refused_and_creates_nothing() {
         (r#"{"conditions":{"max_docs":5}}"#, 501),
         (r#"{"conditions":{"max_size":"1gb"}}"#, 501),
         (r#"{"conditions":{"nonsense":1}}"#, 400),
-        (r#"{"aliases":{"a":{}}}"#, 501),
+        (r#"{"aliases":{"a":{}}}"#, 400),
     ] {
         let reply = call(&r, "POST", "/logs-1/_rollover", Some(body));
         assert_eq!(reply.status, status, "{body}: {}", reply.text());

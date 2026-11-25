@@ -7,3 +7,6 @@
 - AC-5: `crates/node/tests/server/rollover_route.rs` `what_cannot_roll_is_refused_and_creates_nothing`
 - AC-6: `crates/node/tests/server/rollover_route.rs` `the_requests_are_the_budget_rows`
 - AC-7: `crates/node/tests/server/rollover_route.rs` `a_swap_lost_to_another_change_removes_the_index_it_made_and_says_so`
+- AC-8: `crates/node/tests/server/rollover_shape.rs` `max_docs_is_decided_by_the_count_of_the_index_left`; `crates/node/tests/server/boot_rollover_count.rs` `a_booted_node_rolls_an_alias_over_once_its_index_holds_enough_documents`
+- AC-9: `crates/node/tests/server/rollover_shape.rs` `an_alias_rollover_creates_the_index_with_the_settings_mappings_and_aliases_of_the_body`
+- AC-10: `crates/node/tests/server/boot_rollover_count.rs` `a_booted_node_makes_rolls_and_removes_a_stream_inside_its_default_budget`

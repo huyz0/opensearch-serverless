@@ -455,7 +455,7 @@ pub fn assemble(
         let router =
             crate::index_assemble::restore_routes(router, config, &store, &clock, &deletes)?;
         let drain = DrainTimer::spawn(Arc::clone(&deletes), config.reclaim_every);
-        let router = stream_routes(router, config, &store, &clock, &indices, &deletes)?;
+        let router = stream_routes(router, config, &store, &clock, &indices, &deletes, &search)?;
         let router = index_route::routes(router, indices).map_err(AssembleError::Route)?;
         let router = index_delete::routes(router, deletes).map_err(AssembleError::Route)?;
         let by_query = Arc::new(crate::by_query::ByQueryService::new(

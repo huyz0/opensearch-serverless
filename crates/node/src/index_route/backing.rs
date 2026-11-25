@@ -23,7 +23,10 @@ impl IndexService {
         let (mut marker, mut doc) = self.scratch(req)?;
         let inherited = templates
             .inherited(stream, &mut marker, &mut doc)
-            .map_err(refusal)?;
+            .map_err(refusal);
+        drop((marker, doc));
+        self.unscratch(req);
+        let inherited = inherited?;
         let Some(inherited) = inherited.filter(|i| i.is_data_stream()) else {
             return Err(no_stream_template(stream));
         };
@@ -45,9 +48,12 @@ impl IndexService {
         let inherited = match &self.templates {
             Some(templates) => {
                 let (mut marker, mut doc) = self.scratch(req)?;
-                templates
+                let found = templates
                     .inherited(stream, &mut marker, &mut doc)
-                    .map_err(refusal)?
+                    .map_err(refusal);
+                drop((marker, doc));
+                self.unscratch(req);
+                found?
             }
             None => None,
         };
@@ -55,21 +61,18 @@ impl IndexService {
     }
 
     /// Creates the index `name` a rollover of an alias moves to, as
-    /// `PUT /{index}` with no body creates it.
+    /// `PUT /{index}` creates it with `asked` as its body (none for no body).
     pub(crate) fn create_rolled(
         &self,
         req: &mut Request<'_>,
         name: &str,
+        asked: Option<oss_coordinator::indices::create::CreateRequest>,
     ) -> Result<String, RestError> {
-        let mut asked = parse(1, None).map_err(refusal)?;
-        if let Some(templates) = &self.templates {
-            let (mut marker, mut doc) = self.scratch(req)?;
-            asked = templates
-                .apply(name, asked, &mut marker, &mut doc)
-                .map_err(refusal)?;
-        }
-        crate::create_settings::refuse_others(&asked.settings, is_bucket_key)?;
-        self.build(req, name, asked, &[])
+        let asked = match asked {
+            Some(asked) => asked,
+            None => parse(1, None).map_err(refusal)?,
+        };
+        self.create_asked(req, name, asked).map(|(uuid, _)| uuid)
     }
 
     /// The two scratch buffers a template read uses, reserved from the
@@ -78,6 +81,12 @@ impl IndexService {
         req.body().reserve(self.buffer_bytes.saturating_mul(2))?;
         // ALLOC: two scratch buffers a create, buffer_bytes each, reserved above.
         Ok((vec![0u8; self.buffer_bytes], vec![0u8; self.buffer_bytes]))
+    }
+
+    /// Gives back what [`Self::scratch`] reserved, once its buffers are
+    /// dropped.
+    pub(crate) fn unscratch(&self, req: &mut Request<'_>) {
+        req.body().release(self.buffer_bytes.saturating_mul(2));
     }
 
     fn stream_index(

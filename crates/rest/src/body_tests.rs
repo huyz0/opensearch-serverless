@@ -156,6 +156,23 @@ fn reservations_grow_to_the_pool_and_refuse_one_more_byte() {
 }
 
 #[test]
+fn a_release_gives_bytes_back_to_the_pool_and_never_more_than_held() {
+    let b = budget(100);
+    let mut src = Inbound::new(&b""[..], [0u8; 4]);
+    let mut body = Body::new(&mut src, Framing::Empty, None, 0, 64, &b);
+    body.release(5);
+    assert_eq!(body.reserved(), 0, "nothing held, nothing to give back");
+    body.reserve(100).expect("fits");
+    body.release(30);
+    assert_eq!(body.reserved(), 70);
+    assert_eq!(b.in_use(Pool::RequestBodies), 70);
+    body.reserve(30).expect("the released bytes are free again");
+    body.release(1000);
+    assert_eq!(body.reserved(), 0);
+    assert_eq!(b.in_use(Pool::RequestBodies), 0);
+}
+
+#[test]
 fn checkout_takes_count_buffers_and_refuses_one_more() {
     let b = budget(1 << 16);
     let bufs = Arc::new(BodyBuffers::new(&b, 1024, 2).expect("fits"));

@@ -11,6 +11,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use oss_coordinator::indices::admin::check_name;
+use oss_coordinator::indices::create::CreateRequest;
 use oss_coordinator::indices::rollover::{
     AliasFacts, Target, backing_index_name, check_target, evaluate, next_name, parse_body,
 };
@@ -23,7 +24,10 @@ use crate::index_delete::DeleteService;
 use crate::index_route::IndexService;
 use crate::route_util::{read_body, refuse, refused};
 
+mod count;
 mod render;
+
+pub use count::{DocCount, SearchCount};
 
 /// The most bytes of a rollover body.
 const MAX_BODY_BYTES: usize = 64 << 10;
@@ -48,6 +52,7 @@ pub struct RolloverService {
     clock: PitClock,
     buffer_bytes: usize,
     lease_ttl_millis: i64,
+    counter: Option<Arc<dyn DocCount>>,
 }
 
 impl RolloverService {
@@ -70,7 +75,16 @@ impl RolloverService {
             clock,
             buffer_bytes,
             lease_ttl_millis,
+            counter: None,
         }
+    }
+
+    /// Evaluates `max_docs` with `counter`; without one the condition is
+    /// refused 501.
+    #[must_use]
+    pub fn with_counter(mut self, counter: Arc<dyn DocCount>) -> Self {
+        self.counter = Some(counter);
+        self
     }
 
     fn now(&self) -> i64 {
@@ -95,14 +109,22 @@ impl RolloverService {
         let dry_run = req.param("dry_run").is_some_and(|v| v != "false");
         let body = read_body(req, MAX_BODY_BYTES, "the body is larger than 64 KiB")?;
         let ask = parse_body((!body.is_empty()).then_some(body.as_slice())).map_err(refused)?;
-        if let Some(refusal) = ask.aliases_refusal() {
-            return Err(refused(refusal));
+        let mut shape = ask.create.clone();
+        let named_aliases = shape
+            .as_mut()
+            .map(|c| std::mem::take(&mut c.aliases))
+            .unwrap_or_default();
+        let mut body_aliases = Vec::with_capacity(named_aliases.len());
+        for (name, props) in &named_aliases {
+            body_aliases.push(crate::alias_route::body_alias(name, props)?);
         }
         // What the request holds, taken before anything is made so that
-        // undoing the new index cannot be refused.
+        // undoing the new index cannot be refused: the alias steps' three
+        // buffers and the removal's. The reads before the create reuse the
+        // removal's headroom, and the create reserves its own two.
         req.body().reserve(
             self.buffer_bytes
-                .saturating_mul(5)
+                .saturating_mul(3)
                 .saturating_add(self.deletes.remove_bytes()),
         )?;
         let now = || self.now();
@@ -132,19 +154,19 @@ impl RolloverService {
         let Some(at) = at else {
             return Err(refuse(500, "rollover_failure", "the target vanished"));
         };
-        if ask.shapes_index {
+        let before = at.alias.clone();
+        if before.data_stream && !body_aliases.is_empty() {
             return Err(refuse(
-                501,
-                "unsupported_setting",
-                "settings and mappings in a rollover body are not supported here: create the index with them, then name it in the path",
+                400,
+                "illegal_argument_exception",
+                "aliases cannot be set in the body of a data stream rollover",
             ));
         }
-        let before = at.alias.clone();
         let old = before
             .writes_to()
             .map(str::to_owned)
             .ok_or_else(|| refuse(500, "rollover_failure", "the target has no write index"))?;
-        let created_at = self.created_at(&old)?;
+        let (created_at, shards) = self.old_index(&old)?;
         let generation = before.generation.checked_add(1).ok_or_else(|| {
             refuse(
                 400,
@@ -171,7 +193,10 @@ impl RolloverService {
             })?,
         };
         let evaluation = evaluate(&ask.conditions, &old, created_at, self.now(), &mut || {
-            Err(max_docs_refusal())
+            self.counter
+                .as_ref()
+                .ok_or_else(max_docs_refusal)
+                .and_then(|c| c.count(&old, shards))
         })
         .map_err(refused)?;
         if dry_run || !evaluation.should_roll {
@@ -179,7 +204,7 @@ impl RolloverService {
             return resp.send(200, JSON, body.as_bytes());
         }
         let (created, new_generation) =
-            self.make(req, &before, &target, &mut new_name, generation)?;
+            self.make(req, &before, &target, &mut new_name, generation, shape)?;
         let mut after = before.clone();
         if before.data_stream {
             after.indices.push(Cow::Owned(new_name.clone()));
@@ -197,7 +222,21 @@ impl RolloverService {
             .update_alias(&before, &after, at.generation)
             .map_err(lookup_failed);
         match moved {
-            Ok(Some(_)) => {}
+            Ok(Some(_)) => {
+                // The names the body asked for join the new index once the
+                // move is published; one that cannot is told, the roll stays.
+                let mut failed = None;
+                for (alias, write) in &body_aliases {
+                    if let Err(e) =
+                        crate::alias_route::add_alias(&mut mutations, &new_name, alias, *write)
+                    {
+                        failed.get_or_insert_with(|| aliases_failed(&new_name, alias, &e));
+                    }
+                }
+                if let Some(e) = failed {
+                    return Err(e);
+                }
+            }
             Ok(None) => return Err(self.lost(&target, &new_name, &created)),
             Err(e) => {
                 // The swap may have published before a later step failed:
@@ -226,15 +265,24 @@ impl RolloverService {
         target: &str,
         name: &mut String,
         mut generation: i64,
+        shape: Option<CreateRequest>,
     ) -> Result<(String, i64), RestError> {
         if !before.data_stream {
-            return self.index.create_rolled(req, name).map(|uuid| (uuid, 0));
+            return self
+                .index
+                .create_rolled(req, name, shape)
+                .map(|uuid| (uuid, 0));
         }
         let timestamp = before.timestamp_field.as_deref().unwrap_or("@timestamp");
         for attempt in 0..=NAME_ATTEMPTS {
+            let held = req.body().reserved();
             match self.index.create_next_backing(req, name, target, timestamp) {
                 Ok(uuid) => return Ok((uuid, generation)),
                 Err(e) if is_taken(&e) && attempt < NAME_ATTEMPTS => {
+                    // The failed attempt's buffer is gone: give it back, so
+                    // moving past names holds no more than one create.
+                    let extra = req.body().reserved().saturating_sub(held);
+                    req.body().release(extra);
                     generation = generation.checked_add(1).ok_or_else(|| {
                         refuse(
                             400,
@@ -289,9 +337,9 @@ impl RolloverService {
         ))
     }
 
-    /// When the index `name` was created, in milliseconds; 404 when it has
-    /// no descriptor.
-    fn created_at(&self, name: &str) -> Result<i64, RestError> {
+    /// When the index `name` was created, in milliseconds, and its shard
+    /// count; 404 when it has no descriptor.
+    fn old_index(&self, name: &str) -> Result<(i64, u32), RestError> {
         // ALLOC: one buffer a rollover.
         let mut buf = vec![0u8; self.buffer_bytes];
         match self
@@ -299,7 +347,7 @@ impl RolloverService {
             .get(name, &mut buf)
             .map_err(lookup_failed)?
         {
-            Some(record) => Ok(record.created_at_millis),
+            Some(record) => Ok((record.created_at_millis, record.number_of_shards)),
             None => Err(refuse(
                 404,
                 "index_not_found",
@@ -308,6 +356,21 @@ impl RolloverService {
             )),
         }
     }
+}
+
+/// The error for a body alias that could not be added after the roll.
+fn aliases_failed(new_name: &str, alias: &str, cause: &RestError) -> RestError {
+    let reason = cause
+        .as_exception()
+        .map_or_else(|| "failed".to_owned(), |e| e.reason().to_owned());
+    refuse(
+        cause.status(),
+        "rollover_alias_failure",
+        // ALLOC: error path; one message.
+        format!(
+            "rolled over to [{new_name}] but adding it to alias [{alias}] failed: {reason}; add it with POST /_aliases"
+        ),
+    )
 }
 
 fn is_taken(e: &RestError) -> bool {
@@ -319,7 +382,7 @@ fn max_docs_refusal() -> Refusal {
     Refusal::new(
         501,
         "unsupported_condition",
-        "max_docs cannot be evaluated by this node yet: a document count needs a search over the index",
+        "max_docs cannot be evaluated: this node has no search to count the index with",
     )
 }
 

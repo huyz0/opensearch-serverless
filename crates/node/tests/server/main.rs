@@ -26,6 +26,7 @@ mod boot_ready_drain;
 mod boot_retire;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod boot_roles;
+mod boot_rollover_count;
 mod boot_search_queue;
 mod boot_search_slots;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
@@ -70,6 +71,7 @@ mod push_read;
 mod read_forward;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod rollover_route;
+mod rollover_shape;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod script_route;
 #[cfg(all(feature = "reader", feature = "writer"))]

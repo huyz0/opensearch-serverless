@@ -179,7 +179,8 @@ src/boot/config/tests/resident.rs	new		tests for the resident page bound and sea
 src/data_stream_route/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/indexadmin/DataStreamHandler.java	the put, get and delete routes over the stream's alias record; names are literal, the Java's patterns and comma lists need a listing, and the backing index has no `_data_stream_timestamp` mapper
 src/data_stream_route/render.rs	new		the body of a stream read as core renders it
 src/index_route/backing.rs	new		the first backing index of a stream, created under the template that wins the stream's name
-src/rollover_route/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/indexadmin/RolloverHandler.java	the rollover route for an alias or a data stream: the index first, then one swap of the record; `max_docs` and a body that shapes the index are refused
+src/rollover_route/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/indexadmin/RolloverHandler.java	the rollover route for an alias or a data stream: the index first, then one swap of the record; `max_docs` by a count, a body that shapes the index and names aliases for an alias; size conditions are refused
+src/rollover_route/count.rs	new		the document count `max_docs` asks of the old index, over this node's search
 src/rollover_route/render.rs	new		the body of a rollover answer as core renders it
 src/script_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/StoredScriptHandler.java	the put, get and delete routes over the scripts document set; the Java compiles a script at put, this node stores it uncompiled and refuses a named context
 src/boot/config/tests/proactive.rs	new		tests for the proactive takeover reaper switch

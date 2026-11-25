@@ -71,11 +71,12 @@ impl DataStreamService {
         let name = stream_name(req)?;
         let backing = backing_index_name(&name, 1);
         // What the whole request holds, taken before the backing index is
-        // made so that undoing it cannot be refused: the name read, the
-        // alias steps' buffers and the removal's.
+        // made so that undoing it cannot be refused: the alias steps' three
+        // buffers and the removal's. The name read reuses the removal's
+        // headroom, and the create reserves its own two.
         req.body().reserve(
             self.buffer_bytes
-                .saturating_mul(4)
+                .saturating_mul(3)
                 .saturating_add(self.deletes.remove_bytes()),
         )?;
         if self.is_taken(&name)? {
