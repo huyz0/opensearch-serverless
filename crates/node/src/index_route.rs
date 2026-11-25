@@ -66,6 +66,7 @@ pub struct IndexService {
     knn: bool,
     pins: Option<Arc<dyn PinPolicy>>,
     pipelines: bool,
+    search_pipelines: bool,
 }
 
 impl IndexService {
@@ -83,6 +84,7 @@ impl IndexService {
             knn: false,
             pins: None,
             pipelines: false,
+            search_pipelines: false,
         }
     }
 
@@ -162,6 +164,14 @@ impl IndexService {
     #[must_use]
     pub fn with_pipelines(mut self, on: bool) -> Self {
         self.pipelines = on;
+        self
+    }
+
+    /// Accepts `index.search.default_pipeline` at create when `on`
+    /// (`serverless.search.pipelines.enabled`); off, it is refused.
+    #[must_use]
+    pub fn with_search_pipelines(mut self, on: bool) -> Self {
+        self.search_pipelines = on;
         self
     }
 
@@ -261,7 +271,12 @@ impl IndexService {
     ) -> Result<String, RestError> {
         let (bucket_off, bucket_group) = bucket_settings(&asked.settings)?;
         let cost = cost_settings(&asked.settings)?;
-        let read = crate::create_settings::checked(&asked.settings, asked.shards, self.pipelines)?;
+        let read = crate::create_settings::checked(
+            &asked.settings,
+            asked.shards,
+            self.pipelines,
+            self.search_pipelines,
+        )?;
         if let Some(text) = asked.mapping.as_deref() {
             // `index.knn` cannot be given at create yet, so the node setting stands for it.
             let options = ParseOptions {

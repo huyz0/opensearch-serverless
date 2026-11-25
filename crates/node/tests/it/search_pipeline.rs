@@ -206,3 +206,77 @@ fn a_cut_keeps_the_explanations_and_the_page_after_from() {
     );
     assert_eq!(returned(&cut), 1);
 }
+
+/// An index whose settings name `default` as its search pipeline.
+fn with_default(node: &Node, name: &str, default: &str) {
+    use crate::support::put_variant;
+    let set = format!(r#""settings":{{"index.search.default_pipeline":"{default}"}}"#);
+    put_variant(&node.store, "compat-term", name, |j| {
+        j.replace(r#""settings":{}"#, &set)
+    });
+}
+
+// docs/specs/search-default-pipeline AC-3, AC-4, AC-5, AC-7
+#[test]
+fn an_index_default_runs_when_the_search_names_none() {
+    let node = node();
+    with_default(&node, "cutting", "cut");
+    with_default(&node, "none-by-default", "_none");
+    with_default(&node, "dangling", "nope");
+    let all = r#"{"size":10,"query":{"match_all":{}}}"#;
+    let (s, cut) = search(&node, "cutting", "", all);
+    assert_eq!((s, returned(&cut)), (200, 1), "{cut}");
+    let (s, bypass) = search(&node, "cutting", "?search_pipeline=_none", all);
+    assert_eq!((s, returned(&bypass)), (200, 5), "{bypass}");
+    let (s, other) = search(&node, "cutting", "?search_pipeline=filter", all);
+    assert_eq!(s, 200, "{other}");
+    assert!(
+        total(&other) < 5,
+        "an explicit pipeline replaces the default: {other}"
+    );
+    let (s, plain) = search(&node, "none-by-default", "", all);
+    assert_eq!((s, returned(&plain)), (200, 5), "{plain}");
+    let (s, missing) = search(&node, "dangling", "", all);
+    assert_eq!(s, 400, "{missing}");
+    assert!(missing.contains("pipeline_missing"), "{missing}");
+}
+
+// docs/specs/search-default-pipeline AC-6
+#[test]
+fn an_index_with_no_default_makes_no_request_with_the_source_installed() {
+    use crate::support::counts;
+    let node = node();
+    let body = r#"{"size":10,"query":{"match_all":{}}}"#;
+    search(&node, "compat-term", "", body);
+    let before = counts(&node.store);
+    assert_eq!(search(&node, "compat-term", "", body).0, 200);
+    assert_eq!(counts(&node.store), before, "a warm search is free");
+}
+
+// docs/specs/search-default-pipeline AC-8
+#[test]
+fn a_default_is_ignored_when_search_pipelines_are_off() {
+    use crate::support::counts;
+    let node = start();
+    with_default(&node, "cutting", "cut");
+    let all = r#"{"size":10,"query":{"match_all":{}}}"#;
+    let (s, plain) = search(&node, "cutting", "", all);
+    assert_eq!((s, returned(&plain)), (200, 5), "{plain}");
+    let before = counts(&node.store);
+    search(&node, "cutting", "", all);
+    assert_eq!(counts(&node.store), before, "a warm search is free");
+}
+
+// docs/specs/search-default-pipeline AC-9
+#[test]
+fn a_default_never_precedes_the_point_in_time_check() {
+    let node = node();
+    let (s, body) = search(
+        &node,
+        "missing-index",
+        "",
+        r#"{"pit":{"id":"x"},"query":{"match_all":{}}}"#,
+    );
+    assert_eq!(s, 400, "{body}");
+    assert!(body.contains("illegal_argument"), "{body}");
+}

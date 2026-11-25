@@ -179,7 +179,8 @@ impl<S: BlobStore + 'static> SearchService<S> {
             Err(Answer::Rest(e)) => return Err(e),
             Err(Answer::Search(e)) => return send(resp, &e),
         };
-        match self.run_pipeline(req, &mut source) {
+        let named = req.path_param("index");
+        match self.run_pipeline(req, &mut source, named.as_deref()) {
             Ok(()) => {}
             Err(Answer::Rest(e)) => return Err(e),
             Err(Answer::Search(e)) => return send(resp, &e),

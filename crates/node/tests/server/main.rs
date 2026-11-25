@@ -78,6 +78,8 @@ mod rollover_route;
 mod rollover_shape;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod script_route;
+#[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
+mod search_default_pipeline_setting;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod search_pipeline_route;
 #[cfg(all(feature = "reader", feature = "writer"))]

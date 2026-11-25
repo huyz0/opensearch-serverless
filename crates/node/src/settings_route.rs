@@ -55,6 +55,7 @@ fn write_block_key(key: &str) -> bool {
 /// What this node's registry says of an index setting.
 struct Registry {
     pipelines: bool,
+    search_pipelines: bool,
 }
 
 impl Scope for Registry {
@@ -62,11 +63,9 @@ impl Scope for Registry {
         // Core declares these; the update's own refusals answer for them.
         if matches!(
             key,
-            "index.number_of_shards"
-                | "index.number_of_replicas"
-                | "index.search.default_pipeline"
-                | "index.serverless.shard_mode"
-        ) {
+            "index.number_of_shards" | "index.number_of_replicas" | "index.serverless.shard_mode"
+        ) || (key == "index.search.default_pipeline" && !self.search_pipelines)
+        {
             return Kind::Core { dynamic: true };
         }
         if write_block_key(key) {
@@ -107,7 +106,7 @@ impl Scope for Registry {
         let pair = [(key.to_owned(), Some(value.to_owned()))];
         // The shard count a pairwise check needs is not read for a dynamic key.
         Kind::Ours(
-            crate::create_settings::checked(&pair, 1, self.pipelines)
+            crate::create_settings::checked(&pair, 1, self.pipelines, self.search_pipelines)
                 .map(|_| ())
                 .map_err(|e| {
                     e.as_exception()
@@ -217,9 +216,20 @@ impl SettingsService {
         Self {
             descriptors,
             buffer_bytes,
-            registry: Registry { pipelines },
+            registry: Registry {
+                pipelines,
+                search_pipelines: false,
+            },
             pattern_cap: PATTERN_CAP,
         }
+    }
+
+    /// Whether `index.search.default_pipeline` is accepted: on when the node
+    /// runs search pipelines.
+    #[must_use]
+    pub fn with_search_pipelines(mut self, on: bool) -> Self {
+        self.registry.search_pipelines = on;
+        self
     }
 
     /// Lowers the most indices a pattern may match.

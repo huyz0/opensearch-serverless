@@ -13,6 +13,9 @@ use oss_rest::{Exception, Request, RestError};
 
 use super::{Answer, SearchService};
 
+/// `index.search.default_pipeline`.
+const DEFAULT_KEY: &str = "index.search.default_pipeline";
+
 /// Why a stored pipeline could not be had.
 #[derive(Debug)]
 pub enum PipelineFault {
@@ -50,15 +53,36 @@ impl<S: BlobStore + 'static> SearchService<S> {
         self.pipelines.set(source).is_ok()
     }
 
-    /// Runs the pipeline `?search_pipeline=` names over `source`; nothing
-    /// when it names none or `_none`.
+    /// The pipeline an index's settings name for a search that names none.
+    fn default_pipeline(&self, index: &str) -> Result<Option<String>, Answer> {
+        // The search opens this shard next and would fail the same way, so a
+        // failure ends it here rather than being paid for twice.
+        let held = self.open_shard(index, 0, false)?;
+        Ok(match held.shard.meta.settings.get(DEFAULT_KEY) {
+            Some(oss_format::Setting::Value(id)) => Some(id.clone()),
+            _ => None,
+        })
+    }
+
+    /// Runs the pipeline `?search_pipeline=` names over `source`, or when it
+    /// names none the default of `index`; nothing when it is `_none`.
     pub(super) fn run_pipeline(
         &self,
         req: &mut Request<'_>,
         source: &mut SearchSource,
+        index: Option<&str>,
     ) -> Result<(), Answer> {
-        let Some(id) = req.param("search_pipeline") else {
-            return Ok(());
+        let id = match req.param("search_pipeline") {
+            Some(id) => id.into_owned(),
+            None => match (self.pipelines.get(), index) {
+                (Some(_), Some(index)) if source.pit.is_none() => {
+                    match self.default_pipeline(index)? {
+                        Some(id) => id,
+                        None => return Ok(()),
+                    }
+                }
+                _ => return Ok(()),
+            },
         };
         if id.is_empty() || id == "_none" {
             return Ok(());
