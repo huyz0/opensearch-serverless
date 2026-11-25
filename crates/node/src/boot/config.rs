@@ -182,6 +182,9 @@ pub struct NodeConfig {
     /// `OSS_PAGE_CACHE_DIR` and `OSS_PAGE_CACHE_BYTES`: a disk tier for the
     /// page cache; none keeps nothing past a read.
     pub page_cache: Option<page_cache::DiskCache>,
+    /// `OSS_RESIDENT_PAGE_BYTES`: the most bytes of demand-filled pages the
+    /// node keeps resident; 0 leaves the engine's default.
+    pub resident_page_bytes: u64,
     /// `OSS_ROLES`: the roles the node's lease names, `ingest` and `search`;
     /// none is a coordinating-only node.
     pub roles: Vec<&'static str>,
@@ -378,6 +381,7 @@ impl NodeConfig {
         let write_limit = write_limit::read(&bounded)?;
         let search_slots = search_slots::read(&bounded)?;
         let page_cache = page_cache::read(&or("OSS_PAGE_CACHE_DIR", ""), &bounded, &flag)?;
+        let resident_page_bytes = page_cache::read_resident(&bounded)?;
         let roles = roles::read(get("OSS_ROLES"))?;
         let proactive_reapers = bounded("OSS_PROACTIVE_REAPERS", "2", 1, 16)?;
         let proactive_max_concurrent = bounded("OSS_PROACTIVE_MAX_CONCURRENT", "4", 1, 64)?;
@@ -419,6 +423,7 @@ impl NodeConfig {
             write_limit,
             search_slots,
             page_cache,
+            resident_page_bytes,
             roles,
             orphan_slice_budget: usize::try_from(orphan_slice_budget).unwrap_or(0),
             orphan_slice_millis: u64::try_from(orphan_slice_millis).unwrap_or(u64::MAX),

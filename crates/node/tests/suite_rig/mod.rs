@@ -285,6 +285,15 @@ impl Cluster {
             .crash();
     }
 
+    /// Retires the node in `slot`, publishing what it holds so a node
+    /// started after reads it.
+    pub fn retire(&mut self, slot: usize) {
+        let _ = self.nodes[slot]
+            .take()
+            .expect("the node is running")
+            .retire(60_000);
+    }
+
     /// One REST call to the node in `slot`.
     pub fn call(&self, slot: usize, method: &str, target: &str, body: Option<&str>) -> Reply {
         support::request(

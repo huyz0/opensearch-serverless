@@ -47,8 +47,33 @@ pub(crate) fn build(
         settings.disk_dir = Some(dir.clone());
         settings.disk_budget = *bytes;
     }
+    set_resident_bound(config.resident_page_bytes, budget)?;
     let cache = PageCache::new(settings).map_err(|e| AssembleError::Memory(e.to_string()))?;
     Ok((Arc::new(cache), records))
+}
+
+/// Gives the process's pager `bytes` as the most it keeps resident; 0
+/// leaves its default. Where the pager is unavailable files are read whole
+/// and there is nothing to bound.
+///
+/// # Errors
+///
+/// [`AssembleError::Memory`] when `bytes` is more than the `page_cache` pool.
+fn set_resident_bound(bytes: u64, budget: &MemoryBudget) -> Result<(), AssembleError> {
+    if bytes == 0 {
+        return Ok(());
+    }
+    let pool = budget.limit(Pool::PageCache);
+    if usize::try_from(bytes).map_or(true, |b| b > pool) {
+        return Err(AssembleError::Memory(format!(
+            "OSS_RESIDENT_PAGE_BYTES [{bytes}] is more than the page_cache pool [{pool}]"
+        )));
+    }
+    #[cfg(target_os = "linux")]
+    if let Some(pager) = lucene_store::paged_input::Pager::global() {
+        pager.set_budget(bytes);
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -91,6 +116,23 @@ mod tests {
         );
         let (none, held) = build(&Config::new("", "n1", [0; 6]), &tight).expect("built");
         assert!(!none.has_disk() && held.is_none());
+    }
+
+    // AC-1
+    #[test]
+    fn a_resident_bound_over_the_page_cache_pool_is_refused() {
+        let b = budget(1 << 20);
+        let pool = b.limit(Pool::PageCache);
+        assert!(set_resident_bound(0, &b).is_ok(), "0 leaves the default");
+        let err = set_resident_bound(u64::try_from(pool).expect("fits") + 1, &b).err();
+        assert!(matches!(err, Some(AssembleError::Memory(_))), "{err:?}");
+        let tight = oss_mem::MemoryBudget::new(
+            &BudgetConfig::new(1 << 30)
+                .with_pool(Pool::PageCache, 5)
+                .expect("fits"),
+        );
+        let err = set_resident_bound(1 << 20, &tight).err();
+        assert!(matches!(err, Some(AssembleError::Memory(_))), "{err:?}");
     }
 
     #[test]

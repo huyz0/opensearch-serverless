@@ -129,6 +129,9 @@ pub struct Config {
     /// A disk tier for the page cache: its directory and the most bytes of
     /// slots it holds; none keeps nothing past a read.
     pub page_cache_disk: Option<(std::path::PathBuf, u64)>,
+    /// The most bytes of demand-filled pages kept resident; 0 leaves the
+    /// engine's default.
+    pub resident_page_bytes: u64,
 }
 
 impl Config {
@@ -183,6 +186,7 @@ impl Config {
             reclaim_every: Duration::from_secs(60),
             janitor_max_views: 10_000,
             page_cache_disk: None,
+            resident_page_bytes: 0,
         }
     }
 }

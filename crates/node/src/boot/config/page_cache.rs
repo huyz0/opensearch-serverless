@@ -92,6 +92,22 @@ pub(in crate::boot) fn read(
     }))
 }
 
+/// The least a resident bound may be: below it the pager's eviction batches
+/// outweigh the bound.
+const MIN_RESIDENT_BYTES: u64 = 1 << 20;
+
+/// Reads `OSS_RESIDENT_PAGE_BYTES`: 0 (the default) leaves the engine's
+/// bound, otherwise at least 1 MiB.
+pub(in crate::boot) fn read_resident(bounded: Bounded<'_>) -> Result<u64, String> {
+    let bytes = bounded("OSS_RESIDENT_PAGE_BYTES", "0", 0, MAX_BYTES)?;
+    if bytes != 0 && bytes < MIN_RESIDENT_BYTES {
+        return Err(format!(
+            "OSS_RESIDENT_PAGE_BYTES [{bytes}] must be 0 or at least 1 MiB"
+        ));
+    }
+    Ok(bytes)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
