@@ -12,8 +12,8 @@ use oss_node::stock_restore_route::StockRestoreSettings;
 
 use crate::snapshot_restore::{Rig, read, requests, restored_uuid, rig_stock, send};
 
-const RESTORE: &str = "/_snapshot/stock/snap-1/_restore?wait_for_completion=true";
-const POOL: usize = 200 << 20;
+pub(crate) const RESTORE: &str = "/_snapshot/stock/snap-1/_restore?wait_for_completion=true";
+pub(crate) const POOL: usize = 200 << 20;
 
 fn copy(from: &Path, to: &Path) {
     std::fs::create_dir_all(to).unwrap();
@@ -30,7 +30,7 @@ fn copy(from: &Path, to: &Path) {
 
 /// A copy of the fixture repository under a fresh directory, the root a
 /// node may read, and the repository's own path.
-fn repository(tag: &str) -> (PathBuf, PathBuf) {
+pub(crate) fn repository(tag: &str) -> (PathBuf, PathBuf) {
     let root = std::env::temp_dir().join(format!("oss-stock-{tag}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
     let root_dir = root.join("roots");
@@ -44,7 +44,7 @@ fn repository(tag: &str) -> (PathBuf, PathBuf) {
     (root_dir, repo)
 }
 
-fn rig(root: &Path, enabled: bool, pool: usize) -> Rig {
+pub(crate) fn rig(root: &Path, enabled: bool, pool: usize) -> Rig {
     rig_stock(
         true,
         "",
@@ -59,7 +59,7 @@ fn rig(root: &Path, enabled: bool, pool: usize) -> Rig {
     )
 }
 
-fn register(r: &Rig, location: &Path) {
+pub(crate) fn register(r: &Rig, location: &Path) {
     let body = format!(
         r#"{{"type":"fs","settings":{{"format":"stock","location":"{}"}}}}"#,
         location.display()
@@ -128,7 +128,7 @@ fn put_count_after_register(r: &Rig) -> u64 {
     r.store.meter().count(S3Op::Put)
 }
 
-fn restored_uuid_missing(r: &Rig, name: &str) -> bool {
+pub(crate) fn restored_uuid_missing(r: &Rig, name: &str) -> bool {
     r.descriptors
         .get(name, &mut vec![0u8; 1 << 16])
         .unwrap()
@@ -479,29 +479,4 @@ fn a_stock_snapshot_restores_from_a_rustfs_source() {
     assert_eq!(reply.status, 200, "{}", reply.text());
     assert_eq!(r.store.meter().count(S3Op::List), 0);
     assert_files_restored(&r);
-}
-
-#[test]
-fn a_stock_restore_applies_index_settings() {
-    let (root, repo) = repository("settings");
-    let r = rig(&root, true, POOL);
-    register(&r, &repo);
-    let body = r#"{"index_settings":{"index.refresh_interval":"9s"}}"#;
-    let reply = send(&r, "POST", RESTORE, Some(body));
-    assert_eq!(reply.status, 200, "{}", reply.text());
-    let mut buf = vec![0u8; 1 << 16];
-    let found = r.descriptors.get("logs", &mut buf).unwrap().unwrap();
-    assert!(String::from_utf8_lossy(found.settings).contains("9s"));
-}
-
-#[test]
-fn a_stock_restore_refuses_a_bad_setting_before_writing_anything() {
-    let (root, repo) = repository("badsetting");
-    let r = rig(&root, true, POOL);
-    register(&r, &repo);
-    let puts = r.store.meter().count(S3Op::Put);
-    let body = r#"{"index_settings":{"index.number_of_shards":"3"}}"#;
-    assert_eq!(send(&r, "POST", RESTORE, Some(body)).status, 400);
-    assert_eq!(r.store.meter().count(S3Op::Put), puts);
-    assert!(restored_uuid_missing(&r, "logs"));
 }

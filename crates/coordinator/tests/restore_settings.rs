@@ -175,3 +175,11 @@ fn what_else_the_shell_refuses_is_still_refused() {
         assert_eq!((status, kind), (501, "unsupported_restore"), "{key}");
     }
 }
+
+#[test]
+fn a_wildcard_that_is_not_trailing_is_refused_and_a_value_is_trimmed() {
+    let (status, kind, _) = asked(r#"{"ignore_index_settings":["index.*.foo"]}"#).unwrap_err();
+    assert_eq!((status, kind), (400, "illegal_argument_exception"));
+    let change = asked(r#"{"index_settings":{"index.refresh_interval":" 7s "}}"#).unwrap();
+    assert_eq!(change.set, set(&[("index.refresh_interval", Some("7s"))]));
+}

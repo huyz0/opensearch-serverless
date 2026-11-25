@@ -96,9 +96,8 @@ impl SettingsChange {
             .iter()
             .find(|n| n.trim_end_matches('*').contains('*'))
         {
-            return Err(illegal(format!(
-                "ignore_index_settings [{name}]: only a trailing * is supported"
-            )));
+            let why = format!("ignore_index_settings [{name}]: only a trailing * is supported"); // ALLOC: error path; one message.
+            return Err(illegal(why));
         }
         for (key, value) in &set {
             if FIXED.contains(&key.as_str()) {
