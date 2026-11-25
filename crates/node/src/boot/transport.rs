@@ -10,6 +10,27 @@ use oss_transport::server::{Handler, Request};
 use oss_transport::stream::Output;
 use oss_transport::version::WireVersion;
 
+impl super::Node {
+    /// The identity a signed call to this node names as its recipient.
+    pub fn transport_identity(&self) -> String {
+        oss_transport::auth::identity(&self.node_id, &self.ephemeral)
+    }
+
+    /// The process's ephemeral id, which a peer called at the transport
+    /// address must be answered under.
+    pub fn ephemeral_id(&self) -> &str {
+        &self.ephemeral
+    }
+
+    /// The address the node's transport server listens on.
+    pub fn transport_addr(&self) -> SocketAddr {
+        self.transport.as_ref().map_or_else(
+            || SocketAddr::from(([0, 0, 0, 0], 0)),
+            oss_transport::server::Server::address,
+        )
+    }
+}
+
 /// A handler that refuses until it is given the real one: the server must
 /// listen (and so have an address for the lease) before the roles that
 /// answer exist.
