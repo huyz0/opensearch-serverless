@@ -10,7 +10,7 @@ Parity plan R7.4, index admin REST: adding fields to an index after it was creat
 
 **Concrete names only, as the Java**: it validates the name as an index or alias name and reads one descriptor; an alias, a list and a wildcard are 404 `index_not_found`, `_all` is 501. No body is 400 `missing_body` "a mapping body is required", before the index is read.
 
-**Held shards.** A writer holding a shard of the index adopts the new mapping when its incarnation check next reads the descriptor (at most once a window, no extra request): see [shard adopts a changed mapping](../shard-adopts-mapping/SPEC.md).
+**Held shards.** A writer already holding a shard of the index keeps its old mapping until it reopens. Its next write that grows the mapping conflicts with the descriptor, that group is refused as unavailable and the shard is released, and the retry reopens it from the descriptor. A refresh driven by the change stripe would avoid the one refused group and is left as a follow-up.
 
 ## Acceptance criteria
 
@@ -42,3 +42,4 @@ None: the Java has none.
 ## Risks
 
 No live recording of the Java's answers; the wording comes from the source and the ported plan.
+- AC-9: after an update, a write is indexed by the updated type; the first group that conflicts may be refused and reopen the shard, and the retry succeeds.

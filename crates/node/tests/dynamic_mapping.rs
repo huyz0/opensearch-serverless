@@ -53,3 +53,43 @@ fn a_range_query_on_a_dynamically_mapped_field_finds_every_document_on_every_nod
         wait_for("the mapping holds the field", 40, || mapped(&cluster, slot));
     }
 }
+
+fn bulk_one(cluster: &Cluster, id: &str, doc: &str) -> bool {
+    let body = format!("{{\"index\":{{\"_index\":\"upd\",\"_id\":\"{id}\"}}}}\n{doc}\n");
+    let r = cluster.call(0, "POST", "/_bulk?refresh=true", Some(&body));
+    r.status == 200 && r.text().contains("\"errors\":false")
+}
+
+// docs/specs/node-index-mapping-put AC-9
+#[test]
+fn a_write_after_a_mapping_update_is_indexed_by_the_updated_type() {
+    let mut cluster = Cluster::new(3_000, 4, false).expect("emulated");
+    cluster.add("n1");
+    wait_for("the node sees itself", 30, || cluster.nodes_seen(0) == 1);
+    let made = cluster.call(
+        0,
+        "PUT",
+        "/upd",
+        Some(r#"{"settings":{"index":{"number_of_shards":1}}}"#),
+    );
+    assert_eq!(made.status, 200, "{}", made.text());
+    // The shard opens with the first write, before the update.
+    assert!(bulk_one(&cluster, "1", r#"{"n":1}"#));
+    let put = cluster.call(
+        0,
+        "PUT",
+        "/upd/_mapping",
+        Some(r#"{"properties":{"s":{"type":"keyword"}}}"#),
+    );
+    assert_eq!(put.status, 200, "{}", put.text());
+    // The held shard may refuse the first write that meets the update and
+    // reopen from the descriptor; the write goes through when sent again.
+    wait_for("a write of the updated field is acknowledged", 20, || {
+        bulk_one(&cluster, "2", r#"{"s":"hello world"}"#)
+    });
+    let term = r#"{"size":0,"track_total_hits":true,"query":{"term":{"s":"hello world"}}}"#;
+    wait_for("the keyword is found whole", 40, || {
+        let r = cluster.call(0, "POST", "/upd/_search", Some(term));
+        r.status == 200 && r.text().contains("\"value\":1")
+    });
+}

@@ -8,3 +8,4 @@
 - AC-6: `an_update_that_changes_nothing_writes_nothing` (node, `tests/server/index_route/mapping_put.rs`).
 - AC-7: `updating_a_mapping_needs_the_mapping_put_action`, `every_registered_route_has_an_action_row` (node, `tests/server/security_authz.rs`).
 - AC-8: `a_body_of_one_mebibyte_is_read_and_one_byte_more_is_refused` (node, `tests/server/index_route/mapping_put.rs`).
+- AC-9: `a_write_after_a_mapping_update_is_indexed_by_the_updated_type` (node, `tests/dynamic_mapping.rs`).
