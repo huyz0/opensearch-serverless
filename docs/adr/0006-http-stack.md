@@ -1,6 +1,6 @@
 # 0006: A small blocking HTTP/1.1 server of our own, on a bounded worker pool
 
-**Status:** Accepted by the owner, 2026-11-15.
+**Status:** Accepted by the owner, 2026-11-15. Amended by [0058](0058-modern-protocols-front.md): HTTP/2, HTTP/3, gRPC and inbound TLS are served by a separate front that bridges to this server; this server itself stays blocking HTTP/1.1.
 
 ## Context
 
