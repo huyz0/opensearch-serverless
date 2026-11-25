@@ -64,6 +64,21 @@ pub(in crate::boot) fn apply(from: &NodeConfig, to: &mut crate::assemble::Config
     to.stock_fs_roots.clone_from(&from.snapshots.stock_fs_roots);
     to.stock_s3_roots.clone_from(&from.snapshots.stock_s3_roots);
     to.stock_fanout = from.snapshots.stock_fanout;
+    to.stock_s3 = match &from.store {
+        super::StoreChoice::S3 {
+            endpoint,
+            bucket,
+            region,
+            access_key,
+            secret_key,
+        } => Some(crate::stock_s3::SourceS3 {
+            endpoint: endpoint.clone(),
+            region: region.clone(),
+            credentials: oss_blob::Credentials::new(access_key, secret_key),
+            own_bucket: bucket.clone(),
+        }),
+        super::StoreChoice::Fs { .. } => None,
+    };
 }
 
 #[cfg(test)]
