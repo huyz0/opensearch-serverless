@@ -39,3 +39,4 @@ src/usage.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store
 src/usage_store.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/StoreUsage.java@feature/serverlessshell	the wrapper that names the owner of each store call from its key
 src/guard/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/usage/Guardrails.java@feature/serverlessshell	levels from cost against a budget (tick, step, level, set levels); no clock, no settings, the caller names both
 src/guard/pace.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/usage/Guardrails.java@feature/serverlessshell	paceWrite: a token bucket of documents at the rate the budget allows; the caller sleeps
+src/cost.rs	new		the counters and thread scope of one request's store requests (ADR 0061); the shell has no per-request cost
