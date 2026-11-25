@@ -49,3 +49,4 @@ src/snapshot_write.rs	port	serverless/shell/src/main/java/org/opensearch/serverl
 src/restore_mark.rs	new		the setting a restore holds on an index while it copies; the shell has no such mark and leaves a half-restored index unmarked
 src/smile/mod.rs	new		the SMILE-to-JSON decoder for a stock repository's metadata, bounded; the Java has Jackson's SmileParser (a dependency there)
 src/smile/num.rs	new		SMILE's variable integers, floats, 7-bit binary, big numbers and base64
+src/stock/mod.rs	new		the envelope of a stock repository's metadata blobs (Lucene header, optional DFL deflate, footer CRC), read bounded; the Java has ChecksumBlobStoreFormat and CodecUtil
