@@ -3,7 +3,6 @@
 //! The lookup is a function, so a test supplies variables without touching
 //! the process environment.
 
-use std::fmt;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -16,8 +15,10 @@ pub(super) mod apply;
 pub(super) mod authoring;
 pub(super) mod page_cache;
 pub(super) mod roles;
+pub(super) mod search_queue;
 pub(super) mod search_slots;
 pub(super) mod snapshots;
+mod store_debug;
 pub(super) mod write_limit;
 
 /// The smallest memory total the pools' shares make workable.
@@ -44,28 +45,6 @@ pub enum StoreChoice {
         /// The secret; never printed.
         secret_key: String,
     },
-}
-
-impl fmt::Debug for StoreChoice {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Fs { root } => f.debug_struct("Fs").field("root", root).finish(),
-            Self::S3 {
-                endpoint,
-                bucket,
-                region,
-                access_key,
-                ..
-            } => f
-                .debug_struct("S3")
-                .field("endpoint", endpoint)
-                .field("bucket", bucket)
-                .field("region", region)
-                .field("access_key", access_key)
-                .field("secret_key", &"<redacted>")
-                .finish(),
-        }
-    }
 }
 
 /// How a node is configured.
@@ -181,6 +160,8 @@ pub struct NodeConfig {
     /// `OSS_SEARCH_*`: the gate that orders searches under pressure;
     /// `slots` 0 is off.
     pub search_slots: crate::search_slots::Config,
+    /// `OSS_SEARCH_QUEUE_*` and `OSS_HTTP_MAX_CONNECTIONS`; `size` 0 is off.
+    pub search_queue: crate::search_queue::Config,
     /// `OSS_PAGE_CACHE_DIR` and `OSS_PAGE_CACHE_BYTES`: a disk tier for the
     /// page cache; none keeps nothing past a read.
     pub page_cache: Option<page_cache::DiskCache>,
@@ -428,6 +409,7 @@ impl NodeConfig {
             tombstone_sweep_millis,
             write_limit,
             search_slots,
+            search_queue: search_queue::read(&bounded, search_slots.slots)?,
             page_cache,
             resident_page_bytes,
             roles,

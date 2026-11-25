@@ -16,25 +16,27 @@
 use std::io::{self, Read, Write};
 use std::net::TcpStream;
 use std::panic::{self, AssertUnwindSafe};
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::Ordering;
 use std::time::Instant;
 
-use oss_mem::{MemoryBudget, PooledBuffer};
+use oss_mem::PooledBuffer;
 
+use crate::admission::{Decision, Permit};
 use crate::authorizer::Authorization;
-use crate::body::{BREAKER_LABEL, Body, BodyBuffers, Framing};
+use crate::body::{BREAKER_LABEL, Body, Framing};
 use crate::checks::{check_params, content_type, java_parses_uri, plan};
 use crate::config::ServerConfig;
 use crate::error::{Exception, RestError};
 use crate::guard::{Admission, Denial, Verdict};
 use crate::head::{self, Head, HeadLimits, Scan, Version};
 use crate::inbound::Inbound;
+use crate::linger::linger;
 use crate::method::{Method, MethodSet};
 use crate::query::{QueryParams, decode_component};
 use crate::request::Request;
 use crate::response::{Length, Response};
-use crate::router::{MAX_SEGMENTS, PathParam, Resolved, Router};
+use crate::router::{MAX_SEGMENTS, PathParam, Resolved};
+pub(crate) use crate::shared::{ParkTicket, Replay, Shared};
 use crate::timed::Timed;
 
 /// Query parameters every route takes: they only change how a response is
@@ -47,16 +49,6 @@ const DRAIN_LIMIT: u64 = 64 << 10;
 
 /// The content type of an empty `OPTIONS` answer.
 const TEXT: &str = "text/plain; charset=UTF-8";
-
-/// State every worker shares.
-pub(crate) struct Shared {
-    pub(crate) config: ServerConfig,
-    pub(crate) router: Router,
-    pub(crate) budget: MemoryBudget,
-    pub(crate) bodies: Arc<BodyBuffers>,
-    pub(crate) queued: AtomicUsize,
-    pub(crate) shutdown: AtomicBool,
-}
 
 /// One worker's buffers and scratch, allocated once when it starts.
 pub(crate) struct Worker {
@@ -88,58 +80,31 @@ impl Worker {
     }
 }
 
-/// Request bytes a closing connection still reads and discards after its
-/// last response, so the client receives that response before the socket
-/// closes. Closing with unread input makes the TCP stack send a reset, and
-/// on Windows a reset discards a response the client has not read yet.
-const LINGER_LIMIT: u64 = 256 << 10;
-
-/// How long a closing connection keeps discarding input in all.
-const LINGER_TIME: std::time::Duration = std::time::Duration::from_secs(2);
-
-/// How long a closing connection waits for more input before it closes. A
-/// client that sends nothing more costs the worker this long, not
-/// [`LINGER_TIME`].
-const LINGER_IDLE: std::time::Duration = std::time::Duration::from_millis(100);
-
 /// Serves `stream` until it closes, times out or must yield, then closes it
 /// gracefully: our side shuts for writing, and input already in flight is
-/// read and discarded (at most [`LINGER_LIMIT`] bytes, for at most
-/// [`LINGER_TIME`], stopping after [`LINGER_IDLE`] of quiet) so it cannot
+/// read and discarded (at most `LINGER_LIMIT` bytes, for at most
+/// `LINGER_TIME`, stopping after `LINGER_IDLE` of quiet) so it cannot
 /// turn the close into a reset.
-pub(crate) fn serve(w: &mut Worker, stream: &TcpStream, shared: &Shared) {
-    serve_requests(w, stream, shared);
+pub(crate) fn serve(
+    w: &mut Worker,
+    stream: &TcpStream,
+    shared: &Shared,
+    replay: Option<Replay>,
+) -> Option<ParkTicket> {
+    if let Some(ticket) = serve_requests(w, stream, shared, replay) {
+        return Some(ticket);
+    }
     let _ = linger(stream);
-}
-
-/// The graceful close described on [`serve`], returning how many bytes it
-/// discarded. Uses a stack buffer, so it allocates nothing.
-fn linger(stream: &TcpStream) -> u64 {
-    if stream.shutdown(std::net::Shutdown::Write).is_err() {
-        return 0;
-    }
-    let _ = stream.set_read_timeout(Some(LINGER_IDLE));
-    let deadline = Instant::now().checked_add(LINGER_TIME);
-    let mut sink = [0u8; 4096];
-    let mut discarded = 0u64;
-    let mut reader = stream;
-    while deadline.is_some_and(|d| Instant::now() < d) {
-        let room = usize::try_from(LINGER_LIMIT.saturating_sub(discarded))
-            .unwrap_or(usize::MAX)
-            .min(sink.len());
-        if room == 0 {
-            break;
-        }
-        match reader.read(&mut sink[..room]) {
-            Ok(0) | Err(_) => break,
-            Ok(n) => discarded = discarded.saturating_add(u64::try_from(n).unwrap_or(u64::MAX)),
-        }
-    }
-    discarded
+    None
 }
 
 /// The request loop [`serve`] runs before it closes.
-fn serve_requests(w: &mut Worker, stream: &TcpStream, shared: &Shared) {
+fn serve_requests(
+    w: &mut Worker,
+    stream: &TcpStream,
+    shared: &Shared,
+    replay: Option<Replay>,
+) -> Option<ParkTicket> {
     let _ = stream.set_nodelay(true);
     let c = &shared.config;
     let timed = Timed::new(stream, c.slow_grace, c.min_transfer_rate);
@@ -153,22 +118,32 @@ fn serve_requests(w: &mut Worker, stream: &TcpStream, shared: &Shared) {
     } = w;
     let mut inbound = Inbound::new(&timed, &mut read_buf[..]);
     let mut served = false;
+    // The permit a resumed request already holds, used by its first request.
+    let mut reserved = None;
+    if let Some(r) = replay {
+        if inbound.unread(&r.bytes).is_err() {
+            return None;
+        }
+        reserved = Some(r.permit);
+    }
     loop {
         let (end, filled) = match read_head(&mut inbound, head_buf, stream, shared, served) {
             Ok(Some(found)) => found,
-            Ok(None) => return,
+            Ok(None) => return None,
             Err(e) => {
                 timed.restart();
                 let mut out = &timed;
                 let mut resp = Response::new(&mut out, write_buf, false, Some("close"), None, None);
                 let _ = resp.send_error(&e);
-                return;
+                return None;
             }
         };
         if inbound.unread(&head_buf[end..filled]).is_err() {
-            return;
+            return None;
         }
         timed.restart();
+        let mut permit = None;
+        let mut park = None;
         let ctx = Ctx {
             head_buf: &head_buf[..end],
             head,
@@ -176,9 +151,25 @@ fn serve_requests(w: &mut Worker, stream: &TcpStream, shared: &Shared) {
             bound,
             write_buf,
             shared,
+            reserved: reserved.take(),
+            permit: &mut permit,
+            park: &mut park,
         };
-        if !handle(ctx, &mut inbound, &timed) {
-            return;
+        let keep = handle(ctx, &mut inbound, &timed);
+        if let Some(tenant) = park {
+            // ALLOC: one copy of the head and read-ahead, at most one head
+            // buffer, for a request that waits in the queue.
+            let bytes = head_buf[..filled].to_vec();
+            return Some(ParkTicket { tenant, bytes });
+        }
+        if permit.take().is_some()
+            && let Some(queue) = &shared.queue
+        {
+            // The permit is back: a parked search may run.
+            queue.offer();
+        }
+        if !keep {
+            return None;
         }
         served = true;
     }
@@ -232,7 +223,7 @@ fn read_head(
                 } else {
                     c.request_timeout
                 };
-                let yield_to_waiting = keep_alive && shared.queued.load(Ordering::Acquire) > 0;
+                let yield_to_waiting = keep_alive && shared.has_waiting();
                 if shared.shutdown.load(Ordering::Acquire) || yield_to_waiting || idle >= limit {
                     return Ok(None);
                 }
@@ -260,6 +251,12 @@ struct Ctx<'w> {
     bound: &'w mut Vec<PathParam>,
     write_buf: &'w mut [u8],
     shared: &'w Shared,
+    /// The permit a resumed request holds, for its first request.
+    reserved: Option<Permit>,
+    /// Where `handle` leaves the permit its request holds.
+    permit: &'w mut Option<Permit>,
+    /// Where `handle` leaves the tenant a request is parked as.
+    park: &'w mut Option<std::sync::Arc<str>>,
 }
 
 /// Handles one request; whether the connection stays open.
@@ -271,6 +268,9 @@ fn handle(ctx: Ctx<'_>, inbound: &mut Inbound<&Timed<'_>, &mut [u8]>, stream: &T
         bound,
         write_buf,
         shared,
+        reserved,
+        permit,
+        park,
     } = ctx;
     let mut out = stream;
     if let Err(e) = head.parse(buf, buf.len()) {
@@ -369,6 +369,18 @@ fn handle(ctx: Ctx<'_>, inbound: &mut Inbound<&Timed<'_>, &mut [u8]>, stream: &T
     if let Err(e) = check_params(params, bound, route, path, query) {
         return refuse(&mut resp, &e, wants_open, has_body);
     }
+    if let Some(queue) = &shared.queue {
+        match reserved {
+            Some(held) => *permit = Some(held),
+            None => match queue.admission().decide(method, path) {
+                Decision::Run(held) => *permit = held,
+                Decision::Defer(tenant) => {
+                    *park = Some(tenant);
+                    return false;
+                }
+            },
+        }
+    }
     let mut buffer = None;
     if has_body {
         match shared.bodies.checkout(shared.config.body_wait) {
@@ -466,7 +478,3 @@ fn stream_write(stream: &Timed<'_>, bytes: &[u8]) -> io::Result<()> {
     s.write_all(bytes)?;
     s.flush()
 }
-
-#[cfg(test)]
-#[path = "conn_linger_tests.rs"]
-mod linger_tests;

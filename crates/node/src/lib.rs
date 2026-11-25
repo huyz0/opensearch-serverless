@@ -118,6 +118,8 @@ pub mod script_route;
 pub mod search;
 #[cfg(feature = "reader")]
 pub mod search_modules;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod search_queue;
 #[cfg(feature = "reader")]
 pub mod search_slots;
 #[cfg(feature = "writer")]

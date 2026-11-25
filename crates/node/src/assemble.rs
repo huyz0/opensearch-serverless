@@ -229,6 +229,7 @@ pub struct Assembled {
     pub(crate) budget: MemoryBudget,
     /// What the page cache's records are charged, held for the node's life.
     cache_records: Option<oss_mem::Reservation>,
+    pub(crate) search_queue: Option<Arc<crate::search_queue::QueueAdmission>>,
 }
 
 /// A node listening.
@@ -245,13 +246,6 @@ pub struct Running {
     _cache_records: Option<oss_mem::Reservation>,
 }
 
-impl Assembled {
-    /// Every route registered: its method (none for a prefix route) and pattern.
-    pub fn routes(&self) -> Vec<(Option<oss_rest::Method>, &'static str)> {
-        self.router.routes()
-    }
-}
-
 impl Running {
     /// What the tail overlay holds, when it is on.
     pub fn tail(&self) -> Option<&TailNode> {
@@ -265,6 +259,11 @@ impl Running {
 }
 
 impl Assembled {
+    /// Every route registered: its method (none for a prefix route) and pattern.
+    pub fn routes(&self) -> Vec<(Option<oss_rest::Method>, &'static str)> {
+        self.router.routes()
+    }
+
     /// Registers `GET /_cluster/health[/{index}]` and `GET /_cat/health` over
     /// `source`, answering as the cluster named `cluster`. The assembly does
     /// not make a source: it needs the node's membership, which the caller
@@ -486,6 +485,7 @@ pub fn assemble(
     let sweep = config.sweep;
     let janitor = JanitorTimer::spawn(pass, config.janitor_every, Box::new(move || sweep));
     Ok(Assembled {
+        search_queue: None,
         router,
         search,
         role,
