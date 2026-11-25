@@ -458,3 +458,41 @@ fn a_binary_is_refused_one_byte_past_the_string_limit() {
         Err(FormatError::TooLarge { .. })
     ));
 }
+
+#[test]
+fn the_header_flags_say_which_tables_are_shared() {
+    // A name, then a reference to it.
+    let names = [0xFA, 0x81, b'a', b'b', 0x21, 0x40, 0x21, 0xFB];
+    assert!(plain(&doc(1, &names)).is_ok());
+    assert!(matches!(
+        plain(&doc(2, &names)),
+        Err(FormatError::Corrupt { .. })
+    ));
+    assert!(matches!(
+        plain(&doc(0, &names)),
+        Err(FormatError::Corrupt { .. })
+    ));
+    // A value, then a reference to it.
+    let values = [0xF8, 0x41, b'a', b'b', 0x01, 0xF9];
+    assert_eq!(plain(&doc(2, &values)).expect("shared"), r#"["ab","ab"]"#);
+    assert!(matches!(
+        plain(&doc(1, &values)),
+        Err(FormatError::Corrupt { .. })
+    ));
+    assert!(matches!(
+        plain(&doc(0, &values)),
+        Err(FormatError::Corrupt { .. })
+    ));
+}
+
+#[test]
+fn a_header_version_other_than_zero_is_named() {
+    for version in [1u8, 2, 15] {
+        match plain(&doc(version << 4, &[0x21])) {
+            Err(FormatError::Unsupported { version: v, .. }) => {
+                assert_eq!(v, u64::from(version));
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+}
