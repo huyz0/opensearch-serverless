@@ -109,3 +109,27 @@ pub(crate) fn restore_routes(
     crate::snapshot_restore_route::routes(router, Arc::new(service))
         .map_err(crate::assemble::AssembleError::Route)
 }
+
+/// How long an alias change's reservation holds before another writer may
+/// undo it.
+const ALIAS_LEASE_TTL_MILLIS: i64 = 30_000;
+
+/// The alias routes over the same descriptors and change stripes as the
+/// index routes.
+pub(crate) fn alias_service(
+    config: &crate::assemble::Config,
+    store: &Arc<dyn BlobStore>,
+    clock: &PitClock,
+) -> Result<Arc<crate::alias_route::AliasService>, crate::assemble::AssembleError> {
+    let stripes = oss_meta::ChangeStripes::new(Arc::clone(store), &config.base)
+        .map_err(|e| crate::assemble::AssembleError::Store(e.to_string()))?;
+    let descriptors = DescriptorStore::new(Arc::clone(store), &config.base, config.delete_mode)
+        .map_err(|e| crate::assemble::AssembleError::Store(e.to_string()))?
+        .record_changes_in(stripes);
+    Ok(Arc::new(crate::alias_route::AliasService::new(
+        descriptors,
+        Arc::clone(clock),
+        config.pit_buffer_bytes,
+        ALIAS_LEASE_TTL_MILLIS,
+    )))
+}

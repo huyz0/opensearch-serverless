@@ -445,6 +445,8 @@ pub fn assemble(
         let indices =
             crate::index_assemble::index_service(config, &store, &clock, bucket_wiring.as_ref())?;
         let router = index_route::routes(router, indices).map_err(AssembleError::Route)?;
+        let aliases = crate::index_assemble::alias_service(config, &store, &clock)?;
+        let router = crate::alias_route::routes(router, aliases).map_err(AssembleError::Route)?;
         let deletes =
             crate::index_assemble::delete_service(config, &store, &clock, bucket_wiring.as_ref())?;
         let router =
