@@ -12,5 +12,5 @@
 - AC-7: NOT-RUN: ties keep the shard's document order, not `_id` order; not built.
 - AC-8: `a_full_pool_refuses_the_search_and_a_finished_one_frees_its_slot` in crates/node/src/search_shard_action/tests.rs
 - AC-9: `the_action_is_registered_when_the_setting_is_on_and_not_when_it_is_off` in crates/node/src/boot/search_shard.rs, and `the_forwarded_search_action_is_on_and_each_setting_is_read_and_bounded` in crates/node/src/boot/config/tests.rs (NOT-RUN: a Java request served with it on, in the wide soak)
-- AC-10: NOT-RUN: not built yet.
+- AC-10: the wide soak (`OSS_SOAK_CYCLES=4`, 2 Java and 2 Rust nodes, one run each, emulator, provisional, main at 28071ecc plus the refresh fix #572): cycles killed java, rust, rust, java and every node's every judged answer had `_shards.failed == 0` within the slack, with the action on (the default). The same soak with `OSS_SEARCH_SHARD_ACTION=false` also passed, so this run does not show the action is what makes it pass: the 4-cycle soak at merging off does not reproduce the partial answers the ADR describes (they came with 256 segments a shard, which the merge now prevents when it is on and which fewer cycles do not reach). NOT-RUN: a red run with the action off
 - AC-11: NOT-RUN: not built yet.
