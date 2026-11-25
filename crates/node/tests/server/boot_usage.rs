@@ -52,10 +52,20 @@ fn a_node_with_store_usage_on_charges_an_index_and_the_node() {
 #[test]
 fn a_node_without_store_usage_serves_no_usage_route() {
     let dir = TempDir::new("boot-usage-off");
-    let node = boot(dir.path(), None);
+    let node = boot(dir.path(), Some("false"));
     let reply = call(&node, "GET", "/_serverless/usage", None);
     assert_ne!(reply.status, 200, "{}", reply.text());
     assert!(!reply.text().contains("cost_units"));
+}
+
+// AC-3
+#[test]
+fn a_node_with_no_store_usage_setting_serves_the_usage_route() {
+    let dir = TempDir::new("boot-usage-default");
+    let node = boot(dir.path(), None);
+    let reply = call(&node, "GET", "/_serverless/usage", None);
+    assert_eq!(reply.status, 200, "{}", reply.text());
+    assert!(reply.text().contains("cost_units"), "{}", reply.text());
 }
 
 // docs/specs/tenant-levels-wiring AC-8
