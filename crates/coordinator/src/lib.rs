@@ -23,6 +23,7 @@ pub mod snapshot_admin;
 pub mod snapshot_restore_admin;
 mod snapshot_restore_keys;
 pub mod snapshot_restore_rename;
+pub mod snapshot_restore_settings;
 pub mod snapshot_take_admin;
 pub mod system_indices;
 pub mod template_admin;

@@ -480,3 +480,16 @@ fn a_stock_snapshot_restores_from_a_rustfs_source() {
     assert_eq!(r.store.meter().count(S3Op::List), 0);
     assert_files_restored(&r);
 }
+
+#[test]
+fn a_stock_restore_applies_index_settings() {
+    let (root, repo) = repository("settings");
+    let r = rig(&root, true, POOL);
+    register(&r, &repo);
+    let body = r#"{"index_settings":{"index.refresh_interval":"9s"}}"#;
+    let reply = send(&r, "POST", RESTORE, Some(body));
+    assert_eq!(reply.status, 200, "{}", reply.text());
+    let mut buf = vec![0u8; 1 << 16];
+    let found = r.descriptors.get("logs", &mut buf).unwrap().unwrap();
+    assert!(String::from_utf8_lossy(found.settings).contains("9s"));
+}

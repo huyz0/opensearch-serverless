@@ -195,11 +195,17 @@ impl SnapshotRestoreService {
                         files: &s.files,
                     })
                     .collect();
+                let mut native = native_of(index);
+                native.settings = crate::restore_settings::apply(
+                    &asked.settings,
+                    native.settings.take(),
+                    native.number_of_shards,
+                )?;
                 self.restorer
                     .restore_stock_index(
                         &self.descriptors,
                         &from_store,
-                        &native_of(index),
+                        &native,
                         &copies,
                         &target.target,
                         &uuid,
