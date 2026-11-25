@@ -7,4 +7,4 @@ CP=<the libs/*/build/distributions jars, server/build/distributions/opensearch-3
 javac -proc:none -cp "$CP" GenMetadata.java && java -cp "$CP:." GenMetadata fixtures/snapshots/stock-metadata
 ```
 
-Tests: `crates/format/tests/stock_shard_snapshot.rs` and `stock_index_metadata.rs` (the index metadata blob reads to its settings, mapping and aliases). They are blobs the server's formats wrote, not blobs a running node put in a repository; a recorded stock snapshot joins them (`fixtures/snapshots/stock/README.md`).
+Tests: `crates/format/tests/stock_shard_snapshot.rs`, `stock_snapshot_info.rs` (`GenSnapshotInfo.java`: a clean, global-state, partial and shallow snapshot blob) and `stock_index_metadata.rs` (the index metadata blob reads to its settings, mapping and aliases). They are blobs the server's formats wrote, not blobs a running node put in a repository; a recorded stock snapshot joins them (`fixtures/snapshots/stock/README.md`).
