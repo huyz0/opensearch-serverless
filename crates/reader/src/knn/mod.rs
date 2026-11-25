@@ -72,6 +72,29 @@ pub fn nodes(query: &Query) -> Vec<&Knn> {
     out
 }
 
+/// Whether `query` holds a `knn` query of either mode where a search reaches
+/// one: the places [`nodes`] looks. A search with one reads vectors, so the
+/// vector files are brought in before it starts.
+fn any(query: &Query) -> bool {
+    match query {
+        Query::Bool(b) => b
+            .must
+            .iter()
+            .chain(&b.should)
+            .chain(&b.must_not)
+            .chain(&b.filter)
+            .any(any),
+        Query::More(m) => match m.as_ref() {
+            More::Knn(_) => true,
+            More::ConstantScore { filter, .. } => any(filter),
+            More::DisMax { queries, .. } => queries.iter().any(any),
+            More::FunctionScore(f, _) => f.query.as_ref().is_some_and(any),
+            _ => false,
+        },
+        _ => false,
+    }
+}
+
 fn engine(e: impl std::fmt::Display) -> Failure {
     // ALLOC: error path; one message.
     Failure::plain("illegal_state_exception", e.to_string())
@@ -120,6 +143,13 @@ pub fn prepare<'s, S: oss_blob::BlobStore + 'static>(
     Failure,
 > {
     let nodes = query.map(self::nodes).unwrap_or_default();
+    // A query the mapping refuses reads nothing: validate before warming.
+    for knn in &nodes {
+        check(knn, cx)?;
+    }
+    if query.is_some_and(any) {
+        crate::vector_warm::warm(shard);
+    }
     if nodes.is_empty() {
         return Ok(None);
     }

@@ -1,5 +1,4 @@
 //! The node configuration's tests.
-
 use super::*;
 use oss_mem::Pool;
 
@@ -498,3 +497,4 @@ fn tenant_tier_budgets_default_to_twenty_two_hundred_and_two_thousand() {
 mod extensions;
 mod proactive;
 mod resident;
+mod vector_warm;

@@ -202,3 +202,5 @@ src/search_shard_action/local.rs	new		a forwarded search's source as the reader'
 src/search_shard_action/tests.rs	new		a forwarded search's source as the reader's search source, and the shard search it runs, tests of both (ADR 0057)
 src/lease_age.rs	new		when this node last renewed its own lease, for the handlers that must not answer from a stale one (ADR 0057)
 src/boot/search_shard.rs	new		the forwarded shard search action's slot and its install at boot (ADR 0057)
+src/vector_warm_setting.rs	new		whether a segment's vector files are read whole at open or at the first knn search; the shell has no such switch
+src/boot/config/tests/vector_warm.rs	new		tests of the vector warm variable

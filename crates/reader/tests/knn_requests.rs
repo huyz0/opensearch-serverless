@@ -154,6 +154,9 @@ fn start_rustfs(bin: &std::ffi::OsStr) -> (RustFs, S3Store) {
 #[test]
 #[ignore = "a measurement, run by hand"]
 fn requests() {
+    // `WARM_AT_OPEN=1` reads every vector file at open, as the engine does by
+    // default; `0` (the default here) leaves that to the first `knn` search.
+    oss_reader::vector_warm::set_at_open(std::env::var("WARM_AT_OPEN").is_ok_and(|v| v == "1"));
     let docs = env("KNN_DOCS", 100_000);
     let dim = env("KNN_DIM", 128);
     let segment = env("KNN_SEGMENT", 10_000);
@@ -174,10 +177,22 @@ fn requests() {
         measure(Arc::new(PooledStore::new(s3, buffers)), &spec);
     } else {
         println!("store: emulator");
-        measure(
-            Arc::new(PooledStore::new(Emulator::new(1 << 30, 1), buffers)),
-            &spec,
-        );
+        let emulator = Emulator::new(1 << 30, 1);
+        // `LATENCY=s3` gives each read the Java test kit's S3 profile (GET 20
+        // to 30 ms), so the wall time of an open and a first search shows the
+        // rounds. The in-process emulator only: RustFS is a real server.
+        if std::env::var("LATENCY").is_ok_and(|v| v == "s3") {
+            for op in [S3Op::Get, S3Op::GetRange] {
+                emulator.set_latency(
+                    op,
+                    oss_blob::emulator::faults::Latency {
+                        base: std::time::Duration::from_millis(20),
+                        jitter: std::time::Duration::from_millis(10),
+                    },
+                );
+            }
+        }
+        measure(Arc::new(PooledStore::new(emulator, buffers)), &spec);
     }
 }
 
@@ -211,15 +226,20 @@ fn measure<S: BlobStore + 'static>(store: Arc<PooledStore<S>>, spec: &Spec) {
         // Each row opens the shard with an empty page cache: a cold node.
         let cache = Arc::new(PageCache::new(PageCacheConfig::default()).expect("page cache"));
         let before = counts(&store);
+        let started = std::time::Instant::now();
         let shard = open_shard(store.clone(), cache, "", "kn", 0).expect("opens");
-        println!("{label}: open: {}", since(&store, before));
+        let open_ms = started.elapsed().as_millis();
+        println!("{label}: open: {} ({open_ms} ms)", since(&store, before));
         let source = parse_chunks([body.as_bytes()]).expect("parses");
         let before = counts(&store);
+        let started = std::time::Instant::now();
         let hits = search(&shard, "kn", &source, &analyzer).expect("search");
+        let search_ms = started.elapsed().as_millis();
         println!(
-            "{label}: first search ({} hits): {}",
+            "{label}: first search ({} hits): {} ({search_ms} ms; open and search {} ms)",
             hits.hits.len(),
-            since(&store, before)
+            since(&store, before),
+            open_ms + search_ms
         );
         let before = counts(&store);
         search(&shard, "kn", &source, &analyzer).expect("search");
