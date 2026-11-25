@@ -59,9 +59,10 @@ fn spawn(kind: Kind, n: u64, cluster: &mut Cluster) -> (Handle, SocketAddr) {
 
 /// Ids of `INDEX` with `n` in `lo..hi`, as the node at `addr` finds them.
 fn found_range(addr: SocketAddr, lo: u32, hi: u32) -> Result<Vec<u32>, String> {
-    let body = format!(
-        "{{\"size\":{MAX_FOUND},\"_source\":false,\"query\":{{\"range\":{{\"n\":{{\"gte\":{lo},\"lt\":{hi}}}}}}}}}"
-    );
+    // A match-all filtered here: a range over `n` finds nothing while the
+    // index mapping is empty, which would read as every document lost.
+    let body =
+        format!("{{\"size\":{MAX_FOUND},\"_source\":false,\"query\":{{\"match_all\":{{}}}}}}");
     let r = call(addr, "POST", &format!("/{INDEX}/_search"), Some(&body));
     if r.status != 200 {
         // A node just started may not serve search yet: judged again within the slack.
@@ -97,6 +98,7 @@ fn found_range(addr: SocketAddr, lo: u32, hi: u32) -> Result<Vec<u32>, String> {
                 .parse()
                 .expect("a numeric id")
         })
+        .filter(|id: &u32| (lo..hi).contains(id))
         .collect())
 }
 
@@ -185,6 +187,27 @@ fn judge_all(addr: SocketAddr, ledger: &BTreeSet<u32>, top: u32) -> Result<(), S
 }
 
 /// Writes `ids` through the node at `addr`, retrying like the writers do.
+/// Prints, for each node that misses acknowledged documents, how many are
+/// missing from each of the four shards.
+fn missing_per_shard(live: &[(Kind, Handle, SocketAddr)], ledger: &BTreeSet<u32>, top: u32) {
+    let routing = oss_cluster::routing::DocumentRouting::legacy(4, 1).expect("routing");
+    for (k, _, a) in live {
+        let found: BTreeSet<u32> = match found_range(*a, 0, top) {
+            Ok(ids) => ids.into_iter().collect(),
+            Err(why) => {
+                eprintln!("WIDE diag {} node {a}: {why}", k.name());
+                continue;
+            }
+        };
+        let mut per = [0_u32; 4];
+        for id in ledger.iter().filter(|i| !found.contains(i)) {
+            let at = routing.shard_for(&id.to_string(), None).unwrap_or(0);
+            per[(at as usize).min(3)] += 1;
+        }
+        eprintln!("WIDE diag {} node {a}: missing per shard {per:?}", k.name());
+    }
+}
+
 fn write_ids(addr: SocketAddr, ids: std::ops::Range<u32>, ledger: &mut BTreeSet<u32>) {
     write(addr, ids, ledger);
 }
@@ -303,6 +326,7 @@ fn several_live_nodes_take_concurrent_writes_while_one_is_killed_each_cycle() {
     let java = knob("OSS_SOAK_JAVA", 2);
     let rust = knob("OSS_SOAK_RUST", 2);
     let window = Duration::from_secs(knob("OSS_SOAK_WINDOW_SECONDS", 8));
+    let writers = knob("OSS_SOAK_WRITERS", 4).clamp(1, 4);
     let mut cluster =
         Cluster::new(TTL_MS, 1, std::env::var_os("RUSTFS_BIN").is_some()).expect("a store");
     let probe_store = {
@@ -321,7 +345,8 @@ fn several_live_nodes_take_concurrent_writes_while_one_is_killed_each_cycle() {
         next: AtomicU32::new(0),
         paused: AtomicBool::new(false),
         stop: AtomicBool::new(false),
-        idle: [(); 4].map(|()| AtomicBool::new(false)),
+        // A writer that is not started counts as idle.
+        idle: std::array::from_fn(|i| AtomicBool::new(i as u64 >= writers)),
         failed: Mutex::new(None),
         tried: [AtomicU64::new(0), AtomicU64::new(0)],
         first_try: [AtomicU64::new(0), AtomicU64::new(0)],
@@ -357,6 +382,7 @@ fn several_live_nodes_take_concurrent_writes_while_one_is_killed_each_cycle() {
         for (me, kind) in [Kind::Java, Kind::Rust, Kind::Java, Kind::Rust]
             .into_iter()
             .enumerate()
+            .take(usize::try_from(writers).unwrap_or(4))
         {
             let shared = &shared;
             scope.spawn(move || writer(me, kind, shared));
@@ -413,6 +439,7 @@ fn several_live_nodes_take_concurrent_writes_while_one_is_killed_each_cycle() {
             }
             if !errors.is_empty() {
                 probe(&probe_store, 4);
+                missing_per_shard(&live, &ledger, top);
                 // Does a write to every shard, which makes a node take each
                 // one over, make the missing documents visible?
                 let java_addr = live
