@@ -6,7 +6,7 @@
 //! is a ranged read of every byte, paid by the first search of an index even
 //! when it reads no vector. With the open's warm off ([`set_at_open`]), a
 //! search holding a `knn` query hands the files of every segment to one
-//! prefetch ([`warm`]) before it walks any graph. See
+//! prefetch (`warm`) before it walks any graph. See
 //! [the spec](../../../docs/specs/reader-vector-warm/SPEC.md).
 
 /// Whether a segment's vector files are read in whole when it opens (the
