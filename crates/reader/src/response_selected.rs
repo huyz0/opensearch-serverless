@@ -309,6 +309,7 @@ pub fn fetch_rows<S: BlobStore + 'static>(
                 )?;
             }
         }
+        // ALLOC: three numbers a hit.
         let mut meta = Vec::new();
         crate::fetch::hit_meta::write_meta(
             &mut meta,
@@ -339,6 +340,7 @@ pub fn fetch_rows<S: BlobStore + 'static>(
 
 /// The number after `,"name":` in what `write_meta` wrote, when it wrote it.
 pub(super) fn meta_value(meta: &str, name: &str) -> Option<i64> {
+    // ALLOC: one short key, once a field of a hit.
     let after = meta.split_once(&format!(",\"{name}\":"))?.1;
     after.split(',').next()?.parse().ok()
 }
