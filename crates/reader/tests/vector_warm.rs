@@ -38,8 +38,10 @@ fn spec() -> Spec {
 }
 
 /// The index's blobs, built once: a build costs more than a search.
-fn built() -> &'static (Vec<(String, Vec<u8>)>, usize) {
-    static BUILT: std::sync::OnceLock<(Vec<(String, Vec<u8>)>, usize)> = std::sync::OnceLock::new();
+type Built = (Vec<(String, Vec<u8>)>, usize);
+
+fn built() -> &'static Built {
+    static BUILT: std::sync::OnceLock<Built> = std::sync::OnceLock::new();
     BUILT.get_or_init(|| {
         let all: Vec<(String, Vec<u8>)> = blobs("", &spec()).into_iter().collect();
         let bytes = all.iter().map(|(_, b)| b.len()).sum();
