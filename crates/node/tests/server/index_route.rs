@@ -15,6 +15,7 @@ use oss_rest::{Router, Server};
 
 mod create_settings;
 mod mapping_get;
+mod mapping_put;
 
 const BUF: usize = 1 << 16;
 const NOW: u64 = 1_234_567;
