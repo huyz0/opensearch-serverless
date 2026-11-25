@@ -100,6 +100,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
                         max_doc: shard.reader.max_doc(),
                         knn: None,
                         pinned: held.pinned.as_deref(),
+                        now_millis: None,
                     };
                     let query = source.query.unwrap_or(Query::MatchAll { boost: 1.0 });
                     match to_lucene(&query, &cx) {

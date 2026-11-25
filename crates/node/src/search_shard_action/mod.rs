@@ -202,12 +202,14 @@ impl Handler for SearchShardHandler {
         let _slot = self.slot().ok_or_else(|| {
             RemoteException::rejected("this node is answering as many forwarded searches as it may")
         })?;
-        let source = convert::search_source(&ask.source).map_err(|e| {
+        let mut source = convert::search_source(&ask.source).map_err(|e| {
             refuse(
                 &format!("a search source that cannot run: {e:?}"),
                 "BAD_REQUEST",
             )
         })?;
+        // `now` in date math is the coordinator's instant, not this node's.
+        source.now_millis = Some(ask.now_millis);
         // The answer's bytes are reserved before they are read.
         let reservation = Mutex::new(
             self.budget

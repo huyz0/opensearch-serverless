@@ -113,6 +113,10 @@ pub struct SearchSource {
     pub response_size_cap: Option<usize>,
     /// `search_pipeline`: the stored pipeline the body names.
     pub search_pipeline: Option<String>,
+    /// The instant `now` in date math means: set by a caller that has one
+    /// (a forwarded search carries its coordinator's), none otherwise, and a
+    /// `now` in a range is then refused.
+    pub now_millis: Option<i64>,
 }
 
 impl SearchSource {
@@ -157,6 +161,7 @@ impl Default for SearchSource {
             pit: None,
             response_size_cap: None,
             search_pipeline: None,
+            now_millis: None,
         }
     }
 }
