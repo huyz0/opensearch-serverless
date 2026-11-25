@@ -173,3 +173,5 @@ src/warm_boot.rs	new		when a warming node is let in: at the ready share of the b
 src/warm_boot/tests.rs	new		tests of the three ways a warming node is let in
 src/boot/tail/joining.rs	new		the warm-up of a joining reader on its own thread, ending when enough is in or the wait runs out
 src/warm_setting.rs	new		the per-index switch that leaves an index out of warm copy
+src/alias_route/mod.rs	new		alias add, remove and read routes over the alias mutation protocol; names are literal, the Java's patterns need a listing
+src/alias_route/parse.rs	new		the names, write flag and action list an alias request asks for

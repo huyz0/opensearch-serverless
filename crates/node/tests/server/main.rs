@@ -6,6 +6,8 @@
 #[path = "../support/mod.rs"]
 mod support;
 
+#[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
+mod alias_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod assemble;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
