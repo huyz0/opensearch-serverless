@@ -142,6 +142,7 @@ mod tests {
             max_doc: 5,
             knn: None,
             pinned,
+            now_millis: None,
         };
         let source = parse_chunks([format!(r#"{{"query":{body}}}"#).as_bytes()]).expect("parses");
         let q = to_lucene(source.query.as_ref().expect("a query"), &cx)?;

@@ -26,6 +26,7 @@ fn built(body: &str) -> Result<String, Failure> {
         max_doc: 5,
         knn: None,
         pinned: None,
+        now_millis: None,
     };
     let text = format!(r#"{{"query":{{"query_string":{body}}}}}"#);
     let source = match parse_chunks([text.as_bytes()]) {

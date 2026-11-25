@@ -33,6 +33,7 @@ check-harness.py
 check-links.py
 ci-changes.py --self-test
 mutants-plan.py --self-test
+ci-code-run.py --self-test
 "
 
 quiet=false

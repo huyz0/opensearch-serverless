@@ -106,6 +106,7 @@ pub(super) fn rig_with(opener: bool, modules: Option<Arc<dyn ModuleLoader>>) -> 
             1 << 16,
         ),
         sent: Mutex::new(Vec::new()),
+        refreshed: Mutex::new(Vec::new()),
         fail: AtomicBool::new(false),
     });
     let routes = Arc::clone(&forwards);
@@ -282,6 +283,28 @@ fn a_shard_a_live_node_holds_is_not_opened_here_and_its_write_goes_to_that_node(
     let head = r.heads.read("logs", 0).expect("read").expect("head");
     assert_eq!(head.owner_node_id.as_deref(), Some("node-2"), "not taken");
     assert!(!r.role.held("u1", 0));
+}
+
+#[test]
+fn a_refresh_of_a_shard_a_live_node_holds_goes_to_that_node_and_does_not_take_it() {
+    let r = rig(true);
+    create(&r, "logs", "u1");
+    held_by_node_2(&r);
+    let index = info("logs", "u1");
+    assert_eq!(r.role.refresh(&index, 0), Ok(()));
+    assert_eq!(*r.forwards.refreshed.lock().expect("lock"), ["node-2"]);
+    let head = r.heads.read("logs", 0).expect("read").expect("head");
+    assert_eq!(head.owner_node_id.as_deref(), Some("node-2"), "not taken");
+    assert!(!r.role.held("u1", 0));
+}
+
+#[test]
+fn a_refresh_of_an_unheld_shard_with_no_holder_opens_it_here() {
+    let r = rig(true);
+    create(&r, "logs", "u1");
+    assert_eq!(r.role.refresh(&info("logs", "u1"), 0), Ok(()));
+    assert!(r.role.held("u1", 0));
+    assert!(r.forwards.refreshed.lock().expect("lock").is_empty());
 }
 
 #[test]
