@@ -2,7 +2,7 @@
 //! pool reservations, the plan (`oss_meta::stock_plan`), then the same
 //! create, copy and cleanup a native restore does.
 //!
-//! Reached from [`SnapshotRestoreService::restore`] when the native register
+//! Reached from `SnapshotRestoreService::restore` when the native register
 //! holds no snapshot of that name and the repository is registered
 //! `format: "stock"`; ADR 0060.
 
