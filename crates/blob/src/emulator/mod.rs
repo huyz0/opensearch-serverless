@@ -152,7 +152,9 @@ impl Emulator {
 
     /// Holds the next `n` requests of kind `op`, each at its own hold in
     /// the order they arrive, until the hold is released: a request is
-    /// counted when it arrives and does nothing while held.
+    /// counted when it arrives and does nothing while held. A hold decides
+    /// the request's end, so it overrides any fault or lost response already
+    /// set for it; one never released fails after 60 s.
     pub fn hold_next(&self, op: S3Op, n: u32) -> Vec<Arc<Hold>> {
         self.holds.queue(op, n)
     }
