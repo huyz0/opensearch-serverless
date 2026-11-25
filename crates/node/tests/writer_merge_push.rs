@@ -157,3 +157,49 @@ fn readers_follow_pushed_commits_across_merges_and_a_late_node_reads_the_merged_
     });
     counts(&cluster, late, WRITES as u64 + 1);
 }
+
+/// The sorted acknowledgement times of `writes` one-document bulks through
+/// one node's HTTP edge, each forcing a refresh as a bulk with `refresh=true`.
+fn acks(merge: &str, writes: usize) -> Vec<Duration> {
+    let mut cluster = Cluster::new(TTL_MS, 4, false).expect("emulated");
+    cluster.set("OSS_WRITER_MERGE", merge);
+    cluster.add("n1");
+    wait_for("the node sees itself", 30, || cluster.nodes_seen(0) == 1);
+    std::thread::sleep(Duration::from_millis(TTL_MS));
+    let made = cluster.call(
+        0,
+        "PUT",
+        "/logs",
+        Some(r#"{"settings":{"index":{"number_of_shards":1}},"mappings":{"properties":{"n":{"type":"integer"}}}}"#),
+    );
+    assert_eq!(made.status, 200, "{}", made.text());
+    let mut taken = Vec::new();
+    for i in 0..writes {
+        let body = format!("{{\"index\":{{\"_index\":\"logs\",\"_id\":\"d{i}\"}}}}\n{{\"n\":1}}\n");
+        let start = Instant::now();
+        let w = cluster.call(0, "POST", "/_bulk?refresh=true", Some(&body));
+        taken.push(start.elapsed());
+        assert_eq!(w.status, 200, "{}", w.text());
+    }
+    taken.sort();
+    taken
+}
+
+// docs/specs/writer-segment-merge AC-8: run with --ignored --nocapture; the
+// numbers are provisional (in-process emulator, no network latency).
+#[test]
+#[ignore = "a measurement, not a gate"]
+fn bulk_acknowledgement_with_merging_on_and_off() {
+    for _ in 0..3 {
+        let off = acks("false", 200);
+        let on = acks("true", 200);
+        let at = |v: &[Duration], p: usize| v[v.len() * p / 100 - 1];
+        eprintln!(
+            "AC8 bulk ack off p50 {:?} p99 {:?} | on p50 {:?} p99 {:?}",
+            at(&off, 50),
+            at(&off, 99),
+            at(&on, 50),
+            at(&on, 99)
+        );
+    }
+}
