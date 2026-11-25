@@ -203,6 +203,8 @@ impl Cluster {
                     "OSS_HTTP_ADDR" | "OSS_TRANSPORT_ADDR" => "127.0.0.1:0",
                     "OSS_LEASE_TTL_MS" => ttl.as_str(),
                     "OSS_MEMORY_BYTES" => "8589934592",
+                    // The soak turns merging on for its Rust nodes from the environment.
+                    "OSS_WRITER_MERGE" => return std::env::var(key).ok(),
                     _ => return None,
                 }
                 .to_owned(),
