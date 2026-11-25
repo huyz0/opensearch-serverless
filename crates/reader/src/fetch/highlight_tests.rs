@@ -396,3 +396,26 @@ fn a_search_with_no_hit_does_not_plan_its_highlight() {
             .contains("not a text or keyword field")
     );
 }
+
+#[test]
+fn a_field_that_pins_an_analyzer_is_not_highlighted_with_the_built_in_one() {
+    let mapping = Mapping::from_json_pinned(
+        r#"{"properties":{"title":{"type":"text"},"t":{"type":"text","analyzer":"ext_a"}}}"#,
+        &["ext_a".to_owned()],
+    )
+    .expect("mapping");
+    let mut query = BooleanQuery::default();
+    query.should.push(Clause::Term(TermQuery::new("t", "fox")));
+    let named = parse(r#"{"fields":{"t":{}}}"#).expect("parses");
+    let e = plan(&named, &mapping, &query).expect_err("refused");
+    assert_eq!(e.status, 400);
+    assert!(
+        e.failure.reason.contains("pins an analyzer"),
+        "{}",
+        e.failure.reason
+    );
+    // A pattern passes the pinned field over.
+    let all = parse(r#"{"fields":{"*":{}}}"#).expect("parses");
+    let p = plan(&all, &mapping, &query).expect("plans").expect("some");
+    assert_eq!(names(&p), [("title", false)]);
+}
