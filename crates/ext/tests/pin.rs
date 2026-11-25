@@ -2,7 +2,7 @@
 //! (docs/specs/extension-analyzer AC-4, AC-5, AC-7).
 
 use oss_ext::pin::{
-    MAX_PIN_SETTINGS_BYTES, MAX_PINS, Pin, PinError, ResolvedLimits, parse_pins, render,
+    MAX_PIN_SETTINGS_BYTES, MAX_PINS, Pin, PinError, ResolvedLimits, parse_pins, read_pins, render,
 };
 
 const HASH: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
@@ -162,4 +162,72 @@ fn rendering_adds_the_resolved_limits_in_a_stable_order() {
         .map(|(k, v)| ((*k).into(), (*v).into()))
         .collect();
     assert_eq!(got, want);
+}
+
+fn as_settings(rendered: Vec<(String, String)>) -> Vec<(String, Option<String>)> {
+    rendered.into_iter().map(|(k, v)| (k, Some(v))).collect()
+}
+
+fn two_pins() -> Vec<(Pin, ResolvedLimits)> {
+    let pin = |name: &str| Pin {
+        name: name.to_owned(),
+        module: HASH.to_owned(),
+        version: 1,
+    };
+    vec![
+        (
+            pin("ext_a"),
+            ResolvedLimits {
+                fuel: 5,
+                memory_bytes: 6,
+                deadline_ms: 7,
+            },
+        ),
+        (
+            pin("ext_b"),
+            ResolvedLimits {
+                fuel: 8,
+                memory_bytes: 9,
+                deadline_ms: 10,
+            },
+        ),
+    ]
+}
+
+// AC-5: a node reads what the descriptor recorded, never live defaults
+#[test]
+fn what_a_descriptor_carries_reads_back_as_the_pins_and_limits_it_rendered() {
+    let pins = two_pins();
+    let mut settings = as_settings(render(&pins));
+    // Other settings of the descriptor are not the pins' business.
+    settings.push(s("index.refresh_interval", "1s"));
+    settings.push(s("index.analysis.something_else", "x"));
+    assert_eq!(read_pins(&settings).expect("reads"), pins);
+    assert!(read_pins(&[]).expect("none").is_empty());
+}
+
+#[test]
+fn a_recorded_pin_without_its_limits_or_with_a_bad_one_is_refused() {
+    let rendered = as_settings(render(&two_pins()));
+    for gone in ["limits.fuel", "limits.memory_bytes", "limits.deadline_ms"] {
+        let cut: Vec<_> = rendered
+            .iter()
+            .filter(|(k, _)| !k.ends_with(gone))
+            .cloned()
+            .collect();
+        let e = read_pins(&cut).expect_err("a limit is missing");
+        assert!(e.key().ends_with(gone), "{e}");
+    }
+    let bad: Vec<_> = rendered
+        .iter()
+        .map(|(k, v)| {
+            if k.ends_with("ext_a.limits.fuel") {
+                s(k, "many")
+            } else {
+                (k.clone(), v.clone())
+            }
+        })
+        .collect();
+    let e = read_pins(&bad).expect_err("not a number");
+    assert!(e.key().ends_with("ext_a.limits.fuel"), "{e}");
 }

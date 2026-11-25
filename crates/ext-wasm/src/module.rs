@@ -33,12 +33,56 @@ struct State {
     deadline: Duration,
 }
 
+/// How long a replay sleeps between tries for its reservation.
+const RESERVE_POLL: Duration = Duration::from_millis(25);
+
 /// The limits one call runs under: the host's, lowered by the descriptor's.
 #[derive(Clone, Copy)]
 struct Effective {
     fuel: u64,
     memory: u64,
     deadline_ms: u64,
+}
+
+/// A replay of a logged write: the limits its index recorded, stretched.
+#[derive(Clone, Copy, Debug)]
+pub struct Replay {
+    /// What the index recorded when its pin was made.
+    pub limits: oss_ext::pin::ResolvedLimits,
+    /// Fuel and memory are the record times this; the deadline is ten
+    /// times the record, a guard against a hang and not a correctness limit.
+    pub factor: u64,
+    /// How long a call waits for its reservation before it answers busy.
+    pub wait: Duration,
+}
+
+/// How a call is run.
+#[derive(Clone, Copy, Debug)]
+pub enum Run {
+    /// Under the module's own limits, behind the gate.
+    Live,
+    /// Under the limits an index recorded exactly, behind the gate.
+    Recorded(oss_ext::pin::ResolvedLimits),
+    /// A replay: never refused by the gate.
+    Replay(Replay),
+}
+
+impl Run {
+    fn effective(self, own: Effective) -> Effective {
+        match self {
+            Run::Live => own,
+            Run::Recorded(l) => Effective {
+                fuel: l.fuel,
+                memory: l.memory_bytes,
+                deadline_ms: l.deadline_ms,
+            },
+            Run::Replay(r) => Effective {
+                fuel: r.limits.fuel.saturating_mul(r.factor),
+                memory: r.limits.memory_bytes.saturating_mul(r.factor),
+                deadline_ms: r.limits.deadline_ms.saturating_mul(10),
+            },
+        }
+    }
 }
 
 /// A compiled module with its descriptor, ready to be called.
@@ -202,10 +246,29 @@ impl Module {
     /// Bytes one call reserves before it instantiates: linear memory, both
     /// I/O regions and the stack.
     pub fn call_reservation(&self) -> u64 {
-        self.effective
-            .memory
+        self.reservation_of(self.effective)
+    }
+
+    fn reservation_of(&self, eff: Effective) -> u64 {
+        eff.memory
             .saturating_add(u64::from(self.descriptor.io_bytes()).saturating_mul(2))
             .saturating_add(self.shared.config.stack_bytes as u64)
+    }
+
+    /// The reservation of a call under `eff`, waiting up to `wait` for the
+    /// pool to hold it.
+    fn reserve_within(&self, eff: Effective, wait: Duration) -> Result<Reservation, CallError> {
+        let bytes = self.reservation_of(eff);
+        let started = Instant::now();
+        loop {
+            if let Some(hold) = self.reserver.reserve(bytes) {
+                return Ok(hold);
+            }
+            if started.elapsed() >= wait {
+                return Err(CallError::busy());
+            }
+            std::thread::sleep(RESERVE_POLL);
+        }
     }
 
     /// Runs `input` through point number `point` of the descriptor for
@@ -217,6 +280,22 @@ impl Module {
     /// [`CallError`]: busy when the gate or pool is full, a limit or trap
     /// when the module exceeded one, malformed when it broke the contract.
     pub fn call(&self, tenant: &str, point: usize, input: &[u8]) -> Result<Vec<u8>, CallError> {
+        self.call_as(tenant, point, input, Run::Live)
+    }
+
+    /// As [`Module::call`], under the limits and admission `run` names.
+    ///
+    /// # Errors
+    ///
+    /// As [`Module::call`]; a replay is busy only when the pool still cannot
+    /// hold the call after its wait.
+    pub fn call_as(
+        &self,
+        tenant: &str,
+        point: usize,
+        input: &[u8],
+        run: Run,
+    ) -> Result<Vec<u8>, CallError> {
         let io = self.descriptor.io_bytes();
         if point >= self.descriptor.points().len() {
             return Err(CallError::from_status(Status::Unsupported, b""));
@@ -227,12 +306,19 @@ impl Module {
                 b"input larger than the region",
             ));
         }
-        let _permit = self.gate.enter(tenant).ok_or_else(CallError::busy)?;
-        let _hold = self
-            .reserver
-            .reserve(self.call_reservation())
-            .ok_or_else(CallError::busy)?;
-        let mut s = self.open(self.effective)?;
+        let eff = run.effective(self.effective);
+        let (_permit, _hold) = match run {
+            Run::Replay(replay) => (None, self.reserve_within(eff, replay.wait)?),
+            Run::Live | Run::Recorded(_) => {
+                let permit = self.gate.enter(tenant).ok_or_else(CallError::busy)?;
+                let hold = self
+                    .reserver
+                    .reserve(self.reservation_of(eff))
+                    .ok_or_else(CallError::busy)?;
+                (Some(permit), hold)
+            }
+        };
+        let mut s = self.open(eff)?;
         s.memory
             .write(&mut s.store, self.in_ptr as usize, input)
             .map_err(|_| CallError::malformed_because("the input region is outside memory"))?;

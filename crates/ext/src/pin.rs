@@ -232,3 +232,42 @@ pub fn render(pins: &[(Pin, ResolvedLimits)]) -> Vec<(String, String)> {
     }
     out
 }
+
+/// The pins a descriptor's settings carry with the limits recorded for each:
+/// what [`render`] wrote. A setting that is not an analyzer pin's is not
+/// read.
+///
+/// # Errors
+///
+/// A [`PinError`] naming the key at fault: a pin that [`parse_pins`] refuses,
+/// or one whose `fuel`, `memory_bytes` or `deadline_ms` is absent or not a
+/// whole number.
+pub fn read_pins(
+    settings: &[(String, Option<String>)],
+) -> Result<Vec<(Pin, ResolvedLimits)>, PinError> {
+    // ALLOC: the pin keys of one descriptor, at most MAX_PINS pins of six.
+    let own: Vec<(String, Option<String>)> = settings
+        .iter()
+        .filter(|(k, _)| k.starts_with(ANALYZER) && !k.contains(".limits."))
+        .cloned()
+        .collect();
+    let mut out = Vec::new();
+    for pin in parse_pins(&own)? {
+        let read = |part: &str| -> Result<u64, PinError> {
+            let key = format!("{ANALYZER}{}.limits.{part}", pin.name);
+            settings
+                .iter()
+                .find(|(k, _)| *k == key)
+                .and_then(|(_, v)| v.as_deref())
+                .and_then(|v| v.parse::<u64>().ok())
+                .ok_or_else(|| PinError::new(&key, "a recorded limit is a whole number"))
+        };
+        let limits = ResolvedLimits {
+            fuel: read("fuel")?,
+            memory_bytes: read("memory_bytes")?,
+            deadline_ms: read("deadline_ms")?,
+        };
+        out.push((pin, limits));
+    }
+    Ok(out)
+}

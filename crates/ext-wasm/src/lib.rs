@@ -20,5 +20,5 @@ mod validate;
 pub use analyzer::PinRefusal;
 pub use config::HostConfig;
 pub use host::{Host, LoadError};
-pub use module::Module;
+pub use module::{Module, Replay, Run};
 pub use reserve::{Reservation, Reserver, Unbounded};

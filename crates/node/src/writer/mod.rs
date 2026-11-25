@@ -86,7 +86,7 @@ pub use publish_timer::PublishTimer;
 pub use publishing::{PublishPass, Publishing};
 pub use routes::{NOT_OWNER, Routes};
 pub use tail::{CommitSink, RefreshVisibility, TailSink};
-pub use takeover::Takeover;
+pub use takeover::{ModuleLoader, PinnedModules, Takeover};
 pub use target::RoleTarget;
 pub use tenancy::{COST_BUDGET, COST_TIER, Tenancy, tenancy_of, tenancy_settings};
 pub use tenant_hooks::{TenancySink, WriteGate};

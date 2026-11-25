@@ -7,7 +7,7 @@ use std::fmt;
 use oss_ext::CallError;
 use oss_ext::analyzer::{MAX_OUTPUT_BYTES, Token, decode_block, encode_block, split_blocks};
 
-use crate::module::Module;
+use crate::module::{Module, Run};
 
 /// The id of the point.
 const POINT: &str = "analyzer";
@@ -93,11 +93,26 @@ impl Module {
         tenant: &str,
         texts: &[&str],
     ) -> Result<Vec<Vec<Token>>, CallError> {
+        self.analyze_block_as(tenant, texts, Run::Live)
+    }
+
+    /// As [`Module::analyze_block`], under the limits and admission `run`
+    /// names.
+    ///
+    /// # Errors
+    ///
+    /// As [`Module::analyze_block`].
+    pub fn analyze_block_as(
+        &self,
+        tenant: &str,
+        texts: &[&str],
+        run: Run,
+    ) -> Result<Vec<Vec<Token>>, CallError> {
         let point = self
             .analyzer_point(1)
             .ok_or_else(|| CallError::from_status(oss_ext::Status::Unsupported, b""))?;
         let input = encode_block(texts)?;
-        let out = self.call(tenant, point, &input)?;
+        let out = self.call_as(tenant, point, &input, run)?;
         decode_block(texts, &out)
     }
 
@@ -109,13 +124,27 @@ impl Module {
     /// The first block's failure, as [`Module::analyze_block`], or a limit
     /// for a text over the block ceiling.
     pub fn analyze(&self, tenant: &str, texts: &[&str]) -> Result<Vec<Vec<Token>>, CallError> {
+        self.analyze_as(tenant, texts, Run::Live)
+    }
+
+    /// As [`Module::analyze`], under the limits and admission `run` names.
+    ///
+    /// # Errors
+    ///
+    /// As [`Module::analyze`].
+    pub fn analyze_as(
+        &self,
+        tenant: &str,
+        texts: &[&str],
+        run: Run,
+    ) -> Result<Vec<Vec<Token>>, CallError> {
         // ALLOC: one token list for each text.
         let mut all = Vec::with_capacity(texts.len());
         for range in split_blocks(texts)? {
             let block = texts
                 .get(range)
                 .ok_or_else(|| CallError::malformed_because("a block outside its texts"))?;
-            all.extend(self.analyze_block(tenant, block)?);
+            all.extend(self.analyze_block_as(tenant, block, run)?);
         }
         Ok(all)
     }

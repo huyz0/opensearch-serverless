@@ -21,6 +21,8 @@ mod writer_heads;
 mod writer_janitor;
 mod writer_newest;
 mod writer_opener;
+mod writer_opener_pins;
+mod writer_opener_rig;
 mod writer_publish;
 mod writer_publish_timer;
 mod writer_role;

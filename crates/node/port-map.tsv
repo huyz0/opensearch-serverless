@@ -178,3 +178,7 @@ src/alias_route/parse.rs	new		the names, write flag and action list an alias req
 src/boot/config/tests/resident.rs	new		tests for the resident page bound setting
 src/script_route.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/StoredScriptHandler.java	the put, get and delete routes over the scripts document set; the Java compiles a script at put, this node stores it uncompiled and refuses a named context
 src/boot/config/tests/proactive.rs	new		tests for the proactive takeover reaper switch
+src/extension_modules.rs	new		the analyzers an index's pins name, loaded once a distinct module when a shard opens, called under the recorded limits or a replay's
+tests/extension_modules.rs	new		tests of the open-time load, the recorded limits and the replay stretch
+tests/roles/writer_opener_pins.rs	new		tests of a writer opening the shard of an index that pins analyzer modules
+tests/roles/writer_opener_rig.rs	new		the opener rig's counting opener and forwarding routes, moved out of writer_opener.rs
