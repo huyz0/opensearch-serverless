@@ -20,7 +20,7 @@ Roadmap R13.3, second half: the ledger of [store-usage](../store-usage/SPEC.md) 
 
 ## Test plan
 
-- AC-1: `store_usage_is_off_by_default_and_bounded` (node config tests), seen red before the fields existed.
+- AC-1: `store_usage_is_on_by_default_off_when_set_and_bounded` (node config tests), seen red before the fields existed.
 - AC-2, AC-3: `tests/server/boot_usage.rs`, over a file store and real sockets.
 - AC-4: `tests/usage_route.rs` over the emulator.
 
