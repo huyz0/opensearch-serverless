@@ -7,7 +7,10 @@
 //! `?search_pipeline=` through [`PipelineSource`]: one marker GET when the
 //! set is unchanged, never a LIST.
 
-use std::sync::Arc;
+use std::collections::VecDeque;
+use std::hash::{BuildHasher, RandomState};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use oss_blob::BlobStore;
 use oss_coordinator::pipeline_admin::{concrete_id, render, select, validate_search};
@@ -24,11 +27,27 @@ const PARAMS: &[&str] = &["master_timeout", "cluster_manager_timeout", "timeout"
 
 const ACKNOWLEDGED: &str = "{\"acknowledged\":true}";
 
+/// The most compiled pipelines kept, and the largest body kept.
+const COMPILED_ENTRIES: usize = 16;
+const COMPILED_BODY_BYTES: usize = 16 << 10;
+
+/// One compiled pipeline and what it was compiled from.
+struct Compiled {
+    id: String,
+    len: usize,
+    hash: u64,
+    pipeline: SearchPipeline,
+}
+
 /// The search pipeline set and what the node keeps of it.
 pub struct SearchPipelines {
     docs: DocSet,
     cache: DocSetCache,
     buffer_bytes: usize,
+    /// Recently compiled small pipelines, oldest first.
+    compiled: Mutex<VecDeque<Compiled>>,
+    hasher: RandomState,
+    compiles: AtomicU64,
 }
 
 impl SearchPipelines {
@@ -48,7 +67,24 @@ impl SearchPipelines {
             docs: DocSet::new(Arc::clone(store), base, DocKind::SearchPipeline)?,
             cache: DocSetCache::new(),
             buffer_bytes,
+            // ALLOC: COMPILED_ENTRIES slots, once.
+            compiled: Mutex::new(VecDeque::with_capacity(COMPILED_ENTRIES)),
+            hasher: RandomState::new(),
+            compiles: AtomicU64::new(0),
         }))
+    }
+
+    /// How many times a pipeline has been compiled.
+    pub fn compiles(&self) -> u64 {
+        self.compiles.load(Ordering::Relaxed)
+    }
+
+    /// How many compiled pipelines are kept.
+    pub fn cached(&self) -> usize {
+        self.compiled
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .len()
     }
 
     fn handle(&self, req: &mut Request<'_>, resp: &mut Response<'_>) -> Result<(), RestError> {
@@ -119,10 +155,36 @@ impl PipelineSource for SearchPipelines {
             // ALLOC: error path; one message.
             .map_err(|e| PipelineFault::Unreadable(e.to_string()))?;
         let body = snapshot.get(id).ok_or(PipelineFault::Missing)?;
-        SearchPipeline::compile(body).map_err(|e| {
+        let hash = self.hasher.hash_one(body);
+        {
+            let kept = self.compiled.lock().unwrap_or_else(PoisonError::into_inner);
+            if let Some(hit) = kept
+                .iter()
+                .find(|c| c.id == id && c.len == body.len() && c.hash == hash)
+            {
+                return Ok(hit.pipeline.clone());
+            }
+        }
+        self.compiles.fetch_add(1, Ordering::Relaxed);
+        let pipeline = SearchPipeline::compile(body).map_err(|e| {
             // ALLOC: error path; one message.
             PipelineFault::Broken(format!("search pipeline [{id}] cannot run: {e:?}"))
-        })
+        })?;
+        if body.len() <= COMPILED_BODY_BYTES {
+            let mut kept = self.compiled.lock().unwrap_or_else(PoisonError::into_inner);
+            kept.retain(|c| c.id != id);
+            if kept.len() >= COMPILED_ENTRIES {
+                kept.pop_front();
+            }
+            kept.push_back(Compiled {
+                // ALLOC: one id, once per compile of a small pipeline.
+                id: id.to_owned(),
+                len: body.len(),
+                hash,
+                pipeline: pipeline.clone(),
+            });
+        }
+        Ok(pipeline)
     }
 }
 

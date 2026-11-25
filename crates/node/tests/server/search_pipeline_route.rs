@@ -263,3 +263,92 @@ fn the_routes_and_the_parameter_exist_only_when_search_pipelines_are_on() {
     assert_eq!(found.status, 404, "{}", found.text());
     assert!(found.text().contains("index_not_found"), "{}", found.text());
 }
+
+// docs/specs/search-pipeline-cache AC-1, AC-2
+#[test]
+fn an_unchanged_pipeline_compiles_once_and_a_replaced_one_again() {
+    let r = rig();
+    let cut = |n: u32| {
+        format!(r#"{{"response_processors":[{{"truncate_hits":{{"target_size":{n}}}}}]}}"#)
+    };
+    assert_eq!(
+        call(&r, "PUT", "/_search/pipeline/p", Some(&cut(1))).status,
+        200
+    );
+    r.pipelines.resolve("p").expect("resolves");
+    r.pipelines.resolve("p").expect("resolves");
+    assert_eq!(r.pipelines.compiles(), 1);
+    assert_eq!(
+        call(&r, "PUT", "/_search/pipeline/p", Some(&cut(2))).status,
+        200
+    );
+    r.pipelines.resolve("p").expect("resolves");
+    assert_eq!(r.pipelines.compiles(), 2);
+    assert_eq!(call(&r, "DELETE", "/_search/pipeline/p", None).status, 200);
+    assert!(matches!(
+        r.pipelines.resolve("p"),
+        Err(oss_node::search::PipelineFault::Missing)
+    ));
+}
+
+// docs/specs/search-pipeline-cache AC-3
+#[test]
+fn a_large_pipeline_is_not_kept_and_the_cache_is_bounded() {
+    let r = rig();
+    let big = format!(
+        r#"{{"description":"{}","response_processors":[{{"truncate_hits":{{}}}}]}}"#,
+        "x".repeat(20 << 10)
+    );
+    assert_eq!(
+        call(&r, "PUT", "/_search/pipeline/big", Some(&big)).status,
+        200
+    );
+    r.pipelines.resolve("big").expect("resolves");
+    r.pipelines.resolve("big").expect("resolves");
+    assert_eq!(r.pipelines.compiles(), 2);
+    for n in 0..20 {
+        let id = format!("s{n}");
+        assert_eq!(
+            call(&r, "PUT", &format!("/_search/pipeline/{id}"), Some(PAIR)).status,
+            200
+        );
+        r.pipelines.resolve(&id).expect("resolves");
+    }
+    assert_eq!(r.pipelines.cached(), 16);
+    let before = r.pipelines.compiles();
+    r.pipelines.resolve("s19").expect("resolves");
+    assert_eq!(r.pipelines.compiles(), before, "a recent one is kept");
+    r.pipelines.resolve("s0").expect("resolves");
+    assert_eq!(r.pipelines.compiles(), before + 1, "the oldest was dropped");
+}
+
+// docs/specs/search-pipeline-body AC-6
+#[test]
+fn an_msearch_pays_one_marker_get_for_each_item_that_names_a_pipeline() {
+    use crate::assemble::{call, config, start_with};
+    use oss_node::assemble::Config;
+    let on = Config {
+        search_pipelines: true,
+        ..config()
+    };
+    let (r, store) = start_with(on, 256 << 20);
+    let total = || -> u64 { S3Op::ALL.iter().map(|op| store.meter().count(*op)).sum() };
+    let spent = |body: &str| {
+        let before = total();
+        call(&r, "POST", "/_msearch", Some(body));
+        total() - before
+    };
+    assert_eq!(
+        call(&r, "PUT", "/_search/pipeline/p1", Some(PAIR)).status,
+        200
+    );
+    let item = |p: &str| format!("{{\"index\":\"docs\"}}\n{{{p}}}\n");
+    let plain = item("");
+    let named = item(r#""search_pipeline":"p1""#);
+    spent(&named);
+    spent(&plain);
+    let base = spent(&plain.repeat(3));
+    let three = spent(&named.repeat(3));
+    assert_eq!(three - base, 3, "one marker GET an item that names one");
+    assert_eq!(store.meter().count(S3Op::List), 0);
+}

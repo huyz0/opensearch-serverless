@@ -64,29 +64,76 @@ impl<S: BlobStore + 'static> SearchService<S> {
         })
     }
 
+    /// The pipeline a search runs: what `?search_pipeline=` names, else the
+    /// body's, else the default of `index`. `None` when none, or `_none`.
+    fn pipeline_id(
+        &self,
+        param: Option<String>,
+        source: &SearchSource,
+        index: Option<&str>,
+    ) -> Result<Option<String>, Answer> {
+        let id = match (param, source.search_pipeline.as_ref()) {
+            (Some(id), _) => id,
+            (None, Some(id)) => id.clone(),
+            (None, None) => match (self.pipelines.get(), index) {
+                (Some(_), Some(index)) if source.pit.is_none() => {
+                    match self.default_pipeline(index)? {
+                        Some(id) => id,
+                        None => return Ok(None),
+                    }
+                }
+                _ => return Ok(None),
+            },
+        };
+        Ok((!id.is_empty() && id != "_none").then_some(id))
+    }
+
     /// Runs the pipeline `?search_pipeline=` names over `source`, or when it
-    /// names none the default of `index`; nothing when it is `_none`.
+    /// names none the body's, or the default of `index`; nothing when it is
+    /// `_none`.
     pub(super) fn run_pipeline(
         &self,
         req: &mut Request<'_>,
         source: &mut SearchSource,
         index: Option<&str>,
     ) -> Result<(), Answer> {
-        let id = match req.param("search_pipeline") {
-            Some(id) => id.into_owned(),
-            None => match (self.pipelines.get(), index) {
-                (Some(_), Some(index)) if source.pit.is_none() => {
-                    match self.default_pipeline(index)? {
-                        Some(id) => id,
-                        None => return Ok(()),
-                    }
-                }
-                _ => return Ok(()),
-            },
-        };
-        if id.is_empty() || id == "_none" {
+        let param = req.param("search_pipeline").map(|id| id.into_owned());
+        let Some(id) = self.pipeline_id(param, source, index)? else {
             return Ok(());
-        }
+        };
+        let pool = req.body();
+        self.apply_pipeline(&id, source, |n| pool.reserve(n).map_err(Answer::Rest))
+    }
+
+    /// Runs the pipeline an `_msearch` item names (its body's, else its
+    /// index's default) over `source`. The pipeline's buffers are held by the
+    /// returned reservation until the item is answered.
+    pub(super) fn run_item_pipeline(
+        &self,
+        index: &str,
+        source: &mut SearchSource,
+    ) -> Result<Option<oss_mem::Reservation>, Answer> {
+        let Some(id) = self.pipeline_id(None, source, Some(index))? else {
+            return Ok(None);
+        };
+        let mut held = None;
+        self.apply_pipeline(&id, source, |n| {
+            self.budget
+                .try_reserve(oss_mem::Pool::RequestBodies, n)
+                .map(|g| held = Some(g))
+                .map_err(|e| Answer::Rest(RestError::circuit_breaking(&e, "search_pipeline")))
+        })?;
+        Ok(held)
+    }
+
+    /// Resolves pipeline `id` after `hold` reserved its buffers, and applies
+    /// it to `source`.
+    fn apply_pipeline(
+        &self,
+        id: &str,
+        source: &mut SearchSource,
+        hold: impl FnOnce(usize) -> Result<(), Answer>,
+    ) -> Result<(), Answer> {
         let Some(pipelines) = self.pipelines.get() else {
             return Err(refuse(
                 501,
@@ -94,10 +141,8 @@ impl<S: BlobStore + 'static> SearchService<S> {
                 "search pipelines are not enabled on this node (OSS_SEARCH_PIPELINES)",
             ));
         };
-        req.body()
-            .reserve(pipelines.reserve_bytes())
-            .map_err(Answer::Rest)?;
-        let pipeline = pipelines.resolve(&id).map_err(|fault| match fault {
+        hold(pipelines.reserve_bytes())?;
+        let pipeline = pipelines.resolve(id).map_err(|fault| match fault {
             // ALLOC: error path; one message.
             PipelineFault::Missing => refuse(
                 400,

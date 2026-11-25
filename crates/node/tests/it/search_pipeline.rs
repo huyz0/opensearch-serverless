@@ -280,3 +280,77 @@ fn a_default_never_precedes_the_point_in_time_check() {
     assert_eq!(s, 400, "{body}");
     assert!(body.contains("illegal_argument"), "{body}");
 }
+
+// docs/specs/search-pipeline-body AC-1, AC-2
+#[test]
+fn a_body_names_a_pipeline_and_the_parameter_overrides_it() {
+    let node = node();
+    with_default(&node, "none-by-default", "_none");
+    let named = r#"{"size":10,"search_pipeline":"cut","query":{"match_all":{}}}"#;
+    let (s, cut) = search(&node, "compat-term", "", named);
+    assert_eq!((s, returned(&cut)), (200, 1), "{cut}");
+    let (s, plain) = search(&node, "compat-term", "?search_pipeline=_none", named);
+    assert_eq!((s, returned(&plain)), (200, 5), "{plain}");
+    let (s, over) = search(&node, "none-by-default", "", named);
+    assert_eq!(
+        (s, returned(&over)),
+        (200, 1),
+        "the body beats the default: {over}"
+    );
+    for bad in [
+        r#"{"search_pipeline":{"response_processors":[]}}"#,
+        r#"{"search_pipeline":null}"#,
+        r#"{"search_pipeline":7}"#,
+    ] {
+        assert_eq!(search(&node, "compat-term", "", bad).0, 400, "{bad}");
+    }
+}
+
+// docs/specs/search-pipeline-body AC-3
+#[test]
+fn each_msearch_item_runs_its_own_pipeline_and_a_missing_one_fails_alone() {
+    let node = node();
+    with_default(&node, "cutting", "cut");
+    let all = r#""query":{"match_all":{}},"size":10"#;
+    let body = format!(
+        "{{\"index\":\"compat-term\"}}\n{{{all}}}\n\
+         {{\"index\":\"compat-term\"}}\n{{{all},\"search_pipeline\":\"cut\"}}\n\
+         {{\"index\":\"cutting\"}}\n{{{all}}}\n\
+         {{\"index\":\"cutting\"}}\n{{{all},\"search_pipeline\":\"_none\"}}\n\
+         {{\"index\":\"compat-term\"}}\n{{{all},\"search_pipeline\":\"nope\"}}\n"
+    );
+    let r = request(node.addr(), "POST", "/_msearch", Some(body.as_bytes()));
+    let text = r.text();
+    assert_eq!(r.status, 200, "{text}");
+    let items: Vec<&str> = text.split(r#""status":"#).collect();
+    assert_eq!(items.len(), 6, "{text}");
+    let hits: Vec<usize> = items[..5].iter().map(|i| returned(i)).collect();
+    assert_eq!(hits[..4], [5, 1, 1, 5], "{text}");
+    assert!(items[4].contains("pipeline_missing"), "{text}");
+    assert!(items[5].starts_with("400"), "{text}");
+}
+
+// docs/specs/search-pipeline-body AC-4
+#[test]
+fn a_body_pipeline_is_501_when_off_and_none_is_not() {
+    let node = start();
+    let named = |p: &str| format!(r#"{{"search_pipeline":"{p}"}}"#);
+    assert_eq!(search(&node, "compat-term", "", &named("cut")).0, 501);
+    assert_eq!(search(&node, "compat-term", "", &named("_none")).0, 200);
+}
+
+// docs/specs/search-pipeline-body AC-5
+#[test]
+fn count_still_refuses_the_pipeline_parameter() {
+    let node = node();
+    let r = request(
+        node.addr(),
+        "POST",
+        "/compat-term/_count?search_pipeline=cut",
+        Some(b"{}"),
+    );
+    assert_eq!(r.status, 400, "{}", r.text());
+    assert!(r.text().contains("search_pipeline"), "{}", r.text());
+    let plain = request(node.addr(), "POST", "/compat-term/_count", Some(b"{}"));
+    assert_eq!(plain.status, 200, "{}", plain.text());
+}
