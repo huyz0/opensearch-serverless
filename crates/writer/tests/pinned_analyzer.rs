@@ -251,12 +251,14 @@ fn a_replay_indexes_the_same_positions_and_offsets_as_the_live_write() {
 /// suffix) and its 16-byte footer, which carry what differs between two
 /// writers of the same segment: the id and the checksum over it.
 fn body(file: &[u8]) -> &[u8] {
-    let mut at = 4; // the magic
-    let name = usize::from(file[at]);
-    at += 1 + name + 4 + 16; // the name, the version and the segment id
-    let suffix = usize::from(file[at]);
-    at += 1 + suffix;
-    &file[at..file.len() - 16]
+    // The magic, the name, the version and the segment id, then the suffix.
+    let after_id = [4, 1, usize::from(file[4]), 4, 16]
+        .iter()
+        .fold(0_usize, |a, n| a.saturating_add(*n));
+    let at = after_id
+        .saturating_add(1)
+        .saturating_add(usize::from(file[after_id]));
+    &file[at..file.len().saturating_sub(16)]
 }
 
 // docs/specs/extension-analyzer AC-12: replay reproduces the postings files
