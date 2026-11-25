@@ -125,6 +125,12 @@ impl ShardSlot {
         })
     }
 
+    /// What the writes applied since the last call added to the shard's
+    /// mapping, for the descriptor to hold.
+    pub(super) fn take_growth(&mut self) -> Option<Mapping> {
+        self.cell.with_dependent_mut(|_, shard| shard.take_growth())
+    }
+
     /// The highest sequence number the engine assigned, negative for none.
     pub(super) fn max_seq_no(&self) -> i64 {
         self.cell.with_dependent(|_, shard| shard.max_seq_no())
