@@ -151,7 +151,7 @@ pub(super) fn rendered_source(text: &str, explain: bool) -> Result<SearchSource,
     let mut tokens = tokenizer();
     tokens.feed(text.as_bytes(), &mut rec)?;
     tokens.finish(&mut rec)?;
-    let mut source = SearchSource::parse(&rec)?;
+    let mut source = SearchSource::parse(&rec)?.refuse_pipeline()?;
     source.explain |= explain;
     Ok(source)
 }

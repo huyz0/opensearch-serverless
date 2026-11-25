@@ -198,7 +198,12 @@ impl<'s, 'r, 'a, S: BlobStore + 'static> Items<'s, 'r, 'a, S> {
         out.finish()
     }
 
-    fn run(&self, index: &str, source: &SearchSource) -> Vec<u8> {
+    fn run(&self, index: &str, source: &mut SearchSource) -> Vec<u8> {
+        // Held until the item is answered.
+        let _pipeline = match self.service.run_item_pipeline(index, source) {
+            Ok(held) => held,
+            Err(answer) => return answer_item(answer),
+        };
         match self.service.search_bytes(index, source) {
             // The response ends with `}`; the item's status goes before it.
             Ok(mut bytes) => {
@@ -259,7 +264,7 @@ impl<S: BlobStore + 'static> LineSink for Items<'_, '_, '_, S> {
             (Err(item), _) => item,
             (Ok(_), Some(e)) => answer_item(bad_request(e)),
             (Ok(index), None) => match SearchSource::parse(&self.body) {
-                Ok(source) => self.run(&index, &source),
+                Ok(mut source) => self.run(&index, &mut source),
                 Err(e) => answer_item(bad_request(e)),
             },
         };
@@ -339,8 +344,8 @@ impl<S: BlobStore + 'static> SearchService<S> {
         };
         reserve(hits_bytes(source, shard)).map_err(|e| Answer::Rest(RestError::from(e)))?;
         let analyzer = Analyzer::standard(None);
-        let hits =
-            search_with(shard, index, source, &analyzer, held.pinned.as_deref()).map_err(|e| {
+        let mut hits = search_with(shard, index, source, &analyzer, held.pinned.as_deref())
+            .map_err(|e| {
                 let shard_failure = ShardFailure {
                     // ALLOC: error path; the index name.
                     index: index.to_owned(),
@@ -354,6 +359,9 @@ impl<S: BlobStore + 'static> SearchService<S> {
                     shard_failure,
                 )))
             })?;
+        if let Some(cap) = source.response_size_cap {
+            hits.truncate(cap);
+        }
         let took = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
         // ALLOC: one response, bounded by the reservations above.
         let mut out = Vec::new();

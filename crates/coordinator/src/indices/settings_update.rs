@@ -171,7 +171,13 @@ the object store, not from replica copies. Readers are added by scaling search n
 by setting a replica count",
         ));
     }
-    if held(requested, SEARCH_PIPELINE_KEY).is_some() {
+    // A registry that owns the key (search pipelines on) checks it like any other of its own.
+    if held(requested, SEARCH_PIPELINE_KEY).is_some_and(|v| {
+        matches!(
+            scope.classify(SEARCH_PIPELINE_KEY, Some(v)),
+            Kind::Core { .. }
+        )
+    }) {
         return Err(unsupported(
             "index.search.default_pipeline is not supported: an index-level search pipeline is applied by the search path, \
 and this shell's does not read it, so the value would be stored and never run. Name the pipeline on \
