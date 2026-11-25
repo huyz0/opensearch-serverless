@@ -82,6 +82,8 @@ pub struct Node {
     following: Option<follow::Following>,
     membership: Arc<Membership>,
     node_id: String,
+    /// This process's ephemeral id, which a signed call to it names.
+    ephemeral: String,
     /// Whether dropping the node leaves its lease to lapse, as a killed
     /// process does.
     crashed: bool,
@@ -113,6 +115,17 @@ impl Node {
     /// register; `None` while the tail overlay is off.
     pub fn refresh_visibility(&self) -> Option<crate::writer::RefreshVisibility> {
         self.following.as_ref().map(follow::Following::mode)
+    }
+
+    /// The identity a signed call to this node names as its recipient.
+    pub fn transport_identity(&self) -> String {
+        oss_transport::auth::identity(&self.node_id, &self.ephemeral)
+    }
+
+    /// The process's ephemeral id, which a peer called at the transport
+    /// address must be answered under.
+    pub fn ephemeral_id(&self) -> &str {
+        &self.ephemeral
     }
 
     /// The address the node's transport server listens on.
@@ -495,6 +508,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         following,
         membership,
         node_id: config.node_id.clone(),
+        ephemeral,
         crashed: false,
     })
 }
