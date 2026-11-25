@@ -13,6 +13,7 @@ use crate::tail_overlay::REFRESH_VISIBILITY;
 
 pub(super) mod apply;
 pub(super) mod authoring;
+pub(super) mod edge;
 pub(super) mod page_cache;
 pub(super) mod roles;
 pub(super) mod search_queue;
@@ -158,13 +159,13 @@ pub struct NodeConfig {
     /// `serverless.write.backpressure.*`: what limits the writes waiting on
     /// the write log.
     pub write_limit: oss_writer::admission::LimiterConfig,
-    /// `OSS_SEARCH_*`: the gate that orders searches under pressure;
-    /// `slots` 0 is off.
+    /// `OSS_SEARCH_*`: the gate that orders searches under pressure; 0 slots is off.
     pub search_slots: crate::search_slots::Config,
     /// `OSS_SEARCH_QUEUE_*` and `OSS_HTTP_MAX_CONNECTIONS`; `size` 0 is off.
     pub search_queue: crate::search_queue::Config,
-    /// `OSS_PAGE_CACHE_DIR` and `OSS_PAGE_CACHE_BYTES`: a disk tier for the
-    /// page cache; none keeps nothing past a read.
+    /// `OSS_EDGE_*`: the HTTP/2 front; no listener unless one is named.
+    pub edge: edge::EdgeSettings,
+    /// `OSS_PAGE_CACHE_DIR` and `OSS_PAGE_CACHE_BYTES`: a disk tier for the page cache.
     pub page_cache: Option<page_cache::DiskCache>,
     /// `OSS_RESIDENT_PAGE_BYTES`: the most bytes of demand-filled pages the
     /// node keeps resident; 0 leaves the engine's default.
@@ -426,6 +427,7 @@ impl NodeConfig {
             write_limit,
             search_slots,
             search_queue: search_queue::read(&bounded, search_slots.slots)?,
+            edge: edge::read(&get, &bounded)?,
             page_cache,
             resident_page_bytes,
             roles,

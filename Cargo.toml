@@ -10,6 +10,7 @@ members = [
     "crates/blob",
     "crates/format",
     "crates/rest",
+    "crates/edge",
     "crates/doc",
     "crates/reader",
     "crates/writer",
@@ -40,6 +41,7 @@ oss-types = { path = "crates/types" }
 oss-ext = { path = "crates/ext" }
 oss-ext-wasm = { path = "crates/ext-wasm" }
 oss-mem = { path = "crates/mem" }
+oss-edge = { path = "crates/edge" }
 oss-testkit = { path = "crates/testkit" }
 oss-blob = { path = "crates/blob" }
 oss-format = { path = "crates/format" }

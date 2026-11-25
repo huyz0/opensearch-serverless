@@ -18,7 +18,7 @@ import sys
 from checklib import read, report, tracked, window_has
 
 REQUEST_PATH = (
-    "crates/blob/src/", "crates/format/src/", "crates/rest/src/",
+    "crates/blob/src/", "crates/format/src/", "crates/rest/src/", "crates/edge/src/",
     "crates/meta/src/", "crates/cluster/src/", "crates/transport/src/", "crates/reader/src/", "crates/writer/src/", "crates/coordinator/src/",
 )
 ALLOC = re.compile(

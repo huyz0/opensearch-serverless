@@ -442,3 +442,12 @@ pub(super) fn readiness_for(config: &NodeConfig) -> crate::lifecycle::Readiness 
         crate::lifecycle::Readiness::new()
     }
 }
+
+/// The bytes a takeover's replay buffers before it commits locally.
+pub(super) const REPLAY_BUFFER: usize = 16_777_216;
+
+/// The most request nonces the transport remembers.
+pub(super) const REPLAY_CAPACITY: usize = 65_536;
+
+/// How long a held shard's index incarnation is trusted before it is read again.
+pub(super) const INCARNATION_WINDOW: Duration = Duration::from_secs(600);
