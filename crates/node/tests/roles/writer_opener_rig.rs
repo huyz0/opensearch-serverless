@@ -28,6 +28,7 @@ impl ShardOpener for Counting {
 pub(super) struct Forwarding {
     pub(super) inner: DescriptorRoutes,
     pub(super) sent: Mutex<Vec<String>>,
+    pub(super) refreshed: Mutex<Vec<String>>,
     pub(super) fail: AtomicBool,
 }
 
@@ -38,6 +39,11 @@ impl Routes for Forwarding {
 
     fn owner(&self, index: &IndexInfo, shard: u32) -> Owner {
         self.inner.owner(index, shard)
+    }
+
+    fn refresh_remote(&self, node: &str, _: &IndexInfo, _: u32) -> Result<(), String> {
+        self.refreshed.lock().expect("lock").push(node.to_owned());
+        Ok(())
     }
 
     fn forward(&self, node: &str, _: &IndexInfo, _: u32, group: &[Planned<'_>]) -> Vec<ItemResult> {
