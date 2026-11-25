@@ -45,6 +45,19 @@ pub struct Token {
     pub increment: u32,
 }
 
+/// What a pinned analyzer is to a caller that indexes: one text in, its
+/// checked tokens out. The host's call implements it over a module; a
+/// test over a table.
+pub trait Analyze: Send + Sync {
+    /// The tokens of `text`.
+    ///
+    /// # Errors
+    ///
+    /// The call's typed failure, which the caller answers rather than
+    /// falls back to a built-in analyzer.
+    fn analyze(&self, text: &str) -> Result<Vec<Token>, CallError>;
+}
+
 fn limit(why: &'static [u8]) -> CallError {
     CallError::from_status(Status::Limit, why)
 }

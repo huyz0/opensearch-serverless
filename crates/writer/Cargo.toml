@@ -14,6 +14,7 @@ oss-blob = { workspace = true }
 oss-format = { workspace = true }
 oss-rest = { workspace = true }
 oss-doc = { workspace = true }
+oss-ext = { workspace = true }
 oss-cluster = { workspace = true }
 oss-meta = { workspace = true }
 chunkjson = { workspace = true }
