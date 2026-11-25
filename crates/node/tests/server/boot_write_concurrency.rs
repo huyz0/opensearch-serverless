@@ -220,7 +220,7 @@ const WIDE: usize = 64;
 #[test]
 fn sixty_four_small_bulks_in_flight_together_share_a_window() {
     let dir = TempDir::new("write-concurrency-wide");
-    let node = boot(dir.path());
+    let node = boot_with(dir.path(), "2");
     let addr = node.addr();
     for c in 0..WIDE {
         assert_eq!(
@@ -249,7 +249,7 @@ fn sixty_four_small_bulks_in_flight_together_share_a_window() {
         }
     });
     let took = started.elapsed();
-    // Each held a whole 8 MiB slice, eight fit the 64 MiB budget: eight windows.
+    // With a pipeline each holds a share of its body, not a whole 8 MiB slice; without one, eight fit the 64 MiB budget: eight windows.
     assert!(
         took < Duration::from_millis(1_200),
         "{took:?} for {WIDE} bulks; eight at a time they need 2 s"

@@ -59,6 +59,11 @@ impl WriterRole {
         self.pipeline_depth.store(depth.max(1), Ordering::Relaxed);
     }
 
+    /// The depth set for the pipeline; 1 is the path without one.
+    pub fn pipeline_depth(&self) -> usize {
+        self.pipeline_depth.load(Ordering::Relaxed)
+    }
+
     /// Applies an admitted group to the opened `slot` of the shard, letting
     /// others of the shard stage while it waits for the log.
     pub(super) fn group_pipelined(

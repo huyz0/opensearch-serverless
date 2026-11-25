@@ -108,10 +108,12 @@ impl BulkService {
         };
         let refresh = refresh(req.param("refresh").as_deref())?;
         let mut config = self.config;
-        if let Some(declared) = req.body().declared_length() {
-            // A small body holds a small share of the budget, so many of
-            // them wait for the log together; the parsed items take about
-            // twice the body.
+        let declared = req.body().declared_length();
+        if let Some(declared) = declared.filter(|_| self.role.pipeline_depth() > 1) {
+            // With a pipeline, a small body holds a small share of the
+            // budget, so many of them wait for the log together; the parsed
+            // items take about twice the body. Without one, a bulk keeps
+            // its whole slice.
             let held = usize::try_from(declared)
                 .unwrap_or(usize::MAX)
                 .saturating_mul(2)

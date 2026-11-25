@@ -108,8 +108,7 @@ impl WriterRole {
             // snapshot is taken, so every write in the commit is in the log.
             let (mut held, _quiet) = super::pipelined::quiet_slot(slot);
             let max_seq_no = held.max_seq_no();
-            if held.failed() || only_if_due && (held.released() || !publishing.due(key, max_seq_no))
-            {
+            if held.failed() || held.released() || only_if_due && !publishing.due(key, max_seq_no) {
                 return Ok(None);
             }
             // What the log holds of this shard now is in the commit the
