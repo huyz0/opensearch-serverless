@@ -278,3 +278,33 @@ pub(super) fn node(input: &mut Input<'_>, budget: &mut Budget) -> Result<Node, R
         name: query_name,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn one(bytes: &[u8]) -> Result<Value, Refusal> {
+        value(&mut Input::new(bytes))
+    }
+
+    #[test]
+    fn every_value_kind_reads_as_what_java_wrote() {
+        assert_eq!(one(&[0xFF]).unwrap(), Value::Null);
+        assert_eq!(one(&[0, 2, b'h', b'i']).unwrap(), Value::Str("hi".into()));
+        assert_eq!(one(&[1, 0, 0, 1, 2]).unwrap(), Value::Int(258));
+        assert_eq!(one(&[2, 0, 0, 0, 0, 0, 0, 1, 2]).unwrap(), Value::Long(258));
+        assert_eq!(one(&[3, 0x3F, 0x80, 0, 0]).unwrap(), Value::Float(1.0));
+        assert_eq!(
+            one(&[4, 0x3F, 0xF8, 0, 0, 0, 0, 0, 0]).unwrap(),
+            Value::Double(1.5)
+        );
+        assert_eq!(one(&[5, 1]).unwrap(), Value::Bool(true));
+        assert_eq!(one(&[5, 0]).unwrap(), Value::Bool(false));
+        assert_eq!(one(&[21, 2, b'o', b'k']).unwrap(), Value::Str("ok".into()));
+    }
+
+    #[test]
+    fn a_value_of_another_kind_is_refused() {
+        assert!(matches!(one(&[9]), Err(Refusal::Unsupported(_))));
+    }
+}
