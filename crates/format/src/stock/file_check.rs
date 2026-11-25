@@ -75,13 +75,12 @@ impl StockFileCheck {
         }
         let tail_start = self.length.saturating_sub(FOOTER);
         let from = self.seen.max(tail_start);
-        if end > from {
-            let src = usize::try_from(from.saturating_sub(self.seen)).unwrap_or(0);
-            let dst = usize::try_from(from.saturating_sub(tail_start)).unwrap_or(0);
-            let part = data.get(src..).unwrap_or(&[]);
-            if let Some(room) = self.tail.get_mut(dst..dst.saturating_add(part.len())) {
-                room.copy_from_slice(part);
-            }
+        // Before the footer `from` is past the data, and the copy is empty.
+        let src = usize::try_from(from.saturating_sub(self.seen)).unwrap_or(0);
+        let dst = usize::try_from(from.saturating_sub(tail_start)).unwrap_or(0);
+        let part = data.get(src..).unwrap_or(&[]);
+        if let Some(room) = self.tail.get_mut(dst..dst.saturating_add(part.len())) {
+            room.copy_from_slice(part);
         }
         self.seen = end;
         Ok(())
