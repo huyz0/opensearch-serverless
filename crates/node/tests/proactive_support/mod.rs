@@ -371,6 +371,8 @@ pub fn first_writer(c: &Cluster) -> Node {
     one
 }
 
+/// A pass pinned at four at once for 30 s: the old defaults, which these
+/// suites keep covering; the shipped defaults are 16 and 60 s.
 pub fn config(enabled: bool) -> ProactiveConfig {
     ProactiveConfig {
         enabled,

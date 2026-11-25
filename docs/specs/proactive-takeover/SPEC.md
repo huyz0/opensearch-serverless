@@ -1,5 +1,7 @@
 # Proactive takeover of the shards a dead node's log names
 
+> Defaults of `max_concurrent` and `pass_millis` below are the original 4 and 30,000; they are 16 and 60,000 since [takeover-concurrency-default](../takeover-concurrency-default/SPEC.md).
+
 ## Serves
 
 Parity plan R8.2 and [ADR 0021](../../adr/0021-proactive-takeover-from-the-node-log.md): a dead node's shards that hold unpublished writes are taken before a write asks, without a claims registry. Builds on [node takeover](../node-takeover/SPEC.md), [writer takeover](../writer-takeover/SPEC.md), [node log takeover](../node-log-replay/SPEC.md) and [janitor node log](../janitor-node-log/SPEC.md).
