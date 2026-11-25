@@ -13,10 +13,10 @@ use super::WriterRole;
 /// `serverless.writer.merge.enabled`: whether a shard merges its small segments after a refresh.
 pub const ENABLED: BoolSetting = BoolSetting::new(
     "serverless.writer.merge.enabled",
-    false,
+    true,
     Scope::Node,
     "Whether a shard this node writes merges its small segments after a refresh, so a commit lists \
-     a bounded number of segments. Off by default until its cost is measured.",
+     a bounded number of segments. On by default: it makes no request, and a cold open and a refresh get cheaper (ADR 0059).",
 );
 
 /// `serverless.writer.merge.segments_per_tier`.
@@ -63,7 +63,7 @@ pub static SETTINGS: &[&Setting] = &[
 /// `serverless.writer.merge.*` settings of this node.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MergeConfig {
-    /// Whether shards merge their small segments; off by default.
+    /// Whether shards merge their small segments; on by default.
     pub enabled: bool,
     /// Segments one tier holds before a merge is due.
     pub segments_per_tier: usize,
@@ -105,7 +105,7 @@ impl MergeConfig {
                 Err(format!("{key} [{value}] is outside {low}..={high}"))
             }
         };
-        let enabled = match text("OSS_WRITER_MERGE", "false").as_str() {
+        let enabled = match text("OSS_WRITER_MERGE", "true").as_str() {
             "true" => true,
             "false" => false,
             other => return Err(format!("OSS_WRITER_MERGE is [{other}], not true or false")),
@@ -301,10 +301,18 @@ mod tests {
 
     // docs/specs/writer-segment-merge AC-5, AC-12
     #[test]
-    fn merging_is_off_by_default_and_each_bound_is_read_and_checked() {
-        let off = MergeConfig::read(&get(&[])).expect("defaults");
+    fn merging_is_on_by_default_off_by_its_variable_and_each_bound_is_read_and_checked() {
+        let on = MergeConfig::read(&get(&[])).expect("defaults");
+        assert!(on.enabled);
+        assert_eq!(
+            MergeConfig {
+                enabled: false,
+                ..on
+            },
+            MergeConfig::off()
+        );
+        let off = MergeConfig::read(&get(&[("OSS_WRITER_MERGE", "false")])).expect("read");
         assert_eq!(off, MergeConfig::off());
-        assert!(!off.enabled);
         let on = MergeConfig::read(&get(&[
             ("OSS_WRITER_MERGE", "true"),
             ("OSS_WRITER_MERGE_SEGMENTS_PER_TIER", "4"),
