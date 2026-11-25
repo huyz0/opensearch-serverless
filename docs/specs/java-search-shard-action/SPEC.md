@@ -15,6 +15,7 @@ The Rust node registers `internal:serverless/search/shard`. It verifies the MAC 
 - AC-2: a `ForwardedSearchResponse` written for the same hits is equal byte for byte to the Java writer's fixture, at stream version 3.10.0, including the `false` aggregations flag.
 - AC-3: a forwarded search for a shard this node writes returns documents that are acknowledged and not yet published.
 - AC-4: a forwarded search for a shard this node does not hold, for a uuid other than the held shard's, or after the node's lease is lost (including lost between the check before the query and the check after it), is refused as not owner and makes no blob request.
+- AC-4b: a forwarded search on a node whose last lease renewal is older than `serverless.search.shard_action.max_lease_age_millis` (default 10,000) is refused as not owner; one just inside the bound is served.
 - AC-5: a request with a wrong MAC is refused with nothing decoded; a request over each limit by one (bytes, depth, clauses, `from` plus `size`, answer bytes) is refused, and one at each limit is served; a string or list length larger than the bytes left is refused before any allocation of that size; a negotiated version below 3.10.0 is refused.
 - AC-6: a `range` on `now-1h` is evaluated at the request's `nowInMillis`: a document on that boundary is counted as the Java shard counts it.
 - AC-7: hits that tie on score are ordered by `_id` ascending, checked with a fixture of tied scores.
