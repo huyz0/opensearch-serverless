@@ -51,13 +51,16 @@ struct Job {
     uuid: String,
     shard: u32,
     commit: Vec<u8>,
+    /// Whether only the readers of another build are told.
+    other_builds_only: bool,
 }
 
 /// A node's commit sink: the local take, then the queue to the worker.
 pub struct CommitPush {
     local: Arc<dyn LocalTake>,
     /// Whether every commit is sent to the other readers; else only the
-    /// first one of a takeover is.
+    /// first one of a takeover is, and every one to the readers of another
+    /// build.
     remote: bool,
     queue: Mutex<Option<SyncSender<Job>>>,
     worker: Mutex<Option<JoinHandle<()>>>,
@@ -102,6 +105,7 @@ impl CommitPush {
                 commit: &job.commit,
                 mapping_version: -1,
                 settings_version: -1,
+                other_builds_only: job.other_builds_only,
             });
         }
     }
@@ -133,9 +137,11 @@ impl CommitSink for CommitPush {
         // Nothing pushes to oneself: the node that owns a shard serves
         // searches of it too.
         self.local.take(index, uuid, shard, manifest);
-        if !self.remote && !taken_over {
-            return;
-        }
+        // Without the send to every reader, a reader of this build still gets
+        // only a takeover's first commit (its overlay serves the rest); a
+        // reader of another build cannot read the overlay, so it gets every
+        // one.
+        let other_builds_only = !self.remote && !taken_over;
         let queue = self.queue.lock().unwrap_or_else(PoisonError::into_inner);
         let Some(tx) = queue.as_ref() else {
             return;
@@ -147,6 +153,7 @@ impl CommitSink for CommitPush {
             shard,
             // ALLOC: one commit a publish, at most MAX_NEWEST_BYTES.
             commit: manifest.to_vec(),
+            other_builds_only,
         };
         if let Err(TrySendError::Full(_) | TrySendError::Disconnected(_)) = tx.try_send(job) {
             self.dropped.fetch_add(1, Ordering::Relaxed);
