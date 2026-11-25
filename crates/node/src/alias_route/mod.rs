@@ -57,19 +57,9 @@ impl AliasService {
         }
     }
 
-    /// Refuses when any of `indices` holds the metadata block: one descriptor
-    /// read for each distinct name, before the first change is applied.
+    /// Refuses when any of `indices` holds the metadata block.
     fn unblocked(&self, indices: &[&str]) -> Result<(), RestError> {
-        // ALLOC: one register buffer for the checks of this request.
-        let mut buf = vec![0u8; self.buffer_bytes];
-        let mut seen: Vec<&str> = Vec::new();
-        for index in indices {
-            if !seen.contains(index) {
-                seen.push(index);
-                metadata_block::check(&self.descriptors, index, &mut buf)?;
-            }
-        }
-        Ok(())
+        metadata_block::check_all(&self.descriptors, indices, self.buffer_bytes)
     }
 
     fn mutate<R>(
@@ -112,8 +102,10 @@ impl AliasService {
             alias,
             write,
         };
-        self.unblocked(&[change.index.as_str()])?;
-        self.mutate(req, |m| apply(m, &change))?;
+        self.mutate(req, |m| {
+            self.unblocked(&[change.index.as_str()])?;
+            apply(m, &change)
+        })?;
         resp.send(200, JSON, ACK)
     }
 
@@ -126,8 +118,10 @@ impl AliasService {
             alias,
             write: None,
         };
-        self.unblocked(&[change.index.as_str()])?;
-        self.mutate(req, |m| apply(m, &change))?;
+        self.mutate(req, |m| {
+            self.unblocked(&[change.index.as_str()])?;
+            apply(m, &change)
+        })?;
         resp.send(200, JSON, ACK)
     }
 
@@ -136,8 +130,8 @@ impl AliasService {
         let body = read_body(req, MAX_BODY_BYTES, "the body is larger than 64 KiB")?;
         let changes = parse_actions(&body)?;
         let named: Vec<&str> = changes.iter().map(|c| c.index.as_str()).collect();
-        self.unblocked(&named)?;
         self.mutate(req, |m| {
+            self.unblocked(&named)?;
             for change in &changes {
                 apply(m, change)?;
             }

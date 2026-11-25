@@ -58,3 +58,22 @@ pub(crate) fn check(
         None => Ok(()),
     }
 }
+
+/// [`check`] for each distinct name of `indices`, in order: one descriptor
+/// read each, before any change is applied.
+pub(crate) fn check_all(
+    descriptors: &DescriptorStore,
+    indices: &[&str],
+    buffer_bytes: usize,
+) -> Result<(), RestError> {
+    // ALLOC: one register buffer, buffer_bytes, for the checks of this request.
+    let mut buf = vec![0u8; buffer_bytes];
+    let mut seen: Vec<&str> = Vec::new();
+    for index in indices {
+        if !seen.contains(index) {
+            seen.push(index);
+            check(descriptors, index, &mut buf)?;
+        }
+    }
+    Ok(())
+}

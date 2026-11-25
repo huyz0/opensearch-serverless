@@ -168,7 +168,7 @@ impl RolloverService {
             .writes_to()
             .map(str::to_owned)
             .ok_or_else(|| refuse(500, "rollover_failure", "the target has no write index"))?;
-        let (created_at, shards) = self.old_index(&old)?;
+        let (created_at, shards, blocked) = self.old_index(&old)?;
         let generation = before.generation.checked_add(1).ok_or_else(|| {
             refuse(
                 400,
@@ -204,6 +204,10 @@ impl RolloverService {
         if dry_run || !evaluation.should_roll {
             let body = render::response(&old, &new_name, &evaluation.met, dry_run, false);
             return resp.send(200, JSON, body.as_bytes());
+        }
+        // A roll moves the alias off the old index, a metadata change of it.
+        if blocked {
+            return Err(crate::metadata_block::refusal(&old));
         }
         let (created, new_generation) =
             self.make(req, &before, &target, &mut new_name, generation, shape)?;
@@ -341,7 +345,7 @@ impl RolloverService {
 
     /// When the index `name` was created, in milliseconds, and its shard
     /// count; 404 when it has no descriptor.
-    fn old_index(&self, name: &str) -> Result<(i64, u32), RestError> {
+    fn old_index(&self, name: &str) -> Result<(i64, u32, bool), RestError> {
         // ALLOC: one buffer a rollover.
         let mut buf = vec![0u8; self.buffer_bytes];
         match self
@@ -349,7 +353,11 @@ impl RolloverService {
             .get(name, &mut buf)
             .map_err(lookup_failed)?
         {
-            Some(record) => Ok((record.created_at_millis, record.number_of_shards)),
+            Some(record) => Ok((
+                record.created_at_millis,
+                record.number_of_shards,
+                crate::metadata_block::holds_block(record.settings, crate::metadata_block::KEY),
+            )),
             None => Err(refuse(
                 404,
                 "index_not_found",
