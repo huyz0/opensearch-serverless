@@ -352,7 +352,10 @@ fn control_and_multibyte_characters_escape_as_json() {
     let json = plain(&doc(0, &body)).expect("escapes");
     let back: String = serde_json::from_str(&json).expect("valid JSON");
     assert_eq!(back, s);
-    assert!(json.contains("\\u0008") && json.contains("\\u000c"), "{json}");
+    assert!(
+        json.contains("\\u0008") && json.contains("\\u000c"),
+        "{json}"
+    );
 }
 
 #[test]
