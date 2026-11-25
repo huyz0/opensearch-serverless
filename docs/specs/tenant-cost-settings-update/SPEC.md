@@ -31,3 +31,4 @@ No new switch: it rides `OSS_TENANT_LEVELS`; with levels off the settings are st
 ## Risks
 
 - Another node that holds the shard keeps its old budget until the shard next opens.
+- The settings route is on the risk path list for its defaults; this change adds no default and keeps the bucket group static (AC-3).
