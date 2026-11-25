@@ -183,9 +183,9 @@ pub(crate) fn alias_service(
     )))
 }
 
-/// Adds the data stream routes: backing indices are made by `indices` and
+/// Adds the data stream and rollover routes: backing indices are made by `indices` and
 /// removed by `deletes`.
-pub(crate) fn data_stream_routes(
+pub(crate) fn stream_routes(
     router: oss_rest::Router,
     config: &crate::assemble::Config,
     store: &Arc<dyn BlobStore>,
@@ -193,20 +193,32 @@ pub(crate) fn data_stream_routes(
     indices: &Arc<IndexService>,
     deletes: &Arc<DeleteService>,
 ) -> Result<oss_rest::Router, crate::assemble::AssembleError> {
-    let stripes = oss_meta::ChangeStripes::new(Arc::clone(store), &config.base)
-        .map_err(|e| crate::assemble::AssembleError::Store(e.to_string()))?;
-    let descriptors = DescriptorStore::new(Arc::clone(store), &config.base, config.delete_mode)
-        .map_err(|e| crate::assemble::AssembleError::Store(e.to_string()))?
-        .record_changes_in(stripes);
-    let service = Arc::new(crate::data_stream_route::DataStreamService::new(
+    let descriptors = || {
+        let stripes = oss_meta::ChangeStripes::new(Arc::clone(store), &config.base)
+            .map_err(|e| crate::assemble::AssembleError::Store(e.to_string()))?;
+        DescriptorStore::new(Arc::clone(store), &config.base, config.delete_mode)
+            .map(|d| d.record_changes_in(stripes))
+            .map_err(|e| crate::assemble::AssembleError::Store(e.to_string()))
+    };
+    let rollover = Arc::new(crate::rollover_route::RolloverService::new(
         Arc::clone(indices),
         Arc::clone(deletes),
-        descriptors,
+        descriptors()?,
         Arc::clone(clock),
         config.pit_buffer_bytes,
         ALIAS_LEASE_TTL_MILLIS,
     ));
-    crate::data_stream_route::routes(router, service).map_err(crate::assemble::AssembleError::Route)
+    let service = Arc::new(crate::data_stream_route::DataStreamService::new(
+        Arc::clone(indices),
+        Arc::clone(deletes),
+        descriptors()?,
+        Arc::clone(clock),
+        config.pit_buffer_bytes,
+        ALIAS_LEASE_TTL_MILLIS,
+    ));
+    let router = crate::data_stream_route::routes(router, service)
+        .map_err(crate::assemble::AssembleError::Route)?;
+    crate::rollover_route::routes(router, rollover).map_err(crate::assemble::AssembleError::Route)
 }
 
 #[cfg(all(test, feature = "extensions"))]

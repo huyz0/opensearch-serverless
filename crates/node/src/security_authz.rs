@@ -221,6 +221,8 @@ const ALL_ACCESS: &[&str] = &[
     "/_ingest/pipeline/{id}/_simulate",
     "/_aliases",
     "/_data_stream",
+    "/{index}/_rollover",
+    "/{index}/_rollover/{new_index}",
     "/_data_stream/{name}",
     "/_scripts/{id}",
     "/_scripts/{id}/{context}",

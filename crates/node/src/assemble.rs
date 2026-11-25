@@ -445,7 +445,7 @@ pub fn assemble(
     let (router, _sec) = crate::admin_assemble::register(router, &store, config, budget)?;
     #[cfg(feature = "coordinator")]
     let (router, drain) = {
-        use crate::index_assemble::{data_stream_routes, index_service, pin_policy};
+        use crate::index_assemble::{index_service, pin_policy, stream_routes};
         let pins = pin_policy(config, &store, budget, _sec)?;
         let indices = index_service(config, &store, &clock, bucket_wiring.as_ref(), pins)?;
         let aliases = crate::index_assemble::alias_service(config, &store, &clock)?;
@@ -455,7 +455,7 @@ pub fn assemble(
         let router =
             crate::index_assemble::restore_routes(router, config, &store, &clock, &deletes)?;
         let drain = DrainTimer::spawn(Arc::clone(&deletes), config.reclaim_every);
-        let router = data_stream_routes(router, config, &store, &clock, &indices, &deletes)?;
+        let router = stream_routes(router, config, &store, &clock, &indices, &deletes)?;
         let router = index_route::routes(router, indices).map_err(AssembleError::Route)?;
         let router = index_delete::routes(router, deletes).map_err(AssembleError::Route)?;
         let by_query = Arc::new(crate::by_query::ByQueryService::new(

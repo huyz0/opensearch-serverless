@@ -177,14 +177,7 @@ impl DataStreamService {
             .mutate(|m| m.delete_alias(&at.alias, at.generation))
             .map_err(read_failed)?;
         if !deleted {
-            return Err(refuse(
-                409,
-                "version_conflict_engine_exception",
-                // ALLOC: error path; one message.
-                format!(
-                    "data stream [{name}] was changed concurrently; nothing was deleted, retry"
-                ),
-            ));
+            return Err(changed(&name));
         }
         // ALLOC: the names of the indices not removed, only on a failure.
         let mut failed: Vec<String> = Vec::new();
@@ -292,6 +285,16 @@ fn already_exists(name: &str) -> RestError {
     )
 }
 
+/// The refusal for a record that changed between its read and its delete.
+fn changed(name: &str) -> RestError {
+    // ALLOC: error path; one message.
+    refuse(
+        409,
+        "version_conflict_engine_exception",
+        format!("data stream [{name}] was changed concurrently; nothing was deleted, retry"),
+    )
+}
+
 fn contended(name: &str) -> RestError {
     // ALLOC: error path; one message.
     refuse(
@@ -357,4 +360,18 @@ pub fn routes(router: Router, service: Arc<DataStreamService>) -> Result<Router,
                 ))
             },
         )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_record_changed_since_it_was_read_is_a_409_that_deleted_nothing() {
+        let e = changed("logs-1");
+        assert_eq!(e.status(), 409);
+        let x = e.as_exception().expect("an exception");
+        assert_eq!(x.kind(), "version_conflict_engine_exception");
+        assert!(x.reason().contains("nothing was deleted"));
+    }
 }
