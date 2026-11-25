@@ -8,7 +8,7 @@
 
 use std::sync::Arc;
 
-use oss_blob::{BlobStore, FsStore, ReadOnlyStore, SourceRoots};
+use oss_blob::{BlobStore, FsStore, ReadOnlyStore, S3Config, S3Store, SourceRoots};
 use oss_coordinator::snapshot_admin::snapshot_missing;
 use oss_coordinator::snapshot_restore_admin::{
     RestoreRequest, index_not_captured, plan, render_restored,
@@ -41,6 +41,16 @@ pub struct StockRestoreSettings {
     pub roots: SourceRoots,
     /// The most blobs read at once in a round, at least 1.
     pub fanout: usize,
+    /// How an `s3` source is reached; none answers 501.
+    pub s3: Option<StockS3>,
+}
+
+/// This node's S3 endpoint, and where its own data sits in its bucket.
+pub struct StockS3 {
+    /// The endpoint, region, credentials and own bucket.
+    pub source: crate::stock_s3::SourceS3,
+    /// This deployment's key prefix in its own bucket.
+    pub own_prefix: String,
 }
 
 impl StockRestoreSettings {
@@ -51,6 +61,7 @@ impl StockRestoreSettings {
             enabled: false,
             roots: SourceRoots::parse("", ""),
             fanout: 1,
+            s3: None,
         }
     }
 }
@@ -109,7 +120,7 @@ impl SnapshotRestoreService {
                 "restoring from a stock repository is not enabled on this node (serverless.snapshots.stock.enabled)",
             ));
         }
-        let source = self.source_store(&record)?;
+        let (source, prefix) = self.source_store(&record)?;
         let blobs = self
             .stock
             .fanout
@@ -121,7 +132,7 @@ impl SnapshotRestoreService {
                 .saturating_add(MAX_INDEX_N_BYTES)
                 .saturating_add(CHECK_BYTES),
         )?;
-        let from = StockRepo::new(&source, "");
+        let from = StockRepo::new(&source, &prefix);
         let data = stock_load(&from).map_err(read_failed)?;
         let snap = data
             .snapshot(name)
@@ -162,7 +173,7 @@ impl SnapshotRestoreService {
         let now = i64::try_from((self.clock)()).unwrap_or(i64::MAX);
         let from_store = StockSource {
             store: &source,
-            prefix: "",
+            prefix: &prefix,
         };
         // ALLOC: one entry an index, at most the plan's bound.
         let mut created: Vec<(String, String)> = Vec::new();
@@ -220,35 +231,62 @@ impl SnapshotRestoreService {
         )
     }
 
-    /// The store the repository's files are read from: read-only, under an
-    /// operator-listed root.
-    fn source_store(&self, record: &RepositoryRecord) -> Result<ReadOnlyStore, RestError> {
+    /// The store the repository's files are read from, read-only and under
+    /// an operator-listed root, and the repository's key prefix in it.
+    fn source_store(
+        &self,
+        record: &RepositoryRecord,
+    ) -> Result<(ReadOnlyStore, String), RestError> {
         let setting = |key: &str| {
             record
                 .settings
                 .iter()
                 .find(|(k, _)| k == key)
                 .map(|(_, v)| v.as_str())
+                .unwrap_or_default()
         };
+        // ALLOC: error path; one message.
+        let bad = |e: &dyn std::fmt::Display| refuse(400, "repository_exception", e.to_string());
+        let store: Arc<dyn BlobStore>;
+        let prefix;
         match record.repo_type.as_str() {
             "fs" => {
-                let location = setting("location").unwrap_or_default();
                 let path = self
                     .stock
                     .roots
-                    .fs_location(location)
-                    // ALLOC: error path; one message.
-                    .map_err(|e| refuse(400, "repository_exception", e.to_string()))?;
-                let store = FsStore::new(path)
-                    // ALLOC: error path; one message.
-                    .map_err(|e| refuse(400, "repository_exception", e.to_string()))?;
-                let store: Arc<dyn BlobStore> = Arc::new(store);
-                Ok(ReadOnlyStore::new(store))
+                    .fs_location(setting("location"))
+                    .map_err(|e| bad(&e))?;
+                store = Arc::new(FsStore::new(path).map_err(|e| bad(&e))?);
+                prefix = String::new();
             }
-            _ => Err(unsupported(
-                "restoring from a stock s3 repository is not served yet",
-            )),
+            "s3" => {
+                let Some(s3) = &self.stock.s3 else {
+                    return Err(unsupported(
+                        "this node's store is not S3, so it reads no stock s3 repository",
+                    ));
+                };
+                let bucket = setting("bucket");
+                prefix = self
+                    .stock
+                    .roots
+                    .s3_prefix(
+                        bucket,
+                        setting("base_path"),
+                        &s3.source.own_bucket,
+                        &s3.own_prefix,
+                    )
+                    .map_err(|e| bad(&e))?;
+                let config = S3Config::new(
+                    &s3.source.endpoint,
+                    bucket,
+                    &s3.source.region,
+                    s3.source.credentials.clone(),
+                );
+                store = Arc::new(S3Store::new(config).map_err(|e| bad(&e))?);
+            }
+            _ => return Err(unsupported("a stock repository is type fs or s3")),
         }
+        Ok((ReadOnlyStore::new(store), prefix))
     }
 }
 

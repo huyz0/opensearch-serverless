@@ -160,6 +160,8 @@ pub mod snapshot_take_route;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub mod stock_restore_route;
 #[cfg(feature = "writer")]
+pub mod stock_s3;
+#[cfg(feature = "writer")]
 pub mod tail_await;
 #[cfg(feature = "reader")]
 pub mod tail_fresh;

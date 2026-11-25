@@ -220,3 +220,4 @@ src/writer/merging.rs	new		the node gate and settings for merging a shard small 
 src/writer/configure.rs	new		what the node configuration sets on the writer role, split out of assembly to keep it under the size limit
 src/cost_header.rs	new		the cost header value of a request that asked (ADR 0061); the shell has none
 src/stock_restore_route.rs	new		restoring from a stock OpenSearch repository read through a read-only source store; no Java counterpart in the shell
+src/stock_s3.rs	new		the S3 endpoint a stock restore reads a source bucket through; no Java counterpart in the shell

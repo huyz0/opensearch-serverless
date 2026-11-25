@@ -160,6 +160,13 @@ pub(crate) fn restore_routes(
         enabled: config.snapshots_stock,
         roots: oss_blob::SourceRoots::parse(&config.stock_fs_roots, &config.stock_s3_roots),
         fanout: config.stock_fanout,
+        s3: config
+            .stock_s3
+            .clone()
+            .map(|s3| crate::stock_restore_route::StockS3 {
+                source: s3,
+                own_prefix: config.base.clone(),
+            }),
     });
     crate::snapshot_restore_route::routes(router, Arc::new(service))
         .map_err(crate::assemble::AssembleError::Route)
