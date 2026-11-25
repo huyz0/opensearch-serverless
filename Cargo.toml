@@ -97,6 +97,29 @@ arithmetic_side_effects = "deny"
 undocumented_unsafe_blocks = "deny"
 multiple_unsafe_ops_per_block = "deny"
 
+# The engine's segment and vector-graph building runs in the test builds,
+# where unoptimised it dominates the slowest tests.
+[profile.dev.package.lucene-store]
+opt-level = 2
+
+[profile.dev.package.lucene-index]
+opt-level = 2
+
+[profile.dev.package.lucene-search]
+opt-level = 2
+
+[profile.dev.package.lucene-codecs]
+opt-level = 2
+
+[profile.dev.package.lucene-analysis]
+opt-level = 2
+
+[profile.dev.package.lucene-util]
+opt-level = 2
+
+[profile.dev.package.lucene-aggs]
+opt-level = 2
+
 [profile.release]
 overflow-checks = true
 
