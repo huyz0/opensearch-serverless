@@ -27,7 +27,9 @@ use crate::route_util::{read_body, refuse, refused};
 mod count;
 mod render;
 
-pub use count::{DocCount, SearchCount};
+pub use count::DocCount;
+#[cfg(feature = "reader")]
+pub use count::SearchCount;
 
 /// The most bytes of a rollover body.
 const MAX_BODY_BYTES: usize = 64 << 10;

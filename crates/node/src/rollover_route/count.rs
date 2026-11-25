@@ -1,13 +1,12 @@
 //! The document count `max_docs` asks of the index a rollover leaves: the
 //! sum of the exact totals of a no-hit match-all search of each shard.
 
-use std::sync::Arc;
-
-use oss_blob::BlobStore;
 use oss_coordinator::route::resolve::Refusal;
-use oss_reader::dsl::SearchSource;
-
-use crate::search::SearchService;
+#[cfg(feature = "reader")]
+use {
+    crate::search::SearchService, oss_blob::BlobStore, oss_reader::dsl::SearchSource,
+    std::sync::Arc,
+};
 
 /// How many documents an index holds.
 pub trait DocCount: Send + Sync {
@@ -19,12 +18,14 @@ pub trait DocCount: Send + Sync {
     fn count(&self, index: &str, shards: u32) -> Result<u64, Refusal>;
 }
 
+#[cfg(feature = "reader")]
 /// [`DocCount`] over this node's [`SearchService`]: one query of no hits a
 /// shard, so the cost is that of opening the shard once and counting it.
 pub struct SearchCount<S: BlobStore + 'static> {
     search: Arc<SearchService<S>>,
 }
 
+#[cfg(feature = "reader")]
 impl<S: BlobStore + 'static> SearchCount<S> {
     /// Counts through `search`.
     pub fn new(search: Arc<SearchService<S>>) -> Self {
@@ -32,6 +33,7 @@ impl<S: BlobStore + 'static> SearchCount<S> {
     }
 }
 
+#[cfg(feature = "reader")]
 impl<S: BlobStore + 'static> DocCount for SearchCount<S> {
     fn count(&self, index: &str, shards: u32) -> Result<u64, Refusal> {
         let source = SearchSource {
