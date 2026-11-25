@@ -124,6 +124,8 @@ jobs:
       - name: run
         env:
           LANE: ${{ matrix.lane }}
+          # A mutant that allocates without stopping fails its own test.
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: ${{ github.workspace }}/scripts/memcap-runner.sh
         run: |
           slice=$(( (10#$(date -u +%j) * 8 + LANE) % 56 ))
           echo "mutants: slice $slice/56"
