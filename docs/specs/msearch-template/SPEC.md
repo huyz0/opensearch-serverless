@@ -6,7 +6,7 @@ Parity plan R10.5, the follow-up [search-template-api](../search-template-api/SP
 
 ## Change
 
-`search_msearch` registers the two routes beside `_msearch`'s. The same line streamer reads the header and body lines; a body line of these routes is parsed as a template request, rendered by `oss_reader::template` (the checks `_search/template` makes: no stored `id`, `profile` or `search_pipeline`; a missing template is the stock 400), and the text is held in the request-body pool while it is parsed as a search body. The search then runs as an `_msearch` item runs, and the answer is `{"responses":[...],"took":N}` with the item's own response bytes and `"status":200`, or its error body carrying its status. One failing item never fails the others. Both routes are `all_access` in the security route table, as `_msearch` is.
+`search_msearch` registers the two routes beside `_msearch`'s. The same line streamer reads the header and body lines; a body line of these routes is parsed as a template request, rendered by `oss_reader::template` (the checks `_search/template` makes: no stored `id`, `profile` or `search_pipeline`; a missing template is the stock 400), and the text is held in the request-body pool while it is parsed as a search body. The search then runs as an `_msearch` item runs, and the answer is `{"responses":[...],"took":N}` with the item's own response bytes and `"status":200`, or its error body carrying its status. One failing item never fails the others, and a header or body line that does not parse fails its own item as `_msearch` does. Both routes are `all_access` in the security route table, as `_msearch` is.
 
 ## Acceptance criteria
 
