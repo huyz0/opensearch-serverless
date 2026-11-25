@@ -3,6 +3,9 @@
 //! the same owner with none. A measurement, not a gate: the numbers come from
 //! an in-process emulator on a shared machine and are provisional.
 
+// ARITH: counts and indexes are small; an overflow panics the test, which
+// fails it as it should.
+#![allow(clippy::arithmetic_side_effects)]
 #![cfg(all(feature = "reader", feature = "writer", feature = "coordinator"))]
 
 mod suite_rig;

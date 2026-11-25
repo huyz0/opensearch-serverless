@@ -116,25 +116,6 @@ impl Node {
     pub fn refresh_visibility(&self) -> Option<crate::writer::RefreshVisibility> {
         self.following.as_ref().map(follow::Following::mode)
     }
-
-    /// The identity a signed call to this node names as its recipient.
-    pub fn transport_identity(&self) -> String {
-        oss_transport::auth::identity(&self.node_id, &self.ephemeral)
-    }
-
-    /// The process's ephemeral id, which a peer called at the transport
-    /// address must be answered under.
-    pub fn ephemeral_id(&self) -> &str {
-        &self.ephemeral
-    }
-
-    /// The address the node's transport server listens on.
-    pub fn transport_addr(&self) -> std::net::SocketAddr {
-        self.transport.as_ref().map_or_else(
-            || std::net::SocketAddr::from(([0, 0, 0, 0], 0)),
-            TransportServer::address,
-        )
-    }
 }
 
 impl Drop for Node {
