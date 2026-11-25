@@ -210,6 +210,9 @@ impl Handler for SearchShardHandler {
         })?;
         // `now` in date math is the coordinator's instant, not this node's.
         source.now_millis = Some(ask.now_millis);
+        // The Java shard this answers for lays its segments out differently:
+        // tied hits are cut by `_id`, not by document order.
+        source.tie_by_id = true;
         // The answer's bytes are reserved before they are read.
         let reservation = Mutex::new(
             self.budget

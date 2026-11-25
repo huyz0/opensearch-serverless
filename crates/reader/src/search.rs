@@ -377,6 +377,7 @@ pub fn search_with<S: BlobStore + 'static>(
             min_score: source.min_score,
             track_scores: source.track_scores,
             terminate_after: source.terminate_after,
+            tie_by_id: source.tie_by_id,
         },
     )?;
     if let Some((_, kinds)) = sort.as_ref().filter(|_| source.track_scores)

@@ -336,7 +336,7 @@ mod values;
 
 pub use selected::{Row, fetch_rows, render_selected_hits, render_selected_result_hits};
 use values::write_score;
-pub use values::{write_id, write_java_float};
+pub use values::{id_text, write_id, write_java_float};
 
 #[cfg(test)]
 #[path = "response_hits_tests.rs"]

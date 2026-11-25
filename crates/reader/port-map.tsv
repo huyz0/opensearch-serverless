@@ -215,3 +215,4 @@ src/search_pipeline.rs	port	modules/search-pipeline-common/src/main/java/org/ope
 src/shard_files/unpublished.rs	new		the empty commit of a shard whose writer took it and has not published yet, its owner named as the writer
 src/date_math.rs	port	server/src/main/java/org/opensearch/common/time/JavaDateMathParser.java@3.10.0	parse and parseMath in UTC: now, anchor||, +n and -n of y M w d h H m s, and /unit rounding down or up; no time zone, no other formats
 src/date_math_tests.rs	new		tests for date math
+src/search_ties.rs	new		the score collector's tied hits ordered by _id ascending for a forwarded search, so its page does not depend on segment layout

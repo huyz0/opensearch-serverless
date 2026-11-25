@@ -26,6 +26,8 @@ struct Fake {
     wait: Duration,
     fail: Option<u16>,
     now: std::sync::Mutex<Vec<Option<i64>>>,
+    /// Whether each search asked for ties to be ordered by `_id`.
+    ties: std::sync::Mutex<Vec<bool>>,
 }
 
 impl Fake {
@@ -37,6 +39,7 @@ impl Fake {
             wait: Duration::ZERO,
             fail: None,
             now: std::sync::Mutex::default(),
+            ties: std::sync::Mutex::default(),
         }
     }
 }
@@ -59,6 +62,7 @@ impl Shards for Fake {
     ) -> Result<Found, Box<SearchError>> {
         self.ran.lock().unwrap().push((index.to_owned(), shard));
         self.now.lock().unwrap().push(source.now_millis);
+        self.ties.lock().unwrap().push(source.tie_by_id);
         std::thread::sleep(self.wait);
         if let Some(status) = self.fail {
             return Err(Box::new(SearchError::request(
@@ -152,6 +156,15 @@ fn a_held_shard_with_a_fresh_lease_answers_in_the_java_layout() {
     // The bytes the Java shell writes for the same answer.
     let expected = fixture("response.two_hits");
     assert_eq!(&answer[..], &expected[..]);
+}
+
+// docs/specs/java-search-shard-action AC-7
+#[test]
+fn a_forwarded_search_asks_for_ties_to_be_ordered_by_id() {
+    let fake = Arc::new(Fake::held());
+    let h = shared(Arc::clone(&fake), &fresh(), 10_000);
+    ask(&h, &fixture("request.match_all"), WireVersion::SHELL).unwrap();
+    assert_eq!(*fake.ties.lock().unwrap(), [true]);
 }
 
 #[test]

@@ -303,3 +303,40 @@ fn the_meta_a_row_carries_is_read_from_what_write_meta_writes() {
     assert_eq!(meta_value(r#","_version":3"#, "_seq_no"), None);
     assert_eq!(meta_value("", "_version"), None);
 }
+
+// docs/specs/java-search-shard-action AC-7
+mod ties {
+    use super::*;
+
+    fn ids(shard: &OpenShard<Emulator>, source: &str) -> Vec<String> {
+        let mut source = parse_chunks([source.as_bytes()]).expect("parses");
+        source.tie_by_id = true;
+        let hits = search(shard, "idx", &source, &Analyzer::standard(None)).expect("searches");
+        let rows = super::super::fetch_rows(shard, &hits, &mut |_| Ok(())).expect("rows");
+        rows.iter()
+            .map(|r| {
+                String::from_utf8_lossy(&r.id_json)
+                    .trim_matches('"')
+                    .to_owned()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn hits_that_tie_on_score_come_by_id_ascending_across_the_cut() {
+        let shard = shard();
+        // Twenty documents, one score, and ids that sort apart from their order.
+        let all = ids(&shard, r#"{"size":20,"query":{"match_all":{}}}"#);
+        let mut want = all.clone();
+        want.sort();
+        assert_eq!(all, want);
+        assert_eq!(all[0], "doc.0");
+        assert_eq!(all[1], "doc.1");
+        assert_eq!(all[2], "doc.10", "{all:?}");
+        // A page of three is the first three by id, not by document order.
+        let page = ids(&shard, r#"{"size":3,"query":{"match_all":{}}}"#);
+        assert_eq!(page, want[..3]);
+        let second = ids(&shard, r#"{"from":3,"size":3,"query":{"match_all":{}}}"#);
+        assert_eq!(second, want[3..6]);
+    }
+}

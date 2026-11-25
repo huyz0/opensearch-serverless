@@ -56,24 +56,28 @@ const BASE64_URL: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuv
 /// digits a byte (a final `f` nibble is padding), a UTF-8 id its bytes, and
 /// any other id URL-safe base64 without padding.
 pub fn write_id(out: &mut dyn Write, id: &[u8]) -> io::Result<()> {
+    write_json_str(out, &String::from_utf8_lossy(&id_text(id)))
+}
+
+/// `Uid.decodeId`: the text of a stored `_id`, as [`write_id`] writes it.
+pub fn id_text(id: &[u8]) -> Vec<u8> {
+    // ALLOC: the id's text, at most twice the stored id's bytes.
+    let mut out = Vec::with_capacity(id.len().saturating_mul(2));
     match id.split_first() {
         Some((0xfe, digits)) => {
-            out.write_all(b"\"")?;
             let last = digits.len().saturating_sub(1);
             for (i, b) in digits.iter().enumerate() {
-                out.write_all(&[b'0'.saturating_add(b >> 4)])?;
+                out.push(b'0'.saturating_add(b >> 4));
                 let low = b & 0x0f;
                 if i == last && low == 0x0f {
                     break;
                 }
-                out.write_all(&[b'0'.saturating_add(low)])?;
+                out.push(b'0'.saturating_add(low));
             }
-            out.write_all(b"\"")
         }
-        Some((0xff, text)) => write_json_str(out, &String::from_utf8_lossy(text)),
+        Some((0xff, text)) => out.extend_from_slice(text),
         Some((first, rest)) => {
             let bytes = if *first == 0xfd { rest } else { id };
-            out.write_all(b"\"")?;
             for chunk in bytes.chunks(3) {
                 let b = [
                     chunk.first().copied().unwrap_or(0),
@@ -86,13 +90,13 @@ pub fn write_id(out: &mut dyn Write, id: &[u8]) -> io::Result<()> {
                     let shift =
                         18u32.saturating_sub(6u32.saturating_mul(u32::try_from(k).unwrap_or(0)));
                     let index = usize::try_from((n >> shift) & 0x3f).unwrap_or(0);
-                    out.write_all(&[BASE64_URL.get(index).copied().unwrap_or(b'A')])?;
+                    out.push(BASE64_URL.get(index).copied().unwrap_or(b'A'));
                 }
             }
-            out.write_all(b"\"")
         }
-        None => out.write_all(b"\"\""),
+        None => {}
     }
+    out
 }
 
 pub(super) fn write_score(out: &mut dyn Write, score: Option<f32>) -> io::Result<()> {

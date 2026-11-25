@@ -117,6 +117,10 @@ pub struct SearchSource {
     /// (a forwarded search carries its coordinator's), none otherwise, and a
     /// `now` in a range is then refused.
     pub now_millis: Option<i64>,
+    /// Not in a body: hits that tie on score are ordered by `_id` ascending,
+    /// as a forwarded search asks so the page does not depend on segment
+    /// layout.
+    pub tie_by_id: bool,
 }
 
 impl SearchSource {
@@ -162,6 +166,7 @@ impl Default for SearchSource {
             response_size_cap: None,
             search_pipeline: None,
             now_millis: None,
+            tie_by_id: false,
         }
     }
 }

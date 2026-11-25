@@ -41,6 +41,8 @@ pub(crate) struct TopOptions {
     /// `terminate_after`: `EarlyTerminatingCollector` in front of the
     /// collectors; 0 is off.
     pub terminate_after: u64,
+    /// Ties on score are ordered by `_id` ascending (see `search_ties`).
+    pub tie_by_id: bool,
 }
 
 /// Collects the top `window` documents of `query` in `sort` (by score when
@@ -106,11 +108,18 @@ pub(crate) fn collect_top<S: BlobStore + 'static>(
         }
         _ => {
             let scored;
-            let mut collector = TopDocsCollector::with_total_hits_threshold(window, limit);
+            // A tie run that crosses the window's end needs the documents
+            // past it to be cut by `_id`.
+            let asked = if options.tie_by_id {
+                window.saturating_add(crate::search_ties::EXTRA)
+            } else {
+                window
+            };
+            let mut collector = TopDocsCollector::with_total_hits_threshold(asked, limit);
             let (top, counted): (&[ScoreDoc], TotalHits) = match options.min_score {
                 Some(min) => {
                     let (docs, counted) = search_boolean_query_multi_segment_min_score(
-                        segments, query, norms, window, limit, min,
+                        segments, query, norms, asked, limit, min,
                     )
                     .map_err(ShardError::engine)?;
                     scored = docs;
@@ -126,6 +135,13 @@ pub(crate) fn collect_top<S: BlobStore + 'static>(
                 }
             };
             let (total, exact) = reported(counted.value, counted.relation, limit);
+            let ordered;
+            let top: &[ScoreDoc] = if options.tie_by_id {
+                ordered = crate::search_ties::order(shard, top, window)?;
+                &ordered
+            } else {
+                top
+            };
             Ok(Top {
                 total,
                 exact,
