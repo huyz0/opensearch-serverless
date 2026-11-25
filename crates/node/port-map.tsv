@@ -195,3 +195,5 @@ src/index_route/mapping.rs	port	serverless/shell/src/main/java/org/opensearch/se
 src/search_queue.rs	new		the node side of the bounded search queue (ADR 0056); the shell has no queue off the workers
 src/boot/config/search_queue.rs	new		the search queue and connection settings
 src/boot/config/store_debug.rs	new		`StoreChoice`'s Debug, split out of config.rs to hold its size
+src/vector_warm_setting.rs	new		whether a segment's vector files are read whole at open or at the first knn search; the shell has no such switch
+src/boot/config/tests/vector_warm.rs	new		tests of the vector warm variable

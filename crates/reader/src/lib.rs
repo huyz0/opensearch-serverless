@@ -38,6 +38,7 @@ mod search_top;
 pub mod shard_files;
 mod shared_mapping;
 pub mod template;
+pub mod vector_warm;
 
 use std::sync::Arc;
 
