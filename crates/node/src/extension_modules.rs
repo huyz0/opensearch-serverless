@@ -11,7 +11,7 @@ use std::time::Duration;
 
 use oss_blob::BlobStore;
 use oss_ext::CallError;
-use oss_ext::analyzer::{Analyze, Token};
+use oss_ext::analyzer::{Analyze, ITEM_DEADLINES, Token};
 use oss_ext::pin::{Pin, ResolvedLimits, read_pins};
 use oss_ext_wasm::{Host, LoadError, Module, Recovery, Replay, Run};
 use oss_mem::MemoryBudget;
@@ -74,6 +74,14 @@ impl Analyze for ModuleTokens {
             })?;
         all.pop()
             .ok_or_else(|| CallError::malformed_because("no tokens for the text"))
+    }
+
+    fn item_budget(&self) -> Option<Duration> {
+        // A replay and a recovery run under the record, whatever the clock says.
+        if self.recovery.is_some() || self.replaying.on.load(Ordering::Acquire) {
+            return None;
+        }
+        Some(Duration::from_millis(self.limits.deadline_ms).saturating_mul(ITEM_DEADLINES))
     }
 }
 

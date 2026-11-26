@@ -33,3 +33,4 @@ src/lucene/invert/tests.rs	new		tests of the tokens of a pinned module in a fiel
 src/lucene/parts.rs	new		a document's metadata, the _id term and the mapping leaf of a field name, moved out of lucene/mod.rs to keep it under the module size limit
 src/lucene/block.rs	port	server/src/main/java/org/opensearch/index/mapper/DocumentParser.java@429b4cbc	a nested object's Lucene document (nestedContext) with _id and _nested_path, written before its parent as one block
 src/mapping/nested.rs	port	server/src/main/java/org/opensearch/index/mapper/ObjectMapper.java@429b4cbc	the nested object type: its paths and the refusal of what this node does not index in one
+src/lucene/metered.rs	new		the time one document's calls to a pinned analyzer may take; the Java has no module analyzers

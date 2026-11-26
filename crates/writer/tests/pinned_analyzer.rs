@@ -301,3 +301,50 @@ fn a_replay_writes_the_same_postings_files_as_the_live_write() {
         assert_eq!(body(&a), body(&b), "{ext}: the same bytes after the header");
     }
 }
+
+/// A module that takes `each` for a call and may spend `budget` on a document.
+struct Slow {
+    each: std::time::Duration,
+    budget: Option<std::time::Duration>,
+}
+
+impl Analyze for Slow {
+    fn analyze(&self, text: &str) -> Result<Vec<Token>, CallError> {
+        std::thread::sleep(self.each);
+        Shout.analyze(text)
+    }
+
+    fn item_budget(&self) -> Option<std::time::Duration> {
+        self.budget
+    }
+}
+
+// docs/specs/extension-analyzer AC-11: a document whose calls take more than
+// its budget between them is refused, and the next document is not affected.
+#[test]
+fn a_document_with_many_slow_calls_is_refused_and_the_next_is_not() {
+    let ms = std::time::Duration::from_millis;
+    let many = br#"{"t":["a","b","c","d","e","f","g","h"]}"#;
+    let few = br#"{"t":["a","b"]}"#;
+
+    let dir = ByteBuffersDirectory::new();
+    let slow = Slow {
+        each: ms(30),
+        budget: Some(ms(100)),
+    };
+    let mut first = shard(&dir, Arc::new(slow));
+    let Err(Refused::Mapping(e)) = first.index("1", many, false, &Expect::default()) else {
+        panic!("eight 30 ms calls passed a 100 ms budget")
+    };
+    assert_eq!(e.ty, "extension_failed", "{e:?}");
+    assert!(first.index("2", few, false, &Expect::default()).is_ok());
+
+    // No budget (a replay): the same document passes.
+    let dir = ByteBuffersDirectory::new();
+    let free = Slow {
+        each: ms(30),
+        budget: None,
+    };
+    let mut second = shard(&dir, Arc::new(free));
+    assert!(second.index("1", many, false, &Expect::default()).is_ok());
+}

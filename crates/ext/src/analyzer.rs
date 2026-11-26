@@ -56,7 +56,16 @@ pub trait Analyze: Send + Sync {
     /// The call's typed failure, which the caller answers rather than
     /// falls back to a built-in analyzer.
     fn analyze(&self, text: &str) -> Result<Vec<Token>, CallError>;
+
+    /// The most time one document's calls to this analyzer may take in all,
+    /// or `None` for no cap (a replay, a recovery, a test table).
+    fn item_budget(&self) -> Option<std::time::Duration> {
+        None
+    }
 }
+
+/// How many deadlines one document's calls to a module may take in all.
+pub const ITEM_DEADLINES: u32 = 10;
 
 fn limit(why: &'static [u8]) -> CallError {
     CallError::from_status(Status::Limit, why)
