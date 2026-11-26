@@ -178,6 +178,16 @@ fn an_http3_bulk_and_search_make_the_blob_requests_their_http1_twins_make() {
     assert_eq!(over3_bulk, over1_bulk, "bulk, in S3Op::ALL order");
 
     let query = "{\"query\":{\"match\":{\"t\":\"alpha\"}},\"size\":10}";
+    // Each index pays its first search's one-time cost here, so the two measured searches are
+    // both steady-state and the order they run in does not matter.
+    for name in ["costr", "costq"] {
+        for _ in 0..2 {
+            assert_eq!(
+                rest(&node, "POST", &format!("/{name}/_search"), Some(query)).0,
+                200
+            );
+        }
+    }
     let over1_search = spent(&server, || {
         let (status, answer) = rest(&node, "POST", "/costr/_search", Some(query));
         assert_eq!(status, 200, "{answer}");
