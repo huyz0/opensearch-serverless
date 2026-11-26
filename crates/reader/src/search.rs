@@ -275,8 +275,6 @@ pub fn search_with<S: BlobStore + 'static>(
         None => to_lucene(&crate::dsl::Query::MatchAll { boost: 1.0 }, &cx),
     }
     .map_err(|f| ShardError::of_query(shard_failure(f, index, &meta.uuid)))?;
-    let query = crate::dsl::queries::nested_build::skip_nested(query, &meta.mapping, knn.is_some())
-        .map_err(ShardError::bad_request)?;
     let window = source.from.saturating_add(source.size);
     search_options::check_window(window, meta.max_result_window())?;
     if let Some(what) = source.explain.then(|| explain::refusal(&query)).flatten() {
@@ -286,6 +284,8 @@ pub fn search_with<S: BlobStore + 'static>(
             format!("explain of {what} is not supported by this node yet"),
         )));
     }
+    let query = crate::dsl::queries::nested_build::skip_nested(query, &meta.mapping, knn.is_some())
+        .map_err(ShardError::bad_request)?;
     let sort = sort_fields(&source.sort, shard, index)?;
     search_options::check(
         source,

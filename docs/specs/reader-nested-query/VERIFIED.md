@@ -10,3 +10,4 @@ Run with `cargo test -p oss-reader --lib` on 2026-11-26 (Linux cloud container).
 - AC-6: `a_nested_query_composes_with_the_queries_around_it`
 - AC-7: `an_unmapped_path_fails_unless_it_is_ignored`
 - AC-8: `a_search_of_an_index_with_nested_objects_sees_only_the_parents`, `an_index_without_nested_objects_is_searched_as_before`
+- AC-9: `explain_and_a_filters_aggregation_see_only_parents`

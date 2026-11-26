@@ -26,6 +26,7 @@ Not here, refused as not supported yet: `inner_hits`, `_name`, a `knn` query on 
 - AC-6: a nested query composes inside `bool` (`must`, `must_not`).
 - AC-7: an unmapped path fails unless `ignore_unmapped`, and an index without nested objects fails the same.
 - AC-8: on an index with nested objects, `match_all` returns only parents with the total counting parents, and a term on a child's field returns nothing; an index without nested objects is searched as before.
+- AC-9: a search with `explain` and a search with a `filters` aggregation on an index with nested objects see only the parents (the aggregation runs over the main query's matches, which exclude nested documents).
 
 ## Test plan
 
@@ -35,7 +36,7 @@ Not here, refused as not supported yet: `inner_hits`, `_name`, a `knn` query on 
 
 ## S3 request budget
 
-Unchanged: the query reads the segments the search already reads, plus the `_nested_path` terms and the `_primary_term` doc values of the same segments. LIST 0, HEAD 0, PUT 0, no new GET. Idle: 0.
+Unchanged, stated and not yet counted by a test (NOT-RUN until the writer slice gives the request-budget table a nested row): the query reads the segments the search already reads, plus the `_nested_path` terms and the `_primary_term` doc values of the same segments. LIST 0, HEAD 0, PUT 0, no new GET. Idle: 0.
 
 ## Memory
 

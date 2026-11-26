@@ -157,3 +157,22 @@ fn an_unmapped_path_fails_unless_it_is_ignored() {
 fn shard_flat() -> OpenShard<Emulator> {
     shard(&Spec::new("flat", DOCS))
 }
+
+#[test]
+fn explain_and_a_filters_aggregation_see_only_parents() {
+    let shard = nested_shard();
+    let body = |rest: &str| {
+        let body = format!(r#"{{"size":20,"query":{{"match_all":{{}}}}{rest}}}"#);
+        let source = parse_chunks([body.as_bytes()]).expect("parses");
+        search(&shard, "idx", &source, &Analyzer::standard(None))
+    };
+    let explained = body(r#","explain":true"#);
+    assert!(
+        explained.as_ref().map_or(true, |h| h.hits.len() == DOCS),
+        "{:?}",
+        explained.as_ref().err().map(|e| &e.failure)
+    );
+    let aggs = body(r#","aggs":{"f":{"filters":{"filters":{"all":{"match_all":{}}}}}}"#)
+        .expect("searches");
+    assert_eq!(aggs.total, DOCS as u64);
+}
