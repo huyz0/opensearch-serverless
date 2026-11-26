@@ -112,7 +112,7 @@ fn hidden_lists_the_commit_copies_of_replaced_and_deleted_ids() {
     ];
     let copies = find_copies(&reader, &ids(&["a", "c", "new", "d"])).expect("finds");
     let overlay = Overlay::build_over(&mapping(), &records, 0, usize::MAX, &copies).expect("build");
-    let mut hidden = overlay.hidden(&copies);
+    let mut hidden: Vec<_> = overlay.hidden(&copies).collect();
     hidden.sort_unstable();
     // a is segment 0 doc 0 and c is segment 1 doc 0; the new id has no copy
     // and d's older record was dropped.
@@ -172,5 +172,8 @@ fn a_copy_is_the_root_and_the_block_is_hidden_with_it() {
     assert_eq!((p.first, p.doc), (6, 6));
     let overlay = Overlay::build(&nested, &[index("a", "x", 9)], 0, usize::MAX).expect("builds");
     let copies = find_copies(&reader, overlay.ids()).expect("finds");
-    assert_eq!(overlay.hidden(&copies), [(0, 0), (0, 1), (0, 2), (0, 3)]);
+    assert_eq!(
+        overlay.hidden(&copies).collect::<Vec<_>>(),
+        [(0, 0), (0, 1), (0, 2), (0, 3)]
+    );
 }

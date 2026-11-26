@@ -351,15 +351,12 @@ impl Overlay {
     /// The commit documents the overlay hides, as `(segment, document)`: the
     /// copy of every id it replaces or deletes that the commit holds, with the
     /// documents of its nested objects.
-    #[must_use]
-    pub fn hidden(&self, copies: &Copies) -> Vec<(usize, i32)> {
+    pub fn hidden<'a>(&'a self, copies: &'a Copies) -> impl Iterator<Item = (usize, i32)> + 'a {
         self.ids
             .iter()
             .filter_map(|id| copies.get(id))
             // The document and its nested objects' documents.
             .flat_map(|c| (c.first..=c.doc).map(move |d| (c.segment, d)))
-            // ALLOC: one entry a hidden document, bounded by the commit's documents.
-            .collect()
     }
 
     /// The bytes of the overlay's segment files, which its in-memory

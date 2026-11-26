@@ -12,7 +12,9 @@ use lucene_search::directory_reader::DirectoryReader;
 use lucene_search::reader::LeafReader;
 use lucene_store::ByteBuffersDirectory;
 use oss_format::WalRecord;
-use oss_writer::index::{Expect, Shard};
+use std::sync::Arc;
+
+use oss_writer::index::{Expect, MergeGate, MergeGuard, MergeSettings, Shard};
 use oss_writer::mapping::{Mapping, ParseOptions};
 
 const MAPPING: &str = r#"{"properties":{"title":{"type":"keyword"},"c":{"type":"nested","properties":{"w":{"type":"keyword"}}}}}"#;
@@ -163,4 +165,55 @@ fn a_replayed_record_is_a_block_and_a_replayed_update_replaces_it() {
     );
     shard.refresh().expect("refresh");
     assert_eq!(live(&dir), [false, true]);
+}
+
+struct Open;
+
+impl MergeGate for Open {
+    fn try_start(&self, _: u64) -> Option<Box<dyn MergeGuard>> {
+        Some(Box::new(()))
+    }
+}
+
+// A merge keeps each block together: the children stay just before their root.
+#[test]
+fn a_merge_keeps_every_block_together() {
+    let on = ParseOptions {
+        nested: true,
+        ..ParseOptions::default()
+    };
+    let mapping = Mapping::parse_with(MAPPING.as_bytes(), on).expect("mapping");
+    let dir = ByteBuffersDirectory::new();
+    let mut w = IndexWriter::open(&dir, Vec::new(), "Lucene104", VERSION).expect("writer");
+    w.enable_explicit_documents().expect("explicit");
+    let mut shard = Shard::new(&dir, w, mapping, 1, Box::new(|| 0))
+        .expect("shard")
+        .with_merging(
+            MergeSettings {
+                segments_per_tier: 2,
+                max_merge_at_once: 10,
+                max_merged_segment_bytes: 64 << 20,
+            },
+            Arc::new(Open),
+        );
+    for i in 0..12 {
+        let id = (i % 8).to_string();
+        index(
+            &mut shard,
+            &id,
+            r#"{"title":"t","c":[{"w":"x"},{"w":"y"}]}"#,
+        );
+        shard.refresh().expect("refresh");
+    }
+    let segments = DirectoryReader::open(&dir)
+        .expect("open")
+        .segment_readers()
+        .len();
+    assert!(segments < 12, "{segments} segments: nothing merged");
+    // Eight live documents, each two children then the root.
+    let live = live(&dir);
+    assert_eq!(live.len(), 24, "{live:?}");
+    for block in live.chunks(3) {
+        assert_eq!(block, [false, false, true], "{live:?}");
+    }
 }
