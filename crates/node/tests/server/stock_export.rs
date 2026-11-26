@@ -23,8 +23,9 @@ use crate::support;
 const SOURCE: &str = "../../fixtures/snapshots/stock/repo/indices/M3IuI3tpQ7mcpIwUIA1kfQ/0/";
 const FILES: [&str; 4] = ["_0.si", "_0.cfs", "_0.cfe", "segments_1"];
 
-struct Rig {
-    server: Server,
+pub(crate) struct Rig {
+    pub(crate) server: Server,
+    pub(crate) store: Arc<Emulator>,
     root: PathBuf,
     descriptors: DescriptorStore,
 }
@@ -64,6 +65,25 @@ fn rig(enabled: bool, tag: &str) -> Rig {
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(root.join("out")).unwrap();
     let root = root.canonicalize().unwrap();
+    let settings = StockExportSettings {
+        enabled,
+        roots: SourceRoots::parse(root.to_str().unwrap(), ""),
+        s3: None,
+        chunk_bytes: 1 << 16,
+    };
+    let body = format!(
+        r#"{{"type":"fs","settings":{{"format":"stock","location":"{}"}}}}"#,
+        root.join("out").display()
+    );
+    rig_with(settings, root, &body)
+}
+
+/// A node whose export goes as `settings` say, with the repository `stock` registered as `repo`.
+pub(crate) fn rig_with(settings: StockExportSettings, root: PathBuf, repo: &str) -> Rig {
+    stand_up(settings, root, repo)
+}
+
+fn stand_up(settings: StockExportSettings, root: PathBuf, repo: &str) -> Rig {
     let store = Arc::new(Emulator::new(1 << 28, 5));
     let blobs = Arc::clone(&store) as Arc<dyn BlobStore>;
     let clock: oss_meta::PitClock = Arc::new(|| 1_700_000_000_000);
@@ -115,12 +135,7 @@ fn rig(enabled: bool, tag: &str) -> Rig {
             DescriptorStore::new(Arc::clone(&blobs), "", DeleteMode::Conditional).unwrap(),
             clock,
         )
-        .with_stock_export(StockExportSettings {
-            enabled,
-            roots: SourceRoots::parse(root.to_str().unwrap(), ""),
-            s3: None,
-            chunk_bytes: 1 << 16,
-        }),
+        .with_stock_export(settings),
     );
     let router = routes(Router::new(), &service, Some(&taker)).expect("routes");
     let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
@@ -132,14 +147,11 @@ fn rig(enabled: bool, tag: &str) -> Rig {
         Server::start(listener, support::server_config(), router, &budget).expect("starts");
     let r = Rig {
         server,
+        store,
         root,
         descriptors,
     };
-    let body = format!(
-        r#"{{"type":"fs","settings":{{"format":"stock","location":"{}"}}}}"#,
-        r.out().display()
-    );
-    assert_eq!(send(&r, "PUT", "/_snapshot/stock", Some(&body)).status, 200);
+    assert_eq!(send(&r, "PUT", "/_snapshot/stock", Some(repo)).status, 200);
     r
 }
 
@@ -167,7 +179,7 @@ impl Rig {
     }
 }
 
-fn send(r: &Rig, method: &str, target: &str, body: Option<&str>) -> support::Reply {
+pub(crate) fn send(r: &Rig, method: &str, target: &str, body: Option<&str>) -> support::Reply {
     support::request(
         r.server.local_addr(),
         method,
@@ -176,8 +188,8 @@ fn send(r: &Rig, method: &str, target: &str, body: Option<&str>) -> support::Rep
     )
 }
 
-const TAKE: &str = r#"{"indices":"logs"}"#;
-const WAIT: &str = "?wait_for_completion=true";
+pub(crate) const TAKE: &str = r#"{"indices":"logs"}"#;
+pub(crate) const WAIT: &str = "?wait_for_completion=true";
 
 #[test]
 fn a_take_writes_a_repository_whose_blobs_hold_every_file_whole() {
