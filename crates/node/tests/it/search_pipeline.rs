@@ -354,3 +354,65 @@ fn count_still_refuses_the_pipeline_parameter() {
     let plain = request(node.addr(), "POST", "/compat-term/_count", Some(b"{}"));
     assert_eq!(plain.status, 200, "{}", plain.text());
 }
+
+fn count(node: &Node, index: &str) -> (u16, String) {
+    let r = request(
+        node.addr(),
+        "POST",
+        &format!("/{index}/_count"),
+        Some(br#"{"query":{"match_all":{}}}"#),
+    );
+    (r.status, r.text())
+}
+
+// docs/specs/count-default-pipeline AC-1, AC-2
+#[test]
+fn a_count_runs_the_index_default() {
+    let node = node();
+    with_default(&node, "filtering", "filter");
+    with_default(&node, "none-by-default", "_none");
+    with_default(&node, "dangling", "nope");
+    let (s, plain) = count(&node, "compat-term");
+    assert_eq!(
+        (s, plain.as_str()),
+        (
+            200,
+            r#"{"count":5,"_shards":{"total":1,"successful":1,"skipped":0,"failed":0}}"#
+        ),
+        "{plain}"
+    );
+    let (s, filtered) = count(&node, "filtering");
+    assert_eq!(s, 200, "{filtered}");
+    assert!(filtered.starts_with(r#"{"count":1,"#), "{filtered}");
+    let (s, none) = count(&node, "none-by-default");
+    assert_eq!(s, 200, "{none}");
+    assert!(none.starts_with(r#"{"count":5,"#), "{none}");
+    let (s, missing) = count(&node, "dangling");
+    assert_eq!(s, 400, "{missing}");
+    assert!(missing.contains("pipeline_missing"), "{missing}");
+}
+
+// docs/specs/count-default-pipeline AC-3
+#[test]
+fn a_count_ignores_a_default_when_search_pipelines_are_off() {
+    use crate::support::counts;
+    let node = start();
+    with_default(&node, "filtering", "filter");
+    let (s, all) = count(&node, "filtering");
+    assert_eq!(s, 200, "{all}");
+    assert!(all.starts_with(r#"{"count":5,"#), "{all}");
+    let before = counts(&node.store);
+    count(&node, "filtering");
+    assert_eq!(counts(&node.store), before, "a warm count is free");
+}
+
+// docs/specs/count-default-pipeline AC-4
+#[test]
+fn a_count_of_an_index_with_no_default_makes_no_request() {
+    use crate::support::counts;
+    let node = node();
+    count(&node, "compat-term");
+    let before = counts(&node.store);
+    assert_eq!(count(&node, "compat-term").0, 200);
+    assert_eq!(counts(&node.store), before, "a warm count is free");
+}
