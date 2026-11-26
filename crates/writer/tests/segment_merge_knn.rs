@@ -23,8 +23,14 @@ impl MergeGate for Open {
 // docs/specs/writer-segment-merge AC-2
 #[test]
 fn a_merged_knn_shard_holds_every_vector_in_fewer_segments() {
-    let mapping =
-        Mapping::parse_with(MAPPING.as_bytes(), ParseOptions { knn: Some(true) }).expect("mapping");
+    let mapping = Mapping::parse_with(
+        MAPPING.as_bytes(),
+        ParseOptions {
+            knn: Some(true),
+            ..ParseOptions::default()
+        },
+    )
+    .expect("mapping");
     let dir = ByteBuffersDirectory::new();
     let (writer, derived) = open_writer(&dir, &mapping).expect("writer");
     let mut shard = Shard::new(&dir, writer, mapping, 1, Box::new(|| 0))

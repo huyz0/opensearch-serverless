@@ -9,7 +9,7 @@
 
 use std::sync::{Arc, Mutex, PoisonError};
 
-use oss_coordinator::snapshot_restore_admin::Target;
+use oss_coordinator::snapshot_restore_admin::{AliasPlan, Target};
 use oss_coordinator::snapshot_take_admin::ACCEPTED;
 use oss_format::RestoreIndex;
 use oss_meta::{CopyBuffers, new_id};
@@ -59,6 +59,8 @@ impl Drop for Undo {
 /// Everything the thread needs, handed over once.
 struct Job {
     undo: Undo,
+    aliases: Vec<AliasPlan>,
+    truncated: Option<Vec<String>>,
     sources: Vec<RestoreIndex>,
     descriptor: Vec<u8>,
     now: i64,
@@ -91,7 +93,7 @@ impl SnapshotRestoreService {
         resp: &mut Response<'_>,
         targets: &[Target],
         sources: Vec<RestoreIndex>,
-        record_len: usize,
+        (record_len, (aliases, truncated)): (usize, (Vec<AliasPlan>, Option<Vec<String>>)),
     ) -> Result<(), RestError> {
         let copy = self.chunk_bytes;
         let descriptor_bytes = record_len.saturating_add(DESCRIPTOR_SLACK);
@@ -100,7 +102,12 @@ impl SnapshotRestoreService {
             .saturating_add(descriptor_bytes)
             // The sources the thread keeps are about the record's size.
             .saturating_add(record_len)
-            .saturating_add(self.deletes.remove_bytes());
+            .saturating_add(self.deletes.remove_bytes())
+            .saturating_add(if truncated.is_some() {
+                self.alias_bytes()
+            } else {
+                0
+            });
         let slot = restores.acquire(held).map_err(refusal)?;
         // ALLOC: one buffer a restore, reserved by the slot.
         let mut descriptor = vec![0u8; descriptor_bytes];
@@ -145,6 +152,8 @@ impl SnapshotRestoreService {
         // ALLOC: one cell for the hand-over, a restore.
         let cell = Arc::new(Mutex::new(Some(Job {
             undo,
+            aliases,
+            truncated,
             sources,
             descriptor,
             now,
@@ -178,6 +187,8 @@ impl SnapshotRestoreService {
     fn finish_job(&self, job: Job) {
         let Job {
             mut undo,
+            aliases,
+            truncated,
             sources,
             mut descriptor,
             now,
@@ -206,7 +217,19 @@ impl SnapshotRestoreService {
                 return;
             }
         }
+        // Every index is whole: from here nothing the restore made is deleted,
+        // whatever the alias step does.
         undo.armed = false;
+        if let Some(truncated) = truncated {
+            let report = self.add_aliases(&aliases, truncated, &cancel);
+            if !report.failed.is_empty() {
+                eprintln!(
+                    "snapshot restore could not add aliases {:?}; the indices are restored",
+                    report.failed
+                );
+                undo.restores.record_failure();
+            }
+        }
     }
 }
 

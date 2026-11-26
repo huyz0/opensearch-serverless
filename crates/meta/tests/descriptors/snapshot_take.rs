@@ -53,6 +53,8 @@ fn draft(name: &str, generation: &str, captured: bool) -> SnapshotDraft {
             } else {
                 vec![]
             },
+            aliases: vec![],
+            aliases_truncated: false,
         }],
     }
 }

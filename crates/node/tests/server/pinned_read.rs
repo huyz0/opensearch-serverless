@@ -351,6 +351,84 @@ fn an_analyze_with_a_pins_name_never_falls_back_when_the_module_cannot_load() {
     assert!(!said.text().contains(r#""tokens""#), "{}", said.text());
 }
 
+/// An opener with no room to compile until `room` is set: the refusal a full extensions pool
+/// gives, which carries the words of a capacity refusal; then the real one.
+struct NoRoomYet {
+    room: Arc<std::sync::atomic::AtomicBool>,
+    then: Arc<ModuleSource>,
+}
+
+impl oss_node::search_modules::ModuleOpener for NoRoomYet {
+    fn open(
+        &self,
+        index: &str,
+        pins: Vec<(Pin, ResolvedLimits)>,
+    ) -> Result<Arc<dyn oss_reader::pinned::PinnedTokens>, String> {
+        if self.room.load(std::sync::atomic::Ordering::SeqCst) {
+            return oss_node::search_modules::ModuleOpener::open(self.then.as_ref(), index, pins);
+        }
+        Err(format!(
+            "extension_unavailable: module [m]: {} (the pool is full)",
+            oss_node::search_modules::NO_CAPACITY
+        ))
+    }
+}
+
+// AC-14 (429 through a running search)
+#[test]
+fn a_search_that_finds_no_room_to_compile_is_a_429_and_the_next_one_opens() {
+    let root = TempDir::new("pinned-busy");
+    let dir = ByteBuffersDirectory::new();
+    let r = rig(root.path(), &dir, &module());
+    let room = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    assert!(r.service.set_modules(Arc::new(NoRoomYet {
+        room: Arc::clone(&room),
+        then: modules(root.path()),
+    })));
+    let busy = matched(&r);
+    assert_eq!(busy.status, 429, "{}", busy.text());
+    assert!(busy.text().contains("extension_busy"), "{}", busy.text());
+    room.store(true, std::sync::atomic::Ordering::SeqCst);
+    let again = matched(&r);
+    assert_eq!(again.status, 200, "{}", again.text());
+    assert!(again.text().contains(r#""value":1"#), "{}", again.text());
+}
+
+// AC-14 (the negative cache on a booted node)
+#[test]
+fn a_module_the_store_lacks_is_asked_for_once_across_searches() {
+    let root = TempDir::new("pinned-negative");
+    let dir = ByteBuffersDirectory::new();
+    let r = rig(root.path(), &dir, &module());
+    // The reader's module store is empty: the pinned module is absent from it.
+    let empty = Arc::new(oss_blob::Emulator::new(1 << 24, 5));
+    let budget = MemoryBudget::new(
+        &BudgetConfig::new(256 << 20)
+            .with_pool(Pool::RequestBodies, 32 << 20)
+            .and_then(|c| c.with_pool(Pool::Extensions, 128 << 20))
+            .and_then(|c| c.with_pool(Pool::OpenIndexes, 16 << 20))
+            .expect("fits"),
+    );
+    assert!(r.service.set_modules(Arc::new(ModuleSource::new(
+        Arc::clone(&empty) as Arc<dyn BlobStore>,
+        "",
+        Host::new(HostConfig::default()),
+        budget,
+        16,
+    ))));
+    let asked =
+        || empty.meter().count(oss_blob::S3Op::Get) + empty.meter().count(oss_blob::S3Op::Head);
+    let first = matched(&r);
+    assert_eq!(first.status, 503, "{}", first.text());
+    let spent = asked();
+    assert!(spent > 0, "the first search asks the store for the module");
+    for _ in 0..3 {
+        let again = matched(&r);
+        assert_eq!(again.status, 503, "{}", again.text());
+    }
+    assert_eq!(asked(), spent, "within 30 s the refusal is remembered");
+}
+
 // AC-14
 #[test]
 fn a_reader_that_cannot_load_the_module_refuses_the_search() {

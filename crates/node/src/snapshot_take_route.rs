@@ -40,6 +40,7 @@ pub struct SnapshotTakeService {
     pub(crate) clock: PitClock,
     pub(crate) system: Arc<SystemIndices>,
     pub(crate) export: crate::stock_export_route::StockExportSettings,
+    capture_aliases: bool,
 }
 
 pub(crate) fn unavailable(e: &dyn std::fmt::Display) -> RestError {
@@ -89,7 +90,15 @@ impl SnapshotTakeService {
             clock,
             system: Arc::new(SystemIndices::none()),
             export: crate::stock_export_route::StockExportSettings::off(),
+            capture_aliases: false,
         }
+    }
+
+    /// Records each index's aliases in a snapshot when `on`.
+    #[must_use]
+    pub fn with_capture_aliases(mut self, on: bool) -> Self {
+        self.capture_aliases = on;
+        self
     }
 
     /// Lets a take into a stock repository export as `export` says.
@@ -176,6 +185,7 @@ impl SnapshotTakeService {
             .iter()
             .map(|d| d.capture(Vec::new(), false))
             .collect();
+        let mut described = described;
         let run = || -> Result<SnapshotDraft, RestError> {
             self.taker
                 .publish_marker(&reservation, &draft(protective, start), &mut value)
@@ -184,6 +194,11 @@ impl SnapshotTakeService {
                 self.taker
                     .verify(&self.descriptors, index, &mut value)
                     .map_err(|e| captured(e, &index.name))?;
+            }
+            if self.capture_aliases {
+                self.taker
+                    .capture_aliases(&self.descriptors, &mut described, &mut value)
+                    .map_err(|e| captured(e, &name))?;
             }
             let end = i64::try_from((self.clock)()).unwrap_or(i64::MAX);
             let finished = draft(

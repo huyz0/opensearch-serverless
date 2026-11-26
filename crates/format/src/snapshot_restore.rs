@@ -7,6 +7,7 @@ use crate::error::{FormatError, corrupt};
 use crate::index_record::MAX_SHARDS;
 use crate::json::{Reader, Token};
 use crate::location::FileLocation;
+use crate::snapshot_aliases::{self, AliasCapture};
 use crate::snapshot_pins::MAX_SNAPSHOT_RECORD_BYTES;
 
 const WHAT: &str = "snapshot record";
@@ -40,6 +41,10 @@ pub struct RestoreIndex {
     pub settings: Option<Vec<u8>>,
     /// The shards captured, in record order.
     pub shards: Vec<RestoreShard>,
+    /// The aliases the index was in; empty for an old record.
+    pub aliases: Vec<AliasCapture>,
+    /// Whether the take left out aliases past the bound.
+    pub aliases_truncated: bool,
 }
 
 impl RestoreIndex {
@@ -188,6 +193,9 @@ fn read_index(json: &mut Reader<'_>, name: &str) -> Result<RestoreIndex, FormatE
     let mut count = None;
     let mut mapping = None;
     let mut settings = None;
+    // ALLOC: one entry an alias, at most MAX_ALIASES.
+    let mut aliases = Vec::new();
+    let mut aliases_truncated = false;
     // ALLOC: one entry a captured shard, bounded by the record size.
     let mut shards = Vec::new();
     while let Some(key) = json.next_field()? {
@@ -214,6 +222,8 @@ fn read_index(json: &mut Reader<'_>, name: &str) -> Result<RestoreIndex, FormatE
                 // ALLOC: one settings object, bounded by the record size.
                 settings = Some(raw.to_vec());
             }
+            "aliases" => aliases = snapshot_aliases::read(json)?,
+            "aliases_truncated" => aliases_truncated = snapshot_aliases::read_truncated(json)?,
             "shards" => read_shards(json, &mut shards)?,
             _ => json.skip_value()?,
         }
@@ -229,6 +239,8 @@ fn read_index(json: &mut Reader<'_>, name: &str) -> Result<RestoreIndex, FormatE
         mapping,
         settings,
         shards,
+        aliases,
+        aliases_truncated,
     })
 }
 

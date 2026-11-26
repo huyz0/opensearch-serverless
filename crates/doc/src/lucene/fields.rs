@@ -275,6 +275,8 @@ pub enum MetaField {
     FieldNames,
     /// `_ignored`: one term and stored string a field.
     Ignored,
+    /// `_nested_path`: one term on a nested object's document.
+    NestedPath,
     /// `_tombstone`: numeric doc values 1 on a delete's tombstone.
     Tombstone,
     /// `__soft_deletes`: numeric doc values 1 on a replaced or deleted
@@ -294,6 +296,7 @@ impl MetaField {
             MetaField::Version => "_version",
             MetaField::FieldNames => "_field_names",
             MetaField::Ignored => "_ignored",
+            MetaField::NestedPath => "_nested_path",
             MetaField::Tombstone => "_tombstone",
             MetaField::SoftDeletes => "__soft_deletes",
         }
@@ -306,7 +309,11 @@ impl MetaField {
             i.with_doc_values(DocValuesType::Numeric, DocValuesSkipIndexType::None, -1)
         };
         match self {
-            MetaField::Id | MetaField::Routing | MetaField::FieldNames | MetaField::Ignored => info
+            MetaField::Id
+            | MetaField::Routing
+            | MetaField::FieldNames
+            | MetaField::Ignored
+            | MetaField::NestedPath => info
                 .with_index_options(IndexOptions::Docs)
                 .with_omit_norms(true),
             MetaField::SeqNo => numeric(info).with_points(1, 1, 8),

@@ -8,6 +8,7 @@
 //! `FieldNamesFieldMapper` and `IgnoredFieldMapper` (server, OpenSearch
 //! 3.10), and `IndexingChain.invert`'s positions, offsets and lengths.
 
+mod block;
 mod builder;
 pub mod derived;
 mod encode;
@@ -331,35 +332,7 @@ impl Indexer {
         );
         let n = self.meta(numbers, MetaField::Version)?;
         out.doc_value(n, meta.version);
-        for (name, value) in &doc.fields {
-            // The mapping, not the spec a field was first registered with:
-            // an update may have changed it.
-            let leaf = leaf(mapping.root(), name).ok_or_else(|| {
-                // ALLOC: error path; one message.
-                MappingError::illegal_state(&format!("no mapper for field [{name}]"))
-            })?;
-            let spec = Spec::of(leaf);
-            if !spec.adds_anything() {
-                continue;
-            }
-            let number = self.slot(numbers, name, Some(spec), None)?;
-            let module = leaf
-                .get("analyzer")
-                .and_then(Value::text)
-                .and_then(|a| self.modules.get(a))
-                .map(Arc::as_ref);
-            self.value(&mut out, number, name, &spec, value, module)?;
-            if spec.field_names() {
-                let n = self.meta(numbers, MetaField::FieldNames)?;
-                let mut end = 0;
-                while let Some(dot) = name.get(end..).and_then(|rest| rest.find('.')) {
-                    end = end.saturating_add(dot);
-                    out.term(n, name.get(..end).unwrap_or(name).as_bytes());
-                    end = end.saturating_add(1);
-                }
-                out.term(n, name.as_bytes());
-            }
-        }
+        self.add_fields(numbers, &mut out, mapping, &doc.fields)?;
         if !doc.ignored.is_empty() {
             let n = self.meta(numbers, MetaField::Ignored)?;
             // `ParseContext`'s ignored fields are a `HashSet`, which
@@ -376,6 +349,47 @@ impl Indexer {
             }
         }
         Ok(out.finish())
+    }
+
+    /// Each value's fields, as its mapper's `parseCreateField` adds them,
+    /// and its path's `_field_names` terms.
+    fn add_fields(
+        &mut self,
+        numbers: &mut dyn FieldNumbers,
+        out: &mut Builder,
+        mapping: &Mapping,
+        fields: &[(String, FieldValue)],
+    ) -> Result<(), MappingError> {
+        for (name, value) in fields {
+            // The mapping, not the spec a field was first registered with:
+            // an update may have changed it.
+            let leaf = leaf(mapping.root(), name).ok_or_else(|| {
+                // ALLOC: error path; one message.
+                MappingError::illegal_state(&format!("no mapper for field [{name}]"))
+            })?;
+            let spec = Spec::of(leaf);
+            if !spec.adds_anything() {
+                continue;
+            }
+            let number = self.slot(numbers, name, Some(spec), None)?;
+            let module = leaf
+                .get("analyzer")
+                .and_then(Value::text)
+                .and_then(|a| self.modules.get(a))
+                .map(Arc::as_ref);
+            self.value(out, number, name, &spec, value, module)?;
+            if spec.field_names() {
+                let n = self.meta(numbers, MetaField::FieldNames)?;
+                let mut end = 0;
+                while let Some(dot) = name.get(end..).and_then(|rest| rest.find('.')) {
+                    end = end.saturating_add(dot);
+                    out.term(n, name.get(..end).unwrap_or(name).as_bytes());
+                    end = end.saturating_add(1);
+                }
+                out.term(n, name.as_bytes());
+            }
+        }
+        Ok(())
     }
 
     fn value(

@@ -36,7 +36,7 @@ fn node(c: &Cluster, packing: bool) -> Node {
     )
 }
 
-fn register_bytes(c: &Cluster) -> Vec<u8> {
+fn register_bytes(c: &Cluster) -> Option<Vec<u8>> {
     let at = ShardRef {
         index: "logs",
         uuid: "u1",
@@ -46,13 +46,12 @@ fn register_bytes(c: &Cluster) -> Vec<u8> {
     let read = c
         .store
         .read_register(&at.manifest_key("").expect("key"), &mut buf)
-        .expect("reads")
-        .expect("registered");
-    buf[..read.len].to_vec()
+        .expect("reads")?;
+    Some(buf[..read.len].to_vec())
 }
 
 fn names_a_pack(c: &Cluster) -> bool {
-    let bytes = register_bytes(c);
+    let bytes = register_bytes(c).unwrap_or_default();
     String::from_utf8_lossy(&bytes).contains("@node-1/e=")
 }
 
@@ -169,4 +168,34 @@ fn a_later_publish_reuses_the_writer_and_writes_the_ledger_once() {
         .expect("ledger")
         .generation;
     assert_eq!(first, second, "the ledger was not written again");
+}
+
+// AC-8
+#[test]
+fn a_ledger_that_cannot_be_read_fails_the_publish_and_the_next_pass_packs() {
+    let c = cluster();
+    let n = node(&c, true);
+    c.store
+        .create_register(LEDGER, b"not a ledger")
+        .expect("planted");
+    write(&n.role, "a");
+    let pass = n.role.publish_due();
+    assert_eq!(pass.published, 0);
+    assert_eq!(pass.failed.len(), 1, "{:?}", pass.failed);
+    assert!(!names_a_pack(&c), "no silent fallback to blobs");
+    let mut buf = vec![0u8; 1 << 16];
+    let planted = c
+        .store
+        .read_register(LEDGER, &mut buf)
+        .expect("reads")
+        .expect("planted");
+    assert!(
+        c.store
+            .delete_register(LEDGER, planted.generation)
+            .expect("removed")
+    );
+    let pass = n.role.publish_due();
+    assert!(pass.failed.is_empty(), "{:?}", pass.failed);
+    assert_eq!(pass.published, 1, "the shard stayed due");
+    assert!(names_a_pack(&c));
 }

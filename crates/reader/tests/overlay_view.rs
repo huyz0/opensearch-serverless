@@ -60,7 +60,7 @@ fn counts(
     let candidates = oss_reader::overlay::candidate_ids(records, 0).expect("ids");
     let copies = find_copies(&reader, &candidates).expect("copies");
     let overlay = Overlay::build_over(&m, records, 0, usize::MAX, &copies).expect("overlay");
-    let masks = Masks::new(&reader, &overlay.hidden(&copies));
+    let masks = Masks::new(&reader, overlay.hidden(&copies));
     let commit = reader.open_segments().expect("commit segments");
     let overlay_opened = overlay
         .reader()
@@ -148,7 +148,7 @@ fn a_scored_text_query_reads_both_sides() {
     let records = [index("n", "n", "quick fox jumps", 10)];
     let copies = find_copies(&reader, &ids(&["n"])).expect("copies");
     let overlay = Overlay::build_over(&m, &records, 0, usize::MAX, &copies).expect("overlay");
-    let masks = Masks::new(&reader, &overlay.hidden(&copies));
+    let masks = Masks::new(&reader, overlay.hidden(&copies));
     let commit = reader.open_segments().expect("commit segments");
     let overlay_opened = overlay
         .reader()
@@ -186,7 +186,7 @@ fn overlay_documents_are_numbered_after_the_commits() {
         &find_copies(&reader, &[]).expect("none"),
     )
     .expect("overlay");
-    let masks = Masks::new(&reader, &[]);
+    let masks = Masks::new(&reader, []);
     let commit = reader.open_segments().expect("commit segments");
     let overlay_opened = overlay
         .reader()
@@ -208,7 +208,7 @@ fn masks_ignore_what_the_commit_does_not_hold_and_an_empty_overlay_has_no_norms(
     let batches: &[&[(&str, &str, i64)]] = &[&[("a", A, 1), ("b", B, 2)]];
     let (_dir, reader) = common::commit_of(&m, batches);
     // A segment, a negative document and a document past the end that the commit lacks.
-    let masks = Masks::new(&reader, &[(9, 0), (0, -1), (0, 999)]);
+    let masks = Masks::new(&reader, [(9, 0), (0, -1), (0, 999)]);
     let commit = reader.open_segments().expect("commit segments");
     let segments = combine(&commit, &masks, None, reader.max_doc());
     let none: Vec<Option<&HashMap<String, FieldNorms<'_>>>> = vec![None; segments.len()];

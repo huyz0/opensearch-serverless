@@ -1,4 +1,4 @@
-//! The vector warm's variable.
+//! The vector warm's and the nested objects' variables.
 
 use super::{lookup, with};
 use crate::boot::config::*;
@@ -25,4 +25,14 @@ fn the_variable_reaches_the_engine() {
     let off = NodeConfig::from_lookup(lookup(&with(&[]))).expect("valid");
     super::super::apply::apply(&off, &mut node);
     assert!(!oss_reader::vector_warm::at_open());
+}
+
+// docs/specs/nested-fields AC-9
+#[test]
+fn nested_is_off_by_default_and_turned_on_by_its_variable() {
+    let c = NodeConfig::from_lookup(lookup(&with(&[]))).expect("valid");
+    assert!(!c.nested);
+    let c = NodeConfig::from_lookup(lookup(&with(&[("OSS_NESTED", "true")]))).expect("valid");
+    assert!(c.nested);
+    assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_NESTED", "yes")]))).is_err());
 }

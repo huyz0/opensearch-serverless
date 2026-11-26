@@ -64,6 +64,7 @@ mod restore_mark;
 mod segment_blob;
 mod shard_head;
 mod smile;
+mod snapshot_aliases;
 mod snapshot_keys;
 mod snapshot_pins;
 mod snapshot_record;
@@ -128,6 +129,7 @@ pub use segment_blob::{
 };
 pub use shard_head::{MAX_SHARD_HEAD_BYTES, MAX_WRITERS, ShardHead};
 pub use smile::{Limits as SmileLimits, from_json as smile_from_json, to_json as smile_to_json};
+pub use snapshot_aliases::{AliasCapture, MAX_ALIAS_NAME_BYTES, MAX_ALIASES};
 pub use snapshot_keys::{
     repository_key, sha256_hex, snapshot_legacy_key, snapshot_marker_prefixes, snapshot_state_key,
     snapshot_state_key_of_hash,

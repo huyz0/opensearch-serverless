@@ -23,6 +23,7 @@ mod field;
 mod intern;
 pub mod json;
 mod knn;
+mod nested;
 mod numbers;
 mod object;
 mod params;
@@ -51,6 +52,9 @@ pub const TOTAL_FIELDS_LIMIT: usize = 1000;
 
 /// `index.mapping.depth.limit`'s default.
 pub const DEPTH_LIMIT: usize = 20;
+
+/// `index.mapping.nested_fields.limit`'s default.
+pub const NESTED_FIELDS_LIMIT: usize = 100;
 
 /// A parsed mapping.
 #[derive(Clone, Debug, PartialEq)]
@@ -84,6 +88,9 @@ pub struct ParseOptions {
     /// `None`: `knn_vector` is unsupported (the default). `Some(flag)`: it is
     /// indexed, on an index whose `index.knn` setting is `flag`.
     pub knn: Option<bool>,
+    /// Whether `nested` objects are indexed (`serverless.nested.enabled`);
+    /// off, a mapping with one is unsupported.
+    pub nested: bool,
 }
 
 impl Mapping {
@@ -122,6 +129,7 @@ impl Mapping {
     fn parse_inner(text: &[u8], options: ParseOptions, pinned: bool) -> Result<Self, MappingError> {
         let mapping = Self::parse_unwrapped(text).map_err(MappingError::failed_to_parse)?;
         mapping.check_knn(options)?;
+        mapping.check_nested(options)?;
         if !pinned {
             mapping.check_ext_analyzers()?;
         }
@@ -251,7 +259,13 @@ impl Mapping {
     pub fn from_descriptor(text: Option<&str>) -> Result<Self, MappingError> {
         match text {
             None => Ok(Mapping::default()),
-            Some(t) => Self::parse_with(t.as_bytes(), ParseOptions { knn: Some(true) }),
+            Some(t) => Self::parse_with(
+                t.as_bytes(),
+                ParseOptions {
+                    knn: Some(true),
+                    nested: true,
+                },
+            ),
         }
     }
 
@@ -265,7 +279,13 @@ impl Mapping {
     pub fn from_descriptor_pinned(text: Option<&str>) -> Result<Self, MappingError> {
         match text {
             None => Ok(Mapping::default()),
-            Some(t) => Self::parse_pinned(t.as_bytes(), ParseOptions { knn: Some(true) }),
+            Some(t) => Self::parse_pinned(
+                t.as_bytes(),
+                ParseOptions {
+                    knn: Some(true),
+                    nested: true,
+                },
+            ),
         }
     }
 
@@ -420,6 +440,12 @@ impl Mapping {
             // ALLOC: mapping parse, merge or error path; bounded by the mapping text (MAX_MAPPING_BYTES).
             return Err(MappingError::illegal_argument(&format!(
                 "Limit of total fields [{TOTAL_FIELDS_LIMIT}] has been exceeded"
+            )));
+        }
+        if self.nested_paths().len() > NESTED_FIELDS_LIMIT {
+            // ALLOC: mapping parse, merge or error path; bounded by the mapping text (MAX_MAPPING_BYTES).
+            return Err(MappingError::illegal_argument(&format!(
+                "Limit of nested fields [{NESTED_FIELDS_LIMIT}] has been exceeded"
             )));
         }
         if let Some(path) = too_deep {

@@ -44,6 +44,7 @@ pub(crate) fn index_service(
     Ok(Arc::new(
         indices
             .with_knn(config.knn)
+            .with_nested(config.nested)
             .with_pipelines(config.ingest_pipelines)
             .with_search_pipelines(config.search_pipelines),
     ))
@@ -167,6 +168,7 @@ pub(crate) fn restore_routes(
         crate::snapshot_restore_route::COPY_CHUNK_BYTES,
     )
     .with_background(Arc::clone(&restores))
+    .with_alias_buffers(config.pit_buffer_bytes, ALIAS_LEASE_TTL_MILLIS)
     .with_system_indices(crate::admin_assemble::system_indices(config))
     .with_stock(crate::stock_restore_route::StockRestoreSettings {
         enabled: config.snapshots_stock,
