@@ -1,6 +1,7 @@
 //! A real HTTP/1.1 server with a few routes, and clients for it.
 
-#![allow(dead_code, missing_docs)]
+// ARITH: corpus offsets in a test stub are small; an overflow panics the test, which fails it.
+#![allow(dead_code, missing_docs, clippy::arithmetic_side_effects)]
 
 use std::io::Write;
 use std::net::{SocketAddr, TcpListener};
@@ -35,6 +36,37 @@ pub struct State {
     pub searches: std::sync::Mutex<Vec<(String, String, Vec<u8>)>>,
     /// What those routes answer with.
     pub search_answer: std::sync::Mutex<String>,
+    /// With a count above 0, the search route answers from a corpus of that many hits sorted
+    /// `[1]`, `[2]` and so on, paged by `size` and `search_after`.
+    pub corpus: AtomicUsize,
+    /// Characters of padding in each corpus hit's source.
+    pub padding: AtomicUsize,
+    /// The hit after this number sorts equal to it, so a page ending there has a tie.
+    pub tie_at: AtomicUsize,
+    /// Milliseconds the search route waits before answering.
+    pub search_delay_ms: AtomicUsize,
+}
+
+/// One page of the corpus the search route serves when `State::corpus` is set.
+fn corpus_page(state: &State, body: &[u8]) -> String {
+    let body: serde_json::Value = serde_json::from_slice(body).expect("a json body");
+    let size = usize::try_from(body["size"].as_u64().expect("a size")).expect("fits");
+    let after = body["search_after"][0]
+        .as_u64()
+        .map_or(0, |n| usize::try_from(n).expect("fits"));
+    let total = state.corpus.load(Ordering::Acquire);
+    let pad = "x".repeat(state.padding.load(Ordering::Acquire));
+    let tie = state.tie_at.load(Ordering::Acquire);
+    let hits: Vec<String> = (after + 1..=total.min(after + size))
+        .map(|i| {
+            let sort = if tie != 0 && i == tie + 1 { tie } else { i };
+            format!(r#"{{"_index":"a","_id":"{i}","_score":null,"_source":{{"pad":"{pad}"}},"sort":[{sort}]}}"#)
+        })
+        .collect();
+    format!(
+        r#"{{"took":1,"timed_out":false,"_shards":{{"total":1,"successful":1,"failed":0}},"hits":{{"total":{{"value":{total},"relation":"eq"}},"max_score":null,"hits":[{}]}}}}"#,
+        hits.join(",")
+    )
 }
 
 pub fn budget(bytes: usize) -> MemoryBudget {
@@ -152,7 +184,16 @@ pub fn start_with(state: &Arc<State>, max_body: u64) -> (Server, MemoryBudget, S
                     body.extend_from_slice(chunk);
                 }
                 ss.searches.lock().expect("lock").push((method, target, body));
-                let answer = ss.search_answer.lock().expect("lock").clone();
+                let delay = ss.search_delay_ms.load(Ordering::Acquire);
+                if delay != 0 {
+                    std::thread::sleep(Duration::from_millis(delay as u64));
+                }
+                let answer = if ss.corpus.load(Ordering::Acquire) != 0 {
+                    let last = ss.searches.lock().expect("lock").last().expect("recorded").2.clone();
+                    corpus_page(&ss, &last)
+                } else {
+                    ss.search_answer.lock().expect("lock").clone()
+                };
                 resp.send(200, JSON, answer.as_bytes())
             };
             let record = Arc::new(record);

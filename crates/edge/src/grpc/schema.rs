@@ -9,6 +9,11 @@ static POOL: LazyLock<DescriptorPool> = LazyLock::new(|| {
         .expect("the compiled descriptor set loads")
 });
 
+/// Builds the schema now, so the first call does not pay for it.
+pub(crate) fn warm() {
+    LazyLock::force(&POOL);
+}
+
 /// The message type named `org.opensearch.protobufs.<name>`.
 pub fn message(name: &str) -> MessageDescriptor {
     // ALLOC: a type name, a few bytes.

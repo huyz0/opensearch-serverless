@@ -20,6 +20,7 @@ use prost_reflect::DynamicMessage;
 use serde_json::{Value, json};
 
 const DOCUMENT: &str = "/org.opensearch.protobufs.services.DocumentService/Bulk";
+const STREAM: &str = "/org.opensearch.protobufs.services.SearchService/ServerStreamSearch";
 const SEARCH: &str = "/org.opensearch.protobufs.services.SearchService/Search";
 
 fn boot(root: &std::path::Path) -> Node {
@@ -52,6 +53,19 @@ fn grpc(
     response_type: &str,
     request: &Value,
 ) -> Result<Value, (u8, String)> {
+    let mut all = grpc_all(node, path, request_type, response_type, request)?;
+    assert_eq!(all.len(), 1, "a unary call answers one message");
+    Ok(all.remove(0))
+}
+
+/// As `grpc`, for a call that answers any number of messages.
+fn grpc_all(
+    node: &Node,
+    path: &str,
+    request_type: &str,
+    response_type: &str,
+    request: &Value,
+) -> Result<Vec<Value>, (u8, String)> {
     let desc = oss_edge::proto_message(request_type);
     let msg = DynamicMessage::deserialize(desc, request).expect("protojson request");
     let encoded = msg.encode_to_vec();
@@ -105,10 +119,17 @@ fn grpc(
     if code != 0 {
         return Err((code, message.unwrap_or_default()));
     }
-    let body = raw.get(5..).expect("one message");
-    let reply =
-        DynamicMessage::decode(oss_edge::proto_message(response_type), body).expect("decodes");
-    Ok(serde_json::to_value(&reply).expect("protojson"))
+    let mut messages = Vec::new();
+    let mut rest = raw.as_slice();
+    while let Some((head, tail)) = rest.split_at_checked(5) {
+        let len = u32::from_be_bytes([head[1], head[2], head[3], head[4]]) as usize;
+        let (body, after) = tail.split_at(len);
+        let reply =
+            DynamicMessage::decode(oss_edge::proto_message(response_type), body).expect("decodes");
+        messages.push(serde_json::to_value(&reply).expect("protojson"));
+        rest = after;
+    }
+    Ok(messages)
 }
 
 fn index(node: &Node, name: &str) {
@@ -337,4 +358,41 @@ fn search_over_grpc_answers_the_same_hits_as_rest_search() {
             "{name} matches something"
         );
     }
+}
+
+// AC-11, the node's side: pages of a stream are the REST search's hits, in order.
+#[test]
+fn stream_search_over_grpc_delivers_the_hits_rest_search_returns() {
+    let dir = TempDir::new("grpc-stream");
+    let node = boot(dir.path());
+    index(&node, "docs");
+    for n in 1..=25 {
+        let put = rest(
+            &node,
+            "PUT",
+            &format!("/docs/_doc/d{n}?refresh=true"),
+            Some(&json!({"n": n}).to_string()),
+        );
+        assert_eq!(put.0, 201, "{}", put.1);
+    }
+    let (_, via_rest) = rest(
+        &node,
+        "POST",
+        "/docs/_search",
+        Some(r#"{"query":{"match_all":{}},"sort":[{"n":"asc"}],"size":100}"#),
+    );
+    let request = json!({
+        "index": ["docs"],
+        "searchRequestBody": {
+            "query": {"matchAll": {}},
+            "sort": [{"fieldWithOrder": {"fieldSortMap": {"n": {"order": "SORT_ORDER_ASC"}}}}],
+            "size": 10
+        }
+    });
+    let pages =
+        grpc_all(&node, STREAM, "SearchRequest", "SearchResponse", &request).expect("streams");
+    assert_eq!(pages.len(), 3);
+    let streamed: Vec<String> = pages.iter().flat_map(ids_of_grpc).collect();
+    assert_eq!(streamed, ids_of_rest(&via_rest));
+    assert_eq!(streamed.len(), 25);
 }

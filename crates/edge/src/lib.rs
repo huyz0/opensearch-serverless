@@ -80,6 +80,9 @@ impl Edge {
         let h2c = config.h2c.map(TcpListener::bind).transpose()?;
         let tls_listener = config.tls.map(TcpListener::bind).transpose()?;
         let grpc_listener = config.grpc.map(TcpListener::bind).transpose()?;
+        if grpc_listener.is_some() {
+            grpc::schema::warm();
+        }
         for l in h2c
             .iter()
             .chain(tls_listener.iter())
