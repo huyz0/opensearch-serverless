@@ -48,6 +48,18 @@ fn nested_and_reverse_nested_aggregate_through_a_node() {
         "{text}"
     );
     assert!(text.contains(r#"{"key":"bob","doc_count":2}"#), "{text}");
+    // The parents holding each commenter, through a `reverse_nested` under a `terms`.
+    let who = r#"{"c":{"nested":{"path":"comments"},"aggs":{"who":{"terms":{"field":"comments.who"},
+        "aggs":{"up":{"reverse_nested":{}}}}}}}"#;
+    let text = aggregate(&cluster, who).expect("answers");
+    assert!(
+        text.contains(r#"{"key":"bob","doc_count":2,"up":{"doc_count":2}}"#),
+        "{text}"
+    );
+    assert!(
+        text.contains(r#"{"key":"ann","doc_count":1,"up":{"doc_count":1}}"#),
+        "{text}"
+    );
     // A path that is an object but not nested is refused.
     let body = r#"{"size":0,"aggs":{"c":{"nested":{"path":"meta"}}}}"#;
     let refused = cluster.call(0, "POST", "/shop/_search", Some(body));

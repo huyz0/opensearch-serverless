@@ -125,6 +125,8 @@ mod nested_terms_tests;
 #[cfg(test)]
 mod nested_tests;
 #[cfg(test)]
+mod nested_under_terms_tests;
+#[cfg(test)]
 mod range_collect_tests;
 #[cfg(test)]
 mod range_tests;

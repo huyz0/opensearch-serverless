@@ -306,7 +306,9 @@ pub fn collect<S: BlobStore + 'static>(
                 with_subs::attach(&mut made, agg, shard, &mut ords, &mut queries)?;
                 nodes.push(made);
             }
-            Resolved::Keyword => nodes.push(keyword_subs::node(agg, shard, &mut ords)?),
+            Resolved::Keyword => {
+                nodes.push(keyword_subs::node(agg, shard, &mut ords, &mut queries)?)
+            }
             Resolved::Queries => {
                 let mut made = filters_collect::node(agg, queries.take_own(agg));
                 with_subs::attach(&mut made, agg, shard, &mut ords, &mut queries)?;

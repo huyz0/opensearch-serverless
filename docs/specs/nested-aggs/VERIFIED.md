@@ -13,4 +13,10 @@ Run on 2026-11-26 (Linux cloud container, emulator only). The parse tests were w
 
 - AC-3, AC-4 (nested in nested): `a_nested_inside_a_nested_joins_over_the_enclosing_objects_and_reverse_nested_steps_out`, `a_nested_on_the_grandchildren_alone_counts_them_under_their_roots` (over `Spec::with_nested_deep()`; the first was seen red, as a refusal, with the enclosing path dropped)
 
-NOT-RUN: the engine's reservation of its parent and child lists; the sub-aggregations avg, max and value_count; comparison with recorded OpenSearch answers; a nested under a keyword terms.
+NOT-RUN: the engine's reservation of its parent and child lists; the sub-aggregations avg, max and value_count; comparison with recorded OpenSearch answers.
+
+- AC-9: `a_nested_under_a_keyword_terms_counts_each_buckets_own_children`, `a_nested_under_a_numeric_terms_counts_each_buckets_own_children`, `the_results_of_shards_add_under_a_terms` (crates/reader/src/aggs/bucket/nested_under_terms_tests.rs; written after the parse change and seen red as a parse refusal before it)
+- AC-10: `a_reverse_nested_under_a_terms_counts_the_parents_of_each_term`, `a_reverse_nested_under_a_terms_outside_a_nested_is_refused_as_the_java_refuses`; through a node, `nested_and_reverse_nested_aggregate_through_a_node`
+- AC-11: `a_nested_bucket_under_a_keyword_terms_adds_to_the_terms_reservation` (seen red with the addition removed: 668 vs 668 bytes), `a_nested_under_a_keyword_terms_is_reserved_with_what_it_holds`
+
+NOT-RUN under a terms: a `nested` under a terms inside a `nested` more than one level deep; a `terms` ordered by a `nested` sub-aggregation's value.
