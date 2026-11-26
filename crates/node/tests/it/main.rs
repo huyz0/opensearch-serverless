@@ -11,6 +11,7 @@ mod aggs_budgets;
 mod analyze;
 mod budgets;
 mod built;
+mod collapse;
 #[cfg(feature = "coordinator")]
 mod coordinate;
 mod count;

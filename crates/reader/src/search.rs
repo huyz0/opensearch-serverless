@@ -39,7 +39,7 @@ use crate::mapping::FieldType;
 use crate::search_options;
 use crate::search_post_filter;
 use crate::search_sort::{KeyKind, sort_fields};
-use crate::search_top::{TopOptions, collect_top};
+use crate::search_top::TopOptions;
 
 /// `index.max_result_window`'s default: the most `from + size` may reach.
 pub const MAX_RESULT_WINDOW: usize = 10_000;
@@ -350,24 +350,13 @@ pub fn search_with<S: BlobStore + 'static>(
         )),
         None => None,
     };
-    let (collect_window, collect_from) = rescore
-        .as_ref()
-        .map_or((window, source.from), |r| r.collection(window));
-    let mut top = collect_top(
-        &segments,
-        shard,
-        &norms,
-        narrowed.as_ref().unwrap_or(&query),
-        sort.as_ref(),
-        collect_window,
-        collect_from,
-        limit,
-        after.as_ref(),
-        TopOptions {
-            min_score: source.min_score,
-            track_scores: source.track_scores,
-            terminate_after: source.terminate_after,
-        },
+    let collapse = crate::search_collapse::plan(source, &meta.mapping)?;
+    let mut top = crate::search_collapse::top(
+        (collapse.as_ref(), rescore.as_ref()),
+        (&segments, shard, &norms),
+        (narrowed.as_ref().unwrap_or(&query), sort.as_ref()),
+        (window, source.from, limit, after.as_ref()),
+        TopOptions::of(source),
     )?;
     if let Some(r) = &rescore {
         r.apply(shard, &segments, &mut top, (source.from, window))?;

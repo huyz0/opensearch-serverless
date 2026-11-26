@@ -208,6 +208,11 @@ impl<S: BlobStore + 'static> SearchService<S> {
         }
         #[cfg(feature = "coordinator")]
         match self.shard_count(&index) {
+            Ok(shards) if shards > 1 && source.collapse.is_some() => {
+                return Err(RestError::illegal_argument(
+                    "[collapse] over an index of several shards is not supported by this node yet",
+                ));
+            }
             Ok(shards) if shards > 1 => {
                 return self.handle_sharded(resp, &index, shards, &source, started);
             }

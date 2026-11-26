@@ -335,7 +335,7 @@ pub(crate) enum Value {
     Term(Vec<u8>),
 }
 
-fn numbers(segment: &SegmentReader, field: &str, doc: i32) -> io::Result<Vec<Value>> {
+pub(crate) fn numbers(segment: &SegmentReader, field: &str, doc: i32) -> io::Result<Vec<Value>> {
     let mut dv = get_sorted_numeric(segment, field).map_err(io::Error::other)?;
     if !dv.advance_exact(doc).map_err(io::Error::other)? {
         // ALLOC: empty.
@@ -350,7 +350,7 @@ fn numbers(segment: &SegmentReader, field: &str, doc: i32) -> io::Result<Vec<Val
     Ok(values)
 }
 
-fn terms(segment: &SegmentReader, field: &str, doc: i32) -> io::Result<Vec<Value>> {
+pub(crate) fn terms(segment: &SegmentReader, field: &str, doc: i32) -> io::Result<Vec<Value>> {
     let mut dv = get_sorted_set(segment, field).map_err(io::Error::other)?;
     if !dv.advance_exact(doc).map_err(io::Error::other)? {
         // ALLOC: empty.

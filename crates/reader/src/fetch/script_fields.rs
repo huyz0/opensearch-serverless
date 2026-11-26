@@ -81,11 +81,23 @@ pub fn parse(p: &mut Parser<'_>) -> Result<Vec<(String, ScriptScore)>, DslError>
 /// A shard failure from either.
 pub fn all(source: &SearchSource, mapping: &Mapping) -> Result<Vec<HitField>, ShardError> {
     let (docvalues, scripts) = (&source.docvalue_fields, &source.script_fields);
-    let mut fields = if docvalues.is_empty() {
+    // ALLOC: one entry an asked doc value field, at most MAX_FIELDS.
+    let mut asked = docvalues.clone();
+    if let Some(c) = &source.collapse
+        && !asked.iter().any(|d| d.field == c.field)
+    {
+        // The collapse field's values ride the hit as a doc value field.
+        asked.push(crate::fetch::docvalue_fields::DocValueField {
+            // ALLOC: one name a collapse.
+            field: c.field.clone(),
+            format: None,
+        });
+    }
+    let mut fields = if asked.is_empty() {
         // ALLOC: bounded by the request body's recording.
         Vec::new()
     } else {
-        crate::fetch::docvalue_fields::resolve(docvalues, mapping)?
+        crate::fetch::docvalue_fields::resolve(&asked, mapping)?
     };
     fields.extend(resolve(scripts, mapping)?);
     Ok(fields)
