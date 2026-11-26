@@ -96,6 +96,26 @@ fn a_script_is_put_read_replaced_and_deleted() {
 }
 
 // AC-2
+// AC-6
+#[test]
+fn an_object_source_is_stored_as_json_text() {
+    let r = rig();
+    let body =
+        r#"{"script":{"lang":"mustache","source":{"query":{"match":{"t":"{{q}}"}},"size": 3}}}"#;
+    assert_eq!(call(&r, "PUT", "/_scripts/obj", Some(body)).status, 200);
+    let want = r#"{"_id":"obj","found":true,"script":{"lang":"mustache","source":"{\"query\":{\"match\":{\"t\":\"{{q}}\"}},\"size\":3}","options":{"content_type":"application/json; charset=UTF-8"}}}"#;
+    assert_eq!(call(&r, "GET", "/_scripts/obj", None).text(), want);
+    // A content type written after the source wins, as in core.
+    let later = r#"{"script":{"lang":"mustache","source":{"a":1},"options":{"content_type":"text/plain"}}}"#;
+    assert_eq!(call(&r, "PUT", "/_scripts/obj", Some(later)).status, 200);
+    let got = call(&r, "GET", "/_scripts/obj", None).text();
+    assert!(got.contains(r#""source":"{\"a\":1}""#), "{got}");
+    assert!(got.contains(r#""content_type":"text/plain""#), "{got}");
+    // An empty object is a non-empty text, and an array is still refused.
+    let array = r#"{"script":{"lang":"mustache","source":[1]}}"#;
+    assert_eq!(call(&r, "PUT", "/_scripts/arr", Some(array)).status, 400);
+}
+
 #[test]
 fn a_missing_script_is_404() {
     let r = rig();

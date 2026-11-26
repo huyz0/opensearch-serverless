@@ -45,6 +45,9 @@ pub(crate) fn validate_stored(body: &[u8]) -> bool {
     Script::read(body).is_ok_and(|s| LANGS.contains(&s.lang.as_str()))
 }
 
+/// The content type stock records for a source given as an object.
+const JSON_CONTENT_TYPE: &str = "application/json; charset=UTF-8";
+
 impl Script {
     /// Reads `{"script":{..}}`, as a put or a stored body.
     fn read(body: &[u8]) -> Result<Self, RestError> {
@@ -63,6 +66,11 @@ impl Script {
             match (name.as_str(), value) {
                 ("lang", Json::Str(s)) => lang = Some(s.clone()),
                 ("source", Json::Str(s)) => source = Some(s.clone()),
+                ("source", object @ Json::Obj(_)) => {
+                    // An object source is stored as its compact JSON text, tagged JSON.
+                    source = Some(object.to_json());
+                    content_type = Some(JSON_CONTENT_TYPE.to_owned());
+                }
                 ("options", Json::Obj(options)) => {
                     for (option, value) in options {
                         match (option.as_str(), value) {
