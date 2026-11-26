@@ -133,11 +133,13 @@ pub enum ValueKind {
     Date,
     /// Sorted set terms, written as strings.
     Term,
+    /// A script's number, written as a Java double.
+    Script,
 }
 
 /// A resolved field: its name, how it reads, and how many times the request
 /// asked for it.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct HitField {
     /// The field.
     pub name: String,
@@ -145,6 +147,8 @@ pub struct HitField {
     pub kind: ValueKind,
     /// How many entries resolved to it.
     pub times: usize,
+    /// The script, for a `script_fields` entry.
+    pub script: Option<std::sync::Arc<lucene_engine::painless_score::ScriptFunction>>,
 }
 
 fn bad_request(reason: String) -> ShardError {
@@ -215,6 +219,7 @@ pub fn resolve(fields: &[DocValueField], mapping: &Mapping) -> Result<Vec<HitFie
                     name: n.to_owned(),
                     kind,
                     times: 1,
+                    script: None,
                 }),
             }
         }
@@ -288,6 +293,7 @@ pub fn write_fields(
         let values = match field.kind {
             ValueKind::Long | ValueKind::Date => numbers(segment, &field.name, doc)?,
             ValueKind::Term => terms(segment, &field.name, doc)?,
+            ValueKind::Script => crate::fetch::script_fields::values(field, segment, doc)?,
         };
         if values.is_empty() {
             continue;
@@ -303,6 +309,9 @@ pub fn write_fields(
             }
             match (field.kind, value) {
                 (ValueKind::Long, Value::Long(n)) => write!(out, "{n}")?,
+                (_, Value::Double(d)) => {
+                    out.write_all(crate::template::java_double(*d).as_bytes())?;
+                }
                 (_, Value::Long(n)) => {
                     out.write_all(b"\"")?;
                     write_date(out, *n)?;
@@ -320,8 +329,9 @@ pub fn write_fields(
 }
 
 /// One doc value.
-enum Value {
+pub(crate) enum Value {
     Long(i64),
+    Double(f64),
     Term(Vec<u8>),
 }
 

@@ -412,8 +412,8 @@ pub fn search_with<S: BlobStore + 'static>(
     };
     hits.inner = crate::search_inner_hits::fill(&inner_plans, shard, &segments, &hits.hits)?;
     // The fetch phase resolves the fields only when it has a hit to fetch.
-    if !hits.hits.is_empty() && !source.docvalue_fields.is_empty() {
-        hits.fields = docvalue_fields::resolve(&source.docvalue_fields, &meta.mapping)?;
+    if !hits.hits.is_empty() {
+        hits.fields = crate::fetch::script_fields::all(source, &meta.mapping)?;
     }
     if let Some(spec) = source.highlight.as_ref().filter(|_| !hits.hits.is_empty()) {
         hits.highlight = highlight::plan(spec, &meta.mapping, &query)?;

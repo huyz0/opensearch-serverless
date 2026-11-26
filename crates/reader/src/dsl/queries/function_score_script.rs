@@ -18,7 +18,7 @@ use crate::dsl::error::DslError;
 use crate::dsl::tokens::{Kind, Parser};
 use crate::failure::Failure;
 use crate::lucene_query::QueryContext;
-use crate::mapping::FieldType;
+use crate::mapping::{FieldType, Mapping};
 
 /// The most a script's source is, as core's `script.max_size_in_bytes`.
 const MAX_SOURCE_BYTES: usize = 65_535;
@@ -125,16 +125,32 @@ fn put_bytes(out: &mut Vec<u8>, b: &[u8]) {
 
 /// The engine function for `script` over the mapping in `cx`.
 pub fn build(cx: &QueryContext<'_>, script: &ScriptScore) -> Result<Engine, Failure> {
-    let blob = encode(cx, script, 0)?;
+    let blob = encode(cx.mapping, script, 0)?;
     let function = ScriptFunction::decode(&mut Cursor::new(&blob))
         // ALLOC: bounded by the script's source, at most 65,535 bytes.
         .map_err(|_| script_error("the expression could not be set up".to_owned()))?;
     Ok(Engine::Script(Arc::new(function)))
 }
 
+/// The engine's script for one hit's field (`script_fields`): the
+/// expression's number for a document, never reading `_score`.
+pub fn field(mapping: &Mapping, script: &ScriptScore) -> Result<Arc<ScriptFunction>, Failure> {
+    let blob = encode(mapping, script, 0)?;
+    let function = ScriptFunction::decode(&mut Cursor::new(&blob))
+        // ALLOC: bounded by the request body's recording.
+        .map_err(|_| script_error("the expression could not be set up".to_owned()))?;
+    if function.needs_score() {
+        return Err(Failure::plain(
+            "illegal_argument_exception",
+            "a [script_fields] script that reads [_score] is not supported by this node yet",
+        ));
+    }
+    Ok(Arc::new(function))
+}
+
 /// The engine's sort over `script`: its number for every document.
 pub fn sort(cx: &QueryContext<'_>, script: &ScriptScore) -> Result<Arc<PainlessSort>, Failure> {
-    let blob = encode(cx, script, 3)?;
+    let blob = encode(cx.mapping, script, 3)?;
     let sort = PainlessSort::decode(&mut Cursor::new(&blob))
         // ALLOC: bounded by the script's source, at most 65,535 bytes.
         .map_err(|_| script_error("the expression could not be set up".to_owned()))?;
@@ -143,7 +159,7 @@ pub fn sort(cx: &QueryContext<'_>, script: &ScriptScore) -> Result<Arc<PainlessS
 
 /// The engine's blob for `script`: `context` is the engine's script context
 /// (`0` score, `3` number sort), plus one when the script reads `_score`.
-fn encode(cx: &QueryContext<'_>, script: &ScriptScore, context: u8) -> Result<Vec<u8>, Failure> {
+fn encode(mapping: &Mapping, script: &ScriptScore, context: u8) -> Result<Vec<u8>, Failure> {
     // ALLOC: bounded by the script's source, at most 65,535 bytes.
     let expr = compile(&script.source).map_err(|e| script_error(format!("compile error: {e}")))?;
     // ALLOC: one name a field the script reads, bounded by the source.
@@ -172,7 +188,7 @@ fn encode(cx: &QueryContext<'_>, script: &ScriptScore, context: u8) -> Result<Ve
             }
             (Some("doc"), _) if parts.get(1).map(|c| c.kind) == Some(Type::StrIndex) => {
                 let field = text(1).unwrap_or_default();
-                match cx.mapping.get(field).map(|f| &f.ty) {
+                match mapping.get(field).map(|f| &f.ty) {
                     Some(FieldType::Int { .. } | FieldType::Long | FieldType::Date) => {}
                     Some(_) => {
                         // ALLOC: bounded by the script's source, at most 65,535 bytes.

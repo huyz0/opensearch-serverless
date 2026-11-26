@@ -247,6 +247,7 @@ fn field(name: &str, kind: ValueKind, times: usize) -> HitField {
         name: name.to_owned(),
         kind,
         times,
+        script: None,
     }
 }
 
