@@ -275,6 +275,8 @@ pub fn search_with<S: BlobStore + 'static>(
         None => to_lucene(&crate::dsl::Query::MatchAll { boost: 1.0 }, &cx),
     }
     .map_err(|f| ShardError::of_query(shard_failure(f, index, &meta.uuid)))?;
+    let query = crate::dsl::queries::nested_build::skip_nested(query, &meta.mapping, knn.is_some())
+        .map_err(|f| ShardError::bad_request(f))?;
     let window = source.from.saturating_add(source.size);
     search_options::check_window(window, meta.max_result_window())?;
     if let Some(what) = source.explain.then(|| explain::refusal(&query)).flatten() {
