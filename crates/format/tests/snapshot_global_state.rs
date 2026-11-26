@@ -173,3 +173,37 @@ fn a_state_past_the_limit_is_refused_on_read() {
         Err(FormatError::TooLarge { .. })
     ));
 }
+
+fn record_with_state_of(len: usize) -> Vec<u8> {
+    let head = br#"{"global_state":{"stored_scripts":{"s":{"a":""#;
+    let tail = br#""}}}}"#;
+    // The member's object is everything between `"global_state":` and the last `}`.
+    // The record closes with the tail's last brace; the member does not.
+    let fixed = head.len() + tail.len() - br#"{"global_state":"#.len() - 1;
+    let mut record = head.to_vec();
+    record.resize(head.len() + (len - fixed), b'x');
+    record.extend_from_slice(tail);
+    record
+}
+
+#[test]
+fn a_state_of_exactly_the_limit_is_read_and_one_byte_more_is_refused() {
+    let at = record_with_state_of(MAX_GLOBAL_STATE_BYTES);
+    assert!(GlobalState::find(&at).unwrap().is_some());
+    assert!(matches!(
+        GlobalState::find(&record_with_state_of(MAX_GLOBAL_STATE_BYTES + 1)),
+        Err(FormatError::TooLarge { .. })
+    ));
+}
+
+#[test]
+fn a_record_of_exactly_the_limit_is_read_and_one_byte_more_is_refused() {
+    let mut record = br#"{"name":"n"}"#.to_vec();
+    record.resize(oss_format::MAX_SNAPSHOT_RECORD_BYTES, b' ');
+    assert_eq!(GlobalState::find(&record).unwrap(), None);
+    record.push(b' ');
+    assert!(matches!(
+        GlobalState::find(&record),
+        Err(FormatError::Corrupt { .. })
+    ));
+}
