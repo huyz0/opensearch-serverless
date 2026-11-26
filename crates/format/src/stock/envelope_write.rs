@@ -4,9 +4,12 @@
 //! the footer whose CRC covers every byte before it. The body is not
 //! deflate-framed: the reader takes either, and a stock node reads this one.
 
-use super::{EnvelopeLimits, FOOTER_MAGIC, HEADER_MAGIC, MAX_CODEC_BYTES, VERSION, WHAT};
+use super::{EnvelopeLimits, FOOTER_MAGIC, HEADER_MAGIC, VERSION, WHAT};
 use crate::error::{FormatError, corrupt};
 use crate::smile;
+
+/// The longest name whose length is one byte of the header's 7-bit length.
+const MAX_ONE_BYTE_NAME: usize = 128;
 
 /// Writes `json` after `out`'s end as a blob of codec `codec`; a failed call
 /// leaves `out` as it was.
@@ -16,7 +19,7 @@ pub fn from_json(
     limits: &EnvelopeLimits,
     out: &mut Vec<u8>,
 ) -> Result<(), FormatError> {
-    if codec.is_empty() || codec.len() > MAX_CODEC_BYTES {
+    if codec.is_empty() || codec.len() >= MAX_ONE_BYTE_NAME {
         return Err(corrupt(WHAT, "the codec name is not a usable length"));
     }
     let base = out.len();

@@ -87,5 +87,19 @@ fn the_written_blobs_are_left_for_the_java_check() {
         std::fs::write(format!("{dir}/{codec}.dat"), written(doc, codec)).unwrap();
     }
     let long = format!("{{\"k\":\"{}\"}}", "y".repeat(1000));
-    std::fs::write(format!("{dir}/snapshot-long.dat"), written(&long, "snapshot")).unwrap();
+    std::fs::write(
+        format!("{dir}/snapshot-long.dat"),
+        written(&long, "snapshot"),
+    )
+    .unwrap();
+}
+
+#[test]
+fn the_longest_codec_name_is_written_and_one_more_is_refused() {
+    let limits = StockEnvelopeLimits::default();
+    let mut out = Vec::new();
+    let name = "c".repeat(127);
+    stock_blob_from_json(b"{}", &name, &limits, &mut out).unwrap();
+    assert!(stock_verified_body(&out, &name).is_ok());
+    assert!(stock_blob_from_json(b"{}", &"c".repeat(128), &limits, &mut Vec::new()).is_err());
 }

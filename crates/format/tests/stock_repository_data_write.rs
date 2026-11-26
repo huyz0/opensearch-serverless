@@ -141,3 +141,58 @@ fn the_written_index_blobs_are_left_for_the_java_check() {
         std::fs::write(format!("{dir}/{n}"), json(data)).unwrap();
     }
 }
+
+#[test]
+fn a_snapshot_of_two_indices_with_two_shards_each_reads_back_whole() {
+    let d = StockRepositoryData::default();
+    let gens = ["ga".to_owned(), "gb".to_owned()];
+    let idx = [
+        StockNewIndex {
+            name: "a",
+            id: "ida",
+            metadata_identifier: "ida-_na_-1-1-1",
+            blob_id: "ba",
+            shard_generations: &gens,
+        },
+        StockNewIndex {
+            name: "b",
+            id: "idb",
+            metadata_identifier: "idb-_na_-1-1-1",
+            blob_id: "bb",
+            shard_generations: &gens,
+        },
+    ];
+    let next = d.with_snapshot(&new("two", "u2", &idx)).unwrap();
+    let back = StockRepositoryData::parse(json(&next).as_bytes()).unwrap();
+    let s = back.snapshot("two").unwrap();
+    assert_eq!(back.indices_of(s).count(), 2);
+    for (name, blob) in [("a", "ba"), ("b", "bb")] {
+        let i = back.indices.iter().find(|i| i.name == name).unwrap();
+        assert_eq!(
+            i.shard_generations,
+            [Some("ga".to_owned()), Some("gb".to_owned())]
+        );
+        assert_eq!(back.metadata_blob_id(s, i), Some(blob));
+    }
+}
+
+#[test]
+fn an_unnamed_index_or_an_unsafe_blob_id_is_refused_alone() {
+    let d = StockRepositoryData::default();
+    let gens = ["g".to_owned()];
+    let with = |name, id, ident, blob| {
+        let idx = [StockNewIndex {
+            name,
+            id,
+            metadata_identifier: ident,
+            blob_id: blob,
+            shard_generations: &gens,
+        }];
+        d.with_snapshot(&new("s", "u", &idx)).is_err()
+    };
+    assert!(!with("n", "i", "i-_na_-1-1-1", "b"));
+    assert!(with("", "i", "i-_na_-1-1-1", "b"));
+    assert!(with("n", "../i", "i-_na_-1-1-1", "b"));
+    assert!(with("n", "i", "a/b", "b"));
+    assert!(with("n", "i", "i-_na_-1-1-1", "b/c"));
+}
