@@ -8,6 +8,7 @@
 mod envelope_write;
 mod file_check;
 mod index_metadata;
+mod metadata_write;
 mod native_index;
 mod repository_data;
 mod repository_write;
@@ -20,6 +21,10 @@ use crate::smile::{self, Limits as SmileLimits};
 pub use envelope_write::from_json;
 pub use file_check::StockFileCheck;
 pub use index_metadata::{MAX_ALIASES, MAX_SETTINGS, StockIndexMetadata};
+pub use metadata_write::{
+    NewIndexMetadata, NewSnapshotInfo, VERSION_ID, global_metadata_json, index_metadata_json,
+    snapshot_info_json,
+};
 pub use native_index::{StockNative, StockRefusal};
 pub use repository_data::{RepositoryData, StockIndex, StockSnapshot, is_blob_name};
 pub use repository_write::{NewIndex, NewSnapshot};

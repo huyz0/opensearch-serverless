@@ -140,11 +140,15 @@ pub use snapshot_write::{IndexCapture, ShardCapture, SnapshotDraft};
 pub use stock::{
     EnvelopeLimits as StockEnvelopeLimits, MAX_ALIASES as STOCK_MAX_ALIASES,
     MAX_CHUNKS as STOCK_MAX_CHUNKS, MAX_FILES as STOCK_MAX_FILES, MAX_INDICES as STOCK_MAX_INDICES,
-    MAX_SETTINGS as STOCK_MAX_SETTINGS, NewIndex as StockNewIndex, NewSnapshot as StockNewSnapshot,
-    RepositoryData as StockRepositoryData, StockFile, StockFileCheck, StockIndex,
-    StockIndexMetadata, StockNative, StockRefusal, StockShardSnapshot, StockSnapshot,
-    StockSnapshotInfo, from_json as stock_blob_from_json, is_blob_name,
-    to_json as stock_blob_to_json, verified_body as stock_verified_body,
+    MAX_SETTINGS as STOCK_MAX_SETTINGS, NewIndex as StockNewIndex,
+    NewIndexMetadata as StockNewIndexMetadata, NewSnapshot as StockNewSnapshot,
+    NewSnapshotInfo as StockNewSnapshotInfo, RepositoryData as StockRepositoryData, StockFile,
+    StockFileCheck, StockIndex, StockIndexMetadata, StockNative, StockRefusal, StockShardSnapshot,
+    StockSnapshot, StockSnapshotInfo, VERSION_ID as STOCK_VERSION_ID,
+    from_json as stock_blob_from_json, global_metadata_json as stock_global_metadata_json,
+    index_metadata_json as stock_index_metadata_json, is_blob_name,
+    snapshot_info_json as stock_snapshot_info_json, to_json as stock_blob_to_json,
+    verified_body as stock_verified_body,
 };
 pub use tombstone::{MAX_TOMBSTONE_BYTES, Tombstone, tombstone_bucket, tombstone_bucket_start};
 

@@ -59,3 +59,4 @@ src/stock/native_index.rs	new		the stock index as the native restore's inputs (s
 src/smile/write.rs	new		the SMILE encoder, the decoder's counterpart for writing a stock repository; no Java counterpart in the shell (Jackson's SmileGenerator is the reference)
 src/stock/envelope_write.rs	new		the stock envelope's writer (header, SMILE body, CRC footer), the reader's counterpart; the Java has ChecksumBlobStoreFormat.write and CodecUtil.writeHeader/writeFooter
 src/stock/repository_write.rs	new		the next index-N of a stock repository: a snapshot added to RepositoryData and its JSON in the stock field order; the Java has RepositoryData.snapshotsToXContent
+src/stock/metadata_write.rs	new		the JSON of a snapshot's own blob, the empty global metadata and an index's metadata, as a stock node writes them; the Java has SnapshotInfo.toXContent, Metadata.toXContent and IndexMetadata.Builder.toXContent

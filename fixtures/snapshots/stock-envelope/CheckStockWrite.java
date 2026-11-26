@@ -5,6 +5,14 @@ import org.apache.lucene.store.*;
 import org.opensearch.core.xcontent.*;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.repositories.RepositoryData;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.snapshots.SnapshotInfo;
+import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
+import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots;
 
 /**
  * Reads what the Rust writers left (OSS_WRITE_STOCK=dir cargo test -p
@@ -15,6 +23,36 @@ import org.opensearch.repositories.RepositoryData;
  * on a refusal.
  */
 public class CheckStockWrite {
+    /** The server's own format over the whole blob, for the blobs that have one. */
+    static String semantic(String name, byte[] bytes) throws Exception {
+        BytesReference ref = new BytesArray(bytes);
+        List<NamedXContentRegistry.Entry> entries = new ArrayList<>(org.opensearch.cluster.ClusterModule.getNamedXWriteables());
+        entries.addAll(org.opensearch.indices.IndicesModule.getNamedXContents());
+        NamedXContentRegistry reg = new NamedXContentRegistry(entries);
+        if (name.startsWith("index-metadata")) {
+            IndexMetadata m = BlobStoreRepository.INDEX_METADATA_FORMAT.deserialize(name, reg, ref);
+            return " index=" + m.getIndex().getName() + " shards=" + m.getNumberOfShards()
+                + " routing=" + m.getRoutingNumShards() + " mappings=" + m.mapping();
+        }
+        if (name.startsWith("global-meta")) {
+            Metadata m = BlobStoreRepository.GLOBAL_METADATA_FORMAT.deserialize(name, reg, ref);
+            return " clusterUUID=" + m.clusterUUID();
+        }
+        if (name.equals("snapshot-info.dat")) {
+            SnapshotInfo i = BlobStoreRepository.SNAPSHOT_FORMAT.deserialize(name, reg, ref);
+            return " snapshot=" + i.snapshotId() + " indices=" + i.indices() + " state=" + i.state();
+        }
+        if (name.equals("shard-snapshot.dat")) {
+            BlobStoreIndexShardSnapshot s = BlobStoreRepository.INDEX_SHARD_SNAPSHOT_FORMAT.deserialize(name, reg, ref);
+            return " files=" + s.indexFiles().size() + " totalSize=" + s.totalSize();
+        }
+        if (name.equals("shard-generation.dat")) {
+            BlobStoreIndexShardSnapshots s = BlobStoreRepository.INDEX_SHARD_SNAPSHOTS_FORMAT.deserialize(name, reg, ref);
+            return " snapshots=" + s.snapshots().size() + " files=" + s.iterator().hasNext();
+        }
+        return "";
+    }
+
     public static void main(String[] a) throws Exception {
         int bad = 0;
         try (DirectoryStream<Path> files = Files.newDirectoryStream(Paths.get(a[0]))) {
@@ -26,8 +64,7 @@ public class CheckStockWrite {
                 byte[] bytes = Files.readAllBytes(f);
                 try {
                     if (name.endsWith(".dat")) {
-                        String codec = name.startsWith("snapshot") ? "snapshot"
-                            : name.substring(0, name.length() - 4);
+                        String codec = new String(bytes, 5, bytes[4], java.nio.charset.StandardCharsets.UTF_8);
                         try (Directory dir = new ByteBuffersDirectory()) {
                             try (IndexOutput o = dir.createOutput("x", IOContext.DEFAULT)) {
                                 o.writeBytes(bytes, bytes.length);
@@ -42,7 +79,7 @@ public class CheckStockWrite {
                                 CodecUtil.retrieveChecksum(in);
                             }
                         }
-                        System.out.println(name + ": ok");
+                        System.out.println(name + ": ok" + semantic(name, bytes));
                     } else {
                         long gen = Long.parseLong(name.substring("index-".length()));
                         try (XContentParser p = JsonXContent.jsonXContent.createParser(
