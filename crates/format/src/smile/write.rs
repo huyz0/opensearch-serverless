@@ -207,7 +207,7 @@ impl Writer<'_> {
         let mut at = tail.len();
         at = at.saturating_sub(1);
         if let Some(b) = tail.get_mut(at) {
-            *b = 0x80 | u8::try_from(v & 0x3F).unwrap_or(0);
+            *b = u8::try_from(v & 0x3F).unwrap_or(0).wrapping_add(0x80);
         }
         v >>= 6;
         while v > 0 {
