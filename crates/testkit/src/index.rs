@@ -32,7 +32,7 @@ use lucene_index::segment_info::LuceneVersion;
 use lucene_store::{ByteBuffersDirectory, Directory};
 
 mod nested;
-pub use nested::{NESTED_CHILDREN, nested_word};
+pub use nested::{NESTED_CHILDREN, nested_deep_word, nested_word};
 
 /// The mapping of `spec`'s index.
 pub fn mapping(spec: &Spec) -> String {
@@ -124,8 +124,9 @@ pub struct Spec {
     pub vector_dimension: usize,
     /// The index's settings, as the JSON object its descriptor holds.
     pub settings: String,
-    /// Whether each document has nested children `c` ([`Spec::with_nested`]).
-    pub nested: bool,
+    /// The depth of nested objects: 1 for children `c` ([`Spec::with_nested`]), 2
+    /// for grandchildren `c.d` too ([`Spec::with_nested_deep`]).
+    pub nested: u8,
 }
 
 impl Spec {
@@ -142,7 +143,7 @@ impl Spec {
             vectors: None,
             vector_dimension: 3,
             settings: "{}".to_owned(),
-            nested: false,
+            nested: 0,
         }
     }
 

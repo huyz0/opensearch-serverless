@@ -42,6 +42,5 @@ None: an index that holds no nested object is untouched, and an aggregation that
 
 ## Risks
 
-- The two refusals found while planning the filters answer 400 behind the node's "failed to create query" prefix, where the Java answers 500; the message and exception type match.
 - The engine's nested join is ported from Java but has seen no recorded OpenSearch answers here; expected bodies are read from the Java source until fixtures exist.
 - A `nested` over a very wide block is bounded by the nested objects limit (10,000 a document).
