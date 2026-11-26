@@ -31,6 +31,9 @@ use lucene_index::index_writer::{
 use lucene_index::segment_info::LuceneVersion;
 use lucene_store::{ByteBuffersDirectory, Directory};
 
+mod nested;
+pub use nested::{NESTED_CHILDREN, nested_word};
+
 /// The mapping of `spec`'s index.
 pub fn mapping(spec: &Spec) -> String {
     let mut out = String::from(r#"{"properties":{"tag":{"type":"keyword"},"n":{"type":"long"}"#);
@@ -51,6 +54,7 @@ pub fn mapping(spec: &Spec) -> String {
             r#","v":{{"type":"knn_vector","dimension":{dim},"method":{{"name":"hnsw","engine":"lucene","space_type":"{space}"}}}}"#
         ));
     }
+    nested::mapping(spec, &mut out);
     out.push_str("}}");
     out
 }
@@ -120,6 +124,8 @@ pub struct Spec {
     pub vector_dimension: usize,
     /// The index's settings, as the JSON object its descriptor holds.
     pub settings: String,
+    /// Whether each document has nested children `c` ([`Spec::with_nested`]).
+    pub nested: bool,
 }
 
 impl Spec {
@@ -136,6 +142,7 @@ impl Spec {
             vectors: None,
             vector_dimension: 3,
             settings: "{}".to_owned(),
+            nested: false,
         }
     }
 
@@ -213,6 +220,7 @@ pub fn doc_source(spec: &Spec, i: usize) -> String {
     for x in 0..spec.texts {
         out.push_str(&format!(r#","x{x}":"{}""#, doc_words(i, x).join(" ")));
     }
+    nested::source(spec, i, &mut out);
     out.push_str(&format!(
         r#","pad":"{}"}}"#,
         "x".repeat(spec.source_padding)
@@ -410,7 +418,8 @@ pub fn lucene_files(spec: &Spec) -> Vec<(String, Vec<u8>)> {
             ))
             .expect("v");
         }
-        let mut start = 0;
+        nested::register(&mut w, spec);
+        let mut start = nested::add_blocks(&mut w, spec);
         while start < spec.docs {
             let end = spec.docs.min(start + spec.docs_per_segment);
             let docs: Vec<ExplicitDocument> = (start..end).map(|i| document(spec, i)).collect();

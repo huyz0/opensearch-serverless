@@ -186,3 +186,7 @@ pub fn open_located_with<S: BlobStore + 'static>(
         shard,
     })
 }
+
+#[cfg(test)]
+#[path = "search_nested_tests.rs"]
+mod search_nested_tests;

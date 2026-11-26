@@ -17,6 +17,8 @@ pub mod function_score_build;
 mod function_score_modes;
 pub mod knn;
 mod leaf_common;
+pub mod nested;
+pub mod nested_build;
 pub mod query_string;
 pub mod query_string_build;
 pub mod simple_string;
@@ -49,6 +51,7 @@ pub const NAMES: &[&str] = &[
     "query_string",
     "function_score",
     "knn",
+    "nested",
 ];
 
 /// `Fuzziness`: an edit distance, or `AUTO` with its two length bounds.
@@ -201,6 +204,8 @@ pub enum More {
     QueryString(Box<query_string::QueryString>, f32),
     /// `FunctionScoreQueryBuilder`, and its boost.
     FunctionScore(Box<function_score::FunctionScore>, f32),
+    /// `NestedQueryBuilder`, with its boost.
+    Nested(Box<nested::NestedQuery>, f32),
     /// The k-NN plugin's `KNNQueryBuilder`.
     Knn(Box<knn::Knn>),
 }
@@ -223,6 +228,7 @@ impl More {
             | More::SimpleQueryString(_, boost)
             | More::QueryString(_, boost)
             | More::FunctionScore(_, boost)
+            | More::Nested(_, boost)
             | More::MatchNone { boost } => *boost,
             More::Knn(q) => q.boost,
         }
@@ -248,6 +254,7 @@ pub fn parse(name: &str, p: &mut Parser<'_>) -> Result<More, DslError> {
         "query_string" => query_string::parse_query_string(p),
         "function_score" => function_score::parse_function_score(p),
         "knn" => knn::parse_knn(p),
+        "nested" => nested::parse_nested(p),
         _ => compound::parse_match_none(p),
     }
 }
@@ -260,6 +267,9 @@ mod compound_tests;
 
 #[cfg(test)]
 mod knn_tests;
+
+#[cfg(test)]
+mod nested_tests;
 
 #[cfg(test)]
 mod build_tests;

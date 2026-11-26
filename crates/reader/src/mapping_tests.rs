@@ -131,3 +131,27 @@ fn malformed_mappings_are_refused() {
     );
     assert_eq!(MappingError("x".into()).to_string(), "mapping: x");
 }
+
+#[test]
+fn nested_objects_are_paths_that_hold_their_fields() {
+    let m = Mapping::from_json(
+        r#"{"properties":{"c":{"type":"nested","properties":{"w":{"type":"keyword"},
+        "d":{"type":"nested","properties":{"x":{"type":"long"}}}}},"o":{"properties":{"n":{"type":"nested","properties":{"y":{"type":"long"}}}}}}}"#,
+    )
+    .expect("parses");
+    assert!(m.has_nested());
+    assert!(m.is_nested("c") && m.is_nested("c.d") && m.is_nested("o.n"));
+    assert!(!m.is_nested("o") && !m.is_nested("c.w"));
+    // A nested object is no field; its own fields are, by full name.
+    assert_eq!(m.get("c"), None);
+    assert_eq!(ty(&m, "c.w"), Some(FieldType::Keyword));
+    assert_eq!(ty(&m, "c.d.x"), Some(FieldType::Long));
+    assert_eq!(m.nested_parent("c"), None);
+    assert_eq!(m.nested_parent("c.d"), Some("c"));
+    assert_eq!(m.nested_parent("o.n"), None);
+    assert!(
+        !Mapping::from_json(r#"{"properties":{"a":{"type":"keyword"}}}"#)
+            .expect("parses")
+            .has_nested()
+    );
+}
