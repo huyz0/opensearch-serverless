@@ -20,3 +20,5 @@ src/grpc/pit.rs	new		gRPC front; Java serves gRPC through its own Netty transpor
 src/grpc/search.rs	new		gRPC front; Java serves gRPC through its own Netty transport
 src/grpc/query.rs	new		gRPC front; Java serves gRPC through its own Netty transport
 src/grpc/streaming.rs	new		gRPC front; Java serves gRPC through its own Netty transport
+src/quic.rs	new		HTTP/3 front; Java serves HTTP/3 through its own Netty QUIC transport
+src/h3stream.rs	new		HTTP/3 front; Java serves HTTP/3 through its own Netty QUIC transport

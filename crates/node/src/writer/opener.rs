@@ -6,9 +6,10 @@
 
 use std::sync::Arc;
 
+use lucene_store::ByteBuffersDirectory;
 use oss_blob::BlobStore;
 use oss_cluster::heads::{Acquisition, ShardHeadStore};
-use oss_format::ShardRef;
+use oss_format::{ShardKey, ShardRef};
 use oss_meta::DescriptorStore;
 use oss_writer::bulk::IndexInfo;
 use oss_writer::mapping::MappingInterner;
@@ -77,6 +78,8 @@ pub struct HeadOpener {
     ephemeral_id: String,
     buffer_bytes: usize,
     takeover: Option<Takeover>,
+    /// Opens a taken shard from the newest commit its predecessor logged.
+    open_from_logged: bool,
     member_commit: Option<MemberCommitRead>,
     modules: Option<Arc<dyn ModuleLoader>>,
     /// The parsed mappings of the shards this opener opened, shared by text.
@@ -105,6 +108,7 @@ impl HeadOpener {
             ephemeral_id: ephemeral_id.to_owned(),
             buffer_bytes,
             takeover: None,
+            open_from_logged: false,
             member_commit: None,
             modules: None,
             mappings: MappingInterner::new(),
@@ -141,6 +145,14 @@ impl HeadOpener {
         self.takeover = Some(takeover);
         self
     }
+
+    /// Has a taken shard open from the newest commit its predecessor logged,
+    /// when that is newer than the register's and its packs are still named.
+    #[must_use]
+    pub fn with_open_from_logged(mut self, on: bool) -> Self {
+        self.open_from_logged = on;
+        self
+    }
 }
 
 const TAKEOVER: &str = "takeover of a shard with a history is not supported by this node yet";
@@ -160,6 +172,42 @@ impl ShardOpener for HeadOpener {
 }
 
 impl HeadOpener {
+    /// Restores into `dir` the commit a taken shard opens from: the logged
+    /// one `from`, a bucket member's, or the register's.
+    fn restore_into(
+        &self,
+        dir: &ByteBuffersDirectory,
+        at: &ShardRef<'_>,
+        bucketed: bool,
+        member: &Option<(Vec<u8>, u64)>,
+        from: Option<&super::open_logged::Adopting>,
+    ) -> Result<(), String> {
+        // ALLOC: one buffer a restore, buffer_bytes.
+        let mut buf = vec![0u8; self.buffer_bytes];
+        let store = self.store.as_ref();
+        match (bucketed, member, from) {
+            // The logged commit is the one restored, and the one the publish
+            // then swaps in over the register read.
+            (false, _, Some(a)) => restore_value(
+                store,
+                &self.base,
+                at,
+                &a.candidate.manifest,
+                a.candidate.generation,
+                dir,
+                &mut buf,
+            )
+            .map(|_| ()),
+            (true, Some((value, version)), _) => {
+                restore_value(store, &self.base, at, value, *version, dir, &mut buf).map(|_| ())
+            }
+            // A member with no commit yet restores nothing.
+            (true, None, _) => Ok(()),
+            (false, _, None) => restore(store, &self.base, at, dir, &mut buf).map(|_| ()),
+        }
+        .map_err(|e| e.to_string())
+    }
+
     fn open_shard(
         &self,
         role: &WriterRole,
@@ -228,19 +276,25 @@ impl HeadOpener {
             _ => None,
         };
         let bucketed = member.is_some();
-        let committed_own = if bucketed {
+        // The register as read once: its bytes and generation, for a logged
+        // commit to be judged against and swapped in over.
+        let register = if bucketed {
             None
         } else {
             let key = at.manifest_key(&self.base).map_err(|e| e.to_string())?;
             // ALLOC: one buffer a shard opened, buffer_bytes.
             let mut reg = vec![0u8; self.buffer_bytes];
-            self.store
+            let read = self
+                .store
                 .read_register(&key, &mut reg)
-                .map_err(|e| e.to_string())?
-                .map(|_| ())
+                .map_err(|e| e.to_string())?;
+            read.map(|r| {
+                reg.truncate(r.len);
+                (reg, r.generation)
+            })
         };
         let member = member.flatten();
-        let committed = member.is_some() || committed_own.is_some();
+        let committed = member.is_some() || register.is_some();
         let history = committed || !head.writers.is_empty();
         if history && self.takeover.is_none() {
             return Err(format!("[{}][{shard}]: {TAKEOVER}", index.name).into());
@@ -260,32 +314,45 @@ impl HeadOpener {
             mapping,
             modules: pinned.as_deref(),
         };
+        let adopting = self
+            .takeover
+            .as_ref()
+            .filter(|_| self.open_from_logged && !bucketed && !head.writers.is_empty())
+            .and_then(|takeover| {
+                let shard_key =
+                    ShardKey::new(index.uuid.as_str(), shard, Some(index.name.as_str()));
+                super::open_logged::choose(
+                    takeover,
+                    &shard_key,
+                    &head.writers,
+                    head.term,
+                    register.as_ref().map(|(bytes, g)| (bytes.as_slice(), *g)),
+                )
+            });
         match self.takeover.as_ref().filter(|_| history) {
             None => role
                 .open_shard_from(index, shard, head.term, opening, |_| Ok(()), |_| Ok(None))
                 .map(|_| ())?,
-            Some(takeover) => role.open_taken(index, shard, &head, opening, takeover, |dir| {
-                // ALLOC: one buffer a restore, buffer_bytes.
-                let mut buf = vec![0u8; self.buffer_bytes];
-                match (bucketed, &member) {
-                    (true, Some((value, version))) => restore_value(
-                        self.store.as_ref(),
-                        &self.base,
-                        &at,
-                        value,
-                        *version,
-                        dir,
-                        &mut buf,
-                    )
-                    .map(|_| ()),
-                    // A member with no commit yet restores nothing.
-                    (true, None) => Ok(()),
-                    (false, _) => {
-                        restore(self.store.as_ref(), &self.base, &at, dir, &mut buf).map(|_| ())
+            Some(takeover) => {
+                let first = role.open_taken(
+                    index,
+                    shard,
+                    &head,
+                    opening.clone(),
+                    (takeover, adopting.as_ref()),
+                    |dir| self.restore_into(dir, &at, bucketed, &member, adopting.as_ref()),
+                );
+                match (first, adopting.is_some()) {
+                    // A logged commit that did not open, restore or swap is a
+                    // hint that failed: once more, from the register alone.
+                    (Err(_), true) => {
+                        role.open_taken(index, shard, &head, opening, (takeover, None), |dir| {
+                            self.restore_into(dir, &at, bucketed, &member, None)
+                        })?
                     }
+                    (first, _) => first?,
                 }
-                .map_err(|e| e.to_string())
-            })?,
+            }
         }
         role.set_publish_age(&index.uuid, shard, age);
         if woke {

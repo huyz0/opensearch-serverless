@@ -98,6 +98,7 @@ pub fn to_clause(m: &More, cx: &QueryContext<'_>) -> Result<Clause, Failure> {
             .and_then(|r| r.get(q))
             .ok_or_else(|| unsupported("the [knn] query here")),
         More::Knn(q) => crate::knn::radial(q, cx),
+        More::Nested(q, _) => super::nested_build::nested(q, cx),
     }
 }
 

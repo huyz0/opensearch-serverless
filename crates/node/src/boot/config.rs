@@ -5,7 +5,6 @@
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
-use std::time::Duration;
 
 use oss_janitor::settings::{ORPHAN_SLICE_BUDGET, ORPHAN_SLICE_INTERVAL_MILLIS};
 
@@ -13,6 +12,7 @@ use crate::tail_overlay::REFRESH_VISIBILITY;
 
 pub(super) mod apply;
 pub(super) mod authoring;
+pub(super) mod commits;
 pub(super) mod edge;
 pub(super) mod page_cache;
 pub(super) mod roles;
@@ -119,6 +119,12 @@ pub struct NodeConfig {
     pub pinned_indexes: Vec<String>,
     /// `serverless.activation.hand_off.enabled`.
     pub hand_off: bool,
+    /// `OSS_COMMIT_STAGING` with `OSS_COMMIT_CHECKPOINT_MS`
+    /// (`serverless.wal.node_log.commits.staging` and `.checkpoint_millis`):
+    /// the checkpoint age when routine commits are staged, else none.
+    pub commit_checkpoint_millis: Option<u64>,
+    /// `OSS_COMMIT_LOGGED` and `OSS_COMMIT_OPEN_FROM_LOGGED`: what staged commits do besides staging.
+    pub commit_logged: commits::Logged,
     /// `serverless.security.enabled`: serve the security configuration API. Off by default.
     pub security: bool,
     /// The static administrator's name and bcrypt hash (`OSS_SECURITY_ADMIN_USER`, `OSS_SECURITY_ADMIN_HASH`).
@@ -325,6 +331,7 @@ impl NodeConfig {
             .map(str::to_owned)
             .collect();
         let hand_off = flag("OSS_HAND_OFF", "false")?;
+        let (commit_checkpoint_millis, commit_logged) = commits::read(&flag, &bounded)?;
         let knn = flag("OSS_KNN", "true")?;
         let extensions_percent =
             usize::try_from(bounded("OSS_EXTENSIONS_PERCENT", "0", 0, 20)?).unwrap_or(0);
@@ -450,6 +457,8 @@ impl NodeConfig {
             write_pipeline_depth: bounded("OSS_WRITE_PIPELINE_DEPTH", "8", 1, 64)?,
             pinned_indexes,
             hand_off,
+            commit_checkpoint_millis,
+            commit_logged,
             security,
             security_admin,
             security_refresh_millis,
@@ -479,21 +488,12 @@ impl NodeConfig {
             cluster_settings_poll_millis,
         })
     }
-
-    /// How often the lease is renewed: a third of its lifetime.
-    pub fn renew_every(&self) -> Duration {
-        Duration::from_millis(u64::try_from(self.lease_ttl_millis / 3).unwrap_or(1).max(1))
-    }
-
-    /// How often the fleet's leases are read again: `OSS_LEASE_REFRESH_MS`,
-    /// or as often as the lease is renewed.
-    pub fn refresh_every(&self) -> Duration {
-        self.lease_refresh_millis
-            .map_or_else(|| self.renew_every(), Duration::from_millis)
-    }
 }
 
 mod budget;
+#[cfg(test)]
+mod commit_tests;
+mod lease_timing;
 #[cfg(test)]
 mod security_tests;
 #[cfg(test)]

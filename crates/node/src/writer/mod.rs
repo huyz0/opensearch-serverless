@@ -23,10 +23,12 @@ mod janitor_pass;
 mod janitor_timer;
 mod lease;
 mod limit;
+mod logged;
 mod merging;
 use limit::unavailable;
 pub use merging::{MergeConfig, SETTINGS as MERGE_SETTINGS};
 mod newest_commit;
+mod open_logged;
 mod opener;
 mod orphan_timer;
 mod pipeline;
@@ -143,6 +145,8 @@ pub struct WriterRole {
     tenant: tenant_hooks::TenantHooks,
     /// Told of every commit a publish stages.
     commits: OnceLock<Arc<dyn CommitSink>>,
+    /// Logs each staged commit in the node log, when on.
+    logged: OnceLock<oss_writer::log_commit::LoggedCommits>,
     /// How far a refresh is made visible before it returns; the code of a
     /// [`RefreshVisibility`].
     visibility: AtomicU8,
@@ -195,6 +199,7 @@ impl WriterRole {
             growth: OnceLock::new(),
             tenant: tenant_hooks::TenantHooks::default(),
             commits: OnceLock::new(),
+            logged: OnceLock::new(),
             visibility: AtomicU8::new(0),
             opener: None,
             opening: opener::OpenLocks::default(),
@@ -276,7 +281,11 @@ impl WriterRole {
                     // Staged before the tail drops what the commit holds, so
                     // a reader opening in between finds one or the other.
                     self.staged(&key.0, key.1, &done.manifest);
-                    if let Some(t) = self.tail.get() {
+                    // A staged commit is not in the register: the tail keeps
+                    // its records until a register write holds them.
+                    if !done.staged
+                        && let Some(t) = self.tail.get()
+                    {
                         t.published(&key.0, key.1, max_seq_no);
                     }
                     pass.published = pass.published.saturating_add(1);
@@ -287,6 +296,8 @@ impl WriterRole {
                 }
             }
         }
+        pass.failed.extend(self.checkpoint_staged(publishing));
+        self.log_tick();
         pass
     }
 
@@ -333,6 +344,7 @@ impl WriterRole {
             if let Some(p) = &self.publishing {
                 p.forget(&key);
             }
+            self.log_forget(&key);
             if let Some(t) = self.tail.get() {
                 t.released(uuid, shard);
             }

@@ -15,6 +15,8 @@ pub struct EdgeSettings {
     pub h2c: Option<SocketAddr>,
     /// `OSS_EDGE_TLS_ADDR`: TLS with ALPN `h2` and `http/1.1`.
     pub tls: Option<SocketAddr>,
+    /// `OSS_EDGE_H3_ADDR`: HTTP/3 over QUIC on this UDP address; needs the certificate and key.
+    pub h3: Option<SocketAddr>,
     /// `OSS_EDGE_GRPC_ADDR`: gRPC over HTTP/2, over TLS when a certificate is set.
     pub grpc: Option<SocketAddr>,
     /// `OSS_EDGE_GRPC_MAX_MESSAGE`, in bytes; held under `max_content_length`.
@@ -35,6 +37,9 @@ pub struct EdgeSettings {
     pub stream_buffer: usize,
     /// `OSS_EDGE_CONNECTION_OVERHEAD`, in bytes.
     pub connection_overhead: usize,
+    /// `OSS_EDGE_H3_CONNECTION_OVERHEAD`, in bytes: a QUIC connection's state, charged beside
+    /// `connection_overhead`.
+    pub h3_connection_overhead: usize,
     /// `OSS_EDGE_THREADS`.
     pub threads: usize,
 }
@@ -43,7 +48,7 @@ impl EdgeSettings {
     /// Whether any listener is set.
     #[must_use]
     pub fn enabled(&self) -> bool {
-        self.h2c.is_some() || self.tls.is_some() || self.grpc.is_some()
+        self.h2c.is_some() || self.tls.is_some() || self.h3.is_some() || self.grpc.is_some()
     }
 }
 
@@ -67,6 +72,7 @@ pub(in crate::boot) fn read(
     Ok(EdgeSettings {
         h2c: addr("OSS_EDGE_H2C_ADDR")?,
         tls: addr("OSS_EDGE_TLS_ADDR")?,
+        h3: addr("OSS_EDGE_H3_ADDR")?,
         grpc: addr("OSS_EDGE_GRPC_ADDR")?,
         grpc_max_message: count(bounded("OSS_EDGE_GRPC_MAX_MESSAGE", "1048576", 1, 1 << 30)?),
         cert: path("OSS_EDGE_TLS_CERT"),
@@ -84,6 +90,12 @@ pub(in crate::boot) fn read(
         connection_overhead: count(bounded(
             "OSS_EDGE_CONNECTION_OVERHEAD",
             "131072",
+            0,
+            64 << 20,
+        )?),
+        h3_connection_overhead: count(bounded(
+            "OSS_EDGE_H3_CONNECTION_OVERHEAD",
+            "65536",
             0,
             64 << 20,
         )?),
@@ -121,8 +133,8 @@ mod tests {
         let s = settings(&[]).expect("defaults");
         assert!(!s.enabled());
         assert_eq!(
-            (s.h2c, s.tls, s.grpc, s.cert, s.key, s.max_streams),
-            (None, None, None, None, None, None)
+            (s.h2c, s.tls, s.h3, s.grpc, s.cert, s.key, s.max_streams),
+            (None, None, None, None, None, None, None)
         );
         assert_eq!(
             (s.max_connections, s.handshake_millis, s.idle_millis),
@@ -131,6 +143,10 @@ mod tests {
         assert_eq!(
             (s.stream_buffer, s.connection_overhead, s.threads),
             (65_536, 131_072, 2)
+        );
+        assert_eq!(
+            s.h3_connection_overhead, 65_536,
+            "the default is the measured figure of the HTTP/3 spec"
         );
         assert_eq!(s.grpc_max_message, 1 << 20);
         let empty = settings(&[("OSS_EDGE_H2C_ADDR", "")]).expect("empty is unset");
@@ -142,6 +158,7 @@ mod tests {
         for key in [
             "OSS_EDGE_H2C_ADDR",
             "OSS_EDGE_TLS_ADDR",
+            "OSS_EDGE_H3_ADDR",
             "OSS_EDGE_GRPC_ADDR",
         ] {
             let s = settings(&[(key, "127.0.0.1:9300")]).expect("parses");
@@ -151,6 +168,8 @@ mod tests {
             ("OSS_EDGE_H2C_ADDR", "127.0.0.1:1"),
             ("OSS_EDGE_TLS_ADDR", "127.0.0.1:2"),
             ("OSS_EDGE_GRPC_ADDR", "127.0.0.1:3"),
+            ("OSS_EDGE_H3_ADDR", "127.0.0.1:4"),
+            ("OSS_EDGE_H3_CONNECTION_OVERHEAD", "1000"),
             ("OSS_EDGE_TLS_CERT", "/c.pem"),
             ("OSS_EDGE_TLS_KEY", "/k.pem"),
             ("OSS_EDGE_MAX_STREAMS", "3"),
@@ -160,6 +179,8 @@ mod tests {
         assert_eq!(s.h2c, Some("127.0.0.1:1".parse().expect("addr")));
         assert_eq!(s.tls, Some("127.0.0.1:2".parse().expect("addr")));
         assert_eq!(s.grpc, Some("127.0.0.1:3".parse().expect("addr")));
+        assert_eq!(s.h3, Some("127.0.0.1:4".parse().expect("addr")));
+        assert_eq!(s.h3_connection_overhead, 1000);
         assert_eq!(s.cert, Some(PathBuf::from("/c.pem")));
         assert_eq!(s.key, Some(PathBuf::from("/k.pem")));
         assert_eq!((s.max_streams, s.grpc_max_message), (Some(3), 1000));
@@ -169,6 +190,8 @@ mod tests {
     fn a_bad_address_or_an_out_of_range_value_is_refused_by_name() {
         let e = settings(&[("OSS_EDGE_GRPC_ADDR", "nope")]).expect_err("bad address");
         assert!(e.contains("OSS_EDGE_GRPC_ADDR"), "{e}");
+        let e = settings(&[("OSS_EDGE_H3_ADDR", "nope")]).expect_err("bad udp address");
+        assert!(e.contains("OSS_EDGE_H3_ADDR"), "{e}");
         let e = settings(&[("OSS_EDGE_MAX_CONNECTIONS", "0")]).expect_err("low");
         assert!(e.contains("OSS_EDGE_MAX_CONNECTIONS"), "{e}");
         let e = settings(&[("OSS_EDGE_STREAM_BUFFER", "100")]).expect_err("small buffer");

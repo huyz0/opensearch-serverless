@@ -121,7 +121,7 @@ impl WriterRole {
             }
         }
         let _gate = publishing.gate();
-        let (snapshot, term, max_seq_no, logged) = {
+        let (snapshot, term, max_seq_no, logged, shard_key) = {
             // No group of the shard is in flight and none stages until the
             // snapshot is taken, so every write in the commit is in the log.
             let (mut held, _quiet) = super::pipelined::quiet_slot(slot);
@@ -137,19 +137,92 @@ impl WriterRole {
                 .last_position(held.key())
                 .map(|at| (held.key().clone(), at));
             let (snapshot, term) = held.snapshot()?;
-            (snapshot, term, max_seq_no, logged)
+            (snapshot, term, max_seq_no, logged, held.key().clone())
         };
         let done = publishing.with_publisher(key, index, |publisher, node, now| {
-            publisher
-                .publish(&snapshot, snapshot.names(), term, node, -1, now)
-                .map_err(|e| e.to_string())
+            let done = if only_if_due {
+                publisher.publish_routine(&snapshot, snapshot.names(), term, node, -1, now)
+            } else {
+                publisher.publish(&snapshot, snapshot.names(), term, node, -1, now)
+            }
+            .map_err(|e| e.to_string())?;
+            Ok((done, publisher.staged_age()))
         })?;
+        let (done, age) = done;
+        if done.staged {
+            // The register does not hold it: the shard still counts as
+            // unpublished, and the log is trimmed when a register write
+            // lands. The lazy policy's due clock moves on, or the shard
+            // would be due at every pass.
+            let covered = logged.as_ref().map(|(_, at)| *at);
+            publishing.stage_pending(key, logged, max_seq_no);
+            self.log_staged(&shard_key, term, age, covered, &done.manifest, max_seq_no);
+            publishing.published(key, max_seq_no);
+            return Ok(Some((done, max_seq_no)));
+        }
         publishing.published(key, max_seq_no);
-        if let Some((shard, at)) = logged {
+        self.log_checkpointed(key, max_seq_no);
+        if let Some((shard, at)) = publishing.take_pending(key, logged).0 {
             // The log no longer needs these records: its lease stops naming
             // epochs that hold nothing else, and a successor has less to take.
             self.committer.on_published(&shard, at);
         }
         Ok(Some((done, max_seq_no)))
+    }
+
+    /// Writes the register for every shard whose staged commit has reached
+    /// its checkpoint age, with no snapshot and no upload. A shard whose
+    /// staged commit was dropped is published in full instead.
+    pub(super) fn checkpoint_staged(&self, publishing: &Publishing) -> Vec<String> {
+        let mut failed = Vec::new();
+        for key in publishing.staged_keys() {
+            let Some(index) = self.names.name_of(&key.0) else {
+                // The index is gone: nothing to write. The log stays untrimmed.
+                publishing.take_pending(&key, None);
+                continue;
+            };
+            // What was staged is taken under the gate that flushed it: a
+            // publish staging a newer commit afterwards keeps its own entry.
+            let (written, taken) = {
+                let _gate = publishing.gate();
+                let written = publishing.with_publisher(&key, &index, |publisher, _, _| {
+                    publisher.flush_due().map_err(|e| e.to_string())
+                });
+                let taken =
+                    matches!(written, Ok(Some(_))).then(|| publishing.take_pending(&key, None));
+                (written, taken)
+            };
+            if let Some((logged, through)) = taken {
+                self.log_checkpointed(&key, through);
+                if let Some((shard, at)) = logged {
+                    self.committer.on_published(&shard, at);
+                }
+                if let Some(t) = self.tail.get() {
+                    t.published(&key.0, key.1, through);
+                }
+                continue;
+            }
+            if written.is_ok() {
+                continue;
+            }
+            let Some(slot) = self.slot(&key.0, key.1) else {
+                publishing.take_pending(&key, None);
+                continue;
+            };
+            match self.publish_shard(publishing, &key, &index, &slot, false) {
+                Ok(Some((done, max_seq_no))) => {
+                    self.staged(&key.0, key.1, &done.manifest);
+                    if let Some(t) = self.tail.get() {
+                        t.published(&key.0, key.1, max_seq_no);
+                    }
+                }
+                Ok(None) => {}
+                Err(reason) => {
+                    // ALLOC: error path; one message a failed shard.
+                    failed.push(format!("[{}][{}] {reason}", key.0, key.1));
+                }
+            }
+        }
+        failed
     }
 }

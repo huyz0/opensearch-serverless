@@ -7,7 +7,7 @@
 //! and multi-fields (`fields`) into dotted names, as `MapperService` names
 //! them. Only what a query of the subset needs is kept.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use oss_rest::json::{JsonError, Limits, Location, Token, TokenSink, Tokenizer};
 
@@ -100,6 +100,8 @@ pub struct KnnField {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Mapping {
     fields: BTreeMap<String, Field>,
+    /// The full paths of the `nested` objects.
+    nested: BTreeSet<String>,
 }
 
 /// Why a mapping could not be read.
@@ -202,6 +204,30 @@ impl Mapping {
     /// The field named `name`.
     pub fn get(&self, name: &str) -> Option<&Field> {
         self.fields.get(name)
+    }
+
+    /// Whether `path` is a `nested` object.
+    pub fn is_nested(&self, path: &str) -> bool {
+        self.nested.contains(path)
+    }
+
+    /// Whether the index has any `nested` object, which makes every search
+    /// skip the nested documents.
+    pub fn has_nested(&self) -> bool {
+        !self.nested.is_empty()
+    }
+
+    /// The nearest `nested` object that holds the nested object `path`
+    /// (`ObjectMapper.nested().getParentObjectMapper`), none for a top-level one.
+    pub fn nested_parent(&self, path: &str) -> Option<&str> {
+        self.nested
+            .iter()
+            .filter(|n| {
+                path.strip_prefix(n.as_str())
+                    .is_some_and(|rest| rest.starts_with('.'))
+            })
+            .max_by_key(|n| n.len())
+            .map(String::as_str)
     }
 
     /// Every field's name, in order.
@@ -309,6 +335,15 @@ impl Mapping {
                 }
                 _ => p.skip_children(),
             }
+        }
+        if ty == Some("nested") {
+            if self.nested.len() >= MAX_FIELDS {
+                // ALLOC: error path; one message.
+                return Err(MappingError(format!("more than [{MAX_FIELDS}] fields")));
+            }
+            // ALLOC: one path a nested object, at most MAX_FIELDS.
+            self.nested.insert(name.to_owned());
+            return Ok(());
         }
         let Some(ty) = ty else {
             // An object field: its sub-fields are already in.

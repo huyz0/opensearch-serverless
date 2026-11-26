@@ -27,10 +27,10 @@ pub(super) fn with<'a>(extra: &[(&'a str, &'a str)]) -> Vec<(&'a str, &'a str)> 
 fn the_lease_refresh_interval_is_set_apart_from_the_renewal() {
     let c =
         NodeConfig::from_lookup(lookup(&with(&[("OSS_LEASE_REFRESH_MS", "2000")]))).expect("valid");
-    assert_eq!(c.refresh_every(), Duration::from_secs(2));
+    assert_eq!(c.refresh_every(), std::time::Duration::from_secs(2));
     assert_eq!(
         c.renew_every(),
-        Duration::from_secs(10),
+        std::time::Duration::from_secs(10),
         "the renewal stays"
     );
 }
@@ -51,7 +51,7 @@ fn a_file_store_node_takes_the_defaults() {
     assert_eq!(c.refresh_every(), c.renew_every(), "as often as renewed");
     assert_eq!(c.index_confirm_millis, 5_000);
     assert_eq!(c.janitor_every_millis, 60_000);
-    assert_eq!(c.renew_every(), Duration::from_secs(10));
+    assert_eq!(c.renew_every(), std::time::Duration::from_secs(10));
     assert_eq!(
         c.store,
         StoreChoice::Fs {

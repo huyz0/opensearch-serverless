@@ -13,6 +13,8 @@ pub mod assemble;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod assemble_error;
 #[cfg(all(feature = "reader", feature = "writer"))]
+mod assemble_publishing;
+#[cfg(all(feature = "reader", feature = "writer"))]
 mod assemble_writer;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod boot;

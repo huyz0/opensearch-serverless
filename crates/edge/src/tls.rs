@@ -10,6 +10,49 @@ use tokio_rustls::TlsAcceptor;
 
 /// Builds the acceptor. TLS 1.2 and 1.3 only; the key is read once and never logged.
 pub(crate) fn acceptor(cert: &Path, key: &Path) -> Result<TlsAcceptor, String> {
+    let (chain, key) = load(cert, key)?;
+    let provider = Arc::new(rustls::crypto::ring::default_provider());
+    let mut config = ServerConfig::builder_with_provider(provider)
+        .with_safe_default_protocol_versions()
+        // ALLOC: start-time certificate parse, once, bounded by the PEM file.
+        .map_err(|e| format!("edge tls versions: {e}"))?
+        .with_no_client_auth()
+        .with_single_cert(chain, key)
+        // ALLOC: start-time certificate parse, once, bounded by the PEM file.
+        .map_err(|e| format!("edge certificate and key do not match or are unusable: {e}"))?;
+    // ALLOC: start-time certificate parse, once, bounded by the PEM file.
+    config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+    Ok(TlsAcceptor::from(Arc::new(config)))
+}
+
+/// The QUIC crypto settings: TLS 1.3 only, ALPN `h3`, and no early data, so a replayed request
+/// is never accepted.
+pub(crate) fn quic(
+    cert: &Path,
+    key: &Path,
+) -> Result<quinn::crypto::rustls::QuicServerConfig, String> {
+    let (chain, key) = load(cert, key)?;
+    let provider = Arc::new(rustls::crypto::ring::default_provider());
+    let mut config = ServerConfig::builder_with_provider(provider)
+        .with_protocol_versions(&[&rustls::version::TLS13])
+        // ALLOC: start-time certificate parse, once, bounded by the PEM file.
+        .map_err(|e| format!("edge tls versions: {e}"))?
+        .with_no_client_auth()
+        .with_single_cert(chain, key)
+        // ALLOC: start-time certificate parse, once, bounded by the PEM file.
+        .map_err(|e| format!("edge certificate and key do not match or are unusable: {e}"))?;
+    config.max_early_data_size = 0;
+    // ALLOC: start-time certificate parse, once, bounded by the PEM file.
+    config.alpn_protocols = vec![b"h3".to_vec()];
+    quinn::crypto::rustls::QuicServerConfig::try_from(Arc::new(config))
+        // ALLOC: start-time certificate parse, once, bounded by the PEM file.
+        .map_err(|e| format!("edge quic tls settings: {e}"))
+}
+
+fn load(
+    cert: &Path,
+    key: &Path,
+) -> Result<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>), String> {
     let chain = CertificateDer::pem_file_iter(cert)
         // ALLOC: start-time certificate parse, once, bounded by the PEM file.
         .map_err(|e| format!("edge certificate {}: {e}", cert.display()))?
@@ -26,16 +69,5 @@ pub(crate) fn acceptor(cert: &Path, key: &Path) -> Result<TlsAcceptor, String> {
     let key = PrivateKeyDer::from_pem_file(key)
         // ALLOC: start-time certificate parse, once, bounded by the PEM file.
         .map_err(|e| format!("edge key {}: {e}", key.display()))?;
-    let provider = Arc::new(rustls::crypto::ring::default_provider());
-    let mut config = ServerConfig::builder_with_provider(provider)
-        .with_safe_default_protocol_versions()
-        // ALLOC: start-time certificate parse, once, bounded by the PEM file.
-        .map_err(|e| format!("edge tls versions: {e}"))?
-        .with_no_client_auth()
-        .with_single_cert(chain, key)
-        // ALLOC: start-time certificate parse, once, bounded by the PEM file.
-        .map_err(|e| format!("edge certificate and key do not match or are unusable: {e}"))?;
-    // ALLOC: start-time certificate parse, once, bounded by the PEM file.
-    config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
-    Ok(TlsAcceptor::from(Arc::new(config)))
+    Ok((chain, key))
 }

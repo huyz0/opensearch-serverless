@@ -207,9 +207,10 @@ fn more_bulks_than_four_in_flight_together_share_a_window() {
         }
     });
     let took = started.elapsed();
-    // Held four at a time, the 32 need eight windows (2 s).
+    // Held four at a time, the 32 need eight windows (2 s); the margin below
+    // that holds a slow runner (1.26 s was seen) and still tells the two apart.
     assert!(
-        took < Duration::from_millis(1_200),
+        took < Duration::from_millis(1_600),
         "{took:?} for {MANY} bulks; four at a time they need 2 s"
     );
 }
@@ -251,7 +252,7 @@ fn sixty_four_small_bulks_in_flight_together_share_a_window() {
     let took = started.elapsed();
     // With a pipeline each holds a share of its body, not a whole 8 MiB slice; without one, eight fit the 64 MiB budget: eight windows.
     assert!(
-        took < Duration::from_millis(1_200),
+        took < Duration::from_millis(1_600),
         "{took:?} for {WIDE} bulks; eight at a time they need 2 s"
     );
 }

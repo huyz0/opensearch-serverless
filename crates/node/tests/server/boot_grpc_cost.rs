@@ -9,6 +9,7 @@
 ))]
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use oss_blob::emulator::http::S3Server;
 use oss_blob::s3::sigv4::Credentials;
@@ -34,6 +35,10 @@ fn boot(endpoint: &str) -> Node {
                 "OSS_S3_REGION" => REGION,
                 "OSS_S3_ACCESS_KEY" => ACCESS,
                 "OSS_S3_SECRET_KEY" => SECRET,
+                // A lease renewal inside a measured window is two PUTs that no call made.
+                "OSS_LEASE_TTL_MS" => "3600000",
+                // Nor may an index's periodic re-confirmation.
+                "OSS_INDEX_CONFIRM_MS" => "3600000",
                 "OSS_HTTP_ADDR" | "OSS_TRANSPORT_ADDR" | "OSS_EDGE_GRPC_ADDR" => "127.0.0.1:0",
                 _ => return None,
             }
@@ -52,7 +57,26 @@ fn counts(server: &S3Server) -> Vec<u64> {
         .collect()
 }
 
+/// Waits until the node has made no blob request for `idle`, so background work a call left
+/// behind (a lazy publish, a refresh) does not land in a later measured window.
+fn quiet(server: &S3Server, idle: Duration) {
+    const STEP: Duration = Duration::from_millis(50);
+    let mut last = counts(server);
+    let mut still = Duration::ZERO;
+    while still < idle {
+        std::thread::sleep(STEP);
+        let now = counts(server);
+        still = if now == last {
+            still.saturating_add(STEP)
+        } else {
+            Duration::ZERO
+        };
+        last = now;
+    }
+}
+
 fn spent(server: &S3Server, work: impl FnOnce()) -> Vec<u64> {
+    quiet(server, Duration::from_millis(250));
     let before = counts(server);
     work();
     counts(server)
@@ -112,6 +136,17 @@ fn a_grpc_bulk_and_search_make_the_blob_requests_their_rest_twins_make() {
     });
     assert!(rest_bulk.iter().sum::<u64>() > 0, "the bulk wrote blobs");
     assert_eq!(grpc_bulk, rest_bulk, "bulk, in S3Op::ALL order");
+
+    // The writer publishes a write a second after it (timer pass every 250 ms), and the first
+    // search after that publish opens the new commit: the descriptor, the manifest and the
+    // segment, 2 GET and 1 ranged GET more, whichever front end sent it. Let the publishes
+    // land, then search each index once over REST, so the windows hold what a search costs
+    // once the node is caught up.
+    quiet(&server, Duration::from_millis(1_600));
+    for name in ["costr", "costg"] {
+        let (status, answer) = rest(&node, "POST", &format!("/{name}/_search"), Some(&warm));
+        assert_eq!(status, 200, "{answer}");
+    }
 
     let rest_search = spent(&server, || {
         let body = json!({"query": {"match": {"t": "alpha"}}, "size": 10}).to_string();

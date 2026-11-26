@@ -39,18 +39,18 @@ impl LeaseClock for Later {
     }
 }
 
-struct Cluster {
-    store: Arc<Emulator>,
-    descriptors: Arc<DescriptorStore>,
+pub(crate) struct Cluster {
+    pub(crate) store: Arc<Emulator>,
+    pub(crate) descriptors: Arc<DescriptorStore>,
 }
 
-struct Node {
-    role: Arc<WriterRole>,
-    committer: Arc<NodeLogCommitter>,
-    log: NodeLogStore,
+pub(crate) struct Node {
+    pub(crate) role: Arc<WriterRole>,
+    pub(crate) committer: Arc<NodeLogCommitter>,
+    pub(crate) log: NodeLogStore,
 }
 
-fn cluster() -> Cluster {
+pub(crate) fn cluster() -> Cluster {
     let store = Arc::new(Emulator::new(64 << 20, 1));
     let dynstore: Arc<dyn BlobStore> = store.clone();
     let membership = Arc::new(
@@ -81,6 +81,33 @@ fn cluster() -> Cluster {
 /// A node `id`; one that is `later` judges leases and head claims an hour on,
 /// so it sees every other node as dead.
 fn node(c: &Cluster, id: &str, term: u64, later: bool, takeover: Option<Takeover>) -> Node {
+    node_with(c, id, term, later, takeover, None)
+}
+
+/// [`node`], staging its routine commits when `staging` gives a checkpoint age.
+pub(crate) fn node_with(
+    c: &Cluster,
+    id: &str,
+    term: u64,
+    later: bool,
+    takeover: Option<Takeover>,
+    staging: Option<Duration>,
+) -> Node {
+    node_logging(c, id, term, later, takeover, staging, (false, false, None))
+}
+
+/// [`node_with`], also logging its staged commits and opening from its
+/// predecessors' logged commits as `(logging, opening)` says, and with a
+/// shorter pack deadline when `deadline` gives one.
+pub(crate) fn node_logging(
+    c: &Cluster,
+    id: &str,
+    term: u64,
+    later: bool,
+    takeover: Option<Takeover>,
+    staging: Option<Duration>,
+    (logging, opening, deadline): (bool, bool, Option<Duration>),
+) -> Node {
     let clock: Arc<dyn LeaseClock> = if later {
         Arc::new(Later)
     } else {
@@ -149,9 +176,18 @@ fn node(c: &Cluster, id: &str, term: u64, later: bool, takeover: Option<Takeover
         1 << 16,
     );
     if let Some(takeover) = takeover {
-        opener = opener.with_takeover(takeover);
+        opener = opener
+            .with_takeover(takeover)
+            .with_open_from_logged(opening);
     }
-    let publishing = Publishing::new(dynstore, "", id, Policy::new(0, 0, 250), Box::new(|| 1_000));
+    let mut publishing =
+        Publishing::new(dynstore, "", id, Policy::new(0, 0, 250), Box::new(|| 1_000));
+    if let Some(age) = staging {
+        publishing = publishing.with_staging(age);
+    }
+    if let Some(deadline) = deadline {
+        publishing = publishing.with_swap_deadline(deadline);
+    }
     let role = WriterRole::new(Arc::clone(&committer), routes)
         .with_names(names)
         .with_incarnation(
@@ -160,6 +196,9 @@ fn node(c: &Cluster, id: &str, term: u64, later: bool, takeover: Option<Takeover
         )
         .with_publishing(publishing)
         .with_opener(Arc::new(opener));
+    if logging {
+        assert!(role.log_commits(Duration::from_millis(10)));
+    }
     Node {
         role: Arc::new(role),
         committer,
@@ -167,7 +206,7 @@ fn node(c: &Cluster, id: &str, term: u64, later: bool, takeover: Option<Takeover
     }
 }
 
-fn create(c: &Cluster, name: &str, uuid: &str) {
+pub(crate) fn create(c: &Cluster, name: &str, uuid: &str) {
     let mut record = IndexRecord::new(name, uuid, 1);
     record.mapping = Some(std::borrow::Cow::Borrowed(MAPPING));
     c.descriptors
@@ -175,7 +214,7 @@ fn create(c: &Cluster, name: &str, uuid: &str) {
         .expect("created");
 }
 
-fn info() -> IndexInfo {
+pub(crate) fn info() -> IndexInfo {
     IndexInfo {
         name: "logs".into(),
         uuid: "u1".into(),
@@ -189,7 +228,7 @@ fn info() -> IndexInfo {
     }
 }
 
-fn write(role: &WriterRole, id: &str) -> ItemResult {
+pub(crate) fn write(role: &WriterRole, id: &str) -> ItemResult {
     let defaults = Defaults {
         index: Some("logs".into()),
         ..Defaults::default()
@@ -216,7 +255,7 @@ fn write(role: &WriterRole, id: &str) -> ItemResult {
     run.finish().expect("finishes").remove(0).result
 }
 
-fn seq(result: &ItemResult) -> i64 {
+pub(crate) fn seq(result: &ItemResult) -> i64 {
     match result {
         ItemResult::Written { written, .. } => written.seq_no,
         other => panic!("{other:?}"),
@@ -225,7 +264,7 @@ fn seq(result: &ItemResult) -> i64 {
 
 /// What node-2 reads of node-1's log: its log store and positions as they
 /// are now.
-fn takeover(c: &Cluster, from: &Node, calls: &Arc<AtomicUsize>) -> Takeover {
+pub(crate) fn takeover(c: &Cluster, from: &Node, calls: &Arc<AtomicUsize>) -> Takeover {
     let log = from.log.clone();
     let epochs = from.committer.positions();
     let calls = Arc::clone(calls);
@@ -244,7 +283,7 @@ fn takeover(c: &Cluster, from: &Node, calls: &Arc<AtomicUsize>) -> Takeover {
     }
 }
 
-fn registered_term(c: &Cluster) -> u64 {
+pub(crate) fn registered_term(c: &Cluster) -> u64 {
     let at = ShardRef {
         index: "logs",
         uuid: "u1",

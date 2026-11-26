@@ -24,6 +24,12 @@ pub trait Engine {
     /// The record or the engine refusing it, as a message.
     fn replay(&mut self, record: &WalRecord<'_>) -> Result<bool, String>;
 
+    /// Whether a commit adopted from a predecessor's log waits to be written
+    /// to the register by the next publish, even when nothing is replayed.
+    fn adopted_commit(&self) -> bool {
+        false
+    }
+
     /// The bytes the engine holds for what it applied and has not flushed.
     fn buffered_bytes(&self) -> usize;
 
@@ -148,7 +154,7 @@ pub fn adopt(
         // ALLOC: a writer's name, once a take.
         read.push(writer.clone());
     }
-    let published = if replayed == 0 {
+    let published = if replayed == 0 && !engine.adopted_commit() {
         None
     } else {
         let term = u64::try_from(won.term).map_err(|_| AdoptError::BadTerm(won.term))?;

@@ -7,9 +7,11 @@
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
+use std::time::Duration;
 
 use oss_blob::BlobStore;
-use oss_format::ShardRef;
+use oss_format::{ShardKey, ShardRef};
+use oss_writer::log::Position;
 use oss_writer::publish::ShardPublisher;
 
 use super::BucketWiring;
@@ -45,6 +47,23 @@ pub struct Publishing {
     buckets: Option<Arc<BucketWiring>>,
     /// How many times longer a shard's writes may wait, by index uuid.
     stretch: OnceLock<Stretch>,
+    /// The checkpoint age when commits are staged, else none.
+    staging: Option<Duration>,
+    /// How long after its oldest pack a commit may still be swapped in,
+    /// when not the pack module's own deadline.
+    swap_deadline: Option<Duration>,
+    /// Shards with a staged commit, the register behind them.
+    pending: Mutex<HashMap<Key, Pending>>,
+}
+
+/// What a shard's staged commits cover, to be marked published when the
+/// register is written.
+#[derive(Clone, Debug)]
+struct Pending {
+    /// The newest log position they cover, when the shard had one.
+    logged: Option<(ShardKey, Position)>,
+    /// The highest sequence number they hold.
+    through: i64,
 }
 
 /// By how much a shard's publish age is stretched: its index uuid in, the
@@ -79,7 +98,93 @@ impl Publishing {
             ages: Mutex::new(HashMap::new()),
             buckets: None,
             stretch: OnceLock::new(),
+            staging: None,
+            swap_deadline: None,
+            // ALLOC: one entry a shard with a staged commit.
+            pending: Mutex::new(HashMap::new()),
         }
+    }
+
+    /// [`Self::new`] with the lazy policy from `[age, max operations, tick]`
+    /// milliseconds, the system clock, and staging when `checkpoint_millis`
+    /// names an age.
+    #[must_use]
+    pub fn from_parts(
+        store: Arc<dyn BlobStore>,
+        base: &str,
+        node_id: &str,
+        policy: [u64; 3],
+        checkpoint_millis: Option<u64>,
+    ) -> Self {
+        let policy = Policy::new(policy[0], policy[1], policy[2]);
+        let made = Self::new(store, base, node_id, policy, Box::new(super::now_millis));
+        match checkpoint_millis {
+            Some(ms) => made.with_staging(Duration::from_millis(ms)),
+            None => made,
+        }
+    }
+
+    /// Stages routine commits instead of writing each one to the register,
+    /// which is written once a `checkpoint` age (or by any full publish).
+    #[must_use]
+    pub fn with_staging(mut self, checkpoint: Duration) -> Self {
+        self.staging = Some(checkpoint);
+        self
+    }
+
+    /// Publishers swap a commit in only up to `deadline` after its oldest
+    /// pack landed, instead of the pack module's deadline.
+    #[must_use]
+    pub fn with_swap_deadline(mut self, deadline: Duration) -> Self {
+        self.swap_deadline = Some(deadline);
+        self
+    }
+
+    /// `key` staged a commit through `max_seq_no` covering the log up to
+    /// `logged`: it stays unpublished, and the log untrimmed, until the
+    /// register is written.
+    pub(super) fn stage_pending(
+        &self,
+        key: &Key,
+        logged: Option<(ShardKey, Position)>,
+        max_seq_no: i64,
+    ) {
+        let mut pending = lock(&self.pending);
+        let held = pending.entry(key.clone()).or_insert(Pending {
+            logged: None,
+            through: -1,
+        });
+        held.through = held.through.max(max_seq_no);
+        held.logged = match (held.logged.take(), logged) {
+            (Some((shard, a)), Some((_, b))) => Some((shard, a.max(b))),
+            (a, b) => a.or(b),
+        };
+    }
+
+    /// What `key`'s staged commits covered, now that the register holds them
+    /// or a newer commit: the log position to trim through (the newer of the
+    /// pending one and `logged`) and the highest sequence number.
+    pub(super) fn take_pending(
+        &self,
+        key: &Key,
+        logged: Option<(ShardKey, Position)>,
+    ) -> (Option<(ShardKey, Position)>, i64) {
+        let taken = lock(&self.pending).remove(key);
+        let Some(taken) = taken else {
+            return (logged, -1);
+        };
+        let through = taken.through;
+        let logged = match (taken.logged, logged) {
+            (Some((shard, a)), Some((_, b))) => Some((shard, a.max(b))),
+            (a, b) => a.or(b),
+        };
+        (logged, through)
+    }
+
+    /// The shards with a staged commit.
+    pub(super) fn staged_keys(&self) -> Vec<Key> {
+        // ALLOC: one key a shard with a staged commit, once a pass.
+        lock(&self.pending).keys().cloned().collect()
     }
 
     /// Records the commits of the shards whose descriptors name a bucket in
@@ -112,6 +217,7 @@ impl Publishing {
     /// lock covered every publisher, so a publisher made next never overlaps it.
     pub(super) fn forget(&self, key: &Key) {
         lock(&self.lazy).forget(key);
+        lock(&self.pending).remove(key);
         let dropped = lock(&self.publishers).remove(key);
         if let Some(dropped) = dropped {
             // Held and let go: waits for a publish under way.
@@ -145,7 +251,7 @@ impl Publishing {
     /// Whether `key`, written through `max_seq_no`, holds writes no commit
     /// of it covers.
     pub(super) fn unpublished(&self, key: &Key, max_seq_no: i64) -> bool {
-        lock(&self.lazy).unpublished(key, max_seq_no)
+        lock(&self.lazy).unpublished(key, max_seq_no) || lock(&self.pending).contains_key(key)
     }
 
     /// `key` was published through `max_seq_no`.
@@ -177,6 +283,9 @@ impl Publishing {
                 };
                 let mut made = ShardPublisher::new(Arc::clone(&self.store), &self.base, &shard)
                     .map_err(|e| e.to_string())?;
+                if let Some(deadline) = self.swap_deadline {
+                    made.set_swap_deadline(deadline);
+                }
                 if let Some(buckets) = &self.buckets
                     && let Some(register) = buckets.register(index, key.1, &key.0)?
                 {
@@ -189,6 +298,7 @@ impl Publishing {
             }
         };
         let mut publisher = lock(&publisher);
+        publisher.use_staging(self.staging);
         run(&mut publisher, &self.node_id, (self.clock)())
     }
 }

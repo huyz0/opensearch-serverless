@@ -37,7 +37,7 @@ src/publish/mod.rs	new		the publish module's exports
 src/publish/error.rs	new		the publish error type
 src/publish/blob.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/SegmentPublisher.java	a segment blob as a streamed PUT body
 src/publish/names.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/SegmentPublisher.java	the segment name of a Lucene file (IndexFileNames.parseSegmentName)
-src/publish/publisher.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/SegmentPublisher.java@429b4cbc	publishCommit: fence, upload fresh files by segment, swap the register; staging, node packs and buckets not ported
+src/publish/publisher.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/SegmentPublisher.java@429b4cbc	publishCommit: fence, upload fresh files by segment, swap the register; staging in staging.rs and checkpoint.rs, node packs and buckets not ported
 src/mapping_growth/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/MappingGrowthPath.java	growMapping: per-index coalescing of additions, one swap for the batch, a failed batch requeued; the node's reconciler refresh is not ported
 src/mapping_growth/attempts.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/MappingGrowthPath.java	growMappingBy: five attempts, jittered backoff min(500, 20 << min(attempt, 6)), uuid check, the descriptor swap
 src/mapping_growth/error.rs	new		the growth error type (MappingConflictException and the IOExceptions)
@@ -84,3 +84,10 @@ src/bulk/block.rs	new		the write block a bulk reads from an index and the refusa
 src/index/shard/commit.rs	new		a shard refresh and the files of its last commit, split out of the shard to keep it under the size limit
 src/index/shard/merge.rs	new		merging a shard small segments after a refresh under a node gate; the engine merges inside commit with no gate (ADR 0059)
 tests/segment_merge.rs	new		tests of a shard merging small segments under a gate
+src/publish/staging.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/CommitStaging.java@429b4cbc	the checkpoint age bounds (check), the settings and the due test; the staged commit's state
+src/publish/checkpoint.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/CommitStaging.java@429b4cbc	staging on and off, and writing the register as a checkpoint (flush); logged commits not ported
+src/publish/upload.rs	new		the blob puts of publisher.rs, split out to keep it under the size limit
+src/log_commit/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/LoggedCommits.java	logging the newest staged commit under its commit key, release on the register write; opening from it not ported
+src/log_commit/record.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/LoggedCommits.java	the commit key and record text
+src/publish/adopt.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/SegmentPublisher.java@429b4cbc	starting a publisher from a commit adopted from a predecessor's log, swapped once and never retried
+src/takeover/logged.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/NewestCommits.java	which logged commit a successor may open from: newer than the register by manifest order, young enough, from an earlier term
