@@ -225,3 +225,9 @@ src/dsl/queries/nested_tests.rs	new		tests of the nested parser
 src/search_nested_tests.rs	new		searches over an index of nested objects
 src/search_nested_sort_tests.rs	new		tests of search_sort_nested.rs
 src/search_sort_nested.rs	port	server/src/main/java/org/opensearch/search/sort/FieldSortBuilder.java@3.10.0	the nested part of FieldSortBuilder.build and SortBuilder.resolveNested: the parents, the children and the block-join sort field
+src/search_inner_hits_tests.rs	new		tests of search_inner_hits.rs
+src/search_inner_hits.rs	port	server/src/main/java/org/opensearch/search/fetch/subphase/InnerHitsPhase.java@3.10.0	the nested inner hits of each parent hit: a ParentChildrenBlockJoinQuery over the parent block, the window and the offsets
+src/response_inner.rs	port	server/src/main/java/org/opensearch/search/SearchHit.java@3.10.0	the inner_hits object of a hit and the nested identity of a child
+src/fetch/nested_source.rs	port	server/src/main/java/org/opensearch/search/fetch/FetchPhase.java@3.10.0	the nested source of a child: the element at its offset under the path
+src/dsl/queries/inner_hits.rs	port	server/src/main/java/org/opensearch/index/query/InnerHitBuilder.java@3.10.0	fromXContent for the keys served
+src/dsl/queries/inner_hits_tests.rs	new		tests of inner_hits.rs
