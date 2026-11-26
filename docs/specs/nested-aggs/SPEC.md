@@ -10,10 +10,10 @@ Parity task R10.2 (aggregations), `nested` and `reverse_nested`; invariant I-13 
 
 - **`nested`** (`path`, required): the sub-aggregations run over the nested documents of `path` that belong to each document collected; `doc_count` counts those children. Its children filter is `_nested_path:<path>`; its parents filter is the non-nested documents (`_primary_term` exists), or the enclosing nested object's documents when `path` sits inside another `nested`.
 - **`reverse_nested`** (`path`, optional): inside a `nested`, hands each child's parent to the sub-aggregations, once per parent; `doc_count` counts those parents. With `path`, the parent is the enclosing nested object's document of that path; without, the root document.
-- **Unmapped `path`** in `nested` gives `{"doc_count": 0}` with each sub-aggregation empty, as `NestedAggregatorFactory.Unmapped` does.
-- **Refused as the Java refuses**, with its messages: a `nested` path that is mapped but not nested (`[nested] nested path [p] is not nested`, 500 `aggregation_execution_exception`); a `reverse_nested` outside a `nested` (`Reverse nested aggregation [name] can only be used inside a [nested] aggregation`, 400); a `reverse_nested` path that is not nested (`[reverse_nested] nested path [p] is not nested`); a missing `path` for `nested` (`Missing [path] field for nested aggregation [name]`); an unknown key (`Unknown key for a VALUE_STRING in [name]: [k].`).
+- **Unmapped `path`** (or a leaf field) in `nested` and `reverse_nested` gives `{"doc_count": 0}` with each sub-aggregation empty, as `NestedAggregatorFactory.Unmapped` does.
+- **Refused as the Java refuses**, with its messages: a `nested` path that is mapped but not nested (`[nested] nested path [p] is not nested`, `aggregation_execution_exception`); a `reverse_nested` outside a `nested` (`Reverse nested aggregation [name] can only be used inside a [nested] aggregation`); a `reverse_nested` path that is not nested (`[reverse_nested] nested path [p] is not nested`); a missing `path` for `nested` (`Missing [path] field for nested aggregation [name]`); an unknown key (`Unknown key for a VALUE_STRING in [name]: [k].`).
 - **Not here:** a `top_hits` or other scoring sub-aggregation under `nested` (the engine refuses a scored aggregation under it; the node answers 400 `illegal_argument_exception` naming the aggregation), nested sorts and `inner_hits` (another thread), a `nested` under a keyword `terms` until that path is checked.
-- **Memory:** the parent and child lists are the engine's per-segment lists, built once a segment and reserved with the aggregation's other per-segment state; the bucket total joins the `search.max_buckets` count as any bucket aggregation's does.
+- **Memory:** the parent and child lists are the engine's per-segment lists, built once a segment and reserved with the aggregation's other per-segment state; a `nested` is one bucket, so it adds one to the bucket count.
 
 ## Acceptance criteria
 
@@ -42,5 +42,6 @@ None: an index that holds no nested object is untouched, and an aggregation that
 
 ## Risks
 
+- The two refusals found while planning the filters answer 400 behind the node's "failed to create query" prefix, where the Java answers 500; the message and exception type match.
 - The engine's nested join is ported from Java but has seen no recorded OpenSearch answers here; expected bodies are read from the Java source until fixtures exist.
 - A `nested` over a very wide block is bounded by the nested objects limit (10,000 a document).

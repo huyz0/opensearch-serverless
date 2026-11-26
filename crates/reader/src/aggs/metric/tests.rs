@@ -30,6 +30,7 @@ fn agg(name: &str, metric: Metric, field: &str) -> MetricAgg {
         subs: Vec::new(),
         range: None,
         filters: None,
+        nested: None,
         composite: None,
         name: name.to_owned(),
         metric,

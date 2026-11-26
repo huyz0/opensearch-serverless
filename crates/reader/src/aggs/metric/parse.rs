@@ -11,6 +11,7 @@
 use crate::aggs::bucket::parse_arms::parse_bucket;
 pub(crate) use crate::aggs::metric::long_value::long_value;
 use crate::aggs::metric::percentiles::parse_percentiles_body;
+use crate::aggs::metric::sub_rules::{holds_subs, is_scalar, nests_under};
 use crate::aggs::metric::top_hits::parse_top_hits_body;
 use crate::aggs::metric::{CardinalityOptions, Metric, MetricAgg, PercentilesOptions};
 use crate::dsl::error::{DslError, parsing_failure};
@@ -61,14 +62,12 @@ pub const REGISTERED_AGGREGATIONS: &[&str] = &[
     "moving_fn",
     "multi_terms",
     "multivalue_doc_count",
-    "nested",
     "parent",
     "percentile_ranks",
     "percentiles",
     "percentiles_bucket",
     "range",
     "rare_terms",
-    "reverse_nested",
     "sampler",
     "scripted_metric",
     "serial_diff",
@@ -166,6 +165,17 @@ fn parse_level(p: &mut Parser<'_>, level: usize) -> Result<Vec<MetricAgg>, DslEr
                     sub.metric.name()
                 )));
             }
+            if matches!(agg.metric, Metric::Nested | Metric::ReverseNested)
+                && let Some(sub) = scored_sub(&definition.subs)
+            {
+                // The engine reads no scores under a nested join.
+                // ALLOC: error path; one message.
+                return Err(DslError::unsupported(&format!(
+                    "a [{}] sub-aggregation of a [{}] aggregation",
+                    sub.metric.name(),
+                    agg.metric.name()
+                )));
+            }
             if let Some(sub) = definition.subs.iter().find(|s| {
                 !is_scalar(s.metric)
                     && s.metric != Metric::Terms
@@ -198,51 +208,16 @@ fn parse_level(p: &mut Parser<'_>, level: usize) -> Result<Vec<MetricAgg>, DslEr
     Ok(aggs)
 }
 
-/// Whether `metric` is a bucket aggregation this node runs sub-aggregations
-/// under.
-fn holds_subs(metric: Metric) -> bool {
-    matches!(
-        metric,
-        Metric::Terms
-            | Metric::Range
-            | Metric::Filters
-            | Metric::Filter
-            | Metric::Histogram
-            | Metric::DateHistogram
-            | Metric::Composite
-    )
-}
-
-/// Whether a bucket aggregation `sub` may sit under the bucket aggregation
-/// `parent`: a `range`, `histogram` or `date_histogram` under a `range`,
-/// `filters`, `filter`, `histogram`, `date_histogram` or `terms` (which the
-/// shard refuses for a keyword field) so far.
-fn nests_under(sub: Metric, parent: Metric) -> bool {
-    matches!(
-        sub,
-        Metric::Range
-            | Metric::Filters
-            | Metric::Filter
-            | Metric::Histogram
-            | Metric::DateHistogram
-    ) && matches!(
-        parent,
-        Metric::Range
-            | Metric::Filters
-            | Metric::Filter
-            | Metric::Histogram
-            | Metric::DateHistogram
-            | Metric::Terms
-    )
-}
-
-/// Whether `metric` is a single-value or stats metric, one of the
-/// sub-aggregations of a `terms` this node runs (a `terms` is the other).
-fn is_scalar(metric: Metric) -> bool {
-    matches!(
-        metric,
-        Metric::Min | Metric::Max | Metric::Sum | Metric::Avg | Metric::Stats | Metric::ValueCount
-    )
+/// The first `top_hits` among `subs` or beneath them: the engine reads no
+/// scores under a nested join.
+fn scored_sub(subs: &[MetricAgg]) -> Option<&MetricAgg> {
+    subs.iter().find_map(|s| {
+        if s.metric == Metric::TopHits {
+            Some(s)
+        } else {
+            scored_sub(&s.subs)
+        }
+    })
 }
 
 /// The refusal of sub-aggregations under `agg`, which holds none here.
@@ -357,6 +332,7 @@ fn parse_definition(p: &mut Parser<'_>, name: &str, level: usize) -> Result<Defi
                     date_histogram: None,
                     range: None,
                     filters: None,
+                    nested: None,
                     composite: None,
                     // ALLOC: empty; the definition's `aggs` fill it.
                     subs: Vec::new(),

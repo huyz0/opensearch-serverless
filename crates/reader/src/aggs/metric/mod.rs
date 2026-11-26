@@ -23,6 +23,7 @@ pub mod partial;
 pub mod percentiles;
 pub mod render;
 pub mod resolve;
+pub mod sub_rules;
 pub mod tdigest;
 pub mod top_hits;
 pub mod top_hits_sub;
@@ -85,11 +86,17 @@ pub enum Metric {
     /// `composite`: the documents counted by each combination of the values
     /// of its sources, a page at a time.
     Composite,
+    /// `nested`: the nested documents of a path, counted and aggregated
+    /// in one bucket.
+    Nested,
+    /// `reverse_nested`: the parents of the nested documents collected,
+    /// counted and aggregated in one bucket.
+    ReverseNested,
 }
 
 impl Metric {
     /// Every metric served, by its aggregation type name.
-    pub const ALL: [Metric; 17] = [
+    pub const ALL: [Metric; 19] = [
         Metric::Min,
         Metric::Max,
         Metric::Sum,
@@ -107,6 +114,8 @@ impl Metric {
         Metric::Filters,
         Metric::Filter,
         Metric::Composite,
+        Metric::Nested,
+        Metric::ReverseNested,
     ];
 
     /// The aggregation type name.
@@ -129,6 +138,8 @@ impl Metric {
             Metric::Filters => "filters",
             Metric::Filter => "filter",
             Metric::Composite => "composite",
+            Metric::Nested => "nested",
+            Metric::ReverseNested => "reverse_nested",
         }
     }
 
@@ -168,6 +179,9 @@ pub struct MetricAgg {
     pub range: Option<Box<RangeSpec>>,
     /// A `filters`' options; `None` for every other aggregation.
     pub filters: Option<Box<FiltersSpec>>,
+    /// A `nested`'s or `reverse_nested`'s options; `None` for every other
+    /// aggregation.
+    pub nested: Option<Box<crate::aggs::bucket::nested_agg::NestedSpec>>,
     /// A `composite`'s options; `None` for every other aggregation.
     pub composite: Option<Box<CompositeSpec>>,
 }
@@ -244,6 +258,9 @@ pub fn state_bytes(aggs: &[MetricAgg]) -> usize {
                 .filters
                 .as_deref()
                 .map_or(0, crate::aggs::bucket::filters_collect::state_bytes),
+            Metric::Nested | Metric::ReverseNested => {
+                crate::aggs::bucket::nested_agg::state_bytes()
+            }
             Metric::Percentiles | Metric::PercentileRanks => {
                 tdigest::digest_bytes(agg.percentiles.compression).saturating_add(
                     agg.percentiles
