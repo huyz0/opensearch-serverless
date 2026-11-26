@@ -383,3 +383,38 @@ fn a_restore_of_the_state_costs_what_the_budget_holds() {
         "a restore selecting no index, of a state of one template, one script and two settings",
     );
 }
+
+// AC-20: a settings merge that fails is named, the answer is still 200 and the settings stay as they were.
+#[test]
+fn a_failing_settings_merge_is_named_and_leaves_the_settings() {
+    let r = rig_on(Settings::off());
+    ClusterConfig::new(blobs(&r), "")
+        .unwrap()
+        .update(&[("cluster.a", Some("1"))], &mut vec![0u8; 1 << 20])
+        .unwrap();
+    take_g(&r);
+    ClusterConfig::new(blobs(&r), "")
+        .unwrap()
+        .update(&[("cluster.a", Some("2"))], &mut vec![0u8; 1 << 20])
+        .unwrap();
+    r.store.fail_next(oss_blob::S3Op::Put, 32);
+    let reply = restore(&r, r#"{"indices":[],"include_global_state":true}"#);
+    assert_eq!(reply.status, 200, "{}", reply.text());
+    assert!(
+        reply.text().contains(r#""global_state_restored":0"#),
+        "{}",
+        reply.text()
+    );
+    assert!(
+        reply
+            .text()
+            .contains(r#""failed_global_state":["persistent_settings"]"#),
+        "{}",
+        reply.text()
+    );
+    r.store.fail_next(oss_blob::S3Op::Put, 0);
+    assert_eq!(
+        settings(&r),
+        [("cluster.a".to_owned(), r#"Value("2")"#.to_owned())]
+    );
+}

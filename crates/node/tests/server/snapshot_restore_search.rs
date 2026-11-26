@@ -14,9 +14,9 @@ use lucene_index::index_writer::IndexWriter;
 use lucene_index::segment_info::LuceneVersion;
 use lucene_store::ByteBuffersDirectory;
 use oss_blob::{BlobStore, FsStore, PooledStore};
-use oss_format::{IndexRecord, ShardRef};
+use oss_format::{DocKind, IndexRecord, ShardRef};
 use oss_mem::{BudgetConfig, BufferPool, MemoryBudget, Pool, SMALL_BUFFER};
-use oss_meta::{DeleteMode, DescriptorStore};
+use oss_meta::{ClusterConfig, DeleteMode, DescriptorStore, DocSet};
 use oss_node::index_delete::{DeleteService, NoSnapshots};
 use oss_node::search::start_reader;
 use oss_node::snapshot_restore_route::{SnapshotRestoreService, routes as restore_routes};
@@ -74,12 +74,10 @@ fn admin(
         "node-1",
         Arc::clone(&clock),
     ));
-    let taker = Arc::new(SnapshotTakeService::new(
-        Arc::clone(blobs),
-        "",
-        descriptors(),
-        Arc::clone(&clock),
-    ));
+    let taker = Arc::new(
+        SnapshotTakeService::new(Arc::clone(blobs), "", descriptors(), Arc::clone(&clock))
+            .with_capture_global_state(true),
+    );
     let deletes = Arc::new(
         DeleteService::new(
             blobs,
@@ -114,6 +112,52 @@ fn admin(
         &budget,
     )
     .expect("starts")
+}
+
+/// Settings and one valid document in each of the five sets.
+fn seed_global_state(blobs: &Arc<dyn BlobStore>) {
+    ClusterConfig::new(Arc::clone(blobs), "")
+        .unwrap()
+        .update(
+            &[
+                ("search.max_buckets", Some("5000")),
+                ("action.auto_create_index", Some("false")),
+            ],
+            &mut vec![0u8; 1 << 20],
+        )
+        .unwrap();
+    for (kind, name, body) in [
+        (
+            DocKind::IndexTemplate,
+            "it",
+            r#"{"index_patterns":["x-*"],"template":{"settings":{"index":{"number_of_shards":"2"}}}}"#,
+        ),
+        (
+            DocKind::ComponentTemplate,
+            "ct",
+            r#"{"template":{"mappings":{"properties":{"a":{"type":"keyword"}}}}}"#,
+        ),
+        (
+            DocKind::IngestPipeline,
+            "ip",
+            r#"{"processors":[{"set":{"field":"a","value":"b"}}]}"#,
+        ),
+        (
+            DocKind::SearchPipeline,
+            "sp",
+            r#"{"request_processors":[{"filter_query":{"query":{"match_all":{}}}}]}"#,
+        ),
+        (
+            DocKind::StoredScript,
+            "ss",
+            r#"{"script":{"lang":"painless","source":"1"}}"#,
+        ),
+    ] {
+        DocSet::new(Arc::clone(blobs), "", kind)
+            .unwrap()
+            .put(name, body.as_bytes(), false, &mut vec![0u8; 1 << 19])
+            .unwrap();
+    }
 }
 
 #[test]
@@ -172,6 +216,20 @@ fn a_restored_index_answers_a_search_with_what_the_snapshot_captured() {
         Some(TAKE),
     );
     assert_eq!(made.status, 200, "{}", made.text());
+    // A second take that carries the global state, for the Java restore of
+    // it (`ServerlessRustGlobalRestoreTests.java`).
+    seed_global_state(&blobs);
+    let with_state = call(
+        "PUT",
+        "/_snapshot/backups/with-state?wait_for_completion=true",
+        Some(r#"{"indices":"logs","include_global_state":true}"#),
+    );
+    assert_eq!(with_state.status, 200, "{}", with_state.text());
+    assert!(
+        with_state.text().contains(r#""include_global_state":true"#),
+        "{}",
+        with_state.text()
+    );
     // For the Java check over a Rust take (fixtures/snapshots/README.md): the
     // directory as the take left it, before the restore adds to it.
     if let Some(out) = std::env::var_os("OSS_WRITE_BUCKET") {

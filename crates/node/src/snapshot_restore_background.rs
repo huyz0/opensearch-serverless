@@ -394,4 +394,59 @@ mod tests {
         );
         assert_eq!((restores.failed(), restores.running()), (0, 0));
     }
+
+    // A thread that panics after every index is whole (the global-state step)
+    // keeps the indices and still gives back its place and bytes.
+    #[test]
+    fn a_thread_that_panics_after_the_indices_are_whole_keeps_them_and_frees_its_slot() {
+        let (service, descriptors) = service();
+        let generation = descriptors
+            .create(
+                &IndexRecord::new("copy", "u1", 1),
+                1,
+                &mut vec![0u8; 1 << 16],
+            )
+            .unwrap();
+        let budget = MemoryBudget::new(
+            &BudgetConfig::new(1 << 20)
+                .with_pool(Pool::RequestBodies, 1 << 10)
+                .unwrap(),
+        );
+        let restores = BackgroundRestores::new(
+            Settings {
+                enabled: true,
+                max: 1,
+                grace: std::time::Duration::from_millis(10),
+            },
+            budget.clone(),
+        );
+        let slot = restores.acquire(512).expect("fits");
+        let undo = Undo {
+            service,
+            restores: Arc::clone(&restores),
+            made: vec![Made {
+                name: "copy".into(),
+                uuid: "u1".into(),
+                generation,
+            }],
+            armed: true,
+            _slot: slot,
+        };
+        let ended = std::thread::spawn(move || {
+            let mut undo = undo;
+            undo.armed = false;
+            panic!("the global state step failed");
+        })
+        .join();
+        assert!(ended.is_err());
+        assert!(
+            descriptors
+                .get("copy", &mut vec![0u8; 1 << 16])
+                .unwrap()
+                .is_some(),
+            "the restored index stays"
+        );
+        assert_eq!(restores.running(), 0);
+        assert_eq!(budget.in_use(Pool::RequestBodies), 0);
+    }
 }

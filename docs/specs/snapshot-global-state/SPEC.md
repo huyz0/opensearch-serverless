@@ -26,6 +26,10 @@
 - AC-16: A restore selecting no index from a snapshot without state makes 1 request; from a state of one template, one script and two settings 14. Test: `a_restore_of_the_state_costs_what_the_budget_holds`.
 - AC-17: The report is written as the answer's members: the count, and the failed names when there are any. Test: `the_answer_names_what_was_applied_and_what_failed`.
 - AC-18: A Java node reads the record a Rust take wrote with every part of the state: the shell's own `SnapshotRecord.fromStream`, `SnapshotGlobalState.read`, a `toBytes` round trip that keeps the member, and the bounds check. Tests: `a_take_writes_the_global_state_record_a_java_node_reads` (writes `fixtures/snapshots/rust-take-global/state.bin`), `ServerlessRustGlobalStateTests` (run by hand, CI has no Java).
+- AC-19: A document set that changes while the take reads it is read again from its newer marker: a script deleted after the walk began on the contents is not in the record, each document is held once, and the take answers 200. Test: `a_set_that_changes_mid_walk_is_read_again_and_each_document_is_held_once`.
+- AC-20: A settings merge that fails is named `persistent_settings` in `failed_global_state`, the answer is 200 and the settings stay as they were. Test: `a_failing_settings_merge_is_named_and_leaves_the_settings`.
+- AC-21: A background restore thread that panics after every index is whole keeps the indices and gives back its place and bytes. Test: `a_thread_that_panics_after_the_indices_are_whole_keeps_them_and_frees_its_slot`.
+- AC-22: A Java node restores, with `include_global_state`, the snapshot a Rust take wrote with state, and reads back the settings and each of the five sets. Test: `ServerlessRustGlobalRestoreTests` over the bucket `a_restored_index_answers_a_search_with_what_the_snapshot_captured` writes (run by hand, CI has no Java).
 
 Security: every `/_snapshot` route needs `all_access` in this node (`every_repository_and_snapshot_route_needs_all_access`), which is stronger than the action ADR 0068 names, so no second check is made here.
 
