@@ -127,7 +127,7 @@ pub use segment_blob::{
     encode_header as encode_segment_header,
 };
 pub use shard_head::{MAX_SHARD_HEAD_BYTES, MAX_WRITERS, ShardHead};
-pub use smile::{Limits as SmileLimits, to_json as smile_to_json};
+pub use smile::{Limits as SmileLimits, from_json as smile_from_json, to_json as smile_to_json};
 pub use snapshot_keys::{
     repository_key, sha256_hex, snapshot_legacy_key, snapshot_marker_prefixes, snapshot_state_key,
     snapshot_state_key_of_hash,
