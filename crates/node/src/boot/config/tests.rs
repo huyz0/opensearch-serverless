@@ -493,8 +493,8 @@ fn tenant_tier_budgets_default_to_twenty_two_hundred_and_two_thousand() {
         assert!(e.contains(needle), "{e} lacks {needle}");
     }
 }
-
 mod extensions;
 mod proactive;
 mod resident;
+mod security;
 mod vector_warm;

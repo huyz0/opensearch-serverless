@@ -26,6 +26,7 @@ mod writer_open_logged;
 mod writer_opener;
 mod writer_opener_pins;
 mod writer_opener_rig;
+mod writer_packs;
 mod writer_publish;
 mod writer_publish_timer;
 mod writer_role;

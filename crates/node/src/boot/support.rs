@@ -184,6 +184,7 @@ pub(super) fn apply_janitor_and_hibernation(
     node.hand_off = config.hand_off;
     node.commit_checkpoint_millis = config.commit_checkpoint_millis;
     node.commit_logged = config.commit_logged;
+    node.node_packs = config.node_packs;
     node.merge = config.merge.clone();
     node.knn = config.knn;
     node.security = config.security;
