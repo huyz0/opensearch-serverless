@@ -68,7 +68,7 @@ pub(in crate::boot) fn read(
         h2c: addr("OSS_EDGE_H2C_ADDR")?,
         tls: addr("OSS_EDGE_TLS_ADDR")?,
         grpc: addr("OSS_EDGE_GRPC_ADDR")?,
-        grpc_max_message: count(bounded("OSS_EDGE_GRPC_MAX_MESSAGE", "4194304", 1, 1 << 30)?),
+        grpc_max_message: count(bounded("OSS_EDGE_GRPC_MAX_MESSAGE", "1048576", 1, 1 << 30)?),
         cert: path("OSS_EDGE_TLS_CERT"),
         key: path("OSS_EDGE_TLS_KEY"),
         max_streams,
@@ -132,7 +132,7 @@ mod tests {
             (s.stream_buffer, s.connection_overhead, s.threads),
             (65_536, 131_072, 2)
         );
-        assert_eq!(s.grpc_max_message, 4 << 20);
+        assert_eq!(s.grpc_max_message, 1 << 20);
         let empty = settings(&[("OSS_EDGE_H2C_ADDR", "")]).expect("empty is unset");
         assert!(!empty.enabled());
     }

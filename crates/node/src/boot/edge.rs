@@ -26,6 +26,17 @@ pub(super) struct Front {
     edge: Option<oss_edge::Edge>,
 }
 
+impl super::Node {
+    /// The address the gRPC listener bound, when the `edge` feature is built and one is set.
+    #[must_use]
+    pub fn grpc_addr(&self) -> Option<SocketAddr> {
+        #[cfg(feature = "edge")]
+        return self.edge.edge.as_ref().and_then(oss_edge::Edge::grpc_addr);
+        #[cfg(not(feature = "edge"))]
+        None
+    }
+}
+
 impl Front {
     /// Stops the listeners; streams in flight end with them.
     pub(super) fn stop(&mut self) {

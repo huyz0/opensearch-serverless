@@ -31,6 +31,10 @@ pub struct State {
     pub bulk_status: AtomicUsize,
     /// What `_bulk` answers with on 200, when not empty.
     pub bulk_answer: std::sync::Mutex<String>,
+    /// The method, target and body of each search or point-in-time call, oldest first.
+    pub searches: std::sync::Mutex<Vec<(String, String, Vec<u8>)>>,
+    /// What those routes answer with.
+    pub search_answer: std::sync::Mutex<String>,
 }
 
 pub fn budget(bytes: usize) -> MemoryBudget {
@@ -53,6 +57,7 @@ pub fn start_with(state: &Arc<State>, max_body: u64) -> (Server, MemoryBudget, S
     let s = Arc::clone(state);
     let hs = Arc::clone(state);
     let bs = Arc::clone(state);
+    let ss = Arc::clone(state);
     let router = Router::new()
         .route(
             Method::Get,
@@ -137,6 +142,24 @@ pub fn start_with(state: &Arc<State>, max_body: u64) -> (Server, MemoryBudget, S
                     resp.send(200, JSON, answer.as_bytes())
                 },
             )
+        })
+        .and_then(|r| {
+            let record = move |req: &mut Request<'_>, resp: &mut Response<'_>| {
+                let method = format!("{:?}", req.method());
+                let target = format!("{}?{}", req.raw_path(), req.raw_query());
+                let mut body = Vec::new();
+                while let Some(chunk) = req.body().next_chunk()? {
+                    body.extend_from_slice(chunk);
+                }
+                ss.searches.lock().expect("lock").push((method, target, body));
+                let answer = ss.search_answer.lock().expect("lock").clone();
+                resp.send(200, JSON, answer.as_bytes())
+            };
+            let record = Arc::new(record);
+            let (a, b, c) = (Arc::clone(&record), Arc::clone(&record), record);
+            r.route(Method::Post, "/{index}/_search", &["_source", "_source_includes", "_source_excludes"], move |q: &mut Request<'_>, p: &mut Response<'_>| a(q, p))
+                .and_then(|r| r.route(Method::Post, "/{index}/_search/point_in_time", &["keep_alive"], move |q: &mut Request<'_>, p: &mut Response<'_>| b(q, p)))
+                .and_then(|r| r.route(Method::Delete, "/_search/point_in_time", &[], move |q: &mut Request<'_>, p: &mut Response<'_>| c(q, p)))
         })
         .and_then(|r| {
             let h = Arc::clone(&hs);

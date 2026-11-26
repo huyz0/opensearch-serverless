@@ -1491,6 +1491,9 @@ name = "oss-node"
 version = "0.1.0"
 dependencies = [
  "bcrypt",
+ "bytes",
+ "h2",
+ "http",
  "lucene-analysis",
  "lucene-index",
  "lucene-search",
@@ -1512,10 +1515,13 @@ dependencies = [
  "oss-transport",
  "oss-types",
  "oss-writer",
+ "prost",
+ "prost-reflect",
  "self_cell",
  "serde_json",
  "sha2 0.11.1",
  "signal-hook",
+ "tokio",
  "ureq",
  "wat",
 ]

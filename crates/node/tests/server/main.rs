@@ -16,6 +16,7 @@ mod boot;
 mod boot_buckets;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod boot_give_back;
+mod boot_grpc;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod boot_lease_load;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]

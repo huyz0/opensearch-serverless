@@ -336,3 +336,83 @@ async fn a_rest_error_keeps_its_body_in_the_status() {
     edge.shutdown();
     server.shutdown();
 }
+
+const SEARCH: &str = "/org.opensearch.protobufs.services.SearchService/Search";
+const CREATE_PIT: &str = "/org.opensearch.protobufs.services.SearchService/CreatePit";
+const DELETE_PIT: &str = "/org.opensearch.protobufs.services.SearchService/DeletePit";
+const NO_HITS: &str = r#"{"took":1,"timed_out":false,"_shards":{"total":1,"successful":1,"failed":0},"hits":{"total":{"value":0,"relation":"eq"},"max_score":null,"hits":[]}}"#;
+
+#[tokio::test(flavor = "multi_thread")]
+async fn search_and_pit_calls_are_mapped_to_their_rest_twins() {
+    let state = Arc::new(State::default());
+    let (server, budget, upstream) = start(&state);
+    let edge = Edge::start(config(upstream), &budget).expect("starts");
+    let mut send = h2c(edge.grpc_addr().expect("bound")).await;
+    *state.search_answer.lock().expect("lock") = NO_HITS.to_owned();
+    // SearchRequest { index: "a" }
+    let reply = grpc_call(&mut send, SEARCH, &[], grpc_frame(0, b"\x0a\x01a"))
+        .await
+        .expect("reply");
+    assert_eq!(reply.grpc_status, Some(0), "{:?}", reply.grpc_message);
+    assert_eq!(reply.messages.len(), 1);
+    *state.search_answer.lock().expect("lock") =
+        r#"{"pit_id":"abc","_shards":{"total":1,"successful":1,"failed":0},"creation_time":5}"#
+            .to_owned();
+    // CreatePitRequest { index: "a", keep_alive: "1m" }
+    let reply = grpc_call(
+        &mut send,
+        CREATE_PIT,
+        &[],
+        grpc_frame(0, b"\x0a\x01a\x12\x021m"),
+    )
+    .await
+    .expect("reply");
+    assert_eq!(reply.grpc_status, Some(0), "{:?}", reply.grpc_message);
+    assert!(reply.messages[0].windows(3).any(|w| w == b"abc"));
+    *state.search_answer.lock().expect("lock") =
+        r#"{"pits":[{"pit_id":"abc","successful":true}]}"#.to_owned();
+    // DeletePitRequest { pit_id: ["abc"] }
+    let reply = grpc_call(&mut send, DELETE_PIT, &[], grpc_frame(0, b"\x0a\x03abc"))
+        .await
+        .expect("reply");
+    assert_eq!(reply.grpc_status, Some(0), "{:?}", reply.grpc_message);
+    let seen = state.searches.lock().expect("lock").clone();
+    assert_eq!(seen.len(), 3);
+    assert_eq!(
+        (seen[0].0.as_str(), seen[0].1.as_str()),
+        ("Post", "/a/_search?")
+    );
+    assert_eq!(seen[0].2, b"{}");
+    assert_eq!(seen[1].1, "/a/_search/point_in_time?keep_alive=1m");
+    assert_eq!(
+        (seen[2].0.as_str(), seen[2].2.as_slice()),
+        ("Delete", &br#"{"pit_id":["abc"]}"#[..])
+    );
+    edge.shutdown();
+    server.shutdown();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn aggregations_are_refused_and_never_reach_the_node() {
+    let state = Arc::new(State::default());
+    let (server, budget, upstream) = start(&state);
+    let edge = Edge::start(config(upstream), &budget).expect("starts");
+    let mut send = h2c(edge.grpc_addr().expect("bound")).await;
+    // SearchRequest { search_request_body { aggregations { "a": {} } } }
+    let message = [
+        0x82, 0x02, 0x08, 0xAA, 0x02, 0x05, 0x0a, 0x01, b'a', 0x12, 0x00,
+    ];
+    let reply = grpc_call(&mut send, SEARCH, &[], grpc_frame(0, &message))
+        .await
+        .expect("reply");
+    assert_eq!(reply.grpc_status, Some(12));
+    assert!(
+        reply
+            .grpc_message
+            .expect("message")
+            .contains("SearchRequest.search_request_body.aggregations")
+    );
+    assert!(state.searches.lock().expect("lock").is_empty());
+    edge.shutdown();
+    server.shutdown();
+}

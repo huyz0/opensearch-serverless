@@ -10,8 +10,8 @@ pub const MIN_STREAM_BUFFER: usize = 16 * 1024;
 /// Concurrent streams one connection may open; the connection window is this many stream windows.
 pub const STREAMS_PER_CONNECTION: usize = 16;
 
-/// The default longest gRPC message: 4 MiB.
-pub const DEFAULT_GRPC_MESSAGE: usize = 4 << 20;
+/// The default longest gRPC message: 1 MiB (a call holds four times it, so the default charge for 32 streams is 128 MiB).
+pub const DEFAULT_GRPC_MESSAGE: usize = 1 << 20;
 
 /// How many times `grpc_max_message` a call holds at once: the message, its decoded form, the REST
 /// body made from it, and the answer.
@@ -170,13 +170,13 @@ mod tests {
     }
 
     #[test]
-    fn the_default_message_is_four_mebibytes_and_charged_only_with_a_grpc_listener() {
+    fn the_default_message_is_one_mebibyte_and_charged_only_with_a_grpc_listener() {
         let mut c = base();
-        assert_eq!(c.grpc_max_message, 4 << 20);
-        assert_eq!(DEFAULT_GRPC_MESSAGE, 4 << 20);
+        assert_eq!(c.grpc_max_message, 1 << 20);
+        assert_eq!(DEFAULT_GRPC_MESSAGE, 1 << 20);
         let without = c.charge();
         c.grpc = Some("127.0.0.1:1".parse().expect("addr"));
-        assert_eq!(c.charge(), without + c.max_streams * 4 * (4 << 20));
+        assert_eq!(c.charge(), without + c.max_streams * 4 * (1 << 20));
     }
 
     #[test]

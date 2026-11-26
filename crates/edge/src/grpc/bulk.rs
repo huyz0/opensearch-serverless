@@ -5,7 +5,7 @@ use prost_reflect::{DynamicMessage, Value};
 use serde_json::{Map, Value as Json, json};
 
 use super::fields::Fields;
-use super::rest::{Rest, decode, push_encoded};
+use super::rest::{Query, Rest, decode, join, push_encoded, source_param};
 use super::schema;
 use super::status::{INVALID_ARGUMENT, Status};
 
@@ -30,7 +30,7 @@ fn map(msg: &DynamicMessage) -> Result<Rest, Status> {
     query.text("refresh", f.enum_word("refresh").as_deref());
     query.flag("require_alias", f.boolean("require_alias"));
     if let Some(source) = f.message("x_source") {
-        source_param(source, &mut query)?;
+        source_param(source, "BulkRequest.x_source", &mut query)?;
     }
     query.text(
         "_source_excludes",
@@ -58,42 +58,6 @@ fn map(msg: &DynamicMessage) -> Result<Rest, Status> {
         target,
         body,
     })
-}
-
-/// `?a=b&c=d`, built one parameter at a time.
-#[derive(Default)]
-struct Query(String);
-
-impl Query {
-    fn text(&mut self, name: &str, value: Option<&str>) {
-        let Some(value) = value else { return };
-        self.0.push(if self.0.is_empty() { '?' } else { '&' });
-        self.0.push_str(name);
-        self.0.push('=');
-        push_encoded(&mut self.0, value);
-    }
-
-    fn flag(&mut self, name: &str, value: Option<bool>) {
-        self.text(name, value.map(|b| if b { "true" } else { "false" }));
-    }
-}
-
-fn join(items: &[Value]) -> Option<String> {
-    // ALLOC: one request, within `grpc_max_message` and charged to the request-body pool at start.
-    let words: Vec<&str> = items.iter().filter_map(Value::as_str).collect();
-    (!words.is_empty()).then(|| words.join(","))
-}
-
-/// `SourceConfigParam`: `fetch` is `_source=true|false`, `fields` is a list.
-fn source_param(source: &DynamicMessage, query: &mut Query) -> Result<(), Status> {
-    let mut s = Fields::new(source, "BulkRequest.x_source");
-    query.flag("_source", s.boolean("fetch"));
-    if let Some(list) = s.message("fields") {
-        let mut l = Fields::new(list, "BulkRequest.x_source.fields");
-        query.text("_source", join(l.repeated("string_array")).as_deref());
-        l.finish()?;
-    }
-    s.finish()
 }
 
 /// The action line, and the source line the action needs, of one bulk item.

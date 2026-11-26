@@ -1,14 +1,14 @@
 # Verified
 
-Numbers are from a debug build in a cloud sandbox: provisional, relative only. Slices so far: the listener, framing, Health, limits, deadlines and the status table, and the Bulk mapping. Criteria that need the Search and PIT mapping are NOT-RUN until that slice.
+Numbers are from a debug build in a cloud sandbox: provisional, relative only. Slices so far: the listener, framing, Health, limits, deadlines and the status table, the Bulk mapping, and the Search and point-in-time mapping. `ServerStreamSearch` is the next slice.
 
 - AC-1: `no_grpc_address_opens_no_port_and_charges_nothing`, `a_grpc_message_limit_of_zero_is_a_start_error`; NOT-RUN: a build without `edge` refusing `OSS_EDGE_GRPC_ADDR` at start is by the same code path as the other listeners and has no test of its own yet
 - AC-2: `health_check_tracks_the_node` (clear text, `SERVING`, `NOT_SERVING` on a 503, `NOT_FOUND` for an unknown service); NOT-RUN: the TLS variant
-- AC-3: `bulk_is_mapped_to_rest_and_its_answer_back` (wire, stub `/_bulk`), `the_four_actions_become_ndjson` and the other `grpc::bulk` unit tests; NOT-RUN: the differential against REST `_bulk` on a real node and the follow-up Search
-- AC-4: NOT-RUN: Search mapping is the next slice
-- AC-5: NOT-RUN: PIT mapping is the next slice
-- AC-6: Bulk only: `a_field_outside_the_subset_never_reaches_the_node` (`type`, no loopback request), `fields_outside_the_subset_are_refused_by_path`; NOT-RUN: `aggregations`, `knn`, `script_fields` (Search slice) and `extra_field_values`
-- AC-7: `an_answer_key_the_table_does_not_know_is_internal`, `grpc::respond` unit tests; NOT-RUN: the property test over the test corpus
+- AC-3: `bulk_over_grpc_answers_what_rest_bulk_answers` (`crates/node/tests/server/boot_grpc.rs`, a booted node: per-item status, result, id and version equal to REST `_bulk` for index, create, a conflicting create, update and delete; the document is readable afterwards), `bulk_is_mapped_to_rest_and_its_answer_back` (wire, stub), the `grpc::bulk` unit tests; NOT-RUN: readable afterwards *by `SearchService/Search`* (read by REST `GET`)
+- AC-4: `search_over_grpc_answers_the_same_hits_as_rest_search` (booted node, one row per covered query type with sort on a field, same ids in the same order as REST search; the row names are compared with `COVERED_QUERIES`), the search unit tests for each shape
+- AC-5: `search_and_pit_calls_are_mapped_to_their_rest_twins` (stub node: CreatePit, Search target, DeletePit), `grpc::pit` unit tests; NOT-RUN: against the real node, which does not serve the point-in-time routes yet (only the store exists), so the REST answers cannot be compared
+- AC-6: `aggregations_are_refused_and_never_reach_the_node` (counting stub), `a_field_outside_the_subset_never_reaches_the_node` (Bulk `type`), `fields_outside_the_subset_are_refused_by_path` in `grpc::search` (aggregations, script_fields, `knn`, boost on a term, a terms lookup, a sort option and more) and in `grpc::bulk`; NOT-RUN: a bulk `extra_field_values` row
+- AC-7: `an_answer_key_the_table_does_not_know_is_internal`, `grpc::respond` unit tests; the Search differential maps every REST answer of its corpus without an unknown key (an unknown key would fail the call); NOT-RUN: a separate property test
 - AC-8: `rest_statuses_map_as_the_spec_table`, `messages_are_percent_encoded_and_bounded`, `a_rest_error_keeps_its_body_in_the_status` (429 `circuit_breaking_exception`); NOT-RUN: a loopback answer of each other status through a stub upstream
 - AC-9: `big_and_compressed_messages_are_refused_before_buffering` (over-limit is `RESOURCE_EXHAUSTED` from the prefix, a compression flag and `grpc-encoding: gzip` are `UNIMPLEMENTED`, two messages are `INVALID_ARGUMENT`); NOT-RUN: the heap measurement that the refused message was not buffered
 - AC-10: `a_deadline_ends_the_call_and_frees_its_slot` (`grpc-timeout: 50m` on a held handler answered `DEADLINE_EXCEEDED` in under 2 s and the next call is served); the slot count itself is not asserted
