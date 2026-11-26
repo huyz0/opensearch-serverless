@@ -6,23 +6,17 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use lucene_store::Directory;
-use oss_blob::{BlobStore, CreateOutcome, SwapOutcome};
-use oss_format::{
-    FileLocation, ManifestEntry, ShardRef, encode_manifest, encode_segment_header,
-    segment_blob_order,
-};
+use oss_blob::{BlobStore, SwapOutcome};
+use oss_format::{ManifestEntry, ShardRef, encode_manifest};
 
 use super::PublishError;
-use super::blob::SegmentBlob;
 use super::commit_register::{CommitRegister, OwnRegister};
 use super::names::segment_name;
 use super::packed::{PackPlacement, Packable};
 use super::register::{Known, Last, fence};
+use super::staging::{Staged, due};
 use crate::bulk::IdGenerator;
 use crate::pack::{Part, SWAP_DEADLINE_MILLIS};
-
-/// The buffer a blob's PUT streams through.
-const IO_BUF_BYTES: usize = 64 * 1024;
 
 /// What a publish did.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -37,17 +31,24 @@ pub struct Published {
     /// Whether another publish of this writer's own got there first, so the
     /// manifest is its, not this one's.
     pub superseded: bool,
+    /// Whether the manifest is staged, not in the register: the generation
+    /// is then the register's, which this commit did not move.
+    pub staged: bool,
 }
 
 /// One shard's publisher. Callers serialise its publishes.
 pub struct ShardPublisher {
     pub(super) store: Arc<dyn BlobStore>,
-    base: String,
+    pub(super) base: String,
     pub(super) register: Arc<dyn CommitRegister>,
     pub(super) ids: IdGenerator,
-    last: Option<Last>,
+    pub(super) last: Option<Last>,
     pub(super) packs: Option<PackPlacement>,
-    swap_deadline: Duration,
+    pub(super) swap_deadline: Duration,
+    /// The checkpoint age when staging is on.
+    pub(super) staging: Option<Duration>,
+    pub(super) staged: Option<Staged>,
+    sequence: i64,
 }
 
 impl std::fmt::Debug for ShardPublisher {
@@ -82,6 +83,9 @@ impl ShardPublisher {
             last: None,
             packs: None,
             swap_deadline: Duration::from_millis(SWAP_DEADLINE_MILLIS),
+            staging: None,
+            staged: None,
+            sequence: -1,
         })
     }
 
@@ -129,6 +133,49 @@ impl ShardPublisher {
         wal_ordinal: i64,
         now_millis: u64,
     ) -> Result<Published, PublishError> {
+        self.publish_with(dir, files, term, writer, wal_ordinal, now_millis, false)
+    }
+
+    /// [`Self::publish`] for a routine publish: with staging on, it keeps the
+    /// manifest instead of swapping the register while the publisher holds
+    /// the register it last wrote in this term as `writer` and the oldest
+    /// staged commit is younger than the checkpoint age.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::publish`].
+    pub fn publish_routine(
+        &mut self,
+        dir: &dyn Directory,
+        files: &[String],
+        term: u64,
+        writer: &str,
+        wal_ordinal: i64,
+        now_millis: u64,
+    ) -> Result<Published, PublishError> {
+        self.publish_with(dir, files, term, writer, wal_ordinal, now_millis, true)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn publish_with(
+        &mut self,
+        dir: &dyn Directory,
+        files: &[String],
+        term: u64,
+        writer: &str,
+        wal_ordinal: i64,
+        now_millis: u64,
+        routine: bool,
+    ) -> Result<Published, PublishError> {
+        // A staged commit whose packs may be judged unreferenced is dropped:
+        // its files are uploaded again.
+        if self
+            .staged
+            .as_ref()
+            .is_some_and(|s| expired(s.oldest.elapsed(), self.swap_deadline))
+        {
+            self.staged = None;
+        }
         // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
         let mut uploaded: BTreeMap<String, Known> = BTreeMap::new();
         // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
@@ -150,6 +197,9 @@ impl ShardPublisher {
             fence(&base, term, writer)?;
             let generation = generation.unwrap_or(base.generation);
             let mut known = base.files.clone();
+            if let Some(staged) = &self.staged {
+                known.extend(staged.files.iter().map(|(k, v)| (k.clone(), v.clone())));
+            }
             known.extend(uploaded.iter().map(|(k, v)| (k.clone(), v.clone())));
             let entries = self.upload(
                 dir,
@@ -170,15 +220,57 @@ impl ShardPublisher {
                 })
                 // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
                 .collect();
-            let manifest = encode_manifest(term, Some(writer), &refs, wal_ordinal, -1)?;
+            let stage_sequence = if self.staging.is_some() {
+                self.sequence = self.sequence.saturating_add(1);
+                self.sequence
+            } else {
+                -1
+            };
+            let manifest = encode_manifest(term, Some(writer), &refs, wal_ordinal, stage_sequence)?;
             // Collection deletes a pack no manifest names once it is old
             // enough; a swap this late could name one already gone.
             if packed_at.is_some_and(|at| expired(at.elapsed(), self.swap_deadline)) {
                 self.last = None;
                 return Err(PublishError::PackExpired);
             }
+            let stage_now = routine
+                && remembered
+                && base.term == term
+                && base.writer.as_deref() == Some(writer)
+                && self.staging.is_some_and(|age| {
+                    !due(
+                        self.staged
+                            .as_ref()
+                            .map_or(Duration::ZERO, |s| s.oldest.elapsed()),
+                        age,
+                    )
+                });
+            if stage_now {
+                let oldest = self
+                    .staged
+                    .as_ref()
+                    .map_or_else(Instant::now, |s| s.oldest)
+                    .min(packed_at.unwrap_or_else(Instant::now));
+                // ALLOC: one manifest's bytes and names a shard with a staged commit.
+                self.staged = Some(Staged {
+                    manifest: manifest.clone(),
+                    files: entries,
+                    term,
+                    // ALLOC: one name a shard with a staged commit.
+                    writer: writer.to_owned(),
+                    oldest,
+                });
+                return Ok(Published {
+                    manifest,
+                    generation,
+                    blobs,
+                    superseded: false,
+                    staged: true,
+                });
+            }
             match self.register.swap(generation, &manifest)? {
                 SwapOutcome::Applied(now) => {
+                    self.staged = None;
                     self.last = Some(Last {
                         generation: now,
                         term,
@@ -191,10 +283,12 @@ impl ShardPublisher {
                         generation: now,
                         blobs,
                         superseded: false,
+                        staged: false,
                     });
                 }
                 SwapOutcome::Conflict(_) => {
                     self.last = None;
+                    self.staged = None;
                     if remembered && round == 0 {
                         // The register moved under what this publisher
                         // remembered: read it and publish over it, once.
@@ -210,7 +304,7 @@ impl ShardPublisher {
     /// The register holds another manifest than the one this publish swapped
     /// in: this writer's own concurrent publish, whose manifest is then the
     /// answer, or the fence a newer term is.
-    fn after_lost_swap(
+    pub(super) fn after_lost_swap(
         &mut self,
         term: u64,
         writer: &str,
@@ -224,6 +318,7 @@ impl ShardPublisher {
                 generation,
                 blobs,
                 superseded: true,
+                staged: false,
             });
         }
         Err(PublishError::Stale {
@@ -323,110 +418,11 @@ impl ShardPublisher {
         self.put_packed(packable, packed_at, uploaded, &mut entries)?;
         Ok(entries)
     }
-
-    fn put_whole(
-        &self,
-        term_dir: &str,
-        name: &str,
-        uploaded: &mut BTreeMap<String, Known>,
-        entries: &mut BTreeMap<String, Known>,
-    ) -> Result<(), PublishError> {
-        // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
-        let key = format!("{}{term_dir}/{name}", self.base);
-        self.store
-            .put(&key, &mut oss_blob::SliceSource::new(&[]), &mut [0u8; 1])?;
-        let known = Known {
-            // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
-            location: term_dir.to_owned(),
-            length: 0,
-        };
-        // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
-        uploaded.insert(name.to_owned(), known.clone());
-        // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
-        entries.insert(name.to_owned(), known);
-        Ok(())
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn put_segment(
-        &mut self,
-        dir: &dyn Directory,
-        term_dir: &str,
-        segment: &str,
-        plain: &str,
-        taken: bool,
-        group: &mut [(&str, u64)],
-        now_millis: u64,
-        uploaded: &mut BTreeMap<String, Known>,
-        entries: &mut BTreeMap<String, Known>,
-        blobs: &mut Vec<String>,
-    ) -> Result<(), PublishError> {
-        segment_blob_order(group);
-        let header = encode_segment_header(group)?;
-        // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
-        let mut parts = Vec::with_capacity(group.len());
-        for (name, length) in group.iter() {
-            let input = dir
-                .open(name)
-                // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
-                .map_err(|e| PublishError::Directory(format!("{name}: {e}")))?;
-            if u64::try_from(input.len()).ok() != Some(*length) {
-                // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
-                return Err(PublishError::Directory(format!(
-                    "{name} changed length while it was being published"
-                )));
-            }
-            parts.push(input);
-        }
-        let mut source = SegmentBlob::new(header.clone(), parts);
-        let mut buf = [0u8; IO_BUF_BYTES];
-        // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
-        let mut blob = plain.to_owned();
-        let mut created = false;
-        if !taken {
-            // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
-            let key = format!("{}{term_dir}/{blob}", self.base);
-            created =
-                self.store.create_if_absent(&key, &mut source, &mut buf)? == CreateOutcome::Created;
-        }
-        if !created {
-            // An earlier attempt of this term, or a writer that reused the
-            // segment's name, left a blob by it.
-            // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
-            blob = format!("{segment}-{}.seg", self.ids.next(now_millis));
-            // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
-            let key = format!("{}{term_dir}/{blob}", self.base);
-            oss_blob::ChunkSource::rewind(&mut source)?;
-            if self.store.create_if_absent(&key, &mut source, &mut buf)? != CreateOutcome::Created {
-                return Err(PublishError::Unusable("a fresh blob name was taken"));
-            }
-        }
-        let mut offset = u64::try_from(header.len()).unwrap_or(u64::MAX);
-        for (name, length) in group.iter() {
-            let known = Known {
-                location: FileLocation::Packed {
-                    term_dir,
-                    blob: &blob,
-                    offset,
-                    length: *length,
-                }
-                .encode(),
-                length: *length,
-            };
-            offset = offset.saturating_add(*length);
-            // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
-            uploaded.insert((*name).to_owned(), known.clone());
-            // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
-            entries.insert((*name).to_owned(), known);
-        }
-        blobs.push(blob);
-        Ok(())
-    }
 }
 
 /// Whether a pack put `elapsed` ago is past the swap deadline: at exactly
 /// the deadline it is not.
-fn expired(elapsed: Duration, deadline: Duration) -> bool {
+pub(super) fn expired(elapsed: Duration, deadline: Duration) -> bool {
     elapsed > deadline
 }
 

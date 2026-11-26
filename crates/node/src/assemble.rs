@@ -13,7 +13,6 @@ use oss_mem::{BufferPool, MemoryBudget, Pool, SMALL_BUFFER};
 use oss_meta::{DeleteMode, DescriptorStore, PitClock, PointInTimeStore};
 use oss_rest::{Router, Server, ServerConfig};
 use oss_writer::bulk::{BulkBudget, StreamConfig};
-use oss_writer::publish::lazy::Policy;
 
 use crate::bulk_route::{self, BulkService};
 use crate::clock::now_millis;
@@ -29,7 +28,7 @@ use crate::pit_route::{self, PitService};
 use crate::refresh_route::{self, RefreshService};
 use crate::search::{self, SearchService};
 use crate::tail_node::{self, TailError, TailNode, TailParts};
-use crate::writer::{JanitorPass, JanitorTimer, PassLimits, PublishTimer, Publishing, WriterRole};
+use crate::writer::{JanitorPass, JanitorTimer, PassLimits, PublishTimer, WriterRole};
 
 pub use crate::assemble_error::AssembleError;
 
@@ -119,6 +118,8 @@ pub struct Config {
     pub evict_after_millis: u64,
     /// Whether idle shards are handed to a member with room.
     pub hand_off: bool,
+    /// Checkpoint age of staged commits; none writes each register.
+    pub commit_checkpoint_millis: Option<u64>,
     /// Merging a shard's small segments.
     pub merge: crate::writer::MergeConfig,
     /// How far below the cap making room clears, as a percent of it.
@@ -191,6 +192,7 @@ impl Config {
             max_shards: 0,
             evict_after_millis: 60_000,
             hand_off: false,
+            commit_checkpoint_millis: None,
             merge: crate::writer::MergeConfig::off(),
             evict_headroom_percent: 0,
             pinned_indexes: Vec::new(),
@@ -368,17 +370,7 @@ pub fn assemble(
         budget,
     ));
     crate::search_modules::install(&search, &store, &config.base, budget);
-    let mut publishing = Publishing::new(
-        Arc::clone(&store),
-        &config.base,
-        &config.node_id,
-        Policy::new(
-            config.publish_age_millis,
-            config.publish_max_operations,
-            config.publish_tick_millis,
-        ),
-        Box::new(now_millis),
-    );
+    let mut publishing = config.publishing(Arc::clone(&store));
     #[cfg(feature = "coordinator")]
     let bucket_wiring = writer.buckets.clone();
     if let Some(buckets) = writer.buckets {

@@ -276,7 +276,11 @@ impl WriterRole {
                     // Staged before the tail drops what the commit holds, so
                     // a reader opening in between finds one or the other.
                     self.staged(&key.0, key.1, &done.manifest);
-                    if let Some(t) = self.tail.get() {
+                    // A staged commit is not in the register: the tail keeps
+                    // its records until a register write holds them.
+                    if !done.staged
+                        && let Some(t) = self.tail.get()
+                    {
                         t.published(&key.0, key.1, max_seq_no);
                     }
                     pass.published = pass.published.saturating_add(1);
@@ -287,6 +291,7 @@ impl WriterRole {
                 }
             }
         }
+        pass.failed.extend(self.checkpoint_staged(publishing));
         pass
     }
 

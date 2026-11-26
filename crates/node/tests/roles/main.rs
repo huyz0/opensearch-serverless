@@ -26,4 +26,5 @@ mod writer_opener_rig;
 mod writer_publish;
 mod writer_publish_timer;
 mod writer_role;
+mod writer_staging;
 mod writer_takeover;

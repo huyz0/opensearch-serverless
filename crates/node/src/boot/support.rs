@@ -182,6 +182,7 @@ pub(super) fn apply_janitor_and_hibernation(
     node.max_shards = config.max_shards;
     node.evict_after_millis = config.evict_after_millis;
     node.hand_off = config.hand_off;
+    node.commit_checkpoint_millis = config.commit_checkpoint_millis;
     node.merge = config.merge.clone();
     node.knn = config.knn;
     node.security = config.security;
