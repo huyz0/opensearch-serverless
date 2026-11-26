@@ -8,7 +8,7 @@ Numbers are from a debug build in a cloud sandbox: provisional, relative only.
 - AC-4: `a_stream_past_max_streams_is_refused_and_the_rest_complete`
 - AC-5: `memory_is_charged_at_start_refused_when_short_and_released`, `inconsistent_settings_are_refused`
 - AC-6: `heap_stays_within_what_the_front_charges` printed `peak 719537 bytes above the window's start for 64 MiB uploaded`
-- AC-7: NOT-RUN: a client that drops its connection or sends GOAWAY mid-upload is not tested; a reset stream is covered by `rapid_resets_are_disconnected_and_the_node_serves_the_next_request`
+- AC-7: `a_client_that_drops_its_connection_mid_upload_frees_the_node` and `a_client_that_sends_goaway_mid_upload_and_leaves_frees_the_node` (oss-edge, `crates/edge/tests/h2c_drops.rs`) open a POST to a handler that reads its body, send 4 KiB, then drop the TCP connection or send GOAWAY and leave; the node's open count rises, then returns to its start within 20 s (observed about 20 ms each, loopback, provisional); a reset stream is covered by `rapid_resets_are_disconnected_and_the_node_serves_the_next_request` (oss-edge, `crates/edge/tests/h2c.rs`)
 - AC-8: `an_h2_client_gets_h2_and_an_http1_client_gets_http1_with_the_same_answer`, `a_missing_unreadable_or_mismatched_certificate_refuses_to_start`; TLS 1.1 is refused by construction (rustls offers 1.2 and 1.3 only), not by a test
 - AC-9: `authority_reaches_the_handler_as_host`, `authority_wins_and_connection_headers_go`
 - AC-10: `rapid_resets_are_disconnected_and_the_node_serves_the_next_request`
