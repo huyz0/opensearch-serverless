@@ -301,6 +301,56 @@ fn an_msearch_analyses_with_the_module_the_index_pins() {
     assert!(many.text().contains(r#""value":1"#), "{}", many.text());
 }
 
+// AC-13 (_analyze)
+#[test]
+fn an_analyze_with_a_pins_name_runs_the_module_the_index_pins() {
+    let root = TempDir::new("pinned-analyze");
+    let dir = ByteBuffersDirectory::new();
+    let r = rig(root.path(), &dir, &module());
+    assert!(r.service.set_modules(modules(root.path())));
+    let said = request(
+        r.server.local_addr(),
+        "POST",
+        "/logs/_analyze",
+        Some(br#"{"analyzer":"ext_a","text":"zzzzzzz"}"#),
+    );
+    assert_eq!(said.status, 200, "{}", said.text());
+    assert!(
+        said.text().contains(r#""token":"probe""#),
+        "{}",
+        said.text()
+    );
+    assert!(
+        said.text().contains(r#""end_offset":5"#),
+        "the module's offsets: {}",
+        said.text()
+    );
+    // A pin is the index's own: without the index the name is not found.
+    let global = request(
+        r.server.local_addr(),
+        "POST",
+        "/_analyze",
+        Some(br#"{"analyzer":"ext_a","text":"zzzzzzz"}"#),
+    );
+    assert_eq!(global.status, 400, "{}", global.text());
+}
+
+// AC-14 (_analyze)
+#[test]
+fn an_analyze_with_a_pins_name_never_falls_back_when_the_module_cannot_load() {
+    let root = TempDir::new("pinned-analyze-refused");
+    let dir = ByteBuffersDirectory::new();
+    let r = rig(root.path(), &dir, &module());
+    let said = request(
+        r.server.local_addr(),
+        "POST",
+        "/logs/_analyze",
+        Some(br#"{"analyzer":"ext_a","text":"zzzzzzz"}"#),
+    );
+    assert_eq!(said.status, 503, "{}", said.text());
+    assert!(!said.text().contains(r#""tokens""#), "{}", said.text());
+}
+
 // AC-14
 #[test]
 fn a_reader_that_cannot_load_the_module_refuses_the_search() {

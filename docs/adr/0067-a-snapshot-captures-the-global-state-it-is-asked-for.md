@@ -38,7 +38,7 @@ The change is additive for readers: the Rust readers skip an unknown top-level f
 
 ### Security
 
-Global state is configuration that `manage_snapshots` cannot write directly: stored scripts need `all_access`, pipelines and templates have their own permission groups. A take with `include_global_state: true` and a restore with it therefore need the action `cluster:admin/snapshot/global_state`, which only `all_access` grants and `manage_snapshots` does not. A caller without it gets 403 before any read or write. Tests: a `manage_snapshots` user is refused on both, and a snapshot with global state is still listable and restorable without it. A stock export drops global state (Out of scope), so it never leaves through that door.
+Global state is configuration that `manage_snapshots` cannot write directly: stored scripts need `all_access`, pipelines and templates have their own permission groups. A take with `include_global_state: true` and a restore with it therefore need the action `cluster:admin/global_state/snapshot`, which only `all_access` grants. It is deliberately outside the `cluster:admin/snapshot/*` prefix, so the wildcard `manage_snapshots` holds cannot match it. The static config sees only action names, so the take and restore routes read the body flag and make a second authorisation check for this action after parsing and before any read or write. A caller without it gets 403 before any read or write. Tests: a `manage_snapshots` user is refused on both, and a snapshot with global state is still listable and restorable without it. A stock export drops global state (Out of scope), so it never leaves through that door.
 
 ### The take
 

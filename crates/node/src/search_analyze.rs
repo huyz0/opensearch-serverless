@@ -5,7 +5,9 @@
 //! (server/src/main/java/org/opensearch/rest/action/admin/indices/RestAnalyzeAction.java,
 //! server/src/main/java/org/opensearch/action/admin/indices/analyze/)
 //! at OpenSearch 3.10.0 for the `text` and `analyzer` keys over the
-//! `standard` and `keyword` analyzers.
+//! `standard` and `keyword` analyzers, and for the name of an analyzer the
+//! index pins, which runs the module and never falls back (`_analyze` of
+//! docs/specs/extension-analyzer).
 
 use std::fmt::Write as _;
 use std::sync::Arc;
@@ -125,6 +127,91 @@ fn asked(rec: &oss_reader::dsl::Recorder) -> Result<Asked<'_>, RestError> {
     Ok(asked)
 }
 
+/// Whether the open index pins an analyzer called `name`.
+fn pins<S: BlobStore + 'static>(held: &super::Held<S>, name: &str) -> bool {
+    held.pinned
+        .as_ref()
+        .is_some_and(|p| p.modules().iter().any(|(n, _)| n == name))
+}
+
+/// A pin's refusal as a search answers it: retryable, never the built-in
+/// analyzer's tokens.
+fn pin_refusal(why: String) -> RestError {
+    RestError::exception(503, Exception::new("extension_unavailable", why))
+}
+
+/// The response being written and where in it the next token sits.
+struct Emitter {
+    out: String,
+    last_position: i32,
+    last_offset: i32,
+    count: usize,
+    gap: i32,
+}
+
+impl Emitter {
+    /// Appends every token of one text from `stream`, then moves the
+    /// position and offset past the text.
+    fn stream(
+        &mut self,
+        stream: &mut dyn TokenStream,
+        body: &mut oss_rest::Body<'_>,
+    ) -> Result<(), RestError> {
+        let failed = |e: lucene_analysis::AnalysisError| {
+            RestError::exception(
+                500,
+                Exception::new("exception", format!("failed to analyze: {e}")),
+            )
+        };
+        stream.reset().map_err(failed)?;
+        while stream.increment_token().map_err(failed)? {
+            let a = stream.attributes();
+            let increment = a.position_increment();
+            if increment > 0 {
+                self.last_position = self.last_position.saturating_add(increment);
+            }
+            self.count = self.count.saturating_add(1);
+            if self.count > MAX_TOKENS {
+                return Err(RestError::exception(
+                    500,
+                    Exception::new(
+                        "illegal_state_exception",
+                        format!(
+                            "The number of tokens produced by calling _analyze has exceeded the allowed maximum of [{MAX_TOKENS}]. This limit can be set by changing the [index.analyze.max_token_count] index level setting."
+                        ),
+                    ),
+                ));
+            }
+            body.reserve(a.term().len().saturating_add(160))?;
+            if self.count > 1 {
+                self.out.push(',');
+            }
+            self.out.push_str("{\"token\":");
+            push_str(&mut self.out, a.term());
+            let _ = write!(
+                self.out,
+                ",\"start_offset\":{},\"end_offset\":{},\"type\":",
+                self.last_offset.saturating_add(a.start_offset()),
+                self.last_offset.saturating_add(a.end_offset()),
+            );
+            push_str(&mut self.out, a.token_type());
+            let _ = write!(self.out, ",\"position\":{}", self.last_position);
+            if a.position_length() > 1 {
+                let _ = write!(self.out, ",\"positionLength\":{}", a.position_length());
+            }
+            self.out.push('}');
+        }
+        stream.end().map_err(failed)?;
+        let a = stream.attributes();
+        self.last_offset = self.last_offset.saturating_add(a.end_offset());
+        self.last_position = self
+            .last_position
+            .saturating_add(a.position_increment())
+            .saturating_add(self.gap);
+        Ok(())
+    }
+}
+
 impl<S: BlobStore + 'static> SearchService<S> {
     /// Handles one `_analyze`.
     pub fn handle_analyze(
@@ -142,9 +229,10 @@ impl<S: BlobStore + 'static> SearchService<S> {
         if asked.texts.is_empty() {
             return Err(validation("text is missing"));
         }
+        let mut held = None;
         let analyzer = match (asked.analyzer, index.is_some()) {
-            (None | Some("standard"), _) => Analyzer::standard(None),
-            (Some("keyword"), _) => Analyzer::keyword(),
+            (None | Some("standard"), _) => Some(Analyzer::standard(None)),
+            (Some("keyword"), _) => Some(Analyzer::keyword()),
             (Some(name), _) if LACKING.contains(&name) => {
                 return Err(not_supported(&format!("the [{name}] analyzer")));
             }
@@ -153,13 +241,25 @@ impl<S: BlobStore + 'static> SearchService<S> {
                     "failed to find global analyzer [{name}]"
                 )));
             }
+            // An index's own pin is not found by name until its shard is
+            // open and holds the module.
             (Some(name), true) => {
-                return Err(RestError::illegal_argument(format!(
-                    "failed to find analyzer [{name}]"
-                )));
+                match self.open_shard(index.as_deref().unwrap_or_default(), 0, false) {
+                    Ok(h) if pins(&h, name) => {
+                        held = Some(h);
+                        None
+                    }
+                    Ok(_) => {
+                        return Err(RestError::illegal_argument(format!(
+                            "failed to find analyzer [{name}]"
+                        )));
+                    }
+                    Err(Answer::Rest(e)) => return Err(e),
+                    Err(Answer::Search(e)) => return resp.send(e.status, JSON, &e.to_body()),
+                }
             }
         };
-        if let Some(index) = &index {
+        if let (Some(index), None) = (&index, &held) {
             match self.open_shard(index, 0, false) {
                 Ok(_) => {}
                 Err(Answer::Rest(e)) => return Err(e),
@@ -173,63 +273,44 @@ impl<S: BlobStore + 'static> SearchService<S> {
         };
         let body = req.body();
         // ALLOC: the response, each token's bytes reserved as it is added.
-        let mut out = String::from("{\"tokens\":[");
-        let (mut last_position, mut last_offset, mut count) = (-1i32, 0i32, 0usize);
+        let mut out = Emitter {
+            out: String::from("{\"tokens\":["),
+            last_position: -1,
+            last_offset: 0,
+            count: 0,
+            gap,
+        };
+        let failed = |e: lucene_analysis::AnalysisError| {
+            RestError::exception(
+                500,
+                Exception::new("exception", format!("failed to analyze: {e}")),
+            )
+        };
         for text in &asked.texts {
-            let failed = |e: lucene_analysis::AnalysisError| {
-                RestError::exception(
-                    500,
-                    Exception::new("exception", format!("failed to analyze: {e}")),
-                )
-            };
-            let mut stream = analyzer.token_stream("", text).map_err(failed)?;
-            stream.reset().map_err(failed)?;
-            while stream.increment_token().map_err(failed)? {
-                let a = stream.attributes();
-                let increment = a.position_increment();
-                if increment > 0 {
-                    last_position = last_position.saturating_add(increment);
-                }
-                count = count.saturating_add(1);
-                if count > MAX_TOKENS {
-                    return Err(RestError::exception(
-                        500,
-                        Exception::new(
-                            "illegal_state_exception",
-                            format!(
-                                "The number of tokens produced by calling _analyze has exceeded the allowed maximum of [{MAX_TOKENS}]. This limit can be set by changing the [index.analyze.max_token_count] index level setting."
-                            ),
-                        ),
-                    ));
-                }
-                body.reserve(a.term().len().saturating_add(160))?;
-                if count > 1 {
-                    out.push(',');
-                }
-                out.push_str("{\"token\":");
-                push_str(&mut out, a.term());
-                let _ = write!(
-                    out,
-                    ",\"start_offset\":{},\"end_offset\":{},\"type\":",
-                    last_offset.saturating_add(a.start_offset()),
-                    last_offset.saturating_add(a.end_offset()),
-                );
-                push_str(&mut out, a.token_type());
-                let _ = write!(out, ",\"position\":{last_position}");
-                if a.position_length() > 1 {
-                    let _ = write!(out, ",\"positionLength\":{}", a.position_length());
-                }
-                out.push('}');
+            if let Some(analyzer) = &analyzer {
+                let mut stream = analyzer.token_stream("", text).map_err(failed)?;
+                out.stream(&mut stream, body)?;
+                stream.close().map_err(failed)?;
+                out.last_offset = out.last_offset.saturating_add(analyzer.offset_gap());
+            } else if let (Some(held), Some(name)) = (&held, asked.analyzer) {
+                // A pin never falls back: a refusal is the search's own.
+                let tokens = held
+                    .pinned
+                    .as_deref()
+                    .map_or_else(
+                        || {
+                            Err(format!(
+                                "extension_unavailable: no analyzer [{name}] is loaded"
+                            ))
+                        },
+                        |p| p.tokens(name, text),
+                    )
+                    .map_err(pin_refusal)?;
+                let mut stream = oss_reader::pinned::ListStream::new(tokens);
+                out.stream(&mut stream, body)?;
             }
-            stream.end().map_err(failed)?;
-            let a = stream.attributes();
-            last_offset = last_offset.saturating_add(a.end_offset());
-            last_position = last_position
-                .saturating_add(a.position_increment())
-                .saturating_add(gap);
-            stream.close().map_err(failed)?;
-            last_offset = last_offset.saturating_add(analyzer.offset_gap());
         }
+        let mut out = out.out;
         out.push_str("]}");
         resp.send(200, JSON, out.as_bytes())
     }
