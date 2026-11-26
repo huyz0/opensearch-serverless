@@ -5,34 +5,34 @@
 //!
 //! A lost race adopts the `index-N` that won as the new base and tries
 //! again, rebuilding each shard generation from it and reusing every blob
-//! already created; after [`MAX_ATTEMPTS`] the take fails with
+//! already created (a shard generation put on top of the same one as before
+//! is reused; one put on top of a changed one is left, unnamed); after [`MAX_ATTEMPTS`] the take fails with
 //! [`ExportError::Conflict`]. A take that dies after creating `index-N+1`
 //! and before the `index.latest` put leaves a repository the next take
 //! extends: its create loses, and it adopts what the dead take wrote.
 
 use oss_blob::{CreateOutcome, SliceSource};
 use oss_format::{
-    StockEnvelopeLimits, StockNewFile, StockNewIndex, StockNewIndexMetadata, StockNewSnapshot,
-    StockNewSnapshotInfo, StockRepositoryData, StockShardGeneration, stock_blob_from_json,
-    stock_global_metadata_json, stock_index_metadata_json, stock_shard_snapshot_json,
-    stock_snapshot_info_json,
+    StockEnvelopeLimits, StockNewFile, StockNewIndexMetadata, StockNewSnapshotInfo,
+    StockRepositoryData, stock_blob_from_json, stock_global_metadata_json,
+    stock_index_metadata_json, stock_shard_snapshot_json, stock_snapshot_info_json,
 };
 
 use crate::pit::new_id;
 use crate::stock_export::{ExportError, ExportTarget, ExportedFile};
+pub use crate::stock_export_fence::MAX_ATTEMPTS;
 use crate::stock_read::{StockReadError, StockRepo};
 
-/// How many `index-N` creates a take tries before it fails with a conflict.
-pub const MAX_ATTEMPTS: u32 = 16;
-
-/// The state code of a successful snapshot.
-const SUCCESS: i64 = 1;
+/// The most indices one snapshot may hold, the restore's bound.
+const MAX_SNAPSHOT_INDICES: usize = 100;
+/// The most shards one snapshot may hold, the restore's bound.
+const MAX_SNAPSHOT_SHARDS: usize = 4_096;
 
 /// The repository as a take starts from it.
 #[derive(Debug, Clone, Default)]
 pub struct ExportBase {
-    generation: Option<u64>,
-    data: StockRepositoryData,
+    pub(crate) generation: Option<u64>,
+    pub(crate) data: StockRepositoryData,
 }
 
 impl ExportBase {
@@ -47,7 +47,7 @@ impl ExportBase {
     }
 
     /// Whether a snapshot of `snapshot`'s name or uuid is held.
-    fn holds(&self, snapshot: &ExportSnapshot<'_>) -> bool {
+    pub(crate) fn holds(&self, snapshot: &ExportSnapshot<'_>) -> bool {
         self.data
             .snapshots
             .iter()
@@ -137,7 +137,7 @@ pub struct Published {
 
 /// Creates `key` under the target's prefix from `json` in the envelope of
 /// `codec`.
-fn put_blob(
+pub(crate) fn put_blob(
     target: &ExportTarget<'_>,
     key: &str,
     json: &[u8],
@@ -169,7 +169,7 @@ fn create(
 }
 
 /// The files of a shard as the writers take them.
-fn new_files(files: &[ExportedFile]) -> Vec<StockNewFile<'_>> {
+pub(crate) fn new_files(files: &[ExportedFile]) -> Vec<StockNewFile<'_>> {
     // ALLOC: one entry a file, at most the commit's file bound.
     files
         .iter()
@@ -204,6 +204,12 @@ pub fn publish_snapshot(
 ) -> Result<Published, ExportError> {
     if base.holds(snapshot) {
         return Err(ExportError::NameTaken);
+    }
+    let total_shards: usize = snapshot.indices.iter().map(|i| i.shards.len()).sum();
+    if snapshot.indices.len() > MAX_SNAPSHOT_INDICES || total_shards > MAX_SNAPSHOT_SHARDS {
+        return Err(ExportError::Unsupported(
+            "a snapshot of more indices or shards than a restore reads",
+        ));
     }
     let mut json = Vec::new(); // ALLOC: one blob's JSON at a time, reused.
     let mut metadata: Vec<(String, String, String)> = Vec::new(); // ALLOC: one entry an index.
@@ -286,124 +292,5 @@ pub fn publish_snapshot(
         "metadata",
         scratch,
     )?;
-    fence(target, base, snapshot, &metadata, scratch)
-}
-
-/// Creates the next `index-N` and then `index.latest`, adopting the winner of
-/// each lost race.
-fn fence(
-    target: &ExportTarget<'_>,
-    mut base: ExportBase,
-    snapshot: &ExportSnapshot<'_>,
-    metadata: &[(String, String, String)],
-    scratch: &mut [u8],
-) -> Result<Published, ExportError> {
-    let repo = StockRepo::new(target.store, target.prefix);
-    for attempt in 1..=MAX_ATTEMPTS {
-        if base.holds(snapshot) {
-            return Err(ExportError::NameTaken);
-        }
-        // ALLOC: one generation a shard, per index.
-        let mut generations: Vec<Vec<String>> = Vec::with_capacity(snapshot.indices.len());
-        for index in snapshot.indices {
-            if base.index_id(index.name).is_some_and(|id| id != index.id) {
-                return Err(ExportError::Conflict);
-            }
-            generations.push(shard_generations(
-                target, &repo, &base, snapshot, index, scratch,
-            )?);
-        }
-        // ALLOC: one entry an index.
-        let new_indices: Vec<StockNewIndex<'_>> = snapshot
-            .indices
-            .iter()
-            .zip(&generations)
-            .zip(metadata)
-            .map(|((index, gens), (_, identifier, blob))| StockNewIndex {
-                name: index.name,
-                id: index.id,
-                metadata_identifier: identifier,
-                blob_id: blob,
-                shard_generations: gens,
-            })
-            .collect(); // ALLOC: the entries counted above.
-        let next = base.data.with_snapshot(&StockNewSnapshot {
-            name: snapshot.name,
-            uuid: snapshot.uuid,
-            state: SUCCESS,
-            version: "3.10.0",
-            indices: &new_indices,
-        })?;
-        let mut bytes = Vec::new(); // ALLOC: one index-N, at most its read bound.
-        next.to_json(&mut bytes)?;
-        let number = base.generation.map_or(0, |g| g.saturating_add(1));
-        let key = format!("index-{number}"); // ALLOC: one key.
-        let full = [target.prefix, &key].concat(); // ALLOC: one key.
-        match target
-            .store
-            .create_if_absent(&full, &mut SliceSource::new(&bytes), scratch)?
-        {
-            CreateOutcome::Created => {
-                let latest = [target.prefix, "index.latest"].concat(); // ALLOC: one key.
-                let raw = i64::try_from(number).unwrap_or(i64::MAX).to_be_bytes();
-                target
-                    .store
-                    .put(&latest, &mut SliceSource::new(&raw), scratch)?;
-                return Ok(Published {
-                    generation: number,
-                    attempts: attempt,
-                });
-            }
-            CreateOutcome::AlreadyExists => {
-                base = ExportBase {
-                    generation: Some(number),
-                    data: repo.repository_data(number).map_err(ExportError::Read)?,
-                };
-            }
-        }
-    }
-    Err(ExportError::Conflict)
-}
-
-/// Creates each shard's next generation blob of `index`: the base's, when it
-/// holds the index, with the snapshot added.
-fn shard_generations(
-    target: &ExportTarget<'_>,
-    repo: &StockRepo<'_>,
-    base: &ExportBase,
-    snapshot: &ExportSnapshot<'_>,
-    index: &ExportIndex<'_>,
-    scratch: &mut [u8],
-) -> Result<Vec<String>, ExportError> {
-    let held = base
-        .data
-        .indices
-        .iter()
-        .find(|i| i.name == index.name)
-        .map(|i| i.shard_generations.as_slice());
-    if held.is_some_and(|g| g.len() != index.shards.len()) {
-        return Err(ExportError::Unsupported(
-            "the index's shard count differs from the repository's record of it",
-        ));
-    }
-    let mut out = Vec::with_capacity(index.shards.len()); // ALLOC: one generation a shard.
-    let mut json = Vec::new(); // ALLOC: one generation's JSON at a time, reused.
-    for (n, shard) in index.shards.iter().enumerate() {
-        let previous = match held.and_then(|g| g.get(n)).and_then(Option::as_deref) {
-            Some(generation) => {
-                let key = format!("indices/{}/{n}/index-{generation}", index.id); // ALLOC: one key.
-                let read = repo.json(&key, "snapshots").map_err(ExportError::Read)?;
-                StockShardGeneration::parse(&read)?
-            }
-            None => StockShardGeneration::default(),
-        };
-        let next = previous.with_snapshot(snapshot.name, &new_files(&shard.files))?;
-        json.clear();
-        next.to_json(&mut json)?;
-        let id = new_id()?;
-        let key = format!("indices/{}/{n}/index-{id}", index.id); // ALLOC: one key.
-        put_blob(target, &key, &json, "snapshots", scratch)?;
-        out.push(id);
-    }
-    Ok(out)
+    crate::stock_export_fence::fence(target, base, snapshot, &metadata, scratch)
 }

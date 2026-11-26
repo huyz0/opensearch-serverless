@@ -6,95 +6,15 @@
 
 use std::sync::Arc;
 
+mod stock_export_support;
+
+use stock_export_support::{PREFIX, Take, first, publish, shards, store};
+
 use oss_blob::{BlobStore, Emulator, ExportStore, S3Op, SliceSource};
 use oss_meta::{
-    ExportBase, ExportError, ExportIndex, ExportShard, ExportSnapshot, ExportTarget, ExportedFile,
-    MAX_ATTEMPTS, StockRepo, open_export_base, publish_snapshot,
+    ExportBase, ExportError, ExportIndex, ExportSnapshot, ExportTarget, MAX_ATTEMPTS, StockRepo,
+    open_export_base, publish_snapshot,
 };
-
-const PREFIX: &str = "repo/";
-
-fn file(blob: &str, physical: &str) -> ExportedFile {
-    ExportedFile {
-        name: blob.to_owned(),
-        physical_name: physical.to_owned(),
-        length: 40,
-        checksum: "abc".to_owned(),
-        written_by: "10.5.1".to_owned(),
-    }
-}
-
-fn shards(tag: &str, n: usize) -> Vec<ExportShard> {
-    (0..n)
-        .map(|s| ExportShard {
-            files: vec![
-                file(&format!("__{tag}{s}a"), "_0.cfs"),
-                file(&format!("__{tag}{s}b"), "segments_3"),
-            ],
-            index_version: 3,
-        })
-        .collect()
-}
-
-struct Take<'a> {
-    name: &'a str,
-    uuid: &'a str,
-    index: &'a str,
-    index_uuid: &'a str,
-    shards: Vec<ExportShard>,
-}
-
-fn publish(
-    store: &Arc<Emulator>,
-    base: Option<ExportBase>,
-    take: &Take<'_>,
-) -> Result<oss_meta::Published, ExportError> {
-    let export = ExportStore::new(store.clone(), PREFIX);
-    let target = ExportTarget {
-        store: &export,
-        prefix: PREFIX,
-    };
-    let base = match base {
-        Some(b) => b,
-        None => open_export_base(&target)?,
-    };
-    let id = base
-        .index_id(take.index)
-        .map_or_else(|| format!("ID{}", take.index), str::to_owned);
-    let settings = vec![("index.refresh_interval".to_owned(), "5s".to_owned())];
-    let index = ExportIndex {
-        name: take.index,
-        id: &id,
-        uuid: take.index_uuid,
-        creation_date_ms: 1_700_000_000_000,
-        mapping: Some(r#"{"properties":{"t":{"type":"text"}}}"#),
-        settings: &settings,
-        shards: &take.shards,
-    };
-    let indices = [index];
-    let snap = ExportSnapshot {
-        name: take.name,
-        uuid: take.uuid,
-        start_ms: 1_700_000_000_100,
-        end_ms: 1_700_000_000_900,
-        indices: &indices,
-    };
-    publish_snapshot(&target, base, &snap, &mut [0u8; 64])
-}
-
-fn first() -> Take<'static> {
-    Take {
-        name: "s1",
-        uuid: "U1",
-        index: "logs",
-        index_uuid: "XU1",
-        shards: shards("p", 2),
-    }
-}
-
-fn store() -> Arc<Emulator> {
-    Arc::new(Emulator::new(1 << 20, 1))
-}
 
 #[test]
 fn a_published_snapshot_reads_back_through_the_restore_readers() {
@@ -296,18 +216,29 @@ fn the_number_of_creates_a_take_tries_is_bounded() {
 }
 
 #[test]
-fn a_snapshot_costs_its_blobs_and_no_list_register_or_delete() {
+fn a_snapshot_costs_exactly_its_blobs_and_a_few_reads_and_no_list_register_or_delete() {
     let store = store();
-    let before = store.meter().count(S3Op::Put);
+    let count = |op| store.meter().count(op);
+    // First take of an index with two shards: two snapshot blobs, two
+    // generations, one index metadata, the snapshot's own, the global
+    // metadata, index-0 and index.latest; one read of the missing
+    // index.latest and one HEAD for a newer index blob.
     publish(&store, None, &first()).unwrap();
-    // Two shards: two snapshot blobs, two generations; one index metadata,
-    // the snapshot's own and the global metadata; index-0 and index.latest.
-    assert_eq!(
-        store.meter().count(S3Op::Put) - before,
-        2 + 2 + 1 + 1 + 1 + 1 + 1
-    );
-    for op in [S3Op::List, S3Op::Delete, S3Op::Copy] {
-        assert_eq!(store.meter().count(op), 0, "{op:?}");
+    assert_eq!(count(S3Op::Put), 2 + 2 + 1 + 1 + 1 + 1 + 1);
+    assert_eq!((count(S3Op::Get), count(S3Op::Head)), (1, 1));
+    // A second take of the held index adds the reads of index.latest, of
+    // index-0 and of each shard's previous generation.
+    let second = Take {
+        name: "s2",
+        uuid: "U2",
+        shards: shards("q", 2),
+        ..first()
+    };
+    publish(&store, None, &second).unwrap();
+    assert_eq!(count(S3Op::Put), 2 * (2 + 2 + 1 + 1 + 1 + 1 + 1));
+    assert_eq!((count(S3Op::Get), count(S3Op::Head)), (1 + 1 + 1 + 2, 2));
+    for op in [S3Op::List, S3Op::Delete, S3Op::Copy, S3Op::GetRange] {
+        assert_eq!(count(op), 0, "{op:?}");
     }
 }
 
@@ -330,4 +261,81 @@ fn the_base_says_where_the_repository_stands_and_which_ids_it_holds() {
     assert_eq!(held.generation(), Some(0));
     assert_eq!(held.index_id("logs"), Some("IDlogs"));
     assert_eq!(held.index_id("other"), None);
+}
+
+#[test]
+fn a_lost_race_does_not_put_a_shard_generation_again_when_its_base_is_unchanged() {
+    let store = store();
+    let stale = {
+        let export = ExportStore::new(store.clone(), PREFIX);
+        open_export_base(&ExportTarget {
+            store: &export,
+            prefix: PREFIX,
+        })
+        .unwrap()
+    };
+    publish(&store, Some(stale.clone()), &first()).unwrap();
+    let before = store.meter().count(S3Op::Put);
+    let other = Take {
+        name: "s2",
+        uuid: "U2",
+        index: "metrics",
+        index_uuid: "XU2",
+        shards: shards("m", 1),
+    };
+    let done = publish(&store, Some(stale), &other).unwrap();
+    assert_eq!(done.attempts, 2);
+    // One shard snapshot, index metadata, snapshot info, global metadata and
+    // one generation; the lost and the won create of index-N; index.latest.
+    assert_eq!(store.meter().count(S3Op::Put) - before, 5 + 2 + 1);
+}
+
+#[test]
+fn a_snapshot_of_more_indices_or_shards_than_a_restore_reads_is_refused_before_a_write() {
+    let settings: Vec<(String, String)> = Vec::new();
+    let go = |count: usize, shard_count: usize| {
+        let store = Arc::new(Emulator::new(64 << 20, 1));
+        let export = ExportStore::new(store.clone(), PREFIX);
+        let target = ExportTarget {
+            store: &export,
+            prefix: PREFIX,
+        };
+        let sh = shards("x", shard_count);
+        let names: Vec<(String, String, String)> = (0..count)
+            .map(|i| (format!("i{i}"), format!("ID{i}"), format!("XU{i}")))
+            .collect();
+        let indices: Vec<ExportIndex<'_>> = names
+            .iter()
+            .map(|(name, id, uuid)| ExportIndex {
+                name,
+                id,
+                uuid,
+                creation_date_ms: 1,
+                mapping: None,
+                settings: &settings,
+                shards: &sh,
+            })
+            .collect();
+        let snap = ExportSnapshot {
+            name: "s",
+            uuid: "U",
+            start_ms: 1,
+            end_ms: 2,
+            indices: &indices,
+        };
+        let got = publish_snapshot(&target, ExportBase::default(), &snap, &mut [0u8; 64]);
+        (got, store.object_count())
+    };
+    for (count, shards) in [(101, 1), (1, 4_097)] {
+        let (got, objects) = go(count, shards);
+        assert!(matches!(got, Err(ExportError::Unsupported(_))));
+        assert_eq!(
+            objects, 0,
+            "{count} indices of {shards} shards wrote something"
+        );
+    }
+    // The bounds themselves publish.
+    assert!(go(100, 1).0.is_ok());
+    let r = go(1, 4_096).0;
+    assert!(r.is_ok(), "{r:?}");
 }

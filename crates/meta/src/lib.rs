@@ -62,6 +62,7 @@ mod snapshot_restore;
 mod snapshot_take;
 mod snapshots;
 mod stock_export;
+mod stock_export_fence;
 mod stock_export_take;
 mod stock_fan;
 mod stock_plan;
