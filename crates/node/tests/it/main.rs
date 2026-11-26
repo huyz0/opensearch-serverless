@@ -24,6 +24,7 @@ mod never_written;
 mod open_prefetch;
 mod open_prefetch_layout;
 mod rank_eval;
+mod rescore;
 mod script_fields;
 mod script_sort;
 mod search;

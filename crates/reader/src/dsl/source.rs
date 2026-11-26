@@ -111,6 +111,8 @@ pub struct SearchSource {
     pub seq_no_primary_term: bool,
     /// `highlight`: the fields whose matches each hit marks.
     pub highlight: Option<HighlightSpec>,
+    /// `rescore`: the second passes over the best hits, in order.
+    pub rescore: Vec<crate::dsl::rescore::Rescorer>,
     /// `pit`: the point in time the search runs on.
     pub pit: Option<PitRef>,
     /// Set by a search pipeline's `truncate_hits`: the hits answered are
@@ -164,6 +166,8 @@ impl Default for SearchSource {
             version: false,
             seq_no_primary_term: false,
             highlight: None,
+            // ALLOC: empty; parsing pushes one a rescorer.
+            rescore: Vec::new(),
             pit: None,
             response_size_cap: None,
             search_pipeline: None,
@@ -287,6 +291,7 @@ impl SearchSource {
             "post_filter" => self.post_filter = Some(parse_inner(p)?),
             "pit" => self.pit = Some(parse_pit(p)?),
             "script_fields" => self.script_fields = crate::fetch::script_fields::parse(p)?,
+            "rescore" => self.rescore = crate::dsl::rescore::parse_object(p)?,
             known if OBJECT_KEYS.contains(&known) => return Err(unsupported(known)),
             _ => return Err(unknown_key(p, Kind::StartObject, name)),
         }
@@ -299,6 +304,7 @@ impl SearchSource {
             "_source" => self.source = parse_source(p, name)?,
             "search_after" => self.search_after = parse_search_after(p)?,
             "docvalue_fields" => self.docvalue_fields = parse_docvalue_fields(p)?,
+            "rescore" => self.rescore = crate::dsl::rescore::parse_array(p)?,
             known if ARRAY_KEYS.contains(&known) => return Err(unsupported(known)),
             _ => return Err(unknown_key(p, Kind::StartArray, name)),
         }

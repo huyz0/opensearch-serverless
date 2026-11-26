@@ -238,3 +238,6 @@ src/aggs/bucket/nested_under_terms_tests.rs	new		tests of nested and reverse_nes
 src/fetch/script_fields.rs	port	server/src/main/java/org/opensearch/search/fetch/subphase/ScriptFieldsPhase.java@3.10.0	the script_fields parser and the per-hit value for lang expression only
 src/shard_ref.rs	port	server/src/main/java/org/opensearch/index/query/functionscore/RandomScoreFunctionBuilder.java@3.10.0	the salt a random score mixes into its seed: the index name's hash and the shard
 src/dsl/queries/function_score_random.rs	port	server/src/main/java/org/opensearch/index/query/functionscore/RandomScoreFunctionBuilder.java@3.10.0	fromXContent and doToFunction of random_score
+src/search_rescore.rs	port	server/src/main/java/org/opensearch/search/rescore/RescoreProcessor.java@3.10.0	rescore after the first pass: the windows, the rescorers in order, from dropped after
+src/dsl/rescore.rs	port	server/src/main/java/org/opensearch/search/rescore/QueryRescorerBuilder.java@3.10.0	fromXContent of the rescore array and its query rescorer
+src/dsl/rescore_tests.rs	new		tests of rescore.rs
