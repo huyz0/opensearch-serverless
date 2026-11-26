@@ -15,6 +15,7 @@ use oss_format::{FileLocation, IndexRecord, ManifestEntry, ShardRef, encode_mani
 use oss_mem::{BudgetConfig, MemoryBudget, Pool};
 use oss_meta::{DeleteMode, DescriptorStore};
 use oss_node::index_delete::{DeleteService, NoSnapshots};
+use oss_node::restore_background::{BackgroundRestores, Settings};
 use oss_node::snapshot_restore_route::{SnapshotRestoreService, routes as restore_routes};
 use oss_node::snapshot_route::{SnapshotService, routes};
 use oss_node::snapshot_take_route::SnapshotTakeService;
@@ -28,6 +29,9 @@ pub(crate) struct Rig {
     pub(crate) server: Server,
     pub(crate) store: Arc<Emulator>,
     pub(crate) descriptors: DescriptorStore,
+    pub(crate) budget: MemoryBudget,
+    pub(crate) restores: Arc<BackgroundRestores>,
+    pub(crate) deletes: Arc<DeleteService>,
 }
 
 pub(crate) fn rig(restore: bool) -> Rig {
@@ -51,6 +55,18 @@ pub(crate) fn rig_stock(
     pool: usize,
     chunk: usize,
     stock: StockRestoreSettings,
+) -> Rig {
+    rig_full(restore, system, pool, chunk, stock, Settings::off())
+}
+
+/// A rig whose restores run in the background as `background` says.
+pub(crate) fn rig_full(
+    restore: bool,
+    system: &str,
+    pool: usize,
+    chunk: usize,
+    stock: StockRestoreSettings,
+    background: Settings,
 ) -> Rig {
     let store = Arc::new(Emulator::new(1 << 28, 5));
     let blobs = Arc::clone(&store) as Arc<dyn BlobStore>;
@@ -81,6 +97,12 @@ pub(crate) fn rig_stock(
         )
         .unwrap(),
     );
+    let removes = Arc::clone(&deletes);
+    let config = BudgetConfig::new(256 << 20)
+        .with_pool(Pool::RequestBodies, pool)
+        .expect("fits");
+    let budget = MemoryBudget::new(&config);
+    let restores = BackgroundRestores::new(background, budget.clone());
     let restorer = Arc::new(
         SnapshotRestoreService::new(
             Arc::clone(&blobs),
@@ -94,21 +116,21 @@ pub(crate) fn rig_stock(
         .with_system_indices(Arc::new(
             oss_coordinator::system_indices::SystemIndices::parse(system),
         ))
+        .with_background(Arc::clone(&restores))
         .with_stock(stock),
     );
     let router = routes(Router::new(), &service, Some(&taker)).expect("routes");
     let router = restore_routes(router, restorer).expect("restore routes");
     let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
-    let config = BudgetConfig::new(256 << 20)
-        .with_pool(Pool::RequestBodies, pool)
-        .expect("fits");
-    let budget = MemoryBudget::new(&config);
     let server =
         Server::start(listener, support::server_config(), router, &budget).expect("starts");
     Rig {
         server,
         store,
         descriptors: descriptors(),
+        budget,
+        restores,
+        deletes: removes,
     }
 }
 
@@ -170,7 +192,11 @@ pub(crate) fn read(r: &Rig, key: &str) -> Vec<u8> {
 /// A rig holding a shallow snapshot `daily` of `logs`, whose two shards
 /// each hold one file of seven bytes.
 pub(crate) fn taken(restore: bool) -> Rig {
-    let r = rig(restore);
+    seed(rig(restore))
+}
+
+/// `r` with the repository registered and the snapshot `daily` taken.
+pub(crate) fn seed(r: Rig) -> Rig {
     let body =
         r#"{"type":"fs","settings":{"location":"x","remote_store_index_shallow_copy":true}}"#;
     assert_eq!(

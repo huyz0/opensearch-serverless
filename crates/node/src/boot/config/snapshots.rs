@@ -29,6 +29,12 @@ pub struct SnapshotConfig {
     pub stock_export_fs_roots: String,
     /// `OSS_STOCK_EXPORT_S3_ROOTS`: comma-separated `bucket` or `bucket/prefix` roots an export may write a stock `s3` repository under; none by default.
     pub stock_export_s3_roots: String,
+    /// `serverless.snapshots.restore.background.enabled`: answer a restore that does not wait once its checks pass and copy on a thread. Off by default: a failure is no longer returned to the caller.
+    pub restore_background: bool,
+    /// `OSS_SNAPSHOTS_RESTORE_BACKGROUND_MAX`: the most background restores copying at once, 1 to 16.
+    pub restore_background_max: usize,
+    /// `OSS_SNAPSHOTS_RESTORE_BACKGROUND_GRACE_MILLIS`: how long a shutdown waits for a background copy to stop.
+    pub restore_background_grace_millis: u64,
 }
 
 /// The most metadata blobs a stock restore reads at once.
@@ -47,6 +53,15 @@ pub(in crate::boot) fn read(
             "OSS_STOCK_RESTORE_FANOUT [{fanout}] is not between 1 and {MAX_FANOUT}"
         ));
     }
+    let background_max: usize = or("OSS_SNAPSHOTS_RESTORE_BACKGROUND_MAX", "2")
+        .parse()
+        .map_err(|e| format!("OSS_SNAPSHOTS_RESTORE_BACKGROUND_MAX: {e}"))?;
+    if !(1..=crate::restore_background::MAX_RUNNING).contains(&background_max) {
+        return Err(format!(
+            "OSS_SNAPSHOTS_RESTORE_BACKGROUND_MAX [{background_max}] is not between 1 and {}",
+            crate::restore_background::MAX_RUNNING
+        ));
+    }
     Ok(SnapshotConfig {
         enabled: flag("OSS_SNAPSHOTS_ENABLED", "true")?,
         take: flag("OSS_SNAPSHOTS_TAKE_ENABLED", "true")?,
@@ -59,6 +74,14 @@ pub(in crate::boot) fn read(
         stock_export: flag("OSS_SNAPSHOTS_STOCK_EXPORT_ENABLED", "false")?,
         stock_export_fs_roots: or("OSS_STOCK_EXPORT_FS_ROOTS", ""),
         stock_export_s3_roots: or("OSS_STOCK_EXPORT_S3_ROOTS", ""),
+        restore_background: flag("OSS_SNAPSHOTS_RESTORE_BACKGROUND_ENABLED", "false")?,
+        restore_background_max: background_max,
+        restore_background_grace_millis: or(
+            "OSS_SNAPSHOTS_RESTORE_BACKGROUND_GRACE_MILLIS",
+            "30000",
+        )
+        .parse()
+        .map_err(|e| format!("OSS_SNAPSHOTS_RESTORE_BACKGROUND_GRACE_MILLIS: {e}"))?,
     })
 }
 
@@ -70,9 +93,16 @@ pub(in crate::boot) fn apply(from: &NodeConfig, to: &mut crate::assemble::Config
     to.system_index_patterns
         .clone_from(&from.snapshots.system_index_patterns);
     to.snapshots_stock = from.snapshots.stock;
-    to.stock_fs_roots.clone_from(&from.snapshots.stock_fs_roots);
-    to.stock_s3_roots.clone_from(&from.snapshots.stock_s3_roots);
+    to.stock_roots = (
+        from.snapshots.stock_fs_roots.clone(),
+        from.snapshots.stock_s3_roots.clone(),
+    );
     to.stock_fanout = from.snapshots.stock_fanout;
+    to.restore_background = crate::restore_background::Settings {
+        enabled: from.snapshots.restore_background,
+        max: from.snapshots.restore_background_max,
+        grace: std::time::Duration::from_millis(from.snapshots.restore_background_grace_millis),
+    };
     to.snapshots_stock_export = from.snapshots.stock_export;
     to.stock_export_roots = (
         from.snapshots.stock_export_fs_roots.clone(),
@@ -192,6 +222,51 @@ mod tests {
     }
 
     #[test]
+    fn the_background_restore_is_off_with_two_and_thirty_seconds_until_set() {
+        let defaults = config(&[]);
+        assert!(!defaults.restore_background);
+        assert_eq!(defaults.restore_background_max, 2);
+        assert_eq!(defaults.restore_background_grace_millis, 30_000);
+        let set = config(&[
+            ("OSS_SNAPSHOTS_RESTORE_BACKGROUND_ENABLED", "true"),
+            ("OSS_SNAPSHOTS_RESTORE_BACKGROUND_MAX", "16"),
+            ("OSS_SNAPSHOTS_RESTORE_BACKGROUND_GRACE_MILLIS", "5"),
+        ]);
+        assert!(set.restore_background);
+        assert_eq!(set.restore_background_max, 16);
+        assert_eq!(set.restore_background_grace_millis, 5);
+        for (key, bad) in [
+            ("OSS_SNAPSHOTS_RESTORE_BACKGROUND_MAX", "0"),
+            ("OSS_SNAPSHOTS_RESTORE_BACKGROUND_MAX", "17"),
+            ("OSS_SNAPSHOTS_RESTORE_BACKGROUND_MAX", "x"),
+            ("OSS_SNAPSHOTS_RESTORE_BACKGROUND_GRACE_MILLIS", "soon"),
+            ("OSS_SNAPSHOTS_RESTORE_BACKGROUND_GRACE_MILLIS", "-1"),
+            ("OSS_SNAPSHOTS_RESTORE_BACKGROUND_ENABLED", "yes"),
+        ] {
+            assert!(
+                NodeConfig::from_lookup(lookup(&with(&[(key, bad)]))).is_err(),
+                "{key}={bad}"
+            );
+        }
+        let from = NodeConfig::from_lookup(lookup(&with(&[
+            ("OSS_SNAPSHOTS_RESTORE_BACKGROUND_ENABLED", "true"),
+            ("OSS_SNAPSHOTS_RESTORE_BACKGROUND_MAX", "3"),
+            ("OSS_SNAPSHOTS_RESTORE_BACKGROUND_GRACE_MILLIS", "7"),
+        ])))
+        .expect("valid");
+        let mut to = crate::assemble::Config::new("", "n1", [0; 6]);
+        super::apply(&from, &mut to);
+        assert_eq!(
+            to.restore_background,
+            crate::restore_background::Settings {
+                enabled: true,
+                max: 3,
+                grace: std::time::Duration::from_millis(7)
+            }
+        );
+    }
+
+    #[test]
     fn the_system_index_patterns_are_read_as_given() {
         assert_eq!(config(&[]).system_index_patterns, "");
         let set = config(&[("OSS_SYSTEM_INDEX_PATTERNS", ".kibana*,.tasks")]);
@@ -223,8 +298,8 @@ mod tests {
         assert!(to.snapshots_stock);
         assert_eq!(
             (
-                to.stock_fs_roots.as_str(),
-                to.stock_s3_roots.as_str(),
+                to.stock_roots.0.as_str(),
+                to.stock_roots.1.as_str(),
                 to.stock_fanout
             ),
             ("/srv", "b/p", 3)

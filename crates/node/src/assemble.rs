@@ -77,12 +77,12 @@ pub struct Config {
     pub snapshots_take: bool,
     /// Whether a shallow snapshot can be restored: `serverless.snapshots.restore.enabled`.
     pub snapshots_restore: bool,
+    /// `serverless.snapshots.restore.background.*`: a restore may copy on a thread of its own.
+    pub restore_background: crate::restore_background::Settings,
     /// `serverless.snapshots.stock.enabled`: restore from a stock OpenSearch repository, beside `snapshots_restore`.
     pub snapshots_stock: bool,
-    /// `OSS_STOCK_REPO_ROOTS`: the directories a stock `fs` repository may sit under.
-    pub stock_fs_roots: String,
-    /// `OSS_STOCK_REPO_S3_ROOTS`: the `bucket/prefix` roots a stock `s3` repository may sit under.
-    pub stock_s3_roots: String,
+    /// `OSS_STOCK_REPO_ROOTS` and `OSS_STOCK_REPO_S3_ROOTS`: where a stock repository may sit.
+    pub stock_roots: (String, String),
     /// `OSS_STOCK_RESTORE_FANOUT`: how many metadata blobs a stock restore reads at once.
     pub stock_fanout: usize,
     /// `serverless.snapshots.stock.export.enabled`: export a snapshot into a stock repository.
@@ -170,9 +170,9 @@ impl Config {
             snapshots: false,
             snapshots_take: false,
             snapshots_restore: false,
+            restore_background: crate::restore_background::Settings::off(),
             snapshots_stock: false,
-            stock_fs_roots: String::new(),
-            stock_s3_roots: String::new(),
+            stock_roots: (String::new(), String::new()),
             stock_fanout: 8,
             snapshots_stock_export: false,
             stock_export_roots: (String::new(), String::new()),
@@ -444,16 +444,16 @@ pub fn assemble(
     let (router, _sec) = crate::admin_assemble::register(router, &store, config, budget)?;
     #[cfg(feature = "coordinator")]
     let (router, drain) = {
-        use crate::index_assemble::{index_service, pin_policy, stream_routes};
+        use crate::index_assemble::{index_service, pin_policy, restore_routes, stream_routes};
         let pins = pin_policy(config, &store, budget, _sec)?;
         let indices = index_service(config, &store, &clock, bucket_wiring.as_ref(), pins)?;
         let aliases = crate::index_assemble::alias_service(config, &store, &clock)?;
         let router = crate::alias_route::routes(router, aliases).map_err(AssembleError::Route)?;
         let deletes =
             crate::index_assemble::delete_service(config, &store, &clock, bucket_wiring.as_ref())?;
-        let router =
-            crate::index_assemble::restore_routes(router, config, &store, &clock, &deletes)?;
-        let drain = DrainTimer::spawn(Arc::clone(&deletes), config.reclaim_every);
+        let (router, restores) = restore_routes(router, config, &store, &clock, &deletes, budget)?;
+        let drain =
+            DrainTimer::spawn(Arc::clone(&deletes), config.reclaim_every).with_restores(restores);
         let router = crate::index_assemble::settings_routes(router, config, &store, &role)?;
         let router = stream_routes(router, config, &store, &clock, &indices, &deletes, &search)?;
         let router = index_route::routes(router, indices).map_err(AssembleError::Route)?;

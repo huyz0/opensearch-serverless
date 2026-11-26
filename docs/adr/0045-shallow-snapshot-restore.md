@@ -21,4 +21,5 @@
 
 - Easier: a deployment can bring a snapshot back without a Java node, and the stuck-take and delete paths already exist.
 - Harder: a restore of a large index costs requests and bandwidth in proportion to its files; a crash mid-restore leaves an index whose shards are partly empty (the Java has the same hazard); the first-term directory of the new index is written by the restore, not by a writer.
+- A restore may run on its own thread behind a switch: [ADR 0063](0063-a-restore-may-run-in-the-background.md).
 - Rules out for now: restoring into a running cluster's existing index, a partial restore of an index's shards, and any restore without copying.
