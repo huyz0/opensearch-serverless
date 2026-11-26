@@ -74,6 +74,7 @@ fn run(peers: usize, parallel: usize, pool_bytes: usize) -> (Vec<Outcome>, usize
             max_shards: 1,
             max_bytes: 1,
             bytes_per_second: 1,
+            open_parallel: 1,
         },
         parallel_peers: parallel,
         pool: Pool::Transport,

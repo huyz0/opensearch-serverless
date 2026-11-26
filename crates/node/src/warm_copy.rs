@@ -105,18 +105,21 @@ pub struct Settings<'a> {
     pub max_bytes: i64,
     /// The most bytes taken a second; at least 1.
     pub bytes_per_second: u64,
+    /// The most of the peer's shards opened at once; at least 1.
+    pub open_parallel: usize,
 }
 
-/// Opens the shards a peer named, up to `OPEN_PARALLEL` at once, answers in
+/// Opens the shards a peer named, up to `parallel` at once, answers in
 /// the peer's order. Opening one reads its commit from the store, so a long
 /// list one after another is a chain of round trips as long as the list;
 /// side by side it takes as long as the list divided by the workers.
 fn open_shards(
     shards: &(dyn Shards + Sync),
     named: &[(ShardRef, Vec<HotFile>)],
+    parallel: usize,
 ) -> Vec<Option<Arc<Expected>>> {
     let next = AtomicUsize::new(0);
-    let workers = OPEN_PARALLEL.min(named.len());
+    let workers = parallel.max(1).min(named.len());
     // ALLOC: one slot per shard named, bounded by the request's max_shards.
     let mut opened: Vec<Option<Arc<Expected>>> = vec![None; named.len()];
     std::thread::scope(|scope| {
@@ -146,9 +149,6 @@ fn open_shards(
     });
     opened
 }
-
-/// The most of the peer's shards opened at once.
-pub const OPEN_PARALLEL: usize = 16;
 
 fn pause_for(bytes: u64, rate: u64) -> Duration {
     Duration::from_nanos(
@@ -186,7 +186,7 @@ pub fn copy_from_peer(
     let mut wanted: Vec<(PageAsk, u64)> = Vec::new();
     let mut accepts: Vec<Arc<Expected>> = Vec::new();
     let mut owners: Vec<usize> = Vec::new();
-    let opened = open_shards(shards, &listed.shards);
+    let opened = open_shards(shards, &listed.shards, settings.open_parallel);
     for ((_, files), expected) in listed.shards.iter().zip(opened) {
         let Some(expected) = expected else {
             continue;

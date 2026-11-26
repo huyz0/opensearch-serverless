@@ -7,14 +7,25 @@
 //! a score sort descending.
 
 use crate::dsl::error::DslError;
+use crate::dsl::query::{Query, parse_inner};
 use crate::dsl::tokens::{Kind, Parser};
 use crate::dsl::values::suggest;
 
 /// The most sort keys a request may name.
 pub const MAX_SORT_KEYS: usize = 16;
 
+/// The nested object a sort key orders its parents by the children of
+/// (`NestedSortBuilder`): the path, and the filter the children match.
+#[derive(Clone, Debug, PartialEq)]
+pub struct NestedSort {
+    /// The nested object's full path.
+    pub path: String,
+    /// What a child must match to count; every child counts without one.
+    pub filter: Option<Query>,
+}
+
 /// One sort key.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum SortKey {
     /// By score.
     Score {
@@ -27,6 +38,8 @@ pub enum SortKey {
         field: String,
         /// Lowest first.
         ascending: bool,
+        /// The nested object whose children give the value, if one is named.
+        nested: Option<NestedSort>,
     },
 }
 
@@ -40,6 +53,7 @@ impl SortKey {
                 // ALLOC: one name a sort key, at most MAX_SORT_KEYS.
                 field: name.to_owned(),
                 ascending: true,
+                nested: None,
             }
         }
     }
@@ -47,7 +61,11 @@ impl SortKey {
     fn with_order(self, ascending: bool) -> Self {
         match self {
             SortKey::Score { .. } => SortKey::Score { ascending },
-            SortKey::Field { field, .. } => SortKey::Field { field, ascending },
+            SortKey::Field { field, nested, .. } => SortKey::Field {
+                field,
+                ascending,
+                nested,
+            },
         }
     }
 }
@@ -156,9 +174,13 @@ fn options(p: &mut Parser<'_>, name: &str) -> Result<SortKey, DslError> {
         ));
     }
     let mut key = SortKey::named(name);
+    // `nested_path` and `nested_filter` are one form, `nested` the other.
+    let (mut legacy, mut modern) = (false, false);
+    let (mut path, mut filter) = (None, None);
+    let mut nested = None;
     loop {
         match p.next_token() {
-            Some(Kind::EndObject) | None => return Ok(key),
+            Some(Kind::EndObject) | None => break,
             Some(Kind::FieldName) => {}
             Some(_) => continue,
         }
@@ -176,13 +198,82 @@ fn options(p: &mut Parser<'_>, name: &str) -> Result<SortKey, DslError> {
             ));
         }
         p.next_token();
-        if field != "order" {
-            p.skip_children();
-            // ALLOC: error path; one message.
-            return Err(DslError::unsupported(&format!("[{parser_name}] [{field}]")));
+        match field {
+            "order" => key = key.with_order(order(p.text())?),
+            "nested" => {
+                modern = true;
+                nested = nested_sort(p)?;
+            }
+            // ALLOC: one path a sort key.
+            "nested_path" => {
+                legacy = true;
+                path = Some(p.text().to_owned());
+            }
+            "nested_filter" => {
+                legacy = true;
+                filter = Some(parse_inner(p)?);
+            }
+            _ => {
+                p.skip_children();
+                // ALLOC: error path; one message.
+                return Err(DslError::unsupported(&format!("[{parser_name}] [{field}]")));
+            }
         }
-        key = key.with_order(order(p.text())?);
+        if legacy && modern {
+            return Err(DslError::illegal(
+                "Setting both nested_path/nested_filter and nested not allowed",
+            ));
+        }
     }
+    if let (SortKey::Field { nested: slot, .. }, Some(path)) = (&mut key, path) {
+        *slot = Some(NestedSort { path, filter });
+    } else if let SortKey::Field { nested: slot, .. } = &mut key {
+        *slot = nested;
+    }
+    Ok(key)
+}
+
+/// `NestedSortBuilder.fromXContent`, with the parser on the value: the
+/// path and the filter; `max_children` and a nested `nested` are refused.
+/// A nested sort with no path is no nested sort, as `resolveNestedQuery`
+/// has it.
+fn nested_sort(p: &mut Parser<'_>) -> Result<Option<NestedSort>, DslError> {
+    if p.current_token() != Some(Kind::StartObject) {
+        return Err(DslError::illegal(
+            "malformed nested sort format, must start with an object",
+        ));
+    }
+    let (mut path, mut filter) = (None, None);
+    loop {
+        match p.next_token() {
+            Some(Kind::EndObject) | None => break,
+            Some(Kind::FieldName) => {}
+            Some(_) => {
+                return Err(DslError::illegal(
+                    "malformed nested sort format, only field names are allowed",
+                ));
+            }
+        }
+        let name = p.text();
+        p.next_token();
+        match name {
+            // ALLOC: one path a sort key.
+            "path" => path = Some(p.text().to_owned()),
+            "filter" => filter = Some(parse_inner(p)?),
+            "max_children" | "nested" => {
+                p.skip_children();
+                // ALLOC: error path; one message.
+                return Err(DslError::unsupported(&format!("[nested] [{name}]")));
+            }
+            other => {
+                // ALLOC: error path; one message.
+                return Err(DslError::illegal(format!(
+                    "malformed nested sort format, unknown field name [{other}]"
+                )));
+            }
+        }
+    }
+    Ok(path.map(|path| NestedSort { path, filter }))
 }
 
 #[cfg(test)]
@@ -205,6 +296,7 @@ mod tests {
         SortKey::Field {
             field: f.into(),
             ascending,
+            nested: None,
         }
     }
 
@@ -266,5 +358,73 @@ mod tests {
         assert!(reason(sort(&many)).starts_with("too many sort keys"));
         let at_limit = format!("[{}]", vec!["\"a\""; MAX_SORT_KEYS].join(","));
         assert_eq!(sort(&at_limit).map(|k| k.len()).ok(), Some(MAX_SORT_KEYS));
+    }
+
+    fn nested_of(doc: &str) -> Option<NestedSort> {
+        match sort(doc).expect("parses").remove(0) {
+            SortKey::Field { nested, .. } => nested,
+            other => panic!("not a field sort: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_nested_sort_names_its_path_and_filter_in_either_form() {
+        let path = |p: &str| NestedSort {
+            path: p.into(),
+            filter: None,
+        };
+        assert_eq!(
+            nested_of(r#"{"c.w":{"nested":{"path":"c"}}}"#),
+            Some(path("c"))
+        );
+        assert_eq!(nested_of(r#"{"c.w":{"nested_path":"c"}}"#), Some(path("c")));
+        assert_eq!(nested_of(r#"{"c.w":{"order":"desc"}}"#), None);
+        // Without a path there is no nested sort, as `resolveNestedQuery` has it.
+        assert_eq!(nested_of(r#"{"c.w":{"nested":{}}}"#), None);
+        let filtered =
+            nested_of(r#"{"c.w":{"nested":{"path":"c","filter":{"term":{"c.w":"x"}}}}}"#)
+                .expect("nested");
+        assert_eq!(filtered.path, "c");
+        assert!(filtered.filter.is_some());
+        let legacy =
+            nested_of(r#"{"c.w":{"nested_path":"c","nested_filter":{"term":{"c.w":"x"}}}}"#)
+                .expect("nested");
+        assert_eq!(legacy, filtered);
+    }
+
+    #[test]
+    fn a_malformed_nested_sort_fails_as_opensearch_does() {
+        assert_eq!(
+            reason(sort(r#"{"c.w":{"nested":{"path":"c"},"nested_path":"c"}}"#)),
+            "Setting both nested_path/nested_filter and nested not allowed"
+        );
+        assert_eq!(
+            reason(sort(
+                r#"{"c.w":{"nested_filter":{"match_all":{}},"nested":{"path":"c"}}}"#
+            )),
+            "Setting both nested_path/nested_filter and nested not allowed"
+        );
+        assert_eq!(
+            reason(sort(r#"{"c.w":{"nested":{"path":"c","pth":"d"}}}"#)),
+            "malformed nested sort format, unknown field name [pth]"
+        );
+        assert_eq!(
+            reason(sort(r#"{"c.w":{"nested":"c"}}"#)),
+            "malformed nested sort format, must start with an object"
+        );
+    }
+
+    #[test]
+    fn what_a_nested_sort_does_not_serve_is_refused_by_name() {
+        assert_eq!(
+            reason(sort(r#"{"c.w":{"nested":{"path":"c","max_children":1}}}"#)),
+            "[nested] [max_children] is not supported by this node yet"
+        );
+        assert_eq!(
+            reason(sort(
+                r#"{"c.w":{"nested":{"path":"c","nested":{"path":"d"}}}}"#
+            )),
+            "[nested] [nested] is not supported by this node yet"
+        );
     }
 }

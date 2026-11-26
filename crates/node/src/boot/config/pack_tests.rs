@@ -25,6 +25,8 @@ fn a_pack_size_outside_its_bounds_is_refused() {
         ("OSS_NODE_PACK_MAX_BLOB_BYTES", "67108865"),
         ("OSS_NODE_PACK_LINGER_MS", "0"),
         ("OSS_NODE_PACK_LINGER_MS", "5001"),
+        ("OSS_NODE_PACK_PUBLISH_THREADS", "0"),
+        ("OSS_NODE_PACK_PUBLISH_THREADS", "65"),
     ] {
         assert!(
             NodeConfig::from_lookup(lookup(&with(&[(name, value)]))).is_err(),
@@ -36,6 +38,8 @@ fn a_pack_size_outside_its_bounds_is_refused() {
         ("OSS_NODE_PACK_MAX_BLOB_BYTES", "67108864"),
         ("OSS_NODE_PACK_LINGER_MS", "1"),
         ("OSS_NODE_PACK_LINGER_MS", "5000"),
+        ("OSS_NODE_PACK_PUBLISH_THREADS", "1"),
+        ("OSS_NODE_PACK_PUBLISH_THREADS", "64"),
     ] {
         assert!(
             NodeConfig::from_lookup(lookup(&with(&[(name, value)]))).is_ok(),
