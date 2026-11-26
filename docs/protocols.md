@@ -9,7 +9,7 @@ What a client can speak to the Rust node and to the Java shell (`huyz0/OpenSearc
 | HTTP/1.1 | yes | yes | yes |
 | HTTP/2 clear text (h2c) | **yes**, in a build with the `edge` feature and `OSS_EDGE_H2C_ADDR` set | yes, on both of its HTTP transports | already on |
 | HTTP/2 over TLS (ALPN `h2`) | **yes**, with the `edge` feature, `OSS_EDGE_TLS_ADDR` and a certificate and key | **no**, the shell has no TLS of its own | yes, once a plugin supplies TLS parameters (the security plugin does) |
-| HTTP/3 (QUIC, ALPN `h3`) | **no** | **no**, off by default and TLS only | yes: `http.protocol.http3.enabled: true` with TLS parameters, and a platform with the QUIC native library |
+| HTTP/3 (QUIC, ALPN `h3`) | **yes**: `OSS_EDGE_H3_ADDR` (UDP) with the certificate and key; 0-RTT off, `Retry` address validation on, `Alt-Svc` on the `tls` listener ([spec](specs/http3-front/SPEC.md)) | **no**, off by default and TLS only | yes: `http.protocol.http3.enabled: true` with TLS parameters, and a platform with the QUIC native library |
 | gRPC | **partly**: `OSS_EDGE_GRPC_ADDR` serves the health service and refuses the rest as `UNIMPLEMENTED`; Bulk and Search follow ([spec](specs/grpc-front/SPEC.md)) | **yes** with `aux.transport.types: [transport-grpc]` and the plugin; before the shell change below it registered and never started | one setting |
 
 ## Evidence
@@ -45,5 +45,5 @@ By code, at `feature/serverlessshell` `e71d4233`. The shell picks its HTTP trans
 1. **Rust: HTTP/2 and inbound TLS.** Done (the `edge` feature). [ADR 0058](adr/0058-modern-protocols-front.md), decisions 1 to 5.
 2. **Java: start the gRPC auxiliary transport.** Done (the shell change above).
 3. **Rust: gRPC**, on the HTTP/2 front, serving the services upstream serves. ADR 0058, decision 6.
-4. **Rust: HTTP/3.** QUIC and a certificate; last because it needs everything above.
+4. **Rust: HTTP/3.** Built: `quinn` and `h3` behind `OSS_EDGE_H3_ADDR`, bridged like HTTP/2 ([spec](specs/http3-front/SPEC.md)). `curl --http3` against it is NOT-RUN where curl lacks HTTP/3.
 5. **Java: TLS of its own**, if a deployment wants HTTP/3 or ALPN `h2` without the security plugin. Not planned: it needs a decision on where certificates come from; options are in the spec.

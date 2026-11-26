@@ -8,6 +8,8 @@
 
 mod config;
 mod grpc;
+mod h3stream;
+mod quic;
 mod serve;
 mod stream;
 mod tls;
@@ -15,14 +17,18 @@ mod translate;
 mod upstream;
 
 use std::io;
-use std::net::{SocketAddr, TcpListener};
+use std::net::{SocketAddr, TcpListener, UdpSocket};
 use std::sync::Arc;
 
+use http::HeaderValue;
 use oss_mem::{Exhausted, MemoryBudget, Pool, Reservation};
 use tokio::runtime::{Builder, Runtime};
 use tokio::sync::{Semaphore, watch};
 
-pub use config::{DEFAULT_GRPC_MESSAGE, EdgeConfig, MIN_STREAM_BUFFER, STREAMS_PER_CONNECTION};
+pub use config::{
+    DEFAULT_GRPC_MESSAGE, DEFAULT_H3_OVERHEAD, EdgeConfig, H3_ENDPOINT_BYTES, MIN_STREAM_BUFFER,
+    STREAMS_PER_CONNECTION,
+};
 /// The query types the gRPC front maps, for the node's own tests.
 #[doc(hidden)]
 pub use grpc::query::COVERED_QUERIES;
@@ -55,6 +61,8 @@ pub struct Edge {
     stop: watch::Sender<bool>,
     h2c: Option<SocketAddr>,
     tls: Option<SocketAddr>,
+    h3: Option<SocketAddr>,
+    retries: quic::Retries,
     grpc: Option<SocketAddr>,
     _reservation: Reservation,
 }
@@ -74,12 +82,28 @@ impl Edge {
             }
             _ => None,
         };
+        let quic_crypto = match (&config.cert, &config.key, config.h3) {
+            (Some(cert), Some(key), Some(_)) => Some(tls::quic(cert, key).map_err(EdgeError::Tls)?),
+            _ => None,
+        };
         let reservation = budget
             .try_reserve(Pool::RequestBodies, config.charge())
             .map_err(EdgeError::Memory)?;
         let h2c = config.h2c.map(TcpListener::bind).transpose()?;
         let tls_listener = config.tls.map(TcpListener::bind).transpose()?;
         let grpc_listener = config.grpc.map(TcpListener::bind).transpose()?;
+        let h3_socket = config.h3.map(UdpSocket::bind).transpose()?;
+        if let Some(s) = &h3_socket {
+            s.set_nonblocking(true)?;
+        }
+        let h3_addr = h3_socket.as_ref().map(UdpSocket::local_addr).transpose()?;
+        // The port a client is told to use is the one the socket bound.
+        // ALLOC: one short header value at start.
+        let alt_svc = h3_addr
+            .map(|a| HeaderValue::from_str(&format!("h3=\":{}\"; ma=86400", a.port())))
+            .transpose()
+            // ALLOC: error text at start, once.
+            .map_err(|e| EdgeError::Config(format!("alt-svc value: {e}")))?;
         if grpc_listener.is_some() {
             grpc::schema::warm();
         }
@@ -105,6 +129,7 @@ impl Edge {
             .enable_all()
             .build()?;
         let (stop, watcher) = watch::channel(false);
+        let retries = quic::Retries::default();
         let shared = Arc::new(stream::Shared {
             streams: Arc::new(Semaphore::new(config.max_streams)),
             connections: Arc::new(Semaphore::new(config.max_connections)),
@@ -118,6 +143,7 @@ impl Edge {
                     l,
                     None,
                     serve::Kind::Http,
+                    None,
                     Arc::clone(&shared),
                     watcher.clone(),
                 ));
@@ -128,6 +154,7 @@ impl Edge {
                     l,
                     Some(a),
                     serve::Kind::Http,
+                    alt_svc,
                     Arc::clone(&shared),
                     watcher.clone(),
                 ));
@@ -138,7 +165,17 @@ impl Edge {
                     l,
                     acceptor,
                     serve::Kind::Grpc,
+                    None,
                     Arc::clone(&shared),
+                    watcher.clone(),
+                ));
+            }
+            if let (Some(socket), Some(crypto)) = (h3_socket, quic_crypto) {
+                let endpoint = quic::endpoint(socket, crypto, &shared)?;
+                runtime.spawn(quic::accept_loop(
+                    endpoint,
+                    Arc::clone(&shared),
+                    Arc::clone(&retries),
                     watcher.clone(),
                 ));
             }
@@ -148,6 +185,8 @@ impl Edge {
             stop,
             h2c: h2c_addr,
             tls: tls_addr,
+            h3: h3_addr,
+            retries,
             grpc: grpc_addr,
             _reservation: reservation,
         })
@@ -163,6 +202,19 @@ impl Edge {
     #[must_use]
     pub fn tls_addr(&self) -> Option<SocketAddr> {
         self.tls
+    }
+
+    /// The bound UDP address of the HTTP/3 listener.
+    #[must_use]
+    pub fn h3_addr(&self) -> Option<SocketAddr> {
+        self.h3
+    }
+
+    /// How many `Retry` packets the HTTP/3 listener has sent, for the node's own tests.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn h3_retries(&self) -> u64 {
+        self.retries.load(std::sync::atomic::Ordering::Relaxed)
     }
 
     /// The bound gRPC address.

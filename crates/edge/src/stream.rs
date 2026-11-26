@@ -6,7 +6,7 @@ use std::time::Duration;
 use bytes::Bytes;
 use h2::server::SendResponse;
 use h2::{Reason, RecvStream, SendStream};
-use http::{Method, Request, Response, StatusCode};
+use http::{HeaderValue, Method, Request, Response, StatusCode};
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 use tokio::net::tcp::OwnedWriteHalf;
@@ -35,6 +35,7 @@ fn status_only(respond: &mut SendResponse<Bytes>, status: StatusCode) {
 pub(crate) async fn serve(
     request: Request<RecvStream>,
     mut respond: SendResponse<Bytes>,
+    alt_svc: Option<HeaderValue>,
     shared: Arc<Shared>,
 ) {
     let Ok(_permit) = Arc::clone(&shared.streams).try_acquire_owned() else {
@@ -81,6 +82,7 @@ pub(crate) async fn serve(
     let mut down = std::pin::pin!(download(
         Upstream::new(rd, shared.config.stream_buffer),
         head_request,
+        alt_svc,
         respond
     ));
     if end_of_stream {
@@ -137,6 +139,7 @@ async fn upload(
 async fn download(
     mut upstream: Upstream<tokio::net::tcp::OwnedReadHalf>,
     head_request: bool,
+    alt_svc: Option<HeaderValue>,
     mut respond: SendResponse<Bytes>,
 ) -> Result<(), ()> {
     let mut head = match upstream.head(head_request).await {
@@ -151,6 +154,9 @@ async fn download(
         .body(())
         .map_err(|_| ())?;
     *response.headers_mut() = std::mem::take(&mut head.headers);
+    if let Some(value) = alt_svc {
+        response.headers_mut().insert(http::header::ALT_SVC, value);
+    }
     let bodyless = head.bodyless();
     let mut send = respond.send_response(response, bodyless).map_err(|_| ())?;
     if bodyless {

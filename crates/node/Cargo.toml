@@ -96,6 +96,12 @@ bytes = "1"
 prost = "0.14.6"
 prost-reflect = { version = "0.16.5", features = ["serde"] }
 tokio = { version = "1", default-features = false, features = ["rt", "net", "io-util", "time"] }
+# The HTTP/3 test: a QUIC client of the front and a throwaway certificate for it.
+quinn = { version = "=0.11.12", default-features = false, features = ["runtime-tokio", "rustls-ring"] }
+h3 = "=0.0.8"
+h3-quinn = "=0.0.10"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+rcgen = { version = "0.13", default-features = false, features = ["ring", "pem"] }
 # The extension upload tests build their modules from text.
 wat = "1"
 serde_json = "=1.0.145"

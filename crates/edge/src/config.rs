@@ -13,6 +13,14 @@ pub const STREAMS_PER_CONNECTION: usize = 16;
 /// The default longest gRPC message: 1 MiB (a call holds four times it, so the default charge for 32 streams is 128 MiB).
 pub const DEFAULT_GRPC_MESSAGE: usize = 1 << 20;
 
+/// The default charge for a QUIC connection's state: the server's half of an idle connection
+/// measured about 41 KB (debug build, loopback), so 64 KiB.
+pub const DEFAULT_H3_OVERHEAD: usize = 64 * 1024;
+
+/// What an HTTP/3 listener holds whatever its connections: quinn's UDP receive batch, measured
+/// at about 3.1 MiB once per endpoint.
+pub const H3_ENDPOINT_BYTES: usize = 4 << 20;
+
 /// How many times `grpc_max_message` a call holds at once: the message, its decoded form, the REST
 /// body made from it, and the answer.
 const GRPC_CALL_FACTOR: usize = 4;
@@ -24,6 +32,8 @@ pub struct EdgeConfig {
     pub h2c: Option<SocketAddr>,
     /// TCP with TLS and ALPN `h2` then `http/1.1`; `None` opens no port.
     pub tls: Option<SocketAddr>,
+    /// HTTP/3 over QUIC on this UDP address; needs a certificate; `None` opens no socket.
+    pub h3: Option<SocketAddr>,
     /// gRPC over HTTP/2; TLS when a certificate is configured, clear text otherwise; `None` opens no port.
     pub grpc: Option<SocketAddr>,
     /// The longest gRPC message in either direction, in bytes.
@@ -48,6 +58,8 @@ pub struct EdgeConfig {
     pub stream_buffer: usize,
     /// Bytes charged for an open connection's own state.
     pub connection_overhead: usize,
+    /// Bytes charged for a QUIC connection's own state, beside `connection_overhead`.
+    pub h3_connection_overhead: usize,
     /// Runtime threads.
     pub threads: usize,
     /// The longest request line the HTTP/1.1 server accepts.
@@ -63,6 +75,7 @@ impl EdgeConfig {
         Self {
             h2c: None,
             tls: None,
+            h3: None,
             grpc: None,
             grpc_max_message: DEFAULT_GRPC_MESSAGE,
             cert: None,
@@ -75,6 +88,7 @@ impl EdgeConfig {
             idle_timeout: Duration::from_secs(60),
             stream_buffer: 64 * 1024,
             connection_overhead: 128 * 1024,
+            h3_connection_overhead: DEFAULT_H3_OVERHEAD,
             threads: 2,
             max_initial_line: 4096,
             max_header_bytes: 16 * 1024,
@@ -84,7 +98,7 @@ impl EdgeConfig {
     /// Whether any listener is configured.
     #[must_use]
     pub fn enabled(&self) -> bool {
-        self.h2c.is_some() || self.tls.is_some() || self.grpc.is_some()
+        self.h2c.is_some() || self.tls.is_some() || self.h3.is_some() || self.grpc.is_some()
     }
 
     /// The bytes charged to the request-body pool when the front starts:
@@ -100,6 +114,13 @@ impl EdgeConfig {
         } else {
             0
         };
+        let quic = if self.h3.is_some() {
+            self.max_connections
+                .saturating_mul(self.h3_connection_overhead)
+                .saturating_add(H3_ENDPOINT_BYTES)
+        } else {
+            0
+        };
         self.max_streams
             .saturating_mul(2)
             .saturating_mul(self.stream_buffer)
@@ -108,6 +129,7 @@ impl EdgeConfig {
                     .saturating_mul(self.connection_overhead),
             )
             .saturating_add(messages)
+            .saturating_add(quic)
     }
 
     /// Checks the settings against each other.
@@ -144,6 +166,9 @@ impl EdgeConfig {
         if self.tls.is_some() && (self.cert.is_none() || self.key.is_none()) {
             return Err("the edge tls listener needs both a certificate and a key".into());
         }
+        if self.h3.is_some() && (self.cert.is_none() || self.key.is_none()) {
+            return Err("the edge h3 listener needs both a certificate and a key".into());
+        }
         Ok(())
     }
 }
@@ -164,6 +189,9 @@ mod tests {
         h2c.h2c = Some(addr);
         let mut tls = base();
         tls.tls = Some(addr);
+        let mut h3 = base();
+        h3.h3 = Some(addr);
+        assert!(h3.enabled());
         let mut grpc = base();
         grpc.grpc = Some(addr);
         assert!(h2c.enabled() && tls.enabled() && grpc.enabled());
