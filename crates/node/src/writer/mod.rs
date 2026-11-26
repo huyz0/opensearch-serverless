@@ -23,6 +23,7 @@ mod janitor_pass;
 mod janitor_timer;
 mod lease;
 mod limit;
+mod logged;
 mod merging;
 use limit::unavailable;
 pub use merging::{MergeConfig, SETTINGS as MERGE_SETTINGS};
@@ -143,6 +144,8 @@ pub struct WriterRole {
     tenant: tenant_hooks::TenantHooks,
     /// Told of every commit a publish stages.
     commits: OnceLock<Arc<dyn CommitSink>>,
+    /// Logs each staged commit in the node log, when on.
+    logged: OnceLock<oss_writer::log_commit::LoggedCommits>,
     /// How far a refresh is made visible before it returns; the code of a
     /// [`RefreshVisibility`].
     visibility: AtomicU8,
@@ -195,6 +198,7 @@ impl WriterRole {
             growth: OnceLock::new(),
             tenant: tenant_hooks::TenantHooks::default(),
             commits: OnceLock::new(),
+            logged: OnceLock::new(),
             visibility: AtomicU8::new(0),
             opener: None,
             opening: opener::OpenLocks::default(),
@@ -292,6 +296,7 @@ impl WriterRole {
             }
         }
         pass.failed.extend(self.checkpoint_staged(publishing));
+        self.log_tick();
         pass
     }
 
@@ -338,6 +343,7 @@ impl WriterRole {
             if let Some(p) = &self.publishing {
                 p.forget(&key);
             }
+            self.log_forget(&key);
             if let Some(t) = self.tail.get() {
                 t.released(uuid, shard);
             }

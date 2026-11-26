@@ -40,8 +40,22 @@ pub const CHECKPOINT_MILLIS: LongSetting = LongSetting::new(
      deadline.",
 );
 
+/// `serverless.wal.node_log.commits.logged`: each staged commit joins the node
+/// log under the shard's commit key. Default `false`; needs staging.
+pub const LOGGED: BoolSetting = BoolSetting::new(
+    "serverless.wal.node_log.commits.logged",
+    false,
+    Scope::Node,
+    "With commit staging on, each staged commit joins the node's write log, riding a window \
+     that is open anyway, so a successor can open from it instead of the older register.",
+);
+
 /// Every setting this module defines, for the node's registry.
-pub static SETTINGS: &[&Setting] = &[STAGING.setting(), CHECKPOINT_MILLIS.setting()];
+pub static SETTINGS: &[&Setting] = &[
+    STAGING.setting(),
+    CHECKPOINT_MILLIS.setting(),
+    LOGGED.setting(),
+];
 
 /// The longest a commit may stay staged: half the pack deadline, so a slow
 /// store or renewal still writes it in time.

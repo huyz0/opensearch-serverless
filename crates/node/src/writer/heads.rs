@@ -73,7 +73,8 @@ fn refuse(why: String) -> Refusal {
 
 impl ShardAdmission for HeadAdmission {
     fn admit(&self, shard: &ShardKey, term: i64, _epoch: u64) -> Result<(), Refusal> {
-        let uuid = shard.index_uuid.as_ref();
+        // A logged commit is admitted as the shard it belongs to.
+        let uuid = oss_writer::log_commit::shard_uuid(shard.index_uuid.as_ref());
         let Some(name) = self.names.name_of(uuid) else {
             return Err(refuse(format!("index [{uuid}] is not held here")));
         };

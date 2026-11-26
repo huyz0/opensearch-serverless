@@ -12,6 +12,7 @@ pub mod bulk;
 pub mod index;
 pub mod indexing_memory;
 pub mod log;
+pub mod log_commit;
 pub mod mapping_growth;
 pub mod pack;
 pub mod publish;

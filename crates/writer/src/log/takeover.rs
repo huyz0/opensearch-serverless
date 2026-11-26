@@ -301,6 +301,8 @@ impl NodeLogTakeover {
             .values()
             .flatten()
             .flat_map(|header| header.index.iter().map(|(shard, _)| shard.clone()))
+            // A commit key is a logged commit, not a shard with a head.
+            .filter(|shard| !crate::log_commit::is_commit_key(shard))
             // ALLOC: the shards the predecessor's headers name, as many as it held unpublished.
             .collect())
     }

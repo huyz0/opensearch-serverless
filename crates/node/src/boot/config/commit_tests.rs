@@ -35,3 +35,22 @@ fn a_checkpoint_age_outside_its_bounds_is_refused() {
         );
     }
 }
+
+// AC-8
+#[test]
+fn commit_logging_is_off_by_default_and_needs_staging() {
+    let off = NodeConfig::from_lookup(lookup(FS)).expect("valid");
+    assert!(!off.commit_logged);
+    let on = NodeConfig::from_lookup(lookup(&with(&[
+        ("OSS_COMMIT_STAGING", "true"),
+        ("OSS_COMMIT_LOGGED", "true"),
+    ])))
+    .expect("valid");
+    assert!(on.commit_logged);
+    let alone = NodeConfig::from_lookup(lookup(&with(&[("OSS_COMMIT_LOGGED", "true")])));
+    assert!(
+        alone
+            .expect_err("refused")
+            .contains("needs OSS_COMMIT_STAGING")
+    );
+}

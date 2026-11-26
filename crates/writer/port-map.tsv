@@ -87,3 +87,5 @@ tests/segment_merge.rs	new		tests of a shard merging small segments under a gate
 src/publish/staging.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/CommitStaging.java@429b4cbc	the checkpoint age bounds (check), the settings and the due test; the staged commit's state
 src/publish/checkpoint.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/CommitStaging.java@429b4cbc	staging on and off, and writing the register as a checkpoint (flush); logged commits not ported
 src/publish/upload.rs	new		the blob puts of publisher.rs, split out to keep it under the size limit
+src/log_commit/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/LoggedCommits.java	logging the newest staged commit under its commit key, release on the register write; opening from it not ported
+src/log_commit/record.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/LoggedCommits.java	the commit key and record text

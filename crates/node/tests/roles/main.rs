@@ -19,6 +19,7 @@ mod write_gate;
 mod writer_first;
 mod writer_heads;
 mod writer_janitor;
+mod writer_logged;
 mod writer_newest;
 mod writer_opener;
 mod writer_opener_pins;

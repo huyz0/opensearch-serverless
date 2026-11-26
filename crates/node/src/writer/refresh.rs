@@ -121,7 +121,7 @@ impl WriterRole {
             }
         }
         let _gate = publishing.gate();
-        let (snapshot, term, max_seq_no, logged) = {
+        let (snapshot, term, max_seq_no, logged, shard_key) = {
             // No group of the shard is in flight and none stages until the
             // snapshot is taken, so every write in the commit is in the log.
             let (mut held, _quiet) = super::pipelined::quiet_slot(slot);
@@ -137,26 +137,31 @@ impl WriterRole {
                 .last_position(held.key())
                 .map(|at| (held.key().clone(), at));
             let (snapshot, term) = held.snapshot()?;
-            (snapshot, term, max_seq_no, logged)
+            (snapshot, term, max_seq_no, logged, held.key().clone())
         };
         let done = publishing.with_publisher(key, index, |publisher, node, now| {
-            if only_if_due {
+            let done = if only_if_due {
                 publisher.publish_routine(&snapshot, snapshot.names(), term, node, -1, now)
             } else {
                 publisher.publish(&snapshot, snapshot.names(), term, node, -1, now)
             }
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.to_string())?;
+            Ok((done, publisher.staged_age()))
         })?;
+        let (done, age) = done;
         if done.staged {
             // The register does not hold it: the shard still counts as
             // unpublished, and the log is trimmed when a register write
             // lands. The lazy policy's due clock moves on, or the shard
             // would be due at every pass.
+            let covered = logged.as_ref().map(|(_, at)| *at);
             publishing.stage_pending(key, logged, max_seq_no);
+            self.log_staged(&shard_key, term, age, covered, &done.manifest, max_seq_no);
             publishing.published(key, max_seq_no);
             return Ok(Some((done, max_seq_no)));
         }
         publishing.published(key, max_seq_no);
+        self.log_checkpointed(key, max_seq_no);
         if let Some((shard, at)) = publishing.take_pending(key, logged).0 {
             // The log no longer needs these records: its lease stops naming
             // epochs that hold nothing else, and a successor has less to take.
@@ -188,6 +193,7 @@ impl WriterRole {
                 (written, taken)
             };
             if let Some((logged, through)) = taken {
+                self.log_checkpointed(&key, through);
                 if let Some((shard, at)) = logged {
                     self.committer.on_published(&shard, at);
                 }
