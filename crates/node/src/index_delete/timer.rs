@@ -26,8 +26,10 @@ impl DrainTimer {
                 let (flag, wake) = &*signal;
                 loop {
                     let stopped = flag.lock().unwrap_or_else(PoisonError::into_inner);
+                    // Waits only while not stopped: a stop sent before the wait began
+                    // is not lost.
                     let (stopped, _) = wake
-                        .wait_timeout(stopped, every)
+                        .wait_timeout_while(stopped, every, |stopped| !*stopped)
                         .unwrap_or_else(PoisonError::into_inner);
                     if *stopped {
                         return;

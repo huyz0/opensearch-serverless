@@ -366,3 +366,20 @@ fn a_restore_asked_to_wait_or_with_the_switch_off_is_synchronous() {
     assert!(!marked(&off, "copy"), "done when the answer came");
     assert_eq!(off.restores.running(), 0);
 }
+
+// AC-7: dropping the reclaim timer, which the node's shutdown does, drains
+// the restores: a copy still running is cancelled and later restores refused.
+#[test]
+fn dropping_the_drain_timer_cancels_the_running_restores() {
+    let r = background(2, 10);
+    let timer = oss_node::index_delete::DrainTimer::spawn(
+        Arc::clone(&r.deletes),
+        Duration::from_secs(3600),
+    )
+    .with_restores(Some(Arc::clone(&r.restores)));
+    assert!(!r.restores.cancelled());
+    drop(timer);
+    assert!(r.restores.cancelled());
+    let refused = send(&r, "POST", NO_WAIT, Some(COPY));
+    assert_eq!(refused.status, 503, "{}", refused.text());
+}
