@@ -5,20 +5,24 @@
 //! deflate-framed (`DeflateCompressor`), and a footer whose CRC covers
 //! everything before it. The checksum is verified before the body is read.
 
+mod envelope_write;
 mod file_check;
 mod index_metadata;
 mod native_index;
 mod repository_data;
+mod repository_write;
 mod shard_snapshot;
 mod snapshot_info;
 
 use crate::error::{FormatError, corrupt, len64};
 use crate::smile::{self, Limits as SmileLimits};
 
+pub use envelope_write::from_json;
 pub use file_check::StockFileCheck;
 pub use index_metadata::{MAX_ALIASES, MAX_SETTINGS, StockIndexMetadata};
 pub use native_index::{StockNative, StockRefusal};
 pub use repository_data::{RepositoryData, StockIndex, StockSnapshot, is_blob_name};
+pub use repository_write::{NewIndex, NewSnapshot};
 pub use shard_snapshot::{MAX_CHUNKS, MAX_FILES, StockFile, StockShardSnapshot};
 pub use snapshot_info::{MAX_INDICES, StockSnapshotInfo};
 
