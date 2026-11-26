@@ -20,7 +20,7 @@ Invariant I-13 in [invariants.md](invariants.md) holds the suite to this: `crate
 
 ## `_count` on a reader node
 
-`GET|POST /{index}/_count` with a body of `query` alone, or none, answers `count` (the exact total of that query's search) and the search's `_shards`, over one shard or several ([count-api](specs/count-api/SPEC.md)). **Refused:** `/_count` without an index, every URL parameter (`q`, `terminate_after`, `min_score` and the rest), and any body key other than `query`, as 400 `illegal_argument_exception` where OpenSearch answers a `parsing_exception` for an unknown key.
+`GET|POST /{index}/_count` with a body of `query` alone, or none, answers `count` (the exact total of that query's search) and the search's `_shards`, over one shard or several ([count-api](specs/count-api/SPEC.md)). The URL parameter `min_score` counts only matches scoring at least it (`-1` is none). **Refused:** `/_count` without an index, every URL parameter but `min_score` (`q`, `terminate_after` and the rest), and any body key other than `query`, as 400 `illegal_argument_exception` where OpenSearch answers a `parsing_exception` for an unknown key.
 
 ## `_render/template` and `_search/template` on a reader node
 
