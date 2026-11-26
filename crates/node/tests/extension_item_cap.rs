@@ -100,54 +100,68 @@ fn a_document_whose_calls_outrun_ten_deadlines_is_refused_and_the_next_item_is_w
         ),
         "allow pins",
     );
-    let upload = ok(
-        support::request(
-            addr,
-            "PUT",
-            "/_serverless/extensions/modules",
-            Some(&spinning(400_000)),
-        ),
-        "upload",
-    )
-    .text();
-    let hash = upload
-        .split("\"id\":\"")
-        .nth(1)
-        .and_then(|r| r.split('"').next())
-        .expect("a module id")
-        .to_owned();
-    let settings = format!(
-        r#"{{"settings":{{"index.analysis.analyzer.ext_spin.type":"serverless_module","index.analysis.analyzer.ext_spin.module":"{hash}","index.analysis.analyzer.ext_spin.version":"1"}},"mappings":{{"properties":{{"t":{{"type":"text","analyzer":"ext_spin"}}}}}}}}"#
-    );
-    ok(
-        support::request(addr, "PUT", "/capped", Some(settings.as_bytes())),
-        "create",
-    );
-    // One call's time, from `_analyze` (HTTP included, so an upper bound).
-    let analyze = || {
-        let at = Instant::now();
-        ok(
+    let upload = |rounds: u32| -> String {
+        let reply = ok(
             support::request(
                 addr,
-                "POST",
-                "/capped/_analyze",
-                Some(br#"{"analyzer":"ext_spin","text":"abcd"}"#),
+                "PUT",
+                "/_serverless/extensions/modules",
+                Some(&spinning(rounds)),
             ),
-            "analyze",
-        );
-        at.elapsed()
+            "upload",
+        )
+        .text();
+        reply
+            .split("\"id\":\"")
+            .nth(1)
+            .and_then(|r| r.split('"').next())
+            .expect("a module id")
+            .to_owned()
     };
-    analyze();
-    let mut times: Vec<Duration> = (0..5).map(|_| analyze()).collect();
-    times.sort();
-    let call = times[2];
+    let create = |index: &str, hash: &str| {
+        let settings = format!(
+            r#"{{"settings":{{"index.analysis.analyzer.ext_spin.type":"serverless_module","index.analysis.analyzer.ext_spin.module":"{hash}","index.analysis.analyzer.ext_spin.version":"1"}},"mappings":{{"properties":{{"t":{{"type":"text","analyzer":"ext_spin"}}}}}}}}"#
+        );
+        ok(
+            support::request(addr, "PUT", &format!("/{index}"), Some(settings.as_bytes())),
+            "create",
+        );
+    };
+    // One call's time, from `_analyze` (HTTP included, so an upper bound).
+    let time_call = |index: &str| {
+        let analyze = || {
+            let at = Instant::now();
+            ok(
+                support::request(
+                    addr,
+                    "POST",
+                    &format!("/{index}/_analyze"),
+                    Some(br#"{"analyzer":"ext_spin","text":"abcd"}"#),
+                ),
+                "analyze",
+            );
+            at.elapsed()
+        };
+        analyze();
+        let mut times: Vec<Duration> = (0..5).map(|_| analyze()).collect();
+        times.sort();
+        times[2]
+    };
+    // How fast this machine spins: a probe module, then the module whose call
+    // takes about 6 ms here.
+    const PROBE_ROUNDS: u32 = 400_000;
+    create("probe", &upload(PROBE_ROUNDS));
+    let probe = time_call("probe").as_secs_f64().max(0.000_05);
+    let rounds = (f64::from(PROBE_ROUNDS) * 0.006 / probe).clamp(1_000.0, 4_000_000_000.0) as u32;
+    create("capped", &upload(rounds));
+    let call = time_call("capped");
     assert!(
         call < Duration::from_millis(DEADLINE_MS / 2),
         "one call takes {call:?}, too near the {DEADLINE_MS} ms deadline to test the cap"
     );
     assert!(
-        call > Duration::from_millis(1),
-        "one call takes {call:?}, too quick for the cap to be reached in a document"
+        call > Duration::from_millis(2),
+        "one call takes {call:?} at {rounds} rounds, too quick for the cap to be reached"
     );
     // Enough values that their calls take eight times the document's budget.
     let budget = Duration::from_millis(DEADLINE_MS * 10);
