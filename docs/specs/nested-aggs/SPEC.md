@@ -2,7 +2,7 @@
 
 ## Serves
 
-Parity task R10.2 (aggregations), `nested` and `reverse_nested`; invariant I-13 (REST matches OpenSearch); ADR 0004 (bounded memory). Fourth slice of nested support, after the reader's `nested` query, the mapping and child documents ([nested-fields](../nested-fields/SPEC.md), ADR 0067) and their writer.
+Parity task R10.2 (aggregations), `nested` and `reverse_nested`; invariant I-13 (REST matches OpenSearch); ADR 0004 (bounded memory). Fourth slice of nested support (nested sorts and `inner_hits` are another thread's), after the reader's `nested` query, the mapping and child documents ([nested-fields](../nested-fields/SPEC.md), ADR 0067) and their writer.
 
 ## Change
 
@@ -12,7 +12,7 @@ Parity task R10.2 (aggregations), `nested` and `reverse_nested`; invariant I-13 
 - **`reverse_nested`** (`path`, optional): inside a `nested`, hands each child's parent to the sub-aggregations, once per parent; `doc_count` counts those parents. With `path`, the parent is the enclosing nested object's document of that path; without, the root document.
 - **Unmapped `path`** in `nested` gives `{"doc_count": 0}` with each sub-aggregation empty, as `NestedAggregatorFactory.Unmapped` does.
 - **Refused as the Java refuses**, with its messages: a `nested` path that is mapped but not nested (`[nested] nested path [p] is not nested`, 500 `aggregation_execution_exception`); a `reverse_nested` outside a `nested` (`Reverse nested aggregation [name] can only be used inside a [nested] aggregation`, 400); a `reverse_nested` path that is not nested (`[reverse_nested] nested path [p] is not nested`); a missing `path` for `nested` (`Missing [path] field for nested aggregation [name]`); an unknown key (`Unknown key for a VALUE_STRING in [name]: [k].`).
-- **Not here:** a `top_hits` or other scoring sub-aggregation under `nested` (the engine refuses a scored aggregation under it; the node answers 400 `illegal_argument_exception` naming the aggregation), sorting or `inner_hits` (next slice), a `nested` under a keyword `terms` until that path is checked.
+- **Not here:** a `top_hits` or other scoring sub-aggregation under `nested` (the engine refuses a scored aggregation under it; the node answers 400 `illegal_argument_exception` naming the aggregation), nested sorts and `inner_hits` (another thread), a `nested` under a keyword `terms` until that path is checked.
 - **Memory:** the parent and child lists are the engine's per-segment lists, built once a segment and reserved with the aggregation's other per-segment state; the bucket total joins the `search.max_buckets` count as any bucket aggregation's does.
 
 ## Acceptance criteria
