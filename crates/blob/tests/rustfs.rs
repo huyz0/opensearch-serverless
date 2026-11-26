@@ -42,40 +42,54 @@ fn free_port() -> u16 {
 }
 
 /// Creates the bucket with one signed request, as a provisioning step
-/// outside the store's interface.
+/// outside the store's interface. RustFS listens before it serves, so a 503
+/// is retried for up to 30 seconds.
 fn create_bucket(endpoint: &str, host: &str) {
-    let now = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-    let date = sigv4::amz_date(now);
-    let headers = [
-        ("host", host),
-        ("x-amz-content-sha256", UNSIGNED_PAYLOAD),
-        ("x-amz-date", date.as_str()),
-    ];
-    let path = format!("/{BUCKET}");
-    let canonical = sigv4::canonical_request("PUT", &path, "", &headers, UNSIGNED_PAYLOAD);
-    let scope = Scope {
-        date: &date[..8],
-        region: REGION,
-        service: "s3",
-    };
-    let auth = sigv4::authorization(&Credentials::new(ACCESS, SECRET), &scope, &date, &canonical);
     let agent = ureq::Agent::new_with_config(
         ureq::Agent::config_builder()
             .http_status_as_error(false)
             .proxy(None)
             .build(),
     );
-    let response = agent
-        .put(&format!("{endpoint}{path}"))
-        .header("x-amz-content-sha256", UNSIGNED_PAYLOAD)
-        .header("x-amz-date", &date)
-        .header("authorization", &auth)
-        .send_empty()
-        .unwrap();
-    assert_eq!(response.status().as_u16(), 200, "create bucket");
+    let started = Instant::now();
+    loop {
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let date = sigv4::amz_date(now);
+        let headers = [
+            ("host", host),
+            ("x-amz-content-sha256", UNSIGNED_PAYLOAD),
+            ("x-amz-date", date.as_str()),
+        ];
+        let path = format!("/{BUCKET}");
+        let canonical = sigv4::canonical_request("PUT", &path, "", &headers, UNSIGNED_PAYLOAD);
+        let scope = Scope {
+            date: &date[..8],
+            region: REGION,
+            service: "s3",
+        };
+        let auth =
+            sigv4::authorization(&Credentials::new(ACCESS, SECRET), &scope, &date, &canonical);
+        let status = agent
+            .put(&format!("{endpoint}{path}"))
+            .header("x-amz-content-sha256", UNSIGNED_PAYLOAD)
+            .header("x-amz-date", &date)
+            .header("authorization", &auth)
+            .send_empty()
+            .unwrap()
+            .status()
+            .as_u16();
+        if status == 200 {
+            return;
+        }
+        assert!(
+            status == 503 && started.elapsed() < Duration::from_secs(30),
+            "create bucket: {status}"
+        );
+        std::thread::sleep(Duration::from_millis(200));
+    }
 }
 
 #[test]
