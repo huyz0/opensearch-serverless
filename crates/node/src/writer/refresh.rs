@@ -115,8 +115,7 @@ impl WriterRole {
     ) -> Result<Option<(Published, i64)>, String> {
         if only_if_due {
             // Not due, or the slot is going: no quiesce, no gate.
-            let held = lock(slot);
-            if held.failed() || held.released() || !publishing.due(key, held.acked_seq_no()) {
+            if !self.due_now(publishing, key, slot) {
                 return Ok(None);
             }
         }

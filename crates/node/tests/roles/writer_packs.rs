@@ -240,6 +240,24 @@ fn two_due_shards_of_one_pass_share_one_pack() {
     let pass = n.role.publish_due();
     assert!(pass.failed.is_empty(), "{:?}", pass.failed);
     assert_eq!(pass.published, 2);
+    for (index, uuid) in [("logs", "u1"), ("logs2", "u2")] {
+        let at = ShardRef {
+            index,
+            uuid,
+            shard: 0,
+        };
+        let mut buf = vec![0u8; 1 << 16];
+        let read = c
+            .store
+            .read_register(&at.manifest_key("").expect("key"), &mut buf)
+            .expect("reads")
+            .expect("registered");
+        let manifest = String::from_utf8_lossy(&buf[..read.len]).into_owned();
+        assert!(
+            manifest.contains("@node-1/e=00000000000000001000/00000000000000000000#"),
+            "{uuid} names the shared pack: {manifest}"
+        );
+    }
     assert!(exists(&c, FIRST_PACK), "one pack");
     assert!(!exists(&c, SECOND_PACK), "and no second");
     // One pack, the ledger's first create, and a swap a shard.

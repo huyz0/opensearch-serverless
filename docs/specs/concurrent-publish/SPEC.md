@@ -32,7 +32,7 @@ Packs off: unchanged. Packs on: a pass of `n` due small shards within the linger
 
 ## Switch
 
-`serverless.segments.node_pack.publish_threads`, default 8, which does nothing while packs are off. Packs on is the switch; this makes it do what ADR 0024 measured. Memory: each publish streams through the store's pooled buffers (a 64 KiB buffer each), so the extra memory is at most `publish_threads` buffers and their open snapshots; the pass starts no more threads than that.
+`serverless.segments.node_pack.publish_threads`, default 8, which does nothing while packs are off. Packs on is the switch; this makes it do what ADR 0024 measured. Memory: each publish streams through the store's pooled buffers (a 64 KiB buffer each), so the extra memory is at most `publish_threads` buffers and their open snapshots a pass; the bound is per pass, and a request-path refresh or a retire pass publishing a different shard at the same time adds its own, as it always could. The pass starts no more threads than the setting.
 
 ## Risks
 

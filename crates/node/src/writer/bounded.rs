@@ -68,4 +68,19 @@ mod tests {
         assert!(out.iter().all(|id| *id == caller));
         assert!(run_bounded::<u8, u8>(&[], 8, |x| *x).is_empty());
     }
+
+    // A panic in one item ends the pass loudly; the other items still ran.
+    #[test]
+    fn a_panic_in_one_item_propagates_after_the_others_ran() {
+        let ran = AtomicUsize::new(0);
+        let items: Vec<usize> = (0..6).collect();
+        let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            run_bounded(&items, 3, |i| {
+                ran.fetch_add(1, Ordering::SeqCst);
+                assert!(*i != 2, "item two fails");
+            })
+        }));
+        assert!(caught.is_err());
+        assert_eq!(ran.load(Ordering::SeqCst), 6);
+    }
 }

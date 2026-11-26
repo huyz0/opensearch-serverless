@@ -43,9 +43,14 @@ impl WriterRole {
         pass
     }
 
-    /// Whether `key` could be published now, by the checks of
-    /// [`Self::publish_shard`]'s first block.
-    fn due_now(&self, publishing: &Publishing, key: &Key, slot: &Arc<Mutex<ShardSlot>>) -> bool {
+    /// Whether `key` is due now and its slot is neither failed nor going:
+    /// the first check of [`Self::publish_shard`], and the pass's prefilter.
+    pub(super) fn due_now(
+        &self,
+        publishing: &Publishing,
+        key: &Key,
+        slot: &Arc<Mutex<ShardSlot>>,
+    ) -> bool {
         let held = lock(slot);
         !(held.failed() || held.released() || !publishing.due(key, held.acked_seq_no()))
     }
