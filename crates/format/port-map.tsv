@@ -57,3 +57,5 @@ src/stock/index_metadata.rs	new		the index metadata blob (meta-<id>.dat) of a st
 src/stock/file_check.rs	new		the length and Lucene footer CRC of a stock file, checked as it streams; the Java has CodecUtil.checksumEntireFile
 src/stock/native_index.rs	new		the stock index as the native restore's inputs (shard count, mapping, kept settings); no Java counterpart, the shell restores a stock index through IndexMetadata
 src/smile/write.rs	new		the SMILE encoder, the decoder's counterpart for writing a stock repository; no Java counterpart in the shell (Jackson's SmileGenerator is the reference)
+src/stock/envelope_write.rs	new		the stock envelope's writer (header, SMILE body, CRC footer), the reader's counterpart; the Java has ChecksumBlobStoreFormat.write and CodecUtil.writeHeader/writeFooter
+src/stock/repository_write.rs	new		the next index-N of a stock repository: a snapshot added to RepositoryData and its JSON in the stock field order; the Java has RepositoryData.snapshotsToXContent
