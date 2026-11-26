@@ -142,7 +142,7 @@ impl PackLedger {
 
     /// Reserves ordinals of `epoch` below `high`, adding the epoch if the
     /// ledger lacks it, so `high` is never below an ordinal in use. Starting
-    /// an epoch past [`MAX_LIVE_EPOCHS`] is refused.
+    /// an epoch past the 1,500 live epochs a node keeps is refused.
     ///
     /// # Errors
     ///
