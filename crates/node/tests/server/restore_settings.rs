@@ -95,3 +95,27 @@ fn a_bad_value_is_400_and_an_unknown_key_501() {
             .is_none()
     );
 }
+
+// docs/specs/extension-analyzer AC-7: a restore cannot add a pin through
+// `index_settings`; the key is refused and nothing is created.
+#[test]
+fn a_restore_cannot_add_an_analyzer_pin() {
+    let r = taken(true);
+    let hash = "0".repeat(64);
+    let body = format!(
+        r#"{{{RENAME},"index_settings":{{"index.analysis.analyzer.ext_stem.type":"serverless_module","index.analysis.analyzer.ext_stem.module":"{hash}","index.analysis.analyzer.ext_stem.version":"1"}}}}"#
+    );
+    let reply = send(&r, "POST", RESTORE, Some(&body));
+    assert_eq!(reply.status, 501, "{}", reply.text());
+    assert!(
+        reply.text().contains("index.analysis.analyzer.ext_stem"),
+        "{}",
+        reply.text()
+    );
+    assert!(
+        r.descriptors
+            .get("copy", &mut vec![0u8; 1 << 16])
+            .unwrap()
+            .is_none()
+    );
+}
