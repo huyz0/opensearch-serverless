@@ -74,10 +74,10 @@ pub(in crate::boot) fn apply(from: &NodeConfig, to: &mut crate::assemble::Config
     to.stock_s3_roots.clone_from(&from.snapshots.stock_s3_roots);
     to.stock_fanout = from.snapshots.stock_fanout;
     to.snapshots_stock_export = from.snapshots.stock_export;
-    to.stock_export_fs_roots
-        .clone_from(&from.snapshots.stock_export_fs_roots);
-    to.stock_export_s3_roots
-        .clone_from(&from.snapshots.stock_export_s3_roots);
+    to.stock_export_roots = (
+        from.snapshots.stock_export_fs_roots.clone(),
+        from.snapshots.stock_export_s3_roots.clone(),
+    );
     to.stock_s3 = match &from.store {
         super::StoreChoice::S3 {
             endpoint,
@@ -154,8 +154,8 @@ mod tests {
         assert!(to.snapshots_stock_export);
         assert_eq!(
             (
-                to.stock_export_fs_roots.as_str(),
-                to.stock_export_s3_roots.as_str()
+                to.stock_export_roots.0.as_str(),
+                to.stock_export_roots.1.as_str()
             ),
             ("/srv/out", "bkt/out")
         );
