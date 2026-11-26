@@ -59,6 +59,29 @@ fn with_aliases(r: &Rig) {
         .unwrap();
 }
 
+/// A mutation of `name` another writer started and has not finished, with a
+/// deadline far ahead, so a restore can neither recover it nor wait it out.
+fn hold_alias(r: &Rig, name: &str) {
+    let mut buf = vec![0u8; 1 << 16];
+    let held = r.descriptors.resolve_raw(name, &mut buf).unwrap();
+    let Target::Alias(alias) = held.target else {
+        panic!("an alias");
+    };
+    let at = (held.generation, alias.into_owned());
+    let pending = AliasRecord {
+        mutation: Some(oss_format::AliasMutation {
+            until: 1_700_000_000_000 + 10_000_000_000,
+            creating: false,
+            additions: Vec::new(),
+        }),
+        ..at.1.clone()
+    };
+    r.descriptors
+        .update_alias(&pending, at.0, &mut vec![0u8; 1 << 16])
+        .unwrap()
+        .unwrap();
+}
+
 fn eventually(what: &str, mut ok: impl FnMut() -> bool) {
     let start = Instant::now();
     while !ok() {
@@ -258,26 +281,7 @@ fn a_take_with_aliases_costs_one_read_for_each_distinct_alias() {
 #[test]
 fn an_alias_another_writer_holds_is_named_and_the_restored_index_stays() {
     let r = taken_with_aliases(true, true, with_aliases);
-    // A mutation of `shared` another writer started and has not finished, with
-    // a deadline far ahead, so this restore can neither recover nor wait it out.
-    let mut buf = vec![0u8; 1 << 16];
-    let held = r.descriptors.resolve_raw("shared", &mut buf).unwrap();
-    let Target::Alias(alias) = held.target else {
-        panic!("an alias");
-    };
-    let at = (held.generation, alias.into_owned());
-    let pending = AliasRecord {
-        mutation: Some(oss_format::AliasMutation {
-            until: 1_700_000_000_000 + 10_000_000_000,
-            creating: false,
-            additions: Vec::new(),
-        }),
-        ..at.1.clone()
-    };
-    r.descriptors
-        .update_alias(&pending, at.0, &mut vec![0u8; 1 << 16])
-        .unwrap()
-        .unwrap();
+    hold_alias(&r, "shared");
     let rename = r#","include_aliases":true,"rename_alias_pattern":"^plain$","rename_alias_replacement":"plain2""#;
     let reply = send(&r, "POST", RESTORE, Some(&body(rename)));
     assert_eq!(reply.status, 200, "{}", reply.text());
@@ -293,4 +297,55 @@ fn an_alias_another_writer_holds_is_named_and_the_restored_index_stays() {
     );
     assert!(exists(&r, "copy"), "the index is whole");
     assert_eq!(alias_of(&r, "plain2").unwrap().0, ["copy"]);
+}
+
+// Without the background switch a restore that does not wait still adds its
+// aliases before it answers accepted.
+#[test]
+fn a_restore_that_does_not_wait_and_has_no_background_still_adds_the_aliases() {
+    let r = taken_with_aliases(true, true, with_aliases);
+    let reply = send(
+        &r,
+        "POST",
+        "/_snapshot/backups/daily/_restore",
+        Some(&body(r#","include_aliases":true"#)),
+    );
+    assert_eq!(reply.text(), r#"{"accepted":true}"#);
+    assert_eq!(alias_of(&r, "shared").unwrap().0, ["logs", "copy"]);
+    assert_eq!(alias_of(&r, "plain").unwrap().0, ["logs", "copy"]);
+}
+
+// AC-8: an alias another writer holds fails in the background thread, which
+// counts it and keeps the restored index.
+#[test]
+fn a_background_alias_failure_is_counted_and_the_index_stays() {
+    let background = Settings {
+        enabled: true,
+        max: 2,
+        grace: Duration::from_millis(5_000),
+    };
+    let r = rig_aliased(
+        true,
+        "",
+        64 << 20,
+        64,
+        StockRestoreSettings::off(),
+        background,
+        true,
+    );
+    crate::snapshot_restore::seed_with(&r, with_aliases);
+    hold_alias(&r, "shared");
+    let reply = send(
+        &r,
+        "POST",
+        "/_snapshot/backups/daily/_restore",
+        Some(&body(r#","include_aliases":true"#)),
+    );
+    assert_eq!(reply.text(), r#"{"accepted":true}"#);
+    eventually("the thread ends", || {
+        r.restores.running() == 0 && alias_of(&r, "plain").is_some_and(|a| a.0.len() == 2)
+    });
+    assert_eq!(r.restores.failed(), 1);
+    assert!(exists(&r, "copy"), "the index is whole");
+    assert_eq!(alias_of(&r, "shared").unwrap().0, ["logs"]);
 }

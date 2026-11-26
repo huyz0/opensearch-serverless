@@ -203,7 +203,10 @@ impl SnapshotRestoreService {
         let recorded: Vec<&[oss_format::AliasCapture]> =
             sources.iter().map(|s| s.aliases.as_slice()).collect();
         let aliases = plan_aliases(&asked, &targets, &recorded).map_err(refused)?;
-        self.check_aliases(&aliases)?;
+        if !aliases.is_empty() {
+            req.body().reserve(self.alias_buffer_bytes)?;
+            self.check_aliases(&aliases)?;
+        }
         let cut = asked
             .include_aliases
             .then(|| crate::snapshot_restore_aliases::truncated(&targets, &sources));
@@ -265,10 +268,12 @@ impl SnapshotRestoreService {
             }
             return Err(failure);
         }
+        // A restore that does not wait still adds its aliases before it
+        // answers; a failure has no body to carry it, so it is logged.
+        let report = cut.map(|truncated| self.add_aliases(&aliases, truncated, &|| false));
         if !wait {
             return resp.send(200, JSON, ACCEPTED.as_bytes());
         }
-        let report = cut.map(|truncated| self.add_aliases(&aliases, truncated, &|| false));
         resp.send(
             200,
             JSON,
