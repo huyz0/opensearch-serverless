@@ -99,6 +99,7 @@ mod security_route;
 mod settings_route;
 mod snapshot_delete;
 mod snapshot_restore;
+mod snapshot_restore_background;
 mod snapshot_restore_bounds;
 mod snapshot_restore_compat;
 mod snapshot_restore_search;

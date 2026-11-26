@@ -212,3 +212,71 @@ fn a_source_shorter_than_recorded_fails_and_no_manifest_lands() {
         assert!(oss_format::is_restoring(left.settings), "{:?}", b.kind);
     }
 }
+
+/// The create step alone leaves a marked index and no shard; the finish step
+/// then copies, lands and unmarks it; a cancel in between stops it marked.
+#[test]
+fn the_create_and_the_finish_run_apart_and_a_cancel_stops_the_finish() {
+    for b in all() {
+        seed(&b);
+        let d = b.descriptors(DeleteMode::Conditional);
+        let source = RestoreIndex::find(RECORD, "logs").unwrap().unwrap();
+        let restorer = SnapshotRestorer::new(std::sync::Arc::clone(&b.store), BASE);
+        let mut record = vec![0u8; 1 << 16];
+        let generation = restorer
+            .create_marked(&d, &source, "logs2", "U2", 1_000, &mut record)
+            .unwrap();
+        let to = ShardRef {
+            index: "logs2",
+            uuid: "U2",
+            shard: 0,
+        };
+        assert!(
+            b.store
+                .read_register(&to.manifest_key(BASE).unwrap(), &mut record)
+                .unwrap()
+                .is_none(),
+            "no shard has landed after the create"
+        );
+        let held = d.get("logs2", &mut record).unwrap().expect("created");
+        assert!(oss_format::is_restoring(held.settings), "marked");
+        let (mut r, mut w) = (vec![0u8; 4], vec![0u8; 4]);
+        let cancelled = restorer.finish_index(
+            &d,
+            &source,
+            ("logs2", "U2"),
+            (1_000, generation),
+            &mut record,
+            &mut CopyBuffers {
+                read: &mut r,
+                write: &mut w,
+            },
+            &|| true,
+        );
+        assert!(matches!(cancelled, Err(RestoreError::Cancelled)));
+        let held = d.get("logs2", &mut record).unwrap().expect("still there");
+        assert!(oss_format::is_restoring(held.settings), "left marked");
+        restorer
+            .finish_index(
+                &d,
+                &source,
+                ("logs2", "U2"),
+                (1_000, generation),
+                &mut record,
+                &mut CopyBuffers {
+                    read: &mut r,
+                    write: &mut w,
+                },
+                &|| false,
+            )
+            .unwrap();
+        let held = d.get("logs2", &mut record).unwrap().expect("restored");
+        assert!(!oss_format::is_restoring(held.settings), "unmarked");
+        assert!(
+            b.store
+                .read_register(&to.manifest_key(BASE).unwrap(), &mut record)
+                .unwrap()
+                .is_some()
+        );
+    }
+}

@@ -68,7 +68,7 @@ Counted by task from the plan "Rust serverless OpenSearch: plan to Java parity" 
 | R11 packs, log commits, buckets, schemas | 5 | 1 | 2 | 2 | R11.4 done: mappings are shared in memory by content and schema blobs are deliberately not stored ([ADR 0054](adr/0054-parsed-mappings-are-shared-by-content.md)); R11.1 packs are not wired into the node; R11.3 buckets are off by default; R11.2 log commits built and off by default (staging, logged commits, opening from them: [ADR 0064](adr/0064-commits-are-staged-and-checkpointed.md)); R11.5 cost soak measured, no default flipped ([commit-cost-soak](specs/commit-cost-soak/SPEC.md)) |
 | R12 warm scale-out, roles, zones | 5 | 3 | 2 | 0 | R12.1 and R12.2: warm copy is off by default, its headline checks are NOT-RUN |
 | R13 big writes, admission, guardrails | 5 | 5 | 0 | 0 | |
-| R14 snapshots and the rest of the API | 8 | 7 | 0 | 1 | R14.6 runs no script; R14.8 stock restore and export done (the export's 403 on registering as a non-admin and a RustFS leg are NOT-RUN) |
+| R14 snapshots and the rest of the API | 8 | 7 | 0 | 1 | R14.6 runs no script; R14.8 stock restore and export done; restore in the background (off by default) done (the export's 403 on registering as a non-admin and a RustFS leg are NOT-RUN) |
 | R15 k-NN, security, extensions, soak | 5 | 2 | 3 | 0 | R15.3 only the analyzer point; R15.4 proxy untried against live Java plugins; R15.5 no week-long soak, no Prometheus metrics |
 | **Total** | **76** | **63** | **10** | **3** | |
 

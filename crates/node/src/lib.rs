@@ -126,6 +126,8 @@ pub mod push_sender;
 pub mod read_forward;
 #[cfg(feature = "writer")]
 pub mod refresh_route;
+#[cfg(feature = "writer")]
+pub mod restore_background;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub(crate) mod restore_settings;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
@@ -159,6 +161,8 @@ pub mod security_state;
 pub mod settings;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub mod settings_route;
+#[cfg(all(feature = "writer", feature = "coordinator"))]
+mod snapshot_restore_background;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub mod snapshot_restore_route;
 #[cfg(feature = "writer")]

@@ -50,12 +50,12 @@ pub struct Config {
     pub snapshots_take: bool,
     /// Whether a shallow snapshot can be restored: `serverless.snapshots.restore.enabled`.
     pub snapshots_restore: bool,
+    /// `serverless.snapshots.restore.background.*`: a restore may copy on a thread of its own.
+    pub restore_background: crate::restore_background::Settings,
     /// `serverless.snapshots.stock.enabled`: restore from a stock OpenSearch repository, beside `snapshots_restore`.
     pub snapshots_stock: bool,
-    /// `OSS_STOCK_REPO_ROOTS`: the directories a stock `fs` repository may sit under.
-    pub stock_fs_roots: String,
-    /// `OSS_STOCK_REPO_S3_ROOTS`: the `bucket/prefix` roots a stock `s3` repository may sit under.
-    pub stock_s3_roots: String,
+    /// `OSS_STOCK_REPO_ROOTS` and `OSS_STOCK_REPO_S3_ROOTS`: where a stock repository may sit.
+    pub stock_roots: (String, String),
     /// `OSS_STOCK_RESTORE_FANOUT`: how many metadata blobs a stock restore reads at once.
     pub stock_fanout: usize,
     /// `serverless.snapshots.stock.export.enabled`: export a snapshot into a stock repository.
@@ -148,9 +148,9 @@ impl Config {
             snapshots: false,
             snapshots_take: false,
             snapshots_restore: false,
+            restore_background: crate::restore_background::Settings::off(),
             snapshots_stock: false,
-            stock_fs_roots: String::new(),
-            stock_s3_roots: String::new(),
+            stock_roots: (String::new(), String::new()),
             stock_fanout: 8,
             snapshots_stock_export: false,
             stock_export_roots: (String::new(), String::new()),

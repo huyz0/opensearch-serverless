@@ -141,10 +141,21 @@ pub(crate) fn restore_routes(
     store: &Arc<dyn BlobStore>,
     clock: &PitClock,
     deletes: &Arc<DeleteService>,
-) -> Result<oss_rest::Router, crate::assemble::AssembleError> {
+    budget: &oss_mem::MemoryBudget,
+) -> Result<
+    (
+        oss_rest::Router,
+        Option<Arc<crate::restore_background::BackgroundRestores>>,
+    ),
+    crate::assemble::AssembleError,
+> {
     if !config.snapshots {
-        return Ok(router);
+        return Ok((router, None));
     }
+    let restores = crate::restore_background::BackgroundRestores::new(
+        config.restore_background,
+        budget.clone(),
+    );
     let descriptors = DescriptorStore::new(Arc::clone(store), &config.base, config.delete_mode)
         .map_err(|e| crate::assemble::AssembleError::Store(e.to_string()))?;
     let service = crate::snapshot_restore_route::SnapshotRestoreService::new(
@@ -156,10 +167,11 @@ pub(crate) fn restore_routes(
         config.snapshots_take && config.snapshots_restore,
         crate::snapshot_restore_route::COPY_CHUNK_BYTES,
     )
+    .with_background(Arc::clone(&restores))
     .with_system_indices(crate::admin_assemble::system_indices(config))
     .with_stock(crate::stock_restore_route::StockRestoreSettings {
         enabled: config.snapshots_stock,
-        roots: oss_blob::SourceRoots::parse(&config.stock_fs_roots, &config.stock_s3_roots),
+        roots: oss_blob::SourceRoots::parse(&config.stock_roots.0, &config.stock_roots.1),
         fanout: config.stock_fanout,
         s3: config
             .stock_s3
@@ -170,6 +182,7 @@ pub(crate) fn restore_routes(
             }),
     });
     crate::snapshot_restore_route::routes(router, Arc::new(service))
+        .map(|router| (router, Some(restores)))
         .map_err(crate::assemble::AssembleError::Route)
 }
 

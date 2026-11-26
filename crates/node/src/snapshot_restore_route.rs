@@ -25,6 +25,7 @@ use oss_meta::{
 use oss_rest::{JSON, Method, Request, Response, RestError, RouteError, Router};
 
 use crate::index_delete::DeleteService;
+use crate::restore_background::BackgroundRestores;
 use crate::route_util::{flag, read_body, refuse, refused};
 use crate::stock_restore_route::StockRestoreSettings;
 
@@ -49,6 +50,7 @@ pub struct SnapshotRestoreService {
     pub(crate) chunk_bytes: usize,
     pub(crate) system: Arc<SystemIndices>,
     pub(crate) stock: StockRestoreSettings,
+    background: Option<Arc<BackgroundRestores>>,
 }
 
 pub(crate) fn unavailable(e: &dyn std::fmt::Display) -> RestError {
@@ -91,6 +93,7 @@ impl SnapshotRestoreService {
             chunk_bytes,
             system: Arc::new(SystemIndices::none()),
             stock: StockRestoreSettings::off(),
+            background: None,
         }
     }
 
@@ -98,6 +101,14 @@ impl SnapshotRestoreService {
     #[must_use]
     pub fn with_stock(mut self, stock: StockRestoreSettings) -> Self {
         self.stock = stock;
+        self
+    }
+
+    /// Copies a native restore that does not wait on its own thread, as
+    /// `restores` allows.
+    #[must_use]
+    pub fn with_background(mut self, restores: Arc<BackgroundRestores>) -> Self {
+        self.background = Some(restores);
         self
     }
 
@@ -110,7 +121,7 @@ impl SnapshotRestoreService {
 
     /// The route's handler.
     pub(crate) fn restore(
-        &self,
+        self: &Arc<Self>,
         req: &mut Request<'_>,
         resp: &mut Response<'_>,
     ) -> Result<(), RestError> {
@@ -175,6 +186,9 @@ impl SnapshotRestoreService {
             .iter()
             .fold(0usize, |n, s| n.saturating_add(s.shards.len()));
         check_shards(shards).map_err(refused)?;
+        if !wait && let Some(restores) = self.background.as_ref().filter(|r| r.enabled()) {
+            return self.restore_in_background(restores, resp, &targets, sources, record.len());
+        }
         let copy = self.chunk_bytes;
         req.body().reserve(
             copy.saturating_mul(2)

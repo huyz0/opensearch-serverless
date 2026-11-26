@@ -24,6 +24,8 @@ AC-1's search is held by `crates/node/tests/server/snapshot_restore_search.rs::a
 
 AC-9 is held by `crates/meta/tests/descriptors/snapshot_restore.rs` (the mark is gone and the settings are the index's own after a restore; a restore that fails leaves it marked), `crates/meta/src/snapshot_restore.rs` (the unmarking against a moved register, and against a deleted index), `crates/node/tests/server/snapshot_restore_search.rs` (a marked descriptor is refused by the reader), `crates/node/src/descriptor_routes.rs` (and by the writer's routes) and `crates/format/src/restore_mark.rs`. AC-4's peak is measured by `crates/meta/tests/restore_peak.rs`: a counting allocator over a restore of a 48 MiB file through two buffers of 1 MiB. A Java node reading a marked descriptor is held by `fixtures/snapshots/rust-restore/descriptor-marked.bin` and `CheckRestore.java`: it reads and builds metadata from it without failing, and does not refuse the index.
 
+The background form (`wait_for_completion` absent or `false` with the switch on) is held by [restore-background](../restore-background/SPEC.md).
+
 ## Out of scope
 
-Standard snapshots, `include_global_state`, `partial`, `include_aliases`, and an asynchronous restore. (`index_settings` and `ignore_index_settings` moved to [restore-index-settings](../restore-index-settings/SPEC.md).)
+Standard snapshots, `include_global_state`, `partial`, `include_aliases`, and an asynchronous restore (behind a switch: [restore-background](../restore-background/SPEC.md)). (`index_settings` and `ignore_index_settings` moved to [restore-index-settings](../restore-index-settings/SPEC.md).)
