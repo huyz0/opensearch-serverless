@@ -33,4 +33,5 @@ mod search_pipeline;
 mod search_template;
 mod search_template_stored;
 mod shards;
+mod uri_query;
 mod validate_query;
