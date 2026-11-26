@@ -14,6 +14,8 @@ mod soak;
 #[path = "mixed_fleet/soak_wide.rs"]
 mod soak_wide;
 mod suite_rig;
+#[path = "mixed_fleet/warm_peer.rs"]
+mod warm_peer;
 
 use std::collections::BTreeSet;
 use std::net::SocketAddr;
