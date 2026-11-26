@@ -14,7 +14,10 @@ use crate::{OpenShard, open_shard};
 
 const DOCS: usize = 6;
 /// Documents of one block: the children, then the parent.
-const BLOCK: i32 = NESTED_CHILDREN as i32 + 1;
+const CHILDREN: i32 = NESTED_CHILDREN as i32;
+const BLOCK: i32 = CHILDREN + 1;
+/// Documents that survive excluding one parent.
+const REST: u64 = DOCS as u64 - 1;
 
 fn shard(spec: &Spec) -> OpenShard<Emulator> {
     let config = BudgetConfig::new(4 << 20)
@@ -42,7 +45,7 @@ fn query(shard: &OpenShard<Emulator>, query: &str) -> Result<Hits, ShardError> {
 
 /// The parent of document `i` is the last of its block.
 fn parent(i: i32) -> i32 {
-    i * BLOCK + BLOCK - 1
+    i.saturating_mul(BLOCK).saturating_add(CHILDREN)
 }
 
 fn docs(h: &Hits) -> Vec<i32> {
@@ -124,7 +127,7 @@ fn a_nested_query_composes_with_the_queries_around_it() {
         r#"{"bool":{"must_not":{"nested":{"path":"c","query":{"term":{"c.w":"w2-1"}}}}}}"#,
     )
     .expect("searches");
-    assert_eq!(excluded.total, DOCS as u64 - 1);
+    assert_eq!(excluded.total, REST);
 }
 
 #[test]
