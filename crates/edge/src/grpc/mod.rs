@@ -5,16 +5,14 @@
 //! request-body pool when the front starts. Nothing here knows a handler: a call is mapped to the
 //! node's REST request and sent over the loopback connection like any other stream.
 
+mod bulk;
 mod call;
+mod fields;
 mod frame;
 mod health;
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the REST mapping that uses the rest of the table is the next slice"
-    )
-)]
+mod respond;
+mod rest;
+mod schema;
 mod status;
 
 use std::sync::Arc;
@@ -29,6 +27,7 @@ use self::status::{DEADLINE_EXCEEDED, INVALID_ARGUMENT, Status, UNAVAILABLE, UNI
 use crate::stream::{Shared, send_all};
 
 const HEALTH_CHECK: &str = "/grpc.health.v1.Health/Check";
+const BULK: &str = "/org.opensearch.protobufs.services.DocumentService/Bulk";
 
 /// The deadline in a `grpc-timeout` header: up to eight digits and a unit.
 fn deadline(value: &str) -> Option<Duration> {
@@ -114,7 +113,7 @@ pub(crate) async fn serve(
     };
     // ALLOC: a status line or request head, bounded by the head limits (16 KiB).
     let path = parts.uri.path().to_owned();
-    if path != HEALTH_CHECK {
+    if path != HEALTH_CHECK && path != BULK {
         // ALLOC: a status line or request head, bounded by the head limits (16 KiB).
         let s = Status::new(UNIMPLEMENTED, format!("{path} is not served"));
         return trailers_only(&mut respond, &s);
@@ -123,7 +122,14 @@ pub(crate) async fn serve(
         Ok(m) => m,
         Err(s) => return trailers_only(&mut respond, &s),
     };
-    let work = health::check(&shared, &message);
+    let work = async {
+        if path == BULK {
+            let rest = bulk::request(&message)?;
+            rest::roundtrip(&shared, &rest, &schema::message("BulkResponse")).await
+        } else {
+            health::check(&shared, &message).await
+        }
+    };
     let answer = match limit {
         Some(d) => tokio::time::timeout(d, work)
             .await

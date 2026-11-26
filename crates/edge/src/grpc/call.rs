@@ -15,10 +15,6 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 /// The answer: its REST status and body.
 pub(crate) struct Answer {
     pub(crate) status: u16,
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "read by the REST mapping, the next slice")
-    )]
     pub(crate) body: Bytes,
 }
 

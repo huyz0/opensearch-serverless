@@ -25,6 +25,12 @@ pub struct State {
     pub unhealthy: AtomicBool,
     /// `/_cluster/health` waits for `release` while set.
     pub hold_health: AtomicBool,
+    /// The target (path and query) and body of each `_bulk` call, oldest first.
+    pub bulks: std::sync::Mutex<Vec<(String, Vec<u8>)>>,
+    /// `_bulk` answers this status and an error body while not 0.
+    pub bulk_status: AtomicUsize,
+    /// What `_bulk` answers with on 200, when not empty.
+    pub bulk_answer: std::sync::Mutex<String>,
 }
 
 pub fn budget(bytes: usize) -> MemoryBudget {
@@ -46,6 +52,7 @@ pub fn start_with(state: &Arc<State>, max_body: u64) -> (Server, MemoryBudget, S
     let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
     let s = Arc::clone(state);
     let hs = Arc::clone(state);
+    let bs = Arc::clone(state);
     let router = Router::new()
         .route(
             Method::Get,
@@ -102,6 +109,32 @@ pub fn start_with(state: &Arc<State>, max_body: u64) -> (Server, MemoryBudget, S
                     }
                     s.holding.fetch_sub(1, Ordering::AcqRel);
                     resp.send(200, JSON, b"{}")
+                },
+            )
+        })
+        .and_then(|r| {
+            r.route(
+                Method::Post,
+                "/_bulk",
+                &["routing", "pipeline", "timeout", "refresh", "require_alias", "_source"],
+                move |req: &mut Request<'_>, resp: &mut Response<'_>| {
+                    let target = format!("{}?{}", req.raw_path(), req.raw_query());
+                    let mut body = Vec::new();
+                    while let Some(chunk) = req.body().next_chunk()? {
+                        body.extend_from_slice(chunk);
+                    }
+                    bs.bulks.lock().expect("lock").push((target, body));
+                    let status = bs.bulk_status.load(Ordering::Acquire);
+                    if status != 0 {
+                        let status = u16::try_from(status).expect("status");
+                        return resp.send(
+                            status,
+                            JSON,
+                            b"{\"error\":{\"type\":\"circuit_breaking_exception\",\"reason\":\"too big\"},\"status\":429}",
+                        );
+                    }
+                    let answer = bs.bulk_answer.lock().expect("lock").clone();
+                    resp.send(200, JSON, answer.as_bytes())
                 },
             )
         })
