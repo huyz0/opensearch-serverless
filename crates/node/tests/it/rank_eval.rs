@@ -1,5 +1,9 @@
 //! docs/specs/rank-eval-api: `_rank_eval` end to end.
 
+use std::sync::Arc;
+
+use oss_node::search::{TemplateFault, TemplateSource};
+
 use crate::support::{Node, counts, request, start};
 #[cfg(feature = "coordinator")]
 use crate::support::{put_shard_copy, put_variant};
@@ -114,6 +118,50 @@ fn a_template_request_renders_then_ranks() {
     let (status, text) = eval(&node, "compat-term", body);
     assert_eq!(status, 200, "{text}");
     assert!(text.contains(HITS), "{text}");
+}
+
+/// One stored template, `term`, and none else.
+struct Stored;
+
+impl TemplateSource for Stored {
+    fn reserve_bytes(&self) -> usize {
+        0
+    }
+    fn resolve(&self, id: &str) -> Result<String, TemplateFault> {
+        match id {
+            "term" => Ok(r#"{"query":{"term":{"title":"{{w}}"}}}"#.to_owned()),
+            _ => Err(TemplateFault::Missing),
+        }
+    }
+}
+
+// AC-9
+#[test]
+fn a_template_naming_a_stored_script_ranks_like_its_inline_twin() {
+    let node = start();
+    assert!(node.service.set_stored_templates(Arc::new(Stored)));
+    let body = |script: &str| {
+        format!(
+            r#"{{"templates":[{{"id":"t","template":{{"id":"{script}"}}}}],"requests":[{{"id":"q","template_id":"t","params":{{"w":"brown"}},"ratings":[{{"_index":"compat-term","_id":"4","rating":1}}]}}],"metric":{{"precision":{{}}}}}}"#
+        )
+    };
+    let (status, text) = eval(&node, "compat-term", &body("term"));
+    assert_eq!(status, 200, "{text}");
+    assert!(text.contains(HITS), "{text}");
+    // A script that does not exist is the template read's own 404.
+    let (status, text) = eval(&node, "compat-term", &body("nope"));
+    assert_eq!(status, 404, "{text}");
+    assert!(text.contains("unable to find script [nope]"), "{text}");
+}
+
+// AC-9
+#[test]
+fn a_stored_template_without_a_source_set_is_refused() {
+    let node = start();
+    let body = r#"{"templates":[{"id":"t","template":{"id":"term"}}],"requests":[{"id":"q","template_id":"t","params":{"w":"brown"},"ratings":[]}],"metric":{"precision":{}}}"#;
+    let (status, text) = eval(&node, "compat-term", body);
+    assert_eq!(status, 400, "{text}");
+    assert!(text.contains("not supported by this node yet"), "{text}");
 }
 
 // AC-3

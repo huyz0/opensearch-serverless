@@ -150,7 +150,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
 
     /// The mustache source stored under `id`, after `hold` reserved the
     /// bytes reading it takes.
-    fn stored_source(
+    pub(super) fn stored_source(
         &self,
         id: &str,
         hold: impl FnOnce(usize) -> Result<(), Answer>,

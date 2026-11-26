@@ -35,10 +35,32 @@ fn a_spec_names_its_requests_metric_and_templates() {
     assert_eq!(
         spec.templates[0],
         // ALLOC: test data.
-        ("x".to_owned(), r#"{"query":"{{a}}"}"#.to_owned())
+        (
+            "x".to_owned(),
+            TemplateText::Inline(r#"{"query":"{{a}}"}"#.to_owned())
+        )
     );
     // ALLOC: test data.
-    assert_eq!(spec.templates[1], ("y".to_owned(), "{}".to_owned()));
+    assert_eq!(
+        spec.templates[1],
+        ("y".to_owned(), TemplateText::Inline("{}".to_owned()))
+    );
+}
+
+// AC-9
+#[test]
+fn a_template_may_name_a_stored_script() {
+    let body = r#"{"requests":[{"id":"t","template_id":"x","params":{"a":1},"ratings":[]}],"metric":{"precision":{}},"templates":[{"id":"x","template":{"id":"stored"}}]}"#;
+    let spec = parse(body).expect("parses");
+    assert_eq!(
+        spec.templates[0],
+        // ALLOC: test data.
+        ("x".to_owned(), TemplateText::Stored("stored".to_owned()))
+    );
+    // ALLOC: test data.
+    let both = body.replace(r#"{"id":"stored"}"#, r#"{"id":"stored","source":"{}"}"#);
+    let e = parse(&both).expect_err("both");
+    assert!(e.contains("only one of [source] and [id]"), "{e}");
 }
 
 #[test]
@@ -234,10 +256,6 @@ fn ratings_and_templates_are_checked() {
         (r#"{"id":"x","template":1}"#, "template doesn't support"),
         (
             r#"{"id":"x","template":{"source":"a","lang":"painless"}}"#,
-            "not supported by this node yet",
-        ),
-        (
-            r#"{"id":"x","template":{"id":"stored"}}"#,
             "not supported by this node yet",
         ),
         (

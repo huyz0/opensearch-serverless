@@ -32,8 +32,8 @@ pub struct RankEvalSpec {
     pub requests: Vec<RatedRequest>,
     /// The metric.
     pub metric: Metric,
-    /// The templates by id: their mustache source.
-    pub templates: Vec<(String, String)>,
+    /// The templates by id: their mustache source, or the stored script that holds it.
+    pub templates: Vec<(String, TemplateText)>,
 }
 
 fn wrong(p: &Parser<'_>, spec: &str, field: &str, kind: Option<Kind>) -> DslError {
@@ -329,10 +329,19 @@ fn metric(p: &mut Parser<'_>) -> Result<Metric, DslError> {
     Ok(result)
 }
 
-/// A template: `{"id": .., "template": {"source": ..}}`.
-fn template(p: &mut Parser<'_>) -> Result<(String, String), DslError> {
+/// Where a template's mustache source comes from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TemplateText {
+    /// The source written in the body.
+    Inline(String),
+    /// The id of a stored script holding the source.
+    Stored(String),
+}
+
+/// A template: `{"id": .., "template": {"source": ..}}` or `{"template": {"id": ..}}`.
+fn template(p: &mut Parser<'_>) -> Result<(String, TemplateText), DslError> {
     expect_object(p, "script_with_id", p.current_token())?;
-    let (mut id, mut source) = (None, None);
+    let (mut id, mut source, mut stored) = (None, None, None);
     while p.next_token() == Some(Kind::FieldName) {
         // ALLOC: one name of the body, which the recording bounds.
         let name = p.text().to_owned();
@@ -356,6 +365,9 @@ fn template(p: &mut Parser<'_>) -> Result<(String, String), DslError> {
                                 source = Some(object_json(p)?);
                             }
                             ("lang", Some(Kind::String)) if p.text() == "mustache" => {}
+                            ("id", Some(Kind::String)) => {
+                                stored = Some(string(p, "script", &field, v)?);
+                            }
                             ("lang" | "id" | "params" | "options", _) => {
                                 // ALLOC: the request body and its response, which the limits bound.
                                 return Err(DslError::unsupported(&format!(
@@ -372,8 +384,18 @@ fn template(p: &mut Parser<'_>) -> Result<(String, String), DslError> {
         }
     }
     let id = id.ok_or_else(|| missing(p, "script_with_id", "id"))?;
-    let source = source.ok_or_else(|| missing(p, "script_with_id", "template"))?;
-    Ok((id, source))
+    let text = match (source, stored) {
+        (Some(_), Some(_)) => {
+            // ALLOC: error path; one message.
+            return Err(DslError::illegal(
+                "a template takes only one of [source] and [id]".to_owned(),
+            ));
+        }
+        (Some(source), None) => TemplateText::Inline(source),
+        (None, Some(stored)) => TemplateText::Stored(stored),
+        (None, None) => return Err(missing(p, "script_with_id", "template")),
+    };
+    Ok((id, text))
 }
 
 impl RankEvalSpec {
