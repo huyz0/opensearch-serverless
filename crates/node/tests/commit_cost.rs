@@ -137,6 +137,11 @@ struct Measured {
     /// The second node writing to every index after the first was killed.
     takeover: Vec<u64>,
     takeover_took: Duration,
+    /// The same takeover from the moment the survivor sees the node gone: what
+    /// opening the shards costs, without the wait for that, which varies by a
+    /// second between runs, in which a node asks the store a few times a second
+    /// whatever it is doing.
+    opening: Vec<u64>,
 }
 
 fn measure(mode: Mode) -> Measured {
@@ -188,15 +193,20 @@ fn measure(mode: Mode) -> Measured {
     cluster.kill(0);
     let before = counts(&cluster);
     let started = Instant::now();
+    wait_for("the survivor sees one", 30, || cluster.nodes_seen(1) == 1);
+    let before_opening = counts(&cluster);
     write_all(&cluster, 1, "after", false);
     let takeover_took = started.elapsed();
-    let takeover = minus(&counts(&cluster), &before);
+    let after = counts(&cluster);
+    let takeover = minus(&after, &before);
+    let opening = minus(&after, &before_opening);
     keeps_documents(&cluster, 1);
     Measured {
         steady,
         times,
         takeover,
         takeover_took,
+        opening,
     }
 }
 
@@ -220,6 +230,7 @@ fn the_commit_switches_cost_no_more_than_the_defaults() {
     ] {
         show(&format!("{label} write+idle"), &m.steady);
         show(&format!("{label} takeover  "), &m.takeover);
+        show(&format!("{label} opening   "), &m.opening);
         println!(
             "{label} write p50 {:?} p99 {:?}; takeover took {:?}",
             m.times[m.times.len() / 2],
@@ -266,10 +277,12 @@ fn the_commit_switches_cost_no_more_than_the_defaults() {
         off.takeover,
         staging.takeover
     );
+    // Opening the shards, without the wait before it: two runs of the same
+    // takeover differ by more than the modes do when that wait is counted.
     assert!(
-        total(&logged.takeover) <= total(&staging.takeover),
+        total(&logged.opening) <= total(&staging.opening),
         "{:?} {:?}",
-        staging.takeover,
-        logged.takeover
+        staging.opening,
+        logged.opening
     );
 }
