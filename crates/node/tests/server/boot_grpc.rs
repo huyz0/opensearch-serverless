@@ -19,9 +19,9 @@ use prost::Message;
 use prost_reflect::DynamicMessage;
 use serde_json::{Value, json};
 
-const DOCUMENT: &str = "/org.opensearch.protobufs.services.DocumentService/Bulk";
+pub(crate) const DOCUMENT: &str = "/org.opensearch.protobufs.services.DocumentService/Bulk";
 const STREAM: &str = "/org.opensearch.protobufs.services.SearchService/ServerStreamSearch";
-const SEARCH: &str = "/org.opensearch.protobufs.services.SearchService/Search";
+pub(crate) const SEARCH: &str = "/org.opensearch.protobufs.services.SearchService/Search";
 
 fn boot(root: &std::path::Path) -> Node {
     let root = root.display().to_string();
@@ -38,7 +38,7 @@ fn boot(root: &std::path::Path) -> Node {
     start(&config).expect("starts")
 }
 
-fn rest(node: &Node, method: &str, target: &str, body: Option<&str>) -> (u16, Value) {
+pub(crate) fn rest(node: &Node, method: &str, target: &str, body: Option<&str>) -> (u16, Value) {
     let reply = support::request(node.addr(), method, target, body.map(str::as_bytes));
     let json = serde_json::from_str(&reply.text()).unwrap_or(Value::Null);
     (reply.status, json)
@@ -46,7 +46,7 @@ fn rest(node: &Node, method: &str, target: &str, body: Option<&str>) -> (u16, Va
 
 /// One unary call: `request` is protojson of `request_type`; the answer is protojson, or the
 /// `grpc-status` and message.
-fn grpc(
+pub(crate) fn grpc(
     node: &Node,
     path: &str,
     request_type: &str,
@@ -132,7 +132,7 @@ fn grpc_all(
     Ok(messages)
 }
 
-fn index(node: &Node, name: &str) {
+pub(crate) fn index(node: &Node, name: &str) {
     assert_eq!(rest(node, "PUT", &format!("/{name}"), None).0, 200);
 }
 
@@ -208,7 +208,7 @@ fn bulk_over_grpc_answers_what_rest_bulk_answers() {
 }
 
 /// Base64 for the request bytes, without a dependency for a test helper.
-mod base64_free {
+pub(crate) mod base64_free {
     pub fn encode(input: &[u8]) -> String {
         const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
         let mut out = String::new();
