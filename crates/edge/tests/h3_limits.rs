@@ -361,3 +361,51 @@ async fn stream_floods_and_connection_floods_are_survived() {
     edge.shutdown();
     server.shutdown();
 }
+
+// AC-15: a connection with no stream open is closed after `idle_timeout` even when the client keeps
+// pinging, and one with a stream open is not.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_pinging_client_with_no_stream_open_is_closed_and_one_with_a_stream_is_not() {
+    let state = Arc::new(State::default());
+    let (server, budget, upstream) = start(&state);
+    let p = quic::pair("pinging");
+    let mut c = config(upstream, &p);
+    c.idle_timeout = Duration::from_millis(500);
+    let edge = Edge::start(c, &budget).expect("starts");
+    let addr = edge.h3_addr().expect("bound");
+    let ping = Some(Duration::from_millis(100));
+
+    // No stream open: closed by the front, though the transport never goes idle.
+    let endpoint = quic::endpoint_with(&p, &[b"h3"], ping);
+    let (conn, mut send) = quic::connect(&endpoint, addr).await;
+    assert_eq!(
+        quic::request(&mut send, "GET", "https://x/", None)
+            .await
+            .expect("served")
+            .status,
+        200
+    );
+    tokio::time::sleep(Duration::from_millis(2500)).await;
+    assert!(
+        conn.close_reason().is_some(),
+        "the front closes a connection with no stream open after idle_timeout"
+    );
+
+    // A stream open for longer than `idle_timeout` keeps its connection.
+    let endpoint = quic::endpoint_with(&p, &[b"h3"], ping);
+    let (conn, mut send) = quic::connect(&endpoint, addr).await;
+    let held =
+        tokio::spawn(async move { quic::request(&mut send, "GET", "https://x/hold", None).await });
+    while state.holding.load(Ordering::Acquire) < 1 {
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    tokio::time::sleep(Duration::from_millis(2000)).await;
+    assert!(
+        conn.close_reason().is_none(),
+        "a connection with a stream open stays"
+    );
+    state.release.store(true, Ordering::Release);
+    assert_eq!(held.await.expect("joins").expect("completes").status, 200);
+    edge.shutdown();
+    server.shutdown();
+}

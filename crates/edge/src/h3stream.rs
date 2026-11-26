@@ -45,9 +45,10 @@ async fn piece(recv: &mut Recv) -> Result<Option<Bytes>, ()> {
         match recv.recv_data().await {
             Ok(Some(mut data)) => {
                 let n = data.remaining();
-                if n > 0 {
-                    return Ok(Some(data.copy_to_bytes(n)));
+                if n == 0 {
+                    continue;
                 }
+                return Ok(Some(data.copy_to_bytes(n)));
             }
             Ok(None) => {}
             Err(_) => return Err(()),
@@ -161,7 +162,7 @@ async fn upload(
         if length.is_some_and(|l| sent > l) {
             return Err(());
         }
-        if length.is_none() && n > 0 {
+        if length.is_none() {
             // ALLOC: one chunk-size line per DATA frame, a few bytes.
             wr.write_all(format!("{n:x}\r\n").as_bytes())
                 .await

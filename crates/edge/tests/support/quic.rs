@@ -34,6 +34,15 @@ pub fn pair(tag: &str) -> Pair {
 
 /// A QUIC client endpoint trusting `p`, offering `alpn`.
 pub fn endpoint(p: &Pair, alpn: &[&[u8]]) -> quinn::Endpoint {
+    endpoint_with(p, alpn, None)
+}
+
+/// As [`endpoint`], with a keep-alive ping every `keep_alive`: a connection the client never lets idle.
+pub fn endpoint_with(
+    p: &Pair,
+    alpn: &[&[u8]],
+    keep_alive: Option<std::time::Duration>,
+) -> quinn::Endpoint {
     let mut roots = RootCertStore::empty();
     roots.add(p.der.clone()).expect("root");
     let provider = Arc::new(rustls::crypto::ring::default_provider());
@@ -45,9 +54,13 @@ pub fn endpoint(p: &Pair, alpn: &[&[u8]]) -> quinn::Endpoint {
     c.alpn_protocols = alpn.iter().map(|a| a.to_vec()).collect();
     c.enable_early_data = true;
     let mut e = quinn::Endpoint::client("127.0.0.1:0".parse().expect("addr")).expect("endpoint");
-    e.set_default_client_config(quinn::ClientConfig::new(Arc::new(
+    let mut client = quinn::ClientConfig::new(Arc::new(
         QuicClientConfig::try_from(c).expect("quic client"),
-    )));
+    ));
+    let mut transport = quinn::TransportConfig::default();
+    transport.keep_alive_interval(keep_alive);
+    client.transport_config(Arc::new(transport));
+    e.set_default_client_config(client);
     e
 }
 

@@ -70,7 +70,9 @@ pub(crate) async fn accept_loop(
                 None => return,
             },
         };
-        if !incoming.remote_address_validated() && incoming.may_retry() {
+        // An address that has not proved itself is never accepted: it is sent a Retry, and one
+        // that cannot be sent a Retry is dropped.
+        if !incoming.remote_address_validated() {
             retries.fetch_add(1, Ordering::Relaxed);
             let _ = incoming.retry();
             continue;

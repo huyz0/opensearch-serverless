@@ -53,7 +53,6 @@ async fn bodies_are_bridged_and_a_wrong_length_is_not_served_as_complete() {
     assert_eq!(
         (with_length.status, with_length.body.as_slice()),
         (200, &br#"{"bytes":786432}"#[..]),
-        "a declared length is not chunk-framed on the loopback"
     );
     let short = quic::request_with(
         &mut send,
@@ -174,6 +173,49 @@ async fn a_run_of_empty_data_frames_does_not_end_a_body_early() {
         body.extend_from_slice(&bytes::Buf::copy_to_bytes(&mut d, n));
     }
     assert_eq!(body, br#"{"bytes":7}"#);
+    edge.shutdown();
+    server.shutdown();
+}
+
+/// The handler gets the bytes the client sent, whether the request declared a length or not:
+/// neither is chunk-framed wrongly nor cut.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_handler_receives_exactly_the_bytes_sent() {
+    let state = Arc::new(State::default());
+    let (server, budget, upstream) = start(&state);
+    let p = quic::pair("exact");
+    let edge = Edge::start(config(upstream, &p), &budget).expect("starts");
+    let (_e, _c, mut send) = client(&edge, &p).await;
+    let mut ndjson = Vec::new();
+    for i in 0..3000 {
+        ndjson.extend_from_slice(
+            format!("{{\"index\":{{\"_id\":\"{i}\"}}}}\n{{\"n\":{i}}}\n").as_bytes(),
+        );
+    }
+    for declared in [false, true] {
+        let length = ndjson.len().to_string();
+        let headers: Vec<(&str, &str)> = if declared {
+            vec![("content-length", length.as_str())]
+        } else {
+            vec![]
+        };
+        let a = quic::request_with(
+            &mut send,
+            "POST",
+            "https://x/_bulk",
+            &headers,
+            Some(Bytes::from(ndjson.clone())),
+        )
+        .await
+        .expect("answer");
+        assert_eq!(a.status, 200, "declared length: {declared}");
+    }
+    let seen = state.bulks.lock().expect("lock");
+    assert_eq!(seen.len(), 2);
+    for (i, (_target, body)) in seen.iter().enumerate() {
+        assert_eq!(body, &ndjson, "request {i}: the bytes the client sent");
+    }
+    drop(seen);
     edge.shutdown();
     server.shutdown();
 }
