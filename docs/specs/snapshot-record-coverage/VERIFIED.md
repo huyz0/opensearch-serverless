@@ -2,7 +2,7 @@
 
 - AC-1: `a_finished_index_names_every_shard_exactly_once`, `a_shard_without_its_number_is_refused`.
 - AC-2: `an_index_with_no_shards_listed_is_still_the_marker`.
-- AC-3: `the_largest_index_is_checked_and_a_larger_one_is_left_to_the_route`.
+- AC-3: `the_largest_index_is_checked_and_a_larger_one_is_left_to_the_route`, `a_huge_shard_count_allocates_nothing_for_the_check`.
 - AC-4: `a_finished_index_must_name_every_shard_once`, `the_largest_index_is_checked_and_a_larger_one_is_left_to_the_route`.
 - AC-5: `the_aliases_the_java_wrote_are_read_and_written_back_identically`.
 

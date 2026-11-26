@@ -36,3 +36,11 @@ fn the_largest_index_is_checked_and_a_larger_one_is_left_to_the_route() {
     let over: Vec<u32> = (0..4097).collect();
     assert!(shards_of(4097, &over).refusal().is_ok());
 }
+
+#[test]
+fn a_huge_shard_count_allocates_nothing_for_the_check() {
+    let record = r#"{"repo":"r","name":"s","shallow":true,"start_time_in_millis":1,"end_time_in_millis":2,
+        "indices":{"a":{"uuid":"U","number_of_shards":4000000000,"shards":[{"shard":0,"term":1,"files":{}}]}}}"#;
+    let index = RestoreIndex::find(record.as_bytes(), "a").unwrap().unwrap();
+    assert!(index.refusal().is_ok());
+}

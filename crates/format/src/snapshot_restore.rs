@@ -102,7 +102,7 @@ impl RestoreIndex {
             }
             json.finish()?;
         }
-        if !self.shards.is_empty() {
+        if !self.shards.is_empty() && self.number_of_shards <= MAX_SHARDS {
             // ALLOC: one flag a shard slot, at most MAX_SHARDS.
             let mut seen = vec![false; self.number_of_shards as usize];
             for shard in &self.shards {
