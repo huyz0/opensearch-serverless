@@ -19,6 +19,7 @@ pub mod search_after;
 pub mod sort;
 pub mod source;
 pub mod tokens;
+pub mod uri_query;
 pub mod values;
 
 pub use bool_query::BoolQuery;
@@ -33,6 +34,8 @@ pub use values::Value;
 mod collapse_tests;
 #[cfg(test)]
 mod rescore_tests;
+#[cfg(test)]
+mod uri_query_tests;
 
 /// The most bytes a search body's recorded tokens may take.
 pub const MAX_RECORDED_BYTES: usize = 1 << 20;

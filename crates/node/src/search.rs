@@ -34,9 +34,6 @@ use oss_rest::{JSON, Length, Method, Request, Response, RestError, RouteError, R
 pub use search_pipeline_run::{PipelineFault, PipelineSource};
 pub use template::{TemplateFault, TemplateSource};
 
-/// The query parameters `_search` takes.
-pub const SEARCH_PARAMS: &[&str] = &["size", "from", "search_pipeline"];
-
 /// An open index and its charge to the `open_indexes` pool, released when
 /// the last search holding it finishes.
 pub(crate) struct Held<S: BlobStore + 'static> {
@@ -183,7 +180,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
         resp: &mut Response<'_>,
     ) -> Result<(), RestError> {
         let started = Instant::now();
-        let mut source = match read_source(req) {
+        let mut source = match uri_query::read_search_source(req) {
             Ok(source) => source,
             Err(Answer::Rest(e)) => return Err(e),
             Err(Answer::Search(e)) => return send(resp, &e),
@@ -402,6 +399,9 @@ mod rank_eval;
 mod shard_query;
 #[path = "search_template.rs"]
 mod template;
+#[path = "search_uri_query.rs"]
+mod uri_query;
+use uri_query::SEARCH_PARAMS;
 #[path = "search_validate.rs"]
 mod validate;
 #[cfg(all(feature = "reader", feature = "writer"))]

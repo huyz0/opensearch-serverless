@@ -7,6 +7,8 @@ src/error.rs	new		reader failures as one enum; the Java throws IOException subcl
 src/date.rs	port	server/src/main/java/org/opensearch/common/time/DateFormatters.java@3.10.0	STRICT_DATE_OPTIONAL_TIME, EpochTime's millisecond parser, JavaDateMathParser's round-up and DateFieldMapper.DateFieldType's range bounds; date math is in date_math.rs
 src/dsl/mod.rs	new		module root: the DSL subset's types and parse_chunks
 src/dsl/tokens.rs	port	libs/x-content/src/main/java/org/opensearch/core/xcontent/XContentParser.java@3.10.0	a pull parser over recorded tokens with Jackson's token names and locations; no JSON tree
+src/dsl/uri_query.rs	port	server/src/main/java/org/opensearch/rest/action/RestActions.java@3.10.0	urlParamsToQueryBuilder: the q URL parameter and its companions as one query_string query
+src/dsl/uri_query_tests.rs	new		tests of uri_query.rs
 src/dsl/error.rs	port	libs/core/src/main/java/org/opensearch/core/common/ParsingException.java@3.10.0	ParsingException and XContentParseException messages and locations, as Failures
 src/dsl/values.rs	port	libs/core/src/main/java/org/opensearch/core/xcontent/AbstractXContentParser.java@3.10.0	intValue/floatValue/booleanValue coercions; SuggestingErrorOnUnknown's suggestions with Lucene's LevenshteinDistance
 src/fetch/mod.rs	new		the fetch phase's per-hit features

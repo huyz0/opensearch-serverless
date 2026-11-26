@@ -20,7 +20,11 @@ Invariant I-13 in [invariants.md](invariants.md) holds the suite to this: `crate
 
 ## `_count` on a reader node
 
-`GET|POST /{index}/_count` with a body of `query` alone, or none, answers `count` (the exact total of that query's search) and the search's `_shards`, over one shard or several ([count-api](specs/count-api/SPEC.md)). The URL parameter `min_score` counts only matches scoring at least it (`-1` is none). **Refused:** `/_count` without an index, every URL parameter but `min_score` (`q`, `terminate_after` and the rest), and any body key other than `query`, as 400 `illegal_argument_exception` where OpenSearch answers a `parsing_exception` for an unknown key.
+`GET|POST /{index}/_count` with a body of `query` alone, or none, answers `count` (the exact total of that query's search) and the search's `_shards`, over one shard or several ([count-api](specs/count-api/SPEC.md)). The URL parameter `min_score` counts only matches scoring at least it (`-1` is none), and `q` with `df`, `default_operator`, `analyzer`, `analyze_wildcard` and `lenient` counts a Lucene query string when the body gives no query ([uri-query](specs/uri-query/SPEC.md)). **Refused:** `/_count` without an index, every URL parameter but `min_score` and the `q` family (`terminate_after` and the rest), and any body key other than `query`, as 400 `illegal_argument_exception` where OpenSearch answers a `parsing_exception` for an unknown key.
+
+## `q` on `_search` and `_count`
+
+`q` with `df`, `default_operator`, `analyzer`, `analyze_wildcard` and `lenient` on `_search` and `_count` builds one `query_string` query as stock builds it from the URL; on `_search` it replaces a query in the body, on `_count` a query in the body wins ([uri-query](specs/uri-query/SPEC.md)). **Differs**: `analyze_wildcard=true` and an analyzer other than `standard` are refused as the `query_string` query refuses them; a `_count` with `q` and a body with no query counts `q`, where stock ignores `q` whenever there is a body. `_msearch`, `_search/template` and `_validate/query` still refuse the parameter.
 
 ## `_render/template` and `_search/template` on a reader node
 

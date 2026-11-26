@@ -19,10 +19,18 @@ use oss_reader::search::{hits_bytes, search_with};
 use oss_rest::{JSON, Length, Method, Request, Response, RestError, RouteError, Router};
 use std::sync::Arc;
 
-use super::{Answer, SearchService, read_source, send};
+use super::{Answer, SearchService, read_source, send, uri_query};
 
 /// The URL parameters `_count` takes.
-const COUNT_PARAMS: &[&str] = &["min_score"];
+const COUNT_PARAMS: &[&str] = &[
+    "min_score",
+    "q",
+    "df",
+    "default_operator",
+    "analyzer",
+    "analyze_wildcard",
+    "lenient",
+];
 
 /// The routes of `_count` on one index, by GET and POST.
 pub(super) fn routes<S: BlobStore + 'static>(
@@ -85,6 +93,11 @@ impl<S: BlobStore + 'static> SearchService<S> {
                 "_count without an index is not supported by this node yet",
             ));
         };
+        match uri_query::apply(req, &mut source, true) {
+            Ok(()) => {}
+            Err(Answer::Rest(e)) => return Err(e),
+            Err(Answer::Search(e)) => return send(resp, &e),
+        }
         let query_only = SearchSource {
             query: source.query.clone(),
             ..SearchSource::default()

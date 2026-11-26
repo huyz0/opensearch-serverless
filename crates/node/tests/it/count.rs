@@ -137,7 +137,12 @@ fn a_body_key_other_than_query_and_an_unknown_parameter_are_refused() {
         assert!(body.contains("illegal_argument_exception"), "{key}: {body}");
         assert!(body.contains("_count"), "{key}: {body}");
     }
-    let r = request(node.addr(), "POST", "/compat-term/_count?q=a", None);
+    let r = request(
+        node.addr(),
+        "POST",
+        "/compat-term/_count?terminate_after=1",
+        None,
+    );
     assert_eq!(r.status, 400, "{}", r.text());
 }
 
