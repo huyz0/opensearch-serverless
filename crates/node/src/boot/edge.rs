@@ -38,6 +38,17 @@ impl super::Node {
 }
 
 impl super::Node {
+    /// The address the clear-text HTTP/2 listener bound, when the `edge` feature is built and one is set.
+    #[must_use]
+    pub fn h2c_addr(&self) -> Option<SocketAddr> {
+        #[cfg(feature = "edge")]
+        return self.edge.edge.as_ref().and_then(oss_edge::Edge::h2c_addr);
+        #[cfg(not(feature = "edge"))]
+        None
+    }
+}
+
+impl super::Node {
     /// The UDP address the HTTP/3 listener bound, when the `edge` feature is built and one is set.
     #[must_use]
     pub fn h3_addr(&self) -> Option<SocketAddr> {

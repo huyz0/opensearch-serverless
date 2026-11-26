@@ -12,7 +12,7 @@ Numbers are from a debug build in a cloud sandbox: provisional, relative only.
 - AC-8: `an_h2_client_gets_h2_and_an_http1_client_gets_http1_with_the_same_answer`, `a_missing_unreadable_or_mismatched_certificate_refuses_to_start`; TLS 1.1 is refused by construction (rustls offers 1.2 and 1.3 only), not by a test
 - AC-9: `authority_reaches_the_handler_as_host`, `authority_wins_and_connection_headers_go`
 - AC-10: `rapid_resets_are_disconnected_and_the_node_serves_the_next_request`
-- AC-11: NOT-RUN: the S3 meter was not run over the front; `oss-edge` depends on `oss-mem` and not on `oss-blob`, so it cannot make a blob request
+- AC-11: `an_http2_bulk_and_search_make_the_blob_requests_their_http1_twins_make` (oss-node, `crates/node/tests/server/boot_h2_cost.rs`): a booted node over the in-process S3 emulator, a bulk and a search over clear-text HTTP/2 make the same blob requests per operation, in `S3Op::ALL` order, as their HTTP/1.1 twins on a second index (written after the code, not seen red); `oss-edge` depends on `oss-mem` and not on `oss-blob`, so it cannot make a blob request itself
 - AC-12: `a_large_response_streams_through_a_small_window`, and the HEAD case in `answers_match_http1_for_a_set_of_requests`
 - AC-13: `heap_stays_within_what_the_front_charges` printed `400 idle connections: 27191992 bytes live, 67979 per connection` (both ends in one process; charged 131072 each); `connections_past_the_limit_are_closed_and_idle_ones_time_out`, `a_plain_client_to_the_tls_port_is_not_served`
 - AC-14: `a_stalled_upload_does_not_stall_a_sibling_stream`
