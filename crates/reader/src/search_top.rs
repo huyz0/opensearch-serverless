@@ -216,3 +216,28 @@ pub(crate) fn sorted_hit(h: &FieldDoc, kinds: &[KeyKind], score_at: Option<usize
         sort,
     }
 }
+
+/// A field sort's hits carry no score; `track_scores` has each one scored,
+/// as `TopFieldCollector.populateScores` does.
+pub(crate) fn populate_scores(
+    segments: &[OpenSegment<'_>],
+    norms: &[Option<&HashMap<String, FieldNorms<'_>>>],
+    query: &BooleanQuery,
+    sort: Option<&(Vec<SortField>, Vec<KeyKind>)>,
+    top: &mut Top,
+    track_scores: bool,
+) -> Result<(), ShardError> {
+    let Some((_, kinds)) = sort.filter(|_| track_scores) else {
+        return Ok(());
+    };
+    if kinds.contains(&KeyKind::Score) || top.hits.is_empty() {
+        return Ok(());
+    }
+    let searcher = IndexSearcher::new(segments, norms).map_err(ShardError::engine)?;
+    let scored = crate::fetch::explain::explain_hits(&searcher, query, &top.hits)
+        .map_err(ShardError::engine)?;
+    for (hit, e) in top.hits.iter_mut().zip(&scored) {
+        hit.score = Some(e.value);
+    }
+    Ok(())
+}

@@ -39,6 +39,7 @@ mod search_nested_bytes;
 mod search_options;
 pub mod search_pipeline;
 mod search_post_filter;
+mod search_rescore;
 mod search_sort;
 pub use search_inner_hits::{InnerResult, ParentInner};
 mod search_sort_nested;

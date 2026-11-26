@@ -13,6 +13,7 @@ pub mod pit;
 pub mod queries;
 pub mod query;
 pub mod registered;
+pub mod rescore;
 pub mod search_after;
 pub mod sort;
 pub mod source;
@@ -26,6 +27,9 @@ pub use sort::SortKey;
 pub use source::SearchSource;
 pub use tokens::Recorder;
 pub use values::Value;
+
+#[cfg(test)]
+mod rescore_tests;
 
 /// The most bytes a search body's recorded tokens may take.
 pub const MAX_RECORDED_BYTES: usize = 1 << 20;

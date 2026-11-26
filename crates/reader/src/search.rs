@@ -27,7 +27,6 @@ use crate::aggs::bucket::filters_collect;
 use crate::aggs::bucket::{fixed_subs, keyed_subs, keyword_collect, keyword_subs};
 use crate::aggs::metric::{self, Partial, state_bytes};
 use crate::aggs::metric::{top_hits, top_hits_sub};
-use crate::dsl::search_after::{AfterKey, field_doc};
 use crate::dsl::{SearchSource, SortKey};
 use crate::failure::Failure;
 use crate::fetch::docvalue_fields::{self, HitField};
@@ -286,24 +285,7 @@ pub fn search_with<S: BlobStore + 'static>(
         sort.as_ref().map(|(_, kinds)| kinds.as_slice()),
     )?;
     docvalue_fields::check_count(&source.docvalue_fields)?;
-    let after = if source.search_after.is_empty() {
-        None
-    } else {
-        let is_date =
-            |name: &str| matches!(meta.mapping.get(name).map(|f| &f.ty), Some(FieldType::Date));
-        let keys: Option<Vec<AfterKey<'_>>> = sort.as_ref().map(|(fields, _)| {
-            fields
-                .iter()
-                .map(|f| AfterKey::of(f, is_date))
-                // ALLOC: one key a sort key, at most MAX_SORT_KEYS.
-                .collect()
-        });
-        Some(field_doc(
-            source.from,
-            &source.search_after,
-            keys.as_deref(),
-        )?)
-    };
+    let after = crate::search_rescore::after_key(source, &meta.mapping, sort.as_ref())?;
     let fields = scored_fields(&query);
     let owned = shard
         .reader
@@ -329,7 +311,15 @@ pub fn search_with<S: BlobStore + 'static>(
         .is_some_and(|(_, kinds)| kinds.contains(&KeyKind::Numeric))
         || top_plans.iter().any(top_hits::TopHitsPlan::numeric)
         || top_hits_sub::any_numeric_sub(&source.aggs, shard);
-    if numeric_sort || has_points(&query) || filter_plans.iter().flatten().any(has_points) {
+    let rescore = crate::search_rescore::plan(source, &cx, shard, index, sort.is_some())?;
+    let rescore_points = rescore
+        .as_ref()
+        .is_some_and(crate::search_rescore::Plan::has_points);
+    if numeric_sort
+        || rescore_points
+        || has_points(&query)
+        || filter_plans.iter().flatten().any(has_points)
+    {
         opened.open_points().map_err(ShardError::engine)?;
     }
     let segments = opened.as_open_segments();
@@ -360,14 +350,17 @@ pub fn search_with<S: BlobStore + 'static>(
         )),
         None => None,
     };
+    let (collect_window, collect_from) = rescore
+        .as_ref()
+        .map_or((window, source.from), |r| r.collection(window));
     let mut top = collect_top(
         &segments,
         shard,
         &norms,
         narrowed.as_ref().unwrap_or(&query),
         sort.as_ref(),
-        window,
-        source.from,
+        collect_window,
+        collect_from,
         limit,
         after.as_ref(),
         TopOptions {
@@ -376,19 +369,17 @@ pub fn search_with<S: BlobStore + 'static>(
             terminate_after: source.terminate_after,
         },
     )?;
-    if let Some((_, kinds)) = sort.as_ref().filter(|_| source.track_scores)
-        && !kinds.contains(&KeyKind::Score)
-        && !top.hits.is_empty()
-    {
-        // A field sort's hits carry no score; `track_scores` has each one
-        // scored, as `TopFieldCollector.populateScores` does.
-        let searcher = IndexSearcher::new(&segments, &norms).map_err(ShardError::engine)?;
-        let scored =
-            explain::explain_hits(&searcher, &query, &top.hits).map_err(ShardError::engine)?;
-        for (hit, e) in top.hits.iter_mut().zip(&scored) {
-            hit.score = Some(e.value);
-        }
+    if let Some(r) = &rescore {
+        r.apply(shard, &segments, &mut top, (source.from, window))?;
     }
+    crate::search_top::populate_scores(
+        &segments,
+        &norms,
+        &query,
+        sort.as_ref(),
+        &mut top,
+        source.track_scores,
+    )?;
     let mut hits = Hits {
         total: top.total,
         exact: top.exact,
@@ -427,7 +418,7 @@ pub fn search_with<S: BlobStore + 'static>(
 }
 
 /// Whether a query has a point clause, which needs the points open.
-fn has_points(query: &BooleanQuery) -> bool {
+pub(crate) fn has_points(query: &BooleanQuery) -> bool {
     fn walk(c: &Clause) -> bool {
         match c {
             // A knn query's answer is fixed documents, not points.
