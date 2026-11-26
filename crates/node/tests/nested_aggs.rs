@@ -51,7 +51,7 @@ fn nested_and_reverse_nested_aggregate_through_a_node() {
     // A path that is an object but not nested is refused.
     let body = r#"{"size":0,"aggs":{"c":{"nested":{"path":"meta"}}}}"#;
     let refused = cluster.call(0, "POST", "/shop/_search", Some(body));
-    assert!(refused.status >= 400, "{}", refused.text());
+    assert_eq!(refused.status, 500, "{}", refused.text());
     assert!(
         refused
             .text()

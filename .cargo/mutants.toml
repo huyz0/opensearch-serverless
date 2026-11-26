@@ -192,4 +192,9 @@ exclude_re = [
     # `warm` only moves the cost of building the schema from the first call to the start; the
     # schema is built on first use either way, so no behaviour differs.
     "crates/edge/src/grpc/schema.rs:.*replace warm with \\(\\)",
+    # The engine writes no field no document uses, so registering the nested
+    # grandchild word field for one level of nesting changes nothing; and it
+    # ignores the doc-values generation a field is registered with.
+    "crates/testkit/src/index/nested.rs:.*replace > with >= in register",
+    "crates/testkit/src/index/nested.rs:.*delete - in register",
 ]

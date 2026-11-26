@@ -22,18 +22,21 @@ const DOCS: usize = 6;
 const CHILDREN: u64 = 2;
 
 fn shard() -> OpenShard<Emulator> {
-    let spec = Spec::new("na", DOCS).segments_of(4).with_nested();
+    shard_of(&Spec::new("na", DOCS).segments_of(4).with_nested())
+}
+
+fn shard_of(spec: &Spec) -> OpenShard<Emulator> {
     let config = BudgetConfig::new(4 << 20)
         .with_pool(Pool::Transport, 4 << 20)
         .expect("fits");
     let budget = MemoryBudget::new(&config);
     let buffers = BufferPool::new(&budget, Pool::Transport, SMALL_BUFFER, 8).expect("fits");
     let store = PooledStore::new(Emulator::new(64 << 20, 1), buffers);
-    for (key, bytes) in blobs("", &spec) {
+    for (key, bytes) in blobs("", spec) {
         store.put(&key, &mut SliceSource::new(&bytes)).expect("put");
     }
     let cache = Arc::new(PageCache::new(PageCacheConfig::default()).expect("page cache"));
-    open_shard(Arc::new(store), cache, "", "na", 0).expect("opens")
+    open_shard(Arc::new(store), cache, "", &spec.name, 0).expect("opens")
 }
 
 fn run(shard: &OpenShard<Emulator>, body: &str) -> Result<Vec<Partial>, ShardError> {
@@ -145,9 +148,11 @@ fn a_reverse_nested_of_an_unmapped_path_counts_nothing_and_a_stray_one_fails() {
     );
     assert!(got.contains(r#""r":{"doc_count":0}"#), "{got}");
     let e = run(&shard, r#"{"aggs":{"r":{"reverse_nested":{}}}}"#).expect_err("refused");
-    assert!(e.failure.reason.ends_with(
+    assert_eq!(e.status, 500);
+    assert_eq!(
+        e.failure.reason,
         "Reverse nested aggregation [r] can only be used inside a [nested] aggregation"
-    ));
+    );
 }
 
 // AC-6
@@ -180,4 +185,44 @@ fn a_scored_sub_aggregation_is_refused_by_name_beneath_a_nested_at_any_depth() {
             "{reason}"
         );
     }
+}
+
+// AC-4
+#[test]
+fn a_nested_inside_a_nested_joins_over_the_enclosing_objects_and_reverse_nested_steps_out() {
+    let shard = shard_of(&Spec::new("deep", DOCS).segments_of(4).with_nested_deep());
+    let got = body_of(
+        &shard,
+        r#"{"size":0,"query":{"range":{"n":{"lt":2}}},"aggs":{"c":{"nested":{"path":"c"},
+            "aggs":{"d":{"nested":{"path":"c.d"},"aggs":{
+                "v":{"terms":{"field":"c.d.v","size":10}},
+                "own":{"reverse_nested":{"path":"c"}},
+                "root":{"reverse_nested":{},"aggs":{"s":{"sum":{"field":"n"}}}}}}}}}}"#,
+    );
+    // Documents 0 and 1: four children, one grandchild each.
+    assert!(got.starts_with(r#""doc_count":4"#), "{got}");
+    assert!(got.contains(r#""d":{"doc_count":4"#), "{got}");
+    for word in ["v0-0", "v0-1", "v1-0", "v1-1"] {
+        assert!(
+            got.contains(&format!(r#""key":"{word}","doc_count":1"#)),
+            "{got}"
+        );
+    }
+    // Each grandchild's own child, and the two roots (n = 0 and 1).
+    assert!(got.contains(r#""own":{"doc_count":4}"#), "{got}");
+    assert!(
+        got.contains(r#""root":{"doc_count":2,"s":{"value":1"#),
+        "{got}"
+    );
+}
+
+// AC-3
+#[test]
+fn a_nested_on_the_grandchildren_alone_counts_them_under_their_roots() {
+    let shard = shard_of(&Spec::new("deep2", DOCS).segments_of(4).with_nested_deep());
+    let got = body_of(
+        &shard,
+        r#"{"size":0,"aggs":{"d":{"nested":{"path":"c.d"}}}}"#,
+    );
+    assert_eq!(got, format!(r#""doc_count":{}"#, DOCS as u64 * CHILDREN));
 }

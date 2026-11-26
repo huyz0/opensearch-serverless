@@ -8,6 +8,11 @@
 #[path = "../support/mod.rs"]
 mod support;
 
+#[path = "freeze.rs"]
+mod freeze;
+
+pub use freeze::Freezer;
+
 use std::net::{TcpListener, TcpStream};
 use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
@@ -52,6 +57,8 @@ pub struct Cluster {
     nodes: Vec<Option<Node>>,
     ids: Vec<String>,
     settings: Vec<(String, String)>,
+    /// The freezer a node's store traffic goes through, by slot.
+    freezers: Vec<Option<Freezer>>,
     _backing: Backing,
 }
 
@@ -168,6 +175,7 @@ impl Cluster {
                 nodes: Vec::new(),
                 ids: Vec::new(),
                 settings: Vec::new(),
+                freezers: Vec::new(),
                 _backing: backing,
             });
         }
@@ -181,6 +189,7 @@ impl Cluster {
             nodes: Vec::new(),
             ids: Vec::new(),
             settings: Vec::new(),
+            freezers: Vec::new(),
             _backing: Backing::Emulated(server),
         })
     }
@@ -224,7 +233,42 @@ impl Cluster {
         let node = start(&self.config(id)).expect("the node starts");
         self.nodes.push(Some(node));
         self.ids.push(id.to_owned());
+        self.freezers.push(None);
         self.nodes.len().saturating_sub(1)
+    }
+
+    /// Starts the node `id` with its object-store traffic going through a
+    /// [`Freezer`], and returns its slot.
+    pub fn add_behind(&mut self, id: &str) -> usize {
+        let upstream = self
+            .endpoint
+            .strip_prefix("http://")
+            .expect("a plain HTTP endpoint")
+            .to_owned();
+        let freezer = Freezer::start(&upstream);
+        self.settings.retain(|(k, _)| k != "OSS_S3_ENDPOINT");
+        self.settings
+            .push(("OSS_S3_ENDPOINT".to_owned(), freezer.endpoint()));
+        let slot = self.add(id);
+        self.settings.retain(|(k, _)| k != "OSS_S3_ENDPOINT");
+        self.freezers[slot] = Some(freezer);
+        slot
+    }
+
+    /// Freezes the store traffic of the node in `slot` (see [`Freezer`]).
+    pub fn freeze(&self, slot: usize) {
+        self.freezers[slot]
+            .as_ref()
+            .expect("the node was started behind a freezer")
+            .freeze();
+    }
+
+    /// Releases what the freezer of `slot` holds.
+    pub fn thaw(&self, slot: usize) {
+        self.freezers[slot]
+            .as_ref()
+            .expect("the node was started behind a freezer")
+            .thaw();
     }
 
     /// The node in `slot`.
