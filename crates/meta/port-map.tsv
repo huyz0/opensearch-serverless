@@ -32,3 +32,4 @@ src/stock_export_fence.rs	new		the fence of an export: the next index-N by condi
 src/stock_read.rs	new		reading a stock repository's index.latest, index-N, snapshot, metadata and shard blobs through a source store by derived keys, bounded; no Java counterpart in the shell
 src/stock_plan.rs	new		the four read rounds and every refusal and bound of a stock restore before any write; no Java counterpart in the shell
 src/stock_fan.rs	new		one blob read for each item, at most a fan-out at a time; no Java counterpart in the shell
+src/snapshot_restore/tests.rs	new		tests of the unmarking after a restore; the shell tests restore end to end
