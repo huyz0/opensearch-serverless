@@ -150,3 +150,43 @@ fn a_count_of_an_open_index_makes_no_request_to_the_store() {
     assert_eq!(count_of(&node, "compat-term", None).0, 200);
     assert_eq!(counts(&node.store), warm);
 }
+
+/// `_count` on `index` with the URL query string `query`.
+fn counted(node: &Node, index: &str, query: &str) -> (u16, String) {
+    let r = request(node.addr(), "POST", &format!("/{index}/_count{query}"), None);
+    (r.status, r.text())
+}
+
+// AC-8
+#[test]
+fn min_score_counts_only_what_scores_at_least_it() {
+    let node = start();
+    let (_, all) = counted(&node, "compat-term", "");
+    for kept in ["?min_score=1", "?min_score=-1", "?min_score=0.5"] {
+        let (status, body) = counted(&node, "compat-term", kept);
+        assert_eq!(status, 200, "{kept}: {body}");
+        assert_eq!(body, all, "{kept}");
+    }
+    let (status, none) = counted(&node, "compat-term", "?min_score=2");
+    assert_eq!(status, 200, "{none}");
+    assert!(none.starts_with(r#"{"count":0,"#), "{none}");
+    for bad in ["?min_score=abc", "?min_score=NaN"] {
+        let (status, body) = counted(&node, "compat-term", bad);
+        assert_eq!(status, 400, "{bad}: {body}");
+        assert!(body.contains("illegal_argument_exception"), "{bad}: {body}");
+    }
+}
+
+// AC-8
+#[cfg(feature = "coordinator")]
+#[test]
+fn min_score_counts_the_same_over_two_shards() {
+    let node = two_shards();
+    let (_, all) = counted(&node, "compat-term", "");
+    let (status, kept) = counted(&node, "compat-term", "?min_score=1");
+    assert_eq!(status, 200, "{kept}");
+    assert_eq!(kept, all);
+    let (status, none) = counted(&node, "compat-term", "?min_score=2");
+    assert_eq!(status, 200, "{none}");
+    assert!(none.starts_with(r#"{"count":0,"#), "{none}");
+}

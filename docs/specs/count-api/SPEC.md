@@ -8,7 +8,7 @@ Parity plan R10: the stock search-adjacent REST APIs. `GET|POST /{index}/_count`
 
 `oss-node` (feature `reader`) gains `count_route`: the two routes of `/{index}/_count`, registered by one line each in `search::routes`, and `SearchService::handle_count`. The request body is `{"query": ...}` or empty; it runs as the search of that query with `size` 0 and an exact total, on a one-shard index through the shard search and on a sharded one through the coordinator's merge, and answers `{"count": N, "_shards": {...}}` with the search's own `_shards` object. A failed search answers its own error body.
 
-Not here: `/_count` without an index (as `/_search` without one), the URL parameters `q`, `df`, `analyzer`, `terminate_after`, `min_score`, `routing`, `preference`, `ignore_unavailable` and the rest (refused as unknown parameters), and a body key other than `query` (refused).
+Not here: `/_count` without an index (as `/_search` without one), the URL parameters `q`, `df`, `analyzer`, `terminate_after`, `routing`, `preference`, `ignore_unavailable` and the rest (refused as unknown parameters), and a body key other than `query` (refused).
 
 ## Acceptance criteria
 
@@ -19,6 +19,7 @@ Not here: `/_count` without an index (as `/_search` without one), the URL parame
 - AC-5: a query the search refuses (an unknown query type) answers the same status and error type as the search.
 - AC-6: a body key other than `query` (`size`, `sort`, `aggs`, `from`) answers 400 `illegal_argument_exception` saying a `_count` body takes only `query`; an unknown URL parameter answers the router's 400.
 - AC-7: a count of a warm open index makes no object-store request.
+- AC-8: the URL parameter `min_score` counts only matches scoring at least it, over one shard and over two; `-1` means no minimum, as `RestCountAction` reads it; a value that is not a finite float answers 400 `illegal_argument_exception`.
 
 ## Test plan
 

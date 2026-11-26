@@ -21,8 +21,8 @@ use std::sync::Arc;
 
 use super::{Answer, SearchService, read_source, send};
 
-/// The URL parameters `_count` takes: none yet.
-const COUNT_PARAMS: &[&str] = &[];
+/// The URL parameters `_count` takes.
+const COUNT_PARAMS: &[&str] = &["min_score"];
 
 /// The routes of `_count` on one index, by GET and POST.
 pub(super) fn routes<S: BlobStore + 'static>(
@@ -47,6 +47,24 @@ pub(super) fn routes<S: BlobStore + 'static>(
 
 const NOT_SUPPORTED: &str =
     "a _count body takes only [query]; other keys are not supported by this node yet";
+
+/// The `min_score` URL parameter: a float, where `-1` and no parameter mean no minimum, as
+/// `RestCountAction` reads it.
+fn min_score_param(req: &Request<'_>) -> Result<Option<f32>, RestError> {
+    let Some(raw) = req.param("min_score") else {
+        return Ok(None);
+    };
+    match raw.trim().parse::<f32>() {
+        Ok(v) if v.is_finite() => Ok(if (v - -1.0).abs() < f32::EPSILON {
+            None
+        } else {
+            Some(v)
+        }),
+        _ => Err(RestError::illegal_argument(format!(
+            "Failed to parse float parameter [min_score] with value [{raw}]"
+        ))),
+    }
+}
 
 impl<S: BlobStore + 'static> SearchService<S> {
     /// Handles one `_count`.
@@ -74,6 +92,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
         if source != query_only {
             return Err(RestError::illegal_argument(NOT_SUPPORTED));
         }
+        source.min_score = min_score_param(req)?;
         source.size = 0;
         source.track_total_hits = Some(u64::from(i32::MAX.cast_unsigned()));
         #[cfg(feature = "coordinator")]
