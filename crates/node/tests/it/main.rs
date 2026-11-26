@@ -23,6 +23,7 @@ mod never_written;
 mod open_prefetch;
 mod open_prefetch_layout;
 mod rank_eval;
+mod script_sort;
 mod search;
 mod search_hits;
 mod search_pipeline;

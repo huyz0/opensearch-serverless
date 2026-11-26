@@ -173,6 +173,7 @@ pub(crate) fn plan<S: BlobStore + 'static>(
                 "[inner_hits] of a nested object inside another is not supported by this node yet",
             ));
         }
+        crate::search_sort_nested::refuse_script(&spec.sort, "in inner hits")?;
         let sort = sort_fields(&spec.sort, shard, index, Some(cx))?;
         if sort
             .as_ref()

@@ -252,6 +252,7 @@ pub(crate) fn plan<S: BlobStore + 'static>(
             )));
         }
         docvalue_fields::check_count(&spec.docvalue_fields)?;
+        crate::search_sort_nested::refuse_script(&spec.sort, "in top_hits")?;
         let sort = sort_fields(&spec.sort, shard, index, None)?;
         if spec.size == 0 {
             return Err(ShardError::bad_request(Failure::plain(

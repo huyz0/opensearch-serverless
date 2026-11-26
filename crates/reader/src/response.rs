@@ -246,6 +246,7 @@ fn write_sort(out: &mut dyn Write, sort: &[SortValue]) -> io::Result<()> {
         match value {
             SortValue::Long(n) => write!(out, "{n}")?,
             SortValue::Score(s) => write_java_float(out, *s)?,
+            SortValue::Double(d) => out.write_all(crate::template::java_double(*d).as_bytes())?,
             SortValue::Term(Some(t)) => write_json_str(out, &String::from_utf8_lossy(t))?,
             SortValue::Term(None) => out.write_all(b"null")?,
         }

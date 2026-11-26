@@ -146,6 +146,7 @@ fn compare_one(a: &SortValue, b: &SortValue) -> Option<Ordering> {
         (SortValue::Long(x), SortValue::Long(y)) => Some(x.cmp(y)),
         (SortValue::Term(Some(x)), SortValue::Term(Some(y))) => Some(x.cmp(y)),
         (SortValue::Score(x), SortValue::Score(y)) => Some(x.total_cmp(y)),
+        (SortValue::Double(x), SortValue::Double(y)) => Some(x.total_cmp(y)),
         _ => None,
     }
 }

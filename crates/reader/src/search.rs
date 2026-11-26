@@ -58,6 +58,8 @@ pub enum SortValue {
     Term(Option<Vec<u8>>),
     /// The score.
     Score(f32),
+    /// A script's number.
+    Double(f64),
 }
 
 /// One hit: the document and what it is ranked by.
@@ -203,7 +205,7 @@ pub(crate) fn window_bytes<S: BlobStore + 'static>(
                 .mapping
                 .get(field)
                 .is_some_and(|f| f.ty == FieldType::Keyword),
-            SortKey::Score { .. } => false,
+            SortKey::Score { .. } | SortKey::Script { .. } => false,
         })
         .count();
     let per_hit = std::mem::size_of::<Hit>()

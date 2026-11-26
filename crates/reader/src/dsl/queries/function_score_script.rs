@@ -9,7 +9,7 @@
 use std::sync::Arc;
 
 use lucene_engine::function_score::Function as Engine;
-use lucene_engine::painless_score::{EXPR_SCRIPT, ScriptFunction};
+use lucene_engine::painless_score::{EXPR_SCRIPT, PainlessSort, ScriptFunction};
 use lucene_engine::query_blob::Cursor;
 use lucene_expressions::js::compile;
 use lucene_expressions::variable_context::{Type, parse as parse_variable};
@@ -61,7 +61,8 @@ pub fn parse(p: &mut Parser<'_>) -> Result<ScriptScore, DslError> {
     script.ok_or_else(|| DslError::illegal("[script_score] requires a [script]"))
 }
 
-fn object(p: &mut Parser<'_>) -> Result<ScriptScore, DslError> {
+/// A script object `{"source","lang","params"}`, on its start.
+pub fn object(p: &mut Parser<'_>) -> Result<ScriptScore, DslError> {
     // ALLOC: bounded by the script's source, at most 65,535 bytes.
     let (mut source, mut lang, mut params) = (None, None, Vec::new());
     while p.next_token() == Some(Kind::FieldName) {
@@ -124,6 +125,25 @@ fn put_bytes(out: &mut Vec<u8>, b: &[u8]) {
 
 /// The engine function for `script` over the mapping in `cx`.
 pub fn build(cx: &QueryContext<'_>, script: &ScriptScore) -> Result<Engine, Failure> {
+    let blob = encode(cx, script, 0)?;
+    let function = ScriptFunction::decode(&mut Cursor::new(&blob))
+        // ALLOC: bounded by the script's source, at most 65,535 bytes.
+        .map_err(|_| script_error("the expression could not be set up".to_owned()))?;
+    Ok(Engine::Script(Arc::new(function)))
+}
+
+/// The engine's sort over `script`: its number for every document.
+pub fn sort(cx: &QueryContext<'_>, script: &ScriptScore) -> Result<Arc<PainlessSort>, Failure> {
+    let blob = encode(cx, script, 3)?;
+    let sort = PainlessSort::decode(&mut Cursor::new(&blob))
+        // ALLOC: bounded by the script's source, at most 65,535 bytes.
+        .map_err(|_| script_error("the expression could not be set up".to_owned()))?;
+    Ok(Arc::new(sort))
+}
+
+/// The engine's blob for `script`: `context` is the engine's script context
+/// (`0` score, `3` number sort), plus one when the script reads `_score`.
+fn encode(cx: &QueryContext<'_>, script: &ScriptScore, context: u8) -> Result<Vec<u8>, Failure> {
     // ALLOC: bounded by the script's source, at most 65,535 bytes.
     let expr = compile(&script.source).map_err(|e| script_error(format!("compile error: {e}")))?;
     // ALLOC: one name a field the script reads, bounded by the source.
@@ -210,7 +230,7 @@ pub fn build(cx: &QueryContext<'_>, script: &ScriptScore) -> Result<Engine, Fail
     }
     let needs_score = expr.variables.iter().any(|v| v == "_score");
     // ALLOC: one blob a script, bounded by the source and its variables.
-    let mut blob = vec![EXPR_SCRIPT | u8::from(needs_score)];
+    let mut blob = vec![EXPR_SCRIPT | context | u8::from(needs_score)];
     put_bytes(&mut blob, script.source.as_bytes());
     // The params are bound as constants; the map the spec holds is empty.
     put_bytes(&mut blob, &[12, 0, 0, 0, 0]);
@@ -229,9 +249,5 @@ pub fn build(cx: &QueryContext<'_>, script: &ScriptScore) -> Result<Engine, Fail
             .to_le_bytes(),
     );
     blob.extend_from_slice(&bindings);
-    let mut cursor = Cursor::new(&blob);
-    let function = ScriptFunction::decode(&mut cursor)
-        // ALLOC: bounded by the script's source, at most 65,535 bytes.
-        .map_err(|_| script_error("the expression could not be set up".to_owned()))?;
-    Ok(Engine::Script(Arc::new(function)))
+    Ok(blob)
 }

@@ -203,6 +203,9 @@ pub(crate) fn sorted_hit(h: &FieldDoc, kinds: &[KeyKind], score_at: Option<usize
         .map(|(i, kind)| match kind {
             KeyKind::Score => SortValue::Score(score_of(i)),
             KeyKind::Numeric => SortValue::Long(value(i)),
+            KeyKind::Script => SortValue::Double(
+                lucene_util::numeric_utils::sortable_long_to_double(value(i)),
+            ),
             KeyKind::Term => SortValue::Term(h.terms.get(i).cloned().flatten()),
         })
         // ALLOC: one value a sort key, at most MAX_SORT_KEYS.
