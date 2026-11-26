@@ -83,7 +83,7 @@ pub fn own_queries(agg: &MetricAgg) -> usize {
 }
 
 fn refusal(reason: String) -> Failure {
-    Failure::plain("aggregation_execution_exception", reason)
+    Failure::opensearch("aggregation_execution_exception", reason)
 }
 
 fn filter_of(clause: Clause) -> BooleanQuery {

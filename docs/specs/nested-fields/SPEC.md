@@ -44,7 +44,7 @@ Unchanged per operation: a block is one write call and one blob a segment, as th
 
 ## Memory
 
-Indexing memory is reserved from each record's bytes, which already contain the children (they are part of `_source`); the children's postings add to the segment buffer in proportion. The reader's parent bit set per segment and nested query is `max_doc / 8` bytes. Neither is reserved separately here: NOT-RUN until a measured bound exists.
+Indexing memory is reserved from each record's bytes, which already contain the children (they are part of `_source`); the children's postings add to the segment buffer in proportion. The reader's parent bit set per segment and join node is reserved with the search's hits ([nested-memory](../nested-memory/SPEC.md)). The indexing side is not reserved separately here: NOT-RUN until a measured bound exists.
 
 ## Switch
 

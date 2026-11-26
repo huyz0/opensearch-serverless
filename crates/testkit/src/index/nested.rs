@@ -16,6 +16,11 @@ pub fn nested_word(i: usize, j: usize) -> String {
     format!("w{i}-{j}")
 }
 
+/// The `c.d.v` of the grandchild of child `j` of document `i`: `v<i>-<j>`.
+pub fn nested_deep_word(i: usize, j: usize) -> String {
+    format!("v{i}-{j}")
+}
+
 /// The engine numbers fields in registration order, and the vector field
 /// takes a number only when there is one.
 fn nested_path_number(spec: &Spec) -> i32 {
@@ -30,10 +35,46 @@ fn nested_word_number(spec: &Spec) -> i32 {
     nested_path_number(spec) + 2
 }
 
-/// The block of document `i` of a nested index: its children, then it.
+fn deep_word_number(spec: &Spec) -> i32 {
+    nested_path_number(spec) + 3
+}
+
+/// The grandchild of child `j` of document `i`.
+fn grandchild(spec: &Spec, i: usize, j: usize) -> ExplicitDocument {
+    let word = nested_deep_word(i, j);
+    ExplicitDocument {
+        stored: Vec::new(),
+        fields: ExplicitFields {
+            inverted: vec![
+                InvertedField {
+                    field_number: nested_path_number(spec),
+                    terms: vec![term(b"c.d")].into(),
+                    norm: None,
+                },
+                InvertedField {
+                    field_number: deep_word_number(spec),
+                    terms: vec![term(word.as_bytes())].into(),
+                    norm: None,
+                },
+            ],
+            doc_values: vec![StoredField {
+                field_number: deep_word_number(spec),
+                value: FieldValue::Binary(word.into_bytes()),
+            }],
+            ..ExplicitFields::default()
+        },
+    }
+}
+
+/// The block of document `i` of a nested index: its children (each after
+/// its grandchild, when there are some), then it.
 fn block(spec: &Spec, i: usize) -> Vec<ExplicitDocument> {
-    let mut docs: Vec<ExplicitDocument> = (0..NESTED_CHILDREN)
-        .map(|j| {
+    let mut docs: Vec<ExplicitDocument> = Vec::new();
+    for j in 0..NESTED_CHILDREN {
+        if spec.nested > 1 {
+            docs.push(grandchild(spec, i, j));
+        }
+        docs.push({
             let word = nested_word(i, j);
             ExplicitDocument {
                 stored: Vec::new(),
@@ -57,8 +98,8 @@ fn block(spec: &Spec, i: usize) -> Vec<ExplicitDocument> {
                     ..ExplicitFields::default()
                 },
             }
-        })
-        .collect();
+        });
+    }
     let mut parent = document(spec, i);
     parent.fields.doc_values.push(StoredField {
         field_number: primary_term_number(spec),
@@ -71,7 +112,7 @@ fn block(spec: &Spec, i: usize) -> Vec<ExplicitDocument> {
 /// Registers the nested index's three extra fields, in the order the
 /// numbers above count them.
 pub(super) fn register(w: &mut IndexWriter<'_>, spec: &Spec) {
-    if !spec.nested {
+    if spec.nested == 0 {
         return;
     }
     let docs_only = |name: &str, number| {
@@ -95,13 +136,21 @@ pub(super) fn register(w: &mut IndexWriter<'_>, spec: &Spec) {
         -1,
     ))
     .expect("c.w");
+    if spec.nested > 1 {
+        w.register_field(docs_only("c.d.v", deep_word_number(spec)).with_doc_values(
+            DocValuesType::SortedSet,
+            DocValuesSkipIndexType::None,
+            -1,
+        ))
+        .expect("c.d.v");
+    }
 }
 
 /// Adds every document of a nested index as a block, committing after each
 /// segment's worth; the number added, 0 for an index that is not nested.
 pub(super) fn add_blocks(w: &mut IndexWriter<'_>, spec: &Spec) -> usize {
     let mut start = 0;
-    if !spec.nested {
+    if spec.nested == 0 {
         return start;
     }
     while start < spec.docs {
@@ -120,16 +169,33 @@ pub(super) fn add_blocks(w: &mut IndexWriter<'_>, spec: &Spec) -> usize {
 
 /// The nested object's mapping, after the other fields'.
 pub(super) fn mapping(spec: &Spec, out: &mut String) {
-    if spec.nested {
-        out.push_str(r#","c":{"type":"nested","properties":{"w":{"type":"keyword"}}}"#);
+    if spec.nested > 0 {
+        let deep = if spec.nested > 1 {
+            r#","d":{"type":"nested","properties":{"v":{"type":"keyword"}}}"#
+        } else {
+            ""
+        };
+        out.push_str(&format!(
+            r#","c":{{"type":"nested","properties":{{"w":{{"type":"keyword"}}{deep}}}}}"#
+        ));
     }
 }
 
 /// The nested objects of document `i`'s `_source`, after the other fields'.
 pub(super) fn source(spec: &Spec, i: usize, out: &mut String) {
-    if spec.nested {
+    if spec.nested > 0 {
         let children: Vec<String> = (0..NESTED_CHILDREN)
-            .map(|j| format!(r#"{{"w":"{}"}}"#, nested_word(i, j)))
+            .map(|j| {
+                if spec.nested > 1 {
+                    format!(
+                        r#"{{"w":"{}","d":[{{"v":"{}"}}]}}"#,
+                        nested_word(i, j),
+                        nested_deep_word(i, j)
+                    )
+                } else {
+                    format!(r#"{{"w":"{}"}}"#, nested_word(i, j))
+                }
+            })
             .collect();
         out.push_str(&format!(r#","c":[{}]"#, children.join(",")));
     }
@@ -138,7 +204,14 @@ pub(super) fn source(spec: &Spec, i: usize, out: &mut String) {
 impl Spec {
     /// Gives every document [`NESTED_CHILDREN`] nested children `c`.
     pub fn with_nested(mut self) -> Self {
-        self.nested = true;
+        self.nested = 1;
+        self
+    }
+
+    /// Gives every nested child `c` one nested grandchild `c.d` (and
+    /// nested children, as [`Spec::with_nested`]).
+    pub fn with_nested_deep(mut self) -> Self {
+        self.nested = 2;
         self
     }
 }

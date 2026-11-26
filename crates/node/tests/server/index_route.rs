@@ -441,3 +441,27 @@ fn a_knn_vector_mapping_is_refused_unless_the_node_setting_is_on() {
     assert_eq!(made.status, 200, "{}", String::from_utf8_lossy(&made.body));
     assert!(record(&on, "vec").is_some());
 }
+
+// docs/specs/extension-analyzer AC-7: a pin carried by a template is refused
+// at the create, naming its keys, and nothing is created.
+#[test]
+fn a_pin_carried_by_a_template_is_refused_and_creates_nothing() {
+    const HASH: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    let template = format!(
+        r#"{{"index_patterns":["logs-*"],"template":{{"settings":{{"index.analysis.analyzer.ext_stem.type":"serverless_module","index.analysis.analyzer.ext_stem.module":"{HASH}","index.analysis.analyzer.ext_stem.version":"1"}}}}}}"#
+    );
+    let r = templated_rig(&[(DocKind::IndexTemplate, "logs", &template)]);
+    let reply = call(&r, "PUT", "/logs-1", None);
+    assert_eq!(reply.status, 501, "{}", reply.text());
+    assert!(
+        reply
+            .text()
+            .contains("index.analysis.analyzer.ext_stem.module"),
+        "{}",
+        reply.text()
+    );
+    assert!(
+        record(&r, "logs-1").is_none(),
+        "the refused create wrote a descriptor"
+    );
+}

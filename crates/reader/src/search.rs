@@ -181,6 +181,7 @@ pub fn hits_bytes<S: BlobStore + 'static>(source: &SearchSource, shard: &OpenSha
         .saturating_add(keyed_subs::reserved(shard, &source.aggs))
         .saturating_add(composite_collect::reserved_all(shard, &source.aggs))
         .saturating_add(state_bytes(&source.aggs))
+        .saturating_add(crate::search_nested_bytes::bytes(source, shard))
 }
 
 /// What a `terms` holds for each distinct value it counts while it
@@ -318,7 +319,7 @@ pub fn search_with<S: BlobStore + 'static>(
         crate::aggs::bucket::check_limits(agg)?;
     }
     let filter_plans = filters_collect::plan(&source.aggs, &cx)
-        .map_err(|f| ShardError::bad_request(shard_failure(f, index, &meta.uuid)))?;
+        .map_err(|f| ShardError::of_plan(shard_failure(f, index, &meta.uuid)))?;
     let numeric_sort = sort
         .as_ref()
         .is_some_and(|(_, kinds)| kinds.contains(&KeyKind::Numeric))

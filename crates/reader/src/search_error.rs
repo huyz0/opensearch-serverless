@@ -19,6 +19,18 @@ impl ShardError {
         }
     }
 
+    /// A filter or an aggregation's queries that did not plan: the client's
+    /// fault, except an `AggregationExecutionException`, which stock answers
+    /// as a server error.
+    pub(crate) fn of_plan(failure: Failure) -> Self {
+        let status = if failure.kind == "aggregation_execution_exception" {
+            500
+        } else {
+            400
+        };
+        Self { status, failure }
+    }
+
     /// A query that did not build: the client's fault, except a pinned
     /// analyzer that could not run, which is the node's and is retried.
     pub(crate) fn of_query(failure: Failure) -> Self {

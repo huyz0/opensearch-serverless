@@ -35,6 +35,7 @@ mod search_error;
 mod search_inner_hits;
 #[cfg(test)]
 mod search_inner_hits_tests;
+mod search_nested_bytes;
 mod search_options;
 pub mod search_pipeline;
 mod search_post_filter;
@@ -192,6 +193,9 @@ pub fn open_located_with<S: BlobStore + 'static>(
     })
 }
 
+#[cfg(test)]
+#[path = "search_nested_bytes_tests.rs"]
+mod search_nested_bytes_tests;
 #[cfg(test)]
 #[path = "search_nested_tests.rs"]
 mod search_nested_tests;
