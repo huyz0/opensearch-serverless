@@ -321,6 +321,29 @@ fn a_write_runs_under_the_recorded_fuel_and_a_replay_under_it_stretched() {
     assert!(analyzer.analyze("probe").is_err());
 }
 
+// AC-11: a document's calls may take ten of the recorded deadlines in all
+// when it is written live, and no cap holds a replay or the overlay build.
+#[test]
+fn a_live_write_has_ten_deadlines_to_a_document_and_a_replay_has_no_cap() {
+    let r = rig(4);
+    let hash = put(&r, &module("analyzer", false, None));
+    let set = r
+        .source
+        .open(
+            &settings_in(&[("ext_a", &hash, least_fuel(&r, &hash) * 4)], 250),
+            "t",
+        )
+        .expect("opens");
+    let (_, analyzer) = set.analyzers().next().expect("one");
+    assert_eq!(
+        analyzer.item_budget(),
+        Some(std::time::Duration::from_millis(2_500))
+    );
+    set.replaying(true);
+    assert_eq!(analyzer.item_budget(), None);
+    set.replaying(false);
+}
+
 // AC-12
 #[test]
 fn a_replay_that_exceeds_even_the_stretched_fuel_is_recorded_as_a_failure() {

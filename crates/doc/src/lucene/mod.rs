@@ -14,10 +14,12 @@ pub mod derived;
 mod encode;
 pub(crate) mod fields;
 pub(crate) mod invert;
+mod metered;
 mod parts;
 
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::atomic::AtomicU64;
 
 use lucene_analysis::Analyzer;
 use lucene_codecs::field_infos::FieldInfo;
@@ -34,6 +36,7 @@ use crate::mapping::{Mapping, MappingError, Num, Value};
 use builder::Builder;
 use encode::{double_to_sortable_long, encode_id, float_to_sortable_int, int_point, long_point};
 pub(crate) use fields::{MetaField, Shape, Spec};
+use metered::Metered;
 use parts::leaf;
 pub use parts::{Meta, uid};
 
@@ -360,6 +363,7 @@ impl Indexer {
         mapping: &Mapping,
         fields: &[(String, FieldValue)],
     ) -> Result<(), MappingError> {
+        let spent = AtomicU64::new(0);
         for (name, value) in fields {
             // The mapping, not the spec a field was first registered with:
             // an update may have changed it.
@@ -376,8 +380,15 @@ impl Indexer {
                 .get("analyzer")
                 .and_then(Value::text)
                 .and_then(|a| self.modules.get(a))
-                .map(Arc::as_ref);
-            self.value(out, number, name, &spec, value, module)?;
+                .map(|m| Metered::new(m.as_ref(), &spent));
+            self.value(
+                out,
+                number,
+                name,
+                &spec,
+                value,
+                module.as_ref().map(|m| m as _),
+            )?;
             if spec.field_names() {
                 let n = self.meta(numbers, MetaField::FieldNames)?;
                 let mut end = 0;
