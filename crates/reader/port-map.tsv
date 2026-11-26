@@ -37,6 +37,7 @@ src/dsl/queries/leaf_common.rs	port	server/src/main/java/org/opensearch/index/se
 src/dsl/queries/function_score.rs	port	server/src/main/java/org/opensearch/index/query/functionscore/FunctionScoreQueryBuilder.java@3.10.0	fromXContent, with the field value factor and decay function parsers (FieldValueFactorFunctionBuilder, DecayFunctionParser)
 src/dsl/queries/function_score_build.rs	port	server/src/main/java/org/opensearch/index/query/functionscore/DecayFunctionBuilder.java@3.10.0	FunctionScoreQueryBuilder.doToQuery with each function's toFunction, parseVariable and processScale, over the engine's function-score node
 src/dsl/queries/function_score_modes.rs	port	server/src/main/java/org/opensearch/index/query/functionscore/FunctionScoreQueryBuilder.java@3.10.0	the enum names of score_mode, boost_mode, modifier and multi_value_mode
+src/dsl/queries/function_score_script.rs	port	server/src/main/java/org/opensearch/index/query/functionscore/ScriptScoreFunctionBuilder.java@3.10.0	fromXContent for the expression language only, and the encoding of the engine's expression-script function from it
 src/dsl/queries/uid.rs	port	server/src/main/java/org/opensearch/index/mapper/Uid.java@3.10.0	encodeId
 src/dsl/queries/parse_tests.rs	new		tests of the module's term-level parsers, against messages recorded from OpenSearch
 src/dsl/queries/compound_tests.rs	new		tests of the module's compound parsers, against messages recorded from OpenSearch

@@ -37,6 +37,7 @@ pub fn function_score(cx: &QueryContext<'_>, q: &FunctionScore) -> Result<Clause
     for entry in &q.functions {
         functions.push(filtered(cx, entry)?);
     }
+    let functions_scripted = functions.iter().any(|f| f.function.scripted());
     let needs_sub =
         q.boost_mode != Combine::Replace || functions.iter().any(|f| f.function.needs_score());
     // ALLOC: one key a function-score query.
@@ -57,7 +58,7 @@ pub fn function_score(cx: &QueryContext<'_>, q: &FunctionScore) -> Result<Clause
         score_mode: q.score_mode,
         max_boost: q.max_boost,
         functions,
-        scripted: false,
+        scripted: functions_scripted,
         needs_sub,
         key,
     };
@@ -90,6 +91,7 @@ fn filtered(cx: &QueryContext<'_>, entry: &Entry) -> Result<Filtered, Failure> {
 
 fn function(cx: &QueryContext<'_>, f: &Function) -> Result<Engine, Failure> {
     match f {
+        Function::Script(script) => super::function_score_script::build(cx, script),
         Function::FieldValue {
             field,
             factor,

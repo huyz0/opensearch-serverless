@@ -319,10 +319,6 @@ fn what_is_not_served_is_refused() {
     for (body, what) in [
         (r#"{"random_score":{}}"#, "[function_score] [random_score]"),
         (
-            r#"{"script_score":{"script":"1"}}"#,
-            "[function_score] [script_score]",
-        ),
-        (
             r#"{"weight":1,"min_score":1}"#,
             "[function_score] [min_score]",
         ),
