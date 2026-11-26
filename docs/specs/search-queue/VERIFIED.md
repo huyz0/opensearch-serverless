@@ -9,7 +9,7 @@
 - AC-7: `an_offer_reaches_workers_idle_in_the_channel_and_a_tenant_over_its_share_runs_when_the_node_is_under_its_bound` in crates/rest/tests/search_queue.rs
 - AC-8: `the_queue_is_off_by_default_and_takes_its_settings` and `the_queue_refuses_what_the_server_cannot_hold` in crates/node/src/boot/config/tests/resident.rs; the report in `a_node_with_the_queue_on_serves_searches_and_reports_it_and_one_without_does_not` in crates/node/tests/server/boot_search_queue.rs
 - AC-9: `a_node_with_the_queue_on_serves_searches_and_reports_it_and_one_without_does_not` in crates/node/tests/server/boot_search_queue.rs; the cold-cache measurement below
-- AC-10: NOT-RUN: a documentation row, the "Search queue" paragraph in docs/compatibility.md
+- AC-10: the "Search queue" paragraph in docs/compatibility.md states the 429 from a node rule, the Retry-After of 1 and the closed connection, and how stock differs (checked by reading the paragraph; no gate reads it)
 
 ## Cold-cache measurement (provisional)
 
