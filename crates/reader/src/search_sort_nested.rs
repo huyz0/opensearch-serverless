@@ -43,6 +43,9 @@ pub(crate) fn refuse_after(source: &crate::dsl::SearchSource) -> Result<(), Shar
             "[search_after] with a nested sort is not supported by this node yet",
         )));
     }
+    if !source.search_after.is_empty() {
+        refuse_script(&source.sort, "with [search_after]")?;
+    }
     Ok(())
 }
 

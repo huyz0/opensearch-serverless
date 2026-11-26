@@ -279,9 +279,6 @@ pub fn search_with<S: BlobStore + 'static>(
         .map_err(ShardError::bad_request)?;
     let sort = sort_fields(&source.sort, shard, index, Some(&cx))?;
     crate::search_sort_nested::refuse_after(source)?;
-    if !source.search_after.is_empty() {
-        crate::search_sort_nested::refuse_script(&source.sort, "with [search_after]")?;
-    }
     search_options::check(
         source,
         &query,
