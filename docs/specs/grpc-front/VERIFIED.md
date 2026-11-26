@@ -1,6 +1,6 @@
 # Verified
 
-Numbers are from a debug build in a cloud sandbox: provisional, relative only. Slices so far: the listener, framing, Health, limits, deadlines and the status table, the Bulk mapping, and the Search and point-in-time mapping. `ServerStreamSearch` is the next slice.
+Numbers are from a debug build in a cloud sandbox: provisional, relative only. Slices so far: the listener, framing, Health, limits, deadlines and the status table, the Bulk mapping, and the Search and point-in-time mapping. `ServerStreamSearch` is in. Left: the client interop run and the S3 request meter.
 
 - AC-1: `no_grpc_address_opens_no_port_and_charges_nothing`, `a_grpc_message_limit_of_zero_is_a_start_error`; NOT-RUN: a build without `edge` refusing `OSS_EDGE_GRPC_ADDR` at start is by the same code path as the other listeners and has no test of its own yet
 - AC-2: `health_check_tracks_the_node` (clear text, `SERVING`, `NOT_SERVING` on a 503, `NOT_FOUND` for an unknown service); NOT-RUN: the TLS variant
@@ -12,7 +12,7 @@ Numbers are from a debug build in a cloud sandbox: provisional, relative only. S
 - AC-8: `rest_statuses_map_as_the_spec_table`, `messages_are_percent_encoded_and_bounded`, `a_rest_error_keeps_its_body_in_the_status` (429 `circuit_breaking_exception`); NOT-RUN: a loopback answer of each other status through a stub upstream
 - AC-9: `big_and_compressed_messages_are_refused_before_buffering` (over-limit is `RESOURCE_EXHAUSTED` from the prefix, a compression flag and `grpc-encoding: gzip` are `UNIMPLEMENTED`, two messages are `INVALID_ARGUMENT`); NOT-RUN: the heap measurement that the refused message was not buffered
 - AC-10: `a_deadline_ends_the_call_and_frees_its_slot` (`grpc-timeout: 50m` on a held handler answered `DEADLINE_EXCEEDED` in under 2 s and the next call is served); the slot count itself is not asserted
-- AC-11: NOT-RUN: `ServerStreamSearch` is its own slice
+- AC-11: `a_result_larger_than_the_message_limit_streams_without_growing_the_heap` (`crates/edge/tests/stream_memory.rs`, own binary: 830 KB over a 64 KiB message limit, the heap peak above the start about 1.98 MB against the 2 MiB bound, with and without a reader pausing 20 ms between frames; a result four times larger moves the high-water mark by 0 bytes), `a_stream_search_delivers_every_hit_a_page_a_message`, `a_tie_across_a_page_boundary_ends_the_stream_instead_of_skipping_hits`, `stream_search_over_grpc_delivers_the_hits_rest_search_returns` (booted node, 25 hits in 3 pages equal to the REST order). Provisional: debug build in a cloud sandbox; the 1.98 MB is mostly the process's start-up high-water mark, which the figure cannot separate from the call
 - AC-12: `calls_past_max_streams_are_unavailable`
 - AC-13: `unknown_methods_and_other_content_types_are_refused`
 - AC-14: NOT-RUN: needs the mapping slice, then the shell's client stubs or `grpcurl`

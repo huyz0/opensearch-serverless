@@ -189,4 +189,7 @@ exclude_re = [
     # `shutdown` takes `self` and `Drop` runs the same stop, so an empty
     # `shutdown` stops the front all the same when its argument is dropped.
     "crates/edge/src/lib.rs:.*replace Edge::shutdown with \\(\\)",
+    # `warm` only moves the cost of building the schema from the first call to the start; the
+    # schema is built on first use either way, so no behaviour differs.
+    "crates/edge/src/grpc/schema.rs:.*replace warm with \\(\\)",
 ]

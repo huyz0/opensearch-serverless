@@ -78,14 +78,10 @@ pub(crate) fn source_param(
     s.finish()
 }
 
-/// Sends `rest` to the node and maps the answer onto `response`, encoded.
+/// Sends `rest` to the node and returns its JSON answer.
 ///
 /// A non-2xx answer is a gRPC error with the REST error JSON as its message.
-pub(crate) async fn roundtrip(
-    shared: &Shared,
-    rest: &Rest,
-    response: &MessageDescriptor,
-) -> Result<Bytes, Status> {
+pub(crate) async fn fetch(shared: &Shared, rest: &Rest) -> Result<serde_json::Value, Status> {
     let answer = call::unary(shared, rest.method, &rest.target, &rest.body).await?;
     let code = from_rest(answer.status);
     if code != OK {
@@ -93,11 +89,27 @@ pub(crate) async fn roundtrip(
         let text = String::from_utf8_lossy(&answer.body).into_owned();
         return Err(Status::new(code, text));
     }
-    let json: serde_json::Value = serde_json::from_slice(&answer.body)
-        .map_err(|_| Status::new(INTERNAL, "the node's answer is not JSON"))?;
-    let message = respond::message(response, &json, response.name())?;
+    serde_json::from_slice(&answer.body)
+        .map_err(|_| Status::new(INTERNAL, "the node's answer is not JSON"))
+}
+
+/// Maps a JSON answer onto `response` and encodes it.
+pub(crate) fn encode(
+    json: &serde_json::Value,
+    response: &MessageDescriptor,
+) -> Result<Bytes, Status> {
+    let message = respond::message(response, json, response.name())?;
     // ALLOC: the response message, about the size of the JSON answer, itself bounded by `grpc_max_message`.
     Ok(Bytes::from(message.encode_to_vec()))
+}
+
+/// Sends `rest` to the node and maps the answer onto `response`, encoded.
+pub(crate) async fn roundtrip(
+    shared: &Shared,
+    rest: &Rest,
+    response: &MessageDescriptor,
+) -> Result<Bytes, Status> {
+    encode(&fetch(shared, rest).await?, response)
 }
 
 #[cfg(test)]

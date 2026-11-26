@@ -17,6 +17,7 @@ mod rest;
 pub(crate) mod schema;
 pub(crate) mod search;
 mod status;
+mod streaming;
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -32,6 +33,7 @@ use crate::stream::{Shared, send_all};
 const HEALTH_CHECK: &str = "/grpc.health.v1.Health/Check";
 const BULK: &str = "/org.opensearch.protobufs.services.DocumentService/Bulk";
 const SEARCH: &str = "/org.opensearch.protobufs.services.SearchService/Search";
+const STREAM_SEARCH: &str = "/org.opensearch.protobufs.services.SearchService/ServerStreamSearch";
 const CREATE_PIT: &str = "/org.opensearch.protobufs.services.SearchService/CreatePit";
 const DELETE_PIT: &str = "/org.opensearch.protobufs.services.SearchService/DeletePit";
 
@@ -54,7 +56,7 @@ fn deadline(value: &str) -> Option<Duration> {
 }
 
 /// A gRPC answer with no message: headers and status in one frame (the "Trailers-Only" form).
-fn trailers_only(respond: &mut SendResponse<Bytes>, status: &Status) {
+pub(crate) fn trailers_only(respond: &mut SendResponse<Bytes>, status: &Status) {
     let mut builder = Response::builder()
         .status(StatusCode::OK)
         .header("content-type", "application/grpc")
@@ -121,7 +123,7 @@ pub(crate) async fn serve(
     let path = parts.uri.path().to_owned();
     if !matches!(
         path.as_str(),
-        HEALTH_CHECK | BULK | SEARCH | CREATE_PIT | DELETE_PIT
+        HEALTH_CHECK | BULK | SEARCH | STREAM_SEARCH | CREATE_PIT | DELETE_PIT
     ) {
         // ALLOC: a status line or request head, bounded by the head limits (16 KiB).
         let s = Status::new(UNIMPLEMENTED, format!("{path} is not served"));
@@ -131,6 +133,12 @@ pub(crate) async fn serve(
         Ok(m) => m,
         Err(s) => return trailers_only(&mut respond, &s),
     };
+    if path == STREAM_SEARCH {
+        return match search::stream_request(&message) {
+            Ok(plan) => streaming::serve(&shared, &mut respond, &plan, limit).await,
+            Err(s) => trailers_only(&mut respond, &s),
+        };
+    }
     let work = async {
         let (rest, response) = match path.as_str() {
             BULK => (bulk::request(&message)?, "BulkResponse"),

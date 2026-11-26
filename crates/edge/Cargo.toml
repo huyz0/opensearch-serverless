@@ -33,6 +33,10 @@ rcgen = { version = "0.13", default-features = false, features = ["ring", "pem"]
 [[test]]
 name = "peak_memory"
 
+# Its own binary too: the peak is a process maximum, so the stream's must not inherit the upload's.
+[[test]]
+name = "stream_memory"
+
 [lints]
 workspace = true
 

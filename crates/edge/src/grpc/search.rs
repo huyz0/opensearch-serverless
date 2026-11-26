@@ -8,7 +8,7 @@ use super::fields::Fields;
 use super::query::query;
 use super::rest::{Query, Rest, decode, join, push_encoded, source_param};
 use super::schema;
-use super::status::{INVALID_ARGUMENT, Status};
+use super::status::{INVALID_ARGUMENT, Status, UNIMPLEMENTED};
 
 /// Decodes `message` and maps it to the REST request.
 pub(crate) fn request(message: &[u8]) -> Result<Rest, Status> {
@@ -16,7 +16,8 @@ pub(crate) fn request(message: &[u8]) -> Result<Rest, Status> {
     map(&msg)
 }
 
-fn map(msg: &DynamicMessage) -> Result<Rest, Status> {
+/// The REST target and the search body object of a decoded `SearchRequest`.
+fn plan(msg: &DynamicMessage) -> Result<(String, Map<String, Json>), Status> {
     let mut f = Fields::new(msg, "SearchRequest");
     let mut target = String::from("/");
     let indices: Vec<&str> = f
@@ -53,6 +54,12 @@ fn map(msg: &DynamicMessage) -> Result<Rest, Status> {
     }
     f.finish()?;
     target.push_str(&query.0);
+    Ok((target, body))
+}
+
+fn map(msg: &DynamicMessage) -> Result<Rest, Status> {
+    let (target, body) = plan(msg)?;
+    // ALLOC: the search body, within `grpc_max_message` and charged to the request-body pool at start.
     let body = serde_json::to_vec(&Json::Object(body))
         .map_err(|_| Status::new(INVALID_ARGUMENT, "the search body does not encode"))?;
     Ok(Rest {
@@ -60,6 +67,49 @@ fn map(msg: &DynamicMessage) -> Result<Rest, Status> {
         target,
         body,
     })
+}
+
+/// How many hits a `ServerStreamSearch` message holds when the request names no `size`.
+pub(crate) const DEFAULT_PAGE: usize = 100;
+/// The most hits a page may hold.
+const MAX_PAGE: usize = 10_000;
+
+/// A `ServerStreamSearch` request: the search to page through, and the page size.
+pub(crate) struct StreamPlan {
+    pub(crate) target: String,
+    pub(crate) body: Map<String, Json>,
+    pub(crate) page: usize,
+}
+
+/// Decodes a `ServerStreamSearch` request. It needs a `sort` to page by, takes `size` as the page
+/// size, and refuses `from`, which a stream has no use for.
+pub(crate) fn stream_request(message: &[u8]) -> Result<StreamPlan, Status> {
+    let msg = decode(schema::message("SearchRequest"), message)?;
+    let (target, mut body) = plan(&msg)?;
+    if body.remove("from").is_some() {
+        return Err(Status::new(
+            UNIMPLEMENTED,
+            "SearchRequest.search_request_body.from is not supported by ServerStreamSearch",
+        ));
+    }
+    if !body.contains_key("sort") {
+        return Err(Status::new(
+            INVALID_ARGUMENT,
+            "ServerStreamSearch needs search_request_body.sort, the order its pages follow",
+        ));
+    }
+    let page = match body.remove("size").and_then(|n| n.as_u64()) {
+        None => DEFAULT_PAGE,
+        Some(n @ 1..=10_000) => usize::try_from(n).unwrap_or(MAX_PAGE),
+        Some(_) => {
+            return Err(Status::new(
+                INVALID_ARGUMENT,
+                // ALLOC: one page of hits, within `grpc_max_message` and charged to the request-body pool at start.
+                format!("ServerStreamSearch page size must be 1 to {MAX_PAGE}"),
+            ));
+        }
+    };
+    Ok(StreamPlan { target, body, page })
 }
 
 fn body_of(msg: &DynamicMessage, path: &str, out: &mut Map<String, Json>) -> Result<(), Status> {
