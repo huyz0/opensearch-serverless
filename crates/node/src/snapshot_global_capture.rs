@@ -42,7 +42,7 @@ pub(crate) struct StateReader {
     sets: Vec<(StateSet, DocSet)>,
 }
 
-fn kind(set: StateSet) -> DocKind {
+pub(crate) fn kind(set: StateSet) -> DocKind {
     match set {
         StateSet::IndexTemplates => DocKind::IndexTemplate,
         StateSet::ComponentTemplates => DocKind::ComponentTemplate,

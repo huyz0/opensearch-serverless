@@ -168,6 +168,8 @@ mod snapshot_restore_aliases;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 mod snapshot_restore_background;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
+mod snapshot_restore_global;
+#[cfg(all(feature = "writer", feature = "coordinator"))]
 pub mod snapshot_restore_route;
 #[cfg(feature = "writer")]
 pub mod snapshot_route;

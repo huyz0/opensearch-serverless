@@ -1,4 +1,4 @@
-//! The keys of a restore's body: the eight it reads, the nine it
+//! The keys of a restore's body: the nine it reads, the eight it
 //! refuses with a reason, and the rest it does not know
 //! (`SnapshotRequestBodies.RESTORE_KNOWN_KEYS` and `RESTORE_REFUSED_KEYS`).
 
@@ -7,8 +7,9 @@ use oss_doc::mapping::json::Json;
 use crate::route::resolve::Refusal;
 
 /// What a restore reads; the rest is refused below.
-const KNOWN: [&str; 8] = [
+const KNOWN: [&str; 9] = [
     "partial",
+    "include_global_state",
     "indices",
     "rename_pattern",
     "rename_replacement",
@@ -20,11 +21,7 @@ const KNOWN: [&str; 8] = [
 
 /// Core's other restore fields, each with why it is refused: the shell's
 /// `RESTORE_REFUSED_KEYS`.
-pub(crate) const REFUSED: [(&str, &str); 9] = [
-    (
-        "include_global_state",
-        "there is no global state in a snapshot here to restore",
-    ),
+pub(crate) const REFUSED: [(&str, &str); 8] = [
     (
         "settings",
         "repository settings are fixed when the repository is registered",
@@ -59,7 +56,7 @@ pub(crate) const REFUSED: [(&str, &str); 9] = [
     ),
 ];
 
-/// Boolean flags: `partial` and `include_aliases` are read; the rest name behaviour this
+/// Boolean flags: `partial`, `include_global_state` and `include_aliases` are read; the rest name behaviour this
 /// node always has, so `false` changes nothing and `true` stays refused.
 const OFF: [&str; 4] = [
     "partial",

@@ -2,7 +2,7 @@
 
 ## Serves
 
-[ADR 0068](../../adr/0068-a-snapshot-captures-the-global-state-it-is-asked-for.md). Built in three changes: the record member first (AC-1 to AC-4), then the take and its setting (AC-5 to AC-9), then the restore. Each change adds its criteria here.
+[ADR 0068](../../adr/0068-a-snapshot-captures-the-global-state-it-is-asked-for.md). Built in three changes: the record member first (AC-1 to AC-4), then the take and its setting (AC-5 to AC-9), then the restore (AC-10 to AC-16). Each change adds its criteria here.
 
 ## Acceptance criteria
 
@@ -17,9 +17,20 @@
 - AC-8: A state past 4 MiB is refused 400 `snapshot_too_large` naming the set that crossed it, before any snapshot name is reserved. Test: `a_state_past_the_limit_is_refused_naming_the_set_and_costs_no_shard_read`.
 - AC-9: A one-shard take over an empty state makes 17 requests, over a state of one template and one script 19. Test: `a_take_with_state_costs_what_the_budget_holds`.
 
+- AC-10: A restore with `include_global_state: true` puts each document of the snapshot's state back by name through the validator of its PUT route and merges the persistent settings, after every index is whole; it deletes nothing and answers `global_state_restored`. Test: `a_restore_puts_the_documents_back_and_merges_the_settings_without_deleting`.
+- AC-11: Without the flag nothing is applied and the answer carries no report. Test: `without_the_flag_the_state_is_left_alone`.
+- AC-12: A snapshot with no state answers `global_state_restored: 0`; a restore that selects no index applies only the state. Test: `a_snapshot_without_state_answers_zero_and_no_indices_applies_only_the_state`.
+- AC-13: A document that no longer validates is named in `failed_global_state` as `<kind>/<name>`, the rest are applied and the restored indices stay. Tests: `a_document_that_no_longer_validates_is_named_and_the_rest_are_applied`, `each_set_applies_the_validator_of_its_put_route`.
+- AC-14: A restore after which a set would hold more than 1,000 documents is 400 `illegal_argument_exception` naming the set, before any write; exactly 1,000 is applied. Tests: `a_set_past_a_thousand_documents_is_refused_and_exactly_a_thousand_is_not`, `the_refusal_is_a_400_naming_the_set`.
+- AC-15: A background restore applies the state once its indices are whole; a cancelled step counts what it did not apply and applies none. Tests: `a_background_restore_applies_the_state_after_the_indices`, `a_cancelled_global_state_step_names_the_count_and_applies_nothing`.
+- AC-16: A restore selecting no index from a snapshot without state makes 1 request; from a state of one template, one script and two settings 14. Test: `a_restore_of_the_state_costs_what_the_budget_holds`.
+- AC-17: The report is written as the answer's members: the count, and the failed names when there are any. Test: `the_answer_names_what_was_applied_and_what_failed`.
+
+Security: every `/_snapshot` route needs `all_access` in this node (`every_repository_and_snapshot_route_needs_all_access`), which is stronger than the action ADR 0068 names, so no second check is made here.
+
 ## S3 request budget
 
-`snapshot.take_global_state_empty.requests` = 17 and `snapshot.take_global_state_one_doc.requests` = 19: the one-shard take (11), the settings register and the five set markers (6), one content GET for each document. No LIST, nothing scales with indices.
+`snapshot.restore_global_state_empty.requests` = 1 and `snapshot.restore_global_state_one_doc.requests` = 14 (measured; the pre-check reads one marker for each set that has documents and one for the settings). `snapshot.take_global_state_empty.requests` = 17 and `snapshot.take_global_state_one_doc.requests` = 19: the one-shard take (11), the settings register and the five set markers (6), one content GET for each document. No LIST, nothing scales with indices.
 
 ## Risks
 

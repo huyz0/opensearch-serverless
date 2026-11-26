@@ -7,7 +7,7 @@
 ## Acceptance criteria
 
 - AC-1: A restore body with `partial: false`, `include_global_state: false`, `include_aliases: false` or `ignore_unavailable: false` is accepted and restores exactly as one without the key. Test: `a_flag_at_the_value_this_node_applies_is_accepted`.
-- AC-2: `include_global_state` and `ignore_unavailable` set to `true` are 501 `unsupported_restore` with the reason they had (`partial` is read since [ADR 0066](../../adr/0066-a-partial-snapshot-records-the-shards-it-could-not-capture.md) and `include_aliases` since ADR 0065). Test: `what_the_shell_refuses_is_refused_with_its_reason`.
+- AC-2: `ignore_unavailable` set to `true` is 501 `unsupported_restore` with the reason it had (`partial` is read since [ADR 0066](../../adr/0066-a-partial-snapshot-records-the-shards-it-could-not-capture.md), `include_aliases` since ADR 0065 and `include_global_state` since [ADR 0068](../../adr/0068-a-snapshot-captures-the-global-state-it-is-asked-for.md)). Test: `what_the_shell_refuses_is_refused_with_its_reason`.
 - AC-3: A flag that is not a JSON boolean (`"partial": "false"`) is 400 `illegal_argument_exception` naming the key. Test: `a_flag_that_is_not_a_boolean_is_400`.
 - AC-4: Every other refused key (`alias_write_index_policy`, `settings`, `storage_type`, the source repository keys, `allow_no_indices`, `expand_wildcards`) stays refused whatever its value. Test: `a_refused_key_without_a_default_stays_refused`.
 - AC-5: Over REST, a restore carrying the four flags at their values makes the same requests as one without them. Test: `flags_at_their_defaults_cost_nothing`.

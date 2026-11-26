@@ -15,6 +15,6 @@ fn flags_at_their_defaults_cost_nothing() {
     assert_eq!(reply.status, 200, "{}", reply.text());
     assert_eq!(requests(&a) - a0, requests(&b) - b0);
     let refused =
-        r#"{"rename_pattern":"logs","rename_replacement":"two","include_global_state":true}"#;
+        r#"{"rename_pattern":"logs","rename_replacement":"two","ignore_unavailable":true}"#;
     assert_eq!(send(&b, "POST", RESTORE, Some(refused)).status, 501);
 }

@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use oss_coordinator::snapshot_restore_admin::{AliasPlan, Target};
 use oss_coordinator::snapshot_take_admin::ACCEPTED;
-use oss_format::RestoreIndex;
+use oss_format::{GlobalState, RestoreIndex};
 use oss_meta::{CopyBuffers, new_id};
 use oss_rest::{JSON, Response, RestError};
 
@@ -59,6 +59,7 @@ impl Drop for Undo {
 /// Everything the thread needs, handed over once.
 struct Job {
     undo: Undo,
+    global: Option<GlobalState>,
     aliases: Vec<AliasPlan>,
     truncated: Option<Vec<String>>,
     sources: Vec<RestoreIndex>,
@@ -94,6 +95,7 @@ impl SnapshotRestoreService {
         targets: &[Target],
         sources: Vec<RestoreIndex>,
         (record_len, (aliases, truncated)): (usize, (Vec<AliasPlan>, Option<Vec<String>>)),
+        global: Option<GlobalState>,
     ) -> Result<(), RestError> {
         let copy = self.chunk_bytes;
         let descriptor_bytes = record_len.saturating_add(DESCRIPTOR_SLACK);
@@ -105,6 +107,11 @@ impl SnapshotRestoreService {
             .saturating_add(self.deletes.remove_bytes())
             .saturating_add(if truncated.is_some() {
                 self.alias_bytes()
+            } else {
+                0
+            })
+            .saturating_add(if global.is_some() {
+                crate::snapshot_restore_global::RESERVE_BYTES
             } else {
                 0
             });
@@ -162,6 +169,7 @@ impl SnapshotRestoreService {
         // ALLOC: one cell for the hand-over, a restore.
         let cell = Arc::new(Mutex::new(Some(Job {
             undo,
+            global,
             aliases,
             truncated,
             sources,
@@ -197,6 +205,7 @@ impl SnapshotRestoreService {
     fn finish_job(&self, job: Job) {
         let Job {
             mut undo,
+            global,
             aliases,
             truncated,
             sources,
@@ -235,6 +244,16 @@ impl SnapshotRestoreService {
             if !report.failed.is_empty() {
                 eprintln!(
                     "snapshot restore could not add aliases {:?}; the indices are restored",
+                    report.failed
+                );
+                undo.restores.record_failure();
+            }
+        }
+        if let Some(state) = global {
+            let report = self.apply_global(&state, &cancel);
+            if !report.failed.is_empty() {
+                eprintln!(
+                    "snapshot restore could not apply global state {:?}; the indices are restored",
                     report.failed
                 );
                 undo.restores.record_failure();
