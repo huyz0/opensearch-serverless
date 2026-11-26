@@ -7,7 +7,7 @@
 - AC-3: `a_shard_published_before_the_last_blob_is_not_named_and_not_touched` in crates/node/tests/proactive_faults.rs
 - AC-4: `only_the_reapers_act_each_after_its_turn_and_a_finished_pass_is_not_repeated` in crates/node/tests/proactive_takeover.rs
 - AC-5: `only_the_reapers_act_each_after_its_turn_and_a_finished_pass_is_not_repeated` in crates/node/tests/proactive_takeover.rs
-  (the turn); NOT-RUN: that the second reaper's checks cost at most twice the first's, and that it takes everything when the first is down
+  (the turn); `a_second_reaper_after_the_first_costs_at_most_twice_as_much_and_takes_nothing` (the second's pass over the same dead log takes none of four shards, skips four, and costs at most twice the first's requests, counted at the emulator) and `a_second_reaper_takes_every_shard_when_the_first_never_runs` (four of four) in crates/node/tests/proactive_faults.rs; both passed on their first run because the behaviour already existed, so neither was seen red
 - AC-6: `a_pass_takes_no_more_shards_at_once_than_max_concurrent` in crates/node/tests/proactive_faults.rs
   and `a_header_over_the_cap_is_refused_and_its_shards_stay_lazy` in crates/node/tests/proactive_faults.rs
   (the header read is bounded by `max_header_bytes`; the pool-reservation clause was replaced by that bound, see the spec)
