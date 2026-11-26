@@ -13,6 +13,7 @@ mod native_index;
 mod repository_data;
 mod repository_write;
 mod shard_snapshot;
+mod shard_write;
 mod snapshot_info;
 
 use crate::error::{FormatError, corrupt, len64};
@@ -29,6 +30,7 @@ pub use native_index::{StockNative, StockRefusal};
 pub use repository_data::{RepositoryData, StockIndex, StockSnapshot, is_blob_name};
 pub use repository_write::{NewIndex, NewSnapshot};
 pub use shard_snapshot::{MAX_CHUNKS, MAX_FILES, StockFile, StockShardSnapshot};
+pub use shard_write::{NewFile, ShardGeneration, checksum_string, shard_snapshot_json};
 pub use snapshot_info::{MAX_INDICES, StockSnapshotInfo};
 
 const WHAT: &str = "stock repository blob";
