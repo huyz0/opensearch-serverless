@@ -86,6 +86,11 @@ pub struct SearchSource {
     pub search_after: Vec<AfterValue>,
     /// `docvalue_fields`: the fields whose doc values each hit carries.
     pub docvalue_fields: Vec<DocValueField>,
+    /// `script_fields`: a script's number a hit carries, by name.
+    pub script_fields: Vec<(
+        String,
+        crate::dsl::queries::function_score_script::ScriptScore,
+    )>,
     /// `explain`: whether each hit carries the explanation of its score.
     pub explain: bool,
     /// `min_score`: only matches scoring at least this are hits and counted.
@@ -150,6 +155,7 @@ impl Default for SearchSource {
             search_after: Vec::new(),
             // ALLOC: empty; parsing pushes one an entry.
             docvalue_fields: Vec::new(),
+            script_fields: Vec::new(),
             explain: false,
             min_score: None,
             post_filter: None,
@@ -280,6 +286,7 @@ impl SearchSource {
             "highlight" => self.highlight = Some(parse_highlight(p)?),
             "post_filter" => self.post_filter = Some(parse_inner(p)?),
             "pit" => self.pit = Some(parse_pit(p)?),
+            "script_fields" => self.script_fields = crate::fetch::script_fields::parse(p)?,
             known if OBJECT_KEYS.contains(&known) => return Err(unsupported(known)),
             _ => return Err(unknown_key(p, Kind::StartObject, name)),
         }
