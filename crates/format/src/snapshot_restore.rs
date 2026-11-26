@@ -4,6 +4,7 @@
 //! is skipped, so memory is the one index's lists.
 
 use crate::error::{FormatError, corrupt};
+use crate::index_record::MAX_SHARDS;
 use crate::json::{Reader, Token};
 use crate::location::FileLocation;
 use crate::snapshot_aliases::{self, AliasCapture};
@@ -100,6 +101,21 @@ impl RestoreIndex {
                 return Ok(Some(why));
             }
             json.finish()?;
+        }
+        if !self.shards.is_empty() && self.number_of_shards <= MAX_SHARDS {
+            // ALLOC: one flag a shard slot, at most MAX_SHARDS.
+            let mut seen = vec![false; self.number_of_shards as usize];
+            for shard in &self.shards {
+                let slot = seen
+                    .get_mut(shard.shard as usize)
+                    .ok_or_else(|| corrupt(WHAT, "a shard is numbered past the shard count"))?;
+                if std::mem::replace(slot, true) {
+                    return Err(corrupt(WHAT, "a shard is captured twice"));
+                }
+            }
+            if self.shards.len() != seen.len() {
+                return Err(corrupt(WHAT, "a finished index does not name every shard"));
+            }
         }
         for shard in &self.shards {
             if shard.shard >= self.number_of_shards {
@@ -416,7 +432,7 @@ mod tests {
     fn entry(settings: &str, shards: &str) -> RestoreIndex {
         let record = format!(
             r#"{{"repo":"r","name":"s","shallow":true,"start_time_in_millis":1,"end_time_in_millis":2,
-            "indices":{{"a":{{"uuid":"U","number_of_shards":2,"settings":{settings},"shards":{shards}}}}}}}"#
+            "indices":{{"a":{{"uuid":"U","number_of_shards":1,"settings":{settings},"shards":{shards}}}}}}}"#
         );
         RestoreIndex::find(record.as_bytes(), "a").unwrap().unwrap()
     }

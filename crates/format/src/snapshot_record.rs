@@ -8,6 +8,7 @@
 //! size of its index names.
 
 use crate::error::{FormatError, corrupt};
+use crate::index_record::MAX_SHARDS;
 use crate::json::{Reader, Token};
 use crate::snapshot_pins::MAX_SNAPSHOT_RECORD_BYTES;
 
@@ -156,7 +157,7 @@ fn read_indices(json: &mut Reader<'_>) -> Result<Vec<SnapshotIndex>, FormatError
         json.start_object("a snapshot's index entry is an object")?;
         let mut uuid = None;
         let mut shards = None;
-        let mut captured = 0u32;
+        let mut listed = None;
         while let Some(key) = json.next_field()? {
             match key.as_ref() {
                 "uuid" => uuid = Some(string(json, "uuid")?),
@@ -171,12 +172,21 @@ fn read_indices(json: &mut Reader<'_>) -> Result<Vec<SnapshotIndex>, FormatError
                     Token::StartObject => json.skip_after(&Token::StartObject)?,
                     _ => return Err(json.error("an index's settings are an object")),
                 },
-                "shards" => captured = count_shards(json)?,
+                "shards" => listed = Some(count_shards(json)?),
                 _ => json.skip_value()?,
             }
         }
         let (Some(uuid), Some(shards)) = (uuid, shards) else {
             return Err(json.error("a snapshot's index entry misses its uuid or shard count"));
+        };
+        let captured = match listed {
+            Some((count, highest)) if count > 0 => {
+                if shards <= MAX_SHARDS && (count != shards || highest >= shards) {
+                    return Err(json.error("a finished index names every shard exactly once"));
+                }
+                count
+            }
+            _ => 0,
         };
         // ALLOC: one name, as above.
         out.push(SnapshotIndex {
@@ -189,23 +199,31 @@ fn read_indices(json: &mut Reader<'_>) -> Result<Vec<SnapshotIndex>, FormatError
     Ok(out)
 }
 
-/// The number of entries of a `shards` array, each checked to be an object
-/// with a non-negative term and a `files` object.
-fn count_shards(json: &mut Reader<'_>) -> Result<u32, FormatError> {
+/// The number of entries of a `shards` array and the highest shard number,
+/// each entry checked to be an object with a shard number, a non-negative
+/// term and a `files` object, and no shard named twice.
+fn count_shards(json: &mut Reader<'_>) -> Result<(u32, u32), FormatError> {
     if json.expect_token()? != Token::StartArray {
         return Err(json.error("an index's shards are an array"));
     }
+    // One bit a shard slot, MAX_SHARDS of them, on the stack.
+    let mut seen = [0u64; (MAX_SHARDS / 64) as usize];
     let mut count = 0u32;
+    let mut highest = 0u32;
     loop {
         match json.expect_token()? {
-            Token::EndArray => return Ok(count),
+            Token::EndArray => return Ok((count, highest)),
             Token::StartObject => {}
             _ => return Err(json.error("a captured shard is an object")),
         }
+        let mut number = None;
         let mut term_ok = false;
         let mut files = false;
         while let Some(key) = json.next_field()? {
             match key.as_ref() {
+                "shard" => {
+                    number = u32::try_from(long(json, "shard")?).ok();
+                }
                 "term" => {
                     term_ok = long(json, "term")? >= 0;
                 }
@@ -216,9 +234,21 @@ fn count_shards(json: &mut Reader<'_>) -> Result<u32, FormatError> {
                 _ => json.skip_value()?,
             }
         }
+        let Some(number) = number else {
+            return Err(json.error("a captured shard has no valid shard number"));
+        };
         if !term_ok || !files {
             return Err(json.error("a captured shard has no term or no files"));
         }
+        // A number past the bound has no bit: the route refuses such an index.
+        if number < MAX_SHARDS {
+            let (word, bit) = ((number / 64) as usize, 1u64 << (number % 64));
+            if seen[word] & bit != 0 {
+                return Err(json.error("a shard is captured twice"));
+            }
+            seen[word] |= bit;
+        }
+        highest = highest.max(number);
         count = count.saturating_add(1);
     }
 }
@@ -324,5 +354,70 @@ mod tests {
         assert!(!off.shallow);
         let on = SnapshotSummary::parse(with("s", r#""true""#).as_bytes()).expect("reads");
         assert!(on.shallow);
+    }
+
+    fn record_of(count: u32, shard_numbers: &[u32]) -> String {
+        let shards = shard_numbers
+            .iter()
+            .map(|n| format!(r#"{{"shard":{n},"term":1,"files":{{}}}}"#))
+            .collect::<Vec<_>>()
+            .join(",");
+        format!(
+            r#"{{"repo":"r","name":"s","shallow":false,"start_time_in_millis":1,"end_time_in_millis":2,"indices":{{"a":{{"uuid":"A","number_of_shards":{count},"shards":[{shards}]}}}}}}"#
+        )
+    }
+
+    #[test]
+    fn a_finished_index_names_every_shard_exactly_once() {
+        for (count, shards) in [
+            (3, vec![2, 0, 1]),
+            (2, vec![0, 2]),
+            (3, vec![0, 1]),
+            (2, vec![0, 0]),
+            (2, vec![0, 1, 1]),
+            (1, vec![1]),
+        ] {
+            let record = record_of(count, &shards);
+            if shards.len() == count as usize && shards.iter().all(|s| *s < count) {
+                let mut seen = shards.clone();
+                seen.sort_unstable();
+                seen.dedup();
+                if seen.len() == count as usize {
+                    assert!(
+                        SnapshotSummary::parse(record.as_bytes()).is_ok(),
+                        "{record}"
+                    );
+                    continue;
+                }
+            }
+            assert!(
+                SnapshotSummary::parse(record.as_bytes()).is_err(),
+                "{record}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_shard_without_its_number_is_refused() {
+        let record = r#"{"repo":"r","name":"s","shallow":false,"start_time_in_millis":1,"end_time_in_millis":2,"indices":{"a":{"uuid":"A","number_of_shards":1,"shards":[{"term":1,"files":{}}]}}}"#;
+        assert!(SnapshotSummary::parse(record.as_bytes()).is_err());
+    }
+
+    #[test]
+    fn the_largest_index_is_checked_and_a_larger_one_is_left_to_the_route() {
+        let all: Vec<u32> = (0..4096).collect();
+        assert!(SnapshotSummary::parse(record_of(4096, &all).as_bytes()).is_ok());
+        let mut twice = all.clone();
+        twice[4095] = 0;
+        assert!(SnapshotSummary::parse(record_of(4096, &twice).as_bytes()).is_err());
+        let over: Vec<u32> = (0..4097).collect();
+        assert!(SnapshotSummary::parse(record_of(4097, &over).as_bytes()).is_ok());
+    }
+
+    #[test]
+    fn an_index_with_no_shards_listed_is_still_the_marker() {
+        let record = r#"{"repo":"r","name":"s","shallow":true,"start_time_in_millis":1,"end_time_in_millis":2,"indices":{"a":{"uuid":"A","number_of_shards":5}}}"#;
+        let s = SnapshotSummary::parse(record.as_bytes()).expect("reads");
+        assert!(s.indices[0].capturing());
     }
 }
