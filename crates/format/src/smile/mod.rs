@@ -8,6 +8,9 @@
 //! Jackson's JSON writer writes them.
 
 mod num;
+mod write;
+
+pub use write::from_json;
 
 use crate::error::{FormatError, corrupt, len64};
 

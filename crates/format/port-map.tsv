@@ -56,3 +56,4 @@ src/stock/snapshot_info.rs	new		a snapshot's own blob (snap-<uuid>.dat) of a sto
 src/stock/index_metadata.rs	new		the index metadata blob (meta-<id>.dat) of a stock repository, read bounded to the settings, mapping and aliases a restore uses; the Java has IndexMetadata.fromXContent
 src/stock/file_check.rs	new		the length and Lucene footer CRC of a stock file, checked as it streams; the Java has CodecUtil.checksumEntireFile
 src/stock/native_index.rs	new		the stock index as the native restore's inputs (shard count, mapping, kept settings); no Java counterpart, the shell restores a stock index through IndexMetadata
+src/smile/write.rs	new		the SMILE encoder, the decoder's counterpart for writing a stock repository; no Java counterpart in the shell (Jackson's SmileGenerator is the reference)
