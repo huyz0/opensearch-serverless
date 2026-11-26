@@ -8,3 +8,4 @@
 - AC-6: `what_this_node_lacks_is_refused` in crates/node/tests/it/rank_eval.rs
 - AC-7: `details_come_in_the_order_java_writes_them` in crates/node/tests/it/rank_eval.rs, and `the_orders_match_the_java_maps` in crates/reader/src/rank_eval/order.rs
 - AC-8: `a_warm_index_adds_no_store_request` in crates/node/tests/it/rank_eval.rs
+- AC-9: `a_template_naming_a_stored_script_ranks_like_its_inline_twin` and `a_stored_template_without_a_source_set_is_refused` in crates/node/tests/it/rank_eval.rs; `a_template_may_name_a_stored_script` in crates/reader/src/rank_eval/tests.rs

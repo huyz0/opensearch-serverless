@@ -17,7 +17,7 @@ use oss_reader::dsl::{MAX_RECORDED_BYTES, Recorder, SearchSource};
 use oss_reader::fetch::source_filter::SourceFilter;
 use oss_reader::rank_eval::metric::{Detail, combine};
 use oss_reader::rank_eval::order::{concurrent_map_order, hash_map_order};
-use oss_reader::rank_eval::{DocKey, RankEvalSpec, RatedRequest};
+use oss_reader::rank_eval::{DocKey, RankEvalSpec, RatedRequest, TemplateText};
 use oss_reader::template::{java_double, render};
 use oss_rest::{JSON, Method, Request, Response, RestError, RouteError, Router, write_json_str};
 
@@ -125,16 +125,25 @@ fn hit_of(p: &mut Parser<'_>) -> Option<Hit> {
 }
 
 /// The search a rated request stands for, as `TransportRankEvalAction` builds it.
-fn search_source(request: &RatedRequest, spec: &RankEvalSpec) -> Result<SearchSource, RestError> {
+///
+/// `stored` holds the source of each stored script the request body names.
+fn search_source(
+    request: &RatedRequest,
+    spec: &RankEvalSpec,
+    stored: &[(String, String)],
+) -> Result<SearchSource, RestError> {
     let text = match (&request.body, &request.template_id) {
         (Some(body), _) => body.clone(),
         (None, Some(id)) => {
-            let source = spec
-                .templates
-                .iter()
-                .find(|(t, _)| t == id)
-                .map(|(_, s)| s.as_str())
-                .unwrap_or_default();
+            let source = match spec.templates.iter().find(|(t, _)| t == id) {
+                Some((_, TemplateText::Inline(source))) => source.as_str(),
+                Some((_, TemplateText::Stored(script))) => stored
+                    .iter()
+                    .find(|(s, _)| s == script)
+                    .map(|(_, source)| source.as_str())
+                    .unwrap_or_default(),
+                None => "",
+            };
             render(source, &request.params, MAX_RENDERED_BYTES)
                 .map_err(|e| template_error(e, source))?
         }
@@ -285,12 +294,34 @@ impl<S: BlobStore + 'static> SearchService<S> {
                 Err(Answer::Rest(e)) => return Err(e),
                 Err(Answer::Search(e)) => return send(resp, &e),
             };
+        // Each stored script a rated request renders is read once.
+        let mut stored: Vec<(String, String)> = Vec::new();
+        for request in &spec.requests {
+            let Some(id) = &request.template_id else {
+                continue;
+            };
+            let Some((_, TemplateText::Stored(script))) =
+                spec.templates.iter().find(|(t, _)| t == id)
+            else {
+                continue;
+            };
+            if request.body.is_some() || stored.iter().any(|(s, _)| s == script) {
+                continue;
+            }
+            let pool = req.body();
+            match self.stored_source(script, |n| pool.reserve(n).map_err(Answer::Rest)) {
+                // ALLOC: one source a stored script the body names, reserved by the read.
+                Ok(source) => stored.push((script.clone(), source)),
+                Err(Answer::Rest(e)) => return Err(e),
+                Err(Answer::Search(e)) => return send(resp, &e),
+            }
+        }
         // The evaluated requests, in order, and the failed ones.
         let mut done: Vec<(&str, Vec<u8>)> = Vec::new();
         let mut failed: Vec<(&str, Vec<u8>)> = Vec::new();
         let mut scores = Vec::new();
         for request in &spec.requests {
-            let source = search_source(request, &spec)?;
+            let source = search_source(request, &spec, &stored)?;
             let bytes = match self.search_bytes(&index, &source) {
                 Ok(bytes) => bytes,
                 Err(answer) => {

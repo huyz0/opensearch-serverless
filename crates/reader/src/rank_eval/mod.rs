@@ -9,7 +9,7 @@ pub mod order;
 pub mod spec;
 
 pub use metric::{DocKey, Metric, Quality, combine};
-pub use spec::{RankEvalSpec, RatedRequest};
+pub use spec::{RankEvalSpec, RatedRequest, TemplateText};
 
 #[cfg(test)]
 mod tests;

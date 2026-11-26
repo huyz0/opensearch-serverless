@@ -28,7 +28,7 @@ Invariant I-13 in [invariants.md](invariants.md) holds the suite to this: `crate
 
 ## `_rank_eval` on a reader node
 
-`GET|POST /{index}/_rank_eval` evaluates rated requests, given inline or by template, with the `precision`, `recall` and `mean_reciprocal_rank` metrics, and answers `metric_score`, `details` and `failures` ([rank-eval-api](specs/rank-eval-api/SPEC.md)). **Refused:** the `dcg` and `expected_reciprocal_rank` metrics, `summary_fields`, a rated request with a `sort`, no index or a list, pattern or `_all`, and every URL parameter. **Differs:** the requests run one at a time; a rated request naming a template that does not exist answers 400, not 500; the response shape follows the Java source and has not been recorded from a running OpenSearch.
+`GET|POST /{index}/_rank_eval` evaluates rated requests, given inline or by template (a template is written in the body or is a stored script, `"template":{"id":..}`), with the `precision`, `recall` and `mean_reciprocal_rank` metrics, and answers `metric_score`, `details` and `failures` ([rank-eval-api](specs/rank-eval-api/SPEC.md)). **Refused:** the `dcg` and `expected_reciprocal_rank` metrics, `summary_fields`, a rated request with a `sort`, no index or a list, pattern or `_all`, and every URL parameter. **Differs:** the requests run one at a time; a rated request naming a template that does not exist answers 400, not 500; the response shape follows the Java source and has not been recorded from a running OpenSearch.
 
 ## `_validate/query` on a reader node
 

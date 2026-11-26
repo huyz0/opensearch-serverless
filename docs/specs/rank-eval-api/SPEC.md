@@ -22,6 +22,7 @@ Not here, refused with 400 "... is not supported by this node yet": the `dcg` an
 - AC-6: the refusals above answer 400 "... is not supported by this node yet".
 - AC-7: the maps of the response are written in the JDK's iteration order.
 - AC-8: a warm index adds no object-store request beyond the searches'.
+- AC-9: a template given as `{"id":"<stored script>"}` is read from the stored-script set once and rendered like an inline one; a missing script answers 404 `resource_not_found_exception`, and a node with no stored-script set refuses it as not supported.
 
 ## Test plan
 
