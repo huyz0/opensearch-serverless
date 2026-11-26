@@ -1,5 +1,5 @@
-//! The evaluation metrics of `_rank_eval`: `PrecisionAtK`, `RecallAtK` and
-//! `MeanReciprocalRank` (modules/rank-eval/src/main/java/org/opensearch/index/rankeval/)
+//! The evaluation metrics of `_rank_eval`: `PrecisionAtK`, `RecallAtK`,
+//! `MeanReciprocalRank` and `DiscountedCumulativeGain` (modules/rank-eval/src/main/java/org/opensearch/index/rankeval/)
 //! at OpenSearch 3.10.0, over hits already joined with their ratings.
 
 use std::collections::HashMap;
@@ -39,10 +39,19 @@ pub enum Metric {
         /// The window.
         k: i32,
     },
+    /// `dcg`.
+    Dcg {
+        /// Whether the score is divided by the ideal gain (`ndcg`).
+        normalize: bool,
+        /// The rating a hit with none counts as; without one it adds nothing.
+        unknown_doc_rating: Option<i32>,
+        /// The window.
+        k: i32,
+    },
 }
 
 /// What a metric reports beside its score.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Detail {
     /// `precision`.
     Precision {
@@ -63,6 +72,15 @@ pub enum Detail {
         /// The rank of the first relevant hit, or -1.
         first_relevant: i64,
     },
+    /// `dcg`.
+    Dcg {
+        /// The discounted cumulative gain of the hits.
+        dcg: f64,
+        /// The gain of the best order of the rated documents; 0 unless normalised.
+        ideal_dcg: f64,
+        /// Hits with no rating.
+        unrated: i64,
+    },
 }
 
 /// One request evaluated.
@@ -82,7 +100,8 @@ impl Metric {
         match self {
             Metric::Precision { k, .. }
             | Metric::Recall { k, .. }
-            | Metric::ReciprocalRank { k, .. } => k,
+            | Metric::ReciprocalRank { k, .. }
+            | Metric::Dcg { k, .. } => k,
         }
     }
 
@@ -155,6 +174,42 @@ impl Metric {
                     },
                 )
             }
+            Metric::Dcg {
+                normalize,
+                unknown_doc_rating,
+                ..
+            } => {
+                // ALLOC: one entry a hit, at most the window.
+                let in_hits: Vec<Option<i32>> =
+                    ratings.iter().map(|r| r.or(unknown_doc_rating)).collect();
+                let unrated =
+                    i64::try_from(ratings.iter().filter(|r| r.is_none()).count()).unwrap_or(0);
+                let dcg = discounted_gain(&in_hits);
+                let (mut score, mut ideal_dcg) = (dcg, 0.0);
+                if normalize {
+                    // ALLOC: one entry a rated document of the request, which the body bounds.
+                    let mut all: Vec<i32> = rated.iter().map(|(_, r)| *r).collect();
+                    all.sort_unstable_by(|a, b| b.cmp(a));
+                    let window = in_hits.len().min(all.len());
+                    // ALLOC: one entry a hit, at most the window.
+                    let best: Vec<Option<i32>> =
+                        all.iter().take(window).map(|r| Some(*r)).collect();
+                    ideal_dcg = discounted_gain(&best);
+                    score = if ideal_dcg == 0.0 {
+                        0.0
+                    } else {
+                        dcg / ideal_dcg
+                    };
+                }
+                (
+                    score,
+                    Detail::Dcg {
+                        dcg,
+                        ideal_dcg,
+                        unrated,
+                    },
+                )
+            }
         };
         Quality {
             score,
@@ -162,6 +217,22 @@ impl Metric {
             ratings,
         }
     }
+}
+
+/// `computeDCG`: the sum of `(2^rating - 1) / log2(rank + 1)`, a hit with no
+/// rating adding nothing but keeping its rank.
+// ARITH: ranks are far below 2^53.
+#[allow(clippy::cast_precision_loss, clippy::arithmetic_side_effects)]
+fn discounted_gain(ratings: &[Option<i32>]) -> f64 {
+    let log2 = 2.0_f64.ln();
+    let mut dcg = 0.0;
+    for (at, rating) in ratings.iter().enumerate() {
+        if let Some(r) = rating {
+            // ARITH: both are small and exact in a double.
+            dcg += (2.0_f64.powi(*r) - 1.0) / (((at + 2) as f64).ln() / log2);
+        }
+    }
+    dcg
 }
 
 /// How many of `ratings` reach `threshold`.
@@ -261,6 +332,38 @@ mod tests {
         let q = m.evaluate(&[key("a")], &ratings);
         assert_eq!(q.score, 0.0);
         assert_eq!(q.detail, Detail::ReciprocalRank { first_relevant: -1 });
+    }
+
+    #[test]
+    fn dcg_discounts_each_rank_and_ndcg_divides_by_the_ideal_order() {
+        let m = |normalize, unknown_doc_rating| Metric::Dcg {
+            normalize,
+            unknown_doc_rating,
+            k: 10,
+        };
+        let ratings = rated(&[("a", 3), ("b", 2), ("c", 3), ("d", 0), ("e", 1), ("f", 2)]);
+        let hits = [key("a"), key("b"), key("c"), key("d"), key("e"), key("f")];
+        // The worked example of the Java's tests: 13.84826362927298.
+        let q = m(false, None).evaluate(&hits, &ratings);
+        assert!(
+            (q.score - 13.848_263_629_272_98).abs() < 1e-12,
+            "{}",
+            q.score
+        );
+        let q = m(true, None).evaluate(&hits, &ratings);
+        let ideal = 14.595_390_756_454_922;
+        assert!((q.score - 13.848_263_629_272_98 / ideal).abs() < 1e-12);
+        // An unrated hit keeps its rank and adds nothing, or its default.
+        let hits = [key("a"), key("x"), key("c")];
+        let plain = m(false, None).evaluate(&hits, &ratings);
+        let with = m(false, Some(1)).evaluate(&hits, &ratings);
+        assert!(with.score > plain.score);
+        match plain.detail {
+            Detail::Dcg { unrated, .. } => assert_eq!(unrated, 1),
+            other => panic!("{other:?}"),
+        }
+        // Nothing rated at all has no ideal order: ndcg is 0.
+        assert_eq!(m(true, None).evaluate(&hits, &[]).score, 0.0);
     }
 
     #[test]

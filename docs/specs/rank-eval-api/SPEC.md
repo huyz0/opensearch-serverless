@@ -10,7 +10,7 @@ Parity plan R10: the stock search-adjacent REST APIs. `GET|POST /{index}/_rank_e
 
 Each rated request is a search with `size` forced to the metric's `k` and no `_source`, from its inline `request` or from a `template_id` rendered with `params` over the body's `templates` (the mustache port of [search-template-api](../search-template-api/SPEC.md)). It runs one at a time through `search_bytes`, the path `_msearch` uses, so a sharded index goes through the coordinator. The answer is `{"metric_score":..,"details":{id:{metric_score,unrated_docs,hits,metric_details}},"failures":{id:{"error":..}}}`: the score is the mean of the requests' scores, `details` is written in the order of a Java `HashMap` sized for the requests and `failures` in that of a `ConcurrentHashMap` (both checked against the JDK by `fixtures/rank_eval/`). A search that fails goes under `failures`; with none evaluated the score is `"NaN"`, as Jackson writes it. A body or template that is invalid, or a rated request asking for aggregations, `explain` or a highlighter, fails the whole request with 400.
 
-Not here, refused with 400 "... is not supported by this node yet": the `dcg` and `expected_reciprocal_rank` metrics, `summary_fields`, a rated request with a `sort`, `_rank_eval` without an index or over a list, pattern or `_all`, and every URL parameter (`search_type` and the indices options).
+Not here, refused with 400 "... is not supported by this node yet": the `expected_reciprocal_rank` metric, `summary_fields`, a rated request with a `sort`, `_rank_eval` without an index or over a list, pattern or `_all`, and every URL parameter (`search_type` and the indices options).
 
 ## Acceptance criteria
 
@@ -23,6 +23,7 @@ Not here, refused with 400 "... is not supported by this node yet": the `dcg` an
 - AC-7: the maps of the response are written in the JDK's iteration order.
 - AC-8: a warm index adds no object-store request beyond the searches'.
 - AC-9: a template given as `{"id":"<stored script>"}` is read from the stored-script set once and rendered like an inline one; a missing script answers 404 `resource_not_found_exception`, and a node with no stored-script set refuses it as not supported.
+- AC-10: `dcg` (`normalize`, `unknown_doc_rating`, `k` default 10) scores a rated search as `DiscountedCumulativeGain` does: the sum of `(2^rating - 1) / log2(rank + 1)`, an unrated hit adding its `unknown_doc_rating` or nothing, `ndcg` dividing by the same sum over the rated documents best first; `metric_details` carries `dcg`, then `ideal_dcg` and `normalized_dcg` when the ideal is not 0, then `unrated_docs`.
 
 ## Test plan
 

@@ -91,6 +91,58 @@ fn recall_and_reciprocal_rank_score_against_the_ratings() {
     );
 }
 
+// AC-10
+#[test]
+fn dcg_discounts_by_rank_and_ndcg_divides_by_the_best_order() {
+    let node = start();
+    // Hits 4 then 1: 1 / log2(2) + 7 / log2(3).
+    let ratings = r#"{"_index":"compat-term","_id":"1","rating":3},{"_index":"compat-term","_id":"4","rating":1}"#;
+    let (status, text) = eval(
+        &node,
+        "compat-term",
+        &spec(&rated("q", ratings), r#"{"dcg":{"k":5}}"#),
+    );
+    assert_eq!(status, 200, "{text}");
+    assert!(
+        text.starts_with(r#"{"metric_score":5.416508275000202,"#),
+        "{text}"
+    );
+    assert!(
+        text.contains(r#""metric_details":{"dcg":{"dcg":5.416508275000202,"unrated_docs":0}}"#),
+        "{text}"
+    );
+    let (status, text) = eval(
+        &node,
+        "compat-term",
+        &spec(&rated("q", ratings), r#"{"dcg":{"normalize":true}}"#),
+    );
+    assert_eq!(status, 200, "{text}");
+    assert!(
+        text.starts_with(r#"{"metric_score":0.7098097413968654,"#),
+        "{text}"
+    );
+    assert!(
+        text.contains(
+            r#""metric_details":{"dcg":{"dcg":5.416508275000202,"ideal_dcg":7.630929753571458,"normalized_dcg":0.7098097413968654,"unrated_docs":0}}"#
+        ),
+        "{text}"
+    );
+    // A hit with no rating counts as the unknown rating, and is listed unrated.
+    let (status, text) = eval(
+        &node,
+        "compat-term",
+        &spec(
+            &rated("q", DOC4),
+            r#"{"dcg":{"unknown_doc_rating":0,"k":5}}"#,
+        ),
+    );
+    assert_eq!(status, 200, "{text}");
+    assert!(
+        text.contains(r#""metric_details":{"dcg":{"dcg":1.0,"unrated_docs":1}}"#),
+        "{text}"
+    );
+}
+
 // AC-1
 #[test]
 fn the_score_is_the_mean_of_the_requests() {
@@ -259,7 +311,6 @@ fn what_this_node_lacks_is_refused() {
     let node = start();
     let ok = rated("q", DOC4);
     for (body, what) in [
-        (spec(&ok, r#"{"dcg":{}}"#), "dcg"),
         (
             spec(
                 &ok,

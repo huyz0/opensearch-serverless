@@ -5,6 +5,7 @@
 use std::collections::HashSet;
 
 use super::metric::{DocKey, Metric};
+use super::metric_spec::metric;
 use crate::dsl::error::DslError;
 use crate::dsl::tokens::{Kind, Parser, Recorder};
 use crate::template::{Val, read_val};
@@ -36,7 +37,7 @@ pub struct RankEvalSpec {
     pub templates: Vec<(String, TemplateText)>,
 }
 
-fn wrong(p: &Parser<'_>, spec: &str, field: &str, kind: Option<Kind>) -> DslError {
+pub(super) fn wrong(p: &Parser<'_>, spec: &str, field: &str, kind: Option<Kind>) -> DslError {
     DslError::xcontent(
         p.location(),
         // ALLOC: error path; one message.
@@ -48,7 +49,7 @@ fn wrong(p: &Parser<'_>, spec: &str, field: &str, kind: Option<Kind>) -> DslErro
     )
 }
 
-fn unknown(at: Location, spec: &str, name: &str) -> DslError {
+pub(super) fn unknown(at: Location, spec: &str, name: &str) -> DslError {
     DslError::xcontent(
         at,
         // ALLOC: error path; one message.
@@ -65,7 +66,12 @@ fn string(p: &Parser<'_>, spec: &str, field: &str, kind: Option<Kind>) -> Result
     Ok(p.text().to_owned())
 }
 
-fn int(p: &Parser<'_>, spec: &str, field: &str, kind: Option<Kind>) -> Result<i32, DslError> {
+pub(super) fn int(
+    p: &Parser<'_>,
+    spec: &str,
+    field: &str,
+    kind: Option<Kind>,
+) -> Result<i32, DslError> {
     if kind != Some(Kind::Number) {
         return Err(wrong(p, spec, field, kind));
     }
@@ -79,7 +85,11 @@ fn int(p: &Parser<'_>, spec: &str, field: &str, kind: Option<Kind>) -> Result<i3
     })
 }
 
-fn expect_object(p: &Parser<'_>, spec: &str, kind: Option<Kind>) -> Result<(), DslError> {
+pub(super) fn expect_object(
+    p: &Parser<'_>,
+    spec: &str,
+    kind: Option<Kind>,
+) -> Result<(), DslError> {
     if kind == Some(Kind::StartObject) {
         return Ok(());
     }
@@ -225,108 +235,6 @@ fn rated_request(p: &mut Parser<'_>) -> Result<RatedRequest, DslError> {
         params,
         ratings,
     })
-}
-
-fn build_failed(p: &Parser<'_>, name: &str, cause: DslError) -> DslError {
-    DslError::xcontent(
-        p.location(),
-        // ALLOC: error path; one message.
-        &format!("[{name}] failed to build [{name}] after last required field arrived"),
-        Some(cause),
-    )
-}
-
-/// `{"precision": {...}}`, with the parser on the object's start.
-fn metric(p: &mut Parser<'_>) -> Result<Metric, DslError> {
-    expect_object(p, "rank_eval", p.current_token())?;
-    if p.next_token() != Some(Kind::FieldName) {
-        return Err(DslError::xcontent(
-            p.location(),
-            "[rank_eval] expected a metric name",
-            None,
-        ));
-    }
-    // ALLOC: one name of the body, which the recording bounds.
-    let name = p.text().to_owned();
-    let at = p.location();
-    let kind = p.next_token();
-    let result = match name.as_str() {
-        "precision" | "recall" | "mean_reciprocal_rank" => {
-            let spec = if name == "mean_reciprocal_rank" {
-                "reciprocal_rank"
-            } else {
-                &name
-            };
-            expect_object(p, spec, kind)?;
-            let (mut threshold, mut ignore, mut k) = (None, None, None);
-            while p.next_token() == Some(Kind::FieldName) {
-                // ALLOC: one name of the body, which the recording bounds.
-                let field = p.text().to_owned();
-                let field_at = p.location();
-                let value = p.next_token();
-                match field.as_str() {
-                    "relevant_rating_threshold" => {
-                        threshold = Some(int(p, spec, &field, value)?);
-                    }
-                    "k" => k = Some(int(p, spec, &field, value)?),
-                    "ignore_unlabeled" if name == "precision" => {
-                        if value != Some(Kind::Bool) {
-                            return Err(wrong(p, spec, &field, value));
-                        }
-                        ignore = Some(p.text() == "true");
-                    }
-                    _ => return Err(unknown(field_at, spec, &field)),
-                }
-            }
-            let threshold = threshold.unwrap_or(1);
-            let k = k.unwrap_or(10);
-            if threshold < 0 {
-                return Err(build_failed(
-                    p,
-                    spec,
-                    DslError::illegal(
-                        "Relevant rating threshold for precision must be positive integer.",
-                    ),
-                ));
-            }
-            if k <= 0 {
-                return Err(build_failed(
-                    p,
-                    spec,
-                    DslError::illegal("Window size k must be positive."),
-                ));
-            }
-            match name.as_str() {
-                "precision" => Metric::Precision {
-                    threshold,
-                    ignore_unlabeled: ignore.unwrap_or(false),
-                    k,
-                },
-                "recall" => Metric::Recall { threshold, k },
-                _ => Metric::ReciprocalRank { threshold, k },
-            }
-        }
-        "dcg" | "expected_reciprocal_rank" => {
-            // ALLOC: the request body and its response, which the limits bound.
-            return Err(DslError::unsupported(&format!("the [{name}] metric")));
-        }
-        _ => {
-            return Err(DslError::xcontent(
-                at,
-                // ALLOC: error path; one message.
-                &format!("[rank_eval] unknown field [{name}]"),
-                None,
-            ));
-        }
-    };
-    if p.next_token() != Some(Kind::EndObject) {
-        return Err(DslError::xcontent(
-            p.location(),
-            "[rank_eval] a metric takes one name",
-            None,
-        ));
-    }
-    Ok(result)
 }
 
 /// Where a template's mustache source comes from.

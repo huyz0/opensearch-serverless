@@ -90,6 +90,22 @@ fn the_metrics_take_their_defaults_and_parameters() {
         }
     );
     assert_eq!(
+        m(r#"{"dcg":{}}"#),
+        Metric::Dcg {
+            normalize: false,
+            unknown_doc_rating: None,
+            k: 10
+        }
+    );
+    assert_eq!(
+        m(r#"{"dcg":{"normalize":true,"unknown_doc_rating":0,"k":3}}"#),
+        Metric::Dcg {
+            normalize: true,
+            unknown_doc_rating: Some(0),
+            k: 3
+        }
+    );
+    assert_eq!(
         m(r#"{"recall":{}}"#),
         Metric::Recall {
             threshold: 1,
@@ -137,7 +153,7 @@ fn a_body_the_java_parser_refuses_says_why() {
             "ignore_unlabeled doesn't support",
         ),
         (with(REQ, r#"{"nope":{}}"#), "unknown field [nope]"),
-        (with(REQ, r#"{"dcg":{}}"#), "not supported by this node yet"),
+        (with(REQ, r#"{"expected_reciprocal_rank":{}}"#), "not supported by this node yet"),
         (with(REQ, "{}"), "expected a metric name"),
         (
             with(REQ, r#"{"precision":{},"recall":{}}"#),
