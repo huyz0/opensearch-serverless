@@ -200,7 +200,8 @@ pub fn render_snapshot(s: &SnapshotSummary) -> String {
     }
     let _ = write!(
         out,
-        "],\"data_streams\":[],\"include_global_state\":true,\"state\":\"{state}\",\"start_time\":\"{}\",\"start_time_in_millis\":{},\"end_time\":\"{}\",\"end_time_in_millis\":{},\"duration_in_millis\":{},\"failures\":[",
+        "],\"data_streams\":[],\"include_global_state\":{},\"state\":\"{state}\",\"start_time\":\"{}\",\"start_time_in_millis\":{},\"end_time\":\"{}\",\"end_time_in_millis\":{},\"duration_in_millis\":{},\"failures\":[",
+        s.has_global_state,
         instant(s.start_millis),
         s.start_millis,
         instant(s.end_millis),
@@ -335,6 +336,7 @@ mod tests {
             shallow: false,
             start_millis: 1_700_000_001_000,
             end_millis: 1_700_000_002_345,
+            has_global_state: false,
             indices: vec![SnapshotIndex {
                 name: "logs".into(),
                 uuid: "A".into(),
@@ -349,7 +351,7 @@ mod tests {
     fn a_snapshot_is_answered_in_the_shells_shape() {
         assert_eq!(
             render_snapshot(&summary(2)),
-            r#"{"snapshots":[{"snapshot":"s","uuid":"u","version_id":3100099,"version":"3.10.0","remote_store_index_shallow_copy":false,"indices":["logs"],"data_streams":[],"include_global_state":true,"state":"SUCCESS","start_time":"2023-11-14T22:13:21Z","start_time_in_millis":1700000001000,"end_time":"2023-11-14T22:13:22.345Z","end_time_in_millis":1700000002345,"duration_in_millis":1345,"failures":[],"shards":{"total":2,"failed":0,"successful":2}}]}"#
+            r#"{"snapshots":[{"snapshot":"s","uuid":"u","version_id":3100099,"version":"3.10.0","remote_store_index_shallow_copy":false,"indices":["logs"],"data_streams":[],"include_global_state":false,"state":"SUCCESS","start_time":"2023-11-14T22:13:21Z","start_time_in_millis":1700000001000,"end_time":"2023-11-14T22:13:22.345Z","end_time_in_millis":1700000002345,"duration_in_millis":1345,"failures":[],"shards":{"total":2,"failed":0,"successful":2}}]}"#
         );
     }
 

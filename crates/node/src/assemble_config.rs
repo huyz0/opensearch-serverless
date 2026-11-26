@@ -52,6 +52,8 @@ pub struct Config {
     pub snapshots_capture_aliases: bool,
     /// `serverless.snapshots.take.partial_shards`: a `partial` take records the shards that published nothing.
     pub snapshots_partial_shards: bool,
+    /// `serverless.snapshots.take.capture_global_state`: a take with `include_global_state: true` records the global state.
+    pub snapshots_capture_global_state: bool,
     /// Whether a shallow snapshot can be restored: `serverless.snapshots.restore.enabled`.
     pub snapshots_restore: bool,
     /// `serverless.snapshots.restore.background.*`: a restore may copy on a thread of its own.
@@ -155,6 +157,7 @@ impl Config {
             snapshots_take: false,
             snapshots_capture_aliases: false,
             snapshots_partial_shards: false,
+            snapshots_capture_global_state: false,
             snapshots_restore: false,
             restore_background: crate::restore_background::Settings::off(),
             snapshots_stock: false,

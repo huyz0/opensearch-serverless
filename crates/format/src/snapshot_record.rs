@@ -56,6 +56,9 @@ pub struct SnapshotSummary {
     pub start_millis: i64,
     /// When it ended, in milliseconds since the epoch.
     pub end_millis: i64,
+    /// Whether the record carries a `global_state` member (ADR 0068); its
+    /// content is not read here.
+    pub has_global_state: bool,
     /// The indices it names, in record order.
     pub indices: Vec<SnapshotIndex>,
 }
@@ -82,8 +85,13 @@ impl SnapshotSummary {
         let mut start = None;
         let mut end = None;
         let mut indices = None;
+        let mut has_global_state = false;
         while let Some(field) = json.next_field()? {
             match field.as_ref() {
+                "global_state" => {
+                    has_global_state = true;
+                    json.skip_value()?;
+                }
                 "repo" => repo = Some(string(&mut json, "repo")?),
                 "name" => name = Some(string(&mut json, "name")?),
                 "uuid" => uuid = Some(string(&mut json, "uuid")?),
@@ -112,6 +120,7 @@ impl SnapshotSummary {
                 shallow,
                 start_millis,
                 end_millis,
+                has_global_state,
                 indices,
             }),
             _ => Err(corrupt(WHAT, "missing a required field")),
