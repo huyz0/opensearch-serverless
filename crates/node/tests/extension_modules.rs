@@ -83,14 +83,20 @@ const HASH_ABSENT: &str = "fffffffffffffffffffffffffffffffffffffffffffffffffffff
 struct Rig {
     store: Arc<Emulator>,
     source: ModuleSource,
+    budget: MemoryBudget,
 }
 
 fn rig(factor: u64) -> Rig {
+    rig_sized(factor, 128 << 20)
+}
+
+/// A rig whose extensions pool holds `extensions` bytes.
+fn rig_sized(factor: u64, extensions: usize) -> Rig {
     let store = Arc::new(Emulator::new(1 << 28, 5));
     let budget = MemoryBudget::new(
         &BudgetConfig::new(256 << 20)
             .with_pool(Pool::RequestBodies, 32 << 20)
-            .and_then(|c| c.with_pool(Pool::Extensions, 128 << 20))
+            .and_then(|c| c.with_pool(Pool::Extensions, extensions))
             .and_then(|c| c.with_pool(Pool::OpenIndexes, 16 << 20))
             .expect("fits"),
     );
@@ -98,10 +104,14 @@ fn rig(factor: u64) -> Rig {
         Arc::clone(&store) as Arc<dyn BlobStore>,
         "",
         Host::new(HostConfig::default()),
-        budget,
+        budget.clone(),
         factor,
     );
-    Rig { store, source }
+    Rig {
+        store,
+        source,
+        budget,
+    }
 }
 
 fn put(r: &Rig, wasm: &[u8]) -> String {
@@ -192,6 +202,80 @@ fn a_module_that_is_not_in_the_store_refuses_the_open_in_words() {
         .expect("refused");
     assert!(e.contains("extension_unavailable"), "{e}");
     assert!(e.contains(HASH_ABSENT), "{e}");
+}
+
+fn refusal(r: &Rig, hash: &str) -> String {
+    r.source
+        .open(&settings(&[("ext_a", hash, 1_000)]), "t")
+        .map(drop)
+        .expect_err("refused")
+}
+
+// AC-14
+#[test]
+fn a_module_that_does_not_match_its_hash_or_cannot_be_an_analyzer_refuses_the_open() {
+    let r = rig(16);
+    // The bytes of one module stored under the hash of another.
+    let claimed = extension_store::hash_of(&module("analyzer", false, None));
+    extension_store::write_once(
+        r.store.as_ref(),
+        "",
+        &claimed,
+        &module("analyzer", false, Some(7)),
+    )
+    .expect("stored");
+    let e = refusal(&r, &claimed);
+    assert!(e.starts_with("extension_unavailable"), "{e}");
+    assert!(e.contains("does not match its hash"), "{e}");
+    // A module with no `analyzer` point, and bytes that are no module.
+    let other = put(&r, &module("tokenizer", false, None));
+    let e = refusal(&r, &other);
+    assert!(e.starts_with("extension_unavailable"), "{e}");
+    let junk = put(&r, b"not wasm");
+    let e = refusal(&r, &junk);
+    assert!(e.starts_with("extension_unavailable"), "{e}");
+}
+
+// AC-14
+#[test]
+fn a_pool_too_small_for_the_compile_is_a_retryable_refusal_that_is_not_kept() {
+    let r = rig(16);
+    let hash = put(&r, &module("analyzer", false, None));
+    // Every byte but one MiB of the extensions pool is taken elsewhere.
+    let room = r.budget.limit(Pool::Extensions);
+    let taken = r
+        .budget
+        .try_reserve(Pool::Extensions, room - (1 << 20))
+        .expect("reserved");
+    let e = refusal(&r, &hash);
+    assert!(e.starts_with("extension_unavailable"), "{e}");
+    assert!(e.contains(oss_node::search_modules::NO_CAPACITY), "{e}");
+    // Capacity passes: once the room is back, the same module opens.
+    drop(taken);
+    r.source
+        .open(&settings(&[("ext_a", &hash, 1_000)]), "t")
+        .expect("opens when there is room");
+}
+
+// AC-14, AC-18
+#[test]
+fn a_refused_module_is_not_read_again_for_thirty_seconds() {
+    let now = Arc::new(std::sync::atomic::AtomicU64::new(1_000));
+    let mut r = rig(16);
+    let clock = Arc::clone(&now);
+    r.source = r.source.with_clock(Arc::new(move || {
+        clock.load(std::sync::atomic::Ordering::SeqCst)
+    }));
+    let requests = |r: &Rig| r.store.meter().count(S3Op::Get) + r.store.meter().count(S3Op::Head);
+    let first = refusal(&r, HASH_ABSENT);
+    let spent = requests(&r);
+    assert!(spent > 0, "the first open reads");
+    now.fetch_add(29_999, std::sync::atomic::Ordering::SeqCst);
+    assert_eq!(refusal(&r, HASH_ABSENT), first);
+    assert_eq!(requests(&r), spent, "no request within 30 s");
+    now.fetch_add(2, std::sync::atomic::Ordering::SeqCst);
+    assert_eq!(refusal(&r, HASH_ABSENT), first);
+    assert!(requests(&r) > spent, "30 s on, the store is asked again");
 }
 
 /// The least fuel at which the module answers, found by doubling.

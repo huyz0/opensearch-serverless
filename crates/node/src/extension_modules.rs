@@ -27,6 +27,12 @@ const REPLAY_WAIT: Duration = Duration::from_secs(60);
 /// search answers a retryable 503.
 const OVERLAY_WAIT: Duration = Duration::from_secs(5);
 
+/// How long a module whose open was refused is not read again.
+const REFUSED_FOR_MILLIS: u64 = 30_000;
+
+/// The most refused modules remembered; a refusal past it is not kept.
+const MAX_REFUSED: usize = 1024;
+
 /// One pin's analyzer: a loaded module, the limits recorded for it, and the
 /// tenant its calls are counted to.
 pub struct ModuleTokens {
@@ -158,6 +164,12 @@ pub struct ModuleSource {
     host: Host,
     budget: MemoryBudget,
     factor: u64,
+    /// Modules whose open was refused, by hash: when the refusal ends and
+    /// why, so a module that cannot run costs one read in 30 seconds, not
+    /// one a shard open.
+    refused: Mutex<HashMap<String, (u64, String)>>,
+    /// The time in milliseconds, from any fixed start.
+    clock: Arc<dyn Fn() -> u64 + Send + Sync>,
 }
 
 impl ModuleSource {
@@ -178,7 +190,26 @@ impl ModuleSource {
             host,
             budget,
             factor,
+            refused: Mutex::new(HashMap::new()),
+            clock: Arc::new(|| {
+                static START: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+                u64::try_from(
+                    START
+                        .get_or_init(std::time::Instant::now)
+                        .elapsed()
+                        .as_millis(),
+                )
+                .unwrap_or(u64::MAX)
+            }),
         }
+    }
+
+    /// This source reading time from `clock` (milliseconds from any fixed
+    /// start).
+    #[must_use]
+    pub fn with_clock(mut self, clock: Arc<dyn Fn() -> u64 + Send + Sync>) -> Self {
+        self.clock = clock;
+        self
     }
 
     /// The analyzers an index's descriptor `settings` pin, each distinct
@@ -253,7 +284,49 @@ impl ModuleSource {
         })
     }
 
+    /// Why `hash` was refused within the last 30 seconds, if it was.
+    fn refused_for(&self, hash: &str) -> Option<String> {
+        let now = (self.clock)();
+        let mut refused = self.refused.lock().unwrap_or_else(PoisonError::into_inner);
+        match refused.get(hash) {
+            Some((until, why)) if *until > now => Some(why.clone()), // ALLOC: error path.
+            Some(_) => {
+                refused.remove(hash);
+                None
+            }
+            None => None,
+        }
+    }
+
+    /// Remembers that `hash` was refused, unless that was for capacity,
+    /// which passes.
+    fn refuse(&self, hash: &str, why: &str) {
+        if why.contains(crate::search_modules::NO_CAPACITY) {
+            return;
+        }
+        let now = (self.clock)();
+        let mut refused = self.refused.lock().unwrap_or_else(PoisonError::into_inner);
+        if refused.len() >= MAX_REFUSED {
+            refused.retain(|_, (until, _)| *until > now);
+        }
+        if refused.len() < MAX_REFUSED {
+            // ALLOC: one entry a refused module, at most MAX_REFUSED.
+            refused.insert(
+                hash.to_owned(),
+                (now.saturating_add(REFUSED_FOR_MILLIS), why.to_owned()),
+            );
+        }
+    }
+
     fn load(&self, pin: &Pin) -> Result<Module, String> {
+        if let Some(why) = self.refused_for(&pin.module) {
+            return Err(why);
+        }
+        self.load_unchecked(pin)
+            .inspect_err(|why| self.refuse(&pin.module, why))
+    }
+
+    fn load_unchecked(&self, pin: &Pin) -> Result<Module, String> {
         let module = store::load(
             self.store.as_ref(),
             &self.base,
@@ -269,7 +342,11 @@ impl ModuleSource {
             StoreError::Blob(e) => e.to_string(),
             StoreError::Mismatch => format!("module [{}] does not match its hash", pin.module),
             StoreError::Load(LoadError::Busy) => {
-                format!("no capacity to compile module [{}]; retry", pin.module)
+                format!(
+                    "{} module [{}]; retry",
+                    crate::search_modules::NO_CAPACITY,
+                    pin.module
+                )
             }
             StoreError::Load(e) => e.to_string(),
         })?;
