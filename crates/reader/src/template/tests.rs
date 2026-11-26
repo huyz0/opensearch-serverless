@@ -176,6 +176,21 @@ fn a_request_names_its_template_and_params() {
     assert!(!r.search_pipeline);
 }
 
+// The later of `id` and a source in one body is the template, as stock's parser has it.
+#[test]
+fn the_later_of_an_id_and_a_source_is_the_template() {
+    let r = request(r#"{"id":"t","source":"s"}"#).expect("parses");
+    assert!(!r.stored && r.id.as_deref() == Some("t") && r.source.as_deref() == Some("s"));
+    let r = request(r#"{"source":"s","id":"t"}"#).expect("parses");
+    assert!(r.stored);
+    let r = request(r#"{"source":{"a":1},"id":"t"}"#).expect("parses");
+    assert!(r.stored);
+    let r = request(r#"{"id":"t","template":{"a":1}}"#).expect("parses");
+    assert!(!r.stored);
+    let r = request(r#"{"source":"s"}"#).expect("parses");
+    assert!(!r.stored && r.id.is_none());
+}
+
 #[test]
 fn an_object_template_is_written_as_compact_json() {
     let r = request(

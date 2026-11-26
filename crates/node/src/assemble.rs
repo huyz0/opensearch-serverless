@@ -223,6 +223,7 @@ pub fn assemble(
     let (pits, janitor_pits, search_pits) = (new_pits()?, new_pits()?, new_pits()?);
     search.set_point_in_time(search_pits, Arc::clone(&clock), config.pit_buffer_bytes);
     crate::admin_assemble::search_pipelines(config, &store, &search)?;
+    crate::admin_assemble::stored_templates(config, &store, &search)?;
     let descriptors = DescriptorStore::new(Arc::clone(&store), &config.base, config.delete_mode)
         .map_err(|e| AssembleError::Store(e.to_string()))?;
     let pit = Arc::new(PitService::new(

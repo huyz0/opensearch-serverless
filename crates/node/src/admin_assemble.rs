@@ -189,6 +189,18 @@ pub(crate) fn search_pipelines<S: BlobStore + 'static>(
     Ok(())
 }
 
+/// Gives the search service where a stored template is found.
+pub(crate) fn stored_templates<S: BlobStore + 'static>(
+    config: &crate::assemble::Config,
+    store: &Arc<dyn BlobStore>,
+    search: &crate::search::SearchService<S>,
+) -> Result<(), crate::assemble::AssembleError> {
+    let templates = crate::stored_template_source::StoredTemplates::open(store, &config.base)
+        .map_err(|e| crate::assemble::AssembleError::Store(e.to_string()))?;
+    search.set_stored_templates(templates);
+    Ok(())
+}
+
 /// The pipelines writes run, when the setting is on.
 pub(crate) fn ingest_pipelines(
     config: &crate::assemble::Config,

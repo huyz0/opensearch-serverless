@@ -26,5 +26,6 @@ mod search;
 mod search_hits;
 mod search_pipeline;
 mod search_template;
+mod search_template_stored;
 mod shards;
 mod validate_query;

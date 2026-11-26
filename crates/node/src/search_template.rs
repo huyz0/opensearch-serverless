@@ -2,7 +2,8 @@
 //!
 //! Ported from `RestRenderSearchTemplateAction`, `RestSearchTemplateAction`,
 //! `TransportSearchTemplateAction` and `MustacheScriptEngine`
-//! (modules/lang-mustache) at OpenSearch 3.10.0 for an inline template. The
+//! (modules/lang-mustache) at OpenSearch 3.10.0 for an inline template, or a
+//! stored one a [`TemplateSource`] finds. The
 //! template renders in `oss_reader::template`; the text is parsed as a search
 //! body and run through `search_bytes`, as `_msearch` runs its items.
 
@@ -58,6 +59,32 @@ pub(super) fn routes<S: BlobStore + 'static>(
     Ok(router)
 }
 
+/// Why a stored template could not be had.
+#[derive(Debug)]
+pub enum TemplateFault {
+    /// No script is stored under the id.
+    Missing,
+    /// The script is stored in a language other than mustache.
+    WrongLang(String),
+    /// The stored set could not be read.
+    Unreadable(String),
+}
+
+/// Where a request that names a stored template finds its source.
+pub trait TemplateSource: Send + Sync {
+    /// The bytes a request reserves from the request-body pool before it
+    /// asks for a template: what reading the set holds.
+    fn reserve_bytes(&self) -> usize;
+
+    /// The mustache source stored under `id`.
+    ///
+    /// # Errors
+    ///
+    /// [`TemplateFault`] for an id nothing is stored under, a script of
+    /// another language, or a set that cannot be read.
+    fn resolve(&self, id: &str) -> Result<String, TemplateFault>;
+}
+
 fn not_supported(what: &str) -> RestError {
     // ALLOC: error path; one message.
     RestError::illegal_argument(format!("{what} is not supported by this node yet"))
@@ -108,48 +135,117 @@ struct Rendered {
     explain: bool,
 }
 
-/// Reads the request and renders its template, reserving the text.
-fn render_request(req: &mut Request<'_>) -> Result<Rendered, Answer> {
-    let rec = record_body(req)?;
-    let rendered = render_recorded(&rec)?;
-    req.body()
-        .reserve(rendered.text.len())
-        .map_err(Answer::Rest)?;
-    Ok(rendered)
+/// The template a request names, rendered: where `id` is the path's, and
+/// `hold` reserves what reading a stored template holds.
+struct Named<'a> {
+    id: Option<&'a str>,
 }
 
-/// Renders the template request `rec` recorded.
-fn render_recorded(rec: &Recorder) -> Result<Rendered, Answer> {
-    let request = TemplateRequest::parse(rec).map_err(bad_request)?;
-    if request.profile {
-        return Err(Answer::Rest(not_supported(
-            "a template request with [profile]",
-        )));
+impl<S: BlobStore + 'static> SearchService<S> {
+    /// Installs where a stored template is found. False when one is
+    /// installed already.
+    pub fn set_stored_templates(&self, source: Arc<dyn TemplateSource>) -> bool {
+        self.templates.set(source).is_ok()
     }
-    if request.search_pipeline {
-        return Err(Answer::Rest(not_supported(
-            "a template request with a [search_pipeline]",
-        )));
+
+    /// The mustache source stored under `id`, after `hold` reserved the
+    /// bytes reading it takes.
+    fn stored_source(
+        &self,
+        id: &str,
+        hold: impl FnOnce(usize) -> Result<(), Answer>,
+    ) -> Result<String, Answer> {
+        let Some(templates) = self.templates.get() else {
+            return Err(Answer::Rest(not_supported("a stored template [id]")));
+        };
+        hold(templates.reserve_bytes())?;
+        templates.resolve(id).map_err(|fault| match fault {
+            TemplateFault::Missing => Answer::Rest(RestError::exception(
+                404,
+                // ALLOC: error path; one exception.
+                Exception::new(
+                    "resource_not_found_exception",
+                    format!("unable to find script [{id}] in cluster state"),
+                ),
+            )),
+            TemplateFault::WrongLang(lang) => Answer::Rest(RestError::illegal_argument(format!(
+                // ALLOC: error path; one message.
+                "script [{id}] is stored in lang [{lang}], and this node runs only [mustache] templates"
+            ))),
+            TemplateFault::Unreadable(why) => Answer::Rest(RestError::exception(
+                503,
+                // ALLOC: error path; one exception.
+                Exception::new(
+                    "unavailable_shards_exception",
+                    format!("stored templates could not be read: {why}"),
+                ),
+            )),
+        })
     }
-    if request.id.is_some() {
-        return Err(Answer::Rest(not_supported("a stored template [id]")));
+
+    /// Renders the template request `rec` recorded; `path` names the stored
+    /// template of `/_render/template/{id}`, which wins over the body's.
+    fn render_recorded(
+        &self,
+        rec: &Recorder,
+        path: Named<'_>,
+        hold: impl FnOnce(usize) -> Result<(), Answer>,
+    ) -> Result<Rendered, Answer> {
+        let request = TemplateRequest::parse(rec).map_err(bad_request)?;
+        if request.profile {
+            return Err(Answer::Rest(not_supported(
+                "a template request with [profile]",
+            )));
+        }
+        if request.search_pipeline {
+            return Err(Answer::Rest(not_supported(
+                "a template request with a [search_pipeline]",
+            )));
+        }
+        let stored = match (path.id, request.id.as_deref(), request.stored) {
+            (Some(id), _, _) => Some(id),
+            (None, Some(id), true) => Some(id),
+            _ => None,
+        };
+        let source = if let Some(id) = stored {
+            self.stored_source(id, hold)?
+        } else if let Some(source) = request.source {
+            source
+        } else {
+            return Err(Answer::Rest(RestError::exception(
+                400,
+                Exception::new(
+                    "action_request_validation_exception",
+                    "Validation Failed: 1: template is missing;",
+                ),
+            )));
+        };
+        let params = request.params.unwrap_or(Val::Map(Vec::new()));
+        let text = render(&source, &params, MAX_RENDERED_BYTES)
+            .map_err(|e| Answer::Rest(template_error(e, &source)))?;
+        Ok(Rendered {
+            text,
+            explain: request.explain,
+        })
     }
-    let Some(source) = request.source else {
-        return Err(Answer::Rest(RestError::exception(
-            400,
-            Exception::new(
-                "action_request_validation_exception",
-                "Validation Failed: 1: template is missing;",
-            ),
-        )));
-    };
-    let params = request.params.unwrap_or(Val::Map(Vec::new()));
-    let text = render(&source, &params, MAX_RENDERED_BYTES)
-        .map_err(|e| Answer::Rest(template_error(e, &source)))?;
-    Ok(Rendered {
-        text,
-        explain: request.explain,
-    })
+
+    /// Reads the request and renders its template, reserving the text.
+    fn render_request(&self, req: &mut Request<'_>) -> Result<Rendered, Answer> {
+        let rec = record_body(req)?;
+        let path = req.path_param("id").map(|id| id.into_owned());
+        let pool = req.body();
+        let rendered = self.render_recorded(
+            &rec,
+            Named {
+                id: path.as_deref(),
+            },
+            |n| pool.reserve(n).map_err(Answer::Rest),
+        )?;
+        req.body()
+            .reserve(rendered.text.len())
+            .map_err(Answer::Rest)?;
+        Ok(rendered)
+    }
 }
 
 /// The search body the rendered text is.
@@ -168,7 +264,13 @@ impl<S: BlobStore + 'static> SearchService<S> {
     /// template rendered, the text held in the request-body pool while it is
     /// parsed.
     pub(super) fn template_item(&self, rec: &Recorder) -> Result<SearchSource, Answer> {
-        let rendered = render_recorded(rec)?;
+        let mut read = None;
+        let rendered = self.render_recorded(rec, Named { id: None }, |n| {
+            self.budget
+                .try_reserve(oss_mem::Pool::RequestBodies, n)
+                .map(|g| read = Some(g))
+                .map_err(|e| Answer::Rest(RestError::circuit_breaking(&e, "search_template")))
+        })?;
         let _held = self
             .budget
             .try_reserve(oss_mem::Pool::RequestBodies, rendered.text.len())
@@ -186,10 +288,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
         req: &mut Request<'_>,
         resp: &mut Response<'_>,
     ) -> Result<(), RestError> {
-        if req.path_param("id").is_some() {
-            return Err(not_supported("rendering a stored template"));
-        }
-        let rendered = match render_request(req) {
+        let rendered = match self.render_request(req) {
             Ok(r) => r,
             Err(Answer::Rest(e)) => return Err(e),
             Err(Answer::Search(e)) => return send(resp, &e),
@@ -208,7 +307,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
         req: &mut Request<'_>,
         resp: &mut Response<'_>,
     ) -> Result<(), RestError> {
-        let rendered = match render_request(req) {
+        let rendered = match self.render_request(req) {
             Ok(r) => r,
             Err(Answer::Rest(e)) => return Err(e),
             Err(Answer::Search(e)) => return send(resp, &e),

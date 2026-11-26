@@ -181,6 +181,8 @@ pub mod stock_export_route;
 pub mod stock_restore_route;
 #[cfg(feature = "writer")]
 pub mod stock_s3;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod stored_template_source;
 #[cfg(feature = "writer")]
 pub mod tail_await;
 #[cfg(feature = "reader")]

@@ -14,7 +14,7 @@ Parity plan R10: the stock search-adjacent REST APIs. `GET|POST /_render/templat
 
 Errors: a template that does not compile is a 400 `script_exception` (`script_stack` `[]`, `script`, `lang` `mustache`, `caused_by` `mustache_exception`, or `mustache_not_found_exception` for a missing partial); an illegal template is a 400 `illegal_argument_exception`; a body that is not a template request, or has no template, is the 400 stock gives, `Validation Failed: 1: template is missing;`. Rendered text that is not a search body gets the error a search body gets.
 
-Not here, refused with 400 "... is not supported by this node yet": a stored template `id`, `/_render/template/{id}`, `profile`, a `search_pipeline`, `simulate`, partials and extend sections, the mustache members of Java classes this node has no values for, and the URL parameters beyond `size` and `from`. Rendering is capped at 1 MiB, reserved from the request-body pool, and nesting at 512 levels.
+Not here, refused with 400 "... is not supported by this node yet": `profile`, a `search_pipeline`, `simulate`, partials and extend sections, the mustache members of Java classes this node has no values for, and the URL parameters beyond `size` and `from`. Rendering is capped at 1 MiB, reserved from the request-body pool, and nesting at 512 levels.
 
 ## Acceptance criteria
 
@@ -23,7 +23,7 @@ Not here, refused with 400 "... is not supported by this node yet": a stored tem
 - AC-3: `{{#toJson}}`, `{{#join}}` and `{{#url}}` render as Java does.
 - AC-4: a template that does not compile answers 400 `script_exception` naming the Java message; an illegal template answers 400 `illegal_argument_exception`.
 - AC-5: a body with no template answers 400 `Validation Failed: 1: template is missing;`; a body that is not an object, an unknown key and a wrong-typed value answer the 400 parse errors stock gives.
-- AC-6: a stored `id`, `profile`, a `search_pipeline`, `/_render/template/{id}` and a template over the cap answer 400 refusals.
+- AC-6: `profile`, a `search_pipeline` and a template over the cap answer 400 refusals; a stored `id` and `/_render/template/{id}` do too on a node with no stored-script set, and are served by [stored-search-templates](../stored-search-templates/SPEC.md) where there is one.
 - AC-7: rendered text that is not a valid search body answers the search error; an unknown index answers the 404 a search does.
 - AC-8: a warm open index makes no request beyond the search's own.
 
