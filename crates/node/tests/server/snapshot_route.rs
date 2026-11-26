@@ -265,6 +265,53 @@ fn a_snapshot_read_the_body_pool_cannot_hold_is_429_and_a_repository_read_still_
     assert_eq!(call(&r, "GET", "/_snapshot/backups").status, 200);
 }
 
+// docs/specs/repository-write AC-3: a body past 1 MiB is refused and a failed reservation is 429,
+// each with nothing written
+#[test]
+fn a_registration_body_past_one_mebibyte_is_refused_and_a_pool_without_room_is_429() {
+    let r = rig_with(roomy());
+    let big = format!(r#"{{"settings":{{"location":"{}"}}}}"#, "x".repeat(1 << 20));
+    let refused = send(&r, "PUT", "/_snapshot/big", Some(&big));
+    assert_eq!(refused.status, 400, "{}", refused.text());
+    assert!(
+        refused.text().contains("larger than 1 MiB"),
+        "{}",
+        refused.text()
+    );
+    let before = r.store.meter().total();
+    assert_eq!(send(&r, "GET", "/_snapshot/big", None).status, 404);
+    assert_eq!(r.store.meter().total() - before, 1, "only the read");
+
+    let tight = rig_with(
+        BudgetConfig::new(256 << 20)
+            .with_pool(Pool::RequestBodies, 512 << 10)
+            .expect("fits"),
+    );
+    let busy = send(&tight, "PUT", "/_snapshot/backups", Some("{}"));
+    assert_eq!(busy.status, 429, "{}", busy.text());
+    assert_eq!(tight.store.meter().count(S3Op::Put), 0, "nothing written");
+}
+
+// docs/specs/repository-write AC-6: a record that does not parse is a 500
+#[test]
+fn verify_of_a_repository_record_that_does_not_parse_is_500() {
+    let r = rig_with(roomy());
+    r.store
+        .put(
+            "repositories/backups",
+            &mut SliceSource::new(b"not a repository record"),
+            &mut [0u8; 256],
+        )
+        .expect("record");
+    let reply = send(&r, "POST", "/_snapshot/backups/_verify", None);
+    assert_eq!(reply.status, 500, "{}", reply.text());
+    assert!(
+        reply.text().contains("repository_unreadable"),
+        "{}",
+        reply.text()
+    );
+}
+
 fn gets(r: &Rig, target: &str) -> (u16, u64) {
     let before = r.store.meter().total();
     let reply = call(r, "GET", target);
