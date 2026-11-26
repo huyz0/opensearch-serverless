@@ -10,13 +10,14 @@
 
 use std::collections::HashSet;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::time::Duration;
 
 use lucene_store::page_cache::PageCache;
 use oss_transport::actions::tail::ShardRef;
 use oss_transport::actions::warm::{
-    HotSetRequest, HotSetResponse, MAX_PAGES_PER_REQUEST, PageAsk, PagesRequest, PagesResponse,
+    HotFile, HotSetRequest, HotSetResponse, MAX_PAGES_PER_REQUEST, PageAsk, PagesRequest,
+    PagesResponse,
 };
 use oss_transport::stream::TaskId;
 
@@ -106,6 +107,49 @@ pub struct Settings<'a> {
     pub bytes_per_second: u64,
 }
 
+/// Opens the shards a peer named, up to `OPEN_PARALLEL` at once, answers in
+/// the peer's order. Opening one reads its commit from the store, so a long
+/// list one after another is a chain of round trips as long as the list;
+/// side by side it takes as long as the list divided by the workers.
+fn open_shards(
+    shards: &(dyn Shards + Sync),
+    named: &[(ShardRef, Vec<HotFile>)],
+) -> Vec<Option<Arc<Expected>>> {
+    let next = AtomicUsize::new(0);
+    let workers = OPEN_PARALLEL.min(named.len());
+    // ALLOC: one slot per shard named, bounded by the request's max_shards.
+    let mut opened: Vec<Option<Arc<Expected>>> = vec![None; named.len()];
+    std::thread::scope(|scope| {
+        let handles: Vec<_> = (0..workers)
+            .map(|_| {
+                scope.spawn(|| {
+                    // ALLOC: the shards this worker opened, a share of the list.
+                    let mut mine = Vec::new();
+                    loop {
+                        let at = next.fetch_add(1, Ordering::AcqRel);
+                        let Some((shard, _)) = named.get(at) else {
+                            break;
+                        };
+                        mine.push((at, shards.expected(shard)));
+                    }
+                    mine
+                })
+            })
+            .collect();
+        for handle in handles {
+            for (at, expected) in handle.join().unwrap_or_default() {
+                if let Some(slot) = opened.get_mut(at) {
+                    *slot = expected;
+                }
+            }
+        }
+    });
+    opened
+}
+
+/// The most of the peer's shards opened at once.
+pub const OPEN_PARALLEL: usize = 16;
+
 fn pause_for(bytes: u64, rate: u64) -> Duration {
     Duration::from_nanos(
         bytes
@@ -118,12 +162,12 @@ fn pause_for(bytes: u64, rate: u64) -> Duration {
 /// Takes `peer`'s hot pages into `cache`, stopping when `expired` is true.
 pub fn copy_from_peer(
     peer: &dyn Peer,
-    shards: &dyn Shards,
+    shards: &(dyn Shards + Sync),
     cache: &PageCache,
     settings: &Settings<'_>,
     pause: &dyn Pause,
     progress: &Progress,
-    expired: &dyn Fn() -> bool,
+    expired: &(dyn Fn() -> bool + Sync),
 ) -> Outcome {
     let request = HotSetRequest {
         parent: TaskId::default(),
@@ -142,8 +186,9 @@ pub fn copy_from_peer(
     let mut wanted: Vec<(PageAsk, u64)> = Vec::new();
     let mut accepts: Vec<Arc<Expected>> = Vec::new();
     let mut owners: Vec<usize> = Vec::new();
-    for (shard, files) in &listed.shards {
-        let Some(expected) = shards.expected(shard) else {
+    let opened = open_shards(shards, &listed.shards);
+    for ((_, files), expected) in listed.shards.iter().zip(opened) {
+        let Some(expected) = expected else {
             continue;
         };
         accepts.push(expected);
