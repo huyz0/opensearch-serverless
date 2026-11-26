@@ -19,6 +19,7 @@ oss-rest = { workspace = true }
 lucene-store = { workspace = true }
 lucene-index = { workspace = true }
 lucene-search = { workspace = true }
+lucene-expressions = { workspace = true }
 lucene-analysis = { workspace = true }
 lucene-codecs = { workspace = true }
 lucene-util = { workspace = true }

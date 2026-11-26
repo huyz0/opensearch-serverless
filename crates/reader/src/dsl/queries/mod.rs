@@ -15,6 +15,7 @@ pub mod full_text_build;
 pub mod function_score;
 pub mod function_score_build;
 mod function_score_modes;
+pub mod function_score_script;
 pub mod inner_hits;
 pub mod knn;
 mod leaf_common;

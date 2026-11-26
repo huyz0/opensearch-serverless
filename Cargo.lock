@@ -1639,6 +1639,7 @@ dependencies = [
  "lucene-analysis",
  "lucene-codecs",
  "lucene-engine",
+ "lucene-expressions",
  "lucene-highlighter",
  "lucene-index",
  "lucene-queryparser",

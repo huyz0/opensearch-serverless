@@ -71,6 +71,8 @@ pub enum Function {
         /// Which of a document's values is used.
         mode: MultiValue,
     },
+    /// `script_score` over an expression.
+    Script(super::function_score_script::ScriptScore),
 }
 
 /// The unknown function `name`: a `ParsingException` caused by the
@@ -233,7 +235,8 @@ fn parse_function(name: &str, p: &mut Parser<'_>) -> Result<Function, DslError> 
         "gauss" => parse_decay(Decay::Gauss, p),
         "exp" => parse_decay(Decay::Exp, p),
         "linear" => parse_decay(Decay::Linear, p),
-        "random_score" | "script_score" => Err(DslError::unsupported(
+        "script_score" => super::function_score_script::parse(p).map(Function::Script),
+        "random_score" => Err(DslError::unsupported(
             // ALLOC: error path; one message.
             &format!("[function_score] [{name}]"),
         )),

@@ -70,6 +70,7 @@ proptest = { version = "=1.6.0", default-features = false, features = ["std"] }
 lucene-store = { git = "https://github.com/huyz0/lucene-rust", rev = "96a49ebdce4e6db6754c213c2645956223823969" }
 lucene-index = { git = "https://github.com/huyz0/lucene-rust", rev = "96a49ebdce4e6db6754c213c2645956223823969" }
 lucene-search = { git = "https://github.com/huyz0/lucene-rust", rev = "96a49ebdce4e6db6754c213c2645956223823969" }
+lucene-expressions = { git = "https://github.com/huyz0/lucene-rust", rev = "96a49ebdce4e6db6754c213c2645956223823969" }
 lucene-codecs = { git = "https://github.com/huyz0/lucene-rust", rev = "96a49ebdce4e6db6754c213c2645956223823969" }
 lucene-analysis = { git = "https://github.com/huyz0/lucene-rust", rev = "96a49ebdce4e6db6754c213c2645956223823969" }
 lucene-util = { git = "https://github.com/huyz0/lucene-rust", rev = "96a49ebdce4e6db6754c213c2645956223823969" }
