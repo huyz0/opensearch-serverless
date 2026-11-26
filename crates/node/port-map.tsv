@@ -243,3 +243,4 @@ src/writer/gate.rs	new		the publish gate: node-wide, or one a shard when packs a
 src/writer/bounded.rs	new		the pass's bounded scoped threads; the shell publishes from its reconciler thread
 src/writer/publish_pass.rs	new		the publish pass split out of the writer role: due shards published at once when packs are on
 src/usage_metrics.rs	new		the Prometheus text route over the usage ledger, the memory pools and the search gate; the Java shell has no metrics route
+src/snapshot_global_capture.rs	new		reads the global state a take records (ADR 0068); the Java shell makes the matching change on its own branch

@@ -21,8 +21,8 @@ use oss_coordinator::snapshot_take_admin::{
 };
 use oss_coordinator::system_indices::SystemIndices;
 use oss_format::{
-    IndexCapture, MAX_REPOSITORY_RECORD_BYTES, MAX_SNAPSHOT_RECORD_BYTES, SnapshotDraft,
-    SnapshotSummary,
+    GlobalState, IndexCapture, MAX_REPOSITORY_RECORD_BYTES, MAX_SNAPSHOT_RECORD_BYTES,
+    SnapshotDraft, SnapshotSummary,
 };
 use oss_meta::{
     CaptureError, DescribedIndex, DescriptorStore, MetaError, PitClock, SnapshotReadError,
@@ -31,6 +31,7 @@ use oss_meta::{
 use oss_rest::{JSON, Request, Response, RestError};
 
 use crate::route_util::{flag, read_body, refuse, refused};
+use crate::snapshot_global_capture as global;
 
 /// What a take reads and writes, under one base.
 pub struct SnapshotTakeService {
@@ -42,6 +43,9 @@ pub struct SnapshotTakeService {
     pub(crate) export: crate::stock_export_route::StockExportSettings,
     capture_aliases: bool,
     partial_shards: bool,
+    capture_global_state: bool,
+    store: Arc<dyn BlobStore>,
+    base: String,
 }
 
 pub(crate) fn unavailable(e: &dyn std::fmt::Display) -> RestError {
@@ -86,14 +90,25 @@ impl SnapshotTakeService {
     ) -> Self {
         Self {
             reader: SnapshotReader::new(Arc::clone(&store), base),
-            taker: SnapshotTaker::new(store, base),
+            taker: SnapshotTaker::new(Arc::clone(&store), base),
             descriptors,
             clock,
             system: Arc::new(SystemIndices::none()),
             export: crate::stock_export_route::StockExportSettings::off(),
             capture_aliases: false,
             partial_shards: false,
+            capture_global_state: false,
+            store,
+            // ALLOC: one copy of the base, once a service.
+            base: base.to_owned(),
         }
+    }
+
+    /// Records the global state in a take that asks for it when `on`.
+    #[must_use]
+    pub fn with_capture_global_state(mut self, on: bool) -> Self {
+        self.capture_global_state = on;
+        self
     }
 
     /// Whether a `partial` take records the shards that published nothing.
@@ -165,6 +180,8 @@ impl SnapshotTakeService {
             }
             Some(_) => {}
         }
+        // The state is read first: a refusal for size costs no shard work.
+        let global_state = self.global_state(req, &asked)?;
         let described = self.describe(&asked, &mut value)?;
         let start = i64::try_from((self.clock)()).unwrap_or(i64::MAX);
         let generation = new_id().map_err(|e| unavailable(&e))?;
@@ -211,10 +228,11 @@ impl SnapshotTakeService {
                     .map_err(|e| captured(e, &name))?;
             }
             let end = i64::try_from((self.clock)()).unwrap_or(i64::MAX);
-            let finished = draft(
+            let mut finished = draft(
                 self.capture_all(&described, asked.partial, &mut value)?,
                 end,
             );
+            finished.global_state = global_state;
             self.taker
                 .finish(&reservation, &finished, &mut value)
                 .map_err(|e| taken(e, &repo, &name))?;
@@ -290,6 +308,23 @@ impl SnapshotTakeService {
             )),
             Err(e) => Err(taken(e, &repo, &name)),
         }
+    }
+
+    /// The global state to record: none unless the take asks for it with the
+    /// setting on. Needs the memory it reads through reserved first.
+    fn global_state(
+        &self,
+        req: &mut Request<'_>,
+        asked: &oss_coordinator::snapshot_take_admin::TakeRequest,
+    ) -> Result<Option<GlobalState>, RestError> {
+        if !(asked.include_global_state && self.capture_global_state) {
+            return Ok(None);
+        }
+        req.body().reserve(global::RESERVE_BYTES)?;
+        let reader =
+            global::StateReader::open(&self.store, &self.base).map_err(|e| unavailable(&e))?;
+        let state = reader.capture().map_err(global::refused_state)?;
+        Ok(Some(state).filter(|s| !s.is_empty()))
     }
 
     /// Resolves each named index, skipping a missing one with

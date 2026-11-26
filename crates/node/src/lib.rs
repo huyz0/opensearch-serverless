@@ -161,6 +161,8 @@ pub mod security_state;
 pub mod settings;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub mod settings_route;
+#[cfg(feature = "writer")]
+pub(crate) mod snapshot_global_capture;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 mod snapshot_restore_aliases;
 #[cfg(all(feature = "writer", feature = "coordinator"))]

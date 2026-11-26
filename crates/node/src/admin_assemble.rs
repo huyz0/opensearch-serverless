@@ -59,6 +59,7 @@ pub(crate) fn register(
                 .with_system_indices(system_indices(config))
                 .with_capture_aliases(config.snapshots_capture_aliases)
                 .with_partial_shards(config.snapshots_partial_shards)
+                .with_capture_global_state(config.snapshots_capture_global_state)
                 .with_stock_export(
                     crate::stock_export_route::StockExportSettings {
                         enabled: config.snapshots_stock_export,

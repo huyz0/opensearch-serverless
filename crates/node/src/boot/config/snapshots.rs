@@ -14,6 +14,8 @@ pub struct SnapshotConfig {
     pub take_capture_aliases: bool,
     /// `serverless.snapshots.take.partial_shards`: with `partial=true` a take keeps an index whose shard published no commit and records the shard as failed (ADR 0066). Off by default until every reader of the repository has both changes.
     pub take_partial_shards: bool,
+    /// `serverless.snapshots.take.capture_global_state`: a take with `include_global_state: true` records the cluster settings, templates, pipelines and stored scripts in the snapshot (ADR 0068). Off by default until every reader of the repository carries the member through.
+    pub take_capture_global_state: bool,
     /// `serverless.snapshots.restore.enabled`: restore shallow snapshots, beside the take. On by default.
     pub restore: bool,
     /// `serverless.system_indices.patterns`: comma-separated `*` patterns of the
@@ -71,6 +73,7 @@ pub(in crate::boot) fn read(
         take: flag("OSS_SNAPSHOTS_TAKE_ENABLED", "true")?,
         take_capture_aliases: flag("OSS_SNAPSHOTS_TAKE_CAPTURE_ALIASES", "false")?,
         take_partial_shards: flag("OSS_SNAPSHOTS_TAKE_PARTIAL_SHARDS", "false")?,
+        take_capture_global_state: flag("OSS_SNAPSHOTS_TAKE_CAPTURE_GLOBAL_STATE", "false")?,
         restore: flag("OSS_SNAPSHOTS_RESTORE_ENABLED", "true")?,
         system_index_patterns: or("OSS_SYSTEM_INDEX_PATTERNS", ""),
         stock: flag("OSS_SNAPSHOTS_STOCK_ENABLED", "false")?,
@@ -97,6 +100,7 @@ pub(in crate::boot) fn apply(from: &NodeConfig, to: &mut crate::assemble::Config
     to.snapshots_take = from.snapshots.take;
     to.snapshots_capture_aliases = from.snapshots.take_capture_aliases;
     to.snapshots_partial_shards = from.snapshots.take_partial_shards;
+    to.snapshots_capture_global_state = from.snapshots.take_capture_global_state;
     to.snapshots_restore = from.snapshots.restore;
     to.system_index_patterns
         .clone_from(&from.snapshots.system_index_patterns);
@@ -183,6 +187,21 @@ mod tests {
             )])))
             .is_err()
         );
+    }
+
+    #[test]
+    fn a_take_captures_no_global_state_until_set() {
+        assert!(!config(&[]).take_capture_global_state);
+        let key = "OSS_SNAPSHOTS_TAKE_CAPTURE_GLOBAL_STATE";
+        assert!(config(&[(key, "true")]).take_capture_global_state);
+        let mut to = crate::assemble::Config::new("", "n", [0; 6]);
+        assert!(!to.snapshots_capture_global_state);
+        super::apply(
+            &NodeConfig::from_lookup(lookup(&with(&[(key, "true")]))).expect("valid"),
+            &mut to,
+        );
+        assert!(to.snapshots_capture_global_state);
+        assert!(NodeConfig::from_lookup(lookup(&with(&[(key, "maybe")]))).is_err());
     }
 
     #[test]
