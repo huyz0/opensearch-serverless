@@ -10,7 +10,7 @@ use oss_format::ShardRef;
 use oss_node::writer::PackConfig;
 
 use super::writer_takeover::{
-    Cluster, Node, cluster, create, node_full, registered_term, seq, takeover, write,
+    Cluster, Node, cluster, create, node_full, registered_term, seq, takeover, write, write_to,
 };
 
 const LEDGER: &str = "packs/node-1/ledger";
@@ -19,6 +19,7 @@ fn packs() -> PackConfig {
     PackConfig {
         max_blob_bytes: 8 << 20,
         linger: Duration::from_millis(1),
+        publish_threads: 8,
     }
 }
 
@@ -198,4 +199,79 @@ fn a_ledger_that_cannot_be_read_fails_the_publish_and_the_next_pass_packs() {
     assert!(pass.failed.is_empty(), "{:?}", pass.failed);
     assert_eq!(pass.published, 1, "the shard stayed due");
     assert!(names_a_pack(&c));
+}
+
+fn exists(c: &Cluster, key: &str) -> bool {
+    c.store.head(key).expect("head").is_some()
+}
+
+const FIRST_PACK: &str = "packs/node-1/e=00000000000000001000/00000000000000000000";
+const SECOND_PACK: &str = "packs/node-1/e=00000000000000001000/00000000000000000001";
+
+/// node-1 packing with a long linger and `threads`, two shards each holding a write.
+fn two_shards(c: &Cluster, threads: usize) -> Node {
+    create(c, "logs", "u1");
+    create(c, "logs2", "u2");
+    let n = node_full(
+        c,
+        "node-1",
+        1,
+        false,
+        None,
+        None,
+        (false, false, None),
+        Some(PackConfig {
+            max_blob_bytes: 8 << 20,
+            linger: Duration::from_millis(1_000),
+            publish_threads: threads,
+        }),
+    );
+    write(&n.role, "a");
+    write_to(&n.role, "logs2", "b");
+    n
+}
+
+// AC-2
+#[test]
+fn two_due_shards_of_one_pass_share_one_pack() {
+    let c = cluster();
+    let n = two_shards(&c, 8);
+    let before = puts(&c);
+    let pass = n.role.publish_due();
+    assert!(pass.failed.is_empty(), "{:?}", pass.failed);
+    assert_eq!(pass.published, 2);
+    assert!(exists(&c, FIRST_PACK), "one pack");
+    assert!(!exists(&c, SECOND_PACK), "and no second");
+    // One pack, the ledger's first create, and a swap a shard.
+    assert_eq!(puts(&c) - before, 4);
+}
+
+// AC-3
+#[test]
+fn with_one_thread_each_shard_is_a_pack_of_its_own() {
+    let c = cluster();
+    let n = two_shards(&c, 1);
+    let pass = n.role.publish_due();
+    assert_eq!(pass.published, 2, "{:?}", pass.failed);
+    assert!(exists(&c, FIRST_PACK) && exists(&c, SECOND_PACK));
+}
+
+// AC-5, AC-6
+#[test]
+fn a_failing_shard_is_reported_and_the_others_are_published() {
+    let c = cluster();
+    let n = two_shards(&c, 8);
+    // A shard register no publisher can read.
+    let at = ShardRef {
+        index: "logs2",
+        uuid: "u2",
+        shard: 0,
+    };
+    c.store
+        .create_register(&at.manifest_key("").expect("key"), b"not a manifest")
+        .expect("planted");
+    let pass = n.role.publish_due();
+    assert_eq!(pass.published, 1, "{:?}", pass.failed);
+    assert_eq!(pass.failed.len(), 1, "{:?}", pass.failed);
+    assert!(pass.failed[0].contains("[u2][0]"), "{:?}", pass.failed);
 }

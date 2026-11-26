@@ -8,12 +8,14 @@
 //! log. A bulk group is applied item by item and staged with one commit.
 
 mod apply_group;
+mod bounded;
 mod buckets;
 mod capacity;
 #[cfg(feature = "reader")]
 mod configure;
 mod dead_log_pass;
 mod dead_logs;
+mod gate;
 mod get;
 mod growth;
 mod heads;
@@ -37,6 +39,7 @@ mod pipelined;
 mod predecessors;
 mod proactive;
 mod publish_age;
+mod publish_pass;
 mod publish_timer;
 mod publishing;
 mod redirect;
@@ -264,40 +267,10 @@ impl WriterRole {
     /// manifest as its newest commit. A shard that fails stays due and the
     /// pass goes on.
     pub fn publish_due(&self) -> PublishPass {
-        let mut pass = PublishPass::default();
         let Some(publishing) = &self.publishing else {
-            return pass;
+            return PublishPass::default();
         };
-        // ALLOC: one handle a held shard, once a pass.
-        let held: Vec<(Key, Arc<Mutex<ShardSlot>>)> = lock(&self.shards)
-            .iter()
-            .map(|(k, v)| (k.clone(), Arc::clone(v)))
-            .collect();
-        for (key, slot) in held {
-            let Some(index) = self.names.name_of(&key.0) else {
-                continue;
-            };
-            match self.publish_shard(publishing, &key, &index, &slot, true) {
-                Ok(None) => {}
-                Ok(Some((done, max_seq_no))) => {
-                    // Staged before the tail drops what the commit holds, so
-                    // a reader opening in between finds one or the other.
-                    self.staged(&key.0, key.1, &done.manifest);
-                    // A staged commit is not in the register: the tail keeps
-                    // its records until a register write holds them.
-                    if !done.staged
-                        && let Some(t) = self.tail.get()
-                    {
-                        t.published(&key.0, key.1, max_seq_no);
-                    }
-                    pass.published = pass.published.saturating_add(1);
-                }
-                Err(reason) => {
-                    // ALLOC: error path; one message a failed shard.
-                    pass.failed.push(format!("[{}][{}] {reason}", key.0, key.1));
-                }
-            }
-        }
+        let mut pass = self.publish_held(publishing);
         pass.failed.extend(self.checkpoint_staged(publishing));
         self.log_tick();
         pass

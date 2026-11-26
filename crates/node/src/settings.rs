@@ -87,7 +87,7 @@ mod tests {
             assert_eq!(
                 keys.len(),
                 7 + 7 * usize::from(reader)
-                    + if writer { 49 + usize::from(reader) } else { 0 }
+                    + if writer { 50 + usize::from(reader) } else { 0 }
                     + usize::from(reader && writer)
                     + 2 * usize::from(writer && cfg!(feature = "coordinator"))
                     + usize::from(cfg!(feature = "extensions"))

@@ -15,6 +15,7 @@ use oss_writer::log::Position;
 use oss_writer::publish::ShardPublisher;
 
 use super::BucketWiring;
+use super::gate::{Gate, Gates};
 use super::packs::{PackConfig, Packs};
 use oss_writer::publish::lazy::{LazyPublish, Policy, PublishAge};
 
@@ -43,7 +44,7 @@ pub struct Publishing {
     publishers: Mutex<HashMap<Key, Arc<Mutex<ShardPublisher>>>>,
     /// Held from taking a commit's snapshot to its publish, so commits are
     /// published in the order they were taken.
-    gate: Mutex<()>,
+    gates: Gates,
     ages: Mutex<HashMap<Key, PublishAge>>,
     buckets: Option<Arc<BucketWiring>>,
     /// How many times longer a shard's writes may wait, by index uuid.
@@ -96,7 +97,7 @@ impl Publishing {
             lazy: Mutex::new(LazyPublish::new(policy)),
             // ALLOC: one publisher a shard this node has published.
             publishers: Mutex::new(HashMap::new()),
-            gate: Mutex::new(()),
+            gates: Gates::default(),
             // ALLOC: one entry a shard of an index that sets a refresh interval.
             ages: Mutex::new(HashMap::new()),
             buckets: None,
@@ -213,9 +214,16 @@ impl Publishing {
         self.stretch.set(stretch).is_ok()
     }
 
-    /// Held across taking a snapshot and publishing it.
-    pub(super) fn gate(&self) -> MutexGuard<'_, ()> {
-        lock(&self.gate)
+    /// Held across taking `key`'s snapshot and publishing it: with packs on,
+    /// the shard's own gate, so shards publish together and share a pack;
+    /// else the one every shard shares.
+    pub(super) fn gate(&self, key: &Key) -> Gate<'_> {
+        self.gates.take(key, self.packs.is_some())
+    }
+
+    /// How many shards a pass may publish at once: 1 with packs off.
+    pub(super) fn pass_threads(&self) -> usize {
+        self.packs.as_ref().map_or(1, Packs::threads)
     }
 
     /// A write reached `key`.

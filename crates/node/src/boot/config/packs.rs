@@ -17,9 +17,11 @@ pub(super) fn read(
 ) -> Result<Option<PackConfig>, String> {
     let max_blob_bytes = bounded("OSS_NODE_PACK_MAX_BLOB_BYTES", "8388608", 1, 64 << 20)?;
     let linger = bounded("OSS_NODE_PACK_LINGER_MS", "50", 1, 5_000)?;
+    let threads = bounded("OSS_NODE_PACK_PUBLISH_THREADS", "8", 1, 64)?;
     Ok(flag("OSS_NODE_PACKS", "false")?.then_some(PackConfig {
         max_blob_bytes,
         linger: Duration::from_millis(linger),
+        publish_threads: usize::try_from(threads).unwrap_or(8),
     }))
 }
 

@@ -120,7 +120,7 @@ impl WriterRole {
                 return Ok(None);
             }
         }
-        let _gate = publishing.gate();
+        let _gate = publishing.gate(key);
         let (snapshot, term, max_seq_no, logged, shard_key) = {
             // No group of the shard is in flight and none stages until the
             // snapshot is taken, so every write in the commit is in the log.
@@ -184,7 +184,7 @@ impl WriterRole {
             // What was staged is taken under the gate that flushed it: a
             // publish staging a newer commit afterwards keeps its own entry.
             let (written, taken) = {
-                let _gate = publishing.gate();
+                let _gate = publishing.gate(&key);
                 let written = publishing.with_publisher(&key, &index, |publisher, _, _| {
                     publisher.flush_due().map_err(|e| e.to_string())
                 });
