@@ -42,7 +42,7 @@ pub struct StockSnapshot {
     /// The version of OpenSearch that took it, when written.
     pub version: Option<String>,
     /// Index id to the generation of that index's metadata in this snapshot.
-    metadata: Vec<(String, String)>,
+    pub(super) metadata: Vec<(String, String)>,
 }
 
 /// One index the repository holds.
@@ -68,7 +68,7 @@ pub struct RepositoryData {
     /// The indices, in file order.
     pub indices: Vec<StockIndex>,
     /// Metadata generation to the identifier its blob is named by.
-    identifiers: Vec<(String, String)>,
+    pub(super) identifiers: Vec<(String, String)>,
 }
 
 impl RepositoryData {

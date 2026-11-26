@@ -8,3 +8,13 @@ javac -cp $CP GenEnvelope.java && java -cp $CP:. GenEnvelope fixtures/snapshots/
 ```
 
 They are not blobs a stock node wrote; a recorded stock snapshot joins them (`fixtures/snapshots/stock/README.md`). Test: `crates/format/tests/stock_envelope.rs`.
+
+## The writers' output, read by Lucene and the server
+
+`CheckStockWrite.java` reads what the Rust writers left (`OSS_WRITE_STOCK=dir`) with Lucene's `CodecUtil` and the server's `RepositoryData.snapshotsFromXContent`, against the jars of a 3.10 node's `lib/`:
+
+```
+OSS_WRITE_STOCK=/tmp/stw cargo test -p oss-format --test stock_envelope_write --test stock_repository_data_write
+javac -proc:none -cp "$L/*" -d /tmp/cstw CheckStockWrite.java
+java -cp "$L/*:/tmp/cstw" CheckStockWrite /tmp/stw
+```
