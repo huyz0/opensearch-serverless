@@ -65,14 +65,14 @@ Counted by task from the plan "Rust serverless OpenSearch: plan to Java parity" 
 | R8 takeover, janitor, reconcile | 7 | 6 | 1 | 0 | R8.6: no frozen-node suite, RustFS run only for takeover scale and the cluster suite |
 | R9 freshness | 4 | 4 | 0 | 0 | |
 | R10 search breadth, prefetch | 8 | 6 | 2 | 0 | R10.1 and R10.2: the `nested` query and aggregation are refused |
-| R11 packs, log commits, buckets, schemas | 5 | 0 | 2 | 3 | R11.1 packs are not wired into the node; R11.3 buckets are off by default; R11.2 log commits, R11.4 shared schema blobs, R11.5 cost soak not started |
+| R11 packs, log commits, buckets, schemas | 5 | 1 | 2 | 2 | R11.4 done: mappings are shared in memory by content and schema blobs are deliberately not stored ([ADR 0054](adr/0054-parsed-mappings-are-shared-by-content.md)); R11.1 packs are not wired into the node; R11.3 buckets are off by default; R11.2 log commits and R11.5 cost soak not started |
 | R12 warm scale-out, roles, zones | 5 | 3 | 2 | 0 | R12.1 and R12.2: warm copy is off by default, its headline checks are NOT-RUN |
 | R13 big writes, admission, guardrails | 5 | 5 | 0 | 0 | |
 | R14 snapshots and the rest of the API | 8 | 6 | 1 | 1 | R14.6 runs no script; R14.8 stock restore done, export in progress |
 | R15 k-NN, security, extensions, soak | 5 | 2 | 3 | 0 | R15.3 only the analyzer point; R15.4 proxy untried against live Java plugins; R15.5 no week-long soak, no Prometheus metrics |
-| **Total** | **76** | **61** | **11** | **4** | |
+| **Total** | **76** | **62** | **11** | **3** | |
 
-61 of 76 tasks are done (80%); 72 of 76 are done or built (95%).
+62 of 76 tasks are done (82%); 73 of 76 are done or built (96%).
 
 ## Alongside
 
