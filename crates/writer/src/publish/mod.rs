@@ -4,10 +4,11 @@
 //!
 //! Ported from `SegmentPublisher.publishCommit` (huyz0/OpenSearch
 //! `feature/serverlessshell`) with its default settings: no staged
-//! commits, no buckets, and node packs only when [`ShardPublisher::use_packs`] is given a
+//! commits (see [`staging`]), no buckets, and node packs only when [`ShardPublisher::use_packs`] is given a
 //! [`PackPlacement`] (default off).
 
 mod blob;
+mod checkpoint;
 mod commit_register;
 mod error;
 pub mod lazy;
@@ -15,6 +16,8 @@ mod names;
 mod packed;
 mod publisher;
 mod register;
+pub mod staging;
+mod upload;
 
 pub use commit_register::{CommitRegister, RegisterValue};
 pub use error::PublishError;

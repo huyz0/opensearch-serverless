@@ -36,6 +36,8 @@ fn providers() -> Vec<&'static [&'static Setting]> {
         #[cfg(feature = "writer")]
         oss_writer::publish::lazy::SETTINGS,
         #[cfg(feature = "writer")]
+        oss_writer::publish::staging::SETTINGS,
+        #[cfg(feature = "writer")]
         oss_janitor::settings::SETTINGS,
         #[cfg(feature = "writer")]
         oss_writer::bucket::settings::SETTINGS,
@@ -81,7 +83,7 @@ mod tests {
             assert_eq!(
                 keys.len(),
                 7 + 7 * usize::from(reader)
-                    + if writer { 42 + usize::from(reader) } else { 0 }
+                    + if writer { 44 + usize::from(reader) } else { 0 }
                     + usize::from(reader && writer)
                     + usize::from(writer && cfg!(feature = "coordinator"))
                     + usize::from(cfg!(feature = "extensions"))
@@ -137,6 +139,8 @@ mod tests {
                 "serverless.writer.merge.segments_per_tier",
                 "serverless.writer.merge.max_merge_at_once",
                 "serverless.writer.merge.max_merged_segment_mb",
+                "serverless.wal.node_log.commits.staging",
+                "serverless.wal.node_log.commits.checkpoint_millis",
             ] {
                 assert_eq!(keys.contains(&key), writer, "{key}");
             }
