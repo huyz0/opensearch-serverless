@@ -50,11 +50,25 @@ pub const LOGGED: BoolSetting = BoolSetting::new(
      that is open anyway, so a successor can open from it instead of the older register.",
 );
 
+/// `serverless.wal.node_log.commits.open_from_logged`: a successor opens a
+/// shard from the newest commit its predecessor logged, when that is newer than
+/// the register and its packs are still named. Default `false`; needs `logged`.
+pub const OPEN_FROM_LOGGED: BoolSetting = BoolSetting::new(
+    "serverless.wal.node_log.commits.open_from_logged",
+    false,
+    Scope::Node,
+    "With logged commits on, a node taking over a shard restores the newest commit its \
+     predecessor logged instead of the older one in the register, replays only what that commit \
+     lacks, and writes the commit to the register: a takeover replays up to a checkpoint age \
+     less of the log.",
+);
+
 /// Every setting this module defines, for the node's registry.
 pub static SETTINGS: &[&Setting] = &[
     STAGING.setting(),
     CHECKPOINT_MILLIS.setting(),
     LOGGED.setting(),
+    OPEN_FROM_LOGGED.setting(),
 ];
 
 /// The longest a commit may stay staged: half the pack deadline, so a slow

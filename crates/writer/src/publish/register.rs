@@ -51,7 +51,16 @@ impl ShardPublisher {
         let Some(value) = self.register.read()? else {
             return Err(PublishError::Unusable("no commit published"));
         };
-        let manifest = CommitManifest::parse(&value.bytes)?;
+        let last = last_of(&value.bytes, value.generation)?;
+        Ok((last, value.generation, value.bytes))
+    }
+}
+
+/// The commit a manifest names, as the publisher remembers one, read at
+/// `generation`.
+pub(super) fn last_of(bytes: &[u8], generation: u64) -> Result<Last, PublishError> {
+    {
+        let manifest = CommitManifest::parse(bytes)?;
         // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
         let mut files = BTreeMap::new();
         for file in manifest.files() {
@@ -67,13 +76,12 @@ impl ShardPublisher {
                 },
             );
         }
-        let last = Last {
-            generation: value.generation,
+        Ok(Last {
+            generation,
             term: manifest.term,
             writer: manifest.writer.as_deref().map(str::to_owned),
             files,
-        };
-        Ok((last, value.generation, value.bytes))
+        })
     }
 }
 

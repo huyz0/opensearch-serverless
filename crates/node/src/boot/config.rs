@@ -12,7 +12,7 @@ use crate::tail_overlay::REFRESH_VISIBILITY;
 
 pub(super) mod apply;
 pub(super) mod authoring;
-mod commits;
+pub(super) mod commits;
 pub(super) mod edge;
 pub(super) mod page_cache;
 pub(super) mod roles;
@@ -123,8 +123,8 @@ pub struct NodeConfig {
     /// (`serverless.wal.node_log.commits.staging` and `.checkpoint_millis`):
     /// the checkpoint age when routine commits are staged, else none.
     pub commit_checkpoint_millis: Option<u64>,
-    /// `OSS_COMMIT_LOGGED`: staged commits ride the node log; needs staging.
-    pub commit_logged: bool,
+    /// `OSS_COMMIT_LOGGED` and `OSS_COMMIT_OPEN_FROM_LOGGED`: what staged commits do besides staging.
+    pub commit_logged: commits::Logged,
     /// `serverless.security.enabled`: serve the security configuration API. Off by default.
     pub security: bool,
     /// The static administrator's name and bcrypt hash (`OSS_SECURITY_ADMIN_USER`, `OSS_SECURITY_ADMIN_HASH`).

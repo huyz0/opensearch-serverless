@@ -28,6 +28,7 @@ mod merging;
 use limit::unavailable;
 pub use merging::{MergeConfig, SETTINGS as MERGE_SETTINGS};
 mod newest_commit;
+mod open_logged;
 mod opener;
 mod orphan_timer;
 mod pipeline;

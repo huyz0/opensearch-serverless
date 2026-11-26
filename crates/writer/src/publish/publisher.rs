@@ -48,7 +48,10 @@ pub struct ShardPublisher {
     /// The checkpoint age when staging is on.
     pub(super) staging: Option<Duration>,
     pub(super) staged: Option<Staged>,
-    sequence: i64,
+    pub(super) sequence: i64,
+    /// When the oldest pack of a commit adopted from a predecessor's log
+    /// landed, minus the open margin: the commit is only that old to a swap.
+    pub(super) adopted: Option<Instant>,
 }
 
 impl std::fmt::Debug for ShardPublisher {
@@ -86,6 +89,7 @@ impl ShardPublisher {
             staging: None,
             staged: None,
             sequence: -1,
+            adopted: None,
         })
     }
 
@@ -176,6 +180,9 @@ impl ShardPublisher {
         {
             self.staged = None;
         }
+        // An adopted commit's one chance: it is spent by this publish, and a
+        // swap lost over it is not retried over what the register holds now.
+        let adopted = self.adopted.take();
         // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
         let mut uploaded: BTreeMap<String, Known> = BTreeMap::new();
         // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
@@ -229,7 +236,11 @@ impl ShardPublisher {
             let manifest = encode_manifest(term, Some(writer), &refs, wal_ordinal, stage_sequence)?;
             // Collection deletes a pack no manifest names once it is old
             // enough; a swap this late could name one already gone.
-            if packed_at.is_some_and(|at| expired(at.elapsed(), self.swap_deadline)) {
+            if packed_at
+                .into_iter()
+                .chain(adopted)
+                .any(|at| expired(at.elapsed(), self.swap_deadline))
+            {
                 self.last = None;
                 return Err(PublishError::PackExpired);
             }
@@ -289,6 +300,9 @@ impl ShardPublisher {
                 SwapOutcome::Conflict(_) => {
                     self.last = None;
                     self.staged = None;
+                    if adopted.is_some() {
+                        return Err(PublishError::AdoptionLost);
+                    }
                     if remembered && round == 0 {
                         // The register moved under what this publisher
                         // remembered: read it and publish over it, once.

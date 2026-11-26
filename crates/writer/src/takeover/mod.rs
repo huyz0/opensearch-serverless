@@ -12,6 +12,7 @@ mod adopt;
 mod checkpoint;
 mod engine;
 mod head;
+pub mod logged;
 mod predecessors;
 mod restore;
 

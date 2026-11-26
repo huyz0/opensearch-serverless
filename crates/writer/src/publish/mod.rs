@@ -7,6 +7,7 @@
 //! commits (see [`staging`]), no buckets, and node packs only when [`ShardPublisher::use_packs`] is given a
 //! [`PackPlacement`] (default off).
 
+mod adopt;
 mod blob;
 mod checkpoint;
 mod commit_register;

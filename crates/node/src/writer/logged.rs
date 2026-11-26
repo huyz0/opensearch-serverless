@@ -38,7 +38,12 @@ impl WriterRole {
         let (Some(logged), Ok(term)) = (self.logged.get(), i64::try_from(term)) else {
             return;
         };
-        let age = i64::try_from(age.unwrap_or_default().as_millis()).unwrap_or(0);
+        // A commit whose oldest pack's age is unknown is not logged: a
+        // successor could not tell whether its packs are still named.
+        let Some(age) = age else {
+            return;
+        };
+        let age = i64::try_from(age.as_millis()).unwrap_or(0);
         let record = CommitRecord {
             oldest_pack_millis: i64::try_from(super::now_millis())
                 .unwrap_or(0)

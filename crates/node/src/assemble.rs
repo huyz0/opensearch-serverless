@@ -121,7 +121,7 @@ pub struct Config {
     /// Checkpoint age of staged commits; none writes each register.
     pub commit_checkpoint_millis: Option<u64>,
     /// Whether staged commits ride the node log; needs staging.
-    pub commit_logged: bool,
+    pub commit_logged: crate::boot::Logged,
     /// Merging a shard's small segments.
     pub merge: crate::writer::MergeConfig,
     /// How far below the cap making room clears, as a percent of it.
@@ -195,7 +195,7 @@ impl Config {
             evict_after_millis: 60_000,
             hand_off: false,
             commit_checkpoint_millis: None,
-            commit_logged: false,
+            commit_logged: crate::boot::Logged::Off,
             merge: crate::writer::MergeConfig::off(),
             evict_headroom_percent: 0,
             pinned_indexes: Vec::new(),
@@ -385,7 +385,7 @@ pub fn assemble(
         .with_hibernation(config.hibernate_after_millis)
         .with_give_back(config.give_back_after_millis);
     role.configure(config, budget);
-    if config.commit_logged {
+    if config.commit_logged.writes() {
         let _ = role.log_commits(Duration::from_millis(config.publish_tick_millis));
     }
     if let Some(opener) = writer.opener {

@@ -228,3 +228,4 @@ src/boot/config/lease_timing.rs	new		the lease renewal and refresh intervals, sp
 src/assemble_publishing.rs	new		the publishing a node's configuration asks for, split out of assemble.rs to keep it under the size limit
 src/writer/logged.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/LoggedCommits.java	the role's calls: log a staged commit, release at the register write, forget on release
 src/boot/config/commits.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/CommitStaging.java@429b4cbc	the staging and logging variables
+src/writer/open_logged.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/NewestCommits.java	choosing the commit a taken shard opens from

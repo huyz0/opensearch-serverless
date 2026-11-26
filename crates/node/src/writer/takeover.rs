@@ -49,6 +49,7 @@ pub trait ModuleLoader: Send + Sync {
 
 /// What a shard is opened to read and index with: its mapping and the
 /// modules its index pins.
+#[derive(Clone)]
 pub(super) struct Opening<'a> {
     /// The mapping its documents are read against.
     pub(super) mapping: Arc<Mapping>,
@@ -166,7 +167,7 @@ impl WriterRole {
         shard: u32,
         head: &ShardHead,
         opening: Opening<'_>,
-        takeover: &Takeover,
+        (takeover, adopting): (&Takeover, Option<&super::open_logged::Adopting>),
         fill: impl FnOnce(&ByteBuffersDirectory) -> Result<(), String>,
     ) -> Result<(), String> {
         let key: Key = (index.uuid.clone(), shard);
@@ -185,6 +186,13 @@ impl WriterRole {
                 Replaying(m)
             });
             publishing.with_publisher(&key, &index.name, |publisher, node, now| {
+                if let Some(a) = adopting {
+                    // The commit the directory was restored from is the one the
+                    // replay builds on and the publish swaps in.
+                    publisher
+                        .adopt_commit(&a.candidate.manifest, a.candidate.generation, a.packed_at)
+                        .map_err(|e| e.to_string())?;
+                }
                 slot.adopt(publisher, node, now, takeover, head)
                     .map(|adopted| adopted.published)
             })
