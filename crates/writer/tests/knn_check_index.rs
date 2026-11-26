@@ -35,7 +35,10 @@ fn knn_segments_are_written_for_java_to_check() {
         .expect("fixture json");
         let mapping = Mapping::parse_with(
             fixture["mappings"].to_string().as_bytes(),
-            ParseOptions { knn: Some(true) },
+            ParseOptions {
+                knn: Some(true),
+                ..ParseOptions::default()
+            },
         )
         .expect("mapping");
         let target = Path::new(&out).join(name);

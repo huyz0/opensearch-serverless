@@ -272,12 +272,9 @@ impl Overlay {
                 let read = oss_doc::lucene::uid(r.id())
                     .ok()
                     .and_then(|key| fast.prepare(&indexer, current, source, &key));
-                let doc = match read {
-                    Some(f) => f
-                        .finish(r.seq_no(), r.primary_term(), r.version())
-                        .pop()
-                        // ALLOC: one message on a failed build.
-                        .ok_or_else(|| refuse("no document read".to_owned()))?,
+                // A record's documents: a nested object's children first, the root last.
+                let block = match read {
+                    Some(f) => f.finish(r.seq_no(), r.primary_term(), r.version()),
                     None => {
                         let parsed = document::parse(current, r.id(), source)
                             // ALLOC: one message on a failed build.
@@ -290,12 +287,13 @@ impl Overlay {
                             source,
                         };
                         let mut parsed = parsed;
-                        let doc = indexer
-                            .document(
+                        let block = indexer
+                            .block_routed(
                                 &mut writer,
                                 parsed.grown.as_ref().unwrap_or(current),
                                 &parsed,
                                 &meta,
+                                None,
                             )
                             .map_err(|e| {
                                 if e.ty.starts_with("extension_") {
@@ -313,10 +311,10 @@ impl Overlay {
                         if let Some(next) = parsed.grown.take() {
                             grown = Some(next);
                         }
-                        doc
+                        block
                     }
                 };
-                docs.push(doc);
+                docs.extend(block);
                 doc_count = doc_count.saturating_add(1);
             }
             if !docs.is_empty() {
@@ -351,15 +349,14 @@ impl Overlay {
     }
 
     /// The commit documents the overlay hides, as `(segment, document)`: the
-    /// copy of every id it replaces or deletes that the commit holds.
-    #[must_use]
-    pub fn hidden(&self, copies: &Copies) -> Vec<(usize, i32)> {
+    /// copy of every id it replaces or deletes that the commit holds, with the
+    /// documents of its nested objects.
+    pub fn hidden<'a>(&'a self, copies: &'a Copies) -> impl Iterator<Item = (usize, i32)> + 'a {
         self.ids
             .iter()
             .filter_map(|id| copies.get(id))
-            .map(|c| (c.segment, c.doc))
-            // ALLOC: one entry an id, at most MAX_IDS.
-            .collect()
+            // The document and its nested objects' documents.
+            .flat_map(|c| (c.first..=c.doc).map(move |d| (c.segment, d)))
     }
 
     /// The bytes of the overlay's segment files, which its in-memory

@@ -105,19 +105,15 @@ impl Shard<'_> {
                 version,
                 source,
             };
-            let (doc, vectors) = match (fast, &parsed) {
+            let (docs, vectors) = match (fast, &parsed) {
                 (Some(f), _) => (
-                    f.finish(seq_no, primary_term, version)
-                        .pop()
-                        .ok_or_else(|| {
-                            Refused::Mapping(MappingError::illegal_state("no document read"))
-                        })?,
-                    // ALLOC: no vectors, one document.
+                    f.finish(seq_no, primary_term, version),
+                    // ALLOC: no vectors.
                     Vec::new(),
                 ),
                 (None, Some(parsed)) => self
                     .indexer
-                    .document_with_vectors(&mut self.writer, &self.mapping, parsed, &meta, routing)
+                    .block_with_vectors(&mut self.writer, &self.mapping, parsed, &meta, routing)
                     .map_err(Refused::Mapping)?,
                 (None, None) => {
                     return Err(Refused::Mapping(MappingError::illegal_state(
@@ -125,29 +121,12 @@ impl Shard<'_> {
                     )));
                 }
             };
-            // ALLOC: one document a replayed index.
-            let docs = vec![doc];
-            match (soft, vectors.is_empty()) {
-                (None, true) => self.writer.add_explicit_documents(docs),
-                (None, false) => {
-                    self.writer
-                        // ALLOC: one vector list a document with vectors, one document.
-                        .add_explicit_documents_with_vectors(None, docs, vec![vectors])
-                }
-                (Some(_), true) => self.writer.soft_update_explicit_documents(
-                    Term::new("_id", key.clone()),
-                    docs,
-                    &[soft_delete(&key)],
-                ),
-                (Some(_), false) => self.writer.soft_update_explicit_documents_with_vectors(
-                    Term::new("_id", key.clone()),
-                    docs,
-                    // ALLOC: one vector list a document with vectors, one document.
-                    vec![vectors],
-                    &[soft_delete(&key)],
-                ),
+            if docs.is_empty() {
+                return Err(Refused::Mapping(MappingError::illegal_state(
+                    "no document read",
+                )));
             }
-            .map_err(|e| Self::engine(&e))?;
+            self.write_block(&key, soft.is_some(), docs, vectors)?;
         }
         self.max_seq_no = self.max_seq_no.max(seq_no);
         let now = (self.clock)();

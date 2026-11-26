@@ -147,7 +147,8 @@ impl SnapshotRestoreService {
         // ALLOC: one name an index.
         let wanted: Vec<String> = targets.iter().map(|t| t.source.clone()).collect();
         let keeps = |key: &str| crate::create_settings::is_known(key);
-        let mapping_ok = |text: &str| oss_writer::mapping::Mapping::parse(text.as_bytes()).is_ok();
+        let mapping_ok =
+            |text: &str| oss_writer::mapping::Mapping::from_descriptor(Some(text)).is_ok();
         let rules = StockRules {
             limits: StockLimits::default(),
             fanout: self.stock.fanout,

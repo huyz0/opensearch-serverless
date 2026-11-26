@@ -7,10 +7,11 @@ use crate::mapping::{
     Dynamic, FieldType, Leaf, Mapper, Mapping, MappingError, NumType, Object, Value,
 };
 
+use super::lookup::{contains_disabled, get_mapper};
 use super::preview::preview;
 use super::reader::{Reader, Tok};
 use super::values::{Taken, take};
-use super::{ParsedDocument, dynamic_object, split_path};
+use super::{NestedDocument, ParsedDocument, dynamic_object, split_path};
 
 /// `index.mapping.depth.limit`'s default, for objects and for arrays.
 const DEPTH_LIMIT: usize = 20;
@@ -28,6 +29,9 @@ const METADATA_FIELDS: [&str; 10] = [
     "_ignored",
     "_nested_path",
 ];
+
+/// `index.mapping.nested_objects.limit`'s default.
+const NESTED_OBJECTS_LIMIT: usize = 10_000;
 
 /// The metadata field a document may set: `DocCountFieldMapper`.
 const DOC_COUNT: &str = "_doc_count";
@@ -282,7 +286,11 @@ impl<'m, 'a> Parser<'m, 'a> {
                             dynamic: o.dynamic.unwrap_or(parent.dynamic),
                             root: false,
                         };
-                        self.inner_object(scope)
+                        if o.nested {
+                            self.nested_object(scope)
+                        } else {
+                            self.inner_object(scope)
+                        }
                     }
                     // ALLOC: document parse or error path; bounded by the document's bytes (the HTTP body bound).
                     _ => Err(MappingError::mapper_parsing(&format!(
@@ -296,6 +304,24 @@ impl<'m, 'a> Parser<'m, 'a> {
                 self.parse_field(leaf, &full, tok)
             }
         }
+    }
+
+    /// A nested object after its `{`: its fields leave the document's and
+    /// become a document of their own (`nestedContext`, `addDoc`).
+    fn nested_object(&mut self, scope: Scope<'m>) -> Result<(), MappingError> {
+        let start = self.out.fields.len();
+        self.inner_object(scope)?;
+        if self.out.nested.len() >= NESTED_OBJECTS_LIMIT {
+            return Err(MappingError::mapper_parsing(&format!(
+                "The number of nested documents has exceeded the allowed limit of [{NESTED_OBJECTS_LIMIT}]. This limit can be set by changing the [index.mapping.nested_objects.limit] index level setting."
+            )));
+        }
+        // ALLOC: one entry a nested object, at most the nested objects limit; its fields are moved, not copied.
+        self.out.nested.push(NestedDocument {
+            path: self.path_text(),
+            fields: self.out.fields.split_off(start),
+        });
+        Ok(())
     }
 
     /// `FieldMapper.parse`: the value, the Java's wrapping of a failure,
@@ -462,38 +488,4 @@ impl<'m, 'a> Parser<'m, 'a> {
         self.pop(added);
         Ok(())
     }
-}
-
-/// `getMapper`: a child, through the objects a dotted name's leading parts
-/// name.
-fn get_mapper<'m>(obj: Option<&'m Object>, parts: &[&str]) -> Option<&'m Mapper> {
-    let mut obj = obj?;
-    let (last, leading) = parts.split_last()?;
-    for part in leading {
-        match obj.child(part) {
-            Some(Mapper::Object(o)) => obj = o,
-            _ => return None,
-        }
-    }
-    obj.child(last)
-}
-
-/// `containsDisabledObjectMapper`.
-fn contains_disabled(obj: Option<&Object>, parts: &[&str]) -> bool {
-    let Some(mut obj) = obj else {
-        return false;
-    };
-    let leading = parts.len().saturating_sub(1);
-    for part in parts.iter().take(leading) {
-        match obj.child(part) {
-            Some(Mapper::Object(o)) => {
-                if !o.enabled {
-                    return true;
-                }
-                obj = o;
-            }
-            _ => break,
-        }
-    }
-    false
 }
