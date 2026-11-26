@@ -18,7 +18,7 @@ use oss_node::snapshot_take_route::SnapshotTakeService;
 use oss_rest::{Router, Server};
 use oss_testkit::budget;
 
-fn rig(capture: bool) -> Rig {
+pub(crate) fn rig(capture: bool) -> Rig {
     let config = BudgetConfig::new(256 << 20)
         .with_pool(Pool::RequestBodies, 64 << 20)
         .expect("fits");
@@ -54,11 +54,11 @@ fn rig(capture: bool) -> Rig {
     }
 }
 
-fn blobs(r: &Rig) -> Arc<dyn BlobStore> {
+pub(crate) fn blobs(r: &Rig) -> Arc<dyn BlobStore> {
     Arc::clone(&r.store) as Arc<dyn BlobStore>
 }
 
-fn put_doc(r: &Rig, kind: DocKind, name: &str, body: &str) {
+pub(crate) fn put_doc(r: &Rig, kind: DocKind, name: &str, body: &str) {
     let docs = DocSet::new(blobs(r), "", kind).unwrap();
     docs.put(name, body.as_bytes(), false, &mut vec![0u8; 1 << 19])
         .unwrap();
@@ -91,7 +91,7 @@ fn seeded() -> Rig {
     r
 }
 
-fn take(r: &Rig, name: &str, body: &str) -> support::Reply {
+pub(crate) fn take(r: &Rig, name: &str, body: &str) -> support::Reply {
     send(
         r,
         "PUT",
@@ -100,7 +100,7 @@ fn take(r: &Rig, name: &str, body: &str) -> support::Reply {
     )
 }
 
-fn state_of(r: &Rig, name: &str) -> Option<GlobalState> {
+pub(crate) fn state_of(r: &Rig, name: &str) -> Option<GlobalState> {
     let key = snapshot_state_key("", "backups", name).unwrap();
     let mut buf = vec![0u8; 16 << 20];
     let read = r.store.read_register(&key, &mut buf).unwrap().unwrap();
