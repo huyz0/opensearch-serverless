@@ -176,7 +176,7 @@ impl GlobalState {
     /// # Errors
     ///
     /// [`FormatError::Corrupt`] for a member that is not an object of the
-    /// shape [`GlobalState::write`] makes, a document that is not an object,
+    /// shape a take writes, a document that is not an object,
     /// a setting that is not a scalar or a name written twice;
     /// [`FormatError::TooLarge`] past the record or state limit.
     pub fn find(record: &[u8]) -> Result<Option<Self>, FormatError> {
