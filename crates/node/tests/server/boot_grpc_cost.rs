@@ -34,6 +34,10 @@ fn boot(endpoint: &str) -> Node {
                 "OSS_S3_REGION" => REGION,
                 "OSS_S3_ACCESS_KEY" => ACCESS,
                 "OSS_S3_SECRET_KEY" => SECRET,
+                // A lease renewal or fleet read inside a measured window would count for one call.
+                "OSS_LEASE_TTL_MS" => "3600000",
+                // Nor may an index's periodic re-confirmation.
+                "OSS_INDEX_CONFIRM_MS" => "3600000",
                 "OSS_HTTP_ADDR" | "OSS_TRANSPORT_ADDR" | "OSS_EDGE_GRPC_ADDR" => "127.0.0.1:0",
                 _ => return None,
             }
@@ -52,7 +56,21 @@ fn counts(server: &S3Server) -> Vec<u64> {
         .collect()
 }
 
+/// Waits until the node has made no blob request for a quarter of a second, so background work
+/// the last call left behind (a publish, a refresh) does not land in the next measured window.
+fn quiet(server: &S3Server) {
+    let mut last = counts(server);
+    let mut steady = 0;
+    while steady < 5 {
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        let now = counts(server);
+        steady = if now == last { steady + 1 } else { 0 };
+        last = now;
+    }
+}
+
 fn spent(server: &S3Server, work: impl FnOnce()) -> Vec<u64> {
+    quiet(server);
     let before = counts(server);
     work();
     counts(server)
