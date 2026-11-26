@@ -19,6 +19,7 @@ pub mod cost;
 #[cfg(feature = "emulator")]
 pub mod emulator;
 pub mod error;
+pub mod export_store;
 pub mod fs;
 pub mod guard;
 pub mod meter;
@@ -40,6 +41,7 @@ pub use chunk::{ChunkSink, ChunkSource, SliceSource};
 #[cfg(feature = "emulator")]
 pub use emulator::Emulator;
 pub use error::{BlobError, BlobResult};
+pub use export_store::ExportStore;
 pub use fs::FsStore;
 pub use meter::Meter;
 pub use op::{PriceClass, S3Op};

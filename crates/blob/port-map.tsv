@@ -43,3 +43,4 @@ src/guard/pace.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/
 src/cost.rs	new		the counters and thread scope of one request's store requests (ADR 0061); the shell has no per-request cost
 src/read_only.rs	new		a store that answers every write, delete and listing with an error: the source of a stock snapshot restore; the shell reads a stock repository through its own BlobStoreRepository
 src/source_roots.rs	new		the operator allow-lists of directories and bucket/prefix roots a stock restore may read, and the refusal of this deployment's own bucket; no Java counterpart
+src/export_store.rs	new		a store that creates blobs under one prefix without overwriting, puts only index.latest, and refuses every delete, listing and register call: the target of a stock snapshot export; the shell writes a repository through its own BlobStoreRepository

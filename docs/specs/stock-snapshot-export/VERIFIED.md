@@ -7,7 +7,7 @@
 - AC-5: NOT-RUN: the copy and the target store are not built yet.
 - AC-6: NOT-RUN: the take and its fencing are not built yet.
 - AC-7: NOT-RUN: the take's refusals are not built yet.
-- AC-8: NOT-RUN: the export allow-lists and the target store are not built yet.
+- AC-8: partly. The target store: `reads_and_heads_pass_through_under_the_prefix_only`, `a_blob_is_created_once_and_never_overwritten`, `only_index_latest_may_be_put_over`, `an_empty_prefix_is_the_whole_target_and_keys_may_not_climb`, `every_delete_listing_and_register_call_is_refused_and_reaches_nothing`, `the_meter_is_the_wrapped_stores` pass (the store answers every delete with an error, and a test calls each method). NOT-RUN: the allow-lists (`OSS_STOCK_EXPORT_FS_ROOTS`, `OSS_STOCK_EXPORT_S3_ROOTS`), the refusal of an fs location reached by `..` or a symlink and of an s3 target overlapping this deployment's bucket, and the 403 on registration are not built yet. The tests compiled red first (the type did not exist).
 - AC-9: NOT-RUN: the switch and the route are not built yet.
 - AC-10: NOT-RUN: the budget rows wait for the take.
 - AC-11: NOT-RUN: needs the take; the stock 3.10 build is at hand (`opensearch-min`, run as a non-root user).
