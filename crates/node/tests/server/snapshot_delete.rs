@@ -93,6 +93,7 @@ fn a_snapshot_that_copied_its_data_is_refused_and_left_alone() {
         shallow: false,
         start_millis: 1,
         end_millis: 1,
+        global_state: None,
         indices: Vec::new(),
     };
     taker.reserve(&draft, &mut vec![0u8; 1 << 16]).unwrap();
@@ -123,6 +124,7 @@ fn a_take_still_in_progress_can_be_deleted() {
         shallow: true,
         start_millis: 1,
         end_millis: 1,
+        global_state: None,
         indices: vec![described.capture(Vec::new(), false)],
     };
     let mut value = vec![0u8; 1 << 16];

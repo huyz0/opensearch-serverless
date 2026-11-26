@@ -421,6 +421,7 @@ fn a_snapshot_that_copied_its_data_is_refused_501() {
         shallow: false,
         start_millis: 1,
         end_millis: 2,
+        global_state: None,
         indices: vec![described.capture(Vec::new(), false)],
     };
     let mut value = vec![0u8; 1 << 16];

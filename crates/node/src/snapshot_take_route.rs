@@ -178,6 +178,7 @@ impl SnapshotTakeService {
             shallow: true,
             start_millis: start,
             end_millis: end,
+            global_state: None,
             indices,
         };
         // ALLOC: one entry an index, at most MAX_TAKE_INDICES.

@@ -37,6 +37,7 @@ fn draft(name: &str, generation: &str, captured: bool) -> SnapshotDraft {
         shallow: true,
         start_millis: 1_000,
         end_millis: if captured { 2_000 } else { 1_000 },
+        global_state: None,
         indices: vec![IndexCapture {
             name: "logs".into(),
             uuid: "uuidlogs".into(),

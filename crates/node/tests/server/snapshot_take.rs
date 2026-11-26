@@ -436,6 +436,7 @@ fn the_janitor_pins_an_index_from_the_protective_marker_and_after_the_finish() {
         shallow: true,
         start_millis: 1,
         end_millis: 1,
+        global_state: None,
         indices: vec![described.capture(Vec::new(), captured)],
     };
     let mut value = vec![0u8; 1 << 16];

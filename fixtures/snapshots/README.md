@@ -7,6 +7,7 @@ Written by `Gen.java` against the shell's own classes (`RepositoryDescriptor.toB
 | `repository.json` | a repository record with a boolean, a string and a number setting |
 | `snapshot-finished.json` | a finished standard snapshot of one index with one captured shard |
 | `snapshot-in-progress.json` | a shallow snapshot naming two indices, one with no captured shard |
+| `record-with-global-state.json` | a record the shell wrote with a `global_state` member (ADR 0068), carried through opaquely |
 | `state-finished.bin`, `state-in-progress.bin` | the register value for each (marker, record, finished flag) |
 
 Tests: `crates/format/tests/snapshot_java_fixtures.rs`.

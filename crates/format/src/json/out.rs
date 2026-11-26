@@ -35,6 +35,12 @@ impl<'o> Out<'o> {
         }
     }
 
+    /// How many bytes have been written, or would have been into a buffer
+    /// too short to hold them.
+    pub(crate) const fn len(&self) -> usize {
+        self.len
+    }
+
     /// Appends bytes as they are.
     pub(crate) fn raw(&mut self, bytes: &[u8]) {
         let end = self.len.saturating_add(bytes.len());

@@ -261,6 +261,7 @@ impl SnapshotTakeService {
             shallow: false,
             start_millis: start,
             end_millis: end,
+            global_state: None,
             indices: described
                 .iter()
                 .zip(captures)

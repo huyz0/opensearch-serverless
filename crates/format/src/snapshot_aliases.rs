@@ -98,6 +98,7 @@ mod tests {
             shallow: true,
             start_millis: 1,
             end_millis: 2,
+            global_state: None,
             indices: vec![IndexCapture {
                 name: "logs".into(),
                 uuid: "U".into(),
