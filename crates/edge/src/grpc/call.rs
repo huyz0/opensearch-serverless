@@ -15,7 +15,10 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 /// The answer: its REST status and body.
 pub(crate) struct Answer {
     pub(crate) status: u16,
-    #[expect(dead_code, reason = "read by the REST mapping, the next slice")]
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "read by the REST mapping, the next slice")
+    )]
     pub(crate) body: Bytes,
 }
 
@@ -42,13 +45,10 @@ pub(crate) async fn unary(
         "{method} {target} HTTP/1.1\r\nhost: {}\r\nconnection: close\r\naccept: application/json\r\n",
         shared.config.upstream
     );
-    if !body.is_empty() || method != "GET" {
-        // ALLOC: a status line or request head, bounded by the head limits (16 KiB).
-        head.push_str(&format!(
-            "content-type: application/json\r\ncontent-length: {}\r\n",
-            body.len()
-        ));
-    }
+    head.push_str(&format!(
+        "content-type: application/json\r\ncontent-length: {}\r\n",
+        body.len()
+    ));
     head.push_str("\r\n");
     let sent = async {
         wr.write_all(head.as_bytes()).await?;
@@ -85,4 +85,67 @@ pub(crate) async fn unary(
         status,
         body: out.freeze(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::EdgeConfig;
+    use std::sync::Arc;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::TcpListener;
+    use tokio::sync::Semaphore;
+
+    /// A node stand-in that reads one request head and writes `answer`, returning the head.
+    async fn stub(answer: Vec<u8>) -> (Shared, tokio::task::JoinHandle<String>) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("binds");
+        let mut config = EdgeConfig::new(listener.local_addr().expect("addr"), 16);
+        config.grpc_max_message = 8;
+        let shared = Shared {
+            config,
+            streams: Arc::new(Semaphore::new(1)),
+            connections: Arc::new(Semaphore::new(1)),
+        };
+        let seen = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.expect("accepts");
+            let mut buf = [0u8; 2048];
+            let n = socket.read(&mut buf).await.expect("reads");
+            socket.write_all(&answer).await.expect("writes");
+            String::from_utf8_lossy(&buf[..n]).into_owned()
+        });
+        (shared, seen)
+    }
+
+    fn answer(status: &str, body: &str) -> Vec<u8> {
+        format!(
+            "HTTP/1.1 {status}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+            body.len()
+        )
+        .into_bytes()
+    }
+
+    #[tokio::test]
+    async fn the_request_carries_its_body_and_the_answer_comes_back() {
+        let (shared, seen) = stub(answer("200 OK", "12345678")).await;
+        let got = unary(&shared, "POST", "/x", b"{}").await.expect("answer");
+        assert_eq!((got.status, &got.body[..]), (200, &b"12345678"[..]));
+        let head = seen.await.expect("joined");
+        assert!(head.starts_with("POST /x HTTP/1.1\r\n"), "{head}");
+        assert!(head.contains("content-length: 2\r\n"), "{head}");
+    }
+
+    #[tokio::test]
+    async fn an_answer_over_the_message_limit_is_refused() {
+        let (shared, _seen) = stub(answer("200 OK", "123456789")).await;
+        let refused = unary(&shared, "GET", "/x", b"").await;
+        assert_eq!(refused.err().map(|s| s.code), Some(RESOURCE_EXHAUSTED));
+    }
+
+    #[tokio::test]
+    async fn an_answer_without_a_body_ends_at_its_head() {
+        let (shared, _seen) =
+            stub(b"HTTP/1.1 204 No Content\r\nconnection: close\r\n\r\n".to_vec()).await;
+        let got = unary(&shared, "GET", "/x", b"").await.expect("answer");
+        assert_eq!((got.status, got.body.len()), (204, 0));
+    }
 }

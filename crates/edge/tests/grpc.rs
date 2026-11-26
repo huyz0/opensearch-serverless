@@ -114,6 +114,18 @@ async fn big_and_compressed_messages_are_refused_before_buffering() {
     .await
     .expect("reply");
     assert_eq!(big.grpc_status, Some(8));
+    // Exactly the limit is read, and then decoded: health finds it malformed, which is not a size error.
+    let exact = grpc_call(&mut send, HEALTH, &[], grpc_frame(0, &vec![0u8; 64 * 1024]))
+        .await
+        .expect("reply");
+    assert_eq!(exact.grpc_status, Some(3));
+    // A request that ends inside its message is not served as if it were whole.
+    let mut cut = vec![0u8, 0, 0, 0, 5];
+    cut.truncate(5);
+    let cut = grpc_call(&mut send, HEALTH, &[], Bytes::from(cut))
+        .await
+        .expect("reply");
+    assert_eq!(cut.grpc_status, Some(3));
     let flagged = grpc_call(&mut send, HEALTH, &[], grpc_frame(1, b""))
         .await
         .expect("reply");
