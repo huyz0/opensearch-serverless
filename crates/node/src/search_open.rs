@@ -309,11 +309,23 @@ fn out_of_range(index: &str, shard: u32) -> Answer {
 /// The answer for a pinned index this node cannot serve: retryable, and
 /// never the standard analyzer's.
 fn unavailable(why: String) -> Answer {
+    let (status, kind) = refusal(&why);
     // ALLOC: error path; one box.
     Answer::Search(Box::new(SearchError::request(
-        503,
-        Failure::opensearch("extension_unavailable", why),
+        status,
+        Failure::opensearch(kind, why),
     )))
+}
+
+/// The status and type of a refused module open: a pool too small for the
+/// compile is `extension_busy` (429, retry), anything else the node's
+/// `extension_unavailable` (503).
+fn refusal(why: &str) -> (u16, &'static str) {
+    if why.contains(crate::search_modules::NO_CAPACITY) {
+        (429, "extension_busy")
+    } else {
+        (503, "extension_unavailable")
+    }
 }
 
 pub(super) fn open_failure(index: &str, e: ReaderError) -> Answer {
@@ -363,5 +375,26 @@ impl<S: BlobStore + 'static> SearchService<S> {
     /// installed already.
     pub fn set_modules(&self, opener: Arc<dyn crate::search_modules::ModuleOpener>) -> bool {
         self.modules.set(opener).is_ok()
+    }
+}
+
+#[cfg(test)]
+mod refusal_tests {
+    use super::refusal;
+
+    // docs/specs/extension-analyzer AC-14
+    #[test]
+    fn a_pool_too_small_is_a_429_and_any_other_refusal_a_503() {
+        assert_eq!(
+            refusal("extension_unavailable: no capacity to compile module [x]; retry"),
+            (429, "extension_busy")
+        );
+        for why in [
+            "extension_unavailable: module [x] is not in the store",
+            "extension_unavailable: module [x] does not match its hash",
+            "this node cannot run the analyzer modules the index pins",
+        ] {
+            assert_eq!(refusal(why), (503, "extension_unavailable"), "{why}");
+        }
     }
 }

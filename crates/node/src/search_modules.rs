@@ -6,6 +6,10 @@ use std::sync::Arc;
 use oss_ext::pin::{Pin, ResolvedLimits};
 use oss_reader::pinned::PinnedTokens;
 
+/// What a refusal says when the extensions pool cannot hold the compile:
+/// the open is retryable and answers 429, not 503.
+pub const NO_CAPACITY: &str = "no capacity to compile";
+
 /// What loads an index's pinned modules for a search node. A node with none
 /// refuses to open an index that pins, and never serves it with the
 /// standard analyzer.
