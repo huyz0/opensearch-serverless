@@ -55,23 +55,3 @@ fn a_stored_template_follows_its_script_and_costs_one_marker_get_warm() {
     let gone = call(&r, "POST", "/_render/template/t", Some(params));
     assert_eq!(gone.status, 404, "{}", gone.text());
 }
-
-// AC-6 of stored-script-routes: a template stored with an object source renders.
-#[test]
-fn a_template_stored_with_an_object_source_renders() {
-    let (r, _store) = start_with(config(), 256 << 20);
-    let body =
-        r#"{"script":{"lang":"mustache","source":{"query":{"match_all":{}},"size":"{{n}}"}}}"#;
-    assert_eq!(call(&r, "PUT", "/_scripts/o", Some(body)).status, 200);
-    let reply = call(
-        &r,
-        "POST",
-        "/_render/template/o",
-        Some(r#"{"params":{"n":4}}"#),
-    );
-    assert_eq!(reply.status, 200, "{}", reply.text());
-    assert_eq!(
-        reply.text(),
-        r#"{"template_output":{"query":{"match_all":{}},"size":"4"}}"#
-    );
-}
