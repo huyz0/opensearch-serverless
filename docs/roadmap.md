@@ -68,11 +68,11 @@ Counted by task from the plan "Rust serverless OpenSearch: plan to Java parity" 
 | R11 packs, log commits, buckets, schemas | 5 | 1 | 2 | 2 | R11.4 done: mappings are shared in memory by content and schema blobs are deliberately not stored ([ADR 0054](adr/0054-parsed-mappings-are-shared-by-content.md)); R11.1 packs are not wired into the node; R11.3 buckets are off by default; R11.2 log commits and R11.5 cost soak not started |
 | R12 warm scale-out, roles, zones | 5 | 3 | 2 | 0 | R12.1 and R12.2: warm copy is off by default, its headline checks are NOT-RUN |
 | R13 big writes, admission, guardrails | 5 | 5 | 0 | 0 | |
-| R14 snapshots and the rest of the API | 8 | 6 | 1 | 1 | R14.6 runs no script; R14.8 stock restore done, export in progress |
+| R14 snapshots and the rest of the API | 8 | 7 | 0 | 1 | R14.6 runs no script; R14.8 stock restore and export done (the export's 403 on registering as a non-admin and a RustFS leg are NOT-RUN) |
 | R15 k-NN, security, extensions, soak | 5 | 2 | 3 | 0 | R15.3 only the analyzer point; R15.4 proxy untried against live Java plugins; R15.5 no week-long soak, no Prometheus metrics |
-| **Total** | **76** | **62** | **11** | **3** | |
+| **Total** | **76** | **63** | **10** | **3** | |
 
-62 of 76 tasks are done (82%); 73 of 76 are done or built (96%).
+63 of 76 tasks are done (83%); 73 of 76 are done or built (96%).
 
 ## Alongside
 
