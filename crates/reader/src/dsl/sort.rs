@@ -7,6 +7,7 @@
 //! a score sort descending.
 
 use crate::dsl::error::DslError;
+use crate::dsl::queries::function_score_script::{ScriptScore, object};
 use crate::dsl::query::{Query, parse_inner};
 use crate::dsl::tokens::{Kind, Parser};
 use crate::dsl::values::suggest;
@@ -41,6 +42,13 @@ pub enum SortKey {
         /// The nested object whose children give the value, if one is named.
         nested: Option<NestedSort>,
     },
+    /// By a script's number (`ScriptSortBuilder`, `type: number`).
+    Script {
+        /// The expression.
+        script: ScriptScore,
+        /// Lowest first.
+        ascending: bool,
+    },
 }
 
 impl SortKey {
@@ -66,6 +74,7 @@ impl SortKey {
                 ascending,
                 nested,
             },
+            SortKey::Script { script, .. } => SortKey::Script { script, ascending },
         }
     }
 }
@@ -132,10 +141,49 @@ fn compound(p: &mut Parser<'_>, keys: &mut Vec<SortKey>) -> Result<(), DslError>
         }
         let name = p.text();
         match p.next_token() {
+            Some(Kind::StartObject) if name == "_script" => push(keys, script_key(p)?)?,
             Some(Kind::String) => push(keys, SortKey::named(name).with_order(order(p.text())?))?,
             _ => push(keys, options(p, name)?)?,
         }
     }
+}
+
+/// `ScriptSortBuilder.fromXContent`, on the object's start: `type` (`number`),
+/// `script` and `order`.
+fn script_key(p: &mut Parser<'_>) -> Result<SortKey, DslError> {
+    let (mut script, mut ascending, mut number) = (None, true, false);
+    while p.next_token() == Some(Kind::FieldName) {
+        // ALLOC: bounded by the script's source, at most 65,535 bytes.
+        let name = p.text().to_owned();
+        match (name.as_str(), p.next_token()) {
+            ("type", Some(Kind::String)) if p.text() == "number" => number = true,
+            ("type", Some(Kind::String)) => {
+                return Err(DslError::unsupported("[_script] sort of type [string]"));
+            }
+            ("order", Some(Kind::String)) => ascending = order(p.text())?,
+            ("script", Some(Kind::StartObject)) => script = Some(object(p)?),
+            ("script", Some(Kind::String)) => {
+                return Err(DslError::illegal(
+                    "[_script] runs only lang [expression] on this node, and a script given as text is painless",
+                ));
+            }
+            ("mode" | "nested", _) => {
+                // ALLOC: error path; one message.
+                return Err(DslError::unsupported(&format!("[_script] sort [{name}]")));
+            }
+            _ => {
+                // ALLOC: error path; one message.
+                return Err(DslError::illegal(format!(
+                    "[_script] sort unknown field [{name}]"
+                )));
+            }
+        }
+    }
+    if !number {
+        return Err(DslError::illegal("[_script] sort requires a [type]"));
+    }
+    let script = script.ok_or_else(|| DslError::illegal("[_script] sort requires a [script]"))?;
+    Ok(SortKey::Script { script, ascending })
 }
 
 /// `FieldSortBuilder.fromXContent` / `ScoreSortBuilder.fromXContent`: an

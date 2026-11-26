@@ -153,7 +153,9 @@ fn sorts(keys: &[SortKey]) -> Option<Vec<SortSpec>> {
         keys.iter()
             .map(|key| {
                 let ascending = match key {
-                    SortKey::Score { ascending } | SortKey::Field { ascending, .. } => *ascending,
+                    SortKey::Score { ascending }
+                    | SortKey::Field { ascending, .. }
+                    | SortKey::Script { ascending, .. } => *ascending,
                 };
                 SortSpec {
                     descending: !ascending,

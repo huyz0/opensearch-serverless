@@ -18,6 +18,8 @@ pub(crate) enum KeyKind {
     Score,
     Numeric,
     Term,
+    /// A script's number, held as a sortable long.
+    Script,
 }
 
 pub(crate) type Sort = Option<(Vec<SortField>, Vec<KeyKind>)>;
@@ -53,6 +55,20 @@ pub(crate) fn sort_fields<S: BlobStore + 'static>(
                 ascending,
                 nested: Some(nested),
             } => nested_field_sort(field, !*ascending, nested, shard, index, cx)?,
+            SortKey::Script { script, ascending } => {
+                let Some(cx) = cx else {
+                    return Err(ShardError::bad_request(Failure::plain(
+                        "illegal_argument_exception",
+                        "a [_script] sort is not supported by this node yet here",
+                    )));
+                };
+                let source = crate::dsl::queries::function_score_script::sort(cx, script)
+                    .map_err(ShardError::bad_request)?;
+                (
+                    SortField::with_source("_script", source, !*ascending),
+                    KeyKind::Script,
+                )
+            }
         };
         fields.push(field);
         kinds.push(kind);

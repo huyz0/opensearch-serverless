@@ -46,6 +46,23 @@ pub(crate) fn refuse_after(source: &crate::dsl::SearchSource) -> Result<(), Shar
     Ok(())
 }
 
+/// A `_script` sort key is served on the search's own hits only: not with
+/// `search_after`, in inner hits or in `top_hits`.
+///
+/// # Errors
+///
+/// `illegal_argument_exception` naming where the key sits.
+pub(crate) fn refuse_script(sort: &[SortKey], where_: &str) -> Result<(), ShardError> {
+    if sort.iter().any(|k| matches!(k, SortKey::Script { .. })) {
+        return Err(ShardError::bad_request(Failure::plain(
+            "illegal_argument_exception",
+            // ALLOC: error path; one message.
+            format!("a [_script] sort {where_} is not supported by this node yet"),
+        )));
+    }
+    Ok(())
+}
+
 /// The sort key for the field `name` under the nested object `nested`.
 pub(crate) fn nested_field_sort<S: BlobStore + 'static>(
     name: &str,
