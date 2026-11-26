@@ -30,6 +30,7 @@ fn built(body: &str) -> Result<(String, bool), Failure> {
         knn: None,
         pinned: None,
         now_millis: None,
+        shard: None,
     };
     let text = format!(r#"{{"query":{{"function_score":{body}}}}}"#);
     let source = parse_chunks([text.as_bytes()]).expect("parses");
@@ -294,4 +295,86 @@ fn a_decay_needs_a_mapped_numeric_field_and_a_date_an_origin() {
     assert_eq!(f.kind, "parse_exception");
     let f = fails(r#"{"gauss":{"published":{"origin":"2001-03-04","scale":"xd"}}}"#);
     assert!(f.reason.contains("the time value [xd]"), "{}", f.reason);
+}
+
+#[test]
+fn a_random_score_hashes_the_field_it_names() {
+    assert!(key(r#"{"random_score":{}}"#).contains("DocId"));
+    assert!(key(r#"{"random_score":{"seed":1}}"#).contains("Id"));
+    assert!(key(r#"{"random_score":{"seed":1,"field":"tag"}}"#).contains(r#"Keyword("tag")"#));
+    for field in ["year", "big", "published"] {
+        let k = key(&format!(
+            r#"{{"random_score":{{"seed":1,"field":"{field}"}}}}"#
+        ));
+        assert!(k.contains(&format!(r#"Numeric("{field}", Long)"#)), "{k}");
+    }
+}
+
+#[test]
+fn the_seed_is_salted_with_the_shard() {
+    let at = |index: &str, shard: u32| {
+        let mapping = Mapping::from_json(MAPPING).expect("mapping");
+        let analyzer = Analyzer::standard(None);
+        let cx = QueryContext {
+            mapping: &mapping,
+            analyzer: &analyzer,
+            max_doc: 5,
+            knn: None,
+            pinned: None,
+            now_millis: Some(7),
+            shard: Some(crate::shard_ref::ShardRef {
+                index,
+                uuid: "u",
+                shard,
+            }),
+        };
+        let q = crate::dsl::queries::function_score::FunctionScore {
+            query: None,
+            functions: vec![crate::dsl::queries::function_score::Entry {
+                filter: None,
+                weight: None,
+                function: Some(crate::dsl::queries::function_score::Function::Random {
+                    seed: Some(1),
+                    field: None,
+                }),
+            }],
+            score_mode: lucene_engine::function_score::ScoreMode::Multiply,
+            boost_mode: lucene_engine::function_score::Combine::Multiply,
+            max_boost: f32::MAX,
+            min_score: None,
+        };
+        match function_score(&cx, &q).expect("builds") {
+            Clause::Extended(e) => match *e {
+                ExtendedQuery::FunctionScore(f) => f.source().describe(),
+                _ => panic!("not a function score"),
+            },
+            _ => panic!("plain"),
+        }
+    };
+    assert_ne!(at("a", 0), at("b", 0));
+    assert_ne!(at("a", 0), at("a", 1));
+    assert_eq!(at("a", 0), at("a", 0));
+}
+
+#[test]
+fn a_random_score_fails_as_stock_does() {
+    let f = fails(r#"{"random_score":{"seed":1,"field":"nope"}}"#);
+    assert_eq!(f.kind, "illegal_argument_exception");
+    assert_eq!(
+        f.reason,
+        "Field [nope] is not mapped on [[]] and cannot be used as a source of random numbers."
+    );
+    let f = fails(r#"{"random_score":{"seed":1,"field":"title"}}"#);
+    assert!(
+        f.reason.starts_with("Text fields are not optimised"),
+        "{}",
+        f.reason
+    );
+}
+
+#[test]
+fn a_min_score_keeps_a_function_score_without_functions() {
+    let (k, needs) = built(r#"{"query":{"match_all":{}},"min_score":1}"#).expect("builds");
+    assert!(k.contains("Multiply/"), "{k}");
+    assert!(needs);
 }

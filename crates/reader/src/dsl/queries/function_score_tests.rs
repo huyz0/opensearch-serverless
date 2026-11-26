@@ -317,10 +317,9 @@ fn an_unknown_function_names_the_registrys_cause() {
 #[test]
 fn what_is_not_served_is_refused() {
     for (body, what) in [
-        (r#"{"random_score":{}}"#, "[function_score] [random_score]"),
         (
-            r#"{"weight":1,"min_score":1}"#,
-            "[function_score] [min_score]",
+            r#"{"random_score":{"_name":"r"}}"#,
+            "[function_score] [_name]",
         ),
         (r#"{"weight":1,"_name":"q"}"#, "[function_score] [_name]"),
         (
@@ -372,4 +371,59 @@ fn the_boost_is_the_querys() {
 fn a_zero_weight_and_a_zero_boost_are_served() {
     assert_eq!(parsed(r#"{"weight":0}"#).0.functions[0].weight, Some(0.0));
     assert_eq!(parsed(r#"{"weight":1,"boost":0}"#).1, 0.0);
+}
+
+#[test]
+fn a_random_score_reads_its_seed_as_stock_does() {
+    let seed = |body: &str| match parsed(body).0.functions.remove(0).function {
+        Some(Function::Random { seed, field }) => (seed, field),
+        other => panic!("{other:?}"),
+    };
+    assert_eq!(seed(r#"{"random_score":{}}"#), (None, None));
+    assert_eq!(
+        seed(r#"{"random_score":{"seed":-7,"field":"year"}}"#),
+        (Some(-7), Some("year".into()))
+    );
+    // `Long.hashCode(3000000000)` and `"abc".hashCode()`.
+    assert_eq!(
+        seed(r#"{"random_score":{"seed":3000000000}}"#),
+        (Some(-1_294_967_296), None)
+    );
+    assert_eq!(
+        seed(r#"{"random_score":{"seed":"abc"}}"#),
+        (Some(96_354), None)
+    );
+}
+
+#[test]
+fn a_random_score_refuses_what_stock_refuses() {
+    for (body, message) in [
+        (
+            r#"{"random_score":{"seed":1.5}}"#,
+            "random_score seed must be an int, long or string, not 'VALUE_NUMBER'",
+        ),
+        (
+            r#"{"random_score":{"seed":99999999999999999999}}"#,
+            "random_score seed must be an int, long or string, not 'VALUE_NUMBER'",
+        ),
+        (
+            r#"{"random_score":{"seed":null}}"#,
+            "random_score seed must be an int/long or string, not 'VALUE_NULL'",
+        ),
+        (
+            r#"{"random_score":{"x":1}}"#,
+            "random_score query does not support [x]",
+        ),
+    ] {
+        assert_eq!(reason(body), message, "{body}");
+    }
+}
+
+#[test]
+fn a_min_score_is_read_and_defaults_to_none() {
+    assert_eq!(parsed(r#"{"weight":1}"#).0.min_score, None);
+    assert_eq!(
+        parsed(r#"{"weight":1,"min_score":0.5}"#).0.min_score,
+        Some(0.5)
+    );
 }

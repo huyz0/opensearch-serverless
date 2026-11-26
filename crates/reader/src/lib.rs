@@ -47,6 +47,7 @@ mod search_top;
 #[cfg(test)]
 mod settings_tests;
 pub mod shard_files;
+pub mod shard_ref;
 mod shared_mapping;
 pub mod template;
 pub mod vector_warm;

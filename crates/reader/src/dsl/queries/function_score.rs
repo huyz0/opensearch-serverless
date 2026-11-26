@@ -2,11 +2,11 @@
 //! `FieldValueFactorFunctionBuilder.fromXContent` and
 //! `DecayFunctionParser.parse` read it at OpenSearch 3.10.0.
 //!
-//! Served: `weight`, `field_value_factor`, `gauss`, `exp` and `linear` as a
-//! single function or in `functions`, each under an optional `filter`, with
-//! `score_mode`, `boost_mode`, `max_boost` and `boost`. Refused, as not
-//! supported by this node yet: `random_score`, `script_score`, `min_score`,
-//! `_name`, and a decay on a geo point field or on several fields.
+//! Served: `weight`, `field_value_factor`, `gauss`, `exp`, `linear`,
+//! `script_score` and `random_score` as a single function or in `functions`,
+//! each under an optional `filter`, with `score_mode`, `boost_mode`,
+//! `max_boost`, `min_score` and `boost`. Refused, as not supported by this
+//! node yet: `_name`, and a decay on a geo point field or on several fields.
 
 use lucene_engine::function_score::{Combine, Decay, Modifier, MultiValue, ScoreMode};
 
@@ -31,6 +31,8 @@ pub struct FunctionScore {
     pub boost_mode: Combine,
     /// The most the combined functions' score is.
     pub max_boost: f32,
+    /// The least a document's score is for it to match.
+    pub min_score: Option<f32>,
 }
 
 /// One function, its filter and weight (`FilterFunctionBuilder`).
@@ -73,6 +75,14 @@ pub enum Function {
     },
     /// `script_score` over an expression.
     Script(super::function_score_script::ScriptScore),
+    /// `random_score`.
+    Random {
+        /// The seed as `RandomScoreFunctionBuilder` holds it (an int is
+        /// kept, a long and a string hashed); none hashes the document id.
+        seed: Option<i32>,
+        /// The field the seed hashes with; `_id` when a seed has none.
+        field: Option<String>,
+    },
 }
 
 /// The unknown function `name`: a `ParsingException` caused by the
@@ -236,10 +246,7 @@ fn parse_function(name: &str, p: &mut Parser<'_>) -> Result<Function, DslError> 
         "exp" => parse_decay(Decay::Exp, p),
         "linear" => parse_decay(Decay::Linear, p),
         "script_score" => super::function_score_script::parse(p).map(Function::Script),
-        "random_score" => Err(DslError::unsupported(
-            // ALLOC: error path; one message.
-            &format!("[function_score] [{name}]"),
-        )),
+        "random_score" => super::function_score_random::parse(p),
         _ => Err(unknown_function(p, name)),
     }
 }
@@ -317,6 +324,7 @@ pub fn parse_function_score(p: &mut Parser<'_>) -> Result<More, DslError> {
         score_mode: ScoreMode::Multiply,
         boost_mode: Combine::Multiply,
         max_boost: f32::MAX,
+        min_score: None,
     };
     let mut boost = 1.0;
     let mut single: Option<String> = None;
@@ -363,7 +371,7 @@ pub fn parse_function_score(p: &mut Parser<'_>) -> Result<More, DslError> {
                 "score_mode" => out.score_mode = score_mode(text_or_null(p).unwrap_or("null"))?,
                 "boost_mode" => out.boost_mode = boost_mode(text_or_null(p).unwrap_or("null"))?,
                 "max_boost" => out.max_boost = float_value(p)?,
-                "min_score" => return Err(DslError::unsupported("[function_score] [min_score]")),
+                "min_score" => out.min_score = Some(float_value(p)?),
                 "_name" => return Err(DslError::unsupported("[function_score] [_name]")),
                 "weight" => {
                     reject_second(p, &single, array, current, true)?;

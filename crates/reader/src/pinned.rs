@@ -143,6 +143,7 @@ mod tests {
             knn: None,
             pinned,
             now_millis: None,
+            shard: None,
         };
         let source = parse_chunks([format!(r#"{{"query":{body}}}"#).as_bytes()]).expect("parses");
         let q = to_lucene(source.query.as_ref().expect("a query"), &cx)?;

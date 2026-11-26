@@ -16,6 +16,7 @@ mod coordinate;
 mod count;
 mod field_caps;
 mod frozen_search;
+mod function_score_random;
 mod function_score_script;
 mod msearch;
 mod msearch_template;

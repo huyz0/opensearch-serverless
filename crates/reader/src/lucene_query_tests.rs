@@ -22,6 +22,7 @@ fn built_at(body: &str, now_millis: Option<i64>) -> Result<BooleanQuery, Failure
         knn: None,
         pinned: None,
         now_millis,
+        shard: None,
     };
     let source = parse_chunks([body.as_bytes()]).expect("parses");
     to_lucene(source.query.as_ref().expect("a query"), &cx)
