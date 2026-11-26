@@ -286,7 +286,8 @@ pub fn search_with<S: BlobStore + 'static>(
     }
     let query = crate::dsl::queries::nested_build::skip_nested(query, &meta.mapping, knn.is_some())
         .map_err(ShardError::bad_request)?;
-    let sort = sort_fields(&source.sort, shard, index)?;
+    let sort = sort_fields(&source.sort, shard, index, Some(&cx))?;
+    crate::search_sort_nested::refuse_after(source)?;
     search_options::check(
         source,
         &query,
