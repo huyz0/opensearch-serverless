@@ -404,6 +404,9 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
     shard_action.install(&assembled.role, &assembled.search, config, &budget);
     support::wire_commit_push(&assembled, &client, &auth, &membership, config)?;
     // Enrolled last: a peer that sees the lease can reach everything it names.
+    // A node still warming enrols without the search role, as its renewals do.
+    let mut lease_for_enrolment = lease_for_enrolment;
+    readiness.stamp(&mut lease_for_enrolment);
     membership.renew(&lease_for_enrolment).map_err(cluster)?;
     shard_action.age.mark();
     join::announce(&membership, client, &auth, &config.node_id, &ephemeral)
