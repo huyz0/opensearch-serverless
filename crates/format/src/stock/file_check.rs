@@ -19,7 +19,9 @@ const MAGIC: [u8; 4] = [0xC0, 0x28, 0x93, 0xE8];
 #[derive(Debug, Clone)]
 pub struct StockFileCheck {
     length: u64,
-    listed: u64,
+    listed: Option<u64>,
+    head_limit: usize,
+    head: Vec<u8>,
     seen: u64,
     crc: crc32fast::Hasher,
     tail: [u8; 16],
@@ -43,11 +45,43 @@ impl StockFileCheck {
             .ok_or_else(|| corrupt(WHAT, "a checksum that is not a 32-bit base-36 number"))?;
         Ok(Self {
             length,
-            listed,
+            listed: Some(listed),
+            head_limit: 0,
+            head: Vec::new(), // ALLOC: empty; a listed check keeps no head.
             seen: 0,
             crc: crc32fast::Hasher::new(),
             tail: [0; 16],
         })
+    }
+
+    /// A check of a file of `length` bytes whose checksum is not listed: the
+    /// footer's own CRC is verified against the bytes and returned by
+    /// [`Self::finish_crc`]. The first `head_bytes` bytes are kept for
+    /// [`Self::head`].
+    ///
+    /// # Errors
+    ///
+    /// [`FormatError::Corrupt`] for a file shorter than a footer.
+    pub fn measured(length: u64, head_bytes: usize) -> Result<Self, FormatError> {
+        if length < FOOTER {
+            return Err(corrupt(WHAT, "a file shorter than a Lucene footer"));
+        }
+        Ok(Self {
+            length,
+            listed: None,
+            head_limit: head_bytes,
+            head: Vec::with_capacity(head_bytes.min(usize::try_from(length).unwrap_or(0))), // ALLOC: at most `head_bytes`, the caller's bound.
+            seen: 0,
+            crc: crc32fast::Hasher::new(),
+            tail: [0; 16],
+        })
+    }
+
+    /// The first bytes of the file fed so far, at most the bound given to
+    /// [`Self::measured`].
+    #[must_use]
+    pub fn head(&self) -> &[u8] {
+        &self.head
     }
 
     /// Starts over, for a retried copy.
@@ -55,6 +89,7 @@ impl StockFileCheck {
         self.seen = 0;
         self.crc = crc32fast::Hasher::new();
         self.tail = [0; 16];
+        self.head.clear();
     }
 
     /// The next bytes of the file.
@@ -67,6 +102,10 @@ impl StockFileCheck {
         let end = self.seen.saturating_add(n);
         if end > self.length {
             return Err(corrupt(WHAT, "a file longer than listed"));
+        }
+        let room = self.head_limit.saturating_sub(self.head.len());
+        if let Some(part) = data.get(..room.min(data.len())) {
+            self.head.extend_from_slice(part);
         }
         let crc_end = self.length.saturating_sub(CHECKSUM);
         let upto = end.min(crc_end).saturating_sub(self.seen);
@@ -94,6 +133,24 @@ impl StockFileCheck {
     /// the wrong magic or algorithm, or whose CRC differs from the footer's
     /// or from the listed one.
     pub fn finish(&self) -> Result<(), FormatError> {
+        let computed = self.finish_crc()?;
+        if self.listed != Some(u64::from(computed)) {
+            return Err(corrupt(
+                WHAT,
+                "a checksum that does not match the one listed",
+            ));
+        }
+        Ok(())
+    }
+
+    /// Whether the whole file has been fed and its footer matches its bytes;
+    /// the CRC it records.
+    ///
+    /// # Errors
+    ///
+    /// [`FormatError::Corrupt`] for a file that is short, whose footer has
+    /// the wrong magic or algorithm, or whose CRC differs from the bytes'.
+    pub fn finish_crc(&self) -> Result<u32, FormatError> {
         if self.seen != self.length {
             return Err(corrupt(WHAT, "a file shorter than listed"));
         }
@@ -102,19 +159,12 @@ impl StockFileCheck {
         if magic != MAGIC || algorithm != [0, 0, 0, 0] {
             return Err(corrupt(WHAT, "a footer without the Lucene magic"));
         }
-        let computed = u64::from(self.crc.clone().finalize());
+        let computed = self.crc.clone().finalize();
         let mut raw = [0u8; 8];
         raw.copy_from_slice(stored);
-        let stored = u64::from_be_bytes(raw);
-        if stored != computed {
+        if u64::from_be_bytes(raw) != u64::from(computed) {
             return Err(corrupt(WHAT, "a checksum that does not match the bytes"));
         }
-        if self.listed != computed {
-            return Err(corrupt(
-                WHAT,
-                "a checksum that does not match the one listed",
-            ));
-        }
-        Ok(())
+        Ok(computed)
     }
 }

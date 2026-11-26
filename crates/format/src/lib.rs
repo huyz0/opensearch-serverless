@@ -147,7 +147,7 @@ pub use stock::{
     StockIndexMetadata, StockNative, StockRefusal, StockShardSnapshot, StockSnapshot,
     StockSnapshotInfo, VERSION_ID as STOCK_VERSION_ID, checksum_string as stock_checksum_string,
     from_json as stock_blob_from_json, global_metadata_json as stock_global_metadata_json,
-    index_metadata_json as stock_index_metadata_json, is_blob_name,
+    index_metadata_json as stock_index_metadata_json, is_blob_name, lucene_version_of,
     shard_snapshot_json as stock_shard_snapshot_json,
     snapshot_info_json as stock_snapshot_info_json, to_json as stock_blob_to_json,
     verified_body as stock_verified_body,
