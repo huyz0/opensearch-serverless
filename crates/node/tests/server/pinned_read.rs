@@ -267,6 +267,40 @@ fn every_query_that_analyses_text_uses_the_module_the_index_pins() {
     assert!(missed.is_empty(), "not analysed by the module: {missed:?}");
 }
 
+// AC-13 (count)
+#[test]
+fn a_count_analyses_with_the_module_the_index_pins() {
+    let root = TempDir::new("pinned-count");
+    let dir = ByteBuffersDirectory::new();
+    let r = rig(root.path(), &dir, &module());
+    assert!(r.service.set_modules(modules(root.path())));
+    let counted = request(
+        r.server.local_addr(),
+        "POST",
+        "/logs/_count",
+        Some(br#"{"query":{"match":{"t":"zzzzzzz"}}}"#),
+    );
+    assert_eq!(counted.status, 200, "{}", counted.text());
+    assert!(
+        counted.text().contains(r#""count":1"#),
+        "{}",
+        counted.text()
+    );
+}
+
+// AC-13 (msearch)
+#[test]
+fn an_msearch_analyses_with_the_module_the_index_pins() {
+    let root = TempDir::new("pinned-msearch");
+    let dir = ByteBuffersDirectory::new();
+    let r = rig(root.path(), &dir, &module());
+    assert!(r.service.set_modules(modules(root.path())));
+    let body = b"{\"index\":\"logs\"}\n{\"query\":{\"match\":{\"t\":\"zzzzzzz\"}}}\n";
+    let many = request(r.server.local_addr(), "POST", "/_msearch", Some(body));
+    assert_eq!(many.status, 200, "{}", many.text());
+    assert!(many.text().contains(r#""value":1"#), "{}", many.text());
+}
+
 // AC-14
 #[test]
 fn a_reader_that_cannot_load_the_module_refuses_the_search() {
