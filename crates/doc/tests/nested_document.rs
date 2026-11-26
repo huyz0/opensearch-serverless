@@ -92,7 +92,8 @@ fn no_object_no_array_and_null_give_no_child() {
 fn a_concrete_value_where_a_nested_object_is_mapped_fails_as_for_an_object() {
     let e = document::parse(&mapping(), "1", br#"{"c":5}"#).expect_err("fails");
     assert!(
-        e.reason.contains("tried to parse field [c] as object, but found a concrete value"),
+        e.reason
+            .contains("tried to parse field [c] as object, but found a concrete value"),
         "{}",
         e.reason
     );

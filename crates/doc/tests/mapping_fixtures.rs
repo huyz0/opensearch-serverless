@@ -141,7 +141,10 @@ fn mapping_steps_replay() {
                         .and_then(|b| b.get("settings"))
                         .and_then(|s| s.get("index.knn"))
                         .is_some_and(|k| matches!(k, Json::Bool(true)));
-                    let options = ParseOptions { knn: Some(flag), ..ParseOptions::default() };
+                    let options = ParseOptions {
+                        knn: Some(flag),
+                        ..ParseOptions::default()
+                    };
                     let got = match mappings {
                         None => Ok(Mapping::default()),
                         Some(m) => Mapping::parse_with(m.to_json().as_bytes(), options),

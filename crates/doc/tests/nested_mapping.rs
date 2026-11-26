@@ -71,12 +71,15 @@ fn what_is_not_indexed_in_a_nested_object_is_unsupported() {
         assert!(e.is_unsupported(), "{body}: {e:?}");
     }
     // `false` is the default, and is accepted.
-    parse(r#"{"properties":{"c":{"type":"nested","include_in_parent":false,"include_in_root":false}}}"#);
+    parse(
+        r#"{"properties":{"c":{"type":"nested","include_in_parent":false,"include_in_root":false}}}"#,
+    );
 }
 
 #[test]
 fn merging_a_nested_object_with_a_plain_one_fails_either_way() {
-    let nested = parse(r#"{"properties":{"c":{"type":"nested","properties":{"w":{"type":"keyword"}}}}}"#);
+    let nested =
+        parse(r#"{"properties":{"c":{"type":"nested","properties":{"w":{"type":"keyword"}}}}}"#);
     let plain = parse(r#"{"properties":{"c":{"properties":{"w":{"type":"keyword"}}}}}"#);
     assert_eq!(
         nested.merge(&plain).expect_err("fails").reason,
@@ -87,7 +90,8 @@ fn merging_a_nested_object_with_a_plain_one_fails_either_way() {
         "cannot change object mapping from non-nested to nested"
     );
     // The same nested object merges, and takes a new field.
-    let more = parse(r#"{"properties":{"c":{"type":"nested","properties":{"z":{"type":"long"}}}}}"#);
+    let more =
+        parse(r#"{"properties":{"c":{"type":"nested","properties":{"z":{"type":"long"}}}}}"#);
     let merged = nested.merge(&more).expect("merges");
     assert!(merged.is_nested("c"));
     let names: Vec<String> = merged.leaves().into_iter().map(|(n, _)| n).collect();
@@ -104,8 +108,5 @@ fn more_than_a_hundred_nested_objects_are_refused() {
     };
     assert!(Mapping::parse_with(many(100).as_bytes(), ON).is_ok());
     let e = Mapping::parse_with(many(101).as_bytes(), ON).expect_err("refused");
-    assert_eq!(
-        e.reason,
-        "Limit of nested fields [100] has been exceeded"
-    );
+    assert_eq!(e.reason, "Limit of nested fields [100] has been exceeded");
 }

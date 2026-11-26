@@ -27,8 +27,14 @@ fn index(shard: &mut Shard<'_>, id: &str, source: &str) {
 
 #[test]
 fn a_shard_writes_each_vector_it_indexes_and_an_update_adds_the_new_one() {
-    let mapping =
-        Mapping::parse_with(MAPPING.as_bytes(), ParseOptions { knn: Some(true), ..ParseOptions::default() }).expect("mapping");
+    let mapping = Mapping::parse_with(
+        MAPPING.as_bytes(),
+        ParseOptions {
+            knn: Some(true),
+            ..ParseOptions::default()
+        },
+    )
+    .expect("mapping");
     let dir = ByteBuffersDirectory::new();
     {
         let mut w = IndexWriter::open(&dir, Vec::new(), "Lucene104", VERSION).expect("writer");
@@ -79,8 +85,14 @@ fn vectors_are_charged_to_the_indexing_buffer() {
     let mapping = format!(
         r#"{{"properties":{{"v":{{"type":"knn_vector","dimension":{DIMENSION},"method":{{"name":"hnsw","engine":"lucene","space_type":"l2"}}}}}}}}"#
     );
-    let mapping =
-        Mapping::parse_with(mapping.as_bytes(), ParseOptions { knn: Some(true), ..ParseOptions::default() }).expect("mapping");
+    let mapping = Mapping::parse_with(
+        mapping.as_bytes(),
+        ParseOptions {
+            knn: Some(true),
+            ..ParseOptions::default()
+        },
+    )
+    .expect("mapping");
     let dir = ByteBuffersDirectory::new();
     let mut w = IndexWriter::open(&dir, Vec::new(), "Lucene104", VERSION).expect("writer");
     w.enable_explicit_documents().expect("explicit");

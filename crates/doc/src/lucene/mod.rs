@@ -436,7 +436,8 @@ impl Indexer {
             // ALLOC: an empty list, which holds nothing.
             vectors.push(Vec::new());
         }
-        let (root, root_vectors) = self.document_with_vectors(numbers, mapping, doc, meta, routing)?;
+        let (root, root_vectors) =
+            self.document_with_vectors(numbers, mapping, doc, meta, routing)?;
         docs.push(root);
         vectors.push(root_vectors);
         Ok((docs, vectors))

@@ -314,7 +314,13 @@ impl Mapping {
     pub fn from_descriptor(text: Option<&str>) -> Result<Self, MappingError> {
         match text {
             None => Ok(Mapping::default()),
-            Some(t) => Self::parse_with(t.as_bytes(), ParseOptions { knn: Some(true), nested: true }),
+            Some(t) => Self::parse_with(
+                t.as_bytes(),
+                ParseOptions {
+                    knn: Some(true),
+                    nested: true,
+                },
+            ),
         }
     }
 
@@ -328,7 +334,13 @@ impl Mapping {
     pub fn from_descriptor_pinned(text: Option<&str>) -> Result<Self, MappingError> {
         match text {
             None => Ok(Mapping::default()),
-            Some(t) => Self::parse_pinned(t.as_bytes(), ParseOptions { knn: Some(true), nested: true }),
+            Some(t) => Self::parse_pinned(
+                t.as_bytes(),
+                ParseOptions {
+                    knn: Some(true),
+                    nested: true,
+                },
+            ),
         }
     }
 

@@ -44,10 +44,14 @@ fn fixtures() -> Vec<PathBuf> {
 fn fixture_mapping(fixture: &Value) -> Mapping {
     let knn = fixture["settings"]["index.knn"].as_bool().unwrap_or(false);
     match fixture.get("mappings") {
-        Some(m) if knn => {
-            Mapping::parse_with(m.to_string().as_bytes(), ParseOptions { knn: Some(true), ..ParseOptions::default() })
-                .expect("mapping")
-        }
+        Some(m) if knn => Mapping::parse_with(
+            m.to_string().as_bytes(),
+            ParseOptions {
+                knn: Some(true),
+                ..ParseOptions::default()
+            },
+        )
+        .expect("mapping"),
         Some(m) => Mapping::parse(m.to_string().as_bytes()).expect("mapping"),
         None => Mapping::default(),
     }

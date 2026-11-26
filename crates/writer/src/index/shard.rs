@@ -324,45 +324,46 @@ impl<'d> Shard<'d> {
                     .map_err(Refused::Mapping)?,
             )
         };
-        let (doc, vectors) = match (fast, &parsed) {
+        // The documents of one write: a nested object's child documents first, the root last.
+        let (docs, vectors) = match (fast, &parsed) {
             (Some(f), _) => (
-                f.finish(seq_no, self.primary_term, p.version)
-                    .pop()
-                    .ok_or_else(|| {
-                        Refused::Mapping(MappingError::illegal_state("no document read"))
-                    })?,
-                // ALLOC: no vectors, one document.
+                f.finish(seq_no, self.primary_term, p.version),
+                // ALLOC: no vectors.
                 Vec::new(),
             ),
-            (None, Some(parsed)) => self
-                .indexer
-                .document_with_vectors(&mut self.writer, mapping, parsed, &meta, routing)
-                .map_err(Refused::Mapping)?,
+            (None, Some(parsed)) => {
+                let (docs, vectors) = self
+                    .indexer
+                    .block_with_vectors(&mut self.writer, mapping, parsed, &meta, routing)
+                    .map_err(Refused::Mapping)?;
+                (docs, vectors)
+            }
             (None, None) => {
                 return Err(Refused::Mapping(MappingError::illegal_state(
                     "no document read",
                 )));
             }
         };
-        // ALLOC: one document a write.
-        let docs = vec![doc];
-        match (soft, vectors.is_empty()) {
-            (None, true) => self.writer.add_explicit_documents(docs),
-            (None, false) => {
-                self.writer
-                    // ALLOC: one vector list a document with vectors, one document.
-                    .add_explicit_documents_with_vectors(None, docs, vec![vectors])
-            }
-            (Some(_), true) => self.writer.soft_update_explicit_documents(
+        if docs.is_empty() {
+            return Err(Refused::Mapping(MappingError::illegal_state(
+                "no document read",
+            )));
+        }
+        let has_vectors = vectors.iter().any(|v| !v.is_empty());
+        match (soft, has_vectors) {
+            (None, false) => self.writer.add_explicit_documents(docs),
+            (None, true) => self
+                .writer
+                .add_explicit_documents_with_vectors(None, docs, vectors),
+            (Some(_), false) => self.writer.soft_update_explicit_documents(
                 Term::new("_id", key.clone()),
                 docs,
                 &[soft_delete(&key)],
             ),
-            (Some(_), false) => self.writer.soft_update_explicit_documents_with_vectors(
+            (Some(_), true) => self.writer.soft_update_explicit_documents_with_vectors(
                 Term::new("_id", key.clone()),
                 docs,
-                // ALLOC: one vector list a document with vectors, one document.
-                vec![vectors],
+                vectors,
                 &[soft_delete(&key)],
             ),
         }

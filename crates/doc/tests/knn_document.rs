@@ -8,7 +8,14 @@ use oss_doc::mapping::{Mapping, ParseOptions};
 const MAPPING: &str = r#"{"properties":{"v":{"type":"knn_vector","dimension":3,"method":{"name":"hnsw","engine":"lucene"}},"k":{"type":"keyword"},"o":{"properties":{"v":{"type":"knn_vector","dimension":2,"method":{"name":"hnsw","engine":"lucene"}}}}}}"#;
 
 fn mapping() -> Mapping {
-    Mapping::parse_with(MAPPING.as_bytes(), ParseOptions { knn: Some(true), ..ParseOptions::default() }).unwrap()
+    Mapping::parse_with(
+        MAPPING.as_bytes(),
+        ParseOptions {
+            knn: Some(true),
+            ..ParseOptions::default()
+        },
+    )
+    .unwrap()
 }
 
 fn vector(doc: &str, name: &str) -> Option<Vec<f32>> {

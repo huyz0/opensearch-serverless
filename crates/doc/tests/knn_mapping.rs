@@ -52,7 +52,10 @@ fn the_shapes_this_writer_does_not_index_are_unsupported_not_invalid() {
 
 #[test]
 fn a_field_with_a_method_on_an_index_without_knn_is_refused() {
-    let off = ParseOptions { knn: Some(false), ..ParseOptions::default() };
+    let off = ParseOptions {
+        knn: Some(false),
+        ..ParseOptions::default()
+    };
     let e = Mapping::parse_with(field(HNSW).as_bytes(), off).unwrap_err();
     assert!(!e.is_unsupported());
     assert_eq!(
