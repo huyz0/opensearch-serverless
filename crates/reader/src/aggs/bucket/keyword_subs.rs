@@ -45,7 +45,7 @@ fn resolved<S: BlobStore + 'static>(
         check_order(sub)?;
         let r = resolve(sub, shard)?;
         let numeric_terms = sub.metric == Metric::Terms && matches!(r, Resolved::Numeric(_));
-        if keyword_parent && (numeric_terms || nested_subs::is_nested(sub)) {
+        if keyword_parent && (numeric_terms || (nested_subs::is_nested(sub) && !is_join(sub))) {
             return Err(ShardError {
                 status: 400,
                 failure: Failure::plain(
@@ -64,6 +64,11 @@ fn resolved<S: BlobStore + 'static>(
     Ok(out)
 }
 
+/// Whether `agg` is a `nested` or `reverse_nested`, one bucket an owner.
+fn is_join(agg: &MetricAgg) -> bool {
+    matches!(agg.metric, Metric::Nested | Metric::ReverseNested)
+}
+
 fn engine_error(reason: &str) -> ShardError {
     ShardError {
         status: 500,
@@ -80,6 +85,7 @@ pub fn node<S: BlobStore + 'static>(
     agg: &MetricAgg,
     shard: &OpenShard<S>,
     ords: &mut HashMap<String, std::sync::Arc<GlobalOrds>>,
+    queries: &mut Queries<'_>,
 ) -> Result<AggNode, ShardError> {
     if agg.metric == Metric::Cardinality {
         return keyword_cardinality::node(agg, shard, ords);
@@ -100,7 +106,7 @@ pub fn node<S: BlobStore + 'static>(
     };
     let mut engine = keyword_collect::node(&agg.field, &spec, accepted);
     if let AggNode::Terms { subs, .. } = &mut engine {
-        *subs = sub_nodes(agg, shard, ords, &mut Queries::new(None), true)?;
+        *subs = sub_nodes(agg, shard, ords, queries, true)?;
     }
     Ok(engine)
 }
@@ -125,7 +131,7 @@ pub fn sub_nodes<S: BlobStore + 'static>(
                 with_subs::attach(&mut made, sub, shard, ords, queries)?;
                 subs.push(made);
             }
-            Resolved::Keyword => subs.push(node(sub, shard, ords)?),
+            Resolved::Keyword => subs.push(node(sub, shard, ords, queries)?),
             Resolved::Queries => {
                 let mut made = filters_collect::node(sub, queries.take_own(sub));
                 with_subs::attach(&mut made, sub, shard, ords, queries)?;
@@ -150,7 +156,12 @@ pub fn reserved<S: BlobStore + 'static>(
 ) -> usize {
     let spec = spec_of(agg);
     let nested = agg.subs.iter().filter(|s| s.metric == Metric::Terms);
-    let scalars = agg.subs.len().saturating_sub(nested.clone().count());
+    let joins = agg.subs.iter().filter(|s| is_join(s));
+    let scalars = agg
+        .subs
+        .len()
+        .saturating_sub(nested.clone().count())
+        .saturating_sub(joins.clone().count());
     let own = keyword_collect::reserved_bytes(shard, &agg.field, &spec, scalars, parent);
     let (terms, _, _) = keyword_collect::dictionary(shard, &agg.field);
     let under = Parent {
@@ -160,8 +171,12 @@ pub fn reserved<S: BlobStore + 'static>(
             .saturating_mul(keyword_collect::keeps(&spec, terms))
             .min(crate::aggs::bucket::BUCKET_LIMIT),
     };
-    nested.fold(own, |total, sub| {
+    let total = nested.fold(own, |total, sub| {
         total.saturating_add(reserved(shard, sub, under))
+    });
+    // A document can be in every bucket a multi-valued field gives it.
+    joins.fold(total, |total, sub| {
+        total.saturating_add(nested_subs::reserved(shard, sub, under.kept, under.kept))
     })
 }
 

@@ -233,3 +233,4 @@ src/response_inner.rs	port	server/src/main/java/org/opensearch/search/SearchHit.
 src/fetch/nested_source.rs	port	server/src/main/java/org/opensearch/search/fetch/FetchPhase.java@3.10.0	the nested source of a child: the element at its offset under the path
 src/dsl/queries/inner_hits.rs	port	server/src/main/java/org/opensearch/index/query/InnerHitBuilder.java@3.10.0	fromXContent for the keys served
 src/dsl/queries/inner_hits_tests.rs	new		tests of inner_hits.rs
+src/aggs/bucket/nested_under_terms_tests.rs	new		tests of nested and reverse_nested beneath a terms

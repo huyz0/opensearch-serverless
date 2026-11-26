@@ -220,9 +220,11 @@ pub fn reserved<S: BlobStore + 'static>(
     fanout: usize,
 ) -> usize {
     let own = match agg.metric {
-        Metric::Range | Metric::Filters | Metric::Filter => {
-            fixed_subs::width(agg).saturating_mul(parents)
-        }
+        Metric::Range
+        | Metric::Filters
+        | Metric::Filter
+        | Metric::Nested
+        | Metric::ReverseNested => fixed_subs::width(agg).saturating_mul(parents),
         _ => keyed_subs::values(shard, &agg.field).saturating_mul(fanout),
     }
     .min(BUCKET_LIMIT);

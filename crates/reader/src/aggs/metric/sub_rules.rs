@@ -26,9 +26,10 @@ pub(super) fn holds_subs(metric: Metric) -> bool {
 /// shard refuses for a keyword field) so far.
 pub(super) fn nests_under(sub: Metric, parent: Metric) -> bool {
     let in_nested = matches!(parent, Metric::Nested | Metric::ReverseNested);
-    // A `nested` or `reverse_nested` runs only beneath another one.
+    // A `nested` or `reverse_nested` runs beneath another one or a `terms`
+    // (a `reverse_nested` outside any `nested` is refused when planned).
     if matches!(sub, Metric::Nested | Metric::ReverseNested) {
-        return in_nested;
+        return in_nested || parent == Metric::Terms;
     }
     matches!(
         sub,
