@@ -1,6 +1,7 @@
 use super::*;
 use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
+use std::time::Instant;
 
 use lucene_store::page_cache::PageCacheConfig;
 use oss_blob::{Emulator, PooledStore, SliceSource};
@@ -361,83 +362,4 @@ fn nothing_named_is_reached_and_a_fraction_is_taken_of_what_is() {
     assert!(progress.reached(0.9));
 }
 
-// docs/specs/reader-warm-copy AC-7
-#[test]
-fn a_peer_failing_after_m_bytes_leaves_the_target_at_the_other_peers_bytes_plus_m() {
-    use std::sync::atomic::AtomicBool;
-
-    use crate::lifecycle::Readiness;
-    use crate::warm_boot::{Join, finish_when_warm};
-
-    let a = oss_testkit::TempDir::new("warm-copy-two-peers");
-    let b = oss_testkit::TempDir::new("warm-copy-two-peers-joiner");
-    let peer = rig(a.path());
-    let joiner = cache(b.path());
-    let progress = Progress::default();
-    let ours = Ours(Arc::clone(&peer.expected));
-
-    let good = Fake::new(&peer);
-    let first = copy_from_peer(
-        &good,
-        &ours,
-        &joiner,
-        &settings(1 << 20),
-        &Sleeps::default(),
-        &progress,
-        &never,
-    );
-    assert_eq!(first, Outcome::Done);
-    let others = progress.named();
-    assert!(others > 0);
-
-    let mut failing = Fake::new(&peer);
-    failing.corrupt_from_call = Some(1);
-    let second = copy_from_peer(
-        &failing,
-        &ours,
-        &joiner,
-        &settings(1 << 20),
-        &Sleeps::default(),
-        &progress,
-        &never,
-    );
-    assert_eq!(second, Outcome::Bad);
-    let m = progress.copied() - others;
-    assert!(m > 0, "the failing peer gave a first batch");
-    assert!(
-        m < others,
-        "it named as many bytes as the good peer and gave fewer"
-    );
-    assert_eq!(
-        progress.named(),
-        others + m,
-        "the target is the other peers' bytes plus what the failing one gave"
-    );
-    assert_eq!(progress.copied(), progress.named());
-
-    // The node is let in at once: nothing it is waiting for is missing.
-    let readiness = Readiness::warming();
-    let clock = Sleeps::default();
-    let expired = AtomicBool::new(false);
-    let waited = || clock.0.borrow().iter().sum::<Duration>();
-    let timed_out = finish_when_warm(
-        &readiness,
-        &progress,
-        &AtomicBool::new(false),
-        &Join {
-            ready_percent: 90,
-            max_wait: Duration::from_secs(60),
-            poll: Duration::from_secs(1),
-        },
-        &waited,
-        &clock,
-        &expired,
-    );
-    assert!(!timed_out);
-    assert!(readiness.ready());
-    assert_eq!(
-        waited(),
-        Duration::ZERO,
-        "no wait for the failed peer's rest"
-    );
-}
+mod two_peers;
