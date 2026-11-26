@@ -26,6 +26,7 @@ const FILES: [&str; 4] = ["_0.si", "_0.cfs", "_0.cfe", "segments_1"];
 struct Rig {
     server: Server,
     root: PathBuf,
+    descriptors: DescriptorStore,
 }
 
 fn recorded(file: &str) -> Vec<u8> {
@@ -129,7 +130,11 @@ fn rig(enabled: bool, tag: &str) -> Rig {
     let budget = MemoryBudget::new(&config);
     let server =
         Server::start(listener, support::server_config(), router, &budget).expect("starts");
-    let r = Rig { server, root };
+    let r = Rig {
+        server,
+        root,
+        descriptors,
+    };
     let body = format!(
         r#"{{"type":"fs","settings":{{"format":"stock","location":"{}"}}}}"#,
         r.out().display()
@@ -233,6 +238,15 @@ fn a_second_take_keeps_the_first_and_reuses_the_index_id() {
 #[test]
 fn with_the_switch_off_the_take_is_501_and_writes_nothing() {
     let r = rig(false, "off");
+    let never = r.out().join("never");
+    let body = format!(
+        r#"{{"type":"fs","settings":{{"format":"stock","location":"{}"}}}}"#,
+        never.display()
+    );
+    assert_eq!(send(&r, "PUT", "/_snapshot/idle", Some(&body)).status, 200);
+    let reply = send(&r, "PUT", &format!("/_snapshot/idle/s1{WAIT}"), Some(TAKE));
+    assert_eq!(reply.status, 501, "{}", reply.text());
+    assert!(!never.exists(), "the target was not so much as opened");
     let reply = send(&r, "PUT", &format!("/_snapshot/stock/s1{WAIT}"), Some(TAKE));
     assert_eq!(reply.status, 501, "{}", reply.text());
     assert!(r.written().is_empty());
@@ -249,7 +263,7 @@ fn each_refusal_is_answered_before_anything_is_written() {
         ),
         ("s1", r#"{"indices":"logs","partial":true}"#, 501),
         ("s1", r#"{"indices":"nope"}"#, 404),
-        ("bad name", TAKE, 400),
+        ("bad%20name", TAKE, 400),
         ("Sn%C3%A4p", TAKE, 400),
         ("s1", r#"{"indices":"logs,nope"}"#, 404),
     ];
@@ -279,4 +293,74 @@ fn a_target_outside_the_export_roots_is_refused_and_nothing_is_written() {
     let reply = send(&r, "PUT", &format!("/_snapshot/loose/s1{WAIT}"), Some(TAKE));
     assert_eq!(reply.status, 400, "{}", reply.text());
     assert_eq!(std::fs::read_dir(&elsewhere).unwrap().count(), 0);
+}
+
+fn add_index(r: &Rig, name: &str, edit: impl FnOnce(&mut IndexRecord<'_>)) {
+    let mut record = IndexRecord::new(name, "u2", 1);
+    edit(&mut record);
+    r.descriptors
+        .create(&record, 1, &mut vec![0u8; 1 << 16])
+        .unwrap();
+}
+
+fn refused(r: &Rig, repo: &str, name: &str, body: &str, status: u16) {
+    let reply = send(
+        r,
+        "PUT",
+        &format!("/_snapshot/{repo}/{name}{WAIT}"),
+        Some(body),
+    );
+    assert_eq!(reply.status, status, "{name} {body}: {}", reply.text());
+    assert!(r.written().is_empty(), "{name} {body}");
+}
+
+#[test]
+fn a_name_is_held_to_128_bytes_and_the_name_characters() {
+    let r = rig(true, "names");
+    refused(&r, "stock", &"a".repeat(129), TAKE, 400);
+    refused(&r, "stock", "a!", TAKE, 400);
+    let reply = send(
+        &r,
+        "PUT",
+        &format!("/_snapshot/stock/{}{WAIT}", "a".repeat(128)),
+        Some(TAKE),
+    );
+    assert_eq!(reply.status, 200, "{}", reply.text());
+}
+
+#[test]
+fn what_stock_cannot_hold_is_501_with_nothing_written() {
+    let r = rig(true, "unholdable");
+    add_index(&r, "packed", |rec| rec.bucket = Some("b1".into()));
+    add_index(&r, "mapped", |rec| rec.mapping = Some("[1]".into()));
+    add_index(&r, "listed", |rec| {
+        rec.settings = br#"{"index.a":["x","y"]}"#
+    });
+    for index in ["packed", "mapped", "listed"] {
+        refused(
+            &r,
+            "stock",
+            "s1",
+            &format!(r#"{{"indices":"{index}"}}"#),
+            501,
+        );
+    }
+}
+
+#[test]
+fn a_second_index_that_cannot_be_captured_fails_the_take_before_any_write() {
+    let r = rig(true, "second-index");
+    add_index(&r, "unpublished", |_| {});
+    refused(&r, "stock", "s1", r#"{"indices":"logs,unpublished"}"#, 409);
+}
+
+#[test]
+fn an_s3_repository_is_refused_read_only_and_without_an_endpoint() {
+    let r = rig(true, "s3");
+    let ro = r#"{"type":"s3","settings":{"format":"stock","bucket":"b","base_path":"p","readonly":true}}"#;
+    assert_eq!(send(&r, "PUT", "/_snapshot/ro", Some(ro)).status, 200);
+    refused(&r, "ro", "s1", TAKE, 400);
+    let rw = r#"{"type":"s3","settings":{"format":"stock","bucket":"b","base_path":"p"}}"#;
+    assert_eq!(send(&r, "PUT", "/_snapshot/rw", Some(rw)).status, 200);
+    refused(&r, "rw", "s1", TAKE, 501);
 }

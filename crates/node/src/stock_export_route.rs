@@ -11,8 +11,8 @@ use oss_blob::{BlobError, BlobStore, ExportStore, FsStore, S3Config, S3Store, So
 use oss_coordinator::snapshot_admin::render_snapshot;
 use oss_coordinator::snapshot_take_admin::{ACCEPTED, TakeRequest, already_exists, conflict};
 use oss_format::{
-    ClusterSettings, IndexCapture, MAX_SNAPSHOT_RECORD_BYTES, RepositoryRecord, Setting, ShardRef,
-    SnapshotDraft, SnapshotSummary,
+    ClusterSettings, IndexCapture, MAX_SNAPSHOT_RECORD_BYTES, RepositoryRecord, Setting,
+    ShardCapture, ShardRef, SnapshotDraft, SnapshotSummary,
 };
 use oss_meta::{
     CopyBuffers, DescribedIndex, ExportBase, ExportError, ExportIndex, ExportShard, ExportSnapshot,
@@ -60,6 +60,12 @@ fn setting<'a>(record: &'a RepositoryRecord, key: &str) -> &'a str {
         .unwrap_or_default()
 }
 
+/// The longest snapshot name, as the shell's.
+const MAX_NAME_BYTES: usize = 128;
+
+/// The most one stored object may hold (S3's single-put limit).
+const MAX_OBJECT_BYTES: u64 = 5 << 30;
+
 fn unsupported(reason: impl Into<String>) -> RestError {
     refuse(501, "unsupported_operation", reason)
 }
@@ -67,6 +73,7 @@ fn unsupported(reason: impl Into<String>) -> RestError {
 /// The snapshot name stock accepts: letters, digits, dot, dash, underscore.
 fn name_ok(name: &str) -> bool {
     !name.is_empty()
+        && name.len() <= MAX_NAME_BYTES
         && name
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'-' | b'_'))
@@ -169,7 +176,6 @@ impl SnapshotTakeService {
                 format!("[{repo}] is read-only"),
             ));
         }
-        let (store, prefix) = self.target_store(record)?;
         let described = self.describe(asked, value)?;
         let mut inputs = Vec::with_capacity(described.len()); // ALLOC: one entry an index.
         for index in &described {
@@ -190,6 +196,8 @@ impl SnapshotTakeService {
             }
             inputs.push(settings);
         }
+        let captures = self.capture_indices(&described, value)?;
+        let (store, prefix) = self.target_store(record)?;
         let chunk = self.export.chunk_bytes;
         req.body()
             .reserve(chunk.saturating_mul(2).saturating_add(MAX_INDEX_N_BYTES))?;
@@ -202,8 +210,14 @@ impl SnapshotTakeService {
         let base = open_export_base(&target).map_err(|e| export_failed(e, repo, name))?;
         let start = i64::try_from((self.clock)()).unwrap_or(i64::MAX);
         let uuid = new_id().map_err(|e| unavailable(&e))?;
-        let (exported, captures) =
-            self.copy_indices(&described, &base, &target, &mut read, &mut write, value)?;
+        let exported = self.copy_indices(
+            &described,
+            &captures,
+            &base,
+            &target,
+            repo,
+            (&mut read, &mut write),
+        )?;
         for index in &described {
             self.taker
                 .verify(&self.descriptors, index, value)
@@ -261,65 +275,79 @@ impl SnapshotTakeService {
         resp.send(200, JSON, render_snapshot(&summary).as_bytes())
     }
 
-    /// Copies every shard of every index; each index's id and shards, and
-    /// the captures the answer is drawn from.
-    #[allow(clippy::type_complexity)]
-    fn copy_indices(
+    /// Reads every shard's commit, after checking each index is still the
+    /// one described and no file is past the store's single-object limit:
+    /// every refusal comes before the first write.
+    fn capture_indices(
         &self,
         described: &[DescribedIndex],
-        base: &ExportBase,
-        target: &ExportTarget<'_>,
-        read: &mut [u8],
-        write: &mut [u8],
         value: &mut [u8],
-    ) -> Result<
-        (
-            Vec<(String, Vec<ExportShard>)>,
-            Vec<Vec<oss_format::ShardCapture>>,
-        ),
-        RestError,
-    > {
-        let mut exported = Vec::with_capacity(described.len()); // ALLOC: one entry an index.
-        let mut captures = Vec::with_capacity(described.len()); // ALLOC: one entry an index.
+    ) -> Result<Vec<Vec<ShardCapture>>, RestError> {
+        let mut all = Vec::with_capacity(described.len()); // ALLOC: one entry an index.
         for index in described {
             self.taker
                 .verify(&self.descriptors, index, value)
                 .map_err(|e| captured(e, &index.name))?;
-            let id = match base.index_id(&index.name) {
-                Some(held) => held.to_owned(), // ALLOC: one id an index.
-                None => new_id().map_err(|e| unavailable(&e))?,
-            };
-            let mut shards = Vec::new(); // ALLOC: one entry a shard.
-            let mut taken = Vec::new(); // ALLOC: one entry a shard.
+            let mut taken = Vec::with_capacity(index.units().len()); // ALLOC: one entry a shard.
             for &shard in index.units() {
                 let capture = self
                     .taker
                     .capture_shard(index, shard, value)
                     .map_err(|e| captured(e, &index.name))?;
+                if capture.lengths.iter().any(|(_, n)| *n > MAX_OBJECT_BYTES) {
+                    return Err(unsupported(format!(
+                        "[{}] has a file above the {MAX_OBJECT_BYTES}-byte limit of one stored object",
+                        index.name
+                    )));
+                }
+                taken.push(capture);
+            }
+            all.push(taken);
+        }
+        Ok(all)
+    }
+
+    /// Copies every captured shard; each index's id and shards.
+    fn copy_indices(
+        &self,
+        described: &[DescribedIndex],
+        captures: &[Vec<ShardCapture>],
+        base: &ExportBase,
+        target: &ExportTarget<'_>,
+        repo: &str,
+        buffers: (&mut [u8], &mut [u8]),
+    ) -> Result<Vec<(String, Vec<ExportShard>)>, RestError> {
+        let (read, write) = buffers;
+        let mut exported = Vec::with_capacity(described.len()); // ALLOC: one entry an index.
+        for (index, taken) in described.iter().zip(captures) {
+            let id = match base.index_id(&index.name) {
+                Some(held) => held.to_owned(), // ALLOC: one id an index.
+                None => new_id().map_err(|e| unavailable(&e))?,
+            };
+            let mut shards = Vec::with_capacity(taken.len()); // ALLOC: one entry a shard.
+            for capture in taken {
                 let files = self
                     .taker
                     .export_shard(
                         ShardRef {
                             index: &index.name,
                             uuid: &index.uuid,
-                            shard,
+                            shard: capture.shard,
                         },
-                        &capture,
+                        capture,
                         target,
                         &id,
                         &mut CopyBuffers { read, write },
                     )
-                    .map_err(|e| export_failed(e, "", &index.name))?;
+                    .map_err(|e| export_failed(e, repo, &index.name))?;
                 shards.push(ExportShard {
                     index_version: commit_generation(&files),
                     files,
                 });
-                taken.push(capture);
             }
             exported.push((id, shards));
-            captures.push(taken);
         }
-        Ok((exported, captures))
+        Ok(exported)
     }
 
     /// The target store and prefix `record` names, when they sit under an
