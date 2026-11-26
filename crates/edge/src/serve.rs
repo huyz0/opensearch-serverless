@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
+use http::HeaderValue;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::watch;
@@ -28,6 +29,7 @@ pub(crate) async fn accept_loop(
     listener: TcpListener,
     tls: Option<TlsAcceptor>,
     kind: Kind,
+    alt_svc: Option<HeaderValue>,
     shared: Arc<Shared>,
     mut stop: watch::Receiver<bool>,
 ) {
@@ -45,12 +47,13 @@ pub(crate) async fn accept_loop(
                 };
                 let tls = tls.clone();
                 let shared = Arc::clone(&shared);
+                let alt_svc = alt_svc.clone();
                 let mut stop = stop.clone();
                 tokio::spawn(async move {
                     let _permit = permit;
                     tokio::select! {
                         _ = stop.changed() => {}
-                        () = connection(socket, tls, kind, shared) => {}
+                        () = connection(socket, tls, kind, alt_svc, shared) => {}
                     }
                 });
             }
@@ -58,18 +61,24 @@ pub(crate) async fn accept_loop(
     }
 }
 
-async fn connection(socket: TcpStream, tls: Option<TlsAcceptor>, kind: Kind, shared: Arc<Shared>) {
+async fn connection(
+    socket: TcpStream,
+    tls: Option<TlsAcceptor>,
+    kind: Kind,
+    alt_svc: Option<HeaderValue>,
+    shared: Arc<Shared>,
+) {
     let _ = socket.set_nodelay(true);
     let handshake = shared.config.handshake_timeout;
     let Some(acceptor) = tls else {
-        h2_connection(socket, kind, shared).await;
+        h2_connection(socket, kind, alt_svc, shared).await;
         return;
     };
     let Ok(Ok(secured)) = timeout(handshake, acceptor.accept(socket)).await else {
         return;
     };
     if secured.get_ref().1.alpn_protocol() == Some(b"h2".as_slice()) {
-        h2_connection(secured, kind, shared).await;
+        h2_connection(secured, kind, alt_svc, shared).await;
     } else if kind == Kind::Http {
         passthrough(secured, shared).await;
     }
@@ -102,6 +111,7 @@ impl Drop for Active {
 async fn h2_connection<IO: AsyncRead + AsyncWrite + Unpin + Send + 'static>(
     io: IO,
     kind: Kind,
+    alt_svc: Option<HeaderValue>,
     shared: Arc<Shared>,
 ) {
     let window = u32::try_from(shared.config.stream_buffer).unwrap_or(u32::MAX);
@@ -132,10 +142,11 @@ async fn h2_connection<IO: AsyncRead + AsyncWrite + Unpin + Send + 'static>(
         active.fetch_add(1, Ordering::AcqRel);
         let guard = Active(Arc::clone(&active));
         let shared = Arc::clone(&shared);
+        let alt_svc = alt_svc.clone();
         tokio::spawn(async move {
             let _guard = guard;
             match kind {
-                Kind::Http => stream::serve(request, respond, shared).await,
+                Kind::Http => stream::serve(request, respond, alt_svc, shared).await,
                 Kind::Grpc => grpc::serve(request, respond, shared).await,
             }
         });

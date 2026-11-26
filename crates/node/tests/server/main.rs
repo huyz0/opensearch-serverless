@@ -18,6 +18,7 @@ mod boot_buckets;
 mod boot_give_back;
 mod boot_grpc;
 mod boot_grpc_cost;
+mod boot_h3_cost;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod boot_lease_load;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]

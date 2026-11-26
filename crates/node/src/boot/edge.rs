@@ -1,4 +1,4 @@
-//! Starting the HTTP/2 front beside the HTTP/1.1 server (docs/adr/0058).
+//! Starting the protocol front beside the HTTP/1.1 server (docs/adr/0058).
 
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 
@@ -37,6 +37,17 @@ impl super::Node {
     }
 }
 
+impl super::Node {
+    /// The UDP address the HTTP/3 listener bound, when the `edge` feature is built and one is set.
+    #[must_use]
+    pub fn h3_addr(&self) -> Option<SocketAddr> {
+        #[cfg(feature = "edge")]
+        return self.edge.edge.as_ref().and_then(oss_edge::Edge::h3_addr);
+        #[cfg(not(feature = "edge"))]
+        None
+    }
+}
+
 impl Front {
     /// Stops the listeners; streams in flight end with them.
     pub(super) fn stop(&mut self) {
@@ -61,6 +72,8 @@ pub(super) fn start(
         oss_edge::EdgeConfig::new(upstream_of(running.addr()), config.rest_config().workers);
     edge.h2c = s.h2c;
     edge.tls = s.tls;
+    edge.h3 = s.h3;
+    edge.h3_connection_overhead = s.h3_connection_overhead;
     edge.grpc = s.grpc;
     edge.grpc_max_message = s
         .grpc_max_message
@@ -91,7 +104,7 @@ pub(super) fn start(
     let _ = upstream_of;
     if config.edge.enabled() {
         return Err(BootError::Config(
-            "OSS_EDGE_H2C_ADDR, OSS_EDGE_TLS_ADDR or OSS_EDGE_GRPC_ADDR is set, and this build has no `edge` feature"
+            "OSS_EDGE_H2C_ADDR, OSS_EDGE_TLS_ADDR, OSS_EDGE_H3_ADDR or OSS_EDGE_GRPC_ADDR is set, and this build has no `edge` feature"
                 .into(),
         ));
     }

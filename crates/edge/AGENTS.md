@@ -8,4 +8,4 @@ Local rules:
 - Every buffer is charged to the node budget when the front starts (`EdgeConfig::charge`); a stream or connection past its bound is refused, never queued without limit.
 - Flow-control credit goes back to the client only after the loopback socket accepted the bytes.
 - The front never sets `X-Forwarded-For` and no handler treats a loopback peer as privileged.
-- Only this crate (and the node's `edge` feature) may depend on tokio, h2 or rustls.
+- Only this crate (and the node's `edge` feature) may depend on tokio, h2, quinn, h3 or rustls.

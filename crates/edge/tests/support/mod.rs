@@ -13,6 +13,8 @@ use bytes::Bytes;
 use oss_mem::{BudgetConfig, MemoryBudget, Pool};
 use oss_rest::{JSON, Length, Method, Request, Response, Router, Server, ServerConfig};
 
+pub mod quic;
+
 pub const WORKERS: usize = 16;
 /// The largest body the test server accepts.
 pub const MAX_BODY: u64 = 1 << 20;
@@ -254,7 +256,8 @@ pub fn h1(addr: SocketAddr, method: &str, path: &str, host: &str, body: &[u8]) -
         body.len()
     );
     s.write_all(head.as_bytes()).expect("head");
-    s.write_all(body).expect("body");
+    // A server that refuses the body (413) may close before it is all written.
+    let _ = s.write_all(body);
     let mut raw = Vec::new();
     let mut piece = [0u8; 8192];
     loop {
