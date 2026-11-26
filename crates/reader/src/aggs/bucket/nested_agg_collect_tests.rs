@@ -148,7 +148,8 @@ fn a_reverse_nested_of_an_unmapped_path_counts_nothing_and_a_stray_one_fails() {
     );
     assert!(got.contains(r#""r":{"doc_count":0}"#), "{got}");
     let e = run(&shard, r#"{"aggs":{"r":{"reverse_nested":{}}}}"#).expect_err("refused");
-    assert_eq!(e.status, 500);
+    assert_eq!(e.status, 400);
+    assert_eq!(e.failure.kind, "illegal_argument_exception");
     assert_eq!(
         e.failure.reason,
         "Reverse nested aggregation [r] can only be used inside a [nested] aggregation"

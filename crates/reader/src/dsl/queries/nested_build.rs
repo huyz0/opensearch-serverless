@@ -35,9 +35,26 @@ fn illegal_state(reason: String) -> Failure {
     Failure::plain("illegal_state_exception", reason)
 }
 
+/// Whether `path` names an object (`getObjectMapper`): some field lies under
+/// it. A leaf field is no object, so it is unmapped here.
+pub fn is_object(cx: &QueryContext<'_>, path: &str) -> bool {
+    cx.mapping
+        .names()
+        .any(|n| n.strip_prefix(path).is_some_and(|r| r.starts_with('.')))
+}
+
 /// The query for `q`.
 pub fn nested(q: &NestedQuery, cx: &QueryContext<'_>) -> Result<Clause, Failure> {
     if !cx.mapping.is_nested(&q.path) {
+        // A mapped object that is not nested fails even when unmapped paths
+        // are ignored.
+        if is_object(cx, &q.path) {
+            // ALLOC: error path; one message.
+            return Err(illegal_state(format!(
+                "[nested] nested object under path [{}] is not of nested type",
+                q.path
+            )));
+        }
         return if q.ignore_unmapped {
             Ok(match_none())
         } else {

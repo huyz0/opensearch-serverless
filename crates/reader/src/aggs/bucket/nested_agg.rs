@@ -11,7 +11,7 @@ use lucene_search::{BooleanQuery, Clause};
 
 use crate::aggs::metric::MetricAgg;
 use crate::dsl::error::DslError;
-use crate::dsl::queries::nested_build::{non_nested, type_filter};
+use crate::dsl::queries::nested_build::{is_object, non_nested, type_filter};
 use crate::dsl::tokens::{Kind, Parser};
 use crate::failure::Failure;
 use crate::lucene_query::{QueryContext, match_none};
@@ -82,6 +82,39 @@ pub fn own_queries(agg: &MetricAgg) -> usize {
     }
 }
 
+/// A `reverse_nested` outside a `nested`: the aggregation builder's own
+/// failure, which the shard answers as it is (a bad request).
+fn outside(agg: &MetricAgg) -> Failure {
+    Failure::plain(
+        "illegal_argument_exception",
+        // ALLOC: error path; one message.
+        format!(
+            "Reverse nested aggregation [{}] can only be used inside a [nested] aggregation",
+            agg.name
+        ),
+    )
+}
+
+/// Refuses a `reverse_nested` that no `nested` holds, in `aggs` and under
+/// them, before any filter is planned.
+///
+/// # Errors
+///
+/// The first such aggregation, as a 400.
+pub fn check_placement(aggs: &[MetricAgg]) -> Result<(), crate::search::ShardError> {
+    fn walk(aggs: &[MetricAgg], inside: bool) -> Result<(), crate::search::ShardError> {
+        for agg in aggs {
+            let spec = agg.nested.as_deref();
+            if spec.is_some_and(|s| s.reverse) && !inside {
+                return Err(crate::search::ShardError::bad_request(outside(agg)));
+            }
+            walk(&agg.subs, inside || spec.is_some_and(|s| !s.reverse))?;
+        }
+        Ok(())
+    }
+    walk(aggs, false)
+}
+
 fn refusal(reason: String) -> Failure {
     Failure::opensearch("aggregation_execution_exception", reason)
 }
@@ -92,14 +125,6 @@ fn filter_of(clause: Clause) -> BooleanQuery {
         filter: vec![clause],
         ..BooleanQuery::default()
     }
-}
-
-/// Whether `path` names an object (`getObjectMapper`): some field lies under
-/// it. A leaf field is no object, so it is unmapped here.
-fn is_object(cx: &QueryContext<'_>, path: &str) -> bool {
-    cx.mapping
-        .names()
-        .any(|n| n.strip_prefix(path).is_some_and(|r| r.starts_with('.')))
 }
 
 /// A query that matches no document.
@@ -128,11 +153,8 @@ pub fn queries(
     let path = spec.path.as_deref();
     if spec.reverse {
         if enclosing.is_none() {
-            // ALLOC: error path; one message.
-            return Err(refusal(format!(
-                "Reverse nested aggregation [{}] can only be used inside a [nested] aggregation",
-                agg.name
-            )));
+            // `check_placement` refuses this first; kept for a caller that plans alone.
+            return Err(outside(agg));
         }
         let parents = match path {
             None => non_nested(),

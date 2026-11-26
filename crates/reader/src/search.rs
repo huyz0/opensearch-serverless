@@ -318,6 +318,7 @@ pub fn search_with<S: BlobStore + 'static>(
     for agg in &source.aggs {
         crate::aggs::bucket::check_limits(agg)?;
     }
+    crate::aggs::bucket::nested_agg::check_placement(&source.aggs)?;
     let filter_plans = filters_collect::plan(&source.aggs, &cx)
         .map_err(|f| ShardError::of_plan(shard_failure(f, index, &meta.uuid)))?;
     let numeric_sort = sort
@@ -459,8 +460,11 @@ pub(crate) fn scored_fields(query: &BooleanQuery) -> Vec<String> {
             Clause::Boolean(b) => each(b, out),
             Clause::Boost(b) => walk(&b.inner, out),
             Clause::Extended(e) => {
-                if let ExtendedQuery::FunctionScore(q) = &**e {
-                    walk(q.wrapped_query(), out);
+                match &**e {
+                    ExtendedQuery::FunctionScore(q) => walk(q.wrapped_query(), out),
+                    // The child query's fields score the parents.
+                    ExtendedQuery::ToParentBlockJoin(q) => walk(&q.child, out),
+                    _ => {}
                 }
             }
             Clause::DisjunctionMax(d) => {
