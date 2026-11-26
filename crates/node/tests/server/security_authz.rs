@@ -299,3 +299,28 @@ fn only_an_administrator_may_upload_a_module() {
         "past the check, refused for what it is: {admin:?}"
     );
 }
+
+// docs/specs/stock-snapshot-export AC-8: registering a repository is a cluster
+// administrator's act, so a user with index permissions is refused and
+// nothing is registered.
+#[test]
+fn only_an_administrator_may_register_or_delete_a_repository() {
+    let r = node_with(LOGS_RW);
+    let body = r#"{"type":"fs","settings":{"location":"/tmp/oss-authz-repo"}}"#;
+    for (m, t) in [
+        ("PUT", "/_snapshot/r1"),
+        ("POST", "/_snapshot/r1"),
+        ("DELETE", "/_snapshot/r1"),
+        ("POST", "/_snapshot/r1/_verify"),
+    ] {
+        let reply = send(&r, USER, m, t, Some(body));
+        assert_eq!(reply.0, 403, "{m} {t}: {reply:?}");
+    }
+    let listed = send(&r, ADMIN, "GET", "/_snapshot/r1", None);
+    assert_eq!(
+        listed.0, 404,
+        "the refused PUT registered nothing: {listed:?}"
+    );
+    let admin = send(&r, ADMIN, "PUT", "/_snapshot/r1", Some(body));
+    assert_ne!(admin.0, 403, "past the check: {admin:?}");
+}
