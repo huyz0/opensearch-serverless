@@ -137,15 +137,13 @@ pub struct Config {
     pub janitor_every: Duration,
     /// How a janitor sweep behaves; it starts as a dry run.
     pub sweep: gc::Config,
-    /// The most shards an index may have to be purged inside its delete;
-    /// a larger one is purged at the reclaim.
+    /// The most shards an index may be purged inside its delete; more wait for the reclaim.
     pub inline_purge_max_shards: u32,
     /// How often this node drains the reclaim queue.
     pub reclaim_every: Duration,
     /// The most points in time that may be live for a janitor pass to run.
     pub janitor_max_views: usize,
-    /// A disk tier for the page cache: its directory and the most bytes of
-    /// slots it holds; none keeps nothing past a read.
+    /// A disk tier for the page cache: its directory and most bytes; none keeps nothing past a read.
     pub page_cache_disk: Option<(std::path::PathBuf, u64)>,
     /// The most bytes of demand-filled pages kept resident; 0 is the engine's default.
     pub resident_page_bytes: u64,

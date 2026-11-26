@@ -261,15 +261,11 @@ fn an_alias_another_writer_holds_is_named_and_the_restored_index_stays() {
     // A mutation of `shared` another writer started and has not finished, with
     // a deadline far ahead, so this restore can neither recover nor wait it out.
     let mut buf = vec![0u8; 1 << 16];
-    let at = match r.descriptors.resolve_raw("shared", &mut buf).unwrap() {
-        o => (
-            o.generation,
-            match o.target {
-                Target::Alias(a) => a.into_owned(),
-                _ => panic!("an alias"),
-            },
-        ),
+    let held = r.descriptors.resolve_raw("shared", &mut buf).unwrap();
+    let Target::Alias(alias) = held.target else {
+        panic!("an alias");
     };
+    let at = (held.generation, alias.into_owned());
     let pending = AliasRecord {
         mutation: Some(oss_format::AliasMutation {
             until: 1_700_000_000_000 + 10_000_000_000,

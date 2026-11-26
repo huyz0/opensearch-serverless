@@ -10,6 +10,9 @@ use crate::pit::CaptureError;
 use crate::snapshot_capture::DescribedIndex;
 use crate::snapshot_take::SnapshotTaker;
 
+/// An alias's members and its explicit write member.
+type Confirmed = (Vec<String>, Option<String>);
+
 impl SnapshotTaker {
     /// Sets each index's confirmed aliases from its hint. Cost: one GET for
     /// each distinct alias named, however many indices name it.
@@ -25,7 +28,7 @@ impl SnapshotTaker {
     ) -> Result<(), CaptureError> {
         // Each distinct alias once: its members and its explicit write member.
         // ALLOC: one entry a distinct alias, at most MAX_ALIASES an index.
-        let mut read: BTreeMap<&str, Option<(Vec<String>, Option<String>)>> = BTreeMap::new();
+        let mut read: BTreeMap<&str, Option<Confirmed>> = BTreeMap::new();
         for name in indices.iter().flat_map(|i| i.hint.iter()) {
             if read.contains_key(name.as_str()) {
                 continue;
