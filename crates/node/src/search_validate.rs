@@ -16,10 +16,17 @@ use oss_reader::failure::Failure;
 use oss_reader::lucene_query::{QueryContext, shard_failure, to_lucene};
 use oss_rest::{JSON, Method, Request, Response, RestError, RouteError, Router};
 
-use super::{Answer, SearchService, read_source, send};
+use super::{Answer, SearchService, read_source, send, uri_query};
 
-/// The URL parameters `_validate/query` takes: none yet.
-const VALIDATE_PARAMS: &[&str] = &[];
+/// The URL parameters `_validate/query` takes: the `q` family.
+const VALIDATE_PARAMS: &[&str] = &[
+    "q",
+    "df",
+    "default_operator",
+    "analyzer",
+    "analyze_wildcard",
+    "lenient",
+];
 
 /// What a refusal of this node says, and so what is not an invalid query.
 const NOT_SUPPORTED: &str = "is not supported by this node yet";
@@ -70,7 +77,11 @@ impl<S: BlobStore + 'static> SearchService<S> {
         resp: &mut Response<'_>,
     ) -> Result<(), RestError> {
         let parsed = match read_source(req) {
-            Ok(source) => Some(source),
+            Ok(mut source) => match uri_query::apply(req, &mut source, true) {
+                Ok(()) => Some(source),
+                Err(Answer::Rest(e)) => return Err(e),
+                Err(Answer::Search(e)) => return send(resp, &e),
+            },
             Err(Answer::Rest(e)) => return Err(e),
             Err(Answer::Search(e)) if refused(&e.failure) => return send(resp, &e),
             Err(Answer::Search(_)) => None,

@@ -124,7 +124,7 @@ fn no_index_and_any_parameter_are_refused() {
     let r = request(node.addr(), "POST", "/_validate/query", None);
     assert_eq!(r.status, 400, "{}", r.text());
     assert!(r.text().contains("not supported by this node yet"));
-    for param in ["explain=true", "rewrite=true", "all_shards=true", "q=a"] {
+    for param in ["explain=true", "rewrite=true", "all_shards=true"] {
         let r = request(
             node.addr(),
             "POST",
@@ -143,4 +143,55 @@ fn validating_an_open_index_makes_no_request_to_the_store() {
     let warm = counts(&node.store);
     assert_eq!(validate(&node, "POST", "compat-term", None).0, 200);
     assert_eq!(counts(&node.store), warm);
+}
+
+fn validate_with(node: &Node, query: &str, body: Option<&str>) -> (u16, String) {
+    let r = request(
+        node.addr(),
+        "POST",
+        &format!("/compat-term/_validate/query{query}"),
+        body.map(str::as_bytes),
+    );
+    (r.status, r.text())
+}
+
+// AC-8
+#[test]
+fn the_q_parameters_are_validated_as_a_query_string() {
+    let node = start();
+    for good in [
+        "?q=title:brown",
+        "?q=brown&df=title",
+        "?q=quick%20fox&df=title&default_operator=AND",
+        "?q=brown&df=title&analyzer=standard&lenient=true",
+    ] {
+        assert_eq!(
+            validate_with(&node, good, None),
+            (200, VALID.to_owned()),
+            "{good}"
+        );
+    }
+    // A query string that does not parse is invalid, not a refusal.
+    assert_eq!(
+        validate_with(&node, "?q=title:(brown", None),
+        (200, INVALID.to_owned())
+    );
+    // A body's query wins over `q`.
+    assert_eq!(
+        validate_with(
+            &node,
+            "?q=title:(brown",
+            Some(r#"{"query":{"match_all":{}}}"#)
+        ),
+        (200, VALID.to_owned())
+    );
+    // What `query_string` does not serve is refused as in a search.
+    let (status, body) = validate_with(&node, "?q=a&analyze_wildcard=true", None);
+    assert_eq!(status, 400, "{body}");
+    assert!(body.contains("not supported by this node yet"), "{body}");
+    for bad in ["?q=a&default_operator=XOR", "?q=a&lenient=maybe"] {
+        let (status, body) = validate_with(&node, bad, None);
+        assert_eq!(status, 400, "{bad}: {body}");
+        assert!(body.contains("illegal_argument_exception"), "{bad}: {body}");
+    }
 }
