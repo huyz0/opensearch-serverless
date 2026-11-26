@@ -220,6 +220,53 @@ fn a_match_is_analysed_by_the_module_the_index_pins() {
     assert!(reply.text().contains(r#""value":1"#), "{}", reply.text());
 }
 
+/// Each query that analyses its text, over the one field the index pins: every text is the term
+/// `probe` to the module, so each finds the document, and the built-in analyzer would find none.
+const TEXT_QUERIES: [(&str, &str); 6] = [
+    ("match", r#"{"match":{"t":"zzzzzzz"}}"#),
+    ("match_phrase", r#"{"match_phrase":{"t":"zzzzzzz"}}"#),
+    (
+        "multi_match",
+        r#"{"multi_match":{"query":"zzzzzzz","fields":["t"]}}"#,
+    ),
+    (
+        "query_string",
+        r#"{"query_string":{"query":"zzzzzzz","default_field":"t"}}"#,
+    ),
+    (
+        "query_string field",
+        r#"{"query_string":{"query":"t:zzzzzzz"}}"#,
+    ),
+    (
+        "simple_query_string",
+        r#"{"simple_query_string":{"query":"zzzzzzz","fields":["t"]}}"#,
+    ),
+];
+
+// AC-13 (the other text queries)
+#[test]
+fn every_query_that_analyses_text_uses_the_module_the_index_pins() {
+    let root = TempDir::new("pinned-sites");
+    let dir = ByteBuffersDirectory::new();
+    let r = rig(root.path(), &dir, &module());
+    assert!(r.service.set_modules(modules(root.path())));
+    let missed: Vec<&str> = TEXT_QUERIES
+        .iter()
+        .filter(|(_, query)| {
+            let body = format!(r#"{{"query":{query}}}"#);
+            let reply = request(
+                r.server.local_addr(),
+                "POST",
+                "/logs/_search",
+                Some(body.as_bytes()),
+            );
+            reply.status != 200 || !reply.text().contains(r#""value":1"#)
+        })
+        .map(|(name, _)| *name)
+        .collect();
+    assert!(missed.is_empty(), "not analysed by the module: {missed:?}");
+}
+
 // AC-14
 #[test]
 fn a_reader_that_cannot_load_the_module_refuses_the_search() {
