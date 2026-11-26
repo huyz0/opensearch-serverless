@@ -15,146 +15,14 @@
 #![allow(clippy::arithmetic_side_effects, clippy::disallowed_methods)]
 
 mod suite_rig;
+mod warm_scale_support;
 
 use std::collections::BTreeMap;
-use std::io::{Read, Write};
-use std::net::{SocketAddr, TcpStream};
-use std::process::{Child, Command, Stdio};
+use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 
 use suite_rig::Cluster;
-
-fn knob(name: &str, default: usize) -> usize {
-    std::env::var(name)
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(default)
-}
-
-/// One request on its own connection with a long read timeout; the status.
-fn send(addr: SocketAddr, method: &str, target: &str, body: &str) -> (u16, String) {
-    let Ok(mut s) = TcpStream::connect(addr) else {
-        return (0, String::new());
-    };
-    s.set_read_timeout(Some(Duration::from_secs(900)))
-        .expect("timeout");
-    let head = format!(
-        "{method} {target} HTTP/1.1\r\nhost: test\r\nconnection: close\r\ncontent-type: application/json\r\ncontent-length: {}\r\n\r\n",
-        body.len()
-    );
-    s.write_all(head.as_bytes()).expect("head");
-    let _ = s.write_all(body.as_bytes());
-    let mut raw = Vec::new();
-    let _ = s.read_to_end(&mut raw);
-    let text = String::from_utf8_lossy(&raw).into_owned();
-    let status = text
-        .split(' ')
-        .nth(1)
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(0);
-    (status, text)
-}
-
-fn free_port() -> u16 {
-    std::net::TcpListener::bind("127.0.0.1:0")
-        .expect("binds")
-        .local_addr()
-        .expect("addr")
-        .port()
-}
-
-fn percentile(sorted: &[f64], p: f64) -> f64 {
-    if sorted.is_empty() {
-        return 0.0;
-    }
-    let at = ((sorted.len() as f64 - 1.0) * p).round() as usize;
-    sorted[at]
-}
-
-fn used(dir: &std::path::Path) -> u64 {
-    use std::os::unix::fs::MetadataExt;
-    let mut total = 0_u64;
-    for e in std::fs::read_dir(dir).into_iter().flatten().flatten() {
-        let p = e.path();
-        total += if p.is_dir() {
-            used(&p)
-        } else {
-            p.metadata().map_or(0, |m| m.blocks() * 512)
-        };
-    }
-    total
-}
-
-/// Processor seconds (user plus system) from a `/proc/.../stat` line.
-fn stat_seconds(stat: &str) -> f64 {
-    let after = stat.rsplit_once(')').map_or("", |(_, r)| r);
-    let f: Vec<&str> = after.split_whitespace().collect();
-    let ticks = |i: usize| f.get(i).and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.0);
-    (ticks(11) + ticks(12)) / 100.0
-}
-
-/// This process's processor seconds by thread name.
-fn threads() -> BTreeMap<String, f64> {
-    let mut by = BTreeMap::new();
-    for t in std::fs::read_dir("/proc/self/task")
-        .into_iter()
-        .flatten()
-        .flatten()
-    {
-        let stat = std::fs::read_to_string(t.path().join("stat")).unwrap_or_default();
-        let name = stat
-            .split_once('(')
-            .and_then(|(_, r)| r.rsplit_once(')'))
-            .map_or("?", |(n, _)| n)
-            .trim_end_matches(|c: char| c.is_ascii_digit() || c == '-' || c == '_')
-            .to_owned();
-        *by.entry(name).or_insert(0.0) += stat_seconds(&stat);
-    }
-    by
-}
-
-fn process_seconds(pid: u32) -> f64 {
-    stat_seconds(&std::fs::read_to_string(format!("/proc/{pid}/stat")).unwrap_or_default())
-}
-
-struct Joiner {
-    child: Child,
-    http: SocketAddr,
-}
-
-impl Drop for Joiner {
-    fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-    }
-}
-
-fn spawn_joiner(cluster: &Cluster, tier: &std::path::Path, warm: bool) -> Joiner {
-    let (endpoint, bucket, region, access, secret) = cluster.store();
-    let http: SocketAddr = format!("127.0.0.1:{}", free_port()).parse().expect("addr");
-    let transport = format!("127.0.0.1:{}", free_port());
-    let child = Command::new(env!("CARGO_BIN_EXE_oss-node"))
-        .env("OSS_NODE_ID", "n2")
-        .env("OSS_STORE", "s3")
-        .env("OSS_S3_ENDPOINT", endpoint)
-        .env("OSS_S3_BUCKET", bucket)
-        .env("OSS_S3_REGION", region)
-        .env("OSS_S3_ACCESS_KEY", access)
-        .env("OSS_S3_SECRET_KEY", secret)
-        .env("OSS_HTTP_ADDR", http.to_string())
-        .env("OSS_TRANSPORT_ADDR", transport)
-        .env("OSS_LEASE_TTL_MS", "3000")
-        .env("OSS_MEMORY_BYTES", "8589934592")
-        .env("OSS_PAGE_CACHE_DIR", tier)
-        .env("OSS_PAGE_CACHE_BYTES", "1073741824")
-        .env("OSS_WARM_ON_JOIN", if warm { "true" } else { "false" })
-        .env("OSS_WARM_MAX_WAIT_SECONDS", "600")
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("the node binary starts");
-    Joiner { child, http }
-}
+use warm_scale_support::{knob, percentile, process_seconds, send, spawn_joiner, threads, used};
 
 struct Run {
     base_p99: f64,
@@ -226,7 +94,7 @@ fn run(warm: bool, shards: usize, docs: usize, window: Duration, gap: Duration) 
 
     let cpu0 = threads();
     let started = Instant::now();
-    let joiner = spawn_joiner(&cluster, &root.join("n2"), warm);
+    let joiner = spawn_joiner(&cluster, &root.join("n2"), warm, "n2", &[]);
     let pid = joiner.child.id();
     let mut during = Vec::new();
     let mut ready_s = 0.0;

@@ -179,6 +179,7 @@ fn settings(rate: u64) -> Settings<'static> {
         max_shards: 1000,
         max_bytes: 1 << 30,
         bytes_per_second: rate,
+        open_parallel: 16,
     }
 }
 

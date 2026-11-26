@@ -160,12 +160,45 @@ fn the_peers_shards_are_opened_side_by_side_and_each_once() {
     assert_eq!(shards.opened.load(SeqCst), count, "each shard opened once");
     let most = shards.most.load(SeqCst);
     assert!(
-        (2..=OPEN_PARALLEL).contains(&most),
-        "{most} open at once, to be more than one and at most {OPEN_PARALLEL}"
+        (2..=16).contains(&most),
+        "{most} open at once, to be more than one and at most 16"
     );
     assert!(
         took < Duration::from_millis(40_u64.saturating_mul(64) / 3),
         "{took:?} for {count} shards opened one after another takes {:?}",
         Duration::from_millis(40_u64.saturating_mul(64))
     );
+}
+
+// docs/specs/reader-warm-copy AC-4
+#[test]
+fn the_shards_opened_at_once_are_what_the_setting_says() {
+    use std::sync::atomic::Ordering::SeqCst;
+    let a = oss_testkit::TempDir::new("warm-copy-open-two-peer");
+    let b = oss_testkit::TempDir::new("warm-copy-open-two-joiner");
+    let peer = rig(a.path());
+    let joiner = cache(b.path());
+    for parallel in [1_usize, 2, 4] {
+        let shards = Opening {
+            now: 0.into(),
+            most: 0.into(),
+            opened: 0.into(),
+            expected: Arc::clone(&peer.expected),
+        };
+        let settings = Settings {
+            open_parallel: parallel,
+            ..settings(1 << 20)
+        };
+        copy_from_peer(
+            &Listing(12),
+            &shards,
+            &joiner,
+            &settings,
+            &Sleeps::default(),
+            &Progress::default(),
+            &never,
+        );
+        assert_eq!(shards.opened.load(SeqCst), 12);
+        assert_eq!(shards.most.load(SeqCst), parallel, "{parallel} at once");
+    }
 }

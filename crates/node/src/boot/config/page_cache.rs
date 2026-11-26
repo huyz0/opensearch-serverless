@@ -43,6 +43,8 @@ pub struct WarmPeer {
     pub bytes_per_second: u64,
     /// The most peers a joining node takes from at once.
     pub parallel_peers: u64,
+    /// The most of a peer's shards a joining node opens at once.
+    pub open_parallel: u64,
 }
 
 /// The longest a joining node is held out of the readers, in seconds.
@@ -81,6 +83,7 @@ pub(in crate::boot) fn read(
                 .min(MAX_WAIT_CAP_SECS),
             bytes_per_second: bounded("OSS_WARM_BYTES_PER_SECOND", "67108864", 1, MAX_BYTES)?,
             parallel_peers: bounded("OSS_WARM_PARALLEL_PEERS", "4", 1, 64)?,
+            open_parallel: bounded("OSS_WARM_OPEN_PARALLEL", "8", 1, 64)?,
         })
     } else {
         None
@@ -159,6 +162,7 @@ mod tests {
                 max_wait_secs: 60,
                 bytes_per_second: 64 << 20,
                 parallel_peers: 4,
+                open_parallel: 8,
             })
         );
     }
@@ -176,6 +180,7 @@ mod tests {
             ("OSS_WARM_MAX_WAIT_SECONDS", "3600"),
             ("OSS_WARM_BYTES_PER_SECOND", "1000"),
             ("OSS_WARM_PARALLEL_PEERS", "3"),
+            ("OSS_WARM_OPEN_PARALLEL", "5"),
         ]);
         let warm = read_with(&vars).expect("reads").expect("tier").warm;
         assert_eq!(
@@ -189,6 +194,7 @@ mod tests {
                 max_wait_secs: 300,
                 bytes_per_second: 1000,
                 parallel_peers: 3,
+                open_parallel: 5,
             })
         );
         for (key, bad) in [
@@ -201,6 +207,8 @@ mod tests {
             ("OSS_WARM_MAX_WAIT_SECONDS", "0"),
             ("OSS_WARM_BYTES_PER_SECOND", "0"),
             ("OSS_WARM_PARALLEL_PEERS", "65"),
+            ("OSS_WARM_OPEN_PARALLEL", "0"),
+            ("OSS_WARM_OPEN_PARALLEL", "65"),
         ] {
             let mut vars = TIER.to_vec();
             vars.extend([("OSS_WARM_ON_JOIN", "true"), (key, bad)]);
