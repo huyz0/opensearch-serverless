@@ -187,6 +187,7 @@ pub(super) fn apply_janitor_and_hibernation(
     node.node_packs = config.node_packs;
     node.merge = config.merge.clone();
     node.knn = config.knn;
+    node.nested = config.nested;
     node.security = config.security;
     node.security_admin.clone_from(&config.security_admin);
     node.security_refresh_millis = config.security_refresh_millis;

@@ -238,7 +238,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
                 Mapping::default()
             } else {
                 // ALLOC: one mapping a call, bounded by the descriptor's mapping text.
-                Mapping::parse(json.as_bytes()).map_err(|e| {
+                Mapping::from_descriptor(Some(json)).map_err(|e| {
                     RestError::exception(
                         500,
                         Exception::new("mapper_parsing_exception", e.to_string()),

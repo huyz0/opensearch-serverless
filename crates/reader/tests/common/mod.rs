@@ -56,10 +56,10 @@ pub fn commit_with_data(
                     version: 1,
                     source: source.as_bytes(),
                 };
-                docs.push(
+                docs.extend(
                     indexer
-                        .document(&mut w, mapping, &parsed, &meta)
-                        .expect("doc"),
+                        .block_routed(&mut w, mapping, &parsed, &meta, None)
+                        .expect("block"),
                 );
             }
             w.add_explicit_documents(docs).expect("add");

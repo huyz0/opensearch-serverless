@@ -172,9 +172,18 @@ impl<'m> Parser<'m, '_> {
             format!("{}.{name}", self.path_text())
         };
         let mut obj = &mut self.update;
+        let mut prefix = String::new();
         for segment in &self.path {
+            if !prefix.is_empty() {
+                prefix.push('.');
+            }
+            prefix.push_str(segment);
             if obj.child(segment).is_none() {
-                obj.put(segment, Mapper::Object(dynamic_object()));
+                // An existing nested object keeps its kind in the update, as the Java's
+                // `mappingUpdate` of a parent does, or the merge would change it.
+                let mut parent = dynamic_object();
+                parent.nested = self.mapping.is_nested(&prefix);
+                obj.put(segment, Mapper::Object(parent));
             }
             obj = match obj.child_mut(segment) {
                 Some(Mapper::Object(o)) => o,

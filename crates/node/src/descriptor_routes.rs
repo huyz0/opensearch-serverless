@@ -164,7 +164,7 @@ impl DescriptorRoutes {
         let routing_required = record
             .mapping
             .as_deref()
-            .and_then(|text| Mapping::parse(text.as_bytes()).ok())
+            .and_then(|text| Mapping::from_descriptor(Some(text)).ok())
             .is_some_and(|m| m.routing_required());
         Some(IndexInfo {
             // ALLOC: two names a lookup.

@@ -75,3 +75,4 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0064](0064-commits-are-staged-and-checkpointed.md) | A routine publish stages its commit, and the register is written as a checkpoint | Accepted |
 | [0065](0065-a-snapshot-captures-the-aliases-of-its-indices.md) | A snapshot captures the aliases of its indices, and a restore may bring them back | Accepted |
 | [0066](0066-a-partial-snapshot-records-the-shards-it-could-not-capture.md) | A partial snapshot records the shards it could not capture, and a restore may bring it back | Accepted |
+| [0067](0067-nested-objects-are-child-documents-in-the-parents-block.md) | A nested object is a child document in its parent's block | Accepted |
