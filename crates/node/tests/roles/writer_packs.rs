@@ -105,9 +105,9 @@ fn with_packs_on_a_publish_is_one_pack_put_and_names_the_pack() {
     let on = puts(&c) - before;
     assert!(names_a_pack(&c), "the manifest names a pack location");
     assert!(has_ledger(&c), "the epoch is recorded");
-    // Packs on add the ledger create to the one pack PUT; the segment's own
-    // blob PUTs are gone, so a segment of several files is no more PUTs.
-    assert!(on <= off + 1, "packs on {on}, off {off}");
+    // Off: the segment's blob and the register swap. On: one pack, the
+    // ledger's first create and the swap; no blob of its own.
+    assert_eq!((off, on), (2, 3));
 }
 
 // AC-5

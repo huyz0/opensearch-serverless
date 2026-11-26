@@ -6,8 +6,8 @@ Parity plan R11.1 (node packs), [ADR 0024](../../adr/0024-node-packs-in-the-writ
 
 ## Change
 
-- Three node settings, `oss-writer::pack::settings`: `serverless.segments.node_pack.enabled` (default `false`), `.max_blob_bytes` (default 8 MiB, 1 to 64 MiB) and `.linger_millis` (default 50, 1 to 5,000). Environment: `OSS_NODE_PACKS`, `OSS_NODE_PACK_MAX_BLOB_BYTES`, `OSS_NODE_PACK_LINGER_MS`; the two sizes alone change nothing while the switch is off.
-- The writer role's `Publishing` takes an optional pack configuration. With it, the node makes one `PackWriter` for the life of the process, on the first publish that needs it (so a node that never publishes, or never packs, makes no request for it): the epoch comes from the ledger (`next_epoch` over the wall clock), the ledger records it before the first pack. Every shard's publisher is given a `PackPlacement` for that writer before each publish, so one node's shards that publish within the linger share a pack.
+- Three node settings, `oss-node::writer::packs`: `serverless.segments.node_pack.enabled` (default `false`), `.max_blob_bytes` (default 8 MiB, 1 to 64 MiB) and `.linger_millis` (default 50, 1 to 5,000). Environment: `OSS_NODE_PACKS`, `OSS_NODE_PACK_MAX_BLOB_BYTES`, `OSS_NODE_PACK_LINGER_MS`; the two sizes alone change nothing while the switch is off.
+- The writer role's `Publishing` takes an optional pack configuration. With it, the node makes one `PackWriter` for the life of the process, on the node's first publish while packing is on (so a node that never publishes makes no request for it): the epoch comes from the ledger (`next_epoch` over the wall clock), the ledger records it before the first pack. Every shard's publisher is given a `PackPlacement` for that writer before each publish, so one node's shards that publish within the linger share a pack.
 - A failure to make the writer fails that publish (the shard stays due and is retried at the next pass); it never falls back silently to blobs.
 - Not changed: the collector. [ADR 0024](../../adr/0024-node-packs-in-the-writer.md) keeps the switch off everywhere until [ADR 0025](../../adr/0025-node-pack-collection.md) is accepted and built, so a pack is written that nothing deletes: this change is for the bounded R11 measurement only (ADR 0025, decision 5). The cluster-register and per-index overrides (`index.serverless.segments.node_pack.enabled`) arrive with the collector and the flip, with the node's environment as the cluster default until then, as for commit staging.
 
@@ -23,7 +23,7 @@ Parity plan R11.1 (node packs), [ADR 0024](../../adr/0024-node-packs-in-the-writ
 
 ## Test plan
 
-`crates/node/tests/roles/writer_packs.rs` over the emulator and its meter (AC-3 to AC-7); settings unit tests beside the settings (AC-1) and in `boot/config` (AC-2). Written first and seen failing.
+`crates/node/tests/roles/writer_packs.rs` over the emulator and its meter (AC-3 to AC-7; the pack-sharing of two shards in one linger is held by `node-pack-placement` AC-2); settings unit tests beside the settings (AC-1) and in `boot/config` (AC-2). Written first and seen failing.
 
 ## S3 request budget
 

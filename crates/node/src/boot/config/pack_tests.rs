@@ -43,3 +43,14 @@ fn a_pack_size_outside_its_bounds_is_refused() {
         );
     }
 }
+
+// AC-2: the switch reaches the publishing a node is built with.
+#[test]
+fn the_switch_reaches_the_node_configuration() {
+    let on = NodeConfig::from_lookup(lookup(&with(&[("OSS_NODE_PACKS", "true")]))).expect("valid");
+    let mut node = crate::assemble::Config::new("", "n1", [0; 6]);
+    assert_eq!(node.node_packs, None);
+    crate::boot::support::apply_janitor_and_hibernation(&mut node, &on);
+    assert_eq!(node.node_packs, on.node_packs);
+    assert!(node.node_packs.is_some());
+}
