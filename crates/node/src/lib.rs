@@ -208,6 +208,8 @@ pub(crate) mod time_value;
 #[cfg(all(feature = "extensions", feature = "reader", feature = "writer"))]
 mod usage_extensions;
 #[cfg(all(feature = "reader", feature = "writer"))]
+pub mod usage_metrics;
+#[cfg(all(feature = "reader", feature = "writer"))]
 pub mod usage_route;
 #[cfg(feature = "reader")]
 pub mod vector_warm_setting;

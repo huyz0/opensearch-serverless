@@ -56,6 +56,9 @@ fn a_node_without_store_usage_serves_no_usage_route() {
     let reply = call(&node, "GET", "/_serverless/usage", None);
     assert_ne!(reply.status, 200, "{}", reply.text());
     assert!(!reply.text().contains("cost_units"));
+    // docs/specs/prometheus-metrics AC-5: no ledger, no metrics route.
+    let metrics = call(&node, "GET", "/_prometheus/metrics", None);
+    assert_ne!(metrics.status, 200, "{}", metrics.text());
 }
 
 // AC-3
@@ -66,6 +69,15 @@ fn a_node_with_no_store_usage_setting_serves_the_usage_route() {
     let reply = call(&node, "GET", "/_serverless/usage", None);
     assert_eq!(reply.status, 200, "{}", reply.text());
     assert!(reply.text().contains("cost_units"), "{}", reply.text());
+    // docs/specs/prometheus-metrics: the node's own request counts and pools.
+    let metrics = call(&node, "GET", "/_prometheus/metrics", None);
+    assert_eq!(metrics.status, 200, "{}", metrics.text());
+    let text = metrics.text();
+    assert!(text.contains("oss_s3_requests_total{op=\"put\"}"), "{text}");
+    assert!(
+        text.contains("oss_memory_pool_limit_bytes{pool=\"page_cache\"}"),
+        "{text}"
+    );
 }
 
 // docs/specs/tenant-levels-wiring AC-8

@@ -30,13 +30,14 @@ const KINDS: [(S3Op, &str); 7] = [
 
 /// The usage of one node.
 pub struct UsageService {
-    ledger: Arc<Ledger>,
+    pub(crate) ledger: Arc<Ledger>,
     node_id: String,
     started_millis: i64,
     clock: Arc<dyn Fn() -> i64 + Send + Sync>,
     tenants: Option<Arc<TenantLevels>>,
-    slots: Option<Arc<crate::search_slots::SearchSlots>>,
-    queue: Option<Arc<crate::search_queue::QueueAdmission>>,
+    pub(crate) slots: Option<Arc<crate::search_slots::SearchSlots>>,
+    pub(crate) queue: Option<Arc<crate::search_queue::QueueAdmission>>,
+    pub(crate) budget: Option<oss_mem::MemoryBudget>,
     #[cfg(target_os = "linux")]
     resident_pages: bool,
 }
@@ -57,6 +58,7 @@ impl UsageService {
             tenants: None,
             slots: None,
             queue: None,
+            budget: None,
             #[cfg(target_os = "linux")]
             resident_pages: false,
         }
@@ -66,6 +68,13 @@ impl UsageService {
     #[must_use]
     pub fn with_tenants(mut self, tenants: Arc<TenantLevels>) -> Self {
         self.tenants = Some(tenants);
+        self
+    }
+
+    /// This service also reporting the pools of `budget` to the metrics route.
+    #[must_use]
+    pub fn with_memory_budget(mut self, budget: oss_mem::MemoryBudget) -> Self {
+        self.budget = Some(budget);
         self
     }
 
@@ -300,7 +309,10 @@ impl Assembled {
             .with_cost_scope(Arc::new(crate::cost_header::NodeCostScope::new(
                 &service.node_id,
             )));
-        self.router = routes(router, Arc::new(service)).map_err(AssembleError::Route)?;
+        let service = Arc::new(service);
+        let router = routes(router, Arc::clone(&service)).map_err(AssembleError::Route)?;
+        self.router =
+            crate::usage_metrics::routes(router, service).map_err(AssembleError::Route)?;
         Ok(self)
     }
 }
@@ -317,6 +329,7 @@ pub fn attach(
     ledger: Option<Arc<Ledger>>,
     config: &crate::boot::NodeConfig,
     clock: &Arc<dyn oss_cluster::LeaseClock>,
+    budget: &oss_mem::MemoryBudget,
 ) -> Result<Assembled, AssembleError> {
     let Some(ledger) = ledger else {
         install_slots(&assembled, config, None, clock);
@@ -330,6 +343,7 @@ pub fn attach(
         clock.now_millis(),
         Arc::clone(&now),
     );
+    service = service.with_memory_budget(budget.clone());
     if config.resident_page_bytes != 0 {
         service = service.with_resident_pages();
     }
