@@ -16,6 +16,7 @@ use crate::snapshot_admin::check_name;
 pub use crate::snapshot_restore_aliases::{
     AliasPlan, AliasReport, MAX_RESTORE_ALIASES, plan_aliases,
 };
+pub use crate::snapshot_restore_global::{GlobalReport, global_state_too_large};
 use crate::snapshot_restore_keys::check_keys;
 use crate::snapshot_restore_rename::Rename;
 use crate::snapshot_restore_settings::SettingsChange;
@@ -58,6 +59,8 @@ pub struct RestoreRequest {
     pub include_aliases: bool,
     /// The alias rename, when both its pattern and replacement were given.
     pub alias_rename: Option<Rename>,
+    /// Whether the snapshot's global state is applied (`include_global_state`).
+    pub include_global_state: bool,
 }
 
 /// The request of `POST /_snapshot/{repo}/{name}/_restore`, in the shell's
@@ -127,6 +130,7 @@ pub fn request(repo: &str, name: &str, body: Option<&[u8]>) -> Result<RestoreReq
     };
     let include_aliases = matches!(get("include_aliases"), Some(Json::Bool(true)));
     let partial = matches!(get("partial"), Some(Json::Bool(true)));
+    let include_global_state = matches!(get("include_global_state"), Some(Json::Bool(true)));
     let settings = SettingsChange::parse(get("index_settings"), get("ignore_index_settings"))?;
     Ok(RestoreRequest {
         indices,
@@ -135,6 +139,7 @@ pub fn request(repo: &str, name: &str, body: Option<&[u8]>) -> Result<RestoreReq
         partial,
         include_aliases,
         alias_rename,
+        include_global_state,
     })
 }
 
@@ -289,7 +294,7 @@ pub fn render_restored_with(
     shards: usize,
     aliases: Option<&AliasReport>,
 ) -> String {
-    render_partial_restored(snapshot, targets, (shards, 0), aliases)
+    render_partial_restored(snapshot, targets, (shards, 0), (aliases, None))
 }
 
 /// The answer of a restore that may have created shards the snapshot had
@@ -301,7 +306,7 @@ pub fn render_partial_restored(
     snapshot: &str,
     targets: &[Target],
     (shards, failed): (usize, usize),
-    aliases: Option<&AliasReport>,
+    (aliases, global): (Option<&AliasReport>, Option<&GlobalReport>),
 ) -> String {
     // ALLOC: the answer, one entry an index.
     let mut out = String::from("{\"snapshot\":{\"snapshot\":");
@@ -319,6 +324,9 @@ pub fn render_partial_restored(
         shards.saturating_add(failed)
     );
     if let Some(report) = aliases {
+        report.write(&mut out);
+    }
+    if let Some(report) = global {
         report.write(&mut out);
     }
     out.push_str("}}");
@@ -363,10 +371,10 @@ mod tests {
             let (status, kind) = refused(&format!(r#"{{"{key}":true}}"#));
             assert_eq!((status, kind), (501, "unsupported_restore"), "{key}");
         }
-        let r = ask(r#"{"include_global_state":true}"#).unwrap_err();
+        let r = ask(r#"{"ignore_unavailable":true}"#).unwrap_err();
         assert!(
             r.reason
-                .starts_with("include_global_state is not supported: "),
+                .starts_with("ignore_unavailable is not supported: "),
             "{}",
             r.reason
         );
@@ -405,6 +413,7 @@ mod tests {
             settings: crate::snapshot_restore_settings::SettingsChange::default(),
             partial: false,
             include_aliases: false,
+            include_global_state: false,
             alias_rename: None,
             indices: None,
             rename: None,
@@ -427,6 +436,7 @@ mod tests {
             settings: crate::snapshot_restore_settings::SettingsChange::default(),
             partial: false,
             include_aliases: false,
+            include_global_state: false,
             alias_rename: None,
             indices: Some(names(&["a", "zzz"])),
             rename: None,
@@ -443,6 +453,7 @@ mod tests {
             settings: crate::snapshot_restore_settings::SettingsChange::default(),
             partial: false,
             include_aliases: false,
+            include_global_state: false,
             alias_rename: None,
             indices: None,
             rename: None,

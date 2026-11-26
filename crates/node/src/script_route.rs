@@ -38,6 +38,13 @@ fn bad(reason: impl Into<String>) -> RestError {
     refuse(400, "illegal_argument_exception", reason)
 }
 
+/// Whether `body` is a script this node would store: what a put checks,
+/// for a restore that puts a stored one back.
+#[cfg(all(feature = "writer", feature = "coordinator"))]
+pub(crate) fn validate_stored(body: &[u8]) -> bool {
+    Script::read(body).is_ok_and(|s| LANGS.contains(&s.lang.as_str()))
+}
+
 impl Script {
     /// Reads `{"script":{..}}`, as a put or a stored body.
     fn read(body: &[u8]) -> Result<Self, RestError> {

@@ -55,15 +55,10 @@ fn a_refused_key_without_a_default_stays_refused() {
             );
         }
     }
-    let r = request(
-        "backups",
-        "daily",
-        Some(br#"{"include_global_state":true}"#),
-    )
-    .unwrap_err();
+    let r = request("backups", "daily", Some(br#"{"ignore_unavailable":true}"#)).unwrap_err();
     assert!(
         r.reason
-            .starts_with("include_global_state is not supported: ")
+            .starts_with("ignore_unavailable is not supported: ")
     );
 }
 

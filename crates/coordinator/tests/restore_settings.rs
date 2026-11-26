@@ -169,7 +169,7 @@ fn settings_that_are_not_flat_text_are_501_and_a_quoted_value_is_escaped() {
 
 #[test]
 fn what_else_the_shell_refuses_is_still_refused() {
-    let body = r#"{"include_global_state":true,"index_settings":{"index.codec":"x"}}"#;
+    let body = r#"{"ignore_unavailable":true,"index_settings":{"index.codec":"x"}}"#;
     let (status, kind, _) = asked(body).unwrap_err();
     assert_eq!((status, kind), (501, "unsupported_restore"));
 }

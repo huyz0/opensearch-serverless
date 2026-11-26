@@ -53,6 +53,8 @@ pub struct SnapshotRestoreService {
     background: Option<Arc<BackgroundRestores>>,
     pub(crate) alias_buffer_bytes: usize,
     pub(crate) alias_lease_millis: i64,
+    pub(crate) store: Arc<dyn BlobStore>,
+    pub(crate) base: String,
 }
 
 pub(crate) fn unavailable(e: &dyn std::fmt::Display) -> RestError {
@@ -88,7 +90,7 @@ impl SnapshotRestoreService {
         Self {
             enabled,
             reader: SnapshotReader::new(Arc::clone(&store), base),
-            restorer: SnapshotRestorer::new(store, base),
+            restorer: SnapshotRestorer::new(Arc::clone(&store), base),
             descriptors,
             deletes,
             clock,
@@ -98,6 +100,9 @@ impl SnapshotRestoreService {
             background: None,
             alias_buffer_bytes: crate::snapshot_restore_aliases::DEFAULT_BUFFER_BYTES,
             alias_lease_millis: crate::snapshot_restore_aliases::DEFAULT_LEASE_MILLIS,
+            store,
+            // ALLOC: one copy of the base, once a service.
+            base: base.to_owned(),
         }
     }
 
@@ -224,6 +229,12 @@ impl SnapshotRestoreService {
             req.body().reserve(self.alias_buffer_bytes)?;
             self.check_aliases(&aliases)?;
         }
+        let global = Self::global_state_of(record, &asked)?;
+        if let Some(state) = &global {
+            req.body()
+                .reserve(crate::snapshot_restore_global::RESERVE_BYTES)?;
+            self.check_global(state)?;
+        }
         let cut = asked
             .include_aliases
             .then(|| crate::snapshot_restore_aliases::truncated(&targets, &sources));
@@ -235,6 +246,7 @@ impl SnapshotRestoreService {
                 &targets,
                 sources,
                 (record.len(), aliases),
+                global,
             );
         }
         let copy = self.chunk_bytes;
@@ -288,13 +300,20 @@ impl SnapshotRestoreService {
         // A restore that does not wait still adds its aliases before it
         // answers; a failure has no body to carry it, so it is logged.
         let report = cut.map(|truncated| self.add_aliases(&aliases, truncated, &|| false));
+        let applied = global.map(|state| self.apply_global(&state, &|| false));
         if !wait {
             return resp.send(200, JSON, ACCEPTED.as_bytes());
         }
         resp.send(
             200,
             JSON,
-            render_partial_restored(&name, &targets, (shards, failed), report.as_ref()).as_bytes(),
+            render_partial_restored(
+                &name,
+                &targets,
+                (shards, failed),
+                (report.as_ref(), applied.as_ref()),
+            )
+            .as_bytes(),
         )
     }
 

@@ -22,6 +22,7 @@ pub mod security;
 pub mod snapshot_admin;
 pub mod snapshot_restore_admin;
 mod snapshot_restore_aliases;
+mod snapshot_restore_global;
 mod snapshot_restore_keys;
 pub mod snapshot_restore_rename;
 pub mod snapshot_restore_settings;

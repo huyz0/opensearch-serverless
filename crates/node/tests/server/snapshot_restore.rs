@@ -95,6 +95,7 @@ pub(crate) fn rig_aliased(
     let taker = Arc::new(
         SnapshotTakeService::new(Arc::clone(&blobs), "", descriptors(), Arc::clone(&clock))
             .with_capture_aliases(capture_aliases)
+            .with_capture_global_state(true)
             .with_partial_shards(true),
     );
     let deletes = Arc::new(
