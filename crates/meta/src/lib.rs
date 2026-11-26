@@ -62,6 +62,8 @@ mod snapshot_restore;
 mod snapshot_take;
 mod snapshots;
 mod stock_export;
+mod stock_export_fence;
+mod stock_export_take;
 mod stock_fan;
 mod stock_plan;
 mod stock_read;
@@ -102,6 +104,10 @@ pub use snapshots::{
     MAX_REPOSITORIES, RestoreRead, SnapshotRead, SnapshotReadError, SnapshotReader,
 };
 pub use stock_export::{ExportError, ExportTarget, ExportedFile};
+pub use stock_export_take::{
+    ExportBase, ExportIndex, ExportShard, ExportSnapshot, MAX_ATTEMPTS, Published,
+    open_export_base, publish_snapshot,
+};
 pub use stock_plan::{
     MAX_FILE_ENTRIES, MAX_INDICES, MAX_SHARDS, PlannedIndex, StockLimits, StockPlan,
     StockPlanError, StockRules, load as stock_load, plan as stock_plan,
