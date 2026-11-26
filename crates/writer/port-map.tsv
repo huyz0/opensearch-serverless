@@ -91,3 +91,4 @@ src/log_commit/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverl
 src/log_commit/record.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/LoggedCommits.java	the commit key and record text
 src/publish/adopt.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/SegmentPublisher.java@429b4cbc	starting a publisher from a commit adopted from a predecessor's log, swapped once and never retried
 src/takeover/logged.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/NewestCommits.java	which logged commit a successor may open from: newer than the register by manifest order, young enough, from an earlier term
+src/pack/sidecar.rs	new		the collector's sidecar register of collected ordinals, read and swapped by generation (Rust only)

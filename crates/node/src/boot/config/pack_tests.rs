@@ -58,3 +58,20 @@ fn the_switch_reaches_the_node_configuration() {
     assert_eq!(node.node_packs, on.node_packs);
     assert!(node.node_packs.is_some());
 }
+
+// AC-10: OSS_NODE_PACK_COLLECT is read, off by default, and only matters
+// with packs on.
+#[test]
+fn collection_is_off_by_default_and_read_with_packs_on() {
+    let on = NodeConfig::from_lookup(lookup(&with(&[("OSS_NODE_PACKS", "true")]))).expect("valid");
+    assert!(!on.node_packs.expect("packs").collect);
+    let collecting = NodeConfig::from_lookup(lookup(&with(&[
+        ("OSS_NODE_PACKS", "true"),
+        ("OSS_NODE_PACK_COLLECT", "true"),
+    ])))
+    .expect("valid");
+    assert!(collecting.node_packs.expect("packs").collect);
+    let alone = NodeConfig::from_lookup(lookup(&with(&[("OSS_NODE_PACK_COLLECT", "true")])))
+        .expect("valid");
+    assert_eq!(alone.node_packs, None, "collection alone changes nothing");
+}

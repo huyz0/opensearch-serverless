@@ -7,10 +7,12 @@
 
 mod error;
 mod ledger;
+mod sidecar;
 mod store;
 mod writer;
 
 pub use error::PackError;
 pub use ledger::{LedgerState, PackLedger};
+pub use sidecar::{PackSidecarStore, SidecarState};
 pub use store::{Landed, PackStore, Part};
-pub use writer::{COLLECTABLE_AFTER_MILLIS, PackWriter, SWAP_DEADLINE_MILLIS};
+pub use writer::{COLLECTABLE_AFTER_MILLIS, PackWriter, RESERVE_AHEAD, SWAP_DEADLINE_MILLIS};

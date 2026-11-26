@@ -20,6 +20,7 @@ fn packs() -> PackConfig {
         max_blob_bytes: 8 << 20,
         linger: Duration::from_millis(1),
         publish_threads: 8,
+        collect: false,
     }
 }
 
@@ -224,6 +225,7 @@ fn two_shards(c: &Cluster, threads: usize) -> Node {
             max_blob_bytes: 8 << 20,
             linger: Duration::from_millis(1_000),
             publish_threads: threads,
+            collect: false,
         }),
     );
     write(&n.role, "a");
@@ -292,4 +294,43 @@ fn a_failing_shard_is_reported_and_the_others_are_published() {
     assert_eq!(pass.published, 1, "{:?}", pass.failed);
     assert_eq!(pass.failed.len(), 1, "{:?}", pass.failed);
     assert!(pass.failed[0].contains("[u2][0]"), "{:?}", pass.failed);
+}
+
+// AC-1, AC-2: with collection on a publish is still pack, ledger create and
+// swap, and the ledger already reserves its high a block ahead.
+#[test]
+fn with_collection_on_a_first_publish_costs_the_same_and_reserves_ahead() {
+    let c = cluster();
+    create(&c, "logs", "u1");
+    let n = node_full(
+        &c,
+        "node-1",
+        1,
+        false,
+        None,
+        None,
+        (false, false, None),
+        Some(PackConfig {
+            collect: true,
+            ..packs()
+        }),
+    );
+    write(&n.role, "a");
+    let before = c.store.meter().count(S3Op::Put);
+    let pass = n.role.publish_due();
+    assert_eq!(pass.published, 1, "{:?}", pass.failed);
+    assert_eq!(
+        c.store.meter().count(S3Op::Put) - before,
+        3,
+        "pack, ledger, swap"
+    );
+    let mut buf = vec![0u8; 1 << 16];
+    let read = c
+        .store
+        .read_register(LEDGER, &mut buf)
+        .expect("reads")
+        .expect("ledger");
+    let parsed = oss_format::NodePackLedger::parse(&buf[..read.len]).expect("v1");
+    assert_eq!(parsed.epochs().len(), 1);
+    assert_eq!(parsed.epochs()[0].high, 8, "a block ahead");
 }
