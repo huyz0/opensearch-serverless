@@ -219,3 +219,5 @@ src/dsl/queries/nested.rs	port	server/src/main/java/org/opensearch/index/query/N
 src/dsl/queries/nested_build.rs	port	server/src/main/java/org/opensearch/index/query/NestedQueryBuilder.java@3.10.0	doToQuery over the engine's block join, Queries.newNonNestedFilter and ObjectMapper.nestedTypeFilter
 src/dsl/queries/nested_tests.rs	new		tests of the nested parser
 src/search_nested_tests.rs	new		searches over an index of nested objects
+src/search_nested_sort_tests.rs	new		tests of search_sort_nested.rs
+src/search_sort_nested.rs	port	server/src/main/java/org/opensearch/search/sort/FieldSortBuilder.java@3.10.0	the nested part of FieldSortBuilder.build and SortBuilder.resolveNested: the parents, the children and the block-join sort field

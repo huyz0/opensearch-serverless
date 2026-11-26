@@ -36,6 +36,7 @@ mod search_options;
 pub mod search_pipeline;
 mod search_post_filter;
 mod search_sort;
+mod search_sort_nested;
 mod search_terminate;
 mod search_top;
 #[cfg(test)]

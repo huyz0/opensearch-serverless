@@ -30,7 +30,8 @@ fn size_from_and_sort_in_the_body() {
         s.sort,
         [SortKey::Field {
             field: "year".into(),
-            ascending: true
+            ascending: true,
+            nested: None,
         }]
     );
     assert!(s.query.is_some());
