@@ -55,5 +55,12 @@ mod tests {
         assert_eq!(service_of(b"\x0a\x03abc").unwrap(), "abc");
         assert!(service_of(b"\x0a\x05abc").is_err());
         assert!(service_of(b"\x10\x01").is_err());
+        // A length of 128 needs a two-byte varint, which this decoder does not read.
+        let mut long = vec![0x0a, 0x80];
+        long.extend_from_slice(&[b'a'; 128]);
+        assert!(service_of(&long).is_err());
+        let mut longest = vec![0x0a, 0x7f];
+        longest.extend_from_slice(&[b'a'; 127]);
+        assert_eq!(service_of(&longest).unwrap().len(), 127);
     }
 }

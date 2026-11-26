@@ -409,3 +409,54 @@ async fn a_client_sent_forwarded_for_passes_through_unchanged() {
     edge.shutdown();
     server.shutdown();
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_connection_with_a_stream_in_flight_is_not_closed_as_idle() {
+    let state = Arc::new(State::default());
+    let (server, budget, upstream) = start(&state);
+    let mut c = config(upstream);
+    c.idle_timeout = Duration::from_millis(200);
+    let edge = Edge::start(c, &budget).expect("starts");
+    let mut send = h2c(edge.h2c_addr().expect("bound")).await;
+    let held =
+        tokio::spawn(async move { h2_request(&mut send, "GET", "http://x/hold", None).await });
+    // Several idle periods pass while the handler holds the stream.
+    tokio::time::sleep(Duration::from_millis(900)).await;
+    state.release.store(true, Ordering::Release);
+    let answer = held
+        .await
+        .expect("joined")
+        .expect("the stream survived the idle timer");
+    assert_eq!(answer.status, 200);
+    edge.shutdown();
+    server.shutdown();
+}
+
+async fn refuses_connections(addr: std::net::SocketAddr) -> bool {
+    for _ in 0..100 {
+        if tokio::net::TcpStream::connect(addr).await.is_err() {
+            return true;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    false
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn shutdown_and_drop_close_the_listeners() {
+    let state = Arc::new(State::default());
+    let (server, budget, upstream) = start(&state);
+    let edge = Edge::start(config(upstream), &budget).expect("starts");
+    let addr = edge.h2c_addr().expect("bound");
+    assert!(tokio::net::TcpStream::connect(addr).await.is_ok());
+    edge.shutdown();
+    assert!(
+        refuses_connections(addr).await,
+        "shutdown closes the listener"
+    );
+    let edge = Edge::start(config(upstream), &budget).expect("starts");
+    let addr = edge.h2c_addr().expect("bound");
+    drop(edge);
+    assert!(refuses_connections(addr).await, "drop closes the listener");
+    server.shutdown();
+}

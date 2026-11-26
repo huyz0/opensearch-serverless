@@ -171,4 +171,28 @@ mod tests {
         c.grpc = Some("127.0.0.1:1".parse().expect("addr"));
         assert_eq!(c.charge(), without + c.max_streams * (4 << 20));
     }
+
+    #[test]
+    fn the_stream_buffer_floor_is_the_http2_frame_size_and_is_inclusive() {
+        assert_eq!(MIN_STREAM_BUFFER, 16_384);
+        let mut c = base();
+        c.stream_buffer = MIN_STREAM_BUFFER;
+        assert!(c.validate().is_ok());
+        c.stream_buffer = MIN_STREAM_BUFFER - 1;
+        assert!(c.validate().is_err());
+    }
+
+    #[test]
+    fn a_tls_listener_needs_both_a_certificate_and_a_key() {
+        let mut c = base();
+        c.tls = Some("127.0.0.1:1".parse().expect("addr"));
+        assert!(c.validate().is_err(), "neither");
+        c.cert = Some("cert.pem".into());
+        assert!(c.validate().is_err(), "no key");
+        c.cert = None;
+        c.key = Some("key.pem".into());
+        assert!(c.validate().is_err(), "no certificate");
+        c.cert = Some("cert.pem".into());
+        assert!(c.validate().is_ok(), "both");
+    }
 }

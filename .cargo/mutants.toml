@@ -186,4 +186,7 @@ exclude_re = [
     # one-byte buffer until the length limit and refuses all the same: the
     # refusal is the same with `&&`.
     "crates/blob/src/emulator/http/wire.rs:.*replace \\|\\| with && in SocketBody<'_>::line",
+    # `shutdown` takes `self` and `Drop` runs the same stop, so an empty
+    # `shutdown` stops the front all the same when its argument is dropped.
+    "crates/edge/src/lib.rs:.*replace Edge::shutdown with \\(\\)",
 ]
