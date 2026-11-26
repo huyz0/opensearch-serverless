@@ -71,4 +71,4 @@ Each record has: **Status** (Proposed, Accepted, Superseded), **Context** (the f
 | [0060](0060-stock-snapshot-restore-reads-a-source-repository.md) | A stock snapshot is restored by reading its repository through a source store | Accepted |
 | [0061](0061-a-request-reports-its-own-store-requests.md) | A request that asks reports the store requests it made, in a response header | Accepted |
 | [0062](0062-a-snapshot-is-exported-to-a-stock-repository-by-copying.md) | A snapshot is exported to a stock repository by copying the shard files | Accepted |
-| [0063](0063-a-restore-may-run-in-the-background.md) | A restore may run in the background, behind a setting | Proposed |
+| [0063](0063-a-restore-may-run-in-the-background.md) | A restore may run in the background, behind a setting | Accepted |
