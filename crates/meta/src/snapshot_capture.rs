@@ -62,6 +62,8 @@ impl DescribedIndex {
             mapping: self.mapping.clone().filter(|_| with_content),
             settings: self.settings.clone().filter(|_| with_content),
             shards,
+            // ALLOC: none held; an empty list.
+            failed_shards: Vec::new(),
             aliases: if with_content {
                 self.aliases.clone()
             } else {

@@ -329,6 +329,17 @@ impl SnapshotRestoreService {
             if let Some(why) = refusal {
                 return Err(refused(unsupported_content(&target.source, why)));
             }
+            if !source.failed_shards.is_empty() {
+                return Err(refuse(
+                    500,
+                    "snapshot_restore_exception",
+                    // ALLOC: error path; one message.
+                    format!(
+                        "index [{}] of the snapshot has shards {:?} with no captured commit; restoring a partial snapshot is not supported",
+                        target.source, source.failed_shards
+                    ),
+                ));
+            }
             self.check_target(target, &mut buf)?;
             source.settings = crate::restore_settings::apply(
                 change,

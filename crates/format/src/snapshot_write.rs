@@ -42,6 +42,8 @@ pub struct IndexCapture {
     pub settings: Option<Vec<u8>>,
     /// The shards captured, none while the take reserves the name.
     pub shards: Vec<ShardCapture>,
+    /// The shards that had no commit, ascending; written only when not empty.
+    pub failed_shards: Vec<u32>,
     /// The aliases the index was in, at most `MAX_ALIASES`.
     pub aliases: Vec<AliasCapture>,
     /// Whether the index was in more aliases than the record holds.
@@ -130,6 +132,13 @@ impl IndexCapture {
             out.end_object();
         }
         out.end_array();
+        if !self.failed_shards.is_empty() {
+            out.start_array_field("failed_shards");
+            for shard in &self.failed_shards {
+                out.int_value(i64::from(*shard));
+            }
+            out.end_array();
+        }
         out.end_object();
     }
 }
@@ -271,6 +280,7 @@ mod tests {
                     ],
                     lengths: vec![("segments_1".into(), 50), ("_0.cfs".into(), 100)],
                 }],
+                failed_shards: vec![],
                 aliases: vec![],
                 aliases_truncated: false,
             }],
@@ -296,6 +306,7 @@ mod tests {
             mapping: None,
             settings: Some(br#"{"index":{"number_of_replicas":"0"}}"#.to_vec()),
             shards: vec![],
+            failed_shards: vec![],
             aliases: vec![],
             aliases_truncated: false,
         });
@@ -386,5 +397,20 @@ mod tests {
             }
         }
         assert!(SnapshotState::write_held_draft("é", &draft, true, &mut b).is_err());
+    }
+
+    #[test]
+    fn failed_shards_are_written_only_when_there_are_some_and_read_back() {
+        let mut draft = finished();
+        draft.indices[0].number_of_shards = 3;
+        let plain = String::from_utf8(write(&draft)).unwrap();
+        assert!(!plain.contains("failed_shards"), "{plain}");
+        draft.indices[0].shards[0].shard = 1;
+        draft.indices[0].failed_shards = vec![0, 2];
+        let bytes = write(&draft);
+        assert!(String::from_utf8_lossy(&bytes).contains(r#""failed_shards":[0,2]"#),);
+        let s = crate::SnapshotSummary::parse(&bytes).unwrap();
+        assert_eq!(s.indices[0].failed_shards, vec![0, 2]);
+        assert_eq!(s.indices[0].captured, 1);
     }
 }

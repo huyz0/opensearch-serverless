@@ -157,12 +157,28 @@ pub fn render_repositories(records: &[RepositoryRecord]) -> String {
     out
 }
 
+/// The most failed shards a snapshot answer lists; `shards.failed` is exact.
+const MAX_FAILURES: usize = 1000;
+
 /// `GET _snapshot/{repo}/{name}`: `{"snapshots":[...]}` as the shell's
 /// `writeSnapshotInfo` writes one. The state comes from the record: an
 /// index with shards and none captured is a capture still running.
 #[must_use]
 pub fn render_snapshot(s: &SnapshotSummary) -> String {
     let captured: u64 = s.indices.iter().map(|i| u64::from(i.captured)).sum();
+    let failed: u64 = s
+        .indices
+        .iter()
+        .map(|i| u64::try_from(i.failed_shards.len()).unwrap_or(u64::MAX))
+        .sum();
+    let total = captured.saturating_add(failed);
+    let state = if s.in_progress() {
+        "IN_PROGRESS"
+    } else if failed > 0 {
+        "PARTIAL"
+    } else {
+        "SUCCESS"
+    };
     // ALLOC: the answer, one entry an index.
     let mut out = String::from("{\"snapshots\":[{\"snapshot\":");
     write_str(&mut out, &s.name);
@@ -184,17 +200,36 @@ pub fn render_snapshot(s: &SnapshotSummary) -> String {
     }
     let _ = write!(
         out,
-        "],\"data_streams\":[],\"include_global_state\":true,\"state\":\"{}\",\"start_time\":\"{}\",\"start_time_in_millis\":{},\"end_time\":\"{}\",\"end_time_in_millis\":{},\"duration_in_millis\":{},\"failures\":[],\"shards\":{{\"total\":{captured},\"failed\":0,\"successful\":{captured}}}}}]}}",
-        if s.in_progress() {
-            "IN_PROGRESS"
-        } else {
-            "SUCCESS"
-        },
+        "],\"data_streams\":[],\"include_global_state\":true,\"state\":\"{state}\",\"start_time\":\"{}\",\"start_time_in_millis\":{},\"end_time\":\"{}\",\"end_time_in_millis\":{},\"duration_in_millis\":{},\"failures\":[",
         instant(s.start_millis),
         s.start_millis,
         instant(s.end_millis),
         s.end_millis,
         s.end_millis.saturating_sub(s.start_millis),
+    );
+    let mut first = true;
+    for (index, shard) in s
+        .indices
+        .iter()
+        .flat_map(|i| i.failed_shards.iter().map(move |shard| (i, shard)))
+        .take(MAX_FAILURES)
+    {
+        if !first {
+            out.push(',');
+        }
+        first = false;
+        out.push_str("{\"index\":");
+        write_str(&mut out, &index.name);
+        out.push_str(",\"index_uuid\":");
+        write_str(&mut out, &index.uuid);
+        let _ = write!(
+            out,
+            ",\"shard_id\":{shard},\"reason\":\"no commit was published when the snapshot was taken\",\"status\":\"INTERNAL_SERVER_ERROR\"}}"
+        );
+    }
+    let _ = write!(
+        out,
+        "],\"shards\":{{\"total\":{total},\"failed\":{failed},\"successful\":{captured}}}}}]}}"
     );
     out
 }
@@ -305,6 +340,7 @@ mod tests {
                 uuid: "A".into(),
                 shards: 2,
                 captured,
+                failed_shards: vec![],
             }],
         }
     }
@@ -333,5 +369,28 @@ mod tests {
         assert_eq!(instant(951_782_400_000), "2000-02-29T00:00:00Z");
         assert_eq!(instant(-1), "1969-12-31T23:59:59.999Z");
         assert_eq!(instant(1_700_000_000_000), "2023-11-14T22:13:20Z");
+    }
+
+    #[test]
+    fn a_partial_snapshot_says_which_shards_failed() {
+        let mut s = summary(1);
+        s.indices[0].failed_shards = vec![1];
+        let out = render_snapshot(&s);
+        assert!(out.contains(r#""state":"PARTIAL""#), "{out}");
+        assert!(
+            out.contains(r#""failures":[{"index":"logs","index_uuid":"A","shard_id":1,"reason":"no commit was published when the snapshot was taken","status":"INTERNAL_SERVER_ERROR"}],"shards":{"total":2,"failed":1,"successful":1}"#),
+            "{out}"
+        );
+    }
+
+    #[test]
+    fn the_failures_listed_stop_at_a_thousand_and_the_count_stays_exact() {
+        let mut s = summary(0);
+        s.indices[0].shards = 1500;
+        s.indices[0].failed_shards = (0..1500).collect();
+        let out = render_snapshot(&s);
+        assert_eq!(out.matches(r#""shard_id":"#).count(), 1000, "{}", out.len());
+        assert!(out.contains(r#""shards":{"total":1500,"failed":1500,"successful":0}"#));
+        assert!(out.contains(r#""state":"PARTIAL""#));
     }
 }

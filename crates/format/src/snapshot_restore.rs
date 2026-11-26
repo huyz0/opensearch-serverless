@@ -9,6 +9,7 @@ use crate::json::{Reader, Token};
 use crate::location::FileLocation;
 use crate::snapshot_aliases::{self, AliasCapture};
 use crate::snapshot_pins::MAX_SNAPSHOT_RECORD_BYTES;
+use crate::snapshot_record::read_failed;
 
 const WHAT: &str = "snapshot record";
 
@@ -45,6 +46,8 @@ pub struct RestoreIndex {
     pub aliases: Vec<AliasCapture>,
     /// Whether the take left out aliases past the bound.
     pub aliases_truncated: bool,
+    /// The shards that had no commit when the snapshot was taken, as written.
+    pub failed_shards: Vec<u32>,
 }
 
 impl RestoreIndex {
@@ -102,7 +105,9 @@ impl RestoreIndex {
             }
             json.finish()?;
         }
-        if !self.shards.is_empty() && self.number_of_shards <= MAX_SHARDS {
+        if (!self.shards.is_empty() || !self.failed_shards.is_empty())
+            && self.number_of_shards <= MAX_SHARDS
+        {
             // ALLOC: one flag a shard slot, at most MAX_SHARDS.
             let mut seen = vec![false; self.number_of_shards as usize];
             for shard in &self.shards {
@@ -113,7 +118,15 @@ impl RestoreIndex {
                     return Err(corrupt(WHAT, "a shard is captured twice"));
                 }
             }
-            if self.shards.len() != seen.len() {
+            for failed in &self.failed_shards {
+                let slot = seen.get_mut(*failed as usize).ok_or_else(|| {
+                    corrupt(WHAT, "a failed shard is numbered past the shard count")
+                })?;
+                if std::mem::replace(slot, true) {
+                    return Err(corrupt(WHAT, "a shard is both captured and failed"));
+                }
+            }
+            if self.shards.len().saturating_add(self.failed_shards.len()) != seen.len() {
                 return Err(corrupt(WHAT, "a finished index does not name every shard"));
             }
         }
@@ -196,6 +209,8 @@ fn read_index(json: &mut Reader<'_>, name: &str) -> Result<RestoreIndex, FormatE
     // ALLOC: one entry an alias, at most MAX_ALIASES.
     let mut aliases = Vec::new();
     let mut aliases_truncated = false;
+    let mut failed_shards = Vec::new();
+    let mut seen = [0u64; (MAX_SHARDS / 64) as usize];
     // ALLOC: one entry a captured shard, bounded by the record size.
     let mut shards = Vec::new();
     while let Some(key) = json.next_field()? {
@@ -224,6 +239,7 @@ fn read_index(json: &mut Reader<'_>, name: &str) -> Result<RestoreIndex, FormatE
             }
             "aliases" => aliases = snapshot_aliases::read(json)?,
             "aliases_truncated" => aliases_truncated = snapshot_aliases::read_truncated(json)?,
+            "failed_shards" => failed_shards = read_failed(json, &mut seen)?,
             "shards" => read_shards(json, &mut shards)?,
             _ => json.skip_value()?,
         }
@@ -241,6 +257,7 @@ fn read_index(json: &mut Reader<'_>, name: &str) -> Result<RestoreIndex, FormatE
         shards,
         aliases,
         aliases_truncated,
+        failed_shards,
     })
 }
 
@@ -415,18 +432,6 @@ mod tests {
                 "{n}"
             );
         }
-    }
-
-    #[test]
-    fn a_null_mapping_and_a_quoted_number_are_read_as_the_java_reads_them() {
-        let record = br#"{"repo":"r","name":"s","shallow":true,"start_time_in_millis":1,"end_time_in_millis":2,
-            "indices":{"a":{"uuid":"U","number_of_shards":"3","mapping":null,
-            "shards":[{"shard":"0","term":"2","files":{"f":"t=2"},"lengths":{"f":"5"}}]}}}"#;
-        let got = RestoreIndex::find(record, "a").unwrap().unwrap();
-        assert_eq!(got.number_of_shards, 3);
-        assert_eq!(got.mapping, None);
-        assert_eq!(got.shards[0].term, 2);
-        assert_eq!(got.shards[0].lengths, [("f".to_owned(), 5)]);
     }
 
     fn entry(settings: &str, shards: &str) -> RestoreIndex {

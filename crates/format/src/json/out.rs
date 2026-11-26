@@ -109,6 +109,12 @@ impl<'o> Out<'o> {
         self.int(n);
     }
 
+    /// An integer array element.
+    pub(crate) fn int_value(&mut self, n: i64) {
+        self.separate();
+        self.int(n);
+    }
+
     /// A boolean field.
     pub(crate) fn bool_field(&mut self, name: &str, value: bool) {
         self.field(name);

@@ -105,6 +105,7 @@ mod tests {
                 mapping: None,
                 settings: None,
                 shards: vec![],
+                failed_shards: vec![],
                 aliases,
                 aliases_truncated: truncated,
             }],
