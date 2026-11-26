@@ -20,7 +20,7 @@ The shell stages the commit in memory (`CommitStaging`), writes the register at 
 ## Consequences
 
 - One conditional PUT fewer on all but one routine publish in `checkpoint_millis / publish spacing` (twelve at the defaults) for every busy shard; an idle shard with a staged commit writes it once, at the checkpoint.
-- A register-only reader is at most the checkpoint age behind the writer's newest commit; readers the writer pushes to are not. A successor replays up to a checkpoint age more of the log until slice 3 lands.
+- A register-only reader is at most the checkpoint age behind the writer's newest commit; readers the writer pushes to are not. A successor replays up to a checkpoint age more of the log unless it opens from the newest logged commit (slice 3, `open_from_logged`).
 - The log is kept up to a checkpoint age longer.
 - Fencing is unchanged: every register write is a compare-and-swap over the generation this publisher last wrote, and the first publish of a term writes. No lock, lease or leader election is added; no request scales with records, documents or indexes; no LIST; memory per shard grows by one manifest's bytes.
 - A staged commit is not durable. Nothing acknowledged depends on it: acknowledgement means the write log holds the record, and the log is trimmed only behind the register.

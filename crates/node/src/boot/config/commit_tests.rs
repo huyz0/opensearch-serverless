@@ -35,3 +35,45 @@ fn a_checkpoint_age_outside_its_bounds_is_refused() {
         );
     }
 }
+
+// AC-8
+#[test]
+fn commit_logging_is_off_by_default_and_needs_staging() {
+    let off = NodeConfig::from_lookup(lookup(FS)).expect("valid");
+    assert!(!off.commit_logged.writes());
+    let on = NodeConfig::from_lookup(lookup(&with(&[
+        ("OSS_COMMIT_STAGING", "true"),
+        ("OSS_COMMIT_LOGGED", "true"),
+    ])))
+    .expect("valid");
+    assert!(on.commit_logged.writes() && !on.commit_logged.opens());
+    let alone = NodeConfig::from_lookup(lookup(&with(&[("OSS_COMMIT_LOGGED", "true")])));
+    assert!(
+        alone
+            .expect_err("refused")
+            .contains("needs OSS_COMMIT_STAGING")
+    );
+}
+
+// AC-8
+#[test]
+fn opening_from_logged_commits_needs_logging() {
+    let both = |opens: &str| {
+        NodeConfig::from_lookup(lookup(&with(&[
+            ("OSS_COMMIT_STAGING", "true"),
+            ("OSS_COMMIT_LOGGED", "true"),
+            ("OSS_COMMIT_OPEN_FROM_LOGGED", opens),
+        ])))
+    };
+    assert!(both("true").expect("valid").commit_logged.opens());
+    assert!(!both("false").expect("valid").commit_logged.opens());
+    let alone = NodeConfig::from_lookup(lookup(&with(&[
+        ("OSS_COMMIT_STAGING", "true"),
+        ("OSS_COMMIT_OPEN_FROM_LOGGED", "true"),
+    ])));
+    assert!(
+        alone
+            .expect_err("refused")
+            .contains("needs OSS_COMMIT_LOGGED")
+    );
+}

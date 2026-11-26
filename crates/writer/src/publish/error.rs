@@ -41,6 +41,9 @@ pub enum PublishError {
     /// collection may already have judged it unreferenced; the next publish
     /// packs the files anew.
     PackExpired,
+    /// The register moved after a predecessor's commit was adopted from its
+    /// log: nothing was retried over it, and the shard opens from the register.
+    AdoptionLost,
     /// A file of the commit could not be read from its directory.
     Directory(String),
     /// A published manifest this writer cannot build on.
@@ -73,6 +76,9 @@ impl fmt::Display for PublishError {
             Self::Blob(e) => write!(f, "{e}"),
             Self::Format(e) => write!(f, "{e}"),
             Self::Pack(e) => write!(f, "{e}"),
+            Self::AdoptionLost => f.write_str(
+                "the commit register moved after a logged commit was adopted; open from the register",
+            ),
             Self::PackExpired => {
                 write!(f, "the node pack landed too long before the manifest swap")
             }

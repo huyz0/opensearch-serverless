@@ -83,7 +83,7 @@ mod tests {
             assert_eq!(
                 keys.len(),
                 7 + 7 * usize::from(reader)
-                    + if writer { 44 + usize::from(reader) } else { 0 }
+                    + if writer { 46 + usize::from(reader) } else { 0 }
                     + usize::from(reader && writer)
                     + usize::from(writer && cfg!(feature = "coordinator"))
                     + usize::from(cfg!(feature = "extensions"))
@@ -141,6 +141,8 @@ mod tests {
                 "serverless.writer.merge.max_merged_segment_mb",
                 "serverless.wal.node_log.commits.staging",
                 "serverless.wal.node_log.commits.checkpoint_millis",
+                "serverless.wal.node_log.commits.logged",
+                "serverless.wal.node_log.commits.open_from_logged",
             ] {
                 assert_eq!(keys.contains(&key), writer, "{key}");
             }

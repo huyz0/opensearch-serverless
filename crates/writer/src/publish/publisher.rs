@@ -48,7 +48,10 @@ pub struct ShardPublisher {
     /// The checkpoint age when staging is on.
     pub(super) staging: Option<Duration>,
     pub(super) staged: Option<Staged>,
-    sequence: i64,
+    pub(super) sequence: i64,
+    /// When the oldest pack of a commit adopted from a predecessor's log
+    /// landed, minus the open margin: the commit is only that old to a swap.
+    pub(super) adopted: Option<Instant>,
 }
 
 impl std::fmt::Debug for ShardPublisher {
@@ -86,6 +89,7 @@ impl ShardPublisher {
             staging: None,
             staged: None,
             sequence: -1,
+            adopted: None,
         })
     }
 
@@ -167,6 +171,28 @@ impl ShardPublisher {
         now_millis: u64,
         routine: bool,
     ) -> Result<Published, PublishError> {
+        let adopting = self.adopted.is_some();
+        let done = self.publish_once(dir, files, term, writer, wal_ordinal, now_millis, routine);
+        if adopting && done.is_err() {
+            // The commit adopted from a log was this publish's only chance: a
+            // later one builds on the register.
+            self.adopted = None;
+            self.last = None;
+        }
+        done
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn publish_once(
+        &mut self,
+        dir: &dyn Directory,
+        files: &[String],
+        term: u64,
+        writer: &str,
+        wal_ordinal: i64,
+        now_millis: u64,
+        routine: bool,
+    ) -> Result<Published, PublishError> {
         // A staged commit whose packs may be judged unreferenced is dropped:
         // its files are uploaded again.
         if self
@@ -176,6 +202,9 @@ impl ShardPublisher {
         {
             self.staged = None;
         }
+        // An adopted commit's one chance: it is spent by this publish, and a
+        // swap lost over it is not retried over what the register holds now.
+        let adopted = self.adopted.take();
         // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
         let mut uploaded: BTreeMap<String, Known> = BTreeMap::new();
         // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
@@ -195,6 +224,8 @@ impl ShardPublisher {
                 }
             };
             fence(&base, term, writer)?;
+            // A publisher made again in a term continues what the register holds.
+            self.sequence = self.sequence.max(base.stage_seq);
             let generation = generation.unwrap_or(base.generation);
             let mut known = base.files.clone();
             if let Some(staged) = &self.staged {
@@ -229,7 +260,11 @@ impl ShardPublisher {
             let manifest = encode_manifest(term, Some(writer), &refs, wal_ordinal, stage_sequence)?;
             // Collection deletes a pack no manifest names once it is old
             // enough; a swap this late could name one already gone.
-            if packed_at.is_some_and(|at| expired(at.elapsed(), self.swap_deadline)) {
+            if packed_at
+                .into_iter()
+                .chain(adopted)
+                .any(|at| expired(at.elapsed(), self.swap_deadline))
+            {
                 self.last = None;
                 return Err(PublishError::PackExpired);
             }
@@ -277,6 +312,7 @@ impl ShardPublisher {
                         // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
                         writer: Some(writer.to_owned()),
                         files: entries,
+                        stage_seq: stage_sequence,
                     });
                     return Ok(Published {
                         manifest,
@@ -289,6 +325,9 @@ impl ShardPublisher {
                 SwapOutcome::Conflict(_) => {
                     self.last = None;
                     self.staged = None;
+                    if adopted.is_some() {
+                        return Err(PublishError::AdoptionLost);
+                    }
                     if remembered && round == 0 {
                         // The register moved under what this publisher
                         // remembered: read it and publish over it, once.

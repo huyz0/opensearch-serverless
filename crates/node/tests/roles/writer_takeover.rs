@@ -93,6 +93,20 @@ pub(crate) fn node_with(
     takeover: Option<Takeover>,
     staging: Option<Duration>,
 ) -> Node {
+    node_logging(c, id, term, later, takeover, staging, (false, false))
+}
+
+/// [`node_with`], also logging its staged commits and opening from its
+/// predecessors' logged commits as `(logging, opening)` says.
+pub(crate) fn node_logging(
+    c: &Cluster,
+    id: &str,
+    term: u64,
+    later: bool,
+    takeover: Option<Takeover>,
+    staging: Option<Duration>,
+    (logging, opening): (bool, bool),
+) -> Node {
     let clock: Arc<dyn LeaseClock> = if later {
         Arc::new(Later)
     } else {
@@ -161,7 +175,9 @@ pub(crate) fn node_with(
         1 << 16,
     );
     if let Some(takeover) = takeover {
-        opener = opener.with_takeover(takeover);
+        opener = opener
+            .with_takeover(takeover)
+            .with_open_from_logged(opening);
     }
     let mut publishing =
         Publishing::new(dynstore, "", id, Policy::new(0, 0, 250), Box::new(|| 1_000));
@@ -176,6 +192,9 @@ pub(crate) fn node_with(
         )
         .with_publishing(publishing)
         .with_opener(Arc::new(opener));
+    if logging {
+        assert!(role.log_commits(Duration::from_millis(10)));
+    }
     Node {
         role: Arc::new(role),
         committer,

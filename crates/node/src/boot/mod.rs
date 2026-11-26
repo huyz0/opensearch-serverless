@@ -50,6 +50,7 @@ use crate::writer::{
     HeadOpener, OrphanTimer, ShardNames, ShardOpener, Takeover,
 };
 
+pub use config::commits::Logged;
 pub use config::{MIN_MEMORY_BYTES, NodeConfig, StoreChoice};
 pub use error::BootError;
 use renew::{Cadence, Renewal};
@@ -282,7 +283,8 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         &ephemeral,
         READ_BUFFER,
     )
-    .with_takeover(takeover);
+    .with_takeover(takeover)
+    .with_open_from_logged(config.commit_logged.opens());
     let opener = support::with_member_commits(opener, buckets.as_ref());
     let opener = support::with_extension_modules(opener, config, &store, &budget);
     // One cache of the indexes this node reads, shared by every route that

@@ -60,6 +60,10 @@ impl Engine for ShardEngine<'_, '_> {
         })
     }
 
+    fn adopted_commit(&self) -> bool {
+        self.publisher.has_adopted()
+    }
+
     fn buffered_bytes(&self) -> usize {
         self.shard.indexing_buffer_bytes()
     }

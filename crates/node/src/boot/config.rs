@@ -12,6 +12,7 @@ use crate::tail_overlay::REFRESH_VISIBILITY;
 
 pub(super) mod apply;
 pub(super) mod authoring;
+pub(super) mod commits;
 pub(super) mod edge;
 pub(super) mod page_cache;
 pub(super) mod roles;
@@ -122,6 +123,8 @@ pub struct NodeConfig {
     /// (`serverless.wal.node_log.commits.staging` and `.checkpoint_millis`):
     /// the checkpoint age when routine commits are staged, else none.
     pub commit_checkpoint_millis: Option<u64>,
+    /// `OSS_COMMIT_LOGGED` and `OSS_COMMIT_OPEN_FROM_LOGGED`: what staged commits do besides staging.
+    pub commit_logged: commits::Logged,
     /// `serverless.security.enabled`: serve the security configuration API. Off by default.
     pub security: bool,
     /// The static administrator's name and bcrypt hash (`OSS_SECURITY_ADMIN_USER`, `OSS_SECURITY_ADMIN_HASH`).
@@ -328,10 +331,7 @@ impl NodeConfig {
             .map(str::to_owned)
             .collect();
         let hand_off = flag("OSS_HAND_OFF", "false")?;
-        // At least two of the default one-second commit periods, at most half the pack deadline.
-        let commit_checkpoint = bounded("OSS_COMMIT_CHECKPOINT_MS", "60000", 2_000, 150_000)?;
-        let commit_checkpoint_millis =
-            flag("OSS_COMMIT_STAGING", "false")?.then_some(commit_checkpoint);
+        let (commit_checkpoint_millis, commit_logged) = commits::read(&flag, &bounded)?;
         let knn = flag("OSS_KNN", "true")?;
         let extensions_percent =
             usize::try_from(bounded("OSS_EXTENSIONS_PERCENT", "0", 0, 20)?).unwrap_or(0);
@@ -458,6 +458,7 @@ impl NodeConfig {
             pinned_indexes,
             hand_off,
             commit_checkpoint_millis,
+            commit_logged,
             security,
             security_admin,
             security_refresh_millis,

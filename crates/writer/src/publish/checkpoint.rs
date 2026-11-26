@@ -24,6 +24,13 @@ impl ShardPublisher {
         self.staged.is_some()
     }
 
+    /// How old the oldest staged commit is: the age of the oldest pack it
+    /// names, or of the first commit staged; `None` when nothing is staged.
+    #[must_use]
+    pub fn staged_age(&self) -> Option<Duration> {
+        self.staged.as_ref().map(|s| s.oldest.elapsed())
+    }
+
     /// Writes the staged commit when the oldest staged commit has reached the
     /// checkpoint age; `None` when nothing is staged or it is not due yet.
     ///
@@ -68,6 +75,7 @@ impl ShardPublisher {
                     term: staged.term,
                     writer: Some(staged.writer),
                     files: staged.files,
+                    stage_seq: self.sequence,
                 });
                 Ok(Some(Published {
                     manifest: staged.manifest,

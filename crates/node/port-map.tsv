@@ -226,3 +226,6 @@ src/stock_export_route.rs	new		taking into a stock OpenSearch repository through
 src/boot/config/commit_tests.rs	new		tests of OSS_COMMIT_STAGING and OSS_COMMIT_CHECKPOINT_MS
 src/boot/config/lease_timing.rs	new		the lease renewal and refresh intervals, split out of the boot config to keep it under the size limit
 src/assemble_publishing.rs	new		the publishing a node's configuration asks for, split out of assemble.rs to keep it under the size limit
+src/writer/logged.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/LoggedCommits.java	the role's calls: log a staged commit, release at the register write, forget on release
+src/boot/config/commits.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/CommitStaging.java@429b4cbc	the staging and logging variables
+src/writer/open_logged.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/NewestCommits.java	choosing the commit a taken shard opens from
