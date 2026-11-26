@@ -109,11 +109,18 @@ pub struct NewIndexMetadata<'a> {
 }
 
 /// What a stock create computes for the shard count routing is spread over:
-/// `shards * 2^(10 - ceil(log2 shards))`, at least `shards`.
+/// `shards * 2^max(1, 10 - ceil(log2 shards))`.
 fn routing_shards(shards: u32) -> u64 {
     let log2 = 32u32.saturating_sub(shards.saturating_sub(1).leading_zeros());
-    let splits = LOG2_MAX_ROUTING_SHARDS.saturating_sub(log2);
+    let splits = LOG2_MAX_ROUTING_SHARDS.saturating_sub(log2).max(1);
     u64::from(shards).saturating_mul(1u64.wrapping_shl(splits))
+}
+
+/// Whether any item appears twice.
+fn has_repeat<'a>(items: impl Iterator<Item = &'a str>) -> bool {
+    // ALLOC: one entry an item, bounded by the settings and shards the caller holds.
+    let mut seen = std::collections::HashSet::new();
+    items.into_iter().any(|i| !seen.insert(i))
 }
 
 /// A JSON object, exactly one: nothing may follow it.
@@ -144,6 +151,11 @@ pub fn index_metadata_json(
     }
     if let Some(mapping) = new.mapping {
         check_object(mapping)?;
+    }
+    if has_repeat(new.allocation_ids.iter().map(String::as_str))
+        || has_repeat(new.settings.iter().map(|(k, _)| k.as_str()))
+    {
+        return Err(corrupt(WHAT, "a repeated setting key or allocation id"));
     }
     write_index(new, shards, out);
     Ok(())

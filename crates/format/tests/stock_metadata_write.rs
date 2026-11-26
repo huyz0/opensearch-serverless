@@ -297,3 +297,94 @@ fn a_snapshot_needs_a_name_and_a_safe_uuid_each_and_lists_every_index() {
     let two = with("n", "u", &["a", "b"]).unwrap();
     assert!(two.contains(r#""indices":["a","b"]"#), "{two}");
 }
+
+#[test]
+fn routing_shards_follow_the_servers_own_table() {
+    // `MetadataCreateIndexService.calculateNumRoutingShards` on the 3.10 jars.
+    let table = [
+        (1u32, 1024u64),
+        (2, 1024),
+        (3, 768),
+        (4, 1024),
+        (5, 640),
+        (6, 768),
+        (7, 896),
+        (8, 1024),
+        (100, 800),
+        (256, 1024),
+        (300, 600),
+        (511, 1022),
+        (512, 1024),
+        (513, 1026),
+        (1000, 2000),
+        (1024, 2048),
+        (1025, 2050),
+        (2000, 4000),
+        (4096, 8192),
+    ];
+    for (shards, want) in table {
+        let alloc: Vec<String> = (0..shards).map(|i| format!("a{i}")).collect();
+        let new = StockNewIndexMetadata {
+            number_of_shards: shards,
+            ..logs(&[], &alloc)
+        };
+        let got = text(|o| stock_index_metadata_json(&new, o));
+        assert!(
+            got.contains(&format!("\"routing_num_shards\":{want},")),
+            "{shards}"
+        );
+    }
+}
+
+#[test]
+fn repeated_settings_or_allocation_ids_and_a_trailing_mapping_are_refused() {
+    let alloc = ["a".to_owned()];
+    let twice = [
+        ("index.x".to_owned(), "1".to_owned()),
+        ("index.x".to_owned(), "2".to_owned()),
+    ];
+    let mut out = b"keep".to_vec();
+    assert!(stock_index_metadata_json(&logs(&twice, &alloc), &mut out).is_err());
+    let same = ["a".to_owned(), "a".to_owned()];
+    let new = StockNewIndexMetadata {
+        number_of_shards: 2,
+        ..logs(&[], &same)
+    };
+    assert!(stock_index_metadata_json(&new, &mut out).is_err());
+    let trailing = StockNewIndexMetadata {
+        mapping: Some("{} {}"),
+        ..logs(&[], &alloc)
+    };
+    assert!(stock_index_metadata_json(&trailing, &mut out).is_err());
+    assert_eq!(out, b"keep");
+}
+
+#[test]
+fn quotes_and_controls_in_names_and_settings_are_escaped_and_read_back() {
+    let alloc = ["a".to_owned()];
+    let odd = [("index.q\"k".to_owned(), "v\n\"\\\u{1}".to_owned())];
+    let new = StockNewIndexMetadata {
+        name: "we\"ird\nname",
+        ..logs(&odd, &alloc)
+    };
+    let got = text(|o| stock_index_metadata_json(&new, o));
+    let read = StockIndexMetadata::parse(got.as_bytes()).unwrap();
+    assert_eq!(read.name, "we\"ird\nname");
+    assert_eq!(read.setting("index.q\"k"), Some("v\n\"\\\u{1}"));
+    let snap = StockNewSnapshotInfo {
+        name: "sn\"ap\n",
+        uuid: "u",
+        indices: &["we\"ird"],
+        start_time_ms: 5,
+        end_time_ms: 9,
+        total_shards: 1,
+        successful_shards: 1,
+    };
+    let got = text(|o| stock_snapshot_info_json(&snap, o));
+    let read = StockSnapshotInfo::parse(got.as_bytes()).unwrap();
+    assert_eq!(
+        (read.name.as_str(), read.indices.as_slice()),
+        ("sn\"ap\n", &["we\"ird".to_owned()][..])
+    );
+    assert!(got.contains(r#""start_time":5,"end_time":9"#), "{got}");
+}
