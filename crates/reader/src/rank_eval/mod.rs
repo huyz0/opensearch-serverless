@@ -5,6 +5,7 @@
 //! the request's ratings.
 
 pub mod metric;
+mod metric_spec;
 pub mod order;
 pub mod spec;
 

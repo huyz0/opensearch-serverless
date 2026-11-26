@@ -191,7 +191,8 @@ src/template/request.rs	port	modules/lang-mustache/src/main/java/org/opensearch/
 src/template/tests.rs	new		replay of the recorded Java renders, refusals and request parser cases
 src/template/visit.rs	port	modules/lang-mustache/src/main/java/org/opensearch/script/mustache/CustomMustacheFactory.java@3.10.0	the CustomMustacheVisitor codes for toJson, join and url, and the partial check
 src/rank_eval/mod.rs	new		the rank_eval module's exports
-src/rank_eval/metric.rs	port	modules/rank-eval/src/main/java/org/opensearch/index/rankeval/PrecisionAtK.java@3.10.0	the precision, recall and reciprocal-rank metrics and their details
+src/rank_eval/metric.rs	port	modules/rank-eval/src/main/java/org/opensearch/index/rankeval/PrecisionAtK.java@3.10.0	the precision, recall, reciprocal-rank and dcg metrics and their details
+src/rank_eval/metric_spec.rs	port	modules/rank-eval/src/main/java/org/opensearch/index/rankeval/DiscountedCumulativeGain.java@3.10.0	the metric of a _rank_eval body: its names, parameters and defaults
 src/rank_eval/spec.rs	port	modules/rank-eval/src/main/java/org/opensearch/index/rankeval/RankEvalSpec.java@3.10.0	the _rank_eval body: rated requests, ratings, metric and templates
 src/rank_eval/order.rs	port	modules/rank-eval/src/main/java/org/opensearch/index/rankeval/RankEvalResponse.java@3.10.0	the iteration order of the Java HashMap and ConcurrentHashMap the response is written from
 src/rank_eval/tests.rs	new		parser and refusal cases

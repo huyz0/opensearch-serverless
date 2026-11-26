@@ -268,6 +268,22 @@ fn write_quality(
             out,
             "{{\"recall\":{{\"relevant_docs_retrieved\":{relevant_retrieved},\"relevant_docs\":{relevant}}}}}"
         )?,
+        Detail::Dcg {
+            dcg,
+            ideal_dcg,
+            unrated,
+        } => {
+            write!(out, "{{\"dcg\":{{\"dcg\":{}", java_double(dcg))?;
+            if ideal_dcg != 0.0 {
+                write!(
+                    out,
+                    ",\"ideal_dcg\":{},\"normalized_dcg\":{}",
+                    java_double(ideal_dcg),
+                    java_double(dcg / ideal_dcg)
+                )?;
+            }
+            write!(out, ",\"unrated_docs\":{unrated}}}}}")?;
+        }
         Detail::ReciprocalRank { first_relevant } => write!(
             out,
             "{{\"mean_reciprocal_rank\":{{\"first_relevant\":{first_relevant}}}}}"
