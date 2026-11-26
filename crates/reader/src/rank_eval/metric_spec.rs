@@ -112,8 +112,33 @@ pub(super) fn metric(p: &mut Parser<'_>) -> Result<Metric, DslError> {
             }
         }
         "expected_reciprocal_rank" => {
-            // ALLOC: the request body and its response, which the limits bound.
-            return Err(DslError::unsupported(&format!("the [{name}] metric")));
+            // The Java names its parser `dcg`, and so do its errors.
+            expect_object(p, "dcg", kind)?;
+            let (mut max_relevance, mut default_rating, mut k) = (None, None, None);
+            while p.next_token() == Some(Kind::FieldName) {
+                // ALLOC: one name of the body, which the recording bounds.
+                let field = p.text().to_owned();
+                let field_at = p.location();
+                let value = p.next_token();
+                match field.as_str() {
+                    "maximum_relevance" => max_relevance = Some(int(p, "dcg", &field, value)?),
+                    "unknown_doc_rating" => default_rating = Some(int(p, "dcg", &field, value)?),
+                    "k" => k = Some(int(p, "dcg", &field, value)?),
+                    _ => return Err(unknown(field_at, "dcg", &field)),
+                }
+            }
+            let Some(max_relevance) = max_relevance else {
+                return Err(DslError::xcontent(
+                    p.location(),
+                    "[dcg] Required [maximum_relevance]",
+                    None,
+                ));
+            };
+            Metric::ExpectedReciprocalRank {
+                max_relevance,
+                unknown_doc_rating: default_rating,
+                k: k.unwrap_or(10),
+            }
         }
         _ => {
             return Err(DslError::xcontent(

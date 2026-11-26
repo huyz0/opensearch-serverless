@@ -106,6 +106,29 @@ fn the_metrics_take_their_defaults_and_parameters() {
         }
     );
     assert_eq!(
+        m(r#"{"expected_reciprocal_rank":{"maximum_relevance":3}}"#),
+        Metric::ExpectedReciprocalRank {
+            max_relevance: 3,
+            unknown_doc_rating: None,
+            k: 10
+        }
+    );
+    assert_eq!(
+        m(r#"{"expected_reciprocal_rank":{"maximum_relevance":5,"unknown_doc_rating":1,"k":4}}"#),
+        Metric::ExpectedReciprocalRank {
+            max_relevance: 5,
+            unknown_doc_rating: Some(1),
+            k: 4
+        }
+    );
+    let missing =
+        parse(&with(REQ, r#"{"expected_reciprocal_rank":{"k":4}}"#)).expect_err("needs it");
+    // ALLOC: test data.
+    assert!(
+        format!("{missing:?}").contains("maximum_relevance"),
+        "{missing:?}"
+    );
+    assert_eq!(
         m(r#"{"recall":{}}"#),
         Metric::Recall {
             threshold: 1,
@@ -116,7 +139,7 @@ fn the_metrics_take_their_defaults_and_parameters() {
 
 #[test]
 fn a_body_the_java_parser_refuses_says_why() {
-    let cases: [(String, &str); 24] = [
+    let cases: [(String, &str); 23] = [
         (
             // ALLOC: test data.
             String::new(),
@@ -153,8 +176,7 @@ fn a_body_the_java_parser_refuses_says_why() {
             "ignore_unlabeled doesn't support",
         ),
         (with(REQ, r#"{"nope":{}}"#), "unknown field [nope]"),
-        (with(REQ, r#"{"expected_reciprocal_rank":{}}"#), "not supported by this node yet"),
-        (with(REQ, "{}"), "expected a metric name"),
+                (with(REQ, "{}"), "expected a metric name"),
         (
             with(REQ, r#"{"precision":{},"recall":{}}"#),
             "takes one name",
