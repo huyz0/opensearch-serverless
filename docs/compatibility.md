@@ -36,7 +36,7 @@ Invariant I-13 in [invariants.md](invariants.md) holds the suite to this: `crate
 
 ## `_validate/query` on a reader node
 
-`GET|POST /{index}/_validate/query` with a body of `query` alone, or none, answers `valid` and `_shards` of `total` 1 (stock validates on one shard of each index) ([validate-query-api](specs/validate-query-api/SPEC.md)). A body that does not parse and a query that fails to build answer 200 `valid: false`, as OpenSearch does. **Refused:** `/_validate/query` without an index, every URL parameter (`explain`, `rewrite`, `all_shards`, `q` and the rest), and a query this node does not support yet (400, never `valid: false`). **Differs:** a body key that parses as a search default (`{"size":10}`) is valid here and invalid in OpenSearch; the index must be one concrete name.
+`GET|POST /{index}/_validate/query` with a body of `query` alone, or none, answers `valid` and `_shards` of `total` 1 (stock validates on one shard of each index) ([validate-query-api](specs/validate-query-api/SPEC.md)). A body that does not parse and a query that fails to build answer 200 `valid: false`, as OpenSearch does. **Refused:** `/_validate/query` without an index, the URL parameters `explain`, `rewrite`, `all_shards` and the indices options, and a query this node does not support yet (400, never `valid: false`). **Serves:** `q`, `df`, `default_operator`, `analyzer` and `lenient` with no body, as the `query_string` query a search builds from them (a body's query wins; `analyze_wildcard` is refused as in a search). **Differs:** a body key that parses as a search default (`{"size":10}`) is valid here and invalid in OpenSearch; the index must be one concrete name.
 
 ## `_field_caps` on a reader node
 

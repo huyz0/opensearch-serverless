@@ -7,3 +7,4 @@
 - AC-5: `an_unknown_index_is_not_found_as_in_a_search` in crates/node/tests/it/validate_query.rs
 - AC-6: `no_index_and_any_parameter_are_refused` in crates/node/tests/it/validate_query.rs
 - AC-7: `validating_an_open_index_makes_no_request_to_the_store` in crates/node/tests/it/validate_query.rs
+- AC-8: `the_q_parameters_are_validated_as_a_query_string` in crates/node/tests/it/validate_query.rs (seen red with the parameters refused, green with them served)
