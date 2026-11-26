@@ -183,3 +183,52 @@ fn a_gate_that_is_on_is_reported_as_gauges_and_counters() {
     assert!(!reply.text().contains("oss_search_queue_"));
     assert!(!reply.text().contains("oss_memory_pool_"));
 }
+
+// AC-4
+#[test]
+fn a_queue_that_is_on_reports_what_it_has_done() {
+    use oss_rest::{QueueEvent, SearchAdmission};
+    let queue = oss_node::search_queue::QueueAdmission::new(
+        &oss_node::search_queue::Config {
+            size: 4,
+            share_pct: 50,
+            reserved: 1,
+            wait_millis: 10,
+            max_connections: 8,
+        },
+        4,
+    );
+    let hook = oss_node::search_queue::Hook(Arc::clone(&queue));
+    for event in [
+        QueueEvent::Deferred,
+        QueueEvent::Deferred,
+        QueueEvent::Deferred,
+        QueueEvent::Resumed(7),
+        QueueEvent::Refused,
+        QueueEvent::Expired,
+    ] {
+        hook.note(event);
+    }
+    let service = UsageService::new(Arc::new(Ledger::new(4)), "n1", 5, Arc::new(|| 9))
+        .with_search_queue(queue);
+    let router = routes(Router::new(), Arc::new(service)).expect("route");
+    let server = Server::start(
+        TcpListener::bind("127.0.0.1:0").expect("binds"),
+        support::server_config(),
+        router,
+        &MemoryBudget::new(&support::budget_config()),
+    )
+    .expect("starts");
+    let reply = support::request(server.local_addr(), "GET", "/_prometheus/metrics", None);
+    let s = samples(&reply.text());
+    assert_eq!(s["oss_search_queue_deferred_total"], 3.0);
+    assert_eq!(s["oss_search_queue_resumed_total"], 1.0);
+    assert_eq!(s["oss_search_queue_refused_total"], 1.0);
+    assert_eq!(s["oss_search_queue_expired_total"], 1.0);
+    assert_eq!(s["oss_search_queue_dropped_total"], 0.0);
+    // Three deferred, one resumed and one expired leave one parked.
+    assert_eq!(s["oss_search_queue_parked"], 1.0);
+    assert_eq!(s["oss_search_queue_running"], 0.0);
+    assert_eq!(s["oss_search_queue_longest_wait_millis"], 7.0);
+    assert!(!reply.text().contains("oss_search_slots_"));
+}
