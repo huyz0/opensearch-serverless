@@ -32,6 +32,7 @@ use oss_reader::response::write_response;
 use oss_reader::search::{hits_bytes, search_with};
 use oss_rest::{JSON, Length, Method, Request, Response, RestError, RouteError, Router};
 pub use search_pipeline_run::{PipelineFault, PipelineSource};
+pub use template::{TemplateFault, TemplateSource};
 
 /// The query parameters `_search` takes.
 pub const SEARCH_PARAMS: &[&str] = &["size", "from", "search_pipeline"];
@@ -101,6 +102,9 @@ pub struct SearchService<S: BlobStore + 'static> {
     /// Where `?search_pipeline=` finds its pipelines; none, and naming one
     /// is refused.
     pipelines: OnceLock<Arc<dyn PipelineSource>>,
+    /// Where a request naming a stored template finds it; none, and naming
+    /// one is refused.
+    templates: OnceLock<Arc<dyn TemplateSource>>,
 }
 
 impl<S: BlobStore + 'static> SearchService<S> {
@@ -133,6 +137,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
             slots: OnceLock::new(),
             modules: OnceLock::new(),
             pipelines: OnceLock::new(),
+            templates: OnceLock::new(),
         }
     }
 

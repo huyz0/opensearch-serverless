@@ -16,6 +16,9 @@ pub struct TemplateRequest {
     pub source: Option<String>,
     /// The id of a stored template.
     pub id: Option<String>,
+    /// Whether the body's last word on the template was `id`, not a source:
+    /// the later of the two wins, as in stock's parser.
+    pub stored: bool,
     /// The `params`.
     pub params: Option<Val>,
     /// `explain`.
@@ -142,15 +145,20 @@ impl TemplateRequest {
                     }
                     // ALLOC: the template, its params and its output, which the request limits bound.
                     request.id = Some(p.text().to_owned());
+                    request.stored = true;
                 }
                 "source" | "inline" | "template" => match value {
                     // ALLOC: the template, its params and its output, which the request limits bound.
-                    Some(Kind::String) => request.source = Some(p.text().to_owned()),
+                    Some(Kind::String) => {
+                        request.source = Some(p.text().to_owned());
+                        request.stored = false;
+                    }
                     Some(Kind::StartObject) => {
                         // ALLOC: the template, its params and its output, which the request limits bound.
                         let mut json = String::new();
                         read_val(&mut p, 0)?.write_json(&mut json);
                         request.source = Some(json);
+                        request.stored = false;
                     }
                     _ => return Err(unsupported_type(&p, &name, value)),
                 },
