@@ -119,3 +119,34 @@ fn a_restore_cannot_add_an_analyzer_pin() {
             .is_none()
     );
 }
+
+const PIN: &str = r#"{"index.analysis.analyzer.ext_tok.type":"ext_tok","index.analysis.analyzer.ext_tok.module":"tok","index.analysis.analyzer.ext_tok.version":"3"}"#;
+
+fn pin_the_analyzer(r: &crate::snapshot_restore::Rig) {
+    let mut buf = vec![0u8; 1 << 16];
+    let generation = r.descriptors.generation_of("logs", &mut buf).unwrap();
+    let mut record = oss_format::IndexRecord::new("logs", "u1", 2);
+    record.settings = PIN.as_bytes();
+    let mut out = vec![0u8; 1 << 16];
+    assert!(
+        r.descriptors
+            .update(&record, generation, &mut out)
+            .unwrap()
+            .is_some()
+    );
+}
+
+#[test]
+fn a_restore_keeps_the_analyzer_pin_the_snapshot_captured() {
+    let r = crate::snapshot_restore::taken_with_aliases(true, false, pin_the_analyzer);
+    let reply = send(&r, "POST", RESTORE, Some(&format!("{{{RENAME}}}")));
+    assert_eq!(reply.status, 200, "{}", reply.text());
+    let restored = settings_of(&r, "copy");
+    for key in ["type", "module", "version"] {
+        assert!(
+            restored.contains(&format!("index.analysis.analyzer.ext_tok.{key}")),
+            "{restored}"
+        );
+    }
+    assert!(restored.contains(r#""index.analysis.analyzer.ext_tok.version":"3""#));
+}
