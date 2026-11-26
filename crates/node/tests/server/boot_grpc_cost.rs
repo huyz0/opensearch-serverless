@@ -60,7 +60,7 @@ fn counts(server: &S3Server) -> Vec<u64> {
 /// the last call left behind (a publish, a refresh) does not land in the next measured window.
 fn quiet(server: &S3Server) {
     let mut last = counts(server);
-    let mut steady = 0;
+    let mut steady = 0u32;
     while steady < 5 {
         std::thread::sleep(std::time::Duration::from_millis(50));
         let now = counts(server);
