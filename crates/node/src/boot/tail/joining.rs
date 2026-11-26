@@ -96,6 +96,7 @@ impl Joining {
                 max_shards: i32::try_from(self.warm.max_shards).unwrap_or(i32::MAX),
                 max_bytes: i64::try_from(self.warm.max_bytes).unwrap_or(i64::MAX),
                 bytes_per_second: self.warm.bytes_per_second,
+                open_parallel: usize::try_from(self.warm.open_parallel).unwrap_or(1),
             },
             parallel_peers: usize::try_from(self.warm.parallel_peers).unwrap_or(1),
             pool: Pool::Transport,
