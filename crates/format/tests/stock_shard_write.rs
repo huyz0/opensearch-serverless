@@ -195,6 +195,21 @@ fn a_bad_file_is_refused_and_the_buffer_keeps_its_start() {
         ("unsafe blob", StockNewFile { name: "a/b", ..ok }),
         ("a virtual file's name", StockNewFile { name: "v__A", ..ok }),
         (
+            "a name that could be the generation",
+            StockNewFile {
+                name: "index-x",
+                ..ok
+            },
+        ),
+        (
+            "a name that could be a snapshot blob",
+            StockNewFile {
+                name: "snap-x.dat",
+                ..ok
+            },
+        ),
+        ("a bare name", StockNewFile { name: "x", ..ok }),
+        (
             "empty physical name",
             StockNewFile {
                 physical_name: "",
@@ -230,12 +245,13 @@ fn a_bad_file_is_refused_and_the_buffer_keeps_its_start() {
 fn the_sums_hold_across_many_files() {
     let mk = |n: usize| (0..n).map(|i| format!("__f{i}")).collect::<Vec<_>>();
     let names = mk(3);
+    let phys: Vec<String> = (0..3).map(|i| format!("_{i}.cfs")).collect();
     let files: Vec<StockNewFile<'_>> = names
         .iter()
         .enumerate()
         .map(|(i, n)| StockNewFile {
             name: n,
-            physical_name: "_0.cfs",
+            physical_name: &phys[i],
             length: 10 * (i as u64 + 1),
             checksum: "z",
             written_by: "10.5.1",
@@ -292,13 +308,15 @@ fn the_shard_blobs_are_left_for_the_java_check() {
 #[test]
 fn the_file_count_bound_holds_at_the_limit_and_one_past() {
     let names: Vec<String> = (0..10_001).map(|i| format!("__f{i}")).collect();
+    let phys: Vec<String> = (0..10_001).map(|i| format!("_{i}.cfs")).collect();
     let files = |n: usize| -> Vec<StockNewFile<'_>> {
         names
             .iter()
             .take(n)
-            .map(|name| StockNewFile {
+            .zip(&phys)
+            .map(|(name, physical_name)| StockNewFile {
                 name,
-                physical_name: "_0.cfs",
+                physical_name,
                 length: 1,
                 checksum: "z",
                 written_by: "10.5.1",
@@ -336,4 +354,63 @@ fn the_checksum_digits_run_to_the_top_of_the_range() {
     assert_eq!(stock_checksum_string(36), "10");
     assert_eq!(stock_checksum_string(1295), "zz");
     assert_eq!(stock_checksum_string(1296), "100");
+}
+
+#[test]
+fn a_file_object_is_written_in_the_stock_order_with_the_unsplit_part_size() {
+    let f = [StockNewFile {
+        name: "__A",
+        physical_name: "_0.cfs",
+        length: 7,
+        checksum: "z",
+        written_by: "10.5.1",
+    }];
+    let got = text(|o| stock_shard_snapshot_json("s", 1, 2, 3, &f, o));
+    assert!(
+        got.ends_with(r#""files":[{"name":"__A","physical_name":"_0.cfs","length":7,"checksum":"z","part_size":9223372036854775807,"written_by":"10.5.1"}]}"#),
+        "{got}"
+    );
+}
+
+#[test]
+fn two_files_restored_to_one_lucene_name_are_refused() {
+    let f = |name| StockNewFile {
+        name,
+        physical_name: "_0.cfs",
+        length: 1,
+        checksum: "1",
+        written_by: "10.5.1",
+    };
+    assert!(
+        stock_shard_snapshot_json("s", 1, 0, 0, &[f("__a"), f("__b")], &mut Vec::new()).is_err()
+    );
+}
+
+#[test]
+fn a_generation_grows_only_within_the_entry_bound() {
+    let g = StockShardGeneration::parse(ONE.as_bytes()).unwrap();
+    let f = [StockNewFile {
+        name: "__n",
+        physical_name: "_1.cfs",
+        length: 1,
+        checksum: "1",
+        written_by: "10.5.1",
+    }];
+    // ONE holds 3 entries; the snapshot adds a file, a snapshot and a reference.
+    let next = g.with_snapshot_within("t", &f, 6).unwrap();
+    assert!(!text(|o| next.to_json(o)).is_empty());
+    assert!(StockShardGeneration::parse_with(text(|o| next.to_json(o)).as_bytes(), 6).is_ok());
+    let e = g.with_snapshot_within("t", &f, 5).unwrap_err();
+    assert!(matches!(e, FormatError::TooLarge { .. }), "{e:?}");
+}
+
+#[test]
+fn a_generation_listing_a_file_or_a_snapshot_twice_is_refused() {
+    let twice_file = ONE.replacen(r#""files":[{"#, r#""files":[{"name":"__a","physical_name":"_0.cfs","length":5,"checksum":"a","part_size":5},{"#, 1);
+    assert!(StockShardGeneration::parse(twice_file.as_bytes()).is_err());
+    let twice_snap = ONE.replace(
+        r#""snapshots":{"s":{"files":["__a"]}}"#,
+        r#""snapshots":{"s":{"files":["__a"]},"s":{"files":[]}}"#,
+    );
+    assert!(StockShardGeneration::parse(twice_snap.as_bytes()).is_err());
 }

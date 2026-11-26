@@ -63,11 +63,10 @@ fn check_file(f: &NewFile<'_>) -> Result<(), FormatError> {
     if !is_blob_name(f.name) || !is_blob_name(f.physical_name) || !is_blob_name(f.written_by) {
         return Err(corrupt(WHAT, "a file name that is not safe in a blob key"));
     }
-    if f.name.starts_with("v__") {
-        return Err(corrupt(
-            WHAT,
-            "a blob named as a virtual file, which has none",
-        ));
+    // A data blob is `__<id>`: any other name could land on the generation
+    // or the snapshot blob beside it, and `v__` names a file with no blob.
+    if !f.name.starts_with("__") {
+        return Err(corrupt(WHAT, "a data blob not named `__<id>`"));
     }
     if !base36 {
         return Err(corrupt(WHAT, "a checksum that is not base 36"));
@@ -84,6 +83,11 @@ fn check_files(files: &[NewFile<'_>]) -> Result<(), FormatError> {
     let mut seen = std::collections::HashSet::new();
     if files.iter().any(|f| !seen.insert(f.name)) {
         return Err(corrupt(WHAT, "a blob named twice"));
+    }
+    // ALLOC: one entry a file, at most MAX_FILES.
+    let mut physical = std::collections::HashSet::new();
+    if files.iter().any(|f| !physical.insert(f.physical_name)) {
+        return Err(corrupt(WHAT, "a Lucene file named twice"));
     }
     Ok(())
 }
@@ -188,6 +192,14 @@ impl ShardGeneration {
             }
         }
         r.finish()?;
+        // ALLOC: one entry a file and a snapshot, bounded by the entry budget.
+        let mut files = std::collections::HashSet::new();
+        let mut snaps = std::collections::HashSet::new();
+        if out.files.iter().any(|f| !files.insert(f.name.as_str()))
+            || out.snapshots.iter().any(|s| !snaps.insert(s.name.as_str()))
+        {
+            return Err(corrupt(WHAT, "a file or a snapshot listed twice"));
+        }
         Ok(out)
     }
 
@@ -216,15 +228,44 @@ impl ShardGeneration {
     /// This generation with snapshot `name` added, holding `files`, each a
     /// new blob. Every earlier file and snapshot is kept as read.
     pub fn with_snapshot(&self, name: &str, files: &[NewFile<'_>]) -> Result<Self, FormatError> {
+        self.with_snapshot_within(name, files, MAX_ENTRIES)
+    }
+
+    /// [`Self::with_snapshot`], refusing a result of more than `max_entries`
+    /// entries: the bound [`Self::parse`] holds, so the blob written can be read.
+    pub fn with_snapshot_within(
+        &self,
+        name: &str,
+        files: &[NewFile<'_>],
+        max_entries: usize,
+    ) -> Result<Self, FormatError> {
         if name.is_empty() || self.snapshots.iter().any(|s| s.name == name) {
             return Err(corrupt(WHAT, "a snapshot with no name or one already held"));
         }
         check_files(files)?;
-        if files
-            .iter()
-            .any(|f| self.files.iter().any(|h| h.name == f.name))
-        {
+        // ALLOC: one entry a held file, bounded by the entry budget.
+        let held: std::collections::HashSet<&str> =
+            self.files.iter().map(|f| f.name.as_str()).collect();
+        if files.iter().any(|f| held.contains(f.name)) {
             return Err(corrupt(WHAT, "a blob already listed"));
+        }
+        let refs = self
+            .snapshots
+            .iter()
+            .fold(0usize, |n, s| n.saturating_add(s.files.len()));
+        let entries = self
+            .files
+            .len()
+            .saturating_add(self.snapshots.len())
+            .saturating_add(refs)
+            .saturating_add(files.len().saturating_mul(2))
+            .saturating_add(1);
+        if entries > max_entries {
+            return Err(FormatError::TooLarge {
+                what: WHAT,
+                limit: u64::try_from(max_entries).unwrap_or(u64::MAX),
+                actual: u64::try_from(entries).unwrap_or(u64::MAX),
+            });
         }
         // ALLOC: a copy of the generation, bounded by its entries.
         let mut next = self.clone();
