@@ -92,6 +92,12 @@ impl<S: BlobStore + 'static> SearchService<S> {
         if source != query_only {
             return Err(RestError::illegal_argument(NOT_SUPPORTED));
         }
+        // Held until the count is answered; a request processor may narrow it.
+        let _pipeline = match self.run_item_pipeline(&index, &mut source) {
+            Ok(held) => held,
+            Err(Answer::Rest(e)) => return Err(e),
+            Err(Answer::Search(e)) => return send(resp, &e),
+        };
         source.min_score = min_score_param(req)?;
         source.size = 0;
         source.track_total_hits = Some(u64::from(i32::MAX.cast_unsigned()));
