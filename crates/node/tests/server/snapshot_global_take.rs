@@ -235,3 +235,80 @@ fn seeded_docs(r: &Rig) {
         r#"{"script":{"lang":"painless","source":"1"}}"#,
     );
 }
+
+/// The record a Rust take wrote with every part of the global state, for a
+/// Java node to read (`fixtures/snapshots/rust-take-global/`,
+/// `ServerlessRustGlobalStateTests.java`). With `OSS_WRITE_FIXTURES` set the
+/// file is rewritten; otherwise the test checks the committed one still
+/// holds the state this take records.
+#[test]
+#[allow(clippy::disallowed_methods)]
+fn a_take_writes_the_global_state_record_a_java_node_reads() {
+    let r = rig(true);
+    repository(&r, true);
+    index(&r, "logs", "u1", 1);
+    publish(&r, "logs", "u1", 0);
+    ClusterConfig::new(blobs(&r), "")
+        .unwrap()
+        .update(
+            &[
+                ("cluster.int", Some("7")),
+                ("cluster.text", Some("a b")),
+                ("cluster.flag", Some("true")),
+                ("cluster.ratio", Some("1.5")),
+            ],
+            &mut vec![0u8; 1 << 20],
+        )
+        .unwrap();
+    put_doc(
+        &r,
+        DocKind::IndexTemplate,
+        "it",
+        r#"{"index_patterns":["x-*"],"template":{"settings":{"index":{"number_of_shards":"2"}}}}"#,
+    );
+    put_doc(
+        &r,
+        DocKind::ComponentTemplate,
+        "ct",
+        r#"{"template":{"mappings":{"properties":{"a":{"type":"keyword"}}}}}"#,
+    );
+    put_doc(
+        &r,
+        DocKind::IngestPipeline,
+        "ip",
+        r#"{"processors":[{"set":{"field":"a","value":"é \"q\""}}]}"#,
+    );
+    put_doc(
+        &r,
+        DocKind::SearchPipeline,
+        "sp",
+        r#"{"request_processors":[{"filter_query":{"query":{"match_all":{}}}}]}"#,
+    );
+    put_doc(
+        &r,
+        DocKind::StoredScript,
+        "ss",
+        r#"{"script":{"lang":"painless","source":"1"}}"#,
+    );
+    let put = take(&r, "g", r#"{"indices":"logs","include_global_state":true}"#);
+    assert_eq!(put.status, 200, "{}", put.text());
+    let key = snapshot_state_key("", "backups", "g").unwrap();
+    let mut state = vec![0u8; 1 << 20];
+    let read = r.store.read_register(&key, &mut state).unwrap().unwrap();
+    state.truncate(read.len);
+    let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/snapshots/rust-take-global");
+    if std::env::var_os("OSS_WRITE_FIXTURES").is_some() {
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("state.bin"), &state).unwrap();
+    }
+    let committed = std::fs::read(dir.join("state.bin")).expect("run with OSS_WRITE_FIXTURES=1");
+    let SnapshotState::Held { record, .. } = SnapshotState::parse(&committed).unwrap() else {
+        panic!("held");
+    };
+    let held = GlobalState::find(record).unwrap().expect("a member");
+    assert_eq!(held.settings.len(), 4);
+    for set in StateSet::ALL {
+        assert_eq!(held.documents(set).len(), 1, "{}", set.key());
+    }
+}
