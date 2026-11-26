@@ -443,3 +443,57 @@ fn a_reader_that_cannot_load_the_module_refuses_the_search() {
         reply.text()
     );
 }
+
+// AC-13 (_validate/query): the module's answer decides validity. Its canned
+// token ends at 5, so a text of 3 units is a malformed answer (invalid) and a
+// text of 7 is a valid one; the built-in analyzer calls both valid.
+#[test]
+fn a_validate_query_analyses_with_the_module_the_index_pins() {
+    let root = TempDir::new("pinned-validate");
+    let dir = ByteBuffersDirectory::new();
+    let r = rig(root.path(), &dir, &module());
+    assert!(r.service.set_modules(modules(root.path())));
+    let valid = |text: &str| {
+        let body = format!(r#"{{"query":{{"match":{{"t":"{text}"}}}}}}"#);
+        let reply = request(
+            r.server.local_addr(),
+            "POST",
+            "/logs/_validate/query",
+            Some(body.as_bytes()),
+        );
+        assert_eq!(reply.status, 200, "{}", reply.text());
+        reply.text().contains(r#""valid":true"#)
+    };
+    assert!(valid("zzzzzzz"));
+    assert!(!valid("zzz"), "the module's token is past a 3-unit text");
+}
+
+// AC-13: a query that expands the terms of a field is refused on a field
+// whose terms a module made, rather than answered from them.
+#[test]
+fn prefix_wildcard_regexp_and_fuzzy_are_refused_on_a_pinned_field() {
+    let root = TempDir::new("pinned-expanding");
+    let dir = ByteBuffersDirectory::new();
+    let r = rig(root.path(), &dir, &module());
+    assert!(r.service.set_modules(modules(root.path())));
+    for query in [
+        r#"{"prefix":{"t":"zz"}}"#,
+        r#"{"wildcard":{"t":"zz*"}}"#,
+        r#"{"regexp":{"t":"zz.*"}}"#,
+        r#"{"fuzzy":{"t":"zzzzzzy"}}"#,
+    ] {
+        let body = format!(r#"{{"query":{query}}}"#);
+        let reply = request(
+            r.server.local_addr(),
+            "POST",
+            "/logs/_search",
+            Some(body.as_bytes()),
+        );
+        assert_eq!(reply.status, 400, "{query}: {}", reply.text());
+        assert!(
+            reply.text().contains("pins the analyzer [ext_a]"),
+            "{query}: {}",
+            reply.text()
+        );
+    }
+}
