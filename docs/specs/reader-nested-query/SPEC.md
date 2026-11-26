@@ -10,7 +10,7 @@ Parity task R10.1 (queries), the `nested` query; invariant I-13 (REST matches Op
 
 - A `nested` object is a path, not a field: `Mapping::is_nested`, `has_nested` and `nested_parent` answer for it, and its sub-fields keep their full names (`c.w`).
 - The query is a `ToParentBlockJoinQuery` over the engine's block join. Its children are the inner query filtered to `_nested_path:<path>`; its parents are the documents with a `_primary_term` (`Queries.newNonNestedFilter`) for a top-level path, and the documents of the enclosing nested object (`_nested_path:<parent>`) for a path inside another.
-- `score_mode` is `avg` (default), `none`, `min`, `max` or `sum`; `ignore_unmapped` makes an unmapped path match nothing, else it fails `illegal_state_exception` "[nested] failed to find nested object under path [p]"; `path` and `query` are required (`illegal_argument_exception`).
+- `score_mode` is `avg` (default), `none`, `min`, `max` or `sum`; `ignore_unmapped` makes an unmapped path match nothing, else it fails `illegal_state_exception` "[nested] failed to find nested object under path [p]"; a path that names an object that is not nested fails `illegal_state_exception` "[nested] nested object under path [p] is not of nested type" even with `ignore_unmapped`; `path` and `query` are required (`illegal_argument_exception`).
 - On an index whose mapping has a nested object, a search runs over the documents that are not nested (`DefaultSearchContext.buildFilteredQuery`), so a match-all, a total, a count or a plain query on a child's field never returns a child.
 - No index has a nested mapping yet: the writer still refuses the type, so this is exercised by test indexes built through the engine. Nothing changes for an index without one (no clause is added).
 

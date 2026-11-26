@@ -107,6 +107,10 @@ Neither the gate nor CI runs `record.py`; checking fixtures needs nothing but th
 
 The mapping fixtures are replayed through the writer's mapping by `crates/writer/tests/mapping_fixtures.rs`; the 3.10.0-SNAPSHOT they were recorded from was built from huyz0/OpenSearch `429b4cbc` (`./gradlew localDistro`). The search fixtures' indices are also written through the Java shell into [fixtures/compat-blobs/](../compat-blobs/README.md), so a reader node replays their `_search` steps.
 
+## Nested fixtures
+
+[nested-search/nested-query.json](nested-search/nested-query.json) and [nested-search/nested-aggs.json](nested-search/nested-aggs.json) cover the `nested` query (bool and range inside it, every `score_mode` with scores, `boost`, inside `bool`, unmapped and non-nested paths, the root searching a nested field's children) and the `nested` and `reverse_nested` aggregations (metrics, `terms`, a query around them, beneath a keyword and a numeric `terms`, and their refusals). Recorded from the stock 3.10.0 build (b9f09249, built from the `3.10.0` tag with `./gradlew localDistro`). The node cannot take them from `compat-blobs`, which holds no nested index, so `an_assembled_node_answers_every_nested_fixture_as_stock_opensearch_did` (`crates/compat/tests/node_cluster.rs`) replays them whole through a node with `serverless.nested.enabled` on. One parse error's column is normalised: the replay sends a body with its keys sorted.
+
 ## k-NN fixtures
 
 `mapping/knn-*.json` and `knn/` are recorded from the stock 3.10.0 release tarball (`artifacts.opensearch.org`, SHA-512 checked against the published sum) with its bundled k-NN plugin, which the 3.10 source build above does not include. Start it as in step 2, with the security plugin directory removed, and use only the Lucene engine: the Faiss library the plugin loads is missing from the tarball and the node exits when a request reaches it.

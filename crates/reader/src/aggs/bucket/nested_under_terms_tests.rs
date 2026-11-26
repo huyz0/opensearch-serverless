@@ -147,7 +147,8 @@ fn a_reverse_nested_under_a_terms_outside_a_nested_is_refused_as_the_java_refuse
         r#"{"size":0,"aggs":{"t":{"terms":{"field":"tag"},"aggs":{"p":{"reverse_nested":{}}}}}}"#,
     )
     .expect_err("refused");
-    assert_eq!(err.status, 500);
+    assert_eq!(err.status, 400);
+    assert_eq!(err.failure.kind, "illegal_argument_exception");
     assert!(
         err.failure.reason.contains(
             "Reverse nested aggregation [p] can only be used inside a [nested] aggregation"

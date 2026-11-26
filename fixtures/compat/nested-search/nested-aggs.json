@@ -1,0 +1,1593 @@
+{
+  "name": "nested aggregations",
+  "description": "nested and reverse_nested: metrics, terms, a query around them, beneath a terms, and their refusals.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0-SNAPSHOT",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-nested",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "create",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-nested",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "title": {
+                "type": "keyword"
+              },
+              "price": {
+                "type": "long"
+              },
+              "meta": {
+                "properties": {
+                  "k": {
+                    "type": "keyword"
+                  }
+                }
+              },
+              "comments": {
+                "type": "nested",
+                "properties": {
+                  "who": {
+                    "type": "keyword"
+                  },
+                  "n": {
+                    "type": "long"
+                  },
+                  "text": {
+                    "type": "text"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-nested"
+        }
+      }
+    },
+    {
+      "name": "bulk index",
+      "request": {
+        "method": "POST",
+        "path": "/_bulk",
+        "query": {
+          "refresh": "true"
+        },
+        "ndjson": [
+          {
+            "index": {
+              "_index": "compat-nested",
+              "_id": "1"
+            }
+          },
+          {
+            "title": "a",
+            "price": 10,
+            "meta": {
+              "k": "x"
+            },
+            "comments": [
+              {
+                "who": "ann",
+                "n": 1,
+                "text": "good value"
+              },
+              {
+                "who": "bob",
+                "n": 5,
+                "text": "too pricey"
+              }
+            ]
+          },
+          {
+            "index": {
+              "_index": "compat-nested",
+              "_id": "2"
+            }
+          },
+          {
+            "title": "b",
+            "price": 20,
+            "meta": {
+              "k": "y"
+            },
+            "comments": [
+              {
+                "who": "bob",
+                "n": 3,
+                "text": "good value"
+              }
+            ]
+          },
+          {
+            "index": {
+              "_index": "compat-nested",
+              "_id": "3"
+            }
+          },
+          {
+            "title": "c",
+            "price": 30,
+            "meta": {
+              "k": "x"
+            },
+            "comments": [
+              {
+                "who": "ann",
+                "n": 4,
+                "text": "fine"
+              },
+              {
+                "who": "cat",
+                "n": 2,
+                "text": "good enough"
+              },
+              {
+                "who": "ann",
+                "n": 6,
+                "text": "great"
+              }
+            ]
+          },
+          {
+            "index": {
+              "_index": "compat-nested",
+              "_id": "4"
+            }
+          },
+          {
+            "title": "d",
+            "price": 40,
+            "meta": {
+              "k": "z"
+            }
+          },
+          {
+            "index": {
+              "_index": "compat-nested",
+              "_id": "5"
+            }
+          },
+          {
+            "title": "e",
+            "price": 50,
+            "meta": {
+              "k": "y"
+            },
+            "comments": []
+          }
+        ]
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        },
+        {
+          "pointer": "/body/items/*/index/_seq_no",
+          "reason": "sequence numbers depend on the node"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 117,
+          "errors": false,
+          "items": [
+            {
+              "index": {
+                "_index": "compat-nested",
+                "_id": "1",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 0,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-nested",
+                "_id": "2",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 1,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-nested",
+                "_id": "3",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 2,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-nested",
+                "_id": "4",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 3,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-nested",
+                "_id": "5",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 4,
+                "_primary_term": 1,
+                "status": 201
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "nested doc_count and metrics",
+      "request": {
+        "method": "POST",
+        "path": "/compat-nested/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "c": {
+              "nested": {
+                "path": "comments"
+              },
+              "aggs": {
+                "total": {
+                  "sum": {
+                    "field": "comments.n"
+                  }
+                },
+                "top": {
+                  "max": {
+                    "field": "comments.n"
+                  }
+                },
+                "mean": {
+                  "avg": {
+                    "field": "comments.n"
+                  }
+                },
+                "count": {
+                  "value_count": {
+                    "field": "comments.n"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 100,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "c": {
+              "doc_count": 6,
+              "total": {
+                "value": 21.0
+              },
+              "top": {
+                "value": 6.0
+              },
+              "mean": {
+                "value": 3.5
+              },
+              "count": {
+                "value": 6
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "nested terms",
+      "request": {
+        "method": "POST",
+        "path": "/compat-nested/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "c": {
+              "nested": {
+                "path": "comments"
+              },
+              "aggs": {
+                "who": {
+                  "terms": {
+                    "field": "comments.who",
+                    "order": {
+                      "_count": "desc"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 25,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "c": {
+              "doc_count": 6,
+              "who": {
+                "doc_count_error_upper_bound": 0,
+                "sum_other_doc_count": 0,
+                "buckets": [
+                  {
+                    "key": "ann",
+                    "doc_count": 3
+                  },
+                  {
+                    "key": "bob",
+                    "doc_count": 2
+                  },
+                  {
+                    "key": "cat",
+                    "doc_count": 1
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "nested with a query around it",
+      "request": {
+        "method": "POST",
+        "path": "/compat-nested/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "c": {
+              "nested": {
+                "path": "comments"
+              },
+              "aggs": {
+                "who": {
+                  "terms": {
+                    "field": "comments.who",
+                    "order": {
+                      "_key": "asc"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "query": {
+            "range": {
+              "price": {
+                "lte": 20
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 20,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "c": {
+              "doc_count": 3,
+              "who": {
+                "doc_count_error_upper_bound": 0,
+                "sum_other_doc_count": 0,
+                "buckets": [
+                  {
+                    "key": "ann",
+                    "doc_count": 1
+                  },
+                  {
+                    "key": "bob",
+                    "doc_count": 2
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "reverse_nested counts the parents",
+      "request": {
+        "method": "POST",
+        "path": "/compat-nested/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "c": {
+              "nested": {
+                "path": "comments"
+              },
+              "aggs": {
+                "up": {
+                  "reverse_nested": {},
+                  "aggs": {
+                    "price": {
+                      "sum": {
+                        "field": "price"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 5,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "c": {
+              "doc_count": 6,
+              "up": {
+                "doc_count": 3,
+                "price": {
+                  "value": 60.0
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "reverse_nested under a terms",
+      "request": {
+        "method": "POST",
+        "path": "/compat-nested/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "c": {
+              "nested": {
+                "path": "comments"
+              },
+              "aggs": {
+                "who": {
+                  "terms": {
+                    "field": "comments.who",
+                    "order": {
+                      "_key": "asc"
+                    }
+                  },
+                  "aggs": {
+                    "up": {
+                      "reverse_nested": {},
+                      "aggs": {
+                        "price": {
+                          "sum": {
+                            "field": "price"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 9,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "c": {
+              "doc_count": 6,
+              "who": {
+                "doc_count_error_upper_bound": 0,
+                "sum_other_doc_count": 0,
+                "buckets": [
+                  {
+                    "key": "ann",
+                    "doc_count": 3,
+                    "up": {
+                      "doc_count": 2,
+                      "price": {
+                        "value": 40.0
+                      }
+                    }
+                  },
+                  {
+                    "key": "bob",
+                    "doc_count": 2,
+                    "up": {
+                      "doc_count": 2,
+                      "price": {
+                        "value": 30.0
+                      }
+                    }
+                  },
+                  {
+                    "key": "cat",
+                    "doc_count": 1,
+                    "up": {
+                      "doc_count": 1,
+                      "price": {
+                        "value": 30.0
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "reverse_nested under a terms under a terms of the root",
+      "request": {
+        "method": "POST",
+        "path": "/compat-nested/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "c": {
+              "nested": {
+                "path": "comments"
+              },
+              "aggs": {
+                "who": {
+                  "terms": {
+                    "field": "comments.who",
+                    "order": {
+                      "_key": "asc"
+                    }
+                  },
+                  "aggs": {
+                    "up": {
+                      "reverse_nested": {},
+                      "aggs": {
+                        "title": {
+                          "terms": {
+                            "field": "title",
+                            "order": {
+                              "_key": "asc"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 6,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "c": {
+              "doc_count": 6,
+              "who": {
+                "doc_count_error_upper_bound": 0,
+                "sum_other_doc_count": 0,
+                "buckets": [
+                  {
+                    "key": "ann",
+                    "doc_count": 3,
+                    "up": {
+                      "doc_count": 2,
+                      "title": {
+                        "doc_count_error_upper_bound": 0,
+                        "sum_other_doc_count": 0,
+                        "buckets": [
+                          {
+                            "key": "a",
+                            "doc_count": 1
+                          },
+                          {
+                            "key": "c",
+                            "doc_count": 1
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "key": "bob",
+                    "doc_count": 2,
+                    "up": {
+                      "doc_count": 2,
+                      "title": {
+                        "doc_count_error_upper_bound": 0,
+                        "sum_other_doc_count": 0,
+                        "buckets": [
+                          {
+                            "key": "a",
+                            "doc_count": 1
+                          },
+                          {
+                            "key": "b",
+                            "doc_count": 1
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "key": "cat",
+                    "doc_count": 1,
+                    "up": {
+                      "doc_count": 1,
+                      "title": {
+                        "doc_count_error_upper_bound": 0,
+                        "sum_other_doc_count": 0,
+                        "buckets": [
+                          {
+                            "key": "c",
+                            "doc_count": 1
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "reverse_nested with the nested path",
+      "request": {
+        "method": "POST",
+        "path": "/compat-nested/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "c": {
+              "nested": {
+                "path": "comments"
+              },
+              "aggs": {
+                "up": {
+                  "reverse_nested": {
+                    "path": "comments"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "c": {
+              "doc_count": 6,
+              "up": {
+                "doc_count": 6
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "nested under a keyword terms",
+      "request": {
+        "method": "POST",
+        "path": "/compat-nested/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "title",
+                "order": {
+                  "_key": "asc"
+                }
+              },
+              "aggs": {
+                "c": {
+                  "nested": {
+                    "path": "comments"
+                  },
+                  "aggs": {
+                    "who": {
+                      "terms": {
+                        "field": "comments.who",
+                        "order": {
+                          "_key": "asc"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 4,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": "a",
+                  "doc_count": 1,
+                  "c": {
+                    "doc_count": 2,
+                    "who": {
+                      "doc_count_error_upper_bound": 0,
+                      "sum_other_doc_count": 0,
+                      "buckets": [
+                        {
+                          "key": "ann",
+                          "doc_count": 1
+                        },
+                        {
+                          "key": "bob",
+                          "doc_count": 1
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "key": "b",
+                  "doc_count": 1,
+                  "c": {
+                    "doc_count": 1,
+                    "who": {
+                      "doc_count_error_upper_bound": 0,
+                      "sum_other_doc_count": 0,
+                      "buckets": [
+                        {
+                          "key": "bob",
+                          "doc_count": 1
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "key": "c",
+                  "doc_count": 1,
+                  "c": {
+                    "doc_count": 3,
+                    "who": {
+                      "doc_count_error_upper_bound": 0,
+                      "sum_other_doc_count": 0,
+                      "buckets": [
+                        {
+                          "key": "ann",
+                          "doc_count": 2
+                        },
+                        {
+                          "key": "cat",
+                          "doc_count": 1
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "key": "d",
+                  "doc_count": 1,
+                  "c": {
+                    "doc_count": 0,
+                    "who": {
+                      "doc_count_error_upper_bound": 0,
+                      "sum_other_doc_count": 0,
+                      "buckets": []
+                    }
+                  }
+                },
+                {
+                  "key": "e",
+                  "doc_count": 1,
+                  "c": {
+                    "doc_count": 0,
+                    "who": {
+                      "doc_count_error_upper_bound": 0,
+                      "sum_other_doc_count": 0,
+                      "buckets": []
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "nested under a numeric terms",
+      "request": {
+        "method": "POST",
+        "path": "/compat-nested/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "p": {
+              "terms": {
+                "field": "price",
+                "order": {
+                  "_key": "asc"
+                }
+              },
+              "aggs": {
+                "c": {
+                  "nested": {
+                    "path": "comments"
+                  },
+                  "aggs": {
+                    "total": {
+                      "sum": {
+                        "field": "comments.n"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 13,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "p": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": 10,
+                  "doc_count": 1,
+                  "c": {
+                    "doc_count": 2,
+                    "total": {
+                      "value": 6.0
+                    }
+                  }
+                },
+                {
+                  "key": 20,
+                  "doc_count": 1,
+                  "c": {
+                    "doc_count": 1,
+                    "total": {
+                      "value": 3.0
+                    }
+                  }
+                },
+                {
+                  "key": 30,
+                  "doc_count": 1,
+                  "c": {
+                    "doc_count": 3,
+                    "total": {
+                      "value": 12.0
+                    }
+                  }
+                },
+                {
+                  "key": 40,
+                  "doc_count": 1,
+                  "c": {
+                    "doc_count": 0,
+                    "total": {
+                      "value": 0.0
+                    }
+                  }
+                },
+                {
+                  "key": 50,
+                  "doc_count": 1,
+                  "c": {
+                    "doc_count": 0,
+                    "total": {
+                      "value": 0.0
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "nested under a keyword terms of the object field",
+      "request": {
+        "method": "POST",
+        "path": "/compat-nested/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "k": {
+              "terms": {
+                "field": "meta.k",
+                "order": {
+                  "_key": "asc"
+                }
+              },
+              "aggs": {
+                "c": {
+                  "nested": {
+                    "path": "comments"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "k": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": "x",
+                  "doc_count": 2,
+                  "c": {
+                    "doc_count": 5
+                  }
+                },
+                {
+                  "key": "y",
+                  "doc_count": 2,
+                  "c": {
+                    "doc_count": 1
+                  }
+                },
+                {
+                  "key": "z",
+                  "doc_count": 1,
+                  "c": {
+                    "doc_count": 0
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "nested of an unmapped path",
+      "request": {
+        "method": "POST",
+        "path": "/compat-nested/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "c": {
+              "nested": {
+                "path": "nope"
+              },
+              "aggs": {
+                "s": {
+                  "sum": {
+                    "field": "nope.n"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": null,
+            "hits": []
+          },
+          "aggregations": {
+            "c": {
+              "doc_count": 0,
+              "s": {
+                "value": 0.0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "nested of an object that is not nested",
+      "request": {
+        "method": "POST",
+        "path": "/compat-nested/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "c": {
+              "nested": {
+                "path": "meta"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "the node id is generated"
+        }
+      ],
+      "response": {
+        "status": 500,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "aggregation_execution_exception",
+                "reason": "[nested] nested path [meta] is not nested"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-nested",
+                "node": "R3AS8WWXR1G8U9CoLF6h5g",
+                "reason": {
+                  "type": "aggregation_execution_exception",
+                  "reason": "[nested] nested path [meta] is not nested"
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "aggregation_execution_exception",
+              "reason": "[nested] nested path [meta] is not nested"
+            }
+          },
+          "status": 500
+        }
+      }
+    },
+    {
+      "name": "nested without a path",
+      "request": {
+        "method": "POST",
+        "path": "/compat-nested/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "c": {
+              "nested": {}
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/col",
+          "reason": "the column of the parse error: the replay sends the body with its keys sorted, so the position differs from the recorded body's"
+        },
+        {
+          "pointer": "/body/error/root_cause/0/col",
+          "reason": "the column of the parse error: the replay sends the body with its keys sorted, so the position differs from the recorded body's"
+        }
+      ],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parsing_exception",
+                "reason": "Missing [path] field for nested aggregation [c]",
+                "line": 1,
+                "col": 34
+              }
+            ],
+            "type": "parsing_exception",
+            "reason": "Missing [path] field for nested aggregation [c]",
+            "line": 1,
+            "col": 34
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "reverse_nested outside a nested",
+      "request": {
+        "method": "POST",
+        "path": "/compat-nested/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "r": {
+              "reverse_nested": {}
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "the node id is generated"
+        }
+      ],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Reverse nested aggregation [r] can only be used inside a [nested] aggregation"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-nested",
+                "node": "R3AS8WWXR1G8U9CoLF6h5g",
+                "reason": {
+                  "type": "illegal_argument_exception",
+                  "reason": "Reverse nested aggregation [r] can only be used inside a [nested] aggregation"
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Reverse nested aggregation [r] can only be used inside a [nested] aggregation",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Reverse nested aggregation [r] can only be used inside a [nested] aggregation"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "reverse_nested under a terms outside a nested",
+      "request": {
+        "method": "POST",
+        "path": "/compat-nested/_search",
+        "body": {
+          "size": 0,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "title"
+              },
+              "aggs": {
+                "r": {
+                  "reverse_nested": {}
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "the node id is generated"
+        }
+      ],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Reverse nested aggregation [r] can only be used inside a [nested] aggregation"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-nested",
+                "node": "R3AS8WWXR1G8U9CoLF6h5g",
+                "reason": {
+                  "type": "illegal_argument_exception",
+                  "reason": "Reverse nested aggregation [r] can only be used inside a [nested] aggregation"
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Reverse nested aggregation [r] can only be used inside a [nested] aggregation",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Reverse nested aggregation [r] can only be used inside a [nested] aggregation"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    }
+  ]
+}
