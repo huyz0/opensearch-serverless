@@ -324,3 +324,46 @@ fn only_an_administrator_may_register_or_delete_a_repository() {
     let admin = send(&r, ADMIN, "PUT", "/_snapshot/r1", Some(body));
     assert_ne!(admin.0, 403, "past the check: {admin:?}");
 }
+
+// docs/specs/extension-analyzer AC-7, AC-9: a pin, in any spelling of `index.analysis`, needs
+// `all_access` in the create's handler, whatever the role grants on the index.
+#[cfg(feature = "extensions")]
+#[test]
+fn a_pin_in_any_spelling_needs_all_access_to_create() {
+    let r = node_with(
+        r#"{"index_permissions":[{"index_patterns":["pins*"],"allowed_actions":["indices:admin/create"]}]}"#,
+    );
+    let allowed = send(
+        &r,
+        ADMIN,
+        "PUT",
+        "/_cluster/settings",
+        Some(r#"{"persistent":{"serverless.extensions.pins.allowed":true}}"#),
+    );
+    assert_eq!(allowed.0, 200, "{allowed:?}");
+    let hash = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    let pin = format!(r#""type":"serverless_module","module":"{hash}","version":"1""#);
+    let spellings = [
+        format!(
+            r#"{{"settings":{{"index.analysis.analyzer.ext_a.type":"serverless_module","index.analysis.analyzer.ext_a.module":"{hash}","index.analysis.analyzer.ext_a.version":"1"}}}}"#
+        ),
+        format!(
+            r#"{{"settings":{{"index":{{"analysis":{{"analyzer":{{"ext_a":{{{pin}}}}}}}}}}}}}"#
+        ),
+        format!(r#"{{"settings":{{"analysis":{{"analyzer":{{"ext_a":{{{pin}}}}}}}}}}}"#),
+    ];
+    for (i, body) in spellings.iter().enumerate() {
+        let name = format!("pins{i}");
+        let limited = send(&r, USER, "PUT", &format!("/{name}"), Some(body));
+        assert_eq!(limited.0, 403, "spelling {i}: {limited:?}");
+        // The administrator is past the check, and refused for the module the store lacks.
+        let admin = send(&r, ADMIN, "PUT", &format!("/{name}"), Some(body));
+        assert!(
+            admin.0 == 400 && admin.1.contains("not in the store"),
+            "spelling {i}: {admin:?}"
+        );
+    }
+    // The same user creates an index with no pin.
+    let plain = send(&r, USER, "PUT", "/pinsplain", Some("{}"));
+    assert_eq!(plain.0, 200, "{plain:?}");
+}
