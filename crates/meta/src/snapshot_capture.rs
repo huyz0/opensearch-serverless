@@ -30,6 +30,8 @@ pub struct DescribedIndex {
     pub mapping: Option<String>,
     /// Its settings as a JSON object, when it has any.
     pub settings: Option<Vec<u8>>,
+    /// When it was created, in epoch milliseconds; 0 when not recorded.
+    pub created_at_millis: i64,
     bucket: Option<String>,
     units: Vec<u32>,
 }
@@ -53,6 +55,12 @@ impl DescribedIndex {
             settings: self.settings.clone().filter(|_| with_content),
             shards,
         }
+    }
+
+    /// Whether the index's shard lives in a bucket's shared packs.
+    #[must_use]
+    pub fn bucketed(&self) -> bool {
+        self.bucket.is_some()
     }
 
     /// The shard numbers to read.
@@ -101,6 +109,7 @@ impl SnapshotTaker {
                     mapping: record.mapping.map(std::borrow::Cow::into_owned),
                     // ALLOC: the settings, at most the descriptor's size, once a take.
                     settings: Some(record.settings.to_vec()).filter(|s| !s.is_empty()),
+                    created_at_millis: record.created_at_millis,
                     bucket: record.bucket.map(std::borrow::Cow::into_owned),
                     units,
                 })

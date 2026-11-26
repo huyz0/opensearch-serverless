@@ -23,6 +23,12 @@ pub struct SnapshotConfig {
     pub stock_s3_roots: String,
     /// `OSS_STOCK_RESTORE_FANOUT`: how many metadata blobs a stock restore reads at once, 1 to 64.
     pub stock_fanout: usize,
+    /// `serverless.snapshots.stock.export.enabled`: export a snapshot into a stock repository. Off by default: it copies the tenant's bytes out of the deployment.
+    pub stock_export: bool,
+    /// `OSS_STOCK_EXPORT_FS_ROOTS`: comma-separated directories an export may write a stock `fs` repository under; none by default, so none is writable.
+    pub stock_export_fs_roots: String,
+    /// `OSS_STOCK_EXPORT_S3_ROOTS`: comma-separated `bucket` or `bucket/prefix` roots an export may write a stock `s3` repository under; none by default.
+    pub stock_export_s3_roots: String,
 }
 
 /// The most metadata blobs a stock restore reads at once.
@@ -50,6 +56,9 @@ pub(in crate::boot) fn read(
         stock_fs_roots: or("OSS_STOCK_REPO_ROOTS", ""),
         stock_s3_roots: or("OSS_STOCK_REPO_S3_ROOTS", ""),
         stock_fanout: fanout,
+        stock_export: flag("OSS_SNAPSHOTS_STOCK_EXPORT_ENABLED", "false")?,
+        stock_export_fs_roots: or("OSS_STOCK_EXPORT_FS_ROOTS", ""),
+        stock_export_s3_roots: or("OSS_STOCK_EXPORT_S3_ROOTS", ""),
     })
 }
 
@@ -64,6 +73,11 @@ pub(in crate::boot) fn apply(from: &NodeConfig, to: &mut crate::assemble::Config
     to.stock_fs_roots.clone_from(&from.snapshots.stock_fs_roots);
     to.stock_s3_roots.clone_from(&from.snapshots.stock_s3_roots);
     to.stock_fanout = from.snapshots.stock_fanout;
+    to.snapshots_stock_export = from.snapshots.stock_export;
+    to.stock_export_roots = (
+        from.snapshots.stock_export_fs_roots.clone(),
+        from.snapshots.stock_export_s3_roots.clone(),
+    );
     to.stock_s3 = match &from.store {
         super::StoreChoice::S3 {
             endpoint,
@@ -105,6 +119,45 @@ mod tests {
         assert!(
             NodeConfig::from_lookup(lookup(&with(&[("OSS_SNAPSHOTS_RESTORE_ENABLED", "yes")])))
                 .is_err()
+        );
+    }
+
+    #[test]
+    fn the_stock_export_is_off_with_no_roots_until_set() {
+        let defaults = config(&[]);
+        assert!(!defaults.stock_export);
+        assert_eq!(defaults.stock_export_fs_roots, "");
+        assert_eq!(defaults.stock_export_s3_roots, "");
+        let set = config(&[
+            ("OSS_SNAPSHOTS_STOCK_EXPORT_ENABLED", "true"),
+            ("OSS_STOCK_EXPORT_FS_ROOTS", "/srv/out"),
+            ("OSS_STOCK_EXPORT_S3_ROOTS", "bkt/out"),
+        ]);
+        assert!(set.stock_export);
+        assert_eq!(set.stock_export_fs_roots, "/srv/out");
+        assert_eq!(set.stock_export_s3_roots, "bkt/out");
+        // The restore's switches do not turn the export on, nor its roots open it.
+        let restore_only = config(&[
+            ("OSS_SNAPSHOTS_STOCK_ENABLED", "true"),
+            ("OSS_STOCK_REPO_ROOTS", "/srv"),
+        ]);
+        assert!(!restore_only.stock_export);
+        assert_eq!(restore_only.stock_export_fs_roots, "");
+        let from = NodeConfig::from_lookup(lookup(&with(&[
+            ("OSS_SNAPSHOTS_STOCK_EXPORT_ENABLED", "true"),
+            ("OSS_STOCK_EXPORT_FS_ROOTS", "/srv/out"),
+            ("OSS_STOCK_EXPORT_S3_ROOTS", "bkt/out"),
+        ])))
+        .expect("valid");
+        let mut to = crate::assemble::Config::new("", "n1", [0; 6]);
+        super::apply(&from, &mut to);
+        assert!(to.snapshots_stock_export);
+        assert_eq!(
+            (
+                to.stock_export_roots.0.as_str(),
+                to.stock_export_roots.1.as_str()
+            ),
+            ("/srv/out", "bkt/out")
         );
     }
 

@@ -24,6 +24,8 @@ pub struct TakeRequest {
     pub ignore_unavailable: bool,
     /// Skip an index with a shard that published nothing.
     pub partial: bool,
+    /// Capture the cluster's global state too; this node captures none.
+    pub include_global_state: bool,
 }
 
 fn refuse(status: u16, kind: &'static str, reason: String) -> Refusal {
@@ -144,6 +146,7 @@ pub fn request(repo: &str, name: &str, body: Option<&[u8]>) -> Result<TakeReques
         indices,
         ignore_unavailable: flag(get("ignore_unavailable")),
         partial: flag(get("partial")),
+        include_global_state: flag(get("include_global_state")),
     })
 }
 
@@ -325,9 +328,11 @@ mod tests {
     fn flags_read_as_booleans_or_their_text() {
         let r = ask(r#"{"indices":"a","ignore_unavailable":"TRUE","partial":true,"include_global_state":false}"#)
             .unwrap();
-        assert!(r.ignore_unavailable && r.partial);
+        assert!(r.ignore_unavailable && r.partial && !r.include_global_state);
         let r = ask(r#"{"indices":"a","ignore_unavailable":"no"}"#).unwrap();
-        assert!(!r.ignore_unavailable && !r.partial);
+        assert!(!r.ignore_unavailable && !r.partial && !r.include_global_state);
+        let r = ask(r#"{"indices":"a","include_global_state":"true"}"#).unwrap();
+        assert!(r.include_global_state);
     }
 
     #[test]
