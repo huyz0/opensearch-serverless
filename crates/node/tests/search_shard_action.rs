@@ -196,6 +196,11 @@ fn sources(answer: &[u8]) -> Vec<String> {
 }
 
 fn java_answer(name: &str) -> Vec<u8> {
+    java_line(name)
+}
+
+/// A request or an answer the Java shell wrote, by its line's name.
+fn java_line(name: &str) -> Vec<u8> {
     let hex = TIES
         .lines()
         .find_map(|l| l.strip_prefix(name).and_then(|r| r.strip_prefix(' ')))
@@ -281,4 +286,171 @@ fn tied_hits_come_in_the_order_the_java_shell_answers_them() {
         sources(&java_answer("response.match_all")),
         [r#"{"n":1}"#, r#"{"n":2}"#, r#"{"n":3}"#, r#"{"n":4}"#]
     );
+}
+
+/// One hit of an answer: its id and the bits of its score.
+type Hit = (String, u32);
+
+/// The hits of an answer in the order they come in, then the shard's total
+/// and the bits of its best score. The tie tests compare these with the
+/// Java shell's own answer, so the order and every score are held, not only
+/// the order.
+fn decode(answer: &[u8]) -> (i64, Vec<Hit>, u32) {
+    let mut input = Input::new(answer);
+    let total = input.vlong("total").expect("total");
+    let count = input.vint("hits").expect("hits");
+    let mut hits = Vec::new();
+    for _ in 0..count {
+        let score = input.take(4, "score").expect("score");
+        let score = u32::from_be_bytes(score.try_into().expect("four bytes"));
+        let len = usize::try_from(input.int("id length").expect("id length")).expect("positive");
+        let id = String::from_utf8(input.take(len, "id").expect("id").to_vec()).expect("utf8");
+        input.bool("identity").expect("identity");
+        input.long("version").expect("version");
+        input.zlong("seq no").expect("seq no");
+        input.vlong("primary term").expect("primary term");
+        input.bytes_reference("source").expect("source");
+        input.bool("explanation").expect("explanation");
+        for _ in 0..6 {
+            input.vint("empty map").expect("empty map");
+        }
+        // Java writes the shard it ran on (a node id flag, index, uuid,
+        // shard, cluster alias flag); Rust writes none.
+        if input.bool("shard target").expect("shard target") {
+            input.bool("node id").expect("node id");
+            input.string("index").expect("index");
+            input.string("uuid").expect("uuid");
+            input.vint("shard").expect("shard");
+            input.bool("cluster alias").expect("cluster alias");
+        }
+        input.vint("inner hits").expect("inner hits");
+        hits.push((id, score));
+    }
+    input.bool("aggregations").expect("aggregations");
+    input.bool("lower bound").expect("lower bound");
+    let max = input.take(4, "max score").expect("max score");
+    (
+        total,
+        hits,
+        u32::from_be_bytes(max.try_into().expect("four bytes")),
+    )
+}
+
+const SEGMENT_ONE: [(&str, &str); 3] = [
+    ("z", r#"{"n":1,"msg":"alpha"}"#),
+    ("m", r#"{"n":2,"msg":"alpha beta"}"#),
+    ("q", r#"{"n":3,"msg":"alpha"}"#),
+];
+const SEGMENT_TWO: [(&str, &str); 3] = [
+    ("a", r#"{"n":4,"msg":"alpha beta"}"#),
+    ("k", r#"{"n":5,"msg":"alpha gamma delta"}"#),
+    ("y", r#"{"n":6,"msg":"alpha"}"#),
+];
+
+/// The second segment as writes the owner has not published.
+struct SecondSegmentTail {
+    mapping: Mapping,
+}
+
+impl OverlaySource for SecondSegmentTail {
+    fn ready(
+        &self,
+        _: &str,
+        _: u32,
+        _: &Stage,
+        commit: &Arc<dyn CommitAccess>,
+        _: u64,
+    ) -> Option<Arc<Ready>> {
+        let records: Vec<WalRecord> = SEGMENT_TWO
+            .iter()
+            .enumerate()
+            .map(|(at, (id, source))| {
+                let at = i64::try_from(at).expect("small");
+                WalRecord::index(
+                    (*id).to_owned(),
+                    (*source).to_owned(),
+                    at.saturating_add(1000),
+                    1,
+                    at.saturating_add(1001),
+                )
+            })
+            .collect();
+        let overlay = Overlay::build(&self.mapping, &records, 0, 4 << 20).expect("builds");
+        let copies = find_copies(commit.reader(), overlay.ids()).expect("copies");
+        Some(Arc::new(Ready::new(overlay, copies)))
+    }
+
+    fn closed(&self, _: &str, _: u32, _: &Stage, _: u64) {}
+}
+
+/// Asks `handler` what the Java shell was asked and holds every answer to
+/// the Java one: total, hit order, every score and the best score.
+fn assert_java_answers(handler: &SearchShardHandler, asked: &[(&str, Vec<u8>)]) {
+    for (name, request) in asked {
+        let java = decode(&java_answer(&format!("response.{name}")));
+        let rust = decode(&ask_bytes(handler, request));
+        assert_eq!(rust, java, "{name}");
+    }
+}
+
+/// The requests the Java shell wrote and the answers it gave to them.
+fn tie_requests() -> Vec<(&'static str, Vec<u8>)> {
+    [
+        "segments_match_all",
+        "segments_match_all_size_4",
+        "scored_term",
+        "scored_term_size_2",
+        "scored_term_size_4",
+    ]
+    .map(|name| (name, java_line(&format!("request.{name}"))))
+    .to_vec()
+}
+
+fn text_fixture<'d>(
+    root: &std::path::Path,
+    dir: &'d ByteBuffersDirectory,
+    second_published: bool,
+) -> Fixture<'d> {
+    fixture_with(
+        root,
+        dir,
+        (TEXT_DESCRIPTOR, TEXT_MAPPING),
+        "reader-1",
+        |w| {
+            w.publish_docs(&SEGMENT_ONE);
+            if second_published {
+                w.publish_docs(&SEGMENT_TWO);
+            }
+        },
+    )
+}
+
+#[test]
+fn ties_across_two_published_segments_and_below_one_come_as_the_java_shell_answers() {
+    let root = TempDir::new("search-shard-segment-ties");
+    let dir = ByteBuffersDirectory::new();
+    let fx = text_fixture(root.path(), &dir, true);
+    assert_java_answers(&handler(&fx, fresh()), &tie_requests());
+    // Equal scores below 1.0 come in document order, and the Java answer
+    // says so: the three one-word documents, then the two of two words.
+    let (_, hits, _) = decode(&java_answer("response.scored_term"));
+    let ids: Vec<&str> = hits.iter().map(|(id, _)| id.as_str()).collect();
+    assert_eq!(ids, ["z", "q", "y", "m", "a", "k"]);
+    assert_eq!(hits[0].1, hits[2].1);
+    assert_ne!(hits[0].1, hits[3].1);
+}
+
+#[test]
+fn the_same_ties_with_the_second_segment_in_the_tail_answer_as_the_java_shell_does() {
+    let root = TempDir::new("search-shard-tail-segment-ties");
+    let dir = ByteBuffersDirectory::new();
+    let fx = text_fixture(root.path(), &dir, false);
+    assert!(install(
+        &fx.service,
+        true,
+        Arc::new(SecondSegmentTail {
+            mapping: Mapping::parse(TEXT_MAPPING.as_bytes()).expect("mapping"),
+        })
+    ));
+    assert_java_answers(&handler(&fx, fresh()), &tie_requests());
 }

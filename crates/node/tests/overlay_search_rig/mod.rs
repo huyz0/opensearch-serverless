@@ -27,6 +27,15 @@ pub const VERSION: LuceneVersion = LuceneVersion {
 
 pub const DESCRIPTOR: &str = r#"{"name":"logs","uuid":"u1","number_of_shards":1,"mapping":"{\"properties\":{\"n\":{\"type\":\"integer\"}}}","settings":{}}"#;
 
+/// The mapping of `DESCRIPTOR`.
+pub const MAPPING: &str = r#"{"properties":{"n":{"type":"integer"}}}"#;
+
+/// The descriptor of `logs` with a text field `msg` beside `n`.
+pub const TEXT_DESCRIPTOR: &str = r#"{"name":"logs","uuid":"u1","number_of_shards":1,"mapping":"{\"properties\":{\"n\":{\"type\":\"integer\"},\"msg\":{\"type\":\"text\"}}}","settings":{}}"#;
+
+/// The mapping of `TEXT_DESCRIPTOR`.
+pub const TEXT_MAPPING: &str = r#"{"properties":{"n":{"type":"integer"},"msg":{"type":"text"}}}"#;
+
 /// A shard being written and published to a directory the reader also reads.
 pub struct Writing<'d> {
     shard: Shard<'d>,
@@ -39,9 +48,16 @@ impl Writing<'_> {
     /// Indexes `ids`, refreshes, publishes, and gives the manifest a push
     /// would carry.
     pub fn publish(&mut self, ids: &[&str]) -> Vec<u8> {
-        for id in ids {
+        let docs: Vec<(&str, &str)> = ids.iter().map(|id| (*id, r#"{"n":1}"#)).collect();
+        self.publish_docs(&docs)
+    }
+
+    /// Indexes each `(id, source)`, refreshes, publishes, and gives the
+    /// manifest a push would carry: one segment of those documents.
+    pub fn publish_docs(&mut self, docs: &[(&str, &str)]) -> Vec<u8> {
+        for (id, source) in docs {
             self.shard
-                .index(id, br#"{"n":1}"#, false, &Expect::default())
+                .index(id, source.as_bytes(), false, &Expect::default())
                 .expect("indexed");
         }
         self.shard.refresh().expect("refresh");
@@ -134,13 +150,27 @@ pub fn fixture_as<'d>(
     first: &[&str],
     node: &str,
 ) -> Fixture<'d> {
+    fixture_with(root, dir, (DESCRIPTOR, MAPPING), node, |writing| {
+        writing.publish(first);
+    })
+}
+
+/// A fixture over the index `descriptor` and `mapping` name, whose first
+/// published segments are what `first` publishes.
+pub fn fixture_with<'d>(
+    root: &std::path::Path,
+    dir: &'d ByteBuffersDirectory,
+    (descriptor, mapping): (&str, &str),
+    node: &str,
+    first: impl FnOnce(&mut Writing<'d>),
+) -> Fixture<'d> {
     let writer_store = Arc::new(FsStore::new(root).expect("store"));
     writer_store
-        .create_register("indices/logs", DESCRIPTOR.as_bytes())
+        .create_register("indices/logs", descriptor.as_bytes())
         .expect("descriptor");
     let mut w = IndexWriter::open(dir, Vec::new(), "Lucene104", VERSION).expect("writer");
     w.enable_explicit_documents().expect("explicit");
-    let mapping = Mapping::parse(br#"{"properties":{"n":{"type":"integer"}}}"#).expect("mapping");
+    let mapping = Mapping::parse(mapping.as_bytes()).expect("mapping");
     let shard = Shard::new(dir, w, mapping, 3, Box::new(|| 0)).expect("shard");
     let shard_ref = ShardRef {
         index: "logs",
@@ -159,7 +189,7 @@ pub fn fixture_as<'d>(
         publisher,
         ordinal: -1,
     };
-    writing.publish(first);
+    first(&mut writing);
     let store = reader_store(root);
     let budget = MemoryBudget::new(&support::budget_config());
     let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
