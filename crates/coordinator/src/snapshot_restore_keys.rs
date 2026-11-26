@@ -72,6 +72,15 @@ pub(crate) const REFUSED: [(&str, &str); 13] = [
     ),
 ];
 
+/// Flags that name behaviour this node always has: set to `false` they
+/// change nothing, set to `true` they stay refused below.
+const OFF: [&str; 4] = [
+    "partial",
+    "include_global_state",
+    "include_aliases",
+    "ignore_unavailable",
+];
+
 fn refuse(status: u16, kind: &'static str, reason: String) -> Refusal {
     Refusal {
         status,
@@ -86,7 +95,27 @@ fn refuse(status: u16, kind: &'static str, reason: String) -> Refusal {
 ///
 /// 501 `unsupported_restore`; 400 `unknown_parameter`.
 pub(crate) fn check_keys(members: &[(String, Json)]) -> Result<(), Refusal> {
+    for key in OFF {
+        match members.iter().find(|(k, _)| k == key) {
+            Some((_, Json::Bool(_))) | None => {}
+            Some(_) => {
+                return Err(refuse(
+                    400,
+                    "illegal_argument_exception",
+                    // ALLOC: error path; one message.
+                    format!("{key} must be a boolean"),
+                ));
+            }
+        }
+    }
     for (key, why) in REFUSED {
+        let at_default = OFF.contains(&key)
+            && members
+                .iter()
+                .any(|(k, v)| k == key && matches!(v, Json::Bool(false)));
+        if at_default {
+            continue;
+        }
         if members.iter().any(|(k, _)| k == key) {
             return Err(refuse(
                 501,
@@ -96,7 +125,8 @@ pub(crate) fn check_keys(members: &[(String, Json)]) -> Result<(), Refusal> {
             ));
         }
     }
-    if let Some((key, _)) = members.iter().find(|(k, _)| !KNOWN.contains(&k.as_str())) {
+    let known = |k: &str| KNOWN.contains(&k) || OFF.contains(&k);
+    if let Some((key, _)) = members.iter().find(|(k, _)| !known(k)) {
         return Err(refuse(
             400,
             "unknown_parameter",

@@ -73,6 +73,7 @@ mod push_read;
 mod read_block;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod read_forward;
+mod restore_flags;
 mod restore_settings;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod rollover_route;
