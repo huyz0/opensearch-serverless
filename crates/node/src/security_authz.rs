@@ -244,6 +244,7 @@ const ALL_ACCESS: &[&str] = &[
     "/_search/point_in_time/{id}",
     "/_pit/{id}",
     "/_serverless/usage",
+    "/_prometheus/metrics",
 ];
 
 /// The rule for a registered route, or none when the table has no row for

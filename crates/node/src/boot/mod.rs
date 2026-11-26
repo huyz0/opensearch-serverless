@@ -376,7 +376,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         .and_then(|a| a.with_health(health, &config.cluster))
         .and_then(|a| a.with_lifecycle(Arc::clone(&readiness), config.drain_settle()))
         .map(|a| crate::search_queue::install(a, config))
-        .and_then(|a| usage_route::attach(a, usage, config, &clock))
+        .and_then(|a| usage_route::attach(a, usage, config, &clock, &budget))
         .map_err(BootError::Assemble)?;
     if let Some(buckets) = &buckets {
         buckets.register_open(&config.node_id, Arc::clone(&assembled.role));
