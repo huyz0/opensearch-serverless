@@ -94,3 +94,96 @@ fn blobs_hold_the_descriptor_with_its_settings_the_manifest_and_every_file() {
         assert!(!bytes.is_empty());
     }
 }
+
+/// The documents of `spec`'s index as the `.si` files count them, and its
+/// field names as the first `.fnm` file lists them.
+fn segment(spec: Spec) -> (usize, String, usize) {
+    let mut spec = spec;
+    spec.compound = false;
+    let files = lucene_files(&spec);
+    let file = |ext: &str| {
+        files
+            .iter()
+            .find(|(n, _)| n.ends_with(ext))
+            .expect(ext)
+            .1
+            .clone()
+    };
+    // Every segment's `.si` holds its document count before three zero bytes
+    // and the 0xff of its (absent) sort.
+    let count: usize = files
+        .iter()
+        .filter(|(n, _)| n.ends_with(".si"))
+        .map(|(_, si)| {
+            (0..=u8::MAX)
+                .find(|n| si.windows(8).any(|w| w == [0, 0, 0, *n, 0, 0, 0, 0xff]))
+                .map_or(0, usize::from)
+        })
+        .sum();
+    let fnm = file(".fnm");
+    // Every field's doc-values generation is written as -1 (eight 0xff bytes).
+    let no_gen = fnm.windows(8).filter(|w| *w == [0xff; 8]).count();
+    (count, String::from_utf8_lossy(&fnm).into_owned(), no_gen)
+}
+
+/// Whether any file of `spec`'s index (uncompounded) ending in `ext` holds `needle`.
+fn file_holds(mut spec: Spec, ext: &str, needle: &[u8]) -> bool {
+    spec.compound = false;
+    let files = lucene_files(&spec);
+    assert!(files.iter().any(|(n, _)| n.ends_with(ext)), "no {ext} file");
+    files
+        .iter()
+        .filter(|(n, _)| n.ends_with(ext))
+        .any(|(_, b)| b.windows(needle.len()).any(|w| w == needle))
+}
+
+#[test]
+fn a_nested_index_is_a_block_a_document_and_a_deep_one_has_grandchildren() {
+    let (flat, flat_fields, flat_gens) = segment(Spec::new("s", 6));
+    assert_eq!(flat, 6);
+    assert!(!flat_fields.contains("_nested_path") && !flat_fields.contains("c.w"));
+    let (nested, nested_fields, nested_gens) = segment(Spec::new("s", 6).with_nested());
+    assert_eq!(nested, 6 * (1 + NESTED_CHILDREN));
+    assert!(nested_fields.contains("_nested_path") && nested_fields.contains("c.w"));
+    assert!(!nested_fields.contains("c.d.v"));
+    let (deep, deep_fields, deep_gens) = segment(Spec::new("s", 6).with_nested_deep());
+    assert_eq!(deep, 6 * (1 + 2 * NESTED_CHILDREN));
+    assert!(deep_fields.contains("c.w") && deep_fields.contains("c.d.v"));
+    // Each field the nested levels add has no doc-values generation.
+    assert_eq!(nested_gens, flat_gens + 3);
+    assert_eq!(deep_gens, nested_gens + 1);
+    // A grandchild's word is indexed (the terms file) and has a doc value
+    // (the doc-values data); a child's is too.
+    for ext in [".tim", ".dvd"] {
+        let has = |spec: Spec, word: &[u8]| file_holds(spec, ext, word);
+        assert!(has(Spec::new("s", 6).with_nested_deep(), b"v0-0"), "{ext}");
+        assert!(!has(Spec::new("s", 6).with_nested(), b"v0-0"), "{ext}");
+        assert!(has(Spec::new("s", 6).with_nested(), b"w0-0"), "{ext}");
+    }
+}
+
+#[test]
+fn the_mapping_and_the_source_name_the_levels_that_exist() {
+    let spec = |depth: u8| Spec {
+        nested: depth,
+        ..Spec::new("s", 2)
+    };
+    assert!(!mapping(&spec(0)).contains(r#""c""#));
+    assert!(!doc_source(&spec(0), 0).contains(r#""c":"#));
+    let one = mapping(&spec(1));
+    assert!(
+        one.contains(r#""c":{"type":"nested""#) && !one.contains(r#""d""#),
+        "{one}"
+    );
+    assert!(doc_source(&spec(1), 0).contains(r#""c":[{"w":"w0-0"},{"w":"w0-1"}]"#));
+    let two = mapping(&spec(2));
+    assert!(
+        two.contains(r#""d":{"type":"nested","properties":{"v":{"type":"keyword"}}}"#),
+        "{two}"
+    );
+    let source = doc_source(&spec(2), 1);
+    assert!(
+        source.contains(r#""c":[{"w":"w1-0","d":[{"v":"v1-0"}]},{"w":"w1-1","d":[{"v":"v1-1"}]}]"#),
+        "{source}"
+    );
+}
