@@ -153,7 +153,12 @@ fn a_count_of_an_open_index_makes_no_request_to_the_store() {
 
 /// `_count` on `index` with the URL query string `query`.
 fn counted(node: &Node, index: &str, query: &str) -> (u16, String) {
-    let r = request(node.addr(), "POST", &format!("/{index}/_count{query}"), None);
+    let r = request(
+        node.addr(),
+        "POST",
+        &format!("/{index}/_count{query}"),
+        None,
+    );
     (r.status, r.text())
 }
 
