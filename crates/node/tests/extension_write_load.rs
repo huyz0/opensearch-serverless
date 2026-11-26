@@ -2,8 +2,12 @@
 //! whose index pins a module that tokenises, against the same node's index
 //! that uses the built-in analyzer. A measurement, run by hand:
 //! `cargo test -p oss-node --release --all-features --test
-//! extension_write_load -- --ignored --nocapture`. Knobs: `OSS_LOAD_WRITES`
-//! (default 200) and `OSS_LOAD_WORDS` (default 40).
+//! extension_write_load -- --ignored --nocapture`. Concurrent writers, several
+//! runs with the order alternated, and a module that lowercases, hashes each
+//! byte `OSS_LOAD_WORK` times and strips a plural. Knobs: `OSS_LOAD_WRITES`
+//! (a writer's writes, default 100), `OSS_LOAD_WORDS` (40), `OSS_LOAD_WRITERS`
+//! (8), `OSS_LOAD_RUNS` (5) and `OSS_LOAD_WORK` (64). It fails when the
+//! median pinned p99 is over 105% of the built-in one.
 #![cfg(feature = "extensions")]
 // ARITH: counts and microseconds from a measurement; an overflow panics the
 // test, which fails it as it should.
@@ -27,9 +31,9 @@ fn escaped(bytes: &[u8]) -> String {
 /// answers each word as a token (the text's own bytes, its offsets, an
 /// increment of one). It reads the block the host writes (a count of 1, a
 /// length, the bytes) and lays the answer out as the ABI says.
-fn tokenising() -> Vec<u8> {
+fn tokenising(work: usize) -> Vec<u8> {
     let d = format!(
-        r#"{{"name":"words","version":"1.0.0","abi":"1.0","io_bytes":{IO},"max_concurrent_calls":8,"points":[{{"id":"analyzer","version":"1.0.0"}}]}}"#
+        r#"{{"name":"words","version":"1.0.0","abi":"1.0","io_bytes":{IO},"max_concurrent_calls":32,"points":[{{"id":"analyzer","version":"1.0.0"}}]}}"#
     );
     let out_at = 65_536 + IO;
     wat::parse_str(format!(
@@ -46,6 +50,7 @@ fn tokenising() -> Vec<u8> {
   (func (export "oss_call") (param i32 i32 i32) (result i32)
     (local $i i32) (local $len i32) (local $start i32) (local $o i32)
     (local $cnt i32) (local $c i32) (local $tl i32)
+    (local $j i32) (local $b i32) (local $r i32) (local $h i32) (local $kl i32)
     (local.set $len (i32.load (i32.const 65540)))
     (local.set $start (i32.const -1))
     (local.set $o (i32.const {tokens_at}))
@@ -61,16 +66,38 @@ fn tokenising() -> Vec<u8> {
             (if (i32.ge_s (local.get $start) (i32.const 0))
               (then
                 (local.set $tl (i32.sub (local.get $i) (local.get $start)))
-                (i32.store (local.get $o) (local.get $tl))
-                (memory.copy (i32.add (local.get $o) (i32.const 4))
-                  (i32.add (i32.const 65544) (local.get $start)) (local.get $tl))
-                (i32.store (i32.add (local.get $o) (i32.add (i32.const 4) (local.get $tl)))
+                (local.set $j (i32.const 0))
+                (block $cd (loop $cl
+                  (br_if $cd (i32.ge_u (local.get $j) (local.get $tl)))
+                  (local.set $b (i32.load8_u
+                    (i32.add (i32.const 65544) (i32.add (local.get $start) (local.get $j)))))
+                  (if (i32.and (i32.ge_u (local.get $b) (i32.const 65))
+                               (i32.le_u (local.get $b) (i32.const 90)))
+                    (then (local.set $b (i32.add (local.get $b) (i32.const 32)))))
+                  (local.set $r (i32.const 0))
+                  (block $rd (loop $rl
+                    (br_if $rd (i32.ge_u (local.get $r) (i32.const {work})))
+                    (local.set $h (i32.mul (i32.xor (local.get $h) (local.get $b))
+                                           (i32.const 16777619)))
+                    (local.set $r (i32.add (local.get $r) (i32.const 1)))
+                    (br $rl)))
+                  (i32.store8 (i32.add (local.get $o) (i32.add (i32.const 4) (local.get $j)))
+                    (local.get $b))
+                  (local.set $j (i32.add (local.get $j) (i32.const 1)))
+                  (br $cl)))
+                (i32.store (i32.const 60000) (local.get $h))
+                (local.set $kl (local.get $tl))
+                (if (i32.and (i32.gt_u (local.get $tl) (i32.const 1))
+                             (i32.eq (local.get $b) (i32.const 115)))
+                  (then (local.set $kl (i32.sub (local.get $tl) (i32.const 1)))))
+                (i32.store (local.get $o) (local.get $kl))
+                (i32.store (i32.add (local.get $o) (i32.add (i32.const 4) (local.get $kl)))
                   (local.get $start))
-                (i32.store (i32.add (local.get $o) (i32.add (i32.const 8) (local.get $tl)))
+                (i32.store (i32.add (local.get $o) (i32.add (i32.const 8) (local.get $kl)))
                   (local.get $i))
-                (i32.store (i32.add (local.get $o) (i32.add (i32.const 12) (local.get $tl)))
+                (i32.store (i32.add (local.get $o) (i32.add (i32.const 12) (local.get $kl)))
                   (i32.const 1))
-                (local.set $o (i32.add (local.get $o) (i32.add (i32.const 16) (local.get $tl))))
+                (local.set $o (i32.add (local.get $o) (i32.add (i32.const 16) (local.get $kl))))
                 (local.set $cnt (i32.add (local.get $cnt) (i32.const 1)))
                 (local.set $start (i32.const -1)))))
           (else
@@ -84,6 +111,7 @@ fn tokenising() -> Vec<u8> {
         d = escaped(d.as_bytes()),
         dl = d.len(),
         tokens_at = out_at + 4,
+        work = work,
     ))
     .expect("valid module")
 }
@@ -115,8 +143,11 @@ fn percentile(sorted: &[u128], q: usize) -> u128 {
 #[test]
 #[ignore = "a measurement, run by hand"]
 fn writes_to_an_index_that_pins_a_tokenising_module_against_the_built_in_analyzer() {
-    let writes = knob("OSS_LOAD_WRITES", 200);
+    let writes = knob("OSS_LOAD_WRITES", 100);
     let words = knob("OSS_LOAD_WORDS", 40);
+    let writers = knob("OSS_LOAD_WRITERS", 8);
+    let runs = knob("OSS_LOAD_RUNS", 5);
+    let work = knob("OSS_LOAD_WORK", 64);
     let dir = TempDir::new("extension-write-load");
     let node = boot(dir.path());
     let addr = node.addr();
@@ -143,7 +174,7 @@ fn writes_to_an_index_that_pins_a_tokenising_module_against_the_built_in_analyze
             addr,
             "PUT",
             "/_serverless/extensions/modules",
-            Some(&tokenising()),
+            Some(&tokenising(work)),
         ),
         "upload",
     )
@@ -186,48 +217,75 @@ fn writes_to_an_index_that_pins_a_tokenising_module_against_the_built_in_analyze
         .collect::<Vec<_>>()
         .join(" ");
     let body = format!(r#"{{"t":"{text}"}}"#);
-    let mut report = Vec::new();
-    for index in ["builtin", "pinned"] {
-        // Opens the shard and the module, outside the clock.
-        for _ in 0..20 {
-            ok(
-                support::request(
-                    addr,
-                    "POST",
-                    &format!("/{index}/_doc"),
-                    Some(body.as_bytes()),
-                ),
-                "warm",
-            );
-        }
-        let mut micros = Vec::with_capacity(writes);
-        for _ in 0..writes {
-            let at = Instant::now();
-            ok(
-                support::request(
-                    addr,
-                    "POST",
-                    &format!("/{index}/_doc"),
-                    Some(body.as_bytes()),
-                ),
-                "write",
-            );
-            micros.push(at.elapsed().as_micros());
-        }
+    // One run: `writers` clients each send `writes` single-document writes to
+    // the index at once; every write's latency is kept.
+    let run = |index: &str| -> Vec<u128> {
+        let all = std::sync::Mutex::new(Vec::with_capacity(writers * writes));
+        std::thread::scope(|s| {
+            for _ in 0..writers {
+                s.spawn(|| {
+                    let mut mine = Vec::with_capacity(writes);
+                    for _ in 0..writes {
+                        let at = Instant::now();
+                        ok(
+                            support::request(
+                                addr,
+                                "POST",
+                                &format!("/{index}/_doc"),
+                                Some(body.as_bytes()),
+                            ),
+                            "write",
+                        );
+                        mine.push(at.elapsed().as_micros());
+                    }
+                    all.lock().expect("lock").extend(mine);
+                });
+            }
+        });
+        let mut micros = all.into_inner().expect("lock");
         micros.sort_unstable();
-        report.push(format!(
-            "{index}: p50 {} us, p99 {} us, max {} us",
-            percentile(&micros, 50),
-            percentile(&micros, 99),
-            micros[micros.len() - 1]
-        ));
+        micros
+    };
+    // Opens the shards and the module, outside the clock.
+    for index in ["builtin", "pinned"] {
+        run(index);
     }
-    // The module ran: it keeps the case the built-in analyzer folds, so the
-    // exact term `Quick` is in the pinned index and not in the built-in one.
+    let mut report = Vec::new();
+    let mut ratios = Vec::new();
+    let mut p50s = Vec::new();
+    for n in 0..runs {
+        // Alternate which index goes first so drift does not favour one.
+        let order = if n % 2 == 0 {
+            ["builtin", "pinned"]
+        } else {
+            ["pinned", "builtin"]
+        };
+        let mut p99 = [0u128; 2];
+        let mut p50 = [0u128; 2];
+        for index in order {
+            let micros = run(index);
+            let slot = usize::from(index == "pinned");
+            p99[slot] = percentile(&micros, 99);
+            p50[slot] = percentile(&micros, 50);
+            report.push(format!(
+                "run {n} {index}: p50 {} us, p99 {} us, max {} us",
+                p50[slot],
+                p99[slot],
+                micros[micros.len() - 1]
+            ));
+        }
+        ratios.push(p99[1] as f64 / p99[0] as f64);
+        p50s.push(p50[1] as f64 / p50[0] as f64);
+    }
+    ratios.sort_by(f64::total_cmp);
+    p50s.sort_by(f64::total_cmp);
+    let median = ratios[ratios.len() / 2];
+    // The module ran: it strips a plural the built-in analyzer keeps, so the
+    // exact term `jump` is in the pinned index and not in the built-in one.
     let found = |index: &str| {
         support::request(addr, "POST", &format!("/{index}/_refresh"), None);
         let target = format!("/{index}/_count");
-        let query = br#"{"query":{"term":{"t":"Quick"}}}"#;
+        let query = br#"{"query":{"term":{"t":"jump"}}}"#;
         let t0 = Instant::now();
         loop {
             let text = support::request(addr, "POST", &target, Some(query)).text();
@@ -246,9 +304,17 @@ fn writes_to_an_index_that_pins_a_tokenising_module_against_the_built_in_analyze
         found("pinned") > 0,
         "the pinned index holds the module's terms"
     );
-    assert_eq!(found("builtin"), 0, "the built-in analyzer folds the case");
+    assert_eq!(
+        found("builtin"),
+        0,
+        "the built-in analyzer keeps the plural"
+    );
     println!(
-        "{writes} single-document writes of {words} words through a booted node (fs store, one client):\n{}",
+        "{runs} runs of {writers} writers x {writes} single-document writes of {words} words, module work {work} rounds a byte, through a booted node (fs store):\n{}\npinned/built-in p99 ratio by run (sorted) {ratios:.3?}, median {median:.3}; p50 ratio by run {p50s:.3?}",
         report.join("\n")
+    );
+    assert!(
+        median <= 1.05,
+        "median pinned p99 is {median:.3} of the built-in p99"
     );
 }
