@@ -154,7 +154,7 @@ fn not_json_and_a_big_integer_are_refused_and_the_buffer_keeps_its_start() {
             smile_from_json(bad.as_bytes(), &SmileLimits::default(), &mut out).is_err(),
             "{bad}"
         );
-        assert!(out.starts_with(b"keep"), "{bad}");
+        assert_eq!(out, b"keep", "{bad}");
     }
 }
 
@@ -189,4 +189,31 @@ fn each_string_and_name_class_takes_its_shortest_head() {
     assert_eq!(name("é"), 0xC0, "two bytes is the shortest unicode name");
     assert_eq!(name(&format!("é{}", "a".repeat(55))), 0xC0 + 55, "57 bytes");
     assert_eq!(name(&format!("é{}", "a".repeat(56))), 0x34, "58 bytes");
+}
+
+#[test]
+fn the_writers_own_depth_bound_holds_below_the_readers() {
+    let lim = SmileLimits {
+        depth: 2,
+        ..SmileLimits::default()
+    };
+    assert!(smile_from_json(b"[[1]]", &lim, &mut Vec::new()).is_ok());
+    let mut out = b"keep".to_vec();
+    let e = smile_from_json(b"[[[1]]]", &lim, &mut out).unwrap_err();
+    assert!(
+        matches!(e, oss_format::FormatError::TooLarge { .. }),
+        "{e:?}"
+    );
+    assert_eq!(out, b"keep");
+}
+
+#[test]
+fn a_limit_hit_partway_leaves_the_buffer_as_it_was() {
+    let lim = SmileLimits {
+        output_bytes: 8,
+        ..SmileLimits::default()
+    };
+    let mut out = b"keep".to_vec();
+    assert!(smile_from_json(br#"{"abc":[1,2,3,4,5,6]}"#, &lim, &mut out).is_err());
+    assert_eq!(out, b"keep");
 }
