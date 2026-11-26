@@ -44,3 +44,40 @@ fn a_huge_shard_count_allocates_nothing_for_the_check() {
     let index = RestoreIndex::find(record.as_bytes(), "a").unwrap().unwrap();
     assert!(index.refusal().is_ok());
 }
+
+fn with_failed(count: u32, captured: &[u32], failed: &str) -> RestoreIndex {
+    let shards = captured
+        .iter()
+        .map(|n| format!(r#"{{"shard":{n},"term":1,"files":{{}}}}"#))
+        .collect::<Vec<_>>()
+        .join(",");
+    let record = format!(
+        r#"{{"repo":"r","name":"s","shallow":true,"start_time_in_millis":1,"end_time_in_millis":2,
+        "indices":{{"a":{{"uuid":"U","number_of_shards":{count},"shards":[{shards}],"failed_shards":[{failed}]}}}}}}"#
+    );
+    RestoreIndex::find(record.as_bytes(), "a").unwrap().unwrap()
+}
+
+#[test]
+fn failed_shards_are_read_and_must_complete_the_index_exactly() {
+    let ok = with_failed(4, &[0, 2], "1,3");
+    assert_eq!(ok.failed_shards, vec![1, 3]);
+    assert!(ok.refusal().unwrap().is_none());
+    assert!(with_failed(2, &[], "0,1").refusal().unwrap().is_none());
+    assert!(with_failed(4, &[0, 2], "1").refusal().is_err());
+    assert!(with_failed(4, &[0, 2], "2,3").refusal().is_err());
+    assert!(with_failed(2, &[0], "5").refusal().is_err());
+}
+
+#[test]
+fn a_null_mapping_and_a_quoted_number_are_read_as_the_java_reads_them() {
+    let record =
+        br#"{"repo":"r","name":"s","shallow":true,"start_time_in_millis":1,"end_time_in_millis":2,
+        "indices":{"a":{"uuid":"U","number_of_shards":"3","mapping":null,
+        "shards":[{"shard":"0","term":"2","files":{"f":"t=2"},"lengths":{"f":"5"}}]}}}"#;
+    let got = RestoreIndex::find(record, "a").unwrap().unwrap();
+    assert_eq!(got.number_of_shards, 3);
+    assert_eq!(got.mapping, None);
+    assert_eq!(got.shards[0].term, 2);
+    assert_eq!(got.shards[0].lengths, [("f".to_owned(), 5)]);
+}

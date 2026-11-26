@@ -25,14 +25,17 @@ pub struct SnapshotIndex {
     pub shards: u32,
     /// How many shards have a captured commit; none while the capture runs.
     pub captured: u32,
+    /// The shards that had no commit when the snapshot was taken, ascending
+    /// as written; empty for a complete index.
+    pub failed_shards: Vec<u32>,
 }
 
 impl SnapshotIndex {
     /// Whether the capture of this index has not finished: it has shards
-    /// and none is recorded.
+    /// and neither a captured nor a failed one is recorded.
     #[must_use]
     pub fn capturing(&self) -> bool {
-        self.captured == 0 && self.shards > 0
+        self.captured == 0 && self.failed_shards.is_empty() && self.shards > 0
     }
 }
 
@@ -158,6 +161,10 @@ fn read_indices(json: &mut Reader<'_>) -> Result<Vec<SnapshotIndex>, FormatError
         let mut uuid = None;
         let mut shards = None;
         let mut listed = None;
+        // ALLOC: one number a failed shard, at most MAX_SHARDS.
+        let mut failed: Vec<u32> = Vec::new();
+        // One bit a shard slot, shared by the captured and the failed shards.
+        let mut seen = [0u64; (MAX_SHARDS / 64) as usize];
         while let Some(key) = json.next_field()? {
             match key.as_ref() {
                 "uuid" => uuid = Some(string(json, "uuid")?),
@@ -172,42 +179,74 @@ fn read_indices(json: &mut Reader<'_>) -> Result<Vec<SnapshotIndex>, FormatError
                     Token::StartObject => json.skip_after(&Token::StartObject)?,
                     _ => return Err(json.error("an index's settings are an object")),
                 },
-                "shards" => listed = Some(count_shards(json)?),
+                "shards" => listed = Some(count_shards(json, &mut seen)?),
+                "failed_shards" => failed = read_failed(json, &mut seen)?,
                 _ => json.skip_value()?,
             }
         }
         let (Some(uuid), Some(shards)) = (uuid, shards) else {
             return Err(json.error("a snapshot's index entry misses its uuid or shard count"));
         };
-        let captured = match listed {
-            Some((count, highest)) if count > 0 => {
-                if shards <= MAX_SHARDS && (count != shards || highest >= shards) {
-                    return Err(json.error("a finished index names every shard exactly once"));
-                }
-                count
+        let (count, highest) = listed.unwrap_or((0, 0));
+        if shards <= MAX_SHARDS && (count > 0 || !failed.is_empty()) {
+            let past = failed.iter().any(|n| *n >= shards) || highest >= shards;
+            if past
+                || count.saturating_add(u32::try_from(failed.len()).unwrap_or(u32::MAX)) != shards
+            {
+                return Err(json.error("a finished index names every shard exactly once"));
             }
-            _ => 0,
-        };
+        }
+        let captured = count;
         // ALLOC: one name, as above.
         out.push(SnapshotIndex {
             name: name.into_owned(),
             uuid,
             shards,
             captured,
+            failed_shards: failed,
         });
     }
     Ok(out)
 }
 
+/// The shard numbers of a `failed_shards` array, each marked in `seen`.
+pub(crate) fn read_failed(
+    json: &mut Reader<'_>,
+    seen: &mut [u64; (MAX_SHARDS / 64) as usize],
+) -> Result<Vec<u32>, FormatError> {
+    if json.expect_token()? != Token::StartArray {
+        return Err(json.error("an index's failed shards are an array"));
+    }
+    // ALLOC: one number a failed shard, at most MAX_SHARDS (checked before each push).
+    let mut out = Vec::new();
+    loop {
+        let n = match json.expect_token()? {
+            Token::EndArray => return Ok(out),
+            Token::Int(n) => u32::try_from(n)
+                .ok()
+                .filter(|n| *n < MAX_SHARDS)
+                .ok_or_else(|| json.error("a failed shard number is out of range"))?,
+            _ => return Err(json.error("a failed shard is a number")),
+        };
+        let (word, bit) = ((n / 64) as usize, 1u64 << (n % 64));
+        if seen[word] & bit != 0 {
+            return Err(json.error("a shard is recorded twice"));
+        }
+        seen[word] |= bit;
+        out.push(n);
+    }
+}
+
 /// The number of entries of a `shards` array and the highest shard number,
 /// each entry checked to be an object with a shard number, a non-negative
 /// term and a `files` object, and no shard named twice.
-fn count_shards(json: &mut Reader<'_>) -> Result<(u32, u32), FormatError> {
+fn count_shards(
+    json: &mut Reader<'_>,
+    seen: &mut [u64; (MAX_SHARDS / 64) as usize],
+) -> Result<(u32, u32), FormatError> {
     if json.expect_token()? != Token::StartArray {
         return Err(json.error("an index's shards are an array"));
     }
-    // One bit a shard slot, MAX_SHARDS of them, on the stack.
-    let mut seen = [0u64; (MAX_SHARDS / 64) as usize];
     let mut count = 0u32;
     let mut highest = 0u32;
     loop {
@@ -276,7 +315,8 @@ mod tests {
                 name: "logs".into(),
                 uuid: "A".into(),
                 shards: 2,
-                captured: 2
+                captured: 2,
+                failed_shards: vec![]
             }]
         );
         assert!(!s.in_progress());

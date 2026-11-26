@@ -35,6 +35,7 @@ pub(crate) fn draft(name: &str, generation: &str, captured: bool) -> SnapshotDra
             } else {
                 vec![]
             },
+            failed_shards: vec![],
             aliases: vec![],
             aliases_truncated: false,
         }],

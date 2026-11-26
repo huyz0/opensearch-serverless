@@ -109,6 +109,7 @@ fn restore(w: &World, files: &[StockFile], chunk: usize) -> Result<(), RestoreEr
         shards: Vec::new(),
         aliases: Vec::new(),
         aliases_truncated: false,
+        failed_shards: Vec::new(),
     };
     let from = StockSource {
         store: &*w.src,
