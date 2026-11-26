@@ -13,6 +13,10 @@ pub const STREAMS_PER_CONNECTION: usize = 16;
 /// The default longest gRPC message: 4 MiB.
 pub const DEFAULT_GRPC_MESSAGE: usize = 4 << 20;
 
+/// How many times `grpc_max_message` a call holds at once: the message, its decoded form, the REST
+/// body made from it, and the answer.
+const GRPC_CALL_FACTOR: usize = 4;
+
 /// What the front serves and how much of it.
 #[derive(Debug, Clone)]
 pub struct EdgeConfig {
@@ -85,11 +89,14 @@ impl EdgeConfig {
 
     /// The bytes charged to the request-body pool when the front starts:
     /// `max_streams x 2 x stream_buffer + max_connections x connection_overhead`, and with a gRPC
-    /// listener `max_streams x grpc_max_message` for the message each call decodes whole.
+    /// listener `max_streams x grpc_max_message x 4` for what a call holds at once: the message, its decoded
+    /// form, the REST body made from it, and the answer.
     #[must_use]
     pub fn charge(&self) -> usize {
         let messages = if self.grpc.is_some() {
-            self.max_streams.saturating_mul(self.grpc_max_message)
+            self.max_streams
+                .saturating_mul(self.grpc_max_message)
+                .saturating_mul(GRPC_CALL_FACTOR)
         } else {
             0
         };
@@ -169,7 +176,7 @@ mod tests {
         assert_eq!(DEFAULT_GRPC_MESSAGE, 4 << 20);
         let without = c.charge();
         c.grpc = Some("127.0.0.1:1".parse().expect("addr"));
-        assert_eq!(c.charge(), without + c.max_streams * (4 << 20));
+        assert_eq!(c.charge(), without + c.max_streams * 4 * (4 << 20));
     }
 
     #[test]

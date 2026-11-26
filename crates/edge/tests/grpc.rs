@@ -240,3 +240,99 @@ fn a_certificate_is_loaded_for_grpc_and_only_when_a_tls_or_grpc_listener_needs_i
     Edge::start(c, &budget).expect("starts").shutdown();
     server.shutdown();
 }
+
+const BULK: &str = "/org.opensearch.protobufs.services.DocumentService/Bulk";
+
+/// `BulkRequest { refresh = WAIT_FOR; one index item with id "1" and source `{}` }`.
+fn bulk_request() -> Vec<u8> {
+    let mut m = vec![0x30, 3, 0x62, 11];
+    m.extend_from_slice(&[0x0a, 5, 0x0a, 3, 0x0a, 1, b'1', 0x1a, 2, b'{', b'}']);
+    m
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn bulk_is_mapped_to_rest_and_its_answer_back() {
+    let state = Arc::new(State::default());
+    *state.bulk_answer.lock().expect("lock") = r#"{"took":3,"errors":false,"items":[{"index":{"_index":"a","_id":"1","_version":1,"result":"created","_shards":{"total":2,"successful":1,"failed":0},"_seq_no":0,"_primary_term":1,"status":201}}]}"#.to_owned();
+    let (server, budget, upstream) = start(&state);
+    let edge = Edge::start(config(upstream), &budget).expect("starts");
+    let mut send = h2c(edge.grpc_addr().expect("bound")).await;
+    let reply = grpc_call(&mut send, BULK, &[], grpc_frame(0, &bulk_request()))
+        .await
+        .expect("reply");
+    assert_eq!(reply.grpc_status, Some(0), "{:?}", reply.grpc_message);
+    let seen = state.bulks.lock().expect("lock").clone();
+    assert_eq!(seen.len(), 1);
+    assert_eq!(seen[0].0, "/_bulk?refresh=wait_for");
+    assert_eq!(seen[0].1, b"{\"index\":{\"_id\":\"1\"}}\n{}\n");
+    let message = &reply.messages[0];
+    assert!(
+        message.windows(2).any(|w| w == [0x18, 3]),
+        "took = 3 is in the message"
+    );
+    assert!(message.windows(7).any(|w| w == b"created"));
+    edge.shutdown();
+    server.shutdown();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_field_outside_the_subset_never_reaches_the_node() {
+    let state = Arc::new(State::default());
+    let (server, budget, upstream) = start(&state);
+    let edge = Edge::start(config(upstream), &budget).expect("starts");
+    let mut send = h2c(edge.grpc_addr().expect("bound")).await;
+    // `type = "t"`, which is deprecated upstream and not covered.
+    let reply = grpc_call(&mut send, BULK, &[], grpc_frame(0, b"\x52\x01t"))
+        .await
+        .expect("reply");
+    assert_eq!(reply.grpc_status, Some(12));
+    assert!(
+        reply
+            .grpc_message
+            .expect("message")
+            .contains("BulkRequest.type")
+    );
+    assert!(state.bulks.lock().expect("lock").is_empty());
+    edge.shutdown();
+    server.shutdown();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_answer_key_the_table_does_not_know_is_internal() {
+    let state = Arc::new(State::default());
+    *state.bulk_answer.lock().expect("lock") =
+        r#"{"took":1,"errors":false,"items":[],"surprise":1}"#.to_owned();
+    let (server, budget, upstream) = start(&state);
+    let edge = Edge::start(config(upstream), &budget).expect("starts");
+    let mut send = h2c(edge.grpc_addr().expect("bound")).await;
+    let reply = grpc_call(&mut send, BULK, &[], grpc_frame(0, &bulk_request()))
+        .await
+        .expect("reply");
+    assert_eq!(reply.grpc_status, Some(13));
+    assert!(reply.grpc_message.expect("message").contains("surprise"));
+    *state.bulk_answer.lock().expect("lock") = "not json".to_owned();
+    let reply = grpc_call(&mut send, BULK, &[], grpc_frame(0, &bulk_request()))
+        .await
+        .expect("reply");
+    assert_eq!(reply.grpc_status, Some(13));
+    edge.shutdown();
+    server.shutdown();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_rest_error_keeps_its_body_in_the_status() {
+    let state = Arc::new(State::default());
+    state.bulk_status.store(429, Ordering::Release);
+    let (server, budget, upstream) = start(&state);
+    let edge = Edge::start(config(upstream), &budget).expect("starts");
+    let mut send = h2c(edge.grpc_addr().expect("bound")).await;
+    let reply = grpc_call(&mut send, BULK, &[], grpc_frame(0, &bulk_request()))
+        .await
+        .expect("reply");
+    assert_eq!(reply.grpc_status, Some(8));
+    let text = reply.grpc_message.expect("message");
+    assert!(text.contains("circuit_breaking_exception"), "{text}");
+    assert!(reply.messages.is_empty());
+    edge.shutdown();
+    server.shutdown();
+}

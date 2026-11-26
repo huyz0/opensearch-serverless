@@ -11,3 +11,8 @@ src/grpc/frame.rs	new		gRPC front; Java serves gRPC through its own Netty transp
 src/grpc/health.rs	new		gRPC front; Java serves gRPC through its own Netty transport
 src/grpc/mod.rs	new		gRPC front; Java serves gRPC through its own Netty transport
 src/grpc/status.rs	new		gRPC front; Java serves gRPC through its own Netty transport
+src/grpc/bulk.rs	new		gRPC front; Java serves gRPC through its own Netty transport
+src/grpc/fields.rs	new		gRPC front; Java serves gRPC through its own Netty transport
+src/grpc/respond.rs	new		gRPC front; Java serves gRPC through its own Netty transport
+src/grpc/rest.rs	new		gRPC front; Java serves gRPC through its own Netty transport
+src/grpc/schema.rs	new		gRPC front; Java serves gRPC through its own Netty transport
