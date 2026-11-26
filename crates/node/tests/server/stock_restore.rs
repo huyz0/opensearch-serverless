@@ -206,7 +206,7 @@ fn an_s3_stock_repository_is_not_served_yet() {
 
 /// The fixture repository in an emulator behind an S3 front end, under
 /// `stock/repo/` of the bucket `stocksrc`: the source of an `s3` restore.
-fn s3_source() -> (
+pub(crate) fn s3_source() -> (
     std::sync::Arc<oss_blob::Emulator>,
     oss_blob::emulator::http::S3Server,
 ) {
@@ -243,7 +243,7 @@ fn put_tree(store: &dyn BlobStore, dir: &Path, prefix: &str) {
     }
 }
 
-fn s3_rig(server: &oss_blob::emulator::http::S3Server, roots: &str) -> Rig {
+pub(crate) fn s3_rig(server: &oss_blob::emulator::http::S3Server, roots: &str) -> Rig {
     rig_stock(
         true,
         "",
@@ -266,7 +266,7 @@ fn s3_rig(server: &oss_blob::emulator::http::S3Server, roots: &str) -> Rig {
     )
 }
 
-const S3_REPO: &str =
+pub(crate) const S3_REPO: &str =
     r#"{"type":"s3","settings":{"format":"stock","bucket":"stocksrc","base_path":"stock/repo"}}"#;
 
 #[test]
