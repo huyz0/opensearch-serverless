@@ -208,7 +208,7 @@ src/search_shard_action/tests.rs	new		a forwarded search's source as the reader'
 src/lease_age.rs	new		when this node last renewed its own lease, for the handlers that must not answer from a stale one (ADR 0057)
 src/boot/search_shard.rs	new		the forwarded shard search action's slot and its install at boot (ADR 0057)
 src/vector_warm_setting.rs	new		whether a segment's vector files are read whole at open or at the first knn search; the shell has no such switch
-src/boot/config/tests/vector_warm.rs	new		tests of the vector warm variable
+src/boot/config/tests/switches.rs	new		tests of the vector warm and nested variables
 src/usage_extensions.rs	new		what each tenant's extension module calls cost, in the usage body
 src/boot/edge.rs	new		starts the HTTP/2 front beside the HTTP/1.1 server; the Java transports serve HTTP/2 themselves
 src/boot/config/edge.rs	new		OSS_EDGE_* settings of the HTTP/2 front
@@ -229,3 +229,6 @@ src/assemble_publishing.rs	new		the publishing a node's configuration asks for, 
 src/writer/logged.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/LoggedCommits.java	the role's calls: log a staged commit, release at the register write, forget on release
 src/boot/config/commits.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/CommitStaging.java@429b4cbc	the staging and logging variables
 src/writer/open_logged.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/store/NewestCommits.java	choosing the commit a taken shard opens from
+src/nested_setting.rs	new		the node setting that accepts the nested object type; the Java shell always maps it
+src/assemble_config.rs	new		the node assembly settings, split from assemble.rs
+src/boot/config/store.rs	new		where a node keeps its blobs, split from config.rs

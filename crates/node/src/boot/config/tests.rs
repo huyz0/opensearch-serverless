@@ -1,6 +1,5 @@
 //! The node configuration's tests.
 use super::*;
-use oss_mem::Pool;
 
 pub(super) fn lookup<'a>(pairs: &'a [(&'a str, &'a str)]) -> impl Fn(&str) -> Option<String> + 'a {
     move |key| {
@@ -217,6 +216,7 @@ fn the_secret_is_not_printed() {
 
 #[test]
 fn the_pools_fit_and_every_pool_is_given_bytes() {
+    use oss_mem::Pool;
     let c = NodeConfig::from_lookup(lookup(FS)).expect("valid");
     let b = c.budget().expect("fits");
     let sum: usize = Pool::ALL.iter().map(|p| b.pool(*p)).sum();
@@ -497,4 +497,4 @@ fn tenant_tier_budgets_default_to_twenty_two_hundred_and_two_thousand() {
 mod extensions;
 mod proactive;
 mod resident;
-mod vector_warm;
+mod switches;

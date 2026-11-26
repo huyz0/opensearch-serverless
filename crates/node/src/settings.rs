@@ -24,6 +24,8 @@ fn providers() -> Vec<&'static [&'static Setting]> {
         crate::warm_setting::SETTINGS,
         #[cfg(all(feature = "writer", feature = "coordinator"))]
         crate::knn_setting::SETTINGS,
+        #[cfg(all(feature = "writer", feature = "coordinator"))]
+        crate::nested_setting::SETTINGS,
         crate::security_setting::SETTINGS,
         #[cfg(feature = "extensions")]
         crate::extension_setting::SETTINGS,
@@ -85,7 +87,7 @@ mod tests {
                 7 + 7 * usize::from(reader)
                     + if writer { 46 + usize::from(reader) } else { 0 }
                     + usize::from(reader && writer)
-                    + usize::from(writer && cfg!(feature = "coordinator"))
+                    + 2 * usize::from(writer && cfg!(feature = "coordinator"))
                     + usize::from(cfg!(feature = "extensions"))
             );
             assert_eq!(

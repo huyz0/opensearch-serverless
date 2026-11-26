@@ -64,6 +64,7 @@ pub struct IndexService {
     leave: Option<BucketLeave>,
     templates: Option<Arc<TemplateSets>>,
     knn: bool,
+    nested: bool,
     pins: Option<Arc<dyn PinPolicy>>,
     pipelines: bool,
     search_pipelines: bool,
@@ -82,6 +83,7 @@ impl IndexService {
             leave: None,
             templates: None,
             knn: false,
+            nested: false,
             pins: None,
             pipelines: false,
             search_pipelines: false,
@@ -93,6 +95,14 @@ impl IndexService {
     #[must_use]
     pub fn with_knn(mut self, on: bool) -> Self {
         self.knn = on;
+        self
+    }
+
+    /// Accepts a `nested` object in a created index's mapping when `on`
+    /// (`serverless.nested.enabled`); off, it is refused as unsupported.
+    #[must_use]
+    pub fn with_nested(mut self, on: bool) -> Self {
+        self.nested = on;
         self
     }
 
@@ -281,6 +291,7 @@ impl IndexService {
             // `index.knn` cannot be given at create yet, so the node setting stands for it.
             let options = ParseOptions {
                 knn: self.knn.then_some(true),
+                nested: self.nested,
             };
             let parsed = if pins.is_empty() {
                 Mapping::parse_with(text.as_bytes(), options)

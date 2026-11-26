@@ -19,34 +19,14 @@ pub(super) mod roles;
 pub(super) mod search_queue;
 pub(super) mod search_slots;
 pub(super) mod snapshots;
+mod store;
 mod store_debug;
 pub(super) mod write_limit;
 
+pub use store::StoreChoice;
+
 /// The smallest memory total the pools' shares make workable.
 pub const MIN_MEMORY_BYTES: usize = 512 << 20;
-
-/// Where a node keeps its blobs.
-#[derive(Clone, PartialEq, Eq)]
-pub enum StoreChoice {
-    /// A directory on this host.
-    Fs {
-        /// The directory.
-        root: PathBuf,
-    },
-    /// An S3 bucket.
-    S3 {
-        /// `http://host:port` or `https://host`.
-        endpoint: String,
-        /// The bucket.
-        bucket: String,
-        /// The signing region.
-        region: String,
-        /// The access key id.
-        access_key: String,
-        /// The secret; never printed.
-        secret_key: String,
-    },
-}
 
 /// How a node is configured.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -133,6 +113,8 @@ pub struct NodeConfig {
     pub security_refresh_millis: u64,
     /// `serverless.knn.enabled`.
     pub knn: bool,
+    /// `serverless.nested.enabled`.
+    pub nested: bool,
     /// `serverless.reader.vector_warm.at_open`.
     pub vector_warm_at_open: bool,
     /// `OSS_EXTENSIONS_PERCENT`: the page cache's share the `extensions` pool takes; 0 reserves none.
@@ -333,6 +315,7 @@ impl NodeConfig {
         let hand_off = flag("OSS_HAND_OFF", "false")?;
         let (commit_checkpoint_millis, commit_logged) = commits::read(&flag, &bounded)?;
         let knn = flag("OSS_KNN", "true")?;
+        let nested = flag("OSS_NESTED", "false")?;
         let extensions_percent =
             usize::try_from(bounded("OSS_EXTENSIONS_PERCENT", "0", 0, 20)?).unwrap_or(0);
         let extensions_replay_factor = bounded("OSS_EXTENSIONS_REPLAY_FUEL_FACTOR", "16", 1, 1024)?;
@@ -463,6 +446,7 @@ impl NodeConfig {
             security_admin,
             security_refresh_millis,
             knn,
+            nested,
             vector_warm_at_open: flag("OSS_VECTOR_WARM_AT_OPEN", "false")?,
             extensions_percent,
             extensions_replay_factor,

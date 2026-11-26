@@ -7,6 +7,7 @@ use crate::mapping::{
     Dynamic, FieldType, Leaf, Mapper, Mapping, MappingError, NumType, Object, Value,
 };
 
+use super::lookup::{contains_disabled, get_mapper};
 use super::preview::preview;
 use super::reader::{Reader, Tok};
 use super::values::{Taken, take};
@@ -487,38 +488,4 @@ impl<'m, 'a> Parser<'m, 'a> {
         self.pop(added);
         Ok(())
     }
-}
-
-/// `getMapper`: a child, through the objects a dotted name's leading parts
-/// name.
-fn get_mapper<'m>(obj: Option<&'m Object>, parts: &[&str]) -> Option<&'m Mapper> {
-    let mut obj = obj?;
-    let (last, leading) = parts.split_last()?;
-    for part in leading {
-        match obj.child(part) {
-            Some(Mapper::Object(o)) => obj = o,
-            _ => return None,
-        }
-    }
-    obj.child(last)
-}
-
-/// `containsDisabledObjectMapper`.
-fn contains_disabled(obj: Option<&Object>, parts: &[&str]) -> bool {
-    let Some(mut obj) = obj else {
-        return false;
-    };
-    let leading = parts.len().saturating_sub(1);
-    for part in parts.iter().take(leading) {
-        match obj.child(part) {
-            Some(Mapper::Object(o)) => {
-                if !o.enabled {
-                    return true;
-                }
-                obj = o;
-            }
-            _ => break,
-        }
-    }
-    false
 }

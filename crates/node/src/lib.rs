@@ -11,6 +11,8 @@ pub mod alias_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod assemble;
 #[cfg(all(feature = "reader", feature = "writer"))]
+mod assemble_config;
+#[cfg(all(feature = "reader", feature = "writer"))]
 mod assemble_error;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod assemble_publishing;
@@ -94,6 +96,8 @@ pub mod lease_announce;
 pub mod lifecycle;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub(crate) mod metadata_block;
+#[cfg(all(feature = "writer", feature = "coordinator"))]
+pub mod nested_setting;
 #[cfg(feature = "writer")]
 pub mod newest;
 #[cfg(feature = "reader")]
