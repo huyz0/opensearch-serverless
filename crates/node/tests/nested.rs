@@ -147,3 +147,49 @@ fn an_index_made_with_the_switch_on_still_reads_and_writes_with_it_off() {
     let r = cluster.call(1, "POST", "/_bulk?refresh=true", Some(body));
     assert!(r.text().contains("\"errors\":false"), "{}", r.text());
 }
+
+// docs/specs/nested-fields AC-9
+#[test]
+fn a_nested_document_in_the_log_is_searched_beside_a_published_one() {
+    let mut cluster = Cluster::new(3_000, 4, false).expect("emulated");
+    cluster.set("OSS_NESTED", "true");
+    cluster.add("n1");
+    wait_for("the node sees itself", 30, || cluster.nodes_seen(0) == 1);
+    let made = cluster.call(0, "PUT", "/blog", Some(MAPPING));
+    assert_eq!(made.status, 200, "{}", made.text());
+    bulk(
+        &cluster,
+        &[
+            r#"{"index":{"_index":"blog","_id":"1"}}"#,
+            r#"{"title":"a","comments":[{"who":"ann","n":1},{"who":"bob","n":2}]}"#,
+        ],
+        true,
+    );
+    // Retiring publishes document 1; the next node starts from it.
+    cluster.retire(0);
+    let slot = cluster.add("n2");
+    wait_for("the new node sees itself", 30, || {
+        cluster.nodes_seen(slot) == 1
+    });
+    let on = |q: &str, n: u32| {
+        let body = format!(r#"{{"size":0,"track_total_hits":true,"query":{q}}}"#);
+        let r = cluster.call(slot, "POST", "/blog/_search", Some(&body));
+        r.status == 200 && r.text().contains(&format!("\"value\":{n}"))
+    };
+    wait_for("the published document is found", 60, || on(BOTH, 1));
+    // Document 2 is only in the log, beside the published one.
+    let body = "{\"index\":{\"_index\":\"blog\",\"_id\":\"2\"}}\n{\"title\":\"b\",\"comments\":[{\"who\":\"ann\",\"n\":3}]}\n";
+    let r = cluster.call(slot, "POST", "/_bulk?refresh=true", Some(body));
+    assert!(r.text().contains("\"errors\":false"), "{}", r.text());
+    wait_for("both documents match the nested query", 60, || on(BOTH, 2));
+    wait_for("the total counts two parents", 60, || {
+        on(r#"{"match_all":{}}"#, 2)
+    });
+    let agg = r#"{"size":0,"aggs":{"c":{"nested":{"path":"comments"},"aggs":{"p":{"reverse_nested":{}}}}}}"#;
+    let r = cluster.call(slot, "POST", "/blog/_search", Some(agg));
+    assert_eq!(r.status, 200, "{}", r.text());
+    let text = r.text();
+    // Three children across the two parents, which step back out to two.
+    assert!(text.contains("\"doc_count\":3"), "{text}");
+    assert!(text.contains("\"doc_count\":2"), "{text}");
+}

@@ -27,4 +27,4 @@ The reader serves the `nested` query over blocks the Java shell writes, but no i
 
 ## Review
 
-Independent review 2026-11-26 by a reviewer given the ADR, the principles and the diff: no conflict with the S3 cost, bounded memory, scalability, one write log, one blob a segment or switch principles. It asked for the memory bound on the hidden documents (done: an iterator, no list), a merge test (added), narrower claims for counts and the parent bit set (done), and the gap that no node test holds a nested document only in the log beside a published one (recorded in VERIFIED.md).
+Independent review 2026-11-26 by a reviewer given the ADR, the principles and the diff: no conflict with the S3 cost, bounded memory, scalability, one write log, one blob a segment or switch principles. It asked for the memory bound on the hidden documents (done: an iterator, no list), a merge test (added), narrower claims for counts and the parent bit set (done), and the gap that no node test held a nested document only in the log beside a published one (closed: see VERIFIED.md).
