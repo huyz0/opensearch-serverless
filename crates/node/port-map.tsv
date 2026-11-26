@@ -242,3 +242,4 @@ src/snapshot_restore_aliases.rs	new		the alias step of a restore (ADR 0065); the
 src/writer/gate.rs	new		the publish gate: node-wide, or one a shard when packs are on; the shell holds one lock for the pass
 src/writer/bounded.rs	new		the pass's bounded scoped threads; the shell publishes from its reconciler thread
 src/writer/publish_pass.rs	new		the publish pass split out of the writer role: due shards published at once when packs are on
+src/usage_metrics.rs	new		the Prometheus text route over the usage ledger, the memory pools and the search gate; the Java shell has no metrics route

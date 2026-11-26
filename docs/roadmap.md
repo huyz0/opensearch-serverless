@@ -69,7 +69,7 @@ Counted by task from the plan "Rust serverless OpenSearch: plan to Java parity" 
 | R12 warm scale-out, roles, zones | 5 | 3 | 2 | 0 | R12.1 and R12.2: warm copy is off by default, its headline checks are NOT-RUN |
 | R13 big writes, admission, guardrails | 5 | 5 | 0 | 0 | |
 | R14 snapshots and the rest of the API | 8 | 7 | 0 | 1 | R14.6 runs no script; R14.8 stock restore and export done; restore in the background (off by default) done (the export's 403 on registering as a non-admin and a RustFS leg are NOT-RUN) |
-| R15 k-NN, security, extensions, soak | 5 | 2 | 3 | 0 | R15.3 only the analyzer point; R15.4 proxy untried against live Java plugins; R15.5 no week-long soak, no Prometheus metrics |
+| R15 k-NN, security, extensions, soak | 5 | 2 | 3 | 0 | R15.3 only the analyzer point; R15.4 proxy untried against live Java plugins; R15.5 no week-long soak; Prometheus metrics served at `/_prometheus/metrics` for S3 requests, memory pools and the search gate and queue ([prometheus-metrics](specs/prometheus-metrics/SPEC.md)) |
 | **Total** | **76** | **63** | **10** | **3** | |
 
 63 of 76 tasks are done (83%); 73 of 76 are done or built (96%).
