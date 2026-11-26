@@ -399,6 +399,60 @@ fn an_upstream_that_does_not_answer_is_504() {
     server.shutdown();
 }
 
+/// An upstream that answers with a head promising `promised` bytes, sends `sent` of them, and
+/// then goes quiet for five seconds.
+fn stalling_upstream(promised: usize, sent: usize) -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
+    let base = format!("http://{}", listener.local_addr().expect("addr"));
+    thread::spawn(move || {
+        let Ok((stream, _)) = listener.accept() else {
+            return;
+        };
+        let mut reader = BufReader::new(stream.try_clone().expect("clone"));
+        loop {
+            let mut h = String::new();
+            if reader.read_line(&mut h).unwrap_or(0) == 0 || h.trim_end().is_empty() {
+                break;
+            }
+        }
+        let mut out = stream;
+        let head = format!(
+            "HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\ncontent-length: {promised}\r\nconnection: close\r\n\r\n"
+        );
+        let _ = out.write_all(head.as_bytes());
+        let _ = out.write_all(&vec![b'x'; sent]);
+        thread::sleep(Duration::from_secs(5));
+    });
+    base
+}
+
+// docs/specs/plugin-proxy AC-6: a stall after the head went out is the per-read timeout
+#[test]
+fn an_upstream_that_stalls_mid_body_ends_the_answer_at_the_timeout() {
+    let base = stalling_upstream(1000, 10);
+    let server = start(vec![base], 1 << 20, Duration::from_millis(300));
+    let at = std::time::Instant::now();
+    let mut s = TcpStream::connect(server.local_addr()).expect("connects");
+    s.set_read_timeout(Some(Duration::from_secs(10)))
+        .expect("timeout");
+    s.write_all(&get("/_plugins/_alerting/monitors"))
+        .expect("sends");
+    let mut all = Vec::new();
+    let _ = s.read_to_end(&mut all);
+    let took = at.elapsed();
+    assert!(
+        took < Duration::from_secs(4),
+        "the proxy waited {took:?} on a stalled upstream"
+    );
+    let text = String::from_utf8_lossy(&all).into_owned();
+    let body_len = text.split("\r\n\r\n").nth(1).map_or(0, str::len);
+    assert!(
+        body_len < 1000,
+        "the answer was cut short, not completed: {body_len} of 1000 bytes in {text:?}"
+    );
+    server.shutdown();
+}
+
 #[test]
 fn head_has_no_body_and_options_is_forwarded() {
     let (base, seen) = upstream(echo);
