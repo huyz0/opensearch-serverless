@@ -229,7 +229,27 @@ fn a_second_upload_while_one_is_in_flight_answers_429() {
         std::thread::sleep(Duration::from_millis(50));
         second = put(&r, b"probe");
     }
-    assert_eq!(second.status, 429, "{}", second.text());
+    if second.status != 429 {
+        // The first upload never held the place for the whole wait: say what became of it.
+        slow.set_read_timeout(Some(Duration::from_millis(200)))
+            .expect("timeout");
+        let mut seen = [0_u8; 512];
+        let slow_end = match slow.read(&mut seen) {
+            Ok(0) => "closed by the server".to_owned(),
+            Ok(n) => format!("answered: {}", String::from_utf8_lossy(&seen[..n])),
+            Err(e)
+                if e.kind() == std::io::ErrorKind::WouldBlock
+                    || e.kind() == std::io::ErrorKind::TimedOut =>
+            {
+                "still open and unanswered".to_owned()
+            }
+            Err(e) => format!("failed: {e}"),
+        };
+        panic!(
+            "the second upload was never refused ({}): the first upload's connection was {slow_end}",
+            second.status
+        );
+    }
     assert_eq!(count(&r, S3Op::Put), 0);
     slow.write_all(&wasm[8..]).expect("rest");
     let mut reply = String::new();
