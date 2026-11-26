@@ -10,6 +10,7 @@ mod index_metadata;
 mod native_index;
 mod repository_data;
 mod shard_snapshot;
+mod snapshot_info;
 
 use crate::error::{FormatError, corrupt, len64};
 use crate::smile::{self, Limits as SmileLimits};
@@ -19,6 +20,7 @@ pub use index_metadata::{MAX_ALIASES, MAX_SETTINGS, StockIndexMetadata};
 pub use native_index::{StockNative, StockRefusal};
 pub use repository_data::{RepositoryData, StockIndex, StockSnapshot, is_blob_name};
 pub use shard_snapshot::{MAX_CHUNKS, MAX_FILES, StockFile, StockShardSnapshot};
+pub use snapshot_info::{MAX_INDICES, StockSnapshotInfo};
 
 const WHAT: &str = "stock repository blob";
 

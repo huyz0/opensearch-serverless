@@ -20,6 +20,7 @@ use oss_reader::dsl::SearchSource;
 use oss_reader::failure::SearchError;
 use oss_reader::overlay::{CommitAccess, Overlay, OverlaySource, Ready, find_copies};
 use oss_testkit::{TempDir, budget};
+use oss_transport::actions::search_shard::{Bounds, Request as ForwardedRequest};
 use oss_transport::frame::VariableHeader;
 use oss_transport::server::{Handler, Request};
 use oss_transport::stream::{Input, Output};
@@ -32,6 +33,9 @@ mod rig;
 use rig::*;
 
 const FIXTURES: &str = include_str!("../../../fixtures/search-shard/java-3.10.0.txt");
+/// Answers the Java shell wrote for a shard of tied hits
+/// (`fixtures/search-shard/WriteTieOrder.java`).
+const TIES: &str = include_str!("../../../fixtures/search-shard/java-ties-3.10.0.txt");
 
 /// The overlay of a replaced id (`a`, now `n` 7), a deleted one (`b`) and a
 /// new one (`c`, `n` 9): the writes an owner acknowledged and has not
@@ -98,12 +102,15 @@ fn fixture_bytes(name: &str) -> Vec<u8> {
 }
 
 fn ask(handler: &SearchShardHandler, name: &str) -> Vec<u8> {
-    let message = fixture_bytes(name);
+    ask_bytes(handler, &fixture_bytes(name))
+}
+
+fn ask_bytes(handler: &SearchShardHandler, message: &[u8]) -> Vec<u8> {
     let variable = VariableHeader::default();
     let request = Request {
         action: "internal:serverless/search/shard",
         variable: &variable,
-        message: &message,
+        message,
         version: WireVersion::SHELL,
     };
     let mut sink = Vec::new();
@@ -167,4 +174,111 @@ fn an_owner_answers_from_its_unpublished_tail_and_asks_the_store_for_nothing() {
         "{text}"
     );
     assert!(!text.contains(r#"{"n":1}"#), "the replaced source is gone");
+    // Every hit scores 1.0, so they tie: they keep the shard's document
+    // order, the rewritten `a` before the new `c`, as Lucene's top docs do.
+    let (seven, nine) = (text.find(r#"{"n":7}"#), text.find(r#"{"n":9}"#));
+    assert!(seven < nine, "tied hits keep document order: {text}");
+}
+
+/// The `_source` documents of an answer, in the order the hits come in. Each
+/// document of the tie shard carries its own `n`, so the order of the sources
+/// is the order of the hits.
+fn sources(answer: &[u8]) -> Vec<String> {
+    let text = String::from_utf8_lossy(answer);
+    let mut found: Vec<(usize, String)> = (1..=4)
+        .filter_map(|n| {
+            let source = format!(r#"{{"n":{n}}}"#);
+            text.find(&source).map(|at| (at, source))
+        })
+        .collect();
+    found.sort();
+    found.into_iter().map(|(_, source)| source).collect()
+}
+
+fn java_answer(name: &str) -> Vec<u8> {
+    let hex = TIES
+        .lines()
+        .find_map(|l| l.strip_prefix(name).and_then(|r| r.strip_prefix(' ')))
+        .expect("a Java answer");
+    hex.as_bytes()
+        .chunks(2)
+        .map(|p| u8::from_str_radix(std::str::from_utf8(p).expect("ascii"), 16).expect("hex"))
+        .collect()
+}
+
+/// The shard the Java shell answered for: `z m q` published, then `m`
+/// rewritten, `q` deleted, `a` and `k` added. Document order is `z m a k`;
+/// `_id` order would be `a k m z`.
+struct TieTail {
+    mapping: Mapping,
+}
+
+impl OverlaySource for TieTail {
+    fn ready(
+        &self,
+        _: &str,
+        _: u32,
+        _: &Stage,
+        commit: &Arc<dyn CommitAccess>,
+        _: u64,
+    ) -> Option<Arc<Ready>> {
+        let records = [
+            WalRecord::index("m".to_owned(), r#"{"n":2}"#.to_owned(), 1000, 1, 1001),
+            WalRecord::deletion("q".to_owned(), 1001, 1, 1002),
+            WalRecord::index("a".to_owned(), r#"{"n":3}"#.to_owned(), 1002, 1, 1003),
+            WalRecord::index("k".to_owned(), r#"{"n":4}"#.to_owned(), 1003, 1, 1004),
+        ];
+        let overlay = Overlay::build(&self.mapping, &records, 0, 4 << 20).expect("builds");
+        let copies = find_copies(commit.reader(), overlay.ids()).expect("copies");
+        Some(Arc::new(Ready::new(overlay, copies)))
+    }
+
+    fn closed(&self, _: &str, _: u32, _: &Stage, _: u64) {}
+}
+
+#[test]
+fn tied_hits_come_in_the_order_the_java_shell_answers_them() {
+    let root = TempDir::new("search-shard-ties");
+    let dir = ByteBuffersDirectory::new();
+    let fx = fixture(root.path(), &dir, &["z", "m", "q"]);
+    assert!(install(
+        &fx.service,
+        true,
+        Arc::new(TieTail {
+            mapping: Mapping::parse(br#"{"properties":{"n":{"type":"integer"}}}"#)
+                .expect("mapping"),
+        })
+    ));
+    let handler = handler(&fx, fresh());
+    let mut sized = ForwardedRequest::read(&fixture_bytes("request.match_all"), &Bounds::DEFAULT)
+        .expect("reads");
+    sized.source.size = 2;
+    let mut two = Vec::new();
+    sized
+        .write(&mut Output::new(&mut two, 1 << 20))
+        .expect("writes");
+    for (name, request) in [
+        ("response.match_all", fixture_bytes("request.match_all")),
+        ("response.match_all_size_2", two),
+    ] {
+        let java = java_answer(name);
+        let rust = ask_bytes(&handler, &request);
+        assert_eq!(sources(&rust), sources(&java), "{name}: hit order");
+        let (mut j, mut r) = (Input::new(&java), Input::new(&rust));
+        assert_eq!(
+            r.vlong("total").expect("total"),
+            j.vlong("total").expect("total"),
+            "{name}: total"
+        );
+        assert_eq!(
+            r.vint("hits").expect("hits"),
+            j.vint("hits").expect("hits"),
+            "{name}: hits"
+        );
+    }
+    // Document order, not `_id` order, and the Java shard's own answer says so.
+    assert_eq!(
+        sources(&java_answer("response.match_all")),
+        [r#"{"n":1}"#, r#"{"n":2}"#, r#"{"n":3}"#, r#"{"n":4}"#]
+    );
 }

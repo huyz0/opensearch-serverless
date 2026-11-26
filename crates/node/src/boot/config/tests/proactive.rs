@@ -23,7 +23,7 @@ fn the_forwarded_search_action_is_on_and_each_setting_is_read_and_bounded() {
             c.search_shard_max_lease_age_millis,
             c.search_shard_max_concurrent
         ),
-        (10_000, 8)
+        (10_000, 2)
     );
     let set = NodeConfig::from_lookup(lookup(&with(&[
         ("OSS_SEARCH_SHARD_ACTION", "false"),

@@ -1,4 +1,4 @@
-//! The keys of a restore's body: the three it reads, the fifteen the shell
+//! The keys of a restore's body: the five it reads, the thirteen it
 //! refuses with a reason, and the rest it does not know
 //! (`SnapshotRequestBodies.RESTORE_KNOWN_KEYS` and `RESTORE_REFUSED_KEYS`).
 
@@ -7,11 +7,17 @@ use oss_doc::mapping::json::Json;
 use crate::route::resolve::Refusal;
 
 /// What a restore reads; the rest is refused below.
-const KNOWN: [&str; 3] = ["indices", "rename_pattern", "rename_replacement"];
+const KNOWN: [&str; 5] = [
+    "indices",
+    "rename_pattern",
+    "rename_replacement",
+    "index_settings",
+    "ignore_index_settings",
+];
 
 /// Core's other restore fields, each with why it is refused: the shell's
 /// `RESTORE_REFUSED_KEYS`.
-pub(crate) const REFUSED: [(&str, &str); 15] = [
+pub(crate) const REFUSED: [(&str, &str); 13] = [
     (
         "partial",
         "a restore here creates every shard of an index or refuses; there is no partial index to make",
@@ -31,14 +37,6 @@ pub(crate) const REFUSED: [(&str, &str); 15] = [
     (
         "rename_alias_replacement",
         "aliases are not captured in a snapshot here",
-    ),
-    (
-        "index_settings",
-        "the settings an index had when it was captured are restored with it, unchanged; change them on the restored index with PUT /{index}/_settings",
-    ),
-    (
-        "ignore_index_settings",
-        "the settings an index had when it was captured are restored with it, unchanged; change them on the restored index with PUT /{index}/_settings",
     ),
     (
         "settings",
@@ -74,6 +72,15 @@ pub(crate) const REFUSED: [(&str, &str); 15] = [
     ),
 ];
 
+/// Flags that name behaviour this node always has: set to `false` they
+/// change nothing, set to `true` they stay refused below.
+const OFF: [&str; 4] = [
+    "partial",
+    "include_global_state",
+    "include_aliases",
+    "ignore_unavailable",
+];
+
 fn refuse(status: u16, kind: &'static str, reason: String) -> Refusal {
     Refusal {
         status,
@@ -88,7 +95,27 @@ fn refuse(status: u16, kind: &'static str, reason: String) -> Refusal {
 ///
 /// 501 `unsupported_restore`; 400 `unknown_parameter`.
 pub(crate) fn check_keys(members: &[(String, Json)]) -> Result<(), Refusal> {
+    for key in OFF {
+        match members.iter().find(|(k, _)| k == key) {
+            Some((_, Json::Bool(_))) | None => {}
+            Some(_) => {
+                return Err(refuse(
+                    400,
+                    "illegal_argument_exception",
+                    // ALLOC: error path; one message.
+                    format!("{key} must be a boolean"),
+                ));
+            }
+        }
+    }
     for (key, why) in REFUSED {
+        let at_default = OFF.contains(&key)
+            && members
+                .iter()
+                .any(|(k, v)| k == key && matches!(v, Json::Bool(false)));
+        if at_default {
+            continue;
+        }
         if members.iter().any(|(k, _)| k == key) {
             return Err(refuse(
                 501,
@@ -98,7 +125,8 @@ pub(crate) fn check_keys(members: &[(String, Json)]) -> Result<(), Refusal> {
             ));
         }
     }
-    if let Some((key, _)) = members.iter().find(|(k, _)| !KNOWN.contains(&k.as_str())) {
+    let known = |k: &str| KNOWN.contains(&k) || OFF.contains(&k);
+    if let Some((key, _)) = members.iter().find(|(k, _)| !known(k)) {
         return Err(refuse(
             400,
             "unknown_parameter",

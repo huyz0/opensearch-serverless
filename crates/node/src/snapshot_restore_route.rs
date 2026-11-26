@@ -10,11 +10,11 @@
 use std::sync::Arc;
 
 use oss_blob::BlobStore;
-use oss_coordinator::snapshot_admin::snapshot_missing;
 use oss_coordinator::snapshot_restore_admin::{
     Target, in_progress, plan, render_restored, request, restore_conflict, restore_disabled,
     target_exists, unsupported_content,
 };
+use oss_coordinator::snapshot_restore_settings::SettingsChange;
 use oss_coordinator::snapshot_take_admin::{ACCEPTED, check_shards};
 use oss_coordinator::system_indices::{SystemIndices, restore_refusal};
 use oss_format::{MAX_REPOSITORY_RECORD_BYTES, MAX_SNAPSHOT_RECORD_BYTES, RestoreIndex};
@@ -26,6 +26,7 @@ use oss_rest::{JSON, Method, Request, Response, RestError, RouteError, Router};
 
 use crate::index_delete::DeleteService;
 use crate::route_util::{flag, read_body, refuse, refused};
+use crate::stock_restore_route::StockRestoreSettings;
 
 /// The bytes one ranged read and one write of a restored file hold each.
 pub const COPY_CHUNK_BYTES: usize = 4 << 20;
@@ -40,21 +41,22 @@ const PARAMS: &[&str] = &[
 /// What a restore reads and writes, under one base.
 pub struct SnapshotRestoreService {
     enabled: bool,
-    reader: SnapshotReader,
-    restorer: SnapshotRestorer,
-    descriptors: DescriptorStore,
-    deletes: Arc<DeleteService>,
-    clock: PitClock,
-    chunk_bytes: usize,
-    system: Arc<SystemIndices>,
+    pub(crate) reader: SnapshotReader,
+    pub(crate) restorer: SnapshotRestorer,
+    pub(crate) descriptors: DescriptorStore,
+    pub(crate) deletes: Arc<DeleteService>,
+    pub(crate) clock: PitClock,
+    pub(crate) chunk_bytes: usize,
+    pub(crate) system: Arc<SystemIndices>,
+    pub(crate) stock: StockRestoreSettings,
 }
 
-fn unavailable(e: &dyn std::fmt::Display) -> RestError {
+pub(crate) fn unavailable(e: &dyn std::fmt::Display) -> RestError {
     // ALLOC: error path; the failure's words.
     refuse(503, "metadata_unavailable", e.to_string())
 }
 
-fn restore_failed(e: RestoreError, index: &str) -> RestError {
+pub(crate) fn restore_failed(e: RestoreError, index: &str) -> RestError {
     match e {
         RestoreError::Unsupported(why) => refused(unsupported_content(index, why)),
         RestoreError::Conflict { shard } => refused(restore_conflict(index, shard)),
@@ -88,7 +90,15 @@ impl SnapshotRestoreService {
             clock,
             chunk_bytes,
             system: Arc::new(SystemIndices::none()),
+            stock: StockRestoreSettings::off(),
         }
+    }
+
+    /// Serves restores from stock OpenSearch repositories as `stock` says.
+    #[must_use]
+    pub fn with_stock(mut self, stock: StockRestoreSettings) -> Self {
+        self.stock = stock;
+        self
     }
 
     /// Refuses a restore of any index `system` names, or into one, 403.
@@ -129,7 +139,11 @@ impl SnapshotRestoreService {
             .for_restore(&repo, &name, &mut value)
             .map_err(|e| read_failed(&e))?
         {
-            RestoreRead::Missing => return Err(refused(snapshot_missing(&repo, &name))),
+            RestoreRead::Missing => {
+                // A stock repository has no register: its snapshot is read
+                // from the source repository instead.
+                return self.restore_stock(req, resp, &repo, &name, &asked, wait);
+            }
             RestoreRead::Legacy => {
                 return Err(refuse(
                     501,
@@ -156,7 +170,7 @@ impl SnapshotRestoreService {
         // ALLOC: one name an index, at most the take's bound.
         let captured: Vec<String> = summary.indices.iter().map(|i| i.name.clone()).collect();
         let targets = plan(&asked, &captured).map_err(refused)?;
-        let sources = self.check(record, &targets)?;
+        let sources = self.check(record, &targets, &asked.settings)?;
         let shards = sources
             .iter()
             .fold(0usize, |n, s| n.saturating_add(s.shards.len()));
@@ -213,10 +227,36 @@ impl SnapshotRestoreService {
         )
     }
 
+    /// Refuses a target that names a system index, is not a valid name or
+    /// names an index or alias already.
+    pub(crate) fn check_target(&self, target: &Target, buf: &mut [u8]) -> Result<(), RestError> {
+        for name in [&target.source, &target.target] {
+            if self.system.contains(name) {
+                return Err(refused(restore_refusal(name)));
+            }
+        }
+        validate_index_or_alias(&target.target).map_err(|e| {
+            // ALLOC: error path; the rule's words.
+            refuse(400, "invalid_index_name_exception", e.to_string())
+        })?;
+        match self.descriptors.get(&target.target, buf) {
+            Ok(None) => Ok(()),
+            Ok(Some(_)) => Err(refused(target_exists(&target.target))),
+            Err(MetaError::Blob(ref b)) => Err(unavailable(b)),
+            // ALLOC: error path; the failure's words.
+            Err(other) => Err(refuse(500, "restore_failure", other.to_string())),
+        }
+    }
+
     /// Reads every source's entry and refuses what cannot be restored, and
     /// every target that names an index or alias already, before anything
     /// is written.
-    fn check(&self, record: &[u8], targets: &[Target]) -> Result<Vec<RestoreIndex>, RestError> {
+    fn check(
+        &self,
+        record: &[u8],
+        targets: &[Target],
+        change: &SettingsChange,
+    ) -> Result<Vec<RestoreIndex>, RestError> {
         // ALLOC: one entry an index, at most the take's bound.
         let mut sources = Vec::with_capacity(targets.len());
         // ALLOC: one buffer a request, the descriptor's size.
@@ -224,7 +264,7 @@ impl SnapshotRestoreService {
         for target in targets {
             let found = RestoreIndex::find(record, &target.source)
                 .map_err(|e| refuse(500, "snapshot_unreadable", e.to_string()))?;
-            let Some(source) = found else {
+            let Some(mut source) = found else {
                 return Err(refused(
                     oss_coordinator::snapshot_restore_admin::index_not_captured(&target.source),
                 ));
@@ -235,22 +275,12 @@ impl SnapshotRestoreService {
             if let Some(why) = refusal {
                 return Err(refused(unsupported_content(&target.source, why)));
             }
-            for name in [&target.source, &target.target] {
-                if self.system.contains(name) {
-                    return Err(refused(restore_refusal(name)));
-                }
-            }
-            validate_index_or_alias(&target.target).map_err(|e| {
-                // ALLOC: error path; the rule's words.
-                refuse(400, "invalid_index_name_exception", e.to_string())
-            })?;
-            match self.descriptors.get(&target.target, &mut buf) {
-                Ok(None) => {}
-                Ok(Some(_)) => return Err(refused(target_exists(&target.target))),
-                Err(MetaError::Blob(ref b)) => return Err(unavailable(b)),
-                // ALLOC: error path; the failure's words.
-                Err(other) => return Err(refuse(500, "restore_failure", other.to_string())),
-            }
+            self.check_target(target, &mut buf)?;
+            source.settings = crate::restore_settings::apply(
+                change,
+                source.settings.take(),
+                source.number_of_shards,
+            )?;
             sources.push(source);
         }
         Ok(sources)

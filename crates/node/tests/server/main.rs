@@ -73,6 +73,8 @@ mod push_read;
 mod read_block;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod read_forward;
+mod restore_flags;
+mod restore_settings;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod rollover_route;
 mod rollover_shape;
@@ -100,5 +102,7 @@ mod snapshot_restore_search;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod snapshot_route;
 mod snapshot_take;
+mod stock_restore;
+mod stock_restore_settings;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod template_route;

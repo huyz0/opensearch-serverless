@@ -77,6 +77,16 @@ pub struct Config {
     pub snapshots_take: bool,
     /// Whether a shallow snapshot can be restored: `serverless.snapshots.restore.enabled`.
     pub snapshots_restore: bool,
+    /// `serverless.snapshots.stock.enabled`: restore from a stock OpenSearch repository, beside `snapshots_restore`.
+    pub snapshots_stock: bool,
+    /// `OSS_STOCK_REPO_ROOTS`: the directories a stock `fs` repository may sit under.
+    pub stock_fs_roots: String,
+    /// `OSS_STOCK_REPO_S3_ROOTS`: the `bucket/prefix` roots a stock `s3` repository may sit under.
+    pub stock_s3_roots: String,
+    /// `OSS_STOCK_RESTORE_FANOUT`: how many metadata blobs a stock restore reads at once.
+    pub stock_fanout: usize,
+    /// The endpoint a stock `s3` repository is read through; none when this node's store is a directory.
+    pub stock_s3: Option<crate::stock_s3::SourceS3>,
     /// `serverless.system_indices.patterns`: comma-separated `*` patterns of the names a take and a restore refuse.
     pub system_index_patterns: String,
     /// `serverless.plugins.upstreams`: Java nodes serving unported plugins; none proxies nothing.
@@ -156,6 +166,11 @@ impl Config {
             snapshots: false,
             snapshots_take: false,
             snapshots_restore: false,
+            snapshots_stock: false,
+            stock_fs_roots: String::new(),
+            stock_s3_roots: String::new(),
+            stock_fanout: 8,
+            stock_s3: None,
             system_index_patterns: String::new(),
             plugin_upstreams: Vec::new(),
             plugin_max_request_bytes: 10 << 20,

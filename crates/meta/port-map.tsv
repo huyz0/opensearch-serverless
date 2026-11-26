@@ -26,3 +26,6 @@ src/snapshot_capture.rs	port	serverless/shell/src/main/java/org/opensearch/serve
 src/snapshot_restore.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/snapshot/SnapshotOperations.java@bf347adb	restore of one index of a shallow snapshot: create the descriptor, copy each captured file into the first-term container, land the manifest from absent (SnapshotBlobs.copyShardBlobs)
 src/ranged_source.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/snapshot/SnapshotOperations.java@bf347adb	a captured range of one blob as a PUT body (SnapshotBlobs.copyShardBlobs)
 src/stock_restore.rs	new		restore of one index of a stock OpenSearch snapshot: the descriptor, then each shard's files copied whole from the source repository with the footer CRC checked; the shell has no such path
+src/stock_read.rs	new		reading a stock repository's index.latest, index-N, snapshot, metadata and shard blobs through a source store by derived keys, bounded; no Java counterpart in the shell
+src/stock_plan.rs	new		the four read rounds and every refusal and bound of a stock restore before any write; no Java counterpart in the shell
+src/stock_fan.rs	new		one blob read for each item, at most a fan-out at a time; no Java counterpart in the shell

@@ -18,6 +18,9 @@ impl NodeLogCommitter {
     /// flusher, which owns the window meanwhile.
     pub(super) fn write(&self, head: &mut Flushing) {
         let window = &mut head.window;
+        // The window's store requests are its writers', not the thread's
+        // that drives it.
+        let _scope = oss_blob::cost::enter_scope(window.scope());
         let opening = Instant::now();
         let opened = self.open_epoch();
         add_nanos(&self.timings.epoch_nanos, opening.elapsed());

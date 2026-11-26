@@ -25,6 +25,7 @@ Roadmap stage 1 ("the store trait in `oss-blob`", "an in-process S3 emulator"), 
 - AC-13: a lost response (`lose_response_next`) commits the write and answers `Unavailable`; a retried conditional create of that key, its body rewound, then gets `AlreadyExists`.
 - AC-10: injected latency delays each request of that kind by at least its base.
 - AC-11: an empty caller buffer, an empty key, a key over 1,024 bytes, or `max_keys` of 0 fails with `InvalidArgument` before any request is recorded.
+- AC-14: a request the test held (`hold_next`) is counted when it arrives and does nothing until released; the n-th request of the kind takes the n-th hold; released out of arrival order it ends as the release says (lands, fails, or lands and then answers `Unavailable`).
 - AC-12: every request-path allocation in `crates/blob/src` states its bound, and nothing outside the emulator (which holds objects in memory by design, up to its capacity) reads a whole object into memory: `scripts/check-alloc.py` and the clippy `disallowed-methods` list pass.
 
 ## Test plan
@@ -39,6 +40,7 @@ Each criterion is a test in `crates/blob/tests/` against the emulator, written b
 - AC-6, AC-8: failing and short sources, a small capacity; catch partial writes made visible.
 - AC-9, AC-10: two emulators with one seed compared request by request; elapsed time against a base latency.
 - AC-11: invalid inputs with the meter checked at zero.
+- AC-14: three PUTs held and released in the order third, first, second, each with a different outcome; the stored objects are checked after each release.
 
 ## S3 request budget
 

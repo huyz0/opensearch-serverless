@@ -26,4 +26,4 @@ AC-9 is held by `crates/meta/tests/descriptors/snapshot_restore.rs` (the mark is
 
 ## Out of scope
 
-Standard snapshots, `include_global_state`, `partial`, `index_settings`, `ignore_index_settings`, `include_aliases`, and an asynchronous restore.
+Standard snapshots, `include_global_state`, `partial`, `include_aliases`, and an asynchronous restore. (`index_settings` and `ignore_index_settings` moved to [restore-index-settings](../restore-index-settings/SPEC.md).)

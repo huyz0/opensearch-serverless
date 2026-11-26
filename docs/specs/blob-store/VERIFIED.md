@@ -14,4 +14,5 @@ Run with `cargo test -p oss-blob --all-features` and the whole gate, `scripts/ga
 - AC-10: `injected_latency_delays_each_request_of_its_kind`
 - AC-11: `invalid_arguments_fail_before_any_request`
 - AC-13: `a_lost_response_still_commits_and_a_retried_create_finds_its_own_object`
+- AC-14: `a_held_request_waits_for_its_release_and_takes_the_outcome_given` (crates/blob/tests/emulator/faults.rs). Seen failing before the hold existed (the test did not compile).
 - AC-12: `scripts/check-alloc.py`, `cargo clippy --workspace --all-targets --all-features -- -D warnings`

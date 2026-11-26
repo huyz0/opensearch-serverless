@@ -19,7 +19,7 @@ The Rust node registers `internal:serverless/search/shard`. It verifies the MAC 
 - AC-4b: a forwarded search on a node whose last lease renewal is older than `serverless.search.shard_action.max_lease_age_millis` (default 10,000) is refused as not owner; one just inside the bound is served.
 - AC-5: a request with a wrong MAC is refused with nothing decoded; a request over each limit by one (bytes, depth, clauses, `from` plus `size`, answer bytes) is refused, and one at each limit is served; a string or list length larger than the bytes left is refused before any allocation of that size; a negotiated version below 3.10.0 is refused.
 - AC-6: a `range` on `now-1h` is evaluated at the request's `nowInMillis`: a document on that boundary is counted as the Java shard counts it.
-- AC-7: hits that tie on score are ordered by `_id` ascending, checked with a fixture of tied scores.
+- AC-7: hits that tie on score keep the shard's document order, as Lucene's top docs and so the Java shard answer them (the Java coordinator then breaks ties across shards by shard index); not `_id` order, which the Java shard never applies.
 - AC-8: a forwarded search takes a slot from the bounded pool; with the pool full the shard is refused with a typed transport exception and not left waiting.
 - AC-9: with the setting off the action is not registered and the Java request gets `action_not_found`; with it on the same Java-built request is served.
 - AC-10: in the wide mixed-fleet soak (`crates/node/tests/mixed_fleet/soak_wide.rs`, whose judge sends `match_all`, inside the subset) every answer of every node has `_shards.failed == 0` within `HANDOVER_SLACK_SECS` (60 s) of the judge starting, after a Java node is killed.

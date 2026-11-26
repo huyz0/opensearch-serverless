@@ -277,6 +277,25 @@ fn a_request_that_asks_is_told_what_its_store_requests_cost() {
     );
 }
 
+// docs/specs/request-cost-window AC-8
+#[test]
+fn a_write_that_asks_is_told_its_share_of_the_log_put() {
+    let dir = TempDir::new("boot-cost-write");
+    let node = boot(dir.path(), Some("true"));
+    assert_eq!(call(&node, "PUT", "/costs", None).status, 200);
+    assert_eq!(
+        call(&node, "PUT", "/costs/_doc/1", Some(r#"{"n":1}"#)).status,
+        201
+    );
+    let (status, head) = with_headers(&node, "PUT", "/costs/_doc/2", ASK, r#"{"n":2}"#);
+    assert_eq!(status, 201, "{head}");
+    let value = cost_of(&head).unwrap_or_else(|| panic!("a cost header: {head}"));
+    // Alone in its window, the write's share of the log's one PUT is whole.
+    assert!(value.contains(";put=1;"), "{value}");
+    assert!(value.contains(";bytes_written="), "{value}");
+    assert!(!value.contains(";bytes_written=0;"), "{value}");
+}
+
 // docs/specs/request-cost-header AC-4
 #[test]
 fn a_node_with_store_usage_off_sends_no_cost_header() {

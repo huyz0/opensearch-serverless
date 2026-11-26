@@ -121,6 +121,8 @@ pub mod read_forward;
 #[cfg(feature = "writer")]
 pub mod refresh_route;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
+pub(crate) mod restore_settings;
+#[cfg(all(feature = "writer", feature = "coordinator"))]
 pub mod rollover_route;
 #[cfg(feature = "writer")]
 pub(crate) mod route_util;
@@ -157,6 +159,10 @@ pub mod snapshot_restore_route;
 pub mod snapshot_route;
 #[cfg(feature = "writer")]
 pub mod snapshot_take_route;
+#[cfg(all(feature = "writer", feature = "coordinator"))]
+pub mod stock_restore_route;
+#[cfg(feature = "writer")]
+pub mod stock_s3;
 #[cfg(feature = "writer")]
 pub mod tail_await;
 #[cfg(feature = "reader")]

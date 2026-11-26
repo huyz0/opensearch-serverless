@@ -61,6 +61,9 @@ mod snapshot_remove;
 mod snapshot_restore;
 mod snapshot_take;
 mod snapshots;
+mod stock_fan;
+mod stock_plan;
+mod stock_read;
 mod stock_restore;
 mod sweep;
 
@@ -97,5 +100,10 @@ pub use snapshot_take::{Reservation, SnapshotTaker, TakeError};
 pub use snapshots::{
     MAX_REPOSITORIES, RestoreRead, SnapshotRead, SnapshotReadError, SnapshotReader,
 };
+pub use stock_plan::{
+    MAX_FILE_ENTRIES, MAX_INDICES, MAX_SHARDS, PlannedIndex, StockLimits, StockPlan,
+    StockPlanError, StockRules, load as stock_load, plan as stock_plan,
+};
+pub use stock_read::{MAX_BLOB_BYTES, MAX_INDEX_N_BYTES, StockReadError, StockRepo};
 pub use stock_restore::{StockShardCopy, StockSource};
 pub use sweep::{MARKERS_PREFIX, Sweep, Swept};
