@@ -100,6 +100,16 @@ fn an_alias_named_like_a_restored_index_or_not_a_name_is_refused_before_a_write(
 }
 
 #[test]
+fn an_alias_name_of_255_bytes_is_taken_and_one_of_256_is_not() {
+    let r = asked(r#"{"include_aliases":true}"#);
+    let targets = plan(&r, &names(&["a"])).unwrap();
+    let longest = [alias(&"n".repeat(255), false)];
+    assert_eq!(plan_aliases(&r, &targets, &[&longest]).unwrap().len(), 1);
+    let too_long = [alias(&"n".repeat(256), false)];
+    assert!(plan_aliases(&r, &targets, &[&too_long]).is_err());
+}
+
+#[test]
 fn the_distinct_aliases_of_a_request_are_bounded() {
     let r = asked(r#"{"include_aliases":true}"#);
     let captured: Vec<String> = (0..100).map(|i| format!("i{i}")).collect();
@@ -137,6 +147,13 @@ fn the_answer_carries_the_alias_report_inside_the_snapshot_object() {
         got,
         r#"{"snapshot":{"snapshot":"s","indices":["b"],"shards":{"total":2,"failed":0,"successful":2},"aliases_restored":3,"failed_aliases":["x"],"aliases_truncated":["b"]}}"#
     );
+    let two = AliasReport {
+        restored: 0,
+        failed: vec!["x".into(), "y".into()],
+        truncated: vec![],
+    };
+    let got = render_restored_with("s", &targets, 2, Some(&two));
+    assert!(got.ends_with(r#""failed_aliases":["x","y"]}}"#), "{got}");
     let clean = AliasReport {
         restored: 0,
         failed: vec![],
