@@ -8,6 +8,7 @@
 mod envelope_write;
 mod file_check;
 mod index_metadata;
+mod lucene_file;
 mod metadata_write;
 mod native_index;
 mod repository_data;
@@ -22,6 +23,7 @@ use crate::smile::{self, Limits as SmileLimits};
 pub use envelope_write::from_json;
 pub use file_check::StockFileCheck;
 pub use index_metadata::{MAX_ALIASES, MAX_SETTINGS, StockIndexMetadata};
+pub use lucene_file::lucene_version_of;
 pub use metadata_write::{
     NewIndexMetadata, NewSnapshotInfo, VERSION_ID, global_metadata_json, index_metadata_json,
     snapshot_info_json,

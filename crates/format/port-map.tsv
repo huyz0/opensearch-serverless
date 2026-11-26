@@ -61,3 +61,4 @@ src/stock/envelope_write.rs	new		the stock envelope's writer (header, SMILE body
 src/stock/repository_write.rs	new		the next index-N of a stock repository: a snapshot added to RepositoryData and its JSON in the stock field order; the Java has RepositoryData.snapshotsToXContent
 src/stock/metadata_write.rs	new		the JSON of a snapshot's own blob, the empty global metadata and an index's metadata, as a stock node writes them; the Java has SnapshotInfo.toXContent, Metadata.toXContent and IndexMetadata.Builder.toXContent
 src/stock/shard_write.rs	new		the shard snapshot blob and the shard generation blob of a stock repository (files as whole blobs, base-36 CRC checksums); the Java has BlobStoreIndexShardSnapshot.toXContent and BlobStoreIndexShardSnapshots.toXContent
+src/stock/lucene_file.rs	new		the Lucene version a segment's .si or segments_N head records, for the written_by of a stock file entry; the Java has SegmentInfo and SegmentInfos readers
