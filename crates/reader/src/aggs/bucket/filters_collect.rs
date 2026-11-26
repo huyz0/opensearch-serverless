@@ -7,6 +7,7 @@ use lucene_search::BooleanQuery;
 
 use crate::aggs::bucket::BUCKET_LIMIT;
 use crate::aggs::bucket::filters::{FiltersResult, FiltersSpec};
+use crate::aggs::bucket::nested_agg;
 use crate::aggs::bucket::terms_collect::too_many_buckets;
 use crate::aggs::metric::MetricAgg;
 use crate::aggs::partial::Value;
@@ -28,7 +29,7 @@ pub fn plan(aggs: &[MetricAgg], cx: &QueryContext<'_>) -> Result<Vec<Vec<Boolean
     for agg in aggs {
         // ALLOC: one query a filter, bounded by the body's recording.
         let mut queries = Vec::new();
-        collect_queries(agg, cx, &mut queries)?;
+        collect_queries(agg, cx, &mut queries, None)?;
         plans.push(queries);
     }
     Ok(plans)
@@ -38,14 +39,22 @@ fn collect_queries(
     agg: &MetricAgg,
     cx: &QueryContext<'_>,
     out: &mut Vec<BooleanQuery>,
+    enclosing: Option<&str>,
 ) -> Result<(), Failure> {
     if let Some(spec) = agg.filters.as_deref() {
         for (_, filter) in &spec.filters {
             out.push(to_lucene(filter, cx)?);
         }
     }
+    if let Some(spec) = agg.nested.as_deref() {
+        out.extend(nested_agg::queries(agg, spec, cx, enclosing)?);
+    }
+    let here = match agg.nested.as_deref() {
+        Some(spec) if !spec.reverse => spec.path.as_deref(),
+        _ => enclosing,
+    };
     for sub in &agg.subs {
-        collect_queries(sub, cx, out)?;
+        collect_queries(sub, cx, out, here)?;
     }
     Ok(())
 }
@@ -58,7 +67,16 @@ fn tree_queries(agg: &MetricAgg) -> usize {
 }
 
 fn own_queries(agg: &MetricAgg) -> usize {
-    agg.filters.as_deref().map_or(0, |spec| spec.filters.len())
+    agg.filters
+        .as_deref()
+        .map_or(0, |spec| spec.filters.len())
+        .saturating_add(nested_agg::own_queries(agg))
+}
+
+/// Whether `agg` counts the documents of queries it is given: a `filters`,
+/// `filter`, `nested` or `reverse_nested`.
+pub fn counts_by_query(agg: &MetricAgg) -> bool {
+    agg.filters.is_some() || agg.nested.is_some()
 }
 
 /// The compiled queries of one top-level aggregation's tree ([`plan`]'s
@@ -95,6 +113,9 @@ impl<'a> Queries<'a> {
 
 /// The engine's node for a `filters` of `queries`, one a filter.
 pub fn node(agg: &MetricAgg, queries: &[BooleanQuery]) -> AggNode {
+    if let Some(spec) = agg.nested.as_deref() {
+        return nested_agg::node(spec, queries);
+    }
     AggNode::Filters {
         // ALLOC: one query a filter, bounded by the body's recording.
         filters: queries.to_vec(),
@@ -140,6 +161,14 @@ pub fn check_limit(agg: &MetricAgg) -> Result<(), ShardError> {
 /// `agg`'s result with the count of bucket `i` taken from `docs[i]`: the
 /// engine's result, or no document at all.
 pub fn value(agg: &MetricAgg, docs: &[u64]) -> Value {
+    if agg.nested.is_some() {
+        // ALLOC: one box and one key a `nested`.
+        return Value::Filters(Box::new(FiltersResult {
+            single: true,
+            buckets: vec![("0".to_owned(), docs.first().copied().unwrap_or(0))],
+            ..FiltersResult::default()
+        }));
+    }
     let spec = spec_of(agg);
     let other = spec.other_key.iter();
     // ALLOC: one bucket a filter and the other, bounded by the request's.

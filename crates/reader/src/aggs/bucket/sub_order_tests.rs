@@ -29,6 +29,7 @@ fn sub(name: &str, metric: Metric) -> MetricAgg {
         subs: Vec::new(),
         range: None,
         filters: None,
+        nested: None,
         composite: None,
     }
 }

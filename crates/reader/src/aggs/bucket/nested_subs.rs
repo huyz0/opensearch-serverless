@@ -28,6 +28,8 @@ pub fn is_nested(agg: &MetricAgg) -> bool {
         Metric::Range
             | Metric::Filters
             | Metric::Filter
+            | Metric::Nested
+            | Metric::ReverseNested
             | Metric::Histogram
             | Metric::DateHistogram
     )
@@ -69,7 +71,11 @@ pub fn build<S: BlobStore + 'static>(
     owners: usize,
 ) -> Result<Vec<Value>, ShardError> {
     match agg.metric {
-        Metric::Range | Metric::Filters | Metric::Filter => fixed(agg, shard, result, owners),
+        Metric::Range
+        | Metric::Filters
+        | Metric::Filter
+        | Metric::Nested
+        | Metric::ReverseNested => fixed(agg, shard, result, owners),
         Metric::Histogram => histogram(agg, shard, result, owners),
         _ => date_histogram(agg, shard, result, owners),
     }
@@ -96,7 +102,7 @@ fn fixed<S: BlobStore + 'static>(
     for owner in 0..owners {
         let from = owner.saturating_mul(width);
         let mine = docs.get(from..from.saturating_add(width)).unwrap_or(&[]);
-        let mut made = if agg.filters.is_some() {
+        let mut made = if filters_collect::counts_by_query(agg) {
             filters_collect::value(agg, mine)
         } else {
             // ALLOC: one box an owning bucket, bounded by the buckets above.

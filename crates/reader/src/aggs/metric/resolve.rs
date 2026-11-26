@@ -66,7 +66,7 @@ pub(crate) fn resolve<S: BlobStore + 'static>(
     agg: &MetricAgg,
     shard: &OpenShard<S>,
 ) -> Result<Resolved, ShardError> {
-    if agg.filters.is_some() {
+    if crate::aggs::bucket::filters_collect::counts_by_query(agg) {
         return Ok(Resolved::Queries);
     }
     if agg.top_hits.is_some() {
