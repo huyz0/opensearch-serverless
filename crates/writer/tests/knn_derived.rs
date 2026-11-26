@@ -131,7 +131,7 @@ fn a_stock_derived_segment_reads_back_with_its_vectors() {
 fn shard_of<'d>(fixture: &Value, dir: &'d ByteBuffersDirectory) -> Shard<'d> {
     let mapping = Mapping::parse_with(
         fixture["mappings"].to_string().as_bytes(),
-        ParseOptions { knn: Some(true) },
+        ParseOptions { knn: Some(true), ..ParseOptions::default() },
     )
     .expect("mapping");
     let (writer, derived) = open_writer(dir, &mapping).expect("writer");
@@ -215,7 +215,7 @@ fn a_shard_not_opened_as_derived_keeps_the_vector_in_the_source() {
     let fixture = fixture("knn-l2");
     let mapping = Mapping::parse_with(
         fixture["mappings"].to_string().as_bytes(),
-        ParseOptions { knn: Some(true) },
+        ParseOptions { knn: Some(true), ..ParseOptions::default() },
     )
     .expect("mapping");
     let dir = ByteBuffersDirectory::new();

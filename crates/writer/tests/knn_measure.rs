@@ -129,7 +129,7 @@ fn measure() {
         r#"{{"properties":{{"v":{{"type":"knn_vector","dimension":{dim},"method":{{"name":"hnsw","engine":"lucene","space_type":"{space}","parameters":{{"m":{m},"ef_construction":{ef}}}}}}}}}}}"#
     );
     let mapping =
-        Mapping::parse_with(mapping.as_bytes(), ParseOptions { knn: Some(true) }).expect("mapping");
+        Mapping::parse_with(mapping.as_bytes(), ParseOptions { knn: Some(true), ..ParseOptions::default() }).expect("mapping");
     let dir = ByteBuffersDirectory::new();
     let mut w = IndexWriter::open(&dir, Vec::new(), "Lucene104", VERSION).expect("writer");
     w.enable_explicit_documents().expect("explicit");

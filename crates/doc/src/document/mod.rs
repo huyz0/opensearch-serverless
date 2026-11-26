@@ -18,12 +18,25 @@ pub use values::{FieldValue, parse_date};
 
 use crate::mapping::{Mapping, MappingError, Object};
 
+/// A nested object read as a document of its own.
+#[derive(Clone, Debug, PartialEq)]
+pub struct NestedDocument {
+    /// The nested object's full path, as `_nested_path` holds it.
+    pub path: String,
+    /// Each value its fields index, by full name, in document order.
+    pub fields: Vec<(String, FieldValue)>,
+}
+
 /// What a document gives its index.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ParsedDocument {
     /// Each value a field indexes, by the field's full name, in document
     /// order; a multi-field follows its parent's value.
     pub fields: Vec<(String, FieldValue)>,
+    /// The nested objects as documents, in the order they complete: an
+    /// object's own nested objects before it, and the document after them
+    /// all, as Lucene's block join wants its children.
+    pub nested: Vec<NestedDocument>,
     /// Fields that kept a malformed value out of the index
     /// (`ignore_malformed`), for `_ignored`, once each, in the order first
     /// met. A keyword

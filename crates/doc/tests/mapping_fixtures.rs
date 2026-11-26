@@ -141,7 +141,7 @@ fn mapping_steps_replay() {
                         .and_then(|b| b.get("settings"))
                         .and_then(|s| s.get("index.knn"))
                         .is_some_and(|k| matches!(k, Json::Bool(true)));
-                    let options = ParseOptions { knn: Some(flag) };
+                    let options = ParseOptions { knn: Some(flag), ..ParseOptions::default() };
                     let got = match mappings {
                         None => Ok(Mapping::default()),
                         Some(m) => Mapping::parse_with(m.to_json().as_bytes(), options),
@@ -156,6 +156,7 @@ fn mapping_steps_replay() {
                     let current = indices.get(*index).expect("index exists").clone();
                     let options = ParseOptions {
                         knn: Some(knn.get(*index).copied().unwrap_or(false)),
+                        ..ParseOptions::default()
                     };
                     let got = Mapping::parse_with(step.body.unwrap().to_json().as_bytes(), options)
                         .and_then(|u| current.merge(&u));
@@ -180,6 +181,7 @@ fn mapping_steps_replay() {
                     // What it wrote reads back to the same mapping.
                     let options = ParseOptions {
                         knn: Some(knn.get(*index).copied().unwrap_or(false)),
+                        ..ParseOptions::default()
                     };
                     assert_eq!(
                         &Mapping::parse_with(m.to_json().as_bytes(), options).unwrap(),
