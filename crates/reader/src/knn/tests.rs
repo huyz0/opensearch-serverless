@@ -285,6 +285,7 @@ fn a_tree_built_without_the_searchs_answers_refuses_the_knn_node() {
         knn: None,
         pinned: None,
         now_millis: None,
+        shard: None,
     };
     let source =
         parse_chunks([format!(r#"{{"query":{}}}"#, knn(r#""vector":[1,2,3],"k":1"#)).as_bytes()])

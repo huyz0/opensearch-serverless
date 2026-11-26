@@ -18,8 +18,7 @@ use lucene_search::collector::TotalHitsRelation;
 use lucene_search::extended_query::ExtendedQuery;
 use lucene_search::field_norms::FieldNorms;
 use lucene_search::index_searcher::IndexSearcher;
-use lucene_search::top_field::FieldDoc;
-use lucene_search::{BooleanQuery, Clause, Explanation};
+use lucene_search::{BooleanQuery, Clause, Explanation, top_field::FieldDoc};
 use oss_blob::BlobStore;
 
 use crate::OpenShard;
@@ -257,6 +256,7 @@ pub fn search_with<S: BlobStore + 'static>(
         knn: None,
         pinned,
         now_millis: source.now_millis,
+        shard: Some(crate::shard_ref::ShardRef::of(shard, index)),
     };
     let (knn, early) = crate::knn::prepare(shard, source.query.as_ref(), &cx)
         .map_err(|f| ShardError::bad_request(shard_failure(f, index, &meta.uuid)))?

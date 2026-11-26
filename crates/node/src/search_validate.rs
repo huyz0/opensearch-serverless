@@ -101,6 +101,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
                         knn: None,
                         pinned: held.pinned.as_deref(),
                         now_millis: None,
+                        shard: None,
                     };
                     let query = source.query.unwrap_or(Query::MatchAll { boost: 1.0 });
                     match to_lucene(&query, &cx) {

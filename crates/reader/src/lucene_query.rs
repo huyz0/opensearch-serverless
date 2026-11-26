@@ -42,6 +42,9 @@ pub struct QueryContext<'a> {
     /// The instant `now` in date math means; a date math `now` is refused
     /// without one.
     pub now_millis: Option<i64>,
+    /// The shard the query runs on, whose name seeds a random score; none
+    /// where a query is only checked.
+    pub shard: Option<crate::shard_ref::ShardRef<'a>>,
 }
 
 /// The query `text` makes on the text field `field`: with the pin the field

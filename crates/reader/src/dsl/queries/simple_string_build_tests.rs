@@ -29,6 +29,7 @@ fn built(body: &str) -> Result<String, Failure> {
         knn: None,
         pinned: None,
         now_millis: None,
+        shard: None,
     };
     let text = format!(r#"{{"query":{{"simple_query_string":{body}}}}}"#);
     let source = parse_chunks([text.as_bytes()]).expect("parses");

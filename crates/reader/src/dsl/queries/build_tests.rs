@@ -23,17 +23,23 @@ const MAPPING: &str = r#"{"properties":{"title":{"type":"text"},"tag":{"type":"k
     "plain":{"type":"keyword","doc_values":false},
     "obj":{"properties":{"a":{"type":"keyword"},"b":{"type":"long"}}}}}"#;
 
-fn built(body: &str) -> Result<BooleanQuery, Failure> {
-    let mapping = Mapping::from_json(MAPPING).expect("mapping");
-    let analyzer = Analyzer::standard(None);
-    let cx = QueryContext {
-        mapping: &mapping,
-        analyzer: &analyzer,
+/// A context over `mapping` with nothing else set.
+fn context<'a>(mapping: &'a Mapping, analyzer: &'a Analyzer) -> QueryContext<'a> {
+    QueryContext {
+        mapping,
+        analyzer,
         max_doc: 5,
         knn: None,
         pinned: None,
         now_millis: None,
-    };
+        shard: None,
+    }
+}
+
+fn built(body: &str) -> Result<BooleanQuery, Failure> {
+    let mapping = Mapping::from_json(MAPPING).expect("mapping");
+    let analyzer = Analyzer::standard(None);
+    let cx = context(&mapping, &analyzer);
     let source = parse_chunks([format!(r#"{{"query":{body}}}"#).as_bytes()]).expect("parses");
     to_lucene(source.query.as_ref().expect("a query"), &cx)
 }
@@ -108,6 +114,7 @@ fn terms_follows_the_field_type() {
                 knn: None,
                 pinned: None,
                 now_millis: None,
+                shard: None,
             },
             "published",
             &crate::dsl::Value::Str(v.into()),
@@ -335,14 +342,7 @@ fn compound_queries_wrap_their_inner_queries() {
 fn an_empty_dis_max_matches_nothing() {
     let mapping = Mapping::from_json(MAPPING).expect("mapping");
     let analyzer = Analyzer::standard(None);
-    let cx = QueryContext {
-        mapping: &mapping,
-        analyzer: &analyzer,
-        max_doc: 5,
-        knn: None,
-        pinned: None,
-        now_millis: None,
-    };
+    let cx = context(&mapping, &analyzer);
     let empty = super::More::DisMax {
         queries: vec![],
         tie_breaker: 0.0,
@@ -369,14 +369,7 @@ fn point_ranges_stay_beside_point_sets() {
 fn terms_of(n: usize) -> Result<Clause, Failure> {
     let mapping = Mapping::from_json(MAPPING).expect("mapping");
     let analyzer = Analyzer::standard(None);
-    let cx = QueryContext {
-        mapping: &mapping,
-        analyzer: &analyzer,
-        max_doc: 5,
-        knn: None,
-        pinned: None,
-        now_millis: None,
-    };
+    let cx = context(&mapping, &analyzer);
     // A body this long passes the recorder's bound only if the bound grows,
     // so the query is made directly.
     let m = More::Terms {
@@ -457,14 +450,7 @@ fn built_on_pin(body: &str) -> Result<BooleanQuery, Failure> {
     )
     .expect("mapping");
     let analyzer = Analyzer::standard(None);
-    let cx = QueryContext {
-        mapping: &mapping,
-        analyzer: &analyzer,
-        max_doc: 5,
-        knn: None,
-        pinned: None,
-        now_millis: None,
-    };
+    let cx = context(&mapping, &analyzer);
     let source = parse_chunks([format!(r#"{{"query":{body}}}"#).as_bytes()]).expect("parses");
     to_lucene(source.query.as_ref().expect("a query"), &cx)
 }

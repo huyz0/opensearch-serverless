@@ -29,7 +29,7 @@ pub fn function_score(cx: &QueryContext<'_>, q: &FunctionScore) -> Result<Clause
         Some(query) => build(query, cx)?,
         None => match_all(cx),
     };
-    if q.functions.is_empty() {
+    if q.functions.is_empty() && q.min_score.is_none() {
         return Ok(sub);
     }
     // ALLOC: one entry a function, at most the body's recording.
@@ -38,14 +38,22 @@ pub fn function_score(cx: &QueryContext<'_>, q: &FunctionScore) -> Result<Clause
         functions.push(filtered(cx, entry)?);
     }
     let functions_scripted = functions.iter().any(|f| f.function.scripted());
-    let needs_sub =
-        q.boost_mode != Combine::Replace || functions.iter().any(|f| f.function.needs_score());
+    // Without functions the sub-query's score stands, whatever the modes.
+    let bare = functions.is_empty();
+    let (boost_mode, max_boost) = if bare {
+        (Combine::Multiply, f32::MAX)
+    } else {
+        (q.boost_mode, q.max_boost)
+    };
+    let needs_sub = bare
+        || q.boost_mode != Combine::Replace
+        || functions.iter().any(|f| f.function.needs_score());
     // ALLOC: one key a function-score query.
     let key = format!(
         "{:?}/{:?}/{}/{}",
-        q.boost_mode,
+        boost_mode,
         q.score_mode,
-        q.max_boost,
+        max_boost,
         // ALLOC: one description a function, at most the body's recording.
         functions
             .iter()
@@ -54,17 +62,23 @@ pub fn function_score(cx: &QueryContext<'_>, q: &FunctionScore) -> Result<Clause
             .join(";")
     );
     let source = OpenSearchFunctionScore {
-        combine: q.boost_mode,
+        combine: boost_mode,
         score_mode: q.score_mode,
-        max_boost: q.max_boost,
+        max_boost,
         functions,
         scripted: functions_scripted,
         needs_sub,
         key,
     };
     // ALLOC: one box a function-score query.
+    let query = FunctionScoreQuery::new(sub, Arc::new(source));
+    let query = match q.min_score {
+        Some(min) => query.with_min_score(min),
+        None => query,
+    };
+    // ALLOC: one box a function-score query.
     Ok(Clause::Extended(Box::new(ExtendedQuery::FunctionScore(
-        FunctionScoreQuery::new(sub, Arc::new(source)),
+        query,
     ))))
 }
 
@@ -92,6 +106,9 @@ fn filtered(cx: &QueryContext<'_>, entry: &Entry) -> Result<Filtered, Failure> {
 fn function(cx: &QueryContext<'_>, f: &Function) -> Result<Engine, Failure> {
     match f {
         Function::Script(script) => super::function_score_script::build(cx, script),
+        Function::Random { seed, field } => {
+            super::function_score_random::build(cx, *seed, field.as_deref())
+        }
         Function::FieldValue {
             field,
             factor,
@@ -168,19 +185,24 @@ fn wrapped(kind: &'static str, reason: impl Into<String>) -> Failure {
 fn numeric(ty: &FieldType, field: &str, field_value: bool) -> Result<(), Failure> {
     match ty {
         FieldType::Int { .. } | FieldType::Long | FieldType::Date => Ok(()),
-        FieldType::Text | FieldType::Keyword if field_value => Err(Failure::plain(
-            "illegal_argument_exception",
-            // ALLOC: error path; one message.
-            format!(
-                "Text fields are not optimised for operations that require per-document field data like aggregations and sorting, so these operations are disabled by default. Please use a keyword field instead. Alternatively, set fielddata=true on [{field}] in order to load field data by uninverting the inverted index. Note that this can use significant memory."
-            ),
-        )),
+        FieldType::Text | FieldType::Keyword if field_value => Err(text_fielddata(field)),
         // ALLOC: error path; one message.
         _ => Err(unsupported(&format!(
             // ALLOC: error path; one message.
             "scoring by the field [{field}], which is not a number or a date,"
         ))),
     }
+}
+
+/// The 400 a text field's per-document data is refused with.
+pub(super) fn text_fielddata(field: &str) -> Failure {
+    Failure::plain(
+        "illegal_argument_exception",
+        // ALLOC: error path; one message.
+        format!(
+            "Text fields are not optimised for operations that require per-document field data like aggregations and sorting, so these operations are disabled by default. Please use a keyword field instead. Alternatively, set fielddata=true on [{field}] in order to load field data by uninverting the inverted index. Note that this can use significant memory."
+        ),
+    )
 }
 
 /// `DecayFunction.processScale`, the scale the curve is evaluated with.
