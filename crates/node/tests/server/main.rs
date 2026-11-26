@@ -112,6 +112,7 @@ mod snapshot_restore_search;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod snapshot_route;
 mod snapshot_take;
+mod snapshot_take_size;
 mod stock_export;
 mod stock_export_budget;
 mod stock_restore;
