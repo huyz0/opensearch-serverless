@@ -1,4 +1,4 @@
-# 0066: A nested object is a child document in its parent's block
+# 0067: A nested object is a child document in its parent's block
 
 **Status:** Accepted after independent review, 2026-11-26. Changes the index format, so the PR carries `needs-huy` for the owner's go before it merges.
 
