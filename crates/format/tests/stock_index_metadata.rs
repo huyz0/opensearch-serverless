@@ -207,3 +207,21 @@ fn several_kept_settings_are_joined_in_order() {
         br#"{"index.refresh_interval":"5s","index.codec":"zstd"}"#
     );
 }
+
+/// A 3.10 node writes `index.replication.type: DOCUMENT` on every index it
+/// creates (recorded in `fixtures/snapshots/stock`): it names the default,
+/// which a one-copy index has, so a restore drops it. Segment replication
+/// is not the default and stays refused.
+#[test]
+fn the_default_replication_type_is_dropped_and_another_is_refused() {
+    let m = with(
+        r#""index.number_of_shards":"1","index.replication.type":"DOCUMENT","index.refresh_interval":"5s""#,
+    );
+    let n = m.native(&keeps).expect("native");
+    assert_eq!(n.settings, br#"{"index.refresh_interval":"5s"}"#);
+    let m = with(r#""index.number_of_shards":"1","index.replication.type":"SEGMENT""#);
+    assert_eq!(
+        m.native(&keeps),
+        Err(StockRefusal::Setting("index.replication.type".into()))
+    );
+}

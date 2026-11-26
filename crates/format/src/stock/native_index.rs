@@ -20,6 +20,10 @@ const DROPPED: [&str; 11] = [
     "index.routing.allocation.include._tier_preference",
 ];
 
+/// The replication type every 3.x index records; `DOCUMENT` is the default a
+/// one-copy index has, so a restore drops it and any other value is refused.
+const REPLICATION: (&str, &str) = ("index.replication.type", "DOCUMENT");
+
 /// The setting that names the routing partition size.
 const PARTITION_SIZE: &str = "index.routing_partition_size";
 /// The setting that holds the shard count.
@@ -84,7 +88,10 @@ impl StockIndexMetadata {
         // ALLOC: one settings object, bounded by the settings' limit.
         let mut out = vec![b'{'];
         for (key, value) in &self.settings {
-            if DROPPED.contains(&key.as_str()) || key == PARTITION_SIZE {
+            if DROPPED.contains(&key.as_str())
+                || key == PARTITION_SIZE
+                || (key == REPLICATION.0 && value == REPLICATION.1)
+            {
                 continue;
             }
             if !keeps(key) {
