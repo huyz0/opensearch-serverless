@@ -184,7 +184,7 @@ impl<'a> StockRepo<'a> {
     }
 
     /// The JSON of the envelope blob at `key`.
-    fn json(&self, key: &str, codec: &str) -> Result<Vec<u8>, StockReadError> {
+    pub(crate) fn json(&self, key: &str, codec: &str) -> Result<Vec<u8>, StockReadError> {
         let blob = self.blob(key, MAX_BLOB_BYTES)?;
         // ALLOC: at most the envelope's 64 MiB output bound, one a blob.
         let mut out = Vec::new();

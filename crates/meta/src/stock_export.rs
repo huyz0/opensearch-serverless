@@ -64,6 +64,13 @@ pub enum ExportError {
     Format(FormatError),
     /// The store failed.
     Blob(BlobError),
+    /// The target repository could not be read.
+    Read(crate::stock_read::StockReadError),
+    /// A snapshot of that name or uuid is already in the repository.
+    NameTaken,
+    /// Other takes into the repository kept winning, or took the index's id
+    /// from this one; nothing names this take's files.
+    Conflict,
 }
 
 impl std::fmt::Display for ExportError {
@@ -73,6 +80,9 @@ impl std::fmt::Display for ExportError {
             Self::Mismatch(e) => write!(f, "a copied file does not match its record: {e}"),
             Self::Format(e) => write!(f, "{e}"),
             Self::Blob(e) => write!(f, "{e}"),
+            Self::Read(e) => write!(f, "{e}"),
+            Self::NameTaken => write!(f, "a snapshot of that name is already in the repository"),
+            Self::Conflict => write!(f, "the repository changed under the take"),
         }
     }
 }
