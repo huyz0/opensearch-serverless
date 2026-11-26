@@ -120,6 +120,8 @@ fn the_bounds_hold_at_their_limit_and_one_past() {
     let nest = |n: usize| format!("{}1{}", "[".repeat(n), "]".repeat(n));
     let mut out = Vec::new();
     assert!(smile_from_json(nest(32).as_bytes(), &lim, &mut out).is_ok());
+    assert!(smile_from_json(nest(lim.depth).as_bytes(), &lim, &mut Vec::new()).is_ok());
+    assert!(smile_from_json(nest(lim.depth + 1).as_bytes(), &lim, &mut Vec::new()).is_err());
     assert!(smile_from_json(nest(65).as_bytes(), &lim, &mut Vec::new()).is_err());
     let small = SmileLimits {
         string_bytes: 8,
@@ -154,4 +156,37 @@ fn not_json_and_a_big_integer_are_refused_and_the_buffer_keeps_its_start() {
         );
         assert!(out.starts_with(b"keep"), "{bad}");
     }
+}
+
+#[test]
+fn each_string_and_name_class_takes_its_shortest_head() {
+    // The long form reads back the same, so only the bytes tell the heads apart.
+    let head_of = |json: String, at: usize| encode(&json)[at];
+    // A document is the 4-byte header, then the value.
+    let value = |text: &str| head_of(format!("\"{text}\""), 4);
+    assert_eq!(value(&"a".repeat(32)), 0x40 + 31);
+    assert_eq!(value(&"a".repeat(33)), 0x60);
+    assert_eq!(value(&"a".repeat(64)), 0x60 + 31);
+    assert_eq!(value(&"a".repeat(65)), 0xE0);
+    assert_eq!(value("é"), 0x80, "a two-byte string is tiny unicode");
+    assert_eq!(value("ééé"), 0x80 + 4, "six bytes");
+    assert_eq!(
+        value(&format!("é{}", "a".repeat(31))),
+        0x80 + 31,
+        "33 bytes"
+    );
+    assert_eq!(value(&format!("é{}", "a".repeat(32))), 0xA0, "34 bytes");
+    assert_eq!(
+        value(&format!("é{}", "a".repeat(63))),
+        0xA0 + 31,
+        "65 bytes"
+    );
+    assert_eq!(value(&format!("é{}", "a".repeat(64))), 0xE4, "66 bytes");
+    // A name follows the object's start byte.
+    let name = |text: &str| head_of(format!("{{\"{text}\":1}}"), 5);
+    assert_eq!(name(&"a".repeat(64)), 0x80 + 63);
+    assert_eq!(name(&"a".repeat(65)), 0x34);
+    assert_eq!(name("é"), 0xC0, "two bytes is the shortest unicode name");
+    assert_eq!(name(&format!("é{}", "a".repeat(55))), 0xC0 + 55, "57 bytes");
+    assert_eq!(name(&format!("é{}", "a".repeat(56))), 0x34, "58 bytes");
 }
