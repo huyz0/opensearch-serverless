@@ -247,8 +247,13 @@ pub(crate) fn info() -> IndexInfo {
 }
 
 pub(crate) fn write(role: &WriterRole, id: &str) -> ItemResult {
+    write_to(role, "logs", id)
+}
+
+/// [`write`] into index `index`.
+pub(crate) fn write_to(role: &WriterRole, index: &str, id: &str) -> ItemResult {
     let defaults = Defaults {
-        index: Some("logs".into()),
+        index: Some(index.into()),
         ..Defaults::default()
     };
     let budget = BulkBudget::new(1 << 20, 2);

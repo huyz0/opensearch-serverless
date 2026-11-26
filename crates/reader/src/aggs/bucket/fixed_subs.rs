@@ -19,7 +19,10 @@ use crate::search::ShardError;
 
 /// Whether `agg` counts documents in a fixed list of buckets.
 pub fn is_fixed(agg: &MetricAgg) -> bool {
-    matches!(agg.metric, Metric::Range | Metric::Filters | Metric::Filter)
+    matches!(
+        agg.metric,
+        Metric::Range | Metric::Filters | Metric::Filter | Metric::Nested | Metric::ReverseNested
+    )
 }
 
 /// Puts the nodes of `agg`'s sub-aggregations under `node`, the engine's
@@ -32,7 +35,11 @@ pub fn attach<S: BlobStore + 'static>(
     ords: &mut HashMap<String, std::sync::Arc<GlobalOrds>>,
     queries: &mut Queries<'_>,
 ) -> Result<(), ShardError> {
-    if let AggNode::Range { subs, .. } | AggNode::Filters { subs, .. } = node {
+    if let AggNode::Range { subs, .. }
+    | AggNode::Filters { subs, .. }
+    | AggNode::Nested { subs, .. }
+    | AggNode::ReverseNested { subs, .. } = node
+    {
         *subs = keyword_subs::sub_nodes(agg, shard, ords, queries, false)?;
     }
     Ok(())
@@ -40,6 +47,9 @@ pub fn attach<S: BlobStore + 'static>(
 
 /// How many buckets `agg` makes.
 pub(super) fn width(agg: &MetricAgg) -> usize {
+    if agg.nested.is_some() {
+        return 1;
+    }
     match (agg.range.as_deref(), agg.filters.as_deref()) {
         (Some(range), _) => range.ranges.len(),
         (_, Some(filters)) => filters_collect::bucket_count(filters),
@@ -70,7 +80,7 @@ pub fn value<S: BlobStore + 'static>(
             });
         }
     };
-    let mut made = if agg.filters.is_some() {
+    let mut made = if filters_collect::counts_by_query(agg) {
         filters_collect::value(agg, &docs)
     } else {
         range_collect::value(agg, &docs)

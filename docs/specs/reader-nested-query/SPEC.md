@@ -14,7 +14,7 @@ Parity task R10.1 (queries), the `nested` query; invariant I-13 (REST matches Op
 - On an index whose mapping has a nested object, a search runs over the documents that are not nested (`DefaultSearchContext.buildFilteredQuery`), so a match-all, a total, a count or a plain query on a child's field never returns a child.
 - No index has a nested mapping yet: the writer still refuses the type, so this is exercised by test indexes built through the engine. Nothing changes for an index without one (no clause is added).
 
-Not here, refused as not supported yet: `inner_hits`, `_name`, a `knn` query on an index with nested objects (it would rank children), nested sorts, nested aggregations.
+Not here, refused as not supported yet: `inner_hits`, `_name`, a `knn` query on an index with nested objects (it would rank children), nested aggregations.
 
 ## Acceptance criteria
 

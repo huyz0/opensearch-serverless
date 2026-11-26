@@ -47,9 +47,22 @@ pub const LINGER_MILLIS: LongSetting = LongSetting::new(
      milliseconds.",
 );
 
+/// `serverless.segments.node_pack.publish_threads`: how many shards a publish
+/// pass publishes at once, so their blobs share a pack.
+pub const PUBLISH_THREADS: LongSetting = LongSetting::new(
+    "serverless.segments.node_pack.publish_threads",
+    8,
+    1,
+    64,
+    Scope::Node,
+    "With node packs on, the most due shards one publish pass publishes at once, so their small \
+     blobs share a pack; 1 publishes them one after another, each in a pack of its own.",
+);
+
 /// Every setting this module defines, for the node's registry.
 pub static SETTINGS: &[&Setting] = &[
     ENABLED.setting(),
+    PUBLISH_THREADS.setting(),
     MAX_BLOB_BYTES.setting(),
     LINGER_MILLIS.setting(),
 ];
@@ -61,6 +74,8 @@ pub struct PackConfig {
     pub max_blob_bytes: u64,
     /// How long the first blob of a pack waits for others.
     pub linger: Duration,
+    /// The most due shards a publish pass publishes at once.
+    pub publish_threads: usize,
 }
 
 impl Default for PackConfig {
@@ -68,6 +83,7 @@ impl Default for PackConfig {
         Self {
             max_blob_bytes: 8 << 20,
             linger: Duration::from_millis(50),
+            publish_threads: 8,
         }
     }
 }
@@ -79,6 +95,11 @@ pub(super) struct Packs {
 }
 
 impl Packs {
+    /// How many shards a pass publishes at once.
+    pub(super) fn threads(&self) -> usize {
+        self.config.publish_threads
+    }
+
     pub(super) fn new(config: PackConfig) -> Self {
         Self {
             config,

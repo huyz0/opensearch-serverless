@@ -15,7 +15,7 @@ An index may map an object as `type: nested`. A document's nested objects are in
 - **Reader overlay** (`oss-reader`): the unpublished documents of the log are built as blocks, and a replaced or deleted document hides its children in the commit as it hides itself.
 - **Switch** (`oss-node`): `serverless.nested.enabled`, off by default; a create that maps a `nested` object is refused as unsupported while it is off, as today. A stored mapping is read whatever the setting is now, as `knn_vector` is. Put-mapping does not add a nested object yet.
 
-Not here: `inner_hits`, nested sorts, nested aggregations and `reverse_nested`, `include_in_parent` and `include_in_root` of `true`, vectors in nested objects, a nested object added by put-mapping, `copy_to` into or out of a nested object.
+Not here: `inner_hits`, nested aggregations and `reverse_nested`, `include_in_parent` and `include_in_root` of `true`, vectors in nested objects, a nested object added by put-mapping, `copy_to` into or out of a nested object.
 
 ## Acceptance criteria
 

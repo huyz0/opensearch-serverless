@@ -7,8 +7,10 @@ use oss_blob::BlobStore;
 use crate::OpenShard;
 use crate::dsl::SortKey;
 use crate::failure::{Failure, Meta};
+use crate::lucene_query::QueryContext;
 use crate::mapping::FieldType;
 use crate::search::ShardError;
+use crate::search_sort_nested::nested_field_sort;
 
 /// How a key orders, and how its values read back.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -25,6 +27,7 @@ pub(crate) fn sort_fields<S: BlobStore + 'static>(
     keys: &[SortKey],
     shard: &OpenShard<S>,
     index: &str,
+    cx: Option<&QueryContext<'_>>,
 ) -> Result<Sort, ShardError> {
     if keys.is_empty() || keys == [SortKey::Score { ascending: false }] {
         return Ok(None);
@@ -40,7 +43,16 @@ pub(crate) fn sort_fields<S: BlobStore + 'static>(
                 f.reverse = *ascending;
                 (f, KeyKind::Score)
             }
-            SortKey::Field { field, ascending } => field_sort(field, !*ascending, shard, index)?,
+            SortKey::Field {
+                field,
+                ascending,
+                nested: None,
+            } => field_sort(field, !*ascending, shard, index)?,
+            SortKey::Field {
+                field,
+                ascending,
+                nested: Some(nested),
+            } => nested_field_sort(field, !*ascending, nested, shard, index, cx)?,
         };
         fields.push(field);
         kinds.push(kind);
@@ -49,7 +61,7 @@ pub(crate) fn sort_fields<S: BlobStore + 'static>(
 }
 
 /// `FieldSortBuilder.build`: missing values last, whichever the order.
-fn field_sort<S: BlobStore + 'static>(
+pub(crate) fn field_sort<S: BlobStore + 'static>(
     name: &str,
     reverse: bool,
     shard: &OpenShard<S>,
@@ -124,3 +136,7 @@ fn field_sort<S: BlobStore + 'static>(
 #[cfg(test)]
 #[path = "search_sort_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "search_nested_sort_tests.rs"]
+mod nested_tests;
