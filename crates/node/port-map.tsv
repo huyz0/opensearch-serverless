@@ -238,3 +238,4 @@ src/boot/config/store.rs	new		where a node keeps its blobs, split from config.rs
 src/boot/config/packs.rs	new		the node pack variables; the shell reads them as settings
 src/boot/config/pack_tests.rs	new		tests of OSS_NODE_PACKS and its two sizes
 src/writer/packs.rs	new		the node's pack settings and its one pack writer, made on first use; the shell makes it in the publisher
+src/snapshot_restore_aliases.rs	new		the alias step of a restore (ADR 0065); the Java shell makes the matching change on its own branch

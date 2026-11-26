@@ -7,6 +7,7 @@
 
 use crate::error::{FormatError, corrupt, len64};
 use crate::json::out::Out;
+use crate::snapshot_aliases::{self, AliasCapture};
 use crate::snapshot_state::SnapshotState;
 
 const WHAT: &str = "snapshot record";
@@ -41,6 +42,10 @@ pub struct IndexCapture {
     pub settings: Option<Vec<u8>>,
     /// The shards captured, none while the take reserves the name.
     pub shards: Vec<ShardCapture>,
+    /// The aliases the index was in, at most `MAX_ALIASES`.
+    pub aliases: Vec<AliasCapture>,
+    /// Whether the index was in more aliases than the record holds.
+    pub aliases_truncated: bool,
 }
 
 /// A snapshot record to write.
@@ -104,6 +109,7 @@ impl IndexCapture {
         if let Some(settings) = self.settings.as_deref().filter(|s| *s != b"{}") {
             out.raw_field("settings", settings);
         }
+        snapshot_aliases::write(out, &self.aliases, self.aliases_truncated);
         out.start_array_field("shards");
         for shard in &self.shards {
             out.start_object();
@@ -265,6 +271,8 @@ mod tests {
                     ],
                     lengths: vec![("segments_1".into(), 50), ("_0.cfs".into(), 100)],
                 }],
+                aliases: vec![],
+                aliases_truncated: false,
             }],
         }
     }
@@ -288,6 +296,8 @@ mod tests {
             mapping: None,
             settings: Some(br#"{"index":{"number_of_replicas":"0"}}"#.to_vec()),
             shards: vec![],
+            aliases: vec![],
+            aliases_truncated: false,
         });
         let bytes = write(&draft);
         let text = String::from_utf8_lossy(&bytes);

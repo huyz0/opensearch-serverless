@@ -57,6 +57,7 @@ pub(crate) fn register(
                     Arc::new(crate::clock::now_millis),
                 )
                 .with_system_indices(system_indices(config))
+                .with_capture_aliases(config.snapshots_capture_aliases)
                 .with_stock_export(
                     crate::stock_export_route::StockExportSettings {
                         enabled: config.snapshots_stock_export,

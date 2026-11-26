@@ -6,7 +6,8 @@
 use std::path::PathBuf;
 
 use oss_format::{
-    IndexCapture, RepositoryRecord, ShardCapture, SnapshotDraft, SnapshotState, SnapshotSummary,
+    AliasCapture, IndexCapture, RepositoryRecord, ShardCapture, SnapshotDraft, SnapshotState,
+    SnapshotSummary,
 };
 
 fn fixture(name: &str) -> Vec<u8> {
@@ -114,6 +115,8 @@ fn a_record_and_register_written_here_are_the_bytes_the_java_wrote() {
                 ],
                 lengths: vec![("segments_1".into(), 50), ("_0.cfs".into(), 100)],
             }],
+            aliases: vec![],
+            aliases_truncated: false,
         }],
     };
     let java = fixture("snapshot-finished.json");
@@ -132,4 +135,58 @@ fn a_record_and_register_written_here_are_the_bytes_the_java_wrote() {
     let n = SnapshotState::write_held(marker, &java, true, &mut out).expect("writes");
     assert_eq!(out[..n], state[..]);
     assert!(SnapshotState::write_held(marker, &java, true, &mut out[..n - 1]).is_err());
+}
+
+// The record the Java shell writes for an index in two aliases and cut at
+// the bound: read here as the Java wrote it, and written here byte for byte.
+#[test]
+fn the_aliases_the_java_wrote_are_read_and_written_back_identically() {
+    let java = fixture("record-with-aliases.json");
+    let got = oss_format::RestoreIndex::find(&java, "index")
+        .expect("reads")
+        .expect("named");
+    assert_eq!(
+        got.aliases,
+        [
+            AliasCapture {
+                name: "logs-read".into(),
+                write: false
+            },
+            AliasCapture {
+                name: "logs-write".into(),
+                write: true
+            }
+        ]
+    );
+    assert!(got.aliases_truncated);
+    let draft = SnapshotDraft {
+        repo: "repo".into(),
+        name: "view".into(),
+        uuid: "uuid".into(),
+        storage_generation: None,
+        shallow: false,
+        start_millis: 1000,
+        end_millis: 2000,
+        indices: vec![IndexCapture {
+            name: "index".into(),
+            uuid: "uuid-index".into(),
+            number_of_shards: 1,
+            mapping: None,
+            settings: None,
+            shards: vec![ShardCapture {
+                shard: 0,
+                term: 1,
+                files: vec![("file".into(), "t=1".into())],
+                lengths: vec![],
+            }],
+            aliases: got.aliases.clone(),
+            aliases_truncated: true,
+        }],
+    };
+    let mut buf = vec![0u8; java.len() + 16];
+    let n = draft.write(&mut buf).expect("writes");
+    assert_eq!(
+        String::from_utf8_lossy(&buf[..n]),
+        String::from_utf8_lossy(&java)
+    );
 }

@@ -68,6 +68,19 @@ pub(crate) fn rig_full(
     stock: StockRestoreSettings,
     background: Settings,
 ) -> Rig {
+    rig_aliased(restore, system, pool, chunk, stock, background, false)
+}
+
+/// A rig whose take records aliases when `capture_aliases`.
+pub(crate) fn rig_aliased(
+    restore: bool,
+    system: &str,
+    pool: usize,
+    chunk: usize,
+    stock: StockRestoreSettings,
+    background: Settings,
+    capture_aliases: bool,
+) -> Rig {
     let store = Arc::new(Emulator::new(1 << 28, 5));
     let blobs = Arc::clone(&store) as Arc<dyn BlobStore>;
     let clock: oss_meta::PitClock = Arc::new(|| 1_700_000_000_000);
@@ -79,12 +92,10 @@ pub(crate) fn rig_full(
     ));
     let descriptors =
         || DescriptorStore::new(Arc::clone(&blobs), "", DeleteMode::Conditional).unwrap();
-    let taker = Arc::new(SnapshotTakeService::new(
-        Arc::clone(&blobs),
-        "",
-        descriptors(),
-        Arc::clone(&clock),
-    ));
+    let taker = Arc::new(
+        SnapshotTakeService::new(Arc::clone(&blobs), "", descriptors(), Arc::clone(&clock))
+            .with_capture_aliases(capture_aliases),
+    );
     let deletes = Arc::new(
         DeleteService::new(
             &blobs,
@@ -212,6 +223,38 @@ pub(crate) fn seed(r: Rig) -> Rig {
     );
     assert_eq!(made.status, 200, "{}", made.text());
     r
+}
+
+/// A rig whose take records aliases when `capture`, with `setup` run on the
+/// live index before the snapshot is taken.
+pub(crate) fn taken_with_aliases(restore: bool, capture: bool, setup: fn(&Rig)) -> Rig {
+    let r = rig_aliased(
+        restore,
+        "",
+        64 << 20,
+        64,
+        StockRestoreSettings::off(),
+        Settings::off(),
+        capture,
+    );
+    seed_with(&r, setup);
+    r
+}
+
+/// Registers the repository, makes `logs`, runs `setup` and takes `daily`.
+pub(crate) fn seed_with(r: &Rig, setup: fn(&Rig)) {
+    let body =
+        r#"{"type":"fs","settings":{"location":"x","remote_store_index_shallow_copy":true}}"#;
+    assert_eq!(send(r, "PUT", "/_snapshot/backups", Some(body)).status, 200);
+    live_index(r, "logs", "u1", 2, b"payload");
+    setup(r);
+    let made = send(
+        r,
+        "PUT",
+        "/_snapshot/backups/daily?wait_for_completion=true",
+        Some(TAKE),
+    );
+    assert_eq!(made.status, 200, "{}", made.text());
 }
 
 pub(crate) const RESTORE: &str = "/_snapshot/backups/daily/_restore?wait_for_completion=true";

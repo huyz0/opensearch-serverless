@@ -315,5 +315,7 @@ fn native_of(index: &PlannedIndex) -> RestoreIndex {
         mapping: index.native.mapping.clone(), // ALLOC: one mapping an index.
         settings: Some(index.native.settings.clone()), // ALLOC: one settings object an index.
         shards: Vec::new(),
+        aliases: Vec::new(),
+        aliases_truncated: false,
     }
 }

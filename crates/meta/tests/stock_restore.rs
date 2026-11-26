@@ -107,6 +107,8 @@ fn restore(w: &World, files: &[StockFile], chunk: usize) -> Result<(), RestoreEr
         mapping: None,
         settings: Some(br#"{"index.refresh_interval":"5s"}"#.to_vec()),
         shards: Vec::new(),
+        aliases: Vec::new(),
+        aliases_truncated: false,
     };
     let from = StockSource {
         store: &*w.src,

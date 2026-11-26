@@ -1,4 +1,4 @@
-//! The keys of a restore's body: the five it reads, the thirteen it
+//! The keys of a restore's body: the seven it reads, the ten it
 //! refuses with a reason, and the rest it does not know
 //! (`SnapshotRequestBodies.RESTORE_KNOWN_KEYS` and `RESTORE_REFUSED_KEYS`).
 
@@ -7,17 +7,19 @@ use oss_doc::mapping::json::Json;
 use crate::route::resolve::Refusal;
 
 /// What a restore reads; the rest is refused below.
-const KNOWN: [&str; 5] = [
+const KNOWN: [&str; 7] = [
     "indices",
     "rename_pattern",
     "rename_replacement",
     "index_settings",
     "ignore_index_settings",
+    "rename_alias_pattern",
+    "rename_alias_replacement",
 ];
 
 /// Core's other restore fields, each with why it is refused: the shell's
 /// `RESTORE_REFUSED_KEYS`.
-pub(crate) const REFUSED: [(&str, &str); 13] = [
+pub(crate) const REFUSED: [(&str, &str); 10] = [
     (
         "partial",
         "a restore here creates every shard of an index or refuses; there is no partial index to make",
@@ -25,18 +27,6 @@ pub(crate) const REFUSED: [(&str, &str); 13] = [
     (
         "include_global_state",
         "there is no global state in a snapshot here to restore",
-    ),
-    (
-        "include_aliases",
-        "aliases are not captured in a snapshot here",
-    ),
-    (
-        "rename_alias_pattern",
-        "aliases are not captured in a snapshot here",
-    ),
-    (
-        "rename_alias_replacement",
-        "aliases are not captured in a snapshot here",
     ),
     (
         "settings",
@@ -56,7 +46,7 @@ pub(crate) const REFUSED: [(&str, &str); 13] = [
     ),
     (
         "alias_write_index_policy",
-        "aliases are not captured in a snapshot here",
+        "a restore adds the aliases the snapshot recorded to the indices it creates; it does not choose who keeps the write index",
     ),
     (
         "ignore_unavailable",
@@ -72,8 +62,8 @@ pub(crate) const REFUSED: [(&str, &str); 13] = [
     ),
 ];
 
-/// Flags that name behaviour this node always has: set to `false` they
-/// change nothing, set to `true` they stay refused below.
+/// Boolean flags: `include_aliases` is read; the rest name behaviour this
+/// node always has, so `false` changes nothing and `true` stays refused.
 const OFF: [&str; 4] = [
     "partial",
     "include_global_state",

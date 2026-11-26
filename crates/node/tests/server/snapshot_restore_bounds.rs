@@ -125,6 +125,8 @@ fn draft(name: &str, shards: u32, captured: u32) -> SnapshotDraft {
                     lengths: vec![("_0.si".into(), 1)],
                 })
                 .collect(),
+            aliases: vec![],
+            aliases_truncated: false,
         }],
     }
 }

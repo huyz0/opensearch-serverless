@@ -162,6 +162,8 @@ pub mod settings;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub mod settings_route;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
+mod snapshot_restore_aliases;
+#[cfg(all(feature = "writer", feature = "coordinator"))]
 mod snapshot_restore_background;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub mod snapshot_restore_route;

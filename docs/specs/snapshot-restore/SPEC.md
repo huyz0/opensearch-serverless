@@ -28,4 +28,4 @@ The background form (`wait_for_completion` absent or `false` with the switch on)
 
 ## Out of scope
 
-Standard snapshots, `include_global_state`, `partial`, `include_aliases`, and an asynchronous restore (behind a switch: [restore-background](../restore-background/SPEC.md)). (`index_settings` and `ignore_index_settings` moved to [restore-index-settings](../restore-index-settings/SPEC.md).)
+Standard snapshots, `include_global_state`, `partial`, and an asynchronous restore (behind a switch: [restore-background](../restore-background/SPEC.md)). (`index_settings` and `ignore_index_settings` moved to [restore-index-settings](../restore-index-settings/SPEC.md).)
