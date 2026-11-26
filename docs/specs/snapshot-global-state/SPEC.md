@@ -25,6 +25,7 @@
 - AC-15: A background restore applies the state once its indices are whole; a cancelled step counts what it did not apply and applies none. Tests: `a_background_restore_applies_the_state_after_the_indices`, `a_cancelled_global_state_step_names_the_count_and_applies_nothing`.
 - AC-16: A restore selecting no index from a snapshot without state makes 1 request; from a state of one template, one script and two settings 14. Test: `a_restore_of_the_state_costs_what_the_budget_holds`.
 - AC-17: The report is written as the answer's members: the count, and the failed names when there are any. Test: `the_answer_names_what_was_applied_and_what_failed`.
+- AC-18: A Java node reads the record a Rust take wrote with every part of the state: the shell's own `SnapshotRecord.fromStream`, `SnapshotGlobalState.read`, a `toBytes` round trip that keeps the member, and the bounds check. Tests: `a_take_writes_the_global_state_record_a_java_node_reads` (writes `fixtures/snapshots/rust-take-global/state.bin`), `ServerlessRustGlobalStateTests` (run by hand, CI has no Java).
 
 Security: every `/_snapshot` route needs `all_access` in this node (`every_repository_and_snapshot_route_needs_all_access`), which is stronger than the action ADR 0068 names, so no second check is made here.
 
