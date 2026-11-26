@@ -169,7 +169,7 @@ impl SnapshotTaker {
             .lengths
             .iter()
             .map(|(name, length)| (name.as_str(), *length))
-            .collect();
+            .collect(); // ALLOC: one entry a captured file, counted above.
         // ALLOC: one entry a captured file, at most the manifest's file bound.
         let mut copied: Vec<(ExportedFile, Vec<u8>)> = Vec::with_capacity(capture.files.len());
         for (name, recorded) in &capture.files {
