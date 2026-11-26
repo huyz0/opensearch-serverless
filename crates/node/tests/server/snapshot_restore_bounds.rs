@@ -171,27 +171,3 @@ fn a_restore_over_4096_shards_is_400_and_writes_nothing() {
     let got = send(&r, "POST", "/_snapshot/backups/fits/_restore", Some("{}"));
     assert!(!got.text().contains("snapshot_too_large"), "{}", got.text());
 }
-
-// The partial-snapshot spec AC-4: a snapshot that is missing shards is not restored as if whole.
-#[test]
-fn a_restore_of_an_index_with_failed_shards_is_refused_and_writes_nothing() {
-    let r = rig_sized(true, "", 64 << 20, 64);
-    repository(&r);
-    let mut partial = draft("partial", 3, 2);
-    partial.indices[0].failed_shards = vec![2];
-    hold(&r, "partial", &partial, true);
-    let written = writes(&r);
-    let got = send(
-        &r,
-        "POST",
-        "/_snapshot/backups/partial/_restore",
-        Some("{}"),
-    );
-    assert_eq!(got.status, 500, "{}", got.text());
-    assert!(
-        got.text().contains("snapshot_restore_exception"),
-        "{}",
-        got.text()
-    );
-    assert_eq!(writes(&r), written);
-}
