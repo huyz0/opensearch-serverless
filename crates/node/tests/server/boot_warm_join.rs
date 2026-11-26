@@ -13,6 +13,11 @@ use oss_node::boot::{Node, NodeConfig, start};
 use oss_testkit::TempDir;
 
 fn boot(root: &str, id: &str, tier: &std::path::Path, warm: bool) -> Node {
+    boot_at(root, id, tier, warm, None)
+}
+
+/// As `boot`, with the copy's rate in bytes a second when `rate` is given.
+fn boot_at(root: &str, id: &str, tier: &std::path::Path, warm: bool, rate: Option<&str>) -> Node {
     let tier = tier.display().to_string();
     let config = NodeConfig::from_lookup(|key| {
         Some(
@@ -27,6 +32,7 @@ fn boot(root: &str, id: &str, tier: &std::path::Path, warm: bool) -> Node {
                 "OSS_WARM_ON_JOIN" if warm => "true",
                 "OSS_WARM_MAX_WAIT_SECONDS" => "30",
                 "OSS_STORE_USAGE" => "true",
+                "OSS_WARM_BYTES_PER_SECOND" if rate.is_some() => rate.unwrap_or("1"),
                 _ => return None,
             }
             .to_owned(),
@@ -205,4 +211,88 @@ fn the_first_search_of_a_warmed_reader_makes_fewer_store_reads_than_a_cold_one()
         warm_up + warm_search <= cold_search,
         "the warm-up and the search together read no more than the cold search"
     );
+}
+
+/// The roles `id`'s lease names in the store at `root`; empty with no lease.
+fn lease_roles(root: &std::path::Path, id: &str) -> Vec<String> {
+    use oss_blob::BlobStore;
+    let store = oss_blob::FsStore::new(root).expect("store");
+    let key = oss_format::lease_key("", id).expect("key");
+    let mut buf = vec![0u8; 1 << 16];
+    let Ok(Some(read)) = store.read_register(&key, &mut buf) else {
+        return Vec::new();
+    };
+    oss_format::NodeLease::parse(&buf[..read.len])
+        .map(|l| l.roles().to_vec())
+        .unwrap_or_default()
+}
+
+// docs/specs/reader-warm-copy AC-7
+#[test]
+fn a_warming_node_has_no_search_role_in_its_lease_until_it_is_ready() {
+    let store = TempDir::new("warm-lease-store");
+    let root = store.path().display().to_string();
+    let tier_a = TempDir::new("warm-lease-a");
+    let tier_b = TempDir::new("warm-lease-b");
+
+    let a = boot(&root, "n1", tier_a.path(), true);
+    wait_ready(&a);
+    // Enough pages for several batches, so the copy, paced below, outlasts
+    // several lease refreshes.
+    let body = r#"{"settings":{"index":{"number_of_shards":8}}}"#;
+    assert_eq!(call(&a, "PUT", "/logs", Some(body)).status, 200);
+    for chunk in (0..16_000).collect::<Vec<_>>().chunks(2000) {
+        let mut bulk = String::new();
+        for i in chunk {
+            bulk.push_str(&format!("{{\"index\":{{\"_id\":\"{i}\"}}}}\n"));
+            bulk.push_str(&format!(
+                "{{\"n\":{i},\"msg\":\"line {i} of the log with some words w{} x{}\"}}\n",
+                i % 97,
+                i % 31
+            ));
+        }
+        let put = call(&a, "POST", "/logs/_bulk?refresh=true", Some(&bulk));
+        assert_eq!(put.status, 200, "{}", put.text());
+    }
+    for i in 0..300 {
+        let q = format!(
+            r#"{{"query":{{"match":{{"msg":"w{}"}}}},"size":10}}"#,
+            i % 97
+        );
+        assert_eq!(call(&a, "POST", "/logs/_search", Some(&q)).status, 200);
+    }
+    let b = boot_at(&root, "n2", tier_b.path(), true, Some("262144"));
+    let mut warming_polls = 0;
+    let started = Instant::now();
+    loop {
+        // The lease first: a search role seen here was written after the node
+        // finished warming, so the probe asked next cannot say warming.
+        let roles = lease_roles(store.path(), "n2");
+        let ready = call(&b, "GET", "/_serverless/ready", None).status == 200;
+        if ready {
+            break;
+        }
+        assert!(
+            !roles.iter().any(|r| r == "search"),
+            "a warming node offered search after {warming_polls} polls: {roles:?}"
+        );
+        warming_polls += 1;
+        assert!(started.elapsed() < Duration::from_secs(40), "never ready");
+        std::thread::sleep(Duration::from_millis(30));
+    }
+    assert!(
+        warming_polls >= 5,
+        "the node was warming for only {warming_polls} polls, so the lease was barely looked at"
+    );
+    let until = Instant::now();
+    while !lease_roles(store.path(), "n2")
+        .iter()
+        .any(|r| r == "search")
+    {
+        assert!(
+            until.elapsed() < Duration::from_secs(5),
+            "ready, but the lease never named search"
+        );
+        std::thread::sleep(Duration::from_millis(30));
+    }
 }

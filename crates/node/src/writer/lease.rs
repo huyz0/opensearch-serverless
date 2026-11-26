@@ -87,11 +87,14 @@ impl LeaseWrite for MembershipLeaseWrite {
         if let Some(load) = &self.load {
             load.stamp(&mut lease);
         }
+        // The role is left out of this write's copy only: a node that finishes
+        // warming has the role in the next write.
+        let mut written = lease.clone();
         if let Some(readiness) = &self.readiness {
-            readiness.stamp(&mut lease);
+            readiness.stamp(&mut written);
         }
         self.membership
-            .renew(&lease)
+            .renew(&written)
             .map(|_| ())
             .map_err(|e| Arc::new(e) as Refusal)
     }
