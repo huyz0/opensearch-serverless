@@ -27,17 +27,21 @@ pub struct ExportStore {
 
 impl ExportStore {
     /// A view of `inner` that reads and creates only under `prefix` (empty
-    /// for a store whose root is the repository).
+    /// for a store whose root is the repository). A prefix without a closing
+    /// `/` gets one, so `repo` never reaches `repo-other/`.
     #[must_use]
     pub fn new(inner: Arc<dyn BlobStore>, prefix: &str) -> Self {
-        Self {
-            inner,
-            prefix: prefix.to_owned(), // ALLOC: one prefix a store.
+        let mut prefix = prefix.to_owned(); // ALLOC: one prefix a store.
+        if !prefix.is_empty() && !prefix.ends_with('/') {
+            prefix.push('/');
         }
+        Self { inner, prefix }
     }
 
-    /// Whether `key` is under the prefix and climbs nowhere.
+    /// Whether `key` is under the prefix, climbs nowhere and is a key the
+    /// wrapped store accepts.
     fn allows(&self, key: &str) -> BlobResult<()> {
+        self.inner.validate_key(key)?;
         let rest = key.strip_prefix(self.prefix.as_str()).ok_or(WHY)?;
         let clean = !key.starts_with('/')
             && key

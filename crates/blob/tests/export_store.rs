@@ -59,7 +59,7 @@ fn a_blob_is_created_once_and_never_overwritten() {
             &mut [0u8; 8],
         )
         .unwrap();
-    assert_ne!(again, CreateOutcome::Created);
+    assert_eq!(again, CreateOutcome::AlreadyExists);
     assert_eq!(read(&*inner, "repo/indices/i/0/__a").unwrap(), b"x");
     assert_eq!(
         ex.create_if_absent("other/x", &mut body(), &mut [0u8; 8])
@@ -147,4 +147,73 @@ fn the_meter_is_the_wrapped_stores() {
     assert!(ex.meter().count(S3Op::Head) >= 1);
     assert!(ex.validate_key("a/b").is_ok());
     assert!(ex.validate_key("").is_err());
+}
+
+#[test]
+fn a_prefix_without_a_slash_does_not_reach_a_sibling() {
+    let (inner, ex) = store("repo");
+    inner
+        .put("repo-evil/x", &mut body(), &mut [0u8; 8])
+        .unwrap();
+    assert_eq!(read(&ex, "repo-evil/x").unwrap_err(), BlobError::Denied);
+    assert_eq!(ex.head("repo-evil/x").unwrap_err(), BlobError::Denied);
+    assert_eq!(
+        ex.create_if_absent("repoindex.latest", &mut body(), &mut [0u8; 8])
+            .unwrap_err(),
+        BlobError::Denied
+    );
+    assert_eq!(
+        ex.put("repoindex.latest", &mut body(), &mut [0u8; 8])
+            .unwrap_err(),
+        BlobError::Denied
+    );
+    assert_eq!(read(&ex, "repo/seed").unwrap(), b"hello");
+    ex.put("repo/index.latest", &mut body(), &mut [0u8; 8])
+        .unwrap();
+}
+
+#[test]
+fn a_real_prefix_refuses_climbing_dot_and_empty_parts_on_every_call() {
+    let (_, ex) = store("repo/");
+    for key in [
+        "repo/../other/seed",
+        "repo/./seed",
+        "repo//seed",
+        "repo/a/",
+        "repo/",
+        "repo",
+        "/repo/seed",
+    ] {
+        assert_eq!(read(&ex, key).unwrap_err(), BlobError::Denied, "{key}");
+        assert_eq!(ex.head(key).unwrap_err(), BlobError::Denied, "{key}");
+        assert_eq!(
+            ex.create_if_absent(key, &mut body(), &mut [0u8; 8])
+                .unwrap_err(),
+            BlobError::Denied,
+            "{key}"
+        );
+        assert_eq!(
+            ex.put(key, &mut body(), &mut [0u8; 8]).unwrap_err(),
+            BlobError::Denied,
+            "{key}"
+        );
+    }
+}
+
+#[test]
+fn the_wrapped_stores_own_key_rules_apply_too() {
+    let dir = std::env::temp_dir().join(format!("oss-export-keys-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let ex = ExportStore::new(Arc::new(oss_blob::FsStore::new(&dir).unwrap()), "repo/");
+    for key in ["repo/a\\..\\b", "repo/a\0b"] {
+        assert!(read(&ex, key).is_err(), "{key:?}");
+        assert!(ex.head(key).is_err(), "{key:?}");
+        assert!(
+            ex.create_if_absent(key, &mut body(), &mut [0u8; 8])
+                .is_err(),
+            "{key:?}"
+        );
+    }
+    assert!(!dir.join("repo").exists());
+    std::fs::remove_dir_all(&dir).unwrap();
 }
