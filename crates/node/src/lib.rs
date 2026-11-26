@@ -171,6 +171,7 @@ mod snapshot_restore_background;
 pub mod snapshot_restore_route;
 #[cfg(feature = "writer")]
 pub mod snapshot_route;
+#[cfg(feature = "writer")]
 pub mod snapshot_take_route;
 #[cfg(feature = "writer")]
 pub mod stock_export_route;
