@@ -104,6 +104,7 @@ mod snapshot_restore_search;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod snapshot_route;
 mod snapshot_take;
+mod stock_export;
 mod stock_restore;
 mod stock_restore_budget;
 mod stock_restore_search;

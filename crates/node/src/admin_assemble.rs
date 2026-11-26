@@ -56,7 +56,18 @@ pub(crate) fn register(
                     descriptors,
                     Arc::new(crate::clock::now_millis),
                 )
-                .with_system_indices(system_indices(config)),
+                .with_system_indices(system_indices(config))
+                .with_stock_export(
+                    crate::stock_export_route::StockExportSettings {
+                        enabled: config.snapshots_stock_export,
+                        roots: oss_blob::SourceRoots::parse(
+                            &config.stock_export_roots.0,
+                            &config.stock_export_roots.1,
+                        ),
+                        s3: config.stock_s3.clone().map(|s3| (s3, config.base.clone())),
+                        chunk_bytes: crate::snapshot_restore_route::COPY_CHUNK_BYTES,
+                    },
+                ),
             ))
         } else {
             None

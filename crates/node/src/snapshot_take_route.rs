@@ -34,19 +34,20 @@ use crate::route_util::{flag, read_body, refuse, refused};
 
 /// What a take reads and writes, under one base.
 pub struct SnapshotTakeService {
-    reader: SnapshotReader,
-    taker: SnapshotTaker,
-    descriptors: DescriptorStore,
-    clock: PitClock,
-    system: Arc<SystemIndices>,
+    pub(crate) reader: SnapshotReader,
+    pub(crate) taker: SnapshotTaker,
+    pub(crate) descriptors: DescriptorStore,
+    pub(crate) clock: PitClock,
+    pub(crate) system: Arc<SystemIndices>,
+    pub(crate) export: crate::stock_export_route::StockExportSettings,
 }
 
-fn unavailable(e: &dyn std::fmt::Display) -> RestError {
+pub(crate) fn unavailable(e: &dyn std::fmt::Display) -> RestError {
     // ALLOC: error path; the failure's words.
     refuse(503, "metadata_unavailable", e.to_string())
 }
 
-fn taken(e: TakeError, repo: &str, name: &str) -> RestError {
+pub(crate) fn taken(e: TakeError, repo: &str, name: &str) -> RestError {
     match e {
         TakeError::AlreadyExists => refused(already_exists(repo, name)),
         TakeError::KeyTooLong => refused(name_too_long(repo, name)),
@@ -58,7 +59,7 @@ fn taken(e: TakeError, repo: &str, name: &str) -> RestError {
     }
 }
 
-fn captured(e: CaptureError, index: &str) -> RestError {
+pub(crate) fn captured(e: CaptureError, index: &str) -> RestError {
     match e {
         CaptureError::NoSuchIndex => refused(index_not_found(index)),
         CaptureError::IsAlias => refused(is_alias(index)),
@@ -87,7 +88,18 @@ impl SnapshotTakeService {
             descriptors,
             clock,
             system: Arc::new(SystemIndices::none()),
+            export: crate::stock_export_route::StockExportSettings::off(),
         }
+    }
+
+    /// Lets a take into a stock repository export as `export` says.
+    #[must_use]
+    pub fn with_stock_export(
+        mut self,
+        export: crate::stock_export_route::StockExportSettings,
+    ) -> Self {
+        self.export = export;
+        self
     }
 
     /// Refuses a take of any index `system` names, 403.
@@ -126,6 +138,10 @@ impl SnapshotTakeService {
             .map_err(|e| read_failed(&e))?
         {
             None => return Err(refused(repository_missing(&repo))),
+            Some(record) if record.is_stock() => {
+                return self
+                    .export_stock(req, resp, &repo, &name, &asked, wait, &record, &mut value);
+            }
             Some(record) if !record.shallow_by_default() => {
                 return Err(refused(unsupported_storage(&repo)));
             }
@@ -253,7 +269,7 @@ impl SnapshotTakeService {
 
     /// Resolves each named index, skipping a missing one with
     /// `ignore_unavailable`, and holds the take to its bounds.
-    fn describe(
+    pub(crate) fn describe(
         &self,
         asked: &oss_coordinator::snapshot_take_admin::TakeRequest,
         buf: &mut [u8],

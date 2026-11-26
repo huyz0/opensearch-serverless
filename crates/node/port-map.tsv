@@ -222,3 +222,4 @@ src/cost_header.rs	new		the cost header value of a request that asked (ADR 0061)
 src/stock_restore_route.rs	new		restoring from a stock OpenSearch repository read through a read-only source store; no Java counterpart in the shell
 src/stock_s3.rs	new		the S3 endpoint a stock restore reads a source bucket through; no Java counterpart in the shell
 src/restore_settings.rs	new		applying index_settings and ignore_index_settings to a restored index; no Java counterpart in the shell
+src/stock_export_route.rs	new		taking into a stock OpenSearch repository through a create-only target store; no Java counterpart in the shell
