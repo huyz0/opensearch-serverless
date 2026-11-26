@@ -14,6 +14,7 @@ pub(super) mod apply;
 pub(super) mod authoring;
 pub(super) mod commits;
 pub(super) mod edge;
+mod packs;
 pub(super) mod page_cache;
 pub(super) mod roles;
 pub(super) mod search_queue;
@@ -103,6 +104,8 @@ pub struct NodeConfig {
     /// (`serverless.wal.node_log.commits.staging` and `.checkpoint_millis`):
     /// the checkpoint age when routine commits are staged, else none.
     pub commit_checkpoint_millis: Option<u64>,
+    /// `OSS_NODE_PACKS` and its two sizes: how small segment blobs are packed, else none.
+    pub node_packs: Option<crate::writer::PackConfig>,
     /// `OSS_COMMIT_LOGGED` and `OSS_COMMIT_OPEN_FROM_LOGGED`: what staged commits do besides staging.
     pub commit_logged: commits::Logged,
     /// `serverless.security.enabled`: serve the security configuration API. Off by default.
@@ -442,6 +445,7 @@ impl NodeConfig {
             hand_off,
             commit_checkpoint_millis,
             commit_logged,
+            node_packs: packs::read(&flag, &bounded)?,
             security,
             security_admin,
             security_refresh_millis,
@@ -475,10 +479,6 @@ impl NodeConfig {
 }
 
 mod budget;
-#[cfg(test)]
-mod commit_tests;
 mod lease_timing;
-#[cfg(test)]
-mod security_tests;
 #[cfg(test)]
 mod tests;

@@ -57,3 +57,7 @@ pub(super) fn read(
     };
     Ok((staging, mode))
 }
+
+#[cfg(test)]
+#[path = "commit_tests.rs"]
+mod tests;

@@ -1,6 +1,6 @@
 //! The commit staging variables.
-use super::tests::{FS, lookup, with};
-use super::*;
+use super::super::tests::{FS, lookup, with};
+use super::super::*;
 
 #[test]
 fn commit_staging_is_off_by_default_and_set_by_its_two_variables() {

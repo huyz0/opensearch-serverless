@@ -1,6 +1,5 @@
-//! The composition root of a node with the reader and writer roles: the
-//! services each role serves, their routes on one router, and the publish
-//! and janitor timers, over one shared store.
+//! The composition root of a node with the reader and writer roles: their
+//! services and routes on one router, and the timers, over one shared store.
 
 use std::net::{SocketAddr, TcpListener};
 use std::sync::Arc;

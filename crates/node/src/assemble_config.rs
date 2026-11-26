@@ -94,6 +94,8 @@ pub struct Config {
     pub hand_off: bool,
     /// Checkpoint age of staged commits; none writes each register.
     pub commit_checkpoint_millis: Option<u64>,
+    /// How small segment blobs are packed; none writes a blob each.
+    pub node_packs: Option<crate::writer::PackConfig>,
     /// Whether staged commits ride the node log; needs staging.
     pub commit_logged: crate::boot::Logged,
     /// Merging a shard's small segments.
@@ -171,6 +173,7 @@ impl Config {
             hand_off: false,
             commit_checkpoint_millis: None,
             commit_logged: crate::boot::Logged::Off,
+            node_packs: None,
             merge: crate::writer::MergeConfig::off(),
             evict_headroom_percent: 0,
             pinned_indexes: Vec::new(),

@@ -138,7 +138,7 @@ src/id_lanes.rs	new		a generator of auto ids a write request; the shell shares o
 src/security_state.rs	new		the node snapshot of the security configuration
 src/security_auth.rs	new		credential checks with bounded bcrypt, and the guard
 src/clock.rs	new		the wall clock in milliseconds
-src/boot/config/security_tests.rs	new		tests for the security settings of the node configuration
+src/boot/config/tests/security.rs	new		tests for the security settings of the node configuration
 src/lifecycle/mod.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/node/SearchReadiness.java@e71d4233	ready or draining and the lease roles it advertises; no warming state until the hot-set copy exists
 src/lifecycle/routes.rs	port	serverless/shell/src/main/java/org/opensearch/serverless/rest/ServerlessDrainHandler.java@e71d4233	/_serverless/ready and /_serverless/drain; the drain waits for the lease to lose the role and hands no blocks to peers yet
 src/lifecycle/tests.rs	new		unit tests of the readiness and the lease roles it advertises; the shell has none for SearchReadiness
@@ -234,3 +234,6 @@ src/writer/open_logged.rs	port	serverless/shell/src/main/java/org/opensearch/ser
 src/nested_setting.rs	new		the node setting that accepts the nested object type; the Java shell always maps it
 src/assemble_config.rs	new		the node assembly settings, split from assemble.rs
 src/boot/config/store.rs	new		where a node keeps its blobs, split from config.rs
+src/boot/config/packs.rs	new		the node pack variables; the shell reads them as settings
+src/boot/config/pack_tests.rs	new		tests of OSS_NODE_PACKS and its two sizes
+src/writer/packs.rs	new		the node's pack settings and its one pack writer, made on first use; the shell makes it in the publisher

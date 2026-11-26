@@ -15,6 +15,7 @@ use oss_writer::log::Position;
 use oss_writer::publish::ShardPublisher;
 
 use super::BucketWiring;
+use super::packs::{PackConfig, Packs};
 use oss_writer::publish::lazy::{LazyPublish, Policy, PublishAge};
 
 /// A shard by index uuid and number.
@@ -52,6 +53,8 @@ pub struct Publishing {
     /// How long after its oldest pack a commit may still be swapped in,
     /// when not the pack module's own deadline.
     swap_deadline: Option<Duration>,
+    /// How small segment blobs are packed, when they are.
+    packs: Option<Packs>,
     /// Shards with a staged commit, the register behind them.
     pending: Mutex<HashMap<Key, Pending>>,
 }
@@ -100,6 +103,7 @@ impl Publishing {
             stretch: OnceLock::new(),
             staging: None,
             swap_deadline: None,
+            packs: None,
             // ALLOC: one entry a shard with a staged commit.
             pending: Mutex::new(HashMap::new()),
         }
@@ -137,6 +141,14 @@ impl Publishing {
     #[must_use]
     pub fn with_swap_deadline(mut self, deadline: Duration) -> Self {
         self.swap_deadline = Some(deadline);
+        self
+    }
+
+    /// Packs the small segment blobs of every shard's publishes into packs
+    /// shared by the node's shards.
+    #[must_use]
+    pub fn with_packs(mut self, config: PackConfig) -> Self {
+        self.packs = Some(Packs::new(config));
         self
     }
 
@@ -299,6 +311,16 @@ impl Publishing {
         };
         let mut publisher = lock(&publisher);
         publisher.use_staging(self.staging);
+        if let Some(packs) = &self.packs {
+            let placement = packs.placement(
+                &self.store,
+                &self.base,
+                &self.node_id,
+                (self.clock)(),
+                (index, &key.0, key.1),
+            )?;
+            publisher.use_packs(Some(placement));
+        }
         run(&mut publisher, &self.node_id, (self.clock)())
     }
 }
