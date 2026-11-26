@@ -1,5 +1,5 @@
 //! The evaluation metrics of `_rank_eval`: `PrecisionAtK`, `RecallAtK`,
-//! `MeanReciprocalRank` and `DiscountedCumulativeGain` (modules/rank-eval/src/main/java/org/opensearch/index/rankeval/)
+//! `MeanReciprocalRank`, `DiscountedCumulativeGain` and `ExpectedReciprocalRank` (modules/rank-eval/src/main/java/org/opensearch/index/rankeval/)
 //! at OpenSearch 3.10.0, over hits already joined with their ratings.
 
 use std::collections::HashMap;
@@ -48,6 +48,15 @@ pub enum Metric {
         /// The window.
         k: i32,
     },
+    /// `expected_reciprocal_rank`.
+    ExpectedReciprocalRank {
+        /// The highest rating expected in the data.
+        max_relevance: i32,
+        /// The rating a hit with none counts as; without one it is skipped.
+        unknown_doc_rating: Option<i32>,
+        /// The window.
+        k: i32,
+    },
 }
 
 /// What a metric reports beside its score.
@@ -81,6 +90,11 @@ pub enum Detail {
         /// Hits with no rating.
         unrated: i64,
     },
+    /// `expected_reciprocal_rank`.
+    ExpectedReciprocalRank {
+        /// Hits with no rating.
+        unrated: i64,
+    },
 }
 
 /// One request evaluated.
@@ -101,7 +115,8 @@ impl Metric {
             Metric::Precision { k, .. }
             | Metric::Recall { k, .. }
             | Metric::ReciprocalRank { k, .. }
-            | Metric::Dcg { k, .. } => k,
+            | Metric::Dcg { k, .. }
+            | Metric::ExpectedReciprocalRank { k, .. } => k,
         }
     }
 
@@ -173,6 +188,35 @@ impl Metric {
                         first_relevant: first,
                     },
                 )
+            }
+            Metric::ExpectedReciprocalRank {
+                max_relevance,
+                unknown_doc_rating,
+                k,
+            } => {
+                // The Java cuts the hits to the window itself.
+                let window = usize::try_from(k).unwrap_or(0);
+                let ratings = ratings.get(..window).unwrap_or(&ratings);
+                let two_pow_max = 2.0_f64.powi(max_relevance);
+                let mut p = 1.0_f64;
+                let mut err = 0.0_f64;
+                for (at, rating) in ratings.iter().enumerate() {
+                    if let Some(r) = rating.or(unknown_doc_rating) {
+                        let prob = (2.0_f64.powi(r) - 1.0) / two_pow_max;
+                        // ARITH: ranks are far below 2^53.
+                        #[allow(clippy::cast_precision_loss, clippy::arithmetic_side_effects)]
+                        let rank = (at + 1) as f64;
+                        // ARITH: doubles.
+                        #[allow(clippy::arithmetic_side_effects)]
+                        {
+                            err += p * prob / rank;
+                            p *= 1.0 - prob;
+                        }
+                    }
+                }
+                let unrated =
+                    i64::try_from(ratings.iter().filter(|r| r.is_none()).count()).unwrap_or(0);
+                (err, Detail::ExpectedReciprocalRank { unrated })
             }
             Metric::Dcg {
                 normalize,
@@ -364,6 +408,34 @@ mod tests {
         }
         // Nothing rated at all has no ideal order: ndcg is 0.
         assert_eq!(m(true, None).evaluate(&hits, &[]).score, 0.0);
+    }
+
+    #[test]
+    fn err_weighs_each_rank_by_the_chance_no_earlier_hit_satisfied() {
+        let m = |unknown_doc_rating, k| Metric::ExpectedReciprocalRank {
+            max_relevance: 3,
+            unknown_doc_rating,
+            k,
+        };
+        // The Java tests' worked examples, ratings 3, 2, 0, 1.
+        let ratings = rated(&[("a", 3), ("b", 2), ("c", 0), ("d", 1)]);
+        let hits = [key("a"), key("b"), key("c"), key("d")];
+        assert_eq!(m(Some(0), 3).evaluate(&hits, &ratings).score, 0.8984375);
+        assert_eq!(
+            m(Some(0), 4).evaluate(&hits, &ratings).score,
+            0.8984375 + 0.00244140625
+        );
+        // The second hit unrated: skipped, or counted as the default.
+        let ratings = rated(&[("a", 3), ("c", 0), ("d", 1)]);
+        let hits = [key("a"), key("x"), key("c"), key("d")];
+        let q = m(None, 4).evaluate(&hits, &ratings);
+        assert_eq!(q.score, 0.875 + 0.00390625);
+        assert_eq!(q.detail, Detail::ExpectedReciprocalRank { unrated: 1 });
+        assert_eq!(
+            m(Some(2), 4).evaluate(&hits, &ratings).score,
+            0.8984375 + 0.00244140625
+        );
+        assert_eq!(m(Some(0), 10).evaluate(&[], &ratings).score, 0.0);
     }
 
     #[test]

@@ -284,6 +284,10 @@ fn write_quality(
             }
             write!(out, ",\"unrated_docs\":{unrated}}}}}")?;
         }
+        Detail::ExpectedReciprocalRank { unrated } => write!(
+            out,
+            "{{\"expected_reciprocal_rank\":{{\"unrated_docs\":{unrated}}}}}"
+        )?,
         Detail::ReciprocalRank { first_relevant } => write!(
             out,
             "{{\"mean_reciprocal_rank\":{{\"first_relevant\":{first_relevant}}}}}"

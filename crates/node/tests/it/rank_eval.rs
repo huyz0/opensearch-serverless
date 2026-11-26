@@ -143,6 +143,39 @@ fn dcg_discounts_by_rank_and_ndcg_divides_by_the_best_order() {
     );
 }
 
+// AC-11
+#[test]
+fn expected_reciprocal_rank_weighs_a_hit_by_the_chance_earlier_ones_failed() {
+    let node = start();
+    // Hits 4 then 1; maximum 3: 1 is p(1) = 1/8 at rank 1, 3 is p(3) = 7/8 at rank 2.
+    let ratings = r#"{"_index":"compat-term","_id":"1","rating":3},{"_index":"compat-term","_id":"4","rating":1}"#;
+    let (status, text) = eval(
+        &node,
+        "compat-term",
+        &spec(
+            &rated("q", ratings),
+            r#"{"expected_reciprocal_rank":{"maximum_relevance":3,"k":5}}"#,
+        ),
+    );
+    assert_eq!(status, 200, "{text}");
+    // 1/8 + (7/8 * 7/8) / 2
+    assert!(text.starts_with(r#"{"metric_score":0.5078125,"#), "{text}");
+    assert!(
+        text.contains(r#""metric_details":{"expected_reciprocal_rank":{"unrated_docs":0}}"#),
+        "{text}"
+    );
+    let (status, text) = eval(
+        &node,
+        "compat-term",
+        &spec(
+            &rated("q", ratings),
+            r#"{"expected_reciprocal_rank":{"k":5}}"#,
+        ),
+    );
+    assert_eq!(status, 400, "{text}");
+    assert!(text.contains("maximum_relevance"), "{text}");
+}
+
 // AC-1
 #[test]
 fn the_score_is_the_mean_of_the_requests() {
@@ -311,13 +344,6 @@ fn what_this_node_lacks_is_refused() {
     let node = start();
     let ok = rated("q", DOC4);
     for (body, what) in [
-        (
-            spec(
-                &ok,
-                r#"{"expected_reciprocal_rank":{"maximum_relevance":3}}"#,
-            ),
-            "ERR",
-        ),
         (
             spec(
                 &format!(
