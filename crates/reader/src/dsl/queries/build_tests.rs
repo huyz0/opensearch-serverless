@@ -449,3 +449,52 @@ fn fuzzy_expands_to_at_most_the_clause_limit() {
     };
     assert_eq!(q.max_expansions, MAX_CLAUSES);
 }
+
+fn built_on_pin(body: &str) -> Result<BooleanQuery, Failure> {
+    let mapping = Mapping::from_json_pinned(
+        r#"{"properties":{"t":{"type":"text","analyzer":"ext_a"},"title":{"type":"text"}}}"#,
+        &["ext_a".to_owned()],
+    )
+    .expect("mapping");
+    let analyzer = Analyzer::standard(None);
+    let cx = QueryContext {
+        mapping: &mapping,
+        analyzer: &analyzer,
+        max_doc: 5,
+        knn: None,
+        pinned: None,
+        now_millis: None,
+    };
+    let source = parse_chunks([format!(r#"{{"query":{body}}}"#).as_bytes()]).expect("parses");
+    to_lucene(source.query.as_ref().expect("a query"), &cx)
+}
+
+#[test]
+fn term_expanding_queries_are_refused_on_a_field_that_pins_an_analyzer() {
+    for (kind, body) in [
+        ("prefix", r#"{"prefix":{"t":"zz"}}"#),
+        ("wildcard", r#"{"wildcard":{"t":"zz*"}}"#),
+        ("regexp", r#"{"regexp":{"t":"zz.*"}}"#),
+        ("fuzzy", r#"{"fuzzy":{"t":"zzzz"}}"#),
+    ] {
+        let Err(f) = built_on_pin(body) else {
+            panic!("a {kind} query on a pinned field built")
+        };
+        assert!(
+            f.reason.contains(&format!(
+                "a [{kind}] query on field [t], which pins the analyzer [ext_a]"
+            )),
+            "{kind}: {}",
+            f.reason
+        );
+    }
+    // The same queries on a field with no pin build as before.
+    for body in [
+        r#"{"prefix":{"title":"zz"}}"#,
+        r#"{"wildcard":{"title":"zz*"}}"#,
+        r#"{"regexp":{"title":"zz.*"}}"#,
+        r#"{"fuzzy":{"title":"zzzz"}}"#,
+    ] {
+        assert!(built_on_pin(body).is_ok(), "{body}");
+    }
+}

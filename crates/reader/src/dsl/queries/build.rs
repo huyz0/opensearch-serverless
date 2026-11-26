@@ -37,11 +37,20 @@ pub const MAX_REGEX_LENGTH: usize = 1000;
 pub fn to_clause(m: &More, cx: &QueryContext<'_>) -> Result<Clause, Failure> {
     match m {
         More::Terms { field, values, .. } => terms(cx, field, values),
-        More::Prefix { field, value, .. } => string_query(cx, "prefix", field, || {
-            Clause::Prefix(PrefixQuery::new(field.as_str(), value.as_bytes()))
-        }),
-        More::Wildcard { field, value, .. } => wildcard_clause(cx, field, value),
-        More::Regexp { field, value, .. } => regexp_clause(cx, field, value),
+        More::Prefix { field, value, .. } => {
+            not_on_a_pin(cx, "prefix", field)?;
+            string_query(cx, "prefix", field, || {
+                Clause::Prefix(PrefixQuery::new(field.as_str(), value.as_bytes()))
+            })
+        }
+        More::Wildcard { field, value, .. } => {
+            not_on_a_pin(cx, "wildcard", field)?;
+            wildcard_clause(cx, field, value)
+        }
+        More::Regexp { field, value, .. } => {
+            not_on_a_pin(cx, "regexp", field)?;
+            regexp_clause(cx, field, value)
+        }
         More::Fuzzy {
             field,
             value,
@@ -50,15 +59,18 @@ pub fn to_clause(m: &More, cx: &QueryContext<'_>) -> Result<Clause, Failure> {
             max_expansions,
             transpositions,
             ..
-        } => fuzzy(
-            cx,
-            field,
-            value,
-            *fuzziness,
-            *prefix_length,
-            *max_expansions,
-            *transpositions,
-        ),
+        } => {
+            not_on_a_pin(cx, "fuzzy", field)?;
+            fuzzy(
+                cx,
+                field,
+                value,
+                *fuzziness,
+                *prefix_length,
+                *max_expansions,
+                *transpositions,
+            )
+        }
         More::Exists { field, .. } => exists(cx, field),
         More::Ids { values, .. } => ids(values),
         More::ConstantScore { filter, .. } => Ok(constant(build(filter, cx)?)),
@@ -99,6 +111,18 @@ pub fn to_clause(m: &More, cx: &QueryContext<'_>) -> Result<Clause, Failure> {
             .ok_or_else(|| unsupported("the [knn] query here")),
         More::Knn(q) => crate::knn::radial(q, cx),
         More::Nested(q, _) => super::nested_build::nested(q, cx),
+    }
+}
+
+/// A query that works on the terms of a field is refused on a field whose
+/// terms a pinned module made, which no query here can expand.
+fn not_on_a_pin(cx: &QueryContext<'_>, kind: &str, field: &str) -> Result<(), Failure> {
+    match cx.mapping.get(field).and_then(|f| f.analyzer.as_deref()) {
+        // ALLOC: error path; one message.
+        Some(pin) => Err(unsupported(&format!(
+            "a [{kind}] query on field [{field}], which pins the analyzer [{pin}]"
+        ))),
+        None => Ok(()),
     }
 }
 
