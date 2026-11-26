@@ -140,6 +140,7 @@ impl TopHitsResult {
             explanations: &self.explanations,
             highlight: self.highlight.as_ref(),
             meta: crate::fetch::hit_meta::HitMeta::default(),
+            inner: &[],
         }
     }
 }

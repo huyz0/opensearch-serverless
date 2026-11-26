@@ -214,6 +214,43 @@ pub(crate) struct HitView<'a> {
     pub explanations: &'a [Explanation],
     pub highlight: Option<&'a Plan>,
     pub meta: HitMeta,
+    /// The nested inner hits of the hits, by parent document.
+    pub inner: &'a [crate::search_inner_hits::ParentInner],
+}
+
+impl Hits {
+    /// What the response writes the hits from.
+    pub(crate) fn view(&self) -> HitView<'_> {
+        HitView {
+            hits: &self.hits,
+            source: &self.source,
+            fields: &self.fields,
+            explanations: &self.explanations,
+            highlight: self.highlight.as_ref(),
+            meta: self.meta,
+            inner: &self.inner,
+        }
+    }
+}
+
+/// Writes `,"sort":[...]` for a hit that has sort values.
+fn write_sort(out: &mut dyn Write, sort: &[SortValue]) -> io::Result<()> {
+    if sort.is_empty() {
+        return Ok(());
+    }
+    out.write_all(b",\"sort\":[")?;
+    for (k, value) in sort.iter().enumerate() {
+        if k > 0 {
+            out.write_all(b",")?;
+        }
+        match value {
+            SortValue::Long(n) => write!(out, "{n}")?,
+            SortValue::Score(s) => write_java_float(out, *s)?,
+            SortValue::Term(Some(t)) => write_json_str(out, &String::from_utf8_lossy(t))?,
+            SortValue::Term(None) => out.write_all(b"null")?,
+        }
+    }
+    out.write_all(b"]")
 }
 
 /// The buffers every list of a response's hits is fetched through: one
@@ -306,29 +343,26 @@ fn write_hit_list<S: BlobStore + 'static>(
             }
             h.write(out, &stored.source)?;
         }
-        if !hit.sort.is_empty() {
-            out.write_all(b",\"sort\":[")?;
-            for (k, value) in hit.sort.iter().enumerate() {
-                if k > 0 {
-                    out.write_all(b",")?;
-                }
-                match value {
-                    SortValue::Long(n) => write!(out, "{n}")?,
-                    SortValue::Score(s) => write_java_float(out, *s)?,
-                    SortValue::Term(Some(t)) => write_json_str(out, &String::from_utf8_lossy(t))?,
-                    SortValue::Term(None) => out.write_all(b"null")?,
-                }
-            }
-            out.write_all(b"]")?;
-        }
+        write_sort(out, &hit.sort)?;
         if let Some(e) = view.explanations.get(i) {
             explain::write_explanation(out, e)?;
+        }
+        if let Some(p) = view.inner.iter().find(|p| p.doc == hit.doc) {
+            inner::write_inner_hits(
+                out,
+                p,
+                (index, &stored.id, &stored.source),
+                scratch,
+                &mut *stored.reserve,
+            )?;
         }
         out.write_all(b"}")?;
     }
     Ok(())
 }
 
+#[path = "response_inner.rs"]
+mod inner;
 #[path = "response_selected.rs"]
 mod selected;
 #[path = "response_values.rs"]

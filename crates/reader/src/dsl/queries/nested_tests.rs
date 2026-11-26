@@ -85,10 +85,6 @@ fn what_is_not_served_is_refused_by_name() {
         reason(r#"{"query":{"nested":{"path":"c","query":{"match_all":{}},"nope":1}}}"#),
         "[nested] query does not support [nope]"
     );
-    for key in [r#""inner_hits":{}"#, r#""_name":"x""#] {
-        let body = format!(
-            r#"{{"query":{{"nested":{{"path":"c","query":{{"match_all":{{}}}},{key}}}}}}}"#
-        );
-        assert!(reason(&body).contains("not supported by this node yet"));
-    }
+    let body = r#"{"query":{"nested":{"path":"c","query":{"match_all":{}},"_name":"x"}}}"#;
+    assert!(reason(body).contains("not supported by this node yet"));
 }

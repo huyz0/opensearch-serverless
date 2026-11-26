@@ -52,6 +52,7 @@ fn shard(scores: &[f32]) -> Hits {
         explanations: Vec::new(),
         highlight: None,
         meta: oss_reader::fetch::hit_meta::HitMeta::default(),
+        inner: Vec::new(),
         terminated_early: None,
     }
 }

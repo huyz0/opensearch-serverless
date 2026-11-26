@@ -2,6 +2,7 @@
 
 use crate::dsl::error::DslError;
 use crate::dsl::queries::More;
+use crate::dsl::queries::inner_hits::{InnerHits, parse_inner_hits};
 use crate::dsl::queries::single_field::does_not_support;
 use crate::dsl::query::{Query, parse_inner};
 use crate::dsl::tokens::{Kind, Parser};
@@ -34,6 +35,8 @@ pub struct NestedQuery {
     pub score_mode: ScoreMode,
     /// Whether an unmapped path matches nothing instead of failing.
     pub ignore_unmapped: bool,
+    /// `inner_hits`: the matching children to report with each parent.
+    pub inner_hits: Option<InnerHits>,
 }
 
 /// `NestedQueryBuilder.parseScoreMode`.
@@ -53,10 +56,11 @@ fn score_mode(text: &str) -> Result<ScoreMode, DslError> {
     })
 }
 
-/// `NestedQueryBuilder.fromXContent`; `inner_hits` and `_name` are refused.
+/// `NestedQueryBuilder.fromXContent`; `_name` is refused.
 pub fn parse_nested(p: &mut Parser<'_>) -> Result<More, DslError> {
     let (mut boost, mut mode, mut ignore) = (1.0, ScoreMode::Avg, false);
     let (mut query, mut path) = (None, None);
+    let mut inner_hits = None;
     let mut current = "";
     loop {
         match p.next_token() {
@@ -64,7 +68,7 @@ pub fn parse_nested(p: &mut Parser<'_>) -> Result<More, DslError> {
             Some(Kind::FieldName) => current = p.text(),
             Some(Kind::StartObject) if current == "query" => query = Some(parse_inner(p)?),
             Some(Kind::StartObject) if current == "inner_hits" => {
-                return Err(DslError::unsupported("[nested] [inner_hits]"));
+                inner_hits = Some(parse_inner_hits(p)?);
             }
             Some(Kind::StartObject) => return Err(does_not_support(p, "nested", current)),
             Some(k) if k.is_value() => match current {
@@ -98,6 +102,7 @@ pub fn parse_nested(p: &mut Parser<'_>) -> Result<More, DslError> {
             query,
             score_mode: mode,
             ignore_unmapped: ignore,
+            inner_hits,
         }),
         boost,
     ))
