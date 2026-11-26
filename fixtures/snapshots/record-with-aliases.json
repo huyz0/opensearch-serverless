@@ -1,0 +1,1 @@
+{"repo":"repo","name":"view","uuid":"uuid","shallow":false,"start_time_in_millis":1000,"end_time_in_millis":2000,"indices":{"index":{"uuid":"uuid-index","number_of_shards":1,"aliases":{"logs-read":{},"logs-write":{"is_write_index":true}},"aliases_truncated":true,"shards":[{"shard":0,"term":1,"files":{"file":"t=1"}}]}}}

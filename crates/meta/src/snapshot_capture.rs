@@ -8,7 +8,8 @@
 
 use oss_blob::BlobStore;
 use oss_format::{
-    CommitManifest, IndexCapture, ShardCapture, ShardRef, bucket_manifest_key, parse_bucket_member,
+    AliasCapture, CommitManifest, IndexCapture, ShardCapture, ShardRef, bucket_manifest_key,
+    parse_bucket_member,
 };
 
 use crate::descriptors::{DescriptorStore, Target};
@@ -32,6 +33,13 @@ pub struct DescribedIndex {
     pub settings: Option<Vec<u8>>,
     /// When it was created, in epoch milliseconds; 0 when not recorded.
     pub created_at_millis: i64,
+    /// The aliases its descriptor's hint names, sorted, at most
+    /// `MAX_ALIASES`: what a take confirms against each alias's register.
+    pub hint: Vec<String>,
+    /// Whether the hint named more than it holds.
+    pub hint_truncated: bool,
+    /// The aliases a take confirmed, in name order; empty until it has.
+    pub aliases: Vec<AliasCapture>,
     bucket: Option<String>,
     units: Vec<u32>,
 }
@@ -54,6 +62,13 @@ impl DescribedIndex {
             mapping: self.mapping.clone().filter(|_| with_content),
             settings: self.settings.clone().filter(|_| with_content),
             shards,
+            aliases: if with_content {
+                self.aliases.clone()
+            } else {
+                // ALLOC: none held; an empty list.
+                Vec::new()
+            },
+            aliases_truncated: with_content && self.hint_truncated,
         }
     }
 
@@ -101,6 +116,13 @@ impl SnapshotTaker {
                         "the index has retired or pending shards",
                     ));
                 }
+                // ALLOC: the hint's names, at most MAX_ALIASES, once a take.
+                let mut hint: Vec<String> =
+                    record.aliased_by.iter().map(|a| a.to_string()).collect();
+                hint.sort_unstable();
+                hint.dedup();
+                let hint_truncated = hint.len() > oss_format::MAX_ALIASES;
+                hint.truncate(oss_format::MAX_ALIASES);
                 // ALLOC: the index's names and settings, once a take.
                 Ok(DescribedIndex {
                     name: index.to_owned(),
@@ -110,6 +132,10 @@ impl SnapshotTaker {
                     // ALLOC: the settings, at most the descriptor's size, once a take.
                     settings: Some(record.settings.to_vec()).filter(|s| !s.is_empty()),
                     created_at_millis: record.created_at_millis,
+                    hint,
+                    hint_truncated,
+                    // ALLOC: none held until a take confirms them.
+                    aliases: Vec::new(),
                     bucket: record.bucket.map(std::borrow::Cow::into_owned),
                     units,
                 })

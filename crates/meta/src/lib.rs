@@ -42,6 +42,7 @@
 //!   writer that missed it has stopped.
 
 mod alias_mutations;
+mod alias_restore;
 mod changes;
 mod cluster_config;
 mod descriptors;
@@ -56,6 +57,7 @@ mod probe;
 mod ranged_source;
 mod repositories;
 mod routing;
+mod snapshot_aliases;
 mod snapshot_capture;
 mod snapshot_remove;
 mod snapshot_restore;

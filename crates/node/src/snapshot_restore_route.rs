@@ -11,8 +11,8 @@ use std::sync::Arc;
 
 use oss_blob::BlobStore;
 use oss_coordinator::snapshot_restore_admin::{
-    Target, in_progress, plan, render_restored, request, restore_conflict, restore_disabled,
-    target_exists, unsupported_content,
+    Target, in_progress, plan, plan_aliases, render_restored_with, request, restore_conflict,
+    restore_disabled, target_exists, unsupported_content,
 };
 use oss_coordinator::snapshot_restore_settings::SettingsChange;
 use oss_coordinator::snapshot_take_admin::{ACCEPTED, check_shards};
@@ -51,6 +51,8 @@ pub struct SnapshotRestoreService {
     pub(crate) system: Arc<SystemIndices>,
     pub(crate) stock: StockRestoreSettings,
     background: Option<Arc<BackgroundRestores>>,
+    pub(crate) alias_buffer_bytes: usize,
+    pub(crate) alias_lease_millis: i64,
 }
 
 pub(crate) fn unavailable(e: &dyn std::fmt::Display) -> RestError {
@@ -94,7 +96,18 @@ impl SnapshotRestoreService {
             system: Arc::new(SystemIndices::none()),
             stock: StockRestoreSettings::off(),
             background: None,
+            alias_buffer_bytes: crate::snapshot_restore_aliases::DEFAULT_BUFFER_BYTES,
+            alias_lease_millis: crate::snapshot_restore_aliases::DEFAULT_LEASE_MILLIS,
         }
+    }
+
+    /// Adds a restore's aliases through register buffers of `bytes`, each
+    /// mutation's reservation lasting `lease_millis`.
+    #[must_use]
+    pub fn with_alias_buffers(mut self, bytes: usize, lease_millis: i64) -> Self {
+        self.alias_buffer_bytes = bytes;
+        self.alias_lease_millis = lease_millis;
+        self
     }
 
     /// Serves restores from stock OpenSearch repositories as `stock` says.
@@ -186,13 +199,34 @@ impl SnapshotRestoreService {
             .iter()
             .fold(0usize, |n, s| n.saturating_add(s.shards.len()));
         check_shards(shards).map_err(refused)?;
+        // ALLOC: one slice an index, at most the take's bound.
+        let recorded: Vec<&[oss_format::AliasCapture]> =
+            sources.iter().map(|s| s.aliases.as_slice()).collect();
+        let aliases = plan_aliases(&asked, &targets, &recorded).map_err(refused)?;
+        self.check_aliases(&aliases)?;
+        let cut = asked
+            .include_aliases
+            .then(|| crate::snapshot_restore_aliases::truncated(&targets, &sources));
         if !wait && let Some(restores) = self.background.as_ref().filter(|r| r.enabled()) {
-            return self.restore_in_background(restores, resp, &targets, sources, record.len());
+            let aliases = (aliases, cut);
+            return self.restore_in_background(
+                restores,
+                resp,
+                &targets,
+                sources,
+                (record.len(), aliases),
+            );
         }
         let copy = self.chunk_bytes;
+        let alias_bytes = if asked.include_aliases {
+            self.alias_bytes()
+        } else {
+            0
+        };
         req.body().reserve(
             copy.saturating_mul(2)
-                .saturating_add(self.deletes.remove_bytes()),
+                .saturating_add(self.deletes.remove_bytes())
+                .saturating_add(alias_bytes),
         )?;
         // ALLOC: two buffers a request, `chunk_bytes` each, reserved above.
         let (mut read, mut write) = (vec![0u8; copy], vec![0u8; copy]);
@@ -234,10 +268,11 @@ impl SnapshotRestoreService {
         if !wait {
             return resp.send(200, JSON, ACCEPTED.as_bytes());
         }
+        let report = cut.map(|truncated| self.add_aliases(&aliases, truncated, &|| false));
         resp.send(
             200,
             JSON,
-            render_restored(&name, &targets, shards).as_bytes(),
+            render_restored_with(&name, &targets, shards, report.as_ref()).as_bytes(),
         )
     }
 

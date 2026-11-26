@@ -8,6 +8,7 @@
 
 mod alias_mutations;
 mod alias_races;
+mod alias_restore;
 mod aliases;
 mod budgets;
 mod changes;
@@ -29,6 +30,7 @@ mod repositories;
 mod restore_mark;
 mod routing;
 mod snapshot_capture;
+mod snapshot_capture_aliases;
 mod snapshot_remove;
 mod snapshot_restore;
 mod snapshot_take;

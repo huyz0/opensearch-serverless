@@ -41,7 +41,6 @@ fn a_flag_that_is_not_a_boolean_is_400() {
 #[test]
 fn a_refused_key_without_a_default_stays_refused() {
     for key in [
-        "rename_alias_pattern",
         "alias_write_index_policy",
         "settings",
         "storage_type",

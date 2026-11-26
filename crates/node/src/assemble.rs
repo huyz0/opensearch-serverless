@@ -73,6 +73,8 @@ pub struct Config {
     pub snapshots: bool,
     /// Whether a snapshot can be taken: `serverless.snapshots.take.enabled`, beside `snapshots`.
     pub snapshots_take: bool,
+    /// `serverless.snapshots.take.capture_aliases`: a take records each index's aliases.
+    pub snapshots_capture_aliases: bool,
     /// Whether a shallow snapshot can be restored: `serverless.snapshots.restore.enabled`.
     pub snapshots_restore: bool,
     /// `serverless.snapshots.restore.background.*`: a restore may copy on a thread of its own.
@@ -145,8 +147,7 @@ pub struct Config {
     /// A disk tier for the page cache: its directory and the most bytes of
     /// slots it holds; none keeps nothing past a read.
     pub page_cache_disk: Option<(std::path::PathBuf, u64)>,
-    /// The most bytes of demand-filled pages kept resident; 0 leaves the
-    /// engine's default.
+    /// The most bytes of demand-filled pages kept resident; 0 is the engine's default.
     pub resident_page_bytes: u64,
 }
 
@@ -173,6 +174,7 @@ impl Config {
             knn: false,
             snapshots: false,
             snapshots_take: false,
+            snapshots_capture_aliases: false,
             snapshots_restore: false,
             restore_background: crate::restore_background::Settings::off(),
             snapshots_stock: false,

@@ -10,6 +10,8 @@ pub struct SnapshotConfig {
     pub enabled: bool,
     /// `serverless.snapshots.take.enabled`: take shallow snapshots, beside the snapshot routes. On by default.
     pub take: bool,
+    /// `serverless.snapshots.take.capture_aliases`: a take records each index's aliases in the snapshot (ADR 0065). Off by default until the Java shell reads them.
+    pub take_capture_aliases: bool,
     /// `serverless.snapshots.restore.enabled`: restore shallow snapshots, beside the take. On by default.
     pub restore: bool,
     /// `serverless.system_indices.patterns`: comma-separated `*` patterns of the
@@ -65,6 +67,7 @@ pub(in crate::boot) fn read(
     Ok(SnapshotConfig {
         enabled: flag("OSS_SNAPSHOTS_ENABLED", "true")?,
         take: flag("OSS_SNAPSHOTS_TAKE_ENABLED", "true")?,
+        take_capture_aliases: flag("OSS_SNAPSHOTS_TAKE_CAPTURE_ALIASES", "false")?,
         restore: flag("OSS_SNAPSHOTS_RESTORE_ENABLED", "true")?,
         system_index_patterns: or("OSS_SYSTEM_INDEX_PATTERNS", ""),
         stock: flag("OSS_SNAPSHOTS_STOCK_ENABLED", "false")?,
@@ -89,6 +92,7 @@ pub(in crate::boot) fn read(
 pub(in crate::boot) fn apply(from: &NodeConfig, to: &mut crate::assemble::Config) {
     to.snapshots = from.snapshots.enabled;
     to.snapshots_take = from.snapshots.take;
+    to.snapshots_capture_aliases = from.snapshots.take_capture_aliases;
     to.snapshots_restore = from.snapshots.restore;
     to.system_index_patterns
         .clone_from(&from.snapshots.system_index_patterns);
@@ -149,6 +153,31 @@ mod tests {
         assert!(
             NodeConfig::from_lookup(lookup(&with(&[("OSS_SNAPSHOTS_RESTORE_ENABLED", "yes")])))
                 .is_err()
+        );
+    }
+
+    #[test]
+    fn a_take_records_no_aliases_until_set() {
+        assert!(!config(&[]).take_capture_aliases);
+        let on = config(&[("OSS_SNAPSHOTS_TAKE_CAPTURE_ALIASES", "true")]);
+        assert!(on.take_capture_aliases);
+        let mut to = crate::assemble::Config::new("", "n", [0; 6]);
+        assert!(!to.snapshots_capture_aliases);
+        super::apply(
+            &NodeConfig::from_lookup(lookup(&with(&[(
+                "OSS_SNAPSHOTS_TAKE_CAPTURE_ALIASES",
+                "true",
+            )])))
+            .expect("valid"),
+            &mut to,
+        );
+        assert!(to.snapshots_capture_aliases);
+        assert!(
+            NodeConfig::from_lookup(lookup(&with(&[(
+                "OSS_SNAPSHOTS_TAKE_CAPTURE_ALIASES",
+                "maybe"
+            )])))
+            .is_err()
         );
     }
 

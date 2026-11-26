@@ -13,6 +13,9 @@ use oss_doc::mapping::json::{Json, parse, write_str};
 use crate::indices::admin::check_name as check_index_name;
 use crate::route::resolve::Refusal;
 use crate::snapshot_admin::check_name;
+pub use crate::snapshot_restore_aliases::{
+    AliasPlan, AliasReport, MAX_RESTORE_ALIASES, plan_aliases,
+};
 use crate::snapshot_restore_keys::check_keys;
 use crate::snapshot_restore_rename::Rename;
 use crate::snapshot_restore_settings::SettingsChange;
@@ -48,6 +51,10 @@ pub struct RestoreRequest {
     pub rename: Option<Rename>,
     /// What the created indices' settings drop and take on.
     pub settings: SettingsChange,
+    /// Whether the aliases the snapshot recorded come back (`include_aliases`).
+    pub include_aliases: bool,
+    /// The alias rename, when both its pattern and replacement were given.
+    pub alias_rename: Option<Rename>,
 }
 
 /// The request of `POST /_snapshot/{repo}/{name}/_restore`, in the shell's
@@ -111,11 +118,18 @@ pub fn request(repo: &str, name: &str, body: Option<&[u8]>) -> Result<RestoreReq
         (Some(pattern), Some(with)) => Some(Rename::new(&text(pattern), &text(with))?),
         _ => None,
     };
+    let alias_rename = match (get("rename_alias_pattern"), get("rename_alias_replacement")) {
+        (Some(pattern), Some(with)) => Some(Rename::new(&text(pattern), &text(with))?),
+        _ => None,
+    };
+    let include_aliases = matches!(get("include_aliases"), Some(Json::Bool(true)));
     let settings = SettingsChange::parse(get("index_settings"), get("ignore_index_settings"))?;
     Ok(RestoreRequest {
         indices,
         rename,
         settings,
+        include_aliases,
+        alias_rename,
     })
 }
 
@@ -258,6 +272,18 @@ pub fn restore_disabled() -> Refusal {
 /// and how many shards were copied.
 #[must_use]
 pub fn render_restored(snapshot: &str, targets: &[Target], shards: usize) -> String {
+    render_restored_with(snapshot, targets, shards, None)
+}
+
+/// [`render_restored`] with the alias report inside the `snapshot` object
+/// when the restore was asked for aliases.
+#[must_use]
+pub fn render_restored_with(
+    snapshot: &str,
+    targets: &[Target],
+    shards: usize,
+    aliases: Option<&AliasReport>,
+) -> String {
     // ALLOC: the answer, one entry an index.
     let mut out = String::from("{\"snapshot\":{\"snapshot\":");
     write_str(&mut out, snapshot);
@@ -270,8 +296,12 @@ pub fn render_restored(snapshot: &str, targets: &[Target], shards: usize) -> Str
     }
     let _ = write!(
         out,
-        "],\"shards\":{{\"total\":{shards},\"failed\":0,\"successful\":{shards}}}}}}}"
+        "],\"shards\":{{\"total\":{shards},\"failed\":0,\"successful\":{shards}}}"
     );
+    if let Some(report) = aliases {
+        report.write(&mut out);
+    }
+    out.push_str("}}");
     out
 }
 
@@ -352,6 +382,8 @@ mod tests {
         let captured = names(&["a", "b"]);
         let all = RestoreRequest {
             settings: crate::snapshot_restore_settings::SettingsChange::default(),
+            include_aliases: false,
+            alias_rename: None,
             indices: None,
             rename: None,
         };
@@ -371,6 +403,8 @@ mod tests {
         );
         let missing = RestoreRequest {
             settings: crate::snapshot_restore_settings::SettingsChange::default(),
+            include_aliases: false,
+            alias_rename: None,
             indices: Some(names(&["a", "zzz"])),
             rename: None,
         };
@@ -384,6 +418,8 @@ mod tests {
         let many: Vec<String> = (0..=MAX_TAKE_INDICES).map(|i| format!("i{i}")).collect();
         let big = RestoreRequest {
             settings: crate::snapshot_restore_settings::SettingsChange::default(),
+            include_aliases: false,
+            alias_rename: None,
             indices: None,
             rename: None,
         };
