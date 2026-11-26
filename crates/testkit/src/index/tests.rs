@@ -126,6 +126,17 @@ fn segment(spec: Spec) -> (usize, String, usize) {
     (count, String::from_utf8_lossy(&fnm).into_owned(), no_gen)
 }
 
+/// Whether any file of `spec`'s index (uncompounded) ending in `ext` holds `needle`.
+fn file_holds(mut spec: Spec, ext: &str, needle: &[u8]) -> bool {
+    spec.compound = false;
+    let files = lucene_files(&spec);
+    assert!(files.iter().any(|(n, _)| n.ends_with(ext)), "no {ext} file");
+    files
+        .iter()
+        .filter(|(n, _)| n.ends_with(ext))
+        .any(|(_, b)| b.windows(needle.len()).any(|w| w == needle))
+}
+
 #[test]
 fn a_nested_index_is_a_block_a_document_and_a_deep_one_has_grandchildren() {
     let (flat, flat_fields, flat_gens) = segment(Spec::new("s", 6));
@@ -141,6 +152,14 @@ fn a_nested_index_is_a_block_a_document_and_a_deep_one_has_grandchildren() {
     // Each field the nested levels add has no doc-values generation.
     assert_eq!(nested_gens, flat_gens + 3);
     assert_eq!(deep_gens, nested_gens + 1);
+    // A grandchild's word is indexed (the terms file) and has a doc value
+    // (the doc-values data); a child's is too.
+    for ext in [".tim", ".dvd"] {
+        let has = |spec: Spec, word: &[u8]| file_holds(spec, ext, word);
+        assert!(has(Spec::new("s", 6).with_nested_deep(), b"v0-0"), "{ext}");
+        assert!(!has(Spec::new("s", 6).with_nested(), b"v0-0"), "{ext}");
+        assert!(has(Spec::new("s", 6).with_nested(), b"w0-0"), "{ext}");
+    }
 }
 
 #[test]
