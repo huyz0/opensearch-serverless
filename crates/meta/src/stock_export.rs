@@ -11,8 +11,8 @@ use std::collections::HashMap;
 
 use oss_blob::{BlobError, BlobResult, BlobStore, ChunkSource, CreateOutcome};
 use oss_format::{
-    FileLocation, FormatError, ShardCapture, ShardRef, StockFileCheck, lucene_version_of,
-    stock_checksum_string,
+    FileLocation, FormatError, ShardCapture, ShardRef, StockFileCheck, is_blob_name,
+    lucene_version_of, stock_checksum_string,
 };
 
 use crate::pit::new_id;
@@ -23,6 +23,10 @@ use crate::snapshot_take::SnapshotTaker;
 /// How much of a file's start is kept to read its Lucene version from: a
 /// header with the longest codec name and suffix, and three version fields.
 const HEAD_BYTES: usize = 320;
+
+/// The most files one shard's commit may list, as the shard snapshot writer
+/// bounds them.
+const MAX_FILES: usize = 10_000;
 
 /// The repository an export writes into: a store the node writes under
 /// `prefix` only (an [`oss_blob::ExportStore`]), and that prefix (empty, or
@@ -142,16 +146,38 @@ impl SnapshotTaker {
         if from.shard != capture.shard {
             return Err(ExportError::Unsupported("a capture of another shard"));
         }
+        if index_id.is_empty() || !is_blob_name(index_id) {
+            return Err(ExportError::Unsupported("an index id that is no safe name"));
+        }
+        if !target.prefix.is_empty() && !target.prefix.ends_with('/') {
+            return Err(ExportError::Unsupported("a prefix without a closing slash"));
+        }
+        if capture.files.len() > MAX_FILES {
+            return Err(ExportError::Unsupported("a commit of too many files"));
+        }
+        // ALLOC: one entry a captured file, counted above.
+        let mut seen = std::collections::HashSet::with_capacity(capture.files.len());
+        if !capture
+            .files
+            .iter()
+            .all(|(name, _)| seen.insert(name.as_str()))
+        {
+            return Err(ExportError::Unsupported("a commit that lists a file twice"));
+        }
+        // ALLOC: one entry a captured file, counted above.
+        let lengths: HashMap<&str, u64> = capture
+            .lengths
+            .iter()
+            .map(|(name, length)| (name.as_str(), *length))
+            .collect();
         // ALLOC: one entry a captured file, at most the manifest's file bound.
         let mut copied: Vec<(ExportedFile, Vec<u8>)> = Vec::with_capacity(capture.files.len());
         for (name, recorded) in &capture.files {
             let location = FileLocation::parse(recorded)?;
             let (key, offset) = from.blob_key(&self.base, name, &location)?;
-            let length = capture
-                .lengths
-                .iter()
-                .find(|(n, _)| n == name)
-                .map(|(_, length)| *length)
+            let length = lengths
+                .get(name.as_str())
+                .copied()
                 .or_else(|| location.range().map(|(_, length)| length))
                 .ok_or(ExportError::Unsupported(
                     "a captured file has no recorded length",
@@ -233,4 +259,71 @@ fn versions(copied: &mut [(ExportedFile, Vec<u8>)]) -> Result<(), ExportError> {
         };
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use oss_blob::Emulator;
+
+    /// A Lucene file of `body` plus a footer with the right CRC.
+    fn lucene(body: &[u8]) -> Vec<u8> {
+        let mut file = body.to_vec();
+        file.extend_from_slice(&[0xC0, 0x28, 0x93, 0xE8, 0, 0, 0, 0]);
+        let crc = crc32fast::hash(&file);
+        file.extend_from_slice(&u64::from(crc).to_be_bytes());
+        file
+    }
+
+    fn drain(source: &mut MeasuredSource<'_>, buf: &mut [u8]) -> Vec<u8> {
+        let mut out = Vec::new();
+        loop {
+            let n = source.fill(buf).unwrap();
+            if n == 0 {
+                return out;
+            }
+            out.extend_from_slice(&buf[..n]);
+        }
+    }
+
+    #[test]
+    fn a_rewound_source_measures_the_file_again_from_its_start() {
+        let store = Emulator::new(1 << 20, 1);
+        let bytes = lucene(b"some bytes of a file, longer than one fill");
+        store
+            .put("k", &mut oss_blob::SliceSource::new(&bytes), &mut [0u8; 8])
+            .unwrap();
+        let mut scratch = [0u8; 8];
+        let mut source = MeasuredSource {
+            inner: RangedSource {
+                store: &store,
+                key: "k",
+                start: 0,
+                length: bytes.len() as u64,
+                done: 0,
+                scratch: &mut scratch,
+            },
+            check: StockFileCheck::measured(bytes.len() as u64, 12).unwrap(),
+        };
+        let mut buf = [0u8; 8];
+        // A first attempt that fails partway, then starts over.
+        assert_eq!(source.fill(&mut buf).unwrap(), 8);
+        assert_eq!(source.fill(&mut buf).unwrap(), 8);
+        source.rewind().unwrap();
+        assert_eq!(drain(&mut source, &mut buf), bytes);
+        assert_eq!(
+            source.check.finish_crc().unwrap(),
+            crc32fast::hash(&bytes[..bytes.len() - 8])
+        );
+        assert_eq!(source.check.head(), &bytes[..12]);
+    }
+
+    #[test]
+    fn a_segment_is_named_by_its_prefix() {
+        assert_eq!(segment_of("_0.cfs"), Some("_0"));
+        assert_eq!(segment_of("_1_2.liv"), Some("_1"));
+        assert_eq!(segment_of("_a1b.si"), Some("_a1b"));
+        assert_eq!(segment_of("segments_4"), None);
+        assert_eq!(segment_of("_0"), None);
+    }
 }
