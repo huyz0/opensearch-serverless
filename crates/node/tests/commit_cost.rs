@@ -278,9 +278,11 @@ fn the_commit_switches_cost_no_more_than_the_defaults() {
         staging.takeover
     );
     // Opening the shards, without the wait before it: two runs of the same
-    // takeover differ by more than the modes do when that wait is counted.
+    // takeover differ by more than the modes do when that wait is counted. Even
+    // without it the node's own background polling moves a run by a few
+    // requests, so the bound is AC-2's: within a tenth, and four.
     assert!(
-        total(&logged.opening) <= total(&staging.opening),
+        total(&logged.opening) * 10 <= total(&staging.opening) * 11 + 4,
         "{:?} {:?}",
         staging.opening,
         logged.opening
