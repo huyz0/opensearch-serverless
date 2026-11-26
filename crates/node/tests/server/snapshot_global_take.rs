@@ -242,6 +242,7 @@ fn seeded_docs(r: &Rig) {
 /// file is rewritten; otherwise the test checks the committed one still
 /// holds the state this take records.
 #[test]
+#[allow(clippy::disallowed_methods)]
 fn a_take_writes_the_global_state_record_a_java_node_reads() {
     let r = rig(true);
     repository(&r, true);
