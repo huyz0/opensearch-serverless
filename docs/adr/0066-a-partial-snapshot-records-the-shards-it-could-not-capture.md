@@ -1,6 +1,6 @@
 # 0066: A partial snapshot records the shards it could not capture, and a restore may bring it back
 
-**Status:** Proposed
+**Status:** Accepted
 
 ## Context
 
@@ -33,7 +33,7 @@ A record with `failed_shards` is **not safe for any reader that has not been cha
 - An old **Java** node refuses the whole record loudly when an index has some shards and some failures (the every-shard rule), so it cannot list or restore that snapshot. For an all-failed index it sees the in-progress marker: the snapshot answers `IN_PROGRESS` forever and the janitor and index delete pin the index's blobs for ever.
 - An old **Rust** node reads it without complaint: it counts the `shards` it finds, restores them without `partial` and answers success. That is silent loss.
 
-So the order is fixed. (1) A Rust change, ahead of everything else, makes the restore's reader refuse an index whose distinct captured shards and failed shards do not cover every shard exactly once, unless it is the marker: 500 `snapshot_unreadable`. Every record written so far is complete, so it changes nothing today. (2) The Java reader, the predicate at its call sites and the take, and the Rust reader and the predicate. (3) Only then may the setting below be turned on. The setting is a node setting and cannot protect another cluster or an older node that shares the repository: flipping it on is an operator decision, taken when every node reading the repository has both changes, and the ADR does not claim the setting enforces it.
+So the order is fixed. (1) A Rust change, ahead of everything else, makes the summary parser (so GET and list, which an old Rust node would otherwise answer SUCCESS for) and the restore's reader refuse an index whose distinct captured shards and failed shards do not cover every shard exactly once, unless it is the marker: 500 `snapshot_unreadable`. Every record written so far is complete, so it changes nothing today. (2) The Java reader, the predicate at its call sites and the take, and the Rust reader and the predicate. (3) Only then may the setting below be turned on. The setting is a node setting and cannot protect another cluster or an older node that shares the repository: flipping it on is an operator decision, taken when every node reading the repository has both changes, and the ADR does not claim the setting enforces it.
 
 ### The take
 
@@ -43,9 +43,9 @@ Cost: today a take stops reading an index's shards at the first one with no comm
 
 ### Reading a partial snapshot
 
-The parsers keep the failed shard numbers (at most the shard count, 100 an index at the target scale and `MAX_SHARDS` as the bound) and validate them against the captured shard numbers with a bitset of `number_of_shards`: a number past the count, a repeat, or a shard both captured and failed is a corrupt record, and so is a gap or a repeated captured shard. This is strict everywhere, the summary included: a corrupt `failed_shards` changes what GET reports and what a restore does, so it is a corrupt record and not a field to skip (unlike the alias field). The janitor's pins stay lenient and pin the whole index by uuid, which is correct, because a failed shard owns no blobs.
+`oss-format` gets one constant, `MAX_SHARDS` = 4,096, equal to the Java `IndexDescriptor.MAX_SHARDS`; a record whose `number_of_shards` exceeds it is corrupt in the summary, in the restore reader and in the coverage check below, checked before anything is allocated, with limit tests at 4,096 and 4,097. The parsers keep the failed shard numbers (at most `number_of_shards`, so at most that constant) and validate them against the captured shard numbers with a bitset of `number_of_shards`: a number past the count, a repeat, or a shard both captured and failed is a corrupt record, and so is a gap or a repeated captured shard. This is strict everywhere, the summary included: a corrupt `failed_shards` changes what GET reports and what a restore does, so it is a corrupt record and not a field to skip (unlike the alias field). The janitor's pins stay lenient and pin the whole index by uuid, which is correct, because a failed shard owns no blobs.
 
-`GET _snapshot/{repo}/{name}` and the list answer `"state":"PARTIAL"`, `"shards":{"total":N,"failed":F,"successful":N-F}` with N the index shard counts, and `failures` entries in stock's shape (`index`, `index_uuid`, `shard_id`, `reason` "no commit was published when the snapshot was taken", `status` `INTERNAL_SERVER_ERROR`; no `node_id`, as stock omits it when unknown), checked against the partial fixture in `crates/format/tests/stock_snapshot_info.rs`. `failures` holds at most 1,000 entries a snapshot with a limit test; `failed` is exact. For a complete snapshot `total` equals the captured shards as today.
+`GET _snapshot/{repo}/{name}` and the list answer `"state":"PARTIAL"`, `"shards":{"total":N,"failed":F,"successful":N-F}` with N the index shard counts, and `failures` entries in stock's shape (`index`, `index_uuid`, `shard_id`, `reason` "no commit was published when the snapshot was taken", `status` `INTERNAL_SERVER_ERROR`; no `node_id`, as stock omits it when unknown), checked against the partial fixture in `crates/format/tests/stock_snapshot_info.rs`. `failures` is answered by `GET _snapshot/{repo}/{name}` only, at most 1,000 entries (snapshot index order, then ascending shard) with a limit test; the list answers `shards.failed` exact and `failures` empty, so its size does not grow with the failures. `failed` is exact everywhere. For a complete snapshot `total` equals the captured shards as today.
 
 ### The restore
 
