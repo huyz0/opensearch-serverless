@@ -5,6 +5,7 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 use std::time::Duration;
 
+use oss_blob::emulator::faults::Latency;
 use oss_blob::{BlobStore, S3Op};
 use oss_format::{CommitManifest, FileLocation, ShardRef};
 use oss_writer::bulk::ItemResult;
@@ -15,7 +16,7 @@ use super::writer_takeover::{
 
 const LONG: Duration = Duration::from_secs(3_600);
 
-fn register(c: &Cluster) -> CommitManifest<'static> {
+pub(super) fn register(c: &Cluster) -> CommitManifest<'static> {
     let at = ShardRef {
         index: "logs",
         uuid: "u1",
@@ -33,9 +34,22 @@ fn register(c: &Cluster) -> CommitManifest<'static> {
 
 /// node-1 staging and logging: `a` in the register, `b` staged and logged,
 /// and with `tail` `c` acknowledged and only in the log.
-fn lost_predecessor(c: &Cluster, tail: bool) -> Node {
+pub(super) fn lost_predecessor(c: &Cluster, tail: bool) -> Node {
+    predecessor_checkpointing(c, tail, LONG)
+}
+
+/// [`lost_predecessor`] checkpointing its staged commits at `checkpoint`.
+pub(super) fn predecessor_checkpointing(c: &Cluster, tail: bool, checkpoint: Duration) -> Node {
     create(c, "logs", "u1");
-    let one = node_logging(c, "node-1", 1, false, None, Some(LONG), (true, false));
+    let one = node_logging(
+        c,
+        "node-1",
+        1,
+        false,
+        None,
+        Some(checkpoint),
+        (true, false, None),
+    );
     assert_eq!(seq(&write(&one.role, "a")), 0);
     assert_eq!(one.role.publish_due().published, 1, "the fence writes");
     assert_eq!(seq(&write(&one.role, "b")), 1);
@@ -52,6 +66,17 @@ fn lost_predecessor(c: &Cluster, tail: bool) -> Node {
 /// node-2 taking the shard over: the PUTs and GETs it made, and the term of the
 /// register after.
 fn taken_over(opening: bool, tail: bool) -> (u64, Vec<String>) {
+    taken_over_slowly(opening, tail, None, Duration::ZERO)
+}
+
+/// [`taken_over`] with node-2's pack deadline `deadline` and every PUT after
+/// node-1 is lost taking `put` longer.
+pub(super) fn taken_over_slowly(
+    opening: bool,
+    tail: bool,
+    deadline: Option<Duration>,
+    put: Duration,
+) -> (u64, Vec<String>) {
     let c = cluster();
     let one = lost_predecessor(&c, tail);
     let calls = Arc::new(AtomicUsize::new(0));
@@ -63,8 +88,9 @@ fn taken_over(opening: bool, tail: bool) -> (u64, Vec<String>) {
         true,
         Some(takeover(&c, &one, &calls)),
         None,
-        (false, opening),
+        (false, opening, deadline),
     );
+    c.store.set_latency(S3Op::Put, Latency::fixed(put));
     assert_eq!(
         seq(&write(&two.role, "d")),
         if tail { 3 } else { 2 },
@@ -137,7 +163,7 @@ fn a_failed_read_during_the_open_loses_nothing() {
             true,
             Some(takeover(&c, &one, &calls)),
             None,
-            (false, true),
+            (false, true, None),
         );
         c.store.fail_next(S3Op::GetRange, failed);
         // The first write after a failure may be refused; a later one is not.

@@ -93,11 +93,12 @@ pub(crate) fn node_with(
     takeover: Option<Takeover>,
     staging: Option<Duration>,
 ) -> Node {
-    node_logging(c, id, term, later, takeover, staging, (false, false))
+    node_logging(c, id, term, later, takeover, staging, (false, false, None))
 }
 
 /// [`node_with`], also logging its staged commits and opening from its
-/// predecessors' logged commits as `(logging, opening)` says.
+/// predecessors' logged commits as `(logging, opening)` says, and with a
+/// shorter pack deadline when `deadline` gives one.
 pub(crate) fn node_logging(
     c: &Cluster,
     id: &str,
@@ -105,7 +106,7 @@ pub(crate) fn node_logging(
     later: bool,
     takeover: Option<Takeover>,
     staging: Option<Duration>,
-    (logging, opening): (bool, bool),
+    (logging, opening, deadline): (bool, bool, Option<Duration>),
 ) -> Node {
     let clock: Arc<dyn LeaseClock> = if later {
         Arc::new(Later)
@@ -183,6 +184,9 @@ pub(crate) fn node_logging(
         Publishing::new(dynstore, "", id, Policy::new(0, 0, 250), Box::new(|| 1_000));
     if let Some(age) = staging {
         publishing = publishing.with_staging(age);
+    }
+    if let Some(deadline) = deadline {
+        publishing = publishing.with_swap_deadline(deadline);
     }
     let role = WriterRole::new(Arc::clone(&committer), routes)
         .with_names(names)

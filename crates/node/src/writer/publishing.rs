@@ -49,6 +49,9 @@ pub struct Publishing {
     stretch: OnceLock<Stretch>,
     /// The checkpoint age when commits are staged, else none.
     staging: Option<Duration>,
+    /// How long after its oldest pack a commit may still be swapped in,
+    /// when not the pack module's own deadline.
+    swap_deadline: Option<Duration>,
     /// Shards with a staged commit, the register behind them.
     pending: Mutex<HashMap<Key, Pending>>,
 }
@@ -96,6 +99,7 @@ impl Publishing {
             buckets: None,
             stretch: OnceLock::new(),
             staging: None,
+            swap_deadline: None,
             // ALLOC: one entry a shard with a staged commit.
             pending: Mutex::new(HashMap::new()),
         }
@@ -125,6 +129,14 @@ impl Publishing {
     #[must_use]
     pub fn with_staging(mut self, checkpoint: Duration) -> Self {
         self.staging = Some(checkpoint);
+        self
+    }
+
+    /// Publishers swap a commit in only up to `deadline` after its oldest
+    /// pack landed, instead of the pack module's deadline.
+    #[must_use]
+    pub fn with_swap_deadline(mut self, deadline: Duration) -> Self {
+        self.swap_deadline = Some(deadline);
         self
     }
 
@@ -271,6 +283,9 @@ impl Publishing {
                 };
                 let mut made = ShardPublisher::new(Arc::clone(&self.store), &self.base, &shard)
                     .map_err(|e| e.to_string())?;
+                if let Some(deadline) = self.swap_deadline {
+                    made.set_swap_deadline(deadline);
+                }
                 if let Some(buckets) = &self.buckets
                     && let Some(register) = buckets.register(index, key.1, &key.0)?
                 {
