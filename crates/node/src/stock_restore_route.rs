@@ -317,5 +317,6 @@ fn native_of(index: &PlannedIndex) -> RestoreIndex {
         shards: Vec::new(),
         aliases: Vec::new(),
         aliases_truncated: false,
+        failed_shards: Vec::new(),
     }
 }

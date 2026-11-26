@@ -36,6 +36,7 @@ fn hits(total: u64, scored: &[f32], aggs: Vec<Partial>) -> Hits {
         explanations: Vec::new(),
         highlight: None,
         meta: oss_reader::fetch::hit_meta::HitMeta::default(),
+        inner: Vec::new(),
         terminated_early: None,
     }
 }

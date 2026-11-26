@@ -32,10 +32,14 @@ pub mod response;
 mod result_window;
 pub mod search;
 mod search_error;
+mod search_inner_hits;
+#[cfg(test)]
+mod search_inner_hits_tests;
 mod search_options;
 pub mod search_pipeline;
 mod search_post_filter;
 mod search_sort;
+pub use search_inner_hits::{InnerResult, ParentInner};
 mod search_sort_nested;
 mod search_terminate;
 mod search_top;

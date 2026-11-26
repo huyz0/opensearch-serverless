@@ -15,6 +15,7 @@ pub mod full_text_build;
 pub mod function_score;
 pub mod function_score_build;
 mod function_score_modes;
+pub mod inner_hits;
 pub mod knn;
 mod leaf_common;
 pub mod nested;
@@ -268,6 +269,9 @@ mod compound_tests;
 #[cfg(test)]
 mod knn_tests;
 
+#[cfg(test)]
+#[path = "inner_hits_tests.rs"]
+mod inner_hits_tests;
 #[cfg(test)]
 mod nested_tests;
 

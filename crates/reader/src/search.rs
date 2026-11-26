@@ -96,6 +96,8 @@ pub struct Hits {
     pub highlight: Option<Plan>,
     /// Which of each hit's `_version`, `_seq_no` and `_primary_term` to write.
     pub meta: HitMeta,
+    /// The nested inner hits of the hits, by parent document.
+    pub inner: Vec<crate::search_inner_hits::ParentInner>,
     /// Whether `terminate_after` ended the shard's collection; `None` when it
     /// was not asked.
     pub terminated_early: Option<bool>,
@@ -108,20 +110,6 @@ impl Hits {
         self.hits.truncate(cap);
         if self.explanations.len() > cap {
             self.explanations.truncate(cap);
-        }
-    }
-}
-
-impl Hits {
-    /// What the response writes the hits from.
-    pub(crate) fn view(&self) -> crate::response::HitView<'_> {
-        crate::response::HitView {
-            hits: &self.hits,
-            source: &self.source,
-            fields: &self.fields,
-            explanations: &self.explanations,
-            highlight: self.highlight.as_ref(),
-            meta: self.meta,
         }
     }
 }
@@ -323,6 +311,7 @@ pub fn search_with<S: BlobStore + 'static>(
         Some(opened) => opened,
         None => shard.reader.open_segments().map_err(ShardError::engine)?,
     };
+    let inner_plans = crate::search_inner_hits::plan(source.query.as_ref(), shard, index, &cx)?;
     let top_plans = top_hits::plan(&source.aggs, shard, index)?;
     // The bucket limit holds before any filter is built as a query.
     for agg in &source.aggs {
@@ -412,8 +401,11 @@ pub fn search_with<S: BlobStore + 'static>(
             version: source.version,
             seq_no: source.seq_no_primary_term,
         },
+        // ALLOC: empty; filled below when a nested query asks for inner hits.
+        inner: Vec::new(),
         terminated_early: top.terminated,
     };
+    hits.inner = crate::search_inner_hits::fill(&inner_plans, shard, &segments, &hits.hits)?;
     // The fetch phase resolves the fields only when it has a hit to fetch.
     if !hits.hits.is_empty() && !source.docvalue_fields.is_empty() {
         hits.fields = docvalue_fields::resolve(&source.docvalue_fields, &meta.mapping)?;
@@ -452,7 +444,7 @@ fn has_points(query: &BooleanQuery) -> bool {
 }
 
 /// The text fields a query scores, whose norms it reads.
-fn scored_fields(query: &BooleanQuery) -> Vec<String> {
+pub(crate) fn scored_fields(query: &BooleanQuery) -> Vec<String> {
     fn walk(c: &Clause, out: &mut Vec<String>) {
         match c {
             Clause::Term(lucene_search::TermQuery { field, .. })
