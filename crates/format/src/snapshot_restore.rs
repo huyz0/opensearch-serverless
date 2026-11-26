@@ -104,7 +104,7 @@ impl RestoreIndex {
         }
         if !self.shards.is_empty() {
             // ALLOC: one flag a shard slot, at most MAX_SHARDS.
-            let mut seen = vec![false; self.number_of_shards.min(MAX_SHARDS) as usize];
+            let mut seen = vec![false; self.number_of_shards as usize];
             for shard in &self.shards {
                 let slot = seen
                     .get_mut(shard.shard as usize)
@@ -300,9 +300,6 @@ fn read_shards(json: &mut Reader<'_>, out: &mut Vec<RestoreShard>) -> Result<(),
         let (Some(shard), Some(term), Some(files)) = (shard, term, files) else {
             return Err(json.error("a captured shard has no number, term or files"));
         };
-        if out.len() >= MAX_SHARDS as usize {
-            return Err(json.error("a snapshot lists more shards than an index can have"));
-        }
         out.push(RestoreShard {
             shard,
             term,

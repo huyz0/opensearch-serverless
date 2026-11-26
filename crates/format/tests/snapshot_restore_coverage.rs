@@ -27,17 +27,12 @@ fn a_finished_index_must_name_every_shard_once() {
 }
 
 #[test]
-fn the_shard_list_is_bounded_before_it_is_allocated() {
+fn the_largest_index_is_checked_and_a_larger_one_is_left_to_the_route() {
     let all: Vec<u32> = (0..4096).collect();
     assert!(shards_of(4096, &all).refusal().unwrap().is_none());
+    let mut twice = all.clone();
+    twice[4095] = 0;
+    assert!(shards_of(4096, &twice).refusal().is_err());
     let over: Vec<u32> = (0..4097).collect();
-    let record = format!(
-        r#"{{"repo":"r","name":"s","shallow":true,"start_time_in_millis":1,"end_time_in_millis":2,
-            "indices":{{"a":{{"uuid":"U","number_of_shards":4096,"shards":[{}]}}}}}}"#,
-        over.iter()
-            .map(|n| format!(r#"{{"shard":{n},"term":1,"files":{{}}}}"#))
-            .collect::<Vec<_>>()
-            .join(",")
-    );
-    assert!(RestoreIndex::find(record.as_bytes(), "a").is_err());
+    assert!(shards_of(4097, &over).refusal().is_ok());
 }
