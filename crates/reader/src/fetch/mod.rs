@@ -6,5 +6,6 @@ pub mod explain;
 pub mod highlight;
 pub mod highlight_parse;
 pub mod hit_meta;
+pub mod nested_source;
 pub mod source_filter;
 mod source_map;

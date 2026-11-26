@@ -72,6 +72,7 @@ pub fn render_selected_hits<S: BlobStore + 'static>(
             &result.fields,
             result.highlight.as_ref(),
             HitMeta::default(),
+            &[],
         ),
         reserve,
     )
@@ -128,6 +129,7 @@ pub fn render_selected_result_hits<S: BlobStore + 'static>(
             &hits.fields,
             hits.highlight.as_ref(),
             hits.meta,
+            &hits.inner,
         ),
         reserve,
     )
@@ -135,7 +137,13 @@ pub fn render_selected_result_hits<S: BlobStore + 'static>(
 
 /// What each picked hit is written with: its `_source` filter, its fields
 /// and its highlight plan.
-type Writing<'a> = (&'a SourceFilter, &'a [HitField], Option<&'a Plan>, HitMeta);
+type Writing<'a> = (
+    &'a SourceFilter,
+    &'a [HitField],
+    Option<&'a Plan>,
+    HitMeta,
+    &'a [crate::search_inner_hits::ParentInner],
+);
 
 /// Writes each of `hits`, whose explanations are `explanations` when asked.
 fn render_picked<S: BlobStore + 'static>(
@@ -144,7 +152,7 @@ fn render_picked<S: BlobStore + 'static>(
     node_id: &str,
     hits: &[Hit],
     explanations: &[Explanation],
-    (source, fields, highlight, meta): Writing<'_>,
+    (source, fields, highlight, meta, inner): Writing<'_>,
     reserve: &mut dyn FnMut(usize) -> io::Result<()>,
 ) -> io::Result<Vec<Vec<u8>>> {
     prefetch(shard, &[hits])?;
@@ -162,6 +170,7 @@ fn render_picked<S: BlobStore + 'static>(
             explanations: explanations.get(i..=i).unwrap_or_default(),
             highlight,
             meta,
+            inner,
         };
         // ALLOC: the hit's JSON, bounded by its source.
         let mut out = Vec::new();
