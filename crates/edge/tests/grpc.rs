@@ -221,3 +221,22 @@ fn a_grpc_message_limit_of_zero_is_a_start_error() {
     assert!(matches!(Edge::start(c, &budget), Err(EdgeError::Config(_))));
     server.shutdown();
 }
+
+#[test]
+fn a_certificate_is_loaded_for_grpc_and_only_when_a_tls_or_grpc_listener_needs_it() {
+    let state = Arc::new(State::default());
+    let (server, budget, upstream) = start(&state);
+    let missing = Some(std::path::PathBuf::from("/nonexistent/cert.pem"));
+    // grpc alone with a certificate: the certificate is read, so a bad one refuses to start.
+    let mut c = config(upstream);
+    c.cert = missing.clone();
+    c.key = missing.clone();
+    assert!(matches!(Edge::start(c, &budget), Err(EdgeError::Tls(_))));
+    // h2c alone: no listener uses the certificate, so it is not read.
+    let mut c = EdgeConfig::new(upstream, WORKERS);
+    c.h2c = Some("127.0.0.1:0".parse().expect("addr"));
+    c.cert = missing.clone();
+    c.key = missing;
+    Edge::start(c, &budget).expect("starts").shutdown();
+    server.shutdown();
+}

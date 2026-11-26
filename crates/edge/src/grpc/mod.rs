@@ -168,6 +168,10 @@ mod tests {
         assert_eq!(deadline("50m"), Some(Duration::from_millis(50)));
         assert_eq!(deadline("2S"), Some(Duration::from_secs(2)));
         assert_eq!(deadline("1H"), Some(Duration::from_secs(3600)));
+        assert_eq!(deadline("5M"), Some(Duration::from_secs(300)));
+        assert_eq!(deadline("7u"), Some(Duration::from_micros(7)));
+        assert_eq!(deadline("9n"), Some(Duration::from_nanos(9)));
+        assert_eq!(deadline("12345678S"), Some(Duration::from_secs(12_345_678)));
         assert_eq!(deadline("123456789S"), None);
         assert_eq!(deadline("S"), None);
         assert_eq!(deadline("5x"), None);

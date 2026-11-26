@@ -86,3 +86,20 @@ pub(super) fn start(
     }
     Ok(Front {})
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_unspecified_host_is_reached_over_loopback_and_others_are_kept() {
+        let at = |s: &str| -> SocketAddr { s.parse().expect("addr") };
+        assert_eq!(upstream_of(at("0.0.0.0:9200")), at("127.0.0.1:9200"));
+        assert_eq!(upstream_of(at("[::]:9200")), at("[::1]:9200"));
+        assert_eq!(upstream_of(at("10.1.2.3:9200")), at("10.1.2.3:9200"));
+        assert_eq!(
+            upstream_of(at("[2001:db8::1]:9200")),
+            at("[2001:db8::1]:9200")
+        );
+    }
+}

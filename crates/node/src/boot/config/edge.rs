@@ -90,3 +90,90 @@ pub(in crate::boot) fn read(
         threads: count(bounded("OSS_EDGE_THREADS", "2", 1, 256)?),
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn settings(pairs: &[(&str, &str)]) -> Result<EdgeSettings, String> {
+        let get = |k: &str| {
+            pairs
+                .iter()
+                .find(|(key, _)| *key == k)
+                .map(|(_, v)| (*v).to_owned())
+        };
+        let bounded = |key: &str, default: &str, low: u64, high: u64| -> Result<u64, String> {
+            let value: u64 = get(key)
+                .unwrap_or_else(|| default.to_owned())
+                .parse()
+                .map_err(|e| format!("{key}: {e}"))?;
+            if (low..=high).contains(&value) {
+                Ok(value)
+            } else {
+                Err(format!("{key} [{value}] is not within {low} to {high}"))
+            }
+        };
+        read(&get, &bounded)
+    }
+
+    #[test]
+    fn nothing_is_listened_on_unless_an_address_is_set() {
+        let s = settings(&[]).expect("defaults");
+        assert!(!s.enabled());
+        assert_eq!(
+            (s.h2c, s.tls, s.grpc, s.cert, s.key, s.max_streams),
+            (None, None, None, None, None, None)
+        );
+        assert_eq!(
+            (s.max_connections, s.handshake_millis, s.idle_millis),
+            (256, 10_000, 60_000)
+        );
+        assert_eq!(
+            (s.stream_buffer, s.connection_overhead, s.threads),
+            (65_536, 131_072, 2)
+        );
+        assert_eq!(s.grpc_max_message, 4 << 20);
+        let empty = settings(&[("OSS_EDGE_H2C_ADDR", "")]).expect("empty is unset");
+        assert!(!empty.enabled());
+    }
+
+    #[test]
+    fn each_listener_address_alone_enables_the_front() {
+        for key in [
+            "OSS_EDGE_H2C_ADDR",
+            "OSS_EDGE_TLS_ADDR",
+            "OSS_EDGE_GRPC_ADDR",
+        ] {
+            let s = settings(&[(key, "127.0.0.1:9300")]).expect("parses");
+            assert!(s.enabled(), "{key}");
+        }
+        let s = settings(&[
+            ("OSS_EDGE_H2C_ADDR", "127.0.0.1:1"),
+            ("OSS_EDGE_TLS_ADDR", "127.0.0.1:2"),
+            ("OSS_EDGE_GRPC_ADDR", "127.0.0.1:3"),
+            ("OSS_EDGE_TLS_CERT", "/c.pem"),
+            ("OSS_EDGE_TLS_KEY", "/k.pem"),
+            ("OSS_EDGE_MAX_STREAMS", "3"),
+            ("OSS_EDGE_GRPC_MAX_MESSAGE", "1000"),
+        ])
+        .expect("parses");
+        assert_eq!(s.h2c, Some("127.0.0.1:1".parse().expect("addr")));
+        assert_eq!(s.tls, Some("127.0.0.1:2".parse().expect("addr")));
+        assert_eq!(s.grpc, Some("127.0.0.1:3".parse().expect("addr")));
+        assert_eq!(s.cert, Some(PathBuf::from("/c.pem")));
+        assert_eq!(s.key, Some(PathBuf::from("/k.pem")));
+        assert_eq!((s.max_streams, s.grpc_max_message), (Some(3), 1000));
+    }
+
+    #[test]
+    fn a_bad_address_or_an_out_of_range_value_is_refused_by_name() {
+        let e = settings(&[("OSS_EDGE_GRPC_ADDR", "nope")]).expect_err("bad address");
+        assert!(e.contains("OSS_EDGE_GRPC_ADDR"), "{e}");
+        let e = settings(&[("OSS_EDGE_MAX_CONNECTIONS", "0")]).expect_err("low");
+        assert!(e.contains("OSS_EDGE_MAX_CONNECTIONS"), "{e}");
+        let e = settings(&[("OSS_EDGE_STREAM_BUFFER", "100")]).expect_err("small buffer");
+        assert!(e.contains("OSS_EDGE_STREAM_BUFFER"), "{e}");
+        let e = settings(&[("OSS_EDGE_GRPC_MAX_MESSAGE", "0")]).expect_err("zero message");
+        assert!(e.contains("OSS_EDGE_GRPC_MAX_MESSAGE"), "{e}");
+    }
+}

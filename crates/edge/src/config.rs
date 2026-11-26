@@ -140,3 +140,35 @@ impl EdgeConfig {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn base() -> EdgeConfig {
+        EdgeConfig::new("127.0.0.1:9200".parse().expect("addr"), 16)
+    }
+
+    #[test]
+    fn a_listener_alone_enables_the_front() {
+        let addr: SocketAddr = "127.0.0.1:1".parse().expect("addr");
+        assert!(!base().enabled());
+        let mut h2c = base();
+        h2c.h2c = Some(addr);
+        let mut tls = base();
+        tls.tls = Some(addr);
+        let mut grpc = base();
+        grpc.grpc = Some(addr);
+        assert!(h2c.enabled() && tls.enabled() && grpc.enabled());
+    }
+
+    #[test]
+    fn the_default_message_is_four_mebibytes_and_charged_only_with_a_grpc_listener() {
+        let mut c = base();
+        assert_eq!(c.grpc_max_message, 4 << 20);
+        assert_eq!(DEFAULT_GRPC_MESSAGE, 4 << 20);
+        let without = c.charge();
+        c.grpc = Some("127.0.0.1:1".parse().expect("addr"));
+        assert_eq!(c.charge(), without + c.max_streams * (4 << 20));
+    }
+}
