@@ -64,7 +64,11 @@ fn quiet(server: &S3Server) {
     while steady < 5 {
         std::thread::sleep(std::time::Duration::from_millis(50));
         let now = counts(server);
-        steady = if now == last { steady + 1 } else { 0 };
+        steady = if now == last {
+            steady.saturating_add(1)
+        } else {
+            0
+        };
         last = now;
     }
 }
