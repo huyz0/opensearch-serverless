@@ -28,6 +28,7 @@ Not here: `inner_hits`, nested aggregations and `reverse_nested`, `include_in_pa
 - AC-7: indexing a document with children, updating it with fewer, and deleting it leaves the live documents the shard should hold: the version lookup finds the root, the update's old children are gone, the delete removes them all.
 - AC-8: an index with a nested object makes no fast-ingest plan.
 - AC-9: through a node, with the switch on: create, bulk index, a `nested` query finds the parents, the total counts parents, an update replaces the children, a delete removes them, a get returns the source; with a document still only in the log (not yet published) the same answers hold.
+- AC-11: an index of four shards searched through one node: the nested query's total counts parents of every shard, a page sorted by a parent field and one sorted by a nested field merge in order, `inner_hits` return every matching child, and `nested`, `reverse_nested` and a `terms` under them add up across shards.
 - AC-10: with the switch off a create with a nested mapping is refused 400 with the unsupported message; an index created with it on and the node then restarted off still reads and writes.
 
 ## Test plan
@@ -36,7 +37,7 @@ Not here: `inner_hits`, nested aggregations and `reverse_nested`, `include_in_pa
 - AC-3 to AC-5: `crates/doc/tests/nested_document.rs`.
 - AC-6: `crates/doc/tests/nested_lucene.rs`.
 - AC-7, AC-8: `crates/writer/tests/nested_shard.rs`.
-- AC-9, AC-10: `crates/node/tests/nested.rs`.
+- AC-9, AC-10: `crates/node/tests/nested.rs`; AC-11: `crates/node/tests/nested_shards.rs`.
 
 ## S3 request budget
 
