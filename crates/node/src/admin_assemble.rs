@@ -65,7 +65,7 @@ pub(crate) fn register(
                             &config.stock_export_roots.1,
                         ),
                         s3: config.stock_s3.clone().map(|s3| (s3, config.base.clone())),
-                        chunk_bytes: crate::snapshot_restore_route::COPY_CHUNK_BYTES,
+                        chunk_bytes: crate::stock_export_route::EXPORT_CHUNK_BYTES,
                     },
                 ),
             ))

@@ -23,6 +23,9 @@ use oss_rest::{JSON, Request, Response, RestError};
 use crate::route_util::{refuse, refused};
 use crate::snapshot_take_route::{SnapshotTakeService, captured, unavailable};
 
+/// The bytes of one ranged read a node's export copies with.
+pub const EXPORT_CHUNK_BYTES: usize = 4 << 20;
+
 /// What a take into a stock repository may write, set by the node's
 /// configuration.
 pub struct StockExportSettings {
