@@ -182,6 +182,7 @@ pub fn hits_bytes<S: BlobStore + 'static>(source: &SearchSource, shard: &OpenSha
         .saturating_add(composite_collect::reserved_all(shard, &source.aggs))
         .saturating_add(state_bytes(&source.aggs))
         .saturating_add(crate::search_nested_bytes::bytes(source, shard))
+        .saturating_add(crate::search_nested_bytes::list_bytes(source, shard))
 }
 
 /// What a `terms` holds for each distinct value it counts while it

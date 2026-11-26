@@ -10,7 +10,7 @@ use oss_testkit::index::{Spec, blobs};
 
 use crate::dsl::parse_chunks;
 use crate::search::hits_bytes;
-use crate::search_nested_bytes::bytes;
+use crate::search_nested_bytes::{bytes, list_bytes};
 use crate::{OpenShard, open_shard};
 
 /// Six blocks of three documents in segments of four documents: two
@@ -113,4 +113,46 @@ fn a_search_reserves_them_with_its_hits() {
     let at = |body: &str| hits_bytes(&parse_chunks([body.as_bytes()]).expect("parses"), &shard);
     let plain = at(r#"{"query":{"match_all":{}}}"#);
     assert_eq!(at(&query(NESTED)), plain + ONE);
+}
+
+/// One of the engine's document lists: four bytes for each of the 18 documents.
+const LIST: usize = 4 * 18;
+
+/// What one more `nested` aggregation reserves beside its bit set and lists: the
+/// aggregation's own state, from `hits_bytes` before the lists were counted.
+const OTHER: usize = 644 - ONE;
+
+fn lists(shard: &OpenShard<Emulator>, body: &str) -> usize {
+    list_bytes(&parse_chunks([body.as_bytes()]).expect("parses"), shard)
+}
+
+// AC-5
+#[test]
+fn a_nested_aggregation_reserves_the_engines_document_lists() {
+    let shard = shard();
+    assert_eq!(lists(&shard, r#"{"size":3}"#), 0);
+    assert_eq!(
+        lists(&shard, &query(NESTED)),
+        0,
+        "a query builds bit sets only"
+    );
+    assert_eq!(
+        lists(&shard, r#"{"aggs":{"a":{"nested":{"path":"c"}}}}"#),
+        LIST
+    );
+    let under = r#"{"aggs":{"a":{"nested":{"path":"c"},"aggs":{"r":{"reverse_nested":{}}}}}}"#;
+    assert_eq!(lists(&shard, under), 2 * LIST);
+    let beside = r#"{"aggs":{"a":{"nested":{"path":"c"}},"b":{"nested":{"path":"c"}}}}"#;
+    assert_eq!(lists(&shard, beside), 2 * LIST);
+}
+
+// AC-5
+#[test]
+fn a_search_reserves_the_lists_with_its_hits() {
+    let shard = shard();
+    let at = |body: &str| hits_bytes(&parse_chunks([body.as_bytes()]).expect("parses"), &shard);
+    let one = at(r#"{"aggs":{"a":{"nested":{"path":"c"}}}}"#);
+    let two = at(r#"{"aggs":{"a":{"nested":{"path":"c"}},"b":{"nested":{"path":"c"}}}}"#);
+    // The second one adds its bit set and its lists, beside the engine's state.
+    assert_eq!(two - one, ONE + LIST + OTHER, "{one} {two}");
 }

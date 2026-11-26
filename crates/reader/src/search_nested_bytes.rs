@@ -84,3 +84,33 @@ pub(crate) fn bytes<S: BlobStore + 'static>(source: &SearchSource, shard: &OpenS
         .saturating_add(segments.saturating_mul(std::mem::size_of::<u64>()));
     joins(source).saturating_mul(one)
 }
+
+/// The engine's id lists: a parent and a child list are `i32`s.
+const LIST_ENTRY: usize = std::mem::size_of::<i32>();
+
+/// The nested and reverse nested aggregations `agg` and its sub-aggregations hold.
+fn agg_nodes(agg: &MetricAgg) -> usize {
+    let own = usize::from(matches!(agg.metric, Metric::Nested | Metric::ReverseNested));
+    agg.subs
+        .iter()
+        .map(agg_nodes)
+        .fold(own, usize::saturating_add)
+}
+
+/// The most bytes the engine's parent and child document lists of `source`'s
+/// `nested` and `reverse_nested` aggregations hold on `shard`: each node lists,
+/// for a segment, its parents and (a `nested`) its children, which are
+/// distinct documents, so at most every document once, four bytes each. A
+/// query's join builds a bit set only, counted by [`bytes`].
+pub(crate) fn list_bytes<S: BlobStore + 'static>(
+    source: &SearchSource,
+    shard: &OpenShard<S>,
+) -> usize {
+    let docs = usize::try_from(shard.reader.max_doc()).unwrap_or(usize::MAX);
+    let nodes = source
+        .aggs
+        .iter()
+        .map(agg_nodes)
+        .fold(0, usize::saturating_add);
+    nodes.saturating_mul(docs.saturating_mul(LIST_ENTRY))
+}

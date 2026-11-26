@@ -14,6 +14,8 @@ Every nested join a search runs builds a parent bit set: the engine's `QueryBitS
 
 A request with no nested join reserves exactly what it did. An index with no nested object holds no join, so it is untouched.
 
+A `nested` or `reverse_nested` aggregation also makes the engine list a segment's parent and child documents as `i32`s, not a bit set. Each such node adds `4 * max_doc` bytes: its parents and children are distinct documents, so together at most every document once. A node in a query or a sort lists nothing.
+
 ## Acceptance criteria
 
 - AC-1: a request with no nested join reserves what it did before (no change in `hits_bytes`).
@@ -21,9 +23,11 @@ A request with no nested join reserves exactly what it did. An index with no nes
 - AC-3: each `nested` or `reverse_nested` aggregation (also beneath another aggregation) and each nested sort key adds one.
 - AC-4: the bytes are `max_doc / 8 + 8 a segment` a node, and a search whose reservation does not fit the pool is refused as any search is.
 
+- AC-5: each `nested` or `reverse_nested` aggregation (also beneath another aggregation) adds `4 * max_doc` bytes of lists to `hits_bytes`, besides its bit set (AC-3); a query or sort join adds none.
+
 ## Test plan
 
-- AC-1 to AC-4 (sizes): `crates/reader/src/search_nested_bytes_tests.rs`, over the testkit's nested index.
+- AC-1 to AC-5 (sizes): `crates/reader/src/search_nested_bytes_tests.rs`, over the testkit's nested index.
 
 ## S3 request budget
 
@@ -35,5 +39,6 @@ None: it changes how much a nested search reserves, and no search without a nest
 
 ## Risks
 
+- The list figure is a bound (every document once), not the engine's measured allocation; a segment of mostly parents and children of one path holds about that. Pending children of a block (at most the window's children times buckets) are not counted.
 - The figure is the bit set's own words, from its size; the engine's real allocation was not measured here.
 - A search that held many nested nodes on a large shard reserves more than before and can now be refused where it ran: that is the point.
