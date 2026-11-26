@@ -45,11 +45,11 @@ pub(crate) async fn unary(
         "{method} {target} HTTP/1.1\r\nhost: {}\r\nconnection: close\r\naccept: application/json\r\n",
         shared.config.upstream
     );
+    // ALLOC: a content-length line, a few bytes.
     head.push_str(&format!(
-        "content-type: application/json\r\ncontent-length: {}\r\n",
+        "content-type: application/json\r\ncontent-length: {}\r\n\r\n",
         body.len()
     ));
-    head.push_str("\r\n");
     let sent = async {
         wr.write_all(head.as_bytes()).await?;
         wr.write_all(body).await
