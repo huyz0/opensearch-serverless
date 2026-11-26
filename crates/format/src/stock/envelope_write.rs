@@ -5,7 +5,7 @@
 //! deflate-framed: the reader takes either, and a stock node reads this one.
 
 use super::{EnvelopeLimits, FOOTER_MAGIC, HEADER_MAGIC, VERSION, WHAT};
-use crate::error::{FormatError, corrupt};
+use crate::error::{FormatError, corrupt, len64};
 use crate::smile;
 
 /// The longest name whose length is one byte of the header's 7-bit length.
@@ -42,7 +42,16 @@ fn write(
     out.push(u8::try_from(codec.len()).unwrap_or(0));
     out.extend_from_slice(codec.as_bytes());
     out.extend_from_slice(&VERSION.to_be_bytes());
+    let body = out.len();
     smile::from_json(json, &limits.smile, out)?;
+    let written = out.len().saturating_sub(body);
+    if written > limits.decompressed_bytes {
+        return Err(FormatError::TooLarge {
+            what: WHAT,
+            limit: len64(limits.decompressed_bytes),
+            actual: len64(written),
+        });
+    }
     out.extend_from_slice(&FOOTER_MAGIC);
     out.extend_from_slice(&[0u8; 4]);
     let crc = crc32fast::hash(out.get(base..).unwrap_or_default());

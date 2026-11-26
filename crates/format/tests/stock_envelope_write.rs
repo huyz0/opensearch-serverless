@@ -103,3 +103,19 @@ fn the_longest_codec_name_is_written_and_one_more_is_refused() {
     assert!(stock_verified_body(&out, &name).is_ok());
     assert!(stock_blob_from_json(b"{}", &"c".repeat(128), &limits, &mut Vec::new()).is_err());
 }
+
+#[test]
+fn a_body_the_reader_would_refuse_is_not_written() {
+    let doc = r#"{"k":"abcdefghij"}"#;
+    let blob = written(doc, "snapshot");
+    let body = stock_verified_body(&blob, "snapshot").unwrap().len();
+    let at = |n: usize| StockEnvelopeLimits {
+        decompressed_bytes: n,
+        smile: SmileLimits::default(),
+    };
+    assert!(stock_blob_from_json(doc.as_bytes(), "snapshot", &at(body), &mut Vec::new()).is_ok());
+    let mut out = b"keep".to_vec();
+    let e = stock_blob_from_json(doc.as_bytes(), "snapshot", &at(body - 1), &mut out).unwrap_err();
+    assert!(matches!(e, FormatError::TooLarge { .. }), "{e:?}");
+    assert_eq!(out, b"keep");
+}

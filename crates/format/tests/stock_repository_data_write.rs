@@ -196,3 +196,92 @@ fn an_unnamed_index_or_an_unsafe_blob_id_is_refused_alone() {
     assert!(with("n", "i", "a/b", "b"));
     assert!(with("n", "i", "i-_na_-1-1-1", "b/c"));
 }
+
+fn one<'a>(
+    name: &'a str,
+    id: &'a str,
+    ident: &'a str,
+    blob: &'a str,
+    gens: &'a [String],
+) -> StockNewIndex<'a> {
+    StockNewIndex {
+        name,
+        id,
+        metadata_identifier: ident,
+        blob_id: blob,
+        shard_generations: gens,
+    }
+}
+
+#[test]
+fn an_identifier_held_under_another_blob_is_refused_and_under_the_same_is_kept() {
+    let d = StockRepositoryData::parse(RECORDED.as_bytes()).unwrap();
+    let g = ["g".to_owned()];
+    let ident = "NMP32gX_STCI-eNifWXUpg-_na_-1-1-1";
+    let same = [one(
+        "logs",
+        "M3IuI3tpQ7mcpIwUIA1kfQ",
+        ident,
+        "A8Q5FaIB0HkVpJa_kGxv",
+        &g,
+    )];
+    assert!(d.with_snapshot(&new("s2", "u2", &same)).is_ok());
+    let other = [one(
+        "logs",
+        "M3IuI3tpQ7mcpIwUIA1kfQ",
+        ident,
+        "different",
+        &g,
+    )];
+    assert!(d.with_snapshot(&new("s2", "u2", &other)).is_err());
+}
+
+#[test]
+fn a_repeated_name_or_id_among_the_new_indices_or_a_held_id_under_a_new_name_is_refused() {
+    let d = StockRepositoryData::parse(RECORDED.as_bytes()).unwrap();
+    let g = ["g".to_owned()];
+    let twice = [
+        one("a", "ia", "ia-x", "b1", &g),
+        one("a", "ib", "ib-x", "b2", &g),
+    ];
+    assert!(d.with_snapshot(&new("s2", "u2", &twice)).is_err());
+    let same_id = [
+        one("a", "ia", "ia-x", "b1", &g),
+        one("b", "ia", "ia-x", "b1", &g),
+    ];
+    assert!(d.with_snapshot(&new("s2", "u2", &same_id)).is_err());
+    let held_id = [one("renamed", "M3IuI3tpQ7mcpIwUIA1kfQ", "m-x", "b", &g)];
+    assert!(d.with_snapshot(&new("s2", "u2", &held_id)).is_err());
+}
+
+#[test]
+fn an_empty_name_no_shards_or_a_changed_shard_count_is_refused() {
+    let d = StockRepositoryData::parse(RECORDED.as_bytes()).unwrap();
+    let g = ["g".to_owned()];
+    let two = ["g".to_owned(), "h".to_owned()];
+    let none: [String; 0] = [];
+    let ok = [one("a", "ia", "ia-x", "b", &g)];
+    assert!(d.with_snapshot(&new("", "u2", &ok)).is_err());
+    let empty = [one("a", "ia", "ia-x", "b", &none)];
+    assert!(d.with_snapshot(&new("s2", "u2", &empty)).is_err());
+    let ident = "M3IuI3tpQ7mcpIwUIA1kfQ-_na_-1-1-1";
+    let resized = [one(
+        "logs",
+        "M3IuI3tpQ7mcpIwUIA1kfQ",
+        ident,
+        "A8Q5FaIB0HkVpJa_kGxv",
+        &two,
+    )];
+    assert!(d.with_snapshot(&new("s2", "u2", &resized)).is_err());
+}
+
+const UNWRITTEN: &str = r#"{"snapshots":[{"name":"s","uuid":"u","state":1,"index_metadata_lookup":{"i":"i-x"},"version":"3.10.0"}],"indices":{"a":{"id":"i","shard_path_type":0,"snapshots":["u"],"shard_generations":[null]}},"index_metadata_identifiers":{"i-x":"b"}}"#;
+
+#[test]
+fn an_unwritten_generation_is_refused_when_adding_and_when_writing() {
+    let d = StockRepositoryData::parse(UNWRITTEN.as_bytes()).unwrap();
+    let mut out = b"keep".to_vec();
+    assert!(d.to_json(&mut out).is_err());
+    assert_eq!(out, b"keep");
+    assert!(d.with_snapshot(&new("s2", "u2", &[])).is_err());
+}

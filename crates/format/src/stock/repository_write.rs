@@ -49,7 +49,7 @@ impl RepositoryData {
         {
             return Err(corrupt(WHAT, "a snapshot of that name or uuid is held"));
         }
-        let ids = [new.uuid, new.version];
+        let ids = [new.name, new.uuid, new.version];
         if !is_blob_name(new.uuid) || ids.iter().any(|s| s.is_empty()) {
             return Err(corrupt(
                 WHAT,
@@ -64,6 +64,16 @@ impl RepositoryData {
             if index.name.is_empty() || !safe.iter().all(|s| is_blob_name(s)) {
                 return Err(corrupt(WHAT, "an index id that is not safe in a blob key"));
             }
+            if index.shard_generations.is_empty() {
+                return Err(corrupt(WHAT, "an index with no shards"));
+            }
+            let repeated = next.indices.iter().any(|i| {
+                (i.id == index.id) != (i.name == index.name)
+                    || (i.name == index.name && i.snapshots.iter().any(|u| *u == new.uuid))
+            });
+            if repeated {
+                return Err(corrupt(WHAT, "an index name or id held twice"));
+            }
             if index.shard_generations.iter().any(|g| !is_blob_name(g)) {
                 return Err(corrupt(
                     WHAT,
@@ -77,8 +87,8 @@ impl RepositoryData {
                 .map(|g| Some(g.clone()))
                 .collect(); // ALLOC: one generation a shard.
             match next.indices.iter_mut().find(|i| i.name == index.name) {
-                Some(held) if held.id != index.id => {
-                    return Err(corrupt(WHAT, "an index name held under another id"));
+                Some(held) if held.shard_generations.len() != gens.len() => {
+                    return Err(corrupt(WHAT, "an index whose shard count changed"));
                 }
                 Some(held) => {
                     held.snapshots.push(new.uuid.to_owned()); // ALLOC: one uuid.
@@ -94,11 +104,14 @@ impl RepositoryData {
             }
             // ALLOC: one pair an index of the snapshot.
             metadata.push((index.id.to_owned(), index.metadata_identifier.to_owned()));
-            if !next
+            let held = next
                 .identifiers
                 .iter()
-                .any(|(g, _)| g == index.metadata_identifier)
-            {
+                .find(|(g, _)| g == index.metadata_identifier);
+            if held.is_some_and(|(_, blob)| blob != index.blob_id) {
+                return Err(corrupt(WHAT, "an identifier held under another blob id"));
+            }
+            if held.is_none() {
                 // ALLOC: one pair an index of the snapshot.
                 next.identifiers.push((
                     index.metadata_identifier.to_owned(),
@@ -113,11 +126,19 @@ impl RepositoryData {
             version: Some(new.version.to_owned()), // ALLOC: one version.
             metadata,
         });
+        if next
+            .indices
+            .iter()
+            .any(|i| i.shard_generations.iter().any(Option::is_none))
+        {
+            return Err(corrupt(WHAT, "a shard generation was not written"));
+        }
         Ok(next)
     }
 
     /// The `index-N` JSON, appended to `out`, in the order a stock node
-    /// writes it. A generation not written is refused: the take that carries
+    /// writes it. A `min_version` the parser skipped is not written back: a
+    /// stock node's own reader treats its absence as the oldest version. A generation not written is refused: the take that carries
     /// one forward has nothing a restore could read it by.
     pub fn to_json(&self, out: &mut Vec<u8>) -> Result<(), FormatError> {
         let base = out.len();
