@@ -59,7 +59,7 @@ The Rust node writes and reads the member and builds the setting, the take and t
 - Security configuration, which stock does not hold in global state either.
 - A stock repository: a restore from one does not read its global metadata here, and the export to one does not write it.
 - Deleting what the snapshot lacks, and restoring a single set (`feature_states` and the like).
-- `partial` ([ADR 0066](0066-a-partial-snapshot-records-the-shards-it-could-not-capture.md)).
+- `partial` (ADR 0066).
 
 ## Alternatives rejected
 
