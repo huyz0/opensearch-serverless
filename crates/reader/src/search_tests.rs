@@ -109,6 +109,22 @@ fn a_function_score_scores_the_fields_of_its_wrapped_query() {
     assert_eq!(scored_fields(&must(wrapped)), vec!["title".to_owned()]);
 }
 
+#[test]
+fn a_nested_query_scores_the_fields_of_its_child_query() {
+    use lucene_search::join::{
+        BitSetProducer, QueryBitSetProducer, ScoreMode, ToParentBlockJoinQuery,
+    };
+    use std::sync::Arc;
+    let parents: Arc<dyn BitSetProducer> = Arc::new(QueryBitSetProducer::new(must(term("tag"))));
+    let nested: Clause = ToParentBlockJoinQuery::new(
+        Clause::Boolean(Box::new(must(term("c.w")))),
+        parents,
+        ScoreMode::Avg,
+    )
+    .into();
+    assert_eq!(scored_fields(&must(nested)), vec!["c.w".to_owned()]);
+}
+
 fn text_shard() -> OpenShard<Emulator> {
     let config = BudgetConfig::new(4 << 20)
         .with_pool(Pool::Transport, 4 << 20)

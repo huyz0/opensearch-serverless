@@ -15,6 +15,6 @@ Run with `cargo test -p oss-blob --all-features` and the whole gate, `scripts/ga
 - AC-11: `a_request_signed_with_the_wrong_secret_is_denied_once`
 - AC-12: `invalid_arguments_fail_before_any_request`
 - AC-13: `a_16_mib_object_streams_over_http_through_one_pooled_buffer` (measured: PUT 16,857,521 bytes above baseline, 80,305 over the one stored copy; GET 5,880 bytes)
-- AC-14: NOT-RUN: no RustFS binary could be run in this sandbox (starting the RustFS image, or a binary taken from it, was refused); `the_client_round_trips_against_rustfs` skips without `RUSTFS_BIN` and was run that way
+- AC-14: `the_client_round_trips_against_rustfs` (blob, `tests/rustfs.rs`), run with `RUSTFS_BIN` set against RustFS 1.0.7 (build of 2026-11-26), the vendor's "latest" zip of 112,388,130 bytes, SHA-256 c90a40ba8cdc1468c71029a4d65fdd13449720183d3a8e00bc61ab09fcd448a5, approved by Huy after it replaced the 1.0.6 build the recipe records; cloud sandbox, loopback, provisional; the test passed in 12 of 13 runs, and the one failure was the bucket-create PUT answering other than 200, not reproduced in the 11 runs after it.
 - AC-15: `scripts/check-test-endpoints.py`, `scripts/check-alloc.py`, `scripts/check-s3-access.py`
 - AC-16: `fetches_up_to_the_cap_run_in_parallel_and_starve_nothing` (provisional, three runs: 768 GETs in 233 to 248 ms against 200 ms ideal and 38 s serial; HEAD median 0.29 to 0.33 ms, max 8 to 29 ms)

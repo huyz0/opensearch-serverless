@@ -156,11 +156,12 @@ fn replay(fixture: Fixture) -> Vec<String> {
 
 /// [`replay`] with the k-NN index setting on or off.
 fn replay_with(fixture: Fixture, knn: bool) -> Vec<String> {
-    replay_full(fixture, knn, false)
+    replay_full(fixture, knn, false, false)
 }
 
-/// [`replay`] with the k-NN index setting and the security API on or off.
-fn replay_full(fixture: Fixture, knn: bool, security: bool) -> Vec<String> {
+/// [`replay`] with the k-NN index setting, the security API and nested
+/// objects on or off.
+fn replay_full(fixture: Fixture, knn: bool, security: bool, nested: bool) -> Vec<String> {
     let fixtures = vec![fixture];
     let store = Arc::new(Emulator::new(1 << 28, 9));
     let budget = MemoryBudget::new(
@@ -174,6 +175,7 @@ fn replay_full(fixture: Fixture, knn: bool, security: bool) -> Vec<String> {
         publish_every: Duration::from_millis(10),
         publish_age_millis: 0,
         knn,
+        nested,
         security,
         security_admin: security.then(|| {
             (
@@ -245,6 +247,30 @@ fn an_assembled_node_answers_every_search_fixture_as_stock_opensearch_did() {
 }
 
 #[test]
+fn an_assembled_node_answers_every_nested_fixture_as_stock_opensearch_did() {
+    let fixtures: Vec<Fixture> = load_dir(&root().join("compat/nested-search"))
+        .expect("fixtures load")
+        .into_iter()
+        .map(|(_, f)| f)
+        .map(|mut f| {
+            support::normalise_columns(&mut f);
+            f
+        })
+        .collect();
+    assert_eq!(fixtures.len(), 2, "a query and an aggregation fixture");
+    let failed: Vec<String> = fixtures
+        .into_iter()
+        .flat_map(|f| replay_full(f, false, false, true))
+        .collect();
+    assert!(
+        failed.is_empty(),
+        "{} differ:\n{}",
+        failed.len(),
+        failed.join("\n")
+    );
+}
+
+#[test]
 fn an_assembled_node_answers_every_knn_search_fixture_as_the_stock_plugin_did() {
     let fixtures: Vec<Fixture> = load_dir(&root().join("compat/knn-search"))
         .expect("fixtures load")
@@ -280,7 +306,7 @@ fn an_assembled_node_answers_every_security_management_fixture_as_the_stock_plug
     assert_eq!(fixtures.len(), 5, "a fixture a kind");
     let failed: Vec<String> = fixtures
         .into_iter()
-        .flat_map(|f| replay_full(f, false, true))
+        .flat_map(|f| replay_full(f, false, true, false))
         .collect();
     assert!(
         failed.is_empty(),
@@ -301,7 +327,7 @@ fn an_assembled_node_authenticates_and_authorizes_as_the_stock_plugin_did() {
     assert_eq!(fixtures.len(), 1);
     let failed: Vec<String> = fixtures
         .into_iter()
-        .flat_map(|f| replay_full(f, false, true))
+        .flat_map(|f| replay_full(f, false, true, false))
         .collect();
     assert!(
         failed.is_empty(),
