@@ -27,11 +27,11 @@ impl Masks {
     /// Masks over `commit`'s segments hiding `hidden` as
     /// `(segment, document)`.
     #[must_use]
-    pub fn new(commit: &DirectoryReader, hidden: &[(usize, i32)]) -> Self {
+    pub fn new(commit: &DirectoryReader, hidden: impl IntoIterator<Item = (usize, i32)>) -> Self {
         let segments = commit.segment_readers();
         // ALLOC: one entry a commit segment.
         let mut live: Vec<Option<FixedBitSet>> = segments.iter().map(|_| None).collect();
-        for &(segment, doc) in hidden {
+        for (segment, doc) in hidden {
             let (Some(slot), Some(reader)) = (live.get_mut(segment), segments.get(segment)) else {
                 continue;
             };
@@ -131,7 +131,7 @@ impl Overlay {
             .unwrap_or_default();
         let extra_len = extra.len();
         let combined = commit.with_readers_appended(extra).map_err(engine)?;
-        let mut live = Masks::new(commit, &self.hidden(copies)).into_live();
+        let mut live = Masks::new(commit, self.hidden(copies)).into_live();
         // ALLOC: one entry an overlay segment.
         live.extend((0..extra_len).map(|_| None));
         combined.with_live_docs_masks(live).map_err(engine)

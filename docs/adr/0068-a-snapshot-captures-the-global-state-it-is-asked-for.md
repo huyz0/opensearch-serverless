@@ -1,4 +1,4 @@
-# 0067: A snapshot captures the global state it is asked for, and a restore may bring it back
+# 0068: A snapshot captures the global state it is asked for, and a restore may bring it back
 
 **Status:** Accepted
 

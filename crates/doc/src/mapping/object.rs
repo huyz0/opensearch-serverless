@@ -80,6 +80,9 @@ pub struct Object {
     pub enabled: bool,
     /// Whether `enabled` was written (`Explicit<Boolean>`).
     pub enabled_explicit: bool,
+    /// `type: nested`: each of its objects is a Lucene document of its own,
+    /// written in a block with its parent.
+    pub nested: bool,
     /// Children by simple name, in Java's `String` order.
     children: Vec<(String, Mapper)>,
 }
@@ -164,6 +167,29 @@ impl Object {
         Ok(())
     }
 
+    /// `ObjectMapper.TypeParser.parseNested`'s two flags: `false`, the
+    /// default, is accepted; `true` copies fields into another document,
+    /// which this writer does not do.
+    fn check_includes(
+        &self,
+        name: &str,
+        rest: &mut Vec<(String, Json)>,
+    ) -> Result<(), MappingError> {
+        for key in ["include_in_parent", "include_in_root"] {
+            let Some(at) = rest.iter().position(|(k, _)| k == key) else {
+                continue;
+            };
+            let (_, value) = rest.remove(at);
+            if named_bool(key, &value)? {
+                // ALLOC: mapping parse, merge or error path; bounded by the mapping text (MAX_MAPPING_BYTES).
+                return Err(MappingError::unsupported(&format!(
+                    "[{key}] on nested object [{name}]"
+                )));
+            }
+        }
+        Ok(())
+    }
+
     fn parse_properties(
         &mut self,
         parent: &str,
@@ -197,12 +223,16 @@ impl Object {
                 .split_last()
                 .map_or((field.as_str(), &[][..]), |(l, p)| (*l, p));
             let full = join(parent, field);
-            let mapper = if ty == "object" {
+            let mapper = if ty == "object" || ty == "nested" {
                 let mut object = Object::new();
+                object.nested = ty == "nested";
                 // ALLOC: the keys an object's mapping leaves; parse path.
                 let mut rest = Vec::new();
                 object.parse_into(&full, node, &mut rest)?;
                 rest.retain(|(k, _)| k != "type");
+                if object.nested {
+                    object.check_includes(&full, &mut rest)?;
+                }
                 if !rest.is_empty() {
                     // ALLOC: mapping parse, merge or error path; bounded by the mapping text (MAX_MAPPING_BYTES).
                     return Err(MappingError::mapper_parsing(&format!(
@@ -259,6 +289,13 @@ impl Object {
         // ALLOC: one copy of the mapping, bounded by its text (MAX_MAPPING_BYTES) or, for a
         // document's dynamic update, by the total fields limit; once a merge, not once a field.
         let mut merged = self.clone();
+        if self.nested != incoming.nested {
+            return Err(MappingError::illegal_argument(if self.nested {
+                "cannot change object mapping from nested to non-nested"
+            } else {
+                "cannot change object mapping from non-nested to nested"
+            }));
+        }
         if incoming.dynamic.is_some() {
             merged.dynamic = incoming.dynamic;
         }
@@ -302,7 +339,10 @@ impl Object {
             }
             *first = false;
         };
-        if self.children.is_empty() && root_extra.is_none() {
+        if self.nested {
+            sep(out, &mut first);
+            out.push_str("\"type\":\"nested\"");
+        } else if self.children.is_empty() && root_extra.is_none() {
             sep(out, &mut first);
             out.push_str("\"type\":\"object\"");
         }

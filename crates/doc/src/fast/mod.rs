@@ -35,6 +35,9 @@ pub struct FastIngest {
     compiles: u32,
     /// How many fields the indexer had numbered when the plan was compiled.
     numbered: usize,
+    /// Whether the mapping the plan was compiled for has a nested object, which the plan does
+    /// not read as child documents: every source takes the complete path.
+    nested: bool,
 }
 
 /// A source read by the plan: the documents but for their sequence number, primary term and version.
@@ -69,6 +72,7 @@ impl FastIngest {
             stale: true,
             compiles: 0,
             numbered: 0,
+            nested: false,
         }
     }
 
@@ -100,9 +104,13 @@ impl FastIngest {
                 return None;
             }
             self.compiles = self.compiles.saturating_add(1);
+            self.nested = mapping.has_nested();
             self.plan = plan::compile(indexer, mapping);
             self.numbered = indexer.numbered_len();
             self.stale = false;
+        }
+        if self.nested {
+            return None;
         }
         let plan = self.plan.as_ref()?;
         let prepared = ingest::prepare(plan, source, key).ok().flatten()?;

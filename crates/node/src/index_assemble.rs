@@ -44,6 +44,7 @@ pub(crate) fn index_service(
     Ok(Arc::new(
         indices
             .with_knn(config.knn)
+            .with_nested(config.nested)
             .with_pipelines(config.ingest_pipelines)
             .with_search_pipelines(config.search_pipelines),
     ))
