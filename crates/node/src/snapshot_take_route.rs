@@ -41,6 +41,7 @@ pub struct SnapshotTakeService {
     pub(crate) system: Arc<SystemIndices>,
     pub(crate) export: crate::stock_export_route::StockExportSettings,
     capture_aliases: bool,
+    partial_shards: bool,
 }
 
 pub(crate) fn unavailable(e: &dyn std::fmt::Display) -> RestError {
@@ -91,7 +92,15 @@ impl SnapshotTakeService {
             system: Arc::new(SystemIndices::none()),
             export: crate::stock_export_route::StockExportSettings::off(),
             capture_aliases: false,
+            partial_shards: false,
         }
+    }
+
+    /// Whether a `partial` take records the shards that published nothing.
+    #[must_use]
+    pub fn with_partial_shards(mut self, on: bool) -> Self {
+        self.partial_shards = on;
+        self
     }
 
     /// Records each index's aliases in a snapshot when `on`.
@@ -313,9 +322,11 @@ impl SnapshotTakeService {
         Ok(described)
     }
 
-    /// Reads every shard's commit; an index with a shard that published
-    /// nothing is skipped with `partial`, else refused. Nothing captured at
-    /// all is refused.
+    /// Reads every shard's commit. A shard that published nothing refuses
+    /// the take; with `partial` the index is skipped, or with the
+    /// `partial_shards` setting kept and the shard recorded as failed (the
+    /// index's remaining shards are still read). A take in which no shard
+    /// was captured at all is refused.
     fn capture_all(
         &self,
         described: &[DescribedIndex],
@@ -327,16 +338,23 @@ impl SnapshotTakeService {
         'indices: for index in described {
             // ALLOC: one entry a shard, at most the take's shard bound.
             let mut shards = Vec::new();
+            // ALLOC: one number a failed shard, at most the take's shard bound.
+            let mut failed = Vec::new();
             for &shard in index.units() {
                 match self.taker.capture_shard(index, shard, buf) {
                     Ok(s) => shards.push(s),
+                    Err(CaptureError::NothingPublished(_)) if partial && self.partial_shards => {
+                        failed.push(shard);
+                    }
                     Err(CaptureError::NothingPublished(_)) if partial => continue 'indices,
                     Err(e) => return Err(captured(e, &index.name)),
                 }
             }
-            out.push(index.capture(shards, true));
+            let mut entry = index.capture(shards, true);
+            entry.failed_shards = failed;
+            out.push(entry);
         }
-        if out.is_empty() {
+        if out.iter().all(|i| i.shards.is_empty()) {
             let first = described.first().map_or("", |d| d.name.as_str());
             return Err(refused(nothing_published(first, 0)));
         }

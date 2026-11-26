@@ -51,6 +51,9 @@ pub struct RestoreRequest {
     pub rename: Option<Rename>,
     /// What the created indices' settings drop and take on.
     pub settings: SettingsChange,
+    /// Whether an index with shards that had no commit may be restored
+    /// (`partial`); its failed shards come back empty.
+    pub partial: bool,
     /// Whether the aliases the snapshot recorded come back (`include_aliases`).
     pub include_aliases: bool,
     /// The alias rename, when both its pattern and replacement were given.
@@ -123,11 +126,13 @@ pub fn request(repo: &str, name: &str, body: Option<&[u8]>) -> Result<RestoreReq
         _ => None,
     };
     let include_aliases = matches!(get("include_aliases"), Some(Json::Bool(true)));
+    let partial = matches!(get("partial"), Some(Json::Bool(true)));
     let settings = SettingsChange::parse(get("index_settings"), get("ignore_index_settings"))?;
     Ok(RestoreRequest {
         indices,
         rename,
         settings,
+        partial,
         include_aliases,
         alias_rename,
     })
@@ -284,6 +289,20 @@ pub fn render_restored_with(
     shards: usize,
     aliases: Option<&AliasReport>,
 ) -> String {
+    render_partial_restored(snapshot, targets, (shards, 0), aliases)
+}
+
+/// The answer of a restore that may have created shards the snapshot had
+/// no commit for: `(restored, failed)` shards, the failed ones empty.
+/// Stock reports them allocated and `failed: 0`; reporting them is a
+/// deliberate difference.
+#[must_use]
+pub fn render_partial_restored(
+    snapshot: &str,
+    targets: &[Target],
+    (shards, failed): (usize, usize),
+    aliases: Option<&AliasReport>,
+) -> String {
     // ALLOC: the answer, one entry an index.
     let mut out = String::from("{\"snapshot\":{\"snapshot\":");
     write_str(&mut out, snapshot);
@@ -296,7 +315,8 @@ pub fn render_restored_with(
     }
     let _ = write!(
         out,
-        "],\"shards\":{{\"total\":{shards},\"failed\":0,\"successful\":{shards}}}"
+        "],\"shards\":{{\"total\":{},\"failed\":{failed},\"successful\":{shards}}}",
+        shards.saturating_add(failed)
     );
     if let Some(report) = aliases {
         report.write(&mut out);
@@ -343,9 +363,10 @@ mod tests {
             let (status, kind) = refused(&format!(r#"{{"{key}":true}}"#));
             assert_eq!((status, kind), (501, "unsupported_restore"), "{key}");
         }
-        let r = ask(r#"{"partial":true}"#).unwrap_err();
+        let r = ask(r#"{"include_global_state":true}"#).unwrap_err();
         assert!(
-            r.reason.starts_with("partial is not supported: "),
+            r.reason
+                .starts_with("include_global_state is not supported: "),
             "{}",
             r.reason
         );
@@ -382,6 +403,7 @@ mod tests {
         let captured = names(&["a", "b"]);
         let all = RestoreRequest {
             settings: crate::snapshot_restore_settings::SettingsChange::default(),
+            partial: false,
             include_aliases: false,
             alias_rename: None,
             indices: None,
@@ -403,6 +425,7 @@ mod tests {
         );
         let missing = RestoreRequest {
             settings: crate::snapshot_restore_settings::SettingsChange::default(),
+            partial: false,
             include_aliases: false,
             alias_rename: None,
             indices: Some(names(&["a", "zzz"])),
@@ -418,6 +441,7 @@ mod tests {
         let many: Vec<String> = (0..=MAX_TAKE_INDICES).map(|i| format!("i{i}")).collect();
         let big = RestoreRequest {
             settings: crate::snapshot_restore_settings::SettingsChange::default(),
+            partial: false,
             include_aliases: false,
             alias_rename: None,
             indices: None,

@@ -50,6 +50,8 @@ pub struct Config {
     pub snapshots_take: bool,
     /// `serverless.snapshots.take.capture_aliases`: a take records each index's aliases.
     pub snapshots_capture_aliases: bool,
+    /// `serverless.snapshots.take.partial_shards`: a `partial` take records the shards that published nothing.
+    pub snapshots_partial_shards: bool,
     /// Whether a shallow snapshot can be restored: `serverless.snapshots.restore.enabled`.
     pub snapshots_restore: bool,
     /// `serverless.snapshots.restore.background.*`: a restore may copy on a thread of its own.
@@ -152,6 +154,7 @@ impl Config {
             snapshots: false,
             snapshots_take: false,
             snapshots_capture_aliases: false,
+            snapshots_partial_shards: false,
             snapshots_restore: false,
             restore_background: crate::restore_background::Settings::off(),
             snapshots_stock: false,

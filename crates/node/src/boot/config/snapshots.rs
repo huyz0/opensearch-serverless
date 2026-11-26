@@ -12,6 +12,8 @@ pub struct SnapshotConfig {
     pub take: bool,
     /// `serverless.snapshots.take.capture_aliases`: a take records each index's aliases in the snapshot (ADR 0065). Off by default until the Java shell reads them.
     pub take_capture_aliases: bool,
+    /// `serverless.snapshots.take.partial_shards`: with `partial=true` a take keeps an index whose shard published no commit and records the shard as failed (ADR 0066). Off by default until every reader of the repository has both changes.
+    pub take_partial_shards: bool,
     /// `serverless.snapshots.restore.enabled`: restore shallow snapshots, beside the take. On by default.
     pub restore: bool,
     /// `serverless.system_indices.patterns`: comma-separated `*` patterns of the
@@ -68,6 +70,7 @@ pub(in crate::boot) fn read(
         enabled: flag("OSS_SNAPSHOTS_ENABLED", "true")?,
         take: flag("OSS_SNAPSHOTS_TAKE_ENABLED", "true")?,
         take_capture_aliases: flag("OSS_SNAPSHOTS_TAKE_CAPTURE_ALIASES", "false")?,
+        take_partial_shards: flag("OSS_SNAPSHOTS_TAKE_PARTIAL_SHARDS", "false")?,
         restore: flag("OSS_SNAPSHOTS_RESTORE_ENABLED", "true")?,
         system_index_patterns: or("OSS_SYSTEM_INDEX_PATTERNS", ""),
         stock: flag("OSS_SNAPSHOTS_STOCK_ENABLED", "false")?,
@@ -93,6 +96,7 @@ pub(in crate::boot) fn apply(from: &NodeConfig, to: &mut crate::assemble::Config
     to.snapshots = from.snapshots.enabled;
     to.snapshots_take = from.snapshots.take;
     to.snapshots_capture_aliases = from.snapshots.take_capture_aliases;
+    to.snapshots_partial_shards = from.snapshots.take_partial_shards;
     to.snapshots_restore = from.snapshots.restore;
     to.system_index_patterns
         .clone_from(&from.snapshots.system_index_patterns);
@@ -179,6 +183,21 @@ mod tests {
             )])))
             .is_err()
         );
+    }
+
+    #[test]
+    fn a_take_keeps_no_failed_shards_until_set() {
+        assert!(!config(&[]).take_partial_shards);
+        let key = "OSS_SNAPSHOTS_TAKE_PARTIAL_SHARDS";
+        assert!(config(&[(key, "true")]).take_partial_shards);
+        let mut to = crate::assemble::Config::new("", "n", [0; 6]);
+        assert!(!to.snapshots_partial_shards);
+        super::apply(
+            &NodeConfig::from_lookup(lookup(&with(&[(key, "true")]))).expect("valid"),
+            &mut to,
+        );
+        assert!(to.snapshots_partial_shards);
+        assert!(NodeConfig::from_lookup(lookup(&with(&[(key, "maybe")]))).is_err());
     }
 
     #[test]

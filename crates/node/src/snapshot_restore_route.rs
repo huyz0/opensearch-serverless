@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use oss_blob::BlobStore;
 use oss_coordinator::snapshot_restore_admin::{
-    Target, in_progress, plan, plan_aliases, render_restored_with, request, restore_conflict,
+    Target, in_progress, plan, plan_aliases, render_partial_restored, request, restore_conflict,
     restore_disabled, target_exists, unsupported_content,
 };
 use oss_coordinator::snapshot_restore_settings::SettingsChange;
@@ -195,10 +195,27 @@ impl SnapshotRestoreService {
         let captured: Vec<String> = summary.indices.iter().map(|i| i.name.clone()).collect();
         let targets = plan(&asked, &captured).map_err(refused)?;
         let sources = self.check(record, &targets, &asked.settings)?;
+        if !asked.partial
+            && let Some(source) = sources.iter().find(|s| !s.failed_shards.is_empty())
+        {
+            return Err(refuse(
+                500,
+                "snapshot_restore_exception",
+                // ALLOC: error path; one message.
+                format!(
+                    "index [{}] of the snapshot has no captured commit for shards {:?}; ask for partial=true to restore it without them",
+                    source.name, source.failed_shards
+                ),
+            ));
+        }
         let shards = sources
             .iter()
             .fold(0usize, |n, s| n.saturating_add(s.shards.len()));
-        check_shards(shards).map_err(refused)?;
+        let failed = sources
+            .iter()
+            .fold(0usize, |n, s| n.saturating_add(s.failed_shards.len()));
+        // The descriptor holds every shard, the failed ones too.
+        check_shards(shards.saturating_add(failed)).map_err(refused)?;
         // ALLOC: one slice an index, at most the take's bound.
         let recorded: Vec<&[oss_format::AliasCapture]> =
             sources.iter().map(|s| s.aliases.as_slice()).collect();
@@ -277,7 +294,7 @@ impl SnapshotRestoreService {
         resp.send(
             200,
             JSON,
-            render_restored_with(&name, &targets, shards, report.as_ref()).as_bytes(),
+            render_partial_restored(&name, &targets, (shards, failed), report.as_ref()).as_bytes(),
         )
     }
 
@@ -328,17 +345,6 @@ impl SnapshotRestoreService {
                 .map_err(|e| refuse(500, "snapshot_unreadable", e.to_string()))?;
             if let Some(why) = refusal {
                 return Err(refused(unsupported_content(&target.source, why)));
-            }
-            if !source.failed_shards.is_empty() {
-                return Err(refuse(
-                    500,
-                    "snapshot_restore_exception",
-                    // ALLOC: error path; one message.
-                    format!(
-                        "index [{}] of the snapshot has shards {:?} with no captured commit; restoring a partial snapshot is not supported",
-                        target.source, source.failed_shards
-                    ),
-                ));
             }
             self.check_target(target, &mut buf)?;
             source.settings = crate::restore_settings::apply(
