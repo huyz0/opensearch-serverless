@@ -123,7 +123,11 @@ async fn bodies_are_bridged_and_a_wrong_length_is_not_served_as_complete() {
     )
     .await
     .expect("answer");
-    assert_eq!(with_length.status, 200);
+    assert_eq!(
+        (with_length.status, with_length.body.as_slice()),
+        (200, &br#"{"bytes":786432}"#[..]),
+        "a declared length is not chunk-framed on the loopback"
+    );
     let short = quic::request_with(
         &mut send,
         "POST",
@@ -384,6 +388,147 @@ async fn a_large_response_streams_and_head_carries_no_body() {
         .await
         .expect("head");
     assert!(head.body.is_empty());
+    edge.shutdown();
+    server.shutdown();
+}
+
+// AC-1
+#[tokio::test(flavor = "multi_thread")]
+async fn with_no_h3_address_nothing_is_bound_or_charged() {
+    let state = Arc::new(State::default());
+    let (server, budget, upstream) = start(&state);
+    let p = quic::pair("off");
+    let mut c = config(upstream, &p);
+    c.h3 = None;
+    c.tls = Some("127.0.0.1:0".parse().expect("addr"));
+    let before = budget.in_use(Pool::RequestBodies);
+    let edge = Edge::start(c.clone(), &budget).expect("starts");
+    assert_eq!(edge.h3_addr(), None, "no UDP socket");
+    assert_eq!(
+        budget.in_use(Pool::RequestBodies) - before,
+        c.charge(),
+        "the charge is the TCP listeners' alone"
+    );
+    assert_eq!(
+        c.charge(),
+        {
+            let mut with = c.clone();
+            with.h3 = Some("127.0.0.1:0".parse().expect("addr"));
+            with.charge()
+        } - c.max_connections * c.h3_connection_overhead
+            - H3_ENDPOINT_BYTES,
+        "HTTP/3 adds exactly its own charge"
+    );
+    edge.shutdown();
+    server.shutdown();
+}
+
+/// A request the front itself refuses answers its own status, and the connection serves the next.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_bad_length_and_an_oversized_head_are_refused_by_the_front() {
+    let state = Arc::new(State::default());
+    let (server, budget, upstream) = start(&state);
+    let p = quic::pair("refuse");
+    let edge = Edge::start(config(upstream, &p), &budget).expect("starts");
+    let (_e, _c, mut send) = client(&edge, &p).await;
+    let bad = quic::request_with(
+        &mut send,
+        "POST",
+        "https://x/sum",
+        &[("content-length", "not-a-number")],
+        None,
+    )
+    .await
+    .expect("answered");
+    assert_eq!(bad.status, 400);
+    let long = format!("https://x/{}", "a".repeat(5000));
+    let big = quic::request(&mut send, "GET", &long, None)
+        .await
+        .expect("answered");
+    assert_eq!(big.status, 431, "a request line past 4 KiB");
+    assert_eq!(
+        quic::request(&mut send, "GET", "https://x/", None)
+            .await
+            .expect("served after")
+            .status,
+        200
+    );
+    edge.shutdown();
+    server.shutdown();
+}
+
+/// An empty DATA frame in the middle of a chunked body does not end it.
+#[tokio::test(flavor = "multi_thread")]
+async fn an_empty_data_frame_does_not_end_a_body_early() {
+    let state = Arc::new(State::default());
+    let (server, budget, upstream) = start(&state);
+    let p = quic::pair("empty");
+    let edge = Edge::start(config(upstream, &p), &budget).expect("starts");
+    let (_e, _c, mut send) = client(&edge, &p).await;
+    let request = http::Request::builder()
+        .method("POST")
+        .uri("https://x/sum")
+        .header("content-type", "application/json")
+        .body(())
+        .expect("request");
+    let mut stream = send.send_request(request).await.expect("sent");
+    stream
+        .send_data(Bytes::from_static(b"abc"))
+        .await
+        .expect("data");
+    stream.send_data(Bytes::new()).await.expect("empty");
+    stream
+        .send_data(Bytes::from_static(b"defg"))
+        .await
+        .expect("data");
+    stream.finish().await.expect("finished");
+    let response = stream.recv_response().await.expect("response");
+    assert_eq!(response.status(), 200);
+    let mut body = Vec::new();
+    while let Some(mut d) = stream.recv_data().await.expect("data") {
+        let n = bytes::Buf::remaining(&d);
+        body.extend_from_slice(&bytes::Buf::copy_to_bytes(&mut d, n));
+    }
+    assert_eq!(body, br#"{"bytes":7}"#);
+    edge.shutdown();
+    server.shutdown();
+}
+
+/// Many empty DATA frames in a row, fewer than the front reads past, still deliver the body.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_run_of_empty_data_frames_does_not_end_a_body_early() {
+    let state = Arc::new(State::default());
+    let (server, budget, upstream) = start(&state);
+    let p = quic::pair("empties");
+    let edge = Edge::start(config(upstream, &p), &budget).expect("starts");
+    let (_e, _c, mut send) = client(&edge, &p).await;
+    let request = http::Request::builder()
+        .method("POST")
+        .uri("https://x/sum")
+        .header("content-type", "application/json")
+        .body(())
+        .expect("request");
+    let mut stream = send.send_request(request).await.expect("sent");
+    stream
+        .send_data(Bytes::from_static(b"abc"))
+        .await
+        .expect("data");
+    for _ in 0..40 {
+        stream.send_data(Bytes::new()).await.expect("empty");
+    }
+    stream
+        .send_data(Bytes::from_static(b"defg"))
+        .await
+        .expect("data");
+    stream.finish().await.expect("finished");
+    let response = stream.recv_response().await.expect("response");
+    assert_eq!(response.status(), 200);
+    let mut body = Vec::new();
+    while let Some(mut d) = stream.recv_data().await.expect("data") {
+        let n = bytes::Buf::remaining(&d);
+        body.extend_from_slice(&bytes::Buf::copy_to_bytes(&mut d, n));
+    }
+    assert_eq!(body, br#"{"bytes":7}"#);
     edge.shutdown();
     server.shutdown();
 }

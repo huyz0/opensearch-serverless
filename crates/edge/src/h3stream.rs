@@ -29,6 +29,33 @@ async fn status_only(send: &mut Send, status: StatusCode) {
     }
 }
 
+/// How many `None` answers in a row `piece` reads past before it takes one for the end.
+const MAX_EMPTY_FRAMES: u32 = 64;
+
+/// The next piece of the request body, or `None` at its end.
+///
+/// `h3` answers `None` for an empty DATA frame as it does for the end of the stream, and goes
+/// on from the next frame if asked again. Taking the first `None` for the end would serve a body
+/// cut short at an empty frame, so a `None` is read past until `MAX_EMPTY_FRAMES` of them in a
+/// row. A real end answers `None` at once and every time, so it costs those few ready polls. A
+/// body with more empty frames in a row than that is cut there: `h3` gives no way to tell the two
+/// apart, and a declared `content-length` refuses the shortfall.
+async fn piece(recv: &mut Recv) -> Result<Option<Bytes>, ()> {
+    for _ in 0..MAX_EMPTY_FRAMES {
+        match recv.recv_data().await {
+            Ok(Some(mut data)) => {
+                let n = data.remaining();
+                if n > 0 {
+                    return Ok(Some(data.copy_to_bytes(n)));
+                }
+            }
+            Ok(None) => {}
+            Err(_) => return Err(()),
+        }
+    }
+    Ok(None)
+}
+
 /// Serves one stream to its end. A stream past `max_streams` is refused with `H3_REQUEST_REJECTED`.
 pub(crate) async fn serve(
     resolver: RequestResolver<h3_quinn::Connection, Bytes>,
@@ -54,13 +81,9 @@ pub(crate) async fn serve(
     let first = if length == Some(0) {
         None
     } else {
-        match recv.recv_data().await {
-            Ok(Some(mut data)) => {
-                let n = data.remaining();
-                Some(data.copy_to_bytes(n))
-            }
-            Ok(None) => None,
-            Err(_) => return,
+        match piece(&mut recv).await {
+            Ok(first) => first,
+            Err(()) => return,
         }
     };
     let end_of_stream = first.is_none();
@@ -128,11 +151,8 @@ async fn upload(
     loop {
         let data = match next.take() {
             Some(d) => d,
-            None => match recv.recv_data().await.map_err(|_| ())? {
-                Some(mut d) => {
-                    let n = d.remaining();
-                    d.copy_to_bytes(n)
-                }
+            None => match piece(&mut recv).await? {
+                Some(d) => d,
                 None => break,
             },
         };
