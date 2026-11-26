@@ -90,7 +90,10 @@ fn stand_up(settings: StockExportSettings, root: PathBuf, repo: &str) -> Rig {
     let descriptors =
         DescriptorStore::new(Arc::clone(&blobs), "", DeleteMode::Conditional).unwrap();
     let mut record = IndexRecord::new("logs", "u1", 1);
-    record.mapping = Some(r#"{"properties":{"t":{"type":"text"}}}"#.into());
+    record.mapping = Some(
+        r#"{"properties":{"title":{"type":"text"},"level":{"type":"keyword"},"n":{"type":"integer"}}}"#
+            .into(),
+    );
     descriptors
         .create(&record, 1, &mut vec![0u8; 1 << 16])
         .unwrap();
@@ -375,4 +378,33 @@ fn an_s3_repository_is_refused_read_only_and_without_an_endpoint() {
     let rw = r#"{"type":"s3","settings":{"format":"stock","bucket":"b","base_path":"p"}}"#;
     assert_eq!(send(&r, "PUT", "/_snapshot/rw", Some(rw)).status, 200);
     refused(&r, "rw", "s1", TAKE, 501);
+}
+
+/// Writes the recorded shard's export into `OSS_EXPORT_PROOF_DIR/repo` and
+/// leaves it there, for a stock node to restore by hand.
+#[test]
+#[ignore = "run by hand with OSS_EXPORT_PROOF_DIR set, for the stock-node proof"]
+fn the_export_is_left_in_a_directory_for_a_stock_node() {
+    let dir = PathBuf::from(std::env::var("OSS_EXPORT_PROOF_DIR").expect("OSS_EXPORT_PROOF_DIR"));
+    let repo = dir.join("repo");
+    std::fs::create_dir_all(&repo).unwrap();
+    let dir = dir.canonicalize().unwrap();
+    let body = format!(
+        r#"{{"type":"fs","settings":{{"format":"stock","location":"{}"}}}}"#,
+        dir.join("repo").display()
+    );
+    let settings = StockExportSettings {
+        enabled: true,
+        roots: SourceRoots::parse(dir.to_str().unwrap(), ""),
+        s3: None,
+        chunk_bytes: 1 << 16,
+    };
+    let r = rig_with(settings, dir, &body);
+    let reply = send(
+        &r,
+        "PUT",
+        &format!("/_snapshot/stock/snap-1{WAIT}"),
+        Some(TAKE),
+    );
+    assert_eq!(reply.status, 200, "{}", reply.text());
 }
