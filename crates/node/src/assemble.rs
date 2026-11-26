@@ -85,6 +85,12 @@ pub struct Config {
     pub stock_s3_roots: String,
     /// `OSS_STOCK_RESTORE_FANOUT`: how many metadata blobs a stock restore reads at once.
     pub stock_fanout: usize,
+    /// `serverless.snapshots.stock.export.enabled`: export a snapshot into a stock repository.
+    pub snapshots_stock_export: bool,
+    /// `OSS_STOCK_EXPORT_FS_ROOTS`: the directories an export may write a stock `fs` repository under.
+    pub stock_export_fs_roots: String,
+    /// `OSS_STOCK_EXPORT_S3_ROOTS`: the `bucket/prefix` roots an export may write a stock `s3` repository under.
+    pub stock_export_s3_roots: String,
     /// The endpoint a stock `s3` repository is read through; none when this node's store is a directory.
     pub stock_s3: Option<crate::stock_s3::SourceS3>,
     /// `serverless.system_indices.patterns`: comma-separated `*` patterns of the names a take and a restore refuse.
@@ -170,6 +176,9 @@ impl Config {
             stock_fs_roots: String::new(),
             stock_s3_roots: String::new(),
             stock_fanout: 8,
+            snapshots_stock_export: false,
+            stock_export_fs_roots: String::new(),
+            stock_export_s3_roots: String::new(),
             stock_s3: None,
             system_index_patterns: String::new(),
             plugin_upstreams: Vec::new(),
