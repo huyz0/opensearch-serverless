@@ -180,3 +180,52 @@ fn staged_sequences_continue_above_the_adopted_commit() {
         .stage_sequence;
     assert!(seq > staged_seq, "{seq} should exceed {staged_seq}");
 }
+
+#[test]
+fn a_publisher_made_again_in_the_same_term_continues_the_registers_stage_sequence() {
+    let dir = ByteBuffersDirectory::new();
+    let mut s = shard(&dir);
+    let store = Arc::new(Emulator::new(1 << 30, 7));
+    let left = predecessor(&store, &dir, &mut s);
+    let (_, bytes) = register(&store);
+    let held = CommitManifest::parse(&bytes)
+        .expect("parses")
+        .stage_sequence;
+    assert!(held >= 0);
+    // The same node and term, a publisher made anew: it starts counting from
+    // what the register holds, or a logged commit left behind would look newer.
+    let mut again = publisher(&store, true);
+    again
+        .publish(&dir, &left.files, 3, "node-1", 4, 5)
+        .expect("publishes");
+    let (_, bytes) = register(&store);
+    let now = CommitManifest::parse(&bytes)
+        .expect("parses")
+        .stage_sequence;
+    assert!(now > held, "{now} should exceed {held}");
+}
+
+#[test]
+fn a_dropped_adoption_builds_on_the_register_as_it_is() {
+    let dir = ByteBuffersDirectory::new();
+    let mut s = shard(&dir);
+    let store = Arc::new(Emulator::new(1 << 30, 7));
+    let left = predecessor(&store, &dir, &mut s);
+    let (generation, _) = register(&store);
+    let mut two = publisher(&store, false);
+    two.adopt_commit(&left.staged, generation, Instant::now())
+        .expect("adopts");
+    let mut returned = publisher(&store, false);
+    let c = commit(&mut s, "c");
+    returned
+        .publish(&dir, &c, 3, "node-1", 3, 3)
+        .expect("a full publish");
+    two.drop_adopted();
+    assert!(!two.has_adopted());
+    let done = two
+        .publish(&dir, &c, 4, "node-2", -1, 4)
+        .expect("publishes");
+    assert!(!done.superseded);
+    let (_, bytes) = register(&store);
+    assert_eq!(CommitManifest::parse(&bytes).expect("parses").term, 4);
+}

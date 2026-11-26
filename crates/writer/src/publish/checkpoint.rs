@@ -75,6 +75,7 @@ impl ShardPublisher {
                     term: staged.term,
                     writer: Some(staged.writer),
                     files: staged.files,
+                    stage_seq: self.sequence,
                 });
                 Ok(Some(Published {
                     manifest: staged.manifest,

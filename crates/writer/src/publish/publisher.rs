@@ -171,6 +171,28 @@ impl ShardPublisher {
         now_millis: u64,
         routine: bool,
     ) -> Result<Published, PublishError> {
+        let adopting = self.adopted.is_some();
+        let done = self.publish_once(dir, files, term, writer, wal_ordinal, now_millis, routine);
+        if adopting && done.is_err() {
+            // The commit adopted from a log was this publish's only chance: a
+            // later one builds on the register.
+            self.adopted = None;
+            self.last = None;
+        }
+        done
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn publish_once(
+        &mut self,
+        dir: &dyn Directory,
+        files: &[String],
+        term: u64,
+        writer: &str,
+        wal_ordinal: i64,
+        now_millis: u64,
+        routine: bool,
+    ) -> Result<Published, PublishError> {
         // A staged commit whose packs may be judged unreferenced is dropped:
         // its files are uploaded again.
         if self
@@ -202,6 +224,8 @@ impl ShardPublisher {
                 }
             };
             fence(&base, term, writer)?;
+            // A publisher made again in a term continues what the register holds.
+            self.sequence = self.sequence.max(base.stage_seq);
             let generation = generation.unwrap_or(base.generation);
             let mut known = base.files.clone();
             if let Some(staged) = &self.staged {
@@ -288,6 +312,7 @@ impl ShardPublisher {
                         // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
                         writer: Some(writer.to_owned()),
                         files: entries,
+                        stage_seq: stage_sequence,
                     });
                     return Ok(Published {
                         manifest,

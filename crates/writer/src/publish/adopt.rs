@@ -35,6 +35,14 @@ impl ShardPublisher {
         Ok(())
     }
 
+    /// Forgets a commit adopted from a predecessor's log that no publish
+    /// used: the next publish builds on the register.
+    pub fn drop_adopted(&mut self) {
+        if self.adopted.take().is_some() {
+            self.last = None;
+        }
+    }
+
     /// Whether a commit adopted from a predecessor's log waits for this
     /// publisher's next publish.
     #[must_use]

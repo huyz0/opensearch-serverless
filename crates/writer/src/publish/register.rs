@@ -24,6 +24,8 @@ pub(super) struct Last {
     pub(super) term: u64,
     pub(super) writer: Option<String>,
     pub(super) files: BTreeMap<String, Known>,
+    /// The manifest's staged sequence number; -1 for none.
+    pub(super) stage_seq: i64,
 }
 
 impl ShardPublisher {
@@ -37,6 +39,7 @@ impl ShardPublisher {
                     writer: None,
                     // ALLOC: a publish's files, names and keys: at most manifest::MAX_FILES entries.
                     files: BTreeMap::new(),
+                    stage_seq: -1,
                 },
                 ABSENT_GENERATION,
             )),
@@ -81,6 +84,7 @@ pub(super) fn last_of(bytes: &[u8], generation: u64) -> Result<Last, PublishErro
             term: manifest.term,
             writer: manifest.writer.as_deref().map(str::to_owned),
             files,
+            stage_seq: manifest.stage_sequence,
         })
     }
 }

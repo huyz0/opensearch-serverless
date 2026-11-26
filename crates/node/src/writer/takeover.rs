@@ -193,8 +193,15 @@ impl WriterRole {
                         .adopt_commit(&a.candidate.manifest, a.candidate.generation, a.packed_at)
                         .map_err(|e| e.to_string())?;
                 }
-                slot.adopt(publisher, node, now, takeover, head)
-                    .map(|adopted| adopted.published)
+                let adopted = slot
+                    .adopt(publisher, node, now, takeover, head)
+                    .map(|adopted| adopted.published);
+                if adopted.is_err() {
+                    // A failed replay leaves the adopted commit unspent, and the
+                    // open that follows is from the register.
+                    publisher.drop_adopted();
+                }
+                adopted
             })
         })
         .map(|_| ())
