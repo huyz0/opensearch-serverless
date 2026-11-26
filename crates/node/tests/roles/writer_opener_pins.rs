@@ -3,7 +3,7 @@
 //! without.
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use oss_node::writer::{ModuleLoader, PinnedModules};
 use oss_writer::bulk::ItemResult;
@@ -16,6 +16,25 @@ struct CannotRun;
 impl ModuleLoader for CannotRun {
     fn load(&self, _: &[u8], _: &str) -> Result<Option<Arc<dyn PinnedModules>>, String> {
         Err("extension_unavailable: module [m] is not in the store".into())
+    }
+}
+
+/// A loader whose node has no room to compile the module until `room` is set: the refusal a
+/// full extensions pool gives, which carries the words of a capacity refusal.
+struct NoRoomYet {
+    room: Arc<AtomicBool>,
+    then: Arc<Pinned>,
+}
+
+impl ModuleLoader for NoRoomYet {
+    fn load(&self, _: &[u8], _: &str) -> Result<Option<Arc<dyn PinnedModules>>, String> {
+        if self.room.load(Ordering::SeqCst) {
+            return Ok(Some(Arc::clone(&self.then) as Arc<dyn PinnedModules>));
+        }
+        Err(format!(
+            "extension_unavailable: module [m]: {} (the pool is full)",
+            oss_node::search_modules::NO_CAPACITY
+        ))
     }
 }
 
@@ -97,4 +116,33 @@ fn a_shard_of_a_pinned_index_indexes_the_field_with_its_module_not_the_built_in_
         0,
         "a first open replays nothing"
     );
+}
+
+// docs/specs/extension-analyzer AC-14: a full pool is a refusal to try again, not a failure of the index
+#[test]
+fn a_write_that_finds_no_room_to_compile_the_module_is_a_retryable_503_and_the_next_one_opens() {
+    let room = Arc::new(AtomicBool::new(false));
+    let pinned = Arc::new(Pinned {
+        calls: Arc::new(AtomicUsize::new(0)),
+        replays: Arc::new(AtomicUsize::new(0)),
+    });
+    let r = rig_with(
+        true,
+        Some(Arc::new(NoRoomYet {
+            room: Arc::clone(&room),
+            then: pinned,
+        })),
+    );
+    create_mapped(&r, "logs", "u1", b"{}", PINNED_MAPPING);
+    let (status, reason) = failed(&write_doc(&r.role, "logs", "1", r#"{"t":"a b"}"#));
+    assert_eq!(status, 503, "{reason}");
+    assert!(reason.contains("no capacity to compile"), "{reason}");
+    assert!(
+        r.heads.read("logs", 0).expect("read").is_none(),
+        "a node with no room did not fence the shard"
+    );
+    room.store(true, Ordering::SeqCst);
+    let again = write_doc(&r.role, "logs", "1", r#"{"t":"a b"}"#);
+    assert!(matches!(again, ItemResult::Written { .. }), "{again:?}");
+    assert!(r.role.held("u1", 0));
 }
