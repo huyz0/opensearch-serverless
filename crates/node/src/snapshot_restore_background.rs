@@ -109,6 +109,16 @@ impl SnapshotRestoreService {
                 0
             });
         let slot = restores.acquire(held).map_err(refusal)?;
+        // A background restore answers accepted and cannot say which shards
+        // came back empty: it logs them.
+        for (target, source) in targets.iter().zip(&sources) {
+            if !source.failed_shards.is_empty() {
+                eprintln!(
+                    "restore of [{}]: shards {:?} had no captured commit and are empty",
+                    target.target, source.failed_shards
+                );
+            }
+        }
         // ALLOC: one buffer a restore, reserved by the slot.
         let mut descriptor = vec![0u8; descriptor_bytes];
         let now = i64::try_from((self.clock)()).unwrap_or(i64::MAX);

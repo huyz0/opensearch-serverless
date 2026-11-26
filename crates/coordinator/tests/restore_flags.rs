@@ -55,6 +55,22 @@ fn a_refused_key_without_a_default_stays_refused() {
             );
         }
     }
-    let r = request("backups", "daily", Some(br#"{"partial":true}"#)).unwrap_err();
-    assert!(r.reason.starts_with("partial is not supported: "));
+    let r = request(
+        "backups",
+        "daily",
+        Some(br#"{"include_global_state":true}"#),
+    )
+    .unwrap_err();
+    assert!(
+        r.reason
+            .starts_with("include_global_state is not supported: ")
+    );
+}
+
+#[test]
+fn partial_true_is_read_and_false_is_the_default() {
+    let asked = |body: &str| request("backups", "daily", Some(body.as_bytes())).unwrap();
+    assert!(asked(r#"{"partial":true}"#).partial);
+    assert!(!asked(r#"{"partial":false}"#).partial);
+    assert!(!asked("{}").partial);
 }
