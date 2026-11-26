@@ -10,7 +10,7 @@
 - AC-2: An index with a shard count and no `shards` stays the in-progress marker. Test: `an_index_with_no_shards_listed_is_still_the_marker`.
 - AC-3: The check uses a fixed bitset of `MAX_SHARDS` (4096) slots, so it allocates nothing by the list. An index of 4096 shards is checked; one of more is left to the route, which refuses it 400 (`a_restore_over_4096_shards_is_400_and_writes_nothing`). Test: `the_largest_index_is_checked_and_a_larger_one_is_left_to_the_route`.
 - AC-4: The restore reader refuses the same cases with a corrupt-record error (500 `snapshot_unreadable`) and bounds the list before pushing. Tests: `a_finished_index_must_name_every_shard_once`, `the_largest_index_is_checked_and_a_larger_one_is_left_to_the_route`.
-- AC-5: Every Java-written fixture still reads. Test: the existing `snapshot_java_fixtures` suite.
+- AC-5: Every Java-written fixture still reads. Test: the existing `snapshot_java_fixtures` suite (`crates/format/tests/snapshot_java_fixtures.rs`).
 
 ## S3 request budget
 
