@@ -327,6 +327,30 @@ fn an_alias_of_one_index_with_no_write_index_moves_to_the_new_one() {
     );
 }
 
+// docs/specs/extension-analyzer AC-7: a rollover cannot add a pin; any
+// settings in its body are refused and no index is created.
+#[test]
+fn a_rollover_body_cannot_carry_an_analyzer_pin() {
+    let r = rig();
+    assert_eq!(call(&r, "PUT", "/_data_stream/logs-1", None).status, 200);
+    assert_eq!(call(&r, "PUT", "/idx-000001", None).status, 200);
+    assert_eq!(call(&r, "PUT", "/idx-000001/_alias/a", None).status, 200);
+    let hash = "0".repeat(64);
+    let body = format!(
+        r#"{{"settings":{{"index.analysis.analyzer.ext_stem.type":"serverless_module","index.analysis.analyzer.ext_stem.module":"{hash}","index.analysis.analyzer.ext_stem.version":"1"}}}}"#
+    );
+    for target in ["/logs-1/_rollover", "/a/_rollover"] {
+        let reply = call(&r, "POST", target, Some(&body));
+        assert!(
+            reply.status == 400 || reply.status == 501,
+            "{target}: {} {}",
+            reply.status,
+            reply.text()
+        );
+    }
+    assert_eq!(call(&r, "HEAD", "/idx-000002", None).status, 404);
+}
+
 // AC-5
 #[test]
 fn what_cannot_roll_is_refused_and_creates_nothing() {
