@@ -11,6 +11,7 @@ use lucene_index::segment_info::LuceneVersion;
 use lucene_search::directory_reader::DirectoryReader;
 use lucene_search::reader::LeafReader;
 use lucene_store::ByteBuffersDirectory;
+use oss_format::WalRecord;
 use oss_writer::index::{Expect, Shard};
 use oss_writer::mapping::{Mapping, ParseOptions};
 
@@ -128,6 +129,38 @@ fn a_document_that_fails_to_parse_writes_no_child() {
     );
     assert!(bad.is_err());
     index(&mut shard, "2", r#"{"c":[{"w":"x"}]}"#);
+    shard.refresh().expect("refresh");
+    assert_eq!(live(&dir), [false, true]);
+}
+
+// A takeover replays the predecessor's records: a nested document comes back
+// as its block, and an update replaces the whole block.
+#[test]
+fn a_replayed_record_is_a_block_and_a_replayed_update_replaces_it() {
+    let on = ParseOptions {
+        nested: true,
+        ..ParseOptions::default()
+    };
+    let mapping = Mapping::parse_with(MAPPING.as_bytes(), on).expect("mapping");
+    let dir = ByteBuffersDirectory::new();
+    let mut w = IndexWriter::open(&dir, Vec::new(), "Lucene104", VERSION).expect("writer");
+    w.enable_explicit_documents().expect("explicit");
+    let mut shard = Shard::new(&dir, w, mapping, 1, Box::new(|| 0)).expect("shard");
+    let record = |source: &str, seq: i64, version: i64| {
+        WalRecord::index("1".to_owned(), source.to_owned(), seq, 1, version)
+    };
+    assert!(
+        shard
+            .replay(&record(r#"{"title":"a","c":[{"w":"x"},{"w":"y"}]}"#, 0, 1))
+            .expect("replays")
+    );
+    shard.refresh().expect("refresh");
+    assert_eq!(live(&dir), [false, false, true]);
+    assert!(
+        shard
+            .replay(&record(r#"{"title":"b","c":[{"w":"q"}]}"#, 1, 2))
+            .expect("replays")
+    );
     shard.refresh().expect("refresh");
     assert_eq!(live(&dir), [false, true]);
 }

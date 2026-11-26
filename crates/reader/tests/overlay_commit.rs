@@ -139,3 +139,38 @@ fn the_lookup_takes_at_most_the_most_ids() {
     too_many.push("one-more".to_owned());
     assert!(find_copies(&reader, &too_many).is_err());
 }
+
+// docs/specs/nested-fields AC-9: a commit's nested objects carry the `_id` term
+// too; only the root is a copy, and the whole block is hidden with it.
+#[test]
+fn a_copy_is_the_root_and_the_block_is_hidden_with_it() {
+    let nested = Mapping::parse_with(
+        br#"{"properties":{"c":{"type":"nested","properties":{"w":{"type":"keyword"}}}}}"#,
+        oss_doc::mapping::ParseOptions {
+            nested: true,
+            ..oss_doc::mapping::ParseOptions::default()
+        },
+    )
+    .expect("mapping");
+    let (_dir, reader) = common::commit_of(
+        &nested,
+        &[&[
+            ("a", r#"{"c":[{"w":"x"},{"w":"y"},{"w":"z"}]}"#, 1),
+            ("b", r#"{"c":[{"w":"q"}]}"#, 2),
+            ("p", r#"{}"#, 3),
+        ]],
+    );
+    // One id, three children before its root: the root is the only copy.
+    let copies = find_copies(&reader, &ids(&["a"])).expect("finds");
+    assert_eq!(copies.len(), 1);
+    let a = copies.get("a").expect("a");
+    assert_eq!((a.first, a.doc, a.seq_no), (0, 3, 1));
+    let copies = find_copies(&reader, &ids(&["b", "p"])).expect("finds");
+    let b = copies.get("b").expect("b");
+    assert_eq!((b.first, b.doc), (4, 5));
+    let p = copies.get("p").expect("p");
+    assert_eq!((p.first, p.doc), (6, 6));
+    let overlay = Overlay::build(&nested, &[index("a", "x", 9)], 0, usize::MAX).expect("builds");
+    let copies = find_copies(&reader, overlay.ids()).expect("finds");
+    assert_eq!(overlay.hidden(&copies), [(0, 0), (0, 1), (0, 2), (0, 3)]);
+}

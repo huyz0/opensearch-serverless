@@ -8,9 +8,9 @@ Run on 2026-11-26 (Linux cloud container, emulator only). Doc and writer tests w
 - AC-4: `more_than_ten_thousand_nested_objects_fail_with_the_javas_message`
 - AC-5: `a_new_field_under_a_nested_object_grows_its_mapping_and_lands_in_the_child`
 - AC-6: `a_block_is_the_children_in_order_and_then_the_document`, `only_the_document_has_its_metadata`, `a_document_without_nested_objects_is_the_one_document_it_was` (crates/doc/tests/nested_lucene.rs)
-- AC-7: `a_document_is_a_block_an_update_replaces_it_and_a_delete_removes_it`, `a_document_that_fails_to_parse_writes_no_child` (crates/writer/tests/nested_shard.rs)
+- AC-7: `a_document_is_a_block_an_update_replaces_it_and_a_delete_removes_it`, `a_document_that_fails_to_parse_writes_no_child`, `a_replayed_record_is_a_block_and_a_replayed_update_replaces_it` (crates/writer/tests/nested_shard.rs; the replay test was seen red against the old replay)
 - AC-8: `an_index_with_a_nested_object_never_takes_the_fast_plan`
-- AC-9: `a_nested_index_is_written_searched_updated_and_deleted_through_a_node` (crates/node/tests/nested.rs). NOT-RUN: a document held only in the log and not yet published is answered by the reader's overlay, which now builds blocks (`overlay/mod.rs`); no test pins that path alone, the test above waits for the answers whichever path serves them.
+- AC-9: `a_nested_index_is_written_searched_updated_and_deleted_through_a_node` (crates/node/tests/nested.rs); `a_copy_is_the_root_and_the_block_is_hidden_with_it` (crates/reader/tests/overlay_commit.rs: the overlay finds only the root as the commit's copy and hides its block). NOT-RUN: a node test holding a nested document only in the log beside a published one; the pieces are tested apart.
 - AC-10: `a_nested_mapping_is_refused_with_the_switch_off`, `an_index_made_with_the_switch_on_still_reads_and_writes_with_it_off`, `nested_is_off_by_default_and_turned_on_by_its_variable`
 
 NOT-RUN: the 10,000-document soak the default flip waits for; comparison with recorded OpenSearch answers.

@@ -12,6 +12,7 @@ use lucene_search::directory_reader::DirectoryReader;
 use lucene_search::field_norms::FieldNorms;
 use lucene_search::index_searcher::IndexSearcher;
 use lucene_search::query::TermInSetQuery;
+use lucene_search::reader::LeafReader;
 use lucene_search::top_field::{SortField, SortType};
 use lucene_search::{BooleanQuery, Clause};
 use oss_doc::lucene::uid;
@@ -25,6 +26,9 @@ pub struct Copy {
     pub segment: usize,
     /// The document's number in that segment.
     pub doc: i32,
+    /// The first document of its block: its nested objects' documents come
+    /// before it, so this is `doc` when it has none.
+    pub first: i32,
     /// Its sequence number.
     pub seq_no: i64,
 }
@@ -96,7 +100,11 @@ pub fn find_copies(reader: &DirectoryReader, ids: &[String]) -> Result<Copies, B
     // ALLOC: one entry a segment.
     let norms: Vec<Option<&HashMap<String, FieldNorms<'_>>>> = vec![None; segments.len()];
     let searcher = IndexSearcher::new(&segments, &norms).map_err(engine)?;
-    let sort = [SortField::numeric("_seq_no", SortType::Long, false)];
+    // A nested object's document carries the `_id` term but no sequence
+    // number: sorted last, it never takes a root's place among the hits.
+    let mut seq = SortField::numeric("_seq_no", SortType::Long, false);
+    seq.missing = i64::MAX;
+    let sort = [seq];
     let top = searcher
         .search_sorted(reader.segment_readers(), &query, ids.len(), &sort, None)
         .map_err(engine)?;
@@ -138,12 +146,62 @@ pub fn find_copies(reader: &DirectoryReader, ids: &[String]) -> Result<Copies, B
                 Copy {
                     segment,
                     doc,
+                    first: doc,
                     seq_no: *seq_no,
                 },
             );
         }
     }
+    block_starts(reader, &mut found)?;
     Ok(Copies { found })
+}
+
+/// Moves each copy's `first` back over the documents of its nested objects:
+/// the block is the documents after the segment's previous root. Only a
+/// segment with nested objects is read, once, up to its last copy.
+fn block_starts(
+    reader: &DirectoryReader,
+    found: &mut HashMap<String, Copy>,
+) -> Result<(), BuildError> {
+    // ALLOC: one entry a segment with a copy, at most MAX_IDS.
+    let mut by_segment: HashMap<usize, Vec<&mut Copy>> = HashMap::new();
+    for copy in found.values_mut() {
+        by_segment.entry(copy.segment).or_default().push(copy);
+    }
+    for (segment, mut copies) in by_segment {
+        let Some(seg_reader) = reader.segment_readers().get(segment) else {
+            continue;
+        };
+        if seg_reader
+            .field_infos()
+            .field_by_name("_nested_path")
+            .is_none()
+        {
+            continue;
+        }
+        copies.sort_by_key(|c| c.doc);
+        let Some(last) = copies.last().map(|c| c.doc) else {
+            continue;
+        };
+        let Some(mut roots) = seg_reader
+            .numeric_doc_values("_primary_term")
+            .map_err(engine)?
+        else {
+            continue;
+        };
+        let mut next = copies.iter_mut().peekable();
+        let mut previous_root = -1_i32;
+        for doc in 0..=last {
+            if !roots.advance_exact(doc).map_err(engine)? {
+                continue;
+            }
+            if let Some(copy) = next.next_if(|c| c.doc == doc) {
+                copy.first = previous_root.saturating_add(1);
+            }
+            previous_root = doc;
+        }
+    }
+    Ok(())
 }
 
 /// The commit user data key the writer stores the local checkpoint under.

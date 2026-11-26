@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use lucene_index::buffered_updates::Term;
-use lucene_index::index_writer::IndexWriter;
+use lucene_index::index_writer::{DocumentVector, ExplicitDocument, IndexWriter};
 use lucene_search::directory_reader::DirectoryReader;
 use lucene_store::Directory;
 use oss_ext::analyzer::Analyze;
@@ -262,6 +262,40 @@ impl<'d> Shard<'d> {
         self.index_routed(id, source, None, create, expect)
     }
 
+    /// Hands the engine one write's documents (a nested object's children,
+    /// then the root): added, or replacing the live document with `key` when
+    /// `replaces`.
+    pub(super) fn write_block(
+        &mut self,
+        key: &[u8],
+        replaces: bool,
+        docs: Vec<ExplicitDocument>,
+        vectors: Vec<Vec<DocumentVector>>,
+    ) -> Result<(), Refused> {
+        let has_vectors = vectors.iter().any(|v| !v.is_empty());
+        match (replaces, has_vectors) {
+            (false, false) => self.writer.add_explicit_documents(docs),
+            (false, true) => self
+                .writer
+                .add_explicit_documents_with_vectors(None, docs, vectors),
+            (true, false) => self.writer.soft_update_explicit_documents(
+                // ALLOC: one id term a write.
+                Term::new("_id", key.to_vec()),
+                docs,
+                &[soft_delete(key)],
+            ),
+            (true, true) => self.writer.soft_update_explicit_documents_with_vectors(
+                // ALLOC: one id term a write.
+                Term::new("_id", key.to_vec()),
+                docs,
+                vectors,
+                &[soft_delete(key)],
+            ),
+        }
+        .map(drop)
+        .map_err(|e| Self::engine(&e))
+    }
+
     /// As [`Shard::index`], keeping the custom `routing` value so a get
     /// returns it. A routed document takes the complete path.
     ///
@@ -349,25 +383,7 @@ impl<'d> Shard<'d> {
                 "no document read",
             )));
         }
-        let has_vectors = vectors.iter().any(|v| !v.is_empty());
-        match (soft, has_vectors) {
-            (None, false) => self.writer.add_explicit_documents(docs),
-            (None, true) => self
-                .writer
-                .add_explicit_documents_with_vectors(None, docs, vectors),
-            (Some(_), false) => self.writer.soft_update_explicit_documents(
-                Term::new("_id", key.clone()),
-                docs,
-                &[soft_delete(&key)],
-            ),
-            (Some(_), true) => self.writer.soft_update_explicit_documents_with_vectors(
-                Term::new("_id", key.clone()),
-                docs,
-                vectors,
-                &[soft_delete(&key)],
-            ),
-        }
-        .map_err(|e| Self::engine(&e))?;
+        self.write_block(&key, soft.is_some(), docs, vectors)?;
         self.next_seq_no();
         let current = Current {
             version: p.version,
