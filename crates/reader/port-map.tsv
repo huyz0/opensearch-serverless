@@ -241,3 +241,7 @@ src/dsl/queries/function_score_random.rs	port	server/src/main/java/org/opensearc
 src/search_rescore.rs	port	server/src/main/java/org/opensearch/search/rescore/RescoreProcessor.java@3.10.0	rescore after the first pass: the windows, the rescorers in order, from dropped after
 src/dsl/rescore.rs	port	server/src/main/java/org/opensearch/search/rescore/QueryRescorerBuilder.java@3.10.0	fromXContent of the rescore array and its query rescorer
 src/dsl/rescore_tests.rs	new		tests of rescore.rs
+src/search_collapse.rs	port	server/src/main/java/org/apache/lucene/search/grouping/CollapsingTopDocsCollector.java@3.10.0	the best hit of each value of a keyword or number field, found over a growing window of the search order
+src/dsl/collapse.rs	port	server/src/main/java/org/opensearch/search/collapse/CollapseBuilder.java@3.10.0	the collapse object parser
+src/dsl/collapse_tests.rs	new		tests of collapse.rs
+src/search_collapse_tests.rs	new		tests of the collapse window

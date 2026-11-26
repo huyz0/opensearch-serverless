@@ -8,6 +8,7 @@
 //! `size`, `from` and `sort`.
 
 pub mod bool_query;
+pub mod collapse;
 pub mod error;
 pub mod pit;
 pub mod queries;
@@ -28,6 +29,8 @@ pub use source::SearchSource;
 pub use tokens::Recorder;
 pub use values::Value;
 
+#[cfg(test)]
+mod collapse_tests;
 #[cfg(test)]
 mod rescore_tests;
 

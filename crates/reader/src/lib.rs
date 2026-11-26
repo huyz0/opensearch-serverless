@@ -31,6 +31,7 @@ pub mod rank_eval;
 pub mod response;
 mod result_window;
 pub mod search;
+mod search_collapse;
 mod search_error;
 mod search_inner_hits;
 #[cfg(test)]

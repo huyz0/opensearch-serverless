@@ -43,6 +43,17 @@ pub(crate) struct TopOptions {
     pub terminate_after: u64,
 }
 
+impl TopOptions {
+    /// What `source` asks of the collectors.
+    pub(crate) fn of(source: &crate::dsl::SearchSource) -> Self {
+        Self {
+            min_score: source.min_score,
+            track_scores: source.track_scores,
+            terminate_after: source.terminate_after,
+        }
+    }
+}
+
 /// Collects the top `window` documents of `query` in `sort` (by score when
 /// `None`), counting matches exactly up to `limit`, and drops the first
 /// `from`. `after` resumes a sorted page.

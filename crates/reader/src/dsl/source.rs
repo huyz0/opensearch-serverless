@@ -113,6 +113,8 @@ pub struct SearchSource {
     pub highlight: Option<HighlightSpec>,
     /// `rescore`: the second passes over the best hits, in order.
     pub rescore: Vec<crate::dsl::rescore::Rescorer>,
+    /// `collapse`: the field whose values keep one hit each.
+    pub collapse: Option<crate::dsl::collapse::Collapse>,
     /// `pit`: the point in time the search runs on.
     pub pit: Option<PitRef>,
     /// Set by a search pipeline's `truncate_hits`: the hits answered are
@@ -168,6 +170,7 @@ impl Default for SearchSource {
             highlight: None,
             // ALLOC: empty; parsing pushes one a rescorer.
             rescore: Vec::new(),
+            collapse: None,
             pit: None,
             response_size_cap: None,
             search_pipeline: None,
@@ -292,6 +295,7 @@ impl SearchSource {
             "pit" => self.pit = Some(parse_pit(p)?),
             "script_fields" => self.script_fields = crate::fetch::script_fields::parse(p)?,
             "rescore" => self.rescore = crate::dsl::rescore::parse_object(p)?,
+            "collapse" => self.collapse = Some(crate::dsl::collapse::parse(p)?),
             known if OBJECT_KEYS.contains(&known) => return Err(unsupported(known)),
             _ => return Err(unknown_key(p, Kind::StartObject, name)),
         }
