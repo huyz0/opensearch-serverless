@@ -40,6 +40,10 @@ fn failed_shards_that_do_not_cover_exactly_are_corrupt() {
         (2, vec![0], "-1"),
         (2, vec![0], "\"1\""),
         (2, vec![], "0"),
+        // The counts add up; only the shard numbers show the repeat.
+        (4, vec![0, 2], "1,1"),
+        (3, vec![0, 1], "1"),
+        (3, vec![0, 1], "0"),
     ] {
         let record = partial_record(count, &captured, failed);
         assert!(

@@ -189,7 +189,7 @@ fn read_indices(json: &mut Reader<'_>) -> Result<Vec<SnapshotIndex>, FormatError
         };
         let (count, highest) = listed.unwrap_or((0, 0));
         if shards <= MAX_SHARDS && (count > 0 || !failed.is_empty()) {
-            let past = failed.iter().any(|n| *n >= shards) || (count > 0 && highest >= shards);
+            let past = failed.iter().any(|n| *n >= shards) || highest >= shards;
             if past
                 || count.saturating_add(u32::try_from(failed.len()).unwrap_or(u32::MAX)) != shards
             {
