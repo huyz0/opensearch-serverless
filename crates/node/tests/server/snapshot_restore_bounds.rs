@@ -111,6 +111,7 @@ fn draft(name: &str, shards: u32, captured: u32) -> SnapshotDraft {
         shallow: true,
         start_millis: 1,
         end_millis: 2,
+        global_state: None,
         indices: vec![IndexCapture {
             name: "big".into(),
             uuid: "uuidbig0000000000000A".into(),

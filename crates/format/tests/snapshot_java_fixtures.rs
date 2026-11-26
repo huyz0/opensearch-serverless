@@ -100,6 +100,7 @@ fn a_record_and_register_written_here_are_the_bytes_the_java_wrote() {
         shallow: false,
         start_millis: 1_700_000_001_000,
         end_millis: 1_700_000_002_000,
+        global_state: None,
         indices: vec![IndexCapture {
             name: "logs".into(),
             uuid: "uuidlogs0000000000000A".into(),
@@ -168,6 +169,7 @@ fn the_aliases_the_java_wrote_are_read_and_written_back_identically() {
         shallow: false,
         start_millis: 1000,
         end_millis: 2000,
+        global_state: None,
         indices: vec![IndexCapture {
             name: "index".into(),
             uuid: "uuid-index".into(),

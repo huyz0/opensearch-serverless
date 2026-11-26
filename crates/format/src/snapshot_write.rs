@@ -8,6 +8,7 @@
 use crate::error::{FormatError, corrupt, len64};
 use crate::json::out::Out;
 use crate::snapshot_aliases::{self, AliasCapture};
+use crate::snapshot_global_state::GlobalState;
 use crate::snapshot_state::SnapshotState;
 
 const WHAT: &str = "snapshot record";
@@ -67,6 +68,8 @@ pub struct SnapshotDraft {
     pub start_millis: i64,
     /// When it ended, in milliseconds since the epoch.
     pub end_millis: i64,
+    /// The global state it captured, written only when not empty (ADR 0068).
+    pub global_state: Option<GlobalState>,
     /// The indices it names.
     pub indices: Vec<IndexCapture>,
 }
@@ -90,6 +93,9 @@ impl SnapshotDraft {
         out.bool_field("shallow", self.shallow);
         out.int_field("start_time_in_millis", self.start_millis);
         out.int_field("end_time_in_millis", self.end_millis);
+        if let Some(state) = self.global_state.as_ref().filter(|s| !s.is_empty()) {
+            state.write(&mut out);
+        }
         out.start_object_field("indices");
         for index in &self.indices {
             index.write(&mut out);
@@ -265,6 +271,7 @@ mod tests {
             shallow: false,
             start_millis: 1_700_000_001_000,
             end_millis: 1_700_000_002_000,
+            global_state: None,
             indices: vec![IndexCapture {
                 name: "logs".into(),
                 uuid: "uuidlogs0000000000000A".into(),

@@ -313,6 +313,7 @@ fn snapshot_of_logs(r: &Rig) -> (oss_meta::SnapshotTaker, oss_meta::Reservation)
         shallow: true,
         start_millis: 1,
         end_millis: 1,
+        global_state: None,
         indices: vec![described.capture(Vec::new(), false)],
     };
     let mut value = vec![0u8; BUF];
