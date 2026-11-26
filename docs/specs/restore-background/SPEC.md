@@ -26,6 +26,8 @@ At most `max` threads and `2 x chunk` bytes each; no new request.
 
 ## Risks
 
+A delete of the marked index while its copy runs removes the descriptor and queues the reclaim; the copy only learns at its unmark, so blobs it wrote after the reclaim are unreferenced and are left to the janitor's unreferenced-blob sweep (a synchronous restore has the same window, shorter). No test lists the store for them.
+
 A client that never looks again will not learn of a failure; a node killed mid-restore leaves a marked index nobody was told about. Both are the documented difference from stock; the `cluster_block_exception` message now names the restore.
 
 ## Build order

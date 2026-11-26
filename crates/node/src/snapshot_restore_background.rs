@@ -98,6 +98,8 @@ impl SnapshotRestoreService {
         let held = copy
             .saturating_mul(2)
             .saturating_add(descriptor_bytes)
+            // The sources the thread keeps are about the record's size.
+            .saturating_add(record_len)
             .saturating_add(self.deletes.remove_bytes());
         let slot = restores.acquire(held).map_err(refusal)?;
         // ALLOC: one buffer a restore, reserved by the slot.
@@ -112,6 +114,10 @@ impl SnapshotRestoreService {
             _slot: slot,
         };
         for (target, source) in targets.iter().zip(&sources) {
+            if restores.cancelled() {
+                Undo::remove_all(self, &undo.made);
+                return Err(refusal(Refusal::Draining));
+            }
             let uuid = new_id().map_err(|e| {
                 Undo::remove_all(self, &undo.made);
                 unavailable(&e)
