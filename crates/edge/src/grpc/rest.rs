@@ -3,7 +3,9 @@
 
 use bytes::Bytes;
 use prost::Message;
-use prost_reflect::{DynamicMessage, MessageDescriptor};
+use prost_reflect::{DynamicMessage, MessageDescriptor, Value};
+
+use super::fields::Fields;
 
 use super::status::{INTERNAL, INVALID_ARGUMENT, OK, Status, from_rest};
 use super::{call, respond};
@@ -34,6 +36,46 @@ pub(crate) fn push_encoded(out: &mut String, value: &str) {
             out.push(char::from(HEX[usize::from(b & 15)]));
         }
     }
+}
+
+/// `?a=b&c=d`, built one parameter at a time.
+#[derive(Default)]
+pub(crate) struct Query(pub(crate) String);
+
+impl Query {
+    pub(crate) fn text(&mut self, name: &str, value: Option<&str>) {
+        let Some(value) = value else { return };
+        self.0.push(if self.0.is_empty() { '?' } else { '&' });
+        self.0.push_str(name);
+        self.0.push('=');
+        push_encoded(&mut self.0, value);
+    }
+
+    pub(crate) fn flag(&mut self, name: &str, value: Option<bool>) {
+        self.text(name, value.map(|b| if b { "true" } else { "false" }));
+    }
+}
+
+pub(crate) fn join(items: &[Value]) -> Option<String> {
+    // ALLOC: one request, within `grpc_max_message` and charged to the request-body pool at start.
+    let words: Vec<&str> = items.iter().filter_map(Value::as_str).collect();
+    (!words.is_empty()).then(|| words.join(","))
+}
+
+/// `SourceConfigParam`: `fetch` is `_source=true|false`, `fields` is a list.
+pub(crate) fn source_param(
+    source: &DynamicMessage,
+    path: &str,
+    query: &mut Query,
+) -> Result<(), Status> {
+    let mut s = Fields::new(source, path);
+    query.flag("_source", s.boolean("fetch"));
+    if let Some(list) = s.message("fields") {
+        let mut l = Fields::new(list, &s.at("fields"));
+        query.text("_source", join(l.repeated("string_array")).as_deref());
+        l.finish()?;
+    }
+    s.finish()
 }
 
 /// Sends `rest` to the node and maps the answer onto `response`, encoded.

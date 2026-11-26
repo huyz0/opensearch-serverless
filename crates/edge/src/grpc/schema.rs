@@ -10,7 +10,7 @@ static POOL: LazyLock<DescriptorPool> = LazyLock::new(|| {
 });
 
 /// The message type named `org.opensearch.protobufs.<name>`.
-pub(crate) fn message(name: &str) -> MessageDescriptor {
+pub fn message(name: &str) -> MessageDescriptor {
     // ALLOC: a type name, a few bytes.
     POOL.get_message_by_name(&format!("org.opensearch.protobufs.{name}"))
         .unwrap_or_else(|| panic!("the schema has no message {name}"))

@@ -23,6 +23,12 @@ use tokio::runtime::{Builder, Runtime};
 use tokio::sync::{Semaphore, watch};
 
 pub use config::{DEFAULT_GRPC_MESSAGE, EdgeConfig, MIN_STREAM_BUFFER, STREAMS_PER_CONNECTION};
+/// The query types the gRPC front maps, for the node's own tests.
+#[doc(hidden)]
+pub use grpc::query::COVERED_QUERIES;
+/// The OpenSearch protobuf message types, for the node's own tests of the gRPC front.
+#[doc(hidden)]
+pub use grpc::schema::message as proto_message;
 
 /// Why the front did not start.
 #[derive(Debug)]

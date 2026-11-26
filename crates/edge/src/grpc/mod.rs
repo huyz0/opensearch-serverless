@@ -10,9 +10,12 @@ mod call;
 mod fields;
 mod frame;
 mod health;
+mod pit;
+pub(crate) mod query;
 mod respond;
 mod rest;
-mod schema;
+pub(crate) mod schema;
+pub(crate) mod search;
 mod status;
 
 use std::sync::Arc;
@@ -28,6 +31,9 @@ use crate::stream::{Shared, send_all};
 
 const HEALTH_CHECK: &str = "/grpc.health.v1.Health/Check";
 const BULK: &str = "/org.opensearch.protobufs.services.DocumentService/Bulk";
+const SEARCH: &str = "/org.opensearch.protobufs.services.SearchService/Search";
+const CREATE_PIT: &str = "/org.opensearch.protobufs.services.SearchService/CreatePit";
+const DELETE_PIT: &str = "/org.opensearch.protobufs.services.SearchService/DeletePit";
 
 /// The deadline in a `grpc-timeout` header: up to eight digits and a unit.
 fn deadline(value: &str) -> Option<Duration> {
@@ -113,7 +119,10 @@ pub(crate) async fn serve(
     };
     // ALLOC: a status line or request head, bounded by the head limits (16 KiB).
     let path = parts.uri.path().to_owned();
-    if path != HEALTH_CHECK && path != BULK {
+    if !matches!(
+        path.as_str(),
+        HEALTH_CHECK | BULK | SEARCH | CREATE_PIT | DELETE_PIT
+    ) {
         // ALLOC: a status line or request head, bounded by the head limits (16 KiB).
         let s = Status::new(UNIMPLEMENTED, format!("{path} is not served"));
         return trailers_only(&mut respond, &s);
@@ -123,12 +132,14 @@ pub(crate) async fn serve(
         Err(s) => return trailers_only(&mut respond, &s),
     };
     let work = async {
-        if path == BULK {
-            let rest = bulk::request(&message)?;
-            rest::roundtrip(&shared, &rest, &schema::message("BulkResponse")).await
-        } else {
-            health::check(&shared, &message).await
-        }
+        let (rest, response) = match path.as_str() {
+            BULK => (bulk::request(&message)?, "BulkResponse"),
+            SEARCH => (search::request(&message)?, "SearchResponse"),
+            CREATE_PIT => (pit::create(&message)?, "CreatePITResponse"),
+            DELETE_PIT => (pit::delete(&message)?, "DeletePITResponse"),
+            _ => return health::check(&shared, &message).await,
+        };
+        rest::roundtrip(&shared, &rest, &schema::message(response)).await
     };
     let answer = match limit {
         Some(d) => tokio::time::timeout(d, work)

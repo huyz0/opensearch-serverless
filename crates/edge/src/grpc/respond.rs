@@ -46,11 +46,15 @@ pub(crate) fn message(
             // ALLOC: a key path, a few bytes.
             return Err(gap(&format!("{path}.{key}"), "a key"));
         };
+        // ALLOC: a key path, a few bytes.
+        let at = format!("{path}.{key}");
+        if let Some(special) = wrapped(desc.name(), key, value, &at)? {
+            out.set_field(&field, special);
+            continue;
+        }
         if value.is_null() {
             continue;
         }
-        // ALLOC: a key path, a few bytes.
-        let at = format!("{path}.{key}");
         let converted = field_value(&field, value, &at)?;
         out.set_field(&field, converted);
     }
@@ -98,9 +102,98 @@ fn scalar(kind: &Kind, json: &Json, path: &str) -> Result<Value, Status> {
         Kind::Message(desc) if desc.full_name() == "org.opensearch.protobufs.ObjectMap" => {
             Value::Message(object_map(json)?)
         }
+        Kind::Message(desc) if desc.name() == "FieldValue" => Value::Message(field_value_of(json)?),
+        // ALLOC: the document text, within the answer already held (`grpc_max_message`).
+        Kind::Bytes => Value::Bytes(serde_json::to_vec(json).map_err(|_| wrong())?.into()),
+        Kind::Enum(desc) => {
+            let word = json.as_str().ok_or_else(wrong)?;
+            // ALLOC: an enum value name, a few bytes.
+            let name = format!("{}_{}", enum_prefix(desc.name()), word.to_ascii_uppercase());
+            Value::EnumNumber(desc.get_value_by_name(&name).ok_or_else(wrong)?.number())
+        }
         Kind::Message(desc) => Value::Message(message(desc, json, path)?),
         _ => return Err(gap(path, "a type the mapping does not read")),
     })
+}
+
+/// `TotalHitsRelation` as `TOTAL_HITS_RELATION`.
+fn enum_prefix(type_name: &str) -> String {
+    // ALLOC: an enum type name, a few bytes.
+    let mut prefix = String::new();
+    for (i, c) in type_name.char_indices() {
+        if i > 0 && c.is_ascii_uppercase() {
+            prefix.push('_');
+        }
+        prefix.push(c.to_ascii_uppercase());
+    }
+    prefix
+}
+
+/// The fields whose message wraps a `oneof` the JSON spells as a plain value: a hit's score,
+/// the maximum score and the total hit count.
+fn wrapped(message: &str, key: &str, json: &Json, path: &str) -> Result<Option<Value>, Status> {
+    let (wrapper, number_field, null_field) = match (message, key) {
+        ("HitsMetadata", "max_score") => ("HitsMetadataMaxScore", "float", Some("null_value")),
+        ("HitsMetadataHitsInner", "_score") => ("HitXScore", "double", Some("null_value")),
+        ("HitsMetadata", "total") => ("HitsMetadataTotal", "int64", None),
+        _ => return Ok(None),
+    };
+    let desc = super::schema::message(wrapper);
+    let mut out = DynamicMessage::new(desc.clone());
+    let (name, value) = match json {
+        Json::Null if null_field.is_some() => {
+            (null_field.unwrap_or_default(), Value::EnumNumber(1))
+        }
+        Json::Number(n) => (
+            number_field,
+            match number_field {
+                "float" => Value::F32(n.as_f64().ok_or_else(|| gap(path, "a number"))? as f32),
+                "double" => Value::F64(n.as_f64().ok_or_else(|| gap(path, "a number"))?),
+                _ => Value::I64(n.as_i64().ok_or_else(|| gap(path, "a number"))?),
+            },
+        ),
+        Json::Object(_) if message == "HitsMetadata" => (
+            "total_hits",
+            Value::Message(message_of("TotalHits", json, path)?),
+        ),
+        _ => return Err(gap(path, "a value of another type")),
+    };
+    if let Some(field) = desc.get_field_by_name(name) {
+        out.set_field(&field, value);
+    }
+    Ok(Some(Value::Message(out)))
+}
+
+fn message_of(name: &str, json: &Json, path: &str) -> Result<DynamicMessage, Status> {
+    message(&super::schema::message(name), json, path)
+}
+
+/// A JSON scalar as `FieldValue`, the schema's typed value.
+fn field_value_of(json: &Json) -> Result<DynamicMessage, Status> {
+    let desc = super::schema::message("FieldValue");
+    let mut out = DynamicMessage::new(desc.clone());
+    let (name, value) = match json {
+        Json::Null => ("null_value", Value::EnumNumber(1)),
+        Json::Bool(b) => ("bool", Value::Bool(*b)),
+        Json::String(s) => ("string", Value::String(s.clone())),
+        Json::Number(n) => {
+            let desc = super::schema::message("GeneralNumber");
+            let mut number = DynamicMessage::new(desc.clone());
+            let (name, value) = match n.as_i64() {
+                Some(i) => ("int64_value", Value::I64(i)),
+                None => ("double_value", Value::F64(n.as_f64().unwrap_or(0.0))),
+            };
+            if let Some(field) = desc.get_field_by_name(name) {
+                number.set_field(&field, value);
+            }
+            ("general_number", Value::Message(number))
+        }
+        _ => return Err(gap("FieldValue", "a value that is not a scalar")),
+    };
+    if let Some(field) = desc.get_field_by_name(name) {
+        out.set_field(&field, value);
+    }
+    Ok(out)
 }
 
 /// A JSON value as `ObjectMap`, the schema's free-form object.
@@ -254,6 +347,97 @@ mod tests {
             panic!("a list")
         };
         assert_eq!(roots.len(), 1);
+    }
+
+    #[test]
+    fn a_search_answer_maps_its_wrapped_values() {
+        let answer = json!({
+            "took": 2, "timed_out": false, "pit_id": "p",
+            "_shards": {"total": 1, "successful": 1, "skipped": 0, "failed": 0},
+            "hits": {"total": {"value": 2, "relation": "gte"}, "max_score": 1.5, "hits": [
+                {"_index": "a", "_id": "1", "_score": 1.5, "_source": {"n": 1}, "sort": [1, "x", true, null, 2.5]},
+                {"_index": "a", "_id": "2", "_score": null}
+            ]}
+        });
+        let m = built("SearchResponse", &answer).expect("maps");
+        assert_eq!(field(&m, "pit_id"), Value::String("p".to_owned()));
+        let Value::Message(hits) = field(&m, "hits") else {
+            panic!("a message")
+        };
+        let Value::Message(total) = field(&hits, "total") else {
+            panic!("a message")
+        };
+        let Value::Message(th) = field(&total, "total_hits") else {
+            panic!("a message")
+        };
+        assert_eq!(field(&th, "value"), Value::I64(2));
+        assert_eq!(field(&th, "relation"), Value::EnumNumber(2));
+        let Value::Message(max) = field(&hits, "max_score") else {
+            panic!("a message")
+        };
+        assert_eq!(field(&max, "float"), Value::F32(1.5));
+        let Value::List(list) = field(&hits, "hits") else {
+            panic!("a list")
+        };
+        let Value::Message(first) = &list[0] else {
+            panic!("a message")
+        };
+        assert_eq!(
+            field(first, "x_source"),
+            Value::Bytes(br#"{"n":1}"#.to_vec().into())
+        );
+        let Value::Message(score) = field(first, "x_score") else {
+            panic!("a message")
+        };
+        assert_eq!(field(&score, "double"), Value::F64(1.5));
+        let Value::List(sort) = field(first, "sort") else {
+            panic!("a list")
+        };
+        assert_eq!(sort.len(), 5);
+        let Value::Message(second) = &list[1] else {
+            panic!("a message")
+        };
+        let Value::Message(null_score) = field(second, "x_score") else {
+            panic!("a message")
+        };
+        assert_eq!(field(&null_score, "null_value"), Value::EnumNumber(1));
+    }
+
+    #[test]
+    fn a_total_that_is_a_plain_number_and_a_null_max_score_map() {
+        let m = built(
+            "HitsMetadata",
+            &json!({"total": 7, "max_score": null, "hits": []}),
+        )
+        .expect("maps");
+        let Value::Message(total) = field(&m, "total") else {
+            panic!("a message")
+        };
+        assert_eq!(field(&total, "int64"), Value::I64(7));
+        let Value::Message(max) = field(&m, "max_score") else {
+            panic!("a message")
+        };
+        assert_eq!(field(&max, "null_value"), Value::EnumNumber(1));
+        for bad in [
+            json!({"total": null}),
+            json!({"total": "x"}),
+            json!({"max_score": "x"}),
+            json!({"total": {"value": 1, "relation": "huh"}}),
+        ] {
+            assert_eq!(
+                built("HitsMetadata", &bad).err().map(|s| s.code),
+                Some(INTERNAL),
+                "{bad}"
+            );
+        }
+        let score = built("HitsMetadataHitsInner", &json!({"_score": {"value": 1}}));
+        assert_eq!(score.err().map(|s| s.code), Some(INTERNAL));
+        let nested = built(
+            "ResponseItem",
+            &json!({"get": {"found": true, "fields": {"a": [1, {"b": null}]}}}),
+        )
+        .expect("maps");
+        assert!(nested.has_field_by_name("get"));
     }
 
     #[test]

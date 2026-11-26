@@ -59,6 +59,50 @@ impl<'a> Fields<'a> {
         }
     }
 
+    pub(crate) fn int(&mut self, name: &str) -> Option<i64> {
+        match self.get(name) {
+            Some(Value::I32(n)) => Some(i64::from(*n)),
+            Some(Value::I64(n)) => Some(*n),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn uint(&mut self, name: &str) -> Option<u64> {
+        match self.get(name) {
+            Some(Value::U64(n)) => Some(*n),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn float(&mut self, name: &str) -> Option<f64> {
+        match self.get(name) {
+            // `to_string` keeps the digits the client wrote: 0.1f32 is 0.1 and not 0.100000001.
+            // ALLOC: one request or answer, within `grpc_max_message` and charged to the request-body pool at start.
+            Some(Value::F32(n)) => n.to_string().parse().ok(),
+            Some(Value::F64(n)) => Some(*n),
+            _ => None,
+        }
+    }
+
+    /// The entries of a map field, by key.
+    pub(crate) fn entries(&mut self, name: &str) -> Vec<(String, &'a Value)> {
+        let Some(Value::Map(map)) = self.get(name) else {
+            // ALLOC: one request or answer, within `grpc_max_message` and charged to the request-body pool at start.
+            return Vec::new();
+        };
+        // ALLOC: one entry per map item in the decoded request, bounded by `grpc_max_message`.
+        let mut out: Vec<(String, &Value)> = map
+            .iter()
+            .filter_map(|(k, v)| match k {
+                prost_reflect::MapKey::String(k) => Some((k.clone(), v)),
+                _ => None,
+            })
+            // ALLOC: one request or answer, within `grpc_max_message` and charged to the request-body pool at start.
+            .collect();
+        out.sort_by(|a, b| a.0.cmp(&b.0));
+        out
+    }
+
     pub(crate) fn bytes(&mut self, name: &str) -> Option<&'a [u8]> {
         match self.get(name) {
             Some(Value::Bytes(b)) => Some(b.as_ref()),
