@@ -1,6 +1,6 @@
 # 0067: A snapshot captures the global state it is asked for, and a restore may bring it back
 
-**Status:** Proposed
+**Status:** Accepted
 
 ## Context
 
