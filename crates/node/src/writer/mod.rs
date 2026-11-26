@@ -31,6 +31,7 @@ mod newest_commit;
 mod open_logged;
 mod opener;
 mod orphan_timer;
+mod packs;
 mod pipeline;
 mod pipelined;
 mod predecessors;
@@ -89,6 +90,7 @@ pub use janitor_timer::{JanitorTimer, SweepConfig};
 pub use lease::{LoadReport, MembershipLeaseWrite};
 pub use opener::{HeadOpener, OpenRefused, ShardOpener};
 pub use orphan_timer::{BucketMemberSweep, LiveLeases, OrphanParts, OrphanTimer};
+pub use packs::{PackConfig, SETTINGS as PACK_SETTINGS};
 pub use proactive::{
     Config as ProactiveConfig, ProactiveTakeover, Report as ProactiveReport,
     SETTINGS as PROACTIVE_SETTINGS,

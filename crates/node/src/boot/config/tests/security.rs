@@ -1,6 +1,5 @@
 //! The security settings' configuration tests.
 
-use super::tests::{FS, lookup, with};
 use super::*;
 
 // docs/specs/security-config AC-7

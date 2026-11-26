@@ -11,7 +11,7 @@ impl Config {
     /// Publishing into `store` by this configuration's lazy policy, staging
     /// its routine commits when it names a checkpoint age.
     pub(crate) fn publishing(&self, store: Arc<dyn BlobStore>) -> Publishing {
-        Publishing::from_parts(
+        let made = Publishing::from_parts(
             store,
             &self.base,
             &self.node_id,
@@ -21,6 +21,10 @@ impl Config {
                 self.publish_tick_millis,
             ],
             self.commit_checkpoint_millis,
-        )
+        );
+        match self.node_packs {
+            Some(packs) => made.with_packs(packs),
+            None => made,
+        }
     }
 }

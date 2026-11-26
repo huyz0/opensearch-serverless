@@ -106,7 +106,22 @@ pub(crate) fn node_logging(
     later: bool,
     takeover: Option<Takeover>,
     staging: Option<Duration>,
+    modes: (bool, bool, Option<Duration>),
+) -> Node {
+    node_full(c, id, term, later, takeover, staging, modes, None)
+}
+
+/// [`node_logging`], also packing small segments when `packs` is given.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn node_full(
+    c: &Cluster,
+    id: &str,
+    term: u64,
+    later: bool,
+    takeover: Option<Takeover>,
+    staging: Option<Duration>,
     (logging, opening, deadline): (bool, bool, Option<Duration>),
+    packs: Option<oss_node::writer::PackConfig>,
 ) -> Node {
     let clock: Arc<dyn LeaseClock> = if later {
         Arc::new(Later)
@@ -187,6 +202,9 @@ pub(crate) fn node_logging(
     }
     if let Some(deadline) = deadline {
         publishing = publishing.with_swap_deadline(deadline);
+    }
+    if let Some(packs) = packs {
+        publishing = publishing.with_packs(packs);
     }
     let role = WriterRole::new(Arc::clone(&committer), routes)
         .with_names(names)
