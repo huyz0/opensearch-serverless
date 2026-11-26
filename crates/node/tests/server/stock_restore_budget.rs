@@ -1,11 +1,11 @@
-//! docs/specs/stock-snapshot-restore AC-9: what restoring the fixture
-//! repository costs, the node's store and the source's together.
+//! docs/specs/stock-snapshot-restore AC-9: what restoring the recorded
+//! 3.10 repository costs, the node's store and the source's together.
 
 use oss_blob::{BlobStore, S3Op};
 use oss_testkit::budget;
 
 use crate::snapshot_restore::{requests, send};
-use crate::stock_restore::{RESTORE, S3_REPO, s3_rig, s3_source};
+use crate::stock_restore::{RESTORE, S3_REPO, s3_rig, s3_source_of};
 
 fn all(store: &oss_blob::Emulator) -> u64 {
     S3Op::ALL.iter().map(|op| store.meter().count(*op)).sum()
@@ -13,7 +13,7 @@ fn all(store: &oss_blob::Emulator) -> u64 {
 
 #[test]
 fn a_stock_restore_costs_what_the_budget_says() {
-    let (source, server) = s3_source();
+    let (source, server) = s3_source_of("stock");
     let r = s3_rig(&server, "stocksrc/stock");
     assert_eq!(
         send(&r, "PUT", "/_snapshot/stock", Some(S3_REPO)).status,
@@ -31,9 +31,9 @@ fn a_stock_restore_costs_what_the_budget_says() {
 
 #[test]
 fn a_failed_stock_restore_costs_what_the_budget_says() {
-    let (source, server) = s3_source();
-    // The small file's bytes changed: its length is right and its checksum is not.
-    let key = "stock/repo/indices/IdxLogsAaaa1/0/__smallBlobUuid2";
+    let (source, server) = s3_source_of("stock");
+    // One of the two files' bytes changed: its length is right and its checksum is not.
+    let key = "stock/repo/indices/M3IuI3tpQ7mcpIwUIA1kfQ/0/__L7JGf21KRju_ZczIDWC4kA";
     let mut bytes = Vec::new();
     source
         .get(

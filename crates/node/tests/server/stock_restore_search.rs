@@ -178,4 +178,16 @@ fn a_recorded_stock_snapshot_restores_and_answers_what_the_stock_node_answered()
         search(r#"{"size":0,"query":{"term":{"level":"warn"}}}"#).0,
         10
     );
+    // The stored fields came across, not only the index.
+    let found = support::request(
+        reader.local_addr(),
+        "POST",
+        "/copy/_search",
+        Some(br#"{"query":{"ids":{"values":["7"]}}}"#),
+    );
+    let json: serde_json::Value = serde_json::from_str(&found.text()).expect("json");
+    let source = &json["hits"]["hits"][0]["_source"];
+    assert_eq!(source["title"], "event gamma number 7");
+    assert_eq!(source["level"], "warn");
+    assert_eq!(source["n"], 7);
 }

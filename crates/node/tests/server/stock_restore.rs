@@ -210,9 +210,21 @@ pub(crate) fn s3_source() -> (
     std::sync::Arc<oss_blob::Emulator>,
     oss_blob::emulator::http::S3Server,
 ) {
+    s3_source_of("stock-repo")
+}
+
+/// The same, over the repository under `fixtures/snapshots/<fixture>/repo`.
+pub(crate) fn s3_source_of(
+    fixture: &str,
+) -> (
+    std::sync::Arc<oss_blob::Emulator>,
+    oss_blob::emulator::http::S3Server,
+) {
     let emulator = std::sync::Arc::new(oss_blob::Emulator::new(64 << 20, 3));
-    let top =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/snapshots/stock-repo/repo");
+    let top = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/snapshots")
+        .join(fixture)
+        .join("repo");
     put_tree(&*emulator, &top, "stock/repo/");
     let server = oss_blob::emulator::http::S3Server::start(
         std::sync::Arc::clone(&emulator),

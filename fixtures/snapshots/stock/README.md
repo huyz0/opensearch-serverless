@@ -22,4 +22,4 @@ The stock node's own answers, the ones the restore test holds the restored index
 
 The recording is the reason a restore drops `index.replication.type: DOCUMENT`: a 3.10 node writes it on every index.
 
-Test: `crates/node/tests/server/stock_restore_search.rs`; its request counts are `snapshot.stock_restore.requests` and `snapshot.stock_restore_cleanup.requests` in [docs/request-budgets.md](../../../docs/request-budgets.md).
+Test: `crates/node/tests/server/stock_restore_search.rs`; the request counts of restoring it (`stock_restore_budget.rs`) are `snapshot.stock_restore.requests` and `snapshot.stock_restore_cleanup.requests` in [docs/request-budgets.md](../../../docs/request-budgets.md).
