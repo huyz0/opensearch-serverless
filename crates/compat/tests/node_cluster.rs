@@ -330,12 +330,8 @@ fn an_assembled_node_answers_every_nested_fixture_as_stock_opensearch_did() {
         .collect();
     assert_eq!(
         fixtures.len(),
-        3,
-<<<<<<< HEAD
-        "a query, an aggregation and a named-query fixture"
-=======
-        "a query, an aggregation and a terms order fixture"
->>>>>>> cb85c3ff (feat(reader): order a terms by a path through single-bucket aggregations)
+        4,
+        "a query, an aggregation, a named-query and a terms order fixture"
     );
     let failed: Vec<String> = fixtures
         .into_iter()
