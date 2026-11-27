@@ -149,8 +149,8 @@ fn a_nested_index_is_a_block_a_document_and_a_deep_one_has_grandchildren() {
     let (deep, deep_fields, deep_gens) = segment(Spec::new("s", 6).with_nested_deep());
     assert_eq!(deep, 6 * (1 + 2 * NESTED_CHILDREN));
     assert!(deep_fields.contains("c.w") && deep_fields.contains("c.d.v"));
-    // Each field the nested levels add has no doc-values generation.
-    assert_eq!(nested_gens, flat_gens + 3);
+    // The fields the nested levels add (c.k among them) add doc-values generations.
+    assert_eq!(nested_gens, flat_gens + 4);
     assert_eq!(deep_gens, nested_gens + 1);
     // A grandchild's word is indexed (the terms file) and has a doc value
     // (the doc-values data); a child's is too.
@@ -186,4 +186,18 @@ fn the_mapping_and_the_source_name_the_levels_that_exist() {
         source.contains(r#""c":[{"w":"w1-0","d":[{"v":"v1-0"}]},{"w":"w1-1","d":[{"v":"v1-1"}]}]"#),
         "{source}"
     );
+}
+
+#[test]
+fn a_nested_child_number_is_ten_times_its_document_plus_its_position() {
+    for (i, j, want) in [
+        (0, 0, 0),
+        (0, 1, 1),
+        (1, 0, 10),
+        (1, 1, 11),
+        (7, 1, 71),
+        (9_999, 1, 99_991),
+    ] {
+        assert_eq!(nested_number(i, j), want, "document {i}, child {j}");
+    }
 }

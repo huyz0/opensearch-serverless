@@ -101,6 +101,15 @@ fi
 echo "mutants: $count in the diff; testing shard $shard (budget ${MUTANTS_BUDGET:-40})"
 rc=0
 timeout "${MUTANTS_TIME:-7m}" cargo mutants "${common[@]}" --in-diff "$diff_file" --shard "$shard" "$@" || rc=$?
+# How far the shard got, so a run that hit its time limit says how much of the
+# diff it tested (cargo-mutants lists each outcome as it finishes).
+tested=0
+for outcome in caught missed timeout unviable; do
+  n=$(grep -c . "mutants.out/$outcome.txt" 2>/dev/null || true)
+  echo "mutants: $outcome ${n:-0}"
+  tested=$((tested + ${n:-0}))
+done
+echo "mutants: tested $tested of $count in the diff (shard $shard)"
 if [ "$rc" -eq 3 ]; then settle 3 && rc=0 || rc=$?; fi
 if [ "$rc" -eq 124 ]; then
   echo "::warning::mutants: shard $shard ran out of time; the nightly sweep covers every mutant"

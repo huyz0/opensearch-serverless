@@ -15,7 +15,7 @@ use crate::dsl::query::{Query, parse_inner};
 use crate::dsl::search_after::{AfterValue, parse_search_after};
 use crate::dsl::sort::{SortKey, parse_sort};
 use crate::dsl::tokens::{Kind, Parser, Recorder};
-use crate::dsl::values::{bool_value, float_value, int_value};
+use crate::dsl::values::{bool_value, float_value, int_value, is_time_value};
 use crate::fetch::docvalue_fields::{DocValueField, parse_docvalue_fields};
 use crate::fetch::highlight_parse::{HighlightSpec, parse_highlight};
 use crate::fetch::source_filter::{SourceFilter, parse_source};
@@ -262,6 +262,7 @@ impl SearchSource {
             | "min_score"
             | "terminate_after"
             | "track_scores"
+            | "timeout"
                 if kind == Kind::Null =>
             {
                 return Err(unknown_key(p, kind, name));
@@ -283,6 +284,9 @@ impl SearchSource {
             "search_pipeline" if kind == Kind::String && !p.text().is_empty() => {
                 // ALLOC: one id, bounded by the recorded body.
                 self.search_pipeline = Some(p.text().to_owned());
+            }
+            // A time limit changes nothing here: a search is not cut short.
+            "timeout" if matches!(kind, Kind::String | Kind::Number) && is_time_value(p.text()) => {
             }
             known if VALUE_KEYS.contains(&known) => return Err(unsupported(known)),
             _ => return Err(unknown_key(p, kind, name)),

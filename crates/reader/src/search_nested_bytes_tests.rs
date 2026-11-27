@@ -156,3 +156,27 @@ fn a_search_reserves_the_lists_with_its_hits() {
     // The second one adds its bit set and its lists, beside the engine's state.
     assert_eq!(two - one, ONE + LIST + OTHER, "{one} {two}");
 }
+
+// AC-5
+#[test]
+fn a_pool_that_holds_the_plain_search_refuses_the_one_with_a_nested_aggregation() {
+    let shard = shard();
+    let at = |body: &str| hits_bytes(&parse_chunks([body.as_bytes()]).expect("parses"), &shard);
+    let plain = at(r#"{"aggs":{"a":{"terms":{"field":"tag"}}}}"#);
+    let nested = at(r#"{"aggs":{"a":{"terms":{"field":"tag"}},"b":{"nested":{"path":"c"}}}}"#);
+    assert!(nested >= plain + ONE + LIST, "{plain} {nested}");
+    let config = BudgetConfig::new(4 << 20)
+        .with_pool(Pool::Transport, plain)
+        .expect("fits");
+    let budget = MemoryBudget::new(&config);
+    let held = budget
+        .try_reserve(Pool::Transport, plain)
+        .expect("plain fits");
+    drop(held);
+    assert!(budget.try_reserve(Pool::Transport, nested).is_err());
+    assert_eq!(
+        budget.in_use(Pool::Transport),
+        0,
+        "a refusal reserves nothing"
+    );
+}

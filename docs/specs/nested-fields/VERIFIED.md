@@ -14,4 +14,4 @@ Run on 2026-11-26 (Linux cloud container, emulator only). Doc and writer tests w
 - AC-11: `a_nested_index_over_several_shards_merges_hits_sorts_and_aggregations` (crates/node/tests/nested_shards.rs: 12 parents of 1 to 12 children over 4 shards; written after the code and passed on its first run, so no merge fix was needed).
 - AC-10: `a_nested_mapping_is_refused_with_the_switch_off`, `an_index_made_with_the_switch_on_still_reads_and_writes_with_it_off`, `nested_is_off_by_default_and_turned_on_by_its_variable`
 
-NOT-RUN: the 10,000-document soak the default flip waits for; comparison with recorded OpenSearch answers.
+Read side of the 10,000-document soak: run, see [nested-aggs](../nested-aggs/VERIFIED.md) AC-14 (provisional). NOT-RUN: the write side of that soak (write p99 within 5% of a plain index's, the condition for the default flip); comparison with recorded OpenSearch answers.

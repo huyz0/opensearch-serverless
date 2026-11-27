@@ -250,6 +250,7 @@ src/search_collapse.rs	port	server/src/main/java/org/apache/lucene/search/groupi
 src/dsl/collapse.rs	port	server/src/main/java/org/opensearch/search/collapse/CollapseBuilder.java@3.10.0	the collapse object parser
 src/dsl/collapse_tests.rs	new		tests of collapse.rs
 src/search_collapse_tests.rs	new		tests of the collapse window
+src/aggs/bucket/nested_soak_tests.rs	new		a hand-run soak of nested searches over 10,000 documents
 src/aggs/bucket/missing.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/missing/MissingAggregationBuilder.java@3.10.0	MissingAggregationBuilder.parse; counted as a filter of the documents without the field
 src/aggs/bucket/missing_collect_tests.rs	new		tests of missing on a real index
 src/aggs/bucket/missing_tests.rs	new		tests of missing parsing
@@ -257,3 +258,4 @@ src/hits_total.rs	port	server/src/main/java/org/opensearch/search/SearchHits.jav
 src/lucene_range.rs	port	server/src/main/java/org/opensearch/index/query/RangeQueryBuilder.java@3.10.0	a range on a numeric or date field, its bounds read in the format and zone the query names
 src/aggs/bucket/histogram_sub_order.rs	new		the order of histogram buckets by a metric sub-aggregation, as InternalOrder.Aggregation lists them
 src/aggs/bucket/histogram_sub_order_tests.rs	new		tests of histogram and date_histogram ordered by a sub-aggregation
+src/aggs/bucket/date_range_tests.rs	new		tests of date_range parsing and running

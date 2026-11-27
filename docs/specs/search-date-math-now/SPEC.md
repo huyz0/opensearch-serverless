@@ -9,7 +9,7 @@ The "date math in a range" refusal of [compatibility](../../compatibility.md). T
 - A search takes the instant `now` means once, where it arrives on this node: `_search` (one index, several, a point in time), each `_msearch` item, `_search/template` and each `_msearch/template` item. Every shard and every item reads that one instant, as OpenSearch fixes `nowInMillis` per search request.
 - A search that already carries an instant (the forwarded search of a Java coordinator) keeps it: the node's clock is never read for it.
 - The instant is the node's wall clock in epoch milliseconds, in UTC.
-- Not here: `_count`, `_validate/query`, `_rank_eval` and the by-query APIs, which still answer the refusal for a `now`; a range's `format` and `time_zone`, which [search-range-format-zone](../search-range-format-zone/SPEC.md) reads, and `relation`, which stays refused.
+- Not here: `_count`, `_validate/query`, `_rank_eval` and the by-query APIs, which still answer the refusal for a `now`; a range's `format`, `time_zone` and `relation`, which stay refused.
 
 ## Acceptance criteria
 
