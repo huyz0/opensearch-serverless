@@ -1,6 +1,6 @@
 # 0046: Requests for plugins that are not ported are proxied to Java nodes, behind a setting
 
-**Status:** Accepted after independent review, 2026-11-24 (the review's ten changes are folded in below)
+**Status:** Accepted after independent review, 2026-11-24 (the review's ten changes are folded in below). Learning to rank is superseded by [ADR 0071](0071-learning-to-rank-is-ported-natively.md): it is ported natively, and its two prefixes leave the list when its routes land
 
 ## Context
 
