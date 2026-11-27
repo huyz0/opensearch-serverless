@@ -260,6 +260,17 @@ fn answers(
                 sum,
                 count: i64::try_from(count).unwrap_or(i64::MAX),
             },
+            Part::Stats {
+                count,
+                sum,
+                min,
+                max,
+            } => AggValue::Stats {
+                count: i64::try_from(count).unwrap_or(i64::MAX),
+                min,
+                max,
+                sum,
+            },
             Part::ValueCount(n) => AggValue::ValueCount(i64::try_from(n).unwrap_or(i64::MAX)),
             _ => {
                 return Err(refuse(

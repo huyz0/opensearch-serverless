@@ -326,17 +326,39 @@ fn a_date_aggregation_carries_the_date_format_and_another_kind_is_refused() {
     fake.aggs = vec![Partial {
         name: "t".to_owned(),
         format: Format::Raw,
-        value: Part::Stats {
-            count: 1,
-            sum: 1.0,
-            min: 1.0,
-            max: 1.0,
-        },
+        value: Part::Cardinality(None),
     }];
     let h = handler(fake, &fresh(), 10_000);
     let e = ask(&h, &fixture("request.match_all"), WireVersion::SHELL).unwrap_err();
     assert!(
         format!("{e:?}").contains("not supported by this node"),
         "{e:?}"
+    );
+}
+
+#[test]
+fn a_stats_aggregation_is_answered_with_its_count_min_max_and_sum() {
+    use oss_reader::aggs::partial::{Format, Partial, Value as Part};
+    let mut fake = Fake::held();
+    fake.aggs = vec![Partial {
+        name: "st".to_owned(),
+        format: Format::Raw,
+        value: Part::Stats {
+            count: 3,
+            sum: 6.0,
+            min: 1.0,
+            max: 4.0,
+        },
+    }];
+    let h = handler(fake, &fresh(), 10_000);
+    let answer = ask(&h, &fixture("request.match_all"), WireVersion::SHELL).unwrap();
+    let mut expected = vec![1, 5, b's', b't', b'a', b't', b's', 2, b's', b't', 0xFF];
+    expected.extend_from_slice(&[3, b'r', b'a', b'w', 3]);
+    for v in [1.0f64, 4.0, 6.0] {
+        expected.extend_from_slice(&v.to_bits().to_be_bytes());
+    }
+    assert!(
+        answer.windows(expected.len()).any(|w| w == &expected[..]),
+        "{answer:?}"
     );
 }
