@@ -17,13 +17,15 @@ on:
   workflow_dispatch:
 
 # A newer push to the same PR replaces the run in flight, and a newer main
-# commit replaces the main run in flight (it holds every earlier commit).
+# commit replaces the main run still waiting to start (it holds every earlier
+# commit) but never one that is running, so a burst of merges still ends in a
+# finished run.
 # Description edits run in a group of their own, so editing a PR never cancels
 # the run that checks its code. Label changes start no run: the checks read
 # only needs-huy, which this workflow adds itself.
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}-${{ github.event.action == 'edited' && 'text' || 'code' }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   actions: read
