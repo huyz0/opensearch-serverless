@@ -227,3 +227,39 @@ fn a_nested_on_the_grandchildren_alone_counts_them_under_their_roots() {
     );
     assert_eq!(got, format!(r#""doc_count":{}"#, DOCS as u64 * CHILDREN));
 }
+
+// AC-13
+#[test]
+fn avg_max_min_and_value_count_run_over_the_children() {
+    let shard = shard();
+    // Documents 0 and 1: children k = 0, 1, 10, 11.
+    let got = body_of(
+        &shard,
+        r#"{"size":0,"query":{"range":{"n":{"lt":2}}},"aggs":{"n":{"nested":{"path":"c"},"aggs":{
+            "a":{"avg":{"field":"c.k"}},"x":{"max":{"field":"c.k"}},
+            "m":{"min":{"field":"c.k"}},"v":{"value_count":{"field":"c.k"}}}}}}"#,
+    );
+    assert!(got.starts_with(r#""doc_count":4"#), "{got}");
+    assert!(got.contains(r#""a":{"value":5.5"#), "{got}");
+    assert!(got.contains(r#""x":{"value":11"#), "{got}");
+    assert!(got.contains(r#""m":{"value":0"#), "{got}");
+    assert!(got.contains(r#""v":{"value":4"#), "{got}");
+}
+
+// AC-13
+#[test]
+fn nested_numeric_sub_aggregations_reduce_across_shards() {
+    let shard = shard();
+    let one = run(
+        &shard,
+        r#"{"size":0,"aggs":{"n":{"nested":{"path":"c"},"aggs":{"x":{"max":{"field":"c.k"}},"v":{"value_count":{"field":"c.k"}}}}}}"#,
+    )
+    .expect("searches")
+    .remove(0)
+    .value;
+    let both = reduce(&[one.clone(), one]).expect("reduces");
+    let got = written(&both);
+    assert!(got.starts_with(r#""doc_count":24"#), "{got}");
+    assert!(got.contains(r#""x":{"value":51"#), "{got}");
+    assert!(got.contains(r#""v":{"value":24"#), "{got}");
+}

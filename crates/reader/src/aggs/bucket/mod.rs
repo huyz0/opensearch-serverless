@@ -121,6 +121,8 @@ mod nested_agg_tests;
 #[cfg(test)]
 mod nested_filters_tests;
 #[cfg(test)]
+mod nested_soak_tests;
+#[cfg(test)]
 mod nested_terms_tests;
 #[cfg(test)]
 mod nested_tests;

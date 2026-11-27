@@ -149,8 +149,8 @@ fn a_nested_index_is_a_block_a_document_and_a_deep_one_has_grandchildren() {
     let (deep, deep_fields, deep_gens) = segment(Spec::new("s", 6).with_nested_deep());
     assert_eq!(deep, 6 * (1 + 2 * NESTED_CHILDREN));
     assert!(deep_fields.contains("c.w") && deep_fields.contains("c.d.v"));
-    // Each field the nested levels add has no doc-values generation.
-    assert_eq!(nested_gens, flat_gens + 3);
+    // The fields the nested levels add (c.k among them) add doc-values generations.
+    assert_eq!(nested_gens, flat_gens + 4);
     assert_eq!(deep_gens, nested_gens + 1);
     // A grandchild's word is indexed (the terms file) and has a doc value
     // (the doc-values data); a child's is too.
