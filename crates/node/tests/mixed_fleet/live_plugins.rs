@@ -190,6 +190,17 @@ impl Rig {
         }
     }
 
+    fn direct_settled(&self, method: &str, path: &str, body: Option<&str>) -> Ans {
+        let started = Instant::now();
+        loop {
+            let reply = self.direct(method, path, body);
+            if reply.status != 500 || started.elapsed() > Duration::from_secs(90) {
+                return reply;
+            }
+            std::thread::sleep(Duration::from_secs(2));
+        }
+    }
+
     /// Asks both ways and requires the same status and body.
     fn same_both_ways(&self, method: &str, path: &str, body: Option<&str>) -> Ans {
         let direct = self.direct(method, path, body);
@@ -287,6 +298,75 @@ fn the_alerting_endpoints_of_the_real_plugin_answer_through_a_rust_node() {
     let found = rig.proxied(
         "POST",
         "/_plugins/_alerting/monitors/_search",
+        Some(r#"{"query":{"match_all":{}}}"#),
+    );
+    assert_eq!(found.status, 200, "{}", found.text());
+    assert!(found.text().contains("proxy-probe"), "{}", found.text());
+    let gone = rig.proxied("DELETE", &path, None);
+    assert_eq!(gone.status, 200, "{}", gone.text());
+    let missing = rig.same_both_ways("GET", &path, None);
+    assert_eq!(missing.status, 404, "{}", missing.text());
+    rig.finish();
+}
+
+#[test]
+#[ignore = "needs OSS_JAVA_BIN, OSS_JAVA_CP and OSS_PLUGIN_ZIPS (a directory of released plugin zips)"]
+fn the_anomaly_detection_endpoints_of_the_real_plugin_answer_through_a_rust_node() {
+    let Some(rig) = Rig::start(&["opensearch-job-scheduler", "opensearch-anomaly-detection"])
+    else {
+        return;
+    };
+    // The detector reads an index the Java node made and owns: one a Rust
+    // node owns answers the plugin's own search 503 (see VERIFIED.md).
+    let made = rig.direct_settled(
+        "PUT",
+        "/ad-source",
+        Some(r#"{"mappings":{"properties":{"ts":{"type":"date"},"cpu":{"type":"double"}}}}"#),
+    );
+    assert_eq!(made.status, 200, "{}", made.text());
+    for (i, ts) in ["2026-11-27T00:00:00Z", "2026-11-27T00:10:00Z"]
+        .iter()
+        .enumerate()
+    {
+        let doc = format!("{{\"ts\":\"{ts}\",\"cpu\":{}}}", 10 + i);
+        let put = rig.proxied_settled(
+            "PUT",
+            &format!("/ad-source/_doc/{i}?refresh=true"),
+            Some(&doc),
+        );
+        assert!(
+            matches!(put.status, 200 | 201),
+            "{} {}",
+            put.status,
+            put.text()
+        );
+    }
+    let detector = r#"{"name":"proxy-probe","description":"probe","time_field":"ts","indices":["ad-source"],"feature_attributes":[{"feature_name":"cpu_avg","feature_enabled":true,"aggregation_query":{"cpu_avg":{"avg":{"field":"cpu"}}}}],"detection_interval":{"period":{"interval":10,"unit":"Minutes"}},"window_delay":{"period":{"interval":1,"unit":"Minutes"}}}"#;
+    let put = rig.proxied_settled(
+        "POST",
+        "/_plugins/_anomaly_detection/detectors",
+        Some(detector),
+    );
+    assert!(
+        matches!(put.status, 200 | 201),
+        "{} {}",
+        put.status,
+        put.text()
+    );
+    let id = put
+        .text()
+        .split("\"_id\":\"")
+        .nth(1)
+        .and_then(|t| t.split('"').next())
+        .expect("a detector id")
+        .to_owned();
+    let path = format!("/_plugins/_anomaly_detection/detectors/{id}");
+    let got = rig.same_both_ways("GET", &path, None);
+    assert_eq!(got.status, 200, "{}", got.text());
+    assert!(got.text().contains("proxy-probe"), "{}", got.text());
+    let found = rig.proxied(
+        "POST",
+        "/_plugins/_anomaly_detection/detectors/_search",
         Some(r#"{"query":{"match_all":{}}}"#),
     );
     assert_eq!(found.status, 200, "{}", found.text());
