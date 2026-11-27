@@ -119,11 +119,14 @@ pub enum Metric {
     MultiTerms,
     /// `scripted_metric`: four Painless scripts over the matched documents.
     ScriptedMetric,
+    /// `adjacency_matrix`: the documents counted by each filter and each
+    /// pair of filters they match.
+    AdjacencyMatrix,
 }
 
 impl Metric {
     /// Every metric served, by its aggregation type name.
-    pub const ALL: [Metric; 26] = [
+    pub const ALL: [Metric; 27] = [
         Metric::Min,
         Metric::Max,
         Metric::Sum,
@@ -150,6 +153,7 @@ impl Metric {
         Metric::RareTerms,
         Metric::MultiTerms,
         Metric::ScriptedMetric,
+        Metric::AdjacencyMatrix,
     ];
 
     /// The aggregation type name.
@@ -181,6 +185,7 @@ impl Metric {
             Metric::RareTerms => "rare_terms",
             Metric::MultiTerms => "multi_terms",
             Metric::ScriptedMetric => "scripted_metric",
+            Metric::AdjacencyMatrix => "adjacency_matrix",
         }
     }
 
@@ -304,7 +309,11 @@ pub fn state_bytes(aggs: &[MetricAgg]) -> usize {
             Metric::Composite | Metric::MultiTerms => agg.composite.as_deref().map_or(0, |spec| {
                 crate::aggs::bucket::composite_collect::state_bytes(spec, agg.subs.len())
             }),
-            Metric::Filters | Metric::Filter | Metric::Missing | Metric::Global => agg
+            Metric::Filters
+            | Metric::Filter
+            | Metric::Missing
+            | Metric::Global
+            | Metric::AdjacencyMatrix => agg
                 .filters
                 .as_deref()
                 .map_or(0, crate::aggs::bucket::filters_collect::state_bytes),
