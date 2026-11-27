@@ -41,7 +41,7 @@ fn recorded(file: &str) -> Vec<u8> {
 
 /// The recorded shard's files, by physical name and bytes, read as the
 /// restore's fixture lists them.
-fn shard_files() -> Vec<(String, Vec<u8>)> {
+pub(crate) fn shard_files() -> Vec<(String, Vec<u8>)> {
     let mut json = Vec::new();
     oss_format::stock_blob_to_json(
         &recorded("snap-q6tlFJQcRUS97oE_eOaE7Q.dat"),
@@ -60,7 +60,7 @@ fn shard_files() -> Vec<(String, Vec<u8>)> {
         .collect()
 }
 
-fn rig(enabled: bool, tag: &str) -> Rig {
+pub(crate) fn rig(enabled: bool, tag: &str) -> Rig {
     let root = std::env::temp_dir().join(format!("oss-export-{tag}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(root.join("out")).unwrap();
@@ -80,10 +80,10 @@ fn rig(enabled: bool, tag: &str) -> Rig {
 
 /// A node whose export goes as `settings` say, with the repository `stock` registered as `repo`.
 pub(crate) fn rig_with(settings: StockExportSettings, root: PathBuf, repo: &str) -> Rig {
-    stand_up(settings, root, repo)
+    stand_up(settings, root, repo, 200 << 20)
 }
 
-fn stand_up(settings: StockExportSettings, root: PathBuf, repo: &str) -> Rig {
+fn stand_up(settings: StockExportSettings, root: PathBuf, repo: &str, pool: usize) -> Rig {
     let store = Arc::new(Emulator::new(1 << 28, 5));
     let blobs = Arc::clone(&store) as Arc<dyn BlobStore>;
     let clock: oss_meta::PitClock = Arc::new(|| 1_700_000_000_000);
@@ -143,7 +143,7 @@ fn stand_up(settings: StockExportSettings, root: PathBuf, repo: &str) -> Rig {
     let router = routes(Router::new(), &service, Some(&taker)).expect("routes");
     let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
     let config = BudgetConfig::new(256 << 20)
-        .with_pool(Pool::RequestBodies, 200 << 20)
+        .with_pool(Pool::RequestBodies, pool)
         .expect("fits");
     let budget = MemoryBudget::new(&config);
     let server =
@@ -250,47 +250,6 @@ fn a_second_take_keeps_the_first_and_reuses_the_index_id() {
     assert!(again.text().contains("snapshot_already_exists"));
 }
 
-/// Both snapshots of a repository the Rust node wrote restore on the Rust
-/// node, each into its own new index, every file whole.
-#[test]
-fn both_snapshots_of_a_repository_restore_on_the_rust_node() {
-    use crate::snapshot_restore::{read, restored_uuid, send as send_restore};
-    use crate::stock_restore::{POOL, register, rig as restore_rig};
-
-    let r = rig(true, "restore-both");
-    for name in ["s1", "s2"] {
-        let reply = send(
-            &r,
-            "PUT",
-            &format!("/_snapshot/stock/{name}{WAIT}"),
-            Some(TAKE),
-        );
-        assert_eq!(reply.status, 200, "{}", reply.text());
-    }
-    let node = restore_rig(&r.root, true, POOL);
-    register(&node, &r.out());
-    for (snap, index) in [("s1", "logs_one"), ("s2", "logs_two")] {
-        let body = format!(r#"{{"rename_pattern":"logs","rename_replacement":"{index}"}}"#);
-        let reply = send_restore(
-            &node,
-            "POST",
-            &format!("/_snapshot/stock/{snap}/_restore{WAIT}"),
-            Some(&body),
-        );
-        assert_eq!(reply.status, 200, "{snap}: {}", reply.text());
-        let uuid = restored_uuid(&node, index);
-        let shard = ShardRef {
-            index,
-            uuid: &uuid,
-            shard: 0,
-        };
-        let dir = format!("{}t=1/", shard.base_path("").unwrap());
-        for (file, bytes) in shard_files() {
-            assert_eq!(read(&node, &format!("{dir}{file}")), bytes, "{snap} {file}");
-        }
-    }
-}
-
 #[test]
 fn with_the_switch_off_the_take_is_501_and_writes_nothing() {
     let r = rig(false, "off");
@@ -332,6 +291,37 @@ fn each_refusal_is_answered_before_anything_is_written() {
         );
         assert_eq!(reply.status, status, "{name} {body}: {}", reply.text());
         assert!(r.written().is_empty(), "{name} {body}");
+    }
+}
+
+/// A node whose request-body pool is `pool` bytes, exporting into `root/out`.
+fn rig_pooled(pool: usize, tag: &str) -> Rig {
+    let root = std::env::temp_dir().join(format!("oss-export-{tag}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(root.join("out")).unwrap();
+    let root = root.canonicalize().unwrap();
+    let settings = StockExportSettings {
+        enabled: true,
+        roots: SourceRoots::parse(root.to_str().unwrap(), ""),
+        s3: None,
+        chunk_bytes: 1 << 16,
+    };
+    let body = format!(
+        r#"{{"type":"fs","settings":{{"format":"stock","location":"{}"}}}}"#,
+        root.join("out").display()
+    );
+    stand_up(settings, root, &body, pool)
+}
+
+#[test]
+fn a_pool_too_small_for_the_copy_is_429_and_writes_nothing() {
+    // The take reserves two copy buffers and the largest `index-N` it reads.
+    let held = (64 << 20) + 2 * (1 << 16);
+    for (tag, pool) in [("pool-tiny", 8 << 20), ("pool-short", held - 1)] {
+        let r = rig_pooled(pool, tag);
+        let reply = send(&r, "PUT", &format!("/_snapshot/stock/s1{WAIT}"), Some(TAKE));
+        assert_eq!(reply.status, 429, "{tag}: {}", reply.text());
+        assert!(r.written().is_empty(), "{tag}: nothing was written");
     }
 }
 
