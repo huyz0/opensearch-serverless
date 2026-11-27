@@ -23,6 +23,8 @@ pub enum MultiType {
     MostFields,
     /// `phrase`: each field's phrase, as `best_fields` combines them.
     Phrase,
+    /// `cross_fields`: the fields that share an analyser, blended as one.
+    CrossFields,
 }
 
 impl MultiType {
@@ -30,7 +32,7 @@ impl MultiType {
     pub fn tie_breaker(self) -> f32 {
         match self {
             MultiType::MostFields => 1.0,
-            MultiType::BestFields | MultiType::Phrase => 0.0,
+            MultiType::BestFields | MultiType::Phrase | MultiType::CrossFields => 0.0,
         }
     }
 }
@@ -133,7 +135,8 @@ pub(crate) fn multi_type(text: &str) -> Result<MultiType, DslError> {
         "best_fields" | "boolean" => Ok(MultiType::BestFields),
         "most_fields" => Ok(MultiType::MostFields),
         "phrase" => Ok(MultiType::Phrase),
-        "cross_fields" | "phrase_prefix" | "bool_prefix" => {
+        "cross_fields" => Ok(MultiType::CrossFields),
+        "phrase_prefix" | "bool_prefix" => {
             // ALLOC: error path; one message.
             Err(DslError::unsupported(&format!(
                 "[multi_match] type [{text}]"

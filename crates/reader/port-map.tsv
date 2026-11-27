@@ -36,6 +36,8 @@ src/dsl/queries/compound.rs	port	server/src/main/java/org/opensearch/index/query
 src/dsl/queries/bool_prefix.rs	port	server/src/main/java/org/opensearch/index/query/MatchBoolPrefixQueryBuilder.java@3.10.0	fromXContent and doToQuery, with MatchQuery.parse of type BOOLEAN_PREFIX
 src/dsl/queries/bool_prefix_tests.rs	new		tests of bool_prefix.rs
 src/dsl/queries/build.rs	port	server/src/main/java/org/opensearch/index/mapper/StringFieldType.java@3.10.0	doRewrite/doToQuery of the module's builders; the field types' termsQuery, prefixQuery, wildcardQuery, regexpQuery, fuzzyQuery and existsQuery; ExistsQueryBuilder.newFilter
+src/dsl/queries/cross_fields.rs	port	server/src/main/java/org/opensearch/index/search/MultiMatchQuery.java@3.10.0	buildCrossFieldQuery, BlendedQueryBuilder and blendTerms
+src/dsl/queries/cross_fields_tests.rs	new		tests of cross_fields.rs
 src/dsl/queries/full_text.rs	port	server/src/main/java/org/opensearch/index/query/MultiMatchQueryBuilder.java@3.10.0	fromXContent and constructor checks of MatchPhraseQueryBuilder and MultiMatchQueryBuilder (with Type.parse and parseFieldAndBoost)
 src/dsl/queries/full_text_build.rs	port	server/src/main/java/org/opensearch/index/search/MultiMatchQuery.java@3.10.0	MatchQuery.parse of the phrase type, MultiMatchQuery.parse with buildFieldQueries and combineGrouped, QueryParserHelper.resolveMappingFields
 src/dsl/queries/simple_string.rs	port	server/src/main/java/org/opensearch/index/query/SimpleQueryStringBuilder.java@3.10.0	fromXContent, flag parsing and constructor checks

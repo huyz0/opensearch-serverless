@@ -253,7 +253,7 @@ fn multi_match_refuses_what_opensearch_refuses() {
     );
     for unsupported in [
         r#"{"multi_match":{"query":"a"}}"#,
-        r#"{"multi_match":{"query":"a","fields":["title"],"type":"cross_fields"}}"#,
+        r#"{"multi_match":{"query":"a","fields":["title"],"type":"phrase_prefix"}}"#,
         r#"{"multi_match":{"query":"a","fields":["title"],"fuzziness":"AUTO"}}"#,
         r#"{"multi_match":{"query":"a","fields":["title"],"analyzer":"simple"}}"#,
     ] {
