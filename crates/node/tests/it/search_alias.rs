@@ -98,7 +98,7 @@ fn an_alias_that_moved_or_was_removed_is_read_again() {
 #[test]
 fn an_alias_of_two_indexes_is_refused() {
     let (node, _) = node_with(&[("both", &["compat-term", "compat-other"])]);
-    let (status, body) = post(&node, "/both/_search", TERM);
+    let (status, body) = post(&node, "/both/_count", TERM);
     assert_eq!(status, 501, "{body}");
     assert!(body.contains("unsupported_alias_option"), "{body}");
 }

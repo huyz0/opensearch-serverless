@@ -25,6 +25,9 @@ use oss_rest::{JSON, Length, Response, RestError};
 
 use super::{Answer, SearchService, ShardQuery, send};
 
+#[path = "coordinate_plan.rs"]
+mod plan;
+
 /// A search to run once the response's buffers can be reserved: given the
 /// `took` it reports and what grants a buffer.
 type Run<'a> = dyn Fn(u64, &(dyn Fn(usize) -> io::Result<()> + Sync)) -> Result<Vec<u8>, SearchFailure<ShardError>>
@@ -35,6 +38,9 @@ type Run<'a> = dyn Fn(u64, &(dyn Fn(usize) -> io::Result<()> + Sync)) -> Result<
 pub(super) struct Visit<'a> {
     pub(super) shards: usize,
     pub(super) only: Option<&'a [u32]>,
+    /// The (index, shard) pairs of a search over several indexes, in merge
+    /// order; `shards` is their count.
+    pub(super) members: Option<&'a [(String, u32)]>,
 }
 
 /// A shard's error, as the text a failure lists.
@@ -70,14 +76,18 @@ struct Local<'a, S: BlobStore + 'static> {
     /// The shard numbers a routed search visits, in merge order: the merge's
     /// shard `n` is then the `n`th of them.
     only: Option<&'a [u32]>,
+    /// The pairs a search over several indexes queries.
+    members: Option<&'a [(String, u32)]>,
 }
 
 impl<S: BlobStore + 'static> Shards for Local<'_, S> {
     type Query = ShardQuery<S>;
     type Error = ShardError;
 
-    fn index(&self, _shard: usize) -> &str {
-        self.index
+    fn index(&self, shard: usize) -> &str {
+        self.members
+            .and_then(|m| m.get(shard))
+            .map_or(self.index, |(index, _)| index.as_str())
     }
 
     fn query(&self, shard: usize) -> Result<ShardQuery<S>, ShardError> {
@@ -86,6 +96,12 @@ impl<S: BlobStore + 'static> Shards for Local<'_, S> {
             return self
                 .service
                 .query_frozen_reserving(view, id, number, &self.source, self.reserve)
+                .map_err(ShardError);
+        }
+        if let Some((index, number)) = self.members.and_then(|m| m.get(shard)) {
+            return self
+                .service
+                .query_shard_reserving(index, *number, &self.source, self.reserve)
                 .map_err(ShardError);
         }
         let shard = self.only.map_or_else(
@@ -200,7 +216,11 @@ impl<S: BlobStore + 'static> SearchService<S> {
         self.coordinate_over(
             index,
             None,
-            Visit { shards, only: None },
+            Visit {
+                shards,
+                only: None,
+                members: None,
+            },
             source,
             took_ms,
             reserve,
@@ -226,6 +246,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
             Visit {
                 shards: view.shards.len(),
                 only: None,
+                members: None,
             },
             source,
             took_ms,
@@ -242,7 +263,11 @@ impl<S: BlobStore + 'static> SearchService<S> {
         took_ms: u64,
         reserve: &(dyn Fn(usize) -> io::Result<()> + Sync),
     ) -> Result<Vec<u8>, SearchFailure<ShardError>> {
-        let Visit { shards, only } = visit;
+        let Visit {
+            shards,
+            only,
+            members,
+        } = visit;
         let params = Params {
             from: source.from,
             // A search pipeline's truncate_hits cuts the merge window, so the rows past it are never fetched; each shard is still asked for from + size.
@@ -268,6 +293,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
             reserve,
             frozen,
             only,
+            members,
         };
         search(&local, shards, &params)
     }
@@ -307,60 +333,6 @@ pub(super) fn refusal(failure: SearchFailure<ShardError>) -> Box<SearchError> {
 }
 
 impl<S: BlobStore + 'static> SearchService<S> {
-    /// What a search of `index` visits: its shard count, and the shards
-    /// `routing` narrows it to on an index of several. A routing partition
-    /// or a shard mode visits every shard.
-    pub(super) fn shard_plan(
-        &self,
-        index: &str,
-        routing: Option<&str>,
-    ) -> Result<(usize, Option<Vec<u32>>), Answer> {
-        let held = self.open_shard(index, 0, false)?;
-        let shards = held.shard.meta.number_of_shards;
-        let count = usize::try_from(shards).unwrap_or(usize::MAX);
-        let values = oss_cluster::routing::search_routings(routing);
-        if shards < 2 || values.is_empty() {
-            return Ok((count, None));
-        }
-        let setting = |key: &str, default: u32| match held.shard.meta.settings.get(key) {
-            Some(oss_format::Setting::Value(text)) => text.trim().parse().unwrap_or(default),
-            _ => default,
-        };
-        let layout = oss_cluster::routing::DocumentRouting::legacy_scaled(
-            shards,
-            setting("index.routing_partition_size", 1),
-            setting("index.number_of_routing_shards", shards),
-        );
-        // ALLOC: one number per shard visited.
-        let only: Option<Vec<u32>> = layout
-            .ok()
-            .and_then(|l| l.shards_for_search(&values))
-            .map(|set| set.into_iter().collect());
-        Ok((only.as_ref().map_or(count, Vec::len), only))
-    }
-
-    /// Answers `source` over the shards `plan` (from [`Self::shard_plan`])
-    /// visits, refusing a collapse over them.
-    pub(super) fn handle_planned(
-        &self,
-        resp: &mut Response<'_>,
-        index: &str,
-        plan: &(usize, Option<Vec<u32>>),
-        source: &SearchSource,
-        started: Instant,
-    ) -> Result<(), RestError> {
-        if source.collapse.is_some() {
-            return Err(RestError::illegal_argument(
-                "[collapse] over an index of several shards is not supported by this node yet",
-            ));
-        }
-        let visit = Visit {
-            shards: plan.0,
-            only: plan.1.as_deref(),
-        };
-        self.handle_sharded(resp, index, visit, source, started)
-    }
-
     /// Answers `source` over the `shards` shards of `index` as one response.
     pub(super) fn handle_sharded(
         &self,

@@ -168,7 +168,9 @@ impl<S: BlobStore + 'static> SearchService<S> {
 
     /// Handles one `_search`.
     pub fn handle(&self, req: &mut Request<'_>, resp: &mut Response<'_>) -> Result<(), RestError> {
-        self.resolve_alias(req)?;
+        if let multi::Targets::Many(indexes) = self.resolve_targets(req)? {
+            return self.handle_many(req, resp, &indexes);
+        }
         // Held to the end of the search, then the permit, if any, goes back.
         let _admitted = self.slots.get().and_then(|slots| {
             let index = req.path_param("index")?;
@@ -391,6 +393,8 @@ mod field_caps;
 mod frozen;
 #[path = "search_msearch.rs"]
 mod msearch;
+#[path = "search_multi.rs"]
+mod multi;
 #[path = "search_open.rs"]
 pub(crate) mod open_shard;
 #[path = "search_rank_eval.rs"]
