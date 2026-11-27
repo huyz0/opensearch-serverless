@@ -86,6 +86,8 @@ pub struct Hits {
     pub aggregations: Vec<Partial>,
     /// Whether the response carries the total (`track_total_hits` not off).
     pub tracked: bool,
+    /// Whether the total is written as a bare number (`rest_total_hits_as_int`).
+    pub total_as_int: bool,
     /// What of each hit's `_source` to write.
     pub source: SourceFilter,
     /// The fields each hit's `fields` object carries, in its order.
@@ -376,6 +378,7 @@ pub fn search_with<S: BlobStore + 'static>(
         hits: top.hits,
         aggregations,
         tracked: source.track_total_hits.is_some(),
+        total_as_int: source.total_as_int,
         source: source.source.clone(),
         // ALLOC: empty; resolved below when there are hits.
         fields: Vec::new(),

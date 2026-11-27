@@ -7,7 +7,7 @@
 
 use crate::dsl::error::DslError;
 use crate::dsl::sort::{SortKey, push};
-use crate::dsl::source::SearchSource;
+use crate::dsl::source::{DEFAULT_TRACK_TOTAL_HITS, SearchSource};
 use crate::dsl::values::parse_int;
 
 /// The URL parameters of a search that set a source setting; `None` for one the URL does not carry.
@@ -35,6 +35,8 @@ pub struct UrlParams<'a> {
     pub sort: Option<&'a str>,
     /// `search_type`: only `query_then_fetch` is served.
     pub search_type: Option<&'a str>,
+    /// `rest_total_hits_as_int`.
+    pub rest_total_hits_as_int: Option<&'a str>,
 }
 
 impl SearchSource {
@@ -76,6 +78,7 @@ impl SearchSource {
                 // ALLOC: error path; one message.
                 .map_err(|_| DslError::illegal("terminateAfter must be > 0".to_owned()))?;
         }
+        self.apply_total_as_int(params.rest_total_hits_as_int)?;
         flag(params.explain, &mut self.explain)?;
         flag(params.version, &mut self.version)?;
         flag(params.seq_no_primary_term, &mut self.seq_no_primary_term)?;
@@ -89,6 +92,32 @@ impl SearchSource {
             }
             self.sort = keys;
         }
+        Ok(())
+    }
+
+    /// `rest_total_hits_as_int`: the total is a number and counted exactly, which a `track_total_hits`
+    /// of a lower bound or `false` contradicts.
+    fn apply_total_as_int(&mut self, text: Option<&str>) -> Result<(), DslError> {
+        let mut on = false;
+        flag(text, &mut on)?;
+        if !on {
+            return Ok(());
+        }
+        let exact = u64::from(i32::MAX.cast_unsigned());
+        match self.track_total_hits {
+            Some(n) if n == DEFAULT_TRACK_TOTAL_HITS => self.track_total_hits = Some(exact),
+            Some(n) if n == exact => {}
+            other => {
+                return Err(DslError::illegal(
+                    // ALLOC: error path; one message.
+                    format!(
+                        "[rest_total_hits_as_int] cannot be used if the tracking of total hits is not accurate, got {}",
+                        other.map_or(-1, |n| i64::try_from(n).unwrap_or(i64::MAX))
+                    ),
+                ));
+            }
+        }
+        self.total_as_int = true;
         Ok(())
     }
 
@@ -281,6 +310,42 @@ mod tests {
             ..UrlParams::default()
         });
         assert!(said.contains("sort direction [up] not supported"), "{said}");
+    }
+
+    #[test]
+    fn a_total_as_a_number_needs_an_exact_count() {
+        let with = |track: Option<u64>, flag: &str| {
+            let mut source = SearchSource::default();
+            if let Some(n) = track {
+                source.track_total_hits = Some(n);
+            }
+            source
+                .apply_url(&UrlParams {
+                    rest_total_hits_as_int: Some(flag),
+                    ..UrlParams::default()
+                })
+                .map(|()| source)
+        };
+        let exact = u64::from(i32::MAX.cast_unsigned());
+        let source = with(None, "true").unwrap();
+        assert!(source.total_as_int);
+        assert_eq!(source.track_total_hits, Some(exact));
+        assert!(with(Some(exact), "true").unwrap().total_as_int);
+        assert!(!with(None, "false").unwrap().total_as_int);
+        let said = format!("{:?}", with(Some(3), "true").unwrap_err());
+        assert!(said.contains("not accurate, got 3"), "{said}");
+        assert!(with(None, "maybe").is_err());
+        let mut off = SearchSource {
+            track_total_hits: None,
+            ..SearchSource::default()
+        };
+        let said = off
+            .apply_url(&UrlParams {
+                rest_total_hits_as_int: Some("true"),
+                ..UrlParams::default()
+            })
+            .unwrap_err();
+        assert!(format!("{said:?}").contains("got -1"));
     }
 
     #[test]

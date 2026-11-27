@@ -126,6 +126,8 @@ pub struct SearchSource {
     /// (a forwarded search carries its coordinator's), none otherwise, and a
     /// `now` in a range is then refused.
     pub now_millis: Option<i64>,
+    /// `rest_total_hits_as_int`: the total is written as a number, not an object with its relation.
+    pub total_as_int: bool,
 }
 
 impl SearchSource {
@@ -175,6 +177,7 @@ impl Default for SearchSource {
             response_size_cap: None,
             search_pipeline: None,
             now_millis: None,
+            total_as_int: false,
         }
     }
 }
