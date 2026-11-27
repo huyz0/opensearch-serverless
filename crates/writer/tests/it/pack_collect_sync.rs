@@ -12,35 +12,35 @@ use oss_writer::pack::{
     WINDOW_MILLIS, collector_for, window_of,
 };
 
-const MIN: u64 = 60_000;
-const NODE: &str = "writer-1";
+pub(crate) const MIN: u64 = 60_000;
+pub(crate) const NODE: &str = "writer-1";
 
-fn emulator() -> Arc<Emulator> {
+pub(crate) fn emulator() -> Arc<Emulator> {
     Arc::new(Emulator::new(1 << 30, 7))
 }
 
-fn dynstore(e: &Arc<Emulator>) -> Arc<dyn BlobStore> {
+pub(crate) fn dynstore(e: &Arc<Emulator>) -> Arc<dyn BlobStore> {
     Arc::clone(e) as Arc<dyn BlobStore>
 }
 
-fn ledger(e: &Arc<Emulator>) -> PackLedger {
+pub(crate) fn ledger(e: &Arc<Emulator>) -> PackLedger {
     PackLedger::new(dynstore(e), "", NODE).expect("ledger")
 }
 
 /// A pack at `ordinal` of `epoch`.
-fn pack(e: &Emulator, epoch: u64, ordinal: u64) {
+pub(crate) fn pack(e: &Emulator, epoch: u64, ordinal: u64) {
     let key = node_pack_key("", NODE, epoch, ordinal).expect("key");
     e.put(&key, &mut SliceSource::new(b"pack"), &mut [0; 16])
         .expect("put");
 }
 
-fn exists(e: &Emulator, epoch: u64, ordinal: u64) -> bool {
+pub(crate) fn exists(e: &Emulator, epoch: u64, ordinal: u64) -> bool {
     let key = node_pack_key("", NODE, epoch, ordinal).expect("key");
     e.head(&key).expect("head").is_some()
 }
 
 /// The node is in the index and its ledger holds `epoch` reserved to `high`.
-fn writer_with_ledger(e: &Arc<Emulator>, epoch: u64, high: u64) {
+pub(crate) fn writer_with_ledger(e: &Arc<Emulator>, epoch: u64, high: u64) {
     PackIndexStore::new(dynstore(e), "")
         .add(NODE, 1)
         .expect("indexed");
@@ -48,8 +48,8 @@ fn writer_with_ledger(e: &Arc<Emulator>, epoch: u64, high: u64) {
 }
 
 #[derive(Default)]
-struct Nothing {
-    asked: AtomicUsize,
+pub(crate) struct Nothing {
+    pub(crate) asked: AtomicUsize,
 }
 
 impl PackReferences for Nothing {
@@ -60,7 +60,7 @@ impl PackReferences for Nothing {
 }
 
 /// Four other members, and the writer too when its lease is live.
-fn members(writer_alive: bool) -> Vec<String> {
+pub(crate) fn members(writer_alive: bool) -> Vec<String> {
     let mut all: Vec<String> = (0..4).map(|n| format!("node-{n}")).collect();
     if writer_alive {
         all.push(NODE.to_owned());
@@ -69,7 +69,7 @@ fn members(writer_alive: bool) -> Vec<String> {
 }
 
 /// Runs window `w` on the member elected for it.
-fn run_as(c: &mut PackCollector, w: u64, refs: &Nothing, writer_alive: bool) {
+pub(crate) fn run_as(c: &mut PackCollector, w: u64, refs: &Nothing, writer_alive: bool) {
     let now = w.saturating_mul(WINDOW_MILLIS).saturating_add(MIN);
     assert_eq!(window_of(now), w);
     let all = members(writer_alive);
@@ -78,7 +78,7 @@ fn run_as(c: &mut PackCollector, w: u64, refs: &Nothing, writer_alive: bool) {
 }
 
 /// A pass with the writer's lease gone.
-fn run(c: &mut PackCollector, w: u64, refs: &Nothing) {
+pub(crate) fn run(c: &mut PackCollector, w: u64, refs: &Nothing) {
     run_as(c, w, refs, false);
 }
 
@@ -286,69 +286,4 @@ fn the_newest_epoch_stays_in_the_sidecar_when_all_of_it_is_collected() {
     let read = sidecar.read().expect("read");
     assert_eq!(read.sidecar.epochs().len(), 1);
     assert!(read.sidecar.epochs()[0].unmarked().next().is_none());
-}
-
-/// A node in no index register, with only a ledger, as a node that left
-/// before the first Rust collector ran.
-fn unindexed_ledger(e: &Arc<Emulator>, epoch: u64, high: u64) {
-    ledger(e).reserve(epoch, high).expect("reserved");
-}
-
-/// With seeding on, the walk names a node that is in no index register and
-/// its packs are then judged; the walk runs once and a later pass lists
-/// nothing.
-#[test]
-fn a_seeding_collector_finds_a_node_the_index_never_named() {
-    let e = emulator();
-    unindexed_ledger(&e, 1, 8);
-    pack(&e, 1, 0);
-    e.advance_clock(16 * MIN);
-    let refs = Nothing::default();
-    let mut c = PackCollector::new(dynstore(&e), "", 100).with_seeding(16);
-    run(&mut c, 100, &refs);
-    run(&mut c, 101, &refs);
-    assert!(!exists(&e, 1, 0), "found by the walk and judged");
-    let lists = e.meter().count(S3Op::List);
-    run(&mut c, 102, &refs);
-    assert_eq!(
-        e.meter().count(S3Op::List),
-        lists,
-        "the walk is not repeated"
-    );
-}
-
-/// Without seeding an unindexed node is never found.
-#[test]
-fn a_collector_without_seeding_does_not_look_for_unindexed_nodes() {
-    let e = emulator();
-    unindexed_ledger(&e, 1, 8);
-    pack(&e, 1, 0);
-    e.advance_clock(16 * MIN);
-    let refs = Nothing::default();
-    let mut c = PackCollector::new(dynstore(&e), "", 100);
-    run(&mut c, 100, &refs);
-    run(&mut c, 101, &refs);
-    assert!(exists(&e, 1, 0));
-    assert_eq!(e.meter().count(S3Op::List), 0);
-}
-
-/// A walk over several pages takes one page a pass and judges nothing it
-/// has not named yet.
-#[test]
-fn a_walk_over_many_pages_takes_one_page_a_pass() {
-    let e = emulator();
-    unindexed_ledger(&e, 1, 8);
-    let refs = Nothing::default();
-    let mut c = PackCollector::new(dynstore(&e), "", 100).with_seeding(1);
-    let mut steps = 0;
-    for w in 100..110 {
-        run(&mut c, w, &refs);
-        if e.meter().count(S3Op::List) > steps {
-            steps = e.meter().count(S3Op::List);
-        }
-    }
-    assert!(steps >= 1);
-    let after = e.meter().count(S3Op::List);
-    run(&mut c, 110, &refs);
-    assert_eq!(e.meter().count(S3Op::List), after, "done, so no more LISTs");
 }
