@@ -307,12 +307,6 @@ pub(super) fn refusal(failure: SearchFailure<ShardError>) -> Box<SearchError> {
 }
 
 impl<S: BlobStore + 'static> SearchService<S> {
-    /// How many shards `index` has, opening its shard 0 if it is not open.
-    pub(super) fn shard_count(&self, index: &str) -> Result<usize, Answer> {
-        let held = self.open_shard(index, 0, false)?;
-        Ok(usize::try_from(held.shard.meta.number_of_shards).unwrap_or(usize::MAX))
-    }
-
     /// What a search of `index` visits: its shard count, and the shards
     /// `routing` narrows it to on an index of several. A routing partition
     /// or a shard mode visits every shard.
