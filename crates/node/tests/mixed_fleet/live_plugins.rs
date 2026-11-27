@@ -377,3 +377,44 @@ fn the_anomaly_detection_endpoints_of_the_real_plugin_answer_through_a_rust_node
     assert_eq!(missing.status, 404, "{}", missing.text());
     rig.finish();
 }
+
+#[test]
+#[ignore = "needs OSS_JAVA_BIN, OSS_JAVA_CP and OSS_PLUGIN_ZIPS (a directory of released plugin zips)"]
+fn the_ml_commons_endpoints_of_the_real_plugin_answer_through_a_rust_node() {
+    let Some(rig) = Rig::start(&["opensearch-job-scheduler", "opensearch-ml"]) else {
+        return;
+    };
+    let group = r#"{"name":"proxy-probe","description":"probe"}"#;
+    let put = rig.proxied_settled("POST", "/_plugins/_ml/model_groups/_register", Some(group));
+    assert!(
+        matches!(put.status, 200 | 201),
+        "{} {}",
+        put.status,
+        put.text()
+    );
+    let id = put
+        .text()
+        .split("\"model_group_id\":\"")
+        .nth(1)
+        .and_then(|t| t.split('"').next())
+        .expect("a model group id")
+        .to_owned();
+    let path = format!("/_plugins/_ml/model_groups/{id}");
+    let got = rig.same_both_ways("GET", &path, None);
+    assert_eq!(got.status, 200, "{}", got.text());
+    assert!(got.text().contains("proxy-probe"), "{}", got.text());
+    let found = rig.proxied(
+        "POST",
+        "/_plugins/_ml/model_groups/_search",
+        Some(r#"{"query":{"match_all":{}}}"#),
+    );
+    assert_eq!(found.status, 200, "{}", found.text());
+    assert!(found.text().contains("proxy-probe"), "{}", found.text());
+    let stats = rig.same_both_ways("GET", "/_plugins/_ml/stats", None);
+    assert_eq!(stats.status, 200, "{}", stats.text());
+    let gone = rig.proxied("DELETE", &path, None);
+    assert_eq!(gone.status, 200, "{}", gone.text());
+    let missing = rig.same_both_ways("GET", &path, None);
+    assert_eq!(missing.status, 404, "{}", missing.text());
+    rig.finish();
+}
