@@ -50,7 +50,7 @@ pub fn answer(
     // ALLOC: one bucket a range, at most the request's.
     let mut buckets = Vec::with_capacity(r.buckets.len());
     for (i, b) in r.buckets.iter().enumerate() {
-        let key = key_of(format, b)
+        let key = key_of(format, r.format.as_ref(), b)
             .ok()
             .and_then(|k| String::from_utf8(k).ok())
             .ok_or_else(|| refuse("a range key that is not text", "INTERNAL_SERVER_ERROR"))?;

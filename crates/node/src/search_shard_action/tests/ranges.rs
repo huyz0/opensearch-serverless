@@ -46,6 +46,7 @@ fn part(format: Format, buckets: Vec<RangeBucket>, subs: BucketSubs) -> Partial 
         format,
         value: Part::Range(Box::new(RangeResult {
             keyed: false,
+            format: None,
             buckets,
             sub_meta: subs.meta,
             subs: subs.lists,

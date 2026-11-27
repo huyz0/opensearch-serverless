@@ -10,19 +10,32 @@ use crate::aggs::bucket::sub_values::write_subs;
 use crate::aggs::metric::date_text::write_date_of_double;
 use crate::aggs::metric::double::write_java_double;
 use crate::aggs::partial::Format;
+use crate::date_pattern::DatePattern;
 
 /// `format.format(value)`: a date field's bound as text, any other as the
 /// double.
-fn write_bound(out: &mut dyn Write, format: Format, value: f64) -> io::Result<()> {
-    match format {
-        Format::Raw | Format::Double => write_java_double(out, value),
-        Format::Date => write_date_of_double(out, value),
+fn write_bound(
+    out: &mut dyn Write,
+    format: Format,
+    pattern: Option<&DatePattern>,
+    value: f64,
+) -> io::Result<()> {
+    match (format, pattern) {
+        (Format::Raw | Format::Double, _) => write_java_double(out, value),
+        // ARITH: none; a double is cast to a long first, as `format(double)` does.
+        #[allow(clippy::cast_possible_truncation)]
+        (Format::Date, Some(p)) => p.write(out, value as i64, 0),
+        (Format::Date, None) => write_date_of_double(out, value),
     }
 }
 
 /// The key of `bucket`: the one asked for, else `from-to` with `*` for an
 /// unbounded end (`InternalRange.Bucket.generateKey`).
-pub fn key_of(format: Format, bucket: &RangeBucket) -> io::Result<Vec<u8>> {
+pub fn key_of(
+    format: Format,
+    pattern: Option<&DatePattern>,
+    bucket: &RangeBucket,
+) -> io::Result<Vec<u8>> {
     // ALLOC: one key a bucket, bounded by the request's ranges.
     let mut key = Vec::new();
     if let Some(asked) = &bucket.key {
@@ -32,13 +45,13 @@ pub fn key_of(format: Format, bucket: &RangeBucket) -> io::Result<Vec<u8>> {
     if bucket.from.is_infinite() {
         key.push(b'*');
     } else {
-        write_bound(&mut key, format, bucket.from)?;
+        write_bound(&mut key, format, pattern, bucket.from)?;
     }
     key.push(b'-');
     if bucket.to.is_infinite() {
         key.push(b'*');
     } else {
-        write_bound(&mut key, format, bucket.to)?;
+        write_bound(&mut key, format, pattern, bucket.to)?;
     }
     Ok(key)
 }
@@ -57,6 +70,7 @@ fn write_end(
     out: &mut dyn Write,
     first: &mut bool,
     format: Format,
+    pattern: Option<&DatePattern>,
     name: &str,
     value: f64,
 ) -> io::Result<()> {
@@ -65,7 +79,10 @@ fn write_end(
     write_java_double(out, value)?;
     if format == Format::Date {
         write!(out, ",\"{name}_as_string\":\"")?;
-        write_date_of_double(out, value)?;
+        // ALLOC: one date text, bounded by the format.
+        let mut text = Vec::new();
+        write_bound(&mut text, format, pattern, value)?;
+        out.write_all(&text)?;
         out.write_all(b"\"")?;
     }
     Ok(())
@@ -83,7 +100,8 @@ pub fn write_range(out: &mut dyn Write, format: Format, result: &RangeResult) ->
         if i > 0 {
             out.write_all(b",")?;
         }
-        let key = String::from_utf8_lossy(&key_of(format, bucket)?).into_owned();
+        let key =
+            String::from_utf8_lossy(&key_of(format, result.format.as_ref(), bucket)?).into_owned();
         let mut first = true;
         // The keyed form names the object by the key; the other writes it.
         if result.keyed {
@@ -95,10 +113,24 @@ pub fn write_range(out: &mut dyn Write, format: Format, result: &RangeResult) ->
             first = false;
         }
         if !bucket.from.is_infinite() {
-            write_end(out, &mut first, format, "from", bucket.from)?;
+            write_end(
+                out,
+                &mut first,
+                format,
+                result.format.as_ref(),
+                "from",
+                bucket.from,
+            )?;
         }
         if !bucket.to.is_infinite() {
-            write_end(out, &mut first, format, "to", bucket.to)?;
+            write_end(
+                out,
+                &mut first,
+                format,
+                result.format.as_ref(),
+                "to",
+                bucket.to,
+            )?;
         }
         separate(out, &mut first)?;
         write!(out, "\"doc_count\":{}", bucket.doc_count)?;

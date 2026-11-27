@@ -5,6 +5,7 @@
 
 use crate::aggs::bucket::range::{RangeDef, RangeSpec};
 use crate::aggs::metric::percentiles::double_value;
+use crate::date_pattern::DatePattern;
 use crate::dsl::error::DslError;
 use crate::dsl::tokens::{Kind, Parser};
 use crate::dsl::values::{bool_value, suggest};
@@ -53,6 +54,9 @@ fn parse_body(p: &mut Parser<'_>, name: &str, agg: &str) -> Result<(String, Rang
     let keys = if agg == "range" { KEYS } else { DATE_KEYS };
     let mut field: Option<String> = None;
     let mut spec = RangeSpec::default();
+    // The bounds given as text, each with the milliseconds it parsed to.
+    // ALLOC: one entry a text bound, bounded by the body's recording.
+    let mut texts: Vec<(f64, String)> = Vec::new();
     let mut key = "";
     let mut key_at = p.location();
     loop {
@@ -73,14 +77,15 @@ fn parse_body(p: &mut Parser<'_>, name: &str, agg: &str) -> Result<(String, Rang
                 None,
             ));
         }
-        if !matches!(key, "field" | "keyed" | "ranges") {
+        if !(matches!(key, "field" | "keyed" | "ranges") || key == "format" && agg == "date_range")
+        {
             // ALLOC: error path; one message.
             return Err(DslError::unsupported(&format!(
                 "the [{agg}] aggregation's [{key}]"
             )));
         }
         let accepted = match key {
-            "field" => kind == Kind::String,
+            "field" | "format" => kind == Kind::String,
             "keyed" => matches!(kind, Kind::Bool | Kind::String),
             _ => matches!(kind, Kind::StartArray | Kind::StartObject),
         };
@@ -108,9 +113,19 @@ fn parse_body(p: &mut Parser<'_>, name: &str, agg: &str) -> Result<(String, Rang
                     )
                 })?;
             }
-            _ => parse_ranges(p, kind, &mut spec.ranges, agg)?,
+            "format" => {
+                let text = p.text();
+                spec.format = Some(DatePattern::parse(text).ok_or_else(|| {
+                    // ALLOC: error path; one message.
+                    DslError::unsupported(&format!(
+                        "the [date_range] aggregation's [format] of [{text}]"
+                    ))
+                })?);
+            }
+            _ => parse_ranges(p, kind, &mut spec.ranges, &mut texts, agg)?,
         }
     }
+    check_texts(spec.format.as_ref(), &texts)?;
     let field = field.ok_or_else(|| {
         DslError::illegal("Required one of fields [field, script], but none were specified. ")
     })?;
@@ -134,6 +149,7 @@ fn parse_ranges(
     p: &mut Parser<'_>,
     kind: Kind,
     out: &mut Vec<RangeDef>,
+    texts: &mut Vec<(f64, String)>,
     agg: &str,
 ) -> Result<(), DslError> {
     let failed = |p: &Parser<'_>, cause: DslError| {
@@ -145,7 +161,7 @@ fn parse_ranges(
         )
     };
     if kind == Kind::StartObject {
-        let def = parse_range(p, agg).map_err(|e| failed(p, e))?;
+        let def = parse_range(p, texts, agg).map_err(|e| failed(p, e))?;
         out.push(def);
         return Ok(());
     }
@@ -153,7 +169,7 @@ fn parse_ranges(
         match p.next_token() {
             Some(Kind::EndArray) | None => return Ok(()),
             Some(Kind::StartObject) => {
-                let def = parse_range(p, agg).map_err(|e| failed(p, e))?;
+                let def = parse_range(p, texts, agg).map_err(|e| failed(p, e))?;
                 // ALLOC: one range, bounded by the body's recording.
                 out.push(def);
             }
@@ -178,7 +194,11 @@ fn parse_ranges(
 /// One range object, the parser on its start: `key`, `from` and `to`, each
 /// optional, `from` and `to` a number or null. A bound given as text is
 /// parsed by the field's format, which is not served yet.
-fn parse_range(p: &mut Parser<'_>, agg: &str) -> Result<RangeDef, DslError> {
+fn parse_range(
+    p: &mut Parser<'_>,
+    texts: &mut Vec<(f64, String)>,
+    agg: &str,
+) -> Result<RangeDef, DslError> {
     let mut def = RangeDef {
         key: None,
         from: f64::NEG_INFINITY,
@@ -226,6 +246,8 @@ fn parse_range(p: &mut Parser<'_>, agg: &str) -> Result<RangeDef, DslError> {
             }
             ("from" | "to", Kind::String) if agg == "date_range" => {
                 let value = date_bound(p, key, agg)?;
+                // ALLOC: one text a text bound, bounded by the body's recording.
+                texts.push((value, p.text().to_owned()));
                 if key == "from" {
                     def.from = value;
                 } else {
@@ -273,4 +295,28 @@ fn date_bound(p: &Parser<'_>, key: &str, agg: &str) -> Result<f64, DslError> {
             Some(DslError::Failure(e.into_failure(text))),
         )),
     }
+}
+
+/// A bound given as text is parsed by the aggregation's `format`, which this
+/// node only prints: it is served when the format prints the parsed instant
+/// as the very text given (the default parser then reads what the format
+/// would), and refused otherwise.
+fn check_texts(format: Option<&DatePattern>, texts: &[(f64, String)]) -> Result<(), DslError> {
+    let Some(pattern) = format else {
+        return Ok(());
+    };
+    for (millis, text) in texts {
+        // ALLOC: one date text, bounded by the format.
+        let mut printed = Vec::new();
+        // ARITH: none; a parsed date's milliseconds are far below 2^63.
+        #[allow(clippy::cast_possible_truncation)]
+        let wrote = pattern.write(&mut printed, *millis as i64, 0);
+        if wrote.is_err() || printed != text.as_bytes() {
+            return Err(DslError::unsupported(
+                // ALLOC: error path; one message.
+                &format!("a date_range bound [{text}] that is not in the [format]'s own text"),
+            ));
+        }
+    }
+    Ok(())
 }

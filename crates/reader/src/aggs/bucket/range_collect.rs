@@ -54,6 +54,7 @@ pub fn value(agg: &MetricAgg, docs: &[u64]) -> Value {
 pub fn from_counts(spec: &RangeSpec, docs: &[u64]) -> RangeResult {
     RangeResult {
         keyed: spec.keyed,
+        format: spec.format.clone(),
         // ALLOC: one bucket a range, which the shard bounds before it runs.
         buckets: spec
             .ranges
