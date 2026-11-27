@@ -117,18 +117,20 @@ impl<S: BlobStore + 'static> SearchService<S> {
     }
 }
 
-/// Installs the alias source over the registers under `config.base`.
+/// Installs the alias source over the registers under `base`.
 ///
 /// # Errors
 ///
 /// The store's refusal of the base.
+#[cfg(feature = "writer")]
 pub(crate) fn install<S: BlobStore + 'static>(
     search: &SearchService<S>,
     store: &Arc<dyn BlobStore>,
-    config: &crate::assemble::Config,
-) -> Result<(), crate::assemble::AssembleError> {
-    let descriptors = DescriptorStore::new(Arc::clone(store), &config.base, config.delete_mode)
-        .map_err(|e| crate::assemble::AssembleError::Store(e.to_string()))?;
+    base: &str,
+    delete_mode: oss_meta::DeleteMode,
+) -> Result<(), String> {
+    let descriptors =
+        DescriptorStore::new(Arc::clone(store), base, delete_mode).map_err(|e| e.to_string())?;
     search.set_aliases(Arc::new(RegistryAliases::new(descriptors)));
     Ok(())
 }
