@@ -83,6 +83,7 @@ fn the_aggregations_of_a_request_reach_the_source() {
             percentiles: None,
             terms: None,
             histogram: None,
+            ranges: None,
             subs: Vec::new(),
         },
         AggRequest {
@@ -93,6 +94,7 @@ fn the_aggregations_of_a_request_reach_the_source() {
             percentiles: None,
             terms: None,
             histogram: None,
+            ranges: None,
             subs: Vec::new(),
         },
     ];
@@ -117,6 +119,7 @@ fn a_precision_threshold_reaches_the_source() {
         percentiles: None,
         terms: None,
         histogram: None,
+        ranges: None,
         subs: Vec::new(),
     }];
     let s = search_source(&with).expect("a search source");
@@ -139,6 +142,7 @@ fn percentile_keys_and_options_reach_the_source() {
         }),
         terms: None,
         histogram: None,
+        ranges: None,
         subs: Vec::new(),
     };
     with.aggregations = vec![
@@ -184,6 +188,7 @@ fn a_terms_aggregations_options_reach_the_source() {
             show_error: true,
         }),
         histogram: None,
+        ranges: None,
         subs: Vec::new(),
     };
     let mut with = read("request.match_all");
@@ -229,6 +234,7 @@ fn the_sub_aggregations_of_a_terms_reach_the_source() {
         percentiles: None,
         terms: None,
         histogram: None,
+        ranges: None,
         subs: Vec::new(),
     };
     let mut parent = leaf("t", AggKind::Terms);
@@ -265,6 +271,7 @@ fn a_date_histograms_options_and_sub_aggregations_reach_the_source() {
         percentiles: None,
         terms: None,
         histogram: None,
+        ranges: None,
         subs: Vec::new(),
     };
     let ask = |interval: &str, interval_type| {
@@ -298,4 +305,63 @@ fn a_date_histograms_options_and_sub_aggregations_reach_the_source() {
     let s = search_source(&with).expect("a search source");
     let h = s.aggs[0].date_histogram.as_ref().expect("a date histogram");
     assert_eq!(h.rounding.kind, RoundingKind::Interval(30_000));
+}
+
+#[test]
+fn a_ranges_bounds_keys_and_text_reach_the_source() {
+    use oss_transport::actions::search_shard::{AggKind, AggRequest, RangeAsk, RangesRequest};
+    let request = |kind, ranges, keyed| AggRequest {
+        name: "r".to_owned(),
+        kind,
+        field: "n".to_owned(),
+        precision_threshold: None,
+        percentiles: None,
+        terms: None,
+        histogram: None,
+        ranges: Some(RangesRequest { ranges, keyed }),
+        subs: Vec::new(),
+    };
+    let ask = |key: Option<&str>, from: f64, to: f64| RangeAsk {
+        key: key.map(str::to_owned),
+        from,
+        from_text: None,
+        to,
+        to_text: None,
+    };
+    let mut with = read("request.match_all");
+    with.aggregations = vec![request(
+        AggKind::Range,
+        vec![
+            ask(Some("low"), f64::NEG_INFINITY, 10.0),
+            ask(None, 10.0, f64::INFINITY),
+        ],
+        true,
+    )];
+    let s = search_source(&with).expect("a search source");
+    let r = s.aggs[0].range.as_ref().expect("a range");
+    assert!(r.keyed);
+    let got: Vec<(Option<&str>, f64, f64)> = r
+        .ranges
+        .iter()
+        .map(|d| (d.key.as_deref(), d.from, d.to))
+        .collect();
+    assert_eq!(
+        got,
+        [
+            (Some("low"), f64::NEG_INFINITY, 10.0),
+            (None, 10.0, f64::INFINITY)
+        ]
+    );
+    // A date range's bound given as text is read as a date.
+    let text = RangeAsk {
+        key: None,
+        from: f64::NEG_INFINITY,
+        from_text: Some("1970-01-01T00:00:01.000Z".to_owned()),
+        to: 5_000.0,
+        to_text: None,
+    };
+    with.aggregations = vec![request(AggKind::DateRange, vec![text], false)];
+    let s = search_source(&with).expect("a search source");
+    let r = s.aggs[0].range.as_ref().expect("a range");
+    assert_eq!((r.ranges[0].from, r.ranges[0].to), (1_000.0, 5_000.0));
 }

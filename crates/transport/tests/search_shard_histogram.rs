@@ -28,6 +28,7 @@ fn histogram(name: &str, h: DateHistogramRequest) -> AggRequest {
         percentiles: None,
         terms: None,
         histogram: Some(h),
+        ranges: None,
         subs: Vec::new(),
     }
 }
@@ -81,6 +82,7 @@ fn the_date_histogram_builders_are_the_bytes_java_wrote() {
         percentiles: None,
         terms: None,
         histogram: None,
+        ranges: None,
         subs: Vec::new(),
     }];
     round_trips(&recorded("request.date_histogram_subs"), &[with_sub]);

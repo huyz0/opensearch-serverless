@@ -10,6 +10,7 @@
 use super::Refusal;
 use super::aggs_histogram::{self, DateHistogramAnswer, DateHistogramRequest};
 use super::aggs_percentiles::{self, PercentilesRequest};
+use super::aggs_range::{self, RangeAnswer, RangesRequest};
 use super::aggs_terms::{self, TermsAnswer, TermsRequest};
 use crate::error::WireError;
 use crate::stream::{Input, Output};
@@ -17,69 +18,7 @@ use crate::stream::{Input, Output};
 /// The most aggregations one request may carry.
 pub const MAX_AGGREGATIONS: usize = 64;
 
-/// The metric aggregations a forwarded search may ask for.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AggKind {
-    /// `min`.
-    Min,
-    /// `max`.
-    Max,
-    /// `sum`.
-    Sum,
-    /// `avg`.
-    Avg,
-    /// `value_count`.
-    ValueCount,
-    /// `stats`.
-    Stats,
-    /// `cardinality`.
-    Cardinality,
-    /// `percentiles`.
-    Percentiles,
-    /// `percentile_ranks`.
-    PercentileRanks,
-    /// `terms`.
-    Terms,
-    /// `date_histogram`.
-    DateHistogram,
-}
-
-impl AggKind {
-    /// The aggregation's type name, which is its writeable name.
-    pub fn name(self) -> &'static str {
-        match self {
-            Self::Min => "min",
-            Self::Max => "max",
-            Self::Sum => "sum",
-            Self::Avg => "avg",
-            Self::ValueCount => "value_count",
-            Self::Stats => "stats",
-            Self::Cardinality => "cardinality",
-            Self::Percentiles => "percentiles",
-            Self::PercentileRanks => "percentile_ranks",
-            Self::Terms => "terms",
-            Self::DateHistogram => "date_histogram",
-        }
-    }
-
-    fn from_name(name: &str) -> Option<Self> {
-        [
-            Self::Min,
-            Self::Max,
-            Self::Sum,
-            Self::Avg,
-            Self::ValueCount,
-            Self::Stats,
-            Self::Cardinality,
-            Self::Percentiles,
-            Self::PercentileRanks,
-            Self::Terms,
-            Self::DateHistogram,
-        ]
-        .into_iter()
-        .find(|k| k.name() == name)
-    }
-}
+pub use super::aggs_kind::AggKind;
 
 /// One aggregation asked for.
 #[derive(Debug, Clone, PartialEq)]
@@ -98,6 +37,8 @@ pub struct AggRequest {
     pub terms: Option<TermsRequest>,
     /// A `date_histogram`'s options.
     pub histogram: Option<DateHistogramRequest>,
+    /// A `range`'s or `date_range`'s ranges.
+    pub ranges: Option<RangesRequest>,
     /// The sub-aggregations of a bucket aggregation, in request order.
     pub subs: Vec<AggRequest>,
 }
@@ -127,6 +68,8 @@ pub enum AggValue {
     Terms(TermsAnswer),
     /// `InternalDateHistogram`.
     DateHistogram(DateHistogramAnswer),
+    /// `InternalRange` or `InternalDateRange`.
+    Range(RangeAnswer),
     /// `InternalTDigestPercentiles` or `InternalTDigestPercentileRanks`.
     Percentiles {
         /// Ranks rather than percentiles.
@@ -258,7 +201,12 @@ fn read_one(
     } else {
         read_builder(input, depth.saturating_add(1), budget)?
     };
-    if !subs.is_empty() && !matches!(kind, AggKind::Terms | AggKind::DateHistogram) {
+    if !subs.is_empty()
+        && !matches!(
+            kind,
+            AggKind::Terms | AggKind::DateHistogram | AggKind::Range | AggKind::DateRange
+        )
+    {
         return Err(Refusal::Unsupported("sub-aggregations"));
     }
     null_generic(input, "aggregation metadata")?;
@@ -302,6 +250,11 @@ fn read_one(
     } else {
         None
     };
+    let ranges = if matches!(kind, AggKind::Range | AggKind::DateRange) {
+        Some(aggs_range::read(input)?)
+    } else {
+        None
+    };
     Ok(AggRequest {
         name,
         kind,
@@ -310,6 +263,7 @@ fn read_one(
         percentiles,
         terms,
         histogram,
+        ranges,
         subs,
     })
 }
@@ -351,6 +305,9 @@ pub fn write(aggs: &[AggRequest], out: &mut Output<'_>) -> Result<(), WireError>
         if let Some(h) = &agg.histogram {
             aggs_histogram::write(h, out)?;
         }
+        if let Some(r) = &agg.ranges {
+            aggs_range::write(r, out)?;
+        }
         if let Some(p) = &agg.percentiles {
             out.count(p.keys.len())?;
             for k in &p.keys {
@@ -370,8 +327,10 @@ pub fn write(aggs: &[AggRequest], out: &mut Output<'_>) -> Result<(), WireError>
 /// The writeable name of an answer: the aggregation's own, but for the
 /// percentiles, which are named for their t-digest.
 fn answer_name(kind: AggKind, value: &AggValue) -> &'static str {
-    if let AggValue::Terms(t) = value {
-        return t.name();
+    match value {
+        AggValue::Terms(t) => return t.name(),
+        AggValue::Range(r) => return r.name(),
+        _ => {}
     }
     match kind {
         AggKind::Percentiles => "tdigest_percentiles",
@@ -413,6 +372,7 @@ pub(super) fn write_one(
             AggValue::Cardinality(_) => (AggKind::Cardinality, ()),
             AggValue::Terms(_) => (AggKind::Terms, ()),
             AggValue::DateHistogram(_) => (AggKind::DateHistogram, ()),
+            AggValue::Range(_) => (AggKind::Range, ()),
             AggValue::Percentiles { ranks: false, .. } => (AggKind::Percentiles, ()),
             AggValue::Percentiles { ranks: true, .. } => (AggKind::PercentileRanks, ()),
         };
@@ -441,6 +401,7 @@ pub(super) fn write_one(
             }
             AggValue::Terms(t) => t.write(date, out)?,
             AggValue::DateHistogram(h) => h.write(out)?,
+            AggValue::Range(r) => r.write(date, out)?,
             AggValue::Cardinality(sketch) => {
                 write_format(out, date)?;
                 out.bool(sketch.is_some())?;

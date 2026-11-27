@@ -1,7 +1,7 @@
 //! A shard's result for one aggregation as the forwarded answer's value.
 
-use super::{histogram, refuse, terms};
-use oss_reader::aggs::partial::Value as Part;
+use super::{histogram, range, refuse, terms};
+use oss_reader::aggs::partial::{Format, Value as Part};
 use oss_transport::actions::search_shard::{AggRequest, AggValue};
 use oss_transport::exception::RemoteException;
 
@@ -17,7 +17,7 @@ pub(super) fn request<'r>(
 }
 
 /// The wire's value for `v`, the result of the aggregation `name` among
-/// `asked`.
+/// `asked`, of a field whose format is `format`.
 ///
 /// # Errors
 ///
@@ -25,6 +25,7 @@ pub(super) fn request<'r>(
 pub(super) fn value(
     name: &str,
     v: &Part,
+    format: Format,
     asked: &[AggRequest],
 ) -> Result<AggValue, RemoteException> {
     Ok(match v {
@@ -73,6 +74,7 @@ pub(super) fn value(
         Part::DateHistogram(r) => {
             AggValue::DateHistogram(histogram::answer(r, request(asked, name)?)?)
         }
+        Part::Range(r) => AggValue::Range(range::answer(r, format, request(asked, name)?)?),
         Part::ValueCount(n) => AggValue::ValueCount(i64::try_from(*n).unwrap_or(i64::MAX)),
         _ => {
             return Err(refuse(

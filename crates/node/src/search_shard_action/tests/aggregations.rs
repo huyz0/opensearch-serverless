@@ -31,6 +31,7 @@ fn aggregations_asked_for_come_back_as_internal_aggregations() {
             percentiles: None,
             terms: None,
             histogram: None,
+            ranges: None,
             subs: Vec::new(),
         },
         AggRequest {
@@ -41,6 +42,7 @@ fn aggregations_asked_for_come_back_as_internal_aggregations() {
             percentiles: None,
             terms: None,
             histogram: None,
+            ranges: None,
             subs: Vec::new(),
         },
     ];
@@ -192,11 +194,12 @@ fn terms_request(
             show_error: false,
         }),
         histogram: None,
+        ranges: None,
         subs: Vec::new(),
     }
 }
 
-fn ask_with(
+pub(super) fn ask_with(
     aggs: Vec<oss_transport::actions::search_shard::AggRequest>,
     parts: Vec<oss_reader::aggs::partial::Partial>,
 ) -> Result<Vec<u8>, oss_transport::exception::RemoteException> {
@@ -293,6 +296,7 @@ fn a_numeric_terms_aggregation_is_answered_as_long_terms_and_a_bucket_carries_it
         percentiles: None,
         terms: None,
         histogram: None,
+        ranges: None,
         subs: Vec::new(),
     }];
     let meta = vec![("m".to_owned(), Format::Raw)];
@@ -344,6 +348,7 @@ fn histogram_request(
             interval_type,
             offset: 0,
         }),
+        ranges: None,
         subs: Vec::new(),
     }
 }
@@ -389,6 +394,7 @@ fn a_date_histogram_is_answered_with_its_rounding_buckets_and_empty_bucket_sub_a
         percentiles: None,
         terms: None,
         histogram: None,
+        ranges: None,
         subs: Vec::new(),
     }];
     let subs = BucketSubs {

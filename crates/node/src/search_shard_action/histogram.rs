@@ -35,7 +35,7 @@ fn results(
     for ((name, format), v) in meta.iter().zip(values) {
         one.push(SubAnswer {
             name: name.clone(),
-            value: value(name, v, asked)?,
+            value: value(name, v, *format, asked)?,
             date: *format == Format::Date,
         });
     }
