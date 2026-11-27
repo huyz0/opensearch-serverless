@@ -168,6 +168,7 @@ src/extension_store.rs	new		modules stored under the hash of their bytes, read o
 src/boot/config/budget.rs	new		the node memory budget split into pools by fixed shares
 src/warm_copy.rs	new		the joiner copy of one peer's hot pages: validated, batched and paced
 src/warm_copy/tests.rs	new		tests of the copy against a fake peer holding a warmed cache
+src/warm_copy/tests/applies.rs	new		tests of the copy against a peer that adds, refuses or stalls, and of its pacing on a fake clock
 src/warm_copy/tests/two_peers.rs	new		tests of the copy across several peers and of opening a peer's many shards side by side
 src/warm_join.rs	new		who a joiner asks and the signed transport calls, with the bounded fan-out over peers
 src/warm_join/tests.rs	new		tests of the peer list, the fan-out cap and the batch memory reservation

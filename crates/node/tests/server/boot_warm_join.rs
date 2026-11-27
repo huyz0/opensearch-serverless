@@ -296,3 +296,41 @@ fn a_warming_node_has_no_search_role_in_its_lease_until_it_is_ready() {
         std::thread::sleep(Duration::from_millis(30));
     }
 }
+
+// docs/specs/reader-warm-copy AC-3, AC-5: the peer serves the copy from its
+// cache and makes no store request for it; the joiner's search after the
+// warm-up finds its pages with no further read.
+#[test]
+fn serving_the_copy_costs_the_peer_no_store_request_and_the_joiners_search_reads_nothing() {
+    let store = TempDir::new("warm-join-requests");
+    let root = store.path().display().to_string();
+    let tiers = ["a", "b"].map(|n| TempDir::new(&format!("warm-join-requests-{n}")));
+
+    let a = boot(&root, "n1", tiers[0].path(), true);
+    wait_ready(&a);
+    search(&a);
+    let peer_before = reads(&a, "logs");
+    assert!(peer_before > 0.0, "the peer's own reads are metered");
+
+    let b = boot(&root, "n2", tiers[1].path(), true);
+    wait_ready(&b);
+    assert!(used(tiers[1].path()) > 0, "the joiner took pages");
+    let peer_after = reads(&a, "logs");
+    assert_eq!(
+        peer_after,
+        peer_before,
+        "the peer made {} store requests while it served the copy",
+        peer_after - peer_before
+    );
+
+    let warm_up = reads(&b, "logs");
+    first_search(&b);
+    assert_eq!(
+        reads(&b, "logs"),
+        warm_up,
+        "the search after the warm-up read the store"
+    );
+    // A second search is as free as the first.
+    first_search(&b);
+    assert_eq!(reads(&b, "logs"), warm_up);
+}
