@@ -147,6 +147,29 @@ pub(crate) fn multi_type(text: &str) -> Result<MultiType, DslError> {
     }
 }
 
+/// The parameters of a `match` query with a `fuzziness`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FuzzyMatch {
+    /// The field.
+    pub field: String,
+    /// The text.
+    pub query: Value,
+    /// How the terms combine.
+    pub operator: Operator,
+    /// `minimum_should_match`.
+    pub minimum_should_match: Option<String>,
+    /// `zero_terms_query: all`.
+    pub zero_terms_all: bool,
+    /// The edits each term may differ by.
+    pub fuzziness: crate::dsl::queries::Fuzziness,
+    /// `prefix_length`: the leading characters no edit touches.
+    pub prefix_length: i32,
+    /// `max_expansions`: the terms each term expands to, at most.
+    pub max_expansions: i32,
+    /// `fuzzy_transpositions`.
+    pub transpositions: bool,
+}
+
 /// The parameters of a `multi_match` query.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MultiMatch {

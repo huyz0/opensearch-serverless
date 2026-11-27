@@ -11,11 +11,13 @@ use lucene_search::query_visitor::Occur;
 use lucene_search::{BoostQuery, Clause, DisjunctionMaxQuery};
 
 use crate::dsl::queries::build::simple_match;
-use crate::dsl::queries::full_text::{MultiMatch, MultiType};
+use crate::dsl::queries::full_text::{FuzzyMatch, MultiMatch, MultiType};
+use crate::dsl::query::Operator;
 use crate::dsl::values::Value;
 use crate::failure::Failure;
 use crate::lucene_query::{
-    QueryContext, field_type, match_all, match_none, match_query, term, text_query,
+    QueryContext, apply_min_should_match, field_type, match_all, match_none, match_query, term,
+    text_query,
 };
 use crate::mapping::FieldType;
 
@@ -40,6 +42,57 @@ pub fn phrase(
     }
     let built = text_query(cx, field, value.text(), Occur::Must, true, slop)?;
     Ok(built.unwrap_or_else(|| zero_terms(cx, zero_terms_all)))
+}
+
+/// `MatchQuery.parse` of type boolean with a `fuzziness`: each term the
+/// text analyses to is a fuzzy query, joined by the operator; a keyword
+/// field's whole text is one.
+pub fn fuzzy_match(cx: &QueryContext<'_>, m: &FuzzyMatch) -> Result<Clause, Failure> {
+    let field = m.field.as_str();
+    let Some(ty) = field_type(cx, field)? else {
+        return Ok(match_none());
+    };
+    let fuzzy = |text: &str| {
+        super::build::fuzzy(
+            cx,
+            field,
+            // ALLOC: one string a term, bounded by the analysed text.
+            &Value::Str(text.to_owned()),
+            m.fuzziness,
+            m.prefix_length,
+            m.max_expansions,
+            m.transpositions,
+        )
+    };
+    if *ty != FieldType::Text {
+        return fuzzy(m.query.text());
+    }
+    let occur = match m.operator {
+        Operator::Or => Occur::Should,
+        Operator::And => Occur::Must,
+    };
+    let Some(clause) = text_query(cx, field, m.query.text(), occur, false, 0)? else {
+        return Ok(zero_terms(cx, m.zero_terms_all));
+    };
+    let swap = |c: Clause| match c {
+        Clause::Term(t) => fuzzy(&String::from_utf8_lossy(&t.term)),
+        other => Ok(other),
+    };
+    match clause {
+        Clause::Boolean(mut b) => {
+            for list in [&mut b.must, &mut b.should, &mut b.must_not, &mut b.filter] {
+                for c in std::mem::take(list) {
+                    list.push(swap(c)?);
+                }
+            }
+            // ALLOC: one box a match query's terms.
+            Ok(Clause::Boolean(Box::new(apply_min_should_match(
+                *b,
+                m.minimum_should_match.as_deref(),
+            )?)))
+        }
+        other => swap(other),
+    }
 }
 
 /// `QueryParserHelper.resolveMappingFields`: each name the later boost it

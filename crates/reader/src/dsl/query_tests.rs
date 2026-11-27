@@ -176,7 +176,7 @@ fn match_errors_are_opensearchs() {
         reason(r#"{"query":{"match":{"t":{"query":"x","operator":"xor"}}}}"#),
         "No enum constant org.opensearch.index.query.Operator.XOR"
     );
-    for p in ["fuzziness", "lenient", "_name"] {
+    for p in ["fuzzy_rewrite", "lenient", "_name"] {
         let body = format!(r#"{{"query":{{"match":{{"t":{{"query":"x","{p}":"1"}}}}}}}}"#);
         assert!(reason(&body).contains("not supported"), "{p}");
     }

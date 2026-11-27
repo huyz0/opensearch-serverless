@@ -118,6 +118,7 @@ pub fn to_clause(m: &More, cx: &QueryContext<'_>) -> Result<Clause, Failure> {
             zero_terms_all,
             ..
         } => full_text_build::phrase(cx, field, query, *slop, *zero_terms_all),
+        More::FuzzyMatch(m, _) => full_text_build::fuzzy_match(cx, m),
         More::MultiMatch(m, _) => full_text_build::multi_match(cx, m),
         More::SimpleQueryString(s, _) => super::simple_string_build::simple_query_string(cx, s),
         More::QueryString(q, _) => super::query_string_build::query_string(cx, q),

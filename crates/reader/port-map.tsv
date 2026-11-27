@@ -55,6 +55,8 @@ src/dsl/queries/function_score_tests.rs	new		tests of function_score.rs, against
 src/dsl/queries/function_score_build_tests.rs	new		tests of function_score_build.rs, against what the replay cannot name
 src/dsl/queries/simple_string_tests.rs	new		tests of simple_string.rs, against messages recorded from OpenSearch
 src/dsl/queries/simple_string_build_tests.rs	new		tests of simple_string_build.rs and simple_string_leaf.rs, against queries OpenSearch built
+src/dsl/match_parse.rs	port	server/src/main/java/org/opensearch/index/query/MatchQueryBuilder.java@3.10.0	MatchQueryBuilder.fromXContent
+src/dsl/queries/fuzzy_match_tests.rs	new		tests of the fuzziness of a match query
 src/dsl/query.rs	port	server/src/main/java/org/opensearch/index/query/AbstractQueryBuilder.java@3.10.0	parseInnerQueryBuilder, with MatchAllQueryBuilder, TermQueryBuilder, MatchQueryBuilder and RangeQueryBuilder fromXContent
 src/dsl/query_tests.rs	new		tests of query.rs, against messages recorded from OpenSearch
 src/dsl/registered.rs	port	server/src/main/java/org/opensearch/search/SearchModule.java@3.10.0	the registered query names, the suggestion candidates

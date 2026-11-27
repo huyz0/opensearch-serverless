@@ -14,7 +14,7 @@ use crate::dsl::bool_query::{BoolQuery, parse_bool};
 use crate::dsl::error::DslError;
 pub use crate::dsl::registered::REGISTERED_QUERIES;
 use crate::dsl::tokens::{Kind, Parser};
-use crate::dsl::values::{Value, bool_value, float_value, object_value, suggest, text_or_null};
+use crate::dsl::values::{Value, bool_value, float_value, object_value, suggest};
 
 /// `Operator`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -116,7 +116,7 @@ pub fn parse_inner(p: &mut Parser<'_>) -> Result<Query, DslError> {
     let query = match name {
         "match_all" => parse_match_all(p)?,
         "term" => parse_term(p)?,
-        "match" => parse_match(p)?,
+        "match" => crate::dsl::match_parse::parse_match(p)?,
         "range" => parse_range(p)?,
         // ALLOC: one box a bool query, nested at most as deep as the tokenizer allows.
         "bool" => Query::Bool(Box::new(parse_bool(p)?)),
@@ -165,7 +165,7 @@ fn malformed(p: &Parser<'_>, name: &str) -> DslError {
     )
 }
 
-fn does_not_support(p: &Parser<'_>, query: &str, field: &str) -> DslError {
+pub(crate) fn does_not_support(p: &Parser<'_>, query: &str, field: &str) -> DslError {
     // ALLOC: error path; one message.
     DslError::parsing(
         p.location(),
@@ -173,7 +173,7 @@ fn does_not_support(p: &Parser<'_>, query: &str, field: &str) -> DslError {
     )
 }
 
-fn multiple_fields(p: &Parser<'_>, query: &str, first: &str, second: &str) -> DslError {
+pub(crate) fn multiple_fields(p: &Parser<'_>, query: &str, first: &str, second: &str) -> DslError {
     DslError::parsing(
         p.location(),
         // ALLOC: error path; one message.
@@ -182,7 +182,7 @@ fn multiple_fields(p: &Parser<'_>, query: &str, first: &str, second: &str) -> Ds
 }
 
 /// Advances past a value or a whole object or array.
-fn next_or_end(p: &mut Parser<'_>, end: Kind) -> Option<Kind> {
+pub(crate) fn next_or_end(p: &mut Parser<'_>, end: Kind) -> Option<Kind> {
     match p.next_token() {
         Some(k) if k == end => None,
         None => None,
@@ -276,99 +276,6 @@ fn parse_term(p: &mut Parser<'_>) -> Result<Query, DslError> {
         // ALLOC: one field name a clause, bounded by the body's recording.
         field: field.to_owned(),
         value,
-        boost,
-    })
-}
-
-/// `MatchQueryBuilder.fromXContent`.
-fn parse_match(p: &mut Parser<'_>) -> Result<Query, DslError> {
-    let mut field: Option<&str> = None;
-    let mut value = None;
-    let mut boost = 1.0;
-    let mut operator = Operator::Or;
-    let mut minimum_should_match = None;
-    let mut zero_terms_all = false;
-    let mut current = "";
-    while let Some(token) = next_or_end(p, Kind::EndObject) {
-        match token {
-            Kind::FieldName => current = p.text(),
-            Kind::StartObject => {
-                if let Some(f) = field {
-                    return Err(multiple_fields(p, "match", f, current));
-                }
-                field = Some(current);
-                while let Some(token) = next_or_end(p, Kind::EndObject) {
-                    if token == Kind::FieldName {
-                        current = p.text();
-                        continue;
-                    }
-                    if !token.is_value() {
-                        return Err(DslError::parsing(
-                            p.location(),
-                            // ALLOC: error path; one message.
-                            format!("[match] unknown token [{}] after [{current}]", token.name()),
-                        ));
-                    }
-                    match current {
-                        "query" => value = object_value(p)?,
-                        "boost" => boost = float_value(p)?,
-                        "operator" => operator = parse_operator(p.text())?,
-                        // ALLOC: one string a clause, bounded by the body's recording.
-                        "minimum_should_match" => {
-                            minimum_should_match = text_or_null(p).map(str::to_owned);
-                        }
-                        "zero_terms_query" => match p.text().to_ascii_lowercase().as_str() {
-                            "none" => zero_terms_all = false,
-                            "all" => zero_terms_all = true,
-                            other => {
-                                return Err(DslError::parsing(
-                                    p.location(),
-                                    // ALLOC: error path; one message.
-                                    format!("Unsupported zero_terms_query value [{other}]"),
-                                ));
-                            }
-                        },
-                        "analyzer" if p.text() == "standard" => {}
-                        "analyzer"
-                        | "fuzziness"
-                        | "prefix_length"
-                        | "max_expansions"
-                        | "fuzzy_rewrite"
-                        | "fuzzy_transpositions"
-                        | "lenient"
-                        | "cutoff_frequency"
-                        | "auto_generate_synonyms_phrase_query"
-                        | "_name" => {
-                            // ALLOC: error path; one message.
-                            return Err(DslError::unsupported(&format!("[match] [{current}]")));
-                        }
-                        _ => return Err(does_not_support(p, "match", current)),
-                    }
-                }
-            }
-            _ => {
-                let name = p.current_name().unwrap_or("");
-                if let Some(f) = field {
-                    return Err(multiple_fields(p, "match", f, name));
-                }
-                field = Some(name);
-                value = object_value(p)?;
-            }
-        }
-    }
-    let Some(query) = value else {
-        return Err(DslError::parsing(
-            p.location(),
-            "No text specified for text query",
-        ));
-    };
-    Ok(Query::Match {
-        // ALLOC: one field name a clause, bounded by the body's recording.
-        field: field.unwrap_or("").to_owned(),
-        query,
-        operator,
-        minimum_should_match,
-        zero_terms_all,
         boost,
     })
 }

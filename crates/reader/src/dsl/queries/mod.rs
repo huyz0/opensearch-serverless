@@ -211,6 +211,8 @@ pub enum More {
         /// The boost.
         boost: f32,
     },
+    /// `MatchQueryBuilder` with a `fuzziness`, and its boost.
+    FuzzyMatch(Box<full_text::FuzzyMatch>, f32),
     /// `MultiMatchQueryBuilder` of the types served, and its boost.
     MultiMatch(Box<full_text::MultiMatch>, f32),
     /// `SimpleQueryStringBuilder`, and its boost.
@@ -241,6 +243,7 @@ impl More {
             | More::Boosting { boost, .. }
             | More::MatchPhrase { boost, .. }
             | More::MultiMatch(_, boost)
+            | More::FuzzyMatch(_, boost)
             | More::SimpleQueryString(_, boost)
             | More::QueryString(_, boost)
             | More::FunctionScore(_, boost)
@@ -299,6 +302,8 @@ mod full_text_tests;
 
 #[cfg(test)]
 mod function_score_build_tests;
+#[cfg(test)]
+mod fuzzy_match_tests;
 
 #[cfg(test)]
 mod function_score_tests;
