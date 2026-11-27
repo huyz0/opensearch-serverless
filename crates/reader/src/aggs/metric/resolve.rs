@@ -64,7 +64,7 @@ pub(crate) fn text_fielddata(name: &str) -> ShardError {
 }
 
 /// Whether `metric` aggregates a `float` or `double` field's values: the
-/// metrics are served, the bucket aggregations (their keys are doubles) not yet.
+/// metrics and the `histogram` and `range` buckets, which key by doubles, are served.
 fn reads_decimal(metric: Metric) -> bool {
     matches!(
         metric,
@@ -77,6 +77,9 @@ fn reads_decimal(metric: Metric) -> bool {
             | Metric::Cardinality
             | Metric::Percentiles
             | Metric::PercentileRanks
+            | Metric::Histogram
+            | Metric::Range
+            | Metric::Terms
     )
 }
 
@@ -127,7 +130,22 @@ pub(crate) fn resolve<S: BlobStore + 'static>(
                 ),
             )));
         }
+        FieldType::Float | FieldType::Double if agg.metric == Metric::Terms => Format::Double,
         FieldType::Float | FieldType::Double if reads_decimal(agg.metric) => Format::Raw,
+        FieldType::Float | FieldType::Double
+            if matches!(agg.metric, Metric::DateHistogram | Metric::DateRange) =>
+        {
+            return Err(bad_request(Failure::plain(
+                "illegal_argument_exception",
+                // ALLOC: error path; one message.
+                format!(
+                    "Field [{}] of type [{}] is not supported for aggregation [{}]",
+                    agg.field,
+                    type_name(&field.ty),
+                    agg.metric.name()
+                ),
+            )));
+        }
         FieldType::Float | FieldType::Double => {
             return Err(bad_request(Failure::plain(
                 "illegal_argument_exception",

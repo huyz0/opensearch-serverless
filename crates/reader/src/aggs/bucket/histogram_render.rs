@@ -55,7 +55,7 @@ pub fn write_histogram(
 /// A key as `DocValueFormat.format(double)` writes it.
 fn write_text(out: &mut dyn Write, format: Format, key: f64) -> io::Result<()> {
     match format {
-        Format::Raw => write_java_double(out, key),
+        Format::Raw | Format::Double => write_java_double(out, key),
         Format::Date => write_date_of_double(out, key),
     }
 }

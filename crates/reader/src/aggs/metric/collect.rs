@@ -167,12 +167,12 @@ pub(crate) fn node(agg: &MetricAgg, precision: u32, values: ValueKind) -> AggNod
     let field = agg.field.clone();
     // `byte` to `long` and `date` are longs read as they are.
     match agg.metric {
-        Metric::Terms => terms_collect::node(&agg.field, &terms_spec(agg)),
-        Metric::Histogram => histogram_collect::node(&agg.field, &histogram_spec(agg)),
+        Metric::Terms => terms_collect::node(&agg.field, &terms_spec(agg), values),
+        Metric::Histogram => histogram_collect::node(&agg.field, &histogram_spec(agg), values),
         Metric::DateHistogram => {
             date_histogram_collect::node(&agg.field, &date_histogram_spec(agg))
         }
-        Metric::Range | Metric::DateRange => range_collect::node(agg),
+        Metric::Range | Metric::DateRange => range_collect::node(agg, values),
         Metric::Composite | Metric::MultiTerms => {
             unreachable!("a composite's node is made by composite_collect::node")
         }
