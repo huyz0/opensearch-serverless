@@ -25,6 +25,7 @@ fn every_query_kind_of_this_slice_takes_a_name() {
         r#"{"query_string":{"query":"a","_name":"n"}}"#,
         r#"{"simple_query_string":{"query":"a","_name":"n"}}"#,
         r#"{"nested":{"path":"c","query":{"match_all":{}},"_name":"n"}}"#,
+        r#"{"knn":{"v":{"vector":[1],"k":1,"_name":"n"}}}"#,
         r#"{"function_score":{"query":{"match_all":{}},"weight":2,"_name":"n"}}"#,
     ] {
         assert_eq!(named(inner).as_deref(), Some("n"), "{inner}");
