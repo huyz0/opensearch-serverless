@@ -5,6 +5,22 @@
 
 use super::*;
 
+/// The class files in a jar, by `unzip -Z1`, without module descriptors.
+fn classes_in(jar: &Path) -> Vec<String> {
+    let out = Command::new("unzip")
+        .arg("-Z1")
+        .arg(jar)
+        .output()
+        .expect("unzip runs");
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .filter(|l| {
+            l.ends_with(".class") && !l.contains("module-info") && !l.starts_with("META-INF")
+        })
+        .map(str::to_owned)
+        .collect()
+}
+
 /// Unpacks every `*.zip` in `zips` (job scheduler first, since ISM extends
 /// it) into `plugins/<name>`, naming the node's own version in each
 /// descriptor so a release built for a patch version loads.
@@ -23,6 +39,12 @@ fn install(zips: &Path, plugins: &Path, wanted: &[&str]) -> Vec<String> {
         })
         .collect();
     found.sort();
+    let on_classpath: std::collections::HashSet<String> = std::env::var("OSS_JAVA_CP")
+        .unwrap_or_default()
+        .split(':')
+        .filter(|p| p.ends_with(".jar"))
+        .flat_map(|p| classes_in(Path::new(p)))
+        .collect();
     let mut names = Vec::new();
     for zip in found {
         let name = zip
@@ -41,21 +63,22 @@ fn install(zips: &Path, plugins: &Path, wanted: &[&str]) -> Vec<String> {
             .status()
             .expect("unzip runs");
         assert!(status.success(), "unzip {}", zip.display());
-        // A plugin jar the node's own classpath already carries is jar hell
-        // here (a classic node keeps those jars in module class loaders); the
-        // plugin then runs on the node's copy.
-        for drop in std::env::var("OSS_PLUGIN_DROP")
-            .unwrap_or_default()
-            .split(',')
-            .filter(|d| !d.is_empty())
+        // A plugin jar with a class the node's own classpath already carries
+        // is jar hell here: a classic node keeps those jars in module class
+        // loaders. The plugin then runs on the node's copy; each drop is
+        // printed so a version skew is visible.
+        for entry in std::fs::read_dir(&to)
+            .expect("the plugin directory")
+            .flatten()
         {
-            for entry in std::fs::read_dir(&to)
-                .expect("the plugin directory")
-                .flatten()
+            let file = entry.file_name().to_string_lossy().into_owned();
+            if file.ends_with(".jar")
+                && classes_in(&entry.path())
+                    .iter()
+                    .any(|c| on_classpath.contains(c))
             {
-                if entry.file_name().to_string_lossy().starts_with(drop) {
-                    std::fs::remove_file(entry.path()).expect("dropped");
-                }
+                eprintln!("dropped {name}/{file}: the classpath carries classes of it");
+                std::fs::remove_file(entry.path()).expect("dropped");
             }
         }
         let descriptor = to.join("plugin-descriptor.properties");
@@ -65,6 +88,15 @@ fn install(zips: &Path, plugins: &Path, wanted: &[&str]) -> Vec<String> {
             .map(|l| {
                 if l.starts_with("opensearch.version=") {
                     "opensearch.version=3.10.0".to_owned()
+                } else if let Some(list) = l.strip_prefix("extended.plugins=") {
+                    // The shell's classpath already carries painless, so a
+                    // plugin cannot extend it as a bundle; its script
+                    // contexts are then not registered.
+                    let kept: Vec<&str> = list
+                        .split(',')
+                        .filter(|e| !e.is_empty() && !e.starts_with("lang-painless"))
+                        .collect();
+                    format!("extended.plugins={}", kept.join(","))
                 } else {
                     l.to_owned()
                 }
@@ -224,5 +256,44 @@ fn the_ism_endpoints_of_the_real_plugin_answer_through_a_rust_node() {
         missing.text()
     );
     assert!(rig.requests_reached_java() >= 4);
+    rig.finish();
+}
+
+#[test]
+#[ignore = "needs OSS_JAVA_BIN, OSS_JAVA_CP and OSS_PLUGIN_ZIPS (a directory of released plugin zips)"]
+fn the_alerting_endpoints_of_the_real_plugin_answer_through_a_rust_node() {
+    let Some(rig) = Rig::start(&["opensearch-job-scheduler", "opensearch-alerting"]) else {
+        return;
+    };
+    let monitor = r#"{"type":"monitor","name":"proxy-probe","monitor_type":"query_level_monitor","enabled":false,"schedule":{"period":{"interval":1,"unit":"MINUTES"}},"inputs":[{"search":{"indices":["probe-*"],"query":{"size":0,"query":{"match_all":{}}}}}],"triggers":[]}"#;
+    let put = rig.proxied_settled("POST", "/_plugins/_alerting/monitors", Some(monitor));
+    assert!(
+        matches!(put.status, 200 | 201),
+        "{} {}",
+        put.status,
+        put.text()
+    );
+    let id = put
+        .text()
+        .split("\"_id\":\"")
+        .nth(1)
+        .and_then(|t| t.split('"').next())
+        .expect("a monitor id")
+        .to_owned();
+    let path = format!("/_plugins/_alerting/monitors/{id}");
+    let got = rig.same_both_ways("GET", &path, None);
+    assert_eq!(got.status, 200, "{}", got.text());
+    assert!(got.text().contains("proxy-probe"), "{}", got.text());
+    let found = rig.proxied(
+        "POST",
+        "/_plugins/_alerting/monitors/_search",
+        Some(r#"{"query":{"match_all":{}}}"#),
+    );
+    assert_eq!(found.status, 200, "{}", found.text());
+    assert!(found.text().contains("proxy-probe"), "{}", found.text());
+    let gone = rig.proxied("DELETE", &path, None);
+    assert_eq!(gone.status, 200, "{}", gone.text());
+    let missing = rig.same_both_ways("GET", &path, None);
+    assert_eq!(missing.status, 404, "{}", missing.text());
     rig.finish();
 }
