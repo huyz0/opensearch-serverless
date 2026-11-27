@@ -14,7 +14,8 @@ The "alias of several indexes" gap of [search-on-alias](../search-on-alias/SPEC.
 - Nothing here lists anything: a name is a literal name. A pattern or `_all` stays as it was (a 404 for an index that does not exist). No default pipeline of a single-index list is exercised by a test here.
 - `_count` takes the same names the same way: it counts the shards of every index, `routing` narrows each, and no default pipeline runs.
 - An `_msearch` item whose `index` (or the URL's default) is a comma list or an alias of several searches them as `_search` does, and `_field_caps` over a list or an alias of several answers the merge of each index's fields. An alias of several is therefore served by every read API here.
-- Not here: the other APIs over several indexes (`_validate/query`, `_rank_eval`), `collapse` (400, as over several shards), a point-in-time search (400), and `ignore_unavailable` / `allow_no_indices`.
+- `ignore_unavailable=true` on `_search` and `_count` skips the names that are no index (an alias with a missing member keeps its other members). When none is left the answer is an empty result with `_shards.total` 0 (a count of 0). A value other than `true` or `false` is 400. The check is the open the search makes anyway, so it adds no request for a name that exists.
+- Not here: the other APIs over several indexes (`_validate/query`, `_rank_eval`), `collapse` (400, as over several shards), a point-in-time search (400), and `allow_no_indices` and `expand_wildcards`.
 
 ## Acceptance criteria
 
@@ -32,6 +33,8 @@ The "alias of several indexes" gap of [search-on-alias](../search-on-alias/SPEC.
 - AC-12: `/{a},{b}/_count` and `/{alias}/_count` of an alias of two indexes count the sum of the two indexes' counts, an index named twice once, and a missing index is a 404 naming it alone.
 - AC-13: an `_msearch` item naming a list, an alias of several or a URL default of either searches them all (the totals are the sums), beside an item of one index.
 - AC-14: `_field_caps` over a list, an alias of several, or both with an index twice answers the same body, each index read once; an alias with a missing member is a 404.
+- AC-15: with `ignore_unavailable`, a list or alias naming a missing index searches the rest and gives the rest's total; without it (or `=false`) a missing index is still a 404.
+- AC-16: with `ignore_unavailable` and no index left, `_search` answers 200 with total 0 and `_shards.total` 0, `_count` answers `count` 0, and a value that is no boolean is 400.
 
 ## S3 request budget
 

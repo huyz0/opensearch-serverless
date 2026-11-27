@@ -55,6 +55,7 @@ pub(super) const SEARCH_PARAMS: &[&str] = &[
     "lenient",
     "routing",
     "preference",
+    "ignore_unavailable",
 ];
 
 /// The body and URL parameters of a `_search`, a `q` replacing the body's query.

@@ -364,3 +364,44 @@ fn field_caps_over_a_list_or_an_alias_of_several_names_the_indexes() {
         "an index twice is read once"
     );
 }
+
+// ignore_unavailable
+#[test]
+fn ignore_unavailable_skips_the_names_that_are_no_index() {
+    let node = node_with(&[("half", &["compat-term", "no-such-index"])]);
+    let (_, one) = post(&node, "/compat-term/_search", ALL);
+    for path in [
+        "/compat-term,no-such-index/_search?ignore_unavailable=true",
+        "/no-such-index,compat-term/_search?ignore_unavailable",
+        "/half/_search?ignore_unavailable=true",
+        "/compat-term/_search?ignore_unavailable=true",
+    ] {
+        let (status, body) = post(&node, path, ALL);
+        assert_eq!(status, 200, "{path}: {body}");
+        assert_eq!(total(&body), total(&one), "{path}");
+    }
+    let (status, body) = post(
+        &node,
+        "/compat-term,no-such-index/_search?ignore_unavailable=false",
+        ALL,
+    );
+    assert_eq!(status, 404, "{body}");
+}
+
+#[test]
+fn ignore_unavailable_with_nothing_left_answers_an_empty_result() {
+    let node = start();
+    let (status, body) = post(&node, "/no-such-index/_search?ignore_unavailable=true", ALL);
+    assert_eq!(status, 200, "{body}");
+    assert_eq!(total(&body), 0, "{body}");
+    assert!(
+        body.contains(r#""_shards":{"total":0,"successful":0"#),
+        "{body}"
+    );
+    let (status, body) = post(&node, "/a,b/_count?ignore_unavailable=true", "{}");
+    assert_eq!(status, 200, "{body}");
+    assert_eq!(number(&body, r#""count":"#), 0);
+    assert!(body.contains(r#""_shards":{"total":0"#), "{body}");
+    let (status, body) = post(&node, "/compat-term/_search?ignore_unavailable=maybe", ALL);
+    assert_eq!(status, 400, "{body}");
+}
