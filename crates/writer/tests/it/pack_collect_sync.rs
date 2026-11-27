@@ -137,6 +137,12 @@ fn a_finished_epoch_is_judged_whole_and_then_dropped_from_the_ledger() {
     let refs = Nothing::default();
     let mut c = PackCollector::new(dynstore(&e), "", 100);
     run(&mut c, 100, &refs);
+    let held = ledger(&e).read().expect("ledger").epochs;
+    assert_eq!(
+        held.iter().map(|x| x.epoch).collect::<Vec<_>>(),
+        [1, 2],
+        "an epoch with a pack left is not dropped"
+    );
     run(&mut c, 101, &refs);
     assert!(!exists(&e, 1, 7));
     let epochs = ledger(&e).read().expect("ledger").epochs;
@@ -262,4 +268,22 @@ fn a_returning_node_keeps_the_high_it_was_judged_to() {
     let read = sidecar.read().expect("read");
     assert_eq!(read.sidecar.epochs()[0].high, 16);
     assert!(exists(&e, 1, 3), "a named pack is kept");
+}
+
+/// The newest epoch stays in the sidecar once every ordinal of it is judged,
+/// so the sidecar still says where the node's packs end.
+#[test]
+fn the_newest_epoch_stays_in_the_sidecar_when_all_of_it_is_collected() {
+    let e = emulator();
+    writer_with_ledger(&e, 1, 16);
+    e.advance_clock(16 * MIN);
+    let refs = Nothing::default();
+    let mut c = PackCollector::new(dynstore(&e), "", 100);
+    run_as(&mut c, 100, &refs, true);
+    run_as(&mut c, 101, &refs, true);
+    run_as(&mut c, 102, &refs, true);
+    let sidecar = PackSidecarStore::new(dynstore(&e), "", NODE).expect("sidecar");
+    let read = sidecar.read().expect("read");
+    assert_eq!(read.sidecar.epochs().len(), 1);
+    assert!(read.sidecar.epochs()[0].unmarked().next().is_none());
 }
