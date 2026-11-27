@@ -47,13 +47,42 @@ pub fn node_with_clock(
     incarnation: (Arc<dyn oss_node::writer::Incarnation>, Duration),
     packs: Option<oss_node::writer::PackConfig>,
 ) -> Node {
+    node_with_ttl(
+        c,
+        id,
+        term,
+        clock,
+        publish_clock,
+        takeover,
+        wrap,
+        incarnation,
+        packs,
+        30_000,
+    )
+}
+
+/// As [`node_with_clock`], with leases and head claims lasting `ttl_millis`
+/// (the shipped 30,000 unless a real-time run shortens it).
+#[allow(clippy::too_many_arguments)]
+pub fn node_with_ttl(
+    c: &Cluster,
+    id: &str,
+    term: u64,
+    clock: Arc<dyn LeaseClock>,
+    publish_clock: Box<dyn Fn() -> u64 + Send + Sync>,
+    takeover: Option<Takeover>,
+    wrap: impl FnOnce(DescriptorRoutes) -> Arc<dyn oss_node::writer::Routes>,
+    incarnation: (Arc<dyn oss_node::writer::Incarnation>, Duration),
+    packs: Option<oss_node::writer::PackConfig>,
+    ttl_millis: i64,
+) -> Node {
     let membership = Arc::new(
         Membership::new(
             c.io(),
             "",
             Arc::clone(&clock),
             LeaseConfig {
-                ttl_millis: 30_000,
+                ttl_millis,
                 max_members: 16,
                 conditional_deletes: false,
             },
@@ -67,7 +96,7 @@ pub fn node_with_clock(
             Arc::clone(&dynstore),
             "",
             clock,
-            30_000,
+            ttl_millis,
             Arc::new(LivenessOracle::new(Arc::clone(&membership))),
         )
         .expect("heads"),
