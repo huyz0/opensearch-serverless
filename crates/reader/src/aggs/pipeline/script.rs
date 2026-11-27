@@ -69,7 +69,7 @@ pub fn settle(
 }
 
 /// Wraps a failure of `pipe`'s script.
-fn failed(pipe: &PipelineAgg, message: impl Into<String>) -> io::Error {
+pub(super) fn failed(pipe: &PipelineAgg, message: impl Into<String>) -> io::Error {
     io::Error::other(ScriptFailure {
         // ALLOC: error path; one name and message.
         name: pipe.name.clone(),
@@ -86,6 +86,10 @@ pub struct ScriptPipe {
     pub params: Vec<(String, Constant)>,
     /// Each variable's name and what it reads from a bucket.
     pub vars: Vec<(String, BucketValue)>,
+    /// A `moving_fn`'s `window`; 0 for the other script pipelines.
+    pub window: usize,
+    /// A `moving_fn`'s `shift`; 0 for the other script pipelines.
+    pub shift: i64,
 }
 
 impl ScriptPipe {
@@ -111,7 +115,7 @@ impl ScriptPipe {
 }
 
 /// The number a script returned (`Number`), `None` for `null`.
-fn number(value: &Constant) -> Result<Option<f64>, String> {
+pub(super) fn number(value: &Constant) -> Result<Option<f64>, String> {
     #[allow(clippy::cast_precision_loss)]
     Ok(Some(match *value {
         Constant::Null => return Ok(None),
@@ -123,9 +127,7 @@ fn number(value: &Constant) -> Result<Option<f64>, String> {
         Constant::Double(v) => v,
         _ => {
             // ALLOC: error path; one message.
-            return Err(
-                "a [bucket_script] script returned a value that is not a number".to_owned(),
-            );
+            return Err("a pipeline script returned a value that is not a number".to_owned());
         }
     }))
 }

@@ -349,3 +349,6 @@ src/aggs/pipeline/script.rs	port	server/src/main/java/org/opensearch/search/aggr
 src/aggs/pipeline/script_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/pipeline/BucketScriptPipelineAggregationBuilder.java@429b4cbc	the bucket_script parser; bucket_selector's loop is BucketSelectorPipelineAggregationBuilder.parse
 src/aggs/pipeline/script_tests.rs	new		both script pipelines computed and parsed against the bytes Java wrote
 src/search_finish.rs	new		a search's hits capped, and its script pipelines run once, before the response starts
+src/aggs/pipeline/moving.rs	port	server/src/main/java/org/opensearch/search/aggregations/pipeline/MovFnPipelineAggregator.java@429b4cbc	moving_fn compute over the rendered buckets
+src/aggs/pipeline/moving_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/pipeline/MovFnPipelineAggregationBuilder.java@429b4cbc	the moving_fn parser
+src/aggs/pipeline/moving_tests.rs	new		moving_fn computed and parsed against the bytes Java wrote
