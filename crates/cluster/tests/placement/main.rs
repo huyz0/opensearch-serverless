@@ -10,6 +10,7 @@
 
 mod fleet;
 mod java;
+mod ramp;
 mod spread;
 
 use std::path::PathBuf;

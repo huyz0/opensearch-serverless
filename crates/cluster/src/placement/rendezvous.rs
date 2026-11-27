@@ -6,6 +6,7 @@
 use oss_format::{NodeLease, java_order};
 
 use super::hash::{ShardKey, decimal, murmur3};
+use super::ramp::{RampConfig, admitted, ramp_permille};
 
 /// The weight of `node_id` for `key` joined by `sep` (`/` for a writer,
 /// `#` for a reader), as the Java's `Murmur3HashFunction.hash(nodeId + "/" + key)`.
@@ -38,36 +39,59 @@ pub fn owner<'a>(
 }
 
 /// The `limit` members with `role` that rank highest for reading `key`
-/// (`ReaderPlacement.candidatesFor`), best first. Each member is hashed
-/// once and only `limit` are kept, so a search does not sort the fleet.
+/// (`ReaderPlacement.candidatesFor`), best first, with the process's slow
+/// start ([`super::ramp_config`]) read at the wall clock.
 pub fn readers_for<'a>(
     key: ShardKey<'_>,
     members: impl IntoIterator<Item = &'a NodeLease>,
     role: &str,
     limit: usize,
 ) -> Vec<&'a str> {
+    let config = super::ramp_config();
+    let now = if config.is_on() {
+        super::now_millis()
+    } else {
+        0
+    };
+    readers_for_at(key, members, role, limit, config, now)
+}
+
+/// [`readers_for`] with the slow start `config` at time `now`: a member
+/// whose ramp has not yet admitted `key` ranks after every member that has
+/// been, each group in the usual order. Each member is hashed once and only
+/// `limit` are kept, so a search does not sort the fleet.
+pub fn readers_for_at<'a>(
+    key: ShardKey<'_>,
+    members: impl IntoIterator<Item = &'a NodeLease>,
+    role: &str,
+    limit: usize,
+    config: RampConfig,
+    now: i64,
+) -> Vec<&'a str> {
     if limit == 0 {
         // ALLOC: none.
         return Vec::new();
     }
     // ALLOC: at most `limit` entries; the common two-reader route keeps two.
-    let mut best: Vec<(i32, &'a str)> = Vec::with_capacity(limit.min(16));
+    let mut best: Vec<(bool, i32, &'a str)> = Vec::with_capacity(limit.min(16));
     for lease in members {
         if !super::has_role(lease, role) {
             continue;
         }
         let id = lease.node_id.as_str();
         let w = weight(id, key, "#");
-        let at = best.partition_point(|(bw, b)| before(*bw, b, w, id));
+        let ok = !config.is_on() || admitted(id, key, ramp_permille(lease, now, config));
+        let at = best
+            .partition_point(|(bok, bw, b)| (*bok && !ok) || (*bok == ok && before(*bw, b, w, id)));
         if at < limit {
             if best.len() == limit {
                 best.pop();
             }
-            best.insert(at, (w, id));
+            best.insert(at, (ok, w, id));
         }
     }
     // ALLOC: at most `limit` ids.
-    best.into_iter().map(|(_, id)| id).collect()
+    best.into_iter().map(|(_, _, id)| id).collect()
 }
 
 /// The `limit` live ingest writers that reap the dead node `dead_id`, best

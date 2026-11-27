@@ -11,8 +11,11 @@
 
 mod fleet;
 mod hash;
+mod ramp;
 mod rendezvous;
 mod spread;
+
+use std::sync::atomic::{AtomicI64, Ordering};
 
 use oss_format::NodeLease;
 
@@ -21,7 +24,8 @@ pub use fleet::{
     HAND_OFF_DOWN_TO_MEAN, Holding, MEAN_MATTERS_FROM, ROOM_AT_OR_BELOW, TARGET_UTILISATION,
 };
 pub use hash::{ShardKey, java_hash_code, murmur3};
-pub use rendezvous::{owner, readers_for, reapers_for};
+pub use ramp::{RampConfig, admission, admitted, ramp_permille};
+pub use rendezvous::{owner, readers_for, readers_for_at, reapers_for};
 pub use spread::{
     DEFAULT_MAX_READERS, DEFAULT_TARGET_PER_SECOND, HotShardSpread, MAX_TRACKED, Nanos, Running,
     SpreadConfig,
@@ -32,6 +36,31 @@ pub use crate::zones::{
     DEFAULT_MIN_PER_SECOND, DEFAULT_SPILL_IN_FLIGHT, ZonePreference, crosses, normalise, same,
     zone_of,
 };
+
+static RAMP_MIN_MS: AtomicI64 = AtomicI64::new(0);
+static RAMP_MAX_MS: AtomicI64 = AtomicI64::new(0);
+
+/// Sets the process's slow start for joining readers; [`RampConfig::OFF`]
+/// (the default) ranks every reader at its full share.
+pub fn set_ramp_config(config: RampConfig) {
+    RAMP_MIN_MS.store(config.min_ms, Ordering::Relaxed);
+    RAMP_MAX_MS.store(config.max_ms, Ordering::Relaxed);
+}
+
+/// The process's slow start for joining readers.
+pub fn ramp_config() -> RampConfig {
+    RampConfig {
+        min_ms: RAMP_MIN_MS.load(Ordering::Relaxed),
+        max_ms: RAMP_MAX_MS.load(Ordering::Relaxed),
+    }
+}
+
+/// The wall clock, epoch milliseconds, as the leases' expiry is.
+pub(crate) fn now_millis() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
+}
 
 /// The role of a node that owns shards and takes writes (`ROLE_INGEST`).
 pub const ROLE_INGEST: &str = "ingest";
