@@ -3,7 +3,7 @@
 //! parser, so a query means here what it means on a REST search.
 
 use oss_reader::dsl::{DslError, MAX_RECORDED_BYTES, Recorder, SearchSource, source};
-use oss_transport::actions::search_shard::{AggKind, Node, Query, Source, Value};
+use oss_transport::actions::search_shard::{AggKind, AggRequest, Node, Query, Source, Value};
 use serde_json::{Map, Number, Value as Json, json};
 
 /// Why a decoded source could not become a search source.
@@ -260,6 +260,51 @@ fn terms_options(
     Ok(text)
 }
 
+/// The aggregations as a body's `aggs` object, in request order, with each
+/// bucket aggregation's own sub-aggregations after its options.
+fn write_aggs(aggs: &[AggRequest], text: &mut Vec<u8>) -> Result<(), ConvertError> {
+    text.push(b'{');
+    for (i, a) in aggs.iter().enumerate() {
+        if i > 0 {
+            text.push(b',');
+        }
+        let name = serde_json::to_vec(&a.name).map_err(|_| ConvertError::Number("a name"))?;
+        let field = serde_json::to_vec(&a.field).map_err(|_| ConvertError::Number("a field"))?;
+        text.extend_from_slice(&name);
+        text.extend_from_slice(format!(":{{\"{}\":{{\"field\":", a.kind.name()).as_bytes());
+        text.extend_from_slice(&field);
+        if let Some(t) = a.precision_threshold {
+            text.extend_from_slice(format!(",\"precision_threshold\":{t}").as_bytes());
+        }
+        if let Some(t) = &a.terms {
+            text.extend_from_slice(terms_options(t)?.as_bytes());
+        }
+        if let Some(p) = &a.percentiles {
+            let keys = serde_json::to_string(&p.keys)
+                .map_err(|_| ConvertError::Number("a percentile key"))?;
+            let key = if a.kind == AggKind::PercentileRanks {
+                "values"
+            } else {
+                "percents"
+            };
+            text.extend_from_slice(format!(",\"{key}\":{keys},\"keyed\":{}", p.keyed).as_bytes());
+            if let Some(c) = p.compression {
+                let c =
+                    serde_json::to_string(&c).map_err(|_| ConvertError::Number("a compression"))?;
+                text.extend_from_slice(format!(",\"tdigest\":{{\"compression\":{c}}}").as_bytes());
+            }
+        }
+        text.push(b'}');
+        if !a.subs.is_empty() {
+            text.extend_from_slice(b",\"aggs\":");
+            write_aggs(&a.subs, text)?;
+        }
+        text.push(b'}');
+    }
+    text.push(b'}');
+    Ok(())
+}
+
 /// The search source `source` stands for.
 ///
 /// # Errors
@@ -273,45 +318,8 @@ pub fn search_source(source: &Source) -> Result<SearchSource, ConvertError> {
         // Written by hand after the rest of the body: a JSON map would sort
         // the aggregations, and the answer lists them in the request's order.
         text.pop(); // the closing brace
-        text.extend_from_slice(b",\"aggs\":{");
-        for (i, a) in source.aggregations.iter().enumerate() {
-            if i > 0 {
-                text.push(b',');
-            }
-            let name = serde_json::to_vec(&a.name).map_err(|_| ConvertError::Number("a name"))?;
-            let field =
-                serde_json::to_vec(&a.field).map_err(|_| ConvertError::Number("a field"))?;
-            text.extend_from_slice(&name);
-            text.extend_from_slice(format!(":{{\"{}\":{{\"field\":", a.kind.name()).as_bytes());
-            text.extend_from_slice(&field);
-            if let Some(t) = a.precision_threshold {
-                text.extend_from_slice(format!(",\"precision_threshold\":{t}").as_bytes());
-            }
-            if let Some(t) = &a.terms {
-                text.extend_from_slice(terms_options(t)?.as_bytes());
-            }
-            if let Some(p) = &a.percentiles {
-                let keys = serde_json::to_string(&p.keys)
-                    .map_err(|_| ConvertError::Number("a percentile key"))?;
-                let key = if a.kind == AggKind::PercentileRanks {
-                    "values"
-                } else {
-                    "percents"
-                };
-                text.extend_from_slice(
-                    format!(",\"{key}\":{keys},\"keyed\":{}", p.keyed).as_bytes(),
-                );
-                if let Some(c) = p.compression {
-                    let c = serde_json::to_string(&c)
-                        .map_err(|_| ConvertError::Number("a compression"))?;
-                    text.extend_from_slice(
-                        format!(",\"tdigest\":{{\"compression\":{c}}}").as_bytes(),
-                    );
-                }
-            }
-            text.extend_from_slice(b"}}");
-        }
-        text.push(b'}');
+        text.extend_from_slice(b",\"aggs\":");
+        write_aggs(&source.aggregations, &mut text)?;
         text.push(b'}');
     }
     let mut rec = Recorder::new(MAX_RECORDED_BYTES);

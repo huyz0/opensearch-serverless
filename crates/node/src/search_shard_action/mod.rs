@@ -8,6 +8,7 @@
 //! search from its own state, with no request to the store. This is not write
 //! fencing: see ADR 0057.
 
+mod answer_value;
 mod convert;
 mod local;
 mod terms;
@@ -23,7 +24,7 @@ use oss_reader::dsl::SearchSource;
 use oss_reader::failure::SearchError;
 use oss_reader::response::Row;
 use oss_transport::actions::search_shard::{
-    AggAnswer, AggValue, Bounds, Hit, MAX_BYTES, Refusal, Request as Ask, Response,
+    AggAnswer, Bounds, Hit, MAX_BYTES, Refusal, Request as Ask, Response,
 };
 use oss_transport::exception::RemoteException;
 use oss_transport::server::{Handler, Request};
@@ -238,24 +239,6 @@ impl Handler for SearchShardHandler {
     }
 }
 
-/// The order the request named `name` asked for, which the answer repeats.
-fn terms_order(
-    asked: &[oss_transport::actions::search_shard::AggRequest],
-    name: &str,
-) -> Result<oss_transport::actions::search_shard::OrderSpec, RemoteException> {
-    asked
-        .iter()
-        .find(|a| a.name == name)
-        .and_then(|a| a.terms.as_ref())
-        .map(|t| t.order.clone())
-        .ok_or_else(|| {
-            refuse(
-                "a terms answer without its request",
-                "INTERNAL_SERVER_ERROR",
-            )
-        })
-}
-
 fn id_of(row: &Row) -> Result<String, RemoteException> {
     serde_json::from_slice::<String>(&row.id_json)
         .map_err(|_| refuse("a stored id that is not text", "INTERNAL_SERVER_ERROR"))
@@ -267,68 +250,12 @@ fn answers<'a>(
     parts: &'a [oss_reader::aggs::partial::Partial],
     asked: &[oss_transport::actions::search_shard::AggRequest],
 ) -> Result<Vec<AggAnswer<'a>>, RemoteException> {
-    use oss_reader::aggs::partial::{Format, Value as Part};
+    use oss_reader::aggs::partial::Format;
     // ALLOC: one answer an aggregation, bounded by the request's.
     let mut out = Vec::with_capacity(parts.len());
     for p in parts {
         let date = p.format == Format::Date;
-        let value = match &p.value {
-            Part::Min(v) => AggValue::Min(*v),
-            Part::Max(v) => AggValue::Max(*v),
-            Part::Sum(v) => AggValue::Sum(*v),
-            Part::Avg { sum, count } => AggValue::Avg {
-                sum: *sum,
-                count: i64::try_from(*count).unwrap_or(i64::MAX),
-            },
-            Part::Stats {
-                count,
-                sum,
-                min,
-                max,
-            } => AggValue::Stats {
-                count: i64::try_from(*count).unwrap_or(i64::MAX),
-                min: *min,
-                max: *max,
-                sum: *sum,
-            },
-            Part::Cardinality(sketch) => AggValue::Cardinality(
-                sketch
-                    .as_ref()
-                    .map(oss_reader::aggs::metric::hll::Hll::to_bytes),
-            ),
-            Part::Percentiles {
-                ranks,
-                keys,
-                keyed,
-                compression,
-                digest,
-            } => {
-                use oss_reader::aggs::metric::tdigest::Digest;
-                AggValue::Percentiles {
-                    ranks: *ranks,
-                    keys: keys.clone(),
-                    keyed: *keyed,
-                    digest: digest
-                        .as_ref()
-                        .map_or_else(|| Digest::new(*compression).to_bytes(), Digest::to_bytes),
-                }
-            }
-            Part::Terms(r) => {
-                let order = terms_order(asked, &p.name)?;
-                AggValue::Terms(terms::numeric(r, order)?)
-            }
-            Part::KeywordTerms(r) => {
-                let order = terms_order(asked, &p.name)?;
-                AggValue::Terms(terms::keyword(r, order)?)
-            }
-            Part::ValueCount(n) => AggValue::ValueCount(i64::try_from(*n).unwrap_or(i64::MAX)),
-            _ => {
-                return Err(refuse(
-                    "a forwarded aggregation of this kind is not supported by this node",
-                    "BAD_REQUEST",
-                ));
-            }
-        };
+        let value = answer_value::value(&p.name, &p.value, asked)?;
         out.push(AggAnswer {
             name: &p.name,
             value,

@@ -25,6 +25,7 @@ fn terms(name: &str, field: &str, t: TermsRequest) -> AggRequest {
         precision_threshold: None,
         percentiles: None,
         terms: Some(t),
+        subs: Vec::new(),
     }
 }
 
@@ -78,11 +79,38 @@ fn the_terms_builders_are_the_bytes_java_wrote() {
 }
 
 #[test]
-fn a_terms_with_a_sub_aggregation_is_refused_by_name() {
-    assert!(matches!(
-        aggs::read(&mut Input::new(&recorded("request.terms_subs"))),
-        Err(Refusal::Unsupported("sub-aggregations"))
-    ));
+fn a_terms_with_a_sub_aggregation_reads_and_writes_as_java_wrote_it() {
+    let wire = recorded("request.terms_subs");
+    let mut u = terms(
+        "u",
+        "n",
+        TermsRequest {
+            size: 5,
+            shard_size: 20,
+            min_doc_count: 2,
+            shard_min_doc_count: 0,
+            order: OrderSpec {
+                compound: false,
+                items: vec![Order::KeyAsc],
+            },
+            show_error: true,
+        },
+    );
+    u.subs = vec![AggRequest {
+        name: "m".to_owned(),
+        kind: AggKind::Max,
+        field: "n".to_owned(),
+        precision_threshold: None,
+        percentiles: None,
+        terms: None,
+        subs: Vec::new(),
+    }];
+    let mut input = Input::new(&wire);
+    assert_eq!(aggs::read(&mut input).expect("reads"), vec![u.clone()]);
+    input.finish("aggregations").expect("all read");
+    let mut buf = Vec::new();
+    aggs::write(&[u], &mut Output::new(&mut buf, 1 << 20)).expect("writes");
+    assert_eq!(buf, wire);
 }
 
 fn answer(reduce_order: Order, order: Order, keys: Keys, counts: Vec<i64>) -> TermsAnswer {
@@ -101,6 +129,7 @@ fn answer(reduce_order: Order, order: Order, keys: Keys, counts: Vec<i64>) -> Te
         keys,
         counts,
         errors: Vec::new(),
+        subs: Vec::new(),
     }
 }
 
@@ -143,4 +172,42 @@ fn a_long_terms_answer_is_the_bytes_java_wrote() {
         date: false,
     });
     assert_eq!(got, recorded("response.long_terms"));
+}
+
+fn max_of_four() -> Vec<SubAnswer> {
+    vec![SubAnswer {
+        name: "m".to_owned(),
+        value: AggValue::Max(4.0),
+        date: false,
+    }]
+}
+
+#[test]
+fn the_sub_aggregations_of_a_bucket_are_the_bytes_java_wrote() {
+    let mut a = answer(
+        Order::CountDesc,
+        Order::CountDesc,
+        Keys::Text(vec!["a".to_owned(), "b".to_owned()]),
+        vec![3, 1],
+    );
+    a.other_doc_count = 2;
+    a.subs = vec![max_of_four(), Vec::new()];
+    let got = written(AggAnswer {
+        name: "t",
+        value: AggValue::Terms(a),
+        date: false,
+    });
+    assert_eq!(got, recorded("response.string_terms_subs"));
+    let mut a = answer(Order::KeyAsc, Order::KeyAsc, Keys::Long(vec![7]), vec![3]);
+    a.doc_count_error = -1;
+    a.shard_size = 20;
+    a.show_error = true;
+    a.errors = vec![1];
+    a.subs = vec![max_of_four()];
+    let got = written(AggAnswer {
+        name: "u",
+        value: AggValue::Terms(a),
+        date: false,
+    });
+    assert_eq!(got, recorded("response.long_terms_subs"));
 }
