@@ -93,6 +93,9 @@ pub fn node<S: BlobStore + 'static>(
     if agg.metric == Metric::SignificantTerms {
         return super::significant_collect::node(agg, shard, ords);
     }
+    if agg.metric == Metric::RareTerms {
+        return super::rare_collect::node(agg, shard, ords);
+    }
     if !ords.contains_key(&agg.field) {
         let built = shard
             .reader
@@ -389,6 +392,9 @@ pub fn value<S: BlobStore + 'static>(
     }
     if agg.metric == Metric::SignificantTerms {
         return super::significant_collect::value(agg, shard, result);
+    }
+    if agg.metric == Metric::RareTerms {
+        return super::rare_collect::value(agg, result);
     }
     if agg.subs.is_empty() {
         return keyword_collect::value(&spec_of(agg), result);

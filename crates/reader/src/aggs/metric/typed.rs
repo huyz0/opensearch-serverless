@@ -46,6 +46,7 @@ fn type_name(value: &Value) -> Option<&'static str> {
         Value::Terms(_) => "lterms",
         Value::KeywordTerms(_) => "sterms",
         Value::Significant(_) => "sigsterms",
+        Value::Rare(_) => "srareterms",
         Value::Histogram(_) => "histogram",
         Value::DateHistogram(_) => "date_histogram",
         Value::Range(_) => "range",

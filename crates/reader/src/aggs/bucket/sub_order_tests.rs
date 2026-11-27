@@ -32,6 +32,7 @@ fn sub(name: &str, metric: Metric) -> MetricAgg {
         nested: None,
         composite: None,
         significant: None,
+        rare: None,
     }
 }
 

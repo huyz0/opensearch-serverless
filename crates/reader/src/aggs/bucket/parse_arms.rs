@@ -8,6 +8,7 @@ use crate::aggs::bucket::histogram_parse::parse_histogram_body;
 use crate::aggs::bucket::missing::{parse_global_body, parse_missing_body};
 use crate::aggs::bucket::nested_agg::parse_nested_body;
 use crate::aggs::bucket::range_parse::{parse_date_range_body, parse_range_body};
+use crate::aggs::bucket::rare_parse::parse_rare_body;
 use crate::aggs::bucket::significant_parse::parse_significant_body;
 use crate::aggs::bucket::terms_parse::parse_terms_body;
 use crate::aggs::metric::{Metric, MetricAgg};
@@ -29,6 +30,11 @@ pub fn parse_bucket(p: &mut Parser<'_>, agg: &mut MetricAgg) -> Result<bool, Dsl
             let (field, spec) = parse_significant_body(p, &name)?;
             // ALLOC: one box a `significant_terms`, bounded by the body's recording.
             (agg.field, agg.significant) = (field, Some(Box::new(spec)));
+        }
+        Metric::RareTerms => {
+            let (field, spec) = parse_rare_body(p, &name)?;
+            // ALLOC: one box a `rare_terms`, bounded by the body's recording.
+            (agg.field, agg.rare) = (field, Some(Box::new(spec)));
         }
         Metric::Histogram => {
             let (field, spec) = parse_histogram_body(p, &name)?;
