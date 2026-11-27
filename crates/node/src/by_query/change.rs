@@ -65,7 +65,7 @@ impl Change for DeleteChange<'_> {
         }])?;
         let items = run.finish()?;
         match items.first().map(|item| &item.result) {
-            Some(ItemResult::Written { .. }) => Ok(Applied::Changed),
+            Some(ItemResult::Written { .. } | ItemResult::Noop { .. }) => Ok(Applied::Changed),
             Some(ItemResult::Failed {
                 status: 409 | 404,
                 error,

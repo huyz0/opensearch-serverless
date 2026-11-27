@@ -248,7 +248,7 @@ fn a_group_is_one_request_and_each_outcome_is_the_items() {
 
     let written = |r: &ItemResult| match r {
         ItemResult::Written { written, .. } => Some(*written),
-        ItemResult::Failed { .. } => None,
+        ItemResult::Failed { .. } | ItemResult::Noop { .. } => None,
     };
     let w0 = written(&results[0]).expect("written");
     assert_eq!(
@@ -260,7 +260,7 @@ fn a_group_is_one_request_and_each_outcome_is_the_items() {
     assert_eq!(written(&results[3]).expect("w").outcome, Outcome::NotFound);
     let status = |r: &ItemResult| match r {
         ItemResult::Failed { status, .. } => *status,
-        ItemResult::Written { .. } => 0,
+        ItemResult::Written { .. } | ItemResult::Noop { .. } => 0,
     };
     assert_eq!(
         [
@@ -280,7 +280,7 @@ fn a_gone_owner_a_large_request_and_a_short_answer_fail_their_items() {
     let group = planned(&ops, &ids);
     let status = |r: &ItemResult| match r {
         ItemResult::Failed { status, .. } => *status,
-        ItemResult::Written { .. } => 0,
+        ItemResult::Written { .. } | ItemResult::Noop { .. } => 0,
     };
     let f = fake(Answer::Fail(|| ForwardError::Gone));
     let r = routes(fleet(), &f, "n1").forward("n2", &info(), 0, &group);
