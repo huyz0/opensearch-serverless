@@ -13,7 +13,8 @@ Ported from `AbstractQueryBuilder.queryName`, `QueryShardContext.addNamedQuery`,
 - A query is checked against a hit by explaining the named query alone on the hit's document (the engine's `explain`), at fetch time over the page of hits only.
 - At most 64 named queries a search; a request with more is 400 "too many named queries [n]; the limit is 64".
 - A search with no named query makes no extra work and writes the hit as before.
-- Not here: names inside `post_filter`, `rescore`, aggregation filters and inner hits (refused as today); `_name` on queries inside `nested` is read and matched on the parent hit only when the nested query itself is named.
+- Names in the search's `post_filter` and in its `rescore` queries are collected with the query's, as OpenSearch copies them into the search context.
+- Not here: names inside aggregation filters and inner hits (read, not matched); `_name` on queries inside `nested` is read and matched on the parent hit only when the nested query itself is named.
 
 ## Acceptance criteria
 
@@ -24,6 +25,7 @@ Ported from `AbstractQueryBuilder.queryName`, `QueryShardContext.addNamedQuery`,
 - AC-5: more than 64 named queries is 400.
 - AC-6: a search with no named query makes the same object-store requests as before, and pays nothing per hit.
 - AC-7: naming a query does not change which hits match, their scores or their order.
+- AC-8: a named query in `post_filter` or `rescore` is listed on the hits it matches.
 
 ## S3 request budget
 
