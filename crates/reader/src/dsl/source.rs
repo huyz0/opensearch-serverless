@@ -86,6 +86,8 @@ pub struct SearchSource {
     pub search_after: Vec<AfterValue>,
     /// `docvalue_fields`: the fields whose doc values each hit carries.
     pub docvalue_fields: Vec<DocValueField>,
+    /// `fields`: the fields each hit carries the `_source` values of.
+    pub fields: Vec<DocValueField>,
     /// `script_fields`: a script's number a hit carries, by name.
     pub script_fields: Vec<(
         String,
@@ -163,6 +165,7 @@ impl Default for SearchSource {
             search_after: Vec::new(),
             // ALLOC: empty; parsing pushes one an entry.
             docvalue_fields: Vec::new(),
+            fields: Vec::new(),
             script_fields: Vec::new(),
             explain: false,
             min_score: None,
@@ -320,6 +323,7 @@ impl SearchSource {
             "_source" => self.source = parse_source(p, name)?,
             "search_after" => self.search_after = parse_search_after(p)?,
             "docvalue_fields" => self.docvalue_fields = parse_docvalue_fields(p)?,
+            "fields" => self.fields = parse_docvalue_fields(p)?,
             "rescore" => self.rescore = crate::dsl::rescore::parse_array(p)?,
             // Group names for the stats API, which this node does not keep.
             "stats" => loop {

@@ -20,6 +20,8 @@ src/fetch/highlight_parse_tests.rs	new		tests of highlight_parse.rs
 src/fetch/highlight_tests.rs	new		tests of highlight.rs
 src/fetch/docvalue_fields.rs	port	server/src/main/java/org/opensearch/search/fetch/subphase/DocValueFieldsFetchSubPhase.java@3.10.0	FieldAndFormat.fromXContent, SearchService.parseSource's docvalue_fields limit, getProcessor's resolution and process's values
 src/fetch/docvalue_fields_tests.rs	new		tests of docvalue_fields.rs
+src/fetch/source_fields.rs	port	server/src/main/java/org/opensearch/search/fetch/subphase/FieldFetcher.java@3.10.0	FieldFetcher, FetchFieldsPhase, SourceValueFetcher, XContentMapValues.extractValue and the keyword, text, number and date valueFetcher
+src/fetch/source_fields_tests.rs	new		tests of the fields API's reading of _source
 src/fetch/source_filter.rs	port	server/src/main/java/org/opensearch/search/fetch/subphase/FetchSourceContext.java@3.10.0	fromXContent and validateAmbiguousFields; XContentMapValues.filter (set-based and automaton filters); the source map's HashMap order and Jackson's number and string writing
 src/fetch/source_map.rs	port	libs/core/src/main/java/org/opensearch/core/xcontent/AbstractXContentParser.java@3.10.0	readMap into HashMaps (key order) and the XContentBuilder's writing of the maps back: Integer, Long and Double numbers, Jackson string escaping
 src/fetch/source_filter_tests.rs	new		tests of source_filter.rs, against sources written by OpenSearch

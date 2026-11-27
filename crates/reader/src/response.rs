@@ -22,7 +22,7 @@ use crate::fetch::docvalue_fields::{self, HitField};
 use crate::fetch::highlight::{self, Highlighters, Plan};
 use crate::fetch::hit_meta::{self, HitMeta};
 use crate::fetch::source_filter::SourceFilter;
-use crate::fetch::{explain, source_filter};
+use crate::fetch::{explain, source_fields, source_filter};
 use crate::hits_total;
 use crate::search::{Hit, Hits, SortValue};
 use lucene_search::Explanation;
@@ -354,6 +354,14 @@ fn write_hit_list<S: BlobStore + 'static>(
             segment,
             hit.doc.saturating_sub(segment.doc_base),
         )?;
+        if view.fields.iter().any(|f| f.source.is_some()) {
+            let need = source_filter::scratch_bytes(stored.source.len());
+            if let Some(more) = need.checked_sub(*scratch).filter(|n| *n > 0) {
+                (stored.reserve)(more)?;
+                *scratch = need;
+            }
+            source_fields::write_fields(out, view.fields, &stored.source)?;
+        }
         if let (Some(h), Some(plan)) = (highlighters.as_mut(), view.highlight) {
             let need = highlight::scratch_for(stored.source.len(), plan);
             if need > *scratch {
