@@ -27,6 +27,9 @@ use std::time::{Duration, Instant};
 use suite_rig::Cluster;
 use warm_scale_support::{knob, percentile, process_seconds, send, spawn_joiner, threads};
 
+/// One round: median and p99 before, then median, p99, max and p95 during.
+type Round = (f64, f64, f64, f64, f64, f64);
+
 fn query(addr: SocketAddr, i: usize) -> f64 {
     let q = format!(
         "{{\"query\":{{\"match\":{{\"msg\":\"w{}\"}}}},\"size\":10}}",
@@ -99,7 +102,7 @@ fn the_peers_search_latency_while_a_joiner_warms_alternating_arms() {
     for i in 0..300 {
         query(peer, i);
     }
-    let mut results: BTreeMap<bool, Vec<(f64, f64, f64, f64, f64, f64)>> = BTreeMap::new();
+    let mut results: BTreeMap<bool, Vec<Round>> = BTreeMap::new();
     let mut i = 0;
     for round in 0..rounds {
         // Alternate which arm goes first so a drift does not favour one.
