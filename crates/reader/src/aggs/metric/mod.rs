@@ -12,6 +12,7 @@
 //! `missing`, `format` and `meta` are refused as not served yet.
 
 pub mod collect;
+pub mod collect_auto;
 pub mod collect_global;
 pub mod date_text;
 pub mod double;
@@ -35,6 +36,7 @@ pub mod typed;
 
 pub use crate::aggs::partial::{Format, Partial, Value};
 pub use collect::collect;
+pub use collect_auto::collect_with_auto;
 pub use collect_global::collect_with_global;
 pub use parse::parse_aggregations;
 pub use percentiles::PercentilesOptions;
@@ -122,11 +124,14 @@ pub enum Metric {
     /// `adjacency_matrix`: the documents counted by each filter and each
     /// pair of filters they match.
     AdjacencyMatrix,
+    /// `auto_date_histogram`: the documents counted by a date interval the
+    /// shard and reduce choose.
+    AutoDateHistogram,
 }
 
 impl Metric {
     /// Every metric served, by its aggregation type name.
-    pub const ALL: [Metric; 27] = [
+    pub const ALL: [Metric; 28] = [
         Metric::Min,
         Metric::Max,
         Metric::Sum,
@@ -154,6 +159,7 @@ impl Metric {
         Metric::MultiTerms,
         Metric::ScriptedMetric,
         Metric::AdjacencyMatrix,
+        Metric::AutoDateHistogram,
     ];
 
     /// The aggregation type name.
@@ -186,6 +192,7 @@ impl Metric {
             Metric::MultiTerms => "multi_terms",
             Metric::ScriptedMetric => "scripted_metric",
             Metric::AdjacencyMatrix => "adjacency_matrix",
+            Metric::AutoDateHistogram => "auto_date_histogram",
         }
     }
 
@@ -218,6 +225,8 @@ pub struct MetricAgg {
     pub histogram: Option<Box<HistogramSpec>>,
     /// A `date_histogram`'s options; `None` for every other aggregation.
     pub date_histogram: Option<Box<DateHistogramSpec>>,
+    /// An `auto_date_histogram`'s options; `None` for every other aggregation.
+    pub auto_date: Option<Box<crate::aggs::bucket::auto_date::AutoDateSpec>>,
     /// The sub-aggregations of a keyword `terms`, in request order; empty
     /// for every other aggregation.
     pub subs: Vec<MetricAgg>,
@@ -239,6 +248,36 @@ pub struct MetricAgg {
     pub script: Option<Box<crate::dsl::queries::function_score_script::ScriptScore>>,
     /// A `scripted_metric`'s scripts; `None` for every other aggregation.
     pub scripted: Option<Box<scripted_metric::ScriptedMetricSpec>>,
+}
+
+impl MetricAgg {
+    /// A metric aggregation of `field` with every option at its default.
+    pub fn new(name: &str, metric: Metric, field: &str) -> Self {
+        MetricAgg {
+            // ALLOC: one name and field an aggregation, bounded by the request's.
+            name: name.to_owned(),
+            metric,
+            // ALLOC: as above.
+            field: field.to_owned(),
+            cardinality: CardinalityOptions::default(),
+            percentiles: PercentilesOptions::default(),
+            top_hits: None,
+            terms: None,
+            histogram: None,
+            date_histogram: None,
+            auto_date: None,
+            range: None,
+            filters: None,
+            nested: None,
+            composite: None,
+            significant: None,
+            rare: None,
+            scripted: None,
+            script: None,
+            // ALLOC: empty.
+            subs: Vec::new(),
+        }
+    }
 }
 
 /// What a `cardinality` aggregation sets besides its field.
@@ -288,7 +327,7 @@ pub fn state_bytes(aggs: &[MetricAgg]) -> usize {
             }),
             // The engine counts every key against the bucket limit, so a
             // shard holds at most that many.
-            Metric::Histogram | Metric::DateHistogram => {
+            Metric::Histogram | Metric::DateHistogram | Metric::AutoDateHistogram => {
                 crate::aggs::bucket::BUCKET_LIMIT.saturating_mul(HISTOGRAM_BUCKET_BYTES)
             }
             // A bucket, the engine's bounds and count, and each key, kept

@@ -89,6 +89,8 @@ pub enum Value {
     Histogram(Box<HistogramResult>),
     /// `InternalDateHistogram`: a `date_histogram`'s buckets.
     DateHistogram(Box<DateHistogramResult>),
+    /// `InternalAutoDateHistogram`: an `auto_date_histogram`'s buckets.
+    AutoDateHistogram(Box<crate::aggs::bucket::auto_date::AutoDateResult>),
     /// `StringTerms`: a keyword `terms`' buckets.
     KeywordTerms(Box<KeywordTermsResult>),
     /// `SignificantStringTerms`: a `significant_terms`' buckets.
@@ -143,6 +145,7 @@ fn reduce_one(parts: &[Value]) -> Option<Value> {
         Value::Terms(_) => terms::reduce(parts),
         Value::Histogram(_) => histogram::reduce(parts),
         Value::DateHistogram(_) => date_histogram::reduce(parts),
+        Value::AutoDateHistogram(_) => crate::aggs::bucket::auto_date::reduce(parts),
         Value::KeywordTerms(_) => keyword_terms::reduce(parts),
         Value::Significant(_) => super::bucket::significant::reduce(parts),
         Value::Rare(_) => super::bucket::rare::reduce(parts),

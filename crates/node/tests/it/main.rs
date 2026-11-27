@@ -32,6 +32,7 @@ mod script_fields;
 mod script_sort;
 mod search;
 mod search_alias;
+mod search_auto_date;
 mod search_body_keys;
 mod search_boosting;
 mod search_case_insensitive;

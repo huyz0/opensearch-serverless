@@ -238,6 +238,9 @@ pub(crate) fn write_body(out: &mut dyn Write, format: Format, value: &Value) -> 
         Value::Terms(ref result) => write_terms(out, format, result),
         Value::Histogram(ref result) => write_histogram(out, format, result),
         Value::DateHistogram(ref result) => write_date_histogram(out, format, result),
+        Value::AutoDateHistogram(ref result) => {
+            crate::aggs::bucket::auto_date_render::write_auto_date(out, format, result)
+        }
         Value::KeywordTerms(ref result) => write_keyword_terms(out, result),
         Value::Significant(ref result) => {
             crate::aggs::bucket::significant::write_significant(out, result)

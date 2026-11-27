@@ -69,7 +69,8 @@ fn needs(metric: Metric) -> u8 {
         | Metric::SignificantTerms
         | Metric::RareTerms
         | Metric::Histogram
-        | Metric::DateHistogram => NEED_COUNT,
+        | Metric::DateHistogram
+        | Metric::AutoDateHistogram => NEED_COUNT,
         Metric::Range
         | Metric::DateRange
         | Metric::Filters
@@ -114,6 +115,21 @@ pub(crate) fn value_of(agg: &MetricAgg, state: &MetricState) -> Value {
         Metric::DateHistogram => Value::DateHistogram(Box::new(date_histogram_collect::empty(
             &date_histogram_spec(agg),
         ))),
+        Metric::AutoDateHistogram => {
+            // ALLOC: one box an `auto_date_histogram`, bounded by the request's.
+            Value::AutoDateHistogram(Box::new(crate::aggs::bucket::auto_date::AutoDateResult {
+                spec: agg
+                    .auto_date
+                    .as_deref()
+                    .cloned()
+                    .unwrap_or(crate::aggs::bucket::auto_date::AutoDateSpec::FALLBACK),
+                idx: 0,
+                inner: 1,
+                // ALLOC: empty.
+                buckets: Vec::new(),
+                reduced: false,
+            }))
+        }
         Metric::Range | Metric::DateRange => range_collect::value(agg, &[]),
         Metric::Filters
         | Metric::AdjacencyMatrix
