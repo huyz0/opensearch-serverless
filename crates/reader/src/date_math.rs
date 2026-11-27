@@ -14,7 +14,7 @@ const MIN: i64 = -377_705_116_800_000;
 const MAX: i64 = 253_402_300_799_999;
 
 /// `text` as epoch milliseconds, with date math evaluated at `now`. Text
-/// without `now` or `||` is read as [`parse_to_millis`] reads it. Rounding a
+/// without `now` or `||` is read as [`parse_to_millis`](crate::date::parse_to_millis) reads it. Rounding a
 /// day, month or year with `/` takes its start, or with `round_up` its last
 /// millisecond.
 ///
