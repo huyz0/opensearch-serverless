@@ -66,6 +66,22 @@ pub fn write_key(out: &mut dyn Write, name: &str, value: &Value, format: Format)
     }
 }
 
+/// A pipeline aggregation's key: its name, or `type#name` inside a typed scope.
+pub fn write_pipeline_key(
+    out: &mut dyn Write,
+    pipeline: &crate::aggs::pipeline::PipelineAgg,
+) -> io::Result<()> {
+    if ON.with(Cell::get) {
+        // ALLOC: one key an aggregation, bounded by the request's.
+        write_json_str(
+            out,
+            &format!("{}#{}", pipeline.kind.result_type(), pipeline.name),
+        )
+    } else {
+        write_json_str(out, &pipeline.name)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -33,6 +33,7 @@ fn hits(total: u64, scored: &[f32], aggs: Vec<Partial>) -> Hits {
         tracked: true,
         total_as_int: false,
         typed_keys: false,
+        pipelines: Vec::new(),
         source: SourceFilter::default(),
         fields: Vec::new(),
         explanations: Vec::new(),
@@ -107,6 +108,7 @@ fn params(from: usize, size: usize) -> Params {
         show_total: true,
         total_as_int: false,
         typed_keys: false,
+        pipelines: Vec::new(),
         concurrency: 4,
         took_ms: 7,
     }
@@ -295,4 +297,51 @@ fn an_aggregation_keeps_the_format_its_shards_gave() {
         body.contains(r#""latest":{"value":2.0E12,"value_as_string":"#),
         "{body}"
     );
+}
+
+/// docs/specs/pipeline-aggs-sibling AC-9: a sibling pipeline aggregation is
+/// computed over the reduced aggregation and listed beside it.
+#[test]
+fn a_sibling_pipeline_aggregation_is_computed_over_the_reduced_buckets() {
+    use oss_reader::aggs::bucket::terms::{TermsResult, TermsSpec};
+    use oss_reader::aggs::pipeline::{BucketValue, PipelineAgg, PipelineKind};
+    let terms = |buckets: &[(i64, u64)]| Partial {
+        name: "t".into(),
+        format: Format::Raw,
+        value: Value::Terms(Box::new(TermsResult {
+            spec: TermsSpec {
+                size: 10,
+                shard_size: 13,
+                ..TermsSpec::default()
+            },
+            buckets: buckets.to_vec(),
+            ..TermsResult::default()
+        })),
+    };
+    let pipe = PipelineAgg {
+        name: "top".to_owned(),
+        kind: PipelineKind::Max,
+        path: "t>_count".to_owned(),
+        agg: "t".to_owned(),
+        value: BucketValue::Count,
+        insert_zeros: false,
+    };
+    let f = fake(vec![
+        Ok(hits(1, &[1.0], vec![terms(&[(1, 5), (2, 3)])])),
+        Ok(hits(1, &[0.5], vec![terms(&[(2, 4), (3, 4)])])),
+    ]);
+    let mut p = params(0, 10);
+    p.pipelines = vec![pipe];
+    let body = text(search(&f, 2, &p).expect("searches"));
+    assert!(
+        body.contains(r#""top":{"value":7.0,"keys":["2"]}"#),
+        "{body}"
+    );
+    p.typed_keys = true;
+    let body = text(search(&f, 2, &p).expect("searches"));
+    assert!(
+        body.contains(r#""bucket_metric_value#top":{"value":7.0,"keys":["2"]}"#),
+        "{body}"
+    );
+    assert!(body.contains(r#""lterms#t":{"#), "{body}");
 }

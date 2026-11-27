@@ -12,6 +12,7 @@ use oss_testkit::index::{Spec, blobs};
 
 use crate::dsl::parse_chunks;
 use crate::{OpenShard, open_shard};
+use lucene_search::{BooleanQuery, Clause};
 
 #[test]
 fn a_count_past_the_tracking_limit_is_reported_at_the_limit() {

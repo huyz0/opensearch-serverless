@@ -41,6 +41,7 @@ mod search_match_bool_prefix;
 mod search_match_phrase_prefix;
 mod search_now;
 mod search_pipeline;
+mod search_pipelines;
 mod search_range_zone;
 mod search_routing;
 mod search_several;

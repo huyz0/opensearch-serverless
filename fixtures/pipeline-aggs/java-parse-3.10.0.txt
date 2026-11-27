@@ -1,0 +1,12 @@
+{} -> org.opensearch.core.common.ParsingException: Missing required field [buckets_path] for aggregation [p]
+{"buckets_path":1} -> org.opensearch.core.common.ParsingException: Unexpected token VALUE_NUMBER [buckets_path] in [p]
+{"buckets_path":"t>a","gap_policy":"nope"} -> org.opensearch.core.common.ParsingException: Invalid gap policy: [nope], accepted values: [insert_zeros, skip]
+{"buckets_path":"t>a","foo":1} -> org.opensearch.core.common.ParsingException: Unexpected token VALUE_NUMBER [foo] in [p]
+{"buckets_path":["t>a"]} -> ok gap=skip format=null paths=t>a
+{"buckets_path":"t>a","gap_policy":"insert_zeros"} -> ok gap=insert_zeros format=null paths=t>a
+{"buckets_path":"t>a","gap_policy":"SKIP"} -> org.opensearch.core.common.ParsingException: Invalid gap policy: [SKIP], accepted values: [insert_zeros, skip]
+{"buckets_path":"t>a","format":"0.0"} -> ok gap=skip format=0.0 paths=t>a
+{"buckets_path":"t>a","gap_policy":1} -> org.opensearch.core.common.ParsingException: Unexpected token VALUE_NUMBER [gap_policy] in [p]
+{"buckets_path":"t>a","gap_policy":"skip","gap_policy":"skip"} -> org.opensearch.tools.jackson.core.JsonParseException: Duplicate Object property "gap_policy"
+ at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); byte offset: #UNKNOWN] <- tools.jackson.core.exc.StreamReadException: Duplicate Object property "gap_policy"
+ at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); byte offset: #UNKNOWN]
