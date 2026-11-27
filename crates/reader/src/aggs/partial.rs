@@ -88,6 +88,8 @@ pub enum Value {
     DateHistogram(Box<DateHistogramResult>),
     /// `StringTerms`: a keyword `terms`' buckets.
     KeywordTerms(Box<KeywordTermsResult>),
+    /// `SignificantStringTerms`: a `significant_terms`' buckets.
+    Significant(Box<crate::aggs::bucket::significant::SignificantResult>),
     /// `InternalRange`: a `range`'s buckets.
     Range(Box<RangeResult>),
     /// `InternalFilters`: a `filters`' buckets.
@@ -132,6 +134,7 @@ fn reduce_one(parts: &[Value]) -> Option<Value> {
         Value::Histogram(_) => histogram::reduce(parts),
         Value::DateHistogram(_) => date_histogram::reduce(parts),
         Value::KeywordTerms(_) => keyword_terms::reduce(parts),
+        Value::Significant(_) => super::bucket::significant::reduce(parts),
         Value::Range(_) => range::reduce(parts),
         Value::Filters(_) => filters::reduce(parts),
         Value::Composite(_) => composite::reduce(parts),

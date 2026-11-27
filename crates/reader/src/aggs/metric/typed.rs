@@ -45,6 +45,7 @@ fn type_name(value: &Value) -> Option<&'static str> {
         Value::TopHits(_) | Value::TopHitsParts(_) | Value::Rendered(_) => "top_hits",
         Value::Terms(_) => "lterms",
         Value::KeywordTerms(_) => "sterms",
+        Value::Significant(_) => "sigsterms",
         Value::Histogram(_) => "histogram",
         Value::DateHistogram(_) => "date_histogram",
         Value::Range(_) => "range",
