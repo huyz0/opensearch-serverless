@@ -31,7 +31,7 @@ pub fn empty(spec: &DateHistogramSpec) -> DateHistogramResult {
 /// rounded keys by key ascending.
 pub fn from_engine(spec: &DateHistogramSpec, buckets: &[(i64, u64)]) -> DateHistogramResult {
     DateHistogramResult {
-        spec: *spec,
+        spec: spec.clone(),
         // ALLOC: one entry a bucket, at most the bucket limit (the engine
         // counts every key against it).
         buckets: buckets.to_vec(),

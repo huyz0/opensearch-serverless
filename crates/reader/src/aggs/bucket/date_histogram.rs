@@ -7,12 +7,14 @@ pub use lucene_aggs::bucket_aggs::{DateRounding, DateUnit, RegionZone, RoundingK
 
 use crate::aggs::bucket::count_order::sort_by_count;
 use crate::aggs::bucket::histogram::HistogramOrder;
+use crate::aggs::bucket::histogram_sub_order::by_sub;
 use crate::aggs::bucket::running;
+use crate::aggs::bucket::sub_order::SubOrder;
 use crate::aggs::bucket::sub_values::{BucketSubs, reduce_keyed};
 use crate::aggs::partial::Value;
 
 /// What a `date_histogram` aggregation asks for.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DateHistogramSpec {
     /// The rounding of a value to its bucket's key, in the zone and with the
     /// offset asked for.
@@ -24,6 +26,9 @@ pub struct DateHistogramSpec {
     pub min_doc_count: u64,
     /// How the buckets are ordered.
     pub order: HistogramOrder,
+    /// An `order` by a sub-aggregation, which the reduce applies in place of
+    /// `order`.
+    pub sub_order: Option<SubOrder>,
     /// `extended_bounds`, each end rounded down without the offset (as
     /// `LongBounds.round` does): with `min_doc_count` 0, empty buckets are
     /// made out to these.
@@ -46,6 +51,7 @@ impl Default for DateHistogramSpec {
             keyed: false,
             min_doc_count: 0,
             order: HistogramOrder::KeyAsc,
+            sub_order: None,
             extended_bounds: None,
             hard_bounds: (None, None),
         }
@@ -202,7 +208,7 @@ pub fn reduce_results(
     let Some(first) = parts.first() else {
         return Err(0);
     };
-    let spec = first.spec;
+    let spec = first.spec.clone();
     let total: usize = parts.iter().map(|p| p.buckets.len()).sum();
     if total > limit.saturating_mul(parts.len().max(1)) {
         return Err(total);
@@ -231,6 +237,7 @@ pub fn reduce_results(
         return Err(buckets.len());
     }
     match spec.order {
+        _ if spec.sub_order.is_some() => {}
         HistogramOrder::KeyAsc => {}
         HistogramOrder::KeyDesc => buckets.reverse(),
         HistogramOrder::CountAsc | HistogramOrder::CountDesc => {
@@ -253,6 +260,10 @@ pub fn reduce_results(
             // ALLOC: as above.
             .collect();
         reduce_keyed(&pairs, &keys)
+    };
+    let (buckets, subs) = match &spec.sub_order {
+        Some(order) => by_sub(order, buckets, subs),
+        None => (buckets, subs),
     };
     Ok(DateHistogramResult {
         spec,

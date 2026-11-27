@@ -22,6 +22,7 @@ pub mod histogram;
 pub mod histogram_collect;
 pub mod histogram_parse;
 pub mod histogram_render;
+pub mod histogram_sub_order;
 pub mod keyed_subs;
 pub mod keyword_collect;
 pub mod keyword_options;
@@ -76,7 +77,7 @@ pub(crate) fn histogram_spec(agg: &MetricAgg) -> HistogramSpec {
 
 /// `agg`'s `date_histogram` options (every `date_histogram` has them).
 pub(crate) fn date_histogram_spec(agg: &MetricAgg) -> DateHistogramSpec {
-    agg.date_histogram.as_deref().copied().unwrap_or_default()
+    agg.date_histogram.as_deref().cloned().unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -99,6 +100,8 @@ mod filters_tests;
 mod fixed_subs_tests;
 #[cfg(test)]
 mod histogram_collect_tests;
+#[cfg(test)]
+mod histogram_sub_order_tests;
 #[cfg(test)]
 mod histogram_tests;
 #[cfg(test)]
