@@ -20,6 +20,7 @@ pub mod sort;
 pub mod source;
 pub mod tokens;
 pub mod uri_query;
+pub mod url_params;
 pub mod values;
 
 pub use bool_query::BoolQuery;

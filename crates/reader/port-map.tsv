@@ -60,6 +60,7 @@ src/dsl/search_after_tests.rs	new		tests of search_after.rs
 src/dsl/sort.rs	port	server/src/main/java/org/opensearch/search/sort/SortBuilder.java@3.10.0	fromXContent, parseCompoundSortField and fieldOrScoreSort; FieldSortBuilder and ScoreSortBuilder read for order only
 src/dsl/source.rs	port	server/src/main/java/org/opensearch/search/builder/SearchSourceBuilder.java@3.10.0	parseXContent for query, size, from, sort, track_total_hits, _source, search_after and docvalue_fields; RestSearchAction.parseSearchSource's size and from parameters
 src/dsl/source_tests.rs	new		tests of source.rs
+src/dsl/url_params.rs	port	server/src/main/java/org/opensearch/rest/action/search/RestSearchAction.java@3.10.0	parseSearchSource: track_total_hits, terminate_after, explain, version, seq_no_primary_term, track_scores, _source, sort and search_type URL parameters; FetchSourceContext.parseFromRestRequest
 src/failure.rs	port	libs/core/src/main/java/org/opensearch/OpenSearchException.java@3.10.0	generateFailureXContent, guessRootCauses and generateThrowableXContent; SearchPhaseExecutionException's shard-failure body
 src/lucene_query.rs	port	server/src/main/java/org/opensearch/index/search/MatchQuery.java@3.10.0	each builder's doToQuery, AbstractQueryBuilder.toQuery's boost, Queries.calculateMinShouldMatch, applyMinimumShouldMatch and fixNegativeQueryIfNeeded, and the field types' termQuery and rangeQuery
 src/lucene_query_tests.rs	new		tests of lucene_query.rs

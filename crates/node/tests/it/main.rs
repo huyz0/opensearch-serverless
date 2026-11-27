@@ -36,6 +36,7 @@ mod search_routing;
 mod search_several;
 mod search_template;
 mod search_template_stored;
+mod search_url_params;
 mod shards;
 mod uri_query;
 mod validate_query;
