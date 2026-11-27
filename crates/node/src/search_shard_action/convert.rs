@@ -228,6 +228,38 @@ fn body(source: &Source) -> Result<Json, ConvertError> {
     Ok(Json::Object(top))
 }
 
+/// A `terms`' options as the body's keys, each after a comma.
+fn terms_options(
+    t: &oss_transport::actions::search_shard::TermsRequest,
+) -> Result<String, ConvertError> {
+    let mut text = format!(
+        ",\"size\":{},\"min_doc_count\":{},\"shard_min_doc_count\":{},\"show_term_doc_count_error\":{}",
+        t.size, t.min_doc_count, t.shard_min_doc_count, t.show_error
+    );
+    if t.shard_size >= 0 {
+        text.push_str(&format!(",\"shard_size\":{}", t.shard_size));
+    }
+    if !t.order.is_default() {
+        let items: Vec<Json> = t
+            .order
+            .items
+            .iter()
+            .map(|o| {
+                let (key, direction) = o.json();
+                json!({ key: direction })
+            })
+            .collect();
+        let order = if t.order.compound {
+            Json::Array(items)
+        } else {
+            items.into_iter().next().unwrap_or(Json::Null)
+        };
+        let order = serde_json::to_string(&order).map_err(|_| ConvertError::Number("an order"))?;
+        text.push_str(&format!(",\"order\":{order}"));
+    }
+    Ok(text)
+}
+
 /// The search source `source` stands for.
 ///
 /// # Errors
@@ -254,6 +286,9 @@ pub fn search_source(source: &Source) -> Result<SearchSource, ConvertError> {
             text.extend_from_slice(&field);
             if let Some(t) = a.precision_threshold {
                 text.extend_from_slice(format!(",\"precision_threshold\":{t}").as_bytes());
+            }
+            if let Some(t) = &a.terms {
+                text.extend_from_slice(terms_options(t)?.as_bytes());
             }
             if let Some(p) = &a.percentiles {
                 let keys = serde_json::to_string(&p.keys)

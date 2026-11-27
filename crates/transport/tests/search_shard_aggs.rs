@@ -25,6 +25,7 @@ fn request(name: &str, kind: AggKind, field: &str) -> AggRequest {
         field: field.to_owned(),
         precision_threshold: None,
         percentiles: None,
+        terms: None,
     }
 }
 

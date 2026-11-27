@@ -18,6 +18,7 @@ fn a_written_request_reads_back() {
             field: "n".into(),
             precision_threshold: None,
             percentiles: None,
+            terms: None,
         },
         AggRequest {
             name: "c".into(),
@@ -25,6 +26,7 @@ fn a_written_request_reads_back() {
             field: "tag".into(),
             precision_threshold: None,
             percentiles: None,
+            terms: None,
         },
     ];
     let wire = bytes(&aggs);
@@ -38,7 +40,7 @@ fn another_type_and_a_sub_aggregation_are_refused() {
     let mut wire = Vec::new();
     let mut out = Output::new(&mut wire, 1 << 20);
     out.vint(1).expect("count");
-    out.string("terms").expect("type");
+    out.string("range").expect("type");
     assert!(matches!(
         read(&mut Input::new(&wire)),
         Err(Refusal::Unsupported("an aggregation of another type"))

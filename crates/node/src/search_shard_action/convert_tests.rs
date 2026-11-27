@@ -81,6 +81,7 @@ fn the_aggregations_of_a_request_reach_the_source() {
             field: "n".to_owned(),
             precision_threshold: None,
             percentiles: None,
+            terms: None,
         },
         AggRequest {
             name: "c".to_owned(),
@@ -88,6 +89,7 @@ fn the_aggregations_of_a_request_reach_the_source() {
             field: "tag".to_owned(),
             precision_threshold: None,
             percentiles: None,
+            terms: None,
         },
     ];
     let s = search_source(&with).expect("a search source");
@@ -109,6 +111,7 @@ fn a_precision_threshold_reaches_the_source() {
         field: "tag".to_owned(),
         precision_threshold: Some(100),
         percentiles: None,
+        terms: None,
     }];
     let s = search_source(&with).expect("a search source");
     assert_eq!(s.aggs[0].cardinality.precision_threshold, Some(100));
@@ -128,6 +131,7 @@ fn percentile_keys_and_options_reach_the_source() {
             keyed: false,
             compression: Some(200.0),
         }),
+        terms: None,
     };
     with.aggregations = vec![
         ask("p", AggKind::Percentiles, &[50.0, 99.5]),
@@ -149,4 +153,55 @@ fn percentile_keys_and_options_reach_the_source() {
         got,
         [(vec![50.0, 99.5], false, 200.0), (vec![10.0], false, 200.0)]
     );
+}
+
+#[test]
+fn a_terms_aggregations_options_reach_the_source() {
+    use oss_reader::aggs::bucket::terms::TermsOrder;
+    use oss_transport::actions::search_shard::{
+        AggKind, AggRequest, Order, OrderSpec, TermsRequest,
+    };
+    let ask = |order: OrderSpec, shard_size: i32| AggRequest {
+        name: "t".to_owned(),
+        kind: AggKind::Terms,
+        field: "n".to_owned(),
+        precision_threshold: None,
+        percentiles: None,
+        terms: Some(TermsRequest {
+            size: 5,
+            shard_size,
+            min_doc_count: 2,
+            shard_min_doc_count: 0,
+            order,
+            show_error: true,
+        }),
+    };
+    let mut with = read("request.match_all");
+    with.aggregations = vec![ask(
+        OrderSpec {
+            compound: false,
+            items: vec![Order::KeyDesc],
+        },
+        20,
+    )];
+    let s = search_source(&with).expect("a search source");
+    let t = s.aggs[0].terms.as_ref().expect("terms");
+    assert_eq!(
+        (t.size, t.shard_size, t.min_doc_count, t.shard_min_doc_count),
+        (5, 20, 2, 0)
+    );
+    assert_eq!(t.order, TermsOrder::KeyDesc);
+    assert!(t.show_error);
+    // The default order and no shard size are not sent.
+    with.aggregations = vec![ask(
+        OrderSpec {
+            compound: true,
+            items: vec![Order::CountDesc, Order::KeyAsc],
+        },
+        -1,
+    )];
+    let s = search_source(&with).expect("a search source");
+    let t = s.aggs[0].terms.as_ref().expect("terms");
+    assert_eq!(t.order, TermsOrder::CountDesc);
+    assert_eq!(t.shard_size, 17); // size 5 and a half of it, and ten
 }

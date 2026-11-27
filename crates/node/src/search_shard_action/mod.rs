@@ -10,6 +10,7 @@
 
 mod convert;
 mod local;
+mod terms;
 
 pub use local::{Local, run};
 
@@ -233,8 +234,26 @@ impl Handler for SearchShardHandler {
         // The lease is checked again: a search that outlasted it answers
         // nothing.
         self.owns(&uuid, shard)?;
-        write_answer(&found, out)
+        write_answer(&found, &ask.source.aggregations, out)
     }
+}
+
+/// The order the request named `name` asked for, which the answer repeats.
+fn terms_order(
+    asked: &[oss_transport::actions::search_shard::AggRequest],
+    name: &str,
+) -> Result<oss_transport::actions::search_shard::OrderSpec, RemoteException> {
+    asked
+        .iter()
+        .find(|a| a.name == name)
+        .and_then(|a| a.terms.as_ref())
+        .map(|t| t.order.clone())
+        .ok_or_else(|| {
+            refuse(
+                "a terms answer without its request",
+                "INTERNAL_SERVER_ERROR",
+            )
+        })
 }
 
 fn id_of(row: &Row) -> Result<String, RemoteException> {
@@ -244,9 +263,10 @@ fn id_of(row: &Row) -> Result<String, RemoteException> {
 
 /// The shard's results as the wire writes them: the single-value metrics over
 /// a number or a date, which a Java coordinator reduces.
-fn answers(
-    parts: &[oss_reader::aggs::partial::Partial],
-) -> Result<Vec<AggAnswer<'_>>, RemoteException> {
+fn answers<'a>(
+    parts: &'a [oss_reader::aggs::partial::Partial],
+    asked: &[oss_transport::actions::search_shard::AggRequest],
+) -> Result<Vec<AggAnswer<'a>>, RemoteException> {
     use oss_reader::aggs::partial::{Format, Value as Part};
     // ALLOC: one answer an aggregation, bounded by the request's.
     let mut out = Vec::with_capacity(parts.len());
@@ -293,6 +313,14 @@ fn answers(
                         .map_or_else(|| Digest::new(*compression).to_bytes(), Digest::to_bytes),
                 }
             }
+            Part::Terms(r) => {
+                let order = terms_order(asked, &p.name)?;
+                AggValue::Terms(terms::numeric(r, order)?)
+            }
+            Part::KeywordTerms(r) => {
+                let order = terms_order(asked, &p.name)?;
+                AggValue::Terms(terms::keyword(r, order)?)
+            }
             Part::ValueCount(n) => AggValue::ValueCount(i64::try_from(*n).unwrap_or(i64::MAX)),
             _ => {
                 return Err(refuse(
@@ -310,7 +338,11 @@ fn answers(
     Ok(out)
 }
 
-fn write_answer(found: &Found, out: &mut Output<'_>) -> Result<(), RemoteException> {
+fn write_answer(
+    found: &Found,
+    asked: &[oss_transport::actions::search_shard::AggRequest],
+    out: &mut Output<'_>,
+) -> Result<(), RemoteException> {
     let ids = found
         .rows
         .iter()
@@ -330,7 +362,7 @@ fn write_answer(found: &Found, out: &mut Output<'_>) -> Result<(), RemoteExcepti
             source: &row.source,
         })
         .collect();
-    let aggregations = answers(&found.aggregations)?;
+    let aggregations = answers(&found.aggregations, asked)?;
     Response {
         total: i64::try_from(found.total).unwrap_or(i64::MAX),
         total_is_lower_bound: !found.exact,
