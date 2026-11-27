@@ -26,6 +26,9 @@ pub enum PackError {
     /// The ledger already holds the most live epochs a collector tracks, so
     /// the writer will not start another.
     TooManyEpochs,
+    /// A reference source could not be read, so no pack is judged on its
+    /// word; the message says which.
+    Unreadable(&'static str),
     /// Another publish's pack write failed, and this one's blobs were in it;
     /// the message is that failure's.
     Shared(String),
@@ -44,6 +47,7 @@ impl fmt::Display for PackError {
                 f,
                 "the node already has {MAX_LIVE_EPOCHS} live pack epochs, so no more are started"
             ),
+            Self::Unreadable(why) => write!(f, "{why}"),
             Self::Shared(why) => write!(f, "node pack write failed: {why}"),
         }
     }
