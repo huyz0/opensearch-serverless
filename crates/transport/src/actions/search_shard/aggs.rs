@@ -1,6 +1,6 @@
 //! The aggregations of a forwarded search: `AggregatorFactories.Builder` as
 //! the Java shell writes it, for the single-value metrics a Rust node runs
-//! (`min`, `max`, `sum`, `avg`, `value_count` over one field), and the
+//! (`min`, `max`, `sum`, `avg`, `value_count`, `stats` over one field), and the
 //! shard's `InternalAggregations` answering them.
 //!
 //! Anything past that (a sub-aggregation, a pipeline aggregation, metadata, a
@@ -27,6 +27,8 @@ pub enum AggKind {
     Avg,
     /// `value_count`.
     ValueCount,
+    /// `stats`.
+    Stats,
 }
 
 impl AggKind {
@@ -38,13 +40,21 @@ impl AggKind {
             Self::Sum => "sum",
             Self::Avg => "avg",
             Self::ValueCount => "value_count",
+            Self::Stats => "stats",
         }
     }
 
     fn from_name(name: &str) -> Option<Self> {
-        [Self::Min, Self::Max, Self::Sum, Self::Avg, Self::ValueCount]
-            .into_iter()
-            .find(|k| k.name() == name)
+        [
+            Self::Min,
+            Self::Max,
+            Self::Sum,
+            Self::Avg,
+            Self::ValueCount,
+            Self::Stats,
+        ]
+        .into_iter()
+        .find(|k| k.name() == name)
     }
 }
 
@@ -77,6 +87,17 @@ pub enum AggValue {
     },
     /// `InternalValueCount`'s value.
     ValueCount(i64),
+    /// `InternalStats`.
+    Stats {
+        /// How many values.
+        count: i64,
+        /// The smallest; positive infinity for none.
+        min: f64,
+        /// The largest; negative infinity for none.
+        max: f64,
+        /// The sum.
+        sum: f64,
+    },
 }
 
 /// A result with the name of its aggregation.
@@ -215,6 +236,7 @@ pub fn write_answers(answers: &[AggAnswer<'_>], out: &mut Output<'_>) -> Result<
             AggValue::Sum(_) => (AggKind::Sum, ()),
             AggValue::Avg { .. } => (AggKind::Avg, ()),
             AggValue::ValueCount(_) => (AggKind::ValueCount, ()),
+            AggValue::Stats { .. } => (AggKind::Stats, ()),
         };
         out.string(kind.name())?;
         out.string(a.name)?;
@@ -230,6 +252,18 @@ pub fn write_answers(answers: &[AggAnswer<'_>], out: &mut Output<'_>) -> Result<
                 out.vlong(count)?;
             }
             AggValue::ValueCount(n) => out.vlong(n)?,
+            AggValue::Stats {
+                count,
+                min,
+                max,
+                sum,
+            } => {
+                write_format(out, a.date)?;
+                out.vlong(count)?;
+                for v in [min, max, sum] {
+                    out.bytes(&v.to_bits().to_be_bytes())?;
+                }
+            }
         }
     }
     Ok(())
