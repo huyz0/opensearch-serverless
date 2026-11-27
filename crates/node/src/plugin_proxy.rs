@@ -16,7 +16,7 @@ use oss_rest::{Exception, Length, Request, Response, RestError, Router};
 use ureq::http;
 
 /// The prefixes of the plugins whose endpoints live only in the Java shell.
-pub const PLUGIN_PREFIXES: [&str; 9] = [
+pub const PLUGIN_PREFIXES: [&str; 7] = [
     "/_plugins/_ism",
     "/_opendistro/_ism",
     "/_plugins/_alerting",
@@ -24,8 +24,6 @@ pub const PLUGIN_PREFIXES: [&str; 9] = [
     "/_plugins/_anomaly_detection",
     "/_opendistro/_anomaly_detection",
     "/_plugins/_ml",
-    "/_plugins/_ltr",
-    "/_ltr",
 ];
 
 /// How long an upstream that refused a connect is skipped.
