@@ -39,7 +39,7 @@ pub(super) enum Targets {
 
 /// What a search answers when every index it named is unavailable and
 /// `ignore_unavailable` is set.
-const NO_HITS: &[u8] = br#"{"took":0,"timed_out":false,"_shards":{"total":0,"successful":0,"skipped":0,"failed":0},"hits":{"total":{"value":0,"relation":"eq"},"max_score":null,"hits":[]}}"#;
+pub(super) const NO_HITS: &[u8] = br#"{"took":0,"timed_out":false,"_shards":{"total":0,"successful":0,"skipped":0,"failed":0},"hits":{"total":{"value":0,"relation":"eq"},"max_score":null,"hits":[]}}"#;
 
 /// [`NO_HITS`] under `rest_total_hits_as_int`.
 const NO_HITS_AS_INT: &[u8] = br#"{"took":0,"timed_out":false,"_shards":{"total":0,"successful":0,"skipped":0,"failed":0},"hits":{"total":0,"max_score":null,"hits":[]}}"#;
@@ -56,19 +56,10 @@ impl<S: BlobStore + 'static> SearchService<S> {
         }
         let mut resolved = self.expand_names(path.split(','))?;
         if ignore_unavailable(req)? {
-            let mut kept = Vec::with_capacity(resolved.len());
-            for index in resolved {
-                match self.open_shard(&index, 0, false) {
-                    Err(Answer::Search(e)) if e.status == 404 => {}
-                    Err(Answer::Rest(e)) => return Err(e),
-                    // Another failure surfaces when the search opens it.
-                    _ => kept.push(index),
-                }
-            }
-            if kept.is_empty() {
+            resolved = self.skip_unavailable(resolved)?;
+            if resolved.is_empty() {
                 return Ok(Targets::Nothing);
             }
-            resolved = kept;
         }
         match resolved.len() {
             0 => Ok(Targets::One),
@@ -80,6 +71,25 @@ impl<S: BlobStore + 'static> SearchService<S> {
             }
             _ => Ok(Targets::Many(resolved)),
         }
+    }
+
+    /// `indexes` without the ones that are no index.
+    ///
+    /// # Errors
+    ///
+    /// A failure to open an index other than its being absent.
+    pub(super) fn skip_unavailable(&self, indexes: Vec<String>) -> Result<Vec<String>, RestError> {
+        // ALLOC: one name per index, at most MAX_INDEXES.
+        let mut kept = Vec::with_capacity(indexes.len());
+        for index in indexes {
+            match self.open_shard(&index, 0, false) {
+                Err(Answer::Search(e)) if e.status == 404 => {}
+                Err(Answer::Rest(e)) => return Err(e),
+                // Another failure surfaces when the search opens it.
+                _ => kept.push(index),
+            }
+        }
+        Ok(kept)
     }
 
     /// The indexes `names` stand for: an alias is its members, an index is
@@ -250,8 +260,13 @@ impl<S: BlobStore + 'static> SearchService<S> {
 }
 
 /// `ignore_unavailable`: whether a name that is no index is skipped.
-fn ignore_unavailable(req: &Request<'_>) -> Result<bool, RestError> {
-    match req.param("ignore_unavailable").as_deref() {
+pub(super) fn ignore_unavailable(req: &Request<'_>) -> Result<bool, RestError> {
+    parse_flag(req.param("ignore_unavailable").as_deref())
+}
+
+/// An `ignore_unavailable` value: absent or `false`, or `true` (an empty one too).
+pub(super) fn parse_flag(text: Option<&str>) -> Result<bool, RestError> {
+    match text {
         None | Some("false") => Ok(false),
         Some("" | "true") => Ok(true),
         Some(other) => Err(RestError::illegal_argument(format!(

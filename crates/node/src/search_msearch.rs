@@ -26,6 +26,7 @@ use oss_rest::{
     BodyWriter, JSON, Length, Method, Request, Response, RestError, RouteError, Router,
 };
 
+use super::multi::{NO_HITS, parse_flag};
 use super::{Answer, SearchService, bad_request};
 
 /// The most bytes a header line may record.
@@ -83,13 +84,10 @@ pub(super) fn answer_item(answer: Answer) -> Vec<u8> {
 }
 
 /// The index a header names, or why this node cannot search it.
-fn header_index(
-    rec: &Recorder,
-    parts: bool,
-    default: Option<&str>,
-) -> Result<(String, Option<String>), Vec<u8>> {
+fn header_index(rec: &Recorder, parts: bool, default: Option<&str>) -> Result<Header, Vec<u8>> {
     let mut named: Option<String> = None;
     let mut routing: Option<String> = None;
+    let mut ignore_unavailable = false;
     if parts {
         let mut p = rec.parser();
         if p.next_token() != Some(Kind::StartObject) {
@@ -99,10 +97,18 @@ fn header_index(
         }
         while p.next_token() == Some(Kind::FieldName) {
             let key = p.text().to_owned();
-            if !matches!(key.as_str(), "index" | "routing" | "preference") {
+            if !matches!(
+                key.as_str(),
+                "index" | "routing" | "preference" | "ignore_unavailable"
+            ) {
                 return Err(not_supported(&format!("the _msearch header key [{key}]")));
             }
-            if p.next_token() != Some(Kind::String) {
+            let token = p.next_token();
+            if key == "ignore_unavailable" && token == Some(Kind::Bool) {
+                ignore_unavailable = p.text() == "true";
+                continue;
+            }
+            if token != Some(Kind::String) {
                 return Err(not_supported(&format!(
                     "an _msearch [{key}] that is not one string"
                 )));
@@ -110,6 +116,9 @@ fn header_index(
             match key.as_str() {
                 "index" => named = Some(p.text().to_owned()),
                 "routing" => routing = Some(p.text().to_owned()),
+                "ignore_unavailable" => {
+                    ignore_unavailable = parse_flag(Some(p.text())).map_err(|e| rest_item(&e))?;
+                }
                 // No shard has a copy to prefer.
                 _ => {}
             }
@@ -122,7 +131,18 @@ fn header_index(
     if index.is_empty() || index == "_all" || index.contains('*') {
         return Err(not_supported("a pattern or _all in _msearch"));
     }
-    Ok((index, routing))
+    Ok(Header {
+        index,
+        routing,
+        ignore_unavailable,
+    })
+}
+
+/// What an item's header asks for.
+struct Header {
+    index: String,
+    routing: Option<String>,
+    ignore_unavailable: bool,
 }
 
 /// Reads lines and runs each search as its body line ends.
@@ -143,7 +163,7 @@ struct Items<'s, 'r, 'a, S: BlobStore + 'static> {
     body_tokens: Tokenizer,
     body_fail: Option<DslError>,
     /// The index to search, or the item that stands for the refusal.
-    target: Result<(String, Option<String>), Vec<u8>>,
+    target: Result<Header, Vec<u8>>,
 }
 
 impl<'s, 'r, 'a, S: BlobStore + 'static> Items<'s, 'r, 'a, S> {
@@ -222,6 +242,16 @@ impl<'s, 'r, 'a, S: BlobStore + 'static> Items<'s, 'r, 'a, S> {
     }
 
     /// The search the body line is: parsed, or rendered from its template.
+    /// The indexes an item's header names, without the unavailable ones when it says so.
+    fn item_targets(&self, header: &Header) -> Result<Vec<String>, RestError> {
+        let targets = self.service.expand_names(header.index.split(','))?;
+        if header.ignore_unavailable {
+            self.service.skip_unavailable(targets)
+        } else {
+            Ok(targets)
+        }
+    }
+
     fn item_source(&self) -> Result<SearchSource, Answer> {
         if self.template {
             self.service.template_item(&self.body)
@@ -303,10 +333,11 @@ impl<S: BlobStore + 'static> LineSink for Items<'_, '_, '_, S> {
         ) {
             (Err(item), _) => item,
             (Ok(_), Some(e)) => answer_item(bad_request(e)),
-            (Ok((index, routing)), None) => match self.service.expand_names(index.split(',')) {
+            (Ok(header), None) => match self.item_targets(&header) {
                 Err(e) => rest_item(&e),
+                Ok(targets) if targets.is_empty() => Self::answered(Ok(NO_HITS.to_vec())),
                 Ok(targets) => match self.item_source() {
-                    Ok(mut source) => self.run(&targets, routing.as_deref(), &mut source),
+                    Ok(mut source) => self.run(&targets, header.routing.as_deref(), &mut source),
                     Err(answer) => answer_item(answer),
                 },
             },

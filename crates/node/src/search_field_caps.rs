@@ -18,7 +18,7 @@ use oss_rest::{Exception, JSON, Method, Request, Response, RestError, RouteError
 use super::{Answer, SearchService, send};
 
 /// The URL parameters `_field_caps` takes.
-const FIELD_CAPS_PARAMS: &[&str] = &["fields"];
+const FIELD_CAPS_PARAMS: &[&str] = &["fields", "ignore_unavailable"];
 
 /// The routes of `_field_caps`: on named indices by GET and POST, and the
 /// index-less forms, which answer the refusal.
@@ -226,7 +226,10 @@ impl<S: BlobStore + 'static> SearchService<S> {
             ));
         }
         // An alias is its indexes; the answer names them.
-        let indices = self.expand_names(indices.iter().map(String::as_str))?;
+        let mut indices = self.expand_names(indices.iter().map(String::as_str))?;
+        if super::multi::ignore_unavailable(req)? {
+            indices = self.skip_unavailable(indices)?;
+        }
         let patterns: Vec<&str> = fields.split(',').filter(|p| !p.is_empty()).collect();
         let mut per_index = Vec::new();
         for index in &indices {

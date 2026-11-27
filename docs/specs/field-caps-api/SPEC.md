@@ -12,7 +12,7 @@ Capabilities by type, from the Java mappers: `searchable` is the field's `index`
 
 A field of the same type in some of the indices lists no `indices`; a field of several types lists, under each type, the indices that have it. A field of one type searchable (or aggregatable) in some of the indices and not in others is `false` and lists the others as `non_searchable_indices` (`non_aggregatable_indices`).
 
-Not here: `/_field_caps` and a pattern or `_all` as the index (they need the index list; an alias of one index is served by [search-on-alias](../search-on-alias/SPEC.md)), the `fields` body key, `ignore_unavailable`, `include_unmapped`, `filters`, `types` and `index_filter`, and the metadata fields (`_id`, `_index`, `_source` and the rest), which this answer does not list.
+Not here: `/_field_caps` and a pattern or `_all` as the index (they need the index list; an alias of one index is served by [search-on-alias](../search-on-alias/SPEC.md)), the `fields` body key, `include_unmapped`, `filters`, `types` and `index_filter`, and the metadata fields (`_id`, `_index`, `_source` and the rest), which this answer does not list.
 
 ## Acceptance criteria
 
