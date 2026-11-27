@@ -12,6 +12,7 @@ pub mod bool_prefix;
 pub mod build;
 pub mod case_insensitive;
 pub mod compound;
+pub mod cross_fields;
 pub mod full_text;
 pub mod full_text_build;
 pub mod function_score;

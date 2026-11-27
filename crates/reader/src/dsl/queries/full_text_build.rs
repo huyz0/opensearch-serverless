@@ -153,6 +153,10 @@ pub fn multi_match(cx: &QueryContext<'_>, m: &MultiMatch) -> Result<Clause, Fail
     if fields.is_empty() {
         return Ok(match_none());
     }
+    if m.kind == MultiType::CrossFields {
+        let tie_breaker = m.tie_breaker.unwrap_or_else(|| m.kind.tie_breaker());
+        return super::cross_fields::build(cx, m, &fields, tie_breaker);
+    }
     let all_fields = m.fields.iter().any(|(f, _)| f == "*");
     let lenient = m.lenient.unwrap_or(all_fields);
     // ALLOC: one entry a resolved field, at most the mapping's fields.
@@ -160,7 +164,8 @@ pub fn multi_match(cx: &QueryContext<'_>, m: &MultiMatch) -> Result<Clause, Fail
     for (field, boost) in fields {
         let built = match m.kind {
             MultiType::Phrase => phrase(cx, field, &m.query, m.slop, m.zero_terms_all),
-            MultiType::BestFields | MultiType::MostFields => match_query(
+            // `CrossFields` returned above; it reads as `best_fields` here.
+            MultiType::BestFields | MultiType::MostFields | MultiType::CrossFields => match_query(
                 cx,
                 field,
                 &m.query,
