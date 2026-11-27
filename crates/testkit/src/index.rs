@@ -32,7 +32,7 @@ use lucene_index::segment_info::LuceneVersion;
 use lucene_store::{ByteBuffersDirectory, Directory};
 
 mod nested;
-pub use nested::{NESTED_CHILDREN, nested_deep_word, nested_word};
+pub use nested::{NESTED_CHILDREN, nested_deep_word, nested_number, nested_word};
 
 /// The mapping of `spec`'s index.
 pub fn mapping(spec: &Spec) -> String {

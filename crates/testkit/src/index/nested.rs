@@ -39,6 +39,15 @@ fn deep_word_number(spec: &Spec) -> i32 {
     nested_path_number(spec) + 3
 }
 
+fn nested_number_number(spec: &Spec) -> i32 {
+    nested_path_number(spec) + 3 + i32::from(spec.nested > 1)
+}
+
+/// The `c.k` of child `j` of document `i`: `10 * i + j`.
+pub fn nested_number(i: usize, j: usize) -> i64 {
+    (10 * i + j) as i64
+}
+
 /// The grandchild of child `j` of document `i`.
 fn grandchild(spec: &Spec, i: usize, j: usize) -> ExplicitDocument {
     let word = nested_deep_word(i, j);
@@ -91,10 +100,16 @@ fn block(spec: &Spec, i: usize) -> Vec<ExplicitDocument> {
                             norm: None,
                         },
                     ],
-                    doc_values: vec![StoredField {
-                        field_number: nested_word_number(spec),
-                        value: FieldValue::Binary(word.into_bytes()),
-                    }],
+                    doc_values: vec![
+                        StoredField {
+                            field_number: nested_word_number(spec),
+                            value: FieldValue::Binary(word.into_bytes()),
+                        },
+                        StoredField {
+                            field_number: nested_number_number(spec),
+                            value: FieldValue::Long(nested_number(i, j)),
+                        },
+                    ],
                     ..ExplicitFields::default()
                 },
             }
@@ -144,6 +159,14 @@ pub(super) fn register(w: &mut IndexWriter<'_>, spec: &Spec) {
         ))
         .expect("c.d.v");
     }
+    w.register_field(
+        FieldInfo::new("c.k", nested_number_number(spec)).with_doc_values(
+            DocValuesType::SortedNumeric,
+            DocValuesSkipIndexType::None,
+            -1,
+        ),
+    )
+    .expect("c.k");
 }
 
 /// Adds every document of a nested index as a block, committing after each
@@ -176,7 +199,7 @@ pub(super) fn mapping(spec: &Spec, out: &mut String) {
             ""
         };
         out.push_str(&format!(
-            r#","c":{{"type":"nested","properties":{{"w":{{"type":"keyword"}}{deep}}}}}"#
+            r#","c":{{"type":"nested","properties":{{"w":{{"type":"keyword"}},"k":{{"type":"long"}}{deep}}}}}"#
         ));
     }
 }

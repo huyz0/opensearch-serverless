@@ -250,6 +250,7 @@ src/search_collapse.rs	port	server/src/main/java/org/apache/lucene/search/groupi
 src/dsl/collapse.rs	port	server/src/main/java/org/opensearch/search/collapse/CollapseBuilder.java@3.10.0	the collapse object parser
 src/dsl/collapse_tests.rs	new		tests of collapse.rs
 src/search_collapse_tests.rs	new		tests of the collapse window
+src/aggs/bucket/nested_soak_tests.rs	new		a hand-run soak of nested searches over 10,000 documents
 src/aggs/bucket/missing.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/missing/MissingAggregationBuilder.java@3.10.0	MissingAggregationBuilder.parse; counted as a filter of the documents without the field
 src/aggs/bucket/missing_collect_tests.rs	new		tests of missing on a real index
 src/aggs/bucket/missing_tests.rs	new		tests of missing parsing

@@ -25,11 +25,15 @@ Parity task R10.2 (aggregations), `nested` and `reverse_nested`; invariant I-13 
 - AC-5: an unmapped `nested` path answers `doc_count: 0`; a non-nested `path` and a `reverse_nested` outside `nested` fail as the Java fails.
 - AC-6: the shard results reduce across shards (doc counts add; sub-aggregations reduce as they do elsewhere).
 - AC-7: the aggregation tree stays within `search.max_buckets` and the depth limit; a scored sub-aggregation is refused by name.
+- AC-13: `crates/reader/src/aggs/bucket/nested_agg_collect_tests.rs`, over `Spec::with_nested()` (children carry `c.k`).
+- AC-14: a search with a nested aggregation reserves its bit set and lists with its hits, so a pool that holds the same search without it refuses it; and 10,000 nested documents (20,000 children) answer exactly (`doc_count`, `value_count`, `max`, `reverse_nested`) with the figures recorded as provisional.
 - AC-8: through a node with `serverless.nested.enabled`: create, index nested documents, run `nested` with a `terms` and a `reverse_nested` and read the Java's bodies.
 - AC-9: a `nested` under a keyword `terms` counts each bucket's own children and runs its sub-aggregations over them; the same under a numeric `terms`; shard results reduce.
 - AC-10: a `reverse_nested` under a `terms` under a `nested` counts, for each term, the parents of the children holding it, with sub-aggregations over the parents' fields; a `reverse_nested` under a `terms` outside a `nested` is refused as the Java refuses it.
 - AC-11: the reservation of a search counts a nested aggregation's buckets under a keyword `terms` (an owner each kept bucket).
 - AC-12: the stock 3.10.0 answers recorded in `fixtures/compat/nested-search` (a nested query, nested and reverse_nested aggregations, under a `terms`, their refusals) are the node's, scores included.
+- AC-13: `avg`, `max`, `min` and `value_count` over a nested numeric field (`c.k`) answer over the children of the documents collected, with and without a query, and reduce across shards.
+- AC-14: `crates/reader/src/search_nested_bytes_tests.rs` (the refusal) and `crates/reader/src/aggs/bucket/nested_soak_tests.rs` (`--ignored`, by hand).
 
 ## Test plan
 
