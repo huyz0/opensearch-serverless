@@ -13,6 +13,16 @@ test-threads = 16
 # Reported SLOW after 60 s; killed and failed after 10 periods (10 minutes).
 slow-timeout = { period = "60s", terminate-after = 10 }
 
+# The QUIC tests each run a handshake and measure latency or memory, which
+# 16 at once on 4 cores can push past a connect timeout (h3_idle, CI run
+# 45981273305, 16 threads). They run two at a time.
+[test-groups.quic]
+max-threads = 2
+
+[[profile.default.overrides]]
+filter = 'package(oss-edge) and binary(/^h3/)'
+test-group = 'quic'
+
 [profile.ci]
 slow-timeout = { period = "60s", terminate-after = 10 }
 failure-output = "immediate-final"
