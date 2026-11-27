@@ -23,6 +23,8 @@ lucene-codecs = { workspace = true }
 lucene-index = { workspace = true }
 lucene-search = { workspace = true }
 lucene-store = { workspace = true }
+# Exact pin, as oss-blob's; `time` reads the boot-time clock.
+rustix = { version = "=1.1.4", default-features = false, features = ["time", "std"] }
 
 [lints]
 workspace = true

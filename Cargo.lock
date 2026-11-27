@@ -1713,6 +1713,7 @@ dependencies = [
  "oss-rest",
  "oss-testkit",
  "oss-types",
+ "rustix",
  "serde_json",
 ]
 
