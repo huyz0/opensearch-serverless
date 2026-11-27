@@ -104,6 +104,8 @@ pub struct Params {
     pub track_total_hits_up_to: Option<i64>,
     /// Whether the response carries the total.
     pub show_total: bool,
+    /// Whether the total is written as a bare number (`rest_total_hits_as_int`).
+    pub total_as_int: bool,
     /// How many shards are asked at once.
     pub concurrency: usize,
     /// The `took` the response reports.
@@ -432,7 +434,9 @@ fn write_envelope<T: Shards>(
         out.write_all(b"]")?;
     }
     out.write_all(b"},\"hits\":{")?;
-    if p.show_total {
+    if p.show_total && p.total_as_int {
+        write!(out, "\"total\":{},", merged.total)?;
+    } else if p.show_total {
         let relation = match merged.relation {
             Relation::Equal => "eq",
             Relation::AtLeast => "gte",

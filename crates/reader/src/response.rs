@@ -134,7 +134,9 @@ pub fn write_response_with<S: BlobStore + 'static>(
         ",\"_shards\":{{\"total\":1,\"successful\":1,\
          \"skipped\":0,\"failed\":0}},\"hits\":{{"
     )?;
-    if hits.tracked {
+    if hits.tracked && hits.total_as_int {
+        write!(out, "\"total\":{},", hits.total)?;
+    } else if hits.tracked {
         write!(
             out,
             "\"total\":{{\"value\":{},\"relation\":\"{}\"}},",

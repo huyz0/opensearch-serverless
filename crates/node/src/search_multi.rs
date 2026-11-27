@@ -41,6 +41,9 @@ pub(super) enum Targets {
 /// `ignore_unavailable` is set.
 const NO_HITS: &[u8] = br#"{"took":0,"timed_out":false,"_shards":{"total":0,"successful":0,"skipped":0,"failed":0},"hits":{"total":{"value":0,"relation":"eq"},"max_score":null,"hits":[]}}"#;
 
+/// [`NO_HITS`] under `rest_total_hits_as_int`.
+const NO_HITS_AS_INT: &[u8] = br#"{"took":0,"timed_out":false,"_shards":{"total":0,"successful":0,"skipped":0,"failed":0},"hits":{"total":0,"max_score":null,"hits":[]}}"#;
+
 impl<S: BlobStore + 'static> SearchService<S> {
     /// Resolves the `index` path parameter: a single index is written back
     /// to the parameter, and several are returned.
@@ -177,7 +180,14 @@ impl<S: BlobStore + 'static> SearchService<S> {
     ) -> Result<(), RestError> {
         match targets {
             Targets::Many(indexes) => self.handle_many(req, resp, &indexes),
-            Targets::Nothing => resp.send(200, oss_rest::JSON, NO_HITS),
+            Targets::Nothing => {
+                let as_int = req.param("rest_total_hits_as_int").as_deref() == Some("true");
+                resp.send(
+                    200,
+                    oss_rest::JSON,
+                    if as_int { NO_HITS_AS_INT } else { NO_HITS },
+                )
+            }
             Targets::One => Ok(()),
         }
     }

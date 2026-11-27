@@ -126,9 +126,7 @@ fn what_is_not_served_is_still_refused() {
     let (status, text) = get("search_type=dfs_query_then_fetch");
     assert_eq!(status, 400, "{text}");
     assert!(text.contains("not supported by this node yet"), "{text}");
-    for query in ["rest_total_hits_as_int=true", "typed_keys=true"] {
-        assert_eq!(get(query).0, 400, "{query}");
-    }
+    assert_eq!(get("typed_keys=true").0, 400);
 }
 
 #[test]
@@ -142,4 +140,47 @@ fn a_malformed_value_is_refused_as_opensearch_refuses_it() {
     let (status, text) = get("track_total_hits=lots");
     assert_eq!(status, 400, "{text}");
     assert!(text.contains("lots"), "{text}");
+}
+
+#[test]
+fn rest_total_hits_as_int_writes_the_total_as_a_number() {
+    let text = ok("rest_total_hits_as_int=true");
+    assert!(text.contains(r#""hits":{"total":5,"max_score""#), "{text}");
+    assert!(ok("rest_total_hits_as_int=false").contains(r#""total":{"value":5"#));
+    // Counted exactly, whatever the default cap.
+    let (status, text) = get("rest_total_hits_as_int=true&track_total_hits=true");
+    assert_eq!(status, 200, "{text}");
+    for query in [
+        "rest_total_hits_as_int=true&track_total_hits=3",
+        "rest_total_hits_as_int=true&track_total_hits=false",
+    ] {
+        let (status, text) = get(query);
+        assert_eq!(status, 400, "{query}: {text}");
+        assert!(
+            text.contains("[rest_total_hits_as_int] cannot be used if the tracking of total hits is not accurate"),
+            "{text}"
+        );
+    }
+}
+
+#[test]
+fn the_total_of_a_search_over_several_indexes_is_a_number_too() {
+    let node = start();
+    let r = request(
+        node.addr(),
+        "GET",
+        "/compat-term,compat-bool/_search?rest_total_hits_as_int=true",
+        None,
+    );
+    let text = r.text();
+    assert_eq!(r.status, 200, "{text}");
+    assert!(!text.contains(r#""total":{"value""#), "{text}");
+    assert!(text.contains(r#""hits":{"total":"#), "{text}");
+    let r = request(
+        node.addr(),
+        "GET",
+        "/nothing-here/_search?ignore_unavailable=true&rest_total_hits_as_int=true",
+        None,
+    );
+    assert!(r.text().contains(r#""hits":{"total":0,"#), "{}", r.text());
 }
