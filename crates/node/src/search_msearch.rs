@@ -38,10 +38,12 @@ use header::{Header, check_search_type, header_index};
 /// The most bytes a header line may record.
 const MAX_HEADER_BYTES: usize = 64 << 10;
 
-/// The URL parameters `_msearch` takes; all but `rest_total_hits_as_int` are accepted without effect:
-/// a node runs the items one at a time on one serving path.
+/// The URL parameters `_msearch` takes; all but `rest_total_hits_as_int` and
+/// `typed_keys` are accepted without effect: a node runs the items one at a
+/// time on one serving path.
 const MSEARCH_PARAMS: &[&str] = &[
     "rest_total_hits_as_int",
+    "typed_keys",
     "search_type",
     "max_concurrent_searches",
     "max_concurrent_shard_requests",
@@ -108,6 +110,8 @@ struct Items<'s, 'r, 'a, S: BlobStore + 'static> {
     template: bool,
     /// `rest_total_hits_as_int` on the URL: every item writes its total as a number.
     total_as_int: bool,
+    /// `typed_keys` on the URL: every item writes its aggregations' keys typed.
+    typed_keys: bool,
     resp: Option<&'r mut Response<'a>>,
     out: Option<BodyWriter<'r, 'a>>,
     items: usize,
@@ -129,6 +133,7 @@ impl<'s, 'r, 'a, S: BlobStore + 'static> Items<'s, 'r, 'a, S> {
         default: Option<String>,
         template: bool,
         total_as_int: bool,
+        typed_keys: bool,
         resp: &'r mut Response<'a>,
     ) -> Self {
         Self {
@@ -136,6 +141,7 @@ impl<'s, 'r, 'a, S: BlobStore + 'static> Items<'s, 'r, 'a, S> {
             default,
             template,
             total_as_int,
+            typed_keys,
             resp: Some(resp),
             out: None,
             items: 0,
@@ -217,9 +223,11 @@ impl<'s, 'r, 'a, S: BlobStore + 'static> Items<'s, 'r, 'a, S> {
         } else {
             SearchSource::parse(&self.body).map_err(bad_request)?
         };
-        if self.total_as_int {
+        if self.total_as_int || self.typed_keys {
+            let on = |flag: bool| flag.then_some("true");
             let params = UrlParams {
-                rest_total_hits_as_int: Some("true"),
+                rest_total_hits_as_int: on(self.total_as_int),
+                typed_keys: on(self.typed_keys),
                 ..UrlParams::default()
             };
             source.apply_url(&params).map_err(bad_request)?;
@@ -348,7 +356,8 @@ impl<S: BlobStore + 'static> SearchService<S> {
             check_search_type(text)?;
         }
         let total_as_int = parse_flag(req.param("rest_total_hits_as_int").as_deref())?;
-        let mut items = Items::new(self, default, template, total_as_int, resp);
+        let typed_keys = parse_flag(req.param("typed_keys").as_deref())?;
+        let mut items = Items::new(self, default, template, total_as_int, typed_keys, resp);
         let mut splitter = Splitter::new();
         let body = req.body();
         loop {
