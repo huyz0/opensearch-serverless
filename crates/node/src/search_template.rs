@@ -256,6 +256,7 @@ pub(super) fn rendered_source(text: &str, explain: bool) -> Result<SearchSource,
     tokens.finish(&mut rec)?;
     let mut source = SearchSource::parse(&rec)?.refuse_pipeline()?;
     source.explain |= explain;
+    super::uri_query::stamp(&mut source);
     Ok(source)
 }
 
