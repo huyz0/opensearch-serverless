@@ -1,0 +1,545 @@
+{
+  "name": "extended_stats options not served yet",
+  "description": "Recorded stock answers for extended_stats options this node refuses today; not replayed.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-ext-stats-gaps",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "create",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-ext-stats-gaps",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "title": {
+                "type": "text"
+              },
+              "tag": {
+                "type": "keyword"
+              },
+              "year": {
+                "type": "integer"
+              },
+              "price": {
+                "type": "double"
+              },
+              "published": {
+                "type": "date"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-ext-stats-gaps"
+        }
+      }
+    },
+    {
+      "name": "bulk index",
+      "request": {
+        "method": "POST",
+        "path": "/_bulk",
+        "query": {
+          "refresh": "true"
+        },
+        "ndjson": [
+          {
+            "index": {
+              "_index": "compat-ext-stats-gaps",
+              "_id": "1"
+            }
+          },
+          {
+            "title": "The quick brown fox",
+            "tag": "animal",
+            "year": 2001,
+            "price": 10.5,
+            "published": "2001-03-04"
+          },
+          {
+            "index": {
+              "_index": "compat-ext-stats-gaps",
+              "_id": "2"
+            }
+          },
+          {
+            "title": "Lazy dogs sleep all day",
+            "tag": "animal",
+            "year": 2002,
+            "price": 20.0,
+            "published": "2002-07-01T10:15:30Z"
+          },
+          {
+            "index": {
+              "_index": "compat-ext-stats-gaps",
+              "_id": "3"
+            }
+          },
+          {
+            "title": "Quick start guide",
+            "tag": "manual",
+            "year": 2010,
+            "price": 5.25,
+            "published": "2010-01-01"
+          },
+          {
+            "index": {
+              "_index": "compat-ext-stats-gaps",
+              "_id": "4"
+            }
+          },
+          {
+            "title": "Brown sugar and brown bread",
+            "tag": "food",
+            "year": 2002,
+            "price": 3.0,
+            "published": "2002-12-31T23:59:59.999Z"
+          },
+          {
+            "index": {
+              "_index": "compat-ext-stats-gaps",
+              "_id": "5"
+            }
+          },
+          {
+            "title": "A fox in the snow",
+            "tag": "animal",
+            "year": 1999,
+            "price": 15.75,
+            "published": "1999-12-31"
+          },
+          {
+            "index": {
+              "_index": "compat-ext-stats-gaps",
+              "_id": "6"
+            }
+          },
+          {
+            "title": "Quick brown foxes jump",
+            "tag": "animal",
+            "year": 2010,
+            "price": 8.0,
+            "published": "2010-06-15"
+          },
+          {
+            "index": {
+              "_index": "compat-ext-stats-gaps",
+              "_id": "7"
+            }
+          },
+          {
+            "title": "Bread and butter",
+            "year": 2005,
+            "price": 2.5,
+            "published": "2005-05-05"
+          },
+          {
+            "index": {
+              "_index": "compat-ext-stats-gaps",
+              "_id": "8"
+            }
+          },
+          {
+            "title": "Snow dogs",
+            "tag": [
+              "animal",
+              "sport"
+            ],
+            "year": 2010,
+            "price": 30.0,
+            "published": "2010-11-30"
+          },
+          {
+            "index": {
+              "_index": "compat-ext-stats-gaps",
+              "_id": "9"
+            }
+          },
+          {
+            "title": "No price here",
+            "tag": "misc",
+            "year": 2020,
+            "published": "2020-02-02"
+          }
+        ]
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        },
+        {
+          "pointer": "/body/items/*/index/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 21,
+          "errors": false,
+          "items": [
+            {
+              "index": {
+                "_index": "compat-ext-stats-gaps",
+                "_id": "1",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 0,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-ext-stats-gaps",
+                "_id": "2",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 1,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-ext-stats-gaps",
+                "_id": "3",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 2,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-ext-stats-gaps",
+                "_id": "4",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 3,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-ext-stats-gaps",
+                "_id": "5",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 4,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-ext-stats-gaps",
+                "_id": "6",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 5,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-ext-stats-gaps",
+                "_id": "7",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 6,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-ext-stats-gaps",
+                "_id": "8",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 7,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-ext-stats-gaps",
+                "_id": "9",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 8,
+                "_primary_term": 1,
+                "status": 201
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "extended_stats with missing",
+      "request": {
+        "method": "POST",
+        "path": "/compat-ext-stats-gaps/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "e": {
+              "extended_stats": {
+                "field": "price",
+                "missing": 1.5
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 9,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-ext-stats-gaps",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "e": {
+              "count": 9,
+              "min": 1.5,
+              "max": 30.0,
+              "avg": 10.722222222222221,
+              "sum": 96.5,
+              "sum_of_squares": 1767.375,
+              "variance": 81.40895061728396,
+              "variance_population": 81.40895061728396,
+              "variance_sampling": 91.58506944444446,
+              "std_deviation": 9.022690874527619,
+              "std_deviation_population": 9.022690874527619,
+              "std_deviation_sampling": 9.57000885289269,
+              "std_deviation_bounds": {
+                "upper": 28.76760397127746,
+                "lower": -7.323159526833017,
+                "upper_population": 28.76760397127746,
+                "lower_population": -7.323159526833017,
+                "upper_sampling": 29.8622399280076,
+                "lower_sampling": -8.417795483563157
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "extended_stats with format",
+      "request": {
+        "method": "POST",
+        "path": "/compat-ext-stats-gaps/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "e": {
+              "extended_stats": {
+                "field": "price",
+                "format": "0.00"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 9,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-ext-stats-gaps",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "e": {
+              "count": 8,
+              "min": 2.5,
+              "max": 30.0,
+              "avg": 11.875,
+              "sum": 95.0,
+              "min_as_string": "2.50",
+              "max_as_string": "30.00",
+              "avg_as_string": "11.88",
+              "sum_as_string": "95.00",
+              "sum_of_squares": 1765.125,
+              "variance": 79.625,
+              "variance_population": 79.625,
+              "variance_sampling": 91.0,
+              "std_deviation": 8.923284148787374,
+              "std_deviation_population": 8.923284148787374,
+              "std_deviation_sampling": 9.539392014169456,
+              "std_deviation_bounds": {
+                "upper": 29.72156829757475,
+                "lower": -5.971568297574748,
+                "upper_population": 29.72156829757475,
+                "lower_population": -5.971568297574748,
+                "upper_sampling": 30.953784028338912,
+                "lower_sampling": -7.203784028338912
+              },
+              "sum_of_squares_as_string": "1765.12",
+              "variance_as_string": "79.62",
+              "variance_population_as_string": "79.62",
+              "variance_sampling_as_string": "91.00",
+              "std_deviation_as_string": "8.92",
+              "std_deviation_population_as_string": "8.92",
+              "std_deviation_sampling_as_string": "9.54",
+              "std_deviation_bounds_as_string": {
+                "upper": "29.72",
+                "lower": "-5.97",
+                "upper_population": "29.72",
+                "lower_population": "-5.97",
+                "upper_sampling": "30.95",
+                "lower_sampling": "-7.20"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

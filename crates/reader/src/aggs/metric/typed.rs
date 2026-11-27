@@ -38,6 +38,7 @@ fn type_name(value: &Value, format: Format) -> Option<&'static str> {
         Value::Sum(_) => "sum",
         Value::Avg { .. } => "avg",
         Value::Stats { .. } => "stats",
+        Value::ExtendedStats { .. } => "extended_stats",
         Value::ValueCount(_) => "value_count",
         Value::Cardinality(_) => "cardinality",
         Value::Percentiles { ranks: false, .. } => "tdigest_percentiles",
