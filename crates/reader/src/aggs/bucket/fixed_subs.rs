@@ -26,6 +26,7 @@ pub fn is_fixed(agg: &MetricAgg) -> bool {
             | Metric::Filters
             | Metric::Filter
             | Metric::Missing
+            | Metric::Global
             | Metric::Nested
             | Metric::ReverseNested
     )

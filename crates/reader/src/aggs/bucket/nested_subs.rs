@@ -78,6 +78,7 @@ pub fn build<S: BlobStore + 'static>(
         | Metric::Filters
         | Metric::Filter
         | Metric::Missing
+        | Metric::Global
         | Metric::Nested
         | Metric::ReverseNested => fixed(agg, shard, result, owners),
         Metric::Histogram => histogram(agg, shard, result, owners),
@@ -229,6 +230,7 @@ pub fn reserved<S: BlobStore + 'static>(
         | Metric::Filters
         | Metric::Filter
         | Metric::Missing
+        | Metric::Global
         | Metric::Nested
         | Metric::ReverseNested => fixed_subs::width(agg).saturating_mul(parents),
         _ => keyed_subs::values(shard, &agg.field).saturating_mul(fanout),

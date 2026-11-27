@@ -101,6 +101,8 @@ mod filters_tests;
 #[cfg(test)]
 mod fixed_subs_tests;
 #[cfg(test)]
+mod global_tests;
+#[cfg(test)]
 mod histogram_collect_tests;
 #[cfg(test)]
 mod histogram_sub_order_tests;
