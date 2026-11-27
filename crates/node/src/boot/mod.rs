@@ -10,6 +10,7 @@ mod edge;
 mod error;
 mod follow;
 mod join;
+mod pack_collect;
 mod renew;
 mod retire;
 mod search_shard;
@@ -66,23 +67,21 @@ const MAX_MEMBERS: usize = 1024;
 /// The buffer a descriptor, a head or a lease is read through.
 const READ_BUFFER: usize = 1 << 20;
 
-/// A node running: dropping it stops its lease renewal, its servers, and
-/// releases its lease.
+/// A node running: dropping it stops its servers and renewal and releases its lease.
 pub struct Node {
     edge: edge::Front,
     running: Option<Running>,
     transport: Option<TransportServer>,
     renewal: Option<Renewal>,
     dead_logs: Option<Renewal>,
-    /// The orphan-shard sweep, present when its budget is above 0.
     orphan_sweep: Option<OrphanTimer>,
+    pack_collect: Option<Renewal>,
     following: Option<follow::Following>,
     membership: Arc<Membership>,
     node_id: String,
     /// This process's ephemeral id, which a signed call to it names.
     ephemeral: String,
-    /// Whether dropping the node leaves its lease to lapse, as a killed
-    /// process does.
+    /// Whether dropping the node leaves its lease to lapse, as a kill does.
     crashed: bool,
 }
 
@@ -122,6 +121,7 @@ impl Drop for Node {
         drop(self.renewal.take());
         drop(self.dead_logs.take());
         drop(self.orphan_sweep.take());
+        drop(self.pack_collect.take());
         drop(self.following.take());
         drop(self.running.take());
         drop(self.transport.take());
@@ -490,6 +490,7 @@ pub fn start(config: &NodeConfig) -> Result<Node, BootError> {
         renewal: Some(renewal),
         dead_logs: Some(dead_logs),
         orphan_sweep,
+        pack_collect: pack_collect::start(&node_config, config, &store, &membership, &clock),
         following,
         membership,
         node_id: config.node_id.clone(),

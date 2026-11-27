@@ -253,3 +253,6 @@ src/search_alias.rs	new		the alias source of a search and its registry-backed re
 src/search_multi.rs	new		a search over a list of indexes or an alias of several, merged by the coordinator; stock resolves the index-name expression to the shards of every index
 src/coordinate_plan.rs	new		which shards a search visits (routing narrowing); stock resolves the shards from the routing values in OperationRouting
 src/pack_holds.rs	new		the live points in time and snapshots as holds on a node pack's index incarnations, read once a pass on the first question; stock's NodePackCollector reads each snapshot's referenced blobs
+src/pack_pass.rs	new		the node's collect pass: the writer's collector over the live membership with commit and view references; stock's NodePackCollector runs on a timer in every node
+src/boot/pack_collect.rs	new		the thread that runs the node's pack collection pass every minute when collection is on; stock's NodePackCollector runs on a timer in every node
+src/boot/pack_collect_tests.rs	new		tests of that thread
