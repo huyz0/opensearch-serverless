@@ -164,7 +164,7 @@ impl Rig {
     }
 
     /// Every file under the target, as paths relative to it.
-    fn written(&self) -> Vec<String> {
+    pub(crate) fn written(&self) -> Vec<String> {
         fn walk(dir: &Path, base: &Path, out: &mut Vec<String>) {
             for e in std::fs::read_dir(dir).unwrap() {
                 let p = e.unwrap().path();

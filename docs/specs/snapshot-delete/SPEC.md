@@ -8,7 +8,7 @@
 
 `DELETE /_snapshot/{repo}/{name}` reads the name's register; a held snapshot (finished or still being taken) has its register released by a compare-and-swap (up to 16 tries), then its discovery marker deleted. Answers `{"acknowledged":true}`. The janitor stops pinning the snapshot's indices once the register is released; a marker whose register is released is skipped by every reader, so a failure between the two steps leaves nothing that names storage.
 
-Refused: no snapshot of the name 404 `snapshot_missing_exception`; a selector (`_all`, `_current`, `*`, a comma) 501; an invalid name 400; a snapshot that copied its data (a standard snapshot, which needs its data prefix deleted, a LIST) or one only a legacy record holds 501 `unsupported_operation`, left untouched; either switch off 501 as before.
+Refused: no snapshot of the name 404 `snapshot_missing_exception`; a selector (`_all`, `_current`, `*`, a comma) 501; an invalid name 400; a snapshot that copied its data (a standard snapshot, which needs its data prefix deleted, a LIST) one only a legacy record holds, and any name in a stock repository ([stock export](../stock-snapshot-export/SPEC.md)) 501 `unsupported_operation`, left untouched; either switch off 501 as before.
 
 ## Acceptance criteria
 
@@ -21,7 +21,7 @@ Refused: no snapshot of the name 404 `snapshot_missing_exception`; a selector (`
 
 ## S3 request budget
 
-3 requests, `snapshot.delete.requests` in [request-budgets](../../request-budgets.md), exact, whatever the snapshot's size. A missing name costs one register read (and a legacy HEAD).
+3 requests, `snapshot.delete.requests` in [request-budgets](../../request-budgets.md), exact, whatever the snapshot's size. A missing name costs one register read (and a legacy HEAD), and one more read of the repository record to tell a stock repository, which is refused 501 instead of 404.
 
 ## Switch
 
