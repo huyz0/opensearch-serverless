@@ -196,3 +196,22 @@ fn what_the_fields_api_reads_of_a_field_is_recorded() {
         assert_eq!(m.is_copy_target(name), target, "{name}");
     }
 }
+
+#[test]
+fn stored_fields_and_objects_are_recorded() {
+    let m = Mapping::from_json(
+        r#"{"properties":{
+          "s":{"type":"keyword","store":true},
+          "u":{"type":"keyword","store":false},
+          "v":{"type":"keyword"},
+          "o":{"properties":{"p":{"type":"keyword"}}},
+          "n":{"type":"nested","properties":{"q":{"type":"keyword"}}}
+        }}"#,
+    )
+    .expect("reads");
+    assert!(m.get("s").expect("s").fetch.stored);
+    assert!(!m.get("u").expect("u").fetch.stored);
+    assert!(!m.get("v").expect("v").fetch.stored);
+    assert!(m.is_object("o") && m.is_object("n"));
+    assert!(!m.is_object("v") && !m.is_object("o.p"));
+}

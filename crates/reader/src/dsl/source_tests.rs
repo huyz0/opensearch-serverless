@@ -84,7 +84,6 @@ fn keys_opensearch_knows_are_refused_as_not_served() {
     for body in [
         r#"{"highlight":{"fields":{"t":{"fragmenter":"span"}}}}"#,
         r#"{"aggs":{"t":{"adjacency_matrix":{"filters":{}}}}}"#,
-        r#"{"stored_fields":["a"]}"#,
     ] {
         assert!(
             reason(body).contains("is not supported by this node yet"),
@@ -362,4 +361,55 @@ fn profile_true_and_a_stats_element_that_is_not_a_string_are_refused() {
             "{body}"
         );
     }
+}
+
+#[test]
+fn stored_fields_none_drops_the_id_and_the_source() {
+    for body in [
+        r#"{"stored_fields":"_none_"}"#,
+        r#"{"stored_fields":["_none_"]}"#,
+    ] {
+        let s = source(body).expect("parses");
+        assert!(s.source.skip && s.source.no_id, "{body}");
+    }
+    let s = source(r#"{"stored_fields":"_none_","_source":false}"#).expect("parses");
+    assert!(s.source.skip && s.source.no_id);
+    for body in [
+        r#"{"stored_fields":"_none_","_source":true}"#,
+        r#"{"stored_fields":"_none_","_source":["a"]}"#,
+        r#"{"stored_fields":"_none_","fields":["a"]}"#,
+        r#"{"stored_fields":["_none_","a"]}"#,
+        r#"{"stored_fields":3}"#,
+        r#"{"stored_fields":[1]}"#,
+    ] {
+        assert!(
+            reason(body).contains("is not supported by this node yet"),
+            "{body}"
+        );
+    }
+}
+
+#[test]
+fn stored_fields_names_keep_the_id_and_drop_the_source_unless_asked_for() {
+    let skipped = |body: &str| {
+        let s = source(body).expect("parses");
+        assert!(!s.source.no_id, "{body}");
+        s.source.skip
+    };
+    assert!(skipped(r#"{"stored_fields":"a"}"#));
+    assert!(skipped(r#"{"stored_fields":["a","b"]}"#));
+    assert!(skipped(r#"{"stored_fields":[]}"#));
+    assert!(skipped(r#"{"stored_fields":["a"],"_source":false}"#));
+    // `_source` as a name, or as a key, keeps the source.
+    assert!(!skipped(r#"{"stored_fields":["a","_source"]}"#));
+    assert!(!skipped(r#"{"stored_fields":["_source"],"_source":false}"#));
+    assert!(!skipped(r#"{"stored_fields":["a"],"_source":true}"#));
+    assert!(!skipped(r#"{"_source":["a"],"stored_fields":["b"]}"#));
+    let s = source(r#"{"stored_fields":["a"],"_source":["a"]}"#).expect("parses");
+    assert_eq!(s.source.includes, ["a"]);
+    // Without the key nothing changes.
+    assert_eq!(
+        source("{}").expect("parses").source,
+        SourceFilter::default()
+    );
 }

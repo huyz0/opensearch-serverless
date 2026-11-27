@@ -81,6 +81,9 @@ pub fn parse(p: &mut Parser<'_>) -> Result<Vec<(String, ScriptScore)>, DslError>
 /// A shard failure from either.
 pub fn all(source: &SearchSource, mapping: &Mapping) -> Result<Vec<HitField>, ShardError> {
     let (docvalues, scripts) = (&source.docvalue_fields, &source.script_fields);
+    if let Some(names) = &source.stored_fields {
+        crate::fetch::stored_fields::check(names, mapping)?;
+    }
     if !source.fields.is_empty() {
         crate::fetch::source_fields::check_alone(
             !docvalues.is_empty() || !scripts.is_empty() || source.collapse.is_some(),

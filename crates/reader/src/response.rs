@@ -322,8 +322,10 @@ fn write_hit_list<S: BlobStore + 'static>(
         }
         out.write_all(b"\"_index\":")?;
         write_json_str(out, index)?;
-        out.write_all(b",\"_id\":")?;
-        write_id(out, &stored.id)?;
+        if !view.source.no_id {
+            out.write_all(b",\"_id\":")?;
+            write_id(out, &stored.id)?;
+        }
         hit_meta::write_meta(
             out,
             view.meta,
