@@ -122,6 +122,23 @@ pub fn float_value(p: &Parser<'_>) -> Result<f32, DslError> {
     }
 }
 
+/// `_name` as `declareString` reads it: a string, or null for none.
+pub fn name_value(p: &Parser<'_>) -> Result<(), DslError> {
+    match p.current_token() {
+        Some(Kind::String) => {
+            // ALLOC: one name a named query, at most 64 a search.
+            let name = p.text().to_owned();
+            p.set_name(name);
+            Ok(())
+        }
+        Some(Kind::Null) => Ok(()),
+        _ => Err(DslError::illegal(
+            // ALLOC: error path; one message.
+            format!("[_name] expected a string but found [{}]", p.text()),
+        )),
+    }
+}
+
 /// `parser.booleanValue()`: `true`/`false`, or a string of either.
 pub fn bool_value(p: &Parser<'_>) -> Result<bool, DslError> {
     match (p.current_token(), p.text()) {

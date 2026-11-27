@@ -77,7 +77,6 @@ fn terms_refuses_what_opensearch_refuses() {
         r#"{"terms":{"tag":{"index":"i","id":"1","path":"p"}}}"#,
         r#"{"terms":{"tag":[["a"]]}}"#,
         r#"{"terms":{"tag":["a"],"value_type":"bitmap"}}"#,
-        r#"{"terms":{"tag":["a"],"_name":"n"}}"#,
     ] {
         assert!(
             reason(&q(unsupported)).contains("not supported"),
@@ -195,7 +194,6 @@ fn string_queries_refuse_bad_shapes_and_unserved_options() {
     for unsupported in [
         r#"{"regexp":{"tag":{"value":"a","case_insensitive":true}}}"#,
         r#"{"prefix":{"tag":{"value":"a","rewrite":"scoring_boolean"}}}"#,
-        r#"{"wildcard":{"tag":{"value":"a","_name":"n"}}}"#,
         r#"{"regexp":{"tag":{"value":"a","flags":"INTERSECTION"}}}"#,
         r#"{"regexp":{"tag":{"value":"a","flags_value":1}}}"#,
         r#"{"regexp":{"tag":{"value":"a","max_determinized_states":100}}}"#,
@@ -346,7 +344,19 @@ fn exists_reads_its_field_and_refuses_the_rest() {
         reason(&q(r#"{"exists":{"field":["tag"]}}"#)),
         "[exists] unknown token [START_ARRAY] after [field]"
     );
-    assert!(reason(&q(r#"{"exists":{"field":"tag","_name":"n"}}"#)).contains("not supported"));
+    for named in [
+        r#"{"exists":{"field":"tag","_name":"n"}}"#,
+        r#"{"terms":{"tag":["a"],"_name":"n"}}"#,
+        r#"{"wildcard":{"tag":{"value":"a","_name":"n"}}}"#,
+    ] {
+        assert!(
+            matches!(
+                parse_chunks([q(named).as_bytes()]).map(|s| s.query),
+                Ok(Some(Query::Named(_)))
+            ),
+            "{named}"
+        );
+    }
 }
 
 #[test]
@@ -377,7 +387,10 @@ fn ids_reads_values_and_wraps_its_failures_as_parsing() {
         reason(&q(r#"{"ids":{"boost":"x"}}"#)),
         "For input string: \"x\""
     );
-    assert!(reason(&q(r#"{"ids":{"_name":"n"}}"#)).contains("not supported"));
+    assert!(matches!(
+        parse_chunks([q(r#"{"ids":{"_name":"n"}}"#).as_bytes()]).map(|s| s.query),
+        Ok(Some(Query::Named(_)))
+    ));
 }
 
 #[test]

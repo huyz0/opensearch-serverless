@@ -79,6 +79,7 @@ fn refuse(reason: &str) -> ShardError {
 /// `constant_score`, `dis_max` and `function_score`'s query.
 fn find<'a>(q: &'a Query, out: &mut Vec<&'a NestedQuery>) -> Result<(), ShardError> {
     match q {
+        Query::Named(n) => find(&n.query, out)?,
         Query::Bool(b) => {
             for c in b.must.iter().chain(&b.should).chain(&b.filter) {
                 find(c, out)?;

@@ -14,7 +14,7 @@ use crate::dsl::bool_query::{BoolQuery, parse_bool};
 use crate::dsl::error::DslError;
 pub use crate::dsl::registered::REGISTERED_QUERIES;
 use crate::dsl::tokens::{Kind, Parser};
-use crate::dsl::values::{Value, bool_value, float_value, object_value, suggest};
+use crate::dsl::values::{Value, bool_value, float_value, name_value, object_value, suggest};
 
 /// `Operator`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -78,6 +78,17 @@ pub enum Query {
     Bool(Box<BoolQuery>),
     /// A query of [`crate::dsl::queries`].
     More(Box<crate::dsl::queries::More>),
+    /// A query that carries a `_name`.
+    Named(Box<Named>),
+}
+
+/// A query and the `_name` it was given.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Named {
+    /// The name.
+    pub name: String,
+    /// The query it names.
+    pub query: Query,
 }
 
 /// `parseInnerQueryBuilder`: the parser is on (or just before) the query
@@ -113,6 +124,8 @@ pub fn parse_inner(p: &mut Parser<'_>) -> Result<Query, DslError> {
             format!("[{name}] query malformed, no start_object after query name"),
         ));
     }
+    // A parent's `_name` may be read before its clauses; keep it out of theirs.
+    let outer = p.take_name();
     let query = match name {
         "match_all" => parse_match_all(p)?,
         "term" => parse_term(p)?,
@@ -155,7 +168,15 @@ pub fn parse_inner(p: &mut Parser<'_>) -> Result<Query, DslError> {
     if p.next_token() != Some(Kind::EndObject) {
         return Err(malformed(p, name));
     }
-    Ok(query)
+    let mine = p.take_name();
+    if let Some(outer) = outer {
+        p.set_name(outer);
+    }
+    Ok(match mine {
+        // ALLOC: one box a named query, at most 64 a search.
+        Some(name) => Query::Named(Box::new(Named { name, query })),
+        None => query,
+    })
 }
 
 fn malformed(p: &Parser<'_>, name: &str) -> DslError {
@@ -203,7 +224,7 @@ fn parse_match_all(p: &mut Parser<'_>) -> Result<Query, DslError> {
         match token {
             Kind::FieldName => field = p.text(),
             _ if field == "boost" => boost = float_value(p)?,
-            _ if field == "_name" => return Err(DslError::unsupported("[_name]")),
+            _ if field == "_name" => name_value(p)?,
             _ => {
                 return Err(DslError::xcontent(
                     p.location(),
@@ -241,7 +262,7 @@ fn parse_term(p: &mut Parser<'_>) -> Result<Query, DslError> {
                         (_, "term" | "value") => value = object_value(p)?,
                         (_, "boost") => boost = float_value(p)?,
                         (_, "case_insensitive") => ci = bool_value(p)?,
-                        (_, "_name") => return Err(DslError::unsupported("[_name]")),
+                        (_, "_name") => name_value(p)?,
                         _ => return Err(does_not_support(p, "term", current)),
                     }
                 }
@@ -357,7 +378,8 @@ fn parse_range(p: &mut Parser<'_>) -> Result<Query, DslError> {
                         }
                         "time_zone" => date = range_zone(p, date)?,
                         "format" => date = range_format(p, date)?,
-                        "relation" | "_name" => {
+                        "_name" => name_value(p)?,
+                        "relation" => {
                             // ALLOC: error path; one message.
                             return Err(DslError::unsupported(&format!("[range] [{current}]")));
                         }

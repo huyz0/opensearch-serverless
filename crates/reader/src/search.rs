@@ -99,6 +99,11 @@ pub struct Hits {
     pub fields: Vec<HitField>,
     /// Each hit's explanation, in order; empty unless `explain` was asked.
     pub explanations: Vec<Explanation>,
+    /// The named queries each hit matches, in order, with their scores; empty
+    /// when the query names none.
+    pub matched: Vec<Vec<(String, f32)>>,
+    /// Whether `matched` is written as an object of name to score.
+    pub named_scores: bool,
     /// What to highlight in each hit; `None` without `highlight`.
     pub highlight: Option<Plan>,
     /// Which of each hit's `_version`, `_seq_no` and `_primary_term` to write.
@@ -118,6 +123,7 @@ impl Hits {
         if self.explanations.len() > cap {
             self.explanations.truncate(cap);
         }
+        self.matched.truncate(cap);
     }
 }
 
@@ -402,6 +408,9 @@ pub fn search_with<S: BlobStore + 'static>(
         fields: Vec::new(),
         // ALLOC: empty; explained below when asked.
         explanations: Vec::new(),
+        // ALLOC: empty; filled below when the query names queries.
+        matched: Vec::new(),
+        named_scores: source.named_scores,
         highlight: None,
         meta: HitMeta {
             version: source.version,
@@ -424,6 +433,11 @@ pub fn search_with<S: BlobStore + 'static>(
         let searcher = IndexSearcher::new(&segments, &norms).map_err(ShardError::engine)?;
         hits.explanations =
             explain::explain_hits(&searcher, &query, &hits.hits).map_err(ShardError::engine)?;
+    }
+    if let (Some(q), false) = (&source.query, hits.hits.is_empty()) {
+        let searcher = IndexSearcher::new(&segments, &norms).map_err(ShardError::engine)?;
+        hits.matched = crate::search_named::matched(&searcher, q, &cx, &hits.hits)
+            .map_err(|f| ShardError::of_query(shard_failure(f, index, &meta.uuid)))?;
     }
     Ok(hits)
 }

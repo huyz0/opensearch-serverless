@@ -73,6 +73,8 @@ pub fn render_selected_hits<S: BlobStore + 'static>(
             result.highlight.as_ref(),
             HitMeta::default(),
             &[],
+            &[],
+            false,
         ),
         reserve,
     )
@@ -102,7 +104,12 @@ pub fn render_selected_result_hits<S: BlobStore + 'static>(
     let mut picked = Vec::with_capacity(positions.len());
     // ALLOC: one explanation a position when explained.
     let mut explanations = Vec::new();
+    // ALLOC: one list of matched names a position when the query names any.
+    let mut matched = Vec::new();
     for &at in positions {
+        if let Some(m) = hits.matched.get(at) {
+            matched.push(m.clone());
+        }
         picked.push(
             hits.hits
                 .get(at)
@@ -130,6 +137,8 @@ pub fn render_selected_result_hits<S: BlobStore + 'static>(
             hits.highlight.as_ref(),
             hits.meta,
             &hits.inner,
+            &matched,
+            hits.named_scores,
         ),
         reserve,
     )
@@ -143,6 +152,8 @@ type Writing<'a> = (
     Option<&'a Plan>,
     HitMeta,
     &'a [crate::search_inner_hits::ParentInner],
+    &'a [Vec<(String, f32)>],
+    bool,
 );
 
 /// Writes each of `hits`, whose explanations are `explanations` when asked.
@@ -152,7 +163,7 @@ fn render_picked<S: BlobStore + 'static>(
     node_id: &str,
     hits: &[Hit],
     explanations: &[Explanation],
-    (source, fields, highlight, meta, inner): Writing<'_>,
+    (source, fields, highlight, meta, inner, matched, named_scores): Writing<'_>,
     reserve: &mut dyn FnMut(usize) -> io::Result<()>,
 ) -> io::Result<Vec<Vec<u8>>> {
     prefetch(shard, &[hits])?;
@@ -168,6 +179,8 @@ fn render_picked<S: BlobStore + 'static>(
             source,
             fields,
             explanations: explanations.get(i..=i).unwrap_or_default(),
+            matched: matched.get(i..=i).unwrap_or_default(),
+            named_scores,
             highlight,
             meta,
             inner,

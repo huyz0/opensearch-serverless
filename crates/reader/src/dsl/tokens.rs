@@ -141,6 +141,7 @@ impl Recorder {
         Parser {
             rec: self,
             pos: None,
+            name: std::cell::RefCell::new(None),
         }
     }
 
@@ -227,9 +228,21 @@ pub struct Parser<'r> {
     rec: &'r Recorder,
     /// The current token; `None` before the first `next_token`.
     pos: Option<usize>,
+    /// The `_name` the query just parsed carried, taken by `parse_inner`.
+    name: std::cell::RefCell<Option<String>>,
 }
 
 impl<'r> Parser<'r> {
+    /// Keeps the `_name` of the query being parsed for [`Parser::take_name`].
+    pub fn set_name(&self, name: String) {
+        *self.name.borrow_mut() = Some(name);
+    }
+
+    /// The `_name` the query just parsed carried, once.
+    pub fn take_name(&self) -> Option<String> {
+        self.name.borrow_mut().take()
+    }
+
     fn tok(&self, at: usize) -> Option<&'r Tok> {
         self.rec.tokens.get(at)
     }

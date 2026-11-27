@@ -6,7 +6,9 @@ use crate::dsl::error::DslError;
 use crate::dsl::queries::single_field::{self, does_not_support};
 use crate::dsl::queries::{Fuzziness, More};
 use crate::dsl::tokens::{Kind, Parser};
-use crate::dsl::values::{Value, bool_value, float_value, int_value, object_value, text_or_null};
+use crate::dsl::values::{
+    Value, bool_value, float_value, int_value, name_value, object_value, text_or_null,
+};
 
 /// `RegexpQueryBuilder.DEFAULT_DETERMINIZE_WORK_LIMIT`.
 pub const DEFAULT_DETERMINIZE_WORK_LIMIT: i32 = 10_000;
@@ -31,7 +33,7 @@ fn field_and_value(
     Ok((owned(field), value))
 }
 
-/// `case_insensitive: true` and `rewrite` are refused; `_name` too.
+/// `case_insensitive: true` and `rewrite` are refused.
 fn common(p: &Parser<'_>, query: &str, param: &str, boost: &mut f32) -> Result<bool, DslError> {
     match param {
         "boost" => *boost = float_value(p)?,
@@ -44,7 +46,8 @@ fn common(p: &Parser<'_>, query: &str, param: &str, boost: &mut f32) -> Result<b
             }
         }
         "rewrite" if p.current_token() == Some(Kind::Null) => {}
-        "rewrite" | "_name" => {
+        "_name" => name_value(p)?,
+        "rewrite" => {
             // ALLOC: error path; one message.
             return Err(DslError::unsupported(&format!("[{query}] [{param}]")));
         }
@@ -109,7 +112,8 @@ pub fn parse_terms(p: &mut Parser<'_>) -> Result<More, DslError> {
             Some(_) => match current {
                 "boost" => boost = float_value(p)?,
                 "value_type" if p.text() == "default" => {}
-                "value_type" | "_name" => {
+                "_name" => name_value(p)?,
+                "value_type" => {
                     // ALLOC: error path; one message.
                     return Err(DslError::unsupported(&format!("[terms] [{current}]")));
                 }
@@ -356,7 +360,7 @@ pub fn parse_exists(p: &mut Parser<'_>) -> Result<More, DslError> {
             Some(k) if k.is_value() => match current {
                 "field" => field = Some(p.text()),
                 "boost" => boost = float_value(p)?,
-                "_name" => return Err(DslError::unsupported("[exists] [_name]")),
+                "_name" => name_value(p)?,
                 _ => return Err(does_not_support(p, "exists", current)),
             },
             Some(k) => {
@@ -448,7 +452,7 @@ fn ids_object(p: &mut Parser<'_>) -> Result<More, DslError> {
                 }
             },
             ("boost", Some(Kind::Number | Kind::String)) => boost = float_value(p)?,
-            ("_name", Some(Kind::String)) => return Err(DslError::unsupported("[ids] [_name]")),
+            ("_name", Some(Kind::String)) => name_value(p)?,
             (_, token) => {
                 return Err(DslError::xcontent(
                     p.location(),
