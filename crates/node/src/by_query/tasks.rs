@@ -4,11 +4,15 @@
 use std::collections::VecDeque;
 use std::fmt::Write as _;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 
 use oss_doc::mapping::json::write_str;
 use oss_mem::{MemoryBudget, Pool, Reservation};
 use oss_rest::{Exception, RestError};
+use oss_transport::actions::tasks::{TaskRequest, TaskResponse};
+
+use super::task_forward::TaskSend;
+use crate::forward::ForwardError;
 
 /// The most tasks running at once; each has a thread.
 pub(super) const MAX_RUNNING: usize = 32;
@@ -54,6 +58,20 @@ pub struct Tasks {
     next: AtomicU64,
     budget: MemoryBudget,
     state: Mutex<State>,
+    forward: OnceLock<Arc<dyn TaskSend>>,
+}
+
+/// Whose a task id is.
+pub(super) enum Target {
+    /// A task of this node, by number.
+    Local(u64),
+    /// A task of node `node`.
+    Remote {
+        /// The node's id.
+        node: String,
+        /// The task's number there.
+        number: u64,
+    },
 }
 
 fn rejected(reason: &str) -> RestError {
@@ -81,7 +99,13 @@ impl Tasks {
             next: AtomicU64::new(now_millis),
             budget: budget.clone(),
             state: Mutex::new(State::default()),
+            forward: OnceLock::new(),
         }
+    }
+
+    /// Lets a task id of another node be answered by that node, once.
+    pub fn set_forward(&self, forward: Arc<dyn TaskSend>) {
+        self.forward.set(forward).ok();
     }
 
     fn lock(&self) -> MutexGuard<'_, State> {
@@ -167,12 +191,12 @@ impl Tasks {
         Self::expire(&mut state, now);
     }
 
-    /// The number in a task id of this node.
+    /// Whose task `text` names.
     ///
     /// # Errors
     ///
-    /// 400 for an id that is not `<node>:<number>`, 404 for another node's.
-    pub(super) fn parse(&self, text: &str) -> Result<u64, RestError> {
+    /// 400 for an id that is not `<node>:<number>`.
+    pub(super) fn route(&self, text: &str) -> Result<Target, RestError> {
         let bad = || {
             RestError::illegal_argument(
                 // ALLOC: error path; one message.
@@ -181,12 +205,68 @@ impl Tasks {
         };
         let (node, number) = text.rsplit_once(':').ok_or_else(bad)?;
         let number: u64 = number.parse().map_err(|_| bad())?;
-        if node != self.node {
-            return Err(not_found(format!(
-                "task [{text}] belongs to node [{node}]; ask that node"
-            )));
+        Ok(if node == self.node {
+            Target::Local(number)
+        } else {
+            // ALLOC: one node id, on a forwarded request.
+            Target::Remote {
+                node: node.to_owned(),
+                number,
+            }
+        })
+    }
+
+    /// This node's answer to `request`: what `GET /_tasks/{id}` or the
+    /// cancel would send.
+    pub fn call(&self, request: TaskRequest, now: u64) -> TaskResponse {
+        let result = if request.cancel {
+            self.cancel(request.number, now)
+        } else {
+            self.get(request.number, now)
+        };
+        match result {
+            Ok(body) => TaskResponse { status: 200, body },
+            Err(error) => {
+                let mut out = Vec::new();
+                let _ = error.write_body(&mut out);
+                TaskResponse {
+                    status: error.status(),
+                    body: String::from_utf8(out).unwrap_or_default(),
+                }
+            }
         }
-        Ok(number)
+    }
+
+    /// Asks node `node` to answer `request`, for a task id that names it.
+    ///
+    /// # Errors
+    ///
+    /// 404 when no forwarding is wired or no live node holds the id's node,
+    /// 503 when the call failed.
+    pub(super) fn remote(
+        &self,
+        node: &str,
+        request: TaskRequest,
+    ) -> Result<TaskResponse, RestError> {
+        let gone = || {
+            // ALLOC: error path; one message.
+            not_found(format!(
+                "task [{node}:{}] belongs to node [{node}], which this node cannot reach",
+                request.number
+            ))
+        };
+        let Some(forward) = self.forward.get() else {
+            return Err(gone());
+        };
+        match forward.call(node, request) {
+            Ok(answer) => Ok(answer),
+            Err(ForwardError::NoPeer | ForwardError::Gone) => Err(gone()),
+            Err(error) => Err(RestError::simple(
+                503,
+                // ALLOC: error path; one message.
+                format!("the node holding the task did not answer: {error}"),
+            )),
+        }
     }
 
     /// `GET /_tasks/{id}`'s body.

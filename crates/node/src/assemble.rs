@@ -52,6 +52,9 @@ pub struct Assembled {
     timer: PublishTimer,
     janitor: JanitorTimer,
     drain: Drain,
+    /// The tasks of background by-query and reindex requests.
+    #[cfg(feature = "coordinator")]
+    pub tasks: Arc<crate::by_query::Tasks>,
     tail: Option<TailNode>,
     pub(crate) budget: MemoryBudget,
     /// What the page cache's records are charged, held for the node's life.
@@ -266,7 +269,7 @@ pub fn assemble(
     let router = pit_route::routes(router, pit).map_err(AssembleError::Route)?;
     let (router, _sec) = crate::admin_assemble::register(router, &store, config, budget)?;
     #[cfg(feature = "coordinator")]
-    let (router, drain) = {
+    let (router, drain, tasks) = {
         use crate::index_assemble::{index_service, pin_policy, restore_routes, stream_routes};
         let pins = pin_policy(config, &store, budget, _sec)?;
         let indices = index_service(config, &store, &clock, bucket_wiring.as_ref(), pins)?;
@@ -281,19 +284,20 @@ pub fn assemble(
         let router = stream_routes(router, config, &store, &clock, &indices, &deletes, &search)?;
         let router = index_route::routes(router, indices).map_err(AssembleError::Route)?;
         let router = index_delete::routes(router, deletes).map_err(AssembleError::Route)?;
+        let tasks = Arc::new(crate::by_query::Tasks::new(
+            &config.node_id,
+            budget,
+            crate::by_query::now_millis(),
+        ));
         let by_query = Arc::new(crate::by_query::ByQueryService::new(
             Arc::clone(&role),
             Arc::new(crate::by_query::SearchMatches::new(Arc::clone(&search))),
             BulkBudget::new(config.bulk_bytes, config.bulk_holders),
             config.address,
-            Arc::new(crate::by_query::Tasks::new(
-                &config.node_id,
-                budget,
-                crate::by_query::now_millis(),
-            )),
+            Arc::clone(&tasks),
         ));
         let router = crate::by_query::routes(router, by_query).map_err(AssembleError::Route)?;
-        (router, Some(drain))
+        (router, Some(drain), tasks)
     };
     #[cfg(not(feature = "coordinator"))]
     let drain: Option<()> = None;
@@ -321,6 +325,8 @@ pub fn assemble(
         timer,
         janitor,
         drain,
+        #[cfg(feature = "coordinator")]
+        tasks,
         tail: None,
         budget: budget.clone(),
         cache_records,

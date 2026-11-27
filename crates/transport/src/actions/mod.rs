@@ -6,5 +6,6 @@ pub mod push;
 pub mod read;
 pub mod search_shard;
 pub mod tail;
+pub mod tasks;
 pub mod warm;
 pub mod write;

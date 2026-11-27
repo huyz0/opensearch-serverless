@@ -22,6 +22,7 @@ mod reader;
 mod stream;
 mod support;
 mod tail;
+mod tasks;
 mod warm;
 
 use std::net::IpAddr;

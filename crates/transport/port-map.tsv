@@ -38,3 +38,4 @@ src/actions/search_shard/aggs_kind.rs	new		the aggregation kinds and their write
 tests/search_shard_range.rs	new		the range builders and answers against the recorded Java bytes
 src/actions/search_shard/aggs_multi.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/InternalMultiTerms.java@429b4cbc	MultiTermsAggregationBuilder.innerWriteTo and InternalMultiTerms.doWriteTo
 src/actions/search_shard/aggs_rare.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/InternalMappedRareTerms.java@429b4cbc	RareTermsAggregationBuilder.innerWriteTo and InternalMappedRareTerms.doWriteTo with SetBackedScalingCuckooFilter in set mode
+src/actions/tasks.rs	new		this project's own task read and cancel, forwarded to the node that runs the task; no Java peer sends or answers it
