@@ -15,7 +15,6 @@ use lucene_analysis::Analyzer;
 use oss_blob::BlobStore;
 use oss_mem::{Pool, Reservation};
 use oss_reader::dsl::source::tokenizer;
-use oss_reader::dsl::tokens::Kind;
 use oss_reader::dsl::{DslError, MAX_RECORDED_BYTES, Recorder, SearchSource};
 use oss_reader::failure::{SearchError, ShardFailure};
 use oss_reader::response::write_response;
@@ -26,11 +25,29 @@ use oss_rest::{
     BodyWriter, JSON, Length, Method, Request, Response, RestError, RouteError, Router,
 };
 
+use oss_reader::dsl::url_params::UrlParams;
+
 use super::multi::{NO_HITS, parse_flag};
 use super::{Answer, SearchService, bad_request};
 
+#[path = "search_msearch_header.rs"]
+mod header;
+
+use header::{Header, check_search_type, header_index};
+
 /// The most bytes a header line may record.
 const MAX_HEADER_BYTES: usize = 64 << 10;
+
+/// The URL parameters `_msearch` takes; all but `rest_total_hits_as_int` are accepted without effect:
+/// a node runs the items one at a time on one serving path.
+const MSEARCH_PARAMS: &[&str] = &[
+    "rest_total_hits_as_int",
+    "search_type",
+    "max_concurrent_searches",
+    "max_concurrent_shard_requests",
+    "pre_filter_shard_size",
+    "ccs_minimize_roundtrips",
+];
 
 /// The routes of `_msearch` and `_msearch/template`, with and without an
 /// index, by GET and POST.
@@ -50,7 +67,7 @@ pub(super) fn routes<S: BlobStore + 'static>(
             router = router.route(
                 method,
                 path,
-                &[],
+                MSEARCH_PARAMS,
                 move |req: &mut Request<'_>, resp: &mut Response<'_>| {
                     service.msearch(req, resp, template)
                 },
@@ -83,74 +100,14 @@ pub(super) fn answer_item(answer: Answer) -> Vec<u8> {
     }
 }
 
-/// The index a header names, or why this node cannot search it.
-fn header_index(rec: &Recorder, parts: bool, default: Option<&str>) -> Result<Header, Vec<u8>> {
-    let mut named: Option<String> = None;
-    let mut routing: Option<String> = None;
-    let mut ignore_unavailable = false;
-    if parts {
-        let mut p = rec.parser();
-        if p.next_token() != Some(Kind::StartObject) {
-            return Err(rest_item(&RestError::illegal_argument(
-                "a _msearch header must be a JSON object",
-            )));
-        }
-        while p.next_token() == Some(Kind::FieldName) {
-            let key = p.text().to_owned();
-            if !matches!(
-                key.as_str(),
-                "index" | "routing" | "preference" | "ignore_unavailable"
-            ) {
-                return Err(not_supported(&format!("the _msearch header key [{key}]")));
-            }
-            let token = p.next_token();
-            if key == "ignore_unavailable" && token == Some(Kind::Bool) {
-                ignore_unavailable = p.text() == "true";
-                continue;
-            }
-            if token != Some(Kind::String) {
-                return Err(not_supported(&format!(
-                    "an _msearch [{key}] that is not one string"
-                )));
-            }
-            match key.as_str() {
-                "index" => named = Some(p.text().to_owned()),
-                "routing" => routing = Some(p.text().to_owned()),
-                "ignore_unavailable" => {
-                    ignore_unavailable = parse_flag(Some(p.text())).map_err(|e| rest_item(&e))?;
-                }
-                // No shard has a copy to prefer.
-                _ => {}
-            }
-            p.skip_children();
-        }
-    }
-    let index = named
-        .or_else(|| default.map(str::to_owned))
-        .ok_or_else(|| not_supported("an _msearch item with no index"))?;
-    if index.is_empty() || index == "_all" || index.contains('*') {
-        return Err(not_supported("a pattern or _all in _msearch"));
-    }
-    Ok(Header {
-        index,
-        routing,
-        ignore_unavailable,
-    })
-}
-
-/// What an item's header asks for.
-struct Header {
-    index: String,
-    routing: Option<String>,
-    ignore_unavailable: bool,
-}
-
 /// Reads lines and runs each search as its body line ends.
 struct Items<'s, 'r, 'a, S: BlobStore + 'static> {
     service: &'s SearchService<S>,
     default: Option<String>,
     /// Each body line is a template request, not a search body.
     template: bool,
+    /// `rest_total_hits_as_int` on the URL: every item writes its total as a number.
+    total_as_int: bool,
     resp: Option<&'r mut Response<'a>>,
     out: Option<BodyWriter<'r, 'a>>,
     items: usize,
@@ -171,12 +128,14 @@ impl<'s, 'r, 'a, S: BlobStore + 'static> Items<'s, 'r, 'a, S> {
         service: &'s SearchService<S>,
         default: Option<String>,
         template: bool,
+        total_as_int: bool,
         resp: &'r mut Response<'a>,
     ) -> Self {
         Self {
             service,
             default,
             template,
+            total_as_int,
             resp: Some(resp),
             out: None,
             items: 0,
@@ -253,11 +212,19 @@ impl<'s, 'r, 'a, S: BlobStore + 'static> Items<'s, 'r, 'a, S> {
     }
 
     fn item_source(&self) -> Result<SearchSource, Answer> {
-        if self.template {
-            self.service.template_item(&self.body)
+        let mut source = if self.template {
+            self.service.template_item(&self.body)?
         } else {
-            SearchSource::parse(&self.body).map_err(bad_request)
+            SearchSource::parse(&self.body).map_err(bad_request)?
+        };
+        if self.total_as_int {
+            let params = UrlParams {
+                rest_total_hits_as_int: Some("true"),
+                ..UrlParams::default()
+            };
+            source.apply_url(&params).map_err(bad_request)?;
         }
+        Ok(source)
     }
 
     fn run(&self, targets: &[String], routing: Option<&str>, source: &mut SearchSource) -> Vec<u8> {
@@ -376,7 +343,12 @@ impl<S: BlobStore + 'static> SearchService<S> {
     ) -> Result<(), RestError> {
         let started = Instant::now();
         let default = req.path_param("index").map(std::borrow::Cow::into_owned);
-        let mut items = Items::new(self, default, template, resp);
+        let search_type = req.param("search_type");
+        if let Some(text) = search_type.as_deref() {
+            check_search_type(text)?;
+        }
+        let total_as_int = parse_flag(req.param("rest_total_hits_as_int").as_deref())?;
+        let mut items = Items::new(self, default, template, total_as_int, resp);
         let mut splitter = Splitter::new();
         let body = req.body();
         loop {
