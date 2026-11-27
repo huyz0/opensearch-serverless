@@ -61,10 +61,10 @@ fn painless_source_is_refused_unless_its_variable_turns_the_compiler_on() {
 #[test]
 fn the_reader_ramp_is_off_unless_set_and_its_bounds_are_checked() {
     let c = NodeConfig::from_lookup(lookup(&with(&[]))).expect("valid");
-    assert_eq!((c.reader_ramp_max_secs, c.reader_ramp_min_secs), (0, 30));
+    assert_eq!((c.reader_ramp.max, c.reader_ramp.min), (0, 30));
     let c = NodeConfig::from_lookup(lookup(&with(&[("OSS_READER_RAMP_MAX_SECS", "300")])))
         .expect("valid");
-    assert_eq!(c.reader_ramp_max_secs, 300);
+    assert_eq!(c.reader_ramp.max, 300);
     for bad in [
         ("OSS_READER_RAMP_MAX_SECS", "-1"),
         ("OSS_READER_RAMP_MAX_SECS", "x"),

@@ -94,3 +94,66 @@ fn a_joiner_not_admitted_ranks_last_and_only_fills_a_long_limit() {
         assert_eq!(long.last(), Some(&"joiner"));
     }
 }
+
+// docs/specs/reader-slow-start AC-1 and AC-6: one file both languages answer the same.
+// `OSS_REGEN_RAMP_FIXTURE=1` rewrites it from this implementation; the Java reads a copy.
+#[test]
+fn the_ramp_fixture_is_what_this_implementation_answers() {
+    use oss_cluster::placement::{admission, ramp_permille};
+    let cfg = RampConfig {
+        min_ms: 30_000,
+        max_ms: 300_000,
+    };
+    let mut rows = Vec::new();
+    for (since, said) in [
+        (1_000i64, None),
+        (1_000, Some(0)),
+        (1_000, Some(200)),
+        (1_000, Some(1000)),
+    ] {
+        for age in [
+            0i64, 1, 5_000, 29_999, 30_000, 60_000, 150_000, 299_999, 300_000, 9_999_999,
+        ] {
+            let mut l = NodeLease::new("n", "e", "a", 0);
+            l.search_since = Some(since);
+            l.set_ramp_permille(said);
+            let r = ramp_permille(&l, since + age, cfg);
+            let said_text = said.map_or("-".to_owned(), |s| s.to_string());
+            rows.push(format!("R\t{since}\t{said_text}\t{}\t{r}", since + age));
+        }
+    }
+    for node in ["node-0", "node-7", "joiner", "né-ø"] {
+        for shard in [0, 1, 7, 255] {
+            rows.push(format!(
+                "A\t{node}\tidx\t{shard}\t{}",
+                admission(node, ShardKey::new("idx", shard))
+            ));
+        }
+    }
+    let mut fleet = fleet(8);
+    let mut joiner = NodeLease::new("joiner", "e", "a", 0);
+    joiner.set_roles([ROLE_SEARCH.to_owned()]);
+    joiner.search_since = Some(1_000);
+    joiner.set_ramp_permille(Some(200));
+    fleet.push(joiner);
+    for now in [1_000i64, 31_000, 91_000, 301_000] {
+        for shard in 0..40 {
+            let ids = readers_for_at(
+                ShardKey::new("idx", shard),
+                fleet.iter(),
+                ROLE_SEARCH,
+                3,
+                cfg,
+                now,
+            );
+            rows.push(format!("K\tidx\t{shard}\t{now}\t{}", ids.join(",")));
+        }
+    }
+    let text = rows.join("\n") + "\n";
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/placement/ramp.txt");
+    if std::env::var("OSS_REGEN_RAMP_FIXTURE").is_ok() {
+        std::fs::write(&path, &text).unwrap();
+    }
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), text);
+}

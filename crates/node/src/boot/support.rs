@@ -1,5 +1,7 @@
 //! The small reads and conversions a node start leans on.
 
+mod ramp_feed;
+
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -264,27 +266,7 @@ pub(super) struct FleetTick {
     clock: Arc<dyn LeaseClock>,
     ttl_millis: i64,
     node_id: String,
-    ramp: Option<RampFeed>,
-}
-
-/// What the joiner's slow start reads at each renewal.
-struct RampFeed {
-    readiness: Arc<crate::lifecycle::Readiness>,
-    ledger: Arc<oss_blob::usage::Ledger>,
-    controller: std::sync::Mutex<oss_cluster::placement::RampController>,
-}
-
-impl RampFeed {
-    fn totals(&self) -> oss_cluster::placement::Totals {
-        use oss_blob::S3Op;
-        oss_cluster::placement::Totals {
-            searches: oss_cluster::placement::searches_total(),
-            gets_milli: self
-                .ledger
-                .total_requests(S3Op::Get)
-                .saturating_add(self.ledger.total_requests(S3Op::GetRange)),
-        }
-    }
+    ramp: Option<ramp_feed::RampFeed>,
 }
 
 impl FleetTick {
@@ -305,28 +287,13 @@ impl FleetTick {
         }
     }
 
-    /// Lets the node judge its own slow start from the searches it answers
-    /// and the store GETs they cost, when the ramp is on and the store's
-    /// usage is counted; otherwise the ramp is bounded by time alone.
+    /// Lets the node judge its own slow start (see `ramp_feed`).
     pub(super) fn with_ramp(
         mut self,
         readiness: &Arc<crate::lifecycle::Readiness>,
         ledger: Option<&Arc<oss_blob::usage::Ledger>>,
     ) -> Self {
-        if let (true, Some(ledger)) = (oss_cluster::placement::ramp_config().is_on(), ledger) {
-            let feed = RampFeed {
-                readiness: Arc::clone(readiness),
-                ledger: Arc::clone(ledger),
-                controller: std::sync::Mutex::new(oss_cluster::placement::RampController::new(
-                    oss_cluster::placement::ControllerConfig::default(),
-                    oss_cluster::placement::Totals {
-                        searches: 0,
-                        gets_milli: 0,
-                    },
-                )),
-            };
-            self.ramp = Some(feed);
-        }
+        self.ramp = ramp_feed::RampFeed::new(readiness, ledger);
         self
     }
 
@@ -335,11 +302,7 @@ impl FleetTick {
         let stats = self.role.shard_cap_stats();
         self.load.set(stats.held, stats.max);
         if let Some(feed) = &self.ramp {
-            let mut controller = feed
-                .controller
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            feed.readiness.set_ramp(controller.observe(feed.totals()));
+            feed.renewing();
         }
     }
 
