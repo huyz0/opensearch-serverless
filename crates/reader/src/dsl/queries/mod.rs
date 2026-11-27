@@ -47,6 +47,7 @@ pub const NAMES: &[&str] = &[
     "ids",
     "constant_score",
     "dis_max",
+    "boosting",
     "match_none",
     "match_phrase",
     "multi_match",
@@ -181,6 +182,17 @@ pub enum More {
         /// The boost.
         boost: f32,
     },
+    /// `BoostingQueryBuilder`.
+    Boosting {
+        /// The query that matches.
+        positive: Query,
+        /// The query whose matches have their score scaled.
+        negative: Query,
+        /// The factor a match of `negative` scales the score by.
+        negative_boost: f32,
+        /// The boost.
+        boost: f32,
+    },
     /// `MatchNoneQueryBuilder`.
     MatchNone {
         /// The boost.
@@ -226,6 +238,7 @@ impl More {
             | More::Ids { boost, .. }
             | More::ConstantScore { boost, .. }
             | More::DisMax { boost, .. }
+            | More::Boosting { boost, .. }
             | More::MatchPhrase { boost, .. }
             | More::MultiMatch(_, boost)
             | More::SimpleQueryString(_, boost)
@@ -251,6 +264,7 @@ pub fn parse(name: &str, p: &mut Parser<'_>) -> Result<More, DslError> {
         "ids" => term_level::parse_ids(p),
         "constant_score" => compound::parse_constant_score(p),
         "dis_max" => compound::parse_dis_max(p),
+        "boosting" => compound::parse_boosting(p),
         "match_phrase" => full_text::parse_match_phrase(p),
         "multi_match" => full_text::parse_multi_match(p),
         "simple_query_string" => simple_string::parse_simple_query_string(p),
