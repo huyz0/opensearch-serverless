@@ -20,6 +20,33 @@ pub fn node_with_packs(
     } else {
         Arc::new(SystemClock)
     };
+    node_with_clock(
+        c,
+        id,
+        term,
+        clock,
+        Box::new(|| 1_000),
+        takeover,
+        wrap,
+        incarnation,
+        packs,
+    )
+}
+
+/// As [`node_with_packs`], the node judging leases, head claims and its
+/// publishes by `clock`, which a test steps, and its publish policy by `publish_clock`.
+#[allow(clippy::too_many_arguments)]
+pub fn node_with_clock(
+    c: &Cluster,
+    id: &str,
+    term: u64,
+    clock: Arc<dyn LeaseClock>,
+    publish_clock: Box<dyn Fn() -> u64 + Send + Sync>,
+    takeover: Option<Takeover>,
+    wrap: impl FnOnce(DescriptorRoutes) -> Arc<dyn oss_node::writer::Routes>,
+    incarnation: (Arc<dyn oss_node::writer::Incarnation>, Duration),
+    packs: Option<oss_node::writer::PackConfig>,
+) -> Node {
     let membership = Arc::new(
         Membership::new(
             c.io(),
@@ -85,8 +112,7 @@ pub fn node_with_packs(
     if let Some(takeover) = takeover {
         opener = opener.with_takeover(takeover);
     }
-    let mut publishing =
-        Publishing::new(dynstore, "", id, Policy::new(0, 0, 250), Box::new(|| 1_000));
+    let mut publishing = Publishing::new(dynstore, "", id, Policy::new(0, 0, 250), publish_clock);
     if let Some(packs) = packs {
         publishing = publishing.with_packs(packs);
     }
@@ -99,5 +125,6 @@ pub fn node_with_packs(
         role: Arc::new(role),
         committer,
         log,
+        keeper,
     }
 }

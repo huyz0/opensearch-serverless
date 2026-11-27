@@ -33,7 +33,7 @@ mod packed;
 mod rustfs;
 mod sweep;
 #[allow(unused_imports)]
-pub use packed::node_with_packs;
+pub use packed::{node_with_clock, node_with_packs};
 #[allow(unused_imports)]
 pub use rustfs::{RustFs, cluster_rustfs, cluster_rustfs_rounds};
 #[allow(unused_imports)]
@@ -88,6 +88,8 @@ pub struct Node {
     pub role: Arc<WriterRole>,
     pub committer: Arc<NodeLogCommitter>,
     pub log: NodeLogStore,
+    /// What a node's lease timer calls: it writes the lease and trims the log.
+    pub keeper: Arc<oss_writer::log::LeaseKeeper>,
 }
 
 pub fn cluster() -> Cluster {
