@@ -29,6 +29,9 @@ pub mod keyword_options;
 pub mod keyword_subs;
 pub mod keyword_terms;
 pub mod missing;
+pub mod multi;
+pub mod multi_collect;
+pub mod multi_parse;
 pub mod nested_agg;
 pub mod nested_subs;
 pub mod parse_arms;
@@ -135,6 +138,8 @@ mod keyword_terms_tests;
 mod missing_collect_tests;
 #[cfg(test)]
 mod missing_tests;
+#[cfg(test)]
+mod multi_tests;
 #[cfg(test)]
 mod nested_agg_collect_tests;
 #[cfg(test)]

@@ -47,6 +47,11 @@ pub enum FieldType {
     Float,
     /// `double`: `DoublePoint`s and doc values of the sortable long.
     Double,
+    /// `half_float`: 2-byte `HalfFloatPoint`s and doc values of the sortable short.
+    HalfFloat,
+    /// `scaled_float`: `LongPoint`s and doc values of `Math.round(value * scaling_factor)`;
+    /// holds the bits of the factor.
+    Scaled(u64),
     /// A type, or an option, this reader does not search yet.
     Unsupported(String),
 }
@@ -319,6 +324,7 @@ impl Mapping {
         let mut doc_values = true;
         let mut options = None;
         let mut dimension = None;
+        let mut scaling = None;
         let mut space = None;
         let (mut analyzer, mut search, mut quote) = (None, None, None);
         while let Some(Kind::FieldName) = p.next_token() {
@@ -330,6 +336,7 @@ impl Mapping {
                 "index" => indexed = text != "false",
                 "doc_values" => doc_values = text != "false",
                 "dimension" => dimension = text.parse::<u32>().ok(),
+                "scaling_factor" => scaling = text.parse::<f64>().ok(),
                 "space_type" => space = Some(text),
                 "method" if p.current_token() == Some(Kind::StartObject) => {
                     while let Some(Kind::FieldName) = p.next_token() {
@@ -433,6 +440,10 @@ impl Mapping {
             ("date", None) => FieldType::Date,
             ("float", None) => FieldType::Float,
             ("double", None) => FieldType::Double,
+            ("half_float", None) => FieldType::HalfFloat,
+            ("scaled_float", None) if scaling.is_some_and(|f| f.is_finite() && f > 0.0) => {
+                FieldType::Scaled(scaling.unwrap_or(1.0).to_bits())
+            }
             // ALLOC: one description a field this reader does not search.
             (other, None) => FieldType::Unsupported(format!("a [{other}] field")),
         };

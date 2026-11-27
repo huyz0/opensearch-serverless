@@ -1,14 +1,24 @@
-//! The `double` field `d` and the `float` field `f` of a [`Spec::with_decimals`] index.
+//! The `double` field `d`, the `float` field `f` and the `half_float` field `h` of a
+//! [`Spec::with_decimals`] index.
 
 use lucene_codecs::field_infos::{DocValuesSkipIndexType, DocValuesType, FieldInfo};
 use lucene_codecs::stored_fields::{FieldValue, StoredField};
 use lucene_index::index_writer::{ExplicitDocument, IndexWriter};
+use lucene_util::half_float::half_float_to_sortable_short;
 
 use super::Spec;
 
 /// The fields' numbers: registered right after `n`, so the keywords follow them.
 const DOUBLE: i32 = 4;
 const FLOAT: i32 = 5;
+const HALF: i32 = 6;
+const SCALED: i32 = 7;
+
+/// How many fields this module registers.
+pub(super) const FIELDS: i32 = 4;
+
+/// The `scaling_factor` of the `scaled_float` field `s`.
+pub const SCALING_FACTOR: f64 = 100.0;
 
 /// `NumericUtils.doubleToSortableLong`.
 fn double_to_sortable_long(v: f64) -> i64 {
@@ -39,10 +49,33 @@ pub fn doc_float(i: usize) -> f32 {
     n * 0.1
 }
 
+/// Document `i`'s `half_float` field `h` when [`Spec::with_decimals`] is set: a tenth, which a
+/// half holds more coarsely than a float (`0.1` is stored as `0.0999755859375`).
+pub fn doc_half(i: usize) -> f32 {
+    doc_float(i)
+}
+
+/// Document `i`'s `scaled_float` field `s` when [`Spec::with_decimals`] is set, as its `_source`
+/// holds it: 0.123 steps, which the factor rounds to whole hundredths.
+pub fn doc_scaled(i: usize) -> f64 {
+    // ARITH: test sizes are small; the conversion is exact below 2^53.
+    #[allow(clippy::cast_precision_loss)]
+    let n = i as f64;
+    n * 0.123
+}
+
+/// The long document `i`'s `s` is indexed as: `Math.round(value * scaling_factor)`.
+pub fn doc_scaled_long(i: usize) -> i64 {
+    // The value is small: the cast is exact.
+    #[allow(clippy::cast_possible_truncation)]
+    let v = (doc_scaled(i) * SCALING_FACTOR + 0.5).floor() as i64;
+    v
+}
+
 /// The fields' mapping, when `spec` has them.
 pub(super) fn mapping(spec: &Spec, out: &mut String) {
     if spec.decimals {
-        out.push_str(r#","d":{"type":"double"},"f":{"type":"float"}"#);
+        out.push_str(r#","d":{"type":"double"},"f":{"type":"float"},"h":{"type":"half_float"},"s":{"type":"scaled_float","scaling_factor":100}"#);
     }
 }
 
@@ -50,9 +83,11 @@ pub(super) fn mapping(spec: &Spec, out: &mut String) {
 pub(super) fn source(spec: &Spec, i: usize, out: &mut String) {
     if spec.decimals {
         out.push_str(&format!(
-            r#","d":{:?},"f":{:?}"#,
+            r#","d":{:?},"f":{:?},"h":{:?},"s":{:?}"#,
             doc_double(i),
-            doc_float(i)
+            doc_float(i),
+            doc_half(i),
+            doc_scaled(i)
         ));
     }
 }
@@ -75,6 +110,18 @@ pub(super) fn register(w: &mut IndexWriter<'_>, spec: &Spec) {
             .with_doc_values(numeric, DocValuesSkipIndexType::None, -1),
     )
     .expect("f");
+    w.register_field(
+        FieldInfo::new("h", HALF)
+            .with_points(1, 1, 2)
+            .with_doc_values(numeric, DocValuesSkipIndexType::None, -1),
+    )
+    .expect("h");
+    w.register_field(
+        FieldInfo::new("s", SCALED)
+            .with_points(1, 1, 8)
+            .with_doc_values(numeric, DocValuesSkipIndexType::None, -1),
+    )
+    .expect("s");
 }
 
 /// Adds document `i`'s doc values and points.
@@ -84,6 +131,8 @@ pub(super) fn fields(spec: &Spec, i: usize, doc: &mut ExplicitDocument) {
     }
     let d = double_to_sortable_long(doc_double(i));
     let f = float_to_sortable_int(doc_float(i));
+    let h = half_float_to_sortable_short(doc_half(i));
+    let s = doc_scaled_long(i);
     let dv = &mut doc.fields.doc_values;
     dv.push(StoredField {
         field_number: DOUBLE,
@@ -93,6 +142,14 @@ pub(super) fn fields(spec: &Spec, i: usize, doc: &mut ExplicitDocument) {
         field_number: FLOAT,
         value: FieldValue::Long(i64::from(f)),
     });
+    dv.push(StoredField {
+        field_number: HALF,
+        value: FieldValue::Long(i64::from(h)),
+    });
+    dv.push(StoredField {
+        field_number: SCALED,
+        value: FieldValue::Long(s),
+    });
     let points = &mut doc.fields.points;
     points.push(StoredField {
         field_number: DOUBLE,
@@ -101,5 +158,13 @@ pub(super) fn fields(spec: &Spec, i: usize, doc: &mut ExplicitDocument) {
     points.push(StoredField {
         field_number: FLOAT,
         value: FieldValue::Binary((f ^ i32::MIN).to_be_bytes().to_vec()),
+    });
+    points.push(StoredField {
+        field_number: HALF,
+        value: FieldValue::Binary((h ^ i16::MIN).to_be_bytes().to_vec()),
+    });
+    points.push(StoredField {
+        field_number: SCALED,
+        value: FieldValue::Binary((s ^ i64::MIN).to_be_bytes().to_vec()),
     });
 }

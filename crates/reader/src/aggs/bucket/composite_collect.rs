@@ -23,8 +23,8 @@ use crate::aggs::bucket::keyword_collect::dictionary;
 use crate::aggs::bucket::keyword_subs;
 use crate::aggs::bucket::sub_values::BucketSubs;
 use crate::aggs::bucket::terms_collect::too_many_buckets;
-use crate::aggs::metric::MetricAgg;
 use crate::aggs::metric::resolve::{text_fielddata, type_name};
+use crate::aggs::metric::{Metric, MetricAgg};
 use crate::aggs::partial::Value;
 use crate::failure::Failure;
 use crate::mapping::FieldType;
@@ -115,7 +115,9 @@ pub fn reserved_all<S: BlobStore + 'static>(shard: &OpenShard<S>, aggs: &[Metric
 /// fails a reduce that makes them.
 pub fn check_limit(agg: &MetricAgg) -> Result<(), ShardError> {
     match agg.composite.as_deref() {
-        Some(spec) if spec.size > BUCKET_LIMIT => Err(too_many_buckets(spec.size, BUCKET_LIMIT)),
+        Some(spec) if agg.metric == Metric::Composite && spec.size > BUCKET_LIMIT => {
+            Err(too_many_buckets(spec.size, BUCKET_LIMIT))
+        }
         _ => Ok(()),
     }
 }
@@ -124,6 +126,8 @@ pub fn check_limit(agg: &MetricAgg) -> Result<(), ShardError> {
 enum Reads {
     Keyword,
     Long,
+    /// A `double` or `float` field, read as this kind.
+    Decimal(ValueKind),
 }
 
 /// How `source`'s field is read, `None` when it is unmapped; the errors of
@@ -152,8 +156,21 @@ fn reads<S: BlobStore + 'static>(
                 source.field
             )));
         }
-        (ty @ (FieldType::Float | FieldType::Double | FieldType::Unsupported(_)), _) => {
-            let what = ty.refusal_name();
+        (
+            FieldType::Float | FieldType::Double | FieldType::HalfFloat | FieldType::Scaled(_),
+            SourceKind::DateHistogram { .. },
+        ) => {
+            // ALLOC: error path; one message.
+            return Err(bad_request(format!(
+                "Field [{}] of type [{ty}] is not supported for aggregation [date_histogram]",
+                source.field
+            )));
+        }
+        (FieldType::Double, _) => Reads::Decimal(ValueKind::Double),
+        (FieldType::Float, _) => Reads::Decimal(ValueKind::Float),
+        (FieldType::HalfFloat, _) => Reads::Decimal(ValueKind::HalfFloat),
+        (FieldType::Scaled(bits), _) => Reads::Decimal(ValueKind::Scaled(*bits)),
+        (FieldType::Unsupported(what), _) => {
             // ALLOC: error path; one message.
             return Err(bad_request(format!(
                 "aggregating {what} [{}] is not supported by this node yet",
@@ -256,11 +273,13 @@ fn after_of(
                         .map_err(|_| number_format(text))?,
                 )
             }
-            (Reads::Long, SourceKind::Histogram { .. }) => CompositeAfter::Value(sortable(
-                text.trim()
-                    .parse::<f64>()
-                    .map_err(|_| number_format(text))?,
-            )),
+            (Reads::Long, SourceKind::Histogram { .. }) | (Reads::Decimal(_), _) => {
+                CompositeAfter::Value(sortable(
+                    text.trim()
+                        .parse::<f64>()
+                        .map_err(|_| number_format(text))?,
+                ))
+            }
         });
     }
     Ok(Some(out))
@@ -311,6 +330,13 @@ pub fn node<S: BlobStore + 'static>(
                 kind: ValueKind::Long,
                 interval,
             },
+            (Reads::Decimal(kind), SourceKind::Histogram { interval }) => {
+                CompositeValues::Histogram {
+                    kind: *kind,
+                    interval,
+                }
+            }
+            (Reads::Decimal(kind), _) => CompositeValues::Double(*kind),
         };
         sources.push(CompositeSource {
             // ALLOC: one field name a source, bounded by the request's.

@@ -37,6 +37,7 @@ use crate::aggs::bucket::{
 use crate::aggs::metric::hll::Hll;
 use crate::aggs::metric::resolve::bad_request;
 pub(crate) use crate::aggs::metric::resolve::{Resolved, resolve, value_kind};
+use crate::aggs::metric::script_values;
 use crate::aggs::metric::tdigest::Digest;
 use crate::aggs::metric::top_hits::TopHitsResult;
 use crate::aggs::metric::{DEFAULT_PRECISION, Metric, MetricAgg};
@@ -75,6 +76,7 @@ fn needs(metric: Metric) -> u8 {
         | Metric::Missing
         | Metric::Global
         | Metric::Composite
+        | Metric::MultiTerms
         | Metric::Nested
         | Metric::ReverseNested => NEED_COUNT,
     }
@@ -117,6 +119,7 @@ pub(crate) fn value_of(agg: &MetricAgg, state: &MetricState) -> Value {
         | Metric::Nested
         | Metric::ReverseNested => filters_collect::value(agg, &[]),
         Metric::Composite => composite_collect::empty(agg),
+        Metric::MultiTerms => crate::aggs::bucket::multi_collect::empty(agg),
         Metric::SignificantTerms => crate::aggs::bucket::significant_collect::unmapped(
             &crate::aggs::bucket::significant_collect::spec_of(agg),
         ),
@@ -165,13 +168,15 @@ pub(crate) fn node(agg: &MetricAgg, precision: u32, values: ValueKind) -> AggNod
     let field = agg.field.clone();
     // `byte` to `long` and `date` are longs read as they are.
     match agg.metric {
-        Metric::Terms => terms_collect::node(&agg.field, &terms_spec(agg)),
-        Metric::Histogram => histogram_collect::node(&agg.field, &histogram_spec(agg)),
+        Metric::Terms => terms_collect::node(&agg.field, &terms_spec(agg), values),
+        Metric::Histogram => histogram_collect::node(&agg.field, &histogram_spec(agg), values),
         Metric::DateHistogram => {
             date_histogram_collect::node(&agg.field, &date_histogram_spec(agg))
         }
-        Metric::Range | Metric::DateRange => range_collect::node(agg),
-        Metric::Composite => unreachable!("a composite's node is made by composite_collect::node"),
+        Metric::Range | Metric::DateRange => range_collect::node(agg, values),
+        Metric::Composite | Metric::MultiTerms => {
+            unreachable!("a composite's node is made by composite_collect::node")
+        }
         Metric::Cardinality => AggNode::Cardinality {
             field,
             kind: CardinalityKind::Numeric(values),
@@ -317,6 +322,11 @@ pub fn collect<S: BlobStore + 'static>(
         match r {
             Resolved::Numeric(_) => {
                 let mut made = node(agg, precision, value_kind(agg, shard));
+                if let (Some(script), AggNode::Metric { script: slot, .. }) =
+                    (agg.script.as_deref(), &mut made)
+                {
+                    *slot = Some(script_values::values(&shard.meta.mapping, script)?);
+                }
                 with_subs::attach(&mut made, agg, shard, &mut ords, &mut queries)?;
                 nodes.push(made);
             }
@@ -380,6 +390,10 @@ pub fn collect<S: BlobStore + 'static>(
             Resolved::Unmapped | Resolved::Hits | Resolved::Composite(false) => {
                 (Format::Raw, value_of(agg, &MetricState::default()))
             }
+            Resolved::Composite(true) if agg.metric == Metric::MultiTerms => (
+                Format::Raw,
+                crate::aggs::bucket::multi_collect::value(agg, shard, results.next())?,
+            ),
             Resolved::Composite(true) => (
                 Format::Raw,
                 composite_collect::value_from(agg, shard, results.next())?,
@@ -411,3 +425,11 @@ mod tests;
 #[cfg(test)]
 #[path = "collect_decimal_tests.rs"]
 mod decimal_tests;
+
+#[cfg(test)]
+#[path = "collect_half_tests.rs"]
+mod half_tests;
+
+#[cfg(test)]
+#[path = "collect_scaled_tests.rs"]
+mod scaled_tests;

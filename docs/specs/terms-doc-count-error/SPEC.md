@@ -20,6 +20,7 @@ Not in this change: `shard_min_doc_count`, which is [terms-shard-min-doc-count](
 - AC-4: a keyword `terms` reduces and writes the same bounds.
 - AC-5: the coordinator's reduce of shards carries the bounds.
 - AC-6: the option parses from a boolean.
+- AC-7: a key held by several shards takes its bound as `reduceBucket` adds it: the parts' bounds in order, each less its shard's error, and the addition stops once the running sum is -1 (the value an unbounded error also has). Shards of errors (1, 2), (2, 1), (1, 1) and (3, 2) holding one key leave it 2, 0, 1 and 0, the bytes of `fixtures/terms-error/java-terms-error-3.10.0.txt`.
 
 ## Test plan
 
@@ -35,4 +36,4 @@ None: a request with the option was refused before.
 
 ## Risks
 
-The bound follows the Java's reduce read at 3.10.0 and is not yet recorded against a stock node. A reduce of results that did not store bounds (a mixed fleet with another build) is not possible: results are in-process values.
+The bound follows the Java's reduce read at 3.10.0 and recorded from its own classes for the key-held-by-several-shards cases (AC-7); the sum stops at -1, so a bound depends on the order the parts are reduced in, as Java's does on the order shards answer. A reduce of results that did not store bounds (a mixed fleet with another build) is not possible: results are in-process values.

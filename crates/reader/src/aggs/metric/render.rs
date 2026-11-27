@@ -20,8 +20,9 @@ use crate::aggs::metric::double::write_java_double;
 use crate::aggs::metric::hash_order::hash_map_order;
 use crate::aggs::metric::percentiles::write_percentiles;
 use crate::aggs::metric::top_hits::TopHitsResult;
-use crate::aggs::metric::typed::{scoped, write_key};
+use crate::aggs::metric::typed::{scoped, write_key, write_pipeline_key};
 use crate::aggs::partial::{Format, Partial, Value};
+use crate::aggs::pipeline::{PipelineAgg, compute};
 
 /// Writes a `top_hits` result's body: `"hits":{..}`, with its hits fetched.
 pub type HitsWriter<'a> = dyn FnMut(&mut dyn Write, &str, &TopHitsResult) -> io::Result<()> + 'a;
@@ -53,30 +54,67 @@ pub fn write_aggregations_typed(
     typed: bool,
     hits: &mut HitsWriter<'_>,
 ) -> io::Result<()> {
-    scoped(typed, || write_parts(out, parts, hits))
+    write_aggregations_piped(out, parts, &[], typed, hits)
+}
+
+/// [`write_aggregations_typed`] with the sibling pipeline aggregations of the
+/// request, each computed over the aggregation its path names and listed
+/// beside the others as `Aggregations.toXContent` lists them.
+pub fn write_aggregations_piped(
+    out: &mut dyn Write,
+    parts: &[Partial],
+    pipelines: &[PipelineAgg],
+    typed: bool,
+    hits: &mut HitsWriter<'_>,
+) -> io::Result<()> {
+    scoped(typed, || write_parts(out, parts, pipelines, hits))
 }
 
 fn write_parts(
     out: &mut dyn Write,
     parts: &[Partial],
+    pipelines: &[PipelineAgg],
     hits: &mut HitsWriter<'_>,
 ) -> io::Result<()> {
     if parts.is_empty() {
         return Ok(());
     }
     // ALLOC: one entry an aggregation, bounded by the request's.
-    let names: Vec<&str> = parts.iter().map(|p| p.name.as_str()).collect();
+    let mut names: Vec<&str> = parts.iter().map(|p| p.name.as_str()).collect();
+    names.extend(pipelines.iter().map(|p| p.name.as_str()));
+    // ALLOC: one result body a pipeline aggregation, bounded by the request's.
+    let mut results: Vec<Vec<u8>> = Vec::with_capacity(pipelines.len());
+    for pipeline in pipelines {
+        // ALLOC: one result body, a few dozen bytes.
+        let mut body = Vec::new();
+        if let Some(part) = parts.iter().find(|p| p.name == pipeline.agg) {
+            // ALLOC: the rendered buckets of one aggregation, read back by the pipeline.
+            let mut target = vec![b'{'];
+            scoped(false, || write_body(&mut target, part.format, &part.value))?;
+            target.push(b'}');
+            compute::write_result(&mut body, pipeline, &target)?;
+        }
+        results.push(body);
+    }
     out.write_all(b",\"aggregations\":{")?;
     for (i, at) in hash_map_order(&names).into_iter().enumerate() {
-        let Some(part) = parts.get(at) else { continue };
         if i > 0 {
             out.write_all(b",")?;
         }
-        write_key(out, &part.name, &part.value)?;
-        out.write_all(b":{")?;
-        match &part.value {
-            Value::TopHits(top) => hits(out, &part.name, top)?,
-            value => write_body(out, part.format, value)?,
+        if let Some(part) = parts.get(at) {
+            write_key(out, &part.name, &part.value, part.format)?;
+            out.write_all(b":{")?;
+            match &part.value {
+                Value::TopHits(top) => hits(out, &part.name, top)?,
+                value => write_body(out, part.format, value)?,
+            }
+        } else if let (Some(pipeline), Some(body)) = (
+            pipelines.get(at.saturating_sub(parts.len())),
+            results.get(at.saturating_sub(parts.len())),
+        ) {
+            write_pipeline_key(out, pipeline)?;
+            out.write_all(b":{")?;
+            out.write_all(body)?;
         }
         out.write_all(b"}")?;
     }
@@ -181,6 +219,7 @@ pub(crate) fn write_body(out: &mut dyn Write, format: Format, value: &Value) -> 
         Value::Range(ref result) => write_range(out, format, result),
         Value::Filters(ref result) => write_filters(out, result),
         Value::Composite(ref result) => write_composite(out, result),
+        Value::Multi(ref result) => crate::aggs::bucket::multi::write_multi(out, result),
         // Written by the caller, which fetches the hits.
         Value::TopHits(_) | Value::TopHitsParts(_) => Ok(()),
         // Written already: the hits were fetched when it was made.

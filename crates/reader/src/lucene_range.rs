@@ -14,6 +14,7 @@ use crate::failure::Failure;
 use crate::lucene_query::{QueryContext, field_type, match_none, point, unsupported};
 use crate::mapping::FieldType;
 use crate::numbers;
+use crate::numbers_decimal as decimal;
 
 /// `DateFieldType.rangeQuery` over the default format.
 pub(crate) fn date_range(
@@ -89,12 +90,26 @@ pub(crate) fn range_in(
             None => Ok(match_none()),
         },
         FieldType::Date => date_range(cx, field, from, to, (include_lower, include_upper), spec),
-        FieldType::Float | FieldType::Double => {
-            // ALLOC: error path; one message.
-            Err(unsupported(&format!(
-                "a range query on the {} [{field}]",
-                ty.refusal_name()
-            )))
+        FieldType::Double => match decimal::double_range(from, to, include_lower, include_upper)? {
+            Some((l, u)) => point(decimal::double_points(field, l, u)),
+            None => Ok(match_none()),
+        },
+        FieldType::Float => match decimal::float_range(from, to, include_lower, include_upper)? {
+            Some((l, u)) => point(decimal::float_points(field, l, u)),
+            None => Ok(match_none()),
+        },
+        FieldType::Scaled(bits) => {
+            let factor = f64::from_bits(*bits);
+            match decimal::scaled_range(from, to, include_lower, include_upper, factor)? {
+                Some((l, u)) => point(PointRangeQuery::long_range(field, &[l], &[u])),
+                None => Ok(match_none()),
+            }
+        }
+        FieldType::HalfFloat => {
+            match decimal::half_range(from, to, include_lower, include_upper)? {
+                Some((l, u)) => point(decimal::half_points(field, l, u)),
+                None => Ok(match_none()),
+            }
         }
         FieldType::Text | FieldType::Keyword | FieldType::Unsupported(_) => {
             // ALLOC: error path; one message.

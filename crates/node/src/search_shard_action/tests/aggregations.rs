@@ -32,6 +32,8 @@ fn aggregations_asked_for_come_back_as_internal_aggregations() {
             terms: None,
             histogram: None,
             ranges: None,
+            rare: None,
+            multi: None,
             subs: Vec::new(),
         },
         AggRequest {
@@ -43,6 +45,8 @@ fn aggregations_asked_for_come_back_as_internal_aggregations() {
             terms: None,
             histogram: None,
             ranges: None,
+            rare: None,
+            multi: None,
             subs: Vec::new(),
         },
     ];
@@ -195,6 +199,8 @@ fn terms_request(
         }),
         histogram: None,
         ranges: None,
+        rare: None,
+        multi: None,
         subs: Vec::new(),
     }
 }
@@ -297,6 +303,8 @@ fn a_numeric_terms_aggregation_is_answered_as_long_terms_and_a_bucket_carries_it
         terms: None,
         histogram: None,
         ranges: None,
+        rare: None,
+        multi: None,
         subs: Vec::new(),
     }];
     let meta = vec![("m".to_owned(), Format::Raw)];
@@ -349,6 +357,8 @@ fn histogram_request(
             offset: 0,
         }),
         ranges: None,
+        rare: None,
+        multi: None,
         subs: Vec::new(),
     }
 }
@@ -395,6 +405,8 @@ fn a_date_histogram_is_answered_with_its_rounding_buckets_and_empty_bucket_sub_a
         terms: None,
         histogram: None,
         ranges: None,
+        rare: None,
+        multi: None,
         subs: Vec::new(),
     }];
     let subs = BucketSubs {
@@ -433,4 +445,29 @@ fn a_date_histogram_in_a_time_zone_is_refused() {
     )
     .unwrap_err();
     assert!(format!("{refused:?}").contains("time zone"), "{refused:?}");
+}
+
+#[test]
+fn a_terms_over_a_double_field_is_answered_as_double_terms_with_the_decoded_key() {
+    use oss_reader::aggs::bucket::terms::TermsResult;
+    use oss_reader::aggs::partial::{Format, Partial, Value as Part};
+    use oss_transport::actions::search_shard::Order;
+    let key = oss_reader::aggs::bucket::terms_collect::key_of_double(2.5);
+    let part = Partial {
+        name: "u".to_owned(),
+        format: Format::Double,
+        value: Part::Terms(Box::new(TermsResult {
+            buckets: vec![(key, 3)],
+            ..Default::default()
+        })),
+    };
+    let answer = ask_with(vec![terms_request("u", Order::KeyAsc)], vec![part]).unwrap();
+    let mut name = vec![1, 6];
+    name.extend_from_slice(b"dterms");
+    assert!(
+        answer.windows(name.len()).any(|w| w == &name[..]),
+        "{answer:?}"
+    );
+    let key = 2.5f64.to_be_bytes();
+    assert!(answer.windows(8).any(|w| w == key), "{answer:?}");
 }

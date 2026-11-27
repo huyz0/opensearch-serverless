@@ -48,7 +48,10 @@ fn kind_of(mapping: &Mapping, field: &str) -> FieldKind {
         FieldType::Int { .. } | FieldType::Long => FieldKind::Long,
         FieldType::Date => FieldKind::Date,
         FieldType::Keyword => FieldKind::Keyword,
-        FieldType::Text | FieldType::Float | FieldType::Double | FieldType::Unsupported(_) => {
+        FieldType::Double => FieldKind::Double,
+        FieldType::Float => FieldKind::Float,
+        FieldType::HalfFloat => FieldKind::HalfFloat,
+        FieldType::Text | FieldType::Scaled(_) | FieldType::Unsupported(_) => {
             FieldKind::Unsupported
         }
     }
@@ -78,7 +81,7 @@ fn kind_byte(k: FieldKind) -> u8 {
 /// The engine's blob for the Painless `script` as a script of engine kind
 /// `kind` (`0` score), refused with its reason when the engine would not run
 /// it as Painless does.
-pub(super) fn encode(
+pub(crate) fn encode(
     mapping: &Mapping,
     script: &ScriptScore,
     kind: u8,

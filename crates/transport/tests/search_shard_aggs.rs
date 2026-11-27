@@ -28,6 +28,8 @@ fn request(name: &str, kind: AggKind, field: &str) -> AggRequest {
         terms: None,
         histogram: None,
         ranges: None,
+        rare: None,
+        multi: None,
         subs: Vec::new(),
     }
 }

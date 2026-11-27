@@ -14,6 +14,7 @@ pub(super) mod apply;
 pub(super) mod authoring;
 pub(super) mod commits;
 pub(super) mod edge;
+pub(super) mod ltr;
 mod packs;
 pub(super) mod page_cache;
 pub(super) mod roles;
@@ -110,6 +111,8 @@ pub struct NodeConfig {
     pub commit_logged: commits::Logged,
     /// `serverless.ltr.enabled` (`OSS_LTR`): serve the learning to rank store. Off by default.
     pub ltr: bool,
+    /// The `sltr` window and model cache bounds.
+    pub ltr_bounds: ltr::Bounds,
     /// `serverless.security.enabled`: serve the security configuration API. Off by default.
     pub security: bool,
     /// The static administrator's name and bcrypt hash (`OSS_SECURITY_ADMIN_USER`, `OSS_SECURITY_ADMIN_HASH`).
@@ -327,6 +330,7 @@ impl NodeConfig {
             usize::try_from(bounded("OSS_EXTENSIONS_PERCENT", "0", 0, 20)?).unwrap_or(0);
         let extensions_replay_factor = bounded("OSS_EXTENSIONS_REPLAY_FUEL_FACTOR", "16", 1, 1024)?;
         let ltr = flag("OSS_LTR", "false")?;
+        let ltr_bounds = ltr::read(&bounded)?;
         let security = flag("OSS_SECURITY", "false")?;
         let security_refresh_millis = bounded("OSS_SECURITY_REFRESH_MS", "10000", 1000, 3_600_000)?;
         let security_admin = match (
@@ -452,6 +456,7 @@ impl NodeConfig {
             commit_logged,
             node_packs: packs::read(&flag, &bounded)?,
             ltr,
+            ltr_bounds,
             security,
             security_admin,
             security_refresh_millis,

@@ -59,6 +59,7 @@ fn table() -> Vec<(&'static [Method], &'static str, Handler)> {
             s.delete(Object::Model, q, r)
         }),
         (&[Get], "/_model", |s, q, r| s.page(Object::Model, q, r)),
+        (&[Post], "/_clearcache", LtrService::clear_cache),
     ]
 }
 
@@ -91,6 +92,19 @@ pub fn routes(router: Router, service: &Arc<LtrService>) -> Result<Router, Route
                     )?;
                 }
             }
+        }
+    }
+    for root in ["/_ltr", "/_plugins/_ltr"] {
+        for tail in ["/_stats", "/_stats/{stat}"] {
+            // ALLOC: the router keeps its patterns for the life of the process.
+            let path: &'static str = Box::leak(format!("{root}{tail}").into_boxed_str());
+            let service = Arc::clone(service);
+            router = router.route(
+                Method::Get,
+                path,
+                PARAMS,
+                move |q: &mut Request<'_>, r: &mut Response<'_>| LtrService::stats(&service, q, r),
+            )?;
         }
     }
     Ok(router)

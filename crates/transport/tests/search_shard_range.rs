@@ -46,6 +46,8 @@ fn request(
         terms: None,
         histogram: None,
         ranges: Some(RangesRequest { ranges, keyed }),
+        rare: None,
+        multi: None,
         subs: Vec::new(),
     }
 }
@@ -90,6 +92,8 @@ fn the_range_builders_are_the_bytes_java_wrote() {
         terms: None,
         histogram: None,
         ranges: None,
+        rare: None,
+        multi: None,
         subs: Vec::new(),
     }];
     round_trips(&recorded("request.range_subs"), &[with_sub]);

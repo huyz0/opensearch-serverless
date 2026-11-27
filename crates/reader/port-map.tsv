@@ -217,6 +217,7 @@ src/aggs/bucket/composite_collect.rs	port	server/src/main/java/org/opensearch/se
 src/aggs/bucket/composite_collect_tests.rs	new		tests of composite on a real index
 src/aggs/bucket/composite_tests.rs	new		tests of the composite parser, reduce and writer
 src/aggs/metric/resolve.rs	port	server/src/main/java/org/opensearch/search/aggregations/support/ValuesSourceConfig.java@3.10.0	resolve and ValuesSourceRegistry.getAggregator field checks, moved out of collect.rs
+src/aggs/metric/script_values.rs	new		a metric script as the engine values source Painless runs; the Java compiles the script in core
 src/aggs/metric/sub_rules.rs	new		which bucket aggregations may hold which sub-aggregations, moved out of parse.rs
 src/aggs/bucket/terms_sub_order.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/BucketSelectionStrategy.java@3.10.0	the shard and reduce ordering of a numeric terms by a sub-aggregation: every bucket kept, ordered by the value, cut to the size
 src/aggs/bucket/keyword_partition_tests.rs	new		tests of a partition-based include of a keyword terms against the reference hash
@@ -301,3 +302,27 @@ src/aggs/bucket/rare_collect.rs	new		runs a rare_terms on the engine Significant
 src/aggs/bucket/rare_tests.rs	new		tests of rare_terms
 src/mapping_types.rs	new		the name a refusal gives a field type, and the knn_vector space, split out of mapping.rs
 src/aggs/metric/collect_decimal_tests.rs	new		tests of the metric aggregations over float and double fields
+src/numbers_decimal.rs	port	server/src/main/java/org/opensearch/index/mapper/NumberFieldMapper.java@3.10.0	FLOAT and DOUBLE: parse, termQuery, termsQuery and rangeQuery, with DoublePoint and FloatPoint nextUp and nextDown
+src/numbers_decimal_tests.rs	new		tests of numbers_decimal.rs
+src/search_decimal_tests.rs	new		tests of queries, sorts and search_after over float and double fields
+src/aggs/bucket/multi.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/InternalMultiTerms.java@3.10.0	the shard result of MultiTermsAggregator, InternalTerms.reduce over tuple keys and the body with key and key_as_string
+src/aggs/bucket/multi_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/MultiTermsAggregationBuilder.java@3.10.0	the parser and the setters checks of terms, size, shard_size, min_doc_count, shard_min_doc_count and order
+src/aggs/bucket/multi_collect.rs	new		runs a multi_terms on the engine composite node and keeps the best shard_size combinations by the order
+src/aggs/bucket/multi_tests.rs	new		tests of multi_terms, with the bodies recorded from the Java
+src/ltr/models.rs	new		the resolver a search reads a model through, installed by the node
+src/search_ltr.rs	new		the sltr rescore: one feature query a feature, combined with the first pass score
+src/dsl/queries/sltr.rs	new		the sltr query of the learning to rank plugin
+src/dsl/queries/sltr_tests.rs	new		tests of the sltr parser
+src/dsl/ltr_log.rs	new		the ext.ltr_log section of the learning to rank plugin
+src/dsl/ltr_log_tests.rs	new		tests of the ltr_log parser
+src/search_ltr_log.rs	new		feature logging: each hit of the page carries its feature values under fields._ltrlog
+src/aggs/pipeline/mod.rs	port	server/src/main/java/org/opensearch/search/aggregations/pipeline/BucketMetricsPipelineAggregator.java@429b4cbc	the sibling pipeline kinds and what a request holds of one
+src/aggs/pipeline/parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/pipeline/BucketMetricsParser.java@429b4cbc	the builders' body parser and AggregatorFactories.Builder.validate over buckets_path
+src/aggs/pipeline/compute.rs	port	server/src/main/java/org/opensearch/search/aggregations/pipeline/BucketMetricsPipelineAggregator.java@429b4cbc	doReduce with the avg, sum, min, max and stats collectors, over a rendered body
+src/aggs/pipeline/pipeline_tests.rs	new		tests of the pipeline module against the recorded Java
+src/aggs/metric/registered.rs	port	server/src/main/java/org/opensearch/search/SearchModule.java@429b4cbc	the registered aggregation names
+src/search_query_fields.rs	new		what a query reads: point clauses and scored fields
+src/aggs/metric/collect_half_tests.rs	new		tests of the aggregations over a half_float field
+src/search_half_tests.rs	new		tests of queries, sorts and search_after over a half_float field
+src/aggs/metric/collect_scaled_tests.rs	new		tests of the aggregations over a scaled_float field
+src/search_scaled_tests.rs	new		tests of queries, sorts and search_after over a scaled_float field

@@ -25,6 +25,7 @@ use crate::dsl::{BoolQuery, Operator, Query, Value};
 use crate::failure::{Failure, Meta};
 use crate::mapping::{FieldType, Mapping};
 use crate::numbers;
+use crate::numbers_decimal as decimal;
 
 pub(crate) use crate::lucene_range::{date_range, range, range_in};
 
@@ -258,9 +259,24 @@ pub(crate) fn term(cx: &QueryContext<'_>, field: &str, value: &Value) -> Result<
             (true, true),
             DateSpec::default(),
         )?,
-        FieldType::Float | FieldType::Double | FieldType::Unsupported(_) => {
-            return Err(unsupported("this field type"));
+        FieldType::Double => {
+            let v = decimal::parse_double(value)?;
+            point(decimal::double_points(field, v, v))?
         }
+        FieldType::Float => {
+            let v = decimal::parse_float(value)?;
+            point(decimal::float_points(field, v, v))?
+        }
+        FieldType::Scaled(bits) => {
+            let v = decimal::scaled_long(value, f64::from_bits(*bits))?;
+            point(PointRangeQuery::long_range(field, &[v], &[v]))?
+        }
+        FieldType::HalfFloat => {
+            let v = decimal::parse_half(value)?;
+            let s = lucene_util::half_float::half_float_to_sortable_short(v);
+            point(decimal::half_points(field, s, s))?
+        }
+        FieldType::Unsupported(_) => return Err(unsupported("this field type")),
     })
 }
 

@@ -7,8 +7,10 @@
 //! is the marker's read, the content's write and the marker's swap; a read
 //! the marker's read and the content's; nothing lists.
 
+mod models;
 mod objects;
 mod routes;
+mod stats;
 mod stores;
 
 use std::sync::Arc;
@@ -20,6 +22,7 @@ use oss_rest::{JSON, Request, Response, RestError};
 use serde_json::{Value, json};
 
 use crate::route_util::{read_body, refuse};
+pub use models::{CacheCounts, ModelCache, NodeStats, StoreModels};
 use objects::{FeatureSet, Model};
 pub use routes::routes;
 
@@ -57,6 +60,8 @@ pub struct LtrService {
     store: Arc<dyn BlobStore>,
     base: String,
     buffer_bytes: usize,
+    cache: Option<Arc<StoreModels>>,
+    node_id: String,
 }
 
 fn bad(reason: impl Into<String>) -> RestError {
@@ -100,7 +105,19 @@ impl LtrService {
             // ALLOC: one copy of the base, once.
             base: base.to_owned(),
             buffer_bytes,
+            cache: None,
+            // ALLOC: empty.
+            node_id: String::new(),
         }
+    }
+
+    /// Serves `_stats` and `_clearcache` from `cache`, as node `node_id`.
+    #[must_use]
+    pub fn with_cache(mut self, cache: Arc<StoreModels>, node_id: &str) -> Self {
+        self.cache = Some(cache);
+        // ALLOC: one copy of the node id, once.
+        self.node_id = node_id.to_owned();
+        self
     }
 
     fn registry(&self) -> Result<DocSet, RestError> {

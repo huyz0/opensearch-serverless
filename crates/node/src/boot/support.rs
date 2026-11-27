@@ -9,7 +9,7 @@ use oss_format::{NodeLease, NodeLogEpoch};
 
 use oss_writer::takeover::Predecessors;
 
-use super::{BootError, NodeConfig, StoreChoice, cluster};
+use super::{BootError, NodeConfig, StoreChoice};
 use crate::cluster_owner::IndexSource;
 use crate::descriptor_routes::DescriptorRoutes;
 use crate::push_link::Leases;
@@ -23,6 +23,11 @@ use oss_meta::DeleteMode;
 
 /// The buffer a lease register is read through.
 const LEASE_BUFFER: usize = 1 << 16;
+
+/// A cluster failure as a boot error.
+pub(super) fn cluster<E: std::fmt::Display>(e: E) -> BootError {
+    BootError::Cluster(e.to_string())
+}
 
 /// The store `choice` names.
 pub(super) fn store_of(choice: &StoreChoice) -> Result<Arc<dyn BlobStore>, BootError> {
@@ -189,6 +194,9 @@ pub(super) fn apply_janitor_and_hibernation(
     node.knn = config.knn;
     node.nested = config.nested;
     node.ltr = config.ltr;
+    node.ltr_max_window = config.ltr_bounds.max_window;
+    node.ltr_cache_ttl_secs = config.ltr_bounds.cache_ttl_secs;
+    node.ltr_cache_bytes = config.ltr_bounds.cache_bytes;
     node.security = config.security;
     node.security_admin.clone_from(&config.security_admin);
     node.security_refresh_millis = config.security_refresh_millis;

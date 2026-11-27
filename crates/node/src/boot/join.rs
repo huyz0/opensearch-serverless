@@ -6,6 +6,7 @@ use oss_cluster::lease::Membership;
 use oss_transport::auth::Authenticator;
 use oss_transport::client::Client;
 
+use super::BootError;
 use super::support::Held;
 use crate::handlers::{Duplicate, Registry};
 use crate::lease_announce::{ANNOUNCE_GAP, AnnounceHandler, Announcer, Fleet};
@@ -35,7 +36,7 @@ pub(super) fn announce(
     auth: &Arc<Authenticator>,
     node_id: &str,
     ephemeral_id: &str,
-) -> std::io::Result<()> {
+) -> Result<(), BootError> {
     let _ = membership.refresh();
     let announcer = Announcer::new(
         client,
@@ -50,4 +51,5 @@ pub(super) fn announce(
             announcer.announce();
         })
         .map(drop)
+        .map_err(|e| BootError::Cluster(format!("lease announce thread: {e}")))
 }

@@ -84,6 +84,8 @@ fn the_aggregations_of_a_request_reach_the_source() {
             terms: None,
             histogram: None,
             ranges: None,
+            rare: None,
+            multi: None,
             subs: Vec::new(),
         },
         AggRequest {
@@ -95,6 +97,8 @@ fn the_aggregations_of_a_request_reach_the_source() {
             terms: None,
             histogram: None,
             ranges: None,
+            rare: None,
+            multi: None,
             subs: Vec::new(),
         },
     ];
@@ -120,6 +124,8 @@ fn a_precision_threshold_reaches_the_source() {
         terms: None,
         histogram: None,
         ranges: None,
+        rare: None,
+        multi: None,
         subs: Vec::new(),
     }];
     let s = search_source(&with).expect("a search source");
@@ -143,6 +149,8 @@ fn percentile_keys_and_options_reach_the_source() {
         terms: None,
         histogram: None,
         ranges: None,
+        rare: None,
+        multi: None,
         subs: Vec::new(),
     };
     with.aggregations = vec![
@@ -189,6 +197,8 @@ fn a_terms_aggregations_options_reach_the_source() {
         }),
         histogram: None,
         ranges: None,
+        rare: None,
+        multi: None,
         subs: Vec::new(),
     };
     let mut with = read("request.match_all");
@@ -235,6 +245,8 @@ fn the_sub_aggregations_of_a_terms_reach_the_source() {
         terms: None,
         histogram: None,
         ranges: None,
+        rare: None,
+        multi: None,
         subs: Vec::new(),
     };
     let mut parent = leaf("t", AggKind::Terms);
@@ -272,6 +284,8 @@ fn a_date_histograms_options_and_sub_aggregations_reach_the_source() {
         terms: None,
         histogram: None,
         ranges: None,
+        rare: None,
+        multi: None,
         subs: Vec::new(),
     };
     let ask = |interval: &str, interval_type| {
@@ -319,6 +333,8 @@ fn a_ranges_bounds_keys_and_text_reach_the_source() {
         terms: None,
         histogram: None,
         ranges: Some(RangesRequest { ranges, keyed }),
+        rare: None,
+        multi: None,
         subs: Vec::new(),
     };
     let ask = |key: Option<&str>, from: f64, to: f64| RangeAsk {
@@ -364,4 +380,68 @@ fn a_ranges_bounds_keys_and_text_reach_the_source() {
     let s = search_source(&with).expect("a search source");
     let r = s.aggs[0].range.as_ref().expect("a range");
     assert_eq!((r.ranges[0].from, r.ranges[0].to), (1_000.0, 5_000.0));
+}
+
+#[test]
+fn a_rare_terms_and_a_multi_terms_reach_the_source() {
+    use oss_reader::aggs::metric::Metric;
+    use oss_transport::actions::search_shard::{
+        AggKind, AggRequest, MultiRequest, Order, OrderSpec, RareRequest, TermsRequest,
+    };
+    let base = |name: &str, kind| AggRequest {
+        name: name.to_owned(),
+        kind,
+        field: "tag".to_owned(),
+        precision_threshold: None,
+        percentiles: None,
+        terms: None,
+        histogram: None,
+        ranges: None,
+        rare: None,
+        multi: None,
+        subs: Vec::new(),
+    };
+    let mut rare = base("r", AggKind::RareTerms);
+    rare.rare = Some(RareRequest { max_doc_count: 4 });
+    let mut multi = base("m", AggKind::MultiTerms);
+    multi.multi = Some(MultiRequest {
+        fields: vec!["tag".to_owned(), "n".to_owned()],
+        options: TermsRequest {
+            size: 3,
+            shard_size: 7,
+            min_doc_count: 2,
+            shard_min_doc_count: 1,
+            order: OrderSpec {
+                compound: false,
+                items: vec![Order::CountDesc],
+            },
+            show_error: false,
+        },
+    });
+    let mut with = read("request.match_all");
+    with.aggregations = vec![rare, multi];
+    let s = search_source(&with).expect("a search source");
+    assert_eq!(s.aggs[0].metric, Metric::RareTerms);
+    assert_eq!(s.aggs[0].rare.as_ref().expect("rare").max_doc_count, 4);
+    assert_eq!(s.aggs[1].metric, Metric::MultiTerms);
+    let t = s.aggs[1].terms.as_ref().expect("terms");
+    assert_eq!(
+        (t.size, t.shard_size, t.min_doc_count, t.shard_min_doc_count),
+        (3, 7, 2, 1)
+    );
+    let fields: Vec<&str> = s.aggs[1]
+        .composite
+        .as_ref()
+        .expect("sources")
+        .sources
+        .iter()
+        .map(|x| x.field.as_str())
+        .collect();
+    assert_eq!(fields, ["tag", "n"]);
+    // The error bound is asked for as the aggregation reads it.
+    if let Some(m) = with.aggregations[1].multi.as_mut() {
+        m.options.show_error = true;
+    }
+    let s = search_source(&with).expect("shows the error bound");
+    assert!(s.aggs[1].terms.as_ref().expect("terms").show_error);
 }

@@ -25,6 +25,7 @@ use crate::failure::Failure;
 use crate::lucene_query::{QueryContext, build, field_type, match_none, term, unsupported};
 use crate::mapping::FieldType;
 use crate::numbers;
+use crate::numbers_decimal as decimal;
 
 /// `index.max_terms_count`'s default: the most values one `terms` query
 /// may hold.
@@ -135,6 +136,17 @@ pub fn to_clause(m: &More, cx: &QueryContext<'_>) -> Result<Clause, Failure> {
             .ok_or_else(|| unsupported("the [knn] query here")),
         More::Knn(q) => crate::knn::radial(q, cx),
         More::Nested(q, _) => super::nested_build::nested(q, cx),
+        // A logging query matches every document and adds nothing to a score.
+        More::Sltr(q) if q.featureset.is_some() => {
+            // ALLOC: one box a logging query.
+            Ok(Clause::ConstantScore(Box::new(ConstantScoreQuery::new(
+                crate::lucene_query::match_all(cx),
+                0.0,
+            ))))
+        }
+        More::Sltr(_) => Err(unsupported(
+            "an [sltr] query with a [model] anywhere but as the rescore_query of a rescore",
+        )),
     }
 }
 
@@ -165,6 +177,8 @@ pub(super) fn type_name(ty: &FieldType) -> &str {
         FieldType::Date => "date",
         FieldType::Float => "float",
         FieldType::Double => "double",
+        FieldType::HalfFloat => "half_float",
+        FieldType::Scaled(_) => "scaled_float",
         FieldType::Unsupported(what) => what,
     }
 }
@@ -314,9 +328,10 @@ fn terms(cx: &QueryContext<'_>, field: &str, values: &[Value]) -> Result<Clause,
             // ALLOC: one box a bool of a date field's terms.
             Ok(constant(Clause::Boolean(Box::new(q))))
         }
-        FieldType::Float | FieldType::Double | FieldType::Unsupported(_) => {
-            Err(unsupported("this field type"))
+        FieldType::Double | FieldType::Float | FieldType::HalfFloat | FieldType::Scaled(_) => {
+            set(decimal::decimal_set(ty, field, values)?)
         }
+        FieldType::Unsupported(_) => Err(unsupported("this field type")),
     }
 }
 

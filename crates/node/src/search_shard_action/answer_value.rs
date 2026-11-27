@@ -1,6 +1,6 @@
 //! A shard's result for one aggregation as the forwarded answer's value.
 
-use super::{histogram, range, refuse, terms};
+use super::{histogram, multi, range, rare, refuse, terms};
 use oss_reader::aggs::partial::{Format, Value as Part};
 use oss_transport::actions::search_shard::{AggRequest, AggValue};
 use oss_transport::exception::RemoteException;
@@ -69,12 +69,14 @@ pub(super) fn value(
                     .map_or_else(|| Digest::new(*compression).to_bytes(), Digest::to_bytes),
             }
         }
-        Part::Terms(r) => AggValue::Terms(terms::numeric(r, request(asked, name)?)?),
+        Part::Terms(r) => AggValue::Terms(terms::numeric(r, request(asked, name)?, format)?),
         Part::KeywordTerms(r) => AggValue::Terms(terms::keyword(r, request(asked, name)?)?),
         Part::DateHistogram(r) => {
             AggValue::DateHistogram(histogram::answer(r, request(asked, name)?)?)
         }
         Part::Range(r) => AggValue::Range(range::answer(r, format, request(asked, name)?)?),
+        Part::Rare(r) => AggValue::Rare(rare::answer(r)?),
+        Part::Multi(r) => AggValue::Multi(multi::answer(r, request(asked, name)?)?),
         Part::ValueCount(n) => AggValue::ValueCount(i64::try_from(*n).unwrap_or(i64::MAX)),
         _ => {
             return Err(refuse(

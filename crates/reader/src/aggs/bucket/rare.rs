@@ -16,6 +16,29 @@ pub enum RareKey {
     Long(i64),
 }
 
+impl RareKey {
+    /// The hash `SetBackedScalingCuckooFilter` keeps for the term: the first
+    /// half of `MurmurHash3.hash128` of a keyword's bytes, or `murmur64`
+    /// (the 64-bit finalizer) of a number.
+    pub fn filter_hash(&self) -> i64 {
+        match self {
+            RareKey::Text(text) => {
+                lucene_util::string_helper::murmurhash3_x64_128(text.as_bytes(), 0)[0]
+            }
+            RareKey::Long(n) => {
+                // ARITH: none; shifts, xors and wrapping multiplies of a 64-bit pattern.
+                let mut h = u64::from_ne_bytes(n.to_ne_bytes());
+                h ^= h >> 33;
+                h = h.wrapping_mul(0xff51_afd7_ed55_8ccd);
+                h ^= h >> 33;
+                h = h.wrapping_mul(0xc4ce_b9fe_1a85_ec53);
+                h ^= h >> 33;
+                i64::from_ne_bytes(h.to_ne_bytes())
+            }
+        }
+    }
+}
+
 /// What a `rare_terms` asks for.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RareSpec {

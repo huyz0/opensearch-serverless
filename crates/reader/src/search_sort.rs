@@ -1,7 +1,10 @@
 //! The sort of a search: `SortBuilder.buildSort` and `FieldSortBuilder.build`
 //! at OpenSearch 3.10.0, turning the body's sort keys into the engine's.
 
-use lucene_search::top_field::{SortField, SortType};
+use std::sync::Arc;
+
+use lucene_search::top_field::{HalfFloatSort, ScaledFloatSort, Selector, SortField, SortType};
+use lucene_util::numeric_utils::{double_to_sortable_long, float_to_sortable_int};
 use oss_blob::BlobStore;
 
 use crate::OpenShard;
@@ -17,9 +20,20 @@ use crate::search_sort_nested::nested_field_sort;
 pub(crate) enum KeyKind {
     Score,
     Numeric,
+    /// A `double` field: a sortable long.
+    Double,
+    /// A `float` field: a sortable int.
+    Float,
     Term,
     /// A script's number, held as a sortable long.
     Script,
+}
+
+/// Whether a sort reads a numeric field, which needs the points open.
+pub(crate) fn reads_points(kinds: &[KeyKind]) -> bool {
+    kinds
+        .iter()
+        .any(|k| matches!(k, KeyKind::Numeric | KeyKind::Double | KeyKind::Float))
 }
 
 pub(crate) type Sort = Option<(Vec<SortField>, Vec<KeyKind>)>;
@@ -141,9 +155,69 @@ pub(crate) fn field_sort<S: BlobStore + 'static>(
         FieldType::Int { .. } => (SortType::Int, i64::from(i32::MIN), i64::from(i32::MAX)),
         FieldType::Long | FieldType::Date => (SortType::Long, i64::MIN, i64::MAX),
         // ALLOC: error path; one message.
-        ty @ (FieldType::Float | FieldType::Double | FieldType::Unsupported(_)) => {
-            return Err(unsupported(&format!("{} [{name}]", ty.refusal_name())));
+        FieldType::Double => {
+            let mut f = SortField::numeric(name, SortType::Double, reverse);
+            f.missing = double_to_sortable_long(if reverse {
+                f64::NEG_INFINITY
+            } else {
+                f64::INFINITY
+            });
+            return Ok((f, KeyKind::Double));
         }
+        FieldType::Float => {
+            let mut f = SortField::numeric(name, SortType::Float, reverse);
+            f.missing = i64::from(float_to_sortable_int(if reverse {
+                f32::NEG_INFINITY
+            } else {
+                f32::INFINITY
+            }));
+            return Ok((f, KeyKind::Float));
+        }
+        FieldType::Scaled(bits) => {
+            // `ScaledFloatFieldMapper`'s comparator: the scaled values as doubles.
+            let selector = if reverse {
+                Selector::Max
+            } else {
+                Selector::Min
+            };
+            let missing = if reverse {
+                f64::NEG_INFINITY
+            } else {
+                f64::INFINITY
+            };
+            let inverse = 1.0 / f64::from_bits(*bits);
+            let source = ScaledFloatSort {
+                selector,
+                missing,
+                inverse,
+            };
+            return Ok((
+                SortField::with_source(name, Arc::new(source), reverse),
+                KeyKind::Double,
+            ));
+        }
+        FieldType::HalfFloat => {
+            // `HalfFloatValuesComparatorSource`: the default mode picks the smallest value
+            // ascending and the largest descending, and a hit's key is a float.
+            let selector = if reverse {
+                Selector::Max
+            } else {
+                Selector::Min
+            };
+            let missing = if reverse {
+                f32::NEG_INFINITY
+            } else {
+                f32::INFINITY
+            };
+            let f = SortField::with_source(
+                name,
+                Arc::new(HalfFloatSort { selector, missing }),
+                reverse,
+            );
+            return Ok((f, KeyKind::Float));
+        }
+        // ALLOC: error path; one message.
+        FieldType::Unsupported(what) => return Err(unsupported(&format!("{what} [{name}]"))),
         FieldType::Text => return Err(unsupported("a text field")),
     };
     let mut f = SortField::numeric(name, ty, reverse);

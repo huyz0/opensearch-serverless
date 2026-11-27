@@ -9,12 +9,24 @@ impl FieldType {
         match self {
             FieldType::Float => "a [float] field",
             FieldType::Double => "a [double] field",
+            FieldType::HalfFloat => "a [half_float] field",
+            FieldType::Scaled(_) => "a [scaled_float] field",
             FieldType::Unsupported(what) => what,
             FieldType::Text => "a [text] field",
             FieldType::Keyword => "a [keyword] field",
             FieldType::Int { name, .. } => name,
             FieldType::Long => "a [long] field",
             FieldType::Date => "a [date] field",
+        }
+    }
+}
+
+impl FieldType {
+    /// The `scaling_factor` of a `scaled_float` field.
+    pub fn scaling_factor(&self) -> Option<f64> {
+        match self {
+            FieldType::Scaled(bits) => Some(f64::from_bits(*bits)),
+            _ => None,
         }
     }
 }

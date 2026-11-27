@@ -6,3 +6,4 @@
 pub mod bucket;
 pub mod metric;
 pub mod partial;
+pub mod pipeline;

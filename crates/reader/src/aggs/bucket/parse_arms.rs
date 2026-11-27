@@ -6,6 +6,7 @@ use crate::aggs::bucket::date_histogram_parse::parse_date_histogram_body;
 use crate::aggs::bucket::filters_parse::{parse_filter_body, parse_filters_body};
 use crate::aggs::bucket::histogram_parse::parse_histogram_body;
 use crate::aggs::bucket::missing::{parse_global_body, parse_missing_body};
+use crate::aggs::bucket::multi_parse::parse_multi_body;
 use crate::aggs::bucket::nested_agg::parse_nested_body;
 use crate::aggs::bucket::range_parse::{parse_date_range_body, parse_range_body};
 use crate::aggs::bucket::rare_parse::parse_rare_body;
@@ -77,6 +78,16 @@ pub fn parse_bucket(p: &mut Parser<'_>, agg: &mut MetricAgg) -> Result<bool, Dsl
             let reverse = agg.metric == Metric::ReverseNested;
             // ALLOC: one box a `nested`, bounded by the body's recording.
             agg.nested = Some(Box::new(parse_nested_body(p, &name, reverse)?));
+        }
+        Metric::MultiTerms => {
+            let (composite, terms) = parse_multi_body(p, &name)?;
+            agg.field = composite
+                .sources
+                .first()
+                .map(|s| s.field.clone())
+                .unwrap_or_default();
+            // ALLOC: one box a `multi_terms`, bounded by the body's recording.
+            (agg.composite, agg.terms) = (Some(Box::new(composite)), Some(Box::new(terms)));
         }
         Metric::Composite => {
             // ALLOC: one box a `composite`, bounded by the body's recording.

@@ -9,9 +9,13 @@
 use oss_blob::Emulator;
 use oss_testkit::index::Spec;
 
-use super::tests::{DOCS, run, shard_of, values};
+use super::tests::{DOCS, run, shard_of, source, values};
 use crate::OpenShard;
+use crate::aggs::bucket::composite::KeyPart;
 use crate::aggs::metric::Value;
+use crate::aggs::partial::Format;
+use crate::search::search;
+use lucene_analysis::Analyzer;
 
 /// Sums as OpenSearch's compensated sum adds them, in document order.
 fn compensated(values: impl Iterator<Item = f64>) -> f64 {
@@ -106,14 +110,182 @@ fn a_decimal_field_aggregates_the_query_matches_only() {
 }
 
 #[test]
-fn a_bucket_aggregation_of_a_decimal_field_is_refused_for_now() {
+fn terms_of_a_double_key_each_bucket_by_its_value_and_write_the_double() {
     let shard = decimals_shard("aggs-double-terms");
-    let err = run(&shard, r#"{"aggs":{"t":{"terms":{"field":"d"}}}}"#).expect_err("refused");
+    let source = source(
+        r#"{"size":0,"aggs":{"t":{"terms":{"field":"d","size":2,"order":{"_key":"desc"}}}}}"#,
+    );
+    let hits = search(&shard, "idx", &source, &Analyzer::standard(None)).expect("searches");
+    let part = hits.aggregations.first().expect("an aggregation");
+    assert_eq!(part.format, Format::Double);
+    let Value::Terms(terms) = &part.value else {
+        panic!("not a terms");
+    };
+    assert_eq!(terms.other_doc_count, 198);
+    let mut out = Vec::new();
+    crate::aggs::bucket::terms_render::write_terms(&mut out, part.format, terms).expect("writes");
+    assert_eq!(
+        String::from_utf8(out).expect("utf-8"),
+        r#""doc_count_error_upper_bound":0,"sum_other_doc_count":198,"buckets":[{"key":44.75,"doc_count":1},{"key":44.5,"doc_count":1}]"#
+    );
+}
+
+#[test]
+fn terms_of_a_float_key_by_the_widened_double() {
+    let shard = decimals_shard("aggs-float-terms");
+    let source = source(
+        r#"{"size":0,"aggs":{"t":{"terms":{"field":"f","size":1,"order":{"_key":"asc"}}}}}"#,
+    );
+    let hits = search(&shard, "idx", &source, &Analyzer::standard(None)).expect("searches");
+    let part = hits.aggregations.first().expect("an aggregation");
+    let Value::Terms(terms) = &part.value else {
+        panic!("not a terms");
+    };
+    let mut out = Vec::new();
+    crate::aggs::bucket::terms_render::write_terms(&mut out, part.format, terms).expect("writes");
+    assert_eq!(
+        String::from_utf8(out).expect("utf-8"),
+        r#""doc_count_error_upper_bound":0,"sum_other_doc_count":199,"buckets":[{"key":0.0,"doc_count":1}]"#
+    );
+}
+
+fn histogram_of(shard: &OpenShard<Emulator>, body: &str) -> Vec<(f64, u64)> {
+    match values(shard, body).into_iter().next() {
+        Some(Value::Histogram(h)) => h.buckets,
+        other => panic!("not a histogram: {other:?}"),
+    }
+}
+
+#[test]
+fn a_histogram_of_a_double_keys_each_bucket_by_its_floor() {
+    let shard = decimals_shard("aggs-double-histogram");
+    // Document i holds i / 4 - 5: four documents to each whole number from -5 to 44.
+    let got = histogram_of(
+        &shard,
+        r#"{"size":0,"aggs":{"h":{"histogram":{"field":"d","interval":1}}}}"#,
+    );
+    let want: Vec<(f64, u64)> = (-5..45).map(|k| (f64::from(k), 4)).collect();
+    assert_eq!(got, want);
+}
+
+#[test]
+fn a_histogram_of_a_float_reads_each_value_as_its_float() {
+    let shard = decimals_shard("aggs-float-histogram");
+    let got = histogram_of(
+        &shard,
+        r#"{"aggs":{"h":{"histogram":{"field":"f","interval":5}}}}"#,
+    );
+    assert_eq!(got, [(0.0, 50), (5.0, 50), (10.0, 50), (15.0, 50)]);
+}
+
+#[test]
+fn a_range_of_a_double_counts_the_documents_in_each_range() {
+    let shard = decimals_shard("aggs-double-range");
+    let got = values(
+        &shard,
+        r#"{"size":0,"aggs":{"r":{"range":{"field":"d","ranges":[{"to":0},{"from":0,"to":10},{"from":10}]}}}}"#,
+    );
+    let Some(Value::Range(r)) = got.into_iter().next() else {
+        panic!("not a range");
+    };
+    let counts: Vec<u64> = r.buckets.iter().map(|b| b.doc_count).collect();
+    assert_eq!(counts, [20, 40, 140]);
+}
+
+#[test]
+fn a_date_aggregation_of_a_double_fails_as_opensearch_fails_it() {
+    let shard = decimals_shard("aggs-double-date");
+    let err = run(
+        &shard,
+        r#"{"aggs":{"h":{"date_histogram":{"field":"d","calendar_interval":"day"}}}}"#,
+    )
+    .expect_err("refused");
     assert_eq!(err.status, 400);
-    assert!(
-        format!("{:?}", err.failure)
-            .contains("[terms] of the double field [d] is not supported by this node yet"),
-        "{:?}",
-        err.failure
+    assert_eq!(
+        err.failure.reason,
+        "Field [d] of type [double] is not supported for aggregation [date_histogram]"
+    );
+}
+
+fn composite_keys(shard: &OpenShard<Emulator>, composite: &str) -> Vec<(KeyPart, u64)> {
+    let body = format!(r#"{{"size":0,"aggs":{{"c":{{"composite":{composite}}}}}}}"#);
+    match values(shard, &body).into_iter().next() {
+        Some(Value::Composite(c)) => c
+            .buckets
+            .into_iter()
+            .map(|(k, n)| (k[0].clone(), n))
+            .collect(),
+        other => panic!("not a composite: {other:?}"),
+    }
+}
+
+#[test]
+fn a_composite_terms_source_on_a_double_keys_by_the_value_and_pages_with_after() {
+    let shard = decimals_shard("aggs-double-composite");
+    let sources = r#""sources":[{"s":{"terms":{"field":"d"}}}]"#;
+    let first = composite_keys(&shard, &format!(r#"{{"size":3,{sources}}}"#));
+    let want = |keys: &[f64]| -> Vec<(KeyPart, u64)> {
+        keys.iter().map(|k| (KeyPart::Double(*k), 1)).collect()
+    };
+    assert_eq!(first, want(&[-5.0, -4.75, -4.5]));
+    let next = composite_keys(
+        &shard,
+        &format!(r#"{{"size":2,{sources},"after":{{"s":-4.5}}}}"#),
+    );
+    assert_eq!(next, want(&[-4.25, -4.0]));
+    let float = composite_keys(
+        &shard,
+        r#"{"size":1,"sources":[{"s":{"terms":{"field":"f","order":"desc"}}}]}"#,
+    );
+    let top = f64::from(oss_testkit::index::doc_float(DOCS - 1));
+    assert_eq!(float, [(KeyPart::Double(top), 1)]);
+}
+
+#[test]
+fn a_composite_histogram_source_on_a_double_keys_by_the_floor() {
+    let shard = decimals_shard("aggs-double-composite-histogram");
+    let got = composite_keys(
+        &shard,
+        r#"{"size":2,"sources":[{"h":{"histogram":{"field":"d","interval":1}}}]}"#,
+    );
+    assert_eq!(
+        got,
+        [(KeyPart::Double(-5.0), 4), (KeyPart::Double(-4.0), 4)]
+    );
+}
+
+#[test]
+fn a_composite_date_histogram_source_on_a_double_fails_as_opensearch_fails_it() {
+    let shard = decimals_shard("aggs-double-composite-date");
+    let err = run(
+        &shard,
+        r#"{"aggs":{"c":{"composite":{"sources":[{"s":{"date_histogram":{"field":"d","calendar_interval":"day"}}}]}}}}"#,
+    )
+    .expect_err("refused");
+    assert_eq!(
+        err.failure.reason,
+        "Field [d] of type [double] is not supported for aggregation [date_histogram]"
+    );
+}
+
+#[test]
+fn multi_terms_over_a_double_and_a_float_keys_by_both_values() {
+    let shard = decimals_shard("aggs-double-multi");
+    let got = values(
+        &shard,
+        r#"{"size":0,"aggs":{"m":{"multi_terms":{"terms":[{"field":"d"},{"field":"f"}],"size":2}}}}"#,
+    );
+    let Some(Value::Multi(result)) = got.into_iter().next() else {
+        panic!("not a multi_terms");
+    };
+    let mut out = Vec::new();
+    crate::aggs::bucket::multi::write_multi(&mut out, &result).expect("writes");
+    assert_eq!(
+        String::from_utf8(out).expect("utf-8"),
+        concat!(
+            r#""doc_count_error_upper_bound":0,"sum_other_doc_count":198,"buckets":["#,
+            r#"{"key":[-5.0,0.0],"key_as_string":"-5.0|0.0","doc_count":1},"#,
+            r#"{"key":[-4.75,0.10000000149011612],"key_as_string":"-4.75|0.10000000149011612","doc_count":1}]"#
+        )
     );
 }

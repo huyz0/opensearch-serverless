@@ -5,6 +5,8 @@ use std::io::{self, Write};
 
 use oss_rest::write_json_str;
 
+use crate::search::SortValue;
+
 /// `Float.toString`: the shortest digits that read back as the float, in
 /// plain notation from 10^-3 up to 10^7 (always with a fraction) and in
 /// computerized scientific notation outside it.
@@ -100,4 +102,26 @@ pub(super) fn write_score(out: &mut dyn Write, score: Option<f32>) -> io::Result
         Some(s) => write_java_float(out, s),
         None => out.write_all(b"null"),
     }
+}
+
+/// Writes `,"sort":[...]` for a hit that has sort values.
+pub(super) fn write_sort(out: &mut dyn Write, sort: &[SortValue]) -> io::Result<()> {
+    if sort.is_empty() {
+        return Ok(());
+    }
+    out.write_all(b",\"sort\":[")?;
+    for (k, value) in sort.iter().enumerate() {
+        if k > 0 {
+            out.write_all(b",")?;
+        }
+        match value {
+            SortValue::Long(n) => write!(out, "{n}")?,
+            SortValue::Score(s) => write_java_float(out, *s)?,
+            SortValue::Float(f) => write_java_float(out, *f)?,
+            SortValue::Double(d) => out.write_all(crate::template::java_double(*d).as_bytes())?,
+            SortValue::Term(Some(t)) => write_json_str(out, &String::from_utf8_lossy(t))?,
+            SortValue::Term(None) => out.write_all(b"null")?,
+        }
+    }
+    out.write_all(b"]")
 }

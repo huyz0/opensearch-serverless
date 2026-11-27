@@ -21,7 +21,7 @@ use crate::dsl::queries::nested_build::type_filter;
 use crate::failure::Failure;
 use crate::lucene_query::{QueryContext, build};
 use crate::search::{Hit, ShardError};
-use crate::search_sort::{KeyKind, Sort, sort_fields};
+use crate::search_sort::{Sort, sort_fields};
 use crate::search_top::{TopOptions, collect_top};
 
 /// `index.max_inner_result_window`'s default.
@@ -177,7 +177,7 @@ pub(crate) fn plan<S: BlobStore + 'static>(
         let sort = sort_fields(&spec.sort, shard, index, Some(cx))?;
         if sort
             .as_ref()
-            .is_some_and(|(_, kinds)| kinds.contains(&KeyKind::Numeric))
+            .is_some_and(|(_, kinds)| crate::search_sort::reads_points(kinds))
         {
             return Err(refuse(
                 "[inner_hits] [sort] on a numeric field is not supported by this node yet",

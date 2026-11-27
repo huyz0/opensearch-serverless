@@ -22,7 +22,13 @@ pub fn write_terms(out: &mut dyn Write, format: Format, result: &TermsResult) ->
         if i > 0 {
             out.write_all(b",")?;
         }
-        write!(out, "{{\"key\":{key}")?;
+        if format == Format::Double {
+            out.write_all(b"{\"key\":")?;
+            let d = crate::aggs::bucket::terms_collect::double_of_key(*key);
+            out.write_all(crate::template::java_double(d).as_bytes())?;
+        } else {
+            write!(out, "{{\"key\":{key}")?;
+        }
         if format == Format::Date {
             out.write_all(b",\"key_as_string\":\"")?;
             write_date(out, *key)?;

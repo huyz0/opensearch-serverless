@@ -25,6 +25,9 @@ pub enum Format {
     /// `DocValueFormat.DateTime` in the default date format: each value also
     /// as `strict_date_optional_time` text.
     Date,
+    /// A `double` or `float` field's `terms`: each key is the sortable long
+    /// the engine counts by, written as the double it encodes.
+    Double,
 }
 
 /// What one shard computed for one aggregation.
@@ -98,6 +101,8 @@ pub enum Value {
     Filters(Box<FiltersResult>),
     /// `InternalComposite`: a `composite`'s buckets.
     Composite(Box<CompositeResult>),
+    /// `InternalMultiTerms`: a `multi_terms`' buckets.
+    Multi(Box<crate::aggs::bucket::multi::MultiResult>),
 }
 
 /// One aggregation's shard-level result.
@@ -141,6 +146,7 @@ fn reduce_one(parts: &[Value]) -> Option<Value> {
         Value::Range(_) => range::reduce(parts),
         Value::Filters(_) => filters::reduce(parts),
         Value::Composite(_) => composite::reduce(parts),
+        Value::Multi(_) => super::bucket::multi::reduce(parts),
         // A `top_hits` has no reduce here: merging hits needs them fetched
         // and their shard known, so `reduce_scalar` answers `None` for it.
         _ => reduce_scalar(parts),

@@ -136,6 +136,7 @@ pub fn resolve(
             times: 1,
             script: Some(function),
             source: None,
+            ltr: None,
         });
     }
     Ok(out)

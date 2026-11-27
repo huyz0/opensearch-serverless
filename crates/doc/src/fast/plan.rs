@@ -166,6 +166,8 @@ fn entry(name: &str, leaf: &Leaf, spec: Spec, number: i32) -> Option<Entry> {
         Shape::Long => e.kind = ingest::LONG,
         Shape::Float => e.kind = ingest::FLOAT,
         Shape::Double => e.kind = ingest::DOUBLE,
+        // The ingest has no half-float kind, and a scaled value is the JSON number times the factor.
+        Shape::HalfFloat | Shape::Scaled => return None,
         Shape::Date => e.kind = ingest::DATE,
         Shape::Bool => e.kind = ingest::BOOLEAN,
         // A vector goes through the complete path, which hands the engine its vectors.

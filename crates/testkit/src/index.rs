@@ -36,7 +36,7 @@ mod nested;
 mod support;
 use support::{encode_id, json_string, register, sortable, term};
 
-pub use decimals::{doc_double, doc_float};
+pub use decimals::{SCALING_FACTOR, doc_double, doc_float, doc_half, doc_scaled, doc_scaled_long};
 pub use nested::{NESTED_CHILDREN, nested_deep_word, nested_number, nested_word};
 
 /// The mapping of `spec`'s index.
@@ -255,7 +255,7 @@ pub fn doc_words(i: usize, x: usize) -> [String; 2] {
 }
 
 fn keyword_number(spec: &Spec, k: usize) -> i32 {
-    FIRST_KEYWORD + 2 * i32::from(spec.decimals) + i32::try_from(k).expect("fits")
+    FIRST_KEYWORD + decimals::FIELDS * i32::from(spec.decimals) + i32::try_from(k).expect("fits")
 }
 
 fn text_number(spec: &Spec, x: usize) -> i32 {

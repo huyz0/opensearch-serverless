@@ -27,6 +27,8 @@ fn terms(name: &str, field: &str, t: TermsRequest) -> AggRequest {
         terms: Some(t),
         histogram: None,
         ranges: None,
+        rare: None,
+        multi: None,
         subs: Vec::new(),
     }
 }
@@ -107,6 +109,8 @@ fn a_terms_with_a_sub_aggregation_reads_and_writes_as_java_wrote_it() {
         terms: None,
         histogram: None,
         ranges: None,
+        rare: None,
+        multi: None,
         subs: Vec::new(),
     }];
     let mut input = Input::new(&wire);
@@ -176,6 +180,39 @@ fn a_long_terms_answer_is_the_bytes_java_wrote() {
         date: false,
     });
     assert_eq!(got, recorded("response.long_terms"));
+}
+
+/// `DoubleTerms` is `LongTerms` with its own name and each key written by
+/// `writeDouble` (`DoubleTerms.Bucket.writeTermTo`), so its bytes are the
+/// recorded long terms with the name and the one key swapped. Not recorded
+/// from Java itself.
+#[test]
+fn a_double_terms_answer_is_the_long_terms_bytes_with_a_double_key() {
+    let mut a = answer(
+        Order::KeyAsc,
+        Order::KeyAsc,
+        Keys::Double(vec![7.0]),
+        vec![3],
+    );
+    a.doc_count_error = -1;
+    a.shard_size = 20;
+    a.show_error = true;
+    a.errors = vec![1];
+    let got = written(AggAnswer {
+        name: "u",
+        value: AggValue::Terms(a),
+        date: false,
+    });
+    let mut want = recorded("response.long_terms");
+    let name = want
+        .windows(6)
+        .position(|w| w == b"lterms")
+        .expect("the type name");
+    want[name] = b'd';
+    let key = want.len() - 8;
+    assert_eq!(want[key..], 7i64.to_be_bytes());
+    want[key..].copy_from_slice(&7.0f64.to_be_bytes());
+    assert_eq!(got, want);
 }
 
 fn max_of_four() -> Vec<SubAnswer> {

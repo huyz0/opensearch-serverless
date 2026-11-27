@@ -85,6 +85,7 @@ fn answer(req: &AggRequest, shape: &Shape<'_>, keys: Keys) -> Result<TermsAnswer
 pub fn numeric(
     r: &oss_reader::aggs::bucket::terms::TermsResult,
     req: &AggRequest,
+    format: Format,
 ) -> Result<TermsAnswer, RemoteException> {
     let shape = Shape {
         spec: &r.spec,
@@ -95,11 +96,18 @@ pub fn numeric(
         meta: &r.subs.meta,
         lists: &r.subs.lists,
     };
-    answer(
-        req,
-        &shape,
-        Keys::Long(r.buckets.iter().map(|b| b.0).collect()),
-    )
+    let keys = if format == Format::Double {
+        // The engine counts a double by its sortable long.
+        Keys::Double(
+            r.buckets
+                .iter()
+                .map(|b| oss_reader::aggs::bucket::terms_collect::double_of_key(b.0))
+                .collect(),
+        )
+    } else {
+        Keys::Long(r.buckets.iter().map(|b| b.0).collect())
+    };
+    answer(req, &shape, keys)
 }
 
 /// A `terms` over a keyword.
