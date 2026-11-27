@@ -3,7 +3,7 @@
 // ARITH: test sizes are small constants.
 #![allow(clippy::arithmetic_side_effects)]
 
-mod common;
+use crate::common;
 
 use oss_doc::mapping::Mapping;
 use oss_reader::overlay::{local_checkpoint, mask_bytes};

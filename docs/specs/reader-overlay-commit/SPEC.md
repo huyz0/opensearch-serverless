@@ -24,7 +24,7 @@ Parity plan R7.6, the tail overlay engine, second piece ([ADR 0018](../../adr/00
 
 ## Test plan
 
-`crates/reader/tests/overlay_commit.rs`; commits are built in memory with `oss_doc`'s `Indexer`, so each document has `_id` and `_seq_no` as the writer writes them; one test per criterion.
+`crates/reader/tests/it/overlay_commit.rs`; commits are built in memory with `oss_doc`'s `Indexer`, so each document has `_id` and `_seq_no` as the writer writes them; one test per criterion.
 
 ## S3 request budget
 

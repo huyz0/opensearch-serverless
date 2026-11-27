@@ -26,7 +26,7 @@ Not changed, by design and listed: the transport action that carries a push, the
 
 ## Test plan
 
-`crates/reader/tests/it/push.rs` (AC-1, the fixtures through the emulator with exact request counts); `crates/reader/tests/commit_push.rs` (AC-2 to AC-7, pure, with a manual clock).
+`crates/reader/tests/it/push.rs` (AC-1, the fixtures through the emulator with exact request counts); `crates/reader/tests/it/commit_push.rs` (AC-2 to AC-7, pure, with a manual clock).
 
 ## S3 request budget
 

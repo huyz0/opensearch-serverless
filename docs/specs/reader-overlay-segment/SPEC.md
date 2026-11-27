@@ -29,7 +29,7 @@ Parity plan R7.6, the tail overlay's reader engine, first piece ([ADR 0018](../.
 
 ## Test plan
 
-`crates/reader/tests/overlay_segment.rs`; one test per criterion; AC-7 in its own binary, `crates/reader/tests/overlay_heap.rs`, because the counting allocator is process-wide. The documents are read back through the segment reader, not the builder's own state.
+`crates/reader/tests/it/overlay_segment.rs`; one test per criterion; AC-7 in its own binary, `crates/reader/tests/overlay_heap.rs`, because the counting allocator is process-wide. The documents are read back through the segment reader, not the builder's own state.
 
 ## S3 request budget
 
