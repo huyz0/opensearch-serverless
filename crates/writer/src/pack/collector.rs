@@ -16,7 +16,9 @@ use oss_format::INDEX_SLOTS;
 
 use super::election::{collector_for, window_of};
 use super::index::Removal;
-use super::{PackError, PackIndexStore, PackJudge, PackReferences, PackSidecarStore};
+use super::{
+    PackError, PackIndexStore, PackJudge, PackLedger, PackReferences, PackSidecarStore, sync,
+};
 
 /// What one tick did.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -87,11 +89,11 @@ impl PackCollector {
         for slot in 0..INDEX_SLOTS {
             let state = self.index.read(slot)?;
             for node in state.index.nodes() {
-                self.judge_node(node, refs, now_millis, &mut out)?;
-                let sidecar = PackSidecarStore::new(Arc::clone(&self.store), &self.base, node)?;
-                if sidecar.read()?.sidecar.epochs().is_empty()
-                    && self.index.remove(slot, &state, node)? == Removal::Removed
-                {
+                let alive = members.iter().any(|m| m == node);
+                let live = self.judge_node(node, alive, refs, now_millis, &mut out)?;
+                // A node with nothing left to judge and no lease leaves the
+                // index; the swap fails if a writer added it since the read.
+                if !live && !alive && self.index.remove(slot, &state, node)? == Removal::Removed {
                     self.judges.remove(node);
                     out.dropped = out.dropped.saturating_add(1);
                 }
@@ -101,14 +103,22 @@ impl PackCollector {
         Ok(out)
     }
 
+    /// Builds the node's sidecar from its ledger, judges its packs, and
+    /// advances its ledger; whether it still has packs that may exist.
     fn judge_node(
         &mut self,
         node: &str,
+        alive: bool,
         refs: &dyn PackReferences,
         now: u64,
         out: &mut Collected,
-    ) -> Result<(), PackError> {
+    ) -> Result<bool, PackError> {
         let sidecar = PackSidecarStore::new(Arc::clone(&self.store), &self.base, node)?;
+        let ledger = PackLedger::new(Arc::clone(&self.store), &self.base, node)?;
+        let from = ledger.read()?;
+        let state = sidecar.update(sidecar.read()?, |current| {
+            sync::synced(&from.epochs, current, alive)
+        })?;
         if !self.judges.contains_key(node) {
             let judge =
                 PackJudge::new(Arc::clone(&self.store), &self.base, node, self.max_tracked)?;
@@ -116,14 +126,15 @@ impl PackCollector {
             self.judges.insert(node.to_owned(), judge);
         }
         let Some(judge) = self.judges.get_mut(node) else {
-            return Ok(());
+            return Ok(false);
         };
-        let judged = judge.pass(&sidecar, refs, now)?;
+        let (judged, state) = judge.pass_with(&sidecar, state, refs, now)?;
         out.nodes = out.nodes.saturating_add(1);
         out.deleted = out.deleted.saturating_add(judged.deleted);
         out.referenced = out.referenced.saturating_add(judged.referenced);
         out.young = out.young.saturating_add(judged.young);
         out.at_cap |= judged.at_cap;
-        Ok(())
+        ledger.update(from, |epochs| sync::advanced(epochs, &state.sidecar))?;
+        Ok(sync::has_live(&state.sidecar))
     }
 }

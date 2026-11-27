@@ -99,3 +99,4 @@ src/pack/commit_refs.rs	new		the reference source over commits: the pack header 
 src/pack/judge.rs	new		the collector's judgement of one node's packs: store age past 15 minutes, two unreferenced sightings a minute apart, a doubling recheck of a named pack, deletion and sidecar marks (ADR 0025); the Java NodePackCollector keeps this state in memory per pack
 src/boot_clock.rs	new		the boot-time clock the swap deadline is read on
 src/pack/seed.rs	new		the resumable one-time walk of packs/ that names the departed nodes with a live ledger epoch in the index (ADR 0025); Rust only
+src/pack/sync.rs	new		builds the collector sidecar from the writer ledger each pass and advances the ledger over collected ordinals (ADR 0025); the Java NodePackCollector advances its ledger the same way

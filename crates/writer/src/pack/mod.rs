@@ -15,6 +15,7 @@ mod ledger;
 mod seed;
 mod sidecar;
 mod store;
+mod sync;
 mod writer;
 
 pub use collector::{Collected, PackCollector};
