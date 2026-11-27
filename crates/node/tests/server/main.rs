@@ -127,3 +127,4 @@ mod stock_restore_settings;
 mod stored_search_template;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod template_route;
+mod update_route;
