@@ -4,6 +4,9 @@
 //! one pass, one response writer and one reduce serve them all.
 
 pub mod adjacency_parse;
+pub mod auto_date;
+pub mod auto_date_parse;
+pub mod auto_date_render;
 pub mod composite;
 pub mod composite_collect;
 pub mod composite_parse;
@@ -92,6 +95,8 @@ pub(crate) fn date_histogram_spec(agg: &MetricAgg) -> DateHistogramSpec {
 
 #[cfg(test)]
 mod adjacency_tests;
+#[cfg(test)]
+mod auto_date_tests;
 #[cfg(test)]
 mod collect_tests;
 #[cfg(test)]

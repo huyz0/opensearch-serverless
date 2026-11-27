@@ -26,6 +26,7 @@ fn sub(name: &str, metric: Metric) -> MetricAgg {
         terms: None,
         histogram: None,
         date_histogram: None,
+        auto_date: None,
         subs: Vec::new(),
         range: None,
         filters: None,
