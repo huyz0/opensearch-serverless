@@ -19,7 +19,7 @@ Parity plan R7.4, index admin REST: the decisions in the Java shell's `RolloverH
 
 ## Test plan
 
-`crates/coordinator/tests/rollover.rs` and `crates/coordinator/tests/time_value.rs`: one test per criterion; the words asserted exactly.
+`crates/coordinator/tests/it/rollover.rs` and `crates/coordinator/tests/it/time_value.rs`: one test per criterion; the words asserted exactly.
 
 ## S3 request budget
 

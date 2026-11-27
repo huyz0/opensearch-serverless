@@ -22,7 +22,7 @@ Served keys: `field`, `interval`, `offset`, `keyed`, `min_doc_count`, `extended_
 
 ## Test plan
 
-Unit tests in `aggs/bucket/histogram_tests.rs` (parsing, reduce, writing, and runs on an `oss-testkit` index: AC-1 to AC-7) and `crates/coordinator/tests/histogram_reduce.rs` (a `histogram` across shards, AC-5). Expected values come from reading `InternalHistogram`, `HistogramAggregationBuilder` and `NumericHistogramAggregator` at 3.10.0; no stock recording of these steps exists yet.
+Unit tests in `aggs/bucket/histogram_tests.rs` (parsing, reduce, writing, and runs on an `oss-testkit` index: AC-1 to AC-7) and `crates/coordinator/tests/it/histogram_reduce.rs` (a `histogram` across shards, AC-5). Expected values come from reading `InternalHistogram`, `HistogramAggregationBuilder` and `NumericHistogramAggregator` at 3.10.0; no stock recording of these steps exists yet.
 
 ## S3 request budget
 

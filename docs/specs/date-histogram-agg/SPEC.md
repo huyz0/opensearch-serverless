@@ -23,7 +23,7 @@ Served keys: `field`, `calendar_interval` (`year`, `quarter`, `month`, `week`, `
 
 ## Test plan
 
-Unit tests in `aggs/bucket/date_histogram_tests.rs` (parsing, reduce, writing: AC-1, AC-4 to AC-7), `aggs/bucket/date_histogram_collect_tests.rs` over an `oss-testkit` index whose long field `n` stands in for a date field (AC-2, AC-3, AC-7) and `crates/coordinator/tests/date_histogram_reduce.rs` (across shards, AC-5). Expected values come from reading the 3.10.0 Java; no stock recording of these steps exists yet.
+Unit tests in `aggs/bucket/date_histogram_tests.rs` (parsing, reduce, writing: AC-1, AC-4 to AC-7), `aggs/bucket/date_histogram_collect_tests.rs` over an `oss-testkit` index whose long field `n` stands in for a date field (AC-2, AC-3, AC-7) and `crates/coordinator/tests/it/date_histogram_reduce.rs` (across shards, AC-5). Expected values come from reading the 3.10.0 Java; no stock recording of these steps exists yet.
 
 ## S3 request budget
 

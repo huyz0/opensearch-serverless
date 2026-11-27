@@ -20,7 +20,7 @@ Parity plan R7.2, search fan-out and reduce, first piece: the hit half of the Ja
 
 ## Test plan
 
-`crates/coordinator/tests/hit_merge.rs`: one test for each criterion over hand-built answers, the ordering and the window asserted exactly.
+`crates/coordinator/tests/it/hit_merge.rs`: one test for each criterion over hand-built answers, the ordering and the window asserted exactly.
 
 ## S3 request budget
 

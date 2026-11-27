@@ -24,7 +24,7 @@ Fetching the page's hits from their shards, and rendering them, is the piece tha
 
 ## Test plan
 
-`crates/reader/src/aggs/metric/top_hits_tests.rs` for AC-1 on a real shard; `crates/coordinator/tests/top_hits_reduce.rs` for the rest over hand-built shard results.
+`crates/reader/src/aggs/metric/top_hits_tests.rs` for AC-1 on a real shard; `crates/coordinator/tests/it/top_hits_reduce.rs` for the rest over hand-built shard results.
 
 ## S3 request budget
 

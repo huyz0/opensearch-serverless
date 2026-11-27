@@ -32,6 +32,7 @@ mod search;
 mod search_alias;
 mod search_body_keys;
 mod search_hits;
+mod search_now;
 mod search_pipeline;
 mod search_routing;
 mod search_several;

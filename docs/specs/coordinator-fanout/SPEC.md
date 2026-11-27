@@ -19,7 +19,7 @@ Parity plan R7.2, search fan-out and reduce, third piece: the shell's `Fanout` (
 
 ## Test plan
 
-`crates/coordinator/tests/fanout.rs`: one test per criterion; AC-2 counts calls in flight with an atomic peak, and the thread each call ran on.
+`crates/coordinator/tests/it/fanout.rs`: one test per criterion; AC-2 counts calls in flight with an atomic peak, and the thread each call ran on.
 
 ## S3 request budget
 

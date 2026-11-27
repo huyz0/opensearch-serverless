@@ -12,6 +12,7 @@
 //! `missing`, `format` and `meta` are refused as not served yet.
 
 pub mod collect;
+pub mod collect_global;
 pub mod date_text;
 pub mod double;
 pub mod hash_order;
@@ -31,6 +32,7 @@ pub mod typed;
 
 pub use crate::aggs::partial::{Format, Partial, Value};
 pub use collect::collect;
+pub use collect_global::collect_with_global;
 pub use parse::parse_aggregations;
 pub use percentiles::PercentilesOptions;
 pub use render::{write_aggregations, write_aggregations_typed, write_aggregations_with};
@@ -96,13 +98,16 @@ pub enum Metric {
     /// `date_range`: the documents counted in each of given ranges of a
     /// date field, its bounds read as dates.
     DateRange,
+    /// `global`: every live document of the shard, whatever the query,
+    /// counted and aggregated in one bucket.
+    Global,
     /// `missing`: the documents counted that have no value for a field.
     Missing,
 }
 
 impl Metric {
     /// Every metric served, by its aggregation type name.
-    pub const ALL: [Metric; 21] = [
+    pub const ALL: [Metric; 22] = [
         Metric::Min,
         Metric::Max,
         Metric::Sum,
@@ -124,6 +129,7 @@ impl Metric {
         Metric::ReverseNested,
         Metric::Missing,
         Metric::DateRange,
+        Metric::Global,
     ];
 
     /// The aggregation type name.
@@ -150,6 +156,7 @@ impl Metric {
             Metric::ReverseNested => "reverse_nested",
             Metric::Missing => "missing",
             Metric::DateRange => "date_range",
+            Metric::Global => "global",
         }
     }
 
@@ -264,7 +271,7 @@ pub fn state_bytes(aggs: &[MetricAgg]) -> usize {
             Metric::Composite => agg.composite.as_deref().map_or(0, |spec| {
                 crate::aggs::bucket::composite_collect::state_bytes(spec, agg.subs.len())
             }),
-            Metric::Filters | Metric::Filter | Metric::Missing => agg
+            Metric::Filters | Metric::Filter | Metric::Missing | Metric::Global => agg
                 .filters
                 .as_deref()
                 .map_or(0, crate::aggs::bucket::filters_collect::state_bytes),

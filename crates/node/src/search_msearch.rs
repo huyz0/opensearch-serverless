@@ -232,6 +232,7 @@ impl<'s, 'r, 'a, S: BlobStore + 'static> Items<'s, 'r, 'a, S> {
             };
             source.apply_url(&params).map_err(bad_request)?;
         }
+        super::uri_query::stamp(&mut source);
         Ok(source)
     }
 

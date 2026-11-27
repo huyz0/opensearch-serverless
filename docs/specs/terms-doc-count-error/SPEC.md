@@ -23,7 +23,7 @@ Not in this change: `shard_min_doc_count`, which is [terms-shard-min-doc-count](
 
 ## Test plan
 
-`aggs/bucket/terms_tests.rs`, `aggs/bucket/keyword_terms_tests.rs` and `crates/coordinator/tests/terms_reduce.rs`.
+`aggs/bucket/terms_tests.rs`, `aggs/bucket/keyword_terms_tests.rs` and `crates/coordinator/tests/it/terms_reduce.rs`.
 
 ## S3 request budget
 

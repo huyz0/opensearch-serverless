@@ -71,6 +71,7 @@ fn needs(metric: Metric) -> u8 {
         | Metric::Filters
         | Metric::Filter
         | Metric::Missing
+        | Metric::Global
         | Metric::Composite
         | Metric::Nested
         | Metric::ReverseNested => NEED_COUNT,
@@ -110,6 +111,7 @@ pub(crate) fn value_of(agg: &MetricAgg, state: &MetricState) -> Value {
         Metric::Filters
         | Metric::Filter
         | Metric::Missing
+        | Metric::Global
         | Metric::Nested
         | Metric::ReverseNested => filters_collect::value(agg, &[]),
         Metric::Composite => composite_collect::empty(agg),

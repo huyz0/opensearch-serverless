@@ -23,6 +23,14 @@ max-threads = 2
 filter = 'package(oss-edge) and binary(/^h3/)'
 test-group = 'quic'
 
+# These two time things against each other (the p99 of a write in one setting
+# against another; how long a probe call takes, then a call sized from it), so
+# other tests' load between the two measurements fails them (CI run
+# 45986577000). Each runs with the whole test pool to itself.
+[[profile.default.overrides]]
+filter = 'package(oss-node) and (binary(commit_cost) or binary(extension_item_cap))'
+threads-required = 'num-test-threads'
+
 [profile.ci]
 slow-timeout = { period = "60s", terminate-after = 10 }
 failure-output = "immediate-final"

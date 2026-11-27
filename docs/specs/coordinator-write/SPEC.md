@@ -19,7 +19,7 @@ Parity plan R7.3, document APIs, second piece: the decisions in the Java shell's
 
 ## Test plan
 
-`crates/coordinator/tests/write.rs`: an in-memory plane recording doubts; the words asserted exactly.
+`crates/coordinator/tests/it/write.rs`: an in-memory plane recording doubts; the words asserted exactly.
 
 ## S3 request budget
 

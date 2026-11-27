@@ -21,7 +21,7 @@ Parity plan R7.6: the coordinator's merge and render of a `top_hits` ([merge](..
 
 ## Test plan
 
-`crates/coordinator/tests/search_top_hits.rs` (AC-1 to AC-3); `crates/node/tests/it/coordinate.rs` (AC-4).
+`crates/coordinator/tests/it/search_top_hits.rs` (AC-1 to AC-3); `crates/node/tests/it/coordinate.rs` (AC-4).
 
 ## S3 request budget
 

@@ -18,7 +18,7 @@ Parity plan R12.4 follow-up (zones): the meter in `oss-cluster::zones` counts no
 
 ## Test plan
 
-`crates/coordinator/tests/zone_meter.rs`: one test per criterion. AC-5 runs eight concurrent calls and compares each path's total with the sum computed from the inputs.
+`crates/coordinator/tests/it/zone_meter.rs`: one test per criterion. AC-5 runs eight concurrent calls and compares each path's total with the sum computed from the inputs.
 
 ## S3 request budget
 

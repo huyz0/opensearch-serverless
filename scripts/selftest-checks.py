@@ -118,6 +118,8 @@ CASES = [
      {"crates/node/src/writer/slot.rs": "//! S.\nfn f(s: &S) -> i64 { s.max_seq_no() }\n"}),
     (["check-arith-allows.py"], "allow without proof",
      {"crates/reader/src/lib.rs": "//! S.\n#[allow(clippy::arithmetic_side_effects)]\nfn f(a: u8) -> u8 { a + 1 }\n"}),
+    (["check-test-binaries.py"], "a global allocator in the merged test binary",
+     {"crates/reader/tests/it/heap.rs": "//! Heap.\n#[global_allocator]\nstatic A: std::alloc::System = std::alloc::System;\n"}),
     (["check-pack-references.py"], "a new persister of a manifest not in the list",
      {"crates/writer/src/clone.rs": "//! Clone.\nuse oss_format::CommitManifest;\n"}),
     (["check-pack-references.py"], "a listed file that no longer names a manifest or location",
