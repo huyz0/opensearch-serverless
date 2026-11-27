@@ -33,6 +33,8 @@ src/dsl/queries/term_level.rs	port	server/src/main/java/org/opensearch/index/que
 src/dsl/queries/case_insensitive.rs	port	server/src/main/java/org/opensearch/common/lucene/search/AutomatonQueries.java@3.10.0	caseInsensitiveTermQuery, caseInsensitivePrefix and toCaseInsensitiveWildcardQuery
 src/dsl/queries/case_insensitive_tests.rs	new		tests of case_insensitive.rs
 src/dsl/queries/compound.rs	port	server/src/main/java/org/opensearch/index/query/DisMaxQueryBuilder.java@3.10.0	fromXContent of DisMaxQueryBuilder, ConstantScoreQueryBuilder, BoostingQueryBuilder and MatchNoneQueryBuilder
+src/dsl/queries/bool_prefix.rs	port	server/src/main/java/org/opensearch/index/query/MatchBoolPrefixQueryBuilder.java@3.10.0	fromXContent and doToQuery, with MatchQuery.parse of type BOOLEAN_PREFIX
+src/dsl/queries/bool_prefix_tests.rs	new		tests of bool_prefix.rs
 src/dsl/queries/build.rs	port	server/src/main/java/org/opensearch/index/mapper/StringFieldType.java@3.10.0	doRewrite/doToQuery of the module's builders; the field types' termsQuery, prefixQuery, wildcardQuery, regexpQuery, fuzzyQuery and existsQuery; ExistsQueryBuilder.newFilter
 src/dsl/queries/full_text.rs	port	server/src/main/java/org/opensearch/index/query/MultiMatchQueryBuilder.java@3.10.0	fromXContent and constructor checks of MatchPhraseQueryBuilder and MultiMatchQueryBuilder (with Type.parse and parseFieldAndBoost)
 src/dsl/queries/full_text_build.rs	port	server/src/main/java/org/opensearch/index/search/MultiMatchQuery.java@3.10.0	MatchQuery.parse of the phrase type, MultiMatchQuery.parse with buildFieldQueries and combineGrouped, QueryParserHelper.resolveMappingFields
