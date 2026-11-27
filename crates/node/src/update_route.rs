@@ -23,6 +23,7 @@ use crate::get_route::index_not_found;
 use crate::id_lanes::IdLanes;
 use crate::update_body::{UpdateBody, merge, read};
 use crate::writer::{RoleTarget, WriterRole};
+use oss_types::stored_scripts::StoredScripts;
 
 /// What an update takes.
 const PARAMS: &[&str] = &[
@@ -38,6 +39,7 @@ const PARAMS: &[&str] = &[
 pub struct UpdateService {
     role: Arc<WriterRole>,
     ids: IdLanes,
+    scripts: Option<Arc<dyn StoredScripts>>,
 }
 
 /// What one attempt decided to write.
@@ -74,7 +76,15 @@ impl UpdateService {
         Self {
             role,
             ids: IdLanes::new(address),
+            scripts: None,
         }
+    }
+
+    /// The same, resolving a script named by `id` through `scripts`.
+    #[must_use]
+    pub fn with_scripts(mut self, scripts: Arc<dyn StoredScripts>) -> Self {
+        self.scripts = Some(scripts);
+        self
     }
 
     /// What the attempt writes, given the document as it was read.
@@ -174,7 +184,7 @@ impl UpdateService {
         let if_primary_term = number(req, "if_primary_term")?.unwrap_or(0);
         let require_alias = req.param("require_alias").is_some_and(|v| v == "true");
         let bytes = DocService::source(req)?;
-        let body = read(&bytes)?;
+        let body = read(&bytes, self.scripts.as_deref())?;
         let has_script = body.script.is_some();
         if has_script && !oss_coordinator::docs::update_script::enabled() {
             return Err(RestError::simple(

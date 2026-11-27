@@ -231,8 +231,8 @@ fn stored(
         Ok(found) if matches!(found.lang.as_str(), "painless" | "expression") => {
             Ok((found.source, found.lang))
         }
+        // ALLOC: error path; one message.
         Ok(found) => Err(DslError::illegal(format!(
-            // ALLOC: error path; one message.
             "[script] the stored script [{id}] is lang [{}], which this node does not run here",
             found.lang
         ))),

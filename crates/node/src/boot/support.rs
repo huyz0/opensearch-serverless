@@ -197,6 +197,7 @@ pub(super) fn apply_janitor_and_hibernation(
     node.ltr_max_window = config.ltr_bounds.max_window;
     node.ltr_cache_ttl_secs = config.ltr_bounds.cache_ttl_secs;
     node.ltr_cache_bytes = config.ltr_bounds.cache_bytes;
+    node.script_cache_ttl_secs = config.script_cache_ttl_secs;
     node.security = config.security;
     node.security_admin.clone_from(&config.security_admin);
     node.security_refresh_millis = config.security_refresh_millis;

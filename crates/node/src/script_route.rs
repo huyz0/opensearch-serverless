@@ -128,6 +128,8 @@ fn push_quoted(out: &mut String, s: &str) {
 pub struct ScriptService {
     docs: DocSet,
     buffer_bytes: usize,
+    /// The node's stored-script cache, told of each put and delete.
+    source: Option<Arc<crate::stored_script_source::ScriptSource>>,
 }
 
 impl ScriptService {
@@ -145,7 +147,22 @@ impl ScriptService {
         Ok(Self {
             docs: DocSet::new(Arc::clone(store), base, DocKind::StoredScript)?,
             buffer_bytes,
+            source: None,
         })
+    }
+
+    /// The same, telling `source` of every put and delete so the node sees
+    /// its own change at once.
+    #[must_use]
+    pub fn with_source(mut self, source: Arc<crate::stored_script_source::ScriptSource>) -> Self {
+        self.source = Some(source);
+        self
+    }
+
+    fn changed(&self) {
+        if let Some(source) = &self.source {
+            source.invalidate();
+        }
     }
 
     fn handle(&self, req: &mut Request<'_>, resp: &mut Response<'_>) -> Result<(), RestError> {
@@ -182,6 +199,7 @@ impl ScriptService {
                 self.docs
                     .put(&id, stored.as_bytes(), false, &mut marker)
                     .map_err(|e| failed(&e))?;
+                self.changed();
                 resp.send(200, JSON, ACKNOWLEDGED.as_bytes())
             }
             Method::Delete => {
@@ -189,6 +207,7 @@ impl ScriptService {
                 // ALLOC: one marker buffer a request, buffer_bytes, reserved above.
                 let mut marker = vec![0u8; self.buffer_bytes];
                 if self.docs.delete(&id, &mut marker).map_err(|e| failed(&e))? {
+                    self.changed();
                     resp.send(200, JSON, ACKNOWLEDGED.as_bytes())
                 } else {
                     Err(refuse(

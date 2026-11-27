@@ -120,6 +120,7 @@ pub struct ByQueryService {
     budget: BulkBudget,
     address: [u8; 6],
     tasks: Arc<Tasks>,
+    scripts: Option<Arc<dyn oss_types::stored_scripts::StoredScripts>>,
 }
 
 impl ByQueryService {
@@ -139,7 +140,18 @@ impl ByQueryService {
             budget,
             address,
             tasks,
+            scripts: None,
         }
+    }
+
+    /// The same, resolving a script named by `id` through `scripts`.
+    #[must_use]
+    pub fn with_scripts(
+        mut self,
+        scripts: Arc<dyn oss_types::stored_scripts::StoredScripts>,
+    ) -> Self {
+        self.scripts = Some(scripts);
+        self
     }
 }
 

@@ -1,6 +1,6 @@
 # 0073: A stored script named by id resolves through a per-node cache checked once a TTL
 
-**Status:** Proposed
+**Status:** Accepted after independent review, 2026-11-27
 
 ## Context
 

@@ -259,15 +259,20 @@ pub fn assemble(
     let router = doc_route::routes(router, docs).map_err(AssembleError::Route)?;
     let router = get_route::routes(router, Arc::new(GetService::new(Arc::clone(&role))))
         .map_err(AssembleError::Route)?;
+    let script_source = crate::admin_assemble::script_source(&store, config, budget)?;
     let router = update_route::routes(
         router,
-        Arc::new(UpdateService::new(Arc::clone(&role), config.address)),
+        Arc::new(
+            UpdateService::new(Arc::clone(&role), config.address)
+                .with_scripts(Arc::clone(&script_source) as _),
+        ),
     )
     .map_err(AssembleError::Route)?;
     let router = refresh_route::routes(router, Arc::new(RefreshService::new(Arc::clone(&role))))
         .map_err(AssembleError::Route)?;
     let router = pit_route::routes(router, pit).map_err(AssembleError::Route)?;
-    let (router, _sec) = crate::admin_assemble::register(router, &store, config, budget)?;
+    let (router, _sec) =
+        crate::admin_assemble::register(router, &store, config, budget, &script_source)?;
     #[cfg(feature = "coordinator")]
     let (router, drain, tasks) = {
         use crate::index_assemble::{index_service, pin_policy, restore_routes, stream_routes};
@@ -289,13 +294,16 @@ pub fn assemble(
             budget,
             crate::by_query::now_millis(),
         ));
-        let by_query = Arc::new(crate::by_query::ByQueryService::new(
-            Arc::clone(&role),
-            Arc::new(crate::by_query::SearchMatches::new(Arc::clone(&search))),
-            BulkBudget::new(config.bulk_bytes, config.bulk_holders),
-            config.address,
-            Arc::clone(&tasks),
-        ));
+        let by_query = Arc::new(
+            crate::by_query::ByQueryService::new(
+                Arc::clone(&role),
+                Arc::new(crate::by_query::SearchMatches::new(Arc::clone(&search))),
+                BulkBudget::new(config.bulk_bytes, config.bulk_holders),
+                config.address,
+                Arc::clone(&tasks),
+            )
+            .with_scripts(Arc::clone(&script_source) as _),
+        );
         let router = crate::by_query::routes(router, by_query).map_err(AssembleError::Route)?;
         (router, Some(drain), tasks)
     };
