@@ -15,6 +15,7 @@
 //! `use_field_mapping`, a metadata field other than `_seq_no` and `_primary_term`, and a pattern that could match one
 //! are not served yet.
 
+use lucene_util::numeric_utils::{sortable_int_to_float, sortable_long_to_double};
 use std::io::{self, Write};
 
 use lucene_search::directory_reader::SegmentReader;
@@ -129,6 +130,10 @@ fn object(p: &mut Parser<'_>) -> Result<DocValueField, DslError> {
 pub enum ValueKind {
     /// Sorted numeric longs, written as numbers.
     Long,
+    /// Sorted numeric sortable longs, written as doubles.
+    Double,
+    /// Sorted numeric sortable ints, each widened and written as a double.
+    Float,
     /// Sorted numeric epoch milliseconds, written as dates.
     Date,
     /// Sorted set terms, written as strings.
@@ -265,8 +270,7 @@ fn kind_of(name: &str, mapping: &Mapping) -> Result<ValueKind, ShardError> {
             )));
         }
         // ALLOC: error path; one message.
-        ty @ (FieldType::Float | FieldType::Double | FieldType::Unsupported(_)) => {
-            let what = ty.refusal_name();
+        FieldType::Unsupported(what) => {
             return Err(unsupported(&format!(
                 "[docvalue_fields] of the {what} [{name}]"
             )));
@@ -274,6 +278,8 @@ fn kind_of(name: &str, mapping: &Mapping) -> Result<ValueKind, ShardError> {
         FieldType::Keyword => (ValueKind::Term, "keyword"),
         FieldType::Int { name: ty, .. } => (ValueKind::Long, *ty),
         FieldType::Long => (ValueKind::Long, "long"),
+        FieldType::Double => (ValueKind::Double, "double"),
+        FieldType::Float => (ValueKind::Float, "float"),
         FieldType::Date => (ValueKind::Date, "date"),
     };
     if !field.doc_values {
@@ -300,6 +306,9 @@ pub fn write_fields(
             // Written from the `_source`, by `source_fields`.
             ValueKind::Source => continue,
             ValueKind::Long | ValueKind::Date => numbers(segment, &field.name, doc)?,
+            ValueKind::Double | ValueKind::Float => {
+                decimals(segment, &field.name, doc, field.kind == ValueKind::Float)?
+            }
             ValueKind::Term => terms(segment, &field.name, doc)?,
             ValueKind::Script => crate::fetch::script_fields::values(field, segment, doc)?,
         };
@@ -354,6 +363,22 @@ pub(crate) fn numbers(segment: &SegmentReader, field: &str, doc: i32) -> io::Res
     let mut values = Vec::with_capacity(count);
     for _ in 0..count {
         values.push(Value::Long(dv.next_value().map_err(io::Error::other)?));
+    }
+    Ok(values)
+}
+
+/// A `double` or `float` field's values: each sortable number read as the
+/// double `SortedNumericDoubleValues` gives, a float widened.
+fn decimals(segment: &SegmentReader, field: &str, doc: i32, float: bool) -> io::Result<Vec<Value>> {
+    let mut values = numbers(segment, field, doc)?;
+    for v in &mut values {
+        if let Value::Long(n) = *v {
+            *v = Value::Double(if float {
+                f64::from(sortable_int_to_float(i32::try_from(n).unwrap_or(0)))
+            } else {
+                sortable_long_to_double(n)
+            });
+        }
     }
     Ok(values)
 }

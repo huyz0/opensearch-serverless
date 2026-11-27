@@ -207,3 +207,39 @@ fn a_decimal_sort_puts_a_missing_value_last_in_either_direction() {
         i64::from(float_to_sortable_int(f32::NEG_INFINITY))
     );
 }
+
+/// The hit's JSON as the response writes it.
+fn response(shard: &OpenShard<Emulator>, body: &str) -> String {
+    let hits = run(shard, body).expect("searches");
+    let mut out = Vec::new();
+    crate::response::write_response(&mut out, shard, "idx", "node", &hits, 3, &mut |_| Ok(()))
+        .expect("writes");
+    String::from_utf8(out).expect("utf-8")
+}
+
+#[test]
+fn docvalue_fields_write_a_double_and_a_float_widened_to_a_double() {
+    let shard = shard();
+    let text = response(
+        &shard,
+        r#"{"query":{"term":{"d":-4.75}},"docvalue_fields":["d","f"]}"#,
+    );
+    // Document 1 holds -4.75 and the float nearest 0.1, which a double shows in full.
+    assert!(
+        text.contains(r#""fields":{"d":[-4.75],"f":[0.10000000149011612]}"#),
+        "{text}"
+    );
+}
+
+#[test]
+fn the_fields_api_reads_a_double_and_a_float_from_the_source() {
+    let shard = shard();
+    let text = response(
+        &shard,
+        r#"{"query":{"term":{"d":-4.75}},"fields":["d","f"],"_source":false}"#,
+    );
+    assert!(
+        text.contains(r#""fields":{"d":[-4.75],"f":[0.1]}"#),
+        "{text}"
+    );
+}
