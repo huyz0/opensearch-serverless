@@ -56,6 +56,8 @@ pub mod extension_host;
 pub mod extension_modules;
 #[cfg(all(feature = "extensions", feature = "writer", feature = "coordinator"))]
 pub mod extension_pins;
+#[cfg(all(feature = "reader", feature = "writer"))]
+pub mod extension_refusals;
 #[cfg(all(feature = "extensions", feature = "writer"))]
 pub mod extension_route;
 #[cfg(feature = "extensions")]

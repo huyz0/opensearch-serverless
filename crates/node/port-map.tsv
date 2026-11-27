@@ -286,3 +286,4 @@ src/boot/tasks.rs	new		the forwarded task call's handler slot and its wiring onc
 src/search_shard_action/tests/pipelines.rs	new		tests that a forwarded search with pipeline aggregations is answered as without them
 src/stored_script_source.rs	new		the node's snapshot of the stored-script set, checked once a TTL, behind the reader's resolver
 src/stored_script_source/tests.rs	new		the cache's cost and freshness over a metered emulator
+src/extension_refusals.rs	new		the node-local count of refused opens of pinned indices, served by the metrics route; the Java shell has none

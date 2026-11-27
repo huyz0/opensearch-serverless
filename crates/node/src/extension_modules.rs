@@ -242,7 +242,11 @@ impl ModuleSource {
             .iter()
             .map(|(k, v)| (k.clone(), text_of(v)))
             .collect();
-        let pins = read_pins(&flat).map_err(|e| unavailable(e.to_string()))?;
+        let pins = read_pins(&flat).map_err(|e| {
+            let why = unavailable(e.to_string());
+            crate::extension_refusals::record(&why);
+            why
+        })?;
         self.open_pins(pins, tenant)
     }
 
@@ -252,6 +256,15 @@ impl ModuleSource {
     ///
     /// As [`ModuleSource::open`], minus the pins not reading.
     pub fn open_pins(
+        &self,
+        pins: Vec<(Pin, ResolvedLimits)>,
+        tenant: &str,
+    ) -> Result<ModuleSet, String> {
+        self.load_pins(pins, tenant)
+            .inspect_err(|why| crate::extension_refusals::record(why))
+    }
+
+    fn load_pins(
         &self,
         pins: Vec<(Pin, ResolvedLimits)>,
         tenant: &str,

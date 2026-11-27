@@ -232,3 +232,25 @@ fn a_queue_that_is_on_reports_what_it_has_done() {
     assert_eq!(s["oss_search_queue_longest_wait_millis"], 7.0);
     assert!(!reply.text().contains("oss_search_slots_"));
 }
+
+// docs/specs/extension-refusal-metric AC-2
+#[test]
+fn the_extension_refusals_are_served_by_why() {
+    let (reply, _) = scrape(0);
+    let before = samples(&reply.text());
+    let busy = before[r#"oss_extension_open_refused_total{reason="busy"}"#];
+    let unavailable = before[r#"oss_extension_open_refused_total{reason="unavailable"}"#];
+    oss_node::extension_refusals::record("extension_unavailable: module [m] is not in the store");
+    oss_node::extension_refusals::record("extension_unavailable: no capacity to compile module");
+    oss_node::extension_refusals::record("extension_unavailable: no capacity to compile module");
+    let (reply, _) = scrape(0);
+    let after = samples(&reply.text());
+    assert_eq!(
+        after[r#"oss_extension_open_refused_total{reason="busy"}"#],
+        busy + 2.0
+    );
+    assert_eq!(
+        after[r#"oss_extension_open_refused_total{reason="unavailable"}"#],
+        unavailable + 1.0
+    );
+}
