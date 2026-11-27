@@ -180,12 +180,14 @@ pub fn write(t: &TermsRequest, out: &mut Output<'_>) -> Result<(), WireError> {
 }
 
 /// The keys of a shard's buckets.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Keys {
     /// `StringTerms`: the terms.
     Text(Vec<String>),
     /// `LongTerms`: the numbers, or the milliseconds of a date.
     Long(Vec<i64>),
+    /// `DoubleTerms`: the doubles of a `double` or `float` field.
+    Double(Vec<f64>),
 }
 
 impl Keys {
@@ -193,6 +195,7 @@ impl Keys {
         match self {
             Self::Text(v) => v.len(),
             Self::Long(v) => v.len(),
+            Self::Double(v) => v.len(),
         }
     }
 }
@@ -244,6 +247,7 @@ impl TermsAnswer {
         match self.keys {
             Keys::Text(_) => "sterms",
             Keys::Long(_) => "lterms",
+            Keys::Double(_) => "dterms",
         }
     }
 
@@ -278,6 +282,9 @@ impl TermsAnswer {
                     out.bytes_reference(terms.get(i).map_or(&[][..], |t| t.as_bytes()))?;
                 }
                 Keys::Long(keys) => out.bytes(&keys.get(i).copied().unwrap_or(0).to_be_bytes())?,
+                Keys::Double(keys) => {
+                    out.bytes(&keys.get(i).copied().unwrap_or(0.0).to_be_bytes())?
+                }
             }
         }
         Ok(())

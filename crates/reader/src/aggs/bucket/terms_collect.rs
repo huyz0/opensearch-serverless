@@ -76,3 +76,14 @@ pub fn too_many_buckets(made: usize, limit: usize) -> ShardError {
         ),
     }
 }
+
+/// The double a `double` or `float` field's `terms` bucket key encodes: the
+/// sortable long the engine counts by.
+pub fn double_of_key(key: i64) -> f64 {
+    lucene_util::numeric_utils::sortable_long_to_double(key)
+}
+
+/// The key of a bucket of the double `value`, as [`double_of_key`] reads it.
+pub fn key_of_double(value: f64) -> i64 {
+    lucene_util::numeric_utils::double_to_sortable_long(value)
+}
