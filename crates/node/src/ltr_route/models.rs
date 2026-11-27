@@ -45,6 +45,13 @@ enum Which {
 }
 
 impl Which {
+    fn slot(self) -> usize {
+        match self {
+            Self::Model => 0,
+            Self::Features => 1,
+        }
+    }
+
     fn kind(self) -> DocKind {
         match self {
             Self::Model => DocKind::LtrModels,
@@ -77,9 +84,42 @@ struct Entry {
     bytes: usize,
 }
 
+/// What one kind of cache has counted since the node started.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CacheCounts {
+    /// Resolutions answered from the cache, fresh or after a marker check.
+    pub hits: u64,
+    /// Resolutions that read the object.
+    pub misses: u64,
+    /// Entries dropped to make room.
+    pub evictions: u64,
+    /// Entries held now.
+    pub entries: usize,
+    /// Bytes those entries are charged.
+    pub bytes: usize,
+}
+
+/// The node's cache counts and the resolutions it served.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NodeStats {
+    /// The model cache.
+    pub model: CacheCounts,
+    /// The feature set cache.
+    pub featureset: CacheCounts,
+    /// Resolutions asked of the cache.
+    pub requests: u64,
+    /// Resolutions that failed.
+    pub errors: u64,
+}
+
 #[derive(Default)]
 struct State {
     entries: HashMap<(Which, String, String), Entry>,
+    hits: [u64; 2],
+    misses: [u64; 2],
+    evictions: [u64; 2],
+    requests: u64,
+    errors: u64,
     held: usize,
     tick: u64,
 }
@@ -273,6 +313,21 @@ impl StoreModels {
         store: Option<&str>,
         name: &str,
     ) -> Result<Loaded, ResolveError> {
+        let out = self.lookup(which, store, name);
+        let mut state = self.lock();
+        state.requests = state.requests.saturating_add(1);
+        if out.is_err() {
+            state.errors = state.errors.saturating_add(1);
+        }
+        out
+    }
+
+    fn lookup(
+        &self,
+        which: Which,
+        store: Option<&str>,
+        name: &str,
+    ) -> Result<Loaded, ResolveError> {
         let store = store.unwrap_or(DEFAULT);
         // ALLOC: one key a resolve.
         let key = (which, store.to_owned(), name.to_owned());
@@ -283,7 +338,9 @@ impl StoreModels {
             match state.entries.get_mut(&key) {
                 Some(e) if e.checked.elapsed() < self.cache.ttl => {
                     e.used = tick;
-                    return Ok(e.resolved.clone());
+                    let found = e.resolved.clone();
+                    state.hits[which.slot()] = state.hits[which.slot()].saturating_add(1);
+                    return Ok(found);
                 }
                 Some(e) => Some(e.version),
                 None => None,
@@ -305,12 +362,15 @@ impl StoreModels {
                 let mut state = self.lock();
                 if let Some(e) = state.entries.get_mut(&key) {
                     e.checked = Instant::now();
-                    return Ok(e.resolved.clone());
+                    let found = e.resolved.clone();
+                    state.hits[which.slot()] = state.hits[which.slot()].saturating_add(1);
+                    return Ok(found);
                 }
             }
         }
         let (resolved, version, held, bytes) = self.load(which, store, name)?;
         let mut state = self.lock();
+        state.misses[which.slot()] = state.misses[which.slot()].saturating_add(1);
         if let Some(old) = state.entries.remove(&key) {
             state.held = state.held.saturating_sub(old.bytes);
         }
@@ -326,6 +386,8 @@ impl StoreModels {
             };
             if let Some(gone) = state.entries.remove(&oldest) {
                 state.held = state.held.saturating_sub(gone.bytes);
+                state.evictions[oldest.0.slot()] =
+                    state.evictions[oldest.0.slot()].saturating_add(1);
             }
         }
         state.tick = state.tick.saturating_add(1);
@@ -349,6 +411,50 @@ impl StoreModels {
     pub fn held(&self) -> (usize, usize) {
         let state = self.lock();
         (state.entries.len(), state.held)
+    }
+
+    /// What the node's cache has counted and holds.
+    pub fn stats(&self) -> NodeStats {
+        let state = self.lock();
+        let of = |w: Which| {
+            let mut c = CacheCounts {
+                hits: state.hits[w.slot()],
+                misses: state.misses[w.slot()],
+                evictions: state.evictions[w.slot()],
+                ..CacheCounts::default()
+            };
+            for (k, e) in &state.entries {
+                if k.0 == w {
+                    c.entries = c.entries.saturating_add(1);
+                    c.bytes = c.bytes.saturating_add(e.bytes);
+                }
+            }
+            c
+        };
+        NodeStats {
+            model: of(Which::Model),
+            featureset: of(Which::Features),
+            requests: state.requests,
+            errors: state.errors,
+        }
+    }
+
+    /// Forgets what is cached of `store` (the default store when `None`),
+    /// and returns how many entries went.
+    pub fn clear_store(&self, store: &str) -> usize {
+        let mut state = self.lock();
+        let gone: Vec<_> = state
+            .entries
+            .keys()
+            .filter(|k| k.1 == store)
+            .cloned()
+            .collect();
+        for k in &gone {
+            if let Some(e) = state.entries.remove(k) {
+                state.held = state.held.saturating_sub(e.bytes);
+            }
+        }
+        gone.len()
     }
 
     /// Forgets every cached model.

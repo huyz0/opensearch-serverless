@@ -275,3 +275,4 @@ src/boot/config/ltr.rs	new		the learning to rank bounds read from the environmen
 src/search_shard_action/rare.rs	new		a rare_terms partial as the forwarded answer, with the hashes of its filter
 src/search_shard_action/multi.rs	new		a multi_terms partial as the forwarded answer
 src/search_shard_action/tests/rare_multi.rs	new		tests of rare.rs and multi.rs against the bytes Java wrote
+src/ltr_route/stats.rs	new		_stats and _clearcache of the learning to rank plugin, for this node
