@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::dsl::parse_chunks;
+use crate::dsl::queries::case_insensitive::Kind;
 use crate::failure::Failure;
 
 fn more(body: &str) -> More {
@@ -192,7 +193,7 @@ fn string_queries_refuse_bad_shapes_and_unserved_options() {
         "[regexp] max_determinized_states cannot be negative but was [-1]"
     );
     for unsupported in [
-        r#"{"prefix":{"tag":{"value":"a","case_insensitive":true}}}"#,
+        r#"{"regexp":{"tag":{"value":"a","case_insensitive":true}}}"#,
         r#"{"prefix":{"tag":{"value":"a","rewrite":"scoring_boolean"}}}"#,
         r#"{"wildcard":{"tag":{"value":"a","_name":"n"}}}"#,
         r#"{"regexp":{"tag":{"value":"a","flags":"INTERSECTION"}}}"#,
@@ -410,5 +411,25 @@ fn every_query_reports_its_boost() {
         (r#"{"match_none":{"boost":11}}"#, 11.0),
     ] {
         assert_eq!(more(&q(body)).boost(), boost, "{body}");
+    }
+}
+
+#[test]
+fn case_insensitive_term_level_queries_are_read() {
+    for (body, kind) in [
+        (
+            r#"{"prefix":{"tag":{"value":"a","boost":2,"case_insensitive":true}}}"#,
+            Kind::Prefix,
+        ),
+        (
+            r#"{"wildcard":{"tag":{"value":"a*","case_insensitive":true}}}"#,
+            Kind::Wildcard,
+        ),
+    ] {
+        let m = more(&q(body));
+        assert!(
+            matches!(m, More::CaseInsensitive { kind: k, .. } if k == kind),
+            "{body}: {m:?}"
+        );
     }
 }

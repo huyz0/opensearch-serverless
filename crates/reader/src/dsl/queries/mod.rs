@@ -9,6 +9,7 @@
 //! but this reader does not serve yet is refused rather than ignored.
 
 pub mod build;
+pub mod case_insensitive;
 pub mod compound;
 pub mod full_text;
 pub mod full_text_build;
@@ -166,6 +167,17 @@ pub enum More {
         /// The boost.
         boost: f32,
     },
+    /// A `term`, `prefix` or `wildcard` query with `case_insensitive: true`.
+    CaseInsensitive {
+        /// Which query.
+        kind: case_insensitive::Kind,
+        /// The field.
+        field: String,
+        /// The term, prefix or pattern.
+        value: String,
+        /// The boost.
+        boost: f32,
+    },
     /// `ConstantScoreQueryBuilder`.
     ConstantScore {
         /// The filter.
@@ -234,6 +246,7 @@ impl More {
             More::Terms { boost, .. }
             | More::Prefix { boost, .. }
             | More::Wildcard { boost, .. }
+            | More::CaseInsensitive { boost, .. }
             | More::Regexp { boost, .. }
             | More::Fuzzy { boost, .. }
             | More::Exists { boost, .. }

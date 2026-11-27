@@ -221,6 +221,7 @@ fn parse_term(p: &mut Parser<'_>) -> Result<Query, DslError> {
     let mut field: Option<&str> = None;
     let mut value = None;
     let mut boost = 1.0;
+    let mut ci = false;
     let mut current = "";
     while let Some(token) = next_or_end(p, Kind::EndObject) {
         match token {
@@ -235,11 +236,7 @@ fn parse_term(p: &mut Parser<'_>) -> Result<Query, DslError> {
                         (Kind::FieldName, _) => current = p.text(),
                         (_, "term" | "value") => value = object_value(p)?,
                         (_, "boost") => boost = float_value(p)?,
-                        (_, "case_insensitive") => {
-                            if bool_value(p)? {
-                                return Err(DslError::unsupported("[case_insensitive] true"));
-                            }
-                        }
+                        (_, "case_insensitive") => ci = bool_value(p)?,
                         (_, "_name") => return Err(DslError::unsupported("[_name]")),
                         _ => return Err(does_not_support(p, "term", current)),
                     }
@@ -272,6 +269,18 @@ fn parse_term(p: &mut Parser<'_>) -> Result<Query, DslError> {
             "value cannot be null"
         }));
     };
+    if ci {
+        // ALLOC: one box a clause, bounded by the body's recording.
+        return Ok(Query::More(Box::new(
+            crate::dsl::queries::More::CaseInsensitive {
+                kind: crate::dsl::queries::case_insensitive::Kind::Term,
+                // ALLOC: one field name and one value a clause, bounded by the body's recording.
+                field: field.to_owned(),
+                value: value.text().to_owned(),
+                boost,
+            },
+        )));
+    }
     Ok(Query::Term {
         // ALLOC: one field name a clause, bounded by the body's recording.
         field: field.to_owned(),

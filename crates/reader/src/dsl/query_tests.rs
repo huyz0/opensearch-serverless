@@ -98,10 +98,10 @@ fn term_errors_are_opensearchs() {
         reason(r#"{"query":{"term":{}}}"#),
         "field name is null or empty"
     );
-    assert!(
-        reason(r#"{"query":{"term":{"a":{"value":"x","case_insensitive":true}}}}"#)
-            .contains("not supported")
-    );
+    assert!(matches!(
+        query(r#"{"query":{"term":{"a":{"value":"x","case_insensitive":true}}}}"#).ok(),
+        Some(Query::More(_))
+    ));
     assert!(
         reason(r#"{"query":{"term":{"a":{"value":"x","_name":"n"}}}}"#).contains("not supported")
     );
