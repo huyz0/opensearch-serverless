@@ -41,7 +41,7 @@ fn recorded(file: &str) -> Vec<u8> {
 
 /// The recorded shard's files, by physical name and bytes, read as the
 /// restore's fixture lists them.
-fn shard_files() -> Vec<(String, Vec<u8>)> {
+pub(crate) fn shard_files() -> Vec<(String, Vec<u8>)> {
     let mut json = Vec::new();
     oss_format::stock_blob_to_json(
         &recorded("snap-q6tlFJQcRUS97oE_eOaE7Q.dat"),
@@ -60,7 +60,7 @@ fn shard_files() -> Vec<(String, Vec<u8>)> {
         .collect()
 }
 
-fn rig(enabled: bool, tag: &str) -> Rig {
+pub(crate) fn rig(enabled: bool, tag: &str) -> Rig {
     let root = std::env::temp_dir().join(format!("oss-export-{tag}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(root.join("out")).unwrap();
@@ -248,47 +248,6 @@ fn a_second_take_keeps_the_first_and_reuses_the_index_id() {
     let again = send(&r, "PUT", &format!("/_snapshot/stock/s1{WAIT}"), Some(TAKE));
     assert_eq!(again.status, 400, "{}", again.text());
     assert!(again.text().contains("snapshot_already_exists"));
-}
-
-/// Both snapshots of a repository the Rust node wrote restore on the Rust
-/// node, each into its own new index, every file whole.
-#[test]
-fn both_snapshots_of_a_repository_restore_on_the_rust_node() {
-    use crate::snapshot_restore::{read, restored_uuid, send as send_restore};
-    use crate::stock_restore::{POOL, register, rig as restore_rig};
-
-    let r = rig(true, "restore-both");
-    for name in ["s1", "s2"] {
-        let reply = send(
-            &r,
-            "PUT",
-            &format!("/_snapshot/stock/{name}{WAIT}"),
-            Some(TAKE),
-        );
-        assert_eq!(reply.status, 200, "{}", reply.text());
-    }
-    let node = restore_rig(&r.root, true, POOL);
-    register(&node, &r.out());
-    for (snap, index) in [("s1", "logs_one"), ("s2", "logs_two")] {
-        let body = format!(r#"{{"rename_pattern":"logs","rename_replacement":"{index}"}}"#);
-        let reply = send_restore(
-            &node,
-            "POST",
-            &format!("/_snapshot/stock/{snap}/_restore{WAIT}"),
-            Some(&body),
-        );
-        assert_eq!(reply.status, 200, "{snap}: {}", reply.text());
-        let uuid = restored_uuid(&node, index);
-        let shard = ShardRef {
-            index,
-            uuid: &uuid,
-            shard: 0,
-        };
-        let dir = format!("{}t=1/", shard.base_path("").unwrap());
-        for (file, bytes) in shard_files() {
-            assert_eq!(read(&node, &format!("{dir}{file}")), bytes, "{snap} {file}");
-        }
-    }
 }
 
 #[test]
