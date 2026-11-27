@@ -1,6 +1,7 @@
 //! `ForwardedSearchResponse` as the Java shell reads it: one shard's total
-//! and hits, with no aggregations.
+//! hits and the single-value metric aggregations it was asked for.
 
+use super::aggs::{AggAnswer, write_answers};
 use crate::error::WireError;
 use crate::stream::Output;
 
@@ -82,19 +83,30 @@ fn hit(out: &mut Output<'_>, hit: &Hit<'_>) -> Result<(), WireError> {
 }
 
 impl Response {
-    /// `ForwardedSearchResponse.writeTo` for `hits` in the shard's order.
+    /// `ForwardedSearchResponse.writeTo` for `hits` in the shard's order and
+    /// the shard's unreduced `aggregations`.
     ///
     /// # Errors
     ///
     /// [`WireError::TooLarge`] past the writer's limit; use
     /// [`MAX_BYTES`] for an answer.
-    pub fn write(&self, hits: &[Hit<'_>], out: &mut Output<'_>) -> Result<(), WireError> {
+    pub fn write(
+        &self,
+        hits: &[Hit<'_>],
+        aggregations: &[AggAnswer<'_>],
+        out: &mut Output<'_>,
+    ) -> Result<(), WireError> {
         out.vlong(self.total)?;
         out.count(hits.len())?;
         for h in hits {
             hit(out, h)?;
         }
-        out.bool(false)?; // no aggregations
+        if aggregations.is_empty() {
+            out.bool(false)?;
+        } else {
+            out.bool(true)?;
+            write_answers(aggregations, out)?;
+        }
         out.bool(self.total_is_lower_bound)?;
         float(out, self.max_score)?;
         out.bool(self.timed_out)?;

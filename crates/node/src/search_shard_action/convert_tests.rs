@@ -69,3 +69,28 @@ fn a_named_query_is_refused_for_the_answer_cannot_say_which_matched() {
     }
     assert!(matches!(search_source(&named), Err(ConvertError::Named)));
 }
+
+#[test]
+fn the_aggregations_of_a_request_reach_the_source() {
+    use oss_transport::actions::search_shard::{AggKind, AggRequest};
+    let mut with = read("request.match_all");
+    with.aggregations = vec![
+        AggRequest {
+            name: "hi".to_owned(),
+            kind: AggKind::Max,
+            field: "n".to_owned(),
+        },
+        AggRequest {
+            name: "c".to_owned(),
+            kind: AggKind::ValueCount,
+            field: "tag".to_owned(),
+        },
+    ];
+    let s = search_source(&with).expect("a search source");
+    let names: Vec<(&str, &str)> = s
+        .aggs
+        .iter()
+        .map(|a| (a.name.as_str(), a.field.as_str()))
+        .collect();
+    assert_eq!(names, [("hi", "n"), ("c", "tag")]);
+}

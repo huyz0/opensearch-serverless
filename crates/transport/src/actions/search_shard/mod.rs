@@ -7,10 +7,12 @@
 //! so the request is read in field order and refused at the first item this
 //! node cannot run; nothing after it is read.
 
+pub mod aggs;
 mod query;
 mod response;
 mod write;
 
+pub use aggs::{AggAnswer, AggKind, AggRequest, AggValue};
 pub use query::{Limits, Node, Query, Value};
 pub use response::{Hit, MAX_BYTES, Response};
 
@@ -59,6 +61,8 @@ pub struct Source {
     pub track_total_hits_up_to: Option<i32>,
     /// `_source` as `(fetch, includes, excludes)`, when the request set it.
     pub fetch_source: Option<(bool, Vec<String>, Vec<String>)>,
+    /// The aggregations asked for, in request order.
+    pub aggregations: Vec<aggs::AggRequest>,
 }
 
 /// One shard's search, forwarded to its owner (`ForwardedSearchRequest`).
@@ -120,7 +124,12 @@ fn not_true(input: &mut Input<'_>, what: &'static str) -> Result<(), Refusal> {
 }
 
 fn source(input: &mut Input<'_>, bounds: &Bounds) -> Result<Source, Refusal> {
-    none(input, "aggregations")?;
+    let aggregations = if input.bool("aggregations")? {
+        aggs::read(input)?
+    } else {
+        // ALLOC: empty.
+        Vec::new()
+    };
     not_true(input, "explain")?;
     let fetch_source = if input.bool("_source")? {
         let fetch = input.bool("_source fetch")?;
@@ -198,6 +207,7 @@ fn source(input: &mut Input<'_>, bounds: &Bounds) -> Result<Source, Refusal> {
         timeout_millis,
         track_total_hits_up_to,
         fetch_source,
+        aggregations,
     })
 }
 

@@ -71,5 +71,7 @@ pub fn run<S: BlobStore + 'static>(
         max_score: query.hits.max_score,
         terminated_early: query.hits.terminated_early,
         rows,
+        // ALLOC: one result an aggregation, bounded by the request's.
+        aggregations: query.hits.aggregations.clone(),
     })
 }
