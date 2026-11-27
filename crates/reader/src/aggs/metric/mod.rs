@@ -93,13 +93,16 @@ pub enum Metric {
     /// `reverse_nested`: the parents of the nested documents collected,
     /// counted and aggregated in one bucket.
     ReverseNested,
+    /// `date_range`: the documents counted in each of given ranges of a
+    /// date field, its bounds read as dates.
+    DateRange,
     /// `missing`: the documents counted that have no value for a field.
     Missing,
 }
 
 impl Metric {
     /// Every metric served, by its aggregation type name.
-    pub const ALL: [Metric; 20] = [
+    pub const ALL: [Metric; 21] = [
         Metric::Min,
         Metric::Max,
         Metric::Sum,
@@ -120,6 +123,7 @@ impl Metric {
         Metric::Nested,
         Metric::ReverseNested,
         Metric::Missing,
+        Metric::DateRange,
     ];
 
     /// The aggregation type name.
@@ -145,6 +149,7 @@ impl Metric {
             Metric::Nested => "nested",
             Metric::ReverseNested => "reverse_nested",
             Metric::Missing => "missing",
+            Metric::DateRange => "date_range",
         }
     }
 
@@ -243,7 +248,7 @@ pub fn state_bytes(aggs: &[MetricAgg]) -> usize {
             }
             // A bucket, the engine's bounds and count, and each key, kept
             // by the request and by the result.
-            Metric::Range => agg.range.as_ref().map_or(0, |r| {
+            Metric::Range | Metric::DateRange => agg.range.as_ref().map_or(0, |r| {
                 let per_range = std::mem::size_of::<crate::aggs::bucket::range::RangeBucket>()
                     .saturating_add(std::mem::size_of::<[f64; 2]>())
                     .saturating_add(std::mem::size_of::<u64>());

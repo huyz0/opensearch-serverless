@@ -67,6 +67,7 @@ fn needs(metric: Metric) -> u8 {
         | Metric::Histogram
         | Metric::DateHistogram => NEED_COUNT,
         Metric::Range
+        | Metric::DateRange
         | Metric::Filters
         | Metric::Filter
         | Metric::Missing
@@ -105,7 +106,7 @@ pub(crate) fn value_of(agg: &MetricAgg, state: &MetricState) -> Value {
         Metric::DateHistogram => Value::DateHistogram(Box::new(date_histogram_collect::empty(
             &date_histogram_spec(agg),
         ))),
-        Metric::Range => range_collect::value(agg, &[]),
+        Metric::Range | Metric::DateRange => range_collect::value(agg, &[]),
         Metric::Filters
         | Metric::Filter
         | Metric::Missing
@@ -159,7 +160,7 @@ pub(crate) fn node(agg: &MetricAgg, precision: u32) -> AggNode {
         Metric::DateHistogram => {
             date_histogram_collect::node(&agg.field, &date_histogram_spec(agg))
         }
-        Metric::Range => range_collect::node(agg),
+        Metric::Range | Metric::DateRange => range_collect::node(agg),
         Metric::Composite => unreachable!("a composite's node is made by composite_collect::node"),
         Metric::Cardinality => AggNode::Cardinality {
             field,
