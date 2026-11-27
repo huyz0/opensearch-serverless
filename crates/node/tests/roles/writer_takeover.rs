@@ -120,8 +120,27 @@ pub(crate) fn node_full(
     later: bool,
     takeover: Option<Takeover>,
     staging: Option<Duration>,
-    (logging, opening, deadline): (bool, bool, Option<Duration>),
+    modes: (bool, bool, Option<Duration>),
     packs: Option<oss_node::writer::PackConfig>,
+) -> Node {
+    node_built(c, id, term, later, takeover, staging, modes, (packs, None))
+}
+
+/// [`node_full`], also running the modules `loader` loads for an index that
+/// pins any.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn node_built(
+    c: &Cluster,
+    id: &str,
+    term: u64,
+    later: bool,
+    takeover: Option<Takeover>,
+    staging: Option<Duration>,
+    (logging, opening, deadline): (bool, bool, Option<Duration>),
+    (packs, loader): (
+        Option<oss_node::writer::PackConfig>,
+        Option<Arc<dyn oss_node::writer::ModuleLoader>>,
+    ),
 ) -> Node {
     let clock: Arc<dyn LeaseClock> = if later {
         Arc::new(Later)
@@ -195,6 +214,9 @@ pub(crate) fn node_full(
             .with_takeover(takeover)
             .with_open_from_logged(opening);
     }
+    if let Some(loader) = loader {
+        opener = opener.with_modules(loader);
+    }
     let mut publishing =
         Publishing::new(dynstore, "", id, Policy::new(0, 0, 250), Box::new(|| 1_000));
     if let Some(age) = staging {
@@ -252,6 +274,11 @@ pub(crate) fn write(role: &WriterRole, id: &str) -> ItemResult {
 
 /// [`write`] into index `index`.
 pub(crate) fn write_to(role: &WriterRole, index: &str, id: &str) -> ItemResult {
+    write_source(role, index, id, r#"{"n":1}"#)
+}
+
+/// [`write_to`] with the document `source`.
+pub(crate) fn write_source(role: &WriterRole, index: &str, id: &str, source: &str) -> ItemResult {
     let defaults = Defaults {
         index: Some(index.into()),
         ..Defaults::default()
@@ -265,7 +292,7 @@ pub(crate) fn write_to(role: &WriterRole, index: &str, id: &str) -> ItemResult {
     let mut ids = IdGenerator::new(0, [0; 6]);
     let mut buffer = [0u8; 4096];
     let mut run = Bulk::new(&mut target, &mut ids, 1, false);
-    let body = format!("{{\"index\":{{\"_id\":\"{id}\"}}}}\n{{\"n\":1}}\n");
+    let body = format!("{{\"index\":{{\"_id\":\"{id}\"}}}}\n{source}\n");
     stream(
         &mut body.as_bytes(),
         &mut buffer,
