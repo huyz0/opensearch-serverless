@@ -60,7 +60,7 @@ fn escaped(bytes: &[u8]) -> String {
 }
 
 /// An analyzer module whose every call answers the one token `probe`.
-fn module() -> Vec<u8> {
+pub(crate) fn module() -> Vec<u8> {
     let mut o = Vec::new();
     for w in [1, 5] {
         word(&mut o, w);
@@ -118,13 +118,13 @@ fn descriptor(hash: &str) -> String {
     )
 }
 
-struct Rig {
-    server: oss_rest::Server,
-    service: Arc<oss_node::search::SearchService<FsStore>>,
+pub(crate) struct Rig {
+    pub(crate) server: oss_rest::Server,
+    pub(crate) service: Arc<oss_node::search::SearchService<FsStore>>,
 }
 
 /// A published one-document shard of a pinned index, and a reader on it.
-fn rig(root: &std::path::Path, dir: &ByteBuffersDirectory, wasm: &[u8]) -> Rig {
+pub(crate) fn rig(root: &std::path::Path, dir: &ByteBuffersDirectory, wasm: &[u8]) -> Rig {
     let writer_store = Arc::new(FsStore::new(root).expect("store"));
     let hash = extension_store::hash_of(wasm);
     extension_store::write_once(writer_store.as_ref(), "", &hash, wasm).expect("module");
@@ -182,7 +182,7 @@ fn rig(root: &std::path::Path, dir: &ByteBuffersDirectory, wasm: &[u8]) -> Rig {
     Rig { server, service }
 }
 
-fn modules(root: &std::path::Path) -> Arc<ModuleSource> {
+pub(crate) fn modules(root: &std::path::Path) -> Arc<ModuleSource> {
     let budget = MemoryBudget::new(
         &BudgetConfig::new(256 << 20)
             .with_pool(Pool::RequestBodies, 32 << 20)
