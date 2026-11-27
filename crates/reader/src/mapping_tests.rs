@@ -155,3 +155,44 @@ fn nested_objects_are_paths_that_hold_their_fields() {
             .has_nested()
     );
 }
+
+#[test]
+fn what_the_fields_api_reads_of_a_field_is_recorded() {
+    let m = Mapping::from_json(
+        r#"{"properties":{
+          "t":{"type":"text","fields":{"k":{"type":"keyword","ignore_above":8}}},
+          "n":{"type":"keyword","null_value":"x"},
+          "i":{"type":"integer","ignore_malformed":true},
+          "c":{"type":"long","coerce":false},
+          "p":{"type":"text","index_prefixes":{}},
+          "q":{"type":"text","index_phrases":true},
+          "r":{"type":"text","index_phrases":false},
+          "a":{"type":"keyword","copy_to":"x"},
+          "b":{"type":"keyword","copy_to":["y","z"]}
+        }}"#,
+    )
+    .expect("reads");
+    let fetch = |name: &str| m.get(name).expect("a field").fetch.clone();
+    assert_eq!(fetch("t").parent, None);
+    assert_eq!(fetch("t.k").parent.as_deref(), Some("t"));
+    assert_eq!(fetch("t.k").ignore_above, Some(8));
+    for (name, option) in [
+        ("n", "null_value"),
+        ("i", "ignore_malformed"),
+        ("c", "coerce"),
+        ("p", "index_prefixes"),
+        ("q", "index_phrases"),
+    ] {
+        assert_eq!(fetch(name).unserved, Some(option), "{name}");
+    }
+    assert_eq!(fetch("r").unserved, None);
+    for (name, target) in [
+        ("x", true),
+        ("y", true),
+        ("z", true),
+        ("a", false),
+        ("t", false),
+    ] {
+        assert_eq!(m.is_copy_target(name), target, "{name}");
+    }
+}
