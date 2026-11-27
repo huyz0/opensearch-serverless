@@ -235,7 +235,7 @@ fn a_match_is_analysed_by_the_module_the_index_pins() {
 
 /// Each query that analyses its text, over the one field the index pins: every text is the term
 /// `probe` to the module, so each finds the document, and the built-in analyzer would find none.
-const TEXT_QUERIES: [(&str, &str); 6] = [
+pub(crate) const TEXT_QUERIES: [(&str, &str); 6] = [
     ("match", r#"{"match":{"t":"zzzzzzz"}}"#),
     ("match_phrase", r#"{"match_phrase":{"t":"zzzzzzz"}}"#),
     (
