@@ -69,6 +69,13 @@ pub(super) fn value(
                     .map_or_else(|| Digest::new(*compression).to_bytes(), Digest::to_bytes),
             }
         }
+        // The wire's `LongTerms` cannot carry a double's keys; `DoubleTerms` is not written yet.
+        Part::Terms(_) if format == Format::Double => {
+            return Err(refuse(
+                "a [terms] over a double or float field is not served to another node yet",
+                "BAD_REQUEST",
+            ));
+        }
         Part::Terms(r) => AggValue::Terms(terms::numeric(r, request(asked, name)?)?),
         Part::KeywordTerms(r) => AggValue::Terms(terms::keyword(r, request(asked, name)?)?),
         Part::DateHistogram(r) => {

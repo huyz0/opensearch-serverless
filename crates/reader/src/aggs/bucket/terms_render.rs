@@ -22,7 +22,13 @@ pub fn write_terms(out: &mut dyn Write, format: Format, result: &TermsResult) ->
         if i > 0 {
             out.write_all(b",")?;
         }
-        write!(out, "{{\"key\":{key}")?;
+        if format == Format::Double {
+            out.write_all(b"{\"key\":")?;
+            let d = lucene_util::numeric_utils::sortable_long_to_double(*key);
+            out.write_all(crate::template::java_double(d).as_bytes())?;
+        } else {
+            write!(out, "{{\"key\":{key}")?;
+        }
         if format == Format::Date {
             out.write_all(b",\"key_as_string\":\"")?;
             write_date(out, *key)?;

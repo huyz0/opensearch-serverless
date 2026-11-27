@@ -10,14 +10,14 @@ use crate::aggs::bucket::terms::{TermsResult, TermsSpec};
 use crate::failure::Failure;
 use crate::search::ShardError;
 
-/// The engine's node for a `terms` of the long (or date) field `field`.
-pub fn node(field: &str, spec: &TermsSpec) -> AggNode {
+/// The engine's node for a `terms` of the number field `field`, read as `values`.
+pub fn node(field: &str, spec: &TermsSpec, values: ValueKind) -> AggNode {
     AggNode::NumericTerms {
         // ALLOC: one field name an aggregation, bounded by the request's.
         field: field.to_owned(),
         missing: None,
         script: None,
-        kind: ValueKind::Long,
+        kind: values,
         // Ordered by a sub-aggregation, the engine keeps every bucket (up to
         // the limit) for the shard to order and cut.
         shard_size: if spec.sub_order.is_some() {

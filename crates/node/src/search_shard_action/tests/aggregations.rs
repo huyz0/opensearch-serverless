@@ -446,3 +446,19 @@ fn a_date_histogram_in_a_time_zone_is_refused() {
     .unwrap_err();
     assert!(format!("{refused:?}").contains("time zone"), "{refused:?}");
 }
+
+#[test]
+fn a_terms_over_a_double_field_is_refused_rather_than_sent_as_long_terms() {
+    use oss_reader::aggs::partial::{Format, Partial, Value as Part};
+    use oss_transport::actions::search_shard::Order;
+    let part = Partial {
+        name: "u".to_owned(),
+        format: Format::Double,
+        value: Part::Terms(Box::default()),
+    };
+    let error = ask_with(vec![terms_request("u", Order::KeyAsc)], vec![part]).unwrap_err();
+    assert!(
+        format!("{error:?}").contains("not served to another node yet"),
+        "{error:?}"
+    );
+}

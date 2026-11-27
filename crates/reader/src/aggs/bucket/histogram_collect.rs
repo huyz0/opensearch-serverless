@@ -10,14 +10,14 @@ use crate::aggs::bucket::sub_values::BucketSubs;
 use crate::failure::Failure;
 use crate::search::ShardError;
 
-/// The engine's node for a `histogram` of the long (or date) field `field`.
-pub fn node(field: &str, spec: &HistogramSpec) -> AggNode {
+/// The engine's node for a `histogram` of the number field `field`, read as `values`.
+pub fn node(field: &str, spec: &HistogramSpec, values: ValueKind) -> AggNode {
     AggNode::Histogram {
         // ALLOC: one field name an aggregation, bounded by the request's.
         field: field.to_owned(),
         missing: None,
         script: None,
-        kind: ValueKind::Long,
+        kind: values,
         interval: spec.interval,
         offset: spec.offset,
         hard_bounds: spec.hard_bounds,

@@ -19,7 +19,7 @@ use crate::dsl::parse_chunks;
 use crate::search::{ShardError, search};
 use crate::{OpenShard, open_shard};
 
-fn source(body: &str) -> crate::dsl::SearchSource {
+pub(super) fn source(body: &str) -> crate::dsl::SearchSource {
     parse_chunks([body.as_bytes()]).expect("parses")
 }
 

@@ -25,6 +25,9 @@ pub enum Format {
     /// `DocValueFormat.DateTime` in the default date format: each value also
     /// as `strict_date_optional_time` text.
     Date,
+    /// A `double` or `float` field's `terms`: each key is the sortable long
+    /// the engine counts by, written as the double it encodes.
+    Double,
 }
 
 /// What one shard computed for one aggregation.
