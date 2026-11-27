@@ -44,7 +44,7 @@ Fifth slice: `order` of a keyword `terms` by a metric sub-aggregation: `{"m": "d
 
 ## Test plan
 
-Unit tests in `aggs/bucket/keyword_terms_tests.rs` (reduce, writing: AC-3, AC-4), `aggs/bucket/keyword_collect_tests.rs` over an `oss-testkit` index of four segments (AC-1, AC-2, AC-5), `crates/coordinator/tests/keyword_terms_reduce.rs` (AC-3 across shards), the budget gate in `crates/node/tests/it/aggs_budgets.rs` (AC-6); the second slice in `keyword_options_tests.rs` (AC-9) and the end of `keyword_collect_tests.rs` (AC-7, AC-8); the third in the same files (AC-10 to AC-13; AC-14 to AC-16 in `keyword_subs_tests.rs`) and `crates/coordinator/tests/keyword_terms_reduce.rs` (AC-11).
+Unit tests in `aggs/bucket/keyword_terms_tests.rs` (reduce, writing: AC-3, AC-4), `aggs/bucket/keyword_collect_tests.rs` over an `oss-testkit` index of four segments (AC-1, AC-2, AC-5), `crates/coordinator/tests/it/keyword_terms_reduce.rs` (AC-3 across shards), the budget gate in `crates/node/tests/it/aggs_budgets.rs` (AC-6); the second slice in `keyword_options_tests.rs` (AC-9) and the end of `keyword_collect_tests.rs` (AC-7, AC-8); the third in the same files (AC-10 to AC-13; AC-14 to AC-16 in `keyword_subs_tests.rs`) and `crates/coordinator/tests/it/keyword_terms_reduce.rs` (AC-11).
 
 ## S3 request budget
 

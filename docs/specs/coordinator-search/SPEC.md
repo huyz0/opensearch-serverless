@@ -21,7 +21,7 @@ Parity plan R7.6, node assembly: the glue that takes a search over an index's sh
 
 ## Test plan
 
-`crates/coordinator/tests/search.rs` over a fake `Shards` holding canned hits: one test per criterion, bodies asserted exactly.
+`crates/coordinator/tests/it/search.rs` over a fake `Shards` holding canned hits: one test per criterion, bodies asserted exactly.
 
 ## S3 request budget
 

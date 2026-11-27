@@ -23,7 +23,7 @@ Refused (400, "[terminate_after] with ... is not supported by this node yet"): a
 
 ## Test plan
 
-Reader unit tests in `crates/reader/src/search_tests.rs` (the cut, the pass-through, parsing, refusals); `crates/coordinator/tests/search.rs` (the head and the OR); `crates/node/tests/it/search_hits.rs` (end to end over `compat-term`). The expected bodies are read from the Java and lucene-rust's parity notes, not recorded from OpenSearch, so they are provisional.
+Reader unit tests in `crates/reader/src/search_tests.rs` (the cut, the pass-through, parsing, refusals); `crates/coordinator/tests/it/search.rs` (the head and the OR); `crates/node/tests/it/search_hits.rs` (end to end over `compat-term`). The expected bodies are read from the Java and lucene-rust's parity notes, not recorded from OpenSearch, so they are provisional.
 
 ## S3 request budget
 

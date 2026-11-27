@@ -22,7 +22,7 @@ Served keys: `filters` (an array, keyed `0`, `1`, ... in request order, or an ob
 
 ## Test plan
 
-Unit tests in `aggs/bucket/filters_tests.rs` (AC-1, AC-5, AC-6), `aggs/bucket/filters_collect_tests.rs` over an `oss-testkit` index (AC-2, AC-3, AC-7), `crates/coordinator/tests/filters_reduce.rs` (AC-5 across shards), the budget gate in `crates/node/tests/it/aggs_budgets.rs` (AC-8). Expected values come from reading `FiltersAggregationBuilder`, `FiltersAggregator` and `InternalFilters` at 3.10.0; no stock recording of these steps exists yet.
+Unit tests in `aggs/bucket/filters_tests.rs` (AC-1, AC-5, AC-6), `aggs/bucket/filters_collect_tests.rs` over an `oss-testkit` index (AC-2, AC-3, AC-7), `crates/coordinator/tests/it/filters_reduce.rs` (AC-5 across shards), the budget gate in `crates/node/tests/it/aggs_budgets.rs` (AC-8). Expected values come from reading `FiltersAggregationBuilder`, `FiltersAggregator` and `InternalFilters` at 3.10.0; no stock recording of these steps exists yet.
 
 ## S3 request budget
 
