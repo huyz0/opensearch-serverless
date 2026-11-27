@@ -190,17 +190,6 @@ impl Rig {
         }
     }
 
-    fn direct_settled(&self, method: &str, path: &str, body: Option<&str>) -> Ans {
-        let started = Instant::now();
-        loop {
-            let reply = self.direct(method, path, body);
-            if reply.status != 500 || started.elapsed() > Duration::from_secs(90) {
-                return reply;
-            }
-            std::thread::sleep(Duration::from_secs(2));
-        }
-    }
-
     /// Asks both ways and requires the same status and body.
     fn same_both_ways(&self, method: &str, path: &str, body: Option<&str>) -> Ans {
         let direct = self.direct(method, path, body);
@@ -316,9 +305,9 @@ fn the_anomaly_detection_endpoints_of_the_real_plugin_answer_through_a_rust_node
     else {
         return;
     };
-    // The detector reads an index the Java node made and owns: one a Rust
-    // node owns answers the plugin's own search 503 (see VERIFIED.md).
-    let made = rig.direct_settled(
+    // The detector reads an index a Rust node made and owns, so the plugin's
+    // metric aggregations are forwarded to the Rust node.
+    let made = rig.proxied_settled(
         "PUT",
         "/ad-source",
         Some(r#"{"mappings":{"properties":{"ts":{"type":"date"},"cpu":{"type":"double"}}}}"#),
