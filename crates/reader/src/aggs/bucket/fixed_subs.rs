@@ -22,6 +22,7 @@ pub fn is_fixed(agg: &MetricAgg) -> bool {
     matches!(
         agg.metric,
         Metric::Range
+            | Metric::DateRange
             | Metric::Filters
             | Metric::Filter
             | Metric::Missing

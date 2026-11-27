@@ -26,6 +26,7 @@ pub fn is_nested(agg: &MetricAgg) -> bool {
     matches!(
         agg.metric,
         Metric::Range
+            | Metric::DateRange
             | Metric::Filters
             | Metric::Filter
             | Metric::Missing
@@ -73,6 +74,7 @@ pub fn build<S: BlobStore + 'static>(
 ) -> Result<Vec<Value>, ShardError> {
     match agg.metric {
         Metric::Range
+        | Metric::DateRange
         | Metric::Filters
         | Metric::Filter
         | Metric::Missing
@@ -223,6 +225,7 @@ pub fn reserved<S: BlobStore + 'static>(
 ) -> usize {
     let own = match agg.metric {
         Metric::Range
+        | Metric::DateRange
         | Metric::Filters
         | Metric::Filter
         | Metric::Missing
