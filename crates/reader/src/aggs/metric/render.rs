@@ -22,7 +22,7 @@ use crate::aggs::metric::percentiles::write_percentiles;
 use crate::aggs::metric::top_hits::TopHitsResult;
 use crate::aggs::metric::typed::{scoped, write_key, write_pipeline_key};
 use crate::aggs::partial::{Format, Partial, Value};
-use crate::aggs::pipeline::{PipelineAgg, compute};
+use crate::aggs::pipeline::{PipelineAgg, compute, parent};
 
 /// Writes a `top_hits` result's body: `"hits":{..}`, with its hits fetched.
 pub type HitsWriter<'a> = dyn FnMut(&mut dyn Write, &str, &TopHitsResult) -> io::Result<()> + 'a;
@@ -67,58 +67,85 @@ pub fn write_aggregations_piped(
     typed: bool,
     hits: &mut HitsWriter<'_>,
 ) -> io::Result<()> {
-    scoped(typed, || write_parts(out, parts, pipelines, hits))
+    scoped(typed, || write_parts(out, parts, pipelines, typed, hits))
 }
 
 fn write_parts(
     out: &mut dyn Write,
     parts: &[Partial],
-    pipelines: &[PipelineAgg],
+    all: &[PipelineAgg],
+    typed: bool,
     hits: &mut HitsWriter<'_>,
 ) -> io::Result<()> {
     if parts.is_empty() {
         return Ok(());
     }
-    // ALLOC: one entry an aggregation, bounded by the request's.
-    let mut names: Vec<&str> = parts.iter().map(|p| p.name.as_str()).collect();
-    names.extend(pipelines.iter().map(|p| p.name.as_str()));
-    // ALLOC: one result body a pipeline aggregation, bounded by the request's.
-    let mut results: Vec<Vec<u8>> = Vec::with_capacity(pipelines.len());
-    for pipeline in pipelines {
-        // ALLOC: one result body, a few dozen bytes.
-        let mut body = Vec::new();
-        if let Some(part) = parts.iter().find(|p| p.name == pipeline.agg) {
-            // ALLOC: the rendered buckets of one aggregation, read back by the pipeline.
-            let mut target = vec![b'{'];
-            scoped(false, || write_body(&mut target, part.format, &part.value))?;
-            target.push(b'}');
-            compute::write_result(&mut body, pipeline, &target)?;
-        }
-        results.push(body);
-    }
     out.write_all(b",\"aggregations\":{")?;
+    // `InternalAggregations.reduce` lists the aggregations in a `HashMap`'s
+    // order; the sibling pipeline results are added after them, in request
+    // order.
+    // ALLOC: one entry an aggregation, bounded by the request's.
+    let names: Vec<&str> = parts.iter().map(|p| p.name.as_str()).collect();
     for (i, at) in hash_map_order(&names).into_iter().enumerate() {
+        let Some(part) = parts.get(at) else {
+            continue;
+        };
         if i > 0 {
             out.write_all(b",")?;
         }
-        if let Some(part) = parts.get(at) {
-            write_key(out, &part.name, &part.value, part.format)?;
-            out.write_all(b":{")?;
-            match &part.value {
-                Value::TopHits(top) => hits(out, &part.name, top)?,
-                value => write_body(out, part.format, value)?,
+        write_key(out, &part.name, &part.value, part.format)?;
+        out.write_all(b":{")?;
+        match &part.value {
+            Value::TopHits(top) => hits(out, &part.name, top)?,
+            value if !holds_parents(all, &part.name) => write_body(out, part.format, value)?,
+            _ => {
+                let piped = host_body(part, all, typed)?;
+                out.write_all(
+                    piped
+                        .get(1..piped.len().saturating_sub(1))
+                        .unwrap_or_default(),
+                )?;
             }
-        } else if let (Some(pipeline), Some(body)) = (
-            pipelines.get(at.saturating_sub(parts.len())),
-            results.get(at.saturating_sub(parts.len())),
-        ) {
-            write_pipeline_key(out, pipeline)?;
-            out.write_all(b":{")?;
-            out.write_all(body)?;
+        }
+        out.write_all(b"}")?;
+    }
+    for (i, pipeline) in all.iter().filter(|p| p.host.is_none()).enumerate() {
+        if i > 0 || !parts.is_empty() {
+            out.write_all(b",")?;
+        }
+        write_pipeline_key(out, pipeline)?;
+        out.write_all(b":{")?;
+        if let Some(part) = parts.iter().find(|p| p.name == pipeline.agg) {
+            let target = scoped(false, || host_body(part, all, false))?;
+            compute::write_result(out, pipeline, &target)?;
         }
         out.write_all(b"}")?;
     }
     out.write_all(b"}")
+}
+
+/// Whether a parent pipeline sits in the aggregation `name`.
+fn holds_parents(all: &[PipelineAgg], name: &str) -> bool {
+    all.iter().any(|p| p.host.as_deref() == Some(name))
+}
+
+/// The body of `part` with braces, its parent pipelines applied.
+fn host_body(part: &Partial, all: &[PipelineAgg], typed: bool) -> io::Result<Vec<u8>> {
+    // ALLOC: the rendered buckets of one aggregation, read back by the pipelines that work on them.
+    let mut body = vec![b'{'];
+    write_body(&mut body, part.format, &part.value)?;
+    body.push(b'}');
+    // ALLOC: one entry a parent pipeline of this aggregation.
+    let held: Vec<&PipelineAgg> = all
+        .iter()
+        .filter(|p| p.host.as_deref() == Some(part.name.as_str()))
+        // ALLOC: one entry or message bounded by the request's pipelines and names.
+        .collect();
+    if held.is_empty() {
+        Ok(body)
+    } else {
+        parent::apply(&body, &held, typed)
+    }
 }
 
 /// `"key":` then `value` as a double, or `null` when `present` is false.

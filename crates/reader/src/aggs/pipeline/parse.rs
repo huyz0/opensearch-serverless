@@ -93,6 +93,8 @@ pub fn parse_body(
         agg,
         value,
         insert_zeros,
+        host: None,
+        sort: None,
     })
 }
 
@@ -107,7 +109,7 @@ fn unexpected(p: &Parser<'_>, token: Kind, key: &str, name: &str) -> DslError {
 /// `AggregationPath.parse` of the two shapes served: `agg>_count`,
 /// `agg>sub` and `agg>sub.metric`. Any other path parses as
 /// [`BucketValue::Other`], which validation then refuses.
-fn split_path(
+pub(super) fn split_path(
     path: &str,
     name: &str,
     kind: PipelineKind,
@@ -153,7 +155,7 @@ fn split_path(
     Ok((agg, value))
 }
 
-fn validation(reason: String) -> DslError {
+pub(super) fn validation(reason: String) -> DslError {
     DslError::Failure(Failure::plain(
         "action_request_validation_exception",
         // ALLOC: error path or one name a pipeline aggregation, bounded by the request.
@@ -170,9 +172,12 @@ fn validation(reason: String) -> DslError {
 /// The request's validation failure, or a refusal of a path this node cannot
 /// resolve.
 pub fn validate(aggs: &[MetricAgg], pipelines: &[PipelineAgg]) -> Result<(), DslError> {
-    for pipeline in pipelines {
+    // A parent pipeline was checked inside the aggregation that holds it.
+    // ALLOC: one entry a pipeline aggregation, bounded by the request's.
+    let siblings: Vec<&PipelineAgg> = pipelines.iter().filter(|p| p.host.is_none()).collect();
+    for pipeline in siblings.iter().copied() {
         if aggs.iter().any(|a| a.name == pipeline.name)
-            || pipelines.iter().filter(|q| q.name == pipeline.name).count() > 1
+            || siblings.iter().filter(|q| q.name == pipeline.name).count() > 1
         {
             return Err(DslError::illegal(
                 // ALLOC: error path; one message.
@@ -256,7 +261,7 @@ pub fn validate(aggs: &[MetricAgg], pipelines: &[PipelineAgg]) -> Result<(), Dsl
 
 /// Whether `metric` is a bucket aggregation whose rendered body this node
 /// reads buckets from.
-fn has_buckets(metric: Metric) -> bool {
+pub(super) fn has_buckets(metric: Metric) -> bool {
     matches!(
         metric,
         Metric::Terms
@@ -268,7 +273,7 @@ fn has_buckets(metric: Metric) -> bool {
 }
 
 /// The `…AggregationBuilder` class of a metric a path may wrongly start at.
-fn metric_builder(metric: Metric) -> Option<&'static str> {
+pub(super) fn metric_builder(metric: Metric) -> Option<&'static str> {
     Some(match metric {
         Metric::Min => "MinAggregationBuilder",
         Metric::Max => "MaxAggregationBuilder",
@@ -284,7 +289,7 @@ fn metric_builder(metric: Metric) -> Option<&'static str> {
 /// Whether the sub-aggregation of type `sub` has the member `metric` in its
 /// body as a number: `value` of the single-value metrics, and a stats'
 /// `count`, `min`, `max`, `avg` and `sum`.
-fn reads_metric(sub: Metric, metric: &str) -> bool {
+pub(super) fn reads_metric(sub: Metric, metric: &str) -> bool {
     match sub {
         Metric::Min
         | Metric::Max

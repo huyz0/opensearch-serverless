@@ -46,6 +46,8 @@ fn pipeline(kind: PipelineKind, count: bool, insert_zeros: bool) -> PipelineAgg 
             }
         },
         insert_zeros,
+        host: None,
+        sort: None,
     }
 }
 
