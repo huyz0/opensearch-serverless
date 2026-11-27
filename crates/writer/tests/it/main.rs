@@ -43,6 +43,7 @@ mod node_log_store;
 mod node_log_takeover;
 mod node_log_usage;
 mod pack_collect;
+mod pack_collect_members;
 mod pack_collect_sync;
 mod pack_collector;
 mod pack_commit_refs;
