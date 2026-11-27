@@ -20,6 +20,7 @@ Ported from `MatchPhrasePrefixQueryBuilder.fromXContent` and `doToQuery`, `Match
 - AC-1: a text field's terms become one multi-phrase prefix query with `slop` and `max_expansions`, whole terms before the last.
 - AC-2: another field type fails as OpenSearch fails, an empty analysis follows `zero_terms_query`, and what is not served is refused.
 - AC-3: through HTTP, the last term matches by prefix within the phrase.
+- AC-4: the query scores with its field's norms: the field is one the search opens norms for, and the scores equal stock 3.10.0's (`fixtures/compat/search-breadth-gaps/queries.json`, step `match_phrase_prefix`).
 
 ## S3 request budget
 

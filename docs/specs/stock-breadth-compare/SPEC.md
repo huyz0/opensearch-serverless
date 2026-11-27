@@ -13,7 +13,7 @@ Records new fixtures from a stock OpenSearch 3.10.0 release tarball and replays 
 - AC-1: every term-level, full-text and compound query step in `search-breadth/queries.json` gets, from an assembled node, the status and body stock OpenSearch 3.10.0 recorded (after the listed normalisation).
 - AC-2: every bucket-aggregation step in `search-breadth/bucket-aggs.json`, refusals included, gets the recorded answer.
 - AC-3: every step the node does not serve yet is recorded from stock in `search-breadth-gaps/`, so each gap has the answer to match.
-- AC-4: `search-breadth-gaps/` is replayed too: every step matches stock except those named in the test's open list, and a step that starts to match must leave the list.
+- AC-4: `search-breadth-gaps/` is replayed too: every step matches stock.
 
 ## Test plan
 
