@@ -21,7 +21,7 @@ Known differences: a script is compiled for each bucket, so a script that does n
 - AC-1: both pipelines over the recorder's histogram give the bytes Java 3.10.0 wrote for each path (`s`, `a` with a gap, `_count`), gap policy, a gap in the data and a bucket with no documents (`fixtures/pipeline-script/java-script-3.10.0.txt`, 94 recordings of results).
 - AC-2: the result forms Java wrote: a ratio, params, an int, a long (`5.0E9`), NaN (`null`), a `null` result (no value), no variables, an unknown path, `sub.value`, and the selector's `true`, `false`, `_count` and empty-variable cases.
 - AC-3: with `typed_keys` the `bucket_script` result is `simple_value#name`.
-- AC-4: a script that throws, does not compile, or returns the wrong type fails the search.
+- AC-4: a script that throws, does not compile, or returns the wrong type fails the search with a 400 `script_exception` naming the pipeline, before the response starts (single-shard and coordinated searches, and `_msearch` items).
 - AC-5: a body is read, and refused, with the messages Java prints, for every body recorded.
 - AC-6: a parsed pipeline keeps its script, params, variables, gap policy and host.
 - AC-7: with the switch off both are refused; at the top level they fail validation as Java does (`must be declared inside of another aggregation`); the refused shapes above answer "not supported by this node yet".

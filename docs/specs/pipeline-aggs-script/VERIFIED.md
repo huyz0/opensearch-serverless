@@ -4,6 +4,7 @@
 - AC-2: `a_script_result_is_written_as_java_writes_it` in crates/reader/src/aggs/pipeline/script_tests.rs
 - AC-3: `a_typed_result_is_a_simple_value` in crates/reader/src/aggs/pipeline/script_tests.rs
 - AC-4: `a_script_that_fails_or_returns_the_wrong_type_fails_the_search` in crates/reader/src/aggs/pipeline/script_tests.rs
+  Also: `a_script_pipeline_that_fails_fails_the_search` in crates/coordinator/tests/it/search.rs; the 400 over REST is checked in AC-8's test.
 - AC-5: `a_body_is_read_as_java_reads_it` in crates/reader/src/aggs/pipeline/script_tests.rs
 - AC-6: `a_parsed_pipeline_keeps_its_script_variables_and_host` in crates/reader/src/aggs/pipeline/script_tests.rs
 - AC-7: `the_switch_gates_both_and_the_top_level_refuses_them` in crates/reader/src/aggs/pipeline/script_tests.rs

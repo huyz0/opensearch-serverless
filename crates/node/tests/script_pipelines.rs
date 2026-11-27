@@ -50,4 +50,20 @@ fn the_scripts_of_two_pipelines_run_over_the_buckets() {
     );
     assert_eq!(status, 400, "{bad}");
     assert!(bad.contains("Invalid gap policy"), "{bad}");
+    // A script that throws, or returns the wrong type, is a 400 naming the pipeline.
+    for (ty, script) in [
+        ("bucket_script", "throw new IllegalStateException('no')"),
+        ("bucket_script", "return 'text'"),
+        ("bucket_selector", "return 1"),
+    ] {
+        let (status, text) = search(
+            node.addr(),
+            &format!(r#","half":{{"{ty}":{{"buckets_path":{{"t":"s"}},"script":"{script}"}}}}"#),
+        );
+        assert_eq!(status, 400, "{text}");
+        assert!(
+            text.contains("script_exception") && text.contains("[half]"),
+            "{text}"
+        );
+    }
 }

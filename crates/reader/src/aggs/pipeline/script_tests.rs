@@ -283,7 +283,11 @@ fn a_script_that_fails_or_returns_the_wrong_type_fails_the_search() {
         broken(PipelineKind::BucketSelector, "return 1"),
     ] {
         let body = histogram(false, false);
-        assert!(super::parent::apply(body.as_bytes(), &[&p], false).is_err());
+        let e = super::parent::apply(body.as_bytes(), &[&p], false).expect_err("fails");
+        assert_eq!(
+            super::script::failure_of(&e).map(|f| f.name.as_str()),
+            Some("p")
+        );
     }
 }
 

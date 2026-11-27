@@ -453,9 +453,8 @@ impl<S: BlobStore + 'static> SearchService<S> {
                     shard_failure,
                 )))
             })?;
-        if let Some(cap) = source.response_size_cap {
-            hits.truncate(cap);
-        }
+        hits.finish(source.response_size_cap)
+            .map_err(Answer::Search)?;
         let took = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
         // ALLOC: one response, bounded by the reservations above.
         let mut out = Vec::new();

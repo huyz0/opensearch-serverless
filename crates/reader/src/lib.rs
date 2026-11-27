@@ -42,6 +42,7 @@ mod script_failure;
 pub mod search;
 mod search_collapse;
 mod search_error;
+mod search_finish;
 mod search_inner_hits;
 #[cfg(test)]
 mod search_inner_hits_tests;

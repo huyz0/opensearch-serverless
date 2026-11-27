@@ -248,8 +248,8 @@ impl<S: BlobStore + 'static> SearchService<S> {
                 );
             }
         };
-        if let Some(cap) = source.response_size_cap {
-            hits.truncate(cap);
+        if let Err(e) = hits.finish(source.response_size_cap) {
+            return send(resp, &e);
         }
         let took = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
         let mut body = resp.start(200, Some(JSON), Length::Chunked, &[])?;

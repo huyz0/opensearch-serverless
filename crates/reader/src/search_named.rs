@@ -56,7 +56,21 @@ pub fn collect(q: &Query) -> Vec<(&str, &Query)> {
     out
 }
 
-/// For each of `hits`, in order, the named queries of `query` that match it
+/// The named queries of every query of a search, the first of a name kept.
+pub fn collect_all<'q>(queries: &[&'q Query]) -> Vec<(&'q str, &'q Query)> {
+    // ALLOC: one entry a named query, refused past `MAX_NAMED` by `matched`.
+    let mut out: Vec<(&str, &Query)> = Vec::new();
+    for q in queries {
+        for (name, found) in collect(q) {
+            if !out.iter().any(|(n, _)| *n == name) {
+                out.push((name, found));
+            }
+        }
+    }
+    out
+}
+
+/// For each of `hits`, in order, the named queries of `queries` that match it
 /// and the score each gives it; empty when the query names none.
 ///
 /// # Errors
@@ -64,12 +78,12 @@ pub fn collect(q: &Query) -> Vec<(&str, &Query)> {
 /// for more than [`MAX_NAMED`] names.
 pub fn matched(
     searcher: &IndexSearcher<'_, '_>,
-    query: &Query,
+    queries: &[&Query],
     cx: &QueryContext<'_>,
     hits: &[Hit],
 ) -> Result<Vec<Vec<(String, f32)>>, Failure> {
     // ALLOC: one entry a named query, refused past `MAX_NAMED` below.
-    let named = collect(query);
+    let named = collect_all(queries);
     if named.is_empty() {
         return Ok(Vec::new());
     }
