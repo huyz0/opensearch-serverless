@@ -98,6 +98,13 @@ pub(crate) fn range_in(
             Some((l, u)) => point(decimal::float_points(field, l, u)),
             None => Ok(match_none()),
         },
+        FieldType::Scaled(bits) => {
+            let factor = f64::from_bits(*bits);
+            match decimal::scaled_range(from, to, include_lower, include_upper, factor)? {
+                Some((l, u)) => point(PointRangeQuery::long_range(field, &[l], &[u])),
+                None => Ok(match_none()),
+            }
+        }
         FieldType::HalfFloat => {
             match decimal::half_range(from, to, include_lower, include_upper)? {
                 Some((l, u)) => point(decimal::half_points(field, l, u)),

@@ -137,6 +137,9 @@ pub enum ValueKind {
     Float,
     /// Sorted numeric sortable shorts, each widened and written as a double.
     HalfFloat,
+    /// Sorted numeric scaled longs of a field with this scaling factor (its bits), each
+    /// multiplied by the inverse of the factor and written as a double.
+    Scaled(u64),
     /// Sorted numeric epoch milliseconds, written as dates.
     Date,
     /// Sorted set terms, written as strings.
@@ -289,6 +292,7 @@ fn kind_of(name: &str, mapping: &Mapping) -> Result<ValueKind, ShardError> {
         FieldType::Double => (ValueKind::Double, "double"),
         FieldType::Float => (ValueKind::Float, "float"),
         FieldType::HalfFloat => (ValueKind::HalfFloat, "half_float"),
+        FieldType::Scaled(bits) => (ValueKind::Scaled(*bits), "scaled_float"),
         FieldType::Date => (ValueKind::Date, "date"),
     };
     if !field.doc_values {
@@ -326,7 +330,7 @@ pub fn write_fields(
                 continue;
             }
             ValueKind::Long | ValueKind::Date => numbers(segment, &field.name, doc)?,
-            ValueKind::Double | ValueKind::Float | ValueKind::HalfFloat => {
+            ValueKind::Double | ValueKind::Float | ValueKind::HalfFloat | ValueKind::Scaled(_) => {
                 decimals(segment, &field.name, doc, field.kind)?
             }
             ValueKind::Term => terms(segment, &field.name, doc)?,
@@ -403,6 +407,7 @@ fn decimals(
                 ValueKind::HalfFloat => {
                     f64::from(sortable_short_to_half_float(i16::try_from(n).unwrap_or(0)))
                 }
+                ValueKind::Scaled(bits) => n as f64 * (1.0 / f64::from_bits(bits)),
                 _ => sortable_long_to_double(n),
             });
         }

@@ -396,3 +396,6 @@ mod decimal_tests;
 
 #[path = "search_half_tests.rs"]
 mod half_tests;
+
+#[path = "search_scaled_tests.rs"]
+mod scaled_tests;

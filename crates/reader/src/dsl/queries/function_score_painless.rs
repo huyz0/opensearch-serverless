@@ -51,7 +51,9 @@ fn kind_of(mapping: &Mapping, field: &str) -> FieldKind {
         FieldType::Double => FieldKind::Double,
         FieldType::Float => FieldKind::Float,
         FieldType::HalfFloat => FieldKind::HalfFloat,
-        FieldType::Text | FieldType::Unsupported(_) => FieldKind::Unsupported,
+        FieldType::Text | FieldType::Scaled(_) | FieldType::Unsupported(_) => {
+            FieldKind::Unsupported
+        }
     }
 }
 

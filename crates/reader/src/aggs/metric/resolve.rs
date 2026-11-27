@@ -38,6 +38,7 @@ pub(crate) fn type_name(ty: &FieldType) -> &str {
         FieldType::Float => "float",
         FieldType::Double => "double",
         FieldType::HalfFloat => "half_float",
+        FieldType::Scaled(_) => "scaled_float",
         FieldType::Unsupported(what) => what,
     }
 }
@@ -97,6 +98,7 @@ pub(crate) fn value_kind<S: BlobStore + 'static>(
         Some(FieldType::Double) => ValueKind::Double,
         Some(FieldType::Float) => ValueKind::Float,
         Some(FieldType::HalfFloat) => ValueKind::HalfFloat,
+        Some(FieldType::Scaled(bits)) => ValueKind::Scaled(*bits),
         _ => ValueKind::Long,
     }
 }
@@ -138,17 +140,17 @@ pub(crate) fn resolve<S: BlobStore + 'static>(
                 ),
             )));
         }
-        FieldType::Float | FieldType::Double | FieldType::HalfFloat
+        FieldType::Float | FieldType::Double | FieldType::HalfFloat | FieldType::Scaled(_)
             if agg.metric == Metric::Terms =>
         {
             Format::Double
         }
-        FieldType::Float | FieldType::Double | FieldType::HalfFloat
+        FieldType::Float | FieldType::Double | FieldType::HalfFloat | FieldType::Scaled(_)
             if reads_decimal(agg.metric) =>
         {
             Format::Raw
         }
-        FieldType::Float | FieldType::Double | FieldType::HalfFloat
+        FieldType::Float | FieldType::Double | FieldType::HalfFloat | FieldType::Scaled(_)
             if matches!(agg.metric, Metric::DateHistogram | Metric::DateRange) =>
         {
             return Err(bad_request(Failure::plain(
@@ -162,7 +164,7 @@ pub(crate) fn resolve<S: BlobStore + 'static>(
                 ),
             )));
         }
-        FieldType::Float | FieldType::Double | FieldType::HalfFloat => {
+        FieldType::Float | FieldType::Double | FieldType::HalfFloat | FieldType::Scaled(_) => {
             return Err(bad_request(Failure::plain(
                 "illegal_argument_exception",
                 // ALLOC: error path; one message.

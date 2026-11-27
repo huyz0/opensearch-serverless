@@ -429,3 +429,7 @@ mod decimal_tests;
 #[cfg(test)]
 #[path = "collect_half_tests.rs"]
 mod half_tests;
+
+#[cfg(test)]
+#[path = "collect_scaled_tests.rs"]
+mod scaled_tests;

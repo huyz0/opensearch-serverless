@@ -157,7 +157,7 @@ fn reads<S: BlobStore + 'static>(
             )));
         }
         (
-            FieldType::Float | FieldType::Double | FieldType::HalfFloat,
+            FieldType::Float | FieldType::Double | FieldType::HalfFloat | FieldType::Scaled(_),
             SourceKind::DateHistogram { .. },
         ) => {
             // ALLOC: error path; one message.
@@ -169,6 +169,7 @@ fn reads<S: BlobStore + 'static>(
         (FieldType::Double, _) => Reads::Decimal(ValueKind::Double),
         (FieldType::Float, _) => Reads::Decimal(ValueKind::Float),
         (FieldType::HalfFloat, _) => Reads::Decimal(ValueKind::HalfFloat),
+        (FieldType::Scaled(bits), _) => Reads::Decimal(ValueKind::Scaled(*bits)),
         (FieldType::Unsupported(what), _) => {
             // ALLOC: error path; one message.
             return Err(bad_request(format!(

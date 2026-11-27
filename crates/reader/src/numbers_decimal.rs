@@ -66,6 +66,84 @@ pub fn parse_half(value: &Value) -> Result<f32, Failure> {
     Err(not_finite("half_float", &String::from_utf8_lossy(&shown)))
 }
 
+/// `ScaledFloatFieldType.scale` rounded: `Math.round(parse(value) * scalingFactor)`, which
+/// saturates and reads `NaN` as 0.
+pub fn scaled_long(value: &Value, factor: f64) -> Result<i64, Failure> {
+    let d = java_double(value.text())?;
+    // `as` saturates and reads NaN as 0, as `Math.round` does.
+    #[allow(clippy::cast_possible_truncation)]
+    let v = (d * factor + 0.5).floor() as i64;
+    Ok(v)
+}
+
+/// `ScaledFloatFieldType.rangeQuery`'s bounds: each is scaled and rounded, then `LONG` steps an
+/// excluded one in.
+pub fn scaled_range(
+    from: Option<&Value>,
+    to: Option<&Value>,
+    include_lower: bool,
+    include_upper: bool,
+    factor: f64,
+) -> Result<Bounds<i64>, Failure> {
+    let mut l = i64::MIN;
+    let mut u = i64::MAX;
+    if let Some(v) = from {
+        l = scaled_long(v, factor)?;
+        if !include_lower {
+            l = l.saturating_add(1);
+        }
+    }
+    if let Some(v) = to {
+        u = scaled_long(v, factor)?;
+        if !include_upper {
+            u = u.saturating_sub(1);
+        }
+    }
+    Ok((l <= u).then_some((l, u)))
+}
+
+/// `LONG.termsQuery` of the scaled values.
+pub fn scaled_set(
+    field: &str,
+    values: &[Value],
+    factor: f64,
+) -> Result<SearchResult<PointInSetQuery>, Failure> {
+    // ALLOC: one packed point a value, bounded by the body's recording.
+    let points = values
+        .iter()
+        .map(|v| Ok(long_bytes(scaled_long(v, factor)?).to_vec()))
+        .collect::<Result<Vec<_>, Failure>>()?;
+    Ok(PointInSetQuery::new(field, 1, 8, points))
+}
+
+/// The point set query of `terms` over a `double`, `float`, `half_float` or `scaled_float` field.
+pub fn decimal_set(
+    ty: &crate::mapping::FieldType,
+    field: &str,
+    values: &[Value],
+) -> Result<SearchResult<PointInSetQuery>, Failure> {
+    use crate::mapping::FieldType;
+    fn all<T>(
+        values: &[Value],
+        parse: fn(&Value) -> Result<T, Failure>,
+    ) -> Result<Vec<T>, Failure> {
+        // ALLOC: one entry a value, bounded by the body's recording.
+        values.iter().map(parse).collect()
+    }
+    Ok(match ty {
+        FieldType::Double => double_set(field, &all(values, parse_double)?),
+        FieldType::Float => float_set(field, &all(values, parse_float)?),
+        FieldType::HalfFloat => half_set(field, &all(values, parse_half)?),
+        FieldType::Scaled(bits) => return scaled_set(field, values, f64::from_bits(*bits)),
+        _ => {
+            return Err(Failure::plain(
+                "illegal_argument_exception",
+                "not a decimal field",
+            ));
+        }
+    })
+}
+
 /// `DoublePoint.nextUp`: `-0.0` steps to `+0.0`.
 fn double_up(d: f64) -> f64 {
     if d.to_bits() == (1 << 63) {

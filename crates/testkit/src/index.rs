@@ -36,7 +36,7 @@ mod nested;
 mod support;
 use support::{encode_id, json_string, register, sortable, term};
 
-pub use decimals::{doc_double, doc_float, doc_half};
+pub use decimals::{SCALING_FACTOR, doc_double, doc_float, doc_half, doc_scaled, doc_scaled_long};
 pub use nested::{NESTED_CHILDREN, nested_deep_word, nested_number, nested_word};
 
 /// The mapping of `spec`'s index.

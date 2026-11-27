@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use lucene_search::top_field::{HalfFloatSort, Selector, SortField, SortType};
+use lucene_search::top_field::{HalfFloatSort, ScaledFloatSort, Selector, SortField, SortType};
 use lucene_util::numeric_utils::{double_to_sortable_long, float_to_sortable_int};
 use oss_blob::BlobStore;
 
@@ -172,6 +172,29 @@ pub(crate) fn field_sort<S: BlobStore + 'static>(
                 f32::INFINITY
             }));
             return Ok((f, KeyKind::Float));
+        }
+        FieldType::Scaled(bits) => {
+            // `ScaledFloatFieldMapper`'s comparator: the scaled values as doubles.
+            let selector = if reverse {
+                Selector::Max
+            } else {
+                Selector::Min
+            };
+            let missing = if reverse {
+                f64::NEG_INFINITY
+            } else {
+                f64::INFINITY
+            };
+            let inverse = 1.0 / f64::from_bits(*bits);
+            let source = ScaledFloatSort {
+                selector,
+                missing,
+                inverse,
+            };
+            return Ok((
+                SortField::with_source(name, Arc::new(source), reverse),
+                KeyKind::Double,
+            ));
         }
         FieldType::HalfFloat => {
             // `HalfFloatValuesComparatorSource`: the default mode picks the smallest value

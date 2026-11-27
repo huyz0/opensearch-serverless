@@ -219,6 +219,10 @@ pub(crate) fn after_key(
                     lucene_search::top_field::SortType::Custom(_),
                     crate::search_sort::KeyKind::Float,
                 ) => AfterKey::Float(f.field.as_str()),
+                (
+                    lucene_search::top_field::SortType::Custom(_),
+                    crate::search_sort::KeyKind::Double,
+                ) => AfterKey::Double(f.field.as_str()),
                 _ => AfterKey::of(f, is_date),
             })
             // ALLOC: one key a sort key, at most MAX_SORT_KEYS.
