@@ -485,3 +485,6 @@ fn the_cost_of_a_pinned_write_against_the_built_in_analyzer() {
 
 #[path = "extension_modules/residency.rs"]
 mod residency;
+
+#[path = "extension_modules/refusals.rs"]
+mod refusals;

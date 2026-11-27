@@ -110,6 +110,21 @@ impl UsageService {
                 )?;
             }
         }
+        family(
+            out,
+            "oss_extension_open_refused_total",
+            "counter",
+            "Opens of pinned indices this node refused, by why.",
+        )?;
+        let (busy, unavailable) = crate::extension_refusals::totals();
+        writeln!(
+            out,
+            "oss_extension_open_refused_total{{reason=\"busy\"}} {busy}"
+        )?;
+        writeln!(
+            out,
+            "oss_extension_open_refused_total{{reason=\"unavailable\"}} {unavailable}"
+        )?;
         if let Some(slots) = &self.slots {
             let r = slots.report();
             for (name, kind, help, value) in [
