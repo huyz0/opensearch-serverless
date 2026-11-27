@@ -9,7 +9,7 @@
 - AC-7: `a_search_may_name_at_most_the_limit_of_indexes` in crates/node/tests/it/search_several.rs
 - AC-8: `routing_narrows_each_index_of_the_list` in crates/node/tests/it/search_several.rs
 - AC-9: `a_list_costs_what_its_indexes_cost_alone_and_lists_nothing` in crates/node/tests/it/search_several.rs
-- AC-10: `a_name_that_is_no_index_refuses_the_search` in crates/node/tests/it/search_several.rs (the `half` alias)
+- AC-10: `a_name_that_is_no_index_refuses_the_search` in crates/node/tests/it/search_several.rs (its second half, an alias with a missing member)
 - AC-11: `one_name_answers_as_before` in crates/node/tests/it/search_several.rs
 
 Not tested: the 1,024-shard bound (it needs an index set of that many shards), and a single-index list's default pipeline.
