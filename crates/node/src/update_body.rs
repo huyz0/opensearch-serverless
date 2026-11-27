@@ -39,7 +39,7 @@ fn object(value: &Json, key: &str) -> Result<Json, RestError> {
     }
 }
 
-fn script(value: &Json) -> Result<ScriptDef, RestError> {
+pub(crate) fn script(value: &Json) -> Result<ScriptDef, RestError> {
     let Json::Obj(members) = value else {
         return Err(RestError::illegal_argument("[script] must be an object"));
     };

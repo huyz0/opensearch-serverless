@@ -20,6 +20,7 @@ use oss_rest::{JSON, Method, Request, Response, RestError, RouteError, Router};
 use oss_writer::bulk::{BulkBudget, Grant, IdGenerator, Target};
 
 pub use change::DeleteChange;
+use change::UpdateChange;
 use params::Params;
 #[cfg(feature = "reader")]
 pub use search::SearchMatches;
@@ -126,7 +127,7 @@ impl ByQueryService {
     /// `POST /{index}/_delete_by_query`.
     pub fn delete(&self, req: &mut Request<'_>, resp: &mut Response<'_>) -> Result<(), RestError> {
         let started = Instant::now();
-        let params = Params::read(req)?;
+        let params = Params::read(req, false)?;
         let index = req
             .path_param("index")
             .ok_or_else(|| RestError::illegal_argument("an index is required"))?
@@ -157,6 +158,51 @@ impl ByQueryService {
     }
 }
 
+impl ByQueryService {
+    /// `POST /{index}/_update_by_query`.
+    pub fn update(&self, req: &mut Request<'_>, resp: &mut Response<'_>) -> Result<(), RestError> {
+        let started = Instant::now();
+        if !oss_coordinator::docs::update_script::enabled() {
+            return Err(RestError::simple(
+                501,
+                "script updates need serverless.scripting.painless.native_compile",
+            ));
+        }
+        let params = Params::read(req, true)?;
+        let Some(script) = params.script.as_ref() else {
+            return Err(RestError::illegal_argument("[script] is required"));
+        };
+        let index = req
+            .path_param("index")
+            .ok_or_else(|| RestError::illegal_argument("an index is required"))?
+            .into_owned();
+        let info = RoleTarget::new(&self.role)
+            .index(&index)
+            .ok_or_else(|| missing(&index))?;
+        let shards: Vec<u32> = (0..info.shards).collect();
+        let source = QuerySource {
+            matches: &*self.matches,
+            budget: &self.budget,
+            index: &index,
+            query: &params.query,
+        };
+        let mut ids = IdGenerator::new(0, self.address);
+        let mut change = UpdateChange::new(&self.role, &info, script, &mut ids, now_millis());
+        let outcome: Walk = walk(
+            &source,
+            &shards,
+            params.max_docs,
+            params.refresh,
+            params.abort_on_conflict,
+            &mut change,
+        )?;
+        let counts = (change.updated, change.deleted);
+        let took = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
+        let (status, body) = response::render_update(&outcome, &index, took, counts);
+        resp.send(status, JSON, body.as_bytes())
+    }
+}
+
 fn missing(index: &str) -> RestError {
     RestError::exception(
         404,
@@ -175,10 +221,18 @@ fn missing(index: &str) -> RestError {
 ///
 /// A route registered twice.
 pub fn routes(router: Router, service: Arc<ByQueryService>) -> Result<Router, RouteError> {
-    router.route(
-        Method::Post,
-        "/{index}/_delete_by_query",
-        params::PARAMS,
-        move |req: &mut Request<'_>, resp: &mut Response<'_>| service.delete(req, resp),
-    )
+    let updates = Arc::clone(&service);
+    router
+        .route(
+            Method::Post,
+            "/{index}/_delete_by_query",
+            params::PARAMS,
+            move |req: &mut Request<'_>, resp: &mut Response<'_>| service.delete(req, resp),
+        )?
+        .route(
+            Method::Post,
+            "/{index}/_update_by_query",
+            params::PARAMS,
+            move |req: &mut Request<'_>, resp: &mut Response<'_>| updates.update(req, resp),
+        )
 }
