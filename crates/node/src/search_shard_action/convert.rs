@@ -3,7 +3,7 @@
 //! parser, so a query means here what it means on a REST search.
 
 use oss_reader::dsl::{DslError, MAX_RECORDED_BYTES, Recorder, SearchSource, source};
-use oss_transport::actions::search_shard::{Node, Query, Source, Value};
+use oss_transport::actions::search_shard::{AggKind, Node, Query, Source, Value};
 use serde_json::{Map, Number, Value as Json, json};
 
 /// Why a decoded source could not become a search source.
@@ -252,6 +252,28 @@ pub fn search_source(source: &Source) -> Result<SearchSource, ConvertError> {
             text.extend_from_slice(&name);
             text.extend_from_slice(format!(":{{\"{}\":{{\"field\":", a.kind.name()).as_bytes());
             text.extend_from_slice(&field);
+            if let Some(t) = a.precision_threshold {
+                text.extend_from_slice(format!(",\"precision_threshold\":{t}").as_bytes());
+            }
+            if let Some(p) = &a.percentiles {
+                let keys = serde_json::to_string(&p.keys)
+                    .map_err(|_| ConvertError::Number("a percentile key"))?;
+                let key = if a.kind == AggKind::PercentileRanks {
+                    "values"
+                } else {
+                    "percents"
+                };
+                text.extend_from_slice(
+                    format!(",\"{key}\":{keys},\"keyed\":{}", p.keyed).as_bytes(),
+                );
+                if let Some(c) = p.compression {
+                    let c = serde_json::to_string(&c)
+                        .map_err(|_| ConvertError::Number("a compression"))?;
+                    text.extend_from_slice(
+                        format!(",\"tdigest\":{{\"compression\":{c}}}").as_bytes(),
+                    );
+                }
+            }
             text.extend_from_slice(b"}}");
         }
         text.push(b'}');

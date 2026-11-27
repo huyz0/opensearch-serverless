@@ -120,6 +120,8 @@ pub struct NodeConfig {
     pub nested: bool,
     /// `serverless.reader.vector_warm.at_open`.
     pub vector_warm_at_open: bool,
+    /// `OSS_SCRIPTING_PAINLESS_NATIVE_COMPILE`: compile Painless source here.
+    pub painless_native_compile: bool,
     /// `OSS_EXTENSIONS_PERCENT`: the page cache's share the `extensions` pool takes; 0 reserves none.
     pub extensions_percent: usize,
     /// `OSS_EXTENSIONS_REPLAY_FUEL_FACTOR`: a replayed call's fuel and memory, times its record's.
@@ -452,6 +454,7 @@ impl NodeConfig {
             knn,
             nested,
             vector_warm_at_open: flag("OSS_VECTOR_WARM_AT_OPEN", "false")?,
+            painless_native_compile: flag("OSS_SCRIPTING_PAINLESS_NATIVE_COMPILE", "false")?,
             extensions_percent,
             extensions_replay_factor,
             store_usage,

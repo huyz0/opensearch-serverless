@@ -29,6 +29,12 @@ pub enum AggKind {
     ValueCount,
     /// `stats`.
     Stats,
+    /// `cardinality`.
+    Cardinality,
+    /// `percentiles`.
+    Percentiles,
+    /// `percentile_ranks`.
+    PercentileRanks,
 }
 
 impl AggKind {
@@ -41,6 +47,9 @@ impl AggKind {
             Self::Avg => "avg",
             Self::ValueCount => "value_count",
             Self::Stats => "stats",
+            Self::Cardinality => "cardinality",
+            Self::Percentiles => "percentiles",
+            Self::PercentileRanks => "percentile_ranks",
         }
     }
 
@@ -52,14 +61,28 @@ impl AggKind {
             Self::Avg,
             Self::ValueCount,
             Self::Stats,
+            Self::Cardinality,
+            Self::Percentiles,
+            Self::PercentileRanks,
         ]
         .into_iter()
         .find(|k| k.name() == name)
     }
 }
 
+/// What a `percentiles` or `percentile_ranks` asks beyond its field.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PercentilesRequest {
+    /// The percents or the values ranked, as the builder holds them.
+    pub keys: Vec<f64>,
+    /// `keyed`.
+    pub keyed: bool,
+    /// The t-digest's compression; the default when none.
+    pub compression: Option<f64>,
+}
+
 /// One aggregation asked for.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct AggRequest {
     /// The aggregation's name.
     pub name: String,
@@ -67,10 +90,14 @@ pub struct AggRequest {
     pub kind: AggKind,
     /// The field it reads.
     pub field: String,
+    /// A `cardinality`'s `precision_threshold`.
+    pub precision_threshold: Option<i64>,
+    /// A `percentiles`' or `percentile_ranks`' keys and options.
+    pub percentiles: Option<PercentilesRequest>,
 }
 
 /// One shard-level result.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum AggValue {
     /// `InternalMin`'s value; positive infinity when nothing matched.
     Min(f64),
@@ -87,6 +114,20 @@ pub enum AggValue {
     },
     /// `InternalValueCount`'s value.
     ValueCount(i64),
+    /// `InternalCardinality`: the sketch as `AbstractHyperLogLogPlusPlus`
+    /// writes it, or none when no value was seen.
+    Cardinality(Option<Vec<u8>>),
+    /// `InternalTDigestPercentiles` or `InternalTDigestPercentileRanks`.
+    Percentiles {
+        /// Ranks rather than percentiles.
+        ranks: bool,
+        /// The percents or the values ranked.
+        keys: Vec<f64>,
+        /// The digest as `TDigestState.write` writes it.
+        digest: Vec<u8>,
+        /// `keyed`.
+        keyed: bool,
+    },
     /// `InternalStats`.
     Stats {
         /// How many values.
@@ -101,7 +142,7 @@ pub enum AggValue {
 }
 
 /// A result with the name of its aggregation.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct AggAnswer<'a> {
     /// The aggregation's name.
     pub name: &'a str,
@@ -150,6 +191,43 @@ fn empty_builder(input: &mut Input<'_>, what: &'static str) -> Result<(), Refusa
     Ok(())
 }
 
+/// The most keys a percentiles aggregation may carry.
+const MAX_KEYS: usize = 1024;
+
+fn double(input: &mut Input<'_>, what: &'static str) -> Result<f64, WireError> {
+    Ok(f64::from_bits(input.long(what)?.cast_unsigned()))
+}
+
+/// A percentiles builder's own fields: the keys, `keyed`, and the optional
+/// `PercentilesConfig` (a method byte, 0 for the t-digest, and its
+/// compression).
+fn read_percentiles(input: &mut Input<'_>) -> Result<PercentilesRequest, Refusal> {
+    let n = input.count(8, "percentile keys")?;
+    if n > MAX_KEYS {
+        return Err(Refusal::TooLarge("percentile keys"));
+    }
+    // ALLOC: one double a key, at most MAX_KEYS.
+    let mut keys = Vec::with_capacity(n);
+    for _ in 0..n {
+        keys.push(double(input, "a percentile key")?);
+    }
+    let keyed = input.bool("keyed")?;
+    let mut compression = None;
+    if input.bool("a percentiles config")? {
+        if input.byte("a percentiles method")? != 0 {
+            return Err(Refusal::Unsupported(
+                "a percentiles method other than tdigest",
+            ));
+        }
+        compression = Some(double(input, "a compression")?);
+    }
+    Ok(PercentilesRequest {
+        keys,
+        keyed,
+        compression,
+    })
+}
+
 /// Reads the `AggregatorFactories.Builder` after its presence flag was read
 /// as true.
 ///
@@ -172,7 +250,7 @@ pub fn read(input: &mut Input<'_>) -> Result<Vec<AggRequest>, Refusal> {
         let name = input.string("aggregation name")?;
         empty_builder(input, "sub-aggregations")?;
         null_generic(input, "aggregation metadata")?;
-        if kind == AggKind::ValueCount {
+        if matches!(kind, AggKind::ValueCount | AggKind::Cardinality) {
             // `serializeTargetValueType`: a null writeable.
             none(input, "a value type target")?;
         }
@@ -186,7 +264,26 @@ pub fn read(input: &mut Input<'_>) -> Result<Vec<AggRequest>, Refusal> {
         }
         null_generic(input, "an aggregation missing value")?;
         none(input, "an aggregation time zone")?;
-        out.push(AggRequest { name, kind, field });
+        let mut precision_threshold = None;
+        if kind == AggKind::Cardinality {
+            if input.bool("a precision threshold flag")? {
+                precision_threshold = Some(input.long("a precision threshold")?);
+            }
+            if input.optional_string("an execution hint")?.is_some() {
+                return Err(Refusal::Unsupported("an execution hint"));
+            }
+        }
+        let mut percentiles = None;
+        if matches!(kind, AggKind::Percentiles | AggKind::PercentileRanks) {
+            percentiles = Some(read_percentiles(input)?);
+        }
+        out.push(AggRequest {
+            name,
+            kind,
+            field,
+            precision_threshold,
+            percentiles,
+        });
     }
     // Pipeline aggregations.
     if input.vint("pipeline aggregations")? != 0 {
@@ -208,7 +305,7 @@ pub fn write(aggs: &[AggRequest], out: &mut Output<'_>) -> Result<(), WireError>
         out.vint(0)?; // sub-aggregations
         out.vint(0)?; // sub pipeline aggregations
         out.byte(0xFF)?; // metadata: null
-        if agg.kind == AggKind::ValueCount {
+        if matches!(agg.kind, AggKind::ValueCount | AggKind::Cardinality) {
             out.bool(false)?; // target value type
         }
         out.optional_string(Some(&agg.field))?;
@@ -217,8 +314,37 @@ pub fn write(aggs: &[AggRequest], out: &mut Output<'_>) -> Result<(), WireError>
         out.optional_string(None)?; // format
         out.byte(0xFF)?; // missing: null
         out.bool(false)?; // time zone
+        if agg.kind == AggKind::Cardinality {
+            out.bool(agg.precision_threshold.is_some())?;
+            if let Some(t) = agg.precision_threshold {
+                out.long(t)?;
+            }
+            out.optional_string(None)?; // execution hint
+        }
+        if let Some(p) = &agg.percentiles {
+            out.count(p.keys.len())?;
+            for k in &p.keys {
+                out.bytes(&k.to_bits().to_be_bytes())?;
+            }
+            out.bool(p.keyed)?;
+            out.bool(p.compression.is_some())?;
+            if let Some(c) = p.compression {
+                out.byte(0)?; // the t-digest
+                out.bytes(&c.to_bits().to_be_bytes())?;
+            }
+        }
     }
     out.vint(0) // pipeline aggregations
+}
+
+/// The writeable name of an answer: the aggregation's own, but for the
+/// percentiles, which are named for their t-digest.
+fn answer_name(kind: AggKind, _value: &AggValue) -> &'static str {
+    match kind {
+        AggKind::Percentiles => "tdigest_percentiles",
+        AggKind::PercentileRanks => "tdigest_percentile_ranks",
+        other => other.name(),
+    }
 }
 
 /// Writes `answers` as `InternalAggregations.writeTo` does: a list of named
@@ -230,28 +356,53 @@ pub fn write(aggs: &[AggRequest], out: &mut Output<'_>) -> Result<(), WireError>
 pub fn write_answers(answers: &[AggAnswer<'_>], out: &mut Output<'_>) -> Result<(), WireError> {
     out.count(answers.len())?;
     for a in answers {
-        let (kind, ()) = match a.value {
+        let (kind, ()) = match &a.value {
             AggValue::Min(_) => (AggKind::Min, ()),
             AggValue::Max(_) => (AggKind::Max, ()),
             AggValue::Sum(_) => (AggKind::Sum, ()),
             AggValue::Avg { .. } => (AggKind::Avg, ()),
             AggValue::ValueCount(_) => (AggKind::ValueCount, ()),
             AggValue::Stats { .. } => (AggKind::Stats, ()),
+            AggValue::Cardinality(_) => (AggKind::Cardinality, ()),
+            AggValue::Percentiles { ranks: false, .. } => (AggKind::Percentiles, ()),
+            AggValue::Percentiles { ranks: true, .. } => (AggKind::PercentileRanks, ()),
         };
-        out.string(kind.name())?;
+        out.string(answer_name(kind, &a.value))?;
         out.string(a.name)?;
         out.byte(0xFF)?; // metadata: null
-        match a.value {
+        match &a.value {
             AggValue::Min(v) | AggValue::Max(v) | AggValue::Sum(v) => {
                 write_format(out, a.date)?;
                 out.bytes(&v.to_bits().to_be_bytes())?;
             }
+            AggValue::Percentiles {
+                keys,
+                digest,
+                keyed,
+                ..
+            } => {
+                write_format(out, a.date)?;
+                out.count(keys.len())?;
+                for k in keys {
+                    out.bytes(&k.to_bits().to_be_bytes())?;
+                }
+                out.count(digest.len())?; // `writeVInt(byteSize)`
+                out.bytes(digest)?;
+                out.bool(*keyed)?;
+            }
+            AggValue::Cardinality(sketch) => {
+                write_format(out, a.date)?;
+                out.bool(sketch.is_some())?;
+                if let Some(bytes) = sketch {
+                    out.bytes(bytes)?;
+                }
+            }
             AggValue::Avg { sum, count } => {
                 write_format(out, a.date)?;
                 out.bytes(&sum.to_bits().to_be_bytes())?;
-                out.vlong(count)?;
+                out.vlong(*count)?;
             }
-            AggValue::ValueCount(n) => out.vlong(n)?,
+            AggValue::ValueCount(n) => out.vlong(*n)?,
             AggValue::Stats {
                 count,
                 min,
@@ -259,7 +410,7 @@ pub fn write_answers(answers: &[AggAnswer<'_>], out: &mut Output<'_>) -> Result<
                 sum,
             } => {
                 write_format(out, a.date)?;
-                out.vlong(count)?;
+                out.vlong(*count)?;
                 for v in [min, max, sum] {
                     out.bytes(&v.to_bits().to_be_bytes())?;
                 }
@@ -270,104 +421,5 @@ pub fn write_answers(answers: &[AggAnswer<'_>], out: &mut Output<'_>) -> Result<
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn bytes(aggs: &[AggRequest]) -> Vec<u8> {
-        let mut buf = Vec::new();
-        let mut out = Output::new(&mut buf, 1 << 20);
-        write(aggs, &mut out).expect("writes");
-        buf
-    }
-
-    #[test]
-    fn a_written_request_reads_back() {
-        let aggs = vec![
-            AggRequest {
-                name: "hi".into(),
-                kind: AggKind::Max,
-                field: "n".into(),
-            },
-            AggRequest {
-                name: "c".into(),
-                kind: AggKind::ValueCount,
-                field: "tag".into(),
-            },
-        ];
-        let wire = bytes(&aggs);
-        let mut input = Input::new(&wire);
-        assert_eq!(read(&mut input).expect("reads"), aggs);
-        input.finish("aggregations").expect("all read");
-    }
-
-    #[test]
-    fn another_type_and_a_sub_aggregation_are_refused() {
-        let mut wire = Vec::new();
-        let mut out = Output::new(&mut wire, 1 << 20);
-        out.vint(1).expect("count");
-        out.string("terms").expect("type");
-        assert!(matches!(
-            read(&mut Input::new(&wire)),
-            Err(Refusal::Unsupported("an aggregation of another type"))
-        ));
-        let mut wire = Vec::new();
-        let mut out = Output::new(&mut wire, 1 << 20);
-        out.vint(1).expect("count");
-        out.string("max").expect("type");
-        out.string("m").expect("name");
-        out.vint(1).expect("a sub-aggregation");
-        out.vint(0).expect("no pipelines");
-        assert!(matches!(
-            read(&mut Input::new(&wire)),
-            Err(Refusal::Unsupported("sub-aggregations"))
-        ));
-    }
-
-    #[test]
-    fn a_reply_is_a_list_of_named_writeables() {
-        let mut buf = Vec::new();
-        let mut out = Output::new(&mut buf, 1 << 20);
-        let answers = [
-            AggAnswer {
-                name: "m",
-                value: AggValue::Max(2.0),
-                date: false,
-            },
-            AggAnswer {
-                name: "c",
-                value: AggValue::ValueCount(7),
-                date: false,
-            },
-        ];
-        write_answers(&answers, &mut out).expect("writes");
-        let mut expected = vec![2, 3, b'm', b'a', b'x', 1, b'm', 0xFF, 3, b'r', b'a', b'w'];
-        expected.extend_from_slice(&2.0f64.to_bits().to_be_bytes());
-        expected.extend_from_slice(&[11]);
-        expected.extend_from_slice(b"value_count");
-        expected.extend_from_slice(&[1, b'c', 0xFF, 7]);
-        assert_eq!(buf, expected);
-    }
-
-    #[test]
-    fn a_date_field_is_answered_with_the_date_time_format() {
-        let mut buf = Vec::new();
-        let mut out = Output::new(&mut buf, 1 << 20);
-        let answers = [AggAnswer {
-            name: "t",
-            value: AggValue::Max(1.0),
-            date: true,
-        }];
-        write_answers(&answers, &mut out).expect("writes");
-        let mut expected = vec![1, 3, b'm', b'a', b'x', 1, b't', 0xFF, 9];
-        expected.extend_from_slice(b"date_time");
-        let pattern = "strict_date_time_no_millis||strict_date_optional_time||epoch_millis";
-        expected.push(u8::try_from(pattern.len()).unwrap());
-        expected.extend_from_slice(pattern.as_bytes());
-        expected.push(1);
-        expected.push(25);
-        expected.extend_from_slice(b"strict_date_optional_time");
-        expected.extend_from_slice(&[1, b'Z', 0]);
-        expected.extend_from_slice(&1.0f64.to_bits().to_be_bytes());
-        assert_eq!(buf, expected);
-    }
-}
+#[path = "aggs_tests.rs"]
+mod tests;

@@ -145,3 +145,33 @@ fn a_sketch_reserves_five_times_its_registers() {
     assert_eq!(sketch_bytes(18), (5 << 18) + 16);
     assert_eq!(sketch_bytes(30), (5 << 18) + 16);
 }
+
+/// The sketches OpenSearch 3.10.0's `InternalCardinality` wrote
+/// (`fixtures/search-shard/java-cardinality-3.10.0.txt`) read and write back
+/// to the same bytes.
+#[test]
+fn a_sketch_writes_the_bytes_java_wrote() {
+    const RECORDED: &str =
+        include_str!("../../../../../fixtures/search-shard/java-cardinality-3.10.0.txt");
+    // The answer's bytes before the sketch: the list, the name, no metadata,
+    // `raw`, and the present flag.
+    let prefix = "010b63617264696e616c6974790175ff0372617701";
+    let mut seen = 0;
+    for line in RECORDED.lines() {
+        let Some((name, hex)) = line.split_once(' ') else {
+            continue;
+        };
+        if !name.starts_with("response.cardinality_") {
+            continue;
+        }
+        let sketch = hex.strip_prefix(prefix).expect("a present sketch");
+        let bytes: Vec<u8> = (0..sketch.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&sketch[i..i + 2], 16).expect("hex"))
+            .collect();
+        let hll = Hll::read(&bytes).expect("reads");
+        assert_eq!(hll.to_bytes(), bytes, "{name}");
+        seen += 1;
+    }
+    assert_eq!(seen, 3);
+}

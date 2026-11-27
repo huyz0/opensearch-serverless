@@ -110,6 +110,31 @@ impl Digest {
         }
     }
 
+    /// What `TDigestState.write` puts on the wire from 3.4.0: `MergingDigest.asBytes`
+    /// of the compressed digest, which is the verbose encoding (the int 1,
+    /// `min`, `max`, the public compression, the cell count, then each cell's
+    /// weight and mean).
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut d = self.clone();
+        d.compress();
+        // ALLOC: 32 bytes and 16 a cell, the cells of `digest_bytes`.
+        let mut out = Vec::with_capacity(d.last_used_cell.saturating_mul(16).saturating_add(32));
+        out.extend_from_slice(&1i32.to_be_bytes());
+        for v in [d.min, d.max, d.public_compression] {
+            out.extend_from_slice(&v.to_bits().to_be_bytes());
+        }
+        out.extend_from_slice(
+            &i32::try_from(d.last_used_cell)
+                .unwrap_or(i32::MAX)
+                .to_be_bytes(),
+        );
+        for (w, m) in d.weight.iter().zip(&d.mean).take(d.last_used_cell) {
+            out.extend_from_slice(&w.to_bits().to_be_bytes());
+            out.extend_from_slice(&m.to_bits().to_be_bytes());
+        }
+        out
+    }
+
     /// `compress()`: `mergeNewValues(true, publicCompression)`.
     fn compress(&mut self) {
         self.merge_new_values(true, self.public_compression);

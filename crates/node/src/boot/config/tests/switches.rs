@@ -36,3 +36,23 @@ fn nested_is_off_by_default_and_turned_on_by_its_variable() {
     assert!(c.nested);
     assert!(NodeConfig::from_lookup(lookup(&with(&[("OSS_NESTED", "yes")]))).is_err());
 }
+
+// docs/specs/painless-script-score AC-1
+#[test]
+fn painless_source_is_refused_unless_its_variable_turns_the_compiler_on() {
+    let c = NodeConfig::from_lookup(lookup(&with(&[]))).expect("valid");
+    assert!(!c.painless_native_compile);
+    let on = NodeConfig::from_lookup(lookup(&with(&[(
+        "OSS_SCRIPTING_PAINLESS_NATIVE_COMPILE",
+        "true",
+    )])))
+    .expect("valid");
+    assert!(on.painless_native_compile);
+    assert!(
+        NodeConfig::from_lookup(lookup(&with(&[(
+            "OSS_SCRIPTING_PAINLESS_NATIVE_COMPILE",
+            "yes"
+        )])))
+        .is_err()
+    );
+}
