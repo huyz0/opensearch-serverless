@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use lucene_engine::painless_score::{PainlessMetricMap, decode_spec};
 use lucene_engine::query_blob::Cursor;
-use lucene_painless::ir::Constant;
+pub use lucene_painless::ir::Constant;
 use lucene_painless::scripted_metric as run;
 
 use super::MetricAgg;
@@ -54,6 +54,8 @@ pub struct ScriptedMetricResult {
     pub reduce_params: Constant,
     /// Each shard's `combine_script` value.
     pub states: Vec<Constant>,
+    /// The aggregation's value once [`Self::settle`] has run the reduce.
+    pub done: Option<Constant>,
 }
 
 impl ScriptedMetricResult {
@@ -71,6 +73,7 @@ impl ScriptedMetricResult {
             reduce_source: first.reduce_source.clone(),
             reduce_params: first.reduce_params.clone(),
             states,
+            done: None,
         })
     }
 
@@ -79,8 +82,25 @@ impl ScriptedMetricResult {
     /// # Errors
     /// The message of the script's failure.
     pub fn value(&self) -> Result<Constant, String> {
+        if let Some(done) = &self.done {
+            return Ok(done.clone()); // ALLOC: one value, bounded by the state limit.
+        }
         run::reduce(&self.reduce_source, &self.reduce_params, &self.states)
             .map_err(|e| e.to_string()) // ALLOC: error path; one message.
+    }
+}
+
+impl ScriptedMetricResult {
+    /// Runs the reduce script now, so a failure is known before the
+    /// response is written and the value is computed once.
+    ///
+    /// # Errors
+    /// The message of the script's failure.
+    pub fn settle(&mut self) -> Result<(), String> {
+        if self.done.is_none() {
+            self.done = Some(self.value()?);
+        }
+        Ok(())
     }
 }
 
@@ -237,6 +257,7 @@ pub(crate) fn empty(spec: &ScriptedMetricSpec) -> ScriptedMetricResult {
         reduce_source: reduce.source,
         // ALLOC: empty.
         states: Vec::new(),
+        done: None,
     }
 }
 
