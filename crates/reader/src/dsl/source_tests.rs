@@ -332,3 +332,34 @@ fn a_body_timeout_is_read_as_a_time_value_and_changes_nothing() {
         "Unknown key for a START_OBJECT in [timeout]."
     );
 }
+
+#[test]
+fn profile_false_and_stats_are_read_and_change_nothing() {
+    for body in [
+        r#"{"profile":false}"#,
+        r#"{"stats":["a","b"]}"#,
+        r#"{"stats":[]}"#,
+        r#"{"profile":false,"stats":["a"],"size":3}"#,
+    ] {
+        let parsed = source(body).unwrap_or_else(|_| panic!("{body} is read"));
+        let mut plain = SearchSource::default();
+        if body.contains("size") {
+            plain.size = 3;
+        }
+        assert_eq!(parsed, plain, "{body}");
+    }
+}
+
+#[test]
+fn profile_true_and_a_stats_element_that_is_not_a_string_are_refused() {
+    for body in [
+        r#"{"profile":true}"#,
+        r#"{"stats":[1]}"#,
+        r#"{"stats":[{"a":1}]}"#,
+    ] {
+        assert!(
+            reason(body).contains("is not supported by this node yet"),
+            "{body}"
+        );
+    }
+}
