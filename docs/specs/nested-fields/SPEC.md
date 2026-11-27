@@ -55,4 +55,4 @@ Indexing memory is reserved from each record's bytes, which already contain the 
 
 - Block ordering: a merge or a segment split that separates a block breaks the join. The engine keeps blocks together; AC-7 and AC-9 hold the shard to it.
 - A child with the same `_id` term as its root widens every `_id` lookup to the block: the version lookup, the overlay's hiding and a delete all take the last or all of them as the Java does.
-- Nothing compares to a recorded OpenSearch answer yet (no stock fixtures with nested); expected values are read from the Java.
+- Nested queries and aggregations are replayed against fixtures recorded from stock 3.10.0 (`fixtures/compat/nested-search/`); only `min` under a nested has no stock fixture, and expected values for it are read from the Java.
