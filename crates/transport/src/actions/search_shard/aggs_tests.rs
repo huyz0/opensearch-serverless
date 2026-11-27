@@ -21,6 +21,8 @@ fn a_written_request_reads_back() {
             terms: None,
             histogram: None,
             ranges: None,
+            rare: None,
+            multi: None,
             subs: Vec::new(),
         },
         AggRequest {
@@ -32,6 +34,8 @@ fn a_written_request_reads_back() {
             terms: None,
             histogram: None,
             ranges: None,
+            rare: None,
+            multi: None,
             subs: Vec::new(),
         },
     ];
@@ -61,6 +65,8 @@ fn another_type_and_a_sub_aggregation_are_refused() {
         terms: None,
         histogram: None,
         ranges: None,
+        rare: None,
+        multi: None,
         subs: Vec::new(),
     };
     let outer = AggRequest {
@@ -72,6 +78,8 @@ fn another_type_and_a_sub_aggregation_are_refused() {
         terms: None,
         histogram: None,
         ranges: None,
+        rare: None,
+        multi: None,
         subs: vec![inner],
     };
     let wire = bytes(&[outer]);

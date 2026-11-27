@@ -36,3 +36,5 @@ src/actions/search_shard/aggs_histogram.rs	port	server/src/main/java/org/opensea
 src/actions/search_shard/aggs_range.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/range/InternalRange.java@429b4cbc	AbstractRangeBuilder.innerWriteTo, RangeAggregator.Range.writeTo, and InternalRange.doWriteTo with its buckets
 src/actions/search_shard/aggs_kind.rs	new		the aggregation kinds and their writeable names, split from aggs.rs
 tests/search_shard_range.rs	new		the range builders and answers against the recorded Java bytes
+src/actions/search_shard/aggs_multi.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/InternalMultiTerms.java@429b4cbc	MultiTermsAggregationBuilder.innerWriteTo and InternalMultiTerms.doWriteTo
+src/actions/search_shard/aggs_rare.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/InternalMappedRareTerms.java@429b4cbc	RareTermsAggregationBuilder.innerWriteTo and InternalMappedRareTerms.doWriteTo with SetBackedScalingCuckooFilter in set mode

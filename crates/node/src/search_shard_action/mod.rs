@@ -12,7 +12,9 @@ mod answer_value;
 mod convert;
 mod histogram;
 mod local;
+mod multi;
 mod range;
+mod rare;
 mod terms;
 
 pub use local::{Local, run};

@@ -306,6 +306,27 @@ fn terms_options(
     Ok(text)
 }
 
+/// A `multi_terms`' options as the body's keys, each after a comma; the
+/// error bound is written only when asked for, which the reader refuses.
+fn multi_options(
+    t: &oss_transport::actions::search_shard::TermsRequest,
+) -> Result<String, ConvertError> {
+    let mut text = format!(
+        ",\"size\":{},\"min_doc_count\":{},\"shard_min_doc_count\":{}",
+        t.size, t.min_doc_count, t.shard_min_doc_count
+    );
+    if t.show_error {
+        text.push_str(",\"show_term_doc_count_error\":true");
+    }
+    if t.shard_size >= 0 {
+        text.push_str(&format!(",\"shard_size\":{}", t.shard_size));
+    }
+    if !t.order.is_default() {
+        text.push_str(&order_json(&t.order)?);
+    }
+    Ok(text)
+}
+
 /// The aggregations as a body's `aggs` object, in request order, with each
 /// bucket aggregation's own sub-aggregations after its options.
 fn write_aggs(aggs: &[AggRequest], text: &mut Vec<u8>) -> Result<(), ConvertError> {
@@ -317,6 +338,22 @@ fn write_aggs(aggs: &[AggRequest], text: &mut Vec<u8>) -> Result<(), ConvertErro
         let name = serde_json::to_vec(&a.name).map_err(|_| ConvertError::Number("a name"))?;
         let field = serde_json::to_vec(&a.field).map_err(|_| ConvertError::Number("a field"))?;
         text.extend_from_slice(&name);
+        if let Some(m) = &a.multi {
+            text.extend_from_slice(format!(":{{\"{}\":{{\"terms\":[", a.kind.name()).as_bytes());
+            for (at, f) in m.fields.iter().enumerate() {
+                if at > 0 {
+                    text.push(b',');
+                }
+                let f = serde_json::to_vec(f).map_err(|_| ConvertError::Number("a field"))?;
+                text.extend_from_slice(b"{\"field\":");
+                text.extend_from_slice(&f);
+                text.push(b'}');
+            }
+            text.push(b']');
+            text.extend_from_slice(multi_options(&m.options)?.as_bytes());
+            text.extend_from_slice(b"}}");
+            continue;
+        }
         text.extend_from_slice(format!(":{{\"{}\":{{\"field\":", a.kind.name()).as_bytes());
         text.extend_from_slice(&field);
         if let Some(t) = a.precision_threshold {
@@ -330,6 +367,9 @@ fn write_aggs(aggs: &[AggRequest], text: &mut Vec<u8>) -> Result<(), ConvertErro
         }
         if let Some(r) = &a.ranges {
             text.extend_from_slice(range_options(r)?.as_bytes());
+        }
+        if let Some(r) = &a.rare {
+            text.extend_from_slice(format!(",\"max_doc_count\":{}", r.max_doc_count).as_bytes());
         }
         if let Some(p) = &a.percentiles {
             let keys = serde_json::to_string(&p.keys)

@@ -29,6 +29,10 @@ pub enum AggKind {
     Range,
     /// `date_range`.
     DateRange,
+    /// `rare_terms`.
+    RareTerms,
+    /// `multi_terms`.
+    MultiTerms,
 }
 
 impl AggKind {
@@ -48,6 +52,8 @@ impl AggKind {
             Self::DateHistogram => "date_histogram",
             Self::Range => "range",
             Self::DateRange => "date_range",
+            Self::RareTerms => "rare_terms",
+            Self::MultiTerms => "multi_terms",
         }
     }
 
@@ -66,6 +72,8 @@ impl AggKind {
             Self::DateHistogram,
             Self::Range,
             Self::DateRange,
+            Self::RareTerms,
+            Self::MultiTerms,
         ]
         .into_iter()
         .find(|k| k.name() == name)
