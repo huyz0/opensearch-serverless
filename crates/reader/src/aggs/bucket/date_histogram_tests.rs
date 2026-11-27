@@ -72,7 +72,7 @@ fn month() -> DateHistogramSpec {
 
 pub(super) fn part(spec: &DateHistogramSpec, buckets: &[(i64, u64)]) -> DateHistogramResult {
     DateHistogramResult {
-        spec: *spec,
+        spec: spec.clone(),
         buckets: buckets.to_vec(),
         ..DateHistogramResult::default()
     }
@@ -270,7 +270,6 @@ fn unserved_keys_zones_and_orders_are_refused_as_not_supported_yet() {
         r#"{"field":"t","calendar_interval":"day","format":"yyyy"}"#,
         r#"{"field":"t","calendar_interval":"day","missing":"2020-01-01"}"#,
         r#"{"field":"t","calendar_interval":"day","time_zone":"Europe/Nowhere"}"#,
-        r#"{"field":"t","calendar_interval":"day","order":{"sub":"asc"}}"#,
         r#"{"field":"t","calendar_interval":"day","order":[{"_key":"asc"},{"_count":"asc"}]}"#,
     ] {
         assert!(

@@ -141,7 +141,6 @@ fn unserved_keys_and_orders_are_refused_as_not_supported_yet() {
     for body in [
         r#"{"field":"n","interval":1,"missing":0}"#,
         r#"{"field":"n","interval":1,"format":"yyyy"}"#,
-        r#"{"field":"n","interval":1,"order":{"sub":"asc"}}"#,
         r#"{"field":"n","interval":1,"order":[{"_key":"asc"},{"_count":"asc"}]}"#,
         r#"{"field":"n","interval":1,"order":{"_key":"asc","_count":"asc"}}"#,
     ] {
