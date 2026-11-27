@@ -43,10 +43,15 @@ impl ShardError {
     }
 
     pub(crate) fn engine(e: impl std::fmt::Display) -> Self {
+        // ALLOC: error path; one message.
+        let message = e.to_string();
+        if let Some(failure) = crate::script_failure::of_message(&message) {
+            return Self::bad_request(failure);
+        }
         Self {
             status: 500,
             // ALLOC: error path; one message.
-            failure: Failure::opensearch("exception", e.to_string()),
+            failure: Failure::opensearch("exception", message),
         }
     }
 }
