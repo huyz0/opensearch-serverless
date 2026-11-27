@@ -3,6 +3,7 @@
 //! request and result types (`MetricAgg` and `Value`), as `top_hits` is, so
 //! one pass, one response writer and one reduce serve them all.
 
+pub mod adjacency_parse;
 pub mod composite;
 pub mod composite_collect;
 pub mod composite_parse;
@@ -89,6 +90,8 @@ pub(crate) fn date_histogram_spec(agg: &MetricAgg) -> DateHistogramSpec {
     agg.date_histogram.as_deref().cloned().unwrap_or_default()
 }
 
+#[cfg(test)]
+mod adjacency_tests;
 #[cfg(test)]
 mod collect_tests;
 #[cfg(test)]

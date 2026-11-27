@@ -41,6 +41,8 @@ pub enum FilterKind {
     /// `filters`.
     #[default]
     Filters,
+    /// `adjacency_matrix`: the buckets with documents, none other.
+    AdjacencyMatrix,
     /// `filter`.
     Filter,
     /// `missing`.
@@ -55,6 +57,7 @@ impl FilterKind {
     /// The kind of the aggregation `metric` names.
     pub fn of(metric: Metric) -> Self {
         match metric {
+            Metric::AdjacencyMatrix => Self::AdjacencyMatrix,
             Metric::Filter => Self::Filter,
             Metric::Missing => Self::Missing,
             Metric::Nested => Self::Nested,
@@ -67,6 +70,7 @@ impl FilterKind {
     pub fn type_name(self) -> &'static str {
         match self {
             Self::Filters => "filters",
+            Self::AdjacencyMatrix => "adjacency_matrix",
             Self::Filter => "filter",
             Self::Missing => "missing",
             Self::Nested => "nested",

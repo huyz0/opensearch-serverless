@@ -95,3 +95,29 @@ fn a_serial_diff_works_on_the_buckets_that_hold_it() {
     assert_eq!(status, 400, "{text}");
     assert!(text.contains("not supported by this node yet"), "{text}");
 }
+
+const ADJACENCY: &str = r#"{"size":0,"aggs":{"adj":{"adjacency_matrix":{"filters":{"all":{"match_all":{}},"none":{"term":{"year":-1}}}}}}}"#;
+
+/// docs/specs/adjacency-matrix-agg AC-6: an `adjacency_matrix` over a REST
+/// search, typed or not, and its refusals.
+#[test]
+fn an_adjacency_matrix_counts_each_filter_and_each_pair() {
+    let (status, plain) = post("", ADJACENCY);
+    assert_eq!(status, 200, "{plain}");
+    assert!(
+        plain.contains(r#""adj":{"buckets":[{"key":"all","doc_count":"#),
+        "{plain}"
+    );
+    assert!(!plain.contains(r#""key":"none""#), "{plain}");
+    let (status, typed) = post("typed_keys=true", ADJACENCY);
+    assert_eq!(status, 200, "{typed}");
+    assert!(
+        typed.contains(r#""adjacency_matrix#adj":{"buckets":["#),
+        "{typed}"
+    );
+    let (status, text) = post(
+        "",
+        &ADJACENCY.replace(r#""filters":{"all""#, r#""filters":[],"x":{"all""#),
+    );
+    assert_eq!(status, 400, "{text}");
+}

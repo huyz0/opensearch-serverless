@@ -1,0 +1,31 @@
+parse {"filters":{"a":{"term":{"f":"x"}},"b":{"term":{"f":"x"}}}} -> ok separator=& only=false keys=[a, b]
+parse {"filters":{"b":{"term":{"f":"x"}},"a":{"term":{"f":"x"}}}} -> ok separator=& only=false keys=[a, b]
+parse {"filters":{"a":{"term":{"f":"x"}},"b":{"term":{"f":"x"}}},"separator":"|"} -> ok separator=| only=false keys=[a, b]
+parse {"filters":{"a":{"term":{"f":"x"}},"b":{"term":{"f":"x"}}},"separator":""} -> ok separator= only=false keys=[a, b]
+parse {"filters":{"a":{"term":{"f":"x"}},"b":{"term":{"f":"x"}}},"show_only_intersecting":true} -> ok separator=& only=true keys=[a, b]
+parse {"filters":{"a":{"term":{"f":"x"}},"b":{"term":{"f":"x"}}},"show_only_intersecting":false} -> ok separator=& only=false keys=[a, b]
+parse {"filters":{"a":{"term":{"f":"x"}}}} -> ok separator=& only=false keys=[a]
+parse {"filters":{}} -> java.lang.IllegalStateException: [p] is missing : filters parameter
+parse {} -> java.lang.IllegalStateException: [p] is missing : filters parameter
+parse {"separator":"&"} -> java.lang.IllegalStateException: [p] is missing : filters parameter
+parse {"filters":[{"term":{"f":"x"}}]} -> org.opensearch.core.xcontent.XContentParseException: [1:12] [adjacency_matrix] failed to parse field [filters] <- java.lang.IllegalArgumentException: [filters] doesn't support arrays. Use a single object with multiple fields.
+parse {"filters":null} -> org.opensearch.core.xcontent.XContentParseException: [1:12] [adjacency_matrix] filters doesn't support values of type: VALUE_NULL
+parse {"filters":{"a":{"term":{"f":"x"}}},"foo":1} -> org.opensearch.core.xcontent.XContentParseException: [1:37] [adjacency_matrix] unknown field [foo]
+parse {"filters":{"a":{"term":{"f":"x"}}},"separator":1} -> org.opensearch.core.xcontent.XContentParseException: [1:49] [adjacency_matrix] separator doesn't support values of type: VALUE_NUMBER
+parse {"filters":{"a":{"term":{"f":"x"}}},"show_only_intersecting":"x"} -> org.opensearch.core.xcontent.XContentParseException: [1:62] [adjacency_matrix] failed to parse field [show_only_intersecting] <- java.lang.IllegalArgumentException: Failed to parse value [x] as only [true] or [false] are allowed.
+parse {"filters":{"a":{"term":{"f":"x"}},"b":{"term":{"f":"x"}}},"other_bucket":true} -> org.opensearch.core.xcontent.XContentParseException: [1:60] [adjacency_matrix] unknown field [other_bucket]
+parse {"filters":{"a":1}} -> org.opensearch.core.xcontent.XContentParseException: [1:17] [adjacency_matrix] failed to parse field [filters] <- org.opensearch.core.xcontent.XContentParseException: [1:17] [filters] failed to parse field [a] <- org.opensearch.core.common.ParsingException: [_na] query malformed, must start with start_object
+parse {"filters":{"a":{}}} -> org.opensearch.core.xcontent.XContentParseException: [1:18] [adjacency_matrix] failed to parse field [filters] <- org.opensearch.core.xcontent.XContentParseException: [1:18] [filters] failed to parse field [a] <- java.lang.IllegalArgumentException: query malformed, empty clause found at [1:18]
+parse {"filters":"a"} -> org.opensearch.core.xcontent.XContentParseException: [1:12] [adjacency_matrix] filters doesn't support values of type: VALUE_STRING
+parse {"filters":{"a":{"term":{"f":"x"}}},"separator":null} -> org.opensearch.core.xcontent.XContentParseException: [1:49] [adjacency_matrix] separator doesn't support values of type: VALUE_NULL
+parse {"filters":{"a":{"term":{"f":"x"}}},"separator":["&"]} -> org.opensearch.core.xcontent.XContentParseException: [1:49] [adjacency_matrix] separator doesn't support values of type: START_ARRAY
+parse {"filters":{"":{"term":{"f":"x"}},"b":{"term":{"f":"x"}}}} -> ok separator=& only=false keys=[, b]
+parse {"filters":{"a&b":{"term":{"f":"x"}},"b":{"term":{"f":"x"}}}} -> ok separator=& only=false keys=[a&b, b]
+reduce.one {"p":{"buckets":[{"key":"a","doc_count":2},{"key":"a&b","doc_count":1},{"key":"b","doc_count":3}]}}
+reduce.two {"p":{"buckets":[{"key":"a","doc_count":7},{"key":"a&b","doc_count":1},{"key":"a&c","doc_count":4},{"key":"b","doc_count":3},{"key":"c","doc_count":1}]}}
+reduce.sorted {"p":{"buckets":[{"key":"a","doc_count":1},{"key":"a&b","doc_count":1},{"key":"a&c","doc_count":1},{"key":"b","doc_count":1},{"key":"b&c","doc_count":1}]}}
+reduce.none {"p":{"buckets":[]}}
+reduce.typed {"adjacency_matrix#p":{"buckets":[{"key":"a","doc_count":2},{"key":"a&b","doc_count":1},{"key":"b","doc_count":3}]}}
+reduce.unicode {"p":{"buckets":[{"key":"z","doc_count":1},{"key":"é","doc_count":1},{"key":"😀","doc_count":1},{"key":"ﬀ","doc_count":1}]}}
+reduce.numbers {"p":{"buckets":[{"key":"10","doc_count":1},{"key":"9","doc_count":1},{"key":"A","doc_count":1},{"key":"_","doc_count":1},{"key":"a","doc_count":1}]}}
+reduce.sep {"p":{"buckets":[{"key":"a","doc_count":1},{"key":"a|b","doc_count":3},{"key":"b","doc_count":3}]}}
