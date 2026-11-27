@@ -22,6 +22,7 @@ use crate::dsl::queries::function_score_script::ScriptScore;
 use crate::dsl::tokens::{Kind, Parser};
 
 use super::script_values;
+use crate::aggs::metric::scripted_metric;
 use crate::dsl::values::suggest;
 use crate::failure::Failure;
 
@@ -273,7 +274,10 @@ fn parse_definition(
                     definition.piped = true;
                     continue;
                 }
-                let Some(metric) = Metric::from_name(ty) else {
+                let named = Metric::from_name(ty).filter(|m| {
+                    *m != Metric::ScriptedMetric || crate::painless_switch::native_compile()
+                });
+                let Some(metric) = named else {
                     if REGISTERED_AGGREGATIONS.contains(&ty) {
                         // ALLOC: error path; one message.
                         return Err(DslError::unsupported(&format!("the [{ty}] aggregation")));
@@ -316,6 +320,7 @@ fn parse_definition(
                     composite: None,
                     significant: None,
                     rare: None,
+                    scripted: None,
                     script: None,
                     // ALLOC: empty; the definition's `aggs` fill it.
                     subs: Vec::new(),
@@ -329,6 +334,10 @@ fn parse_definition(
                         Metric::TopHits => {
                             // ALLOC: one box a `top_hits`, bounded by the body's recording.
                             agg.top_hits = Some(Box::new(parse_top_hits_body(p, name)?));
+                        }
+                        Metric::ScriptedMetric => {
+                            // ALLOC: one box a `scripted_metric`, bounded by the body's recording.
+                            agg.scripted = Some(Box::new(scripted_metric::parse_body(p, name)?));
                         }
                         _ => {
                             let (field, options, script) = parse_metric_body(p, metric, name)?;

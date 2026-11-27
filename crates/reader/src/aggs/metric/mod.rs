@@ -26,6 +26,7 @@ mod registered;
 pub mod render;
 pub mod resolve;
 pub mod script_values;
+pub mod scripted_metric;
 pub mod sub_rules;
 pub mod tdigest;
 pub mod top_hits;
@@ -116,11 +117,13 @@ pub enum Metric {
     /// `multi_terms`: the documents counted by each combination of the
     /// values of several keyword or long fields.
     MultiTerms,
+    /// `scripted_metric`: four Painless scripts over the matched documents.
+    ScriptedMetric,
 }
 
 impl Metric {
     /// Every metric served, by its aggregation type name.
-    pub const ALL: [Metric; 25] = [
+    pub const ALL: [Metric; 26] = [
         Metric::Min,
         Metric::Max,
         Metric::Sum,
@@ -146,6 +149,7 @@ impl Metric {
         Metric::SignificantTerms,
         Metric::RareTerms,
         Metric::MultiTerms,
+        Metric::ScriptedMetric,
     ];
 
     /// The aggregation type name.
@@ -176,6 +180,7 @@ impl Metric {
             Metric::SignificantTerms => "significant_terms",
             Metric::RareTerms => "rare_terms",
             Metric::MultiTerms => "multi_terms",
+            Metric::ScriptedMetric => "scripted_metric",
         }
     }
 
@@ -227,6 +232,8 @@ pub struct MetricAgg {
     /// A `script` in place of the field, on the metrics that take one and
     /// only when the node compiles Painless; `None` otherwise.
     pub script: Option<Box<crate::dsl::queries::function_score_script::ScriptScore>>,
+    /// A `scripted_metric`'s scripts; `None` for every other aggregation.
+    pub scripted: Option<Box<scripted_metric::ScriptedMetricSpec>>,
 }
 
 /// What a `cardinality` aggregation sets besides its field.
