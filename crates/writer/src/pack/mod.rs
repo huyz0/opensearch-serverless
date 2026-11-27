@@ -6,12 +6,14 @@
 //! pack, and the collector that deletes unreferenced ones, are separate.
 
 mod error;
+mod index;
 mod ledger;
 mod sidecar;
 mod store;
 mod writer;
 
 pub use error::PackError;
+pub use index::{IndexState, PackIndexStore, Removal};
 pub use ledger::{LedgerState, PackLedger};
 pub use sidecar::{PackSidecarStore, SidecarState};
 pub use store::{Landed, PackStore, Part};

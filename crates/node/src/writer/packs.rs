@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use oss_blob::BlobStore;
 use oss_types::settings::{BoolSetting, LongSetting, Scope, Setting};
-use oss_writer::pack::{PackLedger, PackStore, PackWriter};
+use oss_writer::pack::{PackIndexStore, PackLedger, PackStore, PackWriter};
 use oss_writer::publish::PackPlacement;
 
 /// The most bytes a pack grows to before it is written without waiting out
@@ -143,16 +143,18 @@ impl Packs {
             let ledger =
                 PackLedger::new(Arc::clone(store), base, node).map_err(|e| e.to_string())?;
             let epoch = ledger.next_epoch(clock_millis).map_err(|e| e.to_string())?;
-            let made = Arc::new(
-                PackWriter::new(
-                    PackStore::new(Arc::clone(store), base, node),
-                    Some(ledger),
-                    epoch,
-                    self.config.linger,
-                    MAX_PACK_BYTES,
-                )
-                .with_collection(self.config.collect),
-            );
+            let mut writer = PackWriter::new(
+                PackStore::new(Arc::clone(store), base, node),
+                Some(ledger),
+                epoch,
+                self.config.linger,
+                MAX_PACK_BYTES,
+            )
+            .with_collection(self.config.collect);
+            if self.config.collect {
+                writer = writer.with_index(PackIndexStore::new(Arc::clone(store), base), node);
+            }
+            let made = Arc::new(writer);
             *held = Some(Arc::clone(&made));
             made
         };
