@@ -103,11 +103,14 @@ pub enum Metric {
     Global,
     /// `missing`: the documents counted that have no value for a field.
     Missing,
+    /// `significant_terms`: the terms of a keyword field that the matches
+    /// hold far more often than the whole shard does.
+    SignificantTerms,
 }
 
 impl Metric {
     /// Every metric served, by its aggregation type name.
-    pub const ALL: [Metric; 22] = [
+    pub const ALL: [Metric; 23] = [
         Metric::Min,
         Metric::Max,
         Metric::Sum,
@@ -130,6 +133,7 @@ impl Metric {
         Metric::Missing,
         Metric::DateRange,
         Metric::Global,
+        Metric::SignificantTerms,
     ];
 
     /// The aggregation type name.
@@ -157,6 +161,7 @@ impl Metric {
             Metric::Missing => "missing",
             Metric::DateRange => "date_range",
             Metric::Global => "global",
+            Metric::SignificantTerms => "significant_terms",
         }
     }
 
@@ -201,6 +206,8 @@ pub struct MetricAgg {
     pub nested: Option<Box<crate::aggs::bucket::nested_agg::NestedSpec>>,
     /// A `composite`'s options; `None` for every other aggregation.
     pub composite: Option<Box<CompositeSpec>>,
+    /// A `significant_terms`' options; `None` for every other aggregation.
+    pub significant: Option<Box<crate::aggs::bucket::significant::SignificantSpec>>,
 }
 
 /// What a `cardinality` aggregation sets besides its field.
@@ -286,6 +293,13 @@ pub fn state_bytes(aggs: &[MetricAgg]) -> usize {
                         .saturating_mul(std::mem::size_of::<[f64; 2]>()),
                 )
             }
+            Metric::SignificantTerms => agg.significant.as_deref().map_or(0, |s| {
+                s.size
+                    .min(crate::aggs::bucket::BUCKET_LIMIT)
+                    .saturating_mul(std::mem::size_of::<
+                        crate::aggs::bucket::significant::SigBucket,
+                    >())
+            }),
             _ => 0,
         };
         total

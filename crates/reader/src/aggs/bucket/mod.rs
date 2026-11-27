@@ -37,6 +37,9 @@ pub mod range_collect;
 pub mod range_parse;
 pub mod range_render;
 pub mod running;
+pub mod significant;
+pub mod significant_collect;
+pub mod significant_parse;
 pub mod sub_order;
 pub mod sub_values;
 pub mod terms;
@@ -122,6 +125,7 @@ mod keyword_partition_tests;
 mod keyword_subs_tests;
 #[cfg(test)]
 mod keyword_terms_tests;
+
 #[cfg(test)]
 mod missing_collect_tests;
 #[cfg(test)]
@@ -146,6 +150,8 @@ mod range_collect_tests;
 mod range_tests;
 #[cfg(test)]
 mod running_tests;
+#[cfg(test)]
+mod significant_tests;
 #[cfg(test)]
 mod sub_order_tests;
 #[cfg(test)]

@@ -265,3 +265,7 @@ src/aggs/bucket/histogram_sub_order_tests.rs	new		tests of histogram and date_hi
 src/aggs/bucket/date_range_tests.rs	new		tests of date_range parsing and running
 src/aggs/bucket/global_tests.rs	new		tests of global parsing and running
 src/aggs/metric/collect_global.rs	new		runs global aggregations under a match_all query beside the others
+src/aggs/bucket/significant.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/InternalSignificantTerms.java@3.10.0	the JLH and percentage heuristics, InternalSignificantTerms.reduce and the response body
+src/aggs/bucket/significant_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/SignificantTermsAggregationBuilder.java@3.10.0	the ObjectParser keys, the setters checks and the factory shard size
+src/aggs/bucket/significant_collect.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/SignificanceLookup.java@3.10.0	the engine node, the background counts and size of SignificanceLookup
+src/aggs/bucket/significant_tests.rs	new		tests of significant_terms parsing, scoring, reduce and running

@@ -90,6 +90,9 @@ pub fn node<S: BlobStore + 'static>(
     if agg.metric == Metric::Cardinality {
         return keyword_cardinality::node(agg, shard, ords);
     }
+    if agg.metric == Metric::SignificantTerms {
+        return super::significant_collect::node(agg, shard, ords);
+    }
     if !ords.contains_key(&agg.field) {
         let built = shard
             .reader
@@ -383,6 +386,9 @@ pub fn value<S: BlobStore + 'static>(
 ) -> Result<Value, ShardError> {
     if agg.metric == Metric::Cardinality {
         return crate::aggs::metric::collect::value_from(agg, result);
+    }
+    if agg.metric == Metric::SignificantTerms {
+        return super::significant_collect::value(agg, shard, result);
     }
     if agg.subs.is_empty() {
         return keyword_collect::value(&spec_of(agg), result);
