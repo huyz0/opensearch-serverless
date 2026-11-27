@@ -4,6 +4,7 @@ use oss_transport::actions::warm::{HotSetResponse, PageAsk, PagesResponse};
 use oss_transport::frame::VariableHeader;
 use oss_transport::stream::TaskId;
 use oss_transport::version::WireVersion;
+use std::time::Duration;
 
 struct Fleet(Arc<[NodeLease]>);
 
@@ -263,4 +264,65 @@ fn a_handler_at_its_limit_answers_busy() {
     assert!(ask(&handler, &hot_ask("n1")).is_err());
     drop(hold);
     assert!(ask(&handler, &hot_ask("n1")).is_ok());
+}
+
+// docs/specs/reader-warm-copy AC-10
+#[test]
+fn a_peer_at_its_serve_rate_holds_a_batch_until_the_bytes_before_it_have_gone() {
+    let dir = oss_testkit::TempDir::new("warm-handler-rate");
+    let cache = cache(dir.path());
+    let key = put(&cache, "a", 0);
+    // 50-byte pages at 500 bytes a second: each batch of one page reserves 100 ms.
+    let gate = Arc::new(Gate::with_rate(500));
+    let handler = PagesHandler::new(
+        Arc::clone(&cache),
+        Holds(vec![("a".into(), 0)]),
+        limits(),
+        gate,
+    );
+    let mut buf = Vec::new();
+    PagesRequest {
+        parent: TaskId::default(),
+        asks: vec![PageAsk { key, page: 0 }],
+    }
+    .write(&mut Output::new(&mut buf, 1 << 16))
+    .unwrap();
+
+    let t = std::time::Instant::now();
+    ask(&handler, &buf).expect("the first is served");
+    assert!(
+        t.elapsed() < Duration::from_millis(50),
+        "the first batch is not held"
+    );
+    ask(&handler, &buf).expect("the second is served");
+    ask(&handler, &buf).expect("the third is served");
+    assert!(
+        t.elapsed() >= Duration::from_millis(190),
+        "three 100 ms batches took {:?}",
+        t.elapsed()
+    );
+}
+
+// docs/specs/reader-warm-copy AC-10
+#[test]
+fn the_hot_set_listing_is_not_charged_to_the_serve_rate() {
+    let dir = oss_testkit::TempDir::new("warm-handler-rate-hot");
+    let cache = cache(dir.path());
+    put(&cache, "a", 0);
+    let handler = HotSetHandler::new(
+        Arc::clone(&cache),
+        Holds(vec![("a".into(), 0)]),
+        fleet(2),
+        limits(),
+        Arc::new(Gate::with_rate(1)),
+    );
+    let t = std::time::Instant::now();
+    for _ in 0..3 {
+        ask(&handler, &hot_ask("n1")).expect("answers");
+    }
+    assert!(
+        t.elapsed() < Duration::from_millis(500),
+        "{:?}",
+        t.elapsed()
+    );
 }

@@ -249,6 +249,8 @@ pub mod warm_join;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod warm_peer;
 #[cfg(all(feature = "reader", feature = "writer"))]
+pub mod warm_rate;
+#[cfg(all(feature = "reader", feature = "writer"))]
 pub mod warm_setting;
 #[cfg(feature = "writer")]
 pub mod writer;
