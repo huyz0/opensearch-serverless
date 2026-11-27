@@ -26,7 +26,7 @@ Parity plan R6.3 (roadmap stage 3, [roadmap](../../roadmap.md)): the writer take
 
 ## Test plan
 
-`crates/writer/tests/bulk_fixtures.rs` replays the fixtures (AC-1, AC-4); `crates/writer/tests/bulk_stream.rs` feeds a 64 MiB body in 64 KiB chunks under the counting allocator, and bodies cut at every boundary kind (AC-2); `crates/writer/src/bulk/budget.rs` unit tests with a manual clock (AC-3); `crates/writer/tests/bulk_forward.rs` with a recording forwarder (AC-5); `crates/writer/tests/bulk_parse.rs` for action-line cases recorded from stock.
+`crates/writer/tests/it/bulk_fixtures.rs` replays the fixtures (AC-1, AC-4); `crates/writer/tests/bulk_stream.rs` feeds a 64 MiB body in 64 KiB chunks under the counting allocator, and bodies cut at every boundary kind (AC-2); `crates/writer/src/bulk/budget.rs` unit tests with a manual clock (AC-3); `crates/writer/tests/it/bulk_forward.rs` with a recording forwarder (AC-5); `crates/writer/tests/it/bulk_parse.rs` for action-line cases recorded from stock.
 
 ## S3 request budget
 

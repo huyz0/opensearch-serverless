@@ -28,7 +28,7 @@ Parity plan R8.5, the request-cost goal of one write log per node: a publish cos
 
 ## Test plan
 
-AC-1 to AC-8 and AC-9: unit tests in `lazy.rs`, each seen failing against a stub that answers "not due". AC-10: `crates/writer/tests/lazy_publish.rs` over the metered emulator with a manual clock, asserting the request counts and the publish count against what an eager loop would have made.
+AC-1 to AC-8 and AC-9: unit tests in `lazy.rs`, each seen failing against a stub that answers "not due". AC-10: `crates/writer/tests/it/lazy_publish.rs` over the metered emulator with a manual clock, asserting the request counts and the publish count against what an eager loop would have made.
 
 ## S3 request budget
 

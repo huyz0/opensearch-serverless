@@ -1,8 +1,7 @@
 //! Fences against a writer that wins the race for the slot the fence aims
 //! at, placed deterministically by the store, and the log's failures.
 
-mod common;
-
+use crate::common;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 

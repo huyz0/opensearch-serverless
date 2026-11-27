@@ -24,7 +24,7 @@ Parity plan R5.3 (roadmap stage 3, [roadmap](../../roadmap.md)). Invariant I-7: 
 
 ## Test plan
 
-`crates/writer/tests/node_log_takeover.rs` on the emulator, its meter counting `Put`, `Get` and `List`; the writer is a `NodeLogCommitter` with a recording lease. Ported code with its tests written alongside: `scripts/mutants.sh` on the diff stands in for watching each test fail.
+`crates/writer/tests/it/node_log_takeover.rs` on the emulator, its meter counting `Put`, `Get` and `List`; the writer is a `NodeLogCommitter` with a recording lease. Ported code with its tests written alongside: `scripts/mutants.sh` on the diff stands in for watching each test fail.
 
 ## S3 request budget
 

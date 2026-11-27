@@ -2,8 +2,7 @@
 //! emulator: the swap and its version, the lost swaps and their waits, the
 //! refusals, and callers coalescing.
 
-mod common;
-
+use crate::common;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Barrier, Mutex};
 use std::time::Duration;

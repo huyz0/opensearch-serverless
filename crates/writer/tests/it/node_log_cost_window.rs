@@ -1,8 +1,7 @@
 //! docs/specs/request-cost-window: the writers that share a commit window
 //! share the window's store requests among those that asked to see them.
 
-mod common;
-
+use crate::common;
 use std::sync::{Arc, Barrier};
 use std::time::Duration;
 

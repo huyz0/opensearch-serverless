@@ -17,7 +17,7 @@ The writer's `IndexInfo` gains `default_pipeline` and `final_pipeline`, read by 
 
 ## Acceptance criteria
 
-- AC-1: with no pipeline named, the default runs; a named pipeline runs instead of it; `_none` runs neither it nor the default. Test: `the_default_runs_unless_a_pipeline_is_named_or_none` (crates/writer/tests/bulk_default_pipelines.rs).
+- AC-1: with no pipeline named, the default runs; a named pipeline runs instead of it; `_none` runs neither it nor the default. Test: `the_default_runs_unless_a_pipeline_is_named_or_none` (crates/writer/tests/it/bulk_default_pipelines.rs).
 - AC-2: the final runs after the first over what it made, on a write that named a pipeline, named none, or named `_none`; `_none` as the setting runs nothing. Test: `the_final_runs_after_whatever_the_write_named`.
 - AC-3: a missing or failing default or final fails that item alone with the messages of AC-4 in bulk-ingest, and a delete runs neither. Test: `a_missing_default_or_final_fails_its_item_and_a_delete_runs_neither`.
 - AC-4: the node reads the two settings from the descriptor, flat or nested, none when unset or empty. Test: `the_routes_read_the_default_and_final_pipelines` (crates/node/tests/roles/descriptor_routes.rs).

@@ -25,7 +25,7 @@ Parity plan R5.2, part 3 (roadmap stage 3, [roadmap](../../roadmap.md)). One wri
 
 ## Test plan
 
-`crates/writer/tests/node_log_keeper.rs` on the emulator, its meter counting `Delete` and `List`; the lease is a recording fake that can fail. Ported code with its tests written alongside: `scripts/mutants.sh` on the diff stands in for watching each test fail.
+`crates/writer/tests/it/node_log_keeper.rs` on the emulator, its meter counting `Delete` and `List`; the lease is a recording fake that can fail. Ported code with its tests written alongside: `scripts/mutants.sh` on the diff stands in for watching each test fail.
 
 ## S3 request budget
 

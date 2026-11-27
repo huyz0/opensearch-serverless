@@ -17,7 +17,7 @@ The bucket manifest layouts, the stripe and bucket id, and the placement ranking
 
 ## Tests
 
-`crates/format/tests/bucket_java_fixtures.rs`, `crates/writer/tests/bucket_placement_java.rs`, over `fixtures/bucket-manifests/` (see its README for how the files were made).
+`crates/format/tests/bucket_java_fixtures.rs`, `crates/writer/tests/it/bucket_placement_java.rs`, over `fixtures/bucket-manifests/` (see its README for how the files were made).
 
 ## S3 request budget
 

@@ -29,7 +29,7 @@ Parity plan R6.2, second part (roadmap stage 3, [roadmap](../../roadmap.md)): a 
 
 ## Test plan
 
-`crates/writer/tests/document_fixtures.rs` replays `fixtures/compat/documents/*.json` through `index::Shard` (AC-1, AC-4); `crates/writer/tests/segment_fixtures.rs` replays the fixtures that update and delete through a shard and reads the committed segment back (AC-2); `document_fixtures.rs` replays each fixture a second time with a refresh after every step, and `crates/writer/tests/shard.rs` refreshes between operations (AC-3) and checks refusals (AC-4), `gc_deletes` and the request checks.
+`crates/writer/tests/it/document_fixtures.rs` replays `fixtures/compat/documents/*.json` through `index::Shard` (AC-1, AC-4); `crates/writer/tests/it/segment_fixtures.rs` replays the fixtures that update and delete through a shard and reads the committed segment back (AC-2); `document_fixtures.rs` replays each fixture a second time with a refresh after every step, and `crates/writer/tests/it/shard.rs` refreshes between operations (AC-3) and checks refusals (AC-4), `gc_deletes` and the request checks.
 
 ## S3 request budget
 

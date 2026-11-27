@@ -23,7 +23,7 @@ Parity plan R11 (node packs), [ADR 0024](../../adr/0024-node-packs-in-the-writer
 
 ## Test plan
 
-`crates/writer/tests/pack_writer.rs` over the in-process emulator and its request meter (AC-1 to AC-6, AC-8, AC-9); `crates/writer/tests/pack_memory.rs` under the counting allocator (AC-7).
+`crates/writer/tests/it/pack_writer.rs` over the in-process emulator and its request meter (AC-1 to AC-6, AC-8, AC-9); `crates/writer/tests/pack_memory.rs` under the counting allocator (AC-7).
 
 ## S3 request budget
 

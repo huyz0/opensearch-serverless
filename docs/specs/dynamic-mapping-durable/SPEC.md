@@ -17,7 +17,7 @@ Parity plan R6.4 and the fencing rule. Finishes [mapping growth](../mapping-grow
 
 ## Test plan
 
-`crates/writer/tests/shard.rs` (AC-1); `crates/node/tests/dynamic_mapping.rs` over the emulated cluster (AC-2). The refusal path (a descriptor that cannot hold the addition) reuses the failed-commit path and has no criterion of its own.
+`crates/writer/tests/it/shard.rs` (AC-1); `crates/node/tests/dynamic_mapping.rs` over the emulated cluster (AC-2). The refusal path (a descriptor that cannot hold the addition) reuses the failed-commit path and has no criterion of its own.
 
 ## S3 request budget
 

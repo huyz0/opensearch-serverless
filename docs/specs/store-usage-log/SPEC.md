@@ -20,7 +20,7 @@ Roadmap R13.3: the per-index ledger ([store-usage](../store-usage/SPEC.md), [wir
 
 ## Test plan
 
-`crates/writer/tests/node_log_usage.rs`. AC-2 was seen failing with the job running the PUT unshared.
+`crates/writer/tests/it/node_log_usage.rs`. AC-2 was seen failing with the job running the PUT unshared.
 
 ## S3 request budget
 

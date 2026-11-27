@@ -1,8 +1,7 @@
 //! Group commit across every shard of a node (the shell's
 //! `NodeLogCommitterTests`, by criterion of the spec): trimming, queued records, idle flush and hedges.
 
-mod common;
-
+use crate::common;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};

@@ -4,8 +4,6 @@
 // ARITH: test request counts are small; an overflow panics the test.
 #![allow(clippy::arithmetic_side_effects)]
 
-mod common;
-
 use std::sync::Arc;
 
 use lucene_index::index_writer::IndexWriter;

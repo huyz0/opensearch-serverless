@@ -2,8 +2,7 @@
 //! shell's `NodeLogWriter.renew` and `deleteBehind`), by criterion of the
 //! spec.
 
-mod common;
-
+use crate::common;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 

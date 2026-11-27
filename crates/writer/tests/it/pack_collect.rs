@@ -2,8 +2,7 @@
 //! an epoch rotates every 1,024 ordinals, the live epochs are capped, and
 //! the sidecar register is read and swapped.
 
-mod common;
-
+use crate::common;
 use std::sync::Arc;
 use std::time::Duration;
 

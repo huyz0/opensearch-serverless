@@ -32,7 +32,7 @@ Not changed, by design and listed: the native (off-heap) budget, because the Rus
 
 ## Test plan
 
-`crates/writer/tests/indexing_memory.rs` (AC-1 to AC-6, pure, with a threaded check for AC-2); `crates/writer/tests/shard.rs` (AC-7).
+`crates/writer/tests/it/indexing_memory.rs` (AC-1 to AC-6, pure, with a threaded check for AC-2); `crates/writer/tests/it/shard.rs` (AC-7).
 
 ## S3 request budget
 

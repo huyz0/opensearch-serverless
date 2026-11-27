@@ -1,8 +1,7 @@
 //! A node that won a shard's head replays what the previous writer logged
 //! and adopts the shard into its register.
 
-mod common;
-
+use crate::common;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 

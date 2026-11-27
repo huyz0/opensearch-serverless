@@ -16,7 +16,7 @@ R8 janitor: collecting a dead node's write log needs to know whether the shard's
 
 ## Test plan
 
-`crates/writer/tests/commit_checkpoint.rs` over the emulator.
+`crates/writer/tests/it/commit_checkpoint.rs` over the emulator.
 
 ## S3 request budget
 

@@ -22,7 +22,7 @@ R8.1 follow-up to [writer takeover](../writer-takeover/SPEC.md), and the request
 
 ## Test plan
 
-AC-1 to AC-3: `crates/writer/tests/node_log_replay.rs` additions over the emulator meter, each seen failing against a `for_each_record_above` that skips nothing. AC-4: `crates/writer/tests/takeover.rs` with the meter. AC-5: a recording engine. AC-6: a real shard, its `indexing_buffer_bytes` read between records by an engine wrapper.
+AC-1 to AC-3: `crates/writer/tests/it/node_log_replay.rs` additions over the emulator meter, each seen failing against a `for_each_record_above` that skips nothing. AC-4: `crates/writer/tests/it/takeover.rs` with the meter. AC-5: a recording engine. AC-6: a real shard, its `indexing_buffer_bytes` read between records by an engine wrapper.
 
 ## S3 request budget
 

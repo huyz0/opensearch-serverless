@@ -1,8 +1,7 @@
 //! Group commit across every shard of a node (the shell's
 //! `NodeLogCommitterTests`, by criterion of the spec): windows, epochs and admission.
 
-mod common;
-
+use crate::common;
 use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;

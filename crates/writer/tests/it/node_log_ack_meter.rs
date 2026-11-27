@@ -2,8 +2,7 @@
 //! `NodeLogCommitTimings`), by criterion of the spec. No upper bound on any
 //! time is asserted: only lower bounds the code's own waits guarantee.
 
-mod common;
-
+use crate::common;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
