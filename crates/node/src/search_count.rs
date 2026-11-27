@@ -34,6 +34,9 @@ const COUNT_PARAMS: &[&str] = &[
     "routing",
     "preference",
     "ignore_unavailable",
+    "allow_no_indices",
+    "ignore_throttled",
+    "expand_wildcards",
 ];
 
 /// The routes of `_count` on one index, by GET and POST.
