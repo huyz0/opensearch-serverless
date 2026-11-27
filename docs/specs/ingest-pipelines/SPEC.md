@@ -26,12 +26,6 @@ A failing processor runs its own `on_failure`, else is skipped under `ignore_fai
 - AC-6: Failures are taken by `on_failure` or `ignore_failure`; processors run in order. Tests: `failures_are_taken_by_on_failure_or_ignore_failure`, `processors_run_in_order`.
 - AC-7: What the engine does not run is refused at compile, and the routes refuse the same. Tests: `what_the_engine_does_not_run_is_refused_at_compile`, `a_malformed_pipeline_is_refused`, `an_unsupported_processor_is_refused_with_the_available_list`, `a_pipeline_of_supported_processors_is_accepted`.
 
-## The `script` processor
-
-With `serverless.scripting.painless.native_compile` on, a `script` processor (`source`, `lang` of `painless` or absent, `params` an object) runs the Painless source over the document as `ctx`, through the Rust front end and runtime, and keeps the document the script leaves (maps and lists edited in place, fields added or removed). A stored script (`id`), another `lang`, or any other option is refused at compile; with the switch off the type is refused as an unsupported processor. A script that does not compile, that the runtime does not run exactly as Painless does, or that throws fails the document with a `script_exception` message, and `on_failure` or `ignore_failure` take it as for any processor. The source is compiled for each document.
-
-- AC-8: The `script` processor edits a document behind the switch and is refused without it, and its failures are taken like any processor's. Test: `the_script_processor_is_refused_until_the_switch_is_on_then_edits_the_document` (own test binary `ingest_script`).
-
 ## S3 request budget
 
 None: no store call.

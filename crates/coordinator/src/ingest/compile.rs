@@ -192,25 +192,6 @@ fn processor(item: &Json, depth: usize) -> Result<Processor, String> {
                 to,
             }
         }
-        "script" if oss_reader::painless_switch::native_compile() => {
-            allow(kind, config, &["source", "lang", "params"])?;
-            if !matches!(text(config, "lang"), None | Some("painless")) {
-                // ALLOC: compiled once a pipeline a bulk; bounded by the definition (at most 1 MiB).
-                return Err("processor [script] runs only lang [painless]".to_owned());
-            }
-            let params = match config.get("params") {
-                // ALLOC: compiled once a pipeline a bulk; bounded by the definition (at most 1 MiB).
-                None => Json::Obj(Vec::new()),
-                Some(p @ Json::Obj(_)) => p.clone(),
-                // ALLOC: compiled once a pipeline a bulk; bounded by the definition (at most 1 MiB).
-                Some(_) => return Err("[params] must be an object".to_owned()),
-            };
-            Step::Script(super::script::Script {
-                // ALLOC: compiled once a pipeline a bulk; bounded by the definition (at most 1 MiB).
-                source: required(kind, config, "source")?.to_owned(),
-                params: super::script::to_constant(&params),
-            })
-        }
         other => {
             // ALLOC: compiled once a pipeline a bulk; bounded by the definition (at most 1 MiB).
             return Err(format!(

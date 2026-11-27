@@ -11,4 +11,3 @@ The expectations come from reading the ingest-common processors, not a recorded 
 - AC-5: `convert_changes_types_and_refuses_what_does_not_parse`
 - AC-6: `failures_are_taken_by_on_failure_or_ignore_failure`, `processors_run_in_order`
 - AC-7: `what_the_engine_does_not_run_is_refused_at_compile`, `a_malformed_pipeline_is_refused`, `an_unsupported_processor_is_refused_with_the_available_list`, `a_pipeline_of_supported_processors_is_accepted`
-- AC-8: `the_script_processor_is_refused_until_the_switch_is_on_then_edits_the_document` (run 2026-11-27: `cargo test -p oss-coordinator --test ingest_script`)

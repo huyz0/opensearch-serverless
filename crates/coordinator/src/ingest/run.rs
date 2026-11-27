@@ -100,7 +100,6 @@ fn kind(v: &Json) -> &'static str {
 
 fn step(s: &Step, doc: &mut Json) -> Result<(), String> {
     match s {
-        Step::Script(script) => super::script::run_script(script, doc),
         Step::Set {
             field,
             value,

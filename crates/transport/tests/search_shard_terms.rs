@@ -25,6 +25,7 @@ fn terms(name: &str, field: &str, t: TermsRequest) -> AggRequest {
         precision_threshold: None,
         percentiles: None,
         terms: Some(t),
+        histogram: None,
         subs: Vec::new(),
     }
 }
@@ -103,6 +104,7 @@ fn a_terms_with_a_sub_aggregation_reads_and_writes_as_java_wrote_it() {
         precision_threshold: None,
         percentiles: None,
         terms: None,
+        histogram: None,
         subs: Vec::new(),
     }];
     let mut input = Input::new(&wire);

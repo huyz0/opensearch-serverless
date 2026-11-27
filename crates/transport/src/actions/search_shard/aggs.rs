@@ -8,6 +8,7 @@
 //! refused by name.
 
 use super::Refusal;
+use super::aggs_histogram::{self, DateHistogramAnswer, DateHistogramRequest};
 use super::aggs_percentiles::{self, PercentilesRequest};
 use super::aggs_terms::{self, TermsAnswer, TermsRequest};
 use crate::error::WireError;
@@ -39,6 +40,8 @@ pub enum AggKind {
     PercentileRanks,
     /// `terms`.
     Terms,
+    /// `date_histogram`.
+    DateHistogram,
 }
 
 impl AggKind {
@@ -55,6 +58,7 @@ impl AggKind {
             Self::Percentiles => "percentiles",
             Self::PercentileRanks => "percentile_ranks",
             Self::Terms => "terms",
+            Self::DateHistogram => "date_histogram",
         }
     }
 
@@ -70,6 +74,7 @@ impl AggKind {
             Self::Percentiles,
             Self::PercentileRanks,
             Self::Terms,
+            Self::DateHistogram,
         ]
         .into_iter()
         .find(|k| k.name() == name)
@@ -91,6 +96,8 @@ pub struct AggRequest {
     pub percentiles: Option<PercentilesRequest>,
     /// A `terms`' options.
     pub terms: Option<TermsRequest>,
+    /// A `date_histogram`'s options.
+    pub histogram: Option<DateHistogramRequest>,
     /// The sub-aggregations of a bucket aggregation, in request order.
     pub subs: Vec<AggRequest>,
 }
@@ -118,6 +125,8 @@ pub enum AggValue {
     Cardinality(Option<Vec<u8>>),
     /// `StringTerms` or `LongTerms`.
     Terms(TermsAnswer),
+    /// `InternalDateHistogram`.
+    DateHistogram(DateHistogramAnswer),
     /// `InternalTDigestPercentiles` or `InternalTDigestPercentileRanks`.
     Percentiles {
         /// Ranks rather than percentiles.
@@ -249,7 +258,7 @@ fn read_one(
     } else {
         read_builder(input, depth.saturating_add(1), budget)?
     };
-    if !subs.is_empty() && kind != AggKind::Terms {
+    if !subs.is_empty() && !matches!(kind, AggKind::Terms | AggKind::DateHistogram) {
         return Err(Refusal::Unsupported("sub-aggregations"));
     }
     null_generic(input, "aggregation metadata")?;
@@ -288,6 +297,11 @@ fn read_one(
     } else {
         None
     };
+    let histogram = if kind == AggKind::DateHistogram {
+        Some(aggs_histogram::read(input)?)
+    } else {
+        None
+    };
     Ok(AggRequest {
         name,
         kind,
@@ -295,6 +309,7 @@ fn read_one(
         precision_threshold,
         percentiles,
         terms,
+        histogram,
         subs,
     })
 }
@@ -332,6 +347,9 @@ pub fn write(aggs: &[AggRequest], out: &mut Output<'_>) -> Result<(), WireError>
         }
         if let Some(t) = &agg.terms {
             aggs_terms::write(t, out)?;
+        }
+        if let Some(h) = &agg.histogram {
+            aggs_histogram::write(h, out)?;
         }
         if let Some(p) = &agg.percentiles {
             out.count(p.keys.len())?;
@@ -394,6 +412,7 @@ pub(super) fn write_one(
             AggValue::Stats { .. } => (AggKind::Stats, ()),
             AggValue::Cardinality(_) => (AggKind::Cardinality, ()),
             AggValue::Terms(_) => (AggKind::Terms, ()),
+            AggValue::DateHistogram(_) => (AggKind::DateHistogram, ()),
             AggValue::Percentiles { ranks: false, .. } => (AggKind::Percentiles, ()),
             AggValue::Percentiles { ranks: true, .. } => (AggKind::PercentileRanks, ()),
         };
@@ -421,6 +440,7 @@ pub(super) fn write_one(
                 out.bool(*keyed)?;
             }
             AggValue::Terms(t) => t.write(date, out)?,
+            AggValue::DateHistogram(h) => h.write(out)?,
             AggValue::Cardinality(sketch) => {
                 write_format(out, date)?;
                 out.bool(sketch.is_some())?;

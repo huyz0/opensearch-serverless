@@ -16,7 +16,6 @@ oss-doc = { workspace = true }
 oss-format = { workspace = true }
 oss-reader = { workspace = true }
 oss-writer = { workspace = true }
-lucene-painless = { workspace = true }
 regex = { workspace = true }
 
 [lints]

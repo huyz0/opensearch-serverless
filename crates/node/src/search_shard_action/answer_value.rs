@@ -1,6 +1,6 @@
 //! A shard's result for one aggregation as the forwarded answer's value.
 
-use super::{refuse, terms};
+use super::{histogram, refuse, terms};
 use oss_reader::aggs::partial::Value as Part;
 use oss_transport::actions::search_shard::{AggRequest, AggValue};
 use oss_transport::exception::RemoteException;
@@ -70,6 +70,9 @@ pub(super) fn value(
         }
         Part::Terms(r) => AggValue::Terms(terms::numeric(r, request(asked, name)?)?),
         Part::KeywordTerms(r) => AggValue::Terms(terms::keyword(r, request(asked, name)?)?),
+        Part::DateHistogram(r) => {
+            AggValue::DateHistogram(histogram::answer(r, request(asked, name)?)?)
+        }
         Part::ValueCount(n) => AggValue::ValueCount(i64::try_from(*n).unwrap_or(i64::MAX)),
         _ => {
             return Err(refuse(

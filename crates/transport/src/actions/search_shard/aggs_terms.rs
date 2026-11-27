@@ -68,7 +68,7 @@ impl OrderSpec {
         self.compound && self.items == [Order::CountDesc, Order::KeyAsc]
     }
 
-    fn read(input: &mut Input<'_>) -> Result<Self, Refusal> {
+    pub(super) fn read(input: &mut Input<'_>) -> Result<Self, Refusal> {
         let tag = input.byte("a bucket order")?;
         if tag != 0xFF {
             let order =
@@ -97,7 +97,7 @@ impl OrderSpec {
         })
     }
 
-    fn write(&self, out: &mut Output<'_>) -> Result<(), WireError> {
+    pub(super) fn write(&self, out: &mut Output<'_>) -> Result<(), WireError> {
         if !self.compound {
             return out.byte(self.items.first().map_or(1, |o| o.id()));
         }

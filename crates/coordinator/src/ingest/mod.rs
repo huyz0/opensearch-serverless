@@ -35,7 +35,6 @@ pub struct Pipeline {
 
 mod compile;
 mod run;
-mod script;
 
 #[derive(Debug, Clone)]
 pub(super) struct Processor {
@@ -78,7 +77,6 @@ pub(super) enum Step {
         ignore_missing: bool,
         to: Type,
     },
-    Script(script::Script),
 }
 
 #[derive(Debug, Clone, Copy)]
