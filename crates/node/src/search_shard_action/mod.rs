@@ -10,6 +10,7 @@
 
 mod answer_value;
 mod convert;
+mod histogram;
 mod local;
 mod terms;
 

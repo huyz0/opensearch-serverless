@@ -30,6 +30,7 @@ fn aggregations_asked_for_come_back_as_internal_aggregations() {
             precision_threshold: None,
             percentiles: None,
             terms: None,
+            histogram: None,
             subs: Vec::new(),
         },
         AggRequest {
@@ -39,6 +40,7 @@ fn aggregations_asked_for_come_back_as_internal_aggregations() {
             precision_threshold: None,
             percentiles: None,
             terms: None,
+            histogram: None,
             subs: Vec::new(),
         },
     ];
@@ -189,6 +191,7 @@ fn terms_request(
             },
             show_error: false,
         }),
+        histogram: None,
         subs: Vec::new(),
     }
 }
@@ -289,6 +292,7 @@ fn a_numeric_terms_aggregation_is_answered_as_long_terms_and_a_bucket_carries_it
         precision_threshold: None,
         percentiles: None,
         terms: None,
+        histogram: None,
         subs: Vec::new(),
     }];
     let meta = vec![("m".to_owned(), Format::Raw)];
@@ -313,4 +317,114 @@ fn a_numeric_terms_aggregation_is_answered_as_long_terms_and_a_bucket_carries_it
         format!("{refused:?}").contains("not supported by this node"),
         "{refused:?}"
     );
+}
+
+fn histogram_request(
+    interval: &str,
+    interval_type: oss_transport::actions::search_shard::IntervalType,
+) -> oss_transport::actions::search_shard::AggRequest {
+    use oss_transport::actions::search_shard::{
+        AggKind, AggRequest, DateHistogramRequest, Order, OrderSpec,
+    };
+    AggRequest {
+        name: "d".to_owned(),
+        kind: AggKind::DateHistogram,
+        field: "t".to_owned(),
+        precision_threshold: None,
+        percentiles: None,
+        terms: None,
+        histogram: Some(DateHistogramRequest {
+            order: OrderSpec {
+                compound: false,
+                items: vec![Order::KeyAsc],
+            },
+            keyed: false,
+            min_doc_count: 0,
+            interval: interval.to_owned(),
+            interval_type,
+            offset: 0,
+        }),
+        subs: Vec::new(),
+    }
+}
+
+#[test]
+fn a_date_histogram_is_answered_with_its_rounding_buckets_and_empty_bucket_sub_aggregations() {
+    use oss_reader::aggs::bucket::date_histogram::{DateHistogramResult, DateUnit, RoundingKind};
+    use oss_reader::aggs::bucket::sub_values::BucketSubs;
+    use oss_reader::aggs::partial::{Format, Partial, Value as Part};
+    use oss_transport::actions::search_shard::{AggKind, AggRequest, IntervalType};
+    let mut spec = oss_reader::aggs::bucket::date_histogram::DateHistogramSpec::default();
+    spec.rounding.kind = RoundingKind::Unit(DateUnit::Day);
+    let part = |subs: BucketSubs| Partial {
+        name: "d".to_owned(),
+        format: Format::Date,
+        value: Part::DateHistogram(Box::new(DateHistogramResult {
+            spec: spec.clone(),
+            buckets: vec![(86_400_000, 3), (172_800_000, 1)],
+            subs,
+        })),
+    };
+    let answer = ask_with(
+        vec![histogram_request("1d", IntervalType::Calendar)],
+        vec![part(BucketSubs::default())],
+    )
+    .unwrap();
+    // The name, the key order, no minimum, the day rounding in UTC, then no
+    // empty sub-aggregations and no bounds.
+    let mut expected = vec![1, 14];
+    expected.extend_from_slice(b"date_histogram");
+    expected.extend_from_slice(&[1, b'd', 0xFF, 4, 0, 1, 5, 1, b'Z', 0, 0]);
+    assert!(
+        answer.windows(expected.len()).any(|w| w == &expected[..]),
+        "{answer:?}"
+    );
+    // A sub-aggregation, and what an empty bucket holds of it.
+    let mut request = histogram_request("1d", IntervalType::Calendar);
+    request.subs = vec![AggRequest {
+        name: "m".to_owned(),
+        kind: AggKind::Max,
+        field: "n".to_owned(),
+        precision_threshold: None,
+        percentiles: None,
+        terms: None,
+        histogram: None,
+        subs: Vec::new(),
+    }];
+    let subs = BucketSubs {
+        meta: vec![("m".to_owned(), Format::Raw)],
+        empty: vec![Part::Max(f64::NEG_INFINITY)],
+        lists: vec![vec![Part::Max(4.0)], vec![Part::Max(f64::NEG_INFINITY)]],
+    };
+    let answer = ask_with(vec![request], vec![part(subs)]).unwrap();
+    let mut empty = vec![1, 3, b'm', b'a', b'x', 1, b'm', 0xFF, 3, b'r', b'a', b'w'];
+    empty.extend_from_slice(&f64::NEG_INFINITY.to_bits().to_be_bytes());
+    assert!(
+        answer.windows(empty.len()).any(|w| w == &empty[..]),
+        "{answer:?}"
+    );
+}
+
+#[test]
+fn a_date_histogram_in_a_time_zone_is_refused() {
+    use oss_reader::aggs::bucket::date_histogram::{DateHistogramResult, DateHistogramSpec};
+    use oss_reader::aggs::partial::{Format, Partial, Value as Part};
+    use oss_transport::actions::search_shard::IntervalType;
+    let mut spec = DateHistogramSpec::default();
+    spec.rounding.zone_ms = 3_600_000;
+    let part = Partial {
+        name: "d".to_owned(),
+        format: Format::Date,
+        value: Part::DateHistogram(Box::new(DateHistogramResult {
+            spec,
+            buckets: Vec::new(),
+            subs: Default::default(),
+        })),
+    };
+    let refused = ask_with(
+        vec![histogram_request("1d", IntervalType::Calendar)],
+        vec![part],
+    )
+    .unwrap_err();
+    assert!(format!("{refused:?}").contains("time zone"), "{refused:?}");
 }

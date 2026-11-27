@@ -82,6 +82,7 @@ fn the_aggregations_of_a_request_reach_the_source() {
             precision_threshold: None,
             percentiles: None,
             terms: None,
+            histogram: None,
             subs: Vec::new(),
         },
         AggRequest {
@@ -91,6 +92,7 @@ fn the_aggregations_of_a_request_reach_the_source() {
             precision_threshold: None,
             percentiles: None,
             terms: None,
+            histogram: None,
             subs: Vec::new(),
         },
     ];
@@ -114,6 +116,7 @@ fn a_precision_threshold_reaches_the_source() {
         precision_threshold: Some(100),
         percentiles: None,
         terms: None,
+        histogram: None,
         subs: Vec::new(),
     }];
     let s = search_source(&with).expect("a search source");
@@ -135,6 +138,7 @@ fn percentile_keys_and_options_reach_the_source() {
             compression: Some(200.0),
         }),
         terms: None,
+        histogram: None,
         subs: Vec::new(),
     };
     with.aggregations = vec![
@@ -179,6 +183,7 @@ fn a_terms_aggregations_options_reach_the_source() {
             order,
             show_error: true,
         }),
+        histogram: None,
         subs: Vec::new(),
     };
     let mut with = read("request.match_all");
@@ -223,6 +228,7 @@ fn the_sub_aggregations_of_a_terms_reach_the_source() {
         precision_threshold: None,
         percentiles: None,
         terms: None,
+        histogram: None,
         subs: Vec::new(),
     };
     let mut parent = leaf("t", AggKind::Terms);
@@ -243,4 +249,53 @@ fn the_sub_aggregations_of_a_terms_reach_the_source() {
     let s = search_source(&with).expect("a search source");
     let names: Vec<&str> = s.aggs[0].subs.iter().map(|a| a.name.as_str()).collect();
     assert_eq!(names, ["hi", "lo"]);
+}
+
+#[test]
+fn a_date_histograms_options_and_sub_aggregations_reach_the_source() {
+    use oss_reader::aggs::bucket::date_histogram::{DateUnit, RoundingKind};
+    use oss_transport::actions::search_shard::{
+        AggKind, AggRequest, DateHistogramRequest, IntervalType, Order, OrderSpec,
+    };
+    let leaf = |name: &str, kind| AggRequest {
+        name: name.to_owned(),
+        kind,
+        field: "n".to_owned(),
+        precision_threshold: None,
+        percentiles: None,
+        terms: None,
+        histogram: None,
+        subs: Vec::new(),
+    };
+    let ask = |interval: &str, interval_type| {
+        let mut h = leaf("d", AggKind::DateHistogram);
+        h.field = "t".to_owned();
+        h.histogram = Some(DateHistogramRequest {
+            order: OrderSpec {
+                compound: false,
+                items: vec![Order::KeyDesc],
+            },
+            keyed: true,
+            min_doc_count: 2,
+            interval: interval.to_owned(),
+            interval_type,
+            offset: 5000,
+        });
+        h.subs = vec![leaf("hi", AggKind::Max)];
+        h
+    };
+    let mut with = read("request.match_all");
+    with.aggregations = vec![ask("1d", IntervalType::Calendar)];
+    let s = search_source(&with).expect("a search source");
+    let h = s.aggs[0].date_histogram.as_ref().expect("a date histogram");
+    assert_eq!(h.rounding.kind, RoundingKind::Unit(DateUnit::Day));
+    assert_eq!(
+        (h.rounding.offset, h.keyed, h.min_doc_count),
+        (5000, true, 2)
+    );
+    assert_eq!(s.aggs[0].subs.len(), 1);
+    with.aggregations = vec![ask("30s", IntervalType::Fixed)];
+    let s = search_source(&with).expect("a search source");
+    let h = s.aggs[0].date_histogram.as_ref().expect("a date histogram");
+    assert_eq!(h.rounding.kind, RoundingKind::Interval(30_000));
 }
