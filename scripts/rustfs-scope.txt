@@ -16,6 +16,7 @@ crates/node/tests/server/stock_restore.rs         compat
 crates/node/tests/server/stock_export_budget.rs   compat
 crates/node/tests/mixed_fleet.rs                  cross
 crates/node/tests/mixed_fleet/made_from_nothing.rs cross
+crates/node/tests/mixed_fleet/live_plugins.rs     cross
 crates/node/tests/mixed_fleet/snapshots.rs        cross
 crates/node/tests/mixed_fleet/soak.rs             cross
 crates/node/tests/mixed_fleet/soak_wide.rs        cross
