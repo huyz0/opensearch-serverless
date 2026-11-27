@@ -93,9 +93,8 @@ pub fn value<S: BlobStore + 'static>(
                     Ok(MultiPart::Text(String::from_utf8_lossy(&term).into_owned()))
                 }
                 KeyPart::Long(n) => Ok(MultiPart::Long(n)),
-                KeyPart::Missing | KeyPart::Double(_) => {
-                    Err(engine_error("a multi_terms key of another kind"))
-                }
+                KeyPart::Double(d) => Ok(MultiPart::Double(super::terms_collect::key_of_double(d))),
+                KeyPart::Missing => Err(engine_error("a multi_terms key of another kind")),
             })
             // ALLOC: as above.
             .collect();

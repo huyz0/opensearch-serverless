@@ -17,6 +17,9 @@ pub enum MultiPart {
     Text(String),
     /// A long.
     Long(i64),
+    /// A `double` or `float`'s value, as the sortable long the engine keys it by
+    /// (see [`crate::aggs::bucket::terms_collect::double_of_key`]).
+    Double(i64),
 }
 
 /// A bucket's key: one part a term of the aggregation.
@@ -222,6 +225,13 @@ pub fn write_multi(out: &mut dyn Write, result: &MultiResult) -> io::Result<()> 
                 MultiPart::Long(n) => {
                     write!(out, "{n}")?;
                     write!(joined, "{n}").map_err(io::Error::other)?;
+                }
+                MultiPart::Double(n) => {
+                    let text = crate::template::java_double(
+                        crate::aggs::bucket::terms_collect::double_of_key(*n),
+                    );
+                    out.write_all(text.as_bytes())?;
+                    joined.push_str(&text);
                 }
             }
         }

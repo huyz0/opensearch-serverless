@@ -91,8 +91,7 @@ mod tests {
 
     #[test]
     fn a_terms_over_a_double_is_a_double_terms() {
-        use crate::aggs::bucket::terms::TermsResult;
-        let terms = Value::Terms(Box::new(TermsResult::default()));
+        let terms = Value::Terms(Box::default());
         let mut out = Vec::new();
         scoped(true, || {
             write_key(&mut out, "n", &terms, Format::Double).unwrap();
