@@ -21,19 +21,13 @@ const TTL: Duration = Duration::from_millis(300);
 struct Rig {
     server: Server,
     store: Arc<Emulator>,
-    models: StoreModels,
+    models: Arc<StoreModels>,
     budget: MemoryBudget,
 }
 
 fn rig(cache_bytes: usize) -> Rig {
     let store = Arc::new(Emulator::new(1 << 28, 5));
     let blobs = Arc::clone(&store) as Arc<dyn BlobStore>;
-    let service = Arc::new(LtrService::new(&blobs, "", 1 << 16));
-    let router = routes(Router::new(), &service).expect("routes");
-    let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
-    let budget = MemoryBudget::new(&support::budget_config());
-    let server =
-        Server::start(listener, support::server_config(), router, &budget).expect("starts");
     let cache = ModelCache {
         buffer_bytes: 1 << 16,
         max_window: 77,
@@ -45,7 +39,14 @@ fn rig(cache_bytes: usize) -> Rig {
             .with_pool(Pool::OpenIndexes, 64 << 20)
             .expect("fits"),
     );
-    let models = StoreModels::new(&blobs, "", cache, pool.clone());
+    let models = Arc::new(StoreModels::new(&blobs, "", cache, pool.clone()));
+    let service =
+        Arc::new(LtrService::new(&blobs, "", 1 << 16).with_cache(Arc::clone(&models), "n1"));
+    let router = routes(Router::new(), &service).expect("routes");
+    let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
+    let budget = MemoryBudget::new(&support::budget_config());
+    let server =
+        Server::start(listener, support::server_config(), router, &budget).expect("starts");
     Rig {
         server,
         store,
@@ -237,4 +238,51 @@ fn what_the_cache_holds_is_reserved_bounded_and_released() {
         Err(ResolveError::TooBig(_))
     ));
     assert!(small.models.resolve(None, "m").is_ok());
+}
+
+// AC-14
+#[test]
+fn stats_count_the_caches_and_the_stores_and_a_clear_forgets_a_store() {
+    let r = rig(8 << 20);
+    seed(&r);
+    r.models.resolve(None, "m").expect("resolves");
+    r.models.resolve(None, "m").expect("resolves");
+    r.models.feature_set(None, "fs").expect("resolves");
+    assert!(r.models.resolve(None, "nope").is_err());
+    let stats = |target: &str| -> serde_json::Value {
+        let reply = call(&r, "GET", target, None);
+        assert_eq!(reply.status, 200, "{}", reply.text());
+        serde_json::from_str(&reply.text()).expect("json")
+    };
+    let all = stats("/_ltr/_stats");
+    assert_eq!(all["_nodes"]["successful"], 1);
+    assert_eq!(all["status"], "green");
+    assert_eq!(all["stores"][".ltrstore"]["model_count"], 1);
+    assert_eq!(all["stores"][".ltrstore"]["featureset_count"], 1);
+    let node = &all["nodes"]["n1"];
+    assert_eq!(node["cache"]["model"]["miss_count"], 1);
+    assert_eq!(node["cache"]["model"]["hit_count"], 1);
+    assert_eq!(node["cache"]["model"]["entry_count"], 1);
+    assert_eq!(node["cache"]["featureset"]["miss_count"], 1);
+    assert_eq!(node["request_total_count"], 4);
+    assert_eq!(node["request_error_count"], 1);
+    assert!(node["cache"]["model"]["memory_usage_in_bytes"].as_u64() > Some(0));
+    // a named stat answers only that
+    let one = stats("/_plugins/_ltr/_stats/request_total_count");
+    assert_eq!(one["nodes"]["n1"]["request_total_count"], 4);
+    assert!(one.get("stores").is_none() && one["nodes"]["n1"].get("cache").is_none());
+    assert_eq!(call(&r, "GET", "/_ltr/_stats/zzz", None).status, 400);
+    // a clear forgets the store's entries and returns their bytes
+    let held = r.budget.available(Pool::OpenIndexes);
+    let cleared = call(&r, "POST", "/_ltr/_clearcache", None);
+    assert_eq!(cleared.status, 200, "{}", cleared.text());
+    assert_eq!(r.models.held(), (0, 0));
+    assert!(r.budget.available(Pool::OpenIndexes) > held);
+    assert_eq!(
+        call(&r, "POST", "/_ltr/nostore/_clearcache", None).status,
+        404
+    );
+    let before = gets(&r);
+    r.models.resolve(None, "m").expect("resolves");
+    assert_eq!(gets(&r) - before, 3, "a cleared entry is read again");
 }

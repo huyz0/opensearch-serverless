@@ -100,8 +100,7 @@ pub(crate) fn register(
     let router =
         crate::script_route::routes(router, &Arc::new(scripts)).map_err(AssembleError::Route)?;
     let router = if config.ltr {
-        let ltr = crate::ltr_route::LtrService::new(store, &config.base, config.pit_buffer_bytes);
-        oss_reader::ltr::models::install(Arc::new(crate::ltr_route::StoreModels::new(
+        let models = Arc::new(crate::ltr_route::StoreModels::new(
             store,
             &config.base,
             crate::ltr_route::ModelCache {
@@ -111,7 +110,10 @@ pub(crate) fn register(
                 bytes: config.ltr_cache_bytes,
             },
             budget.clone(),
-        )));
+        ));
+        oss_reader::ltr::models::install(models.clone());
+        let ltr = crate::ltr_route::LtrService::new(store, &config.base, config.pit_buffer_bytes)
+            .with_cache(models, &config.node_id);
         crate::ltr_route::routes(router, &Arc::new(ltr)).map_err(AssembleError::Route)?
     } else {
         router
