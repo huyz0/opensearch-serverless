@@ -158,3 +158,29 @@ fn the_compound_and_full_text_queries_are_named_too() {
     // The food hit matches only the constant_score over its tag.
     assert_eq!(names("4"), ["const"], "{text}");
 }
+
+#[test]
+fn names_in_the_post_filter_and_the_rescore_count_too() {
+    let body = r#"{"query":{"match_all":{}},
+        "post_filter":{"term":{"tag":{"value":"animal","_name":"filtered"}}},
+        "rescore":{"window_size":10,"query":{"rescore_query":{"range":{"year":{"gte":2002,"_name":"rescored"}}}}},
+        "size":10}"#;
+    let (status, text) = post(body);
+    assert_eq!(status, 200, "{text}");
+    let hits = matched(&text);
+    assert!(!hits.is_empty(), "{text}");
+    for (id, names) in &hits {
+        let names: Vec<&str> = names
+            .as_array()
+            .unwrap_or_else(|| panic!("{id}: {names}"))
+            .iter()
+            .filter_map(|n| n.as_str())
+            .collect();
+        assert!(names.contains(&"filtered"), "{id}: {names:?}");
+    }
+    let late = hits
+        .iter()
+        .filter(|(_, n)| n.to_string().contains("rescored"))
+        .count();
+    assert!(late > 0 && late < hits.len(), "{text}");
+}
