@@ -192,7 +192,6 @@ fn string_queries_refuse_bad_shapes_and_unserved_options() {
         "[regexp] max_determinized_states cannot be negative but was [-1]"
     );
     for unsupported in [
-        r#"{"regexp":{"tag":{"value":"a","case_insensitive":true}}}"#,
         r#"{"prefix":{"tag":{"value":"a","rewrite":"scoring_boolean"}}}"#,
         r#"{"regexp":{"tag":{"value":"a","flags":"INTERSECTION"}}}"#,
         r#"{"regexp":{"tag":{"value":"a","flags_value":1}}}"#,
@@ -437,6 +436,10 @@ fn case_insensitive_term_level_queries_are_read() {
         (
             r#"{"wildcard":{"tag":{"value":"a*","case_insensitive":true}}}"#,
             Kind::Wildcard,
+        ),
+        (
+            r#"{"regexp":{"tag":{"value":"a.*","case_insensitive":true}}}"#,
+            Kind::Regexp,
         ),
     ] {
         let m = more(&q(body));

@@ -11,7 +11,7 @@ Ported from `AutomatonQueries.caseInsensitiveTermQuery`, `caseInsensitivePrefix`
 - `term`, `prefix` and `wildcard` with `"case_insensitive": true` on a text or keyword field match terms in either case: an automaton query over the field's terms, constant-scored under the default rewrite. In a wildcard pattern `*` is any run, `?` one code point, and `\` escapes the next code point (a trailing `\` is itself).
 - `prefix` and `wildcard` on another field type fail as they do without the flag; a `term` on another type is refused as not supported yet.
 - `case_insensitive: false` or absent builds as before.
-- Not here: `regexp` with `case_insensitive: true`, which stays refused.
+- `regexp` with the flag is served by [regexp-case-insensitive](../regexp-case-insensitive/SPEC.md).
 
 ## Acceptance criteria
 

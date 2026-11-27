@@ -206,10 +206,12 @@ pub fn parse_regexp(p: &mut Parser<'_>) -> Result<More, DslError> {
     let mut value = None;
     let mut boost = 1.0;
     let mut max_states = DEFAULT_DETERMINIZE_WORK_LIMIT;
+    let mut ci = false;
     let field = single_field::parse(p, "regexp", |p, param| {
         match param {
             None | Some("value") => value = text_or_null(p).map(owned),
             Some("max_determinized_states") => max_states = int_value(p)?,
+            Some("case_insensitive") => ci = bool_value(p)?,
             Some("flags") if matches!(text_or_null(p), None | Some("ALL")) => {}
             Some("flags_value") if int_value(p)? == 0xffff => {}
             Some(param @ ("flags" | "flags_value")) => {
@@ -237,6 +239,14 @@ pub fn parse_regexp(p: &mut Parser<'_>) -> Result<More, DslError> {
         return Err(DslError::unsupported(
             "[regexp] [max_determinized_states] other than the default",
         ));
+    }
+    if ci {
+        return Ok(More::CaseInsensitive {
+            kind: super::case_insensitive::Kind::Regexp,
+            field,
+            value,
+            boost,
+        });
     }
     Ok(More::Regexp {
         field,

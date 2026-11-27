@@ -20,7 +20,7 @@ fn hits(query: &str) -> String {
 }
 
 #[test]
-fn a_term_prefix_or_wildcard_ignores_case_when_asked() {
+fn a_term_prefix_wildcard_or_regexp_ignores_case_when_asked() {
     for (query, one) in [
         (
             r#"{"term":{"tag":{"value":"MANUAL","case_insensitive":true}}}"#,
@@ -41,6 +41,19 @@ fn a_term_prefix_or_wildcard_ignores_case_when_asked() {
             true,
         ),
         (r#"{"wildcard":{"tag":{"value":"M*A?"}}}"#, false),
+        (
+            r#"{"regexp":{"tag":{"value":"MAN.*","case_insensitive":true}}}"#,
+            true,
+        ),
+        (
+            r#"{"regexp":{"tag":{"value":"(X|m)a[a-z]ual","case_insensitive":true}}}"#,
+            true,
+        ),
+        (r#"{"regexp":{"tag":{"value":"MAN.*"}}}"#, false),
+        (
+            r#"{"regexp":{"tag":{"value":"MAN.*","case_insensitive":false}}}"#,
+            false,
+        ),
     ] {
         let text = hits(query);
         let expect = if one {
@@ -55,7 +68,8 @@ fn a_term_prefix_or_wildcard_ignores_case_when_asked() {
 #[test]
 fn what_stays_refused_is_refused() {
     for query in [
-        r#"{"regexp":{"tag":{"value":"man.*","case_insensitive":true}}}"#,
+        r#"{"regexp":{"tag":{"value":"man(","case_insensitive":true}}}"#,
+        r#"{"regexp":{"year":{"value":"1.*","case_insensitive":true}}}"#,
         r#"{"term":{"year":{"value":"1","case_insensitive":true}}}"#,
     ] {
         let (status, text) = total(&format!(r#"{{"query":{query}}}"#));
