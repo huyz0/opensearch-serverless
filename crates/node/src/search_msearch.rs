@@ -403,6 +403,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
                 let visit = super::coordinate::Visit {
                     shards,
                     only: only.as_deref(),
+                    members: None,
                 };
                 return self.coordinate_bytes(index, visit, source, started);
             }

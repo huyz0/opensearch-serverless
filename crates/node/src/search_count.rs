@@ -126,6 +126,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
                     super::coordinate::Visit {
                         shards,
                         only: only.as_deref(),
+                        members: None,
                     },
                     &source,
                     started,

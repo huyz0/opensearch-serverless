@@ -83,21 +83,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
     /// The one index `name` stands for when it is an alias of one; `None`
     /// when it is an index, no alias, or no source is installed.
     pub(super) fn alias_target(&self, name: &str) -> Result<Option<String>, RestError> {
-        let Some(source) = self.aliases.get() else {
-            return Ok(None);
-        };
-        // The open a search makes next; an index that opens is never an alias.
-        match self.open_shard(name, 0, false) {
-            Err(Answer::Search(e)) if e.status == 404 => {}
-            _ => return Ok(None),
-        }
-        let _grant = self
-            .budget
-            .try_reserve(Pool::RequestBodies, READ_BYTES)
-            .map_err(|_| RestError::illegal_argument("the request-body pool is full"))?;
-        // ALLOC: one buffer an alias read, READ_BYTES, reserved above.
-        let mut buf = vec![0u8; READ_BYTES];
-        let Some(mut members) = source.members(name, &mut buf)? else {
+        let Some(mut members) = self.alias_members(name)? else {
             return Ok(None);
         };
         if members.len() != 1 {
@@ -114,6 +100,26 @@ impl<S: BlobStore + 'static> SearchService<S> {
             ));
         }
         Ok(members.pop())
+    }
+
+    /// The indexes `name` stands for when it is an alias; `None` when it is
+    /// an index, no alias, or no source is installed.
+    pub(super) fn alias_members(&self, name: &str) -> Result<Option<Vec<String>>, RestError> {
+        let Some(source) = self.aliases.get() else {
+            return Ok(None);
+        };
+        // The open a search makes next; an index that opens is never an alias.
+        match self.open_shard(name, 0, false) {
+            Err(Answer::Search(e)) if e.status == 404 => {}
+            _ => return Ok(None),
+        }
+        let _grant = self
+            .budget
+            .try_reserve(Pool::RequestBodies, READ_BYTES)
+            .map_err(|_| RestError::illegal_argument("the request-body pool is full"))?;
+        // ALLOC: one buffer an alias read, READ_BYTES, reserved above.
+        let mut buf = vec![0u8; READ_BYTES];
+        source.members(name, &mut buf)
     }
 }
 
