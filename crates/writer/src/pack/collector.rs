@@ -12,10 +12,10 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use oss_blob::BlobStore;
-use oss_format::INDEX_SLOTS;
+use oss_format::{INDEX_SLOTS, check_node_id, pack_index_slot};
 
 use super::election::{collector_for, window_of};
-use super::index::Removal;
+use super::index::{IndexState, Removal};
 use super::{
     PackError, PackIndexStore, PackJudge, PackLedger, PackReferences, PackSeeder, PackSidecarStore,
     Seeded, sync,
@@ -48,6 +48,7 @@ pub struct PackCollector {
     max_tracked: usize,
     judges: BTreeMap<String, PackJudge>,
     seeder: Option<PackSeeder>,
+    adopt_members: bool,
     last_window: Option<u64>,
 }
 
@@ -64,16 +65,19 @@ impl PackCollector {
             // ALLOC: an empty map, one judge a node with a live epoch.
             judges: BTreeMap::new(),
             seeder: None,
+            adopt_members: false,
             last_window: None,
         }
     }
 
-    /// Walks `packs/` once a cluster, `page` children a pass, to name in
-    /// the index the nodes that left before any collector ran. Off by
-    /// default.
+    /// Finds the nodes no index names, which is off by default: walks
+    /// `packs/` once a cluster, `page` children a pass, for the nodes that
+    /// left before any collector ran, and names each live member the index
+    /// does not (a Java node never names itself) at first sight.
     #[must_use]
     pub fn with_seeding(mut self, page: usize) -> Self {
         self.seeder = Some(PackSeeder::new(Arc::clone(&self.store), &self.base, page));
+        self.adopt_members = true;
         self
     }
 
@@ -99,14 +103,19 @@ impl PackCollector {
         }
         out.ran = true;
         self.seed(now_millis)?;
+        // ALLOC: the 16 index registers as read, one pass.
+        let mut states = Vec::with_capacity(usize::from(INDEX_SLOTS));
         for slot in 0..INDEX_SLOTS {
-            let state = self.index.read(slot)?;
+            states.push(self.index.read(slot)?);
+        }
+        self.adopt(members, &states, now_millis)?;
+        for (slot, state) in (0..INDEX_SLOTS).zip(&states) {
             for node in state.index.nodes() {
                 let alive = members.iter().any(|m| m == node);
                 let live = self.judge_node(node, alive, refs, now_millis, &mut out)?;
                 // A node with nothing left to judge and no lease leaves the
                 // index; the swap fails if a writer added it since the read.
-                if !live && !alive && self.index.remove(slot, &state, node)? == Removal::Removed {
+                if !live && !alive && self.index.remove(slot, state, node)? == Removal::Removed {
                     self.judges.remove(node);
                     out.dropped = out.dropped.saturating_add(1);
                 }
@@ -114,6 +123,26 @@ impl PackCollector {
         }
         self.last_window = Some(window);
         Ok(out)
+    }
+
+    /// Names each live member that the registers just read do not, once: a
+    /// member already named costs no write. It is judged from the next pass.
+    fn adopt(&self, members: &[String], states: &[IndexState], now: u64) -> Result<(), PackError> {
+        if !self.adopt_members {
+            return Ok(());
+        }
+        for member in members {
+            if check_node_id(member).is_err() {
+                continue;
+            }
+            let named = states
+                .get(usize::from(pack_index_slot(member)))
+                .is_some_and(|s| s.index.contains(member));
+            if !named {
+                self.index.add(member, now)?;
+            }
+        }
+        Ok(())
     }
 
     /// One step of the seeding walk, if it is on and not done. A done walk
