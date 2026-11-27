@@ -288,3 +288,47 @@ fn a_caller_that_runs_no_pipeline_refuses_one() {
     assert!(named.refuse_pipeline().is_err());
     assert!(source("{}").expect("parses").refuse_pipeline().is_ok());
 }
+
+#[test]
+fn a_body_timeout_is_read_as_a_time_value_and_changes_nothing() {
+    for ok in [
+        r#"{"timeout":"30s"}"#,
+        r#"{"timeout":"1.5s"}"#,
+        r#"{"timeout":"2M"}"#,
+        r#"{"timeout":" 5 m "}"#,
+        r#"{"timeout":"100ms"}"#,
+        r#"{"timeout":"7d"}"#,
+        r#"{"timeout":"9h"}"#,
+        r#"{"timeout":"1000micros"}"#,
+        r#"{"timeout":"5nanos"}"#,
+        r#"{"timeout":-1}"#,
+        r#"{"timeout":"-1"}"#,
+        r#"{"timeout":0}"#,
+        r#"{"timeout":"000"}"#,
+    ] {
+        assert_eq!(source(ok).expect(ok), SearchSource::default(), "{ok}");
+    }
+    for bad in [
+        r#"{"timeout":"30"}"#,
+        r#"{"timeout":"s"}"#,
+        r#"{"timeout":"1x"}"#,
+        r#"{"timeout":"-2s"}"#,
+        r#"{"timeout":""}"#,
+        r#"{"timeout":true}"#,
+        r#"{"timeout":30}"#,
+    ] {
+        assert!(
+            reason(bad).ends_with("is not supported by this node yet"),
+            "{bad}: {}",
+            reason(bad)
+        );
+    }
+    assert_eq!(
+        reason(r#"{"timeout":null}"#),
+        "Unknown key for a VALUE_NULL in [timeout]."
+    );
+    assert_eq!(
+        reason(r#"{"timeout":{}}"#),
+        "Unknown key for a START_OBJECT in [timeout]."
+    );
+}

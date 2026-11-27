@@ -70,6 +70,33 @@ pub fn int_value(p: &Parser<'_>) -> Result<i32, DslError> {
     }
 }
 
+/// Whether `text` is a time value `TimeValue.parseTimeValue` reads: a number
+/// (a fraction allowed) with a unit of `nanos`, `micros`, `ms`, `s`, `m`, `h`
+/// or `d`, or the unitless `-1` and `0` it takes as they are. Any other text
+/// is one this node does not read, so none is called valid that Java refuses.
+pub fn is_time_value(text: &str) -> bool {
+    let normalized = text.to_lowercase();
+    let normalized = normalized.trim();
+    let number = ["nanos", "micros", "ms", "s", "m", "h", "d"]
+        .iter()
+        .find_map(|unit| normalized.strip_suffix(unit));
+    match number.map(str::trim) {
+        Some(n) => {
+            let (whole, fraction) = n.split_once('.').map_or((n, None), |(w, f)| (w, Some(f)));
+            let digits = |d: &str| !d.is_empty() && d.bytes().all(|b| b.is_ascii_digit());
+            digits(whole) && fraction.is_none_or(digits)
+        }
+        None => {
+            let zeros = |d: &str| !d.is_empty() && d.bytes().all(|b| b == b'0');
+            zeros(normalized)
+                || normalized.strip_prefix('-').is_some_and(|d| {
+                    d.strip_suffix('1')
+                        .is_some_and(|z| z.bytes().all(|b| b == b'0'))
+                })
+        }
+    }
+}
+
 /// Java's `Integer.parseInt`, with a decimal's fraction dropped as
 /// `Number.intValue()` drops it.
 pub fn parse_int(text: &str) -> Result<i32, DslError> {
