@@ -1,0 +1,1061 @@
+{
+  "name": "bucket aggregations not served yet",
+  "description": "Recorded stock answers for aggregations and options this node refuses today; not replayed.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-gaps-aggs",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "create",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-gaps-aggs",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "title": {
+                "type": "text"
+              },
+              "tag": {
+                "type": "keyword"
+              },
+              "year": {
+                "type": "integer"
+              },
+              "price": {
+                "type": "double"
+              },
+              "published": {
+                "type": "date"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-gaps-aggs"
+        }
+      }
+    },
+    {
+      "name": "bulk index",
+      "request": {
+        "method": "POST",
+        "path": "/_bulk",
+        "query": {
+          "refresh": "true"
+        },
+        "ndjson": [
+          {
+            "index": {
+              "_index": "compat-gaps-aggs",
+              "_id": "1"
+            }
+          },
+          {
+            "title": "The quick brown fox",
+            "tag": "animal",
+            "year": 2001,
+            "price": 10.5,
+            "published": "2001-03-04"
+          },
+          {
+            "index": {
+              "_index": "compat-gaps-aggs",
+              "_id": "2"
+            }
+          },
+          {
+            "title": "Lazy dogs sleep all day",
+            "tag": "animal",
+            "year": 2002,
+            "price": 20.0,
+            "published": "2002-07-01T10:15:30Z"
+          },
+          {
+            "index": {
+              "_index": "compat-gaps-aggs",
+              "_id": "3"
+            }
+          },
+          {
+            "title": "Quick start guide",
+            "tag": "manual",
+            "year": 2010,
+            "price": 5.25,
+            "published": "2010-01-01"
+          },
+          {
+            "index": {
+              "_index": "compat-gaps-aggs",
+              "_id": "4"
+            }
+          },
+          {
+            "title": "Brown sugar and brown bread",
+            "tag": "food",
+            "year": 2002,
+            "price": 3.0,
+            "published": "2002-12-31T23:59:59.999Z"
+          },
+          {
+            "index": {
+              "_index": "compat-gaps-aggs",
+              "_id": "5"
+            }
+          },
+          {
+            "title": "A fox in the snow",
+            "tag": "animal",
+            "year": 1999,
+            "price": 15.75,
+            "published": "1999-12-31"
+          },
+          {
+            "index": {
+              "_index": "compat-gaps-aggs",
+              "_id": "6"
+            }
+          },
+          {
+            "title": "Quick brown foxes jump",
+            "tag": "animal",
+            "year": 2010,
+            "price": 8.0,
+            "published": "2010-06-15"
+          },
+          {
+            "index": {
+              "_index": "compat-gaps-aggs",
+              "_id": "7"
+            }
+          },
+          {
+            "title": "Bread and butter",
+            "year": 2005,
+            "price": 2.5,
+            "published": "2005-05-05"
+          },
+          {
+            "index": {
+              "_index": "compat-gaps-aggs",
+              "_id": "8"
+            }
+          },
+          {
+            "title": "Snow dogs",
+            "tag": [
+              "animal",
+              "sport"
+            ],
+            "year": 2010,
+            "price": 30.0,
+            "published": "2010-11-30"
+          }
+        ]
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        },
+        {
+          "pointer": "/body/items/*/index/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 18,
+          "errors": false,
+          "items": [
+            {
+              "index": {
+                "_index": "compat-gaps-aggs",
+                "_id": "1",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 0,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-gaps-aggs",
+                "_id": "2",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 1,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-gaps-aggs",
+                "_id": "3",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 2,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-gaps-aggs",
+                "_id": "4",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 3,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-gaps-aggs",
+                "_id": "5",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 4,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-gaps-aggs",
+                "_id": "6",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 5,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-gaps-aggs",
+                "_id": "7",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 6,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-gaps-aggs",
+                "_id": "8",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 7,
+                "_primary_term": 1,
+                "status": 201
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "terms with metric sub-aggregations",
+      "request": {
+        "method": "POST",
+        "path": "/compat-gaps-aggs/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "tag"
+              },
+              "aggs": {
+                "avg_price": {
+                  "avg": {
+                    "field": "price"
+                  }
+                },
+                "max_year": {
+                  "max": {
+                    "field": "year"
+                  }
+                },
+                "n": {
+                  "value_count": {
+                    "field": "price"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 4,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 8,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-gaps-aggs",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": "animal",
+                  "doc_count": 5,
+                  "avg_price": {
+                    "value": 16.85
+                  },
+                  "max_year": {
+                    "value": 2010.0
+                  },
+                  "n": {
+                    "value": 5
+                  }
+                },
+                {
+                  "key": "food",
+                  "doc_count": 1,
+                  "avg_price": {
+                    "value": 3.0
+                  },
+                  "max_year": {
+                    "value": 2002.0
+                  },
+                  "n": {
+                    "value": 1
+                  }
+                },
+                {
+                  "key": "manual",
+                  "doc_count": 1,
+                  "avg_price": {
+                    "value": 5.25
+                  },
+                  "max_year": {
+                    "value": 2010.0
+                  },
+                  "n": {
+                    "value": 1
+                  }
+                },
+                {
+                  "key": "sport",
+                  "doc_count": 1,
+                  "avg_price": {
+                    "value": 30.0
+                  },
+                  "max_year": {
+                    "value": 2010.0
+                  },
+                  "n": {
+                    "value": 1
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "terms ordered by a sub-aggregation",
+      "request": {
+        "method": "POST",
+        "path": "/compat-gaps-aggs/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "tag",
+                "order": {
+                  "total": "desc"
+                }
+              },
+              "aggs": {
+                "total": {
+                  "sum": {
+                    "field": "price"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 7,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 8,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-gaps-aggs",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": "animal",
+                  "doc_count": 5,
+                  "total": {
+                    "value": 84.25
+                  }
+                },
+                {
+                  "key": "sport",
+                  "doc_count": 1,
+                  "total": {
+                    "value": 30.0
+                  }
+                },
+                {
+                  "key": "manual",
+                  "doc_count": 1,
+                  "total": {
+                    "value": 5.25
+                  }
+                },
+                {
+                  "key": "food",
+                  "doc_count": 1,
+                  "total": {
+                    "value": 3.0
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "histogram on a double with offset",
+      "request": {
+        "method": "POST",
+        "path": "/compat-gaps-aggs/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "h": {
+              "histogram": {
+                "field": "price",
+                "interval": 10,
+                "offset": 2
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 8,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-gaps-aggs",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "h": {
+              "buckets": [
+                {
+                  "key": 2.0,
+                  "doc_count": 5
+                },
+                {
+                  "key": 12.0,
+                  "doc_count": 2
+                },
+                {
+                  "key": 22.0,
+                  "doc_count": 1
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "date_histogram with format and sub-aggregation",
+      "request": {
+        "method": "POST",
+        "path": "/compat-gaps-aggs/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "d": {
+              "date_histogram": {
+                "field": "published",
+                "calendar_interval": "year",
+                "format": "yyyy"
+              },
+              "aggs": {
+                "p": {
+                  "avg": {
+                    "field": "price"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 8,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-gaps-aggs",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "d": {
+              "buckets": [
+                {
+                  "key_as_string": "1999",
+                  "key": 915148800000,
+                  "doc_count": 1,
+                  "p": {
+                    "value": 15.75
+                  }
+                },
+                {
+                  "key_as_string": "2000",
+                  "key": 946684800000,
+                  "doc_count": 0,
+                  "p": {
+                    "value": null
+                  }
+                },
+                {
+                  "key_as_string": "2001",
+                  "key": 978307200000,
+                  "doc_count": 1,
+                  "p": {
+                    "value": 10.5
+                  }
+                },
+                {
+                  "key_as_string": "2002",
+                  "key": 1009843200000,
+                  "doc_count": 2,
+                  "p": {
+                    "value": 11.5
+                  }
+                },
+                {
+                  "key_as_string": "2003",
+                  "key": 1041379200000,
+                  "doc_count": 0,
+                  "p": {
+                    "value": null
+                  }
+                },
+                {
+                  "key_as_string": "2004",
+                  "key": 1072915200000,
+                  "doc_count": 0,
+                  "p": {
+                    "value": null
+                  }
+                },
+                {
+                  "key_as_string": "2005",
+                  "key": 1104537600000,
+                  "doc_count": 1,
+                  "p": {
+                    "value": 2.5
+                  }
+                },
+                {
+                  "key_as_string": "2006",
+                  "key": 1136073600000,
+                  "doc_count": 0,
+                  "p": {
+                    "value": null
+                  }
+                },
+                {
+                  "key_as_string": "2007",
+                  "key": 1167609600000,
+                  "doc_count": 0,
+                  "p": {
+                    "value": null
+                  }
+                },
+                {
+                  "key_as_string": "2008",
+                  "key": 1199145600000,
+                  "doc_count": 0,
+                  "p": {
+                    "value": null
+                  }
+                },
+                {
+                  "key_as_string": "2009",
+                  "key": 1230768000000,
+                  "doc_count": 0,
+                  "p": {
+                    "value": null
+                  }
+                },
+                {
+                  "key_as_string": "2010",
+                  "key": 1262304000000,
+                  "doc_count": 3,
+                  "p": {
+                    "value": 14.416666666666666
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "range",
+      "request": {
+        "method": "POST",
+        "path": "/compat-gaps-aggs/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "r": {
+              "range": {
+                "field": "price",
+                "ranges": [
+                  {
+                    "to": 5
+                  },
+                  {
+                    "from": 5,
+                    "to": 15
+                  },
+                  {
+                    "from": 15
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 8,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-gaps-aggs",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "r": {
+              "buckets": [
+                {
+                  "key": "*-5.0",
+                  "to": 5.0,
+                  "doc_count": 2
+                },
+                {
+                  "key": "5.0-15.0",
+                  "from": 5.0,
+                  "to": 15.0,
+                  "doc_count": 3
+                },
+                {
+                  "key": "15.0-*",
+                  "from": 15.0,
+                  "doc_count": 3
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "date_range",
+      "request": {
+        "method": "POST",
+        "path": "/compat-gaps-aggs/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "r": {
+              "date_range": {
+                "field": "published",
+                "format": "yyyy-MM-dd",
+                "ranges": [
+                  {
+                    "to": "2002-01-01"
+                  },
+                  {
+                    "from": "2002-01-01",
+                    "to": "2008-01-01"
+                  },
+                  {
+                    "from": "2008-01-01"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 8,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-gaps-aggs",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "r": {
+              "buckets": [
+                {
+                  "key": "*-2002-01-01",
+                  "to": 1009843200000.0,
+                  "to_as_string": "2002-01-01",
+                  "doc_count": 2
+                },
+                {
+                  "key": "2002-01-01-2008-01-01",
+                  "from": 1009843200000.0,
+                  "from_as_string": "2002-01-01",
+                  "to": 1199145600000.0,
+                  "to_as_string": "2008-01-01",
+                  "doc_count": 3
+                },
+                {
+                  "key": "2008-01-01-*",
+                  "from": 1199145600000.0,
+                  "from_as_string": "2008-01-01",
+                  "doc_count": 3
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "filter",
+      "request": {
+        "method": "POST",
+        "path": "/compat-gaps-aggs/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "f": {
+              "filter": {
+                "term": {
+                  "tag": "animal"
+                }
+              },
+              "aggs": {
+                "p": {
+                  "sum": {
+                    "field": "price"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 8,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-gaps-aggs",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "f": {
+              "doc_count": 5,
+              "p": {
+                "value": 84.25
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

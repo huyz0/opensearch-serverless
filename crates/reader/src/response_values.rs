@@ -125,3 +125,24 @@ pub(super) fn write_sort(out: &mut dyn Write, sort: &[SortValue]) -> io::Result<
     }
     out.write_all(b"]")
 }
+
+/// Writes `,"matched_queries":[...]` or, with scores, `{name: score}`.
+pub(super) fn write_matched(
+    out: &mut dyn Write,
+    matched: &[(String, f32)],
+    scores: bool,
+) -> io::Result<()> {
+    out.write_all(b",\"matched_queries\":")?;
+    out.write_all(if scores { b"{" } else { b"[" })?;
+    for (i, (name, score)) in matched.iter().enumerate() {
+        if i > 0 {
+            out.write_all(b",")?;
+        }
+        write_json_str(out, name)?;
+        if scores {
+            out.write_all(b":")?;
+            write_java_float(out, *score)?;
+        }
+    }
+    out.write_all(if scores { b"}" } else { b"]" })
+}

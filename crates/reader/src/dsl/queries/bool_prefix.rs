@@ -78,7 +78,8 @@ pub fn parse(p: &mut Parser<'_>) -> Result<More, DslError> {
                         "fuzzy_transpositions" => {
                             bool_value(p)?;
                         }
-                        "analyzer" | "fuzziness" | "fuzzy_rewrite" | "_name" => {
+                        "_name" => crate::dsl::values::name_value(p)?,
+                        "analyzer" | "fuzziness" | "fuzzy_rewrite" => {
                             // ALLOC: error path; one message.
                             return Err(DslError::unsupported(&format!(
                                 "[match_bool_prefix] [{current}]"

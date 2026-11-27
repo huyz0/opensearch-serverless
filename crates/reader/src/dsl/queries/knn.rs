@@ -166,13 +166,13 @@ fn params(p: &mut Parser<'_>) -> Result<Params, DslError> {
                         out.filter = Some(parse_inner(p).map_err(|e| failed(p, "filter", e))?);
                     }
                     ("filter", other) => return Err(wrong_type(p, "filter", other)),
+                    ("_name", Kind::String | Kind::Null) => crate::dsl::values::name_value(p)?,
                     ("min_score", _) => out.min_score = Some(scalar(p, "min_score", float_value)?),
                     ("max_distance", _) => {
                         out.max_distance = Some(scalar(p, "max_distance", float_value)?);
                     }
                     (
-                        "method_parameters" | "rescore" | "expand_nested_docs" | "ignore_unmapped"
-                        | "_name",
+                        "method_parameters" | "rescore" | "expand_nested_docs" | "ignore_unmapped",
                         _,
                     ) => {
                         // ALLOC: error path; one message.

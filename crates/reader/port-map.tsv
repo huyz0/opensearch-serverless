@@ -337,3 +337,6 @@ src/aggs/pipeline/parent_parse_tests.rs	new		tests of the parent pipelines bodie
 src/stored_scripts.rs	new		re-export of the resolver trait, which lives in oss-types
 src/aggs/pipeline/serial_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/pipeline/SerialDiffPipelineAggregationBuilder.java@429b4cbc	the builder parse; serial_diff compute is in parent.rs after SerialDiffPipelineAggregator.reduce
 src/aggs/pipeline/serial_tests.rs	new		serial_diff computed, parsed and validated against the bytes Java wrote
+src/search_named.rs	new		the named queries of a search and which of them match each hit, scored at the hits only
+src/search_named_tests.rs	new		collecting the named queries
+src/dsl/queries/named_tests.rs	new		_name on the compound, full-text, nested and function_score queries

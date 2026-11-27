@@ -66,7 +66,6 @@ fn other_types_empty_text_and_refusals() {
             .is_ok()
     );
     for body in [
-        r#"{"match_phrase_prefix":{"title":{"query":"a","_name":"x"}}}"#,
         r#"{"match_phrase_prefix":{"title":{"query":"a","analyzer":"whitespace"}}}"#,
         r#"{"match_phrase_prefix":{"title":{"query":"a","slop":-1}}}"#,
         r#"{"match_phrase_prefix":{"title":{"query":"a","max_expansions":-1}}}"#,

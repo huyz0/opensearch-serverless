@@ -6,7 +6,9 @@ use crate::dsl::query::{
     Operator, Query, does_not_support, multiple_fields, next_or_end, parse_operator,
 };
 use crate::dsl::tokens::{Kind, Parser};
-use crate::dsl::values::{bool_value, float_value, int_value, object_value, text_or_null};
+use crate::dsl::values::{
+    bool_value, float_value, int_value, name_value, object_value, text_or_null,
+};
 
 /// `MatchQueryBuilder.fromXContent`.
 pub(crate) fn parse_match(p: &mut Parser<'_>) -> Result<Query, DslError> {
@@ -58,6 +60,7 @@ pub(crate) fn parse_match(p: &mut Parser<'_>) -> Result<Query, DslError> {
                                 ));
                             }
                         },
+                        "_name" => name_value(p)?,
                         "analyzer" if p.text() == "standard" => {}
                         "fuzziness" => {
                             fuzziness = Some(crate::dsl::queries::term_level::parse_fuzziness(p)?);
@@ -69,8 +72,7 @@ pub(crate) fn parse_match(p: &mut Parser<'_>) -> Result<Query, DslError> {
                         | "fuzzy_rewrite"
                         | "lenient"
                         | "cutoff_frequency"
-                        | "auto_generate_synonyms_phrase_query"
-                        | "_name" => {
+                        | "auto_generate_synonyms_phrase_query" => {
                             // ALLOC: error path; one message.
                             return Err(DslError::unsupported(&format!("[match] [{current}]")));
                         }

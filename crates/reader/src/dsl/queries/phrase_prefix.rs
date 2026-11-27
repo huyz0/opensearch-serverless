@@ -58,7 +58,8 @@ pub fn parse(p: &mut Parser<'_>) -> Result<More, DslError> {
             Some("max_expansions") => max_expansions = int_value(p)?,
             Some("zero_terms_query") => zero_terms_all = zero_terms(p)?,
             Some("analyzer") if p.text() == "standard" => {}
-            Some(param @ ("analyzer" | "_name")) => return Err(refused(param)),
+            Some("_name") => crate::dsl::values::name_value(p)?,
+            Some(param @ "analyzer") => return Err(refused(param)),
             Some(param) => return Err(does_not_support(p, "match_phrase_prefix", param)),
         }
         Ok(())

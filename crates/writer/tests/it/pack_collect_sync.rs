@@ -270,6 +270,24 @@ fn a_returning_node_keeps_the_high_it_was_judged_to() {
     assert!(exists(&e, 1, 3), "a named pack is kept");
 }
 
+/// The newest epoch stays in the sidecar once every ordinal of it is judged,
+/// so the sidecar still says where the node's packs end.
+#[test]
+fn the_newest_epoch_stays_in_the_sidecar_when_all_of_it_is_collected() {
+    let e = emulator();
+    writer_with_ledger(&e, 1, 16);
+    e.advance_clock(16 * MIN);
+    let refs = Nothing::default();
+    let mut c = PackCollector::new(dynstore(&e), "", 100);
+    run_as(&mut c, 100, &refs, true);
+    run_as(&mut c, 101, &refs, true);
+    run_as(&mut c, 102, &refs, true);
+    let sidecar = PackSidecarStore::new(dynstore(&e), "", NODE).expect("sidecar");
+    let read = sidecar.read().expect("read");
+    assert_eq!(read.sidecar.epochs().len(), 1);
+    assert!(read.sidecar.epochs()[0].unmarked().next().is_none());
+}
+
 /// A node in no index register, with only a ledger, as a node that left
 /// before the first Rust collector ran.
 fn unindexed_ledger(e: &Arc<Emulator>, epoch: u64, high: u64) {
@@ -333,22 +351,4 @@ fn a_walk_over_many_pages_takes_one_page_a_pass() {
     let after = e.meter().count(S3Op::List);
     run(&mut c, 110, &refs);
     assert_eq!(e.meter().count(S3Op::List), after, "done, so no more LISTs");
-}
-
-/// The newest epoch stays in the sidecar once every ordinal of it is judged,
-/// so the sidecar still says where the node's packs end.
-#[test]
-fn the_newest_epoch_stays_in_the_sidecar_when_all_of_it_is_collected() {
-    let e = emulator();
-    writer_with_ledger(&e, 1, 16);
-    e.advance_clock(16 * MIN);
-    let refs = Nothing::default();
-    let mut c = PackCollector::new(dynstore(&e), "", 100);
-    run_as(&mut c, 100, &refs, true);
-    run_as(&mut c, 101, &refs, true);
-    run_as(&mut c, 102, &refs, true);
-    let sidecar = PackSidecarStore::new(dynstore(&e), "", NODE).expect("sidecar");
-    let read = sidecar.read().expect("read");
-    assert_eq!(read.sidecar.epochs().len(), 1);
-    assert!(read.sidecar.epochs()[0].unmarked().next().is_none());
 }

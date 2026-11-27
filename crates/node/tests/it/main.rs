@@ -39,6 +39,7 @@ mod search_fields;
 mod search_hits;
 mod search_match_bool_prefix;
 mod search_match_phrase_prefix;
+mod search_named_queries;
 mod search_now;
 mod search_pipeline;
 mod search_pipelines;

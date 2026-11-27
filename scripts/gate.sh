@@ -3,11 +3,24 @@
 # script; the no-build checks are listed once, in scripts/tree-checks.sh,
 # which the pre-commit hook and CI also run.
 #
+# `scripts/gate.sh --no-coverage` runs every step but the last (tests and
+# coverage), for a machine that cannot build the coverage tooling: the steps CI
+# fails on before it reaches the tests (fmt, clippy, each role alone, docs) are
+# the ones a skipped gate lets through.
+#
 # Every step keeps its exit status (`set -o pipefail`; nothing is piped into
 # `tail`, which would report tail's status instead of the step's).
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 . scripts/lib/py.sh
+
+coverage=1
+for arg in "$@"; do
+  case "$arg" in
+    --no-coverage) coverage=0 ;;
+    *) echo "gate.sh: unknown argument $arg" >&2; exit 2 ;;
+  esac
+done
 
 step() { echo "gate: $1"; }
 
@@ -37,7 +50,11 @@ py scripts/gen-crate-map.py --check
 step "cargo doc (rustdoc link lints)"
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --all-features --no-deps --document-private-items
 
-step "tests + >=95% line coverage"
-scripts/coverage.sh --fail-under-lines 95
+if [ "$coverage" = 1 ]; then
+  step "tests + >=95% line coverage"
+  scripts/coverage.sh --fail-under-lines 95
+else
+  step "tests + coverage skipped (--no-coverage): CI runs them"
+fi
 
 echo "gate: ok"

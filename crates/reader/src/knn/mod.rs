@@ -41,6 +41,7 @@ impl KnnResults {
 pub fn nodes(query: &Query) -> Vec<&Knn> {
     fn walk<'q>(q: &'q Query, out: &mut Vec<&'q Knn>) {
         match q {
+            Query::Named(n) => walk(&n.query, out),
             Query::Bool(b) => {
                 for c in b
                     .must
@@ -77,6 +78,7 @@ pub fn nodes(query: &Query) -> Vec<&Knn> {
 /// vector files are brought in before it starts.
 fn any(query: &Query) -> bool {
     match query {
+        Query::Named(n) => any(&n.query),
         Query::Bool(b) => b
             .must
             .iter()

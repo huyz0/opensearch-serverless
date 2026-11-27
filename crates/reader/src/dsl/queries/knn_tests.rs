@@ -101,7 +101,6 @@ fn the_parameters_that_change_the_walk_are_refused_not_ignored() {
         r#""rescore":true"#,
         r#""expand_nested_docs":true"#,
         r#""ignore_unmapped":true"#,
-        r#""_name":"a""#,
     ] {
         let r = reason(&format!(r#""vector":[1],"k":1,{param}"#));
         assert!(r.ends_with("is not supported by this node yet"), "{r}");

@@ -158,7 +158,8 @@ pub fn parse_query_string(p: &mut Parser<'_>) -> Result<More, DslError> {
                         return Err(refused(current));
                     }
                 }
-                "analyzer" | "quote_analyzer" | "time_zone" | "_name" => {
+                "_name" => crate::dsl::values::name_value(p)?,
+                "analyzer" | "quote_analyzer" | "time_zone" => {
                     return Err(refused(current));
                 }
                 _ => {

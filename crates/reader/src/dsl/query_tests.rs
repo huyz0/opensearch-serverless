@@ -41,7 +41,10 @@ fn match_all_and_its_boost() {
         reason(r#"{"query":{"match_all":{"bost":2}}}"#),
         "[1:31] [match_all] unknown field [bost] did you mean [boost]?"
     );
-    assert!(reason(r#"{"query":{"match_all":{"_name":"x"}}}"#).contains("not supported"));
+    assert!(matches!(
+        query(r#"{"query":{"match_all":{"_name":"x"}}}"#).ok(),
+        Some(Query::Named(n)) if n.name == "x" && matches!(n.query, Query::MatchAll { .. })
+    ));
 }
 
 #[test]
@@ -102,9 +105,10 @@ fn term_errors_are_opensearchs() {
         query(r#"{"query":{"term":{"a":{"value":"x","case_insensitive":true}}}}"#).ok(),
         Some(Query::More(_))
     ));
-    assert!(
-        reason(r#"{"query":{"term":{"a":{"value":"x","_name":"n"}}}}"#).contains("not supported")
-    );
+    assert!(matches!(
+        query(r#"{"query":{"term":{"a":{"value":"x","_name":"n"}}}}"#).ok(),
+        Some(Query::Named(n)) if n.name == "n" && matches!(n.query, Query::Term { .. })
+    ));
 }
 
 #[test]
@@ -176,7 +180,11 @@ fn match_errors_are_opensearchs() {
         reason(r#"{"query":{"match":{"t":{"query":"x","operator":"xor"}}}}"#),
         "No enum constant org.opensearch.index.query.Operator.XOR"
     );
-    for p in ["fuzzy_rewrite", "lenient", "_name"] {
+    assert!(matches!(
+        query(r#"{"query":{"match":{"t":{"query":"x","_name":"m"}}}}"#).ok(),
+        Some(Query::Named(n)) if n.name == "m"
+    ));
+    for p in ["fuzzy_rewrite", "lenient"] {
         let body = format!(r#"{{"query":{{"match":{{"t":{{"query":"x","{p}":"1"}}}}}}}}"#);
         assert!(reason(&body).contains("not supported"), "{p}");
     }
@@ -308,9 +316,15 @@ fn bool_errors_are_object_parsers() {
     let cause = wrapped.cause.expect("the inner failure");
     assert_eq!(cause.reason, "unknown query [nope]");
     assert!(
-        reason(r#"{"query":{"bool":{"_name":"n"}}}"#)
+        reason(r#"{"query":{"bool":{"_name":5}}}"#)
             .contains("[bool] failed to parse field [_name]")
     );
+    // A name read before the clauses stays the bool's, not a clause's.
+    assert!(matches!(
+        query(r#"{"query":{"bool":{"_name":"outer","must":[{"match_all":{"_name":"inner"}}]}}}"#).ok(),
+        Some(Query::Named(n)) if n.name == "outer"
+            && matches!(&n.query, Query::Bool(b) if matches!(&b.must[0], Query::Named(i) if i.name == "inner"))
+    ));
     let many = format!(
         r#"{{"query":{{"bool":{{"should":[{}]}}}}}}"#,
         vec![r#"{"match_all":{}}"#; crate::dsl::bool_query::MAX_CLAUSES + 1].join(",")

@@ -138,6 +138,8 @@ impl TopHitsResult {
             source: &self.source,
             fields: &self.fields,
             explanations: &self.explanations,
+            matched: &[],
+            named_scores: false,
             highlight: self.highlight.as_ref(),
             meta: crate::fetch::hit_meta::HitMeta::default(),
             inner: &[],

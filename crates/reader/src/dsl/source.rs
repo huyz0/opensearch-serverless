@@ -103,6 +103,8 @@ pub struct SearchSource {
     )>,
     /// `explain`: whether each hit carries the explanation of its score.
     pub explain: bool,
+    /// `include_named_queries_score`: `matched_queries` is an object of name to score.
+    pub named_scores: bool,
     /// `min_score`: only matches scoring at least this are hits and counted.
     pub min_score: Option<f32>,
     /// `post_filter`: narrows the hits and their total after the
@@ -183,6 +185,7 @@ impl Default for SearchSource {
             // ALLOC: empty, no allocation.
             script_fields: Vec::new(),
             explain: false,
+            named_scores: false,
             min_score: None,
             post_filter: None,
             terminate_after: 0,
@@ -336,6 +339,9 @@ impl SearchSource {
             }
             "track_total_hits" => self.track_total_hits = track_total_hits(p)?,
             "explain" => self.explain = bool_value(p)?,
+            "include_named_queries_score" if kind != Kind::Null => {
+                self.named_scores = bool_value(p)?;
+            }
             "min_score" => self.min_score = Some(float_value(p)?),
             "terminate_after" => {
                 let n = int_value(p)?;

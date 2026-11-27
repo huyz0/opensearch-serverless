@@ -10,7 +10,7 @@
 use crate::dsl::error::DslError;
 use crate::dsl::query::{Query, parse_inner};
 use crate::dsl::tokens::{Kind, Parser};
-use crate::dsl::values::{bool_value, float_value, suggest, text_or_null};
+use crate::dsl::values::{bool_value, float_value, name_value, suggest, text_or_null};
 
 /// The fields `BoolQueryBuilder.PARSER` declares, as its candidates.
 const FIELDS: &[&str] = &[
@@ -125,6 +125,7 @@ fn field(p: &mut Parser<'_>, q: &mut BoolQuery, name: &str) -> Result<(), DslErr
             q.boost = float_value(p)?;
             Ok(())
         }
+        "_name" => name_value(p),
         _ => Err(DslError::unsupported("[bool] [_name]")),
     }
 }

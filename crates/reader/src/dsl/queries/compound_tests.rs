@@ -116,16 +116,6 @@ fn compound_queries_refuse_what_opensearch_refuses() {
         reason(&q(r#"{"match_none":{"x":{}}}"#)),
         "[match_none] unknown token [START_OBJECT] after [x]"
     );
-    for unsupported in [
-        r#"{"constant_score":{"filter":{"match_all":{}},"_name":"n"}}"#,
-        r#"{"dis_max":{"queries":[{"match_all":{}}],"_name":"n"}}"#,
-        r#"{"match_none":{"_name":"n"}}"#,
-    ] {
-        assert!(
-            reason(&q(unsupported)).contains("not supported"),
-            "{unsupported}"
-        );
-    }
 }
 
 #[test]
@@ -181,11 +171,5 @@ fn boosting_fails_as_the_builder_fails() {
     assert_eq!(
         reason(&body(&format!(r#"{{{both},"negative_boost":1,"x":1}}"#))),
         "[boosting] query does not support [x]"
-    );
-    assert_eq!(
-        reason(&body(&format!(
-            r#"{{{both},"negative_boost":1,"_name":"n"}}"#
-        ))),
-        "[boosting] [_name] is not supported by this node yet"
     );
 }

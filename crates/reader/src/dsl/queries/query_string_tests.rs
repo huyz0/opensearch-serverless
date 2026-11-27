@@ -135,7 +135,6 @@ fn what_is_not_served_is_refused() {
         r#"{"query":"x","rewrite":"constant_score"}"#,
         r#"{"query":"x","fuzzy_rewrite":"constant_score"}"#,
         r#"{"query":"x","time_zone":"+01:00"}"#,
-        r#"{"query":"x","_name":"q"}"#,
         r#"{"query":"x","analyze_wildcard":true}"#,
         r#"{"query":"x","enable_position_increments":false}"#,
         r#"{"query":"x","type":"cross_fields"}"#,
