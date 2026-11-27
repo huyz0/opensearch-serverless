@@ -28,9 +28,24 @@ struct Built {
     mode: QueryRescoreMode,
 }
 
+/// One step of the rescore: a Lucene query, or an `sltr` model.
+enum Step {
+    Query(Built),
+    Ltr(crate::search_ltr::Built),
+}
+
+impl Step {
+    fn window(&self) -> usize {
+        match self {
+            Self::Query(b) => b.window,
+            Self::Ltr(b) => b.window(),
+        }
+    }
+}
+
 /// A search's rescorers.
 pub(crate) struct Plan {
-    built: Vec<Built>,
+    built: Vec<Step>,
 }
 
 /// `DefaultSearchContext.preProcess`'s rescore checks, and each rescore
@@ -66,15 +81,23 @@ pub(crate) fn plan<S: BlobStore + 'static>(
                 r.window
             )));
         }
+        if let crate::dsl::query::Query::More(m) = &r.query
+            && let crate::dsl::queries::More::Sltr(sltr) = m.as_ref()
+        {
+            built.push(Step::Ltr(crate::search_ltr::build(
+                r, sltr, cx, shard, index,
+            )?));
+            continue;
+        }
         let query = to_lucene(&r.query, cx)
             .map_err(|f| ShardError::of_query(shard_failure(f, index, &shard.meta.uuid)))?;
-        built.push(Built {
+        built.push(Step::Query(Built {
             query,
             window: r.window,
             query_weight: r.query_weight,
             rescore_query_weight: r.rescore_query_weight,
             mode: r.mode,
-        });
+        }));
     }
     Ok(Some(Plan { built }))
 }
@@ -82,15 +105,16 @@ pub(crate) fn plan<S: BlobStore + 'static>(
 impl Plan {
     /// Whether a rescore query needs the points open.
     pub(crate) fn has_points(&self) -> bool {
-        self.built
-            .iter()
-            .any(|b| crate::search::has_points(&b.query))
+        self.built.iter().any(|step| match step {
+            Step::Query(b) => crate::search::has_points(&b.query),
+            Step::Ltr(b) => b.has_points(),
+        })
     }
 
     /// The window the first pass collects and the `from` it drops:
     /// `max(from + size, every window)` hits, none dropped yet.
     pub(crate) fn collection(&self, window: usize) -> (usize, usize) {
-        (self.built.iter().fold(window, |w, b| w.max(b.window)), 0)
+        (self.built.iter().fold(window, |w, b| w.max(b.window())), 0)
     }
 
     /// Rescores `top`'s hits in order, then drops the first `from` and keeps
@@ -107,7 +131,10 @@ impl Plan {
         }
         // ALLOC: one name a scored field, bounded by the rescore queries.
         let mut fields: Vec<String> = Vec::new();
-        for b in &self.built {
+        for b in self.built.iter().filter_map(|s| match s {
+            Step::Query(b) => Some(b),
+            Step::Ltr(_) => None,
+        }) {
             for f in scored_fields(&b.query) {
                 if !fields.contains(&f) {
                     fields.push(f);
@@ -129,17 +156,22 @@ impl Plan {
             .map(|h| ShardScoreDoc::new(h.doc, h.score.unwrap_or(0.0)))
             // ALLOC: one hit a result, at most MAX_RESULT_WINDOW.
             .collect();
-        for b in &self.built {
-            opensearch_query_rescore(
-                &ctx,
-                &mut hits,
-                b.query.clone(),
-                b.window,
-                b.query_weight,
-                b.rescore_query_weight,
-                b.mode,
-            )
-            .map_err(ShardError::engine)?;
+        for step in &self.built {
+            match step {
+                Step::Query(b) => {
+                    opensearch_query_rescore(
+                        &ctx,
+                        &mut hits,
+                        b.query.clone(),
+                        b.window,
+                        b.query_weight,
+                        b.rescore_query_weight,
+                        b.mode,
+                    )
+                    .map_err(ShardError::engine)?;
+                }
+                Step::Ltr(b) => b.apply(&ctx, &mut hits)?,
+            }
         }
         top.max_score = hits.first().map(|h| h.score);
         top.hits = hits

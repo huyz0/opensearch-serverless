@@ -8,7 +8,7 @@ use crate::dsl::tokens::{Kind, Parser, Recorder};
 
 /// Records `text`, bounded by its own length (a token and a byte of text
 /// each cost at most a few bytes).
-pub(super) fn record(text: &str) -> Result<Recorder, ModelError> {
+pub(crate) fn record(text: &str) -> Result<Recorder, ModelError> {
     let limit = text.len().saturating_mul(32).saturating_add(1 << 12);
     let mut rec = Recorder::new(limit);
     let mut tokenizer = Tokenizer::new(Limits::default());

@@ -7,6 +7,7 @@
 //! is the marker's read, the content's write and the marker's swap; a read
 //! the marker's read and the content's; nothing lists.
 
+mod models;
 mod objects;
 mod routes;
 mod stores;
@@ -20,6 +21,7 @@ use oss_rest::{JSON, Request, Response, RestError};
 use serde_json::{Value, json};
 
 use crate::route_util::{read_body, refuse};
+pub use models::{ModelCache, StoreModels};
 use objects::{FeatureSet, Model};
 pub use routes::routes;
 
