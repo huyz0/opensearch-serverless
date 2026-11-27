@@ -286,6 +286,11 @@ pub fn assemble(
             Arc::new(crate::by_query::SearchMatches::new(Arc::clone(&search))),
             BulkBudget::new(config.bulk_bytes, config.bulk_holders),
             config.address,
+            Arc::new(crate::by_query::Tasks::new(
+                &config.node_id,
+                budget,
+                crate::by_query::now_millis(),
+            )),
         ));
         let router = crate::by_query::routes(router, by_query).map_err(AssembleError::Route)?;
         (router, Some(drain))

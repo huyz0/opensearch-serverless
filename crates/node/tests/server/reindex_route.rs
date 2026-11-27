@@ -182,12 +182,6 @@ fn a_reindex_this_node_cannot_serve_is_refused() {
             "index",
         ),
         ("/_reindex", "[]".into(), 400, "object"),
-        (
-            "/_reindex?wait_for_completion=false",
-            reindex_body(""),
-            400,
-            "not supported",
-        ),
         ("/_reindex?slices=2", reindex_body(""), 400, "not supported"),
     ];
     for (target, body, status, word) in cases {

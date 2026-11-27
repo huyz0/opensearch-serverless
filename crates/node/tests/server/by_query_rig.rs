@@ -7,14 +7,14 @@
 use crate::support;
 
 use std::net::TcpListener;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 
-use oss_blob::{BlobStore, Emulator};
+use oss_blob::{BlobStore, Emulator, S3Op};
 use oss_coordinator::docs::by_query::Hit;
 use oss_format::{NodeLogEpoch, ShardKey};
 use oss_mem::MemoryBudget;
-use oss_node::by_query::{ByQueryService, ShardMatches};
+use oss_node::by_query::{ByQueryService, ShardMatches, Tasks};
 use oss_node::doc_route::{self, DocService};
 use oss_node::writer::{Routes, WriterRole};
 use oss_rest::{RestError, Router, Server};
@@ -82,10 +82,31 @@ impl Routes for Local {
 pub(crate) struct Matches {
     pub(crate) hits: Mutex<Vec<Hit>>,
     pub(crate) queries: Mutex<Vec<String>>,
+    /// While true the search waits, holding a walk where a test can see it.
+    gate: Mutex<bool>,
+    opened: Condvar,
+}
+
+impl Matches {
+    /// Holds every walk at its first search until [`Matches::open`].
+    pub(crate) fn close(&self) {
+        *self.gate.lock().unwrap() = true;
+    }
+
+    /// Lets the held walks go.
+    pub(crate) fn open(&self) {
+        *self.gate.lock().unwrap() = false;
+        self.opened.notify_all();
+    }
 }
 
 impl ShardMatches for Matches {
     fn newest(&self, _: &str, _: u32, query: &str) -> Result<Option<i64>, RestError> {
+        let mut closed = self.gate.lock().unwrap();
+        while *closed {
+            closed = self.opened.wait(closed).unwrap();
+        }
+        drop(closed);
         self.queries.lock().unwrap().push(query.to_owned());
         Ok(self.hits.lock().unwrap().iter().map(|h| h.seq_no).max())
     }
@@ -114,13 +135,15 @@ impl ShardMatches for Matches {
 }
 
 pub(crate) struct Rig {
+    pub(crate) store: Arc<Emulator>,
     pub(crate) server: Server,
     pub(crate) matches: Arc<Matches>,
 }
 
 pub(crate) fn rig() -> Rig {
     let store = Arc::new(Emulator::new(1 << 30, 7));
-    let log = NodeLogStore::new(store as Arc<dyn BlobStore>, "", "node-1").expect("names");
+    let log =
+        NodeLogStore::new(Arc::clone(&store) as Arc<dyn BlobStore>, "", "node-1").expect("names");
     let committer = Arc::new(NodeLogCommitter::new(
         log,
         7,
@@ -146,6 +169,7 @@ pub(crate) fn rig() -> Rig {
         Mapping::parse(br#"{"properties":{"n":{"type":"integer"}}}"#).expect("mapping"),
     )
     .expect("opens");
+    let budget = MemoryBudget::new(&support::budget_config());
     let matches = Arc::new(Matches::default());
     let docs = Arc::new(DocService::new(Arc::clone(&role), [0; 6]));
     let gets = Arc::new(oss_node::get_route::GetService::new(Arc::clone(&role)));
@@ -154,19 +178,19 @@ pub(crate) fn rig() -> Rig {
         Arc::clone(&matches) as Arc<dyn ShardMatches>,
         BulkBudget::new(1 << 20, 4),
         [0; 6],
+        Arc::new(Tasks::new("node-1", &budget, 1_000)),
     ));
     let router = doc_route::routes(Router::new(), docs).expect("routes");
     let router = oss_node::get_route::routes(router, gets).expect("routes");
     let router = oss_node::by_query::routes(router, by_query).expect("routes");
     let listener = TcpListener::bind("127.0.0.1:0").expect("binds");
-    let server = Server::start(
-        listener,
-        support::server_config(),
-        router,
-        &MemoryBudget::new(&support::budget_config()),
-    )
-    .expect("starts");
-    Rig { server, matches }
+    let server =
+        Server::start(listener, support::server_config(), router, &budget).expect("starts");
+    Rig {
+        store,
+        server,
+        matches,
+    }
 }
 
 pub(crate) fn call(r: &Rig, method: &str, target: &str, body: Option<&str>) -> support::Reply {
@@ -213,4 +237,9 @@ pub(crate) const QUERY: &str = r#"{"query":{"match":{"n":1}}}"#;
 
 pub(crate) fn source_of(r: &Rig, id: &str) -> String {
     call(r, "GET", &format!("/docs/_doc/{id}"), None).text()
+}
+
+/// Every blob request the store has seen.
+pub(crate) fn requests(r: &Rig) -> u64 {
+    S3Op::ALL.iter().map(|op| r.store.meter().count(*op)).sum()
 }

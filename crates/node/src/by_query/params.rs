@@ -36,6 +36,8 @@ pub(super) struct Params {
     pub script: Option<ScriptDef>,
     /// A reindex's source and destination; `None` for a by-query.
     pub reindex: Option<ReindexTarget>,
+    /// `wait_for_completion=false`: run as a task.
+    pub background: bool,
 }
 
 /// Which request is read.
@@ -91,12 +93,9 @@ impl Params {
                 )));
             }
         };
-        if req
+        let background = req
             .param("wait_for_completion")
-            .is_some_and(|v| v == "false")
-        {
-            return Err(unsupported("wait_for_completion=false"));
-        }
+            .is_some_and(|v| v == "false");
         if req.param("slices").is_some_and(|v| v != "1") {
             return Err(unsupported("slices other than 1"));
         }
@@ -122,7 +121,7 @@ impl Params {
             };
         let refresh = refresh(req.param("refresh").as_deref())?;
         if mode == Mode::Reindex {
-            return Self::reindex(&value, abort_on_conflict, max_docs, refresh);
+            return Self::reindex(&value, abort_on_conflict, max_docs, refresh, background);
         }
         let query = match value.get("query") {
             Some(query) => query.to_json(),
@@ -141,6 +140,7 @@ impl Params {
             abort_on_conflict,
             script,
             reindex: None,
+            background,
         })
     }
 
@@ -151,6 +151,7 @@ impl Params {
         abort_on_conflict: bool,
         max_docs: u64,
         refresh: bool,
+        background: bool,
     ) -> Result<Self, RestError> {
         let Json::Obj(members) = value else {
             return Err(bad("the request body must be an object"));
@@ -205,6 +206,7 @@ impl Params {
                 dest,
                 create,
             }),
+            background,
         })
     }
 }

@@ -131,6 +131,7 @@ mod stock_restore_budget;
 mod stock_restore_search;
 mod stock_restore_settings;
 mod stored_search_template;
+mod tasks_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod template_route;
 mod update_route;

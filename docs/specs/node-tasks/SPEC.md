@@ -27,7 +27,7 @@ The by-query and reindex follow-up: `wait_for_completion=false` on `_delete_by_q
 
 ## Test plan
 
-`crates/node/src/tasks/` unit tests for the registry bounds with an injected clock; `crates/node/tests/server/tasks_route.rs` over the by-query rig, the walk held on a gate the test opens so a running task and a cancel are observable.
+`crates/node/src/by_query/tasks/tests.rs` unit tests for the registry bounds with an injected clock; `crates/node/tests/server/tasks_route.rs` over the by-query rig, the walk held on a gate the test opens so a running task and a cancel are observable.
 
 ## S3 request budget
 

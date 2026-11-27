@@ -7,10 +7,10 @@ R14.6, "runs no script": `POST /{index}/_update_by_query` with a `script`, on th
 ## Change
 
 - `oss-node`: `POST /{index}/_update_by_query` takes `query` (default `match_all`) and a required `script` (`source`, `lang` painless or absent, `params`). The walk finds each hit; the change reads the document (a realtime get on the shard its id routes to), runs the script over `ctx._source`, `ctx.op`, `ctx._id`, `ctx._index` and `ctx._version`, and writes the result through the `_bulk` machinery conditional on the hit's `_seq_no` and `_primary_term`: `ctx.op` of `index` writes the new source, `delete` deletes, `noop` or `none` writes nothing.
-- Parameters as `_delete_by_query`: `conflicts`, `max_docs`, `refresh`, `scroll_size`, `timeout`; refused 400: `wait_for_completion=false`, `slices` other than 1, `requests_per_second` other than -1. A request with no `script` is refused 400 (a rewrite without a script is not served).
+- Parameters as `_delete_by_query`: `conflicts`, `max_docs`, `refresh`, `scroll_size`, `timeout`; refused 400: `slices` other than 1, `requests_per_second` other than -1. A request with no `script` is refused 400 (a rewrite without a script is not served).
 - The answer counts `total`, `updated`, `deleted`, `batches`, `version_conflicts`, `noops`.
 - A script that does not compile, is not run as Painless runs it, or throws fails the request 400 `script_exception`; documents already changed stay changed, as in OpenSearch.
-- Not changed: `_delete_by_query`, the reader, the writer crate. Not served: documents with custom `_routing` (the walk and the read use the default shard), `wait_for_completion=false`, a script `id`.
+- Not changed: `_delete_by_query`, the reader, the writer crate. Not served: documents with custom `_routing` (the walk and the read use the default shard), a script `id`.
 
 ## Acceptance criteria
 

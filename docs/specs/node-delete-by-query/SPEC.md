@@ -7,7 +7,7 @@ R10.7 (delete-by-query), node side. Uses the coordinator's walk ([coordinator-by
 ## Change
 
 - `oss-node`: `by_query` with `POST /{index}/_delete_by_query`: `ByQueryService` parses the request, walks the index's shards (shard count from the routes) with `walk`, and deletes each hit through the `_bulk` machinery conditional on the hit's `_seq_no` and `_primary_term` (`DeleteChange`). The search is `ShardMatches`, a trait the node's reader implements.
-- Parameters: `conflicts` (`abort`, `proceed`), `max_docs`, `refresh`, `scroll_size`, `timeout`. Refused 400: `wait_for_completion=false`, `slices` other than 1, `requests_per_second` other than -1.
+- Parameters: `conflicts` (`abort`, `proceed`), `max_docs`, `refresh`, `scroll_size`, `timeout`. Refused 400: `slices` other than 1, `requests_per_second` other than -1.
 - Not changed: update-by-query, `_routing` on hits (a custom-routed document is not found by its default shard), the reader.
 
 ## Acceptance criteria
