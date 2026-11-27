@@ -16,3 +16,17 @@ Slices 1 (evaluators, `crates/reader/src/ltr/`), 2 (store and routes, `crates/no
 - AC-12: `a_missing_store_or_model_is_not_found_and_the_window_is_the_settings` (404 for a missing store or model); the setting off is held by the existing route tests. `serverless.ltr.max_window` is enforced through the resolver.
 - AC-13: `what_the_cache_holds_is_reserved_bounded_and_released` (reservation before holding, 429 past the cache bytes setting, release on eviction). `scoring_a_hit_allocates_nothing` (`crates/reader/tests/ltr_alloc.rs`, counting allocator): 12,000 scores over a linear, an XGBoost, a RankLib LambdaMART and a Random Forests model call the allocator 0 times; seen red with an allocation planted in the loop.
 - AC-14: `stats_count_the_caches_and_the_stores_and_a_clear_forgets_a_store` (`crates/node/tests/server/ltr_cache.rs`). Provisional: the shape follows the plugin's documented stats, answers for this node only (no fan-out, no cluster name), and a cache clear answers the node count and this node's name.
+
+## Default-on measurement
+
+Provisional: in-process emulator, one sandbox machine, release build, `cargo test -p oss-reader --release --test ltr_bench -- --ignored --nocapture`. 5,000 documents in 5 segments, a `match_all` first pass, 1,000-hit window and size, median and p90 of 21 runs after 3 warm-ups:
+
+| search | median | p90 |
+|---|---|---|
+| plain search | 126 us | 140 us |
+| one query rescore | 179 us | 233 us |
+| `sltr`, 50 features (linear model) | 2.91 ms | 3.54 ms |
+
+- An `sltr` rescore costs about 56 us a feature over 1,000 hits, the same as the 53 us one plain query rescore adds, so it costs what its 50 feature queries cost and no more.
+- `an_sltr_rescore_makes_no_more_requests_than_a_plain_search_once_warm`: a warm `sltr` search makes the same object-store requests as a plain one. The model cache's own reads are AC-10.
+- A search without `rescore` or `ltr_log` adds one empty-vector check; no plain search regression was measurable. The crash tests cover the write path, which learning to rank does not touch; they were not run here.
