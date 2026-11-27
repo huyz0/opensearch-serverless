@@ -83,8 +83,13 @@ pub(super) fn answer_item(answer: Answer) -> Vec<u8> {
 }
 
 /// The index a header names, or why this node cannot search it.
-fn header_index(rec: &Recorder, parts: bool, default: Option<&str>) -> Result<String, Vec<u8>> {
+fn header_index(
+    rec: &Recorder,
+    parts: bool,
+    default: Option<&str>,
+) -> Result<(String, Option<String>), Vec<u8>> {
     let mut named: Option<String> = None;
+    let mut routing: Option<String> = None;
     if parts {
         let mut p = rec.parser();
         if p.next_token() != Some(Kind::StartObject) {
@@ -94,13 +99,20 @@ fn header_index(rec: &Recorder, parts: bool, default: Option<&str>) -> Result<St
         }
         while p.next_token() == Some(Kind::FieldName) {
             let key = p.text().to_owned();
-            if key != "index" {
+            if !matches!(key.as_str(), "index" | "routing" | "preference") {
                 return Err(not_supported(&format!("the _msearch header key [{key}]")));
             }
             if p.next_token() != Some(Kind::String) {
-                return Err(not_supported("an _msearch [index] that is not one name"));
+                return Err(not_supported(&format!(
+                    "an _msearch [{key}] that is not one string"
+                )));
             }
-            named = Some(p.text().to_owned());
+            match key.as_str() {
+                "index" => named = Some(p.text().to_owned()),
+                "routing" => routing = Some(p.text().to_owned()),
+                // No shard has a copy to prefer.
+                _ => {}
+            }
             p.skip_children();
         }
     }
@@ -112,7 +124,7 @@ fn header_index(rec: &Recorder, parts: bool, default: Option<&str>) -> Result<St
             "a pattern, _all or a list of indices in _msearch",
         ));
     }
-    Ok(index)
+    Ok((index, routing))
 }
 
 /// Reads lines and runs each search as its body line ends.
@@ -133,7 +145,7 @@ struct Items<'s, 'r, 'a, S: BlobStore + 'static> {
     body_tokens: Tokenizer,
     body_fail: Option<DslError>,
     /// The index to search, or the item that stands for the refusal.
-    target: Result<String, Vec<u8>>,
+    target: Result<(String, Option<String>), Vec<u8>>,
 }
 
 impl<'s, 'r, 'a, S: BlobStore + 'static> Items<'s, 'r, 'a, S> {
@@ -220,13 +232,13 @@ impl<'s, 'r, 'a, S: BlobStore + 'static> Items<'s, 'r, 'a, S> {
         }
     }
 
-    fn run(&self, index: &str, source: &mut SearchSource) -> Vec<u8> {
+    fn run(&self, index: &str, routing: Option<&str>, source: &mut SearchSource) -> Vec<u8> {
         // Held until the item is answered.
         let _pipeline = match self.service.run_item_pipeline(index, source) {
             Ok(held) => held,
             Err(answer) => return answer_item(answer),
         };
-        match self.service.search_bytes(index, source) {
+        match self.service.search_bytes_routed(index, source, routing) {
             // The response ends with `}`; the item's status goes before it.
             Ok(mut bytes) => {
                 bytes.pop();
@@ -285,10 +297,14 @@ impl<S: BlobStore + 'static> LineSink for Items<'_, '_, '_, S> {
         ) {
             (Err(item), _) => item,
             (Ok(_), Some(e)) => answer_item(bad_request(e)),
-            (Ok(index), None) => match self.service.alias_target(&index) {
+            (Ok((index, routing)), None) => match self.service.alias_target(&index) {
                 Err(e) => rest_item(&e),
                 Ok(target) => match self.item_source() {
-                    Ok(mut source) => self.run(target.as_deref().unwrap_or(&index), &mut source),
+                    Ok(mut source) => self.run(
+                        target.as_deref().unwrap_or(&index),
+                        routing.as_deref(),
+                        &mut source,
+                    ),
                     Err(answer) => answer_item(answer),
                 },
             },
@@ -369,11 +385,30 @@ impl<S: BlobStore + 'static> SearchService<S> {
         index: &str,
         source: &SearchSource,
     ) -> Result<Vec<u8>, Answer> {
+        self.search_bytes_routed(index, source, None)
+    }
+
+    /// As [`Self::search_bytes`], over the shards `routing` names.
+    pub(super) fn search_bytes_routed(
+        &self,
+        index: &str,
+        source: &SearchSource,
+        routing: Option<&str>,
+    ) -> Result<Vec<u8>, Answer> {
         let started = Instant::now();
         #[cfg(feature = "coordinator")]
-        if self.shard_count(index)? > 1 {
-            return self.coordinate_bytes(index, source, started);
+        {
+            let (shards, only) = self.shard_plan(index, routing)?;
+            if shards > 1 || only.is_some() {
+                let visit = super::coordinate::Visit {
+                    shards,
+                    only: only.as_deref(),
+                };
+                return self.coordinate_bytes(index, visit, source, started);
+            }
         }
+        #[cfg(not(feature = "coordinator"))]
+        let _ = routing;
         let held = self.shard(index)?;
         let (held, view) = self.fresh_held(held, true)?;
         let shard = view.as_deref().unwrap_or(&held.shard);

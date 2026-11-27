@@ -121,7 +121,7 @@ impl<S: BlobStore + 'static> SearchService<S> {
                 return self.handle_sharded_with(
                     resp,
                     &index,
-                    shards,
+                    super::coordinate::Visit { shards, only: None },
                     &source,
                     started,
                     &|bytes| count_of_search(&bytes),
