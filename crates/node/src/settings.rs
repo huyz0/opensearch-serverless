@@ -17,6 +17,8 @@ fn providers() -> Vec<&'static [&'static Setting]> {
         #[cfg(feature = "reader")]
         crate::vector_warm_setting::SETTINGS,
         #[cfg(feature = "reader")]
+        crate::painless_setting::SETTINGS,
+        #[cfg(feature = "reader")]
         crate::tail_overlay::SETTINGS,
         #[cfg(all(feature = "reader", feature = "writer"))]
         crate::commit_push::SETTINGS,
@@ -86,7 +88,7 @@ mod tests {
             let reader = cfg!(feature = "reader");
             assert_eq!(
                 keys.len(),
-                7 + 7 * usize::from(reader)
+                7 + 8 * usize::from(reader)
                     + if writer { 51 + usize::from(reader) } else { 0 }
                     + usize::from(reader && writer)
                     + 2 * usize::from(writer && cfg!(feature = "coordinator"))
@@ -110,6 +112,10 @@ mod tests {
             );
             assert_eq!(
                 keys.contains(&"index.serverless.reader.open_prefetch.enabled"),
+                reader
+            );
+            assert_eq!(
+                keys.contains(&"serverless.scripting.painless.native_compile"),
                 reader
             );
             assert_eq!(keys.contains(&"serverless.lease.early_revoke"), writer);

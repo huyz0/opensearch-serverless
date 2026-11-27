@@ -259,3 +259,4 @@ src/boot/pack_collect.rs	new		the thread that runs the node's pack collection pa
 src/boot/pack_collect_tests.rs	new		tests of that thread
 src/search_shard_action/terms.rs	new		a shard terms result as the forwarded answer
 src/search_shard_action/tests/aggregations.rs	new		tests of the forwarded aggregations answered
+src/painless_setting.rs	new		the switch that compiles Painless in Rust; Java compiles it in the script service and has no such setting
