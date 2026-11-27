@@ -173,3 +173,46 @@ fn a_painless_script_sorts_hits() {
         rest = &rest[i..];
     }
 }
+
+fn query_search(node: &Node, query: &str) -> (u16, String) {
+    let body = format!(r#"{{"size":10,"query":{query},"sort":[{{"year":"asc"}}]}}"#);
+    let r = request(
+        node.addr(),
+        "POST",
+        "/compat-term/_search",
+        Some(body.as_bytes()),
+    );
+    (r.status, r.text())
+}
+
+fn ids(body: &str) -> Vec<String> {
+    scores(body).into_iter().map(|(id, _)| id).collect()
+}
+
+// AC-8
+#[test]
+fn a_script_query_matches_where_the_script_is_true() {
+    on();
+    let node = start();
+    let (status, all) = query_search(&node, r#"{"match_all":{}}"#);
+    assert_eq!(status, 200, "{all}");
+    let (status, scripted) = query_search(
+        &node,
+        r#"{"script":{"script":{"source":"doc['year'].value >= params.y","params":{"y":2002}}}}"#,
+    );
+    assert_eq!(status, 200, "{scripted}");
+    let (status, ranged) = query_search(&node, r#"{"range":{"year":{"gte":2002}}}"#);
+    assert_eq!(status, 200, "{ranged}");
+    assert!(ids(&scripted).len() < ids(&all).len(), "{scripted}");
+    assert_eq!(ids(&scripted), ids(&ranged), "{scripted} {ranged}");
+    // A filter inside a bool matches the same hits.
+    let (status, filtered) = query_search(
+        &node,
+        r#"{"bool":{"filter":[{"script":{"script":"doc['year'].value >= 2002"}}]}}"#,
+    );
+    assert_eq!(status, 200, "{filtered}");
+    assert_eq!(ids(&filtered), ids(&ranged), "{filtered}");
+    // A script that does not return a boolean is Painless's own rejection.
+    let (status, body) = query_search(&node, r#"{"script":{"script":"1 + 1"}}"#);
+    assert_eq!(status, 400, "{body}");
+}
