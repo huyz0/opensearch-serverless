@@ -14,7 +14,7 @@ use lucene_aggs::bucket_aggs::DateRounding;
 
 /// A key as the field's date format prints it in the aggregation's zone:
 /// the local time, then `Z` for a zero offset or `+hh:mm`.
-fn write_zoned(
+pub(super) fn write_zoned(
     out: &mut dyn Write,
     key: i64,
     rounding: &DateRounding,

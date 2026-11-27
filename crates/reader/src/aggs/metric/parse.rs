@@ -335,6 +335,7 @@ fn parse_definition(
                     terms: None,
                     histogram: None,
                     date_histogram: None,
+                    auto_date: None,
                     range: None,
                     filters: None,
                     nested: None,

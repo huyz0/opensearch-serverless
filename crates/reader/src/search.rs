@@ -346,7 +346,7 @@ pub fn search_with<S: BlobStore + 'static>(
     let segments = opened.as_open_segments();
     let match_all = to_lucene(&crate::dsl::Query::MatchAll { boost: 1.0 }, &cx)
         .map_err(|f| ShardError::of_query(shard_failure(f, index, &meta.uuid)))?;
-    let mut aggregations = metric::collect_with_global(
+    let mut aggregations = metric::collect_with_auto(
         &source.aggs,
         shard,
         &segments,

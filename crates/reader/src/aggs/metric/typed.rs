@@ -50,6 +50,7 @@ fn type_name(value: &Value, format: Format) -> Option<&'static str> {
         Value::Rare(result) => result.type_name(),
         Value::Histogram(_) => "histogram",
         Value::DateHistogram(_) => "date_histogram",
+        Value::AutoDateHistogram(_) => "auto_date_histogram",
         Value::Range(_) => "range",
         Value::Filters(result) => result.kind.type_name(),
         Value::Composite(_) => "composite",

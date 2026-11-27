@@ -160,11 +160,16 @@ src/aggs/bucket/range_render.rs	port	server/src/main/java/org/opensearch/search/
 src/aggs/bucket/range_collect_tests.rs	new		tests of range on a real index
 src/aggs/bucket/range_tests.rs	new		tests of range parsing, reduce and writing
 src/aggs/bucket/filters.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/filter/InternalFilters.java@3.10.0	FiltersAggregationBuilder's keyed filters and InternalFilters.reduce
+src/aggs/bucket/auto_date.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/histogram/InternalAutoDateHistogram.java@3.10.0	getAppropriateRounding, mergeBuckets, addEmptyBuckets, maybeMergeConsecutiveBuckets and the reduce; the roundings of AutoDateHistogramAggregationBuilder.buildRoundings
+src/aggs/bucket/auto_date_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/histogram/AutoDateHistogramAggregationBuilder.java@3.10.0	AutoDateHistogramAggregationBuilder.PARSER and its setters
+src/aggs/bucket/auto_date_render.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/histogram/InternalAutoDateHistogram.java@3.10.0	InternalAutoDateHistogram.doXContentBody
 src/aggs/bucket/adjacency_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/adjacency/AdjacencyMatrixAggregationBuilder.java@3.10.0	AdjacencyMatrixAggregationBuilder.PARSER; the filters and pairs of AdjacencyMatrixAggregator composed into one sorted list
 src/aggs/bucket/filters_parse.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/filter/FiltersAggregationBuilder.java@3.10.0	FiltersAggregationBuilder.parse and the sort of keyed filters; FilterAggregationBuilder.parse (the single filter)
+src/aggs/metric/collect_auto.rs	new		the shard passes that settle an auto_date_histogram's rounding over the engine's date_histogram
 src/aggs/bucket/filters_collect.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/filter/FiltersAggregatorFactory.java@3.10.0	the filters built as queries, FiltersAggregator's node over lucene-aggs and its buckets
 src/aggs/bucket/filters_render.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/filter/InternalFilters.java@3.10.0	InternalFilters.InternalBucket.toXContent and doXContentBody; InternalFilter.doXContentBody (the single filter's doc_count)
 src/aggs/bucket/filters_collect_tests.rs	new		tests of filters on a real index
+src/aggs/bucket/auto_date_tests.rs	new		tests of auto_date_histogram parsing and reduce against the recorded Java, the shard and its result
 src/aggs/bucket/adjacency_tests.rs	new		tests of adjacency_matrix parsing against the recorded Java, counting and writing
 src/aggs/bucket/filters_tests.rs	new		tests of filters parsing, reduce and writing
 src/aggs/bucket/sub_values.rs	port	server/src/main/java/org/opensearch/search/aggregations/InternalAggregations.java@3.10.0	each bucket's sub-aggregation values reduced shard by shard (InternalAggregations.reduce) and written in Aggregations.toXContentInternal's order

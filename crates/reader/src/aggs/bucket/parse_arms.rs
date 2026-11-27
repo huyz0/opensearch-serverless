@@ -2,6 +2,7 @@
 //! them: each type's parser lives beside its other code.
 
 use crate::aggs::bucket::adjacency_parse::parse_adjacency_body;
+use crate::aggs::bucket::auto_date_parse::parse_auto_date_body;
 use crate::aggs::bucket::composite_parse::parse_composite_body;
 use crate::aggs::bucket::date_histogram_parse::parse_date_histogram_body;
 use crate::aggs::bucket::filters_parse::{parse_filter_body, parse_filters_body};
@@ -65,6 +66,11 @@ pub fn parse_bucket(p: &mut Parser<'_>, agg: &mut MetricAgg) -> Result<bool, Dsl
         Metric::AdjacencyMatrix => {
             // ALLOC: one box an `adjacency_matrix`, bounded by the body's recording.
             agg.filters = Some(Box::new(parse_adjacency_body(p, &name)?));
+        }
+        Metric::AutoDateHistogram => {
+            let (field, spec) = parse_auto_date_body(p, &name)?;
+            // ALLOC: one box an `auto_date_histogram`, bounded by the body's recording.
+            (agg.field, agg.auto_date) = (field, Some(Box::new(spec)));
         }
         Metric::Filter => {
             // ALLOC: one box a `filter`, bounded by the body's recording.
