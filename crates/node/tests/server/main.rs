@@ -72,6 +72,7 @@ mod metadata_block;
 mod newest_ask;
 mod pinned_busy;
 mod pinned_frozen;
+mod pinned_hostile;
 #[cfg(all(feature = "extensions", feature = "reader", feature = "writer"))]
 mod pinned_read;
 mod pinned_shard;
