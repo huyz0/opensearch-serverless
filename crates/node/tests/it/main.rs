@@ -31,6 +31,7 @@ mod script_sort;
 mod search;
 mod search_alias;
 mod search_hits;
+mod search_now;
 mod search_pipeline;
 mod search_routing;
 mod search_several;

@@ -116,5 +116,18 @@ pub(super) fn read_search_source(req: &mut Request<'_>) -> Result<SearchSource, 
         typed_keys: typed.as_deref(),
     };
     source.apply_url(&params).map_err(bad_request)?;
+    stamp(&mut source);
     Ok(source)
+}
+
+/// Gives `source` the instant `now` means in its date math, unless it already has one (a
+/// forwarded search carries its coordinator's). Taken once, where the request arrives, so every
+/// shard and every item of the search reads the same instant.
+pub(super) fn stamp(source: &mut SearchSource) {
+    if source.now_millis.is_none() {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX));
+        source.now_millis = Some(now);
+    }
 }
