@@ -9,6 +9,9 @@
 mod live_plugins;
 #[path = "mixed_fleet/made_from_nothing.rs"]
 mod made_from_nothing;
+#[cfg(feature = "extensions")]
+#[path = "mixed_fleet/pinned_index.rs"]
+mod pinned_index;
 #[path = "mixed_fleet/snapshots.rs"]
 mod snapshots;
 #[path = "mixed_fleet/soak.rs"]
