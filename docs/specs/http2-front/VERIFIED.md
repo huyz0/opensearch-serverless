@@ -2,7 +2,7 @@
 
 Numbers are from a debug build in a cloud sandbox: provisional, relative only.
 
-- AC-1: `cargo tree -p oss-node --no-default-features --features reader,writer -e normal` shows no `tokio` or `h2` (counted 0); with no listener set the node starts no front (`memory_is_charged_at_start_refused_when_short_and_released` shows the front is the only thing that charges); a node built without `edge` and given `OSS_EDGE_H2C_ADDR` refuses to start, by `crates/node/src/boot/edge.rs`. NOT-RUN: a node-level test of "no extra port".
+- AC-1: `cargo tree -p oss-node --no-default-features --features reader,writer -e normal` shows no tokio or h2 (counted 0); with no listener set the node starts no front (`memory_is_charged_at_start_refused_when_short_and_released` shows the front is the only thing that charges); a node built without edge and given `OSS_EDGE_H2C_ADDR` refuses to start, by `crates/node/src/boot/edge.rs`. `with_no_edge_listener_set_the_node_listens_on_its_http_and_transport_ports_only` (node, `tests/no_extra_port.rs`, Linux only: a booted node with no edge address, its sockets read from `/proc`, listens on the HTTP and transport TCP ports and binds no UDP socket) passes and was seen red with `OSS_EDGE_H2C_ADDR` set (a third listening port).
 - AC-2: `answers_match_http1_for_a_set_of_requests`
 - AC-3: `a_body_over_the_limit_is_refused_413_like_over_http1_and_the_connection_survives`
 - AC-4: `a_stream_past_max_streams_is_refused_and_the_rest_complete`
