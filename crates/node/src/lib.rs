@@ -119,6 +119,8 @@ pub mod pack_holds;
 pub mod pack_pass;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod page_cache_disk;
+#[cfg(feature = "reader")]
+pub mod painless_setting;
 #[cfg(all(feature = "writer", feature = "coordinator"))]
 pub mod pin_policy;
 #[cfg(feature = "writer")]
@@ -234,7 +236,6 @@ mod usage_extensions;
 pub mod usage_metrics;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod usage_route;
-#[cfg(feature = "reader")]
 pub mod vector_warm_setting;
 #[cfg(all(feature = "reader", feature = "writer"))]
 pub mod warm_boot;
