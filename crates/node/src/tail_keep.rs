@@ -258,6 +258,16 @@ impl TailKeep {
             .is_some_and(|kept| kept.dropped_through > after)
     }
 
+    /// Whether a write no commit holds was acknowledged and not kept (it
+    /// outgrew the keep): no reader of an older commit can be given it, so
+    /// only a publish makes it visible.
+    pub fn unheld(&self, uuid: &str, shard: u32) -> bool {
+        self.lock()
+            .shards
+            .get(&(uuid.to_owned(), shard))
+            .is_some_and(|kept| kept.dropped_through > kept.published_through)
+    }
+
     /// Whether anything has begun to be kept for the shard.
     pub fn keeps(&self, uuid: &str, shard: u32) -> bool {
         self.lock().shards.contains_key(&(uuid.to_owned(), shard))
