@@ -27,6 +27,7 @@ pub struct BulkService {
     config: StreamConfig,
     ids: IdLanes,
     ingest: Option<Arc<IngestPipelines>>,
+    scripts: Option<Arc<dyn oss_types::stored_scripts::StoredScripts>>,
 }
 
 /// A request body as a reader: each chunk is copied out whole, so the buffer
@@ -87,7 +88,19 @@ impl BulkService {
             config,
             ids: IdLanes::new(address),
             ingest: None,
+            scripts: None,
         }
+    }
+
+    /// The same, resolving a script named by `id` in an update item through
+    /// `scripts`.
+    #[must_use]
+    pub fn with_scripts(
+        mut self,
+        scripts: Arc<dyn oss_types::stored_scripts::StoredScripts>,
+    ) -> Self {
+        self.scripts = Some(scripts);
+        self
     }
 
     /// The same service running the pipelines its items name, from `ingest`
@@ -135,7 +148,7 @@ impl BulkService {
             }
             None => None,
         };
-        let mut updates = RoleUpdates::new(&self.role);
+        let mut updates = RoleUpdates::new(&self.role, self.scripts.as_deref());
         let mut run =
             Bulk::new(&mut target, &mut ids, now_millis(), refresh).with_updates(&mut updates);
         if let Some(pipelines) = pipelines.as_mut() {

@@ -196,10 +196,10 @@ impl Change for UpdateChange<'_> {
                 // ALLOC: error path; one message.
                 format!("[{}] {}", error.kind(), error.reason()),
             )),
-            // Only a bulk `update` item is a no-op; this writes an index or a delete.
-            Some(ItemResult::Noop { .. }) | None => {
-                Err(RestError::simple(500, "the update produced no result"))
-            }
+            // Only a bulk `update` item is a no-op, and this writes an index or a delete:
+            // an answer of "wrote nothing" is read as that.
+            Some(ItemResult::Noop { .. }) => Ok(Applied::Noop),
+            None => Err(RestError::simple(500, "the update produced no result")),
         }
     }
 }
