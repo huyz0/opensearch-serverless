@@ -22,18 +22,38 @@ pub(super) fn render_update(
     render_counts(walk, index, took_millis, Some(counts))
 }
 
+/// [`render`] for a reindex: `counts` is `(created, updated, deleted)`.
+pub(super) fn render_reindex(
+    walk: &Walk,
+    index: &str,
+    took_millis: u64,
+    counts: (u64, u64, u64),
+) -> (u16, String) {
+    let (created, updated, deleted) = counts;
+    render_with(
+        walk,
+        index,
+        took_millis,
+        format!(r#""updated":{updated},"created":{created},"deleted":{deleted}"#),
+    )
+}
+
 fn render_counts(
     walk: &Walk,
     index: &str,
     took_millis: u64,
     update: Option<(u64, u64)>,
 ) -> (u16, String) {
-    // ALLOC: one small body a request, bounded by the id and message.
-    let mut out = String::new();
     let counts = match update {
         Some((updated, deleted)) => format!(r#""updated":{updated},"deleted":{deleted}"#),
         None => format!(r#""deleted":{}"#, walk.changed),
     };
+    render_with(walk, index, took_millis, counts)
+}
+
+fn render_with(walk: &Walk, index: &str, took_millis: u64, counts: String) -> (u16, String) {
+    // ALLOC: one small body a request, bounded by the id and message.
+    let mut out = String::new();
     let _ = write!(
         out,
         r#"{{"took":{took_millis},"timed_out":false,"total":{},{counts},"batches":{},"version_conflicts":{},"noops":{},"retries":{{"bulk":0,"search":0}},"throttled_millis":0,"requests_per_second":-1.0,"throttled_until_millis":0,"failures":["#,

@@ -44,6 +44,7 @@ mod boot_write_concurrency;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod bulk_route;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
+mod by_query_rig;
 mod by_query_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod cluster_assemble;
@@ -82,6 +83,7 @@ mod push_read;
 mod read_block;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod read_forward;
+mod reindex_route;
 mod restore_flags;
 mod restore_settings;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]

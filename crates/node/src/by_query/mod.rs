@@ -8,6 +8,7 @@
 
 mod change;
 mod params;
+mod reindex;
 mod response;
 #[cfg(feature = "reader")]
 mod search;
@@ -21,7 +22,8 @@ use oss_writer::bulk::{BulkBudget, Grant, IdGenerator, Target};
 
 pub use change::DeleteChange;
 use change::UpdateChange;
-use params::Params;
+use params::{Mode, Params};
+use reindex::ReindexChange;
 #[cfg(feature = "reader")]
 pub use search::SearchMatches;
 
@@ -127,7 +129,7 @@ impl ByQueryService {
     /// `POST /{index}/_delete_by_query`.
     pub fn delete(&self, req: &mut Request<'_>, resp: &mut Response<'_>) -> Result<(), RestError> {
         let started = Instant::now();
-        let params = Params::read(req, false)?;
+        let params = Params::read(req, Mode::Delete)?;
         let index = req
             .path_param("index")
             .ok_or_else(|| RestError::illegal_argument("an index is required"))?
@@ -168,7 +170,7 @@ impl ByQueryService {
                 "script updates need serverless.scripting.painless.native_compile",
             ));
         }
-        let params = Params::read(req, true)?;
+        let params = Params::read(req, Mode::Update)?;
         let Some(script) = params.script.as_ref() else {
             return Err(RestError::illegal_argument("[script] is required"));
         };
@@ -203,6 +205,63 @@ impl ByQueryService {
     }
 }
 
+impl ByQueryService {
+    /// `POST /_reindex`.
+    pub fn reindex(&self, req: &mut Request<'_>, resp: &mut Response<'_>) -> Result<(), RestError> {
+        let started = Instant::now();
+        let params = Params::read(req, Mode::Reindex)?;
+        let Some(target) = params.reindex.as_ref() else {
+            return Err(RestError::illegal_argument("a reindex names a source"));
+        };
+        if params.script.is_some() && !oss_coordinator::docs::update_script::enabled() {
+            return Err(RestError::simple(
+                501,
+                "script updates need serverless.scripting.painless.native_compile",
+            ));
+        }
+        if target.source == target.dest {
+            return Err(RestError::illegal_argument(
+                "reindex cannot write into an index its reading from",
+            ));
+        }
+        let mut target_role = RoleTarget::new(&self.role);
+        let source_info = target_role
+            .index(&target.source)
+            .ok_or_else(|| missing(&target.source))?;
+        let dest_info = target_role
+            .index(&target.dest)
+            .ok_or_else(|| missing(&target.dest))?;
+        let shards: Vec<u32> = (0..source_info.shards).collect();
+        let source = QuerySource {
+            matches: &*self.matches,
+            budget: &self.budget,
+            index: &target.source,
+            query: &params.query,
+        };
+        let mut ids = IdGenerator::new(0, self.address);
+        let mut change = ReindexChange::new(
+            &self.role,
+            (&source_info, &dest_info),
+            target.create,
+            params.script.as_ref(),
+            &mut ids,
+            now_millis(),
+        );
+        let outcome: Walk = walk(
+            &source,
+            &shards,
+            params.max_docs,
+            params.refresh,
+            params.abort_on_conflict,
+            &mut change,
+        )?;
+        let counts = (change.created, change.updated, change.deleted);
+        let took = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
+        let (status, body) = response::render_reindex(&outcome, &target.dest, took, counts);
+        resp.send(status, JSON, body.as_bytes())
+    }
+}
+
 fn missing(index: &str) -> RestError {
     RestError::exception(
         404,
@@ -222,6 +281,7 @@ fn missing(index: &str) -> RestError {
 /// A route registered twice.
 pub fn routes(router: Router, service: Arc<ByQueryService>) -> Result<Router, RouteError> {
     let updates = Arc::clone(&service);
+    let reindexes = Arc::clone(&service);
     router
         .route(
             Method::Post,
@@ -234,5 +294,11 @@ pub fn routes(router: Router, service: Arc<ByQueryService>) -> Result<Router, Ro
             "/{index}/_update_by_query",
             params::PARAMS,
             move |req: &mut Request<'_>, resp: &mut Response<'_>| updates.update(req, resp),
+        )?
+        .route(
+            Method::Post,
+            "/_reindex",
+            params::PARAMS,
+            move |req: &mut Request<'_>, resp: &mut Response<'_>| reindexes.reindex(req, resp),
         )
 }
