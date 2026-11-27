@@ -45,7 +45,7 @@ fn script_off() -> RestError {
 impl ByQueryService {
     /// `POST /{index}/_delete_by_query`, validated.
     pub(super) fn plan_delete(self: &Arc<Self>, req: &mut Request<'_>) -> Result<Plan, RestError> {
-        let params = Params::read(req, Mode::Delete)?;
+        let params = Params::read(req, Mode::Delete, self.scripts.as_deref())?;
         let index = index_of(req)?;
         let info = RoleTarget::new(&self.role)
             .index(&index)
@@ -88,7 +88,7 @@ impl ByQueryService {
         if !oss_coordinator::docs::update_script::enabled() {
             return Err(script_off());
         }
-        let params = Params::read(req, Mode::Update)?;
+        let params = Params::read(req, Mode::Update, self.scripts.as_deref())?;
         if params.script.is_none() {
             return Err(RestError::illegal_argument("[script] is required"));
         }
@@ -135,7 +135,7 @@ impl ByQueryService {
 
     /// `POST /_reindex`, validated.
     pub(super) fn plan_reindex(self: &Arc<Self>, req: &mut Request<'_>) -> Result<Plan, RestError> {
-        let params = Params::read(req, Mode::Reindex)?;
+        let params = Params::read(req, Mode::Reindex, self.scripts.as_deref())?;
         let Some(target) = params.reindex.as_ref() else {
             return Err(RestError::illegal_argument("a reindex names a source"));
         };

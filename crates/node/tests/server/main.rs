@@ -130,6 +130,7 @@ mod stock_restore;
 mod stock_restore_budget;
 mod stock_restore_search;
 mod stock_restore_settings;
+mod stored_script_route;
 mod stored_search_template;
 mod tasks_forward;
 mod tasks_route;

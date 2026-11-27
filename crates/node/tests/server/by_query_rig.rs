@@ -147,6 +147,15 @@ pub(crate) fn rig() -> Rig {
 
 /// A rig whose node is called `node`.
 pub(crate) fn rig_as(node: &str) -> Rig {
+    build(node, None)
+}
+
+/// A rig that resolves a script named by `id` through `scripts`.
+pub(crate) fn rig_scripts(scripts: Arc<dyn oss_reader::stored_scripts::StoredScripts>) -> Rig {
+    build("node-1", Some(scripts))
+}
+
+fn build(node: &str, scripts: Option<Arc<dyn oss_reader::stored_scripts::StoredScripts>>) -> Rig {
     let store = Arc::new(Emulator::new(1 << 30, 7));
     let log =
         NodeLogStore::new(Arc::clone(&store) as Arc<dyn BlobStore>, "", "node-1").expect("names");
@@ -180,13 +189,17 @@ pub(crate) fn rig_as(node: &str) -> Rig {
     let docs = Arc::new(DocService::new(Arc::clone(&role), [0; 6]));
     let gets = Arc::new(oss_node::get_route::GetService::new(Arc::clone(&role)));
     let tasks = Arc::new(Tasks::new(node, &budget, 1_000));
-    let by_query = Arc::new(ByQueryService::new(
+    let mut service = ByQueryService::new(
         role,
         Arc::clone(&matches) as Arc<dyn ShardMatches>,
         BulkBudget::new(1 << 20, 4),
         [0; 6],
         Arc::clone(&tasks),
-    ));
+    );
+    if let Some(scripts) = scripts {
+        service = service.with_scripts(scripts);
+    }
+    let by_query = Arc::new(service);
     let router = doc_route::routes(Router::new(), docs).expect("routes");
     let router = oss_node::get_route::routes(router, gets).expect("routes");
     let router = oss_node::by_query::routes(router, by_query).expect("routes");

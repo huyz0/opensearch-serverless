@@ -5,6 +5,7 @@ use oss_rest::{Request, RestError};
 
 use crate::bulk_route::refresh;
 use crate::update_body::{ScriptDef, script};
+use oss_types::stored_scripts::StoredScripts;
 
 /// The most bytes of a request body.
 const MAX_BODY_BYTES: usize = 1 << 20;
@@ -72,7 +73,11 @@ impl Params {
     ///
     /// `mode`: an update by query's `query` may be absent and its `script`
     /// is required; a reindex names its source and destination.
-    pub fn read(req: &mut Request<'_>, mode: Mode) -> Result<Self, RestError> {
+    pub fn read(
+        req: &mut Request<'_>,
+        mode: Mode,
+        scripts: Option<&dyn StoredScripts>,
+    ) -> Result<Self, RestError> {
         let update = mode == Mode::Update;
         let body = read_body(req)?;
         let value = oss_doc::mapping::json::parse(&body).map_err(|e| {
@@ -121,7 +126,11 @@ impl Params {
             };
         let refresh = refresh(req.param("refresh").as_deref())?;
         if mode == Mode::Reindex {
-            return Self::reindex(&value, abort_on_conflict, max_docs, refresh, background);
+            return Self::reindex(
+                &value,
+                (abort_on_conflict, max_docs, refresh, background),
+                scripts,
+            );
         }
         let query = match value.get("query") {
             Some(query) => query.to_json(),
@@ -129,7 +138,7 @@ impl Params {
             None => return Err(bad("query is missing")),
         };
         let script = match (update, value.get("script")) {
-            (true, Some(def)) => Some(script(def)?),
+            (true, Some(def)) => Some(script(def, scripts)?),
             (true, None) => return Err(bad("[script] is required by this node's update by query")),
             (false, _) => None,
         };
@@ -148,10 +157,8 @@ impl Params {
     /// `dest.op_type` and `script`, nothing else.
     fn reindex(
         value: &Json,
-        abort_on_conflict: bool,
-        max_docs: u64,
-        refresh: bool,
-        background: bool,
+        (abort_on_conflict, max_docs, refresh, background): (bool, u64, bool, bool),
+        scripts: Option<&dyn StoredScripts>,
     ) -> Result<Self, RestError> {
         let Json::Obj(members) = value else {
             return Err(bad("the request body must be an object"));
@@ -194,7 +201,10 @@ impl Params {
             .get("source")
             .and_then(|s| s.get("query"))
             .map_or_else(|| String::from(r#"{"match_all":{}}"#), Json::to_json);
-        let script = value.get("script").map(script).transpose()?;
+        let script = value
+            .get("script")
+            .map(|def| script(def, scripts))
+            .transpose()?;
         Ok(Self {
             query,
             max_docs,

@@ -284,3 +284,5 @@ src/by_query/tasks/tests.rs	new		the registry bounds, with the clock passed in
 src/by_query/task_forward.rs	new		forwards a task read or cancel to the node that runs the task
 src/boot/tasks.rs	new		the forwarded task call's handler slot and its wiring once the node is assembled
 src/search_shard_action/tests/pipelines.rs	new		tests that a forwarded search with pipeline aggregations is answered as without them
+src/stored_script_source.rs	new		the node's snapshot of the stored-script set, checked once a TTL, behind the reader's resolver
+src/stored_script_source/tests.rs	new		the cache's cost and freshness over a metered emulator

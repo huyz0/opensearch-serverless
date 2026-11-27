@@ -6,11 +6,11 @@
 use std::sync::Arc;
 
 use oss_blob::BlobStore;
-use oss_doc::mapping::json::{Json, parse as parse_json};
 use oss_format::{DocKind, MAX_DOC_BYTES};
 use oss_meta::{DocSet, DocSetCache, MetaError};
 
 use crate::search::{TemplateFault, TemplateSource};
+use crate::stored_script_source::script;
 
 /// The stored-script set and what the node keeps of it.
 pub struct StoredTemplates {
@@ -34,25 +34,6 @@ impl StoredTemplates {
             buffer_bytes: MAX_DOC_BYTES,
         }))
     }
-}
-
-/// The language and source of a stored `{"script":{"lang","source"}}`.
-fn script(body: &[u8]) -> Option<(String, String)> {
-    let Json::Obj(top) = parse_json(body).ok()? else {
-        return None;
-    };
-    let [(_, Json::Obj(members))] = top.as_slice() else {
-        return None;
-    };
-    let (mut lang, mut source) = (None, None);
-    for (name, value) in members {
-        match (name.as_str(), value) {
-            ("lang", Json::Str(s)) => lang = Some(s.clone()),
-            ("source", Json::Str(s)) => source = Some(s.clone()),
-            _ => {}
-        }
-    }
-    Some((lang?, source?))
 }
 
 impl TemplateSource for StoredTemplates {

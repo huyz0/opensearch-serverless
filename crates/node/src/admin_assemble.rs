@@ -22,6 +22,25 @@ use crate::snapshot_route::{self, SnapshotService};
 use crate::snapshot_take_route::SnapshotTakeService;
 use crate::template_route::{self, TemplateService};
 
+/// The node's cache of stored scripts, which `oss-reader` is told to use for
+/// the scripts a search names by `id`.
+pub(crate) fn script_source(
+    store: &Arc<dyn BlobStore>,
+    config: &Config,
+    budget: &MemoryBudget,
+) -> Result<Arc<crate::stored_script_source::ScriptSource>, AssembleError> {
+    let source = crate::stored_script_source::ScriptSource::open(
+        store,
+        &config.base,
+        budget,
+        config.script_cache_ttl_secs.saturating_mul(1_000),
+        Box::new(crate::clock::now_millis),
+    )
+    .map_err(|e| AssembleError::Store(e.to_string()))?;
+    oss_types::stored_scripts::install(Arc::clone(&source) as _);
+    Ok(source)
+}
+
 /// Registers `GET`/`PUT /_cluster/settings` and the `_cat` and `_list` index
 /// tables on `router`, over `store`.
 pub(crate) fn register(
@@ -29,6 +48,7 @@ pub(crate) fn register(
     store: &Arc<dyn BlobStore>,
     config: &Config,
     budget: &MemoryBudget,
+    source: &Arc<crate::stored_script_source::ScriptSource>,
 ) -> Result<(Router, Option<Arc<SecurityState>>), AssembleError> {
     let store_error = |e: oss_meta::MetaError| AssembleError::Store(e.to_string());
     let settings = ClusterService::new(Arc::clone(store), &config.base, config.publish_tick_millis)
@@ -96,7 +116,8 @@ pub(crate) fn register(
     let router = plugin_routes(config, router)?;
     let scripts =
         crate::script_route::ScriptService::new(store, &config.base, config.pit_buffer_bytes)
-            .map_err(store_error)?;
+            .map_err(store_error)?
+            .with_source(Arc::clone(source));
     let router =
         crate::script_route::routes(router, &Arc::new(scripts)).map_err(AssembleError::Route)?;
     let router = if config.ltr {
@@ -300,6 +321,17 @@ pub(crate) fn system_indices(
 
 #[cfg(test)]
 mod tests {
+    /// `super::register` with the script cache a node would give it.
+    fn register(
+        router: Router,
+        store: &Arc<dyn BlobStore>,
+        config: &Config,
+        budget: &MemoryBudget,
+    ) -> Result<(Router, Option<Arc<SecurityState>>), AssembleError> {
+        let source = script_source(store, config, budget)?;
+        super::register(router, store, config, budget, &source)
+    }
+
     use oss_blob::Emulator;
     use oss_mem::{BudgetConfig, Pool};
 
