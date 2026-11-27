@@ -70,7 +70,6 @@ Decision and detail: [ADR 0004](adr/0004-bounded-memory-and-streaming.md).
 ## Testing
 
 - **Emulators only.** Tests run against the in-process S3 emulator, RustFS or the filesystem store, never real AWS. No Docker is required to build or test. *Check:* `scripts/check-test-endpoints.py`.
-- **RustFS is for S3-compatibility checks only.** Perf, scale and lifecycle tests run on the in-process emulator or the fs store behind the same `BlobStore` trait, which meter requests the same way. A new test that reads `RUSTFS_BIN` must be listed, with a category, in `scripts/rustfs-scope.txt`. *Check:* `scripts/check-rustfs-scope.py`.
 - **≥95% line coverage**, measured over every feature. *Check:* `scripts/coverage.sh --fail-under-lines 95` in the gate.
 - **A gate nobody has seen fail is not trusted.** A new check is shown failing on the defect it targets before it lands, and its blind spots are written in its docstring and in [mechanical-gates.md](mechanical-gates.md).
 - **Never weaken a threshold or delete a test to make a check pass.**
