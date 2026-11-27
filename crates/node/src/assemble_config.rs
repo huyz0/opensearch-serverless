@@ -32,6 +32,8 @@ pub struct Config {
     pub ingest_pipelines: bool,
     /// Whether search pipelines are served and a search may name one.
     pub search_pipelines: bool,
+    /// `serverless.ltr.enabled`: serve the learning to rank store and its routes.
+    pub ltr: bool,
     /// `serverless.security.enabled`: serve the security configuration API.
     pub security: bool,
     /// The static administrator's name and bcrypt hash, needed with security on.
@@ -147,6 +149,7 @@ impl Config {
             index_templates: false,
             ingest_pipelines: false,
             search_pipelines: false,
+            ltr: false,
             security: false,
             security_admin: None,
             security_refresh_millis: 10_000,

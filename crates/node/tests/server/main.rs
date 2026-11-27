@@ -61,6 +61,8 @@ mod index_pins;
 mod index_route;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod ingest_run;
+#[cfg(all(feature = "reader", feature = "writer"))]
+mod ltr_routes;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod metadata_block;
 #[cfg(feature = "reader")]

@@ -60,6 +60,9 @@ pub enum MetaError {
     /// The marker names a document whose bytes are not in the store, twice
     /// over: the set is damaged.
     MissingContent(String),
+    /// A set made to be created first (learning to rank's stores) has no
+    /// marker: it was never created, or was removed.
+    NoSuchSet,
 }
 
 impl fmt::Display for MetaError {
@@ -88,6 +91,7 @@ impl fmt::Display for MetaError {
             Self::MissingContent(name) => {
                 write!(f, "[{name}] is indexed but its content is not in the store")
             }
+            Self::NoSuchSet => f.write_str("the set does not exist"),
         }
     }
 }
@@ -108,7 +112,8 @@ impl std::error::Error for MetaError {
             | Self::Superseded
             | Self::InvalidDocName(_)
             | Self::TooManyDocs
-            | Self::MissingContent(_) => None,
+            | Self::MissingContent(_)
+            | Self::NoSuchSet => None,
         }
     }
 }
