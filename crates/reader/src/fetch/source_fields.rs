@@ -40,6 +40,8 @@ pub enum SourceType {
     Double,
     /// `float`: a finite float.
     Float,
+    /// `half_float`: a float that is finite as a half.
+    HalfFloat,
     /// `date` in the default format.
     Date,
 }
@@ -171,6 +173,7 @@ fn source_type(
         FieldType::Long if format.is_some() => return Err(no_format("long")),
         FieldType::Double if format.is_some() => return Err(no_format("double")),
         FieldType::Float if format.is_some() => return Err(no_format("float")),
+        FieldType::HalfFloat if format.is_some() => return Err(no_format("half_float")),
         FieldType::Date if format.is_some() => return Err(unsupported("a [fields] format")),
         FieldType::Text => SourceType::Text,
         FieldType::Keyword => SourceType::Keyword(field.fetch.ignore_above),
@@ -178,6 +181,7 @@ fn source_type(
         FieldType::Long => SourceType::Long,
         FieldType::Double => SourceType::Double,
         FieldType::Float => SourceType::Float,
+        FieldType::HalfFloat => SourceType::HalfFloat,
         FieldType::Date => SourceType::Date,
     };
     if let Some(option) = field.fetch.unserved {
@@ -320,6 +324,19 @@ fn to_float(v: &Value<'_>) -> io::Result<f32> {
     Ok(f)
 }
 
+/// `HALF_FLOAT.parse`: a float that is finite as a half.
+fn to_half(v: &Value<'_>) -> io::Result<f32> {
+    // Java's `floatValue` rounds to the nearest float, as `as` does.
+    #[allow(clippy::cast_possible_truncation)]
+    let f = to_double(v)? as f32;
+    let half = lucene_util::half_float::half_float_to_sortable_short(f);
+    finite(
+        f64::from(lucene_util::half_float::sortable_short_to_half_float(half)),
+        "half_float",
+    )?;
+    Ok(f)
+}
+
 /// A value the mapper accepts: `NumberType.parse` refuses infinities and NaN.
 fn finite(d: f64, ty: &str) -> io::Result<f64> {
     if d.is_finite() {
@@ -357,9 +374,14 @@ fn parse(ty: &SourceType, v: &Value<'_>) -> io::Result<Option<Out>> {
             }
             Some(Out::Number(to_whole(v)?))
         }
-        SourceType::Double | SourceType::Float if matches!(v, Value::Str("")) => return Ok(None),
+        SourceType::Double | SourceType::Float | SourceType::HalfFloat
+            if matches!(v, Value::Str("")) =>
+        {
+            return Ok(None);
+        }
         SourceType::Double => Some(Out::Double(finite(to_double(v)?, "double")?)),
         SourceType::Float => Some(Out::Float(to_float(v)?)),
+        SourceType::HalfFloat => Some(Out::Float(to_half(v)?)),
         SourceType::Date => {
             let millis = parse_to_millis(&to_text(v)?, false)
                 .map_err(|_| io::Error::other("a [fields] value that is not a date"))?;

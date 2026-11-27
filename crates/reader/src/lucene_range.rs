@@ -98,6 +98,12 @@ pub(crate) fn range_in(
             Some((l, u)) => point(decimal::float_points(field, l, u)),
             None => Ok(match_none()),
         },
+        FieldType::HalfFloat => {
+            match decimal::half_range(from, to, include_lower, include_upper)? {
+                Some((l, u)) => point(decimal::half_points(field, l, u)),
+                None => Ok(match_none()),
+            }
+        }
         FieldType::Text | FieldType::Keyword | FieldType::Unsupported(_) => {
             // ALLOC: error path; one message.
             Err(unsupported(&format!(

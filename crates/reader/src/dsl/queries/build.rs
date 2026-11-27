@@ -177,6 +177,7 @@ pub(super) fn type_name(ty: &FieldType) -> &str {
         FieldType::Date => "date",
         FieldType::Float => "float",
         FieldType::Double => "double",
+        FieldType::HalfFloat => "half_float",
         FieldType::Unsupported(what) => what,
     }
 }
@@ -326,24 +327,25 @@ fn terms(cx: &QueryContext<'_>, field: &str, values: &[Value]) -> Result<Clause,
             // ALLOC: one box a bool of a date field's terms.
             Ok(constant(Clause::Boolean(Box::new(q))))
         }
-        FieldType::Double => {
-            // ALLOC: one entry a value, bounded by the body's recording.
-            let mut doubles = Vec::with_capacity(values.len());
-            for v in values {
-                doubles.push(decimal::parse_double(v)?);
-            }
-            set(decimal::double_set(field, &doubles))
-        }
-        FieldType::Float => {
-            // ALLOC: one entry a value, bounded by the body's recording.
-            let mut floats = Vec::with_capacity(values.len());
-            for v in values {
-                floats.push(decimal::parse_float(v)?);
-            }
-            set(decimal::float_set(field, &floats))
-        }
+        FieldType::Double => set(decimal::double_set(
+            field,
+            &parsed(values, decimal::parse_double)?,
+        )),
+        FieldType::Float => set(decimal::float_set(
+            field,
+            &parsed(values, decimal::parse_float)?,
+        )),
+        FieldType::HalfFloat => set(decimal::half_set(
+            field,
+            &parsed(values, decimal::parse_half)?,
+        )),
         FieldType::Unsupported(_) => Err(unsupported("this field type")),
     }
+}
+
+/// Each of `values` read as `parse` reads one.
+fn parsed<T>(values: &[Value], parse: fn(&Value) -> Result<T, Failure>) -> Result<Vec<T>, Failure> {
+    values.iter().map(parse).collect() // ALLOC: one entry a value, bounded by the body.
 }
 
 /// `StringFieldType.fuzzyQuery` and `FuzzyQuery`'s constructor checks.

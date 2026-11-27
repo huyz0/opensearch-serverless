@@ -1,7 +1,9 @@
 //! The sort of a search: `SortBuilder.buildSort` and `FieldSortBuilder.build`
 //! at OpenSearch 3.10.0, turning the body's sort keys into the engine's.
 
-use lucene_search::top_field::{SortField, SortType};
+use std::sync::Arc;
+
+use lucene_search::top_field::{HalfFloatSort, Selector, SortField, SortType};
 use lucene_util::numeric_utils::{double_to_sortable_long, float_to_sortable_int};
 use oss_blob::BlobStore;
 
@@ -169,6 +171,26 @@ pub(crate) fn field_sort<S: BlobStore + 'static>(
             } else {
                 f32::INFINITY
             }));
+            return Ok((f, KeyKind::Float));
+        }
+        FieldType::HalfFloat => {
+            // `HalfFloatValuesComparatorSource`: the default mode picks the smallest value
+            // ascending and the largest descending, and a hit's key is a float.
+            let selector = if reverse {
+                Selector::Max
+            } else {
+                Selector::Min
+            };
+            let missing = if reverse {
+                f32::NEG_INFINITY
+            } else {
+                f32::INFINITY
+            };
+            let f = SortField::with_source(
+                name,
+                Arc::new(HalfFloatSort { selector, missing }),
+                reverse,
+            );
             return Ok((f, KeyKind::Float));
         }
         // ALLOC: error path; one message.

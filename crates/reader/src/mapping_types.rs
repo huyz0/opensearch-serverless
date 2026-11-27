@@ -9,6 +9,7 @@ impl FieldType {
         match self {
             FieldType::Float => "a [float] field",
             FieldType::Double => "a [double] field",
+            FieldType::HalfFloat => "a [half_float] field",
             FieldType::Unsupported(what) => what,
             FieldType::Text => "a [text] field",
             FieldType::Keyword => "a [keyword] field",

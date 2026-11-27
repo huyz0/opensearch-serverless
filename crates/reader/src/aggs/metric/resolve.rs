@@ -37,6 +37,7 @@ pub(crate) fn type_name(ty: &FieldType) -> &str {
         FieldType::Date => "date",
         FieldType::Float => "float",
         FieldType::Double => "double",
+        FieldType::HalfFloat => "half_float",
         FieldType::Unsupported(what) => what,
     }
 }
@@ -95,6 +96,7 @@ pub(crate) fn value_kind<S: BlobStore + 'static>(
     match shard.meta.mapping.get(&agg.field).map(|f| &f.ty) {
         Some(FieldType::Double) => ValueKind::Double,
         Some(FieldType::Float) => ValueKind::Float,
+        Some(FieldType::HalfFloat) => ValueKind::HalfFloat,
         _ => ValueKind::Long,
     }
 }
@@ -136,9 +138,17 @@ pub(crate) fn resolve<S: BlobStore + 'static>(
                 ),
             )));
         }
-        FieldType::Float | FieldType::Double if agg.metric == Metric::Terms => Format::Double,
-        FieldType::Float | FieldType::Double if reads_decimal(agg.metric) => Format::Raw,
-        FieldType::Float | FieldType::Double
+        FieldType::Float | FieldType::Double | FieldType::HalfFloat
+            if agg.metric == Metric::Terms =>
+        {
+            Format::Double
+        }
+        FieldType::Float | FieldType::Double | FieldType::HalfFloat
+            if reads_decimal(agg.metric) =>
+        {
+            Format::Raw
+        }
+        FieldType::Float | FieldType::Double | FieldType::HalfFloat
             if matches!(agg.metric, Metric::DateHistogram | Metric::DateRange) =>
         {
             return Err(bad_request(Failure::plain(
@@ -152,7 +162,7 @@ pub(crate) fn resolve<S: BlobStore + 'static>(
                 ),
             )));
         }
-        FieldType::Float | FieldType::Double => {
+        FieldType::Float | FieldType::Double | FieldType::HalfFloat => {
             return Err(bad_request(Failure::plain(
                 "illegal_argument_exception",
                 // ALLOC: error path; one message.

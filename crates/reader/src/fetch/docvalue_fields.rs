@@ -15,6 +15,7 @@
 //! `use_field_mapping`, a metadata field other than `_seq_no` and `_primary_term`, and a pattern that could match one
 //! are not served yet.
 
+use lucene_util::half_float::sortable_short_to_half_float;
 use lucene_util::numeric_utils::{sortable_int_to_float, sortable_long_to_double};
 use std::io::{self, Write};
 
@@ -134,6 +135,8 @@ pub enum ValueKind {
     Double,
     /// Sorted numeric sortable ints, each widened and written as a double.
     Float,
+    /// Sorted numeric sortable shorts, each widened and written as a double.
+    HalfFloat,
     /// Sorted numeric epoch milliseconds, written as dates.
     Date,
     /// Sorted set terms, written as strings.
@@ -285,6 +288,7 @@ fn kind_of(name: &str, mapping: &Mapping) -> Result<ValueKind, ShardError> {
         FieldType::Long => (ValueKind::Long, "long"),
         FieldType::Double => (ValueKind::Double, "double"),
         FieldType::Float => (ValueKind::Float, "float"),
+        FieldType::HalfFloat => (ValueKind::HalfFloat, "half_float"),
         FieldType::Date => (ValueKind::Date, "date"),
     };
     if !field.doc_values {
@@ -322,8 +326,8 @@ pub fn write_fields(
                 continue;
             }
             ValueKind::Long | ValueKind::Date => numbers(segment, &field.name, doc)?,
-            ValueKind::Double | ValueKind::Float => {
-                decimals(segment, &field.name, doc, field.kind == ValueKind::Float)?
+            ValueKind::Double | ValueKind::Float | ValueKind::HalfFloat => {
+                decimals(segment, &field.name, doc, field.kind)?
             }
             ValueKind::Term => terms(segment, &field.name, doc)?,
             ValueKind::Script => crate::fetch::script_fields::values(field, segment, doc)?,
@@ -385,14 +389,21 @@ pub(crate) fn numbers(segment: &SegmentReader, field: &str, doc: i32) -> io::Res
 
 /// A `double` or `float` field's values: each sortable number read as the
 /// double `SortedNumericDoubleValues` gives, a float widened.
-fn decimals(segment: &SegmentReader, field: &str, doc: i32, float: bool) -> io::Result<Vec<Value>> {
+fn decimals(
+    segment: &SegmentReader,
+    field: &str,
+    doc: i32,
+    kind: ValueKind,
+) -> io::Result<Vec<Value>> {
     let mut values = numbers(segment, field, doc)?;
     for v in &mut values {
         if let Value::Long(n) = *v {
-            *v = Value::Double(if float {
-                f64::from(sortable_int_to_float(i32::try_from(n).unwrap_or(0)))
-            } else {
-                sortable_long_to_double(n)
+            *v = Value::Double(match kind {
+                ValueKind::Float => f64::from(sortable_int_to_float(i32::try_from(n).unwrap_or(0))),
+                ValueKind::HalfFloat => {
+                    f64::from(sortable_short_to_half_float(i16::try_from(n).unwrap_or(0)))
+                }
+                _ => sortable_long_to_double(n),
             });
         }
     }

@@ -47,6 +47,8 @@ pub enum FieldType {
     Float,
     /// `double`: `DoublePoint`s and doc values of the sortable long.
     Double,
+    /// `half_float`: 2-byte `HalfFloatPoint`s and doc values of the sortable short.
+    HalfFloat,
     /// A type, or an option, this reader does not search yet.
     Unsupported(String),
 }
@@ -433,6 +435,7 @@ impl Mapping {
             ("date", None) => FieldType::Date,
             ("float", None) => FieldType::Float,
             ("double", None) => FieldType::Double,
+            ("half_float", None) => FieldType::HalfFloat,
             // ALLOC: one description a field this reader does not search.
             (other, None) => FieldType::Unsupported(format!("a [{other}] field")),
         };

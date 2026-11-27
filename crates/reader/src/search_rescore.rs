@@ -209,10 +209,18 @@ pub(crate) fn after_key(
             Some(crate::mapping::FieldType::Date)
         )
     };
-    let keys: Option<Vec<AfterKey<'_>>> = sort.map(|(fields, _)| {
+    let keys: Option<Vec<AfterKey<'_>>> = sort.map(|(fields, kinds)| {
         fields
             .iter()
-            .map(|f| AfterKey::of(f, is_date))
+            .zip(kinds)
+            .map(|(f, kind)| match (f.ty, kind) {
+                // A `half_float` sort's comparator is OpenSearch's own; its key is a float.
+                (
+                    lucene_search::top_field::SortType::Custom(_),
+                    crate::search_sort::KeyKind::Float,
+                ) => AfterKey::Float(f.field.as_str()),
+                _ => AfterKey::of(f, is_date),
+            })
             // ALLOC: one key a sort key, at most MAX_SORT_KEYS.
             .collect()
     });
