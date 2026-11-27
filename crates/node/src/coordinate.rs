@@ -315,6 +315,11 @@ pub(super) fn refusal(failure: SearchFailure<ShardError>) -> Box<SearchError> {
             let refused = too_many_buckets(made, BUCKET_LIMIT);
             (refused.status, refused.failure)
         }
+        SearchFailure::Aggs(AggsError::Script { name, message }) => (
+            400,
+            // ALLOC: error path; one message.
+            Failure::plain("script_exception", format!("[{name}] {message}")),
+        ),
         SearchFailure::Aggs(e) => (
             501,
             // ALLOC: error path; one message.

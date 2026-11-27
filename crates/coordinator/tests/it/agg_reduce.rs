@@ -94,3 +94,56 @@ fn a_histogram_filled_past_the_bucket_limit_is_too_many_buckets_not_a_mismatch()
     let err = reduce_shards(&[vec![named("h", gap)]]).expect_err("too many buckets");
     assert!(matches!(err, AggsError::TooManyBuckets { made } if made > 65_535));
 }
+
+fn scripted(
+    reduce: &str,
+    states: Vec<oss_reader::aggs::metric::scripted_metric::Constant>,
+) -> Value {
+    Value::Scripted(Box::new(
+        oss_reader::aggs::metric::scripted_metric::ScriptedMetricResult {
+            reduce_source: reduce.to_string(),
+            reduce_params: oss_reader::aggs::metric::scripted_metric::Constant::Map(Vec::new()),
+            states,
+            done: None,
+        },
+    ))
+}
+
+// docs/specs/scripted-metric AC-4: the reduce script sees every shard's value, in shard order.
+#[test]
+fn a_scripted_metric_reduces_every_shards_value_in_order() {
+    use oss_reader::aggs::metric::scripted_metric::Constant;
+    let reduce = "def out = []; for (s in states) { out.add(s); } return out;";
+    let shards = vec![
+        vec![named("m", scripted(reduce, vec![Constant::Long(1)]))],
+        vec![named("m", scripted(reduce, vec![Constant::Long(2)]))],
+        vec![named("m", scripted(reduce, vec![Constant::Long(3)]))],
+    ];
+    let out = reduce_shards(&shards).expect("reduces");
+    let Some((_, Value::Scripted(result))) = out.first() else {
+        panic!("a scripted metric: {out:?}");
+    };
+    assert_eq!(result.states.len(), 3);
+    assert_eq!(
+        result.done,
+        Some(Constant::List(vec![
+            Constant::Long(1),
+            Constant::Long(2),
+            Constant::Long(3)
+        ]))
+    );
+}
+
+// docs/specs/scripted-metric AC-5: a reduce script that throws is named, not a 501.
+#[test]
+fn a_scripted_metric_whose_reduce_throws_fails_with_its_name() {
+    use oss_reader::aggs::metric::scripted_metric::Constant;
+    let shards = vec![vec![named(
+        "m",
+        scripted("return states[0].nope.x;", vec![Constant::Long(1)]),
+    )]];
+    assert!(matches!(
+        reduce_shards(&shards),
+        Err(AggsError::Script { ref name, .. }) if name == "m"
+    ));
+}

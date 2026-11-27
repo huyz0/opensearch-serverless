@@ -16,6 +16,13 @@ pub enum AggsError {
         /// The aggregation's name.
         name: String,
     },
+    /// A `scripted_metric`'s `reduce_script` failed.
+    Script {
+        /// The aggregation's name.
+        name: String,
+        /// The script's failure.
+        message: String,
+    },
     /// The reduce made more buckets, over every level of one aggregation,
     /// than `search.max_buckets` allows.
     TooManyBuckets {
@@ -49,9 +56,15 @@ pub fn reduce_shards(shards: &[Vec<(String, Value)>]) -> Result<Vec<(String, Val
         if parts.iter().any(|v| matches!(v, Value::TopHits(_))) {
             return Err(AggsError::TopHits { name: name.into() });
         }
-        let value = reduce_total(&parts)
+        let mut value = reduce_total(&parts)
             .map_err(|made| AggsError::TooManyBuckets { made })?
             .ok_or_else(|| AggsError::Mismatched { name: name.into() })?;
+        if let Value::Scripted(result) = &mut value {
+            result.settle().map_err(|message| AggsError::Script {
+                name: name.into(), // ALLOC: error path; one name.
+                message,
+            })?;
+        }
         out.push((name.into(), value));
     }
     Ok(out)
