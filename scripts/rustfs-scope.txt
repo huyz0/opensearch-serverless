@@ -30,3 +30,4 @@ crates/node/tests/takeover_scale.rs               twin
 crates/node/tests/search_slots_cold.rs            twin
 crates/reader/tests/it/knn_requests.rs               twin
 crates/node/tests/warm_scale_evidence.rs   twin
+crates/node/tests/warm_interleaved_evidence.rs   twin
