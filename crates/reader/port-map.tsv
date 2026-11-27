@@ -284,3 +284,9 @@ src/painless_switch.rs	new		the process-wide switch for compiling Painless in Ru
 src/script_failure.rs	new		turns the engine's encoded script error into a script_exception; Java raises the ScriptException itself
 src/dsl/queries/phrase_prefix.rs	port	server/src/main/java/org/opensearch/index/query/MatchPhrasePrefixQueryBuilder.java@3.10.0	fromXContent and doToQuery, with MatchQuery.parse of type PHRASE_PREFIX and TextFieldMapper.createPhrasePrefixQuery
 src/dsl/queries/phrase_prefix_tests.rs	new		tests of phrase_prefix.rs
+src/ltr/mod.rs	new		the learning to rank evaluators; the stock plugin (o19s) is a separate Java plugin, ported natively by ADR 0071
+src/ltr/json.rs	new		reads a model definition through the search body recorder
+src/ltr/linear.rs	new		model/linear of the plugin
+src/ltr/xgboost.rs	new		model/xgboost+json of the plugin, scored as XGBoost predicts
+src/ltr/ranklib.rs	new		model/ranklib of the plugin (MART, LambdaMART, Random Forests), scored as RankLib evaluates
+src/ltr/tests.rs	new		unit tests of the evaluators
