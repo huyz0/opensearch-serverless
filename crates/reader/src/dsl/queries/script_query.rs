@@ -41,7 +41,7 @@ pub fn parse(p: &mut Parser<'_>) -> Result<More, DslError> {
                 });
             }
             ("boost", Some(_)) => boost = float_value(p)?,
-            ("_name", _) => return Err(DslError::unsupported("[script] [_name]")),
+            ("_name", _) => crate::dsl::values::name_value(p)?,
             _ => {
                 // ALLOC: error path; one message.
                 return Err(DslError::illegal(format!(
