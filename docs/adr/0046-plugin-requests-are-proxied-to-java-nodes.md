@@ -12,7 +12,7 @@ The lease a node publishes names a transport address and roles, not an HTTP addr
 
 **Routing.**
 - The proxy is a REST fallback, not a route per plugin endpoint. `oss_rest::Router::prefix(prefix, handler)` registers a prefix route: a path equal to the prefix or under it on a whole segment (`/_plugins/_ml/x`, never `/_plugins/_mlx`), any method. It is tried when no ordinary route matches the path, and also when the path matches ordinary routes of other methods only, so a ported GET beside an unported POST under a plugin prefix is proxied rather than answered 405. A method an ordinary route has stays that route's: ported endpoints win.
-- The prefixes are fixed in code for the plugins not ported: `/_plugins/_ism`, `/_opendistro/_ism`, `/_plugins/_alerting`, `/_opendistro/_alerting`, `/_plugins/_anomaly_detection`, `/_opendistro/_anomaly_detection`, `/_plugins/_ml`, `/_plugins/_ltr`, `/_ltr`. A prefix leaves the list when its plugin is ported.
+- The prefixes are fixed in code for the plugins not ported: `/_plugins/_ism`, `/_opendistro/_ism`, `/_plugins/_alerting`, `/_opendistro/_alerting`, `/_plugins/_anomaly_detection`, `/_opendistro/_anomaly_detection`, `/_plugins/_ml`, `/_plugins/_ltr`, `/_ltr` (the last two leave the list under [ADR 0071](0071-learning-to-rank-is-ported-natively.md)). A prefix leaves the list when its plugin is ported.
 - `OPTIONS` and `HEAD` are forwarded as sent (a `HEAD` answer has no body).
 
 **Upstream.**
