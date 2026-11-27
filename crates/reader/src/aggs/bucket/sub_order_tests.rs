@@ -22,6 +22,7 @@ fn sub(name: &str, metric: Metric) -> MetricAgg {
         field: "n".to_owned(),
         cardinality: Default::default(),
         percentiles: Default::default(),
+        sigma: crate::aggs::metric::DEFAULT_SIGMA,
         top_hits: None,
         terms: None,
         histogram: None,

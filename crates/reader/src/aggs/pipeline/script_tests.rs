@@ -58,6 +58,8 @@ fn scripted(kind: PipelineKind, code: &str, paths: &[(&str, &str)], zeros: bool)
             .iter()
             .map(|(n, p)| ((*n).to_owned(), value(p)))
             .collect(),
+        window: 0,
+        shift: 0,
     }));
     agg
 }

@@ -17,7 +17,7 @@ use std::collections::HashMap;
 
 use lucene_aggs::bucket_aggs::{AggNode, AggResult, CardinalityKind, Globals, aggregate_tree};
 use lucene_aggs::metric_aggs::{
-    MetricState, NEED_COUNT, NEED_MAX, NEED_MIN, NEED_MIN_MAX, NEED_SUM, Source, ValueKind,
+    MetricState, NEED_COUNT, NEED_MAX, NEED_MIN, NEED_MIN_MAX, NEED_SQ, NEED_SUM, Source, ValueKind,
 };
 use lucene_search::BooleanQuery;
 use lucene_search::field_norms::FieldNorms;
@@ -52,6 +52,9 @@ const AVG_NEEDS: u8 = NEED_SUM + NEED_COUNT;
 /// What `stats` reads: the count, the sum, the smallest and the largest.
 const STATS_NEEDS: u8 = NEED_COUNT + NEED_SUM + NEED_MIN_MAX;
 
+/// What `extended_stats` reads: `stats`' and the sum of squares.
+const EXTENDED_NEEDS: u8 = STATS_NEEDS + NEED_SQ;
+
 /// What a metric reads of its field's state.
 fn needs(metric: Metric) -> u8 {
     match metric {
@@ -60,6 +63,7 @@ fn needs(metric: Metric) -> u8 {
         Metric::Sum => NEED_SUM,
         Metric::Avg => AVG_NEEDS,
         Metric::Stats => STATS_NEEDS,
+        Metric::ExtendedStats => EXTENDED_NEEDS,
         Metric::ValueCount
         | Metric::Cardinality
         | Metric::Percentiles
@@ -101,6 +105,14 @@ pub(crate) fn value_of(agg: &MetricAgg, state: &MetricState) -> Value {
             sum: state.sum,
             min: state.min,
             max: state.max,
+        },
+        Metric::ExtendedStats => Value::ExtendedStats {
+            count: state.count,
+            sum: state.sum,
+            min: state.min,
+            max: state.max,
+            sum_of_squares: state.sum_of_squares(),
+            sigma: agg.sigma,
         },
         Metric::ValueCount => Value::ValueCount(state.count),
         Metric::Cardinality => Value::Cardinality(None),

@@ -248,6 +248,35 @@ fn terminate_after_keeps_the_first_matches_in_index_order() {
     assert_eq!(cut.max_score, cut.hits[0].score);
 }
 
+/// Stock marks a size 0 search with an aggregation `terminated_early`, whatever
+/// else it holds, unless it has a `post_filter` or `min_score`.
+#[test]
+fn a_size_zero_search_with_an_aggregation_is_terminated_early_as_stock_marks_it() {
+    let shard = text_shard();
+    let agg = r#""aggs":{"m":{"max":{"field":"n"}}}"#;
+    let early = |body: String| {
+        let source = parse_chunks([body.as_bytes()]).expect("parses");
+        search(&shard, "idx", &source, &Analyzer::standard(None))
+            .expect("searches")
+            .terminated_early
+    };
+    assert_eq!(early(format!(r#"{{"size":0,{agg}}}"#)), Some(true));
+    // A term that matches nothing is still collected; a query that cannot be
+    // counted from the index is not.
+    let none = format!(r#"{{"size":0,"query":{{"term":{{"x0":"zzzzzz"}}}},{agg}}}"#);
+    assert_eq!(early(none), Some(true));
+    let two = format!(r#"{{"size":0,"query":{{"match":{{"x0":"w1 u1"}}}},{agg}}}"#);
+    assert_eq!(early(two), None);
+    // A pipeline aggregation alone counts as an aggregation.
+    let pipe = r#"{"size":0,"aggs":{"t":{"terms":{"field":"n"}},"p":{"max_bucket":{"buckets_path":"t>_count"}}}}"#;
+    assert_eq!(early(pipe.to_owned()), Some(true));
+    // Not without an aggregation, not with hits asked for, not past a post filter.
+    assert_eq!(early(r#"{"size":0}"#.to_owned()), None);
+    assert_eq!(early(format!(r#"{{"size":1,{agg}}}"#)), None);
+    let filtered = format!(r#"{{"size":0,"post_filter":{{"match_all":{{}}}},{agg}}}"#);
+    assert_eq!(early(filtered), None);
+}
+
 #[test]
 fn terminate_after_past_the_matches_collects_them_all_and_does_not_stop() {
     let shard = text_shard();

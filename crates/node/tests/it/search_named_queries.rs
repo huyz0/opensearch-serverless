@@ -184,3 +184,22 @@ fn names_in_the_post_filter_and_the_rescore_count_too() {
         .count();
     assert!(late > 0 && late < hits.len(), "{text}");
 }
+
+#[test]
+fn names_in_an_aggregation_filter_are_listed_on_the_hits_they_match() {
+    let body = r#"{"query":{"match_all":{}},
+        "aggs":{"f":{"filter":{"term":{"tag":{"value":"animal","_name":"in_agg"}}},
+            "aggs":{"g":{"filters":{"filters":{"late":{"range":{"year":{"gte":2002,"_name":"deep"}}}}}}}}},
+        "size":10}"#;
+    let (status, text) = post(body);
+    assert_eq!(status, 200, "{text}");
+    let hits = matched(&text);
+    assert!(!hits.is_empty(), "{text}");
+    let with = |name: &str| {
+        hits.iter()
+            .filter(|(_, n)| n.to_string().contains(name))
+            .count()
+    };
+    assert!(with("in_agg") > 0 && with("in_agg") < hits.len(), "{text}");
+    assert!(with("deep") > 0, "{text}");
+}

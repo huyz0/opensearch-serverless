@@ -386,6 +386,8 @@ fn a_script_pipeline_that_fails_fails_the_search() {
             source: source.to_owned(),
             params: Vec::new(),
             vars: vec![("n".to_owned(), BucketValue::Count)],
+            window: 0,
+            shift: 0,
         })),
         lag: 1,
     };

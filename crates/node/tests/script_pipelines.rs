@@ -67,3 +67,31 @@ fn the_scripts_of_two_pipelines_run_over_the_buckets() {
         );
     }
 }
+
+/// docs/specs/pipeline-aggs-moving-fn AC-8: a `moving_fn` adds a windowed
+/// value to each bucket, and a script that throws is a 400.
+#[test]
+fn a_moving_fn_runs_over_the_buckets() {
+    oss_reader::painless_switch::set_native_compile(true);
+    let node = start();
+    let moving = |script: &str| {
+        search(
+            node.addr(),
+            &format!(
+                r#","m":{{"moving_fn":{{"buckets_path":"s","window":2,"shift":1,"script":"{script}"}}}}"#
+            ),
+        )
+    };
+    let (status, text) = moving("return MovingFunctions.max(values)");
+    assert_eq!(status, 200, "{text}");
+    assert!(text.contains(r#""m":{"value":"#), "{text}");
+    let (status, text) = moving("return values.length");
+    assert_eq!(status, 200, "{text}");
+    assert!(text.contains(r#""m":{"value":1.0}"#), "{text}");
+    let (status, text) = moving("throw new IllegalStateException('no')");
+    assert_eq!(status, 400, "{text}");
+    assert!(
+        text.contains("script_exception") && text.contains("[m]"),
+        "{text}"
+    );
+}

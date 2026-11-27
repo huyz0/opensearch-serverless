@@ -7,6 +7,8 @@
 //! `buckets_path` names.
 
 pub mod compute;
+mod moving;
+mod moving_parse;
 pub mod parent;
 pub mod parent_parse;
 pub mod parse;
@@ -15,6 +17,8 @@ mod script_parse;
 mod serial_parse;
 mod sort_parse;
 
+#[cfg(test)]
+mod moving_tests;
 #[cfg(test)]
 mod parent_parse_tests;
 #[cfg(test)]
@@ -52,6 +56,8 @@ pub enum PipelineKind {
     BucketScript,
     /// `bucket_selector`, a parent pipeline that runs Painless.
     BucketSelector,
+    /// `moving_fn`, a parent pipeline that runs Painless over a window.
+    MovingFn,
 }
 
 impl PipelineKind {
@@ -69,6 +75,7 @@ impl PipelineKind {
             "serial_diff" => Self::SerialDiff,
             "bucket_script" => Self::BucketScript,
             "bucket_selector" => Self::BucketSelector,
+            "moving_fn" => Self::MovingFn,
             _ => return None,
         })
     }
@@ -94,6 +101,7 @@ impl PipelineKind {
             Self::SerialDiff => "serial_diff",
             Self::BucketScript => "bucket_script",
             Self::BucketSelector => "bucket_selector",
+            Self::MovingFn => "moving_fn",
         }
     }
 
@@ -108,6 +116,7 @@ impl PipelineKind {
                 | Self::SerialDiff
                 | Self::BucketScript
                 | Self::BucketSelector
+                | Self::MovingFn
         )
     }
 
@@ -120,7 +129,7 @@ impl PipelineKind {
             Self::Stats => "stats_bucket",
             Self::Derivative | Self::CumulativeSum | Self::SerialDiff => "simple_value",
             Self::BucketSort => "bucket_sort",
-            Self::BucketScript => "simple_value",
+            Self::BucketScript | Self::MovingFn => "simple_value",
             Self::BucketSelector => "bucket_selector",
         }
     }
@@ -128,7 +137,10 @@ impl PipelineKind {
     /// Whether the pipeline runs a script, which only a node that compiles
     /// Painless serves.
     pub fn runs_script(self) -> bool {
-        matches!(self, Self::BucketScript | Self::BucketSelector)
+        matches!(
+            self,
+            Self::BucketScript | Self::BucketSelector | Self::MovingFn
+        )
     }
 }
 

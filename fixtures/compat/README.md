@@ -51,6 +51,23 @@ The version to record from is the one the Java serverless shell builds on: `open
 
    The distribution lands in `build/distribution/local/opensearch-3.10.0-SNAPSHOT`. Once 3.10.0 is released, the release tarball works the same way.
 
+   **Release tarball instead of a build** (3.10.0 is released; about 1.1 GB, keep 15 GB of disk free):
+
+   ```bash
+   mkdir -p /home/user/stock && cd /home/user/stock
+   curl -sS -O https://artifacts.opensearch.org/releases/bundle/opensearch/3.10.0/opensearch-3.10.0-linux-x64.tar.gz
+   curl -sS -O https://artifacts.opensearch.org/releases/bundle/opensearch/3.10.0/opensearch-3.10.0-linux-x64.tar.gz.sha512
+   sha512sum opensearch-3.10.0-linux-x64.tar.gz   # must match the .sha512 file
+   tar xzf opensearch-3.10.0-linux-x64.tar.gz
+   # optional, for a faster start: remove every directory in opensearch-3.10.0/plugins except opensearch-knn
+   chown -R 65534:65534 /home/user/stock           # the sandbox is root; OpenSearch refuses root
+   cd opensearch-3.10.0 && setpriv --reuid 65534 --regid 65534 --clear-groups env HOME=/home/user/stock \
+     OPENSEARCH_JAVA_OPTS="-Xms1g -Xmx1g" nohup bin/opensearch -Ediscovery.type=single-node \
+     -Ecluster.routing.allocation.disk.threshold_enabled=false > ../os.log 2>&1 &
+   ```
+
+   With the security plugin kept, add `-Eplugins.security.disabled=true` for plain HTTP, or record with `RECORD_AUTH`. Java test vectors compile with `javac -proc:none -cp 'opensearch-3.10.0/lib/*'`.
+
 2. Start it as a non-root user (OpenSearch refuses root), single node, with the disk threshold off so a nearly full sandbox disk does not block index creation:
 
    ```bash

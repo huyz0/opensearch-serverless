@@ -274,6 +274,9 @@ pub struct Row {
     /// The `_source` as the hits' `_source` filter writes it; empty when the
     /// filter skips it or the document stored none.
     pub source: Vec<u8>,
+    /// The named queries the hit matches, in order, with the score of each
+    /// (`NaN` unless the search asked for `include_named_queries_score`).
+    pub matched: Vec<(String, f32)>,
 }
 
 /// Each of `hits` as a [`Row`], in order; `reserve` grants the buffers a
@@ -292,7 +295,7 @@ pub fn fetch_rows<S: BlobStore + 'static>(
     let readers = shard.reader.segment_readers();
     // ALLOC: one row a hit, at most the result window.
     let mut rows = Vec::with_capacity(hits.hits.len());
-    for hit in &hits.hits {
+    for (at, hit) in hits.hits.iter().enumerate() {
         let segment = readers
             .iter()
             .rev()
@@ -353,9 +356,30 @@ pub fn fetch_rows<S: BlobStore + 'static>(
             seq_no,
             primary_term,
             source,
+            matched: matched_of(hits, at),
         });
     }
     Ok(rows)
+}
+
+/// The names hit number `at` matches, each with its score only when the
+/// search asked for scores: Java writes `NaN` for a name without one.
+fn matched_of(hits: &Hits, at: usize) -> Vec<(String, f32)> {
+    hits.matched
+        .get(at)
+        .map(|names| {
+            names
+                .iter()
+                .map(|(name, score)| {
+                    (
+                        name.clone(),
+                        if hits.named_scores { *score } else { f32::NAN },
+                    )
+                })
+                // ALLOC: one entry a matched name, at most the request's names.
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// The number after `,"name":` in what `write_meta` wrote, when it wrote it.

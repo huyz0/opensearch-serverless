@@ -76,3 +76,17 @@ fn other_types_empty_text_and_refusals() {
         assert!(built(body).is_err(), "{body}");
     }
 }
+
+/// The prefix phrase scores from its field's norms, so the field is one the
+/// search opens norms for (otherwise its length is read as 1).
+#[test]
+fn the_field_of_a_phrase_prefix_is_a_scored_field() {
+    let q = built(r#"{"match_phrase_prefix":{"title":"quick bro"}}"#).expect("builds");
+    assert_eq!(crate::search_query_fields::scored_fields(&q), ["title"]);
+    let q = built(
+        r#"{"bool":{"should":[{"match_phrase_prefix":{"title":"quick bro"}},
+            {"match_phrase_prefix":{"title":"a b"}}]}}"#,
+    )
+    .expect("builds");
+    assert_eq!(crate::search_query_fields::scored_fields(&q), ["title"]);
+}

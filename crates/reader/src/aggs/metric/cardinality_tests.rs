@@ -184,6 +184,7 @@ fn a_cardinality_reserves_its_sketch_only_once_it_can_have_one() {
         field: "n".to_owned(),
         cardinality: options,
         percentiles: crate::aggs::metric::PercentilesOptions::default(),
+        sigma: crate::aggs::metric::DEFAULT_SIGMA,
         top_hits: None,
         terms: None,
         histogram: None,

@@ -24,6 +24,7 @@ pub fn parse_body(
         PipelineKind::Derivative => derivative(p, name),
         PipelineKind::CumulativeSum => cumulative_sum(p, name),
         PipelineKind::SerialDiff => super::serial_parse::serial_diff(p, name),
+        PipelineKind::MovingFn => super::moving_parse::parse(p, name),
         PipelineKind::BucketScript | PipelineKind::BucketSelector => {
             super::script_parse::parse(p, name, kind)
         }
@@ -280,7 +281,10 @@ pub fn validate_parents(host: &MetricAgg, parents: &mut [PipelineAgg]) -> Result
         }
         let derived = matches!(
             pipe.kind,
-            PipelineKind::Derivative | PipelineKind::CumulativeSum | PipelineKind::SerialDiff
+            PipelineKind::Derivative
+                | PipelineKind::CumulativeSum
+                | PipelineKind::SerialDiff
+                | PipelineKind::MovingFn
         );
         if derived && !matches!(host.metric, Metric::Histogram | Metric::DateHistogram) {
             // ALLOC: one entry or message bounded by the request's pipelines and names.
@@ -300,7 +304,8 @@ pub fn validate_parents(host: &MetricAgg, parents: &mut [PipelineAgg]) -> Result
                 host.metric.name()
             )));
         }
-        if derived {
+        // A `moving_fn`'s path is not checked against the host, as Java does not.
+        if derived && pipe.kind != PipelineKind::MovingFn {
             let (agg, value) = bucket_path(&pipe.path, &pipe.name, pipe.kind)?;
             check_path(
                 host, &subs, &names, at, &pipe.name, &pipe.path, &agg, &value,
@@ -423,6 +428,13 @@ fn check_sub(
 /// than inside a bucket aggregation: what validation says of the path it
 /// reads, there being nothing to read it from.
 pub fn at_top_level(pipe: &PipelineAgg) -> DslError {
+    if pipe.kind == PipelineKind::MovingFn {
+        // ALLOC: error path; one message.
+        return validation(format!(
+            "moving_fn aggregation [{}] must have a histogram, date_histogram or auto_date_histogram as parent but doesn't have a parent",
+            pipe.name
+        ));
+    }
     if pipe.kind.runs_script() {
         // ALLOC: error path; one message.
         return validation(format!(

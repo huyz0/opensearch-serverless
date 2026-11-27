@@ -5,6 +5,7 @@
 use crate::aggs::bucket::running;
 use crate::aggs::bucket::sub_values::reduce_fixed;
 use crate::aggs::partial::{Format, Value};
+use crate::date_pattern::DatePattern;
 
 /// One range asked for: `from <= value < to`, an unbounded end an infinity
 /// (`RangeAggregator.Range`).
@@ -23,6 +24,8 @@ pub struct RangeDef {
 pub struct RangeSpec {
     /// The buckets are written as an object keyed by their key.
     pub keyed: bool,
+    /// A `date_range`'s `format`, which prints its bounds and keys.
+    pub format: Option<DatePattern>,
     /// The ranges, sorted by `from` and then `to` as
     /// `AbstractRangeBuilder.sortRanges` sorts them, equal ones in request
     /// order.
@@ -47,6 +50,8 @@ pub struct RangeBucket {
 pub struct RangeResult {
     /// Written as an object keyed by the buckets' keys.
     pub keyed: bool,
+    /// The `format` that prints a date bound; `None` for the default.
+    pub format: Option<DatePattern>,
     /// One bucket a range of the request, in the sorted order.
     pub buckets: Vec<RangeBucket>,
     /// The name and format of each sub-aggregation, in request order.

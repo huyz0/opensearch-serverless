@@ -57,6 +57,8 @@ pub(super) fn parse(
             // ALLOC: as above.
             .collect::<Vec<(String, Constant)>>(),
         vars,
+        window: 0,
+        shift: 0,
     }));
     Ok(agg)
 }

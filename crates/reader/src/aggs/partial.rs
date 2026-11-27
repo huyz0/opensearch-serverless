@@ -57,6 +57,21 @@ pub enum Value {
         /// The largest value; negative infinity for none.
         max: f64,
     },
+    /// `InternalExtendedStats`: `Stats` with the sum of squares and `sigma`.
+    ExtendedStats {
+        /// How many values.
+        count: u64,
+        /// The compensated sum's value.
+        sum: f64,
+        /// The smallest value; positive infinity for none.
+        min: f64,
+        /// The largest value; negative infinity for none.
+        max: f64,
+        /// The compensated sum of the squares' value.
+        sum_of_squares: f64,
+        /// How many standard deviations the bounds lie from the mean.
+        sigma: f64,
+    },
     /// `InternalValueCount.value`.
     ValueCount(u64),
     /// `InternalCardinality.counts`: `None` when no value was seen.

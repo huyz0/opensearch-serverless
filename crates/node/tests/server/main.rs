@@ -43,6 +43,7 @@ mod boot_warm_join;
 mod boot_write_concurrency;
 #[cfg(all(feature = "reader", feature = "writer"))]
 mod bulk_route;
+mod bulk_update;
 #[cfg(all(feature = "coordinator", feature = "reader", feature = "writer"))]
 mod by_query_rig;
 mod by_query_route;
@@ -71,6 +72,8 @@ mod metadata_block;
 #[cfg(feature = "reader")]
 mod newest_ask;
 mod pinned_busy;
+#[cfg(all(feature = "extensions", feature = "reader", feature = "writer"))]
+mod pinned_cost;
 mod pinned_frozen;
 mod pinned_hostile;
 #[cfg(all(feature = "extensions", feature = "reader", feature = "writer"))]

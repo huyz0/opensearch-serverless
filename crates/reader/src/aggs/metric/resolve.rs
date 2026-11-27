@@ -75,6 +75,7 @@ fn reads_decimal(metric: Metric) -> bool {
             | Metric::Sum
             | Metric::Avg
             | Metric::Stats
+            | Metric::ExtendedStats
             | Metric::ValueCount
             | Metric::Cardinality
             | Metric::Percentiles

@@ -8,11 +8,11 @@ use lucene_search::Clause;
 use lucene_search::extended_query::{
     AutomatonQuery, ExtendedQuery, MultiTermQuery, MultiTermSource, RewriteMethod,
 };
-use lucene_util::automaton::Automaton;
 use lucene_util::automaton::automata::{
     make_any_char, make_any_string, make_case_insensitive_char, make_case_insensitive_string,
 };
-use lucene_util::automaton::operations::{concatenate, concatenate2};
+use lucene_util::automaton::operations::{concatenate, concatenate2, determinize};
+use lucene_util::automaton::{Automaton, DEFAULT_DETERMINIZE_WORK_LIMIT, RegExp};
 
 use crate::dsl::queries::build::string_query;
 use crate::failure::Failure;
@@ -28,6 +28,8 @@ pub enum Kind {
     Prefix,
     /// A `wildcard` query.
     Wildcard,
+    /// A `regexp` query.
+    Regexp,
 }
 
 /// `toCaseInsensitiveWildcardQuery`'s automaton: `*` any run, `?` one
@@ -54,6 +56,22 @@ fn wildcard_automaton(pattern: &str) -> Automaton {
     // ALLOC: one reference a part, bounded by the pattern.
     let refs: Vec<&Automaton> = parts.iter().collect();
     concatenate(&refs)
+}
+
+/// `RegExp(value, ALL, ASCII_CASE_INSENSITIVE)` determinized as a
+/// `RegexpQuery` does.
+fn regexp_automaton(pattern: &str) -> Result<Automaton, Failure> {
+    let refused = |e: String| Failure::plain("illegal_argument_exception", e);
+    let regexp = RegExp::with_flags(pattern, RegExp::ALL, RegExp::ASCII_CASE_INSENSITIVE)
+        // ALLOC: error path; one message.
+        .map_err(|e| refused(e.to_string()))?;
+    let nfa = regexp
+        .to_automaton()
+        // ALLOC: error path; one message.
+        .map_err(|e| refused(e.to_string()))?;
+    determinize(&nfa, DEFAULT_DETERMINIZE_WORK_LIMIT)
+        // ALLOC: error path; one message.
+        .map_err(|e| refused(e.to_string()))
 }
 
 fn automaton_clause(field: &str, automaton: Automaton) -> Clause {
@@ -99,6 +117,15 @@ pub fn build(
         Kind::Wildcard => string_query(cx, "wildcard", field, || {
             automaton_clause(field, wildcard_automaton(value))
         }),
+        Kind::Regexp => {
+            // The length bound, a missing field and a field of another type
+            // answer as a plain regexp does.
+            let plain = crate::dsl::queries::build::regexp_clause(cx, field, value)?;
+            if matches!(plain, Clause::MatchNoDocs(_)) {
+                return Ok(plain);
+            }
+            Ok(automaton_clause(field, regexp_automaton(value)?))
+        }
     }
 }
 

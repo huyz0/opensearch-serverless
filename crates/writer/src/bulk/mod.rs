@@ -11,6 +11,7 @@ mod ingest;
 mod reader;
 mod response;
 mod run;
+mod update;
 mod validate;
 
 use std::io::Read;
@@ -24,8 +25,9 @@ pub use budget::{BulkBudget, Grant};
 pub use ids::IdGenerator;
 pub use ingest::{Ingest, IngestError};
 pub use reader::{BodyReader, Op};
-pub use response::{Item, ItemResult, doc_status, write as write_response, write_doc};
-pub use run::{Bulk, IndexInfo, Owner, Planned, Target, item_result};
+pub use response::{Item, ItemResult, doc_status, item_result, write as write_response, write_doc};
+pub use run::{Bulk, IndexInfo, Owner, Planned, Target};
+pub use update::{Resolved, UpdateFailure, Updates};
 pub use validate::MAX_ID_BYTES;
 
 /// `serverless.write.bulk.slice_bytes`'s default: one node-log blob's worth.

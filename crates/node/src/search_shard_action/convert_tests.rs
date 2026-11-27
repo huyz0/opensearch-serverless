@@ -24,7 +24,7 @@ fn source(name: &str) -> oss_reader::dsl::SearchSource {
 }
 
 #[test]
-fn every_fixture_request_becomes_a_source_the_reader_accepts_or_is_refused_as_named() {
+fn every_fixture_request_becomes_a_source_the_reader_accepts() {
     let mut accepted = 0;
     for name in [
         "match_all",
@@ -44,7 +44,6 @@ fn every_fixture_request_becomes_a_source_the_reader_accepts_or_is_refused_as_na
                 assert!(s.version && s.seq_no_primary_term, "{name}");
                 accepted += 1;
             }
-            Err(ConvertError::Named) => {}
             // The reader does not run a range's `format` yet.
             Err(ConvertError::Parse(_)) if name == "range_format" => {}
             Err(e) => panic!("{name}: {e:?}"),
@@ -62,12 +61,12 @@ fn the_options_of_a_request_reach_the_source() {
 }
 
 #[test]
-fn a_named_query_is_refused_for_the_answer_cannot_say_which_matched() {
-    let mut named = read("request.term");
-    if let Some(node) = named.query.as_mut() {
-        node.name = Some("q".to_owned());
+fn a_named_query_reaches_the_source_with_its_name() {
+    use oss_reader::dsl::Query;
+    match source("request.term").query {
+        Some(Query::Named(named)) => assert_eq!(named.name, "q"),
+        other => panic!("{other:?}"),
     }
-    assert!(matches!(search_source(&named), Err(ConvertError::Named)));
 }
 
 #[test]

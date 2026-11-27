@@ -8,9 +8,12 @@ Run on 2026-11-27 (Linux cloud container, provisional). Stock OpenSearch 3.10.0 
 
 Findings:
 
-- Stock puts `"terminated_early": true` in a `size: 0` search with aggregations and no `terminate_after`; this node does not. The aggregation fixtures send `size: 1` so the comparison covers the aggregations; the `size: 0` field is a difference left open.
+- Stock puts `"terminated_early": true` in a `size: 0` search with aggregations and no `terminate_after`. The aggregation fixtures here send `size: 1`; the `size: 0` answer is served and replayed from `size-zero-aggs.json` ([size-zero-terminated-early](../size-zero-terminated-early/SPEC.md)).
 - Three error steps normalise a column or node id (the replay sends keys sorted; the node id differs).
 
 Not run: the `min` fixture (recording refused by the sandbox), nested-aggregation `terms` ordering, a multi-shard or multi-segment comparison.
 
 R10.1 and R10.2 stay open: 13 recorded answers are not matched yet.
+
+Update 2026-11-27: replaying `search-breadth-gaps/` found 11 of the 13 steps already served and matching (the list above was written before several aggregations landed); `an_assembled_node_answers_every_recorded_gap_as_stock_did` now holds them. `date_range` with `format` is served ([date-range-agg](../date-range-agg/SPEC.md) AC-4). `match_phrase_prefix` scores matched once its field's norms were opened for the search (`scored_fields` missed multi-phrase clauses). Every recorded gap step now replays.
+- AC-4: `an_assembled_node_answers_every_recorded_gap_as_stock_did` (crates/compat/tests/node_cluster.rs).

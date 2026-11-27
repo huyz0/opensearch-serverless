@@ -56,6 +56,7 @@ pub fn apply(body: &[u8], pipelines: &[&PipelineAgg], typed: bool) -> io::Result
             PipelineKind::SerialDiff => serial_diff(&mut entries, pipe, typed),
             PipelineKind::BucketScript => script::script(&mut entries, pipe, typed)?,
             PipelineKind::BucketSelector => script::select(&mut entries, pipe)?,
+            PipelineKind::MovingFn => super::moving::moving(&mut entries, pipe, typed)?,
             _ => sort(&mut entries, pipe),
         }
     }
