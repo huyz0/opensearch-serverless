@@ -37,6 +37,7 @@ use crate::aggs::bucket::{
 use crate::aggs::metric::hll::Hll;
 use crate::aggs::metric::resolve::bad_request;
 pub(crate) use crate::aggs::metric::resolve::{Resolved, resolve, value_kind};
+use crate::aggs::metric::script_values;
 use crate::aggs::metric::tdigest::Digest;
 use crate::aggs::metric::top_hits::TopHitsResult;
 use crate::aggs::metric::{DEFAULT_PRECISION, Metric, MetricAgg};
@@ -321,6 +322,11 @@ pub fn collect<S: BlobStore + 'static>(
         match r {
             Resolved::Numeric(_) => {
                 let mut made = node(agg, precision, value_kind(agg, shard));
+                if let (Some(script), AggNode::Metric { script: slot, .. }) =
+                    (agg.script.as_deref(), &mut made)
+                {
+                    *slot = Some(script_values::values(&shard.meta.mapping, script)?);
+                }
                 with_subs::attach(&mut made, agg, shard, &mut ords, &mut queries)?;
                 nodes.push(made);
             }

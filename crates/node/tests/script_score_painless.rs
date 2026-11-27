@@ -216,3 +216,67 @@ fn a_script_query_matches_where_the_script_is_true() {
     let (status, body) = query_search(&node, r#"{"script":{"script":"1 + 1"}}"#);
     assert_eq!(status, 400, "{body}");
 }
+
+fn aggregate(node: &Node, aggs: &str) -> (u16, String) {
+    let body = format!(r#"{{"size":0,"query":{{"match_all":{{}}}},"aggs":{aggs}}}"#);
+    let r = request(
+        node.addr(),
+        "POST",
+        "/compat-term/_search",
+        Some(body.as_bytes()),
+    );
+    (r.status, r.text())
+}
+
+// AC-9
+#[test]
+fn a_metric_aggregation_reads_a_painless_script() {
+    on();
+    let node = start();
+    // Years 2010, 2002, 2002, 2001, 1999, doubled: sum 20,028, mean 4,005.6.
+    let script = r#""script":{"source":"doc['year'].value * params.k","params":{"k":2}}"#;
+    let aggs = format!(
+        r#"{{"s":{{"sum":{{{script}}}}},"lo":{{"min":{{{script}}}}},"hi":{{"max":{{{script}}}}},"a":{{"avg":{{{script}}}}},"n":{{"value_count":{{{script}}}}},"st":{{"stats":{{{script}}}}}}}"#
+    );
+    let (status, text) = aggregate(&node, &aggs);
+    assert_eq!(status, 200, "{text}");
+    for want in [
+        r#""s":{"value":20028.0}"#,
+        r#""lo":{"value":3998.0}"#,
+        r#""hi":{"value":4020.0}"#,
+        r#""n":{"value":5}"#,
+    ] {
+        assert!(text.contains(want), "{want}: {text}");
+    }
+    assert!(text.contains(r#""count":5"#), "{text}");
+    // the same sum as the field's, doubled
+    let (_, plain) = aggregate(&node, r#"{"s":{"sum":{"field":"year"}}}"#);
+    assert!(plain.contains(r#""s":{"value":10014.0}"#), "{plain}");
+
+    // a script and a field together, a stored script and a Painless error are refused
+    for (agg, reason) in [
+        (
+            r#"{"x":{"sum":{"field":"year","script":{"source":"1"}}}}"#,
+            "not supported",
+        ),
+        (
+            r#"{"x":{"sum":{"script":{"id":"stored"}}}}"#,
+            "stored script",
+        ),
+        (
+            r#"{"x":{"sum":{"script":{"source":"doc['year'].value *"}}}}"#,
+            "compile error",
+        ),
+        (
+            r#"{"x":{"sum":{"script":{"source":"doc['nope'].value"}}}}"#,
+            "nope",
+        ),
+    ] {
+        let (status, text) = aggregate(&node, agg);
+        assert!(status >= 400, "{agg}: {text}");
+        assert!(text.contains(reason), "{agg}: {text}");
+    }
+    // other metrics keep refusing a script
+    let (status, text) = aggregate(&node, r#"{"x":{"cardinality":{"script":{"source":"1"}}}}"#);
+    assert!(status >= 400 && text.contains("script"), "{text}");
+}

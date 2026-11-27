@@ -217,6 +217,7 @@ src/aggs/bucket/composite_collect.rs	port	server/src/main/java/org/opensearch/se
 src/aggs/bucket/composite_collect_tests.rs	new		tests of composite on a real index
 src/aggs/bucket/composite_tests.rs	new		tests of the composite parser, reduce and writer
 src/aggs/metric/resolve.rs	port	server/src/main/java/org/opensearch/search/aggregations/support/ValuesSourceConfig.java@3.10.0	resolve and ValuesSourceRegistry.getAggregator field checks, moved out of collect.rs
+src/aggs/metric/script_values.rs	new		a metric script as the engine values source Painless runs; the Java compiles the script in core
 src/aggs/metric/sub_rules.rs	new		which bucket aggregations may hold which sub-aggregations, moved out of parse.rs
 src/aggs/bucket/terms_sub_order.rs	port	server/src/main/java/org/opensearch/search/aggregations/bucket/terms/BucketSelectionStrategy.java@3.10.0	the shard and reduce ordering of a numeric terms by a sub-aggregation: every bucket kept, ordered by the value, cut to the size
 src/aggs/bucket/keyword_partition_tests.rs	new		tests of a partition-based include of a keyword terms against the reference hash
