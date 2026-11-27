@@ -47,13 +47,14 @@ pub struct PackCollector {
     index: PackIndexStore,
     max_tracked: usize,
     judges: BTreeMap<String, PackJudge>,
+    tracked_total: usize,
     seeder: Option<PackSeeder>,
     last_window: Option<u64>,
 }
 
 impl PackCollector {
     /// A collector over the packs under `base`, tracking at most
-    /// `max_tracked` packs a node.
+    /// `max_tracked` packs in all, across every node it judges.
     pub fn new(store: Arc<dyn BlobStore>, base: &str, max_tracked: usize) -> Self {
         Self {
             index: PackIndexStore::new(Arc::clone(&store), base),
@@ -63,6 +64,7 @@ impl PackCollector {
             max_tracked,
             // ALLOC: an empty map, one judge a node with a live epoch.
             judges: BTreeMap::new(),
+            tracked_total: 0,
             seeder: None,
             last_window: None,
         }
@@ -154,7 +156,14 @@ impl PackCollector {
         let Some(judge) = self.judges.get_mut(node) else {
             return Ok(false);
         };
-        let (judged, state) = judge.pass_with(&sidecar, state, refs, now)?;
+        // The cap is the collector's: this judge may take what the others
+        // leave of it.
+        let own = judge.tracked();
+        let others = self.tracked_total.saturating_sub(own);
+        judge.limit(self.max_tracked.saturating_sub(others));
+        let passed = judge.pass_with(&sidecar, state, refs, now);
+        self.tracked_total = others.saturating_add(judge.tracked());
+        let (judged, state) = passed?;
         out.nodes = out.nodes.saturating_add(1);
         out.deleted = out.deleted.saturating_add(judged.deleted);
         out.referenced = out.referenced.saturating_add(judged.referenced);
