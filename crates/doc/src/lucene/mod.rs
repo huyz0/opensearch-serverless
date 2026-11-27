@@ -34,7 +34,7 @@ use crate::document::{FieldValue, ParsedDocument, hash_order};
 use crate::mapping::{Mapping, MappingError, Num, Value};
 
 use builder::Builder;
-use encode::{double_to_sortable_long, encode_id, float_to_sortable_int, int_point, long_point};
+use encode::{encode_id, int_point, long_point};
 pub(crate) use fields::{MetaField, Shape, Spec};
 use metered::Metered;
 use parts::leaf;
@@ -465,29 +465,14 @@ impl Indexer {
             (Shape::Int, FieldValue::Number(Num::Int(i))) => {
                 out.number(number, spec, int_point(*i), i64::from(*i), Stored::Int(*i));
             }
-            (Shape::Long, FieldValue::Number(Num::Long(l))) => {
+            (Shape::HalfFloat, FieldValue::Number(Num::Float(f))) => {
+                out.half_float(number, spec, *f)
+            }
+            (Shape::Long | Shape::Scaled, FieldValue::Number(Num::Long(l))) => {
                 out.number(number, spec, long_point(*l), *l, Stored::Long(*l));
             }
-            (Shape::Float, FieldValue::Number(Num::Float(f))) => {
-                let sortable = float_to_sortable_int(*f);
-                out.number(
-                    number,
-                    spec,
-                    int_point(sortable),
-                    i64::from(sortable),
-                    Stored::Float(*f),
-                );
-            }
-            (Shape::Double, FieldValue::Number(Num::Double(d))) => {
-                let sortable = double_to_sortable_long(*d);
-                out.number(
-                    number,
-                    spec,
-                    long_point(sortable),
-                    sortable,
-                    Stored::Double(*d),
-                );
-            }
+            (Shape::Float, FieldValue::Number(Num::Float(f))) => out.float(number, spec, *f),
+            (Shape::Double, FieldValue::Number(Num::Double(d))) => out.double(number, spec, *d),
             (shape, value) => {
                 // ALLOC: error path; one message.
                 return Err(MappingError::illegal_state(&format!(

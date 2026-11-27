@@ -12,7 +12,7 @@ The writer (`oss-doc`) and the engine (lucene-aggs, `ValueKind::Double` and `Flo
 2. `term`, `terms`, `match` and `range` queries, `sort` and `search_after`.
 3. `docvalue_fields` and the `fields` API.
 4. Bucket aggregations with double keys: `histogram`, `range` and `terms` on the reader; `terms` answers another node as `DoubleTerms` (`dterms`, each key written by `writeDouble`). `composite` and `multi_terms` key by the double (a `multi_terms` answers another node with the generic `Double` type byte).
-5. `half_float` and `scaled_float`, if the engine's kinds read them as they are.
+5. `half_float` and `scaled_float`, in three steps: the writer (`oss-doc`: mapping types, parameters, values, Lucene fields), then the reader for `half_float` (engine `ValueKind::HalfFloat`), then for `scaled_float` (`ValueKind::Scaled`).
 
 Until its slice, every other use of the two types is refused with the same "is not supported by this node yet" message `Unsupported` gave (`FieldType::refusal_name`). Slice 1 changes no other behaviour: a long, integer, date or keyword field is read as before.
 
@@ -28,6 +28,8 @@ Until its slice, every other use of the two types is refused with the same "is n
 - AC-14: a `terms` of a `double` or `float` field keys each bucket by the double (a float widened), orders by key as `Double.compare` does, and writes `"key":44.75`.
 - AC-15: a shard's `terms` over a double or float answers another node as `dterms` with the decoded double key (the recorded `lterms` bytes with the name and key swapped), and `typed_keys` names it `dterms`.
 - AC-16: a `composite` terms or histogram source on a `double` or `float` field keys by the double and pages with `after`; a `date_histogram` source fails as OpenSearch fails it.
+- AC-18: a `half_float` field maps as `NumberFieldMapper.NumberType.HALF_FLOAT`, parses a value as a float and refuses one that is not finite as a half ("[half_float] supports only finite values, but got [70000.0]"), and indexes a 2-byte `HalfFloatPoint` with the sortable short as its sorted numeric doc value.
+- AC-19: a `scaled_float` field requires a positive finite `scaling_factor`, writes its parameters in `ScaledFloatFieldMapper`'s order, parses a value (and `null_value`) to `Math.round(value * scaling_factor)`, refuses a non-finite one ("[scaled_float] only supports finite values, but got [NaN]"), and indexes an 8-byte point and sorted numeric doc value of that long.
 - AC-17: a `multi_terms` over a double and a float keys by both values, written as doubles in `key` and `key_as_string`, and answers another node with the double type byte.
 - AC-5: a field type this reader still does not serve (`ip`) keeps its refusal, and a `long`, `integer` or `date` field is read unchanged (the existing metric tests pass).
 - AC-6: `term`, `match` and `terms` on a `double` field match the documents holding the value, and on a `float` field the documents holding the float nearest the value (`0.1` finds the stored `0.1f`).

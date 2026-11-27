@@ -26,6 +26,8 @@ pub enum Value {
     Int(i32),
     /// A `float` (`boost`).
     Float(f32),
+    /// A `double` (`scaling_factor`).
+    Double(f64),
     /// A string, an analyzer's name or a restricted choice.
     Str(String),
     /// `meta`: string keys to string values.
@@ -46,6 +48,7 @@ impl Value {
             // ALLOC: mapping parse, merge or error path; bounded by the mapping text (MAX_MAPPING_BYTES).
             Value::Int(i) => i.to_string(),
             Value::Float(f) => java_float(*f),
+            Value::Double(d) => super::json::java_double(*d),
             Value::Str(s) => s.clone(),
             Value::Meta(m) => {
                 // ALLOC: mapping parse, merge or error path; bounded by the mapping text (MAX_MAPPING_BYTES).
@@ -69,6 +72,7 @@ impl Value {
                 let _ = write!(out, "{i}");
             }
             Value::Float(f) => out.push_str(&java_float(*f)),
+            Value::Double(d) => out.push_str(&super::json::java_double(*d)),
             Value::Str(s) => super::json::write_str(out, s),
             Value::Meta(m) => {
                 out.push('{');
@@ -126,6 +130,8 @@ pub enum Kind {
     NullBool,
     /// A numeric `null_value`: a number of the field's type, or null.
     NullNumber,
+    /// A `scaled_float` `scaling_factor`: a double, required.
+    ScalingFactor,
     /// A `knn_vector` `dimension`.
     KnnDimension,
     /// A `knn_vector` `data_type`.

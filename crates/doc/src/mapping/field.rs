@@ -12,6 +12,7 @@ use std::fmt::Write as _;
 
 use super::error::MappingError;
 use super::json::{Json, java_cmp, write_str};
+use super::numbers::NumType;
 use super::params::{Default as D, Kind, Merge, Value};
 pub use super::types::FieldType;
 use super::types::{
@@ -276,6 +277,13 @@ impl Leaf {
                     def.name
                 )));
             }
+        }
+        if self.ty == FieldType::Number(NumType::ScaledFloat)
+            && !matches!(self.get("scaling_factor"), Some(Value::Double(_)))
+        {
+            return Err(MappingError::illegal_argument(
+                "Field [scaling_factor] is required",
+            ));
         }
         match self.ty {
             FieldType::Text => {

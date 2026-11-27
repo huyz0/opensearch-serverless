@@ -7,6 +7,11 @@ use lucene_codecs::field_infos::IndexOptions;
 use lucene_codecs::stored_fields::{FieldValue as Stored, StoredField};
 use lucene_index::index_writer::{DocumentVector, ExplicitDocument, ExplicitFields};
 
+use lucene_util::half_float::half_float_to_sortable_short;
+
+use super::encode::{
+    double_to_sortable_long, float_to_sortable_int, int_point, long_point, short_point,
+};
 use super::fields::{Shape, Spec};
 use super::invert::Inverted;
 
@@ -71,6 +76,24 @@ impl Builder {
         if spec.store {
             self.stored(number, stored);
         }
+    }
+
+    /// A `float`: its sortable int, as the point and the doc value.
+    pub(super) fn float(&mut self, number: i32, spec: &Spec, f: f32) {
+        let s = float_to_sortable_int(f);
+        self.number(number, spec, int_point(s), i64::from(s), Stored::Float(f));
+    }
+
+    /// A `double`: its sortable long, as the point and the doc value.
+    pub(super) fn double(&mut self, number: i32, spec: &Spec, d: f64) {
+        let s = double_to_sortable_long(d);
+        self.number(number, spec, long_point(s), s, Stored::Double(d));
+    }
+
+    /// A `half_float`: its sortable short in a 2-byte point and as the doc value.
+    pub(super) fn half_float(&mut self, number: i32, spec: &Spec, f: f32) {
+        let s = half_float_to_sortable_short(f);
+        self.number(number, spec, short_point(s), i64::from(s), Stored::Float(f));
     }
 
     /// The postings of field `number`, created on its first value.
