@@ -282,3 +282,5 @@ src/aggs/bucket/significant_tests.rs	new		tests of significant_terms parsing, sc
 src/dsl/queries/function_score_painless.rs	new		sends a Painless script_score to the engine as source, which compiles it in Rust; Java compiles it to bytecode in the script service
 src/painless_switch.rs	new		the process-wide switch for compiling Painless in Rust; Java has no such choice
 src/script_failure.rs	new		turns the engine's encoded script error into a script_exception; Java raises the ScriptException itself
+src/dsl/queries/script_query.rs	port	server/src/main/java/org/opensearch/index/query/ScriptQueryBuilder.java@3.10.0	fromXContent for Painless source only, and the engine filter built from it
+src/dsl/queries/script_switch_tests.rs	new		tests of the Painless switch on script_score and the script query; Java has no such switch

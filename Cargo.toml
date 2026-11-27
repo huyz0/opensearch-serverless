@@ -67,19 +67,19 @@ proptest = { version = "=1.6.0", default-features = false, features = ["std"] }
 # (docs/adr/0002-runtime-dependencies.md): git crates pinned at one exact
 # `rev`. Bump all of them together. For local cross-repo work, uncomment the
 # [patch] block at the end of this file.
-lucene-store = { git = "https://github.com/huyz0/lucene-rust", rev = "70c14256a2f3f962af7995ecc7e0c83e02aba3f3" }
-lucene-index = { git = "https://github.com/huyz0/lucene-rust", rev = "70c14256a2f3f962af7995ecc7e0c83e02aba3f3" }
-lucene-search = { git = "https://github.com/huyz0/lucene-rust", rev = "70c14256a2f3f962af7995ecc7e0c83e02aba3f3" }
-lucene-expressions = { git = "https://github.com/huyz0/lucene-rust", rev = "70c14256a2f3f962af7995ecc7e0c83e02aba3f3" }
-lucene-codecs = { git = "https://github.com/huyz0/lucene-rust", rev = "70c14256a2f3f962af7995ecc7e0c83e02aba3f3" }
-lucene-analysis = { git = "https://github.com/huyz0/lucene-rust", rev = "70c14256a2f3f962af7995ecc7e0c83e02aba3f3" }
-lucene-util = { git = "https://github.com/huyz0/lucene-rust", rev = "70c14256a2f3f962af7995ecc7e0c83e02aba3f3" }
-lucene-aggs = { git = "https://github.com/huyz0/lucene-rust", rev = "70c14256a2f3f962af7995ecc7e0c83e02aba3f3" }
-lucene-highlighter = { git = "https://github.com/huyz0/lucene-rust", rev = "70c14256a2f3f962af7995ecc7e0c83e02aba3f3" }
-lucene-queryparser = { git = "https://github.com/huyz0/lucene-rust", rev = "70c14256a2f3f962af7995ecc7e0c83e02aba3f3" }
-lucene-painless = { git = "https://github.com/huyz0/lucene-rust", rev = "70c14256a2f3f962af7995ecc7e0c83e02aba3f3" }
+lucene-store = { git = "https://github.com/huyz0/lucene-rust", rev = "104379ab7694b73170e22d62d9894ffb75fb5e9f" }
+lucene-index = { git = "https://github.com/huyz0/lucene-rust", rev = "104379ab7694b73170e22d62d9894ffb75fb5e9f" }
+lucene-search = { git = "https://github.com/huyz0/lucene-rust", rev = "104379ab7694b73170e22d62d9894ffb75fb5e9f" }
+lucene-expressions = { git = "https://github.com/huyz0/lucene-rust", rev = "104379ab7694b73170e22d62d9894ffb75fb5e9f" }
+lucene-codecs = { git = "https://github.com/huyz0/lucene-rust", rev = "104379ab7694b73170e22d62d9894ffb75fb5e9f" }
+lucene-analysis = { git = "https://github.com/huyz0/lucene-rust", rev = "104379ab7694b73170e22d62d9894ffb75fb5e9f" }
+lucene-util = { git = "https://github.com/huyz0/lucene-rust", rev = "104379ab7694b73170e22d62d9894ffb75fb5e9f" }
+lucene-aggs = { git = "https://github.com/huyz0/lucene-rust", rev = "104379ab7694b73170e22d62d9894ffb75fb5e9f" }
+lucene-highlighter = { git = "https://github.com/huyz0/lucene-rust", rev = "104379ab7694b73170e22d62d9894ffb75fb5e9f" }
+lucene-queryparser = { git = "https://github.com/huyz0/lucene-rust", rev = "104379ab7694b73170e22d62d9894ffb75fb5e9f" }
+lucene-painless = { git = "https://github.com/huyz0/lucene-rust", rev = "104379ab7694b73170e22d62d9894ffb75fb5e9f" }
 # The function-score node only: the analysis modules (heavy dictionaries) stay off.
-lucene-engine = { git = "https://github.com/huyz0/lucene-rust", rev = "70c14256a2f3f962af7995ecc7e0c83e02aba3f3", default-features = false }
+lucene-engine = { git = "https://github.com/huyz0/lucene-rust", rev = "104379ab7694b73170e22d62d9894ffb75fb5e9f", default-features = false }
 
 # Any crate may use `unsafe`, item by item, in the five patterns of
 # docs/unsafe.md: each use takes a local `#[allow(unsafe_code)]`, a
