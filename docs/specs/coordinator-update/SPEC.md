@@ -36,4 +36,6 @@ None: the shell's update has no setting and no measured downside.
 
 ## Risks
 
-Scripts are not run here: a node without a script engine answers a script update as unsupported before it gets to `plan`.
+Scripts are run by `docs::update_script::run_update` when `serverless.scripting.painless.native_compile` is on: Painless over `ctx` (`_source`, `op` of `index` for a found document or `create` for a missing one, `_index`, `_id`, `_version`) through the Rust front end and runtime; the outcome is `script_operation` of the `op` the script leaves and the `_source` it leaves. A script that does not compile, is not run as Painless runs it, throws, or leaves no object `_source` fails with a `script_exception`. With the switch off a node answers a script update as unsupported before it gets to `plan`. The update route that calls it is another piece.
+
+- AC-8: An update script edits the source, chooses the operation, and starts a missing document as a create over `{}`. Test: `an_update_script_edits_the_source_and_chooses_the_operation` (own test binary `update_script`).

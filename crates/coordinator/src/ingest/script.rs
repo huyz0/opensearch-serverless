@@ -13,7 +13,7 @@ pub(crate) struct Script {
 }
 
 /// A JSON value as the script sees it.
-pub(super) fn to_constant(v: &Json) -> Constant {
+pub(crate) fn to_constant(v: &Json) -> Constant {
     match v {
         Json::Null => Constant::Null,
         Json::Bool(b) => Constant::Bool(*b),
@@ -44,7 +44,7 @@ pub(super) fn to_constant(v: &Json) -> Constant {
 }
 
 /// A value the script left, as JSON.
-fn to_json(c: &Constant) -> Result<Json, String> {
+pub(crate) fn to_json(c: &Constant) -> Result<Json, String> {
     Ok(match c {
         Constant::Null => Json::Null,
         Constant::Bool(b) => Json::Bool(*b),
