@@ -301,3 +301,6 @@ src/aggs/bucket/rare_collect.rs	new		runs a rare_terms on the engine Significant
 src/aggs/bucket/rare_tests.rs	new		tests of rare_terms
 src/mapping_types.rs	new		the name a refusal gives a field type, and the knn_vector space, split out of mapping.rs
 src/aggs/metric/collect_decimal_tests.rs	new		tests of the metric aggregations over float and double fields
+src/numbers_decimal.rs	port	server/src/main/java/org/opensearch/index/mapper/NumberFieldMapper.java@3.10.0	FLOAT and DOUBLE: parse, termQuery, termsQuery and rangeQuery, with DoublePoint and FloatPoint nextUp and nextDown
+src/numbers_decimal_tests.rs	new		tests of numbers_decimal.rs
+src/search_decimal_tests.rs	new		tests of queries, sorts and search_after over float and double fields

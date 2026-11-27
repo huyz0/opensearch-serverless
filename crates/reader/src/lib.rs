@@ -28,6 +28,7 @@ mod lucene_range;
 pub mod mapping;
 mod mapping_types;
 pub mod numbers;
+pub mod numbers_decimal;
 pub mod open_cost;
 pub mod overlay;
 pub mod painless_switch;
