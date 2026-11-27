@@ -44,7 +44,7 @@ fn cold_open(
     prefetch: &OpenPrefetch,
 ) -> (u64, usize, OpenShard<Rounds<Emulator>>) {
     let rounds = store.store();
-    rounds.reset(Duration::from_millis(20));
+    rounds.reset(Duration::from_millis(100));
     let before = rounds.meter().total();
     let (files, meta) = ShardFiles::open_with_meta(store, "", index, 0).expect("locates");
     let cache = Arc::new(PageCache::new(PageCacheConfig::default()).expect("page cache"));
