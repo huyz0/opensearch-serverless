@@ -33,7 +33,13 @@ pub(super) enum Targets {
     One,
     /// Several indexes, in order, each once.
     Many(Vec<String>),
+    /// None: every name was unavailable and `ignore_unavailable` is set.
+    Nothing,
 }
+
+/// What a search answers when every index it named is unavailable and
+/// `ignore_unavailable` is set.
+const NO_HITS: &[u8] = br#"{"took":0,"timed_out":false,"_shards":{"total":0,"successful":0,"skipped":0,"failed":0},"hits":{"total":{"value":0,"relation":"eq"},"max_score":null,"hits":[]}}"#;
 
 impl<S: BlobStore + 'static> SearchService<S> {
     /// Resolves the `index` path parameter: a single index is written back
@@ -46,6 +52,21 @@ impl<S: BlobStore + 'static> SearchService<S> {
             return Ok(Targets::One);
         }
         let mut resolved = self.expand_names(path.split(','))?;
+        if ignore_unavailable(req)? {
+            let mut kept = Vec::with_capacity(resolved.len());
+            for index in resolved {
+                match self.open_shard(&index, 0, false) {
+                    Err(Answer::Search(e)) if e.status == 404 => {}
+                    Err(Answer::Rest(e)) => return Err(e),
+                    // Another failure surfaces when the search opens it.
+                    _ => kept.push(index),
+                }
+            }
+            if kept.is_empty() {
+                return Ok(Targets::Nothing);
+            }
+            resolved = kept;
+        }
         match resolved.len() {
             0 => Ok(Targets::One),
             1 => {
@@ -147,6 +168,20 @@ impl<S: BlobStore + 'static> SearchService<S> {
         Ok(members)
     }
 
+    /// Answers a `_search` of what `targets` resolved to.
+    pub(super) fn handle_resolved(
+        &self,
+        req: &mut Request<'_>,
+        resp: &mut Response<'_>,
+        targets: Targets,
+    ) -> Result<(), RestError> {
+        match targets {
+            Targets::Many(indexes) => self.handle_many(req, resp, &indexes),
+            Targets::Nothing => resp.send(200, oss_rest::JSON, NO_HITS),
+            Targets::One => Ok(()),
+        }
+    }
+
     /// Answers a `_search` over `indexes` as one response.
     pub(super) fn handle_many(
         &self,
@@ -201,5 +236,16 @@ impl<S: BlobStore + 'static> SearchService<S> {
                 "a search over several indexes needs the coordinator role",
             ))
         }
+    }
+}
+
+/// `ignore_unavailable`: whether a name that is no index is skipped.
+fn ignore_unavailable(req: &Request<'_>) -> Result<bool, RestError> {
+    match req.param("ignore_unavailable").as_deref() {
+        None | Some("false") => Ok(false),
+        Some("" | "true") => Ok(true),
+        Some(other) => Err(RestError::illegal_argument(format!(
+            "Failed to parse value [{other}] as only [true] or [false] are allowed."
+        ))),
     }
 }

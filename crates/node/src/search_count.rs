@@ -33,6 +33,7 @@ const COUNT_PARAMS: &[&str] = &[
     "lenient",
     "routing",
     "preference",
+    "ignore_unavailable",
 ];
 
 /// The routes of `_count` on one index, by GET and POST.
@@ -55,6 +56,11 @@ pub(super) fn routes<S: BlobStore + 'static>(
             move |req: &mut Request<'_>, resp: &mut Response<'_>| service.handle_count(req, resp),
         )
 }
+
+/// What a count answers when every index it named is unavailable and
+/// `ignore_unavailable` is set.
+const NO_COUNT: &[u8] =
+    br#"{"count":0,"_shards":{"total":0,"successful":0,"skipped":0,"failed":0}}"#;
 
 const NOT_SUPPORTED: &str =
     "a _count body takes only [query]; other keys are not supported by this node yet";
@@ -150,6 +156,9 @@ impl<S: BlobStore + 'static> SearchService<S> {
         source.min_score = min_score_param(req)?;
         source.size = 0;
         source.track_total_hits = Some(u64::from(i32::MAX.cast_unsigned()));
+        if matches!(targets, Targets::Nothing) {
+            return resp.send(200, JSON, NO_COUNT);
+        }
         if let Targets::Many(indexes) = &targets {
             #[cfg(feature = "coordinator")]
             return self.count_many(req, resp, indexes, &source, started);

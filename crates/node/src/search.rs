@@ -174,8 +174,8 @@ impl<S: BlobStore + 'static> SearchService<S> {
             let index = req.path_param("index")?;
             slots.admit(&index)
         });
-        if let multi::Targets::Many(indexes) = targets {
-            return self.handle_many(req, resp, &indexes);
+        if !matches!(targets, multi::Targets::One) {
+            return self.handle_resolved(req, resp, targets);
         }
         self.handle_admitted(req, resp)
     }
