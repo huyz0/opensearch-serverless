@@ -25,6 +25,7 @@ use crate::failure::Failure;
 use crate::lucene_query::{QueryContext, build, field_type, match_none, term, unsupported};
 use crate::mapping::FieldType;
 use crate::numbers;
+use crate::numbers_decimal as decimal;
 
 /// `index.max_terms_count`'s default: the most values one `terms` query
 /// may hold.
@@ -314,9 +315,23 @@ fn terms(cx: &QueryContext<'_>, field: &str, values: &[Value]) -> Result<Clause,
             // ALLOC: one box a bool of a date field's terms.
             Ok(constant(Clause::Boolean(Box::new(q))))
         }
-        FieldType::Float | FieldType::Double | FieldType::Unsupported(_) => {
-            Err(unsupported("this field type"))
+        FieldType::Double => {
+            // ALLOC: one entry a value, bounded by the body's recording.
+            let mut doubles = Vec::with_capacity(values.len());
+            for v in values {
+                doubles.push(decimal::parse_double(v)?);
+            }
+            set(decimal::double_set(field, &doubles))
         }
+        FieldType::Float => {
+            // ALLOC: one entry a value, bounded by the body's recording.
+            let mut floats = Vec::with_capacity(values.len());
+            for v in values {
+                floats.push(decimal::parse_float(v)?);
+            }
+            set(decimal::float_set(field, &floats))
+        }
+        FieldType::Unsupported(_) => Err(unsupported("this field type")),
     }
 }
 

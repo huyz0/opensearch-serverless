@@ -214,7 +214,10 @@ pub(crate) fn sorted_hit(h: &FieldDoc, kinds: &[KeyKind], score_at: Option<usize
         .map(|(i, kind)| match kind {
             KeyKind::Score => SortValue::Score(score_of(i)),
             KeyKind::Numeric => SortValue::Long(value(i)),
-            KeyKind::Script => SortValue::Double(
+            KeyKind::Float => SortValue::Float(lucene_util::numeric_utils::sortable_int_to_float(
+                i32::try_from(value(i)).unwrap_or(0),
+            )),
+            KeyKind::Script | KeyKind::Double => SortValue::Double(
                 lucene_util::numeric_utils::sortable_long_to_double(value(i)),
             ),
             KeyKind::Term => SortValue::Term(h.terms.get(i).cloned().flatten()),

@@ -389,3 +389,6 @@ fn post_filter_parses_one_query_and_is_refused_where_it_cannot_be_served() {
         );
     }
 }
+
+#[path = "search_decimal_tests.rs"]
+mod decimal_tests;

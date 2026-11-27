@@ -38,7 +38,7 @@ use crate::lucene_query::{QueryContext, shard_failure, to_lucene};
 use crate::mapping::FieldType;
 use crate::search_options;
 use crate::search_post_filter;
-use crate::search_sort::{KeyKind, sort_fields};
+use crate::search_sort::sort_fields;
 use crate::search_top::TopOptions;
 
 /// `index.max_result_window`'s default: the most `from + size` may reach.
@@ -56,8 +56,10 @@ pub enum SortValue {
     Term(Option<Vec<u8>>),
     /// The score.
     Score(f32),
-    /// A script's number.
+    /// A script's or a `double` field's number.
     Double(f64),
+    /// A `float` field's number.
+    Float(f32),
 }
 
 /// One hit: the document and what it is ranked by.
@@ -320,7 +322,7 @@ pub fn search_with<S: BlobStore + 'static>(
         .map_err(|f| ShardError::of_plan(shard_failure(f, index, &meta.uuid)))?;
     let numeric_sort = sort
         .as_ref()
-        .is_some_and(|(_, kinds)| kinds.contains(&KeyKind::Numeric))
+        .is_some_and(|(_, kinds)| crate::search_sort::reads_points(kinds))
         || top_plans.iter().any(top_hits::TopHitsPlan::numeric)
         || top_hits_sub::any_numeric_sub(&source.aggs, shard);
     let rescore = crate::search_rescore::plan(source, &cx, shard, index, sort.is_some())?;
