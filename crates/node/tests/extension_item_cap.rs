@@ -150,10 +150,12 @@ fn a_document_whose_calls_outrun_ten_deadlines_is_refused_and_the_next_item_is_w
     // How fast this machine spins: a probe module, then the module whose call
     // takes about 6 ms here.
     const PROBE_ROUNDS: u32 = 400_000;
+    // The most rounds the host's fuel (50,000,000, about a dozen units a round)
+    // allows with a margin: a longer module fails its create-time probe.
+    const MAX_ROUNDS: f64 = 3_000_000.0;
     create("probe", &upload(PROBE_ROUNDS));
     let probe = time_call("probe").as_secs_f64().max(0.000_05);
-    let mut rounds =
-        (f64::from(PROBE_ROUNDS) * 0.006 / probe).clamp(1_000.0, 4_000_000_000.0) as u32;
+    let mut rounds = (f64::from(PROBE_ROUNDS) * 0.006 / probe).clamp(1_000.0, MAX_ROUNDS) as u32;
     create("capped", &upload(rounds));
     let mut target = "capped".to_owned();
     let mut call = time_call(&target);
@@ -166,7 +168,7 @@ fn a_document_whose_calls_outrun_ten_deadlines_is_refused_and_the_next_item_is_w
             break;
         }
         rounds = (f64::from(rounds) * 0.006 / call.as_secs_f64().max(0.000_05))
-            .clamp(1_000.0, 4_000_000_000.0) as u32;
+            .clamp(1_000.0, MAX_ROUNDS) as u32;
         target = format!("capped{attempt}");
         create(&target, &upload(rounds));
         call = time_call(&target);
