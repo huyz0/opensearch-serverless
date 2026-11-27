@@ -8,11 +8,16 @@ use super::routes::{BODY_BUF, Reply, status_of};
 use super::wire::{Head, SocketBody, write_full, write_head, xml_escape};
 use crate::chunk::ChunkSource;
 use crate::emulator::etag;
+use crate::http_date;
 use crate::register::tagged::Precondition;
 use crate::s3::delete::{base64, xml_char};
 use crate::s3::xml::decode;
 use crate::store::BlobStore;
 use crate::store::MAX_DELETE_KEYS;
+
+/// The wall-clock second the emulator's clock starts at: only differences
+/// of the two dates a HEAD carries are ever read.
+const CLOCK_ORIGIN_SECS: u64 = 1_700_000_000;
 
 /// The user-metadata header S3 stores with an object and returns on HEAD,
 /// which the client uses for its writer token.
@@ -21,21 +26,27 @@ pub(super) const WRITER: &str = "x-amz-meta-writer";
 /// The object's length, ETag and writer token, if it has one.
 pub(super) fn head(shared: &Shared, key: &str, out: &mut dyn Write) -> Reply {
     match shared.store.head_with_writer(key) {
-        Ok(Some((meta, tag, writer))) => {
+        Ok(Some((meta, tag, writer, stamps))) => {
             // ALLOC: one number.
             let len = meta.len.to_string();
             let tag = etag(tag);
+            // ALLOC: two dates, one HEAD.
+            let modified = http_date::format(CLOCK_ORIGIN_SECS.saturating_add(stamps.born / 1_000));
+            // ALLOC: two dates, one HEAD.
+            let date = http_date::format(CLOCK_ORIGIN_SECS.saturating_add(stamps.now / 1_000));
             let mut headers = [
                 ("content-length", len.as_str()),
                 ("etag", tag.as_str()),
+                ("last-modified", modified.as_str()),
+                ("date", date.as_str()),
                 (WRITER, ""),
             ];
             let headers = match &writer {
                 Some(w) => {
-                    headers[2].1 = w;
+                    headers[4].1 = w;
                     &headers[..]
                 }
-                None => &headers[..2],
+                None => &headers[..4],
             };
             match write_head(out, 200, headers) {
                 Ok(()) => Reply::Done,

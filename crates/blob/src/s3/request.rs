@@ -19,6 +19,7 @@ use super::sigv4::{self, Scope, UNSIGNED_PAYLOAD};
 use super::xml::{ListParser, error_code};
 use crate::chunk::{ChunkSink, ChunkSource};
 use crate::error::{BlobError, BlobResult};
+use crate::http_date;
 use crate::op::S3Op;
 use crate::register::tagged::Precondition;
 use crate::store::{ByteRange, GetOutcome, ListPage, ObjectMeta};
@@ -354,6 +355,26 @@ impl S3Store {
                 header(&response, WRITER) == Some(writer),
                 etag(&response),
             ))),
+            404 => Ok(None),
+            _ => Err(failure(&mut response)),
+        }
+    }
+
+    /// One HEAD for the object's age in milliseconds: the response's `Date`
+    /// less its `Last-Modified`, both stamped by the store.
+    pub(super) fn age_once(&self, key: &str) -> BlobResult<Option<u64>> {
+        let mut response = self.send(S3Op::Head, http::Method::HEAD, Some(key), &[], &[], None)?;
+        match response.status().as_u16() {
+            200 => {
+                let date = header(&response, "date").and_then(http_date::parse);
+                let modified = header(&response, "last-modified").and_then(http_date::parse);
+                match (date, modified) {
+                    (Some(date), Some(modified)) => {
+                        Ok(Some(date.saturating_sub(modified).saturating_mul(1_000)))
+                    }
+                    _ => Err(BlobError::Protocol("no Date or Last-Modified")),
+                }
+            }
             404 => Ok(None),
             _ => Err(failure(&mut response)),
         }

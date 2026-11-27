@@ -61,6 +61,10 @@ impl BlobStore for ReadOnlyStore {
         self.inner.head(key)
     }
 
+    fn age_millis(&self, key: &str) -> BlobResult<Option<u64>> {
+        self.inner.age_millis(key)
+    }
+
     fn delete(&self, _key: &str) -> BlobResult<()> {
         Err(WHY)
     }

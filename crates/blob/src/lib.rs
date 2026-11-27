@@ -22,6 +22,7 @@ pub mod error;
 pub mod export_store;
 pub mod fs;
 pub mod guard;
+mod http_date;
 pub mod meter;
 pub mod op;
 pub mod pooled;

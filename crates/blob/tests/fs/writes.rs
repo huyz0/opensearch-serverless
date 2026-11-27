@@ -237,3 +237,15 @@ fn a_batch_delete_on_disk_is_one_delete_a_key_after_checking_them_all() {
     assert_eq!(s.head("d/b").unwrap(), None);
     assert_eq!(s.meter().count(S3Op::Delete), 3);
 }
+
+/// An object's age is one HEAD: now less the file's modification time, both
+/// read on the machine that holds the files, so one clock answers.
+#[test]
+fn an_objects_age_is_one_head_and_a_missing_key_has_none() {
+    let (s, _dir) = store("fs-age");
+    put(&s, "a", b"x");
+    let age = s.age_millis("a").unwrap().expect("exists");
+    assert!(age < 60_000, "a file just written is young: {age}");
+    assert_eq!(s.age_millis("missing"), Ok(None));
+    assert_counts(s.meter(), &[(S3Op::Put, 1), (S3Op::Head, 2)]);
+}

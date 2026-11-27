@@ -95,6 +95,11 @@ impl BlobStore for ExportStore {
         self.inner.head(key)
     }
 
+    fn age_millis(&self, key: &str) -> BlobResult<Option<u64>> {
+        self.allows(key)?;
+        self.inner.age_millis(key)
+    }
+
     fn delete(&self, _key: &str) -> BlobResult<()> {
         Err(WHY)
     }

@@ -164,6 +164,10 @@ impl<S: BlobStore> BlobStore for Rounds<S> {
         self.round("head", key, |s| s.head(key))
     }
 
+    fn age_millis(&self, key: &str) -> BlobResult<Option<u64>> {
+        self.round("head", key, |s| s.age_millis(key))
+    }
+
     fn delete(&self, key: &str) -> BlobResult<()> {
         self.round("delete", key, |s| s.delete(key))
     }

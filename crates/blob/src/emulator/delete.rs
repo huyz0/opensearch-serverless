@@ -11,6 +11,7 @@ use crate::store::{MAX_DELETE_KEYS, check_key};
 pub(super) fn remove(objects: &mut Objects, key: &str) {
     objects.writers.remove(key);
     objects.tags.remove(key);
+    objects.born.remove(key);
     if let Some(old) = objects.map.remove(key) {
         let n = u64::try_from(old.len()).unwrap_or(u64::MAX);
         objects.stored = objects.stored.saturating_sub(n);
