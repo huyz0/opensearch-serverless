@@ -34,6 +34,9 @@ pub struct PackPassParts {
     pub now: Box<dyn Fn() -> u64 + Send + Sync>,
 }
 
+/// Children of `packs/` the seeding walk reads a pass.
+const SEED_PAGE: usize = 64;
+
 /// One node's collect pass.
 pub struct PackPass {
     parts: PackPassParts,
@@ -44,7 +47,8 @@ impl PackPass {
     /// A pass with nothing tracked yet.
     pub fn new(parts: PackPassParts) -> Self {
         let collector =
-            PackCollector::new(Arc::clone(&parts.store), &parts.base, parts.max_tracked);
+            PackCollector::new(Arc::clone(&parts.store), &parts.base, parts.max_tracked)
+                .with_seeding(SEED_PAGE);
         Self {
             parts,
             collector: Mutex::new(collector),
