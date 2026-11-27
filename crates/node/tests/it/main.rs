@@ -31,6 +31,7 @@ mod script_sort;
 mod search;
 mod search_alias;
 mod search_body_keys;
+mod search_boosting;
 mod search_fields;
 mod search_hits;
 mod search_now;

@@ -11,6 +11,7 @@
 //! the same documents.
 
 use lucene_search::extended_query::{ExtendedQuery, PointInSetQuery};
+use lucene_search::function::FunctionScoreQuery;
 use lucene_search::query::FieldExistsQuery;
 use lucene_search::{
     BooleanQuery, Clause, ConstantScoreQuery, DisjunctionMaxQuery, FuzzyQuery, PrefixQuery,
@@ -91,6 +92,22 @@ pub fn to_clause(m: &More, cx: &QueryContext<'_>) -> Result<Clause, Failure> {
             Ok(Clause::DisjunctionMax(Box::new(DisjunctionMaxQuery::new(
                 clauses,
                 *tie_breaker,
+            ))))
+        }
+        More::Boosting {
+            positive,
+            negative,
+            negative_boost,
+            ..
+        } => {
+            let scored = FunctionScoreQuery::boost_by_query(
+                build(positive, cx)?,
+                build(negative, cx)?,
+                *negative_boost,
+            );
+            // ALLOC: one box a boosting query.
+            Ok(Clause::Extended(Box::new(ExtendedQuery::FunctionScore(
+                scored,
             ))))
         }
         More::MatchNone { .. } => Ok(match_none()),

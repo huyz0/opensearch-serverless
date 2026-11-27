@@ -484,3 +484,11 @@ fn term_expanding_queries_are_refused_on_a_field_that_pins_an_analyzer() {
         assert!(built_on_pin(body).is_ok(), "{body}");
     }
 }
+
+#[test]
+fn boosting_builds_a_function_score_over_the_positive_query() {
+    let clause = one(
+        r#"{"boosting":{"positive":{"term":{"tag":"a"}},"negative":{"term":{"tag":"b"}},"negative_boost":0.5}}"#,
+    );
+    assert!(matches!(clause, Clause::Extended(_)), "{clause:?}");
+}
