@@ -247,6 +247,31 @@ fn an_assembled_node_answers_every_search_fixture_as_stock_opensearch_did() {
 }
 
 #[test]
+fn an_assembled_node_answers_every_breadth_fixture_as_stock_opensearch_did() {
+    let fixtures: Vec<Fixture> = load_dir(&root().join("compat/search-breadth"))
+        .expect("fixtures load")
+        .into_iter()
+        .map(|(_, f)| f)
+        .map(|mut f| {
+            support::normalise_columns(&mut f);
+            f
+        })
+        .collect();
+    assert_eq!(
+        fixtures.len(),
+        2,
+        "a query and a bucket aggregation fixture"
+    );
+    let failed: Vec<String> = fixtures.into_iter().flat_map(replay).collect();
+    assert!(
+        failed.is_empty(),
+        "{} differ:\n{}",
+        failed.len(),
+        failed.join("\n")
+    );
+}
+
+#[test]
 fn an_assembled_node_answers_every_nested_fixture_as_stock_opensearch_did() {
     let fixtures: Vec<Fixture> = load_dir(&root().join("compat/nested-search"))
         .expect("fixtures load")

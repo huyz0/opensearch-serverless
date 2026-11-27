@@ -1,0 +1,2074 @@
+{
+  "name": "bucket aggregations",
+  "description": "terms, histogram, date_histogram, range, filter, filters, missing, global and composite over the same documents, with queries and refusals. Aggregation requests carry size 1 because stock marks a size 0 search terminated_early.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-breadth-aggs",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "create",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-breadth-aggs",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "title": {
+                "type": "text"
+              },
+              "tag": {
+                "type": "keyword"
+              },
+              "year": {
+                "type": "integer"
+              },
+              "price": {
+                "type": "double"
+              },
+              "published": {
+                "type": "date"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-breadth-aggs"
+        }
+      }
+    },
+    {
+      "name": "bulk index",
+      "request": {
+        "method": "POST",
+        "path": "/_bulk",
+        "query": {
+          "refresh": "true"
+        },
+        "ndjson": [
+          {
+            "index": {
+              "_index": "compat-breadth-aggs",
+              "_id": "1"
+            }
+          },
+          {
+            "title": "The quick brown fox",
+            "tag": "animal",
+            "year": 2001,
+            "price": 10.5,
+            "published": "2001-03-04"
+          },
+          {
+            "index": {
+              "_index": "compat-breadth-aggs",
+              "_id": "2"
+            }
+          },
+          {
+            "title": "Lazy dogs sleep all day",
+            "tag": "animal",
+            "year": 2002,
+            "price": 20.0,
+            "published": "2002-07-01T10:15:30Z"
+          },
+          {
+            "index": {
+              "_index": "compat-breadth-aggs",
+              "_id": "3"
+            }
+          },
+          {
+            "title": "Quick start guide",
+            "tag": "manual",
+            "year": 2010,
+            "price": 5.25,
+            "published": "2010-01-01"
+          },
+          {
+            "index": {
+              "_index": "compat-breadth-aggs",
+              "_id": "4"
+            }
+          },
+          {
+            "title": "Brown sugar and brown bread",
+            "tag": "food",
+            "year": 2002,
+            "price": 3.0,
+            "published": "2002-12-31T23:59:59.999Z"
+          },
+          {
+            "index": {
+              "_index": "compat-breadth-aggs",
+              "_id": "5"
+            }
+          },
+          {
+            "title": "A fox in the snow",
+            "tag": "animal",
+            "year": 1999,
+            "price": 15.75,
+            "published": "1999-12-31"
+          },
+          {
+            "index": {
+              "_index": "compat-breadth-aggs",
+              "_id": "6"
+            }
+          },
+          {
+            "title": "Quick brown foxes jump",
+            "tag": "animal",
+            "year": 2010,
+            "price": 8.0,
+            "published": "2010-06-15"
+          },
+          {
+            "index": {
+              "_index": "compat-breadth-aggs",
+              "_id": "7"
+            }
+          },
+          {
+            "title": "Bread and butter",
+            "year": 2005,
+            "price": 2.5,
+            "published": "2005-05-05"
+          },
+          {
+            "index": {
+              "_index": "compat-breadth-aggs",
+              "_id": "8"
+            }
+          },
+          {
+            "title": "Snow dogs",
+            "tag": [
+              "animal",
+              "sport"
+            ],
+            "year": 2010,
+            "price": 30.0,
+            "published": "2010-11-30"
+          }
+        ]
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        },
+        {
+          "pointer": "/body/items/*/index/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 21,
+          "errors": false,
+          "items": [
+            {
+              "index": {
+                "_index": "compat-breadth-aggs",
+                "_id": "1",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 0,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-breadth-aggs",
+                "_id": "2",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 1,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-breadth-aggs",
+                "_id": "3",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 2,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-breadth-aggs",
+                "_id": "4",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 3,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-breadth-aggs",
+                "_id": "5",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 4,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-breadth-aggs",
+                "_id": "6",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 5,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-breadth-aggs",
+                "_id": "7",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 6,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-breadth-aggs",
+                "_id": "8",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 7,
+                "_primary_term": 1,
+                "status": 201
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "terms on a keyword",
+      "request": {
+        "method": "POST",
+        "path": "/compat-breadth-aggs/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "tag"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 8,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-breadth-aggs",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": "animal",
+                  "doc_count": 5
+                },
+                {
+                  "key": "food",
+                  "doc_count": 1
+                },
+                {
+                  "key": "manual",
+                  "doc_count": 1
+                },
+                {
+                  "key": "sport",
+                  "doc_count": 1
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "terms on a keyword with size and order",
+      "request": {
+        "method": "POST",
+        "path": "/compat-breadth-aggs/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "tag",
+                "size": 2,
+                "order": {
+                  "_key": "desc"
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 8,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-breadth-aggs",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 6,
+              "buckets": [
+                {
+                  "key": "sport",
+                  "doc_count": 1
+                },
+                {
+                  "key": "manual",
+                  "doc_count": 1
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "terms min_doc_count",
+      "request": {
+        "method": "POST",
+        "path": "/compat-breadth-aggs/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "tag",
+                "min_doc_count": 2
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 8,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-breadth-aggs",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": "animal",
+                  "doc_count": 5
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "terms on an integer",
+      "request": {
+        "method": "POST",
+        "path": "/compat-breadth-aggs/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "year"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 8,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-breadth-aggs",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": 2010,
+                  "doc_count": 3
+                },
+                {
+                  "key": 2002,
+                  "doc_count": 2
+                },
+                {
+                  "key": 1999,
+                  "doc_count": 1
+                },
+                {
+                  "key": 2001,
+                  "doc_count": 1
+                },
+                {
+                  "key": 2005,
+                  "doc_count": 1
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "terms under a query",
+      "request": {
+        "method": "POST",
+        "path": "/compat-breadth-aggs/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "tag"
+              }
+            }
+          },
+          "query": {
+            "match": {
+              "title": "brown"
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 0.545728,
+            "hits": [
+              {
+                "_index": "compat-breadth-aggs",
+                "_id": "4",
+                "_score": 0.545728
+              }
+            ]
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": "animal",
+                  "doc_count": 2
+                },
+                {
+                  "key": "food",
+                  "doc_count": 1
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "terms include and exclude",
+      "request": {
+        "method": "POST",
+        "path": "/compat-breadth-aggs/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "tag",
+                "exclude": "man.*"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 8,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-breadth-aggs",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": "animal",
+                  "doc_count": 5
+                },
+                {
+                  "key": "food",
+                  "doc_count": 1
+                },
+                {
+                  "key": "sport",
+                  "doc_count": 1
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "terms missing",
+      "request": {
+        "method": "POST",
+        "path": "/compat-breadth-aggs/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "tag",
+                "missing": "none"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 8,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-breadth-aggs",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": "animal",
+                  "doc_count": 5
+                },
+                {
+                  "key": "food",
+                  "doc_count": 1
+                },
+                {
+                  "key": "manual",
+                  "doc_count": 1
+                },
+                {
+                  "key": "none",
+                  "doc_count": 1
+                },
+                {
+                  "key": "sport",
+                  "doc_count": 1
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "histogram on an integer",
+      "request": {
+        "method": "POST",
+        "path": "/compat-breadth-aggs/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "h": {
+              "histogram": {
+                "field": "year",
+                "interval": 5
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 8,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-breadth-aggs",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "h": {
+              "buckets": [
+                {
+                  "key": 1995.0,
+                  "doc_count": 1
+                },
+                {
+                  "key": 2000.0,
+                  "doc_count": 3
+                },
+                {
+                  "key": 2005.0,
+                  "doc_count": 1
+                },
+                {
+                  "key": 2010.0,
+                  "doc_count": 3
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "histogram min_doc_count 0 with bounds",
+      "request": {
+        "method": "POST",
+        "path": "/compat-breadth-aggs/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "h": {
+              "histogram": {
+                "field": "year",
+                "interval": 5,
+                "min_doc_count": 0,
+                "extended_bounds": {
+                  "min": 1990,
+                  "max": 2015
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 8,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-breadth-aggs",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "h": {
+              "buckets": [
+                {
+                  "key": 1990.0,
+                  "doc_count": 0
+                },
+                {
+                  "key": 1995.0,
+                  "doc_count": 1
+                },
+                {
+                  "key": 2000.0,
+                  "doc_count": 3
+                },
+                {
+                  "key": 2005.0,
+                  "doc_count": 1
+                },
+                {
+                  "key": 2010.0,
+                  "doc_count": 3
+                },
+                {
+                  "key": 2015.0,
+                  "doc_count": 0
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "date_histogram yearly",
+      "request": {
+        "method": "POST",
+        "path": "/compat-breadth-aggs/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "d": {
+              "date_histogram": {
+                "field": "published",
+                "calendar_interval": "year"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 8,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-breadth-aggs",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "d": {
+              "buckets": [
+                {
+                  "key_as_string": "1999-01-01T00:00:00.000Z",
+                  "key": 915148800000,
+                  "doc_count": 1
+                },
+                {
+                  "key_as_string": "2000-01-01T00:00:00.000Z",
+                  "key": 946684800000,
+                  "doc_count": 0
+                },
+                {
+                  "key_as_string": "2001-01-01T00:00:00.000Z",
+                  "key": 978307200000,
+                  "doc_count": 1
+                },
+                {
+                  "key_as_string": "2002-01-01T00:00:00.000Z",
+                  "key": 1009843200000,
+                  "doc_count": 2
+                },
+                {
+                  "key_as_string": "2003-01-01T00:00:00.000Z",
+                  "key": 1041379200000,
+                  "doc_count": 0
+                },
+                {
+                  "key_as_string": "2004-01-01T00:00:00.000Z",
+                  "key": 1072915200000,
+                  "doc_count": 0
+                },
+                {
+                  "key_as_string": "2005-01-01T00:00:00.000Z",
+                  "key": 1104537600000,
+                  "doc_count": 1
+                },
+                {
+                  "key_as_string": "2006-01-01T00:00:00.000Z",
+                  "key": 1136073600000,
+                  "doc_count": 0
+                },
+                {
+                  "key_as_string": "2007-01-01T00:00:00.000Z",
+                  "key": 1167609600000,
+                  "doc_count": 0
+                },
+                {
+                  "key_as_string": "2008-01-01T00:00:00.000Z",
+                  "key": 1199145600000,
+                  "doc_count": 0
+                },
+                {
+                  "key_as_string": "2009-01-01T00:00:00.000Z",
+                  "key": 1230768000000,
+                  "doc_count": 0
+                },
+                {
+                  "key_as_string": "2010-01-01T00:00:00.000Z",
+                  "key": 1262304000000,
+                  "doc_count": 3
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "date_histogram fixed interval",
+      "request": {
+        "method": "POST",
+        "path": "/compat-breadth-aggs/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "d": {
+              "date_histogram": {
+                "field": "published",
+                "fixed_interval": "1825d",
+                "min_doc_count": 0
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 8,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-breadth-aggs",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "d": {
+              "buckets": [
+                {
+                  "key_as_string": "1999-12-25T00:00:00.000Z",
+                  "key": 946080000000,
+                  "doc_count": 4
+                },
+                {
+                  "key_as_string": "2004-12-23T00:00:00.000Z",
+                  "key": 1103760000000,
+                  "doc_count": 1
+                },
+                {
+                  "key_as_string": "2009-12-22T00:00:00.000Z",
+                  "key": 1261440000000,
+                  "doc_count": 3
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "range keyed with keys",
+      "request": {
+        "method": "POST",
+        "path": "/compat-breadth-aggs/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "r": {
+              "range": {
+                "field": "year",
+                "keyed": true,
+                "ranges": [
+                  {
+                    "key": "old",
+                    "to": 2000
+                  },
+                  {
+                    "key": "new",
+                    "from": 2000
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 8,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-breadth-aggs",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "r": {
+              "buckets": {
+                "old": {
+                  "to": 2000.0,
+                  "doc_count": 1
+                },
+                "new": {
+                  "from": 2000.0,
+                  "doc_count": 7
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "filters",
+      "request": {
+        "method": "POST",
+        "path": "/compat-breadth-aggs/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "f": {
+              "filters": {
+                "filters": {
+                  "fox": {
+                    "match": {
+                      "title": "fox"
+                    }
+                  },
+                  "bread": {
+                    "match": {
+                      "title": "bread"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 8,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-breadth-aggs",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "f": {
+              "buckets": {
+                "bread": {
+                  "doc_count": 2
+                },
+                "fox": {
+                  "doc_count": 2
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "filters anonymous with other bucket",
+      "request": {
+        "method": "POST",
+        "path": "/compat-breadth-aggs/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "f": {
+              "filters": {
+                "other_bucket": true,
+                "filters": [
+                  {
+                    "term": {
+                      "tag": "food"
+                    }
+                  },
+                  {
+                    "term": {
+                      "tag": "manual"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 8,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-breadth-aggs",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "f": {
+              "buckets": [
+                {
+                  "doc_count": 1
+                },
+                {
+                  "doc_count": 1
+                },
+                {
+                  "doc_count": 6
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "missing",
+      "request": {
+        "method": "POST",
+        "path": "/compat-breadth-aggs/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "m": {
+              "missing": {
+                "field": "tag"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 1,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 8,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-breadth-aggs",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "m": {
+              "doc_count": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "global beside a query",
+      "request": {
+        "method": "POST",
+        "path": "/compat-breadth-aggs/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "all": {
+              "global": {},
+              "aggs": {
+                "n": {
+                  "value_count": {
+                    "field": "year"
+                  }
+                }
+              }
+            },
+            "t": {
+              "terms": {
+                "field": "tag"
+              }
+            }
+          },
+          "query": {
+            "term": {
+              "tag": "food"
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 4,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 1,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-breadth-aggs",
+                "_id": "4",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "all": {
+              "doc_count": 8,
+              "n": {
+                "value": 8
+              }
+            },
+            "t": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": "food",
+                  "doc_count": 1
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "composite",
+      "request": {
+        "method": "POST",
+        "path": "/compat-breadth-aggs/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "c": {
+              "composite": {
+                "size": 3,
+                "sources": [
+                  {
+                    "tag": {
+                      "terms": {
+                        "field": "tag"
+                      }
+                    }
+                  },
+                  {
+                    "year": {
+                      "terms": {
+                        "field": "year",
+                        "order": "desc"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 8,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-breadth-aggs",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "c": {
+              "after_key": {
+                "tag": "animal",
+                "year": 2001
+              },
+              "buckets": [
+                {
+                  "key": {
+                    "tag": "animal",
+                    "year": 2010
+                  },
+                  "doc_count": 2
+                },
+                {
+                  "key": {
+                    "tag": "animal",
+                    "year": 2002
+                  },
+                  "doc_count": 1
+                },
+                {
+                  "key": {
+                    "tag": "animal",
+                    "year": 2001
+                  },
+                  "doc_count": 1
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "composite after key",
+      "request": {
+        "method": "POST",
+        "path": "/compat-breadth-aggs/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "c": {
+              "composite": {
+                "size": 3,
+                "after": {
+                  "tag": "animal",
+                  "year": 2001
+                },
+                "sources": [
+                  {
+                    "tag": {
+                      "terms": {
+                        "field": "tag"
+                      }
+                    }
+                  },
+                  {
+                    "year": {
+                      "terms": {
+                        "field": "year"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 8,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-breadth-aggs",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "c": {
+              "after_key": {
+                "tag": "food",
+                "year": 2002
+              },
+              "buckets": [
+                {
+                  "key": {
+                    "tag": "animal",
+                    "year": 2002
+                  },
+                  "doc_count": 1
+                },
+                {
+                  "key": {
+                    "tag": "animal",
+                    "year": 2010
+                  },
+                  "doc_count": 2
+                },
+                {
+                  "key": {
+                    "tag": "food",
+                    "year": 2002
+                  },
+                  "doc_count": 1
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cardinality",
+      "request": {
+        "method": "POST",
+        "path": "/compat-breadth-aggs/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "c": {
+              "cardinality": {
+                "field": "tag"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 8,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-breadth-aggs",
+                "_id": "1",
+                "_score": 1.0
+              }
+            ]
+          },
+          "aggregations": {
+            "c": {
+              "value": 4
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "terms of a text field is refused",
+      "request": {
+        "method": "POST",
+        "path": "/compat-breadth-aggs/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "t": {
+              "terms": {
+                "field": "title"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "the node id differs"
+        }
+      ],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "Text fields are not optimised for operations that require per-document field data like aggregations and sorting, so these operations are disabled by default. Please use a keyword field instead. Alternatively, set fielddata=true on [title] in order to load field data by uninverting the inverted index. Note that this can use significant memory."
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-breadth-aggs",
+                "node": "McJLMgabT4Cj4T_7oUnTcw",
+                "reason": {
+                  "type": "illegal_argument_exception",
+                  "reason": "Text fields are not optimised for operations that require per-document field data like aggregations and sorting, so these operations are disabled by default. Please use a keyword field instead. Alternatively, set fielddata=true on [title] in order to load field data by uninverting the inverted index. Note that this can use significant memory."
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "Text fields are not optimised for operations that require per-document field data like aggregations and sorting, so these operations are disabled by default. Please use a keyword field instead. Alternatively, set fielddata=true on [title] in order to load field data by uninverting the inverted index. Note that this can use significant memory.",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Text fields are not optimised for operations that require per-document field data like aggregations and sorting, so these operations are disabled by default. Please use a keyword field instead. Alternatively, set fielddata=true on [title] in order to load field data by uninverting the inverted index. Note that this can use significant memory."
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "unknown aggregation is refused",
+      "request": {
+        "method": "POST",
+        "path": "/compat-breadth-aggs/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "x": {
+              "nope": {
+                "field": "tag"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/col",
+          "reason": "the replay sends keys sorted, so the column differs"
+        },
+        {
+          "pointer": "/body/error/root_cause/0/col",
+          "reason": "the replay sends keys sorted, so the column differs"
+        },
+        {
+          "pointer": "/body/error/caused_by/reason",
+          "reason": "the message embeds the column"
+        }
+      ],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "parsing_exception",
+                "reason": "Unknown aggregation type [nope]",
+                "line": 1,
+                "col": 47
+              }
+            ],
+            "type": "parsing_exception",
+            "reason": "Unknown aggregation type [nope]",
+            "line": 1,
+            "col": 47,
+            "caused_by": {
+              "type": "named_object_not_found_exception",
+              "reason": "[1:47] unknown field [nope]"
+            }
+          },
+          "status": 400
+        }
+      }
+    },
+    {
+      "name": "histogram without interval is refused",
+      "request": {
+        "method": "POST",
+        "path": "/compat-breadth-aggs/_search",
+        "body": {
+          "size": 1,
+          "_source": false,
+          "aggs": {
+            "h": {
+              "histogram": {
+                "field": "year"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/error/failed_shards/*/node",
+          "reason": "the node id differs"
+        }
+      ],
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "interval must be positive, got: 0.0"
+              }
+            ],
+            "type": "search_phase_execution_exception",
+            "reason": "all shards failed",
+            "phase": "query",
+            "grouped": true,
+            "failed_shards": [
+              {
+                "shard": 0,
+                "index": "compat-breadth-aggs",
+                "node": "McJLMgabT4Cj4T_7oUnTcw",
+                "reason": {
+                  "type": "illegal_argument_exception",
+                  "reason": "interval must be positive, got: 0.0"
+                }
+              }
+            ],
+            "caused_by": {
+              "type": "illegal_argument_exception",
+              "reason": "interval must be positive, got: 0.0",
+              "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "interval must be positive, got: 0.0"
+              }
+            }
+          },
+          "status": 400
+        }
+      }
+    }
+  ]
+}

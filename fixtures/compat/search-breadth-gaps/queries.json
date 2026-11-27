@@ -1,0 +1,876 @@
+{
+  "name": "queries not served yet",
+  "description": "Recorded stock answers for queries and options this node refuses today; not replayed.",
+  "recorded_from": {
+    "distribution": "opensearch",
+    "version": "3.10.0",
+    "build_hash": "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea"
+  },
+  "cleanup": [
+    {
+      "method": "DELETE",
+      "path": "/compat-gaps-queries",
+      "query": {
+        "ignore_unavailable": "true"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "create",
+      "request": {
+        "method": "PUT",
+        "path": "/compat-gaps-queries",
+        "body": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0
+          },
+          "mappings": {
+            "properties": {
+              "title": {
+                "type": "text"
+              },
+              "tag": {
+                "type": "keyword"
+              },
+              "year": {
+                "type": "integer"
+              },
+              "price": {
+                "type": "double"
+              },
+              "published": {
+                "type": "date"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "compat-gaps-queries"
+        }
+      }
+    },
+    {
+      "name": "bulk index",
+      "request": {
+        "method": "POST",
+        "path": "/_bulk",
+        "query": {
+          "refresh": "true"
+        },
+        "ndjson": [
+          {
+            "index": {
+              "_index": "compat-gaps-queries",
+              "_id": "1"
+            }
+          },
+          {
+            "title": "The quick brown fox",
+            "tag": "animal",
+            "year": 2001,
+            "price": 10.5,
+            "published": "2001-03-04"
+          },
+          {
+            "index": {
+              "_index": "compat-gaps-queries",
+              "_id": "2"
+            }
+          },
+          {
+            "title": "Lazy dogs sleep all day",
+            "tag": "animal",
+            "year": 2002,
+            "price": 20.0,
+            "published": "2002-07-01T10:15:30Z"
+          },
+          {
+            "index": {
+              "_index": "compat-gaps-queries",
+              "_id": "3"
+            }
+          },
+          {
+            "title": "Quick start guide",
+            "tag": "manual",
+            "year": 2010,
+            "price": 5.25,
+            "published": "2010-01-01"
+          },
+          {
+            "index": {
+              "_index": "compat-gaps-queries",
+              "_id": "4"
+            }
+          },
+          {
+            "title": "Brown sugar and brown bread",
+            "tag": "food",
+            "year": 2002,
+            "price": 3.0,
+            "published": "2002-12-31T23:59:59.999Z"
+          },
+          {
+            "index": {
+              "_index": "compat-gaps-queries",
+              "_id": "5"
+            }
+          },
+          {
+            "title": "A fox in the snow",
+            "tag": "animal",
+            "year": 1999,
+            "price": 15.75,
+            "published": "1999-12-31"
+          },
+          {
+            "index": {
+              "_index": "compat-gaps-queries",
+              "_id": "6"
+            }
+          },
+          {
+            "title": "Quick brown foxes jump",
+            "tag": "animal",
+            "year": 2010,
+            "price": 8.0,
+            "published": "2010-06-15"
+          },
+          {
+            "index": {
+              "_index": "compat-gaps-queries",
+              "_id": "7"
+            }
+          },
+          {
+            "title": "Bread and butter",
+            "year": 2005,
+            "price": 2.5,
+            "published": "2005-05-05"
+          },
+          {
+            "index": {
+              "_index": "compat-gaps-queries",
+              "_id": "8"
+            }
+          },
+          {
+            "title": "Snow dogs",
+            "tag": [
+              "animal",
+              "sport"
+            ],
+            "year": 2010,
+            "price": 30.0,
+            "published": "2010-11-30"
+          }
+        ]
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        },
+        {
+          "pointer": "/body/items/*/index/_seq_no",
+          "reason": "sequence numbers depend on the shard's history"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 23,
+          "errors": false,
+          "items": [
+            {
+              "index": {
+                "_index": "compat-gaps-queries",
+                "_id": "1",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 0,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-gaps-queries",
+                "_id": "2",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 1,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-gaps-queries",
+                "_id": "3",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 2,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-gaps-queries",
+                "_id": "4",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 3,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-gaps-queries",
+                "_id": "5",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 4,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-gaps-queries",
+                "_id": "6",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 5,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-gaps-queries",
+                "_id": "7",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 6,
+                "_primary_term": 1,
+                "status": 201
+              }
+            },
+            {
+              "index": {
+                "_index": "compat-gaps-queries",
+                "_id": "8",
+                "_version": 1,
+                "result": "created",
+                "forced_refresh": true,
+                "_shards": {
+                  "total": 1,
+                  "successful": 1,
+                  "failed": 0
+                },
+                "_seq_no": 7,
+                "_primary_term": 1,
+                "status": 201
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "prefix case insensitive",
+      "request": {
+        "method": "POST",
+        "path": "/compat-gaps-queries/_search",
+        "body": {
+          "query": {
+            "prefix": {
+              "tag": {
+                "value": "AN",
+                "case_insensitive": true
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 4,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 5,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "compat-gaps-queries",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "price": 10.5,
+                  "published": "2001-03-04"
+                }
+              },
+              {
+                "_index": "compat-gaps-queries",
+                "_id": "2",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Lazy dogs sleep all day",
+                  "tag": "animal",
+                  "year": 2002,
+                  "price": 20.0,
+                  "published": "2002-07-01T10:15:30Z"
+                }
+              },
+              {
+                "_index": "compat-gaps-queries",
+                "_id": "5",
+                "_score": 1.0,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "price": 15.75,
+                  "published": "1999-12-31"
+                }
+              },
+              {
+                "_index": "compat-gaps-queries",
+                "_id": "6",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Quick brown foxes jump",
+                  "tag": "animal",
+                  "year": 2010,
+                  "price": 8.0,
+                  "published": "2010-06-15"
+                }
+              },
+              {
+                "_index": "compat-gaps-queries",
+                "_id": "8",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Snow dogs",
+                  "tag": [
+                    "animal",
+                    "sport"
+                  ],
+                  "year": 2010,
+                  "price": 30.0,
+                  "published": "2010-11-30"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "match_phrase_prefix",
+      "request": {
+        "method": "POST",
+        "path": "/compat-gaps-queries/_search",
+        "body": {
+          "query": {
+            "match_phrase_prefix": {
+              "title": "quick bro"
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 0.8474184,
+            "hits": [
+              {
+                "_index": "compat-gaps-queries",
+                "_id": "1",
+                "_score": 0.8474184,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "price": 10.5,
+                  "published": "2001-03-04"
+                }
+              },
+              {
+                "_index": "compat-gaps-queries",
+                "_id": "6",
+                "_score": 0.8474184,
+                "_source": {
+                  "title": "Quick brown foxes jump",
+                  "tag": "animal",
+                  "year": 2010,
+                  "price": 8.0,
+                  "published": "2010-06-15"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "match_bool_prefix",
+      "request": {
+        "method": "POST",
+        "path": "/compat-gaps-queries/_search",
+        "body": {
+          "query": {
+            "match_bool_prefix": {
+              "title": "quick bro"
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 4,
+              "relation": "eq"
+            },
+            "max_score": 1.4237092,
+            "hits": [
+              {
+                "_index": "compat-gaps-queries",
+                "_id": "1",
+                "_score": 1.4237092,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "price": 10.5,
+                  "published": "2001-03-04"
+                }
+              },
+              {
+                "_index": "compat-gaps-queries",
+                "_id": "6",
+                "_score": 1.4237092,
+                "_source": {
+                  "title": "Quick brown foxes jump",
+                  "tag": "animal",
+                  "year": 2010,
+                  "price": 8.0,
+                  "published": "2010-06-15"
+                }
+              },
+              {
+                "_index": "compat-gaps-queries",
+                "_id": "4",
+                "_score": 1.0,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "price": 3.0,
+                  "published": "2002-12-31T23:59:59.999Z"
+                }
+              },
+              {
+                "_index": "compat-gaps-queries",
+                "_id": "3",
+                "_score": 0.4729937,
+                "_source": {
+                  "title": "Quick start guide",
+                  "tag": "manual",
+                  "year": 2010,
+                  "price": 5.25,
+                  "published": "2010-01-01"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "match fuzziness",
+      "request": {
+        "method": "POST",
+        "path": "/compat-gaps-queries/_search",
+        "body": {
+          "query": {
+            "match": {
+              "title": {
+                "query": "quikc fxo",
+                "fuzziness": "AUTO"
+              }
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 3,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 4,
+              "relation": "eq"
+            },
+            "max_score": 0.72207344,
+            "hits": [
+              {
+                "_index": "compat-gaps-queries",
+                "_id": "1",
+                "_score": 0.72207344,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "price": 10.5,
+                  "published": "2001-03-04"
+                }
+              },
+              {
+                "_index": "compat-gaps-queries",
+                "_id": "3",
+                "_score": 0.37839496,
+                "_source": {
+                  "title": "Quick start guide",
+                  "tag": "manual",
+                  "year": 2010,
+                  "price": 5.25,
+                  "published": "2010-01-01"
+                }
+              },
+              {
+                "_index": "compat-gaps-queries",
+                "_id": "5",
+                "_score": 0.34695452,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "price": 15.75,
+                  "published": "1999-12-31"
+                }
+              },
+              {
+                "_index": "compat-gaps-queries",
+                "_id": "6",
+                "_score": 0.33896738,
+                "_source": {
+                  "title": "Quick brown foxes jump",
+                  "tag": "animal",
+                  "year": 2010,
+                  "price": 8.0,
+                  "published": "2010-06-15"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "multi_match cross_fields",
+      "request": {
+        "method": "POST",
+        "path": "/compat-gaps-queries/_search",
+        "body": {
+          "query": {
+            "multi_match": {
+              "query": "snow animal",
+              "fields": [
+                "title",
+                "tag"
+              ],
+              "type": "cross_fields"
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 0.7259405,
+            "hits": [
+              {
+                "_index": "compat-gaps-queries",
+                "_id": "8",
+                "_score": 0.7259405,
+                "_source": {
+                  "title": "Snow dogs",
+                  "tag": [
+                    "animal",
+                    "sport"
+                  ],
+                  "year": 2010,
+                  "price": 30.0,
+                  "published": "2010-11-30"
+                }
+              },
+              {
+                "_index": "compat-gaps-queries",
+                "_id": "5",
+                "_score": 0.5204318,
+                "_source": {
+                  "title": "A fox in the snow",
+                  "tag": "animal",
+                  "year": 1999,
+                  "price": 15.75,
+                  "published": "1999-12-31"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "boosting",
+      "request": {
+        "method": "POST",
+        "path": "/compat-gaps-queries/_search",
+        "body": {
+          "query": {
+            "boosting": {
+              "positive": {
+                "match": {
+                  "title": "brown"
+                }
+              },
+              "negative": {
+                "term": {
+                  "tag": "food"
+                }
+              },
+              "negative_boost": 0.2
+            }
+          }
+        }
+      },
+      "normalise": [
+        {
+          "pointer": "/body/took",
+          "reason": "elapsed time"
+        }
+      ],
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=UTF-8"
+        },
+        "body": {
+          "took": 2,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 3,
+              "relation": "eq"
+            },
+            "max_score": 0.4237092,
+            "hits": [
+              {
+                "_index": "compat-gaps-queries",
+                "_id": "1",
+                "_score": 0.4237092,
+                "_source": {
+                  "title": "The quick brown fox",
+                  "tag": "animal",
+                  "year": 2001,
+                  "price": 10.5,
+                  "published": "2001-03-04"
+                }
+              },
+              {
+                "_index": "compat-gaps-queries",
+                "_id": "6",
+                "_score": 0.4237092,
+                "_source": {
+                  "title": "Quick brown foxes jump",
+                  "tag": "animal",
+                  "year": 2010,
+                  "price": 8.0,
+                  "published": "2010-06-15"
+                }
+              },
+              {
+                "_index": "compat-gaps-queries",
+                "_id": "4",
+                "_score": 0.109145604,
+                "_source": {
+                  "title": "Brown sugar and brown bread",
+                  "tag": "food",
+                  "year": 2002,
+                  "price": 3.0,
+                  "published": "2002-12-31T23:59:59.999Z"
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
