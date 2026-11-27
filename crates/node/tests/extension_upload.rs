@@ -206,6 +206,8 @@ fn a_module_that_is_refused_is_not_stored() {
 #[test]
 fn a_second_upload_while_one_is_in_flight_answers_429() {
     let r = rig();
+    // The server's own body buffers are charged for as long as it runs.
+    let resting = r.budget.in_use(Pool::RequestBodies);
     // The first upload sends its head and half its body, then waits.
     let mut slow = std::net::TcpStream::connect(r.server.local_addr()).expect("connects");
     slow.set_read_timeout(Some(Duration::from_secs(30)))
@@ -217,20 +219,23 @@ fn a_second_upload_while_one_is_in_flight_answers_429() {
     );
     slow.write_all(head.as_bytes()).expect("head");
     slow.write_all(&wasm[..8]).expect("part");
-    // The first upload takes the place when its handler starts; ask until refused.
-    // A body that cannot be stored shows whether the place is taken: 400 free, 429 taken.
-    // A loaded machine may start that handler late: wait for it, not for a count of tries.
-    let mut second = put(&r, b"probe");
+    // The first upload takes the place when its handler starts, and reserves its
+    // body from the request pool right after: that reservation shows the place is
+    // held. Ask only then. A probe sent earlier would take the place itself for a
+    // moment, and the first upload, arriving in that moment, would be the one
+    // refused and closed. A loaded machine may start the handler late: wait for it,
+    // not for a count of tries.
+    let mut held = false;
     for _ in 0..600 {
-        if second.status == 429 {
+        if r.budget.in_use(Pool::RequestBodies) > resting {
+            held = true;
             break;
         }
-        assert_eq!(second.status, 400, "{}", second.text());
         std::thread::sleep(Duration::from_millis(50));
-        second = put(&r, b"probe");
     }
-    if second.status != 429 {
-        // The first upload never held the place for the whole wait: say what became of it.
+    let second = put(&r, b"probe");
+    if !held || second.status != 429 {
+        // The first upload never held the place: say what became of it.
         slow.set_read_timeout(Some(Duration::from_millis(200)))
             .expect("timeout");
         let mut seen = [0_u8; 512];
@@ -246,7 +251,7 @@ fn a_second_upload_while_one_is_in_flight_answers_429() {
             Err(e) => format!("failed: {e}"),
         };
         panic!(
-            "the second upload was never refused ({}): the first upload's connection was {slow_end}",
+            "the second upload was not refused ({}, first upload reserved: {held}): the first upload's connection was {slow_end}",
             second.status
         );
     }
